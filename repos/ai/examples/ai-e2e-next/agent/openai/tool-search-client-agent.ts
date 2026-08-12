@@ -61,7 +61,7 @@ const sendEmailTool = tool({
 });
 
 export const openaiToolSearchClientAgent = new ToolLoopAgent({
-  model: openai.responses('gpt-5.4'),
+  model: openai.responses('gpt-5.6'),
   instructions:
     'You are a helpful assistant with access to weather, file search, and email tools.',
   tools: {

@@ -11,7 +11,10 @@ import { config } from 'dotenv';
 
 type TUIHarnessAgent = HarnessAgent<any, any, any>;
 
-export type RunTUIOptions = Omit<RunAgentTUIOptions, 'agent'> & {
+export type RunTUIOptions = Omit<
+  Extract<RunAgentTUIOptions, { agent: AgentTUIAgent }>,
+  'agent'
+> & {
   agent: TUIHarnessAgent;
   entrypointUrl: string;
 };

@@ -34,6 +34,13 @@ export type VideoModelV4File =
       url: string;
 
       /**
+       * The media type of the referenced file, when known.
+       * Video types: 'video/mp4', 'video/webm', 'video/quicktime'
+       * Image types: 'image/png', 'image/jpeg', 'image/webp'
+       */
+      mediaType?: string;
+
+      /**
        * Optional provider-specific metadata for the file part.
        */
       providerOptions?: SharedV4ProviderMetadata;

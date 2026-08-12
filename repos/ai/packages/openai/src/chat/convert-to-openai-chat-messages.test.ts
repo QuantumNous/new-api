@@ -23,6 +23,33 @@ describe('system messages', () => {
     ]);
   });
 
+  it('should add a prompt cache breakpoint to a system message', () => {
+    const result = convertToOpenAIChatMessages({
+      prompt: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant.',
+          providerOptions: {
+            openai: { promptCacheBreakpoint: { mode: 'explicit' } },
+          },
+        },
+      ],
+    });
+
+    expect(result.messages).toEqual([
+      {
+        role: 'system',
+        content: [
+          {
+            type: 'text',
+            text: 'You are a helpful assistant.',
+            prompt_cache_breakpoint: { mode: 'explicit' },
+          },
+        ],
+      },
+    ]);
+  });
+
   it('should remove system messages when requested', async () => {
     const result = convertToOpenAIChatMessages({
       prompt: [{ role: 'system', content: 'You are a helpful assistant.' }],
@@ -45,6 +72,76 @@ describe('user messages', () => {
     });
 
     expect(result.messages).toEqual([{ role: 'user', content: 'Hello' }]);
+  });
+
+  it('should add prompt cache breakpoints to supported content blocks', () => {
+    const promptCacheBreakpoint = { mode: 'explicit' } as const;
+    const result = convertToOpenAIChatMessages({
+      prompt: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Hello',
+              providerOptions: { openai: { promptCacheBreakpoint } },
+            },
+            {
+              type: 'file',
+              mediaType: 'image/png',
+              data: {
+                type: 'url',
+                url: new URL('https://example.com/image.png'),
+              },
+              providerOptions: { openai: { promptCacheBreakpoint } },
+            },
+            {
+              type: 'file',
+              mediaType: 'audio/wav',
+              data: { type: 'data', data: 'AAECAw==' },
+              providerOptions: { openai: { promptCacheBreakpoint } },
+            },
+            {
+              type: 'file',
+              mediaType: 'application/pdf',
+              data: {
+                type: 'reference',
+                reference: { openai: 'file-pdf-123' },
+              },
+              providerOptions: { openai: { promptCacheBreakpoint } },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Hello',
+            prompt_cache_breakpoint: promptCacheBreakpoint,
+          },
+          {
+            type: 'image_url',
+            image_url: { url: 'https://example.com/image.png' },
+            prompt_cache_breakpoint: promptCacheBreakpoint,
+          },
+          {
+            type: 'input_audio',
+            input_audio: { data: 'AAECAw==', format: 'wav' },
+            prompt_cache_breakpoint: promptCacheBreakpoint,
+          },
+          {
+            type: 'file',
+            file: { file_id: 'file-pdf-123' },
+            prompt_cache_breakpoint: promptCacheBreakpoint,
+          },
+        ],
+      },
+    ]);
   });
 
   it('should convert messages with image parts', async () => {
@@ -74,7 +171,39 @@ describe('user messages', () => {
           { type: 'text', text: 'Hello' },
           {
             type: 'image_url',
-            image_url: { url: 'AAECAw==' },
+            image_url: { url: 'data:image/png;base64,AAECAw==' },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('should convert messages with Uint8Array image parts to data URLs', async () => {
+    const result = convertToOpenAIChatMessages({
+      prompt: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'file',
+              mediaType: 'image/jpeg',
+              data: {
+                type: 'data' as const,
+                data: new Uint8Array([0xff, 0xd8, 0xff, 0xe0]),
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/jpeg;base64,/9j/4A==' },
           },
         ],
       },
@@ -112,7 +241,7 @@ describe('user messages', () => {
           {
             type: 'image_url',
             image_url: {
-              url: 'AAECAw==',
+              url: 'data:image/png;base64,AAECAw==',
               detail: 'low',
             },
           },
@@ -515,7 +644,7 @@ describe('user messages', () => {
         expect((result.messages[0]!.content as unknown[])[0]).toEqual({
           type: 'image_url',
           image_url: {
-            url: pngBase64,
+            url: `data:image/png;base64,${pngBase64}`,
             detail: undefined,
           },
         });
@@ -539,7 +668,7 @@ describe('user messages', () => {
         expect((result.messages[0]!.content as unknown[])[0]).toEqual({
           type: 'image_url',
           image_url: {
-            url: pngBase64,
+            url: `data:image/png;base64,${pngBase64}`,
             detail: undefined,
           },
         });
@@ -612,7 +741,7 @@ describe('user messages', () => {
         expect((result.messages[0]!.content as unknown[])[0]).toEqual({
           type: 'image_url',
           image_url: {
-            url: pngBase64,
+            url: `data:image/png;base64,${pngBase64}`,
             detail: undefined,
           },
         });
@@ -622,6 +751,77 @@ describe('user messages', () => {
 });
 
 describe('tool calls', () => {
+  it('should add a prompt cache breakpoint to assistant text content', () => {
+    const result = convertToOpenAIChatMessages({
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: 'Cached assistant content',
+              providerOptions: {
+                openai: { promptCacheBreakpoint: { mode: 'explicit' } },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.messages).toEqual([
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'Cached assistant content',
+            prompt_cache_breakpoint: { mode: 'explicit' },
+          },
+        ],
+        tool_calls: undefined,
+      },
+    ]);
+  });
+
+  it('should add a prompt cache breakpoint to tool text content', () => {
+    const result = convertToOpenAIChatMessages({
+      prompt: [
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'cached-tool',
+              toolName: 'cached-tool',
+              output: {
+                type: 'text',
+                value: 'Cached tool content',
+                providerOptions: {
+                  openai: { promptCacheBreakpoint: { mode: 'explicit' } },
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.messages).toEqual([
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'text',
+            text: 'Cached tool content',
+            prompt_cache_breakpoint: { mode: 'explicit' },
+          },
+        ],
+        tool_call_id: 'cached-tool',
+      },
+    ]);
+  });
+
   it('should stringify arguments to tool calls', () => {
     const result = convertToOpenAIChatMessages({
       prompt: [

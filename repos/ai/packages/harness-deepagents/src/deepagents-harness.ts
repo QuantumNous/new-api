@@ -21,6 +21,10 @@ import {
 } from '@ai-sdk/harness';
 import {
   markBridgeStarting,
+  createBridgeErrorHandler,
+  createBridgeStartupError,
+  drainBridgeProcessStream,
+  forwardBridgeProcessStream,
   resolveSandboxHomeDir,
   SandboxChannel,
   shellQuote,
@@ -39,11 +43,16 @@ import {
   type InboundMessage,
   type OutboundMessage,
 } from './deepagents-bridge-protocol';
+import { VERSION } from './version';
 
 type DeepAgentsChannel = SandboxChannel<OutboundMessage, InboundMessage>;
 
 // Pure derived state in /tmp; reinstalled per sandbox, persistence is the provider snapshot.
 const BOOTSTRAP_DIR = '/tmp/harness/deepagents';
+/**
+ * Value to use in User-Agent and `x-client-app` headers.
+ */
+const DEEPAGENTS_CLIENT_APP = `ai-sdk/harness-deepagents/${VERSION}`;
 
 // Pinned ripgrep release + per-arch tarball checksums (verified before install).
 const RIPGREP_VERSION = '14.1.1';
@@ -224,6 +233,10 @@ export function createDeepAgents(
               }),
             )
         : undefined;
+      const onBridgeError = createBridgeErrorHandler({
+        harnessId: 'deepagents',
+        sessionId: startOpts.sessionId,
+      });
 
       // Attach to the still-running bridge (continueFrom replays past the cursor); on failure fall through to a fresh spawn.
       if (coords) {
@@ -238,6 +251,7 @@ export function createDeepAgents(
             outboundSchema: outboundMessageSchema,
             initialLastSeenEventId: coords.lastSeenEventId,
             onDiagnostic,
+            onBridgeError,
           });
           await attachChannel.open(isContinue ? { resume: true } : undefined);
           return createSession({
@@ -283,6 +297,7 @@ export function createDeepAgents(
 
       const env = {
         ...resolveDeepAgentsEnv({ auth: settings.auth }),
+        AI_SDK_HARNESS_CLIENT_APP: DEEPAGENTS_CLIENT_APP,
         BRIDGE_CHANNEL_TOKEN: token,
         BRIDGE_WS_PORT: String(port),
       };
@@ -304,6 +319,13 @@ export function createDeepAgents(
         env,
         abortSignal: startOpts.abortSignal,
       });
+      const stderrTail: string[] = [];
+      const bridgeStderrDone = forwardBridgeProcessStream({
+        stream: proc.stderr,
+        streamName: 'stderr',
+        source: 'deepagents',
+        collectTail: stderrTail,
+      });
 
       const { port: boundPort } = await waitForBridgeReady({
         proc,
@@ -312,12 +334,24 @@ export function createDeepAgents(
         bridgeType: 'deepagents',
         timeoutMs,
         abortSignal: startOpts.abortSignal,
-        createTimeoutError: () =>
-          new Error('deepagents bridge did not become ready in time.'),
-        createExitError: () =>
-          new Error('deepagents bridge exited before becoming ready.'),
+        createTimeoutError: ({ proc, stdoutTail }) =>
+          createBridgeStartupError({
+            message: 'deepagents bridge did not become ready in time.',
+            proc,
+            stdoutTail,
+            stderrTail,
+            stderrDone: bridgeStderrDone,
+          }),
+        createExitError: ({ proc, stdoutTail }) =>
+          createBridgeStartupError({
+            message: 'deepagents bridge exited before becoming ready.',
+            proc,
+            stdoutTail,
+            stderrTail,
+            stderrDone: bridgeStderrDone,
+          }),
       });
-      void forwardBridgeStderr(proc.stderr);
+      void drainBridgeProcessStream(proc.stdout);
 
       const wsUrl =
         (await sandboxSession.getPortUrl({
@@ -329,6 +363,7 @@ export function createDeepAgents(
         connect: () => openWebSocket(wsUrl),
         outboundSchema: outboundMessageSchema,
         onDiagnostic,
+        onBridgeError,
       });
       await channel.open();
 
@@ -428,27 +463,6 @@ function openWebSocket(url: string): Promise<WebSocket> {
     ws.once('open', onOpen);
     ws.once('error', onError);
   });
-}
-
-async function forwardBridgeStderr(
-  stream: ReadableStream<Uint8Array>,
-): Promise<void> {
-  try {
-    const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) return;
-      if (value) {
-        const trimmed = value.endsWith('\n') ? value.slice(0, -1) : value;
-        if (trimmed.length > 0) {
-          // eslint-disable-next-line no-console
-          console.log(`[bridge stderr] ${trimmed}`);
-        }
-      }
-    }
-  } catch {
-    // Reader errors are non-fatal — best-effort diagnostic only.
-  }
 }
 
 function createSession({
@@ -659,6 +673,7 @@ function createSession({
       }
       stopped = true;
       // Freeze the active turn at the cursor, leaving the bridge running so the next slice replays the tail.
+      await channel.interrupt();
       const lastSeenEventId = await channel.suspend();
       const payload: HarnessV1ContinueTurnState = {
         type: 'continue-turn',

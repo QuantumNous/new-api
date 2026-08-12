@@ -1,4 +1,7 @@
-import type { LanguageModelV4Prompt } from '@ai-sdk/provider';
+import {
+  InvalidArgumentError,
+  type LanguageModelV4Prompt,
+} from '@ai-sdk/provider';
 import {
   convertReadableStreamToArray,
   mockId,
@@ -117,6 +120,63 @@ describe('doGenerate', () => {
         "search_recency_filter": "month",
       }
     `);
+  });
+
+  it('should pass through unknown perplexity provider options', async () => {
+    server.urls[CHAT_COMPLETIONS_URL].response = {
+      type: 'json-value',
+      body: {
+        id: 'test-id',
+        created: 1680000000,
+        model: modelId,
+        choices: [
+          {
+            message: { role: 'assistant', content: '' },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+      },
+    };
+
+    await perplexityModel.doGenerate({
+      prompt: TEST_PROMPT,
+      providerOptions: {
+        perplexity: {
+          future_option: {
+            enabled: true,
+          },
+        },
+      },
+    });
+
+    expect(await server.calls[0].requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "future_option": {
+          "enabled": true,
+        },
+        "messages": [
+          {
+            "content": "Hello",
+            "role": "user",
+          },
+        ],
+        "model": "sonar",
+      }
+    `);
+  });
+
+  it('should reject invalid perplexity provider options', async () => {
+    await expect(
+      perplexityModel.doGenerate({
+        prompt: TEST_PROMPT,
+        providerOptions: {
+          perplexity: {
+            search_recency_filter: 'decade',
+          },
+        },
+      }),
+    ).rejects.toThrow(InvalidArgumentError);
   });
 
   it('should pass headers', async () => {

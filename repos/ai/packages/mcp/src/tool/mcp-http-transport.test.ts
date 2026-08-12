@@ -623,6 +623,54 @@ describe('HttpMCPTransport', () => {
     expect((error as Error).message).toContain('Failed to parse message');
   });
 
+  it('should handle rejected inbound SSE cancel after stream errors', async () => {
+    const streamError = new TypeError('terminated');
+    let streamController:
+      | ReadableStreamDefaultController<Uint8Array>
+      | undefined;
+
+    const fetch = vi.fn(async () => {
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            streamController = controller;
+          },
+        }),
+        {
+          headers: { 'content-type': 'text/event-stream' },
+        },
+      );
+    });
+
+    transport = new HttpMCPTransport({
+      url: 'http://localhost:4000/mcp',
+      fetch,
+    });
+
+    const errors: unknown[] = [];
+    transport.onerror = error => {
+      errors.push(error);
+    };
+
+    await transport.start();
+
+    await vi.waitFor(() => {
+      expect(streamController).toBeDefined();
+    });
+
+    streamController!.error(streamError);
+
+    await vi.waitFor(() => {
+      expect(errors).toContain(streamError);
+    });
+
+    await transport.close();
+
+    await vi.waitFor(() => {
+      expect(errors.filter(error => error === streamError)).toHaveLength(2);
+    });
+  });
+
   it('should handle non-JSON-RPC response for notifications', async () => {
     server.urls['http://localhost:4000/mcp'].response = ({ callNumber }) => {
       switch (callNumber) {

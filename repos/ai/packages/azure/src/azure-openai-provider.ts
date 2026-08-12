@@ -262,6 +262,8 @@ export function createAzure(
       headers: getHeaders,
       fetch,
       supportsThinking: false,
+      // json_object with thinking enabled makes Azure return the JSON in reasoning_content with empty content
+      supportsStructuredOutputs: true,
     });
 
   const createCompletionModel = (modelId: string) =>

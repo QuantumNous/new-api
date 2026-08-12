@@ -13,21 +13,7 @@ API keys can be obtained from the [Cerebras Platform](https://cloud.cerebras.ai)
 
 The Cerebras provider is available via the `@ai-sdk/cerebras` module. You can install it with:
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/cerebras" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/cerebras" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/cerebras" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add @ai-sdk/cerebras" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/cerebras" />
 
 ## Provider Instance
 
@@ -146,16 +132,16 @@ The following optional provider options are available for Cerebras language mode
 
 ## Model Capabilities
 
-| Model                            | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      | Reasoning           |
-| -------------------------------- | ------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `llama3.1-8b`                    | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> |
-| `llama-3.3-70b`                  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> |
-| `gpt-oss-120b`                   | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen-3-32b`                     | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen-3-235b-a22b-instruct-2507` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> |
-| `qwen-3-235b-a22b-thinking-2507` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> |
-| `zai-glm-4.6`                    | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> |
-| `zai-glm-4.7`                    | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                            | Image Input | Object Generation | Tool Usage | Tool Streaming | Reasoning |
+| -------------------------------- | ----------- | ----------------- | ---------- | -------------- | --------- |
+| `llama3.1-8b`                    | <Cross />   | <Check />         | <Check />  | <Check />      | <Cross /> |
+| `llama-3.3-70b`                  | <Cross />   | <Check />         | <Check />  | <Check />      | <Cross /> |
+| `gpt-oss-120b`                   | <Cross />   | <Check />         | <Check />  | <Check />      | <Check /> |
+| `qwen-3-32b`                     | <Cross />   | <Check />         | <Check />  | <Check />      | <Check /> |
+| `qwen-3-235b-a22b-instruct-2507` | <Cross />   | <Check />         | <Check />  | <Check />      | <Cross /> |
+| `qwen-3-235b-a22b-thinking-2507` | <Cross />   | <Check />         | <Check />  | <Check />      | <Cross /> |
+| `zai-glm-4.6`                    | <Cross />   | <Check />         | <Check />  | <Check />      | <Cross /> |
+| `zai-glm-4.7`                    | <Cross />   | <Check />         | <Check />  | <Check />      | <Check /> |
 
 <Note>
   The models `qwen-3-32b` and `llama-3.3-70b` are scheduled for deprecation on

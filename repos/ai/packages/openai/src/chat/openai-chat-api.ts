@@ -92,6 +92,7 @@ export const openaiChatResponseSchema = lazySchema(() =>
           prompt_tokens_details: z
             .object({
               cached_tokens: z.number().nullish(),
+              cache_write_tokens: z.number().nullish(),
             })
             .nullish(),
           completion_tokens_details: z
@@ -180,6 +181,7 @@ export const openaiChatChunkSchema = lazySchema(() =>
             prompt_tokens_details: z
               .object({
                 cached_tokens: z.number().nullish(),
+                cache_write_tokens: z.number().nullish(),
               })
               .nullish(),
             completion_tokens_details: z

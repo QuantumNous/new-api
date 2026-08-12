@@ -3,8 +3,8 @@ import { defineConfig } from 'tsup';
 export default defineConfig([
   // RSC APIs - shared client
   {
-    // Entry is `.mts` as the entrypoints that import it will be ESM so it needs exact imports that includes the `.mjs` extension.
-    entry: ['src/rsc-shared.mts'],
+    // Kept as a separate external chunk so server and client bundles share a single module instance at runtime.
+    entry: ['src/rsc-shared.ts'],
     outDir: 'dist',
     format: ['esm'],
     external: ['react', 'zod'],
@@ -24,14 +24,7 @@ export default defineConfig([
   {
     entry: ['src/types/index.ts'],
     outDir: 'dist',
+    format: ['esm'],
     dts: true,
-    outExtension() {
-      return {
-        // It must be `.d.ts` instead of `.d.mts` to support node resolution.
-        // See https://github.com/vercel/ai/issues/1028.
-        dts: '.d.ts',
-        js: '.mjs',
-      };
-    },
   },
 ]);

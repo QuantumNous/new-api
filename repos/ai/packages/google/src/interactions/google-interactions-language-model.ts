@@ -78,7 +78,7 @@ export class GoogleInteractionsLanguageModel implements LanguageModelV4 {
 
   /**
    * Optional agent name. When provided, the request body sends `agent:` instead
-   * of `model:` and rejects `tools` / `generation_config` (warned, not thrown).
+   * of `model:` and rejects `generation_config` (warned, not thrown).
    */
   readonly agent: string | undefined;
 
@@ -158,13 +158,7 @@ export class GoogleInteractionsLanguageModel implements LanguageModelV4 {
     let toolsForBody: Array<GoogleInteractionsTool> | undefined;
     let toolChoiceForBody: GoogleInteractionsToolChoice | undefined;
 
-    if (hasTools && isAgent) {
-      warnings.push({
-        type: 'other',
-        message:
-          'google.interactions: tools are not supported when an agent is set; tools will be omitted from the request body.',
-      });
-    } else if (hasTools) {
+    if (hasTools) {
       const prepared = prepareGoogleInteractionsTools({
         tools: options.tools,
         toolChoice: options.toolChoice,

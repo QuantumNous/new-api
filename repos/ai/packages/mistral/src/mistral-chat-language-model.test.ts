@@ -175,6 +175,33 @@ describe('doGenerate', () => {
     );
   });
 
+  it('should forward presencePenalty and frequencyPenalty without unsupported warnings', async () => {
+    prepareJsonFixtureResponse('mistral-text');
+
+    const result = await model.doGenerate({
+      prompt: TEST_PROMPT,
+      presencePenalty: 0.1,
+      frequencyPenalty: 0.2,
+    });
+
+    expect(result.warnings).not.toContainEqual(
+      expect.objectContaining({
+        type: 'unsupported',
+        feature: 'presencePenalty',
+      }),
+    );
+    expect(result.warnings).not.toContainEqual(
+      expect.objectContaining({
+        type: 'unsupported',
+        feature: 'frequencyPenalty',
+      }),
+    );
+    expect(await server.calls[0].requestBodyJson).toMatchObject({
+      presence_penalty: 0.1,
+      frequency_penalty: 0.2,
+    });
+  });
+
   it('should pass headers', async () => {
     prepareJsonFixtureResponse('mistral-text');
 

@@ -4,7 +4,6 @@ import {
   type SharedV4ProviderMetadata,
 } from '@ai-sdk/provider';
 import { generateId as defaultGenerateId } from './generate-id';
-import { isParsableJson } from './parse-json';
 
 /**
  * Minimal interface for a streaming tool call delta from an OpenAI-compatible API.
@@ -188,11 +187,10 @@ export class StreamingToolCallTracker<
       });
     }
 
-    // Check if tool call is complete
-    // (some providers send the full tool call in one chunk)
-    if (isParsableJson(toolCall.function.arguments)) {
-      this.finishToolCall(toolCall);
-    }
+    // Tool calls must not finalize before the stream ends: a parsable
+    // argument buffer can still be the prefix of a longer argument string,
+    // so acting on it early would use truncated inputs (see #13137).
+    // Finalization happens in flush().
   }
 
   private processExistingToolCall(index: number, toolCallDelta: DELTA): void {
@@ -210,11 +208,6 @@ export class StreamingToolCallTracker<
         id: toolCall.id,
         delta: toolCallDelta.function.arguments,
       });
-    }
-
-    // Check if tool call is complete
-    if (isParsableJson(toolCall.function.arguments)) {
-      this.finishToolCall(toolCall);
     }
   }
 

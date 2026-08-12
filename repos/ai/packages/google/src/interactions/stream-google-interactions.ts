@@ -98,6 +98,7 @@ export function streamGoogleInteractionEvents({
   async function openReader() {
     const { value: stream } = await getFromApi({
       url: buildUrl(),
+      validateUrl: false,
       headers: eventSourceHeaders,
       failedResponseHandler: googleFailedResponseHandler,
       successfulResponseHandler: createEventSourceResponseHandler(

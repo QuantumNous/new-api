@@ -2,55 +2,77 @@ import { describe, expect, test } from 'vitest';
 import { ToolRelayAuthorizer, ToolRelayPendingCalls } from './tool-relay-auth';
 
 describe('ToolRelayAuthorizer', () => {
-  test('rejects calls without prior authorization', () => {
-    const authorizer = new ToolRelayAuthorizer();
+  test('rejects calls without authorization', async () => {
+    const authorizer = new ToolRelayAuthorizer({ ttlMs: 10 });
 
-    expect(
-      authorizer.consumeToolCall({
+    await expect(
+      authorizer.waitForToolCallAuthorization({
         toolName: 'get_weather',
         input: { city: 'Paris' },
       }),
-    ).toBe(false);
+    ).resolves.toBe(false);
   });
 
-  test('consumes matching authorization exactly once', () => {
-    const authorizer = new ToolRelayAuthorizer();
+  test('consumes matching authorization exactly once', async () => {
+    const authorizer = new ToolRelayAuthorizer({ ttlMs: 10 });
     const call = { toolName: 'get_weather', input: { city: 'Paris' } };
 
     authorizer.authorizeToolCall(call);
 
-    expect(authorizer.consumeToolCall(call)).toBe(true);
-    expect(authorizer.consumeToolCall(call)).toBe(false);
+    await expect(authorizer.waitForToolCallAuthorization(call)).resolves.toBe(
+      true,
+    );
+    await expect(authorizer.waitForToolCallAuthorization(call)).resolves.toBe(
+      false,
+    );
   });
 
-  test('consumes active command authorization exactly once', () => {
-    const authorizer = new ToolRelayAuthorizer();
-    const call = { toolName: 'get_weather', input: { city: 'Austin' } };
+  test('authorizes a request that arrives before the runtime event', async () => {
+    const authorizer = new ToolRelayAuthorizer({ ttlMs: 100 });
+    const call = { toolName: 'get_weather', input: { city: 'Paris' } };
+    const authorization = authorizer.waitForToolCallAuthorization(call);
 
-    authorizer.authorizeAnyToolCall();
-
-    expect(authorizer.consumeToolCall(call)).toBe(true);
-    expect(authorizer.consumeToolCall(call)).toBe(false);
-  });
-
-  test('prefers exact authorization over active command authorization', () => {
-    const authorizer = new ToolRelayAuthorizer();
-    const call = { toolName: 'get_weather', input: { city: 'Austin' } };
-
-    authorizer.authorizeAnyToolCall();
     authorizer.authorizeToolCall(call);
 
-    expect(authorizer.consumeToolCall(call)).toBe(true);
-    expect(
-      authorizer.consumeToolCall({
-        toolName: 'get_weather',
-        input: { city: 'Paris' },
-      }),
-    ).toBe(true);
-    expect(authorizer.consumeToolCall(call)).toBe(false);
+    await expect(authorization).resolves.toBe(true);
   });
 
-  test('canonicalizes object input property order', () => {
+  test('authorizes identical pending requests in FIFO order', async () => {
+    const authorizer = new ToolRelayAuthorizer({ ttlMs: 100 });
+    const call = { toolName: 'get_weather', input: { city: 'Austin' } };
+    const first = authorizer.waitForToolCallAuthorization(call);
+    const second = authorizer.waitForToolCallAuthorization(call);
+
+    authorizer.authorizeToolCall(call);
+
+    await expect(first).resolves.toBe(true);
+    authorizer.close();
+    await expect(second).resolves.toBe(false);
+  });
+
+  test('does not use an authorization for a different call', async () => {
+    const authorizer = new ToolRelayAuthorizer({ ttlMs: 100 });
+    const parisCall = {
+      toolName: 'get_weather',
+      input: { city: 'Paris' },
+    };
+    const austinCall = {
+      toolName: 'get_weather',
+      input: { city: 'Austin' },
+    };
+    const parisAuthorization =
+      authorizer.waitForToolCallAuthorization(parisCall);
+
+    authorizer.authorizeToolCall(austinCall);
+
+    await expect(
+      authorizer.waitForToolCallAuthorization(austinCall),
+    ).resolves.toBe(true);
+    authorizer.close();
+    await expect(parisAuthorization).resolves.toBe(false);
+  });
+
+  test('canonicalizes object input property order', async () => {
     const authorizer = new ToolRelayAuthorizer();
 
     authorizer.authorizeToolCall({
@@ -58,27 +80,42 @@ describe('ToolRelayAuthorizer', () => {
       input: { b: 2, a: { d: 4, c: 3 } },
     });
 
-    expect(
-      authorizer.consumeToolCall({
+    await expect(
+      authorizer.waitForToolCallAuthorization({
         toolName: 'lookup',
         input: { a: { c: 3, d: 4 }, b: 2 },
       }),
-    ).toBe(true);
+    ).resolves.toBe(true);
   });
 
-  test('expires stale authorizations', () => {
+  test('expires stale authorizations', async () => {
     let now = 1_000;
     const authorizer = new ToolRelayAuthorizer({
-      ttlMs: 100,
+      ttlMs: 10,
       now: () => now,
     });
 
     authorizer.authorizeToolCall({ toolName: 'lookup', input: {} });
-    now = 1_101;
+    now = 1_011;
 
-    expect(authorizer.consumeToolCall({ toolName: 'lookup', input: {} })).toBe(
-      false,
-    );
+    await expect(
+      authorizer.waitForToolCallAuthorization({
+        toolName: 'lookup',
+        input: {},
+      }),
+    ).resolves.toBe(false);
+  });
+
+  test('rejects pending requests when closed', async () => {
+    const authorizer = new ToolRelayAuthorizer({ ttlMs: 100 });
+    const authorization = authorizer.waitForToolCallAuthorization({
+      toolName: 'lookup',
+      input: {},
+    });
+
+    authorizer.close();
+
+    await expect(authorization).resolves.toBe(false);
   });
 });
 

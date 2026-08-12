@@ -8,7 +8,7 @@ const skillZip = readFileSync(
 ).toString('base64');
 
 export const openaiShellContainerSkillsAgent = new ToolLoopAgent({
-  model: openai.responses('gpt-5.4'),
+  model: openai.responses('gpt-5.6'),
   instructions:
     'You have access to a shell tool running in a hosted container. ' +
     'Commands are executed server-side by OpenAI. ' +

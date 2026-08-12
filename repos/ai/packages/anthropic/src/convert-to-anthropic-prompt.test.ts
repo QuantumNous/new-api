@@ -1334,6 +1334,76 @@ describe('tool messages', () => {
 });
 
 describe('assistant messages', () => {
+  it('should preserve citations on assistant text', async () => {
+    const result = await convertToAnthropicPrompt({
+      prompt: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: 'The Federal Reserve held rates steady.',
+              providerOptions: {
+                anthropic: {
+                  citations: [
+                    {
+                      type: 'web_search_result_location',
+                      cited_text: 'The Committee decided to maintain the rate.',
+                      url: 'https://example.com/fed-decision',
+                      title: 'Federal Reserve decision',
+                      encrypted_index: 'encrypted-index',
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'What happened before that?' }],
+        },
+      ],
+      sendReasoning: true,
+      warnings: [],
+      toolNameMapping: defaultToolNameMapping,
+    });
+
+    expect(result.prompt.messages).toMatchInlineSnapshot(`
+      [
+        {
+          "content": [
+            {
+              "cache_control": undefined,
+              "citations": [
+                {
+                  "cited_text": "The Committee decided to maintain the rate.",
+                  "encrypted_index": "encrypted-index",
+                  "title": "Federal Reserve decision",
+                  "type": "web_search_result_location",
+                  "url": "https://example.com/fed-decision",
+                },
+              ],
+              "text": "The Federal Reserve held rates steady.",
+              "type": "text",
+            },
+          ],
+          "role": "assistant",
+        },
+        {
+          "content": [
+            {
+              "cache_control": undefined,
+              "text": "What happened before that?",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ]
+    `);
+  });
+
   it('should remove trailing whitespace from last assistant message when there is no further user message', async () => {
     const result = await convertToAnthropicPrompt({
       prompt: [
@@ -3579,6 +3649,48 @@ describe('cache control', () => {
                   id: 'test-id',
                   input: { some: 'arg' },
                   cache_control: { type: 'ephemeral' },
+                },
+              ],
+            },
+          ],
+        },
+        betas: new Set(),
+      });
+    });
+
+    it('should wrap non-object (invalid) tool call input in an object', async () => {
+      const result = await convertToAnthropicPrompt({
+        prompt: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool-call',
+                toolCallId: 'call-1',
+                toolName: 'cityAttractions',
+                // malformed JSON the model produced, kept as a raw string
+                input: '{ "city": "San Francisco", }',
+              },
+            ],
+          },
+        ],
+        sendReasoning: true,
+        warnings: [],
+        toolNameMapping: defaultToolNameMapping,
+      });
+
+      expect(result).toEqual({
+        prompt: {
+          messages: [
+            {
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool_use',
+                  name: 'cityAttractions',
+                  id: 'call-1',
+                  input: { rawInvalidInput: '{ "city": "San Francisco", }' },
+                  cache_control: undefined,
                 },
               ],
             },

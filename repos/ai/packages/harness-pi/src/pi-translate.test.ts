@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PiSessionEvent } from './pi-events';
 import {
   createPiTranslatorState,
+  finishPiApprovalStep,
   translatePiEvent,
   type PiTranslatorState,
 } from './pi-translate';
@@ -93,6 +94,111 @@ describe('translatePiEvent', () => {
     );
     expect(closing.find(p => p.type === 'text-delta')).toBeUndefined();
     expect(closing.find(p => p.type === 'text-end')).toBeDefined();
+  });
+
+  it('emits finish-step at turn_end when the assistant requested no tools', () => {
+    const state = createPiTranslatorState();
+    emit(
+      [
+        { type: 'turn_start' } as PiSessionEvent,
+        {
+          type: 'message_start',
+          message: { role: 'assistant', content: [] },
+        } as PiSessionEvent,
+        {
+          type: 'message_update',
+          assistantMessageEvent: { type: 'text_delta', delta: 'done' },
+        } as PiSessionEvent,
+      ],
+      state,
+    );
+
+    const closing = translatePiEvent(
+      {
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'done' }],
+        },
+      } as PiSessionEvent,
+      state,
+    );
+
+    expect(closing.map(p => p.type)).toEqual(['text-end']);
+
+    const turnEnd = translatePiEvent(
+      { type: 'turn_end' } as PiSessionEvent,
+      state,
+    );
+
+    expect(turnEnd.map(p => p.type)).toEqual(['finish-step']);
+  });
+
+  it('waits for requested tool executions before emitting finish-step', () => {
+    const state = createPiTranslatorState({ builtinToolNames: ['bash'] });
+    emit(
+      [
+        { type: 'turn_start' } as PiSessionEvent,
+        {
+          type: 'message_start',
+          message: { role: 'assistant', content: [] },
+        } as PiSessionEvent,
+        {
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'toolCall', id: 'c-step', name: 'bash' }],
+          },
+        } as PiSessionEvent,
+      ],
+      state,
+    );
+
+    const start = translatePiEvent(
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'c-step',
+        toolName: 'bash',
+        args: { command: 'pwd' },
+      } as PiSessionEvent,
+      state,
+    );
+    const end = translatePiEvent(
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'c-step',
+        result: 'ok',
+      } as PiSessionEvent,
+      state,
+    );
+
+    expect(start.map(p => p.type)).toEqual(['tool-call']);
+    expect(end.map(p => p.type)).toEqual(['tool-result', 'finish-step']);
+  });
+
+  it('emits finish-step after a built-in approval request pauses the step', () => {
+    const state = createPiTranslatorState();
+    emit(
+      [
+        { type: 'turn_start' } as PiSessionEvent,
+        {
+          type: 'message_start',
+          message: { role: 'assistant', content: [] },
+        } as PiSessionEvent,
+        {
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'toolCall', id: 'approval-1', name: 'write' }],
+          },
+        } as PiSessionEvent,
+      ],
+      state,
+    );
+
+    expect(finishPiApprovalStep(state, 'approval-1').map(p => p.type)).toEqual([
+      'finish-step',
+    ]);
   });
 
   it('emits reasoning-start lazily on first thinking_delta', () => {

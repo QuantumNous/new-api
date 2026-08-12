@@ -219,7 +219,7 @@ describe('collectToolApprovals', () => {
     `);
   });
 
-  it('should return processed approval with denied response and tool result', () => {
+  it('should return denied approval with an execution-denied tool result', () => {
     const result = collectToolApprovals({
       messages: [
         {
@@ -252,6 +252,84 @@ describe('collectToolApprovals', () => {
               toolCallId: 'call-1',
               toolName: 'tool1',
               output: { type: 'execution-denied', reason: 'test-reason' },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result).toMatchInlineSnapshot(`
+      {
+        "approvedToolApprovals": [],
+        "deniedToolApprovals": [
+          {
+            "approvalRequest": {
+              "approvalId": "approval-id-1",
+              "toolCallId": "call-1",
+              "type": "tool-approval-request",
+            },
+            "approvalResponse": {
+              "approvalId": "approval-id-1",
+              "approved": false,
+              "reason": "test-reason",
+              "type": "tool-approval-response",
+            },
+            "existingToolResult": {
+              "output": {
+                "reason": "test-reason",
+                "type": "execution-denied",
+              },
+              "toolCallId": "call-1",
+              "toolName": "tool1",
+              "type": "tool-result",
+            },
+            "toolCall": {
+              "input": {
+                "value": "test-input",
+              },
+              "toolCallId": "call-1",
+              "toolName": "tool1",
+              "type": "tool-call",
+            },
+          },
+        ],
+      }
+    `);
+  });
+
+  it('should ignore denied approval with a non-denial tool result', () => {
+    const result = collectToolApprovals({
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'call-1',
+              toolName: 'tool1',
+              input: { value: 'test-input' },
+            },
+            {
+              type: 'tool-approval-request',
+              approvalId: 'approval-id-1',
+              toolCallId: 'call-1',
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-approval-response',
+              approvalId: 'approval-id-1',
+              approved: false,
+              reason: 'test-reason',
+            },
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'tool1',
+              output: { type: 'text', value: 'test-output' },
             },
           ],
         },
@@ -335,7 +413,45 @@ describe('collectToolApprovals', () => {
     );
   });
 
-  it('should work for 2 approvals, 2 rejections, 1 approval with tool result, 1 rejection with tool result', () => {
+  it.each(['toString', 'constructor', 'valueOf', '__proto__'])(
+    'should throw for an unknown approvalId that matches the inherited object property "%s"',
+    approvalId => {
+      // Guards against inherited-property lookups: an approvalId that is not an
+      // own key of the request map must be treated as unknown, not resolved to
+      // a value on Object.prototype.
+      expect(() =>
+        collectToolApprovals({
+          messages: [
+            {
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool-call',
+                  toolCallId: 'call-1',
+                  toolName: 'tool1',
+                  input: { value: 'test-input' },
+                },
+              ],
+            },
+            {
+              role: 'tool',
+              content: [
+                {
+                  type: 'tool-approval-response',
+                  approvalId, // no request with this id exists
+                  approved: true,
+                },
+              ],
+            },
+          ],
+        }),
+      ).toThrow(
+        `Tool approval response references unknown approvalId: ${JSON.stringify(approvalId)}`,
+      );
+    },
+  );
+
+  it('should collect pending approvals and denied approvals with execution-denied results', () => {
     const result = collectToolApprovals({
       messages: [
         {
@@ -542,6 +658,34 @@ describe('collectToolApprovals', () => {
                 "value": "test-input-4",
               },
               "toolCallId": "call-approval-4",
+              "toolName": "tool1",
+              "type": "tool-call",
+            },
+          },
+          {
+            "approvalRequest": {
+              "approvalId": "approval-id-6",
+              "toolCallId": "call-approval-6",
+              "type": "tool-approval-request",
+            },
+            "approvalResponse": {
+              "approvalId": "approval-id-6",
+              "approved": false,
+              "type": "tool-approval-response",
+            },
+            "existingToolResult": {
+              "output": {
+                "type": "execution-denied",
+              },
+              "toolCallId": "call-approval-6",
+              "toolName": "tool1",
+              "type": "tool-result",
+            },
+            "toolCall": {
+              "input": {
+                "value": "test-input-6",
+              },
+              "toolCallId": "call-approval-6",
               "toolName": "tool1",
               "type": "tool-call",
             },

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { InvalidArgumentError } from '@ai-sdk/provider';
 import { createReplicate } from './replicate-provider';
 import { ReplicateImageModel } from './replicate-image-model';
 import { ReplicateVideoModel } from './replicate-video-model';
@@ -19,6 +20,24 @@ describe('createReplicate', () => {
       baseURL: 'https://custom.replicate.com',
     });
     expect(provider.image).toBeDefined();
+  });
+
+  it('rejects an empty baseURL during provider creation', () => {
+    try {
+      createReplicate({
+        apiToken: 'test-token',
+        baseURL: '',
+      });
+    } catch (error) {
+      expect(InvalidArgumentError.isInstance(error)).toBe(true);
+      expect(error).toMatchObject({
+        argument: 'baseURL',
+        message: 'baseURL must be a non-empty string.',
+      });
+      return;
+    }
+
+    throw new Error('Expected createReplicate to reject an empty base URL.');
   });
 
   it('creates an image model instance', () => {

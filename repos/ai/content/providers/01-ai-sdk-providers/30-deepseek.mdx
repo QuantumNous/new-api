@@ -13,20 +13,7 @@ API keys can be obtained from the [DeepSeek Platform](https://platform.deepseek.
 
 The DeepSeek provider is available via the `@ai-sdk/deepseek` module. You can install it with:
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/deepseek" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/deepseek" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/deepseek" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add @ai-sdk/deepseek" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/deepseek" />
 
 ## Provider Instance
 
@@ -182,10 +169,10 @@ The metrics include:
 
 ## Model Capabilities
 
-| Model               | Text Generation     | Object Generation   | Image Input         | Tool Usage          | Tool Streaming      |
-| ------------------- | ------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `deepseek-chat`     | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `deepseek-reasoner` | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model               | Text Generation | Object Generation | Image Input | Tool Usage | Tool Streaming |
+| ------------------- | --------------- | ----------------- | ----------- | ---------- | -------------- |
+| `deepseek-chat`     | <Check />       | <Check />         | <Cross />   | <Check />  | <Check />      |
+| `deepseek-reasoner` | <Check />       | <Check />         | <Cross />   | <Check />  | <Check />      |
 
 <Note>
   Please see the [DeepSeek

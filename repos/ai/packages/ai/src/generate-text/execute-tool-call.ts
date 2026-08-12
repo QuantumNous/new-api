@@ -13,6 +13,7 @@ import {
   type TimeoutConfiguration,
 } from '../prompt/request-options';
 import type { TelemetryDispatcher } from '../telemetry/telemetry';
+import { getOwn } from '../util/get-own';
 import { mergeAbortSignals } from '../util/merge-abort-signals';
 import { notify } from '../util/notify';
 import { now } from '../util/now';
@@ -83,7 +84,7 @@ export async function executeToolCall<TOOLS extends ToolSet>({
   | undefined
 > {
   const { toolName, toolCallId, input } = toolCall;
-  const tool = tools?.[toolName];
+  const tool = getOwn(tools, toolName);
 
   if (!isExecutableTool(tool)) {
     return undefined;
@@ -91,7 +92,7 @@ export async function executeToolCall<TOOLS extends ToolSet>({
 
   const context = await validateToolContext({
     toolName,
-    context: toolsContext?.[toolName as keyof typeof toolsContext],
+    context: getOwn(toolsContext, toolName),
     contextSchema: tool.contextSchema,
   });
 

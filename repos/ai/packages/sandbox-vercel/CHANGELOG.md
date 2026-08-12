@@ -1,5 +1,138 @@
 # @ai-sdk/sandbox-vercel
 
+## 1.0.36
+
+### Patch Changes
+
+- Updated dependencies [cd06458]
+  - @ai-sdk/provider-utils@5.0.11
+  - @ai-sdk/harness@1.0.36
+
+## 1.0.35
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.35
+
+## 1.0.34
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.34
+
+## 1.0.33
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.33
+
+## 1.0.32
+
+### Patch Changes
+
+- Updated dependencies [31c7be8]
+  - @ai-sdk/provider-utils@5.0.10
+  - @ai-sdk/harness@1.0.32
+
+## 1.0.31
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.31
+
+## 1.0.30
+
+### Patch Changes
+
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - @ai-sdk/harness@1.0.30
+
+## 1.0.29
+
+### Patch Changes
+
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - @ai-sdk/harness@1.0.29
+
+## 1.0.28
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.28
+
+## 1.0.27
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.27
+
+## 1.0.26
+
+### Patch Changes
+
+- 7312d30: fix(sandbox-vercel): forward Vercel Sandbox credentials when resuming named harness sessions
+  - @ai-sdk/harness@1.0.26
+
+## 1.0.25
+
+### Patch Changes
+
+- Updated dependencies [44e988a]
+  - @ai-sdk/harness@1.0.25
+
+## 1.0.24
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.24
+
+## 1.0.23
+
+### Patch Changes
+
+- Updated dependencies [39c8276]
+- Updated dependencies [91fe6d8]
+- Updated dependencies [0be5014]
+  - @ai-sdk/harness@1.0.23
+
+## 1.0.22
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.22
+- @ai-sdk/provider-utils@5.0.7
+
+## 1.0.21
+
+### Patch Changes
+
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - @ai-sdk/harness@1.0.21
+
+## 1.0.20
+
+### Patch Changes
+
+- Updated dependencies [b7aa06a]
+  - @ai-sdk/harness@1.0.20
+
+## 1.0.19
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.19
+
+## 1.0.18
+
+### Patch Changes
+
+- @ai-sdk/harness@1.0.18
+
 ## 1.0.17
 
 ### Patch Changes

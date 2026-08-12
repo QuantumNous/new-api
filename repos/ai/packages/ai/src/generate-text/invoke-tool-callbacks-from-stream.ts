@@ -1,4 +1,6 @@
 import type { Context, ModelMessage, ToolSet } from '@ai-sdk/provider-utils';
+import { createIdMap } from '../util/create-id-map';
+import { getOwn } from '../util/get-own';
 import type { LanguageModelStreamPart } from './stream-language-model-call';
 
 export function invokeToolCallbacksFromStream<
@@ -19,7 +21,7 @@ export function invokeToolCallbacksFromStream<
 }): ReadableStream<LanguageModelStreamPart<TOOLS>> {
   if (tools == null) return stream;
 
-  const ongoingToolCallToolNames: Record<string, string> = {};
+  const ongoingToolCallToolNames: Record<string, string> = createIdMap();
 
   return stream.pipeThrough(
     new TransformStream({
@@ -30,7 +32,7 @@ export function invokeToolCallbacksFromStream<
           case 'tool-input-start': {
             ongoingToolCallToolNames[chunk.id] = chunk.toolName;
 
-            const tool = tools?.[chunk.toolName];
+            const tool = getOwn(tools, chunk.toolName);
             if (tool?.onInputStart != null) {
               await tool.onInputStart({
                 toolCallId: chunk.id,
@@ -45,7 +47,7 @@ export function invokeToolCallbacksFromStream<
 
           case 'tool-input-delta': {
             const toolName = ongoingToolCallToolNames[chunk.id];
-            const tool = tools?.[toolName];
+            const tool = getOwn(tools, toolName);
 
             if (tool?.onInputDelta != null) {
               await tool.onInputDelta({
@@ -62,7 +64,7 @@ export function invokeToolCallbacksFromStream<
 
           case 'tool-call': {
             const toolName = ongoingToolCallToolNames[chunk.toolCallId];
-            const tool = tools?.[toolName];
+            const tool = getOwn(tools, toolName);
 
             delete ongoingToolCallToolNames[chunk.toolCallId];
 

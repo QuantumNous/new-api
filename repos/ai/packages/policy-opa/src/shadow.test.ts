@@ -135,6 +135,31 @@ describe('shadow', () => {
     ]);
   });
 
+  it('treats per-tool-map tool names that match inherited object properties as unconfigured', async () => {
+    const events: PolicyDecisionEvent[] = [];
+    // A plain object map inherits `constructor`, `toString`, `valueOf`, etc.
+    // from `Object.prototype`. None of these tools are configured here, so
+    // each must be reported as not-applicable rather than resolving to (and
+    // invoking) the inherited prototype function.
+    const map = { search: 'approved' as const };
+
+    const wrapped = shadow<AnyTools>(
+      map as unknown as ToolApprovalConfiguration<AnyTools, unknown>,
+      { onDecision: event => void events.push(event) },
+    );
+
+    for (const toolName of ['constructor', 'toString', 'valueOf']) {
+      await callApproval(wrapped, toolName);
+    }
+    await new Promise(r => setTimeout(r, 0));
+
+    expect(events.map(e => e.decision)).toEqual([
+      { type: 'not-applicable' },
+      { type: 'not-applicable' },
+      { type: 'not-applicable' },
+    ]);
+  });
+
   it('swallows errors thrown from onDecision so enforcement is unaffected', async () => {
     const denyOriginal = async () => ({ type: 'denied' }) as never;
 

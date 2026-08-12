@@ -1,7 +1,7 @@
 import { openai } from '@ai-sdk/openai';
 import { ToolLoopAgent, type InferAgentUIMessage } from 'ai';
 export const openaiShellContainerAgent = new ToolLoopAgent({
-  model: openai.responses('gpt-5.4'),
+  model: openai.responses('gpt-5.6'),
   instructions:
     'You have access to a shell tool running in a hosted container. ' +
     'Commands are executed server-side by OpenAI.',

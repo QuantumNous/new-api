@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { deepInfra } from '@ai-sdk/deepinfra';
+import { deepInfra, type DeepInfraImageModelOptions } from '@ai-sdk/deepinfra';
 import { generateImage } from 'ai';
 import { presentImages } from '../../lib/present-image';
 import { run } from '../../lib/run';
@@ -27,6 +27,11 @@ run(async () => {
       text: prompt,
       images: [image],
       mask: mask,
+    },
+    providerOptions: {
+      deepinfra: {
+        response_format: 'b64_json',
+      } satisfies DeepInfraImageModelOptions,
     },
   });
 

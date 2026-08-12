@@ -42,6 +42,7 @@ describe('outboundMessageSchema', () => {
       finishReason: { unified: 'stop', raw: 'stop' },
       totalUsage: usage,
     },
+    { type: 'bridge-interrupted', ok: true },
     { type: 'error', error: 'boom' },
     { type: 'raw', rawValue: { hello: 'world' } },
   ];
@@ -68,12 +69,22 @@ describe('inboundMessageSchema', () => {
         tools: [{ name: 'deploy' }],
         model: 'claude-sonnet-4-5',
         maxTurns: 5,
-        thinking: 'adaptive',
+        thinking: { type: 'adaptive', display: 'summarized' },
         skills: ['weather-forecast', 'weather-codes'],
         permissionMode: 'allow-edits',
         builtinToolFiltering: { mode: 'deny', toolNames: ['bash'] },
       }),
     ).not.toThrow();
+  });
+
+  it('rejects legacy string thinking values', () => {
+    expect(() =>
+      inboundMessageSchema.parse({
+        type: 'start',
+        prompt: 'hi',
+        thinking: 'adaptive',
+      }),
+    ).toThrow();
   });
 
   it('accepts a tool-result message', () => {
@@ -96,10 +107,11 @@ describe('inboundMessageSchema', () => {
     ).not.toThrow();
   });
 
-  it('accepts user-message, abort, shutdown', () => {
+  it('accepts user-message, abort, interrupt, shutdown', () => {
     for (const sample of [
       { type: 'user-message', text: 'hi' },
       { type: 'abort' },
+      { type: 'interrupt' },
       { type: 'shutdown' },
     ]) {
       expect(() => inboundMessageSchema.parse(sample)).not.toThrow();

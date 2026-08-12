@@ -7,6 +7,7 @@ export type TelemetryTracingEventType =
   | 'languageModelCall'
   | 'executeTool'
   | 'embed'
+  | 'embedMany'
   | 'rerank';
 
 export type TelemetryTracingChannelMessage<EVENT = unknown> = {

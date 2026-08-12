@@ -234,6 +234,19 @@ For a focused conceptual walkthrough of AI functions, model specifications, and 
 - Keep minimal - only include properties you need
 - Allow flexibility for provider API changes
 
+**Fetching URLs from responses**:
+
+- Every `getFromApi` call in this repository must set `validateUrl` explicitly
+  (the option is optional for backwards compatibility with external callers, but
+  omitting it skips validation — never rely on that; the
+  `ai-sdk/require-validate-url` oxlint rule fails `pnpm check` otherwise). Use
+  `true` when the URL comes from a provider response body (image/audio/video
+  download or a polling URL); use `false` only for URLs built from a configured
+  `baseURL`.
+- Pass `credentialedOrigin` when a response URL may legitimately carry the API
+  key on its first hop, so credentials are withheld off-origin.
+- See [contributing/secure-url-handling.md](contributing/secure-url-handling.md).
+
 ### Adding New Packages
 
 1. Create folder under `packages/<name>`

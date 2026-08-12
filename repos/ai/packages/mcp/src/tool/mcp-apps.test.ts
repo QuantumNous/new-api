@@ -189,6 +189,46 @@ describe('MCP Apps helpers', () => {
     `);
   });
 
+  it('drops malformed and non-string _meta.ui fields', () => {
+    const resource = getMCPAppResourceFromReadResult({
+      uri: 'ui://ai-sdk-e2e/dashboard',
+      resource: {
+        contents: [
+          {
+            uri: 'ui://ai-sdk-e2e/dashboard',
+            mimeType: MCP_APP_MIME_TYPE,
+            text: '<!doctype html>',
+            _meta: {
+              ui: {
+                prefersBorder: 'yes', // wrong type -> dropped
+                csp: {
+                  connectDomains: ['https://ok.example', 42, null], // non-strings dropped
+                  resourceDomains: 'not-an-array', // wrong type -> dropped
+                },
+                permissions: 'nope', // wrong type -> dropped
+                extra: 'kept', // unknown key passes through
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    expect(resource.meta).toMatchInlineSnapshot(`
+      {
+        "csp": {
+          "connectDomains": [
+            "https://ok.example",
+          ],
+          "resourceDomains": undefined,
+        },
+        "extra": "kept",
+        "permissions": undefined,
+        "prefersBorder": undefined,
+      }
+    `);
+  });
+
   it('calls app-visible tools through the MCP client', async () => {
     client = await createMCPClient({
       transport: new MockMCPTransport({

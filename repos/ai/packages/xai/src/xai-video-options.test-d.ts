@@ -54,6 +54,7 @@ describe('XaiVideoModelOptions type', () => {
     const options = {
       pollIntervalMs: 1000,
       resolution: '480p',
+      user: 'user-123',
     } satisfies XaiVideoModelOptions;
 
     expectTypeOf(options).toMatchTypeOf<XaiVideoModelOptions>();
@@ -71,6 +72,7 @@ describe('XaiVideoModelOptions type', () => {
   it('should allow videoUrl without mode for backward compatibility', () => {
     const options = {
       videoUrl: 'https://example.com/video.mp4',
+      user: 'user-123',
     } satisfies XaiVideoModelOptions;
 
     expectTypeOf(options).toMatchTypeOf<XaiVideoModelOptions>();
@@ -79,6 +81,7 @@ describe('XaiVideoModelOptions type', () => {
   it('should allow referenceImageUrls without mode for backward compatibility', () => {
     const options = {
       referenceImageUrls: ['https://example.com/ref.png'],
+      user: 'user-123',
     } satisfies XaiVideoModelOptions;
 
     expectTypeOf(options).toMatchTypeOf<XaiVideoModelOptions>();
@@ -106,6 +109,43 @@ describe('XaiVideoModelOptions type', () => {
 
     expectTypeOf(editOptions).toMatchTypeOf<XaiVideoModelOptions>();
     expectTypeOf(referenceOptions).toMatchTypeOf<XaiVideoModelOptions>();
+  });
+
+  it('should allow user for explicit generation and editing endpoint modes', () => {
+    const editOptions = {
+      mode: 'edit-video',
+      videoUrl: 'https://example.com/video.mp4',
+      user: 'user-123',
+    } satisfies XaiVideoModelOptions;
+
+    const referenceOptions = {
+      mode: 'reference-to-video',
+      referenceImageUrls: ['https://example.com/ref.png'],
+      user: 'user-123',
+    } satisfies XaiVideoModelOptions;
+
+    expectTypeOf(editOptions).toMatchTypeOf<XaiVideoModelOptions>();
+    expectTypeOf(referenceOptions).toMatchTypeOf<XaiVideoModelOptions>();
+  });
+
+  it('should not allow user for video extension', () => {
+    const options: XaiVideoModelOptions = {
+      mode: 'extend-video',
+      videoUrl: 'https://example.com/video.mp4',
+      // @ts-expect-error - the xAI extension endpoint does not support user
+      user: 'user-123',
+    };
+
+    options;
+  });
+
+  it('should require user to be a string', () => {
+    const options: XaiVideoModelOptions = {
+      // @ts-expect-error - user must be a string
+      user: 123,
+    };
+
+    options;
   });
 
   // ── Discriminated union: illegal combos rejected ───────────────────

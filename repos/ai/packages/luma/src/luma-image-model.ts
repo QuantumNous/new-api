@@ -181,6 +181,7 @@ export class LumaImageModel implements ImageModelV4 {
     for (let i = 0; i < maxPollAttempts; i++) {
       const { value: statusResponse } = await getFromApi({
         url,
+        validateUrl: false,
         headers,
         abortSignal,
         fetch: this.config.fetch,
@@ -345,6 +346,9 @@ export class LumaImageModel implements ImageModelV4 {
   ): Promise<Uint8Array> {
     const { value: response } = await getFromApi({
       url,
+      // url is a generated-image URL from the provider response; validate it.
+      validateUrl: true,
+      trustedOrigin: this.config.baseURL,
       // No specific headers should be needed for this request as it's a
       // generated image provided by Luma.
       abortSignal,

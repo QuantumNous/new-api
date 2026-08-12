@@ -10,7 +10,7 @@ run(async () => {
   await fs.mkdir(workspaceRoot, { recursive: true });
 
   const result = await generateText({
-    model: openai.responses('gpt-5.1'),
+    model: openai.responses('gpt-5.6'),
     tools: {
       apply_patch: openai.tools.applyPatch({
         execute: createApplyPatchExecutor(workspaceRoot),

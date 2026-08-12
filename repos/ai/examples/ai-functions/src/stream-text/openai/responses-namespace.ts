@@ -14,7 +14,7 @@ import { run } from '../../lib/run';
  */
 run(async () => {
   const result = streamText({
-    model: openai.responses('gpt-5.4'),
+    model: openai.responses('gpt-5.6'),
     prompt: 'What is the current weather in Tokyo?',
     tools: {
       tool_search: openai.tools.toolSearch({ execution: 'server' }),

@@ -1,18 +1,16 @@
 import { moonshotai } from '@ai-sdk/moonshotai';
 import { streamText } from 'ai';
+import { printFullStream } from '../../lib/print-full-stream';
 import { run } from '../../lib/run';
 
 run(async () => {
   const result = streamText({
-    model: moonshotai('kimi-k2.5'),
+    model: moonshotai('kimi-k3'),
     prompt: 'Invent a new holiday and describe its traditions.',
   });
 
-  for await (const textPart of result.textStream) {
-    process.stdout.write(textPart);
-  }
+  await printFullStream({ result });
 
-  console.log();
   console.log('Token usage:', await result.usage);
   console.log('Finish reason:', await result.finishReason);
 });

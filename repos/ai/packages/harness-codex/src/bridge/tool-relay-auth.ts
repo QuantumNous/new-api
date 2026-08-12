@@ -1,6 +1,3 @@
-import { readdir, readFile, readlink } from 'node:fs/promises';
-import type { Socket } from 'node:net';
-
 export type ToolRelayCall = {
   toolName: string;
   input: unknown;
@@ -14,9 +11,13 @@ export type ToolRelayResult = {
 export class ToolRelayAuthorizer {
   private readonly ttlMs: number;
   private readonly now: () => number;
-  private readonly authorizations: Array<{
-    key?: string;
+  private readonly authorizations: Array<{ key: string; expiresAt: number }> =
+    [];
+  private readonly pendingRequests: Array<{
+    key: string;
     expiresAt: number;
+    timeout: ReturnType<typeof setTimeout>;
+    resolve: (authorized: boolean) => void;
   }> = [];
 
   constructor({
@@ -32,29 +33,58 @@ export class ToolRelayAuthorizer {
 
   authorizeToolCall(call: ToolRelayCall): void {
     this.pruneExpired();
+    const key = toolRelayCallKey(call);
+    const pendingRequestIndex = this.pendingRequests.findIndex(
+      request => request.key === key,
+    );
+    if (pendingRequestIndex !== -1) {
+      const [pendingRequest] = this.pendingRequests.splice(
+        pendingRequestIndex,
+        1,
+      );
+      clearTimeout(pendingRequest.timeout);
+      pendingRequest.resolve(true);
+      return;
+    }
     this.authorizations.push({
-      key: toolRelayCallKey(call),
+      key,
       expiresAt: this.now() + this.ttlMs,
     });
   }
 
-  authorizeAnyToolCall(): void {
-    this.pruneExpired();
-    this.authorizations.push({
-      expiresAt: this.now() + this.ttlMs,
-    });
-  }
-
-  consumeToolCall(call: ToolRelayCall): boolean {
+  waitForToolCallAuthorization(call: ToolRelayCall): Promise<boolean> {
     this.pruneExpired();
     const key = toolRelayCallKey(call);
-    let index = this.authorizations.findIndex(auth => auth.key === key);
-    if (index === -1) {
-      index = this.authorizations.findIndex(auth => auth.key === undefined);
+    const authorizationIndex = this.authorizations.findIndex(
+      authorization => authorization.key === key,
+    );
+    if (authorizationIndex !== -1) {
+      this.authorizations.splice(authorizationIndex, 1);
+      return Promise.resolve(true);
     }
-    if (index === -1) return false;
-    this.authorizations.splice(index, 1);
-    return true;
+
+    const expiresAt = this.now() + this.ttlMs;
+    return new Promise(resolve => {
+      const pendingRequest = {
+        key,
+        expiresAt,
+        timeout: setTimeout(() => {
+          const index = this.pendingRequests.indexOf(pendingRequest);
+          if (index !== -1) this.pendingRequests.splice(index, 1);
+          resolve(false);
+        }, this.ttlMs),
+        resolve,
+      };
+      this.pendingRequests.push(pendingRequest);
+    });
+  }
+
+  close(): void {
+    this.authorizations.length = 0;
+    for (const pendingRequest of this.pendingRequests.splice(0)) {
+      clearTimeout(pendingRequest.timeout);
+      pendingRequest.resolve(false);
+    }
   }
 
   private pruneExpired(): void {
@@ -62,6 +92,14 @@ export class ToolRelayAuthorizer {
     for (let i = this.authorizations.length - 1; i >= 0; i--) {
       if (this.authorizations[i].expiresAt <= now) {
         this.authorizations.splice(i, 1);
+      }
+    }
+    for (let i = this.pendingRequests.length - 1; i >= 0; i--) {
+      const pendingRequest = this.pendingRequests[i];
+      if (pendingRequest.expiresAt <= now) {
+        this.pendingRequests.splice(i, 1);
+        clearTimeout(pendingRequest.timeout);
+        pendingRequest.resolve(false);
       }
     }
   }
@@ -115,81 +153,4 @@ function normalizeJsonValue(value: unknown): unknown {
     );
   }
   return value;
-}
-
-export async function isToolRelayRequestFromAllowedProcess({
-  socket,
-  allowedScriptPaths,
-}: {
-  socket: Socket;
-  allowedScriptPaths: ReadonlySet<string>;
-}): Promise<boolean> {
-  if (process.platform !== 'linux') return false;
-  if (!socket.remotePort || !socket.localPort) return false;
-
-  const inode = await findTcpSocketInode({
-    clientPort: socket.remotePort,
-    serverPort: socket.localPort,
-  });
-  if (!inode) return false;
-
-  const cmdline = await findProcessCmdlineForSocketInode({ inode });
-  return cmdline?.some(arg => allowedScriptPaths.has(arg)) ?? false;
-}
-
-async function findTcpSocketInode({
-  clientPort,
-  serverPort,
-}: {
-  clientPort: number;
-  serverPort: number;
-}): Promise<string | undefined> {
-  for (const tablePath of ['/proc/net/tcp', '/proc/net/tcp6']) {
-    const table = await readFile(tablePath, 'utf8').catch(() => undefined);
-    if (!table) continue;
-    for (const line of table.split('\n').slice(1)) {
-      const columns = line.trim().split(/\s+/);
-      if (columns.length < 10) continue;
-      const local = parseProcNetAddress(columns[1]);
-      const remote = parseProcNetAddress(columns[2]);
-      if (
-        local?.port === clientPort &&
-        remote?.port === serverPort &&
-        columns[9] !== '0'
-      ) {
-        return columns[9];
-      }
-    }
-  }
-  return undefined;
-}
-
-function parseProcNetAddress(value: string): { port: number } | undefined {
-  const [, portHex] = value.split(':');
-  if (!portHex) return undefined;
-  return { port: Number.parseInt(portHex, 16) };
-}
-
-async function findProcessCmdlineForSocketInode({
-  inode,
-}: {
-  inode: string;
-}): Promise<string[] | undefined> {
-  const procEntries = await readdir('/proc', { withFileTypes: true }).catch(
-    () => [],
-  );
-  for (const entry of procEntries) {
-    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
-    const fdDir = `/proc/${entry.name}/fd`;
-    const fds = await readdir(fdDir).catch(() => []);
-    for (const fd of fds) {
-      const target = await readlink(`${fdDir}/${fd}`).catch(() => undefined);
-      if (target !== `socket:[${inode}]`) continue;
-      const cmdline = await readFile(`/proc/${entry.name}/cmdline`, 'utf8')
-        .then(value => value.split('\0').filter(Boolean))
-        .catch(() => undefined);
-      if (cmdline) return cmdline;
-    }
-  }
-  return undefined;
 }

@@ -137,7 +137,16 @@ async function evaluateApproval(
   }
 
   const map = approval as Record<string, unknown>;
-  const perTool = map[args.toolCall.toolName];
+  // Own-property check so a tool name that matches an inherited object
+  // property (e.g. `constructor`, `toString`, `valueOf`) is treated as
+  // unconfigured instead of resolving to a prototype value and being invoked
+  // as if it were a per-tool approval callback.
+  const perTool = Object.prototype.hasOwnProperty.call(
+    map,
+    args.toolCall.toolName,
+  )
+    ? map[args.toolCall.toolName]
+    : undefined;
   if (perTool == null) return undefined;
   if (typeof perTool === 'function') {
     return await (

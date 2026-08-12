@@ -8,9 +8,15 @@ export type MoonshotAIChatModelId =
   | 'kimi-k2.6'
   | 'kimi-k2.7-code'
   | 'kimi-k2.7-code-highspeed'
+  | 'kimi-k3'
   | (string & {});
 
 export const moonshotaiLanguageModelOptions = z.object({
+  /**
+   * Reasoning effort for Kimi K3. Currently, only `max` is supported.
+   */
+  reasoningEffort: z.literal('max').optional(),
+
   thinking: z
     .object({
       type: z.enum(['enabled', 'disabled']).optional(),

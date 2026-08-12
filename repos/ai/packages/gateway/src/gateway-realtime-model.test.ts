@@ -205,12 +205,16 @@ describe('gateway.experimental_realtime', () => {
         'https://ai-gateway.vercel.sh/v1/realtime/client-secrets',
       );
 
-      // The request body forwarded the model and the TTL.
+      // The request body forwarded the model and the TTL. `routeKind` is
+      // omitted for realtime mints (the gateway default) so older gateway
+      // deployments keep accepting them.
       const init = fetch.mock.calls[0]?.[1] as RequestInit;
-      expect(JSON.parse(init.body as string)).toMatchObject({
+      const sentBody = JSON.parse(init.body as string);
+      expect(sentBody).toMatchObject({
         model: 'openai/gpt-realtime',
         expiresIn: 120,
       });
+      expect('routeKind' in sentBody).toBe(false);
       // Authenticated with the long-lived key.
       const sentHeaders = new Headers(init.headers);
       expect(sentHeaders.get('authorization')).toBe('Bearer vck_test-token');

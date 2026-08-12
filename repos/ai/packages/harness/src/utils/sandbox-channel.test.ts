@@ -10,12 +10,18 @@ const outboundSchema = z.discriminatedUnion('type', [
     delta: z.string(),
   }),
   z.object({ type: z.literal('finish') }),
+  z.object({
+    type: z.literal('bridge-interrupted'),
+    ok: z.boolean(),
+    error: z.unknown().optional(),
+  }),
   z.object({ type: z.literal('error'), error: z.unknown() }),
 ]);
 type Outbound = z.infer<typeof outboundSchema>;
 type Inbound =
   | { type: 'start' }
   | { type: 'abort' }
+  | { type: 'interrupt' }
   | { type: 'resume'; lastSeenEventId: number };
 
 type FakeSocket = {
@@ -157,6 +163,35 @@ describe('SandboxChannel', () => {
     expect(connector.current().sent).toEqual([
       JSON.stringify({ type: 'abort' }),
     ]);
+  });
+
+  it('sends interrupt and resolves after the bridge acknowledges it', async () => {
+    const connector = makeConnector();
+    const channel = makeChannel(connector);
+    await channel.open();
+
+    const interrupted = channel.interrupt();
+    expect(connector.current().sent).toEqual([
+      JSON.stringify({ type: 'interrupt' }),
+    ]);
+
+    connector.current().deliver({ type: 'bridge-interrupted', ok: true });
+    await expect(interrupted).resolves.toBeUndefined();
+  });
+
+  it('rejects interrupt when the bridge reports a failure', async () => {
+    const connector = makeConnector();
+    const channel = makeChannel(connector);
+    await channel.open();
+
+    const interrupted = channel.interrupt();
+    connector.current().deliver({
+      type: 'bridge-interrupted',
+      ok: false,
+      error: { message: 'native interrupt failed' },
+    });
+
+    await expect(interrupted).rejects.toThrow(/native interrupt failed/);
   });
 
   it('refuses to send once terminally closed', async () => {
@@ -389,5 +424,44 @@ describe('SandboxChannel', () => {
     expect(text).toEqual(['x']);
     // Diagnostics still advance the resume cursor (they carry a seq).
     expect(channel.lastSeenEventId).toBe(3);
+  });
+
+  it('reports error frames to onBridgeError and still dispatches them normally', async () => {
+    const connector = makeConnector();
+    const errors: Outbound[] = [];
+    const channel = new SandboxChannel<Outbound, Inbound>({
+      connect: connector.connect,
+      outboundSchema,
+      onBridgeError: e => errors.push(e),
+    });
+    await channel.open();
+
+    const listenerEvents: Outbound[] = [];
+    channel.on('error', event => listenerEvents.push(event));
+    connector.current().deliver(
+      {
+        type: 'error',
+        error: {
+          name: 'Error',
+          message: 'boom',
+          stack: 'Error: boom',
+        },
+      },
+      1,
+    );
+    await flush();
+
+    expect(errors).toEqual([
+      {
+        type: 'error',
+        error: {
+          name: 'Error',
+          message: 'boom',
+          stack: 'Error: boom',
+        },
+      },
+    ]);
+    expect(listenerEvents).toEqual(errors);
+    expect(channel.lastSeenEventId).toBe(1);
   });
 });

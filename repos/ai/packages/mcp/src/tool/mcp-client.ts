@@ -556,39 +556,57 @@ class DefaultMCPClient implements MCPClient {
         id: messageId,
       };
 
+      const rejectWithAbortError = () => {
+        reject(
+          new MCPClientError({
+            message: 'Request was aborted',
+            cause: signal?.reason,
+          }),
+        );
+      };
+
       const cleanup = () => {
         this.responseHandlers.delete(messageId);
+        signal?.removeEventListener('abort', onAbort);
+      };
+
+      const rejectAndCleanup = (error: unknown) => {
+        cleanup();
+        reject(error);
+      };
+
+      const onAbort = () => {
+        cleanup();
+        rejectWithAbortError();
       };
 
       this.responseHandlers.set(messageId, response => {
         if (signal?.aborted) {
-          return reject(
-            new MCPClientError({
-              message: 'Request was aborted',
-              cause: signal.reason,
-            }),
-          );
+          cleanup();
+          return rejectWithAbortError();
         }
 
         if (response instanceof Error) {
-          return reject(response);
+          return rejectAndCleanup(response);
         }
 
         try {
           const result = resultSchema.parse(response.result);
+          cleanup();
           resolve(result);
         } catch (error) {
           const parseError = new MCPClientError({
             message: 'Failed to parse server response',
             cause: error,
           });
-          reject(parseError);
+          rejectAndCleanup(parseError);
         }
       });
 
+      signal?.addEventListener('abort', onAbort, { once: true });
+
       this.transport.send(jsonrpcRequest).catch(error => {
-        cleanup();
-        reject(error);
+        rejectAndCleanup(error);
       });
     });
   }

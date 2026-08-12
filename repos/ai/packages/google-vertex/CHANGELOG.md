@@ -1,5 +1,118 @@
 # @ai-sdk/google-vertex
 
+## 5.0.22
+
+### Patch Changes
+
+- Updated dependencies [cd06458]
+- Updated dependencies [afcf19c]
+  - @ai-sdk/provider-utils@5.0.11
+  - @ai-sdk/anthropic@4.0.16
+  - @ai-sdk/google@4.0.18
+  - @ai-sdk/openai-compatible@3.0.12
+
+## 5.0.21
+
+### Patch Changes
+
+- Updated dependencies [0b61267]
+- Updated dependencies [5b4a299]
+  - @ai-sdk/openai-compatible@3.0.11
+  - @ai-sdk/google@4.0.17
+
+## 5.0.20
+
+### Patch Changes
+
+- Updated dependencies [662ddfc]
+  - @ai-sdk/google@4.0.16
+
+## 5.0.19
+
+### Patch Changes
+
+- Updated dependencies [31c7be8]
+  - @ai-sdk/provider-utils@5.0.10
+  - @ai-sdk/anthropic@4.0.15
+  - @ai-sdk/google@4.0.15
+  - @ai-sdk/openai-compatible@3.0.10
+
+## 5.0.18
+
+### Patch Changes
+
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - @ai-sdk/google@4.0.14
+  - @ai-sdk/anthropic@4.0.14
+  - @ai-sdk/openai-compatible@3.0.9
+
+## 5.0.17
+
+### Patch Changes
+
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - @ai-sdk/anthropic@4.0.13
+  - @ai-sdk/google@4.0.13
+  - @ai-sdk/openai-compatible@3.0.8
+
+## 5.0.16
+
+### Patch Changes
+
+- Updated dependencies [308a519]
+  - @ai-sdk/anthropic@4.0.12
+
+## 5.0.15
+
+### Patch Changes
+
+- Updated dependencies [e40118c]
+  - @ai-sdk/google@4.0.12
+
+## 5.0.14
+
+### Patch Changes
+
+- 0f93c57: feat (video): support video (not just image) reference inputs in `inputReferences` for reference-to-video generation
+- Updated dependencies [17d66c5]
+- Updated dependencies [96d40bc]
+- Updated dependencies [0f93c57]
+  - @ai-sdk/google@4.0.11
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/anthropic@4.0.11
+  - @ai-sdk/openai-compatible@3.0.7
+  - @ai-sdk/provider-utils@5.0.7
+
+## 5.0.13
+
+### Patch Changes
+
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - @ai-sdk/openai-compatible@3.0.6
+  - @ai-sdk/anthropic@4.0.10
+  - @ai-sdk/google@4.0.10
+
+## 5.0.12
+
+### Patch Changes
+
+- Updated dependencies [7401c2c]
+- Updated dependencies [2e45d9c]
+  - @ai-sdk/google@4.0.9
+  - @ai-sdk/anthropic@4.0.9
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [0aa0ff3]
+  - @ai-sdk/anthropic@4.0.8
+
 ## 5.0.10
 
 ### Patch Changes

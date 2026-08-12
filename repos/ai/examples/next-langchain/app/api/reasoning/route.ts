@@ -9,7 +9,7 @@ export const maxDuration = 30;
  * this configuration streams reasoning summaries before the final response (thus triggering the error)
  */
 const model = new ChatOpenAI({
-  model: 'gpt-5',
+  model: 'gpt-5.6',
   useResponsesApi: true,
   reasoning: { effort: 'medium', summary: 'concise' },
 });

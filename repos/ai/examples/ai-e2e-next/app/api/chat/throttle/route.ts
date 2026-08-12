@@ -12,7 +12,15 @@ export async function POST(req: Request) {
         {
           type: 'start-step',
         },
-        ...Array(5000).fill({ type: 'text', value: 'T\n' }),
+        {
+          type: 'text-start',
+          id: 'text-1',
+        },
+        ...Array(5000).fill({ type: 'text-delta', id: 'text-1', delta: 'T\n' }),
+        {
+          type: 'text-end',
+          id: 'text-1',
+        },
         {
           type: 'finish-step',
         },

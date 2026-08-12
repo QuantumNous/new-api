@@ -16,7 +16,7 @@ import { z } from 'zod';
 const app = express();
 app.use(express.json({ strict: false })); // Allow primitives (for analyze endpoint)
 
-const defaultModel = 'openai/gpt-5.4';
+const defaultModel = 'openai/gpt-5.6';
 
 app.post('/api/chat', async (req: Request, res: Response) => {
   const { messages, selectedModel } = req.body;

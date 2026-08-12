@@ -140,6 +140,7 @@ export class GoogleFiles implements FilesV4 {
 
       const { value: fileStatus } = await getFromApi({
         url: `${this.config.baseURL}/${file.name}`,
+        validateUrl: false,
         headers: combineHeaders(resolvedHeaders),
         successfulResponseHandler: createJsonResponseHandler(
           googleFileResponseSchema,

@@ -9,6 +9,22 @@ import {
 import type { MCPAppFrameProps } from './types';
 import { normalizeMCPAppToolResult } from './utils';
 
+/**
+ * Derives the concrete origin of the sandbox proxy from its URL, so outbound
+ * postMessage targets a specific origin instead of `'*'` and inbound messages
+ * can be origin-checked. The proxy must be served from a stable, concrete
+ * origin (the default outer sandbox keeps `allow-same-origin`). Falls back to
+ * the host origin on a malformed URL, never `'*'`.
+ */
+function deriveTargetOrigin(url: string): string {
+  const location = typeof window !== 'undefined' ? window.location : undefined;
+  try {
+    return new URL(url, location?.href).origin;
+  } catch {
+    return location?.origin ?? 'null';
+  }
+}
+
 function sendToolState({
   bridge,
   input,
@@ -50,10 +66,13 @@ export function MCPAppFrame({
   inputRef.current = input;
   outputRef.current = output;
   hostContextRef.current = hostContext;
-  const targetOrigin = sandbox.targetOrigin ?? '*';
   const sandboxUrl = String(sandbox.url);
+  const targetOrigin = sandbox.targetOrigin ?? deriveTargetOrigin(sandboxUrl);
   const resourceCSP = getMCPAppCSP(resource.meta?.csp);
-  const resourceAllow = getMCPAppAllowAttribute(resource.meta?.permissions);
+  const resourceAllow = getMCPAppAllowAttribute(
+    resource.meta?.permissions,
+    sandbox.allowedPermissions,
+  );
   const innerSandbox = sandbox.innerSandbox ?? MCP_APP_DEFAULT_INNER_SANDBOX;
   const bridgeHandlers = useMemo(
     () => ({
@@ -92,8 +111,12 @@ export function MCPAppFrame({
     bridgeRef.current = bridge;
 
     const onMessage = (event: MessageEvent) => {
+      // Only handle messages from the proxy window and expected origin.
+      if (!bridge.acceptsEvent(event)) {
+        return;
+      }
+
       if (
-        event.source === targetWindow &&
         event.data?.jsonrpc === '2.0' &&
         event.data.method === 'ui/notifications/sandbox-proxy-ready'
       ) {
@@ -158,6 +181,9 @@ export function MCPAppFrame({
       src={sandboxUrl}
       className={sandbox.className}
       style={sandbox.style}
+      // Permissions Policy is hierarchical: the outer frame must delegate a
+      // feature for the proxy to re-delegate it to the inner app frame.
+      allow={resourceAllow}
       sandbox={sandbox.outerSandbox ?? MCP_APP_DEFAULT_OUTER_SANDBOX}
     />
   );

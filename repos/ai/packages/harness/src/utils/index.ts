@@ -21,3 +21,11 @@ export {
   type WaitForBridgeReadyOptions,
   type WaitForBridgeReadyResult,
 } from './bridge-ready';
+export {
+  createBridgeErrorHandler,
+  createBridgeStartupError,
+  drainBridgeProcessStream,
+  formatBridgeError,
+  forwardBridgeProcessStream,
+  logBridgeError,
+} from './bridge-diagnostics';

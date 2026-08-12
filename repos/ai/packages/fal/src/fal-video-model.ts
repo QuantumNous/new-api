@@ -10,7 +10,6 @@ import {
   createJsonResponseHandler,
   delay,
   getFromApi,
-  isSameOrigin,
   parseProviderOptions,
   postJsonToApi,
 } from '@ai-sdk/provider-utils';
@@ -157,11 +156,11 @@ export class FalVideoModel implements Experimental_VideoModelV4 {
         const { value: statusResponse, responseHeaders: statusHeaders } =
           await getFromApi({
             url: statusUrl,
-            // The status URL comes from the queue response; only send
-            // credentials when it stays on the provider's own origin.
-            headers: isSameOrigin(statusUrl, submitUrl)
-              ? combineHeaders(this.config.headers?.(), options.headers)
-              : undefined,
+            // statusUrl comes from the queue response body.
+            validateUrl: true,
+            credentialedOrigin: submitUrl,
+            trustedOrigin: submitUrl,
+            headers: combineHeaders(this.config.headers?.(), options.headers),
             failedResponseHandler: async ({
               response,
               url,

@@ -20,7 +20,7 @@ async function ensureWorkspaceExists() {
 ensureWorkspaceExists();
 
 export const openaiApplyPatchAgent = new ToolLoopAgent({
-  model: openai.responses('gpt-5.1'),
+  model: openai.responses('gpt-5.6'),
   tools: {
     apply_patch: openai.tools.applyPatch({
       execute: createApplyPatchExecutor(workspaceRoot),

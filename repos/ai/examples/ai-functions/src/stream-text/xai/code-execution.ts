@@ -4,7 +4,7 @@ import { run } from '../../lib/run';
 
 run(async () => {
   const response = streamText({
-    model: xai.responses('grok-4'),
+    model: xai.responses('grok-4.5'),
     prompt:
       //   "Call the web_search tool with the query 'What is the capital of France?'",
       'Calculate the compound interest for $10,000 at 5% annually for 10 years',

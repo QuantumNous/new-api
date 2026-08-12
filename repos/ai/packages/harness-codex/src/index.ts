@@ -8,5 +8,6 @@ import { createCodex } from './codex-harness';
 export const codex = createCodex();
 
 export { createCodex } from './codex-harness';
+export { VERSION } from './version';
 export type { CodexHarnessSettings } from './codex-harness';
 export type { CodexAuthOptions } from './codex-auth';

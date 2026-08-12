@@ -21,6 +21,7 @@ const openCalls: Array<{ resume?: boolean } | undefined> = [];
 const runCommands: Array<string> = [];
 const spawnEnvs: Array<Record<string, string | undefined>> = [];
 const writes: Array<{ path: string; content: string }> = [];
+const interrupts: Array<'interrupt'> = [];
 
 vi.mock('@ai-sdk/harness/utils', async importOriginal => {
   const actual = await importOriginal<typeof HarnessUtils>();
@@ -41,6 +42,9 @@ vi.mock('@ai-sdk/harness/utils', async importOriginal => {
     }
     async suspend(): Promise<number> {
       return 7;
+    }
+    async interrupt(): Promise<void> {
+      interrupts.push('interrupt');
     }
     close(): void {}
   }
@@ -147,6 +151,7 @@ describe('codex adapter — instructions gating', () => {
     runCommands.length = 0;
     spawnEnvs.length = 0;
     writes.length = 0;
+    interrupts.length = 0;
   });
 
   it('defers the start frame until after prompt control is returned', async () => {
@@ -264,6 +269,7 @@ describe('codex adapter — attach replay mode', () => {
     runCommands.length = 0;
     spawnEnvs.length = 0;
     writes.length = 0;
+    interrupts.length = 0;
   });
 
   it('attaches a parked session without replaying old turn events', async () => {
@@ -332,6 +338,7 @@ describe('codex adapter — attach replay mode', () => {
 
     const suspended = await (await startSession()).doSuspendTurn();
     expect(suspended.type).toBe('continue-turn');
+    expect(interrupts).toHaveLength(1);
     expect(
       (
         suspended.data as {
@@ -351,6 +358,7 @@ describe('codex adapter — skills', () => {
     runCommands.length = 0;
     spawnEnvs.length = 0;
     writes.length = 0;
+    interrupts.length = 0;
   });
 
   it('writes skills to sandbox HOME without sending skill metadata', async () => {

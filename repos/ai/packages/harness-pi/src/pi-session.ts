@@ -43,6 +43,7 @@ import {
 } from './pi-resume-state';
 import {
   createPiTranslatorState,
+  finishPiApprovalStep,
   translatePiEvent,
   type PiTranslatorState,
 } from './pi-translate';
@@ -195,6 +196,7 @@ export interface CreatePiSessionInput {
   readonly sessionWorkDir: string;
   readonly skills: ReadonlyArray<HarnessV1Skill>;
   readonly settings: PiSessionSettings;
+  readonly clientApp: string;
   readonly isResume: boolean;
   readonly permissionMode?: HarnessV1PermissionMode;
   readonly builtinToolFiltering?: HarnessV1BuiltinToolFiltering;
@@ -334,6 +336,7 @@ export async function createPiSession(
       authStorage,
       modelRegistry,
     },
+    clientApp: input.clientApp,
   });
   const resolveModel = createPiModelResolver(modelRegistry, resolverEnv);
   // Resolve once: deterministic given the configured model. This is the Pi
@@ -505,6 +508,14 @@ export async function createPiSession(
       approvalId: args.toolCallId,
       toolCallId: args.toolCallId,
     });
+    if (translatorState) {
+      for (const part of finishPiApprovalStep(
+        translatorState,
+        args.toolCallId,
+      )) {
+        currentEmit?.(part);
+      }
+    }
     return new Promise(resolve => {
       pendingToolApprovals.set(args.toolCallId, { resolve });
     });
@@ -704,10 +715,6 @@ export async function createPiSession(
             reasoning: undefined,
           },
         };
-        // `finish-step` populates the step's finishReason + usage (the
-        // agent's result builder reads this); `finish` marks the turn end
-        // with totalUsage.
-        currentEmit?.({ type: 'finish-step', finishReason, usage });
         currentEmit?.({
           type: 'finish',
           finishReason,

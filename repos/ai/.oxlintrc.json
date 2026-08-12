@@ -5,6 +5,7 @@
     "./node_modules/ultracite/config/oxlint/react/.oxlintrc.json",
     "./node_modules/ultracite/config/oxlint/next/.oxlintrc.json"
   ],
+  "jsPlugins": ["./tools/oxlint-plugin-ai-sdk/index.mjs"],
   "overrides": [
     {
       "files": ["packages/codemod/src/test/__testfixtures__/**"],
@@ -34,6 +35,7 @@
     }
   ],
   "rules": {
+    "ai-sdk/require-validate-url": "error",
     "accessor-pairs": "off",
     "array-callback-return": "off",
     "arrow-body-style": "off",
@@ -106,35 +108,33 @@
     "require-await": "off",
     "sort-keys": "off",
     "yoda": "off",
-
     "import/consistent-type-specifier-style": "off",
     "import/first": "error",
     "import/namespace": "error",
     "import/no-cycle": "error",
-    "import/no-duplicates": ["error", { "preferInline": true }],
+    "import/no-duplicates": [
+      "error",
+      {
+        "preferInline": true
+      }
+    ],
     "import/no-mutable-exports": "error",
     "import/no-named-as-default": "error",
-
     "jsdoc/check-tag-names": "off",
     "jsdoc/empty-tags": "off",
-
     "jsx-a11y/alt-text": "off",
     "jsx-a11y/aria-role": "off",
     "jsx-a11y/click-events-have-key-events": "off",
     "jsx-a11y/img-redundant-alt": "off",
     "jsx-a11y/label-has-associated-control": "off",
     "jsx-a11y/no-static-element-interactions": "off",
-
     "nextjs/no-img-element": "off",
-
     "node/global-require": "off",
-
     "promise/avoid-new": "off",
     "promise/no-nesting": "off",
     "promise/param-names": "off",
     "promise/prefer-await-to-callbacks": "off",
     "promise/prefer-await-to-then": "off",
-
     "react/button-has-type": "off",
     "react/jsx-curly-brace-presence": "off",
     "react/jsx-key": "off",
@@ -144,11 +144,8 @@
     "react/no-array-index-key": "off",
     "react/no-danger": "off",
     "react/self-closing-comp": "off",
-
     "react-hooks/exhaustive-deps": "off",
-
     "react_perf/jsx-no-new-function-as-prop": "off",
-
     "unicorn/catch-error-name": "off",
     "unicorn/consistent-existence-index-check": "off",
     "unicorn/consistent-function-scoping": "off",
@@ -215,12 +212,10 @@
     "unicorn/require-module-specifiers": "off",
     "unicorn/switch-case-braces": "off",
     "unicorn/text-encoding-identifier-case": "off",
-
     "oxc/erasing-op": "off",
     "oxc/no-accumulating-spread": "off",
     "oxc/no-async-endpoint-handlers": "off",
     "oxc/no-barrel-file": "off",
-
     "typescript/adjacent-overload-signatures": "off",
     "typescript/array-type": "off",
     "typescript/ban-ts-comment": "off",

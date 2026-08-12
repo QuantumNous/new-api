@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/anthropic-aws",
-  "version": "1.0.7",
+  "version": "2.0.8",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

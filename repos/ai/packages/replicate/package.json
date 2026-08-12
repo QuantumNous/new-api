@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/replicate",
-  "version": "3.0.6",
+  "version": "3.0.12",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

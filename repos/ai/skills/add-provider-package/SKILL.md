@@ -60,6 +60,7 @@ Set up your `package.json` with:
 
 - `"name": "@ai-sdk/<provider>"`
 - `"version": "0.0.0"` (initial version, will be updated by changeset)
+- `"type": "module"`
 - `"license": "Apache-2.0"`
 - `"sideEffects": false`
 - Dependencies on `@ai-sdk/provider` and `@ai-sdk/provider-utils` (use `workspace:*`)
@@ -67,16 +68,19 @@ Set up your `package.json` with:
 - `"engines": { "node": ">=22" }`
 - Peer dependency on `zod` (both v3 and v4): `"zod": "^3.25.76 || ^4.1.8"`
 
-Example exports configuration:
+Example package entry point configuration:
 
 ```json
 {
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     "./package.json": "./package.json",
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   }
 }

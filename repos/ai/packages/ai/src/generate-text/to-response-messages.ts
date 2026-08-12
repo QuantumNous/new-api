@@ -5,6 +5,7 @@ import type {
   ToolModelMessage,
 } from '../prompt';
 import { createToolModelOutput } from '../prompt/create-tool-model-output';
+import { getOwn } from '../util/get-own';
 import type { ContentPart } from './content-part';
 import type { ToolSet } from '@ai-sdk/provider-utils';
 
@@ -97,7 +98,7 @@ export async function toResponseMessages<TOOLS extends ToolSet>({
         const output = await createToolModelOutput({
           toolCallId: part.toolCallId,
           input: part.input,
-          tool: tools?.[part.toolName],
+          tool: getOwn(tools, part.toolName),
           output: part.output,
           errorMode: 'none',
         });
@@ -114,7 +115,7 @@ export async function toResponseMessages<TOOLS extends ToolSet>({
         const output = await createToolModelOutput({
           toolCallId: part.toolCallId,
           input: part.input,
-          tool: tools?.[part.toolName],
+          tool: getOwn(tools, part.toolName),
           output: part.error,
           errorMode: 'json',
         });
@@ -189,7 +190,7 @@ export async function toResponseMessages<TOOLS extends ToolSet>({
     const output = await createToolModelOutput({
       toolCallId: part.toolCallId,
       input: part.input,
-      tool: tools?.[part.toolName],
+      tool: getOwn(tools, part.toolName),
       output: part.type === 'tool-result' ? part.output : part.error,
       errorMode: part.type === 'tool-error' ? 'text' : 'none',
     });

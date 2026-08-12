@@ -2,11 +2,12 @@ import { moonshotai } from '@ai-sdk/moonshotai';
 import { weatherTool } from '../../tools/weather-tool';
 import { isStepCount, streamText, tool } from 'ai';
 import { z } from 'zod';
+import { printFullStream } from '../../lib/print-full-stream';
 import { run } from '../../lib/run';
 
 run(async () => {
   const result = streamText({
-    model: moonshotai('kimi-k2.5'),
+    model: moonshotai('kimi-k3'),
     stopWhen: isStepCount(5),
     tools: {
       currentLocation: tool({
@@ -24,34 +25,7 @@ run(async () => {
     prompt: 'What is the weather in my current location?',
   });
 
-  for await (const chunk of result.stream) {
-    switch (chunk.type) {
-      case 'text-delta': {
-        process.stdout.write(chunk.text);
-        break;
-      }
-
-      case 'tool-call': {
-        console.log(
-          `TOOL CALL ${chunk.toolName} ${JSON.stringify(chunk.input)}`,
-        );
-        break;
-      }
-
-      case 'tool-result': {
-        console.log(
-          `TOOL RESULT ${chunk.toolName} ${JSON.stringify(chunk.output)}`,
-        );
-        break;
-      }
-
-      case 'finish-step': {
-        console.log();
-        console.log();
-        break;
-      }
-    }
-  }
+  await printFullStream({ result });
 
   console.log('Token usage:', await result.usage);
   console.log('Finish reason:', await result.finishReason);

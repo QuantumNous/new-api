@@ -34,6 +34,7 @@ export class GatewayFetchMetadata {
     try {
       const { value } = await getFromApi({
         url: `${this.config.baseURL}/config`,
+        validateUrl: false,
         headers: this.config.headers
           ? await resolve(this.config.headers)
           : undefined,
@@ -59,6 +60,7 @@ export class GatewayFetchMetadata {
 
       const { value } = await getFromApi({
         url: `${baseUrl.origin}/v1/credits`,
+        validateUrl: false,
         headers: this.config.headers
           ? await resolve(this.config.headers)
           : undefined,

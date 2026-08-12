@@ -731,6 +731,9 @@ export function processUIMessageStream<UI_MESSAGE extends UIMessage>({
                 approved: chunk.approved,
                 ...(chunk.reason != null ? { reason: chunk.reason } : {}),
                 ...(approval.isAutomatic === true ? { isAutomatic: true } : {}),
+                ...(approval.signature != null
+                  ? { signature: approval.signature }
+                  : {}),
               };
               if (chunk.providerExecuted != null) {
                 toolInvocation.providerExecuted = chunk.providerExecuted;

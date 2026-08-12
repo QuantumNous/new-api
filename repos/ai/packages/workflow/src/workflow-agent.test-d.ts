@@ -1,5 +1,5 @@
 import { expectTypeOf, describe, it } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { Experimental_SandboxSession as SandboxSession } from 'ai';
 import { WorkflowAgent } from './workflow-agent.js';
 

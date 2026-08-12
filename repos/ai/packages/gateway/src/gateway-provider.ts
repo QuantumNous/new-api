@@ -6,6 +6,7 @@ import {
   withoutTrailingSlash,
   withUserAgentSuffix,
   type FetchFunction,
+  type WebSocketConstructor,
 } from '@ai-sdk/provider-utils';
 import { z } from 'zod/v4';
 import { asGatewayError, GatewayAuthenticationError } from './errors';
@@ -35,7 +36,10 @@ import { GatewayImageModel } from './gateway-image-model';
 import { GatewayVideoModel } from './gateway-video-model';
 import { GatewayRerankingModel } from './gateway-reranking-model';
 import { GatewaySpeechModel } from './gateway-speech-model';
-import { GatewayTranscriptionModel } from './gateway-transcription-model';
+import {
+  GatewayTranscriptionModel,
+  toGatewayTranscriptionUrl,
+} from './gateway-transcription-model';
 import { GatewayRealtimeModel } from './gateway-realtime-model';
 import type { GatewayEmbeddingModelId } from './gateway-embedding-model-settings';
 import type { GatewayImageModelId } from './gateway-image-model-settings';
@@ -174,9 +178,47 @@ export interface GatewayProvider extends ProviderV4 {
   experimental_realtime: RealtimeFactoryV4;
 
   /**
+   * Experimental streaming-transcription entry point. Callable like
+   * `transcription(modelId)`, plus `getToken` for minting a short-lived
+   * client secret (`vcst_`) a browser can use to open the streaming
+   * transcription WebSocket without holding the Gateway credential.
+   */
+  experimental_transcription: GatewayTranscriptionFactory;
+
+  /**
    * Gateway-specific tools executed server-side.
    */
   tools: typeof gatewayTools;
+}
+
+export type GatewayTranscriptionFactoryGetTokenOptions = {
+  model: GatewayTranscriptionModelId;
+  /** Token lifetime in seconds. Gateway default is 60s (max 300s). */
+  expiresAfterSeconds?: number;
+};
+
+export type GatewayTranscriptionFactoryGetTokenResult = {
+  /** The minted `vcst_` client secret. */
+  token: string;
+  /** WebSocket URL of the streaming transcription surface for this model. */
+  url: string;
+  /** Token expiry, epoch seconds. */
+  expiresAt?: number;
+};
+
+/**
+ * Streaming-transcription factory: callable like `transcription(modelId)`,
+ * plus a server-side `getToken` that mints a transcription-bound short-lived
+ * client secret (`vcst_`). The browser connects with
+ * `createGateway({ apiKey: token }).transcription(modelId)` — the token rides
+ * the same auth subprotocol an API key does, without exposing the credential.
+ */
+export interface GatewayTranscriptionFactory {
+  (modelId: GatewayTranscriptionModelId): TranscriptionModelV4;
+
+  getToken(
+    options: GatewayTranscriptionFactoryGetTokenOptions,
+  ): Promise<GatewayTranscriptionFactoryGetTokenResult>;
 }
 
 export interface GatewayProviderSettings {
@@ -207,6 +249,14 @@ export interface GatewayProviderSettings {
    * or to provide a custom fetch implementation for e.g. testing.
    */
   fetch?: FetchFunction;
+
+  /**
+   * Custom WebSocket implementation used for streaming transcription. This is
+   * useful for testing or for runtimes without a global WebSocket. A
+   * header-capable implementation is not required — Gateway WebSocket auth is
+   * carried in the subprotocols.
+   */
+  webSocket?: WebSocketConstructor;
 
   /**
    * How frequently to refresh the metadata cache in milliseconds.
@@ -288,18 +338,21 @@ export function createGateway(
     }
   };
 
-  // Mints a short-lived realtime client secret (`vcst_`) via the Gateway's
+  // Mints a short-lived client secret (`vcst_`) via the Gateway's
   // `/v1/realtime/client-secrets` route, authenticated with the long-lived
   // Gateway credential. Server-side only (asserted) — the credential never
   // belongs in a browser; the browser receives only the minted token. The
   // mint route lives at the gateway origin's `/v1/realtime/client-secrets`,
-  // not under the realtime `baseURL` path (which targets `/v4/ai`), so the
-  // URL is resolved against the origin.
-  const mintRealtimeClientSecret = async (params: {
+  // not under the `baseURL` path (which targets `/v4/ai`), so the URL is
+  // resolved against the origin. `routeKind` binds the token to a WebSocket
+  // surface; it is omitted for realtime (the gateway default) so older
+  // gateway deployments keep accepting realtime mints.
+  const mintClientSecret = async (params: {
     modelId: string;
     expiresAfterSeconds?: number;
+    routeKind?: 'transcription';
   }): Promise<{ token: string; expiresAt?: number }> => {
-    assertGatewayRealtimeServerEnvironment();
+    assertGatewayClientSecretServerEnvironment();
     const auth = await getRealtimeAuthToken();
     const headers = createAuthHeaders(auth);
     const url = new URL('/v1/realtime/client-secrets', baseURL).toString();
@@ -309,6 +362,7 @@ export function createGateway(
         headers,
         body: {
           model: params.modelId,
+          ...(params.routeKind != null && { routeKind: params.routeKind }),
           ...(params.expiresAfterSeconds != null && {
             expiresIn: params.expiresAfterSeconds,
           }),
@@ -516,22 +570,47 @@ export function createGateway(
       headers: getHeaders,
       fetch: options.fetch,
       o11yHeaders: createO11yHeaders(),
+      webSocket: options.webSocket,
     });
   };
   provider.transcriptionModel = createTranscriptionModel;
   provider.transcription = createTranscriptionModel;
+  // Callable like `transcription(modelId)`; `getToken` mints a
+  // transcription-bound client secret (server-side only) the browser uses to
+  // connect via `createGateway({ apiKey: token }).transcription(modelId)`.
+  provider.experimental_transcription = Object.assign(
+    (modelId: GatewayTranscriptionModelId) => createTranscriptionModel(modelId),
+    {
+      getToken: async (
+        tokenOptions: GatewayTranscriptionFactoryGetTokenOptions,
+      ): Promise<GatewayTranscriptionFactoryGetTokenResult> => {
+        const secret = await mintClientSecret({
+          modelId: tokenOptions.model,
+          routeKind: 'transcription',
+          ...(tokenOptions.expiresAfterSeconds != null && {
+            expiresAfterSeconds: tokenOptions.expiresAfterSeconds,
+          }),
+        });
+        return {
+          token: secret.token,
+          url: toGatewayTranscriptionUrl(baseURL, tokenOptions.model),
+          ...(secret.expiresAt != null && { expiresAt: secret.expiresAt }),
+        };
+      },
+    },
+  ) as GatewayTranscriptionFactory;
 
   // No server-environment guard here: building the realtime model is just the
   // event codec + WebSocket-config helper, which the browser legitimately
   // needs to drive the transport with a server-minted client secret. The
-  // server-only boundary is enforced on minting itself
-  // (`mintRealtimeClientSecret`), which requires the Gateway credential.
+  // server-only boundary is enforced on minting itself (`mintClientSecret`),
+  // which requires the Gateway credential.
   const createRealtimeModel = (modelId: GatewayRealtimeModelId) =>
     new GatewayRealtimeModel(modelId, {
       provider: 'gateway.realtime',
       baseURL,
       teamIdOrSlug: options.teamIdOrSlug,
-      createClientSecret: mintRealtimeClientSecret,
+      createClientSecret: mintClientSecret,
     });
   provider.experimental_realtime = Object.assign(
     (modelId: GatewayRealtimeModelId) => createRealtimeModel(modelId),
@@ -581,10 +660,10 @@ export async function getGatewayAuthToken(
   };
 }
 
-function assertGatewayRealtimeServerEnvironment(): void {
+function assertGatewayClientSecretServerEnvironment(): void {
   if (typeof globalThis.window !== 'undefined') {
     throw new Error(
-      'AI Gateway realtime client secrets must be minted server-side: minting needs your Gateway credential, which must never reach the browser. Call gateway.experimental_realtime.getToken() from your server and pass the returned token to the client.',
+      'AI Gateway client secrets must be minted server-side: minting needs your Gateway credential, which must never reach the browser. Call gateway.experimental_realtime.getToken() or gateway.experimental_transcription.getToken() from your server and pass the returned token to the client.',
     );
   }
 }

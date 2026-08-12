@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/otel",
-  "version": "1.0.14",
+  "version": "1.0.31",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

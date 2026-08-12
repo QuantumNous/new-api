@@ -1,8 +1,8 @@
-import { experimental_useObject } from '@ai-sdk/react';
+import { useObject } from '@ai-sdk/react';
 import { z } from 'zod';
 
 export default function Page() {
-  const { object, submit } = experimental_useObject({
+  const { object, submit } = useObject({
     api: '/api/stream-object',
     schema: z.object({ content: z.string() }),
   });

@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/xai",
-  "version": "4.0.6",
+  "version": "4.0.16",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

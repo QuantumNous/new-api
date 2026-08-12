@@ -1474,6 +1474,19 @@ exports[`AnthropicLanguageModel > doGenerate > web search tool > with fixture > 
     "type": "text",
   },
   {
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Daily Tech News 26 September 2024 · Top Story Caroline Ellison, Sam Bankman-Fried&#x27;s right-hand woman in the FTX kerfuffle, has been sentenced to ...",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDDULr5oJyZTXVnDn8RoMK4nGlIB5/8KPBQftIjBoGwKgdBO0xPobCWf4FMQZeJZTexZ2PVubA2Jakj1ei+PHwsUHeXLU+KWVSskeWpEqE9LEcU8cVMZsafx5pIdH1s4Fzo8YBA==",
+            "title": "Daily Tech News 26 September 2024",
+            "type": "web_search_result_location",
+            "url": "https://acecomments.mu.nu/?post=411647",
+          },
+        ],
+      },
+    },
     "text": "Caroline Ellison, Sam Bankman-Fried's right-hand woman in the FTX kerfuffle, has been sentenced to two years in prison for her part in the fuffling and ordered to pay $11 billion in restitution.",
     "type": "text",
   },
@@ -1500,6 +1513,19 @@ Unfortunately, the search results don't show many other specific breaking tech n
     "type": "text",
   },
   {
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Date: August 26, 2025 Summary: Anthropic has launched a Chrome extension enabling its Claude AI agent to interact directly with the browser, manipulat...",
+            "encrypted_index": "EpMBCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDH/NVmfefWyzakcthBoMkqoT8aytDBV0FvAFIjClSipbNID/zEFscAaakdLn5Z6i5W8sJbYqg4XzUNd6572B59pBEvD8haJbwNgojhoqF8z5/oae4RSDzdKPWa4FX1t3q5E8tYfPGAQ=",
+            "title": "The Latest AI News and AI Breakthroughs that Matter Most: 2025 | News",
+            "type": "web_search_result_location",
+            "url": "https://www.crescendo.ai/news/latest-ai-news-and-updates",
+          },
+        ],
+      },
+    },
     "text": "Anthropic has launched a Chrome extension enabling its Claude AI agent to interact directly with the browser, manipulating webpages, retrieving content, and automating tasks. This marks the company's first move toward agentic AI with real-time web control.",
     "type": "text",
   },
@@ -1523,6 +1549,19 @@ Unfortunately, the search results don't show many other specific breaking tech n
     "type": "text",
   },
   {
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Date: September 19, 2025 Summary: Chinese AI firm DeepSeek has unveiled its R1 model, a significant leap in AI performance trained at a cost 70% lower...",
+            "encrypted_index": "EpMBCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDBWUYk1OFyII3dq4JRoM0dCF2bTcT1OwCwSqIjBvViA7Pv/gvLgQlu7pNnhAHjHaThPZ1V7eor1hdefQF/ibzwrZ5o6VFZrPznm3pbEqF8cYd5F85vVDLY++URAQ//xwtev9Lt3kGAQ=",
+            "title": "The Latest AI News and AI Breakthroughs that Matter Most: 2025 | News",
+            "type": "web_search_result_location",
+            "url": "https://www.crescendo.ai/news/latest-ai-news-and-updates",
+          },
+        ],
+      },
+    },
     "text": "Chinese AI firm DeepSeek has unveiled its R1 model, a significant leap in AI performance trained at a cost 70% lower than comparable U.S. models. The company attributes its efficiency to custom hardware, proprietary optimization techniques, and low energy costs in China. Analysts see this as a direct challenge to Western dominance in large language models, especially OpenAI and Anthropic.",
     "type": "text",
   },
@@ -18024,6 +18063,33 @@ exports[`AnthropicLanguageModel > doStream > web search tool > should stream web
   },
   {
     "id": "3",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Apple today announced the grand reopening of Apple Ginza on Friday, September 26, located in the vibrant Ginza district.",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDN+3yPep8hrW9WwANxoMO/sEZvNTf/xpoyVuIjDRoNaRlBo0z68VAiTpUeOWF+P5edPT3/3i60mbhvTMOTWMAyGiNjnSf0/ceg9FvmcqE5T//6pWT15OO5PH9g/jQaotEHkYBA==",
+            "title": "The all-new Apple Ginza opens this Friday, September 26, in Tokyo - Apple",
+            "type": "web_search_result_location",
+            "url": "https://www.apple.com/newsroom/2025/09/the-all-new-apple-ginza-opens-this-friday-september-26-in-tokyo/",
+          },
+          {
+            "cited_text": "TOKYO Apple today announced the grand reopening of Apple Ginza on Friday, September 26, located in the vibrant Ginza district where Apple’s retail jou...",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDPhQNm231kpbwvo5GxoM7h/deBh9okrXVy+0IjCF8Fu6pVDoxH5kEHYnDxHcXjYGxUWsqPa7zWJj63JvpbcAnqR54Fuu/j7sEf52c3gqE4+wq/aNt50hD3nwsq0nGX7XZFoYBA==",
+            "title": "The all-new Apple Ginza opens this Friday, September 26, in Tokyo - Apple",
+            "type": "web_search_result_location",
+            "url": "https://www.apple.com/newsroom/2025/09/the-all-new-apple-ginza-opens-this-friday-september-26-in-tokyo/",
+          },
+          {
+            "cited_text": "Apple Ginza opens to customers Friday, September 26, at 10 a.m. JST. ",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDLbB+GC68MPUyjdjEBoMxbiOu598WzwdiRCJIjAAhTSlAu9Es/ErWBtEgie/Mp5VktMqh/JvZ//uprZEXDRnbmLUPROzgt7MC+BHPFcqE4mv+hJs7CQQtjFEovk32MFh4QIYBA==",
+            "title": "The all-new Apple Ginza opens this Friday, September 26, in Tokyo - Apple",
+            "type": "web_search_result_location",
+            "url": "https://www.apple.com/newsroom/2025/09/the-all-new-apple-ginza-opens-this-friday-september-26-in-tokyo/",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18096,6 +18162,26 @@ exports[`AnthropicLanguageModel > doStream > web search tool > should stream web
   },
   {
     "id": "5",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Opened in 2003 as Apple’s first store outside the U.S., Apple Ginza now returns in an all-new four-story design that brings together the best of Apple...",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDInhmZCA7JQw90CQiBoMZdhuGlh0urSfikIlIjAOfQluExdSLykntVUY5/QUlAIPpun6DAqXn9jxHbTB/GTMr7QuGMGbT+5fwdMk/U0qEwvQELJf9hlOYKENgMoheizRBfgYBA==",
+            "title": "The all-new Apple Ginza opens this Friday, September 26, in Tokyo - Apple",
+            "type": "web_search_result_location",
+            "url": "https://www.apple.com/newsroom/2025/09/the-all-new-apple-ginza-opens-this-friday-september-26-in-tokyo/",
+          },
+          {
+            "cited_text": "Opened in 2003 as Apple’s first store outside the U.S., Apple Ginza now returns in an all-new four-story design that brings together the best of Apple...",
+            "encrypted_index": "EpABCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDPdYUCIhgQkfi58EphoMC8P48MQ3sQFlcnfKIjDPwLNXEt13Rqsgkakpa0pFH+se7uElXxWFBumPnCSJebZSZBCdBelu8VeP32khIMAqFLCf9j+bfA9UCuOfz3TCRcqVUYbnGAQ=",
+            "title": "The all-new Apple Ginza opens this Friday, September 26, in Tokyo - Apple",
+            "type": "web_search_result_location",
+            "url": "https://www.apple.com/newsroom/2025/09/the-all-new-apple-ginza-opens-this-friday-september-26-in-tokyo/",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18163,6 +18249,19 @@ exports[`AnthropicLanguageModel > doStream > web search tool > should stream web
   },
   {
     "id": "7",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Apple is considering building a pilot production line for a foldable iPhone in Taiwan, with plans to launch the new foldable iPhone in 2026. Currently...",
+            "encrypted_index": "EpEBCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDN9RRNtj1Qp6RaNu1xoM99Hpd9h5/iiAHVV1IjACHitA/CndYvvQF5mFfD37nMJCc2Dt9+WarXhj7MOp0SULX1XGU/UsFAkp+LFUxWwqFUTSJ7/UKDtvO7kikg9WL6iVvVicxhgE",
+            "title": "Fang Junyu's Technology Weekly - September 26, 2025 - Future",
+            "type": "web_search_result_location",
+            "url": "https://future.forem.com/junyu_fang_a216509a97501d/fang-junyus-technology-weekly-september-26-2025-2ndd",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18249,6 +18348,19 @@ exports[`AnthropicLanguageModel > doStream > web search tool > should stream web
   },
   {
     "id": "9",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "OpenAI launches ChatGPT Pulse, proactively writing your morning briefing. OpenAI is rolling out a new feature in ChatGPT called Pulse, which generates...",
+            "encrypted_index": "EpMBCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDLi26WjvZzuqNWkZGBoMN2xRMzTInXpgc+N0IjBV5WkXoe+qIbxhn3ZuE4vKJxW1DxkaVK1FOzOsZl5XK9Wl2IRhbEGLpqKsJF2uSNgqF8CAJjYkYVTQUPqU4JKD7jE6ZgE6NwvhGAQ=",
+            "title": "Fang Junyu's Technology Weekly - September 26, 2025 - Future",
+            "type": "web_search_result_location",
+            "url": "https://future.forem.com/junyu_fang_a216509a97501d/fang-junyus-technology-weekly-september-26-2025-2ndd",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18315,6 +18427,26 @@ exports[`AnthropicLanguageModel > doStream > web search tool > should stream web
   },
   {
     "id": "11",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "On September 25, 2025, headlines were dominated by seismic shifts in AI infrastructure, potential blockbuster partnerships between legacy chip giants,...",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDOQ/NQu+nnBHHIkVuhoMXqvV+iEabI/JvCcEIjDan9SLf1kUDEjapUM3Tstq5f3nrHJSMRj+XdWWzrlUVfLX4K6afVpgOK6pZzKJ8/4qEwZgT6oJF/sGnrdCPAA8mlKGdxkYBA==",
+            "title": "📰 Major Tech News: September 25, 2025 - Future",
+            "type": "web_search_result_location",
+            "url": "https://future.forem.com/om_shree_0709/major-tech-news-september-25-2025-5h38",
+          },
+          {
+            "cited_text": "On September 25, 2025, headlines were dominated by seismic shifts in AI infrastructure, potential blockbuster partnerships between legacy chip giants,...",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDPTNFSUt4rkCaRmBiBoM8HcdQPJstID+PCGGIjBLhIRYpaD2k2EGRa++jM2pLq1TF7VFh2pj20i5gpPW7qKG8awi0bxnbUHJh6kI7hcqE63MfpB43d2a081kYEEtnpCMjDkYBA==",
+            "title": "📰 Major Tech News: September 25, 2025 - Future",
+            "type": "web_search_result_location",
+            "url": "https://future.forem.com/om_shree_0709/major-tech-news-september-25-2025-5h38",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18362,6 +18494,19 @@ Key highlights include:
   },
   {
     "id": "13",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Microsoft shook up its AI stack by integrating Anthropic's models into Copilot for Microsoft 365, reducing OpenAI dependency and boosting productivity...",
+            "encrypted_index": "EpABCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDAC88THJtPYWws/AnRoM9vnyF6Cv1kG0w+zfIjABi6xlH9yl/cfwW1kVKxEww0QSITFKBixiNoGIEoEOPy/unW0Jt1KgaQ5X8sdVDBwqFB1AfiWedfrXpRtEghZYy+a3LIanGAQ=",
+            "title": "📰 Major Tech News: September 25, 2025 - Future",
+            "type": "web_search_result_location",
+            "url": "https://future.forem.com/om_shree_0709/major-tech-news-september-25-2025-5h38",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18402,6 +18547,19 @@ Key highlights include:
   },
   {
     "id": "15",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Oracle followed with a $15 billion bond raise for cloud expansion, riding AI demand waves. ",
+            "encrypted_index": "EpABCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDFusGSC0EOZjZBGgARoMfOwWDOch04HX9MVdIjBZ3DN9EtoEgYz3dKM+oRWK2bhrg/5/O0JBbumO0HMXLjwnoFzD25fvVr3ic1VLcB8qFL0kqPObH+ugPBuuh8a/3gCs5xApGAQ=",
+            "title": "📰 Major Tech News: September 25, 2025 - Future",
+            "type": "web_search_result_location",
+            "url": "https://future.forem.com/om_shree_0709/major-tech-news-september-25-2025-5h38",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18447,6 +18605,19 @@ Key highlights include:
   },
   {
     "id": "17",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "Google launched Mixboard, an AI mood board app with Gemini-powered suggestions for designers, and rolled conversational editing to more Android phones...",
+            "encrypted_index": "EpABCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDKTAT7cc6BiCx6BdmRoMkVcS4u/F+dWR3K8bIjCBixw1ZX30TadhFVj+NE2sUZLJjkKxJtNtYPIyQBhIpZoOhTIvkp2lsbwkzR/CtWMqFIABgH01yvhMEvw4JGr9mx6g+XhBGAQ=",
+            "title": "📰 Major Tech News: September 25, 2025 - Future",
+            "type": "web_search_result_location",
+            "url": "https://future.forem.com/om_shree_0709/major-tech-news-september-25-2025-5h38",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {
@@ -18517,6 +18688,26 @@ Key highlights include:
   },
   {
     "id": "19",
+    "providerMetadata": {
+      "anthropic": {
+        "citations": [
+          {
+            "cited_text": "With iOS 26 officially launched, Apple is moving forward with iOS 26.1. ",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDIPB/AN3fJlbLwK8RhoMuar7jkDtGlWf2zAqIjDhSubMgOqlu9mQga+JzkQPW2Kq/+Lc2PPJarWoWOwpvAhd0wEkDbe+tvffGYUvH0gqE2r0uwM2Ab9FL7pYWlhK9dXq7NYYBA==",
+            "title": "Apple releases first iOS 26.1 developer beta for iPhone - 9to5Mac",
+            "type": "web_search_result_location",
+            "url": "https://9to5mac.com/2025/09/22/ios-26-1-beta-1/",
+          },
+          {
+            "cited_text": "Apple released iOS 26 on September 15, bringing the Liquid Glass redesign to the iPhone. ",
+            "encrypted_index": "Eo8BCioICBgCIiRiY2JjZWJjMy1lYTFhLTRmNjktYTUwMy01YzgwNWU1Y2U0NzESDKwFwl13npJwcmRCphoM51Qmc4OrGRffab8VIjD6jLriOpBhiA1tmErisXQlR3pDvzabIE/sUXyiW8bv5d+URlUm8GQRQOGdMY82kscqE7REcFDzGjDki9CZFMNYpjMkKXIYBA==",
+            "title": "Apple releases first iOS 26.1 developer beta for iPhone - 9to5Mac",
+            "type": "web_search_result_location",
+            "url": "https://9to5mac.com/2025/09/22/ios-26-1-beta-1/",
+          },
+        ],
+      },
+    },
     "type": "text-end",
   },
   {

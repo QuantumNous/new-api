@@ -223,7 +223,7 @@ describe('doStream', () => {
       `);
     });
 
-    it('preserves the first streamed tool call and drops the repeated one', async () => {
+    it('drops the spurious tool calls from a mixed structured-output stream', async () => {
       const fetch = createStreamFixtureFetchMock(
         'cererebras-structured-output-tools.1',
       );
@@ -237,17 +237,12 @@ describe('doStream', () => {
       });
       const chunks = await convertStreamToArray(stream);
 
-      expect(chunks.filter(chunk => chunk.type === 'tool-call'))
-        .toMatchInlineSnapshot(`
-        [
-          {
-            "input": "{}",
-            "toolCallId": "bbd2b9d98",
-            "toolName": "nonUsefulTool",
-            "type": "tool-call",
-          },
-        ]
-      `);
+      // Tool calls finalize during flush (after the structured-output text has
+      // streamed), so the json-mode filter drops them all — matching the
+      // doGenerate behavior of treating the mixed response as the final answer.
+      expect(
+        chunks.filter(chunk => chunk.type === 'tool-call'),
+      ).toMatchInlineSnapshot(`[]`);
     });
   });
 });

@@ -48,6 +48,7 @@ export class AnthropicSkills implements SkillsV4 {
   }): Promise<{ name?: string; description?: string }> {
     const { value: versionResponse } = await getFromApi({
       url: `${this.config.baseURL}/skills/${skillId}/versions/${version}`,
+      validateUrl: false,
       headers,
       failedResponseHandler: anthropicFailedResponseHandler,
       successfulResponseHandler: createJsonResponseHandler(

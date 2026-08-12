@@ -127,6 +127,7 @@ If the runtime needs in-sandbox setup, expose `getBootstrap()`.
 Add only the concerns the runtime needs:
 
 - auth resolution — for AI Gateway support, use the central `getAiGatewayAuthFromEnv()` helper rather than reading env directly. This ensures both `VERCEL_OIDC_TOKEN` and `AI_GATEWAY_API_KEY` are accepted as Gateway credential. When the runtime resolves provider per model, resolve the provider from the model id and set that provider's env; if routing through the gateway, note that base-URL conventions differ per provider (e.g. an Anthropic client appends `/v1/messages` to a root base, an OpenAI client appends to a `/v1` base);
+- AI Gateway client attribution — follow the convention in existing harness packages: define a versioned client app value such as `ai-sdk/harness-<name>/${VERSION}` and use it for Gateway requests. Configure both `User-Agent` and `x-client-app` headers when the underlying runtime/SDK supports both; at least one of those two headers is required. If the runtime cannot set arbitrary headers directly, use the runtime-supported equivalent that produces one of those headers (e.g. an SDK client-app environment variable);
 - custom-tool schema translation — if you convert host tools' JSON Schema into the runtime's tool format, convert _recursively_ (nested objects, array `items`, enums, descriptions); a flat top-level-only conversion silently drops the model's structured guidance. Passing the JSON Schema through directly, if the runtime accepts it, avoids the problem;
 - skill or discovery-file materialization;
 - native protocol to harness stream/control translation;
@@ -214,6 +215,7 @@ Run relevant harness examples against a live sandbox **early** — don't rely on
 - [ ] Runtime placement handled without creating a hidden sandbox
 - [ ] Bridge assets copied during build, if bridge-backed
 - [ ] Auth resolution implemented, if needed
+- [ ] AI Gateway requests include `User-Agent` and/or `x-client-app` client attribution
 - [ ] Harness infra, skills, bridge code, and secrets kept out of `sessionWorkDir`
 - [ ] Session resume and turn continuation tested
 - [ ] Unit tests written and passing

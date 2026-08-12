@@ -74,7 +74,7 @@ const result = streamText({
 Start the DevTools viewer:
 
 ```bash
-npx @ai-sdk/devtools
+npx @ai-sdk/devtools@latest
 ```
 
 Open [http://localhost:4983](http://localhost:4983) to view your AI SDK interactions.
@@ -87,8 +87,12 @@ For example, if your API is in `apps/api`, run:
 
 ```bash
 cd apps/api
-npx @ai-sdk/devtools
+npx @ai-sdk/devtools@latest
 ```
+
+The explicit `@latest` tag ensures that `npx` installs an executable copy
+instead of selecting a transitive dependency whose binary is not linked into
+the workspace.
 
 ## Captured data
 

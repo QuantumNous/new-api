@@ -1,5 +1,7 @@
 import {
   UnsupportedFunctionalityError,
+  type JSONObject,
+  type JSONValue,
   type SharedV4Warning,
   type LanguageModelV4Message,
   type LanguageModelV4Prompt,
@@ -24,6 +26,7 @@ import {
   type AnthropicToolResultContent,
   type AnthropicUserMessage,
   type AnthropicWebFetchToolResultContent,
+  type Citation,
 } from './anthropic-api';
 import { anthropicFilePartProviderOptions } from './anthropic-language-model-options';
 import { CacheControlValidator } from './get-cache-control';
@@ -583,7 +586,7 @@ export async function convertToAnthropicPrompt({
               case 'text': {
                 // Check if this is a compaction block (via providerMetadata)
                 const textMetadata = part.providerOptions?.anthropic as
-                  | { type?: string }
+                  | { type?: string; citations?: Citation[] }
                   | undefined;
 
                 if (textMetadata?.type === 'compaction') {
@@ -602,7 +605,9 @@ export async function convertToAnthropicPrompt({
                       isLastBlock && isLastMessage && isLastContentPart
                         ? part.text.trim()
                         : part.text,
-
+                    ...(textMetadata?.citations != null && {
+                      citations: textMetadata.citations,
+                    }),
                     cache_control: cacheControl,
                   });
                 }
@@ -801,7 +806,7 @@ export async function convertToAnthropicPrompt({
                   type: 'tool_use',
                   id: part.toolCallId,
                   name: part.toolName,
-                  input: part.input,
+                  input: toAnthropicToolInput(part.input),
                   ...(caller && { caller }),
                   cache_control: cacheControl,
                 });
@@ -1326,4 +1331,11 @@ function moveToolUseBlocksToEnd(
   flushSegment();
 
   return result;
+}
+
+// wrap invalid tool call input because Anthropic requires it to be an object
+function toAnthropicToolInput(input: unknown): JSONObject {
+  return typeof input === 'object' && input !== null && !Array.isArray(input)
+    ? (input as JSONObject)
+    : { rawInvalidInput: input as JSONValue };
 }

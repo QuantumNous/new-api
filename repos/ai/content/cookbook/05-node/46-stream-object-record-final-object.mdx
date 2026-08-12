@@ -12,7 +12,7 @@ When you're streaming structured data, you may want to record the final object f
 
 Use `onEnd` for metadata like token usage and await `result.output` for the final structured object.
 
-```ts file='index.ts' highlight={"15-29"}
+```ts file='index.ts' highlight={"16-18,24-29"}
 import { streamText, Output } from 'ai';
 import { z } from 'zod';
 
@@ -49,7 +49,7 @@ try {
 The `streamText` result contains an `output` promise that resolves to the final object.
 The object is fully typed. When the type validation according to the schema fails, the promise will be rejected with a `TypeValidationError`.
 
-```ts file='index.ts' highlight={"17-26"}
+```ts file='index.ts' highlight={"21-26"}
 import { streamText, Output } from 'ai';
 import { z } from 'zod';
 

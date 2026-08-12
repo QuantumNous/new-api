@@ -15,6 +15,28 @@ to prevent unnecessary breakages.
 - keep them minimal (no unused properties)
 - use `.nullish()` instead of `.optional()`
 
+## Fetching URLs from Responses
+
+When a provider fetches a URL with `getFromApi` from `@ai-sdk/provider-utils`,
+always set the `validateUrl` option explicitly. It is optional in the type only
+to avoid breaking external callers of `@ai-sdk/provider-utils` — omitting it
+skips validation, so provider code must never leave it out. This is enforced in
+CI by the `ai-sdk/require-validate-url` oxlint rule
+(`tools/oxlint-plugin-ai-sdk`), which fails `pnpm check` for any `getFromApi`
+call without an explicit `validateUrl`.
+
+- `validateUrl: true` — the URL's host comes from a provider response body
+  (an image/audio/video download URL or a polling URL). It is routed through
+  `fetchWithValidatedRedirects`, which rejects private/loopback/link-local
+  targets and re-validates every redirect hop; blocked URLs throw
+  `DownloadError`.
+- `validateUrl: false` — the URL is built from a developer-configured endpoint
+  (`${config.baseURL}/…`) with at most a path segment or id interpolated.
+- Pass `credentialedOrigin` when a response URL may legitimately carry the API
+  key on its first hop, so credentials are withheld off-origin.
+
+See [secure-url-handling.md](secure-url-handling.md) for the full rules.
+
 ## Provider-Specific Model Options Types
 
 Types and Zod schemas for the provider specific model options follow the pattern `{Provider}{ModelType}Options`, e.g. `AnthropicLanguageModelOptions`.

@@ -10,6 +10,7 @@ import {
   generateId,
   loadApiKey,
   loadOptionalSetting,
+  validateBaseURL,
   withoutTrailingSlash,
   withUserAgentSuffix,
   type FetchFunction,
@@ -25,7 +26,9 @@ const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 const ANTHROPIC_API_VERSIONED_URL = `${ANTHROPIC_API_URL}/v1`;
 
 function normalizeBaseURL(baseURL: string | undefined): string | undefined {
-  const baseURLWithoutTrailingSlash = withoutTrailingSlash(baseURL);
+  const baseURLWithoutTrailingSlash = withoutTrailingSlash(
+    validateBaseURL(baseURL),
+  );
 
   return baseURLWithoutTrailingSlash === ANTHROPIC_API_URL
     ? ANTHROPIC_API_VERSIONED_URL

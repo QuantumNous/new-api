@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { inboundMessageSchema } from './opencode-bridge-protocol';
+import {
+  inboundMessageSchema,
+  outboundMessageSchema,
+} from './opencode-bridge-protocol';
 
 describe('OpenCode bridge protocol', () => {
   it('accepts prompt and compact start operations', () => {
@@ -42,6 +45,9 @@ describe('OpenCode bridge protocol', () => {
     expect(inboundMessageSchema.parse({ type: 'abort' })).toEqual({
       type: 'abort',
     });
+    expect(inboundMessageSchema.parse({ type: 'interrupt' })).toEqual({
+      type: 'interrupt',
+    });
     expect(
       inboundMessageSchema.parse({
         type: 'tool-result',
@@ -52,6 +58,15 @@ describe('OpenCode bridge protocol', () => {
       type: 'tool-result',
       toolCallId: 'tool-1',
       output: { ok: true },
+    });
+  });
+
+  it('accepts interrupt acknowledgements', () => {
+    expect(
+      outboundMessageSchema.parse({ type: 'bridge-interrupted', ok: true }),
+    ).toEqual({
+      type: 'bridge-interrupted',
+      ok: true,
     });
   });
 });

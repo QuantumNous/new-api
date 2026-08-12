@@ -1,4 +1,4 @@
-import { fireworks } from '@ai-sdk/fireworks';
+import { fireworks, type FireworksImageModelOptions } from '@ai-sdk/fireworks';
 import { generateImage } from 'ai';
 import { presentImages } from '../../lib/present-image';
 import { run } from '../../lib/run';
@@ -17,7 +17,7 @@ run(async () => {
         // https://fireworks.ai/models/fireworks/stable-diffusion-xl-1024-v1-0/playground
         cfg_scale: 10,
         steps: 30,
-      },
+      } satisfies FireworksImageModelOptions,
     },
   });
 

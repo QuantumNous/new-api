@@ -63,7 +63,11 @@ export type VideoModelV3CallOptions = {
   frameImages: Array<VideoModelV3FrameImage> | undefined;
 
   /**
-   * Reference image inputs for reference-to-video generation.
+   * Reference inputs for reference-to-video generation.
+   *
+   * Each entry is an image or video file. Providers route each reference by
+   * its media type (image vs. video) and warn when a reference kind is
+   * unsupported.
    */
   inputReferences: Array<VideoModelV3File> | undefined;
 

@@ -24,20 +24,7 @@ Use of LangChain's open-source frameworks is not necessary.
 Install an [AI SDK model provider](/providers/ai-sdk-providers) and the [LangSmith client SDK](https://npmjs.com/package/langsmith).
 The code snippets below will use the [AI SDK's OpenAI provider](/providers/ai-sdk-providers/openai), but you can use any [other supported provider](/providers/ai-sdk-providers) as well.
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/openai langsmith" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/openai langsmith" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/openai langsmith" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add @ai-sdk/openai langsmith" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/openai langsmith" />
 
 Next, set required environment variables.
 
@@ -52,7 +39,7 @@ export OPENAI_API_KEY=<your-openai-api-key> # The examples use OpenAI (replace w
 
 To start tracing, you will need to import and call the `wrapAISDK` method at the start of your code:
 
-```ts highlight="6-7"
+```ts highlight="6"
 import { openai } from '@ai-sdk/openai';
 import * as ai from 'ai';
 

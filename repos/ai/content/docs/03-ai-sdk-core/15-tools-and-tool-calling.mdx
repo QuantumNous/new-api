@@ -20,7 +20,7 @@ Function tools and dynamic tools contain several core elements:
 
 The `tools` parameter of `generateText` and `streamText` is an object that has the tool names as keys and the tools as values:
 
-```ts highlight="6-17"
+```ts highlight="7-18"
 import { z } from 'zod';
 import { generateText, tool, isStepCount } from 'ai';
 __PROVIDER_IMPORT__;
@@ -63,7 +63,7 @@ model for each generation step. It receives the matching tool `context` from
 `toolsContext` and the current `experimental_sandbox`, if one was provided. If `prepareStep`
 updates `toolsContext` or `experimental_sandbox`, the next step uses those updated values.
 
-```ts highlight="6-14,28-33"
+```ts highlight="5-16,32-35"
 import { generateText, tool } from 'ai';
 import { z } from 'zod';
 
@@ -413,7 +413,7 @@ In the following example, there are two steps:
    1. The tool result is sent to the model.
    1. The model generates a response considering the tool result.
 
-```ts highlight="18-19"
+```ts highlight="19-20"
 import { z } from 'zod';
 import { generateText, tool, isStepCount } from 'ai';
 __PROVIDER_IMPORT__;
@@ -447,7 +447,7 @@ It contains all the text, tool calls, tool results, per-step `performance`, and 
 
 #### Example: Extract tool results from all steps
 
-```ts highlight="3,9-10"
+```ts highlight="4,10-11"
 import { generateText } from 'ai';
 __PROVIDER_IMPORT__;
 
@@ -772,7 +772,7 @@ It supports the following settings:
 - `none`: the model must not call tools
 - `{ type: 'tool', toolName: string (typed) }`: the model must call the specified tool
 
-```ts highlight="18"
+```ts highlight="19"
 import { z } from 'zod';
 import { generateText, tool } from 'ai';
 __PROVIDER_IMPORT__;
@@ -877,7 +877,7 @@ const result = await generateText({
 The abort signals from `generateText` and `streamText` are forwarded to the tool execution.
 You can access them in the second parameter of the `execute` function and e.g. abort long-running computations or forward them to fetch calls inside tools.
 
-```ts highlight="6,11,14"
+```ts highlight="7,12,15"
 import { z } from 'zod';
 import { generateText, tool } from 'ai';
 __PROVIDER_IMPORT__;
@@ -1043,11 +1043,11 @@ The following tool input lifecycle hooks are available:
 - **`onInputDelta`**: Called for each chunk of text as the input is streamed
 - **`onInputAvailable`**: Called when the complete input is available and validated
 
-`onInputStart` and `onInputDelta` are only called in streaming contexts (when using `streamText`). They are not called when using `generateText`.
+`onInputStart` is always called before `onInputAvailable`, including when using `generateText`. `onInputDelta` is only called in streaming contexts (when using `streamText`).
 
 ### Example
 
-```ts highlight="15-23"
+```ts highlight="16-24"
 import { streamText, tool } from 'ai';
 __PROVIDER_IMPORT__;
 import { z } from 'zod';
@@ -1207,10 +1207,6 @@ return createUIMessageStreamResponse({
 
 ## Tool Call Repair
 
-<Note type="warning">
-  The tool call repair feature is experimental and may change in the future.
-</Note>
-
 Language models sometimes fail to generate valid tool calls,
 especially when the input schema is complex or the model is smaller.
 
@@ -1219,7 +1215,7 @@ in the next step to give it an opportunity to fix it.
 However, you may want to control how invalid tool calls are repaired without requiring
 additional steps that pollute the message history.
 
-You can use the `experimental_repairToolCall` function to attempt to repair the tool call
+You can use the `repairToolCall` function to attempt to repair the tool call
 with a custom function.
 
 You can use different strategies to repair the tool call:
@@ -1239,12 +1235,7 @@ const result = await generateText({
   tools,
   prompt,
 
-  experimental_repairToolCall: async ({
-    toolCall,
-    tools,
-    inputSchema,
-    error,
-  }) => {
+  repairToolCall: async ({ toolCall, tools, inputSchema, error }) => {
     if (NoSuchToolError.isInstance(error)) {
       return null; // do not attempt to fix invalid tool names
     }
@@ -1280,7 +1271,7 @@ const result = await generateText({
   tools,
   prompt,
 
-  experimental_repairToolCall: async ({
+  repairToolCall: async ({
     toolCall,
     tools,
     error,
@@ -1343,7 +1334,7 @@ the AI SDK provides the `activeTools` property.
 It is an array of tool names that are currently active.
 By default, the value is `undefined` and all tools are active.
 
-```ts highlight="7"
+```ts highlight="8"
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 __PROVIDER_IMPORT__;
@@ -1366,7 +1357,7 @@ debugging. The list can be partial: tools listed in `toolOrder` are sent first
 in that order, and any remaining tools are sent afterwards in alphabetical
 order. Tool names are typed from your `tools` object.
 
-```ts highlight="9"
+```ts highlight="7"
 import { generateText } from 'ai';
 __PROVIDER_IMPORT__;
 
@@ -1406,7 +1397,7 @@ that converts the tool result into a content part.
 
 Here is an example for converting a screenshot into a content part:
 
-```ts highlight="22-27"
+```ts highlight="23-38"
 const result = await generateText({
   model: __MODEL__,
   tools: {

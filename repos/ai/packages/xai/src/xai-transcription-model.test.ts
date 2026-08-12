@@ -415,6 +415,313 @@ describe('doStream', () => {
     expect(result.response).toEqual({ timestamp: testDate, modelId: '' });
   });
 
+  it('should strip undefined header values before the WebSocket constructor', async () => {
+    MockWebSocket.instances = [];
+    const model = new XaiTranscriptionModel('', {
+      provider: 'xai.transcription',
+      baseURL: 'https://api.x.ai/v1',
+      headers: () => ({ Authorization: 'Bearer test-api-key' }),
+      webSocket: MockWebSocket,
+    });
+
+    const result = await model.doStream({
+      audio: convertArrayToReadableStream([new Uint8Array([1, 2, 3])]),
+      inputAudioFormat: { type: 'audio/pcm', rate: 16000 },
+      headers: { 'Custom-Header': 'custom-value', 'X-Unset': undefined },
+    });
+
+    void result.stream.cancel();
+    const headers = MockWebSocket.instances[0].options?.headers ?? {};
+    expect(headers).not.toHaveProperty('X-Unset');
+    expect(Object.values(headers)).not.toContain(undefined);
+    expect(headers).toMatchObject({
+      Authorization: 'Bearer test-api-key',
+      'Custom-Header': 'custom-value',
+    });
+  });
+
+  it('should cancel the audio stream when the WebSocket constructor throws', async () => {
+    let audioCancelled = false;
+    const audio = new ReadableStream<Uint8Array>({
+      cancel() {
+        audioCancelled = true;
+      },
+    });
+    const model = new XaiTranscriptionModel('', {
+      provider: 'xai.transcription',
+      baseURL: 'https://api.x.ai/v1',
+      headers: () => ({ Authorization: 'Bearer test-api-key' }),
+      webSocket: class {
+        constructor() {
+          throw new Error('constructor failed');
+        }
+      } as never,
+    });
+
+    const result = await model.doStream({
+      audio,
+      inputAudioFormat: { type: 'audio/pcm', rate: 16000 },
+    });
+
+    await expect(convertReadableStreamToArray(result.stream)).rejects.toThrow(
+      'constructor failed',
+    );
+    expect(audioCancelled).toBe(true);
+  });
+
+  it('should cancel the audio stream when an audio send throws mid-stream', async () => {
+    MockWebSocket.instances = [];
+    let audioCancelled = false;
+    const audio = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+      },
+      cancel() {
+        audioCancelled = true;
+      },
+    });
+    const model = new XaiTranscriptionModel('', {
+      provider: 'xai.transcription',
+      baseURL: 'https://api.x.ai/v1',
+      headers: () => ({ Authorization: 'Bearer test-api-key' }),
+      webSocket: MockWebSocket,
+    });
+
+    const result = await model.doStream({
+      audio,
+      inputAudioFormat: { type: 'audio/pcm', rate: 16000 },
+    });
+
+    const partsPromise = convertReadableStreamToArray(result.stream);
+    // subscribe before triggering the failure: the stream errors while
+    // flushing, and an unsubscribed rejection fails the vitest run
+    const assertion = expect(partsPromise).rejects.toThrow('send failed');
+    const ws = MockWebSocket.instances[0];
+    ws.send.mockImplementation((data: unknown) => {
+      if (data instanceof Uint8Array) {
+        throw new Error('send failed');
+      }
+    });
+
+    ws.message({ type: 'transcript.created' });
+    await assertion;
+    expect(audioCancelled).toBe(true);
+  });
+
+  // live API behavior: finals are re-sent (`speech_final` false then true)
+  // and `transcript.done` carries an empty `text`.
+  it('should emit one transcript-final per utterance and reconstruct the finish text when transcript.done is empty', async () => {
+    MockWebSocket.instances = [];
+    const model = new XaiTranscriptionModel('', {
+      provider: 'xai.transcription',
+      baseURL: 'https://api.x.ai/v1',
+      headers: () => ({ Authorization: 'Bearer test-api-key' }),
+      webSocket: MockWebSocket,
+    });
+
+    const result = await model.doStream({
+      audio: convertArrayToReadableStream([new Uint8Array([1, 2, 3])]),
+      inputAudioFormat: { type: 'audio/pcm', rate: 16000 },
+    });
+
+    const partsPromise = convertReadableStreamToArray(result.stream);
+    const ws = MockWebSocket.instances[0];
+
+    ws.message({ type: 'transcript.created' });
+    await flush();
+
+    ws.message({
+      type: 'transcript.partial',
+      text: 'Hello wor',
+      is_final: false,
+      speech_final: false,
+      start: 0,
+      duration: 0.8,
+    });
+    ws.message({
+      type: 'transcript.partial',
+      text: 'Hello world.',
+      is_final: true,
+      speech_final: false,
+      start: 0,
+      duration: 1,
+    });
+    ws.message({
+      type: 'transcript.partial',
+      text: 'Hello world.',
+      is_final: true,
+      speech_final: true,
+      start: 0,
+      duration: 1,
+    });
+    ws.message({ type: 'transcript.done', text: '', duration: 1 });
+
+    const parts = await partsPromise;
+    expect(parts.filter(part => part.type === 'transcript-final')).toEqual([
+      {
+        type: 'transcript-final',
+        id: undefined,
+        text: 'Hello world.',
+        startSecond: 0,
+        endSecond: 1,
+        channelIndex: undefined,
+      },
+    ]);
+    // the speech_final:false re-send surfaces as a partial:
+    expect(
+      parts.filter(part => part.type === 'transcript-partial'),
+    ).toHaveLength(2);
+    expect(parts.at(-1)).toEqual({
+      type: 'finish',
+      text: 'Hello world.',
+      segments: [],
+      language: undefined,
+      durationInSeconds: 1,
+    });
+  });
+
+  // live API behavior: `is_final` fragments get merged/re-punctuated by the
+  // eventual `speech_final` event, so they are not stable finals.
+  it('should treat is_final fragments as partials and use the speech_final text for finish', async () => {
+    MockWebSocket.instances = [];
+    const model = new XaiTranscriptionModel('', {
+      provider: 'xai.transcription',
+      baseURL: 'https://api.x.ai/v1',
+      headers: () => ({ Authorization: 'Bearer test-api-key' }),
+      webSocket: MockWebSocket,
+    });
+
+    const result = await model.doStream({
+      audio: convertArrayToReadableStream([new Uint8Array([1, 2, 3])]),
+      inputAudioFormat: { type: 'audio/pcm', rate: 16000 },
+    });
+
+    const partsPromise = convertReadableStreamToArray(result.stream);
+    const ws = MockWebSocket.instances[0];
+
+    ws.message({ type: 'transcript.created' });
+    await flush();
+
+    ws.message({
+      type: 'transcript.partial',
+      text: 'No',
+      is_final: true,
+      speech_final: false,
+      start: 0,
+      duration: 0.5,
+    });
+    ws.message({
+      type: 'transcript.partial',
+      text: ", I'm not",
+      is_final: true,
+      speech_final: false,
+      start: 0.5,
+      duration: 0.7,
+    });
+    ws.message({
+      type: 'transcript.partial',
+      text: "No, I'm not.",
+      is_final: true,
+      speech_final: true,
+      start: 0,
+      duration: 1.2,
+    });
+    ws.message({ type: 'transcript.done', text: '', duration: 1.2 });
+
+    const parts = await partsPromise;
+    expect(parts.map(part => part.type)).toEqual([
+      'stream-start',
+      'transcript-partial',
+      'transcript-partial',
+      'transcript-final',
+      'finish',
+    ]);
+    expect(parts.at(-1)).toMatchObject({ text: "No, I'm not." });
+  });
+
+  it('should fall back to the latest pending text when no speech_final arrived before transcript.done', async () => {
+    MockWebSocket.instances = [];
+    const model = new XaiTranscriptionModel('', {
+      provider: 'xai.transcription',
+      baseURL: 'https://api.x.ai/v1',
+      headers: () => ({ Authorization: 'Bearer test-api-key' }),
+      webSocket: MockWebSocket,
+    });
+
+    const result = await model.doStream({
+      audio: convertArrayToReadableStream([new Uint8Array([1, 2, 3])]),
+      inputAudioFormat: { type: 'audio/pcm', rate: 16000 },
+    });
+
+    const partsPromise = convertReadableStreamToArray(result.stream);
+    const ws = MockWebSocket.instances[0];
+
+    ws.message({ type: 'transcript.created' });
+    await flush();
+
+    ws.message({
+      type: 'transcript.partial',
+      text: 'Hello wor',
+      is_final: false,
+      speech_final: false,
+    });
+    ws.message({
+      type: 'transcript.partial',
+      text: 'Hello world',
+      is_final: true,
+      speech_final: false,
+    });
+    ws.message({ type: 'transcript.done', text: '', duration: 1 });
+
+    const parts = await partsPromise;
+    expect(parts.at(-1)).toMatchObject({ type: 'finish', text: 'Hello world' });
+  });
+
+  it('should join finalized utterances per channel when transcript.done is empty', async () => {
+    MockWebSocket.instances = [];
+    const model = new XaiTranscriptionModel('', {
+      provider: 'xai.transcription',
+      baseURL: 'https://api.x.ai/v1',
+      headers: () => ({ Authorization: 'Bearer test-api-key' }),
+      webSocket: MockWebSocket,
+    });
+
+    const result = await model.doStream({
+      audio: convertArrayToReadableStream([new Uint8Array([1, 2, 3])]),
+      inputAudioFormat: { type: 'audio/pcm', rate: 16000 },
+    });
+
+    const partsPromise = convertReadableStreamToArray(result.stream);
+    const ws = MockWebSocket.instances[0];
+
+    ws.message({ type: 'transcript.created' });
+    await flush();
+
+    ws.message({
+      type: 'transcript.partial',
+      text: 'First utterance.',
+      is_final: true,
+      speech_final: true,
+      start: 0,
+      duration: 1,
+    });
+    ws.message({
+      type: 'transcript.partial',
+      text: 'Second utterance.',
+      is_final: true,
+      speech_final: true,
+      start: 1,
+      duration: 1,
+    });
+    ws.message({ type: 'transcript.done', text: '', duration: 2 });
+
+    const parts = await partsPromise;
+    expect(parts.at(-1)).toMatchObject({
+      type: 'finish',
+      text: 'First utterance. Second utterance.',
+    });
+  });
+
   it('should error the stream with the server message on error events', async () => {
     MockWebSocket.instances = [];
     const model = new XaiTranscriptionModel('', {

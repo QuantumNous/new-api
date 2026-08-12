@@ -11,31 +11,18 @@ import {
   createJsonResponseHandler,
   delay,
   getFromApi,
-  lazySchema,
+  getTopLevelMediaType,
   parseProviderOptions,
   postJsonToApi,
   resolve,
-  zodSchema,
 } from '@ai-sdk/provider-utils';
 import { z } from 'zod/v4';
 import type { ByteDanceConfig } from './bytedance-config';
+import {
+  byteDanceVideoModelOptionsSchema,
+  type ByteDanceVideoModelOptions,
+} from './bytedance-video-model-options';
 import type { ByteDanceVideoModelId } from './bytedance-video-settings';
-
-export type ByteDanceVideoProviderOptions = {
-  watermark?: boolean | null;
-  generateAudio?: boolean | null;
-  cameraFixed?: boolean | null;
-  returnLastFrame?: boolean | null;
-  serviceTier?: 'default' | 'flex' | null;
-  draft?: boolean | null;
-  lastFrameImage?: string | null;
-  referenceImages?: string[] | null;
-  referenceVideos?: string[] | null;
-  referenceAudio?: string[] | null;
-  pollIntervalMs?: number | null;
-  pollTimeoutMs?: number | null;
-  [key: string]: unknown;
-};
 
 const HANDLED_PROVIDER_OPTIONS = new Set([
   'watermark',
@@ -51,25 +38,6 @@ const HANDLED_PROVIDER_OPTIONS = new Set([
   'pollIntervalMs',
   'pollTimeoutMs',
 ]);
-
-export const byteDanceVideoProviderOptionsSchema = lazySchema(() =>
-  zodSchema(
-    z.looseObject({
-      watermark: z.boolean().nullish(),
-      generateAudio: z.boolean().nullish(),
-      cameraFixed: z.boolean().nullish(),
-      returnLastFrame: z.boolean().nullish(),
-      serviceTier: z.enum(['default', 'flex']).nullish(),
-      draft: z.boolean().nullish(),
-      lastFrameImage: z.string().nullish(),
-      referenceImages: z.array(z.string()).nullish(),
-      referenceVideos: z.array(z.string()).nullish(),
-      referenceAudio: z.array(z.string()).nullish(),
-      pollIntervalMs: z.number().positive().nullish(),
-      pollTimeoutMs: z.number().positive().nullish(),
-    }),
-  ),
-);
 
 const RESOLUTION_MAP: Record<string, string> = {
   '864x496': '480p',
@@ -133,10 +101,14 @@ function resolveStartImage(
   return getFirstFrameImage(options) ?? options.image;
 }
 
-function resolveReferenceImages(
+const isVideoFile = (f: Experimental_VideoModelV4File) =>
+  f.mediaType != null && getTopLevelMediaType(f.mediaType) === 'video';
+
+function resolveReferenceContent(
   options: Parameters<Experimental_VideoModelV4['doGenerate']>[0],
-  byteDanceOptions: ByteDanceVideoProviderOptions | undefined,
-): string[] {
+  byteDanceOptions: ByteDanceVideoModelOptions | undefined,
+  warnings: SharedV4Warning[],
+): Array<Record<string, unknown>> {
   if (options.frameImages != null && options.frameImages.length > 0) {
     return [];
   }
@@ -144,15 +116,49 @@ function resolveReferenceImages(
   const inputReferences = options.inputReferences;
 
   if (inputReferences != null && inputReferences.length > 0) {
-    return inputReferences.map(image => convertImageModelFileToDataUri(image));
+    return inputReferences.map(reference => {
+      if (reference.type === 'url' && reference.mediaType == null) {
+        warnings.push({
+          type: 'unsupported',
+          feature: 'inputReferences',
+          details:
+            'ByteDance requires an explicit mediaType to route URL references as ' +
+            'video or image. Pass { data: url, mediaType: "video/mp4" } for video ' +
+            'references. The reference was treated as an image.',
+        });
+      }
+
+      const url = convertImageModelFileToDataUri(reference);
+      return isVideoFile(reference)
+        ? { type: 'video_url', video_url: { url }, role: 'reference_video' }
+        : { type: 'image_url', image_url: { url }, role: 'reference_image' };
+    });
   }
 
-  return byteDanceOptions?.referenceImages ?? [];
+  const content: Array<Record<string, unknown>> = [];
+
+  for (const imageUrl of byteDanceOptions?.referenceImages ?? []) {
+    content.push({
+      type: 'image_url',
+      image_url: { url: imageUrl },
+      role: 'reference_image',
+    });
+  }
+
+  for (const videoUrl of byteDanceOptions?.referenceVideos ?? []) {
+    content.push({
+      type: 'video_url',
+      video_url: { url: videoUrl },
+      role: 'reference_video',
+    });
+  }
+
+  return content;
 }
 
 function resolveLastFrameImage(
   options: Parameters<Experimental_VideoModelV4['doGenerate']>[0],
-  byteDanceOptions: ByteDanceVideoProviderOptions | undefined,
+  byteDanceOptions: ByteDanceVideoModelOptions | undefined,
 ): string | undefined {
   const lastFrame = options.frameImages?.find(
     frame => frame.frameType === 'last_frame',
@@ -187,8 +193,8 @@ export class ByteDanceVideoModel implements Experimental_VideoModelV4 {
     const byteDanceOptions = (await parseProviderOptions({
       provider: 'bytedance',
       providerOptions: options.providerOptions,
-      schema: byteDanceVideoProviderOptionsSchema,
-    })) as ByteDanceVideoProviderOptions | undefined;
+      schema: byteDanceVideoModelOptionsSchema,
+    })) as ByteDanceVideoModelOptions | undefined;
 
     // Warn about unsupported standard options
     if (options.fps) {
@@ -221,9 +227,10 @@ export class ByteDanceVideoModel implements Experimental_VideoModelV4 {
 
     const startImage = resolveStartImage(options);
     const lastFrameImageUrl = resolveLastFrameImage(options, byteDanceOptions);
-    const referenceImageUrls = resolveReferenceImages(
+    const referenceContent = resolveReferenceContent(
       options,
       byteDanceOptions,
+      warnings,
     );
 
     if (startImage != null) {
@@ -243,27 +250,8 @@ export class ByteDanceVideoModel implements Experimental_VideoModelV4 {
       });
     }
 
-    // Add reference images if provided
-    for (const imageUrl of referenceImageUrls) {
-      content.push({
-        type: 'image_url',
-        image_url: { url: imageUrl },
-        role: 'reference_image',
-      });
-    }
-
-    // Add reference videos if provided
-    if (
-      byteDanceOptions?.referenceVideos != null &&
-      byteDanceOptions.referenceVideos.length > 0
-    ) {
-      for (const videoUrl of byteDanceOptions.referenceVideos) {
-        content.push({
-          type: 'video_url',
-          video_url: { url: videoUrl },
-          role: 'reference_video',
-        });
-      }
+    for (const entry of referenceContent) {
+      content.push(entry);
     }
 
     // Add reference audio if provided
@@ -375,6 +363,7 @@ export class ByteDanceVideoModel implements Experimental_VideoModelV4 {
       const { value: statusResponse, responseHeaders: statusHeaders } =
         await getFromApi({
           url: statusUrl,
+          validateUrl: false,
           headers: combineHeaders(
             await resolve(this.config.headers),
             options.headers,

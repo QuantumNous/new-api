@@ -11,20 +11,7 @@ The official [Runpod](https://runpod.io) provider contains language model and im
 
 The Runpod provider is available in the `@runpod/ai-sdk-provider` module. You can install it with:
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @runpod/ai-sdk-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @runpod/ai-sdk-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @runpod/ai-sdk-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add @runpod/ai-sdk-provider" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@runpod/ai-sdk-provider" />
 
 ## Provider Instance
 
@@ -112,10 +99,10 @@ for await (const delta of textStream) {
 
 ### Model Capabilities
 
-| Model ID              | Description                                                         | Streaming           | Object Generation   | Tool Usage          | Reasoning Notes           |
-| --------------------- | ------------------------------------------------------------------- | ------------------- | ------------------- | ------------------- | ------------------------- |
-| `qwen/qwen3-32b-awq`  | 32B parameter multilingual model with strong reasoning capabilities | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | Standard reasoning events |
-| `openai/gpt-oss-120b` | 120B parameter open-source GPT model                                | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | Standard reasoning events |
+| Model ID              | Description                                                         | Streaming | Object Generation | Tool Usage | Reasoning Notes           |
+| --------------------- | ------------------------------------------------------------------- | --------- | ----------------- | ---------- | ------------------------- |
+| `qwen/qwen3-32b-awq`  | 32B parameter multilingual model with strong reasoning capabilities | <Check /> | <Cross />         | <Check />  | Standard reasoning events |
+| `openai/gpt-oss-120b` | 120B parameter open-source GPT model                                | <Check /> | <Cross />         | <Check />  | Standard reasoning events |
 
 **Note:** An up-to-date list of all available models can be found in the [Runpod Public Endpoint Reference](https://docs.runpod.io/hub/public-endpoint-reference).
 

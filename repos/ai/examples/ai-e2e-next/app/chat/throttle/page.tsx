@@ -13,7 +13,7 @@ export default function Chat() {
 
   const { messages, status, sendMessage } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat/throttle' }),
-    experimental_throttle: 50,
+    throttle: 50,
   });
 
   return (

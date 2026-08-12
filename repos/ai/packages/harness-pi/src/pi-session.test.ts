@@ -72,6 +72,7 @@ describe('createPiSession', () => {
         sessionWorkDir: '/sandbox/work',
         skills: [],
         settings: {},
+        clientApp: 'ai-sdk/harness-pi/0.0.0-test',
         isResume: true,
         resumeSessionFileName: '../session.jsonl',
       }),
@@ -116,6 +117,7 @@ describe('createPiSession', () => {
       sessionWorkDir: '/sandbox/work',
       skills: [],
       settings: {},
+      clientApp: 'ai-sdk/harness-pi/0.0.0-test',
       isResume: false,
     });
     const toolSpecs: HarnessV1ToolSpec[] = [{ name: 'weather' }];
@@ -140,6 +142,7 @@ describe('createPiSession', () => {
       sessionWorkDir: '/sandbox/work',
       skills: [],
       settings: {},
+      clientApp: 'ai-sdk/harness-pi/0.0.0-test',
       isResume: true,
     });
     const resumedControl = await resumedSession.doContinueTurn({

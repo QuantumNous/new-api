@@ -19,6 +19,23 @@ export type PrepareSandboxForHarnessResult = {
   readonly skippedHarnessIds: ReadonlyArray<string>;
 };
 
+/**
+ * Apply one or more harness bootstrap recipes to an existing sandbox session.
+ *
+ * Use this when a sandbox provider or caller wants to prepare a reusable
+ * sandbox template, image, or snapshot before creating live harness sessions.
+ *
+ * The function writes each adapter's bridge/bootstrap files, runs its install
+ * commands, and then returns a deterministic identity derived from the applied
+ * recipes and optional sandbox bootstrap configuration. Providers can use that
+ * identity as the cache key for the prepared artifact.
+ *
+ * This function only mutates the supplied sandbox; the caller is responsible for
+ * committing, snapshotting, or otherwise persisting that modified filesystem.
+ * When a later `HarnessAgent` session uses a sandbox created from the persisted
+ * artifact, the adapter recomputes the same recipe identity and the existing
+ * bootstrap marker makes the bootstrap logic a no-op.
+ */
 export async function prepareSandboxForHarness(options: {
   readonly session: SandboxSession;
   readonly harnesses: ReadonlyArray<HarnessAgentAdapter>;

@@ -776,7 +776,8 @@ export class OpenTelemetry implements Telemetry {
 
   onToolExecutionStart(event: ToolExecutionStartEvent<ToolSet>): void {
     const state = this.getCallState(event.callId);
-    if (!state?.stepContext) return;
+    const parentContext = state?.stepContext ?? state?.rootContext;
+    if (!state || !parentContext) return;
 
     const { telemetry } = state;
     const { toolCall } = event;
@@ -804,9 +805,9 @@ export class OpenTelemetry implements Telemetry {
         }),
         kind: SpanKind.INTERNAL,
       },
-      state.stepContext,
+      parentContext,
     );
-    const toolContext = trace.setSpan(state.stepContext, toolSpan);
+    const toolContext = trace.setSpan(parentContext, toolSpan);
 
     state.toolSpans.set(toolCall.toolCallId, {
       span: toolSpan,

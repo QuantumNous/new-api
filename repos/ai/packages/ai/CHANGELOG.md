@@ -1,5 +1,156 @@
 # ai
 
+## 7.0.31
+
+### Patch Changes
+
+- 70f18c3: fix(ai): emit denied tool output state for client-rejected approvals
+- cd06458: fix(ai): call `onInputStart` before `onInputAvailable` during non-streaming tool calls
+- Updated dependencies [cd06458]
+  - @ai-sdk/provider-utils@5.0.11
+  - @ai-sdk/gateway@4.0.23
+
+## 7.0.30
+
+### Patch Changes
+
+- Updated dependencies [341616a]
+- Updated dependencies [70fc45c]
+  - @ai-sdk/gateway@4.0.22
+
+## 7.0.29
+
+### Patch Changes
+
+- Updated dependencies [7069785]
+- Updated dependencies [4bf9ac2]
+  - @ai-sdk/gateway@4.0.21
+
+## 7.0.28
+
+### Patch Changes
+
+- 0bc8d4f: Fix chat `onFinish` handling when overlapping requests clear the active response before a resume stream finishes.
+
+## 7.0.27
+
+### Patch Changes
+
+- ac01b79: Allow validating assistant UI messages with empty parts so persisted errored responses remain loadable.
+- 2696562: `experimental_streamTranscribe` result promises now resolve without consuming `fullStream`: accessing any result promise consumes the stream internally. Previously `await result.text` alone deadlocked on transform backpressure. Because live transcription streams can be unbounded, `fullStream` is explicitly single-consumer (no replay buffering): access it once, before any result promise, when both stream parts and final results are needed.
+- Updated dependencies [31c7be8]
+- Updated dependencies [4d096f6]
+  - @ai-sdk/provider-utils@5.0.10
+  - @ai-sdk/gateway@4.0.20
+
+## 7.0.26
+
+### Patch Changes
+
+- 27d294d: feat(ai): group orphaned tool calls after tool approvals under parent span
+
+## 7.0.25
+
+### Patch Changes
+
+- 7805e4a: Cancelling the `experimental_streamTranscribe` `fullStream` now also aborts a still-pending `doStream` setup, so a model whose `doStream` has not yet resolved is cancelled instead of leaking.
+- f8e82fd: Update the `experimental_streamTranscribe` unsupported-model error message now that gateway string model IDs can support streaming transcription.
+- Updated dependencies [4be62c1]
+- Updated dependencies [f8e82fd]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - @ai-sdk/gateway@4.0.19
+
+## 7.0.24
+
+### Patch Changes
+
+- e193290: Cancel the caller's `audio` stream when `experimental_streamTranscribe` fails before or during streaming. Previously, when the model's `doStream` rejected before a stream existed (e.g. missing API key or other auth failure), the audio stream was never consumed or cancelled, so an upstream producer piping into it would hang forever.
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - @ai-sdk/gateway@4.0.18
+
+## 7.0.23
+
+### Patch Changes
+
+- 930f949: feat(ai): wrap embedMany in tracing channel context
+- Updated dependencies [867f80a]
+  - @ai-sdk/gateway@4.0.17
+
+## 7.0.22
+
+### Patch Changes
+
+- 8f89c25: Add the Cartesia provider with Sonic 3.5 speech generation, Ink-Whisper batch transcription, and Ink 2 realtime transcription support.
+
+## 7.0.21
+
+### Patch Changes
+
+- 308a519: chore: enforce consistent imports from `zod/v4` instead of `zod`
+- Updated dependencies [308a519]
+- Updated dependencies [7fe53d2]
+  - @ai-sdk/gateway@4.0.16
+
+## 7.0.20
+
+### Patch Changes
+
+- b9ac19f: Flush compressed Node.js response chunks as they are piped so UI message and text streams remain incremental in Express and Next.js.
+- a4186d6: Promote the `repairToolCall` option to stable, with a deprecated `experimental_repairToolCall` alias for backwards compatibility.
+
+## 7.0.19
+
+### Patch Changes
+
+- be7f05a: Add `fingerprintTools` and `detectToolDrift` to detect MCP tool-definition drift ("rug pull"). Pin a tool set's server-controlled fields (string description, input schema, title) at trust time with `fingerprintTools`, then diff later fetches with `detectToolDrift` to catch injected descriptions or widened schemas before passing tools to the model. Baseline storage and the drift response remain the app's responsibility.
+- ee55a07: Preserve tool approval signatures when approvals transition to responded.
+- aad737d: Use own-property checks when resolving per-tool approvals so tool names and approval ids that match inherited object properties (e.g. `constructor`, `toString`, `valueOf`, `__proto__`) are treated as unconfigured/absent.
+
+  - `@ai-sdk/policy-opa`: `wrapMcpTools` builds its per-tool map with a null prototype and reads supplied approvals via an own-property check, and `shadow` guards its per-tool map lookup the same way.
+  - `ai`: tool and tool-context lookups keyed by a model- or client-supplied name now go through an own-property check (`getOwn`), so a name matching an inherited object property resolves to "no such tool"/"unconfigured" instead of a prototype value. This covers the approval path (per-tool approval resolution and replay re-validation) as well as tool-call parsing, execution, streaming callbacks, and UI message conversion/validation. The human-in-the-loop approval matching (`collectToolApprovals`) and streaming tool-name maps are built with a null prototype so a client-supplied id that matches an inherited property no longer slips past the "unknown approval" / "tool call not found" guards.
+
+- 0f93c57: feat (video): support video (not just image) reference inputs in `inputReferences` for reference-to-video generation
+- Updated dependencies [e12411e]
+- Updated dependencies [5d894a7]
+- Updated dependencies [fdb6d5d]
+- Updated dependencies [0f93c57]
+- Updated dependencies [d25a084]
+  - @ai-sdk/gateway@4.0.15
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/provider-utils@5.0.7
+
+## 7.0.18
+
+### Patch Changes
+
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - @ai-sdk/gateway@4.0.14
+
+## 7.0.17
+
+### Patch Changes
+
+- Updated dependencies [cad8227]
+  - @ai-sdk/gateway@4.0.13
+
+## 7.0.16
+
+### Patch Changes
+
+- a8f9b6d: Preserve signed tool approval metadata when recording approval responses.
+
+## 7.0.15
+
+### Patch Changes
+
+- Updated dependencies [0c3c7e4]
+- Updated dependencies [c8d2726]
+  - @ai-sdk/gateway@4.0.12
+
 ## 7.0.14
 
 ### Patch Changes

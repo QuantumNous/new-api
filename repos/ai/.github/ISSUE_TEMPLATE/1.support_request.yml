@@ -1,19 +1,30 @@
-name: Support Request
-description: Report a bug, feature request or other issue with the AI SDK.
-labels: ['support']
+name: Report a bug or request a feature
+description: Report a bug, feature request, or other support issue with the AI SDK.
 body:
   - type: markdown
     attributes:
       value: |
-        This template is ask for help regarding an issue that could be a bug or a feature request.
+        Use this template for bugs, feature requests, and support issues.
+
+        High-quality issues are one of the most valuable ways to contribute to AI SDK. Clear reproduction steps, minimal examples, failing tests, logs, and version details help maintainers and automated workflows resolve issues faster. If an issue leads to a bug fix pull request, we will credit the issue author with co-authorship where appropriate.
+
+        If you want to share feedback about the project, community, or contribution process, please use the Feedback issue type instead.
   - type: textarea
     attributes:
       label: Description
-      description: A detailed description. Please include relevant information such as reproduction steps, code examples, and any other information that might help us understand the issue.
+      description: A detailed description. Please include relevant information such as reproduction steps, code examples, expected behavior, actual behavior, logs, and anything else that might help us understand the issue.
       placeholder: |
-        Reproduction steps, code examples, background, etc...
+        Reproduction steps, code examples, expected behavior, actual behavior, background, etc...
     validations:
       required: true
+  - type: textarea
+    attributes:
+      label: Reproduction
+      description: Share a minimal repository, StackBlitz, failing test, or small runnable example if you have one. Pull requests with failing tests or reproduction examples are welcome when they help clarify the issue.
+      placeholder: |
+        Link to reproduction, failing test, or minimal example.
+    validations:
+      required: false
   - type: textarea
     attributes:
       label: AI SDK Version

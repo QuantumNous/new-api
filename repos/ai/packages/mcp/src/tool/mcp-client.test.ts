@@ -202,6 +202,47 @@ class FailsFirstToolCallTransport implements MCPTransport {
   }
 }
 
+class HangingToolCallTransport implements MCPTransport {
+  sentMessages: JSONRPCMessage[] = [];
+
+  onmessage?: (message: JSONRPCMessage) => void;
+  onclose?: () => void;
+  onerror?: (error: Error) => void;
+
+  async start(): Promise<void> {}
+
+  async close(): Promise<void> {
+    this.onclose?.();
+  }
+
+  async send(message: JSONRPCMessage): Promise<void> {
+    this.sentMessages.push(message);
+
+    if (!('method' in message) || !('id' in message)) {
+      return;
+    }
+
+    if (message.method === 'initialize') {
+      this.onmessage?.({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          protocolVersion: LATEST_PROTOCOL_VERSION,
+          serverInfo: { name: 'hanging-tool-call-server', version: '1.0.0' },
+          capabilities: { tools: {} },
+        },
+      });
+      return;
+    }
+
+    if (message.method === 'tools/call') {
+      // Intentionally never respond. This exercises aborting an in-flight
+      // request after it has been sent to a slow or hung MCP server.
+      return;
+    }
+  }
+}
+
 vi.mock('./mcp-transport.ts', async importOriginal => {
   const actual = await importOriginal<typeof McpTransportModule>();
   return {
@@ -1657,6 +1698,41 @@ describe('MCPClient', () => {
     ).rejects.toSatisfy(
       error => error instanceof Error && error.name === 'AbortError',
     );
+  });
+
+  it('should reject in-flight tool call request when aborted', async () => {
+    const transport = new HangingToolCallTransport();
+    client = await createMCPClient({ transport });
+
+    const abortController = new AbortController();
+    const abortReason = new Error('abort after send');
+    const toolCallPromise = client.callTool({
+      name: 'hanging-tool',
+      arguments: {},
+      options: { signal: abortController.signal },
+    });
+
+    expect(
+      transport.sentMessages.some(
+        message => 'method' in message && message.method === 'tools/call',
+      ),
+    ).toBe(true);
+
+    abortController.abort(abortReason);
+
+    await expect(toolCallPromise).rejects.toSatisfy(
+      error =>
+        MCPClientError.isInstance(error) &&
+        error.message === 'Request was aborted' &&
+        error.cause === abortReason,
+    );
+    expect(
+      (
+        client as unknown as {
+          responseHandlers: Map<number, unknown>;
+        }
+      ).responseHandlers.size,
+    ).toBe(0);
   });
 
   describe('elicitation support', () => {

@@ -31,7 +31,7 @@ ${documentCorpus}
 
 run(async () => {
   const result = streamText({
-    model: openai.responses('gpt-5.2'),
+    model: openai.responses('gpt-5.6'),
     messages: [
       {
         role: 'user',

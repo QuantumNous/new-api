@@ -6,7 +6,7 @@ import { run } from '../../lib/run';
 
 run(async () => {
   const result = await generateText({
-    model: openai.responses('gpt-5.5'),
+    model: openai.responses('gpt-5.6'),
     tools: {
       weather: weatherTool,
       cityAttractions: tool({

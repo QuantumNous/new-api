@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createGoogleVertexMaas } from './google-vertex-maas-provider';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import type * as ProviderUtilsModule from '@ai-sdk/provider-utils';
 
 // Mock the imported modules
 vi.mock('@ai-sdk/openai-compatible', () => ({
@@ -17,21 +18,22 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }),
 }));
 
-vi.mock('@ai-sdk/provider-utils', () => ({
-  loadSetting: vi.fn().mockImplementation(({ settingValue }) => {
-    if (settingValue === undefined) {
-      throw new Error('Setting is missing');
-    }
-    return settingValue;
-  }),
-  loadOptionalSetting: vi
-    .fn()
-    .mockImplementation(({ settingValue }) => settingValue),
-  withoutTrailingSlash: vi.fn().mockImplementation(url => {
-    if (!url) return '';
-    return url?.endsWith('/') ? url.slice(0, -1) : url;
-  }),
-}));
+vi.mock('@ai-sdk/provider-utils', async importOriginal => {
+  const actual = await importOriginal<typeof ProviderUtilsModule>();
+
+  return {
+    ...actual,
+    loadSetting: vi.fn().mockImplementation(({ settingValue }) => {
+      if (settingValue === undefined) {
+        throw new Error('Setting is missing');
+      }
+      return settingValue;
+    }),
+    loadOptionalSetting: vi
+      .fn()
+      .mockImplementation(({ settingValue }) => settingValue),
+  };
+});
 
 describe('google-vertex-maas-provider', () => {
   beforeEach(() => {

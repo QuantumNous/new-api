@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { runBridge, type BridgeHandle, type BridgeTurn } from './index';
 
@@ -167,6 +167,181 @@ describe('runBridge', () => {
     expect(observed.output).toBe('OK');
   });
 
+  it('reports non-fatal bridge warnings to stderr without emitting stream errors', async () => {
+    const stderrLines: string[] = [];
+    const writeSpy = vi.spyOn(process.stderr, 'write').mockImplementation(((
+      chunk: string | Uint8Array,
+      encodingOrCallback?:
+        | BufferEncoding
+        | ((err?: Error | null | undefined) => void),
+      callback?: (err?: Error | null | undefined) => void,
+    ) => {
+      stderrLines.push(
+        typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString(),
+      );
+      const cb =
+        typeof encodingOrCallback === 'function'
+          ? encodingOrCallback
+          : callback;
+      cb?.();
+      return true;
+    }) as typeof process.stderr.write);
+
+    try {
+      const handle = await startBridge(async (_start, turn) => {
+        turn.emitWarning({ message: 'watch this' });
+        turn.emit({ type: 'finish' });
+      });
+      const client = await connect(handle.port);
+      await client.waitFor(f => f.type === 'bridge-hello');
+      client.send({ type: 'start' });
+      await client.waitFor(f => f.type === 'finish');
+
+      expect(stderrLines).toContain('[harness:test:warn] watch this\n');
+      expect(client.frames.some(f => f.type === 'error')).toBe(false);
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it('reports bridge errors to stderr without stringifying the stream error value', async () => {
+    const stderrLines: string[] = [];
+    const writeSpy = vi.spyOn(process.stderr, 'write').mockImplementation(((
+      chunk: string | Uint8Array,
+      encodingOrCallback?:
+        | BufferEncoding
+        | ((err?: Error | null | undefined) => void),
+      callback?: (err?: Error | null | undefined) => void,
+    ) => {
+      stderrLines.push(
+        typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString(),
+      );
+      const cb =
+        typeof encodingOrCallback === 'function'
+          ? encodingOrCallback
+          : callback;
+      cb?.();
+      return true;
+    }) as typeof process.stderr.write);
+
+    try {
+      const error = { name: 'AdapterError', data: { message: 'boom' } };
+      const handle = await startBridge(async (_start, turn) => {
+        turn.emitError({ error, message: 'adapter failed' });
+        turn.emit({ type: 'finish' });
+      });
+      const client = await connect(handle.port);
+      await client.waitFor(f => f.type === 'bridge-hello');
+      client.send({ type: 'start' });
+      const errorFrame = await client.waitFor(f => f.type === 'error');
+      await client.waitFor(f => f.type === 'finish');
+
+      expect(errorFrame.error).toEqual(error);
+      expect(stderrLines).toContain(
+        '[harness:test:error] adapter failed: {"name":"AdapterError","data":{"message":"boom"}}\n',
+      );
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it('runs the active turn interrupt handler before acknowledging interrupt', async () => {
+    let interrupted = false;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const handle = await startBridge(async (_start, turn) => {
+      turn.onInterrupt(async () => {
+        await gate;
+        interrupted = true;
+      });
+      await new Promise<void>(() => {});
+    });
+    const client = await connect(handle.port);
+    await client.waitFor(f => f.type === 'bridge-hello');
+    client.send({ type: 'start' });
+
+    client.send({ type: 'interrupt' });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(client.frames.some(f => f.type === 'bridge-interrupted')).toBe(
+      false,
+    );
+
+    release();
+    const ack = await client.waitFor(f => f.type === 'bridge-interrupted');
+    expect(interrupted).toBe(true);
+    expect(ack).toMatchObject({ type: 'bridge-interrupted', ok: true });
+  });
+
+  it('preserves a turn waiting for a host tool result when interrupted', async () => {
+    let interrupted = false;
+    const handle = await startBridge(async (_start, turn) => {
+      turn.onInterrupt(() => {
+        interrupted = true;
+      });
+      turn.emit({ type: 'tool-call', toolCallId: 'tool-1' });
+      const result = await turn.requestToolResult('tool-1');
+      turn.emit({ type: 'text-delta', delta: String(result.output) });
+      turn.emit({ type: 'finish' });
+    });
+    const client = await connect(handle.port);
+    await client.waitFor(f => f.type === 'bridge-hello');
+    client.send({ type: 'start' });
+    await client.waitFor(f => f.type === 'tool-call');
+
+    client.send({ type: 'interrupt' });
+    const ack = await client.waitFor(f => f.type === 'bridge-interrupted');
+    expect(interrupted).toBe(false);
+    expect(ack).toMatchObject({ type: 'bridge-interrupted', ok: true });
+
+    client.send({
+      type: 'tool-result',
+      toolCallId: 'tool-1',
+      output: 'sunny',
+    });
+    await client.waitFor(f => f.type === 'finish');
+    expect(client.frames).toContainEqual(
+      expect.objectContaining({ type: 'text-delta', delta: 'sunny' }),
+    );
+  });
+
+  it('preserves a turn waiting for host approval when interrupted', async () => {
+    let interrupted = false;
+    const handle = await startBridge(async (_start, turn) => {
+      turn.onInterrupt(() => {
+        interrupted = true;
+      });
+      turn.emit({
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'tool-1',
+      });
+      const response = await turn.requestToolApproval('approval-1');
+      turn.emit({ type: 'text-delta', delta: String(response.approved) });
+      turn.emit({ type: 'finish' });
+    });
+    const client = await connect(handle.port);
+    await client.waitFor(f => f.type === 'bridge-hello');
+    client.send({ type: 'start' });
+    await client.waitFor(f => f.type === 'tool-approval-request');
+
+    client.send({ type: 'interrupt' });
+    const ack = await client.waitFor(f => f.type === 'bridge-interrupted');
+    expect(interrupted).toBe(false);
+    expect(ack).toMatchObject({ type: 'bridge-interrupted', ok: true });
+
+    client.send({
+      type: 'tool-approval-response',
+      approvalId: 'approval-1',
+      approved: true,
+    });
+    await client.waitFor(f => f.type === 'finish');
+    expect(client.frames).toContainEqual(
+      expect.objectContaining({ type: 'text-delta', delta: 'true' }),
+    );
+  });
+
   it('clears the log per turn but keeps seq monotonic across turns', async () => {
     let turnNo = 0;
     const handle = await startBridge(async (_start, turn) => {
@@ -188,7 +363,7 @@ describe('runBridge', () => {
     const b = await connect(handle.port);
     await b.waitFor(f => f.type === 'bridge-hello');
     b.send({ type: 'resume', lastSeenEventId: 0 });
-    await new Promise(r => setTimeout(r, 50));
+    await b.waitFor(f => f.seq === 4);
 
     const replayedSeqs = b.frames
       .filter(f => typeof f.seq === 'number')

@@ -9,7 +9,7 @@ const skillZip = readFileSync('data/island-rescue-skill.zip').toString(
 
 run(async () => {
   const result = await generateText({
-    model: openai.responses('gpt-5.4'),
+    model: openai.responses('gpt-5.6'),
     tools: {
       shell: openai.tools.shell({
         environment: {

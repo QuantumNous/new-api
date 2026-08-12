@@ -116,7 +116,7 @@ To see `WorkflowAgent` in action, check out [these examples](#examples).
         'Default structured output specification. Per-stream values override this default.',
     },
     {
-      name: 'experimental_repairToolCall',
+      name: 'repairToolCall',
       type: 'ToolCallRepairFunction',
       isOptional: true,
       description:
@@ -528,7 +528,7 @@ const result = await agent.stream({
       description: 'Include raw, unprocessed chunks from the provider in the stream. Default: false.',
     },
     {
-      name: 'experimental_repairToolCall',
+      name: 'repairToolCall',
       type: 'ToolCallRepairFunction',
       isOptional: true,
       description: 'Callback to attempt automatic recovery when a tool call cannot be parsed.',

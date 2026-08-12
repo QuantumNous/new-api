@@ -10,7 +10,6 @@ import {
   mediaTypeToExtension,
   delay,
   getFromApi,
-  isSameOrigin,
   parseProviderOptions,
   postFormDataToApi,
   postJsonToApi,
@@ -274,9 +273,11 @@ export class GladiaTranscriptionModel implements TranscriptionModelV4 {
 
       const response = await getFromApi({
         url: resultUrl,
-        headers: isSameOrigin(resultUrl, apiOrigin)
-          ? combineHeaders(this.config.headers?.(), options.headers)
-          : undefined,
+        // resultUrl comes from the provider response body.
+        validateUrl: true,
+        credentialedOrigin: apiOrigin,
+        trustedOrigin: apiOrigin,
+        headers: combineHeaders(this.config.headers?.(), options.headers),
         failedResponseHandler: gladiaFailedResponseHandler,
         successfulResponseHandler: createJsonResponseHandler(
           gladiaTranscriptionResultResponseSchema,

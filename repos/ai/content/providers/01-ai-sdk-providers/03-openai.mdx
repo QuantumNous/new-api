@@ -11,21 +11,7 @@ The [OpenAI](https://openai.com/) provider contains language model support for t
 
 The OpenAI provider is available in the `@ai-sdk/openai` module. You can install it with
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/openai" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/openai" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/openai" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add @ai-sdk/openai" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/openai" />
 
 ## Provider Instance
 
@@ -201,15 +187,19 @@ The following provider options are available:
 - **user** _string_
   A unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse. Defaults to `undefined`.
 
-- **reasoningEffort** _'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'_
+- **reasoningEffort** _'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'_
   Reasoning effort for reasoning models. Defaults to `medium`. If you use `providerOptions` to set the `reasoningEffort` option, this model setting will be ignored.
 
 <Note>
-  The 'none' type for `reasoningEffort` is only available for OpenAI's GPT-5.1
-  models. Also, the 'xhigh' type for `reasoningEffort` is only available for
-  OpenAI's GPT-5.1-Codex-Max model. Setting `reasoningEffort` to 'none' or
-  'xhigh' with unsupported models will result in an error.
+  Supported reasoning efforts vary by model. GPT-5.6 supports `'none'`, `'low'`,
+  `'medium'`, `'high'`, `'xhigh'`, and `'max'`.
 </Note>
+
+- **reasoningMode** _'standard' | 'pro'_
+  Controls how much model work GPT-5.6 performs before returning a final answer. `'standard'` is the default. Use `'pro'` for difficult tasks where quality matters more than latency and token usage.
+
+- **reasoningContext** _'auto' | 'current_turn' | 'all_turns'_
+  Controls which available reasoning items GPT-5.6 can reuse. `'auto'` uses the model default, `'current_turn'` excludes reasoning from earlier turns, and `'all_turns'` makes compatible earlier reasoning available. The effective context is returned as `providerMetadata.openai.reasoningContext`.
 
 - **reasoningSummary** _'auto' | 'detailed'_
   Controls whether the model returns its reasoning process. Set to `'auto'` for a condensed summary, `'detailed'` for more comprehensive reasoning. Defaults to `undefined` (no reasoning summaries). When enabled, reasoning summaries appear in the stream as events with type `'reasoning'` and in non-streaming responses within the `reasoning` field.
@@ -252,8 +242,11 @@ The following provider options are available:
 - **promptCacheKey** _string_
   A cache key for manual prompt caching control. Used by OpenAI to cache responses for similar requests to optimize your cache hit rates.
 
+- **promptCacheOptions** _object_
+  Configures prompt caching for GPT-5.6 and later models. `mode` can be `'implicit'` or `'explicit'`, and `ttl` currently only supports `'30m'`. In explicit mode, only content blocks marked with a prompt cache breakpoint are cached.
+
 - **promptCacheRetention** _'in_memory' | '24h'_
-  The retention policy for the prompt cache. Set to `'24h'` to enable extended prompt caching, which keeps cached prefixes active for up to 24 hours. Defaults to `'in_memory'` for standard prompt caching. Note: `'24h'` is currently only available for the 5.1 series of models.
+  The legacy retention policy for models before GPT-5.6. Set to `'24h'` to enable extended prompt caching on supported models. For GPT-5.6 and later models, use `promptCacheOptions.ttl` instead.
 
 - **safetyIdentifier** _string_
   A stable identifier used to help detect users of your application that may be violating OpenAI's usage policies. The IDs should be a string that uniquely identifies each user.
@@ -285,7 +278,8 @@ const providerMetadata = result.providerMetadata as
   | OpenaiResponsesProviderMetadata
   | undefined;
 
-const { responseId, logprobs, serviceTier } = providerMetadata?.openai ?? {};
+const { responseId, logprobs, serviceTier, reasoningContext } =
+  providerMetadata?.openai ?? {};
 
 // responseId can be used to continue a conversation (previousResponseId).
 console.log(responseId);
@@ -299,12 +293,14 @@ The following OpenAI-specific metadata may be returned:
   Log probabilities of output tokens (when enabled).
 - **serviceTier** _(optional)_
   Service tier information returned by the API.
+- **reasoningContext** _(optional)_
+  Effective persisted-reasoning context returned by GPT-5.6 (`'current_turn'` or `'all_turns'`).
 
 #### Reasoning Output
 
 For reasoning models like `gpt-5`, you can enable reasoning summaries to see the model's thought process. Different models support different summarizers—for example, `o4-mini` supports detailed summaries. Set `reasoningSummary: "auto"` to automatically receive the richest level available. When `reasoningEffort` is set to a value other than `'none'`, the OpenAI Responses provider defaults `reasoningSummary` to `'detailed'`; set `reasoningSummary: null` to omit reasoning summaries.
 
-```ts highlight="8-9,16"
+```ts highlight="10-14,17-23"
 import {
   openai,
   type OpenAILanguageModelResponsesOptions,
@@ -363,20 +359,7 @@ The [`ai-sdk-openai-websocket-fetch`](https://www.npmjs.com/package/ai-sdk-opena
 package provides a drop-in `fetch` replacement that routes streaming requests
 through a persistent WebSocket connection.
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add ai-sdk-openai-websocket-fetch" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install ai-sdk-openai-websocket-fetch" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add ai-sdk-openai-websocket-fetch" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add ai-sdk-openai-websocket-fetch" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="ai-sdk-openai-websocket-fetch" />
 
 Pass the WebSocket fetch to `createOpenAI` via the `fetch` option:
 
@@ -784,6 +767,95 @@ The MCP tool can be configured with:
   a built-in provider-defined tool that allows OpenAI models to directly connect
   to MCP servers, while the general MCP client requires you to convert MCP tools
   to AI SDK tools first.
+</Note>
+
+#### Computer Tool
+
+The OpenAI Responses API supports the GA computer tool through
+`openai.tools.computer`. The model returns an ordered batch of browser or
+desktop actions for your application to execute, and your application returns
+an updated screenshot.
+
+```ts
+import { openai } from '@ai-sdk/openai';
+import { generateText, isStepCount } from 'ai';
+import { captureScreenshot, executeComputerAction } from '@/utils/computer-use';
+
+const result = await generateText({
+  model: openai.responses('gpt-5.4'),
+  tools: {
+    computer: openai.tools.computer({
+      needsApproval: ({ pendingSafetyChecks }) =>
+        pendingSafetyChecks.length > 0,
+
+      execute: async ({ actions, pendingSafetyChecks }) => {
+        for (const action of actions) {
+          await executeComputerAction(action);
+        }
+
+        return {
+          output: {
+            type: 'computer_screenshot',
+            imageUrl: `data:image/png;base64,${await captureScreenshot()}`,
+            detail: 'original',
+          },
+          acknowledgedSafetyChecks: pendingSafetyChecks,
+        };
+      },
+    }),
+  },
+  prompt: 'Open the settings page and enable dark mode.',
+  stopWhen: isStepCount(10),
+});
+```
+
+The execute callback receives:
+
+- **actions** - An ordered array of `click`, `double_click`, `drag`,
+  `keypress`, `move`, `screenshot`, `scroll`, `type`, and `wait` actions.
+  Execute every action in order before capturing the next screenshot.
+- **pendingSafetyChecks** - Safety checks returned by OpenAI. Review these
+  before continuing and include accepted checks in
+  `acknowledgedSafetyChecks`.
+- **status** - The computer call status.
+
+The action union is also exported as `OpenAIComputerAction`. Action-specific
+fields are:
+
+| Action         | Fields                                               |
+| -------------- | ---------------------------------------------------- |
+| `click`        | `button`, `x`, `y`, optional `keys`                  |
+| `double_click` | `x`, `y`, optional `keys`                            |
+| `drag`         | `path` containing `{ x, y }` points, optional `keys` |
+| `keypress`     | `keys`                                               |
+| `move`         | `x`, `y`, optional `keys`                            |
+| `screenshot`   | No additional fields                                 |
+| `scroll`       | `x`, `y`, `scrollX`, `scrollY`, optional `keys`      |
+| `type`         | `text`                                               |
+| `wait`         | No additional fields                                 |
+
+Safety checks use the exported `OpenAIComputerSafetyCheck` type.
+
+Return a `computer_screenshot` with either:
+
+- **imageUrl** - A fully qualified URL or image data URL.
+- **fileId** - The ID of an uploaded screenshot file.
+
+`detail` can be `auto`, `low`, `high`, or `original`. `original` preserves the
+captured resolution and is recommended when accurate coordinates are
+important.
+
+Computer calls and `computer_call_output` screenshot results are carried
+through multi-step generations when using `store`, `previousResponseId`, or
+OpenAI conversations. You can also set `store: false`; the provider will
+serialize the complete call and screenshot result into each follow-up request.
+
+<Note type="warning">
+  Run computer use in an isolated browser or VM. Restrict reachable domains,
+  accounts, credentials, environment variables, and file-system access. Treat
+  on-screen content as untrusted prompt-injection input, require confirmation
+  immediately before consequential actions, and avoid exposing sensitive
+  information in screenshots.
 </Note>
 
 #### Local Shell Tool
@@ -1791,11 +1863,13 @@ The following optional provider options are available for OpenAI chat models:
   A unique identifier representing your end-user, which can help OpenAI to
   monitor and detect abuse. [Learn more](https://platform.openai.com/docs/guides/safety-best-practices/end-user-ids).
 
-- **reasoningEffort** _'minimal' | 'low' | 'medium' | 'high' | 'xhigh'_
+- **reasoningEffort** _'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'_
 
   Reasoning effort for reasoning models. Defaults to `medium`. If you use
   `providerOptions` to set the `reasoningEffort` option, this
   model setting will be ignored.
+
+  Supported reasoning efforts vary by model. GPT-5.6 supports `'none'`, `'low'`, `'medium'`, `'high'`, `'xhigh'`, and `'max'`.
 
 - **maxCompletionTokens** _number_
 
@@ -1834,9 +1908,13 @@ The following optional provider options are available for OpenAI chat models:
 
   A cache key for manual prompt caching control. Used by OpenAI to cache responses for similar requests to optimize your cache hit rates.
 
+- **promptCacheOptions** _object_
+
+  Configures prompt caching for GPT-5.6 and later models. `mode` can be `'implicit'` or `'explicit'`, and `ttl` currently only supports `'30m'`. In explicit mode, only content blocks marked with a prompt cache breakpoint are cached.
+
 - **promptCacheRetention** _'in_memory' | '24h'_
 
-  The retention policy for the prompt cache. Set to `'24h'` to enable extended prompt caching, which keeps cached prefixes active for up to 24 hours. Defaults to `'in_memory'` for standard prompt caching. Note: `'24h'` is currently only available for the 5.1 series of models.
+  The legacy retention policy for models before GPT-5.6. Set to `'24h'` to enable extended prompt caching on supported models. For GPT-5.6 and later models, use `promptCacheOptions.ttl` instead.
 
 - **safetyIdentifier** _string_
 
@@ -1865,7 +1943,7 @@ They support additional settings and response metadata:
 
 - You can use the response `usage` to access the number of reasoning tokens that the model generated via `usage.outputTokenDetails.reasoningTokens`.
 
-```ts highlight="4,7-11,17"
+```ts highlight="4,7-11,15"
 import { openai, type OpenAILanguageModelChatOptions } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
@@ -2123,7 +2201,7 @@ const result = streamText({
 OpenAI provides usage information for predicted outputs (`acceptedPredictionTokens` and `rejectedPredictionTokens`).
 You can access it in the `providerMetadata` object.
 
-```ts highlight="11"
+```ts highlight="3-4"
 const openaiMetadata = (await result.providerMetadata)?.openai;
 
 const acceptedPredictionTokens = openaiMetadata?.acceptedPredictionTokens;
@@ -2138,7 +2216,7 @@ const rejectedPredictionTokens = openaiMetadata?.rejectedPredictionTokens;
 
 #### Image Detail
 
-You can use the `openai` provider option to set the [image input detail](https://platform.openai.com/docs/guides/images-vision?api-mode=responses#specify-image-input-detail-level) to `high`, `low`, or `auto`:
+You can use the `openai` provider option to set the [image input detail](https://platform.openai.com/docs/guides/images-vision?api-mode=responses#specify-image-input-detail-level) to `high`, `low`, `original`, or `auto`:
 
 ```ts highlight="13-16"
 const result = await generateText({
@@ -2163,6 +2241,8 @@ const result = await generateText({
   ],
 });
 ```
+
+For GPT-5.6, `original` preserves the input dimensions without resizing to a patch budget or pixel-dimension limit. `auto` and an omitted detail setting use the same sizing behavior as `original`, which can increase input token usage for large images.
 
 <Note type="warning">
   Because the `UIMessage` type (used by AI SDK UI hooks like `useChat`) does not
@@ -2213,11 +2293,10 @@ including `gpt-4o` and `gpt-4o-mini`.
 - Prompt caching is automatically enabled for these models, when the prompt is 1024 tokens or longer. It does
   not need to be explicitly enabled.
 - You can use the response `usage` to access the number of prompt tokens that were a cache hit via `usage.inputTokenDetails.cacheReadTokens`.
-- Note that caching behavior is dependent on load on OpenAI's infrastructure. Prompt prefixes generally remain in the
-  cache following 5-10 minutes of inactivity before they are evicted, but during off-peak periods they may persist for up
-  to an hour.
+- For GPT-5.6 and later models, `usage.inputTokenDetails.cacheWriteTokens` reports tokens written to the cache.
+- For GPT-5.6 and later models, `promptCacheOptions.ttl` sets a minimum cache lifetime of 30 minutes. Earlier models generally retain in-memory prefixes for 5-10 minutes of inactivity, up to one hour.
 
-```ts highlight="11"
+```ts highlight="9"
 import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
@@ -2248,19 +2327,61 @@ const { text, usage } = await generateText({
 console.log('Cached tokens:', usage.inputTokenDetails.cacheReadTokens);
 ```
 
-For GPT-5.1 models, you can enable extended prompt caching that keeps cached prefixes active for up to 24 hours:
+GPT-5.6 and later models support explicit cache breakpoints on text, image, and file content blocks. Set a request-level cache key and mark the end of each reusable prefix with `promptCacheBreakpoint`:
+
+```ts highlight="9-12,20-28"
+import {
+  openai,
+  type OpenAILanguageModelResponsesOptions,
+} from '@ai-sdk/openai';
+import { generateText } from 'ai';
+
+const { usage } = await generateText({
+  model: openai('gpt-5.6'),
+  providerOptions: {
+    openai: {
+      promptCacheKey: 'tenant:acme:support-v1',
+      promptCacheOptions: { mode: 'explicit', ttl: '30m' },
+    } satisfies OpenAILanguageModelResponsesOptions,
+  },
+  messages: [
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: `A stable prefix of at least 1024 tokens...`,
+          providerOptions: {
+            openai: {
+              promptCacheBreakpoint: { mode: 'explicit' },
+            },
+          },
+        },
+        { type: 'text', text: 'What should I do next?' },
+      ],
+    },
+  ],
+});
+
+console.log('Cache reads:', usage.inputTokenDetails.cacheReadTokens);
+console.log('Cache writes:', usage.inputTokenDetails.cacheWriteTokens);
+```
+
+In `'implicit'` mode, OpenAI places an automatic breakpoint on the latest message and also honors explicit breakpoints. In `'explicit'` mode, only marked content blocks are eligible for caching; a request without any explicit breakpoint does not use prompt caching.
+
+For models before GPT-5.6 that support extended caching, you can keep cached prefixes active for up to 24 hours:
 
 ```ts highlight="7-12"
 import { openai, type OpenAILanguageModelChatOptions } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 
 const { text, usage } = await generateText({
-  model: openai.chat('gpt-5.1'),
+  model: openai.chat('gpt-5.5'),
   prompt: `A 1024-token or longer prompt...`,
   providerOptions: {
     openai: {
       promptCacheKey: 'my-custom-cache-key-123',
-      promptCacheRetention: '24h', // Extended caching for GPT-5.1
+      promptCacheRetention: '24h',
     } satisfies OpenAILanguageModelChatOptions,
   },
 });
@@ -2374,32 +2495,36 @@ The following optional provider options are available for OpenAI completion mode
 
 ### Model Capabilities
 
-| Model                 | Image Input         | Audio Input         | Object Generation   | Tool Usage          |
-| --------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `gpt-5.5`             | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.4-pro`         | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.4`             | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.4-mini`        | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.4-nano`        | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.3-chat-latest` | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.2-pro`         | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.2-chat-latest` | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.2`             | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.1-codex-mini`  | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.1-codex`       | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.1-chat-latest` | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5.1`             | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5-pro`           | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5`               | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5-mini`          | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5-nano`          | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5-codex`         | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-5-chat-latest`   | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-4.1`             | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-4.1-mini`        | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-4.1-nano`        | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-4o`              | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-4o-mini`         | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                 | Image Input | Audio Input | Object Generation | Tool Usage |
+| --------------------- | ----------- | ----------- | ----------------- | ---------- |
+| `gpt-5.6`             | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.6-luna`        | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.6-sol`         | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.6-terra`       | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.5`             | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.4-pro`         | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.4`             | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.4-mini`        | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.4-nano`        | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.3-chat-latest` | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.2-pro`         | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.2-chat-latest` | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.2`             | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.1-codex-mini`  | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.1-codex`       | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.1-chat-latest` | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5.1`             | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5-pro`           | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5`               | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5-mini`          | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5-nano`          | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5-codex`         | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-5-chat-latest`   | <Check />   | <Cross />   | <Cross />         | <Cross />  |
+| `gpt-4.1`             | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-4.1-mini`        | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-4.1-nano`        | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-4o`              | <Check />   | <Cross />   | <Check />         | <Check />  |
+| `gpt-4o-mini`         | <Check />   | <Cross />   | <Check />         | <Check />  |
 
 <Note>
   The table above lists popular models. Please see the [OpenAI
@@ -2475,11 +2600,11 @@ The following optional provider options are available for OpenAI embedding model
 
 ### Model Capabilities
 
-| Model                    | Default Dimensions | Custom Dimensions   |
-| ------------------------ | ------------------ | ------------------- |
-| `text-embedding-3-large` | 3072               | <Check size={18} /> |
-| `text-embedding-3-small` | 1536               | <Check size={18} /> |
-| `text-embedding-ada-002` | 1536               | <Cross size={18} /> |
+| Model                    | Default Dimensions | Custom Dimensions |
+| ------------------------ | ------------------ | ----------------- |
+| `text-embedding-3-large` | 3072               | <Check />         |
+| `text-embedding-3-small` | 1536               | <Check />         |
+| `text-embedding-ada-002` | 1536               | <Cross />         |
 
 ## Image Models
 
@@ -2709,12 +2834,12 @@ The following provider options are available:
 
 ### Model Capabilities
 
-| Model                    | Transcription       | Streaming           | Duration            | Segments            | Language            |
-| ------------------------ | ------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `whisper-1`              | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `gpt-4o-mini-transcribe` | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-4o-transcribe`      | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-realtime-whisper`   | <Cross size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| Model                    | Transcription | Streaming | Duration  | Segments  | Language  |
+| ------------------------ | ------------- | --------- | --------- | --------- | --------- |
+| `whisper-1`              | <Check />     | <Cross /> | <Check /> | <Check /> | <Check /> |
+| `gpt-4o-mini-transcribe` | <Check />     | <Cross /> | <Cross /> | <Cross /> | <Cross /> |
+| `gpt-4o-transcribe`      | <Check />     | <Cross /> | <Cross /> | <Cross /> | <Cross /> |
+| `gpt-realtime-whisper`   | <Cross />     | <Check /> | <Cross /> | <Cross /> | <Cross /> |
 
 ## Speech Models
 
@@ -2771,8 +2896,8 @@ const result = await generateSpeech({
 
 ### Model Capabilities
 
-| Model             | Instructions        |
-| ----------------- | ------------------- |
-| `tts-1`           | <Check size={18} /> |
-| `tts-1-hd`        | <Check size={18} /> |
-| `gpt-4o-mini-tts` | <Check size={18} /> |
+| Model             | Instructions |
+| ----------------- | ------------ |
+| `tts-1`           | <Check />    |
+| `tts-1-hd`        | <Check />    |
+| `gpt-4o-mini-tts` | <Check />    |

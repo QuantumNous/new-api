@@ -1,3 +1,7 @@
+import type { HarnessV1StreamPart } from '@ai-sdk/harness';
+
+type FinishStepEvent = Extract<HarnessV1StreamPart, { type: 'finish-step' }>;
+
 export type OpenCodeTokenUsage = {
   readonly input: number;
   readonly output: number;
@@ -8,7 +12,7 @@ export type OpenCodeTokenUsage = {
   };
 };
 
-export type HarnessUsage = Record<string, unknown>;
+export type HarnessUsage = FinishStepEvent['usage'];
 
 export function mapUsage(tokens: unknown): HarnessUsage {
   const value = extractOpenCodeTokens(tokens) ?? zeroOpenCodeTokens();

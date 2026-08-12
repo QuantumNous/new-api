@@ -1,6 +1,9 @@
 /* eslint-disable turbo/no-undeclared-env-vars */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LanguageModelV4Prompt } from '@ai-sdk/provider';
+import {
+  InvalidArgumentError,
+  type LanguageModelV4Prompt,
+} from '@ai-sdk/provider';
 import { createAnthropic } from './anthropic-provider';
 
 vi.mock('./version', () => ({
@@ -135,6 +138,24 @@ describe('createAnthropic', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const [requestUrl] = fetchMock.mock.calls[0]!;
       expect(requestUrl).toBe('https://option.anthropic.example/v1/messages');
+    });
+
+    it('rejects an empty baseURL option during provider creation', () => {
+      try {
+        createAnthropic({
+          apiKey: 'test-api-key',
+          baseURL: '',
+        });
+      } catch (error) {
+        expect(InvalidArgumentError.isInstance(error)).toBe(true);
+        expect(error).toMatchObject({
+          argument: 'baseURL',
+          message: 'baseURL must be a non-empty string.',
+        });
+        return;
+      }
+
+      throw new Error('Expected createAnthropic to reject an empty base URL.');
     });
   });
 });

@@ -1,6 +1,6 @@
 import { tool, type ToolSet } from '@ai-sdk/provider-utils';
 import { describe, expectTypeOf, it } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { Callback } from '../util/callback';
 import type {
   GenerateTextEndEvent,

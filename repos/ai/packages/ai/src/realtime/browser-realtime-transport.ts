@@ -94,7 +94,16 @@ export class BrowserRealtimeTransport {
 
   sendRaw(data: unknown): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(data));
+      if (
+        typeof data === 'string' ||
+        data instanceof ArrayBuffer ||
+        ArrayBuffer.isView(data) ||
+        data instanceof Blob
+      ) {
+        this.ws.send(data);
+      } else {
+        this.ws.send(JSON.stringify(data));
+      }
     }
   }
 

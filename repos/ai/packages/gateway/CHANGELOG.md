@@ -1,5 +1,106 @@
 # @ai-sdk/gateway
 
+## 4.0.23
+
+### Patch Changes
+
+- Updated dependencies [cd06458]
+  - @ai-sdk/provider-utils@5.0.11
+
+## 4.0.22
+
+### Patch Changes
+
+- 341616a: feat: add kimi-k3 model and `reasoningEffort` provider option
+- 70fc45c: chore(provider/gateway): update gateway model settings files
+
+## 4.0.21
+
+### Patch Changes
+
+- 7069785: chore(provider/gateway): update gateway model settings files
+- 4bf9ac2: feat (provider/gateway): add `gateway.experimental_transcription.getToken` for minting transcription-bound client secrets
+
+## 4.0.20
+
+### Patch Changes
+
+- 4d096f6: chore(provider/gateway): update gateway model settings files
+- Updated dependencies [31c7be8]
+  - @ai-sdk/provider-utils@5.0.10
+
+## 4.0.19
+
+### Patch Changes
+
+- 4be62c1: fix(provider-utils): validate provider-response URLs in `getFromApi`
+
+  `getFromApi` now has a `validateUrl` flag. It is optional so existing callers keep compiling (omitting it behaves like `false`, i.e. no validation), but all AI SDK provider packages set it explicitly at every call site so each one makes a visible trust decision. When `true`, the URL is routed through `fetchWithValidatedRedirects` — the same guard used by `downloadBlob` — which rejects private/loopback/link-local targets, re-validates every redirect hop, strips proxy/metadata/cookie request headers, and drops all caller headers except the user-agent on cross-origin redirects (custom API-key headers must not follow a redirect off-origin any more than `Authorization` may); blocked URLs throw `DownloadError`. It is enabled at the image/video/audio download and polling call sites where the URL comes from a provider response body; URLs built from developer-configured endpoints pass `validateUrl: false` and are unaffected.
+
+  A new optional `credentialedOrigin` withholds caller headers unless the URL is same-origin with it, so the API key is not sent to a response-supplied host on a different origin.
+
+  A new optional `trustedOrigin` exempts URLs (and redirect hops) that are same-origin with the developer-configured provider endpoint from target validation, so self-hosted and localhost deployments whose response URLs point back at the configured host keep working; all other hops are still validated.
+
+  Also closes range gaps in `validateDownloadUrl` (IPv4 `224.0.0.0/4` multicast and the TEST-NET documentation ranges `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`; IPv6 documentation ranges `2001:db8::/32` and `3fff::/20`), and follows only the fetch-spec redirect status codes (301/302/303/307/308) — a `Location` header on any other status is not followed. This guard performs string/literal checks only and does not resolve DNS; hostnames that resolve to private addresses and DNS rebinding remain out of scope and must be constrained at the network layer (or by injecting a Node `fetch` that pins the resolved IP at connect time) for server deployments handling untrusted URLs. See `contributing/secure-url-handling.md`.
+
+- f8e82fd: Add experimental streaming transcription support to the gateway provider (`GatewayTranscriptionModel.doStream`), speaking the shared transcription-stream WebSocket envelope from `@ai-sdk/provider-utils`. `experimental_streamTranscribe` now works with gateway string model IDs, e.g. `experimental_streamTranscribe({ model: 'openai/gpt-realtime-whisper', ... })`.
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+
+## 4.0.18
+
+### Patch Changes
+
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+
+## 4.0.17
+
+### Patch Changes
+
+- 867f80a: chore(provider/gateway): update gateway model settings files
+
+## 4.0.16
+
+### Patch Changes
+
+- 308a519: chore: enforce consistent imports from `zod/v4` instead of `zod`
+- 7fe53d2: chore(provider/gateway): update gateway model settings files
+
+## 4.0.15
+
+### Patch Changes
+
+- e12411e: chore(provider/gateway): update gateway model settings files
+- 5d894a7: feat(gateway): expose ruleId on GatewayForbiddenError so callers can identify which routing rule denied a request
+- fdb6d5d: feat(provider/openai,provider/gateway): add gpt-5.6 model ids
+- d25a084: feat (provider/xai): add grok-4.5 model id
+- Updated dependencies [0f93c57]
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/provider-utils@5.0.7
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+
+## 4.0.13
+
+### Patch Changes
+
+- cad8227: chore(provider/gateway): update gateway model settings files
+
+## 4.0.12
+
+### Patch Changes
+
+- 0c3c7e4: feat(alibaba): support wan2.7 text-to-video and reference-to-video models with the new protocol (`input.media`, `resolution` + `ratio`)
+- c8d2726: chore(provider/gateway): update gateway model settings files
+
 ## 4.0.11
 
 ### Patch Changes

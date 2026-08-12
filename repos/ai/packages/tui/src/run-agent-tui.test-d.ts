@@ -11,16 +11,19 @@ import {
   ToolLoopAgent,
   tool,
   type Agent,
+  type ChatTransport,
   type Experimental_SandboxSession,
+  type UIMessage,
 } from 'ai';
 import { assertType, describe, expectTypeOf, it } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 const model = new MockLanguageModelV4({
   doStream: async () => ({
     stream: new ReadableStream(),
   }),
 });
+const transport = null as unknown as ChatTransport<UIMessage>;
 
 describe('runAgentTUI types', () => {
   it('exports documented public types from the package root', () => {
@@ -43,6 +46,19 @@ describe('runAgentTUI types', () => {
     expectTypeOf(agent).toMatchTypeOf<AgentTUIAgent>();
     expectTypeOf(runAgentTUI({ agent })).toEqualTypeOf<Promise<void>>();
     assertType<Promise<void>>(runAgentTUI({ agent }));
+  });
+
+  it('accepts a chat transport', () => {
+    expectTypeOf(runAgentTUI({ transport })).toEqualTypeOf<Promise<void>>();
+  });
+
+  it('requires exactly one agent source', () => {
+    const agent = new ToolLoopAgent({ model });
+
+    // @ts-expect-error agent and transport are mutually exclusive.
+    runAgentTUI({ agent, transport });
+    // @ts-expect-error agent or transport is required.
+    runAgentTUI({});
   });
 
   it('accepts a ToolLoopAgent with tools', () => {

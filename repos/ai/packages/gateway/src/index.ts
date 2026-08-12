@@ -3,9 +3,11 @@ export {
   GATEWAY_AUTH_SUBPROTOCOL_PREFIX,
   GATEWAY_REALTIME_SUBPROTOCOL,
   GATEWAY_TEAM_SUBPROTOCOL_PREFIX,
+  GATEWAY_TRANSCRIPTION_SUBPROTOCOL,
   getGatewayRealtimeAuthToken,
   getGatewayRealtimeProtocols,
   getGatewayRealtimeTeamIdOrSlug,
+  getGatewayTranscriptionProtocols,
 } from './gateway-realtime-auth';
 export type { GatewayRealtimeModelId } from './gateway-realtime-model-settings';
 export type { GatewayRerankingModelId } from './gateway-reranking-model-settings';

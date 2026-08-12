@@ -25,6 +25,7 @@ import {
 } from '@ai-sdk/provider-utils';
 import type { z } from 'zod/v4';
 import { getResponseMetadata } from '../get-response-metadata';
+import { supportsReasoningEffort } from '../supports-reasoning-effort';
 import { xaiFailedResponseHandler } from '../xai-error';
 import { convertToXaiResponsesInput } from './convert-to-xai-responses-input';
 import { convertXaiResponsesUsage } from './convert-xai-responses-usage';
@@ -164,23 +165,30 @@ export class XaiResponsesLanguageModel implements LanguageModelV4 {
       }
     }
 
-    const resolvedReasoningEffort =
-      options.reasoningEffort ??
-      (isCustomReasoning(reasoning)
-        ? reasoning === 'none'
-          ? undefined
-          : mapReasoningToProviderEffort({
-              reasoning,
-              effortMap: {
-                minimal: 'low',
-                low: 'low',
-                medium: 'medium',
-                high: 'high',
-                xhigh: 'high',
-              },
-              warnings,
-            })
-        : undefined);
+    let resolvedReasoningEffort = options.reasoningEffort;
+    if (resolvedReasoningEffort == null && isCustomReasoning(reasoning)) {
+      if (!supportsReasoningEffort(this.modelId)) {
+        warnings.push({
+          type: 'unsupported',
+          feature: 'reasoning',
+          details: `reasoning "${reasoning}" is not supported by this model.`,
+        });
+      } else if (reasoning === 'none') {
+        resolvedReasoningEffort = 'none';
+      } else {
+        resolvedReasoningEffort = mapReasoningToProviderEffort({
+          reasoning,
+          effortMap: {
+            minimal: 'low',
+            low: 'low',
+            medium: 'medium',
+            high: 'high',
+            xhigh: 'high',
+          },
+          warnings,
+        });
+      }
+    }
 
     const baseArgs: Record<string, unknown> = {
       model: this.modelId,
@@ -953,6 +961,15 @@ export class XaiResponsesLanguageModel implements LanguageModelV4 {
                     toolName,
                     input: toolInput,
                     providerExecuted: true,
+                  });
+                }
+
+                if (event.type === 'response.output_item.done') {
+                  controller.enqueue({
+                    type: 'tool-result',
+                    toolCallId: part.id,
+                    toolName,
+                    result: {},
                   });
                 }
 

@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/moonshotai",
-  "version": "3.0.7",
+  "version": "3.0.15",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

@@ -1,4 +1,7 @@
-import { amazonBedrock } from '@ai-sdk/amazon-bedrock';
+import {
+  amazonBedrock,
+  type AmazonBedrockImageModelOptions,
+} from '@ai-sdk/amazon-bedrock';
 import { generateImage } from 'ai';
 import { presentImages } from '../../lib/present-image';
 import { run } from '../../lib/run';
@@ -11,9 +14,12 @@ run(async () => {
     size: '512x512',
     seed: 42,
     providerOptions: {
-      bedrock: {
+      amazonBedrock: {
         quality: 'premium',
-      },
+        negativeText: 'blurry, low quality',
+        cfgScale: 7.5,
+        style: 'PHOTOREALISM',
+      } satisfies AmazonBedrockImageModelOptions,
     },
   });
 

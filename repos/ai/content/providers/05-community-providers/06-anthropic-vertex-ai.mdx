@@ -22,21 +22,7 @@ description: Learn how to use the Anthropic Vertex provider for the AI SDK.
 
 The AnthropicVertex provider is available in the `anthropic-vertex-ai` module. You can install it with:
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add anthropic-vertex-ai" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install anthropic-vertex-ai" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add anthropic-vertex-ai" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add anthropic-vertex-ai" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="anthropic-vertex-ai" />
 
 ## Provider Instance
 
@@ -114,12 +100,12 @@ AnthropicVertex language models can also be used in the `streamText` function an
 
 ### Model Capabilities
 
-| Model                        | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
-| ---------------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `claude-3-5-sonnet@20240620` | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `claude-3-opus@20240229`     | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `claude-3-sonnet@20240229`   | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `claude-3-haiku@20240307`    | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                        | Image Input | Object Generation | Tool Usage | Tool Streaming |
+| ---------------------------- | ----------- | ----------------- | ---------- | -------------- |
+| `claude-3-5-sonnet@20240620` | <Check />   | <Check />         | <Check />  | <Check />      |
+| `claude-3-opus@20240229`     | <Check />   | <Check />         | <Check />  | <Check />      |
+| `claude-3-sonnet@20240229`   | <Check />   | <Check />         | <Check />  | <Check />      |
+| `claude-3-haiku@20240307`    | <Check />   | <Check />         | <Check />  | <Check />      |
 
 ## Environment Variables
 

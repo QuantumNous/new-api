@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/openai",
-  "version": "4.0.7",
+  "version": "4.0.16",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

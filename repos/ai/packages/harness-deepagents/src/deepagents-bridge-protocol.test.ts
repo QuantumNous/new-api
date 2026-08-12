@@ -22,6 +22,7 @@ describe('deepagents bridge protocol', () => {
       { type: 'tool-result', toolCallId: 't1', output: { ok: true } },
       { type: 'user-message', text: 'more' },
       { type: 'abort' },
+      { type: 'interrupt' },
       { type: 'shutdown' },
       { type: 'resume', lastSeenEventId: 3 },
       { type: 'detach' },
@@ -77,6 +78,7 @@ describe('deepagents bridge protocol', () => {
           totalUsage: { inputTokens: { total: 1 }, outputTokens: { total: 2 } },
         },
       ],
+      ['bridge-interrupted', { type: 'bridge-interrupted', ok: true }],
       ['error', { type: 'error', error: { message: 'boom' } }],
     ];
 

@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/openai-compatible",
-  "version": "3.0.5",
+  "version": "3.0.12",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

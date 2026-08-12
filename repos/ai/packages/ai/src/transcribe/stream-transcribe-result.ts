@@ -81,6 +81,11 @@ export interface StreamTranscriptionResult {
 
   /**
    * Full stream of transcription parts.
+   *
+   * This is a single-consumer live stream and can only be accessed once.
+   * Access it before any result promise when both stream parts and final
+   * results are needed; accessing a result promise first consumes the stream
+   * internally and makes `fullStream` unavailable.
    */
   readonly fullStream: AsyncIterableStream<TranscriptionStreamPart>;
 }

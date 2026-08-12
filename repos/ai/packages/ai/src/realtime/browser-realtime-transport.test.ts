@@ -166,4 +166,35 @@ describe('BrowserRealtimeTransport', () => {
       JSON.stringify({ type: 'second' }),
     );
   });
+
+  it('sends serialized strings and binary data without JSON encoding', async () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const rawModel = {
+      getWebSocketConfig: ({ url }: { url: string }) => ({ url }),
+      serializeClientEvent: (event: { type: string }) =>
+        event.type === 'binary' ? bytes : 'finalize',
+      parseServerEvent: (raw: unknown) => raw,
+    } as never;
+    const transport = new BrowserRealtimeTransport({
+      model: rawModel,
+      onServerEvent: vi.fn(),
+      onError: vi.fn(),
+      onClose: vi.fn(),
+    });
+
+    transport.connect({
+      token: 'token',
+      url: 'wss://example.com',
+      onOpen: vi.fn(),
+    });
+    const ws = MockWebSocket.instances[0];
+    ws.open();
+
+    transport.sendEvent({ type: 'text' } as never);
+    transport.sendEvent({ type: 'binary' } as never);
+    await flush();
+
+    expect(ws.send).toHaveBeenNthCalledWith(1, 'finalize');
+    expect(ws.send).toHaveBeenNthCalledWith(2, bytes);
+  });
 });

@@ -35,7 +35,7 @@ import { moonshotai } from '@ai-sdk/moonshotai';
 import { generateText } from 'ai';
 
 const { text } = await generateText({
-  model: moonshotai('kimi-k2.5'),
+  model: moonshotai('kimi-k3'),
   prompt: 'Write a JavaScript function that sorts a list:',
 });
 ```

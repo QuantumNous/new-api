@@ -176,6 +176,46 @@ export const googleLanguageModelOptions = lazySchema(() =>
             ])
             .optional(),
           imageSize: z.enum(['1K', '2K', '4K', '512']).optional(),
+
+          /**
+           * Optional. Controls the generation of people in images.
+           * Vertex AI only.
+           */
+          personGeneration: z
+            .enum([
+              'PERSON_GENERATION_UNSPECIFIED',
+              'ALLOW_ALL',
+              'ALLOW_ADULT',
+              'ALLOW_NONE',
+            ])
+            .optional(),
+
+          /**
+           * Optional. Controls whether generation of prominent people
+           * (celebrities) is allowed. When set together with
+           * `personGeneration`, `personGeneration` takes precedence.
+           * Vertex AI only.
+           *
+           * https://docs.cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/GenerationConfig
+           */
+          prominentPeople: z
+            .enum([
+              'PROMINENT_PEOPLE_UNSPECIFIED',
+              'ALLOW_PROMINENT_PEOPLE',
+              'BLOCK_PROMINENT_PEOPLE',
+            ])
+            .optional(),
+
+          /**
+           * Optional. The image output format for generated images.
+           * Vertex AI only.
+           */
+          imageOutputOptions: z
+            .object({
+              mimeType: z.enum(['image/jpeg', 'image/png']).optional(),
+              compressionQuality: z.number().optional(),
+            })
+            .optional(),
         })
         .optional(),
 

@@ -17,6 +17,13 @@ export interface PiPathMapper {
    * allows explicitly configured sandbox roots such as `$HOME/.agents/skills`.
    */
   toReadableSandboxPath(inputPath: string): string;
+  /** Verify that a sandbox-side path is still inside `sandboxWorkDir`. */
+  assertSandboxPath(inputPath: string): string;
+  /**
+   * Verify that a sandbox-side path is inside `sandboxWorkDir` or an
+   * explicitly configured readable root.
+   */
+  assertReadableSandboxPath(inputPath: string): string;
   /** Translate any path to its POSIX-relative form under `sandboxWorkDir`. */
   toRelativePath(inputPath: string): string;
 }
@@ -73,11 +80,34 @@ export function createPiPathMapper(
       sandboxDir: path.posix.normalize(root.sandboxDir),
     })) ?? [];
 
+  const assertWorkspaceSandboxPath = (inputPath: string): string => {
+    const normalizedInput = path.posix.normalize(inputPath);
+    if (!isInsidePosixPath(normalizedSandbox, normalizedInput)) {
+      throw new Error(`Pi path escapes the workspace: ${inputPath}`);
+    }
+    return normalizedInput;
+  };
+
+  const assertReadableSandboxPath = (inputPath: string): string => {
+    const normalizedInput = path.posix.normalize(inputPath);
+    if (
+      !isInsidePosixPath(normalizedSandbox, normalizedInput) &&
+      !readableRoots.some(root =>
+        isInsidePosixPath(root.sandboxDir, normalizedInput),
+      )
+    ) {
+      throw new Error(`Pi path escapes the readable roots: ${inputPath}`);
+    }
+    return normalizedInput;
+  };
+
   const toWorkspaceSandboxPath = (inputPath: string): string => {
     if (path.posix.isAbsolute(inputPath)) {
       const normalizedInput = path.posix.normalize(inputPath);
-      if (isInsidePosixPath(normalizedSandbox, normalizedInput)) {
-        return normalizedInput;
+      try {
+        return assertWorkspaceSandboxPath(normalizedInput);
+      } catch {
+        // Absolute host paths are handled below.
       }
     }
 
@@ -110,17 +140,20 @@ export function createPiPathMapper(
     toReadableSandboxPath(inputPath: string) {
       if (path.posix.isAbsolute(inputPath)) {
         const normalizedInput = path.posix.normalize(inputPath);
-        if (
-          isInsidePosixPath(normalizedSandbox, normalizedInput) ||
-          readableRoots.some(root =>
-            isInsidePosixPath(root.sandboxDir, normalizedInput),
-          )
-        ) {
-          return normalizedInput;
+        try {
+          return assertReadableSandboxPath(normalizedInput);
+        } catch {
+          // Absolute host paths are handled by workspace mapping below.
         }
       }
 
       return toWorkspaceSandboxPath(inputPath);
+    },
+    assertSandboxPath(inputPath: string) {
+      return assertWorkspaceSandboxPath(inputPath);
+    },
+    assertReadableSandboxPath(inputPath: string) {
+      return assertReadableSandboxPath(inputPath);
     },
     toRelativePath(inputPath: string) {
       const sandboxPath = path.posix.isAbsolute(inputPath)

@@ -146,6 +146,7 @@ export class FalTranscriptionModel implements TranscriptionModelV4 {
             path: `https://queue.fal.run/fal-ai/${this.modelId}/requests/${queueResponse.request_id}`,
             modelId: this.modelId,
           }),
+          validateUrl: false,
           headers: combineHeaders(this.config.headers?.(), options.headers),
           failedResponseHandler: async ({
             requestBodyValues,

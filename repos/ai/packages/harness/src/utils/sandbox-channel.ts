@@ -58,6 +58,8 @@ export interface SandboxChannelOptions<TOut> {
     event: Extract<TOut, { type: 'sandbox-log' | 'debug-event' }>,
   ) => void;
 
+  onBridgeError?: (event: Extract<TOut, { type: 'error' }>) => void;
+
   /**
    * Seed the host-side cursor before the first connect. Pass the
    * `lastSeenEventId` persisted from a prior process so the bridge replays only
@@ -116,6 +118,9 @@ export class SandboxChannel<
   private readonly onDiagnostic:
     | ((event: Extract<TOut, { type: 'sandbox-log' | 'debug-event' }>) => void)
     | undefined;
+  private readonly onBridgeError:
+    | ((event: Extract<TOut, { type: 'error' }>) => void)
+    | undefined;
   private readonly maxElapsedMs: number;
   private readonly initialDelayMs: number;
   private readonly maxDelayMs: number;
@@ -142,6 +147,7 @@ export class SandboxChannel<
     this.outboundSchema = options.outboundSchema;
     this.onDebug = options.onDebug;
     this.onDiagnostic = options.onDiagnostic;
+    this.onBridgeError = options.onBridgeError;
     this.maxElapsedMs = options.reconnect?.maxElapsedMs ?? 30_000;
     this.initialDelayMs = options.reconnect?.initialDelayMs ?? 50;
     this.maxDelayMs = options.reconnect?.maxDelayMs ?? 2_000;
@@ -242,6 +248,59 @@ export class SandboxChannel<
       // best-effort
     }
     this.enqueue(() => this.finalizeClose(1000, 'closed'));
+  }
+
+  interrupt(options?: { timeoutMs?: number }): Promise<void> {
+    const timeoutMs = options?.timeoutMs ?? 5000;
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
+      let unsub = (): void => {};
+      const timer = setTimeout(() => {
+        complete(
+          new Error(
+            `SandboxChannel: interrupt was not acknowledged within ${timeoutMs}ms.`,
+          ),
+        );
+      }, timeoutMs);
+      timer.unref?.();
+
+      const complete = (error?: unknown): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unsub();
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+
+      unsub = this.on('bridge-interrupted' as EventTypeOf<TOut>, event => {
+        const response = event as unknown as {
+          type: 'bridge-interrupted';
+          ok: boolean;
+          error?: unknown;
+        };
+        if (response.ok) {
+          complete();
+          return;
+        }
+        complete(
+          new Error(
+            `SandboxChannel: interrupt failed: ${formatControlError(
+              response.error,
+            )}`,
+          ),
+        );
+      });
+
+      try {
+        this.send({ type: 'interrupt' } as TIn);
+      } catch (err) {
+        complete(err);
+      }
+    });
   }
 
   /**
@@ -428,6 +487,9 @@ export class SandboxChannel<
       );
       return;
     }
+    if (message.type === 'error') {
+      this.onBridgeError?.(message as Extract<TOut, { type: 'error' }>);
+    }
     const type = message.type as EventTypeOf<TOut>;
     const set = this.listeners.get(type);
     if (!set || set.size === 0) {
@@ -450,4 +512,14 @@ export class SandboxChannel<
     this.connected = false;
     for (const h of this.onCloseHandlers) h(code, reason);
   }
+}
+
+function formatControlError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.length > 0) return message;
+  }
+  if (typeof error === 'string' && error.length > 0) return error;
+  return 'unknown error';
 }

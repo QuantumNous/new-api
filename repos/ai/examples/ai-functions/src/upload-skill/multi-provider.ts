@@ -58,7 +58,7 @@ run(async () => {
 
     console.log('\n--- OpenAI Response ---');
     const openaiResult = await generateText({
-      model: openai.responses('gpt-5.2'),
+      model: openai.responses('gpt-5.6'),
       tools: {
         shell: openai.tools.shell({
           environment: {

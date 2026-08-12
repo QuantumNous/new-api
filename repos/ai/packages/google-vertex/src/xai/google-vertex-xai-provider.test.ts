@@ -1,5 +1,6 @@
 import { NoSuchModelError } from '@ai-sdk/provider';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import type * as ProviderUtilsModule from '@ai-sdk/provider-utils';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createGoogleVertexXai } from './google-vertex-xai-provider';
 
@@ -13,21 +14,22 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }),
 }));
 
-vi.mock('@ai-sdk/provider-utils', () => ({
-  loadSetting: vi.fn().mockImplementation(({ settingValue }) => {
-    if (settingValue === undefined) {
-      throw new Error('Setting is missing');
-    }
-    return settingValue;
-  }),
-  loadOptionalSetting: vi
-    .fn()
-    .mockImplementation(({ settingValue }) => settingValue),
-  withoutTrailingSlash: vi.fn().mockImplementation(url => {
-    if (!url) return '';
-    return url?.endsWith('/') ? url.slice(0, -1) : url;
-  }),
-}));
+vi.mock('@ai-sdk/provider-utils', async importOriginal => {
+  const actual = await importOriginal<typeof ProviderUtilsModule>();
+
+  return {
+    ...actual,
+    loadSetting: vi.fn().mockImplementation(({ settingValue }) => {
+      if (settingValue === undefined) {
+        throw new Error('Setting is missing');
+      }
+      return settingValue;
+    }),
+    loadOptionalSetting: vi
+      .fn()
+      .mockImplementation(({ settingValue }) => settingValue),
+  };
+});
 
 describe('google-vertex-xai-provider', () => {
   beforeEach(() => {
@@ -64,6 +66,23 @@ describe('google-vertex-xai-provider', () => {
           "transformRequestBody": [Function],
         }
       `);
+  });
+
+  it('should construct the default base URL when baseURL is an empty string', () => {
+    const provider = createGoogleVertexXai({
+      project: 'test-project',
+      location: 'global',
+      baseURL: '',
+    });
+
+    provider('xai/grok-4.1-fast-reasoning');
+
+    expect(vi.mocked(createOpenAICompatible)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseURL:
+          'https://aiplatform.googleapis.com/v1/projects/test-project/locations/global/endpoints/openapi',
+      }),
+    );
   });
 
   it('should create a provider with correct base URL for regional location', () => {

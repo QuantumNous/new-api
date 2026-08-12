@@ -5,27 +5,14 @@ description: Learn how to use Mistral.
 
 # Mistral AI Provider
 
-The [Mistral AI](https://mistral.ai/) provider contains language model support for the Mistral chat API.
+The [Mistral AI](https://mistral.ai/) provider contains language model,
+embedding model, and speech model support for Mistral APIs.
 
 ## Setup
 
 The Mistral provider is available in the `@ai-sdk/mistral` module. You can install it with
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/mistral" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/mistral" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/mistral" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add @ai-sdk/mistral" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/mistral" />
 
 ## Provider Instance
 
@@ -298,26 +285,26 @@ const result = await generateText({
 
 ### Model Capabilities
 
-| Model                   | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
-| ----------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `pixtral-large-latest`  | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mistral-large-latest`  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mistral-medium-latest` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mistral-medium-3`      | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mistral-medium-2508`   | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mistral-medium-2505`   | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mistral-medium-3.5`    | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mistral-small-latest`  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `magistral-small-2507`  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `magistral-medium-2507` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `magistral-small-2506`  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `magistral-medium-2506` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `ministral-3b-latest`   | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `ministral-8b-latest`   | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `pixtral-12b-2409`      | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `open-mistral-7b`       | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `open-mixtral-8x7b`     | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `open-mixtral-8x22b`    | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                   | Image Input | Object Generation | Tool Usage | Tool Streaming |
+| ----------------------- | ----------- | ----------------- | ---------- | -------------- |
+| `pixtral-large-latest`  | <Check />   | <Check />         | <Check />  | <Check />      |
+| `mistral-large-latest`  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `mistral-medium-latest` | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `mistral-medium-3`      | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `mistral-medium-2508`   | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `mistral-medium-2505`   | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `mistral-medium-3.5`    | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `mistral-small-latest`  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `magistral-small-2507`  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `magistral-medium-2507` | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `magistral-small-2506`  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `magistral-medium-2506` | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `ministral-3b-latest`   | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `ministral-8b-latest`   | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `pixtral-12b-2409`      | <Check />   | <Check />         | <Check />  | <Check />      |
+| `open-mistral-7b`       | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `open-mixtral-8x7b`     | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `open-mixtral-8x22b`    | <Cross />   | <Check />         | <Check />  | <Check />      |
 
 <Note>
   The table above lists popular models. Please see the [Mistral
@@ -325,6 +312,75 @@ const result = await generateText({
   full list of available models. The table above lists popular models. You can
   also pass any available provider model ID as a string if needed.
 </Note>
+
+## Speech Models
+
+You can create models that call the
+[Mistral speech API](https://docs.mistral.ai/api/endpoint/audio/speech) using
+the `.speech()` factory method:
+
+```ts
+const model = mistral.speech('voxtral-mini-tts-2603');
+```
+
+Use a preset or saved voice ID with [`generateSpeech`](/docs/reference/ai-sdk-core/generate-speech):
+
+```ts
+import { mistral } from '@ai-sdk/mistral';
+import { generateSpeech } from 'ai';
+
+const result = await generateSpeech({
+  model: mistral.speech('voxtral-mini-tts-2603'),
+  text: 'Hello from the AI SDK!',
+  voice: 'en_paul_neutral',
+  outputFormat: 'mp3',
+});
+
+const audio = result.audio.uint8Array;
+```
+
+The Mistral speech model maps `voice` to Mistral's `voice_id`. It supports
+`mp3`, `wav`, `pcm`, `flac`, and `opus` output formats and defaults to `mp3`.
+The `instructions`, `speed`, and `language` settings are not supported and
+produce warnings when provided.
+
+Mistral also supports one-off voice cloning with base64-encoded reference
+audio. Pass it through `providerOptions.mistral.refAudio` and use
+`MistralSpeechModelOptions` for type checking:
+
+```ts highlight="9-13"
+import { readFile } from 'node:fs/promises';
+import { mistral, type MistralSpeechModelOptions } from '@ai-sdk/mistral';
+import { generateSpeech } from 'ai';
+
+const referenceAudio = await readFile('./reference.mp3');
+
+const result = await generateSpeech({
+  model: mistral.speech('voxtral-mini-tts-2603'),
+  text: 'Hello from the AI SDK!',
+  providerOptions: {
+    mistral: {
+      refAudio: referenceAudio.toString('base64'),
+    } satisfies MistralSpeechModelOptions,
+  },
+});
+```
+
+When `refAudio` is provided, it takes precedence over `voice`. Reference audio
+is redacted from request metadata and API call errors returned by the provider.
+
+<Note>
+  Only use reference audio with the speaker's explicit consent. Follow Mistral's
+  voice cloning usage policy and disclose AI-generated audio when required. This
+  provider integration supports non-streaming speech generation; Mistral's
+  streaming speech API is not exposed through `SpeechModelV4`.
+</Note>
+
+### Model Capabilities
+
+| Model                   | Saved Voices | Reference Audio | Non-Streaming |
+| ----------------------- | ------------ | --------------- | ------------- |
+| `voxtral-mini-tts-2603` | <Check />    | <Check />       | <Check />     |
 
 ## Embedding Models
 
@@ -342,10 +398,47 @@ import { mistral } from '@ai-sdk/mistral';
 import { embed } from 'ai';
 
 const { embedding } = await embed({
-  model: mistral.embedding('mistral-embed'),
-  value: 'sunny day at the beach',
+  model: mistral.embedding('codestral-embed-2505'),
+  value: 'function add(a: number, b: number) { return a + b; }',
 });
 ```
+
+Mistral embedding models support additional provider options through
+`providerOptions.mistral`. You can validate them with
+`MistralEmbeddingModelOptions`:
+
+```ts
+import { mistral, type MistralEmbeddingModelOptions } from '@ai-sdk/mistral';
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: mistral.embedding('mistral-embed'),
+  value: 'sunny day at the beach',
+  providerOptions: {
+    mistral: {
+      metadata: { source: 'knowledge-base' },
+      outputDimension: 1024,
+      outputDtype: 'float',
+    } satisfies MistralEmbeddingModelOptions,
+  },
+});
+```
+
+The following optional provider options are available for Mistral embedding
+models:
+
+- **metadata** _Record&lt;string, unknown&gt;_
+
+  Additional metadata to attach to the embedding request.
+
+- **outputDimension** _number_
+
+  The dimension of the output embeddings when supported by the model.
+
+- **outputDtype** _string_
+
+  The data type of the output embeddings when supported by the model. Accepts
+  `'float'`, `'int8'`, `'uint8'`, `'binary'`, or `'ubinary'`.
 
 ### Model Capabilities
 

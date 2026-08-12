@@ -6450,6 +6450,77 @@ describe('generateText', () => {
     });
   });
 
+  describe('options.repairToolCall', () => {
+    const invalidToolCallModel = () =>
+      new MockLanguageModelV4({
+        doGenerate: async () => ({
+          ...dummyResponseValues,
+          content: [
+            {
+              type: 'tool-call',
+              toolCallType: 'function',
+              toolCallId: 'call-1',
+              toolName: 'tool1',
+              input: `{ "value": broken`, // invalid JSON
+            },
+          ],
+        }),
+      });
+
+    const repairToolCallTools = {
+      tool1: tool({
+        inputSchema: z.object({ value: z.string() }),
+        execute: async ({ value }) => `result-${value}`,
+      }),
+    };
+
+    it('should use the repaired tool call', async () => {
+      const result = await generateText({
+        model: invalidToolCallModel(),
+        tools: repairToolCallTools,
+        prompt: 'test-input',
+        repairToolCall: async ({ toolCall }) => ({
+          ...toolCall,
+          input: `{ "value": "repaired" }`,
+        }),
+      });
+
+      expect(result.toolCalls).toStrictEqual([
+        expect.objectContaining({
+          toolCallId: 'call-1',
+          toolName: 'tool1',
+          input: { value: 'repaired' },
+        }),
+      ]);
+      expect(result.toolResults).toStrictEqual([
+        expect.objectContaining({ output: 'result-repaired' }),
+      ]);
+    });
+
+    it('should support the deprecated experimental_repairToolCall option', async () => {
+      const result = await generateText({
+        model: invalidToolCallModel(),
+        tools: repairToolCallTools,
+        prompt: 'test-input',
+        experimental_repairToolCall: async ({ toolCall }) => ({
+          ...toolCall,
+          input: `{ "value": "repaired" }`,
+        }),
+      });
+
+      expect(result.toolCalls).toStrictEqual([
+        expect.objectContaining({
+          toolCallId: 'call-1',
+          toolName: 'tool1',
+          input: { value: 'repaired' },
+        }),
+      ]);
+      expect(result.toolResults).toStrictEqual([
+        expect.objectContaining({ output: 'result-repaired' }),
+      ]);
+    });
+  });
+
   describe('options.activeTools', () => {
     it('should filter available tools to only the ones in activeTools', async () => {
       let tools:
@@ -6595,6 +6666,20 @@ describe('generateText', () => {
 
       expect(recordedCalls).toMatchInlineSnapshot(`
         [
+          {
+            "options": {
+              "abortSignal": undefined,
+              "context": {},
+              "messages": [
+                {
+                  "content": "test-input",
+                  "role": "user",
+                },
+              ],
+              "toolCallId": "call-1",
+            },
+            "type": "onInputStart",
+          },
           {
             "options": {
               "abortSignal": undefined,
@@ -11065,6 +11150,95 @@ describe('generateText', () => {
           ]
         `);
       });
+    });
+
+    it('should not duplicate an existing execution-denied result', async () => {
+      const prompts: LanguageModelV4Prompt[] = [];
+      const result = await generateText({
+        model: new MockLanguageModelV4({
+          doGenerate: async ({ prompt }) => {
+            prompts.push(prompt);
+            return {
+              ...dummyResponseValues,
+              content: [
+                {
+                  type: 'text',
+                  text: 'Hello, world!',
+                },
+              ],
+              finishReason: { unified: 'stop', raw: 'stop' },
+            };
+          },
+        }),
+        tools: {
+          tool1: tool({
+            inputSchema: z.object({ value: z.string() }),
+            execute: vi.fn(),
+          }),
+        },
+        toolApproval: {
+          tool1: 'user-approval',
+        },
+        stopWhen: isStepCount(3),
+        _internal: {
+          generateId: mockId({ prefix: 'id' }),
+          generateCallId: () => 'test-telemetry-call-id',
+        },
+        messages: [
+          { role: 'user', content: 'test-input' },
+          {
+            role: 'assistant',
+            content: [
+              {
+                input: {
+                  value: 'value',
+                },
+                toolCallId: 'call-1',
+                toolName: 'tool1',
+                type: 'tool-call',
+              },
+              {
+                approvalId: 'id-1',
+                toolCallId: 'call-1',
+                type: 'tool-approval-request',
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            content: [
+              {
+                approvalId: 'id-1',
+                type: 'tool-approval-response',
+                approved: false,
+                reason: 'User denied the request',
+              },
+              {
+                type: 'tool-result',
+                toolCallId: 'call-1',
+                toolName: 'tool1',
+                output: {
+                  type: 'execution-denied',
+                  reason: 'User denied the request',
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      expect({
+        promptExecutionDeniedOccurrences:
+          JSON.stringify(prompts).match(/execution-denied/g)?.length ?? 0,
+        responseExecutionDeniedOccurrences:
+          JSON.stringify(result.responseMessages).match(/execution-denied/g)
+            ?.length ?? 0,
+      }).toMatchInlineSnapshot(`
+        {
+          "promptExecutionDeniedOccurrences": 1,
+          "responseExecutionDeniedOccurrences": 0,
+        }
+      `);
     });
 
     describe('when a single tool is automatically rejected', () => {

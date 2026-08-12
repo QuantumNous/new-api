@@ -76,6 +76,36 @@ describe('validateUIMessages', () => {
         ]]
       `);
     });
+
+    it('should validate chat ending with assistant message with empty parts array', async () => {
+      const messages = await validateUIMessages({
+        messages: [
+          {
+            id: '1',
+            role: 'user',
+            parts: [{ type: 'text', text: 'Hello' }],
+          },
+          {
+            id: '2',
+            role: 'assistant',
+            parts: [],
+          },
+        ],
+      });
+
+      expect(messages).toEqual([
+        {
+          id: '1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Hello' }],
+        },
+        {
+          id: '2',
+          role: 'assistant',
+          parts: [],
+        },
+      ]);
+    });
   });
 
   describe('metadata', () => {
@@ -1706,6 +1736,37 @@ describe('safeValidateUIMessages', () => {
     expectToBe(result.success, false);
     expect(result.error.name).toBe('AI_TypeValidationError');
     expect(result.error.message).toContain('Type validation failed');
+  });
+
+  it('should return success result for chat ending with assistant message with empty parts array', async () => {
+    const result = await safeValidateUIMessages({
+      messages: [
+        {
+          id: '1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Hello' }],
+        },
+        {
+          id: '2',
+          role: 'assistant',
+          parts: [],
+        },
+      ],
+    });
+
+    expectToBe(result.success, true);
+    expect(result.data).toEqual([
+      {
+        id: '1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'Hello' }],
+      },
+      {
+        id: '2',
+        role: 'assistant',
+        parts: [],
+      },
+    ]);
   });
 
   it('should return failure result when metadata validation fails', async () => {

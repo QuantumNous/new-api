@@ -275,7 +275,7 @@ describe('OpenAICompatibleProvider', () => {
   });
 
   describe('supportsStructuredOutputs setting', () => {
-    it('should pass supportsStructuredOutputs to to .chatModel() and .languageModel() only', () => {
+    it('should pass supportsStructuredOutputs to .chatModel() and .languageModel() only', () => {
       const options = {
         baseURL: 'https://api.example.com',
         name: 'test-provider',

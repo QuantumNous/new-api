@@ -9,7 +9,7 @@ import { run } from '../lib/run';
 run(async () => {
   const { stream }: { stream: AsyncIterableStream<LanguageModelStreamPart> } =
     await streamLanguageModelCall({
-      model: openai('gpt-5.4'),
+      model: openai('gpt-5.6'),
       prompt: 'How many people live in the capital of France?',
     });
 

@@ -7698,6 +7698,72 @@ describe('processUIMessageStream', () => {
     });
   });
 
+  describe('tool approval response with signature', () => {
+    beforeEach(async () => {
+      const stream = createUIMessageStream([
+        {
+          type: 'start',
+        },
+        {
+          type: 'start-step',
+        },
+        {
+          input: {
+            value: 'value',
+          },
+          toolCallId: 'call-1',
+          toolName: 'tool1',
+          type: 'tool-input-available',
+        },
+        {
+          approvalId: 'id-1',
+          toolCallId: 'call-1',
+          type: 'tool-approval-request',
+          signature: 'test-sig',
+        },
+        {
+          approvalId: 'id-1',
+          approved: true,
+          type: 'tool-approval-response',
+        },
+        {
+          type: 'finish-step',
+        },
+        {
+          type: 'finish',
+        },
+      ]);
+
+      state = createStreamingUIMessageState({
+        messageId: 'msg-123',
+        lastMessage: undefined,
+      });
+
+      await consumeStream({
+        stream: processUIMessageStream({
+          stream,
+          runUpdateMessageJob,
+          onError: error => {
+            throw error;
+          },
+        }),
+      });
+    });
+
+    it('preserves signature when transitioning to approval-responded', async () => {
+      const toolPart = state!.message.parts.find(
+        part => part.type === 'tool-tool1',
+      ) as any;
+
+      expect(toolPart.state).toBe('approval-responded');
+      expect(toolPart.approval).toEqual({
+        id: 'id-1',
+        approved: true,
+        signature: 'test-sig',
+      });
+    });
+  });
+
   describe('tool approval request without signature', () => {
     beforeEach(async () => {
       const stream = createUIMessageStream([

@@ -18,7 +18,10 @@ import type {
   ToolSet,
 } from 'ai';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { ParsedToolCall } from './do-stream-step.js';
+import type {
+  DoStreamStepRawResult,
+  ParsedToolCall,
+} from './do-stream-step.js';
 import type { StreamTextIteratorYieldValue } from './stream-text-iterator.js';
 
 // Mock doStreamStep
@@ -40,53 +43,6 @@ function createMockWritable(): WritableStream<
     write: vi.fn(),
     close: vi.fn(),
   });
-}
-
-/**
- * Helper to create a minimal step result for testing
- */
-function createMockStepResult(
-  overrides: Partial<StepResult<ToolSet, any>> = {},
-): StepResult<ToolSet, any> {
-  return {
-    content: [],
-    text: '',
-    reasoning: [],
-    reasoningText: undefined,
-    files: [],
-    sources: [],
-    toolCalls: [],
-    staticToolCalls: [],
-    dynamicToolCalls: [],
-    toolResults: [],
-    staticToolResults: [],
-    dynamicToolResults: [],
-    finishReason: 'stop',
-    usage: {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      inputTokenDetails: {
-        noCacheTokens: undefined,
-        cacheReadTokens: undefined,
-        cacheWriteTokens: undefined,
-      },
-      outputTokenDetails: {
-        textTokens: undefined,
-        reasoningTokens: undefined,
-      },
-    },
-    warnings: [],
-    request: { body: '' },
-    response: {
-      id: 'test',
-      timestamp: new Date(),
-      modelId: 'test',
-      messages: [],
-    },
-    providerMetadata: {},
-    ...overrides,
-  } as StepResult<ToolSet, any>;
 }
 
 const mockUsage = {
@@ -119,20 +75,25 @@ function createMockDoStreamStepResult({
   toolCalls = [] as ParsedToolCall[],
   finishReason = 'stop' as 'stop' | 'tool-calls',
   finishRaw = 'stop',
-  stepOverrides = {},
+  rawOverrides = {},
 }: {
   toolCalls?: ParsedToolCall[];
   finishReason?: 'stop' | 'tool-calls';
   finishRaw?: string;
-  stepOverrides?: Partial<StepResult<ToolSet, any>>;
+  rawOverrides?: Partial<DoStreamStepRawResult>;
 } = {}) {
   return {
     toolCalls,
     finish: createMockFinish(finishReason, finishRaw),
-    step: createMockStepResult({
-      finishReason,
-      ...stepOverrides,
-    }),
+    // doStreamStep now returns minimal raw aggregates; the iterator
+    // reconstructs the StepResult via buildStepResult.
+    raw: {
+      text: '',
+      reasoning: [],
+      responseMetadata: undefined,
+      warnings: [],
+      ...rawOverrides,
+    } as DoStreamStepRawResult,
     providerExecutedToolResults: new Map(),
   };
 }
@@ -725,17 +686,13 @@ describe('streamTextIterator', () => {
   });
 
   describe('runtimeContext and toolsContext', () => {
-    it('should pass current contexts to doStreamStep and yielded steps', async () => {
+    it('applies current contexts to the reconstructed step and yield value', async () => {
       const runtimeContext = { tenantId: 'tenant_123' };
       const toolsContext = { weather: { unit: 'celsius' } };
-      const step = createMockStepResult();
 
-      vi.mocked(doStreamStep).mockResolvedValueOnce({
-        toolCalls: [],
-        finish: createMockFinish('stop'),
-        step,
-        providerExecutedToolResults: new Map(),
-      });
+      vi.mocked(doStreamStep).mockResolvedValueOnce(
+        createMockDoStreamStepResult({ finishReason: 'stop' }),
+      );
 
       const iterator = streamTextIterator({
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'test' }] }],
@@ -747,20 +704,23 @@ describe('streamTextIterator', () => {
       });
 
       const result = await iterator.next();
+      const yielded = result.value as StreamTextIteratorYieldValue;
 
+      // Contexts are no longer serialized across the step boundary; the
+      // iterator applies them when it reconstructs the StepResult outside.
       expect(doStreamStep).toHaveBeenCalledWith(
         expect.any(Array),
         expect.any(Function),
         expect.any(WritableStream),
         expect.any(Object),
-        expect.objectContaining({
-          runtimeContext,
-          toolsContext,
-          stepNumber: 0,
-        }),
+        expect.not.objectContaining({ runtimeContext }),
       );
-      expect(result.value).toMatchObject({
-        step,
+      expect(yielded).toMatchObject({
+        runtimeContext,
+        toolsContext,
+      });
+      expect(yielded.step).toMatchObject({
+        stepNumber: 0,
         runtimeContext,
         toolsContext,
       });

@@ -338,6 +338,70 @@ describe('resolveToolApproval', () => {
     });
   });
 
+  describe('tool names that match inherited object properties', () => {
+    const createToolCallNamed = (toolName: string) => ({
+      type: 'tool-call' as const,
+      toolCallId: 'call-1',
+      toolName: toolName as never,
+      input: { city: 'Berlin' },
+      dynamic: false as const,
+    });
+
+    // Regression guard for the fix: `toolApproval[toolName]` used to resolve
+    // through the prototype chain, so a tool literally named `constructor`
+    // would pick up `Object.prototype.constructor` (a function) and be invoked
+    // as if it were a per-tool approval callback. With an own-property check it
+    // is treated as unconfigured and honors the configured fallback instead.
+    for (const toolName of ['constructor', 'toString', 'valueOf']) {
+      it(`does not execute a tool named "${toolName}" when the fallback is denied`, async () => {
+        const result = await resolveToolApproval({
+          tools: {
+            [toolName]: tool({ inputSchema: z.object({ city: z.string() }) }),
+          },
+          // simulates the total map produced by wrapMcpTools
+          toolApproval: { [toolName]: 'denied' },
+          toolCall: createToolCallNamed(toolName),
+          messages: [...messages],
+          toolsContext: {},
+          runtimeContext: {},
+        });
+
+        expect(result).toEqual({ type: 'denied' });
+      });
+
+      it(`pauses a tool named "${toolName}" for approval when the fallback is user-approval`, async () => {
+        const result = await resolveToolApproval({
+          tools: {
+            [toolName]: tool({ inputSchema: z.object({ city: z.string() }) }),
+          },
+          toolApproval: { [toolName]: 'user-approval' },
+          toolCall: createToolCallNamed(toolName),
+          messages: [...messages],
+          toolsContext: {},
+          runtimeContext: {},
+        });
+
+        expect(result).toEqual({ type: 'user-approval' });
+      });
+
+      it(`treats an unconfigured tool named "${toolName}" as not-applicable rather than reading the inherited property`, async () => {
+        const result = await resolveToolApproval({
+          tools: {
+            [toolName]: tool({ inputSchema: z.object({ city: z.string() }) }),
+          },
+          // plain object map that does NOT list the colliding name
+          toolApproval: { weather: 'denied' } as never,
+          toolCall: createToolCallNamed(toolName),
+          messages: [...messages],
+          toolsContext: {},
+          runtimeContext: {},
+        });
+
+        expect(result).toEqual({ type: 'not-applicable' });
+      });
+    }
+  });
+
   it('normalizes a user-defined static string approval value before checking tool-defined approval', async () => {
     const toolDefinedNeedsApproval = vi.fn(() => true);
 

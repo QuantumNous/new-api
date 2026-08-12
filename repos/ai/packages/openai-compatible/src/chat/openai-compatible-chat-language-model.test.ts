@@ -2860,6 +2860,11 @@ describe('doStream', () => {
           "type": "tool-input-delta",
         },
         {
+          "delta": "",
+          "id": "chatcmpl-tool-b3b307239370432d9910d4b79b4dbbaa",
+          "type": "tool-input-delta",
+        },
+        {
           "id": "chatcmpl-tool-b3b307239370432d9910d4b79b4dbbaa",
           "type": "tool-input-end",
         },
@@ -3099,11 +3104,11 @@ describe('doStream', () => {
     `);
   });
 
-  it('should handle error stream parts', async () => {
+  it('should preserve structured error stream parts', async () => {
     server.urls['https://my.api.com/v1/chat/completions'].response = {
       type: 'stream-chunks',
       chunks: [
-        `data: {"error": {"message": "Incorrect API key provided: as***T7. You can obtain an API key from https://console.api.com.", "code": "Client specified an invalid argument"}}\n\n`,
+        `data: {"error": {"message": "Context length exceeded", "code": "CONTEXT_LENGTH_EXCEEDED"}}\n\n`,
         'data: [DONE]\n\n',
       ],
     };
@@ -3120,7 +3125,10 @@ describe('doStream', () => {
           "warnings": [],
         },
         {
-          "error": "Incorrect API key provided: as***T7. You can obtain an API key from https://console.api.com.",
+          "error": {
+            "code": "CONTEXT_LENGTH_EXCEEDED",
+            "message": "Context length exceeded",
+          },
           "type": "error",
         },
         {

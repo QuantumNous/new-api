@@ -8,7 +8,7 @@ run(async () => {
   const largeContext = errorMessage.repeat(100);
 
   const result = await generateText({
-    model: moonshotai('kimi-k2.5'),
+    model: moonshotai('kimi-k3'),
     messages: [
       {
         role: 'user',

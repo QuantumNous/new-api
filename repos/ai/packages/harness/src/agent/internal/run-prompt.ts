@@ -34,6 +34,7 @@ import { translateStreamPart } from './translate-stream-part';
 import { stripWorkDir } from './strip-work-dir';
 import { createTurnTelemetry, type TurnContentPart } from './turn-telemetry';
 import { resolveCustomToolApproval } from './permission-mode';
+import { logBridgeError } from '../../utils/bridge-diagnostics';
 
 /**
  * Drive one prompt turn end-to-end:
@@ -134,6 +135,12 @@ export function runPrompt<
       });
     } catch (err) {
       telemetry.error(err);
+      logBridgeError({
+        harnessId: input.harness.harnessId,
+        sessionId: input.session.sessionId,
+        context: 'failed to start harness turn',
+        error: err,
+      });
       result.fail(err);
       return;
     }
@@ -688,6 +695,12 @@ export function runPrompt<
 
         if (value.type === 'error') {
           telemetry.error(value.error);
+          logBridgeError({
+            harnessId: input.harness.harnessId,
+            sessionId: input.session.sessionId,
+            context: 'harness stream error',
+            error: value.error,
+          });
           result.fail(value.error);
           return;
         }
@@ -704,6 +717,12 @@ export function runPrompt<
       );
     } catch (err) {
       telemetry.error(err);
+      logBridgeError({
+        harnessId: input.harness.harnessId,
+        sessionId: input.session.sessionId,
+        context: 'harness turn failed',
+        error: err,
+      });
       result.fail(err);
     } finally {
       reader.releaseLock();

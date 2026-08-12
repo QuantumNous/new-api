@@ -1,7 +1,7 @@
 import { openai } from '@ai-sdk/openai';
 import { ToolLoopAgent, type InferAgentUIMessage } from 'ai';
 export const openaiMCPApprovalAgent = new ToolLoopAgent({
-  model: openai.responses('gpt-5'),
+  model: openai.responses('gpt-5.6'),
   instructions:
     'You are a helpful assistant that can shorten links. ' +
     'Use the MCP tools available to you to shorten links when needed. ' +

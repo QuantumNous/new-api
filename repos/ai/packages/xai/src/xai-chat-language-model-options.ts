@@ -5,6 +5,7 @@ export type XaiChatModelId =
   | 'grok-4.20-non-reasoning'
   | 'grok-4.20-reasoning'
   | 'grok-4.3'
+  | 'grok-4.5'
   | 'grok-latest'
   | (string & {});
 

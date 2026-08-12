@@ -10,7 +10,7 @@ run(async () => {
   await fs.mkdir(workspaceRoot, { recursive: true });
 
   const result = await streamText({
-    model: openai.responses('gpt-5.1'),
+    model: openai.responses('gpt-5.6'),
     prompt: `Create a markdown file with a shopping checklist of 5 entries.`,
     tools: {
       apply_patch: openai.tools.applyPatch({

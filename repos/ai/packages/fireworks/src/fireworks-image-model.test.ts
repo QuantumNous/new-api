@@ -2,6 +2,7 @@ import type { FetchFunction } from '@ai-sdk/provider-utils';
 import { createTestServer } from '@ai-sdk/test-server/with-vitest';
 import { describe, expect, it, vi } from 'vitest';
 import { FireworksImageModel } from './fireworks-image-model';
+import type { FireworksImageModelOptions } from './fireworks-image-model-options';
 
 const prompt = 'A cute baby sea otter';
 
@@ -158,7 +159,11 @@ describe('FireworksImageModel', () => {
         size: undefined,
         aspectRatio: '16:9',
         seed: 42,
-        providerOptions: { fireworks: { additional_param: 'value' } },
+        providerOptions: {
+          fireworks: {
+            additional_param: 'value',
+          } satisfies FireworksImageModelOptions,
+        },
       });
 
       expect(await server.calls[0].requestBodyJson).toStrictEqual({
@@ -181,7 +186,11 @@ describe('FireworksImageModel', () => {
         size: undefined,
         aspectRatio: '16:9',
         seed: 42,
-        providerOptions: { fireworks: { additional_param: 'value' } },
+        providerOptions: {
+          fireworks: {
+            additional_param: 'value',
+          } satisfies FireworksImageModelOptions,
+        },
       });
 
       expect(server.calls[0].requestMethod).toStrictEqual('POST');
@@ -296,6 +305,88 @@ describe('FireworksImageModel', () => {
         seed: 42,
         samples: 1,
       });
+    });
+
+    it('should pass typed workflow provider options to the API', async () => {
+      const model = createBasicModel();
+
+      await model.doGenerate({
+        prompt,
+        files: undefined,
+        mask: undefined,
+        n: 1,
+        size: undefined,
+        aspectRatio: '1:1',
+        seed: undefined,
+        providerOptions: {
+          fireworks: {
+            guidance_scale: 4.5,
+            num_inference_steps: 8,
+          } satisfies FireworksImageModelOptions,
+        },
+      });
+
+      expect(await server.calls[0].requestBodyJson).toMatchInlineSnapshot(`
+        {
+          "aspect_ratio": "1:1",
+          "guidance_scale": 4.5,
+          "num_inference_steps": 8,
+          "prompt": "A cute baby sea otter",
+          "samples": 1,
+        }
+      `);
+    });
+
+    it('should pass typed image_generation provider options to the API', async () => {
+      const sizeModel = createSizeModel();
+
+      await sizeModel.doGenerate({
+        prompt,
+        files: undefined,
+        mask: undefined,
+        n: 1,
+        size: '1024x1024',
+        aspectRatio: undefined,
+        seed: undefined,
+        providerOptions: {
+          fireworks: {
+            cfg_scale: 10,
+            steps: 30,
+          } satisfies FireworksImageModelOptions,
+        },
+      });
+
+      expect(await server.calls[0].requestBodyJson).toMatchInlineSnapshot(`
+        {
+          "cfg_scale": 10,
+          "height": "1024",
+          "prompt": "A cute baby sea otter",
+          "samples": 1,
+          "steps": 30,
+          "width": "1024",
+        }
+      `);
+    });
+
+    it('should reject invalid provider options', async () => {
+      const model = createBasicModel();
+
+      await expect(
+        model.doGenerate({
+          prompt,
+          files: undefined,
+          mask: undefined,
+          n: 1,
+          size: undefined,
+          aspectRatio: undefined,
+          seed: undefined,
+          providerOptions: {
+            fireworks: {
+              output_format: 'webp',
+            },
+          },
+        }),
+      ).rejects.toThrow('invalid fireworks provider options');
     });
 
     describe('warnings', () => {
@@ -709,7 +800,7 @@ describe('FireworksImageModel', () => {
           fireworks: {
             output_format: 'jpeg',
             safety_tolerance: 2,
-          },
+          } satisfies FireworksImageModelOptions,
         },
       });
 
@@ -951,8 +1042,12 @@ describe('FireworksImageModel', () => {
         providerOptions: {
           fireworks: {
             safety_tolerance: 6,
+            output_format: 'jpeg',
+            prompt_upsampling: true,
+            webhook_url: 'https://example.com/webhook',
+            webhook_secret: 'secret',
             input_image: 'base64-image-data',
-          },
+          } satisfies FireworksImageModelOptions,
         },
       });
 
@@ -960,6 +1055,10 @@ describe('FireworksImageModel', () => {
         prompt,
         samples: 1,
         safety_tolerance: 6,
+        output_format: 'jpeg',
+        prompt_upsampling: true,
+        webhook_url: 'https://example.com/webhook',
+        webhook_secret: 'secret',
         input_image: 'base64-image-data',
       });
     });

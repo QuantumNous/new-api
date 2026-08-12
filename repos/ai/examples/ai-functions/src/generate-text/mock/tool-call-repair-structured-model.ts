@@ -42,12 +42,7 @@ run(async () => {
     },
     prompt: 'What are the tourist attractions in San Francisco?',
 
-    experimental_repairToolCall: async ({
-      toolCall,
-      tools,
-      inputSchema,
-      error,
-    }) => {
+    repairToolCall: async ({ toolCall, tools, inputSchema, error }) => {
       if (NoSuchToolError.isInstance(error)) {
         return null; // do not attempt to fix invalid tool names
       }

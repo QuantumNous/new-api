@@ -42,7 +42,9 @@ const agent = new HarnessAgent({
     }),
   },
   harnessOptions: {
-    'claude-code': { thinking: 'adaptive' },
+    'claude-code': {
+      thinking: { type: 'adaptive', display: 'summarized' },
+    },
   },
 });
 

@@ -61,7 +61,7 @@ async function executeShellCommand(
 }
 
 export const openaiShellAgent = new ToolLoopAgent({
-  model: openai.responses('gpt-5.1'),
+  model: openai.responses('gpt-5.6'),
   instructions:
     'You have access to a shell tool that can execute commands on the local filesystem. ' +
     'Use the shell tool when you need to perform file operations or run commands. ' +

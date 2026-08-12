@@ -506,7 +506,7 @@ import { generateText, tool } from 'ai';
 import { z } from 'zod';
 
 const { text } = await generateText({
-  model: 'xai/grok-4',
+  model: 'xai/grok-4.5',
   prompt: 'What is the weather like in San Francisco?',
   tools: {
     getWeather: tool({
@@ -1065,7 +1065,7 @@ The following gateway provider options are available:
   per-provider option each provider expects, and overrides any tier
   also set in the per-provider options. Leave unset for provider
   default. See the [OpenAI](/providers/ai-sdk-providers/openai),
-  [Google Generative AI](/providers/ai-sdk-providers/google-generative-ai),
+  [Google Generative AI](/providers/ai-sdk-providers/google),
   and [Google Vertex AI](/providers/ai-sdk-providers/google-vertex)
   provider docs for tier semantics, model availability, and graceful
   downgrade behavior on each provider.

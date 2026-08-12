@@ -18,7 +18,7 @@ import {
   KeyedStructuredObjectStore,
   type StructuredObjectStore,
 } from './structured-object-context.svelte.js';
-export type Experimental_StructuredObjectOptions<
+export type StructuredObjectOptions<
   SCHEMA extends FlexibleSchema,
   RESULT = InferSchema<SCHEMA>,
 > = {
@@ -89,8 +89,8 @@ export class StructuredObject<
   RESULT = InferSchema<SCHEMA>,
   INPUT = unknown,
 > {
-  #options: Experimental_StructuredObjectOptions<SCHEMA, RESULT> =
-    {} as Experimental_StructuredObjectOptions<SCHEMA, RESULT>;
+  #options: StructuredObjectOptions<SCHEMA, RESULT> =
+    {} as StructuredObjectOptions<SCHEMA, RESULT>;
   readonly #id = $derived(this.#options.id ?? generateId());
   readonly #keyedStore = $state<KeyedStructuredObjectStore>()!;
   readonly #store = $derived(
@@ -120,7 +120,7 @@ export class StructuredObject<
     return this.#store.loading;
   }
 
-  constructor(options: Experimental_StructuredObjectOptions<SCHEMA, RESULT>) {
+  constructor(options: StructuredObjectOptions<SCHEMA, RESULT>) {
     if (hasStructuredObjectContext()) {
       this.#keyedStore = getStructuredObjectContext();
     } else {

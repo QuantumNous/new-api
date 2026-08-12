@@ -175,6 +175,61 @@ describe('GoogleInteractionsLanguageModel.doGenerate', () => {
     });
   });
 
+  describe('text ProviderReference file', () => {
+    beforeEach(() => {
+      prepareJsonFixtureResponse('basic');
+    });
+
+    it('forwards the uploaded text document to the model', async () => {
+      const result = await provider
+        .interactions('gemini-3.5-flash')
+        .doGenerate({
+          prompt: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Return only the secret verification code from the attached text document.',
+                },
+                {
+                  type: 'file',
+                  mediaType: 'text/plain',
+                  data: {
+                    type: 'reference',
+                    reference: {
+                      google:
+                        'https://generativelanguage.googleapis.com/v1beta/files/gzed1s6hqcsn',
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        });
+
+      expect(await server.calls[0].requestBodyJson).toMatchObject({
+        input: [
+          {
+            type: 'user_input',
+            content: [
+              {
+                type: 'text',
+                text: 'Return only the secret verification code from the attached text document.',
+              },
+              {
+                type: 'document',
+                uri: 'https://generativelanguage.googleapis.com/v1beta/files/gzed1s6hqcsn',
+                mime_type: 'text/plain',
+              },
+            ],
+          },
+        ],
+      });
+      expect(result.warnings).toEqual([]);
+    });
+  });
+
   describe('multi-turn input', () => {
     beforeEach(() => {
       prepareJsonFixtureResponse('basic');
@@ -1406,34 +1461,39 @@ describe('GoogleInteractionsLanguageModel.doGenerate', () => {
       expect(body.agent_config).toEqual({ type: 'dynamic' });
     });
 
-    it('emits a warning and drops tools when an agent is set', async () => {
+    it('emits file_search tools when an agent is set', async () => {
       const agentModel = provider.interactions({ agent: AGENT_NAME });
       const result = await agentModel.doGenerate({
         prompt: TEST_PROMPT,
         tools: [
           {
-            type: 'function',
-            name: 'getWeather',
-            description: 'Get the current weather in a location',
-            inputSchema: {
-              type: 'object',
-              properties: { location: { type: 'string' } },
-              required: ['location'],
+            type: 'provider',
+            id: 'google.file_search',
+            name: 'file_search',
+            args: {
+              fileSearchStoreNames: ['fileSearchStores/x'],
             },
           },
         ],
+        providerOptions: { google: { background: true } },
       });
       const body = (await server.calls[0].requestBodyJson) as Record<
         string,
         unknown
       >;
-      expect(body.tools).toBeUndefined();
+      expect(body.tools).toEqual([
+        {
+          type: 'file_search',
+          file_search_store_names: ['fileSearchStores/x'],
+        },
+      ]);
+      expect(body.background).toBe(true);
       const warning = result.warnings.find(
         w =>
           w.type === 'other' &&
           (w as { message?: string }).message?.includes('tools'),
       );
-      expect(warning).toBeDefined();
+      expect(warning).toBeUndefined();
     });
 
     it('emits a warning and drops generation-config fields (temperature, topP, thinkingLevel) when an agent is set', async () => {

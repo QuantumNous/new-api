@@ -3,7 +3,7 @@ import {
   lazySchema,
   zodSchema,
 } from '@ai-sdk/provider-utils';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 export type ExaSearchType = 'auto' | 'fast' | 'instant';
 
@@ -316,7 +316,7 @@ const exaSearchOutputSchema = lazySchema(() =>
         costDollars: z
           .object({
             total: z.number().optional(),
-            search: z.record(z.number()).optional(),
+            search: z.record(z.string(), z.number()).optional(),
           })
           .optional(),
       }),
