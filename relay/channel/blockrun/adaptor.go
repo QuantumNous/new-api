@@ -43,12 +43,17 @@
 package blockrun
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/url"
+	"strings"
 
+	blockrunSDK "github.com/BlockRunAI/blockrun-llm-go"
+	common2 "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -57,6 +62,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/sjson"
 )
@@ -72,6 +78,19 @@ const ctxKeyPaymentSignature = "blockrun_payment_signature"
 // defaultAnthropicVersion is sent on the Claude (Messages API) leg when the
 // client did not supply an anthropic-version header.
 const defaultAnthropicVersion = "2023-06-01"
+
+const (
+	headerBlockRunFacilitator = "X-Blockrun-Facilitator"
+	headerPayerWallet         = "X-Payer-Wallet"
+	blockRunFacilitator       = "figment"
+)
+
+var blockRunProtectedPaymentHeaders = map[string]struct{}{
+	"payment-signature":      {},
+	"x-payment":              {},
+	"x-blockrun-facilitator": {},
+	"x-payer-wallet":         {},
+}
 
 // Adaptor implements the channel.Adaptor interface for BlockRun as a VIP native
 // passthrough. It embeds BOTH the openai and claude adaptors and dispatches each
@@ -97,6 +116,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 // passthrough: Anthropic → /v1/messages, OpenAI Chat → /v1/chat/completions,
 // Gemini rejected.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if _, _, err := validateBlockRunPaymentConfig(info); err != nil {
+		return "", err
+	}
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations:
 		return fmt.Sprintf("%s/v1/images/generations", info.ChannelBaseUrl), nil
@@ -154,7 +176,18 @@ func shouldAppendClaudeBetaQuery(info *relaycommon.RelayInfo) bool {
 // those by default, which is exactly why we override here and do NOT delegate.
 // Authentication is the EIP-712 x402 signature, never a transmitted secret.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	chain, payer, err := validateBlockRunPaymentConfig(info)
+	if err != nil {
+		return err
+	}
+	if err := rejectProtectedPaymentHeaderOverrides(info); err != nil {
+		return err
+	}
 	channel.SetupApiRequestHeader(info, c, req)
+	if chain == dto.BlockRunPaymentChainSolana {
+		req.Set(headerBlockRunFacilitator, blockRunFacilitator)
+		req.Set(headerPayerWallet, payer)
+	}
 
 	// Image legs always send a JSON body (generations passthrough / image2image),
 	// so force application/json. channel.SetupApiRequestHeader copies the inbound
@@ -285,6 +318,10 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 //  4. If the retry STILL returns 402 the signature was rejected — surface a
 //     clear error instead of looping (which would burn more USDC trying).
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	chain, payer, err := validateBlockRunPaymentConfig(info)
+	if err != nil {
+		return nil, err
+	}
 	bodyBytes, err := cacheRequestBody(requestBody)
 	if err != nil {
 		return nil, err
@@ -325,7 +362,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	// window cap for them; chat and Responses keep the default 300s window.
 	var paymentB64 string
 	var signErr error
-	if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
+	if chain == dto.BlockRunPaymentChainSolana {
+		maxAmountAtomic, _ := new(big.Int).SetString(strings.TrimSpace(info.ChannelOtherSettings.BlockRunMaxPaymentAtomic), 10)
+		paymentB64, signErr = SignSolanaX402Payment(firstResp, info.ApiKey, fullURL, maxAmountAtomic)
+	} else if info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits {
 		paymentB64, signErr = SignX402PaymentWithCaps(firstResp, info.ApiKey, fullURL, nil, maxImageAuthorizationWindowSeconds)
 	} else {
 		paymentB64, signErr = SignX402Payment(firstResp, info.ApiKey, fullURL)
@@ -337,19 +377,100 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	c.Set(ctxKeyPaymentSignature, paymentB64)
 	defer delete(c.Keys, ctxKeyPaymentSignature)
 
+	if chain == dto.BlockRunPaymentChainBase {
+		if privateKey, parseErr := parsePrivateKey(info.ApiKey); parseErr == nil {
+			payer = ethcrypto.PubkeyToAddress(privateKey.PublicKey).Hex()
+		}
+	}
+	relaycommon.MarkBlockRunPaymentAttempt(c, chain, info.ChannelId, blockRunPaymentReconciliation(c, payer, paymentB64))
 	retryResp, err := channel.DoApiRequest(a, c, info, bodyReader(bodyBytes))
 	if err != nil {
 		return nil, err
 	}
 	if retryResp.StatusCode == http.StatusPaymentRequired {
+		relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeRejected, false)
 		// Signature was rejected (insufficient balance, replay, expired window,
 		// payTo mismatch, …). Do NOT loop — every signed attempt risks an
-		// on-chain settle. Surface the upstream body to help operators debug.
-		body, _ := io.ReadAll(retryResp.Body)
+		// on-chain settle. Never surface the upstream body: it may echo the full
+		// payment signature and must not reach API errors or logs.
+		_, _ = io.CopyN(io.Discard, retryResp.Body, 512<<10)
 		_ = retryResp.Body.Close()
-		return nil, fmt.Errorf("blockrun: payment signature rejected by upstream (status 402 after signing): %s", string(body))
+		return nil, errors.New("blockrun: payment signature rejected by upstream (status 402 after signing)")
 	}
 	return resolveImageResult(c, info, retryResp, paymentB64)
+}
+
+func blockRunPaymentReconciliation(c *gin.Context, payer, paymentPayload string) string {
+	payerHash := sha256.Sum256([]byte(payer))
+	payloadHash := sha256.Sum256([]byte(paymentPayload))
+	reconciliation := fmt.Sprintf("payer_sha256=%x;payload_sha256=%x", payerHash[:8], payloadHash[:8])
+	if c != nil {
+		if requestID := c.GetString(common2.RequestIdKey); requestID != "" {
+			reconciliation += ";request_id=" + requestID
+		}
+		if upstreamRequestID := c.GetString(common2.UpstreamRequestIdKey); upstreamRequestID != "" {
+			reconciliation += ";upstream_request_id=" + upstreamRequestID
+		}
+	}
+	return reconciliation
+}
+
+func validateBlockRunPaymentConfig(info *relaycommon.RelayInfo) (dto.BlockRunPaymentChain, string, error) {
+	if info == nil || info.ChannelMeta == nil {
+		return "", "", errors.New("blockrun: missing channel configuration")
+	}
+	chain := info.ChannelOtherSettings.GetBlockRunPaymentChain()
+	switch chain {
+	case dto.BlockRunPaymentChainBase:
+		return chain, "", nil
+	case dto.BlockRunPaymentChainSolana:
+		if !blockRunSolanaSupportsRequest(info) {
+			return "", "", errors.New("blockrun: Solana payment only supports /v1/chat/completions, /v1/messages, and /v1/responses")
+		}
+		if strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/") != blockrunSDK.DefaultSolanaAPIURL {
+			return "", "", fmt.Errorf("blockrun: Solana base URL must be %s", blockrunSDK.DefaultSolanaAPIURL)
+		}
+		capAmount, ok := new(big.Int).SetString(strings.TrimSpace(info.ChannelOtherSettings.BlockRunMaxPaymentAtomic), 10)
+		if !ok || capAmount.Sign() <= 0 {
+			return "", "", errors.New("blockrun: Solana per-call payment cap must be configured as a positive integer")
+		}
+		payer, err := blockrunSDK.GetSolanaPublicKey(strings.TrimSpace(info.ApiKey))
+		if err != nil {
+			return "", "", errors.New("blockrun: Solana wallet key is invalid")
+		}
+		return chain, payer, nil
+	default:
+		return "", "", fmt.Errorf("blockrun: unsupported payment chain %q", chain)
+	}
+}
+
+func blockRunSolanaSupportsRequest(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	switch info.RequestURLPath {
+	case "/v1/chat/completions":
+		return info.RelayMode == relayconstant.RelayModeChatCompletions && info.RelayFormat == types.RelayFormatOpenAI
+	case "/v1/messages":
+		return info.RelayMode == relayconstant.RelayModeChatCompletions && info.RelayFormat == types.RelayFormatClaude
+	case "/v1/responses":
+		return info.RelayMode == relayconstant.RelayModeResponses &&
+			(info.RelayFormat == types.RelayFormatOpenAI || info.RelayFormat == types.RelayFormatOpenAIResponses)
+	default:
+		return false
+	}
+}
+
+func rejectProtectedPaymentHeaderOverrides(info *relaycommon.RelayInfo) error {
+	for key := range relaycommon.GetEffectiveHeaderOverride(info) {
+		if channel.IsHeaderPassthroughRuleKey(key) {
+			continue
+		}
+		if _, protected := blockRunProtectedPaymentHeaders[strings.ToLower(strings.TrimSpace(key))]; protected {
+			return fmt.Errorf("blockrun: header override %q is reserved for x402 payment", key)
+		}
+	}
+	return nil
 }
 
 // removeBlockRunResponsesStreamOptions enforces the provider constraint at the

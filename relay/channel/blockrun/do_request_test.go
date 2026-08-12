@@ -94,6 +94,7 @@ func TestBlockRunDoRequest_ResponsesX402DoubleHop(t *testing.T) {
 }
 
 func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
+	const upstreamSecret = "Payment-Signature eyJmdWxsX3NpZ25hdHVyZSI6InNlY3JldC1zZW50aW5lbCJ9"
 	var (
 		mu       sync.Mutex
 		requests []blockRunRecordedRequest
@@ -110,15 +111,19 @@ func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
 			w.Header().Set(headerPaymentRequired, paymentRequiredHeader(t, baseURL+"/v1/responses"))
 		}
 		w.WriteHeader(http.StatusPaymentRequired)
-		_, _ = w.Write([]byte(`{"error":"signature rejected"}`))
+		_, _ = w.Write([]byte(`{"error":"signature rejected","echo":"` + upstreamSecret + `"}`))
 	}))
 	defer srv.Close()
 	t.Cleanup(service.ResetProxyClientCache)
 
 	body := `{"model":"openai/gpt-5.4","input":"ping","stream_options":{"include_usage":true}}`
-	resp, err := (&Adaptor{}).DoRequest(blockRunRequestContext(), blockRunResponsesRequestInfo(baseURL, srv.URL), strings.NewReader(body))
+	ctx := blockRunRequestContext()
+	resp, err := (&Adaptor{}).DoRequest(ctx, blockRunResponsesRequestInfo(baseURL, srv.URL), strings.NewReader(body))
 	if err == nil || !strings.Contains(err.Error(), "status 402 after signing") {
 		t.Fatalf("expected signed 402 hard failure, got resp=%v err=%v", resp, err)
+	}
+	if strings.Contains(err.Error(), upstreamSecret) {
+		t.Fatalf("signed 402 error leaked upstream response body: %v", err)
 	}
 
 	mu.Lock()
@@ -132,6 +137,13 @@ func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
 	}
 	if got[0].body != got[1].body || strings.Contains(got[0].body, "stream_options") {
 		t.Fatalf("request body changed across payment retry: %#v", got)
+	}
+	state, ok := relaycommon.GetBlockRunPaymentState(ctx)
+	if !ok || state.Outcome != relaycommon.BlockRunPaymentOutcomeRejected {
+		t.Fatalf("signed 402 payment state = %#v, want rejected", state)
+	}
+	if strings.Contains(state.Reconciliation, upstreamSecret) || strings.Contains(string(state.Outcome), upstreamSecret) {
+		t.Fatalf("signed 402 loggable payment state leaked upstream response body: %#v", state)
 	}
 }
 

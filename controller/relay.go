@@ -226,6 +226,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}
+		newAPIError = normalizeBlockRunPaymentError(c, newAPIError)
 
 		releaseChannelConcurrencyForRequest(c)
 		perfmetrics.RecordChannelAttempt(relayInfo, channel.Id, channel.Name, attemptStartedAt, newAPIError)
@@ -397,6 +398,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
+	if state, ok := relaycommon.GetBlockRunPaymentState(c); ok && state.Attempted {
+		return false
+	}
 	if openaiErr == nil {
 		return false
 	}
@@ -433,7 +437,8 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
-	if shouldMarkChannelConcurrencyCooldown(err) {
+	applyPenalty := shouldApplyChannelPenalty(err)
+	if applyPenalty && shouldMarkChannelConcurrencyCooldown(err) {
 		cooldownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		if cooldownErr := service.MarkChannelConcurrencyCooldown(cooldownCtx, channelError.ChannelId, 0, err.ErrorWithStatusCode()); cooldownErr != nil {
@@ -442,7 +447,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	}
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if service.ShouldDisableChannel(err) && channelError.AutoBan {
+	if applyPenalty && service.ShouldDisableChannel(err) && channelError.AutoBan {
 		gopool.Go(func() {
 			service.DisableChannel(channelError, err.ErrorWithStatusCode())
 		})
@@ -475,6 +480,9 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			adminInfo["multi_key_index"] = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
 		}
 		service.AppendChannelAffinityAdminInfo(c, adminInfo)
+		if paymentState, ok := relaycommon.GetBlockRunPaymentState(c); ok {
+			adminInfo["blockrun_payment"] = *paymentState
+		}
 		other["admin_info"] = adminInfo
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {
@@ -484,6 +492,50 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		model.RecordErrorLog(c, userId, channelId, channelType, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
+}
+
+func normalizeBlockRunPaymentError(c *gin.Context, err *types.NewAPIError) *types.NewAPIError {
+	state, ok := relaycommon.GetBlockRunPaymentState(c)
+	if !ok || !state.Attempted {
+		return err
+	}
+	if err == nil {
+		relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeSucceeded, false)
+		return nil
+	}
+	streamTruncated := c != nil && c.Writer != nil && c.Writer.Written()
+	if state.Outcome == relaycommon.BlockRunPaymentOutcomeRejected || err.StatusCode == http.StatusPaymentRequired {
+		relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeRejected, streamTruncated)
+		return types.NewErrorWithStatusCode(
+			errors.New("BlockRun payment was rejected after signing; this request was not retried"),
+			types.ErrorCodeBlockRunPaymentRejected,
+			http.StatusPaymentRequired,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+	relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeSettlementUnknown, streamTruncated)
+	statusCode := err.StatusCode
+	if statusCode < 400 || statusCode > 599 {
+		statusCode = http.StatusBadGateway
+	}
+	return types.NewErrorWithStatusCode(
+		errors.New("BlockRun signed payment settlement is unknown and may have been charged; automatic retry is disabled, reconcile using the request ID"),
+		types.ErrorCodeBlockRunSettlementUnknown,
+		statusCode,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func isBlockRunPaidError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	return err.GetErrorCode() == types.ErrorCodeBlockRunPaymentRejected ||
+		err.GetErrorCode() == types.ErrorCodeBlockRunSettlementUnknown
+}
+
+func shouldApplyChannelPenalty(err *types.NewAPIError) bool {
+	return !isBlockRunPaidError(err)
 }
 
 func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
