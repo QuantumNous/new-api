@@ -55,6 +55,18 @@ func isPositiveFinite(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
+// canBothMatch reports whether two rules could ever match the same request.
+// Rules that constrain a shared key to different values are mutually
+// exclusive, so they are not ambiguous however many constraints they carry.
+func canBothMatch(a, b map[string]string) bool {
+	for k, av := range a {
+		if bv, ok := b[k]; ok && av != bv {
+			return false
+		}
+	}
+	return true
+}
+
 // ValidateVideoPriceRules rejects a rule set that could price a request wrongly
 // or ambiguously. Callers must keep the previous configuration on error.
 func ValidateVideoPriceRules(rules []VideoPriceRule) error {
@@ -81,16 +93,22 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 				i, r.Model, BasisOutputDuration, BasisTotalDuration, r.Basis)
 		}
 	}
-	// Two rules for one model with equal constraint counts may both match with
-	// no principled winner. Reject rather than pick arbitrarily.
+	// Two rules for one model are ambiguous only when they have equal constraint
+	// counts AND could both match the same request: there is then no principled
+	// winner, so reject rather than pick arbitrarily. Differing counts are
+	// resolved by most-constrained-wins, and constraints that disagree on a
+	// shared key can never both match.
 	for i := range rules {
 		for j := i + 1; j < len(rules); j++ {
 			if rules[i].Model != rules[j].Model {
 				continue
 			}
-			if len(rules[i].Match) == len(rules[j].Match) {
+			if len(rules[i].Match) != len(rules[j].Match) {
+				continue
+			}
+			if canBothMatch(rules[i].Match, rules[j].Match) {
 				return fmt.Errorf(
-					"video price rules %d and %d (model %s): ambiguous, both have %d constraints",
+					"video price rules %d and %d (model %s): ambiguous, both have %d constraints and can match the same request",
 					i, j, rules[i].Model, len(rules[i].Match))
 			}
 		}
