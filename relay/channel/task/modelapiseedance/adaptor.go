@@ -448,7 +448,7 @@ func buildModelAPICreateRequest(seedReq *dto.SeedanceVideoRequest) modelAPICreat
 		Resolution:      seedReq.Resolution,
 		AspectRatio:     seedReq.Ratio,
 		Seed:            seedReq.Seed,
-		GenerateAudio:   seedReq.GenerateAudio,
+		GenerateAudio:   defaultedGenerateAudio(seedReq.GenerateAudio),
 		Watermark:       seedReq.Watermark,
 		ReturnLastFrame: seedReq.ReturnLastFrame,
 	}
@@ -456,6 +456,25 @@ func buildModelAPICreateRequest(seedReq *dto.SeedanceVideoRequest) modelAPICreat
 		body.Params = &params
 	}
 	return body
+}
+
+// defaultedGenerateAudio resolves the audio flag this channel sends upstream.
+//
+// The upstream defaults an omitted generate_audio to OFF, unlike the other
+// seedance channels (doubao/byteplus) whose upstream defaults it ON. That made
+// an identical request silently produce a silent video here and an audible one
+// there. We close the gap at this channel's boundary by sending true when the
+// client said nothing.
+//
+// An explicit client value always wins — including an explicit false, which is
+// why the seedance request models this as *bool (CLAUDE.md Rule 5). Only nil
+// (field absent from the client's JSON) is defaulted.
+func defaultedGenerateAudio(requested *bool) *bool {
+	if requested != nil {
+		return requested
+	}
+	enabled := true
+	return &enabled
 }
 
 func modelAPIFailureReason() string {
