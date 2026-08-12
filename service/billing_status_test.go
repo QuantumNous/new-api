@@ -342,6 +342,26 @@ func TestPostConsumeQuotaTracksUnlimitedTokenQuota(t *testing.T) {
 	require.Equal(t, 920, userQuota)
 }
 
+func TestSettleBillingLegacyReportsCommittedWalletDebit(t *testing.T) {
+	const (
+		userID   = 10122
+		tokenID  = 10222
+		tokenKey = "billing-status-legacy-partial-settlement"
+	)
+	resetBillingStatusTables(t)
+	seedUser(t, userID, 1000)
+	seedToken(t, tokenID, userID, tokenKey, 1000)
+	blockTokenDebitForTest(t, tokenID, "legacy_token_debit_blocked")
+
+	relayInfo := newQuotaStatusRelayInfo(userID, tokenID, tokenKey)
+	applied, err := settleBillingWithStatus(nil, relayInfo, 80)
+
+	require.ErrorContains(t, err, "legacy_token_debit_blocked")
+	require.True(t, applied)
+	require.Equal(t, 920, getUserQuota(t, userID))
+	require.Equal(t, 1000, getTokenRemainQuota(t, tokenID))
+}
+
 func TestBillingSessionSettleTracksUnlimitedTokenQuota(t *testing.T) {
 	const (
 		userID   = 10117
@@ -716,6 +736,21 @@ func blockTokenCreditForTest(t *testing.T, tokenID int, message string) {
 	require.NoError(t, model.DB.Exec(fmt.Sprintf(
 		"CREATE TRIGGER %s BEFORE UPDATE OF remain_quota ON tokens "+
 			"WHEN OLD.id = %d AND NEW.remain_quota > OLD.remain_quota "+
+			"BEGIN SELECT RAISE(ABORT, '%s'); END",
+		triggerName, tokenID, message,
+	)).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+	})
+}
+
+func blockTokenDebitForTest(t *testing.T, tokenID int, message string) {
+	t.Helper()
+	triggerName := "test_block_token_debit_" + strings.ReplaceAll(message, "-", "_")
+	require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+	require.NoError(t, model.DB.Exec(fmt.Sprintf(
+		"CREATE TRIGGER %s BEFORE UPDATE OF remain_quota ON tokens "+
+			"WHEN OLD.id = %d AND NEW.remain_quota < OLD.remain_quota "+
 			"BEGIN SELECT RAISE(ABORT, '%s'); END",
 		triggerName, tokenID, message,
 	)).Error)

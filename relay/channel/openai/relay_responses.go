@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// Fallback token estimation is used only when a failed stream omits terminal
+// usage. Bound retained deltas so large tool arguments cannot grow per-request
+// memory and tokenizer CPU without limit.
+const maxResponsesFallbackUsageBytes = 1 << 20
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
@@ -83,6 +89,16 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var terminalErr *types.NewAPIError
+	var retryableTerminalFailure bool
+
+	var responseHeaderSnapshot http.Header
+	var eventStreamHeadersValue any
+	var hadEventStreamHeaders bool
+	if info.ChannelType == constant.ChannelTypeCodex {
+		responseHeaderSnapshot = c.Writer.Header().Clone()
+		eventStreamHeadersValue, hadEventStreamHeaders = c.Get("event_stream_headers_set")
+	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -96,34 +112,35 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if streamResponse.Response != nil && streamResponse.Response.ID != "" {
 			c.Set(common.UpstreamResponseIdKey, streamResponse.Response.ID)
 		}
+		if info.ChannelType == constant.ChannelTypeCodex && streamResponse.Type == "response.failed" {
+			applyResponsesTerminalUsage(c, usage, streamResponse.Response)
+			responseWritten := c.Writer.Written()
+			if responseWritten {
+				sendResponsesStreamData(c, streamResponse, data)
+			}
+			retryableTerminalFailure = !responseWritten
+			terminalErr = newCodexResponsesFailedError(streamResponse.Response, responseWritten)
+			sr.Stop(terminalErr)
+			return
+		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed", "response.incomplete":
-			if streamResponse.Response != nil {
-				if streamResponse.Response.Usage != nil {
-					if streamResponse.Response.Usage.InputTokens != 0 {
-						usage.PromptTokens = streamResponse.Response.Usage.InputTokens
-					}
-					if streamResponse.Response.Usage.OutputTokens != 0 {
-						usage.CompletionTokens = streamResponse.Response.Usage.OutputTokens
-					}
-					if streamResponse.Response.Usage.TotalTokens != 0 {
-						usage.TotalTokens = streamResponse.Response.Usage.TotalTokens
-					}
-					if streamResponse.Response.Usage.InputTokensDetails != nil {
-						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
-						usage.PromptTokensDetails.CacheWriteTokens = streamResponse.Response.Usage.InputTokensDetails.CacheWriteTokens
-					}
-				}
-				if streamResponse.Response.HasImageGenerationCall() {
-					c.Set("image_generation_call", true)
-					c.Set("image_generation_call_quality", streamResponse.Response.GetQuality())
-					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
-				}
+			applyResponsesTerminalUsage(c, usage, streamResponse.Response)
+		case "response.done":
+			if info.ChannelType == constant.ChannelTypeCodex {
+				applyResponsesTerminalUsage(c, usage, streamResponse.Response)
 			}
-		case "response.output_text.delta":
-			// 处理输出文本
-			responseTextBuilder.WriteString(streamResponse.Delta)
+		case "response.output_text.delta",
+			"response.reasoning_summary_text.delta",
+			"response.reasoning_text.delta",
+			"response.function_call_arguments.delta",
+			"response.custom_tool_call_input.delta",
+			"response.mcp_call_arguments.delta",
+			"response.code_interpreter_call_code.delta":
+			// Preserve a text-equivalent fallback when a failed terminal event
+			// omits usage, including tool-only and reasoning-only output.
+			appendResponsesFallbackUsage(&responseTextBuilder, streamResponse.Delta)
 		case dto.ResponsesOutputTypeItemDone:
 			// 函数调用处理
 			if streamResponse.Item != nil {
@@ -138,6 +155,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+	if terminalErr != nil {
+		if retryableTerminalFailure {
+			restoreResponsesStreamAttemptState(c, info, responseHeaderSnapshot, eventStreamHeadersValue, hadEventStreamHeaders)
+		} else {
+			finalizeResponsesUsage(usage, &responseTextBuilder, info)
+		}
+		return usage, terminalErr
+	}
 
 	// FRT watchdog: upstream accepted the request but never produced a data
 	// event within constant.StreamingFirstResponseTimeout seconds. Surface as
@@ -155,21 +180,154 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		)
 	}
 
-	if usage.CompletionTokens == 0 {
-		// 计算输出文本的 token 数量
-		tempStr := responseTextBuilder.String()
-		if len(tempStr) > 0 {
-			// 非正常结束，使用输出文本的 token 数量
-			completionTokens := service.CountTextToken(tempStr, info.UpstreamModelName)
-			usage.CompletionTokens = completionTokens
-		}
-	}
+	finalizeResponsesUsage(usage, &responseTextBuilder, info)
 
+	return usage, nil
+}
+
+func appendResponsesFallbackUsage(builder *strings.Builder, delta string) {
+	if builder == nil || builder.Len() >= maxResponsesFallbackUsageBytes || delta == "" {
+		return
+	}
+	remaining := maxResponsesFallbackUsageBytes - builder.Len()
+	if len(delta) > remaining {
+		delta = delta[:remaining]
+	}
+	builder.WriteString(delta)
+}
+
+func finalizeResponsesUsage(usage *dto.Usage, responseTextBuilder *strings.Builder, info *relaycommon.RelayInfo) {
+	if usage.CompletionTokens == 0 && responseTextBuilder.Len() > 0 {
+		usage.CompletionTokens = service.CountTextToken(responseTextBuilder.String(), info.UpstreamModelName)
+	}
 	if usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
 	}
-
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+}
 
-	return usage, nil
+func restoreResponsesStreamAttemptState(
+	c *gin.Context,
+	info *relaycommon.RelayInfo,
+	headerSnapshot http.Header,
+	eventStreamHeadersValue any,
+	hadEventStreamHeaders bool,
+) {
+	header := c.Writer.Header()
+	clear(header)
+	for key, values := range headerSnapshot {
+		header[key] = append([]string(nil), values...)
+	}
+	if hadEventStreamHeaders {
+		c.Set("event_stream_headers_set", eventStreamHeadersValue)
+	} else if c.Keys != nil {
+		delete(c.Keys, "event_stream_headers_set")
+	}
+	info.ResetStreamResponseStateForRetry()
+}
+
+func applyResponsesTerminalUsage(c *gin.Context, usage *dto.Usage, response *dto.OpenAIResponsesResponse) {
+	if usage == nil || response == nil {
+		return
+	}
+	if response.Usage != nil {
+		if response.Usage.InputTokens != 0 {
+			usage.PromptTokens = response.Usage.InputTokens
+		}
+		if response.Usage.OutputTokens != 0 {
+			usage.CompletionTokens = response.Usage.OutputTokens
+		}
+		if response.Usage.TotalTokens != 0 {
+			usage.TotalTokens = response.Usage.TotalTokens
+		}
+		if response.Usage.InputTokensDetails != nil {
+			usage.PromptTokensDetails.CachedTokens = response.Usage.InputTokensDetails.CachedTokens
+			usage.PromptTokensDetails.CacheWriteTokens = response.Usage.InputTokensDetails.CacheWriteTokens
+		}
+	}
+	if response.HasImageGenerationCall() {
+		c.Set("image_generation_call", true)
+		c.Set("image_generation_call_quality", response.GetQuality())
+		c.Set("image_generation_call_size", response.GetSize())
+	}
+}
+
+func newCodexResponsesFailedError(response *dto.OpenAIResponsesResponse, skipRetry bool) *types.NewAPIError {
+	options := make([]types.NewAPIErrorOptions, 0, 1)
+	if skipRetry {
+		options = append(options, types.ErrOptionWithSkipRetry())
+	}
+	if response != nil {
+		if openAIError := response.GetOpenAIError(); openAIError != nil && openAIError.Message != "" {
+			return types.WithOpenAIError(*openAIError, codexResponsesFailedStatus(openAIError), options...)
+		}
+	}
+	return types.NewOpenAIError(
+		errors.New("codex upstream response failed"),
+		types.ErrorCodeBadResponse,
+		http.StatusInternalServerError,
+		options...,
+	)
+}
+
+func codexResponsesFailedStatus(openAIError *types.OpenAIError) int {
+	if openAIError == nil {
+		return http.StatusInternalServerError
+	}
+	errorType := strings.ToLower(strings.TrimSpace(openAIError.Type))
+	errorCode := strings.ToLower(strings.TrimSpace(common.Interface2String(openAIError.Code)))
+	if statusCode := codexResponsesFailedIdentifierStatus(errorCode); statusCode != 0 {
+		return statusCode
+	}
+	if statusCode := codexResponsesFailedIdentifierStatus(errorType); statusCode != 0 {
+		return statusCode
+	}
+	return http.StatusInternalServerError
+}
+
+func codexResponsesFailedIdentifierStatus(identifier string) int {
+	switch identifier {
+	case
+		"insufficient_quota",
+		"credit_balance_exhausted",
+		"organization_spend_limit_exceeded",
+		"project_spend_limit_exceeded",
+		"organization_usage_limit_exceeded",
+		"project_usage_limit_exceeded",
+		"rate_limit_error",
+		"rate_limit_exceeded":
+		return http.StatusTooManyRequests
+	case "permission_error", "permission_denied", "unsupported_country_region_territory":
+		return http.StatusForbidden
+	case "authentication_error", "invalid_api_key":
+		return http.StatusUnauthorized
+	case "invalid_request_error",
+		"invalid_request",
+		"bad_request",
+		"invalid_prompt",
+		"content_policy_violation",
+		"data_residency_mismatch",
+		"bio_policy",
+		"invalid_image",
+		"invalid_image_format",
+		"invalid_base64_image",
+		"invalid_image_url",
+		"image_too_large",
+		"image_too_small",
+		"image_parse_error",
+		"image_content_policy_violation",
+		"invalid_image_mode",
+		"image_file_too_large",
+		"unsupported_image_media_type",
+		"empty_image_file",
+		"failed_to_download_image",
+		"image_file_not_found":
+		return http.StatusBadRequest
+	case "overloaded_error", "overloaded", "service_unavailable":
+		return http.StatusServiceUnavailable
+	case "server_error":
+		return http.StatusInternalServerError
+	default:
+		return 0
+	}
 }
