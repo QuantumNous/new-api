@@ -62,7 +62,8 @@ export type IcuTransWithoutContextProps<
   /** Declaration tree describing React components and their props */
   content: IcuTransContentDeclaration[];
   /** Optional namespace(s) for the translation */
-  ns?: Ns;
+  // see TransProps.ns: keep single-namespace values assignable when `t` fixes Ns to an array
+  ns?: Ns | (Ns extends readonly (infer S extends string)[] ? S : never);
   /** Optional values for ICU variable interpolation */
   values?: Record<string, any>;
   /** i18next instance. If not provided, uses global instance */

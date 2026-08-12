@@ -1,6 +1,6 @@
 {
   "name": "react-i18next",
-  "version": "17.0.8",
+  "version": "17.0.10",
   "description": "Internationalization for react done right. Using the i18next i18n ecosystem.",
   "main": "dist/commonjs/index.js",
   "types": "./index.d.mts",
@@ -74,7 +74,7 @@
   "peerDependencies": {
     "i18next": ">= 26.2.0",
     "react": ">= 16.8.0",
-    "typescript": "^5 || ^6"
+    "typescript": "^5 || ^6 || ^7"
   },
   "peerDependenciesMeta": {
     "react-dom": {

@@ -1,3 +1,14 @@
+## 17.0.10
+
+- fix(warnings): the `useTranslation` and `Trans` "You will need to pass in an i18next instance" warnings now match the `useSSR` wording, mentioning the props/context alternatives and the most common unexplained cause at scale: duplicate react-i18next copies in monorepo setups. The `Trans` variant also referenced the internal `i18nextReactModule` name; it now points to the public `initReactI18next` API.
+- feat(warnings): development-only warning (`SUSPENDED_WHILE_LOADING`, logged once) right before `useTranslation` suspends while translations are loading. With the default `useSuspense: true` and no `<Suspense>` boundary this previously surfaced as a blank screen or a cryptic React error; the warning now names both fixes (add a `<Suspense>` boundary or set `react.useSuspense: false`). No-op in production builds; the `process.env.NODE_ENV` check is wrapped so runtimes without a `process` global (raw ESM in the browser, some edge runtimes) stay silent instead of throwing.
+- ci: weekly workflow typechecking the test suite against `@types/react@next` / `@types/react-dom@next`, so the next React major's type changes (like the React 18 `TFunctionResult`/children wave) surface before user reports.
+
+## 17.0.9
+
+- fix: allow TypeScript 7 in the optional `typescript` peer dependency range (`^5 || ^6 || ^7`). With `typescript@7.0.2` in a project, `npm install` failed with an `ERESOLVE` peer conflict. Fixes [#1927](https://github.com/i18next/react-i18next/issues/1927), thanks @andikapradanaarif.
+- fix(types): `<Trans t={t} ns="ns" …>` with a `t` from `useTranslation(['ns'])` now typechecks under TypeScript 7. TS7 intersects the `Ns` inference candidates coming from the `t` prop (`readonly ['ns']`) and the `ns` prop (`'ns'`) into an unsatisfiable `'ns' & readonly ['ns']`, where TS6 resolved them. The `ns` prop on `TransProps`, `TransSelectorProps` and `IcuTransWithoutContextProps` now also accepts a single namespace out of an array-typed `Ns` (`Ns | (Ns extends readonly (infer S extends string)[] ? S : never)`) — which matches runtime behavior and is unchanged under TS5/TS6.
+
 ## 17.0.8
 
 - fix(types): `<Trans i18nKey={$ => ...}>` now typechecks under `enableSelector: 'strict'`. The `Trans` component's conditional type was gated on `_EnableSelector extends true | 'optimize'`, excluding `'strict'` and falling back to the legacy string-key signature. Runtime was already correct (it calls `keyFromSelector(i18nKey)` whenever `typeof i18nKey === 'function'`); this is a type-only fix that widens the conditional to include `'strict'`. Thanks @Faithfinder ([#1921](https://github.com/i18next/react-i18next/pull/1921))
