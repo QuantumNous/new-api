@@ -1,0 +1,83 @@
+.Heading {
+  margin-bottom: 2rem;
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.Container {
+  margin-bottom: 1rem;
+  display: grid;
+  height: 20rem;
+  place-items: center;
+  border: 1px solid #94a3b8;
+  border-radius: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .Container {
+    width: 40rem;
+  }
+}
+
+.Trigger {
+  font-size: 1.5rem;
+}
+
+.Floating {
+  border: 1px solid rgb(15 23 42 / 0.1);
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.7);
+  background-clip: padding-box;
+  padding: 16px;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(4px);
+}
+
+.Label {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+.Input {
+  border: 1px solid #cbd5e1;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: block;
+  width: 9rem;
+  border-radius: 0.25rem;
+  padding: 4px;
+  outline: none;
+}
+
+.Input:focus {
+  border-color: #2563eb;
+}
+
+.Option {
+  aspect-ratio: 1;
+  cursor: default;
+  border-radius: 0.25rem;
+  text-align: center;
+  font-size: 1.875rem;
+  user-select: none;
+}
+
+.OptionSelected {
+  background: #cffafe;
+}
+
+.OptionActive {
+  background: #a5f3fc;
+}
+
+.OptionDisabled {
+  opacity: 0.4;
+}
+
+.Listbox {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}

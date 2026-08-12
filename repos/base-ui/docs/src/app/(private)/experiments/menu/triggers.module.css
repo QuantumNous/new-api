@@ -1,0 +1,47 @@
+.Page {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 30vh;
+
+  h2 {
+    margin-bottom: 1rem;
+  }
+}
+
+.Container {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 32px;
+}
+
+.Trigger {
+  border-radius: 0;
+}
+
+.ActionButton {
+  border-radius: 0;
+}
+
+.Trigger,
+.ActionButton {
+  &:first-of-type {
+    border-radius: 0.375rem 0 0 0.375rem;
+  }
+
+  &:last-of-type {
+    border-radius: 0 0.375rem 0.375rem 0;
+    border-right-style: solid;
+  }
+}
+
+.MenuSection {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+
+  &:not(:last-child) {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--color-gray-200);
+  }
+}

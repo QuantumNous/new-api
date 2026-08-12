@@ -1,0 +1,90 @@
+@layer components {
+  .TableRoot {
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    color: var(--gray-t1);
+    border: 1px solid var(--color-border);
+    border-collapse: separate;
+    border-radius: var(--radius-12);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .TableRootTable {
+    table-layout: fixed;
+    width: 100%;
+    vertical-align: top;
+
+    /* Tailwind's border-collapse: collapse causes alpha blending issues in Safari */
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .TableHead,
+  .TableBody {
+    vertical-align: inherit;
+  }
+
+  .TableColumnHeader {
+    text-align: initial;
+    font-weight: var(--font-weight-400);
+    color: var(--color-foreground);
+    background-color: var(--gray-s2);
+    background-clip: padding-box;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .TableCell {
+    text-align: initial;
+    font-weight: var(--font-weight-400);
+
+    :not(:last-child) > & {
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    &[data-scrollable] {
+      position: relative;
+
+      /* Overscroll overlay */
+      &::after {
+        content: '';
+        position: absolute;
+        pointer-events: none;
+        top: 1px;
+        bottom: 1px;
+        right: -1px; /* Browsers may miss half a pixel due to subpixel table cell widths */
+        width: 1.25rem;
+        background-image: linear-gradient(to right, transparent, var(--color-content));
+        animation: table-cell-overscroll-overlay 500ms;
+      }
+
+      /* Only applied when the container is scrollable as this creates a layer. */
+      & .TableCellInner {
+        /* Prevent Chrome/Safari page navigation gestures when scrolling horizontally */
+        overscroll-behavior-x: contain;
+      }
+    }
+  }
+
+  @keyframes table-cell-overscroll-overlay {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .TableCellInner {
+    /* Ensure consistent height of the cells */
+    display: flex;
+    align-items: center;
+    min-height: 2.5rem;
+    padding: 0.5rem 0.75rem;
+
+    /* Make individual cells scrollable */
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
