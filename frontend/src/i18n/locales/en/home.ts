@@ -116,6 +116,7 @@ export default {
       servedTag: 'REQUESTS SERVED',
       stableCalls: 'Stable calls',
       todaySuccess: 'successful requests today',
+      rolling24h: 'requests in the rolling 24-hour window',
       protectedBy: 'protected by multi-upstream smart routing',
       metricsUnavailable: 'request metrics unavailable',
       recentAvailability: 'last 7 days',

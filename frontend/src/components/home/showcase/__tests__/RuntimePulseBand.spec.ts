@@ -47,6 +47,9 @@ describe('RuntimePulseBand', () => {
     const wrapper = mountBand(true)
 
     expect(wrapper.get('[data-home-request-total]').text()).toBe('300')
+    expect(wrapper.get('.runtime-request-caption').text()).toContain(
+      i18n.global.t('showcase.runtime.rolling24h')
+    )
     const trend = wrapper.get('.runtime-trend polyline')
     expect(trend.attributes('points')?.split(' ')).toHaveLength(24)
     expect(wrapper.get('.runtime-trend svg').attributes('aria-label')).toBe(
@@ -64,22 +67,43 @@ describe('RuntimePulseBand', () => {
     expect(wrapper.text()).toContain(
       i18n.global.t('showcase.runtime.metricsUnavailable')
     )
+    expect(wrapper.text()).not.toContain(
+      i18n.global.t('showcase.runtime.rolling24h')
+    )
     wrapper.unmount()
   })
 
-  it('uses a stable compact layout class for long real totals', () => {
-    const wrapper = mountBand(true, 1_234_567_890_123)
+  it('uses length-only scaling without changing the request panel layout', () => {
+    const longWrapper = mountBand(true, 1_234_567)
 
-    expect(wrapper.get('[data-home-request-total]').text()).toBe(
-      '1,234,567,890,123'
+    expect(longWrapper.get('[data-home-request-total]').text()).toBe(
+      '1,234,567'
     )
-    expect(wrapper.get('[data-home-request-total]').classes()).toContain(
+    expect(longWrapper.get('[data-home-request-total]').classes()).toContain(
       'runtime-request-total--long'
     )
-    expect(wrapper.get('.runtime-ledger-panel--requests').classes()).toContain(
-      'runtime-ledger-panel--wide-total'
+    expect(
+      longWrapper.get('[data-home-request-total]').classes()
+    ).not.toContain('runtime-request-total--extra-long')
+    expect(
+      longWrapper.get('.runtime-ledger-panel--requests').classes()
+    ).toEqual(['runtime-ledger-panel', 'runtime-ledger-panel--requests'])
+    longWrapper.unmount()
+
+    const extraLongWrapper = mountBand(true, 1_234_567_890_123)
+    expect(extraLongWrapper.get('[data-home-request-total]').text()).toBe(
+      '1,234,567,890,123'
     )
-    wrapper.unmount()
+    expect(extraLongWrapper.get('[data-home-request-total]').classes()).toEqual(
+      expect.arrayContaining([
+        'runtime-request-total--long',
+        'runtime-request-total--extra-long',
+      ])
+    )
+    expect(
+      extraLongWrapper.get('.runtime-ledger-panel--requests').classes()
+    ).toEqual(['runtime-ledger-panel', 'runtime-ledger-panel--requests'])
+    extraLongWrapper.unmount()
   })
 
   it('distinguishes a real zero-hour trend from unavailable metrics', () => {

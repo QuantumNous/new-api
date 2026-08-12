@@ -222,7 +222,14 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
             right: rect.right,
             bottom: rect.bottom,
             left: rect.left,
+            width: rect.width,
+            height: rect.height,
           }
+        }
+        const overflow = (selector: string) => {
+          const element = section.querySelector<HTMLElement>(selector)
+          if (!element) throw new Error(`Missing runtime element: ${selector}`)
+          return element.scrollWidth - element.clientWidth
         }
         const rect = section.getBoundingClientRect()
         return {
@@ -234,14 +241,29 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
           },
           uptime: bounds('.runtime-ledger-panel--uptime'),
           requests: bounds('.runtime-ledger-panel--requests'),
+          uptimeHeading: bounds(
+            '.runtime-ledger-panel--uptime .runtime-ledger-heading'
+          ),
+          clock: bounds('.runtime-clock'),
+          availability: bounds('.runtime-availability'),
           total: bounds('[data-home-request-total]'),
+          caption: bounds('.runtime-request-caption'),
           trend: bounds('.runtime-trend'),
+          totalOverflow: overflow('[data-home-request-total]'),
+          trendOverflow: overflow('.runtime-trend'),
+          uptimeHeadingOverflow: overflow(
+            '.runtime-ledger-panel--uptime .runtime-ledger-heading'
+          ),
         }
       })
       for (const bounds of [
         runtimeBounds.uptime,
         runtimeBounds.requests,
+        runtimeBounds.uptimeHeading,
+        runtimeBounds.clock,
+        runtimeBounds.availability,
         runtimeBounds.total,
+        runtimeBounds.caption,
         runtimeBounds.trend,
       ]) {
         expect(bounds.left).toBeGreaterThanOrEqual(
@@ -253,6 +275,23 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
         expect(bounds.top).toBeGreaterThanOrEqual(runtimeBounds.section.top - 1)
         expect(bounds.bottom).toBeLessThanOrEqual(
           runtimeBounds.section.bottom + 1
+        )
+      }
+      expect(runtimeBounds.totalOverflow).toBeLessThanOrEqual(1)
+      expect(runtimeBounds.trendOverflow).toBeLessThanOrEqual(1)
+      expect(runtimeBounds.uptimeHeadingOverflow).toBeLessThanOrEqual(1)
+      expect(overlapArea(runtimeBounds.total, runtimeBounds.trend)).toBe(0)
+      expect(overlapArea(runtimeBounds.caption, runtimeBounds.trend)).toBe(0)
+      if (viewport.width > 900) {
+        expect(runtimeBounds.uptime.right).toBeLessThanOrEqual(
+          runtimeBounds.requests.left + 1
+        )
+        expect(
+          Math.abs(runtimeBounds.uptime.top - runtimeBounds.requests.top)
+        ).toBeLessThanOrEqual(1)
+      } else {
+        expect(runtimeBounds.uptime.bottom).toBeLessThanOrEqual(
+          runtimeBounds.requests.top + 1
         )
       }
       await assertNoHorizontalOverflow(page)
@@ -481,8 +520,12 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       await expect(total).toHaveText('9,007,199,254,740,991')
       const geometry = await total.evaluate((element) => {
         const totalBounds = element.getBoundingClientRect()
-        const panelBounds = element
-          .closest<HTMLElement>('.runtime-ledger-panel--requests')!
+        const panel = element.closest<HTMLElement>(
+          '.runtime-ledger-panel--requests'
+        )!
+        const panelBounds = panel.getBoundingClientRect()
+        const trendBounds = panel
+          .querySelector<HTMLElement>('.runtime-trend')!
           .getBoundingClientRect()
         return {
           totalLeft: totalBounds.left,
@@ -490,11 +533,13 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
           panelLeft: panelBounds.left,
           panelRight: panelBounds.right,
           overflow: element.scrollWidth - element.clientWidth,
+          trendLeft: trendBounds.left,
         }
       })
       expect(geometry.totalLeft).toBeGreaterThanOrEqual(geometry.panelLeft - 1)
       expect(geometry.totalRight).toBeLessThanOrEqual(geometry.panelRight + 1)
       expect(geometry.overflow).toBeLessThanOrEqual(1)
+      expect(geometry.totalRight).toBeLessThanOrEqual(geometry.trendLeft + 1)
       await assertNoHorizontalOverflow(page)
     })
   }

@@ -490,6 +490,7 @@ html.light .landing-shell > #hero-immersive-stage {
 }
 
 .runtime-ledger-panel--requests {
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.82fr);
   grid-template-rows: auto auto auto;
@@ -526,7 +527,7 @@ html.light .landing-shell > #hero-immersive-stage {
   margin-top: 1rem;
   color: var(--text-primary);
   font-family: var(--home-font-display);
-  font-size: 5rem;
+  font-size: min(5rem, 14cqi);
   font-weight: 400;
   line-height: 1;
   white-space: nowrap;
@@ -535,27 +536,12 @@ html.light .landing-shell > #hero-immersive-stage {
 }
 
 .runtime-request-total--long {
-  font-size: 3.5rem;
+  font-size: clamp(1.85rem, 8.5cqi, 3.5rem);
 }
 
 .runtime-request-total--extra-long {
-  font-size: 1.8rem;
-  letter-spacing: -0.035em;
-}
-
-.runtime-ledger-panel--wide-total > .runtime-request-total {
-  grid-column: 1 / -1;
-}
-
-.runtime-ledger-panel--wide-total > .runtime-request-caption {
-  grid-column: 1;
-  grid-row: 3;
-}
-
-.runtime-ledger-panel--wide-total > .runtime-trend {
-  grid-column: 2;
-  grid-row: 3;
-  align-self: end;
+  font-size: clamp(0.78rem, 3.8cqi, 1.8rem);
+  letter-spacing: -0.05em;
 }
 
 .runtime-request-caption {
@@ -613,6 +599,7 @@ html.light .landing-shell > #hero-immersive-stage {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .runtime-ledger-heading > svg {
@@ -1189,26 +1176,43 @@ html.dark .runtime-flap::after {
   }
 
   .runtime-request-total {
-    font-size: 3.25rem;
+    font-size: min(3.25rem, 14cqi);
   }
 
   .runtime-request-total--long {
-    font-size: 2.45rem;
+    font-size: clamp(1.65rem, 8.5cqi, 2.45rem);
   }
 
   .runtime-request-total--extra-long {
-    font-size: 1.45rem;
+    font-size: clamp(0.78rem, 3.8cqi, 1.45rem);
   }
 
   .runtime-ledger-panel--requests {
     grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 0.82fr);
     column-gap: 0.75rem;
   }
-
-  .runtime-ledger-panel--wide-total > .runtime-trend {
-    max-width: 100%;
+}
+@media (max-width: 430px) {
+  .runtime-ledger-panel--uptime {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .runtime-ledger-panel--uptime > .runtime-ledger-heading {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .runtime-ledger-panel--uptime > .runtime-availability {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    margin-top: 0.75rem;
+  }
+  .runtime-ledger-panel--uptime > .runtime-clock {
+    grid-column: 1;
+    grid-row: 3;
   }
 }
+
 @media (max-width: 360px) {
   .runtime-ledger-sheet {
     padding-inline: 0.6rem;
@@ -1235,11 +1239,11 @@ html.dark .runtime-flap::after {
   }
 
   .runtime-request-total--long {
-    font-size: 2.1rem;
+    font-size: clamp(1.5rem, 8.5cqi, 2.1rem);
   }
 
   .runtime-request-total--extra-long {
-    font-size: 1.3rem;
+    font-size: clamp(0.75rem, 3.8cqi, 1.3rem);
   }
 }
 

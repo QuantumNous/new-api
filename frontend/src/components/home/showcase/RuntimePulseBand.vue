@@ -100,9 +100,6 @@ const requestTotalClasses = computed(() => {
       requestValue.value !== null && length >= 14,
   }
 })
-const usesWideRequestLayout = computed(
-  () => requestValue.value !== null && formattedRequestTarget.value.length >= 9
-)
 
 const trendPoints = computed(() => {
   const values = props.requestMetrics?.hourly_requests ?? []
@@ -265,12 +262,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div
-        class="runtime-ledger-panel runtime-ledger-panel--requests"
-        :class="{
-          'runtime-ledger-panel--wide-total': usesWideRequestLayout,
-        }"
-      >
+      <div class="runtime-ledger-panel runtime-ledger-panel--requests">
         <header class="runtime-ledger-heading">
           <Zap :size="19" aria-hidden="true" />
           <strong>{{ t('showcase.runtime.stableCalls') }}</strong>
@@ -289,7 +281,9 @@ onBeforeUnmount(() => {
           {{
             requestValue === null
               ? t('showcase.runtime.metricsUnavailable')
-              : t('showcase.runtime.protectedBy')
+              : `${t('showcase.runtime.rolling24h')} · ${t(
+                  'showcase.runtime.protectedBy'
+                )}`
           }}
         </p>
 
