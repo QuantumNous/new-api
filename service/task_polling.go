@@ -465,26 +465,24 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		task.Data = taskcommon.RewriteUpstreamVideoProxyURLs(task.Data, task.PrivateData.ResultURL)
 		shouldSettle = true
 	case model.TaskStatusFailure:
-		if r, ok := adaptor.(TaskAsyncFailureResubmitter); ok {
-			okResubmit, progress, resubmitErr := r.TryResubmitOnFailure(ctx, ch, task, taskResult.Reason)
-			if resubmitErr != nil {
-				logger.LogError(ctx, fmt.Sprintf("Task %s resubmit error: %s", task.TaskID, resubmitErr.Error()))
+		handled, progress, failoverErr := HandleAsyncTaskFailure(ctx, ch, adaptor, task, taskResult.Reason)
+		if failoverErr != nil {
+			logger.LogError(ctx, fmt.Sprintf("Task %s failover error: %s", task.TaskID, failoverErr.Error()))
+		}
+		if handled {
+			task.Status = model.TaskStatusQueued
+			if progress != "" {
+				task.Progress = progress
+			} else {
+				task.Progress = taskcommon.ProgressQueued
 			}
-			if okResubmit {
-				task.Status = model.TaskStatusQueued
-				if progress != "" {
-					task.Progress = progress
-				} else {
-					task.Progress = taskcommon.ProgressQueued
-				}
-				task.FailReason = ""
-				task.FinishTime = 0
-				// Clear so post-switch progress overwrite does not clobber retrying label
-				// (failure parse often sets Progress to "100%").
-				taskResult.Progress = ""
-				// do NOT set shouldRefund — keep task alive for next poll with new UpstreamTaskID
-				break
-			}
+			task.FailReason = ""
+			task.FinishTime = 0
+			// Clear so post-switch progress overwrite does not clobber retrying/switching label
+			// (failure parse often sets Progress to "100%").
+			taskResult.Progress = ""
+			// do NOT set shouldRefund — keep task alive for next poll with new UpstreamTaskID
+			break
 		}
 		logger.LogJson(ctx, fmt.Sprintf("Task %s failed", taskId), task)
 		task.Status = model.TaskStatusFailure
