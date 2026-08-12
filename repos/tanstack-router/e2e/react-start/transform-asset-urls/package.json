@@ -1,0 +1,53 @@
+{
+  "name": "tanstack-react-start-e2e-transform-asset-urls",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev",
+    "build": "vite build && tsc --noEmit",
+    "start": "pnpx srvx --prod -s ../client dist/server/server.js",
+    "manual:cdn": "CDN_PORT=3002 node tests/cdn-server.mjs",
+    "manual:app": "pnpm build && PORT=3000 CDN_ORIGIN=http://localhost:3002 pnpm start",
+    "manual:both": "sh -c \"CDN_PORT=3002 node tests/cdn-server.mjs & pnpm build && PORT=3000 CDN_ORIGIN=http://localhost:3002 pnpm start\"",
+    "manual:both:string": "TRANSFORM_ASSETS_MODE=string pnpm manual:both",
+    "manual:both:function": "TRANSFORM_ASSETS_MODE=function pnpm manual:both",
+    "manual:both:options": "TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=createTransform pnpm manual:both",
+    "manual:both:options:transform": "TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=transform pnpm manual:both",
+    "manual:both:options:createTransform": "TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=createTransform pnpm manual:both",
+    "test:e2e:string": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=string playwright test --project=chromium",
+    "test:e2e:function": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=function playwright test --project=chromium",
+    "test:e2e:options": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=transform playwright test --project=chromium",
+    "test:e2e:options:transform": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=transform playwright test --project=chromium",
+    "test:e2e:options:createTransform": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=createTransform playwright test --project=chromium",
+    "test:e2e:options:transform:cache-true:warmup-true": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=transform TRANSFORM_ASSETS_OPTIONS_CACHE=true TRANSFORM_ASSETS_OPTIONS_WARMUP=true playwright test --project=chromium",
+    "test:e2e:options:transform:cache-true:warmup-false": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=transform TRANSFORM_ASSETS_OPTIONS_CACHE=true TRANSFORM_ASSETS_OPTIONS_WARMUP=false playwright test --project=chromium",
+    "test:e2e:options:transform:cache-false:warmup-true": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=transform TRANSFORM_ASSETS_OPTIONS_CACHE=false TRANSFORM_ASSETS_OPTIONS_WARMUP=true playwright test --project=chromium",
+    "test:e2e:options:transform:cache-false:warmup-false": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=transform TRANSFORM_ASSETS_OPTIONS_CACHE=false TRANSFORM_ASSETS_OPTIONS_WARMUP=false playwright test --project=chromium",
+    "test:e2e:options:createTransform:cache-true:warmup-true": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=createTransform TRANSFORM_ASSETS_OPTIONS_CACHE=true TRANSFORM_ASSETS_OPTIONS_WARMUP=true playwright test --project=chromium",
+    "test:e2e:options:createTransform:cache-true:warmup-false": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=createTransform TRANSFORM_ASSETS_OPTIONS_CACHE=true TRANSFORM_ASSETS_OPTIONS_WARMUP=false playwright test --project=chromium",
+    "test:e2e:options:createTransform:cache-false:warmup-true": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=createTransform TRANSFORM_ASSETS_OPTIONS_CACHE=false TRANSFORM_ASSETS_OPTIONS_WARMUP=true playwright test --project=chromium",
+    "test:e2e:options:createTransform:cache-false:warmup-false": "rm -rf dist; rm -rf port*.txt; TRANSFORM_ASSETS_MODE=options TRANSFORM_ASSETS_OPTIONS_KIND=createTransform TRANSFORM_ASSETS_OPTIONS_CACHE=false TRANSFORM_ASSETS_OPTIONS_WARMUP=false playwright test --project=chromium",
+    "test:e2e:options:matrix": "pnpm test:e2e:options:transform:cache-true:warmup-true && pnpm test:e2e:options:transform:cache-true:warmup-false && pnpm test:e2e:options:transform:cache-false:warmup-true && pnpm test:e2e:options:transform:cache-false:warmup-false && pnpm test:e2e:options:createTransform:cache-true:warmup-true && pnpm test:e2e:options:createTransform:cache-true:warmup-false && pnpm test:e2e:options:createTransform:cache-false:warmup-true && pnpm test:e2e:options:createTransform:cache-false:warmup-false",
+    "test:e2e": "pnpm test:e2e:string && pnpm test:e2e:function && pnpm test:e2e:options:matrix"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "express": "^5.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

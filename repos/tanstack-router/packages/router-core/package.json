@@ -1,0 +1,196 @@
+{
+  "name": "@tanstack/router-core",
+  "version": "1.171.14",
+  "description": "Modern and scalable routing for React applications",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/router.git",
+    "directory": "packages/router-core"
+  },
+  "homepage": "https://tanstack.com/router",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "history",
+    "typescript"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test:eslint": "eslint ./src",
+    "test:types": "pnpm run \"/^test:types:ts[0-9]{2}$/\"",
+    "test:types:ts55": "node ../../node_modules/typescript55/lib/tsc.js",
+    "test:types:ts56": "node ../../node_modules/typescript56/lib/tsc.js",
+    "test:types:ts57": "node ../../node_modules/typescript57/lib/tsc.js",
+    "test:types:ts58": "node ../../node_modules/typescript58/lib/tsc.js",
+    "test:types:ts59": "node ../../node_modules/typescript59/lib/tsc.js",
+    "test:types:ts60": "tsc",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "test:unit": "vitest",
+    "test:unit:dev": "pnpm run test:unit --watch",
+    "build": "vite build"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./ssr/server": {
+      "import": {
+        "types": "./dist/esm/ssr/server.d.ts",
+        "default": "./dist/esm/ssr/server.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ssr/server.d.cts",
+        "default": "./dist/cjs/ssr/server.cjs"
+      }
+    },
+    "./ssr/client": {
+      "import": {
+        "types": "./dist/esm/ssr/client.d.ts",
+        "default": "./dist/esm/ssr/client.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ssr/client.d.cts",
+        "default": "./dist/cjs/ssr/client.cjs"
+      }
+    },
+    "./isServer": {
+      "development": {
+        "import": {
+          "types": "./dist/esm/isServer/development.d.ts",
+          "default": "./dist/esm/isServer/development.js"
+        },
+        "require": {
+          "types": "./dist/cjs/isServer/development.d.cts",
+          "default": "./dist/cjs/isServer/development.cjs"
+        }
+      },
+      "workerd": {
+        "import": {
+          "types": "./dist/esm/isServer/server.d.ts",
+          "default": "./dist/esm/isServer/server.js"
+        },
+        "require": {
+          "types": "./dist/cjs/isServer/server.d.cts",
+          "default": "./dist/cjs/isServer/server.cjs"
+        }
+      },
+      "worker": {
+        "import": {
+          "types": "./dist/esm/isServer/server.d.ts",
+          "default": "./dist/esm/isServer/server.js"
+        },
+        "require": {
+          "types": "./dist/cjs/isServer/server.d.cts",
+          "default": "./dist/cjs/isServer/server.cjs"
+        }
+      },
+      "browser": {
+        "import": {
+          "types": "./dist/esm/isServer/client.d.ts",
+          "default": "./dist/esm/isServer/client.js"
+        },
+        "require": {
+          "types": "./dist/cjs/isServer/client.d.cts",
+          "default": "./dist/cjs/isServer/client.cjs"
+        }
+      },
+      "deno": {
+        "import": {
+          "types": "./dist/esm/isServer/server.d.ts",
+          "default": "./dist/esm/isServer/server.js"
+        },
+        "require": {
+          "types": "./dist/cjs/isServer/server.d.cts",
+          "default": "./dist/cjs/isServer/server.cjs"
+        }
+      },
+      "node": {
+        "import": {
+          "types": "./dist/esm/isServer/server.d.ts",
+          "default": "./dist/esm/isServer/server.js"
+        },
+        "require": {
+          "types": "./dist/cjs/isServer/server.d.cts",
+          "default": "./dist/cjs/isServer/server.cjs"
+        }
+      },
+      "bun": {
+        "import": {
+          "types": "./dist/esm/isServer/server.d.ts",
+          "default": "./dist/esm/isServer/server.js"
+        },
+        "require": {
+          "types": "./dist/cjs/isServer/server.d.cts",
+          "default": "./dist/cjs/isServer/server.cjs"
+        }
+      },
+      "import": {
+        "types": "./dist/esm/isServer/client.d.ts",
+        "default": "./dist/esm/isServer/client.js"
+      },
+      "require": {
+        "types": "./dist/cjs/isServer/client.d.cts",
+        "default": "./dist/cjs/isServer/client.cjs"
+      }
+    },
+    "./scroll-restoration-script": {
+      "browser": {
+        "import": {
+          "types": "./dist/esm/scroll-restoration-script/client.d.ts",
+          "default": "./dist/esm/scroll-restoration-script/client.js"
+        },
+        "require": {
+          "types": "./dist/cjs/scroll-restoration-script/client.d.cts",
+          "default": "./dist/cjs/scroll-restoration-script/client.cjs"
+        }
+      },
+      "import": {
+        "types": "./dist/esm/scroll-restoration-script/server.d.ts",
+        "default": "./dist/esm/scroll-restoration-script/server.js"
+      },
+      "require": {
+        "types": "./dist/cjs/scroll-restoration-script/server.d.cts",
+        "default": "./dist/cjs/scroll-restoration-script/server.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "skills",
+    "bin",
+    "!skills/_artifacts"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@tanstack/history": "workspace:*",
+    "cookie-es": "^3.0.0",
+    "seroval": "^1.5.4",
+    "seroval-plugins": "^1.5.4"
+  },
+  "devDependencies": {
+    "@tanstack/store": "^0.9.3",
+    "@types/node": "25.0.9",
+    "esbuild": "^0.27.4",
+    "vite": "*"
+  }
+}

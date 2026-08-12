@@ -1,0 +1,34 @@
+{
+  "name": "router-monorepo-react-query",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "post-query": "pnpm --filter @router-mono-react-query/post-query",
+    "post-feature": "pnpm --filter @router-mono-react-query/post-feature",
+    "router": "pnpm --filter @router-mono-react-query/router",
+    "app": "pnpm --filter @router-mono-react-query/app",
+    "dev": "pnpm post-query build && pnpm router build && pnpm post-feature build && pnpm app dev"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.0",
+    "@tanstack/react-query-devtools": "^5.90.0",
+    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router-devtools": "^1.167.0",
+    "@tanstack/router-plugin": "^1.168.19",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "redaxios": "^0.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^6.0.2",
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.14",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

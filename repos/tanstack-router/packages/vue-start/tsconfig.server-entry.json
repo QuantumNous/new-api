@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "paths": {
+      "@tanstack/vue-start/server": ["./src/server.tsx"]
+    }
+  },
+  "include": ["src/default-entry"]
+}

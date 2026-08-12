@@ -1,0 +1,34 @@
+{
+  "name": "tanstack-solid-router-search-validator-adapters",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build && NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",
+    "preview": "vite preview",
+    "start": "vite",
+    "test:unit": "vitest"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/arktype-adapter": "^1.167.0",
+    "@tanstack/solid-query": "^5.90.9",
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "@tanstack/router-plugin": "^1.168.19",
+    "@tanstack/valibot-adapter": "^1.167.0",
+    "@tanstack/zod-adapter": "^1.167.0",
+    "arktype": "^2.1.7",
+    "solid-js": "^1.9.10",
+    "tailwindcss": "^4.2.2",
+    "valibot": "1.0.0-beta.15",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@solidjs/testing-library": "^0.8.10",
+    "vite-plugin-solid": "^2.11.11",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

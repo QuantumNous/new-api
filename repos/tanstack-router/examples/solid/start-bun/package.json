@@ -1,0 +1,40 @@
+{
+  "name": "tanstack-solid-start-bun-hosting",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "start": "bun run server.ts",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "lint": "eslint",
+    "format": "prettier",
+    "check": "prettier --write . && eslint --fix"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/solid-devtools": "^0.7.0",
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "@tanstack/solid-router-ssr-query": "^1.167.1",
+    "@tanstack/solid-start": "^1.168.27",
+    "@tanstack/router-plugin": "^1.168.19",
+    "solid-js": "^1.9.10",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@tanstack/eslint-config": "^0.3.2",
+    "@testing-library/dom": "^10.4.1",
+    "@solidjs/testing-library": "^0.8.10",
+    "@types/bun": "^1.2.22",
+    "@types/node": "22.10.2",
+    "vite-plugin-solid": "^2.11.11",
+    "jsdom": "^27.0.0",
+    "prettier": "^3.6.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.4",
+    "web-vitals": "^5.1.0"
+  }
+}

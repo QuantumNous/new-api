@@ -1,0 +1,194 @@
+{
+  "name": "@tanstack/react-start",
+  "version": "1.168.27",
+  "description": "Modern and scalable routing for React applications",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/router.git",
+    "directory": "packages/react-start"
+  },
+  "homepage": "https://tanstack.com/start",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "react",
+    "location",
+    "router",
+    "routing",
+    "async",
+    "async router",
+    "typescript"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test": "pnpm test:build",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "build": "vite build && vite build -c vite.config.server-entry.ts"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "react-server": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/esm/client.d.ts",
+        "default": "./dist/esm/client.js"
+      }
+    },
+    "./hydration": {
+      "import": {
+        "types": "./dist/esm/hydration.d.ts",
+        "default": "./dist/esm/hydration.js"
+      }
+    },
+    "./client-rpc": {
+      "import": {
+        "types": "./dist/esm/client-rpc.d.ts",
+        "default": "./dist/esm/client-rpc.js"
+      }
+    },
+    "./server": {
+      "react-server": {
+        "types": "./dist/esm/server.rsc.d.ts",
+        "default": "./dist/esm/server.rsc.js"
+      },
+      "import": {
+        "types": "./dist/esm/server.d.ts",
+        "default": "./dist/esm/server.js"
+      }
+    },
+    "./server-rpc": {
+      "import": {
+        "types": "./dist/esm/server-rpc.d.ts",
+        "default": "./dist/esm/server-rpc.js"
+      }
+    },
+    "./ssr-rpc": {
+      "import": {
+        "types": "./dist/esm/ssr-rpc.d.ts",
+        "default": "./dist/esm/ssr-rpc.js"
+      }
+    },
+    "./plugin/vite": {
+      "import": {
+        "types": "./dist/esm/plugin/vite.d.ts",
+        "default": "./dist/esm/plugin/vite.js"
+      }
+    },
+    "./plugin/rsbuild": {
+      "import": {
+        "types": "./dist/esm/plugin/rsbuild.d.ts",
+        "default": "./dist/esm/plugin/rsbuild.js"
+      }
+    },
+    "./server-entry": {
+      "import": {
+        "types": "./dist/default-entry/esm/server.d.ts",
+        "default": "./dist/default-entry/esm/server.js"
+      }
+    },
+    "./rsc": {
+      "react-server": {
+        "types": "./dist/esm/rsc.rsc.d.ts",
+        "default": "./dist/esm/rsc.rsc.js"
+      },
+      "import": {
+        "types": "./dist/esm/rsc.d.ts",
+        "default": "./dist/esm/rsc.js"
+      }
+    },
+    "./rsc/serialization/server": {
+      "import": {
+        "types": "./dist/esm/rsc/serialization/server.d.ts",
+        "default": "./dist/esm/rsc/serialization/server.js"
+      }
+    },
+    "./rsc/serialization/client": {
+      "import": {
+        "types": "./dist/esm/rsc/serialization/client.d.ts",
+        "default": "./dist/esm/rsc/serialization/client.js"
+      }
+    },
+    "./rsbuild/browser-decode": {
+      "import": {
+        "types": "./dist/esm/rsbuild/browser-decode.d.ts",
+        "default": "./dist/esm/rsbuild/browser-decode.js"
+      }
+    },
+    "./rsbuild/ssr-decode": {
+      "import": {
+        "types": "./dist/esm/rsbuild/ssr-decode.d.ts",
+        "default": "./dist/esm/rsbuild/ssr-decode.js"
+      }
+    },
+    "./server-only": {
+      "import": {
+        "types": "./dist/esm/server-only.d.ts",
+        "default": "./dist/esm/server-only.js"
+      }
+    },
+    "./client-only": {
+      "import": {
+        "types": "./dist/esm/client-only.d.ts",
+        "default": "./dist/esm/client-only.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "skills",
+    "bin",
+    "!skills/_artifacts"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:*",
+    "@tanstack/react-start-client": "workspace:*",
+    "@tanstack/react-start-rsc": "workspace:*",
+    "@tanstack/react-start-server": "workspace:*",
+    "@tanstack/router-utils": "workspace:*",
+    "@tanstack/start-client-core": "workspace:*",
+    "@tanstack/start-plugin-core": "workspace:*",
+    "@tanstack/start-server-core": "workspace:*",
+    "pathe": "^2.0.3"
+  },
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0",
+    "react": ">=18.0.0 || >=19.0.0",
+    "react-dom": ">=18.0.0 || >=19.0.0",
+    "vite": ">=7.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    },
+    "@vitejs/plugin-rsc": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.11",
+    "@types/node": ">=20"
+  }
+}

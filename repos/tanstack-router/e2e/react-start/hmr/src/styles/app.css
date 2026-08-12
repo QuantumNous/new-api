@@ -1,0 +1,87 @@
+@import 'tailwindcss' source('../');
+
+@theme {
+  --font-sans: 'Sora', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Space Grotesk', 'Sora', ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #102033;
+  --color-mist: #f4efe4;
+  --color-sand: #e8ddc7;
+  --color-lagoon: #1f6f78;
+  --color-reef: #2f8f9d;
+  --color-coral: #ff7a59;
+  --color-night: #0f1726;
+}
+
+@layer base {
+  html {
+    @apply bg-[var(--color-night)] text-[var(--color-ink)] antialiased;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.82),_transparent_32%),linear-gradient(160deg,_#f6f0e4_0%,_#ecdfc4_42%,_#d9ecef_100%)];
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .hmr-shell {
+    @apply min-h-screen;
+  }
+
+  .hmr-page {
+    @apply mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8;
+  }
+
+  .hmr-hero {
+    @apply relative overflow-hidden rounded-[2rem] border border-white/60 bg-white/80 p-6 shadow-[0_24px_80px_rgba(16,32,51,0.14)] backdrop-blur md:p-8;
+  }
+
+  .hmr-hero::after {
+    content: '';
+    @apply pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_center,_rgba(255,122,89,0.24),_transparent_70%)];
+  }
+
+  .hmr-nav-grid {
+    @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .hmr-nav-link {
+    @apply flex min-h-20 flex-col justify-between rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--color-reef)] hover:bg-white;
+  }
+
+  .hmr-card {
+    @apply rounded-[1.75rem] border border-white/65 bg-white/82 p-5 shadow-[0_18px_50px_rgba(16,32,51,0.12)] backdrop-blur;
+  }
+
+  .hmr-label {
+    @apply text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-lagoon)];
+  }
+
+  .hmr-kbd {
+    @apply inline-flex items-center rounded-full bg-[var(--color-night)] px-2.5 py-1 text-xs font-semibold tracking-wide text-white;
+  }
+
+  .hmr-button {
+    @apply inline-flex items-center justify-center rounded-full bg-[var(--color-night)] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-[rgba(16,32,51,0.18)] transition hover:-translate-y-0.5 hover:bg-[var(--color-lagoon)] focus:outline-none focus:ring-2 focus:ring-[var(--color-coral)] focus:ring-offset-2 focus:ring-offset-white;
+  }
+
+  .hmr-input {
+    @apply w-full rounded-2xl border border-[var(--color-sand)] bg-white/90 px-4 py-3 text-sm text-[var(--color-ink)] shadow-inner shadow-[rgba(16,32,51,0.04)] outline-none transition placeholder:text-slate-400 focus:border-[var(--color-reef)] focus:ring-4 focus:ring-[rgba(47,143,157,0.14)];
+  }
+
+  .hmr-stat {
+    @apply rounded-2xl border border-[var(--color-sand)] bg-[var(--color-mist)] px-4 py-3;
+  }
+
+  .hmr-marker {
+    @apply inline-flex items-center rounded-full border border-[var(--color-coral)]/30 bg-[rgba(255,122,89,0.12)] px-3 py-1 text-sm font-semibold text-[var(--color-coral)];
+  }
+}

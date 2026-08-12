@@ -1,0 +1,31 @@
+{
+  "name": "@benchmarks/ssr-serialization-vue",
+  "projectType": "application",
+  "targets": {
+    "build:ssr": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/vue-start"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "NODE_ENV=production vite build --config {projectRoot}/vite.config.ts"
+      }
+    },
+    "test:types:ssr": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/vue-start"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "tsc -p {projectRoot}/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

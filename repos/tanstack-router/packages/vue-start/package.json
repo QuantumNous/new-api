@@ -1,0 +1,144 @@
+{
+  "name": "@tanstack/vue-start",
+  "version": "1.168.26",
+  "description": "Modern and scalable routing for Vue applications",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TanStack/router.git",
+    "directory": "packages/vue-start"
+  },
+  "homepage": "https://tanstack.com/start",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "vue",
+    "location",
+    "router",
+    "routing",
+    "async",
+    "async router",
+    "typescript"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test": "pnpm test:build",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "build": "vite build && vite build -c vite.config.server-entry.ts"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/esm/client.d.ts",
+        "default": "./dist/esm/client.js"
+      }
+    },
+    "./client-rpc": {
+      "import": {
+        "types": "./dist/esm/client-rpc.d.ts",
+        "default": "./dist/esm/client-rpc.js"
+      }
+    },
+    "./server-rpc": {
+      "import": {
+        "types": "./dist/esm/server-rpc.d.ts",
+        "default": "./dist/esm/server-rpc.js"
+      }
+    },
+    "./ssr-rpc": {
+      "import": {
+        "types": "./dist/esm/ssr-rpc.d.ts",
+        "default": "./dist/esm/ssr-rpc.js"
+      }
+    },
+    "./server": {
+      "import": {
+        "types": "./dist/esm/server.d.ts",
+        "default": "./dist/esm/server.js"
+      }
+    },
+    "./plugin/vite": {
+      "import": {
+        "types": "./dist/esm/plugin/vite.d.ts",
+        "default": "./dist/esm/plugin/vite.js"
+      }
+    },
+    "./plugin/rsbuild": {
+      "import": {
+        "types": "./dist/esm/plugin/rsbuild.d.ts",
+        "default": "./dist/esm/plugin/rsbuild.js"
+      }
+    },
+    "./server-entry": {
+      "import": {
+        "types": "./dist/default-entry/esm/server.d.ts",
+        "default": "./dist/default-entry/esm/server.js"
+      }
+    },
+    "./server-only": {
+      "import": {
+        "types": "./dist/esm/server-only.d.ts",
+        "default": "./dist/esm/server-only.js"
+      }
+    },
+    "./client-only": {
+      "import": {
+        "types": "./dist/esm/client-only.d.ts",
+        "default": "./dist/esm/client-only.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "skills",
+    "bin",
+    "!skills/_artifacts"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@tanstack/start-client-core": "workspace:*",
+    "@tanstack/start-plugin-core": "workspace:*",
+    "@tanstack/start-server-core": "workspace:*",
+    "@tanstack/vue-router": "workspace:*",
+    "@tanstack/vue-start-client": "workspace:*",
+    "@tanstack/vue-start-server": "workspace:*",
+    "pathe": "^2.0.3"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.11",
+    "@tanstack/router-utils": "workspace:*",
+    "@types/node": ">=20",
+    "@vitejs/plugin-vue-jsx": "^4.1.2",
+    "vite": "*",
+    "vue": "^3.5.25"
+  },
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0",
+    "vite": ">=7.0.0",
+    "vue": "^3.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
+  }
+}

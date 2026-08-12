@@ -1,0 +1,59 @@
+{
+  "name": "tanstack-react-start-e2e-deferred-hydration",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm dev:vite --port 3000",
+    "dev:e2e": "pnpm dev:vite",
+    "dev:vite": "vite dev",
+    "dev:rsbuild": "rsbuild dev",
+    "build": "pnpm build:vite",
+    "build:vite": "vite build && tsc --noEmit",
+    "build:rsbuild": "rsbuild build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "pnpm start:vite",
+    "start:vite": "srvx --prod --dir=. -s dist-vite-ssr/client --entry dist-vite-ssr/server/server.js",
+    "start:rsbuild": "srvx --prod --dir=. -s dist-rsbuild-ssr/client --entry dist-rsbuild-ssr/server/index.js",
+    "test:e2e": "pnpm test:e2e:dev && pnpm test:e2e:prod",
+    "test:e2e:dev": "MODE=dev playwright test --project=chromium",
+    "test:e2e:prod": "MODE=prod playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.11",
+    "@rsbuild/plugin-react": "^2.0.0",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  },
+  "nx": {
+    "targets": {
+      "test:e2e": {
+        "parallelism": false
+      }
+    },
+    "metadata": {
+      "playwrightModes": [
+        {
+          "toolchain": "vite",
+          "mode": "ssr"
+        },
+        {
+          "toolchain": "rsbuild",
+          "mode": "ssr"
+        }
+      ]
+    }
+  }
+}

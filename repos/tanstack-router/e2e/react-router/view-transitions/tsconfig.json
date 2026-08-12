@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "target": "ESNext",
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "skipLibCheck": true
+  },
+  "exclude": ["node_modules", "dist"]
+}

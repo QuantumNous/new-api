@@ -1,0 +1,25 @@
+{
+  "name": "tanstack-router-solid-example-navigation-blocking",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "vite"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/solid-query": "^5.90.9",
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "solid-js": "^1.9.10",
+    "redaxios": "^0.5.1",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "vite-plugin-solid": "^2.11.11",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

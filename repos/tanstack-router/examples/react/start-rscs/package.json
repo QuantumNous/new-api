@@ -1,0 +1,35 @@
+{
+  "name": "tanstack-start-example-rscs",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "node .output/server/index.mjs"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router-devtools": "^1.167.0",
+    "@tanstack/react-start": "^1.168.27",
+    "dexie": "^4.0.10",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/node": "22.10.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-rsc": "^0.5.20",
+    "nitro": "npm:nitro-nightly@latest",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.7.2",
+    "vite": "^8.0.14"
+  }
+}
