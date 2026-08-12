@@ -2,9 +2,14 @@ package selfupdate
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,18 +25,33 @@ import (
 type fakeGitHubClient struct {
 	release *ReleaseInfo
 	err     error
+
+	downloadData  []byte
+	checksumData  []byte
+	downloadErr   error
+	fetchBytesErr error
+	downloadCalls int
+	fetchCalls    int
 }
 
 func (f *fakeGitHubClient) FetchLatestRelease(_ context.Context, _ string) (*ReleaseInfo, error) {
 	return f.release, f.err
 }
 
-func (f *fakeGitHubClient) Download(_ context.Context, _, _ string, _ int64) error {
-	return nil
+func (f *fakeGitHubClient) Download(_ context.Context, _, destination string, _ int64) error {
+	f.downloadCalls++
+	if f.downloadErr != nil {
+		return f.downloadErr
+	}
+	return os.WriteFile(destination, f.downloadData, 0o600)
 }
 
 func (f *fakeGitHubClient) FetchBytes(_ context.Context, _ string, _ int64) ([]byte, error) {
-	return nil, nil
+	f.fetchCalls++
+	if f.fetchBytesErr != nil {
+		return nil, f.fetchBytesErr
+	}
+	return append([]byte(nil), f.checksumData...), nil
 }
 
 // ----------------------------------------------------------------------------
@@ -39,17 +59,21 @@ func (f *fakeGitHubClient) FetchBytes(_ context.Context, _ string, _ int64) ([]b
 // ----------------------------------------------------------------------------
 
 type fakeDockerEngine struct {
-	pingErr             error
-	pullErr             error
-	recreateErr         error
-	recreateLocalErr    error
-	buildErr            error
-	inspectSelf         *ContainerInspect
-	pullCalled          bool
-	recreateCalled      bool
-	recreateLocalCalled bool
-	buildCalled         bool
-	buildTarget         string
+	pingErr              error
+	pullErr              error
+	recreateErr          error
+	recreateLocalErr     error
+	buildErr             error
+	inspectSelf          *ContainerInspect
+	pullCalled           bool
+	recreateCalled       bool
+	recreateLocalCalled  bool
+	buildCalled          bool
+	buildTarget          string
+	recreateImage        string
+	recreateLocalImage   string
+	recreateOptions      DockerRecreateOptions
+	recreateLocalOptions DockerRecreateOptions
 }
 
 func (f *fakeDockerEngine) Ping(_ context.Context) error { return f.pingErr }
@@ -71,6 +95,12 @@ func (f *fakeDockerEngine) RecreateSelf(_ context.Context, _ string) error {
 	return f.recreateErr
 }
 
+func (f *fakeDockerEngine) RecreateSelfWithOptions(ctx context.Context, image string, options DockerRecreateOptions) error {
+	f.recreateImage = image
+	f.recreateOptions = options
+	return f.RecreateSelf(ctx, image)
+}
+
 func (f *fakeDockerEngine) BuildImageWithBinary(_ context.Context, _, _, targetImage string) error {
 	f.buildCalled = true
 	f.buildTarget = targetImage
@@ -82,9 +112,28 @@ func (f *fakeDockerEngine) RecreateSelfLocal(_ context.Context, _ string) error 
 	return f.recreateLocalErr
 }
 
+func (f *fakeDockerEngine) RecreateSelfLocalWithOptions(ctx context.Context, image string, options DockerRecreateOptions) error {
+	f.recreateLocalImage = image
+	f.recreateLocalOptions = options
+	return f.RecreateSelfLocal(ctx, image)
+}
+
 // ----------------------------------------------------------------------------
 // helpers
 // ----------------------------------------------------------------------------
+
+func resetGlobalCache(t *testing.T) {
+	t.Helper()
+	clear := func() {
+		globalCache.mu.Lock()
+		defer globalCache.mu.Unlock()
+		globalCache.info = nil
+		globalCache.release = nil
+		globalCache.fetchedAt = time.Time{}
+	}
+	clear()
+	t.Cleanup(clear)
+}
 
 func makeRelease(tag string, assets []Asset) *ReleaseInfo {
 	return &ReleaseInfo{
@@ -348,6 +397,189 @@ func TestService_Perform_Docker_Success(t *testing.T) {
 	assert.Equal(t, DeployModeDocker, result.DeployMode)
 	assert.False(t, fakeDocker.pullCalled, "RecreateSelf must own the single registry pull")
 	assert.True(t, fakeDocker.recreateCalled)
+	assert.False(t, fakeDocker.recreateOptions.DropDockerImageEnv)
+	assert.Nil(t, fakeDocker.recreateOptions.ComposeSync)
+}
+
+func TestService_Perform_Docker_UnmatchedReleaseAssetsUseRegistryFallback(t *testing.T) {
+	resetGlobalCache(t)
+
+	t.Setenv("NEWAPI_DEPLOY_MODE", "docker")
+	cfg := testConfig()
+	cfg.ComposeSyncEnabled = true
+	cfg.ComposeFile = "/app/compose.yaml"
+	cfg.ComposeService = "new-api"
+	gh := &fakeGitHubClient{release: makeRelease("v2.0.0", []Asset{
+		{Name: "new-api-v2.0.0.exe", DownloadURL: "https://example.invalid/windows"},
+		{Name: "checksums-linux.txt", DownloadURL: "https://example.invalid/checksums"},
+		{Name: "README.md", DownloadURL: "https://example.invalid/readme"},
+	})}
+	docker := &fakeDockerEngine{}
+
+	result, err := newService(cfg, gh, docker, "v1.0.0").Perform(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, DeployModeDocker, result.DeployMode)
+	assert.False(t, result.NeedRestart)
+	assert.False(t, docker.buildCalled)
+	assert.False(t, docker.recreateLocalCalled)
+	assert.True(t, docker.recreateCalled)
+	assert.Equal(t, cfg.DockerImage, docker.recreateImage)
+	assert.False(t, docker.recreateOptions.DropDockerImageEnv)
+	assert.Nil(t, docker.recreateOptions.ComposeSync)
+	assert.Zero(t, gh.downloadCalls)
+	assert.Zero(t, gh.fetchCalls)
+}
+
+func TestService_Perform_Docker_ReleaseBinaryWithoutChecksumIsRejected(t *testing.T) {
+	resetGlobalCache(t)
+
+	t.Setenv("NEWAPI_DEPLOY_MODE", "docker")
+	binaryName := dockerTestBinaryName()
+	gh := &fakeGitHubClient{release: makeRelease("v2.0.0", []Asset{
+		{Name: binaryName, DownloadURL: "https://example.invalid/binary"},
+	})}
+	docker := &fakeDockerEngine{}
+	svc := newService(testConfig(), gh, docker, "v1.0.0")
+
+	_, err := svc.Perform(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no checksum asset for linux/"+runtime.GOARCH+"; update rejected")
+	assert.Equal(t, PhaseFailed, svc.Status().Phase)
+	assert.False(t, docker.buildCalled)
+	assert.False(t, docker.recreateCalled)
+	assert.False(t, docker.recreateLocalCalled)
+	assert.Zero(t, gh.downloadCalls)
+	assert.Zero(t, gh.fetchCalls)
+}
+
+func TestService_Perform_Docker_ReleaseAssetDownloadOrChecksumFailureDoesNotFallback(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		download  error
+		fetch     error
+		checksum  []byte
+		wantError string
+	}{
+		{name: "download failure", download: errors.New("download unavailable"), wantError: "download binary"},
+		{name: "checksum fetch failure", fetch: errors.New("checksum unavailable"), wantError: "fetch checksum"},
+		{name: "checksum mismatch", checksum: []byte("0000000000000000000000000000000000000000000000000000000000000000  placeholder\n"), wantError: "checksum mismatch"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetGlobalCache(t)
+			t.Setenv("NEWAPI_DEPLOY_MODE", "docker")
+			binaryName := dockerTestBinaryName()
+			if tc.checksum != nil {
+				tc.checksum = []byte(strings.ReplaceAll(string(tc.checksum), "placeholder", binaryName))
+			}
+			gh := &fakeGitHubClient{
+				release: makeRelease("v2.0.0", []Asset{
+					{Name: binaryName, DownloadURL: "https://example.invalid/binary"},
+					{Name: "checksums-linux.txt", DownloadURL: "https://example.invalid/checksums"},
+				}),
+				downloadData:  []byte("release binary"),
+				checksumData:  tc.checksum,
+				downloadErr:   tc.download,
+				fetchBytesErr: tc.fetch,
+			}
+			docker := &fakeDockerEngine{}
+			svc := newService(testConfig(), gh, docker, "v1.0.0")
+
+			_, err := svc.Perform(context.Background())
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantError)
+			assert.Equal(t, PhaseFailed, svc.Status().Phase)
+			assert.False(t, docker.buildCalled)
+			assert.False(t, docker.recreateLocalCalled)
+			assert.False(t, docker.recreateCalled, "release verification failure must not fall back to the registry")
+		})
+	}
+}
+func TestService_Perform_Docker_ReleaseBinaryBuildsLocalImageAndEnablesComposeSync(t *testing.T) {
+	resetGlobalCache(t)
+
+	t.Setenv("NEWAPI_DEPLOY_MODE", "docker")
+	binaryName := dockerTestBinaryName()
+	binary := []byte("verified release binary")
+	digest := sha256.Sum256(binary)
+	gh := &fakeGitHubClient{
+		release: makeRelease("v2.0.0", []Asset{
+			{Name: binaryName, DownloadURL: "https://example.invalid/binary"},
+			{Name: "checksums-linux.txt", DownloadURL: "https://example.invalid/checksums"},
+		}),
+		downloadData: binary,
+		checksumData: []byte(fmt.Sprintf("%x  %s\n", digest, binaryName)),
+	}
+	cfg := testConfig()
+	cfg.ComposeSyncEnabled = true
+	cfg.ComposeFile = "/app/compose.yaml"
+	cfg.ComposeService = "new-api"
+	docker := &fakeDockerEngine{inspectSelf: &ContainerInspect{Image: "sha256:base"}}
+	docker.inspectSelf.Config.Image = "calciumion/new-api:latest"
+
+	result, err := newService(cfg, gh, docker, "v1.0.0").Perform(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, DeployModeDocker, result.DeployMode)
+	assert.Equal(t, "local/new-api:v2.0.0", docker.buildTarget)
+	assert.True(t, docker.buildCalled)
+	assert.True(t, docker.recreateLocalCalled)
+	assert.Equal(t, "local/new-api:v2.0.0", docker.recreateLocalImage)
+	assert.False(t, docker.recreateCalled)
+	assert.Empty(t, docker.recreateImage)
+	assert.True(t, docker.recreateLocalOptions.DropDockerImageEnv)
+	require.NotNil(t, docker.recreateLocalOptions.ComposeSync)
+	assert.Equal(t, cfg.ComposeFile, docker.recreateLocalOptions.ComposeSync.ComposeFile)
+	assert.Equal(t, cfg.ComposeService, docker.recreateLocalOptions.ComposeSync.ComposeService)
+	assert.True(t, docker.recreateLocalOptions.ComposeSync.RejectDockerImageEnv)
+	assert.Equal(t, 1, gh.downloadCalls)
+	assert.Equal(t, 1, gh.fetchCalls)
+}
+
+func dockerTestBinaryName() string {
+	switch runtime.GOARCH {
+	case "arm64":
+		return "new-api-arm64-v2.0.0"
+	case "amd64":
+		return "new-api-v2.0.0"
+	default:
+		return "new-api-linux-" + runtime.GOARCH + "-v2.0.0"
+	}
+}
+
+func TestDockerLocalImageRef(t *testing.T) {
+	image, err := dockerLocalImageRef("v2.0.0-th.1")
+	require.NoError(t, err)
+	assert.Equal(t, "local/new-api:v2.0.0-th.1", image)
+
+	for _, version := range []string{
+		"",
+		" v2.0.0",
+		"v2.0.0\ninvalid",
+		"v2@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	} {
+		t.Run("reject "+strings.ReplaceAll(version, "\n", "-"), func(t *testing.T) {
+			_, err := dockerLocalImageRef(version)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestService_DockerRecreateOptions_ComposeSync(t *testing.T) {
+	cfg := testConfig()
+	cfg.ComposeSyncEnabled = true
+	cfg.ComposeFile = "/app/docker-compose.yml"
+	cfg.ComposeService = "new-api"
+	svc := newService(cfg, nil, nil, "v1.0.0")
+
+	releaseOptions := svc.dockerRecreateOptions(true)
+	require.NotNil(t, releaseOptions.ComposeSync)
+	assert.Equal(t, cfg.ComposeFile, releaseOptions.ComposeSync.ComposeFile)
+	assert.Equal(t, cfg.ComposeService, releaseOptions.ComposeSync.ComposeService)
+	assert.True(t, releaseOptions.DropDockerImageEnv)
+	assert.True(t, releaseOptions.ComposeSync.RejectDockerImageEnv)
+
+	registryOptions := svc.dockerRecreateOptions(false)
+	assert.Nil(t, registryOptions.ComposeSync, "registry fallback must not synchronize Compose")
+	assert.False(t, registryOptions.DropDockerImageEnv)
 }
 
 // ----------------------------------------------------------------------------

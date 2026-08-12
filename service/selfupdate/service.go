@@ -166,7 +166,7 @@ func (s *Service) check(ctx context.Context, force bool, dockerEng DockerEngine)
 	binCap := &BinaryCapability{
 		Platform: runtime.GOOS + "/" + runtime.GOARCH,
 	}
-	_, _, assetErr := SelectBinaryAsset(rel.Assets, runtime.GOOS, runtime.GOARCH)
+	_, _, assetErr := SelectReleaseBinaryAsset(rel, runtime.GOOS, runtime.GOARCH)
 	if assetErr == nil {
 		binCap.AssetFound = true
 	} else {
@@ -320,11 +320,11 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 			}
 		}
 
-		// When the GitHub Release has downloadable assets, install from GitHub
-		// into a local image (works for private/local Docker deploys).
-		if info.Release != nil && len(info.Release.Assets) > 0 {
+		// Only a Release binary matching linux/<current GOARCH> enters the
+		// checksum-verified local-image update path.
+		if info.Release != nil && hasDockerReleaseBinary(info.Release) {
 			s.setStatus(PhasePulling, "downloading release binary for docker update", true, "")
-			if err := s.applyDockerFromGitHub(ctx, eng, info); err != nil {
+			if err := s.applyDockerFromGitHub(ctx, eng, info, s.dockerRecreateOptions(true)); err != nil {
 				s.setStatus(PhaseFailed, "docker github update failed", false, err.Error())
 				return nil, err
 			}
@@ -347,7 +347,7 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 		// RecreateSelf owns the pull so it can compare the image digest before
 		// and after exactly one pull.
 		s.setStatus(PhasePulling, "pulling image and preparing container recreation", true, "")
-		if err := eng.RecreateSelf(ctx, image); err != nil {
+		if err := eng.RecreateSelfWithOptions(ctx, image, DockerRecreateOptions{}); err != nil {
 			if errors.Is(err, ErrAlreadyUpToDate) {
 				s.setStatus(PhaseIdle, "already up to date", false, "")
 				return &PerformResult{
@@ -378,24 +378,47 @@ func (s *Service) Perform(ctx context.Context) (*PerformResult, error) {
 	}
 }
 
-// dockerLocalImageRef builds the local image name for a release tag.
-func dockerLocalImageRef(version string) string {
-	v := strings.TrimSpace(version)
-	if v == "" {
-		v = "latest"
+// dockerRecreateOptions builds the explicit Compose synchronization options for
+// GitHub Release updates, which switch to a local image reference. Registry
+// fallback updates intentionally retain the historical recreate-only behavior.
+func (s *Service) dockerRecreateOptions(dropDockerImageEnv bool) DockerRecreateOptions {
+	options := DockerRecreateOptions{DropDockerImageEnv: dropDockerImageEnv}
+	if s.cfg.ComposeSyncEnabled && dropDockerImageEnv {
+		options.ComposeSync = &ComposeSyncOptions{
+			ComposeFile:          s.cfg.ComposeFile,
+			ComposeService:       s.cfg.ComposeService,
+			RejectDockerImageEnv: dropDockerImageEnv,
+		}
 	}
-	return "local/new-api:" + v
+	return options
+}
+
+func hasDockerReleaseBinary(release *ReleaseInfo) bool {
+	_, _, err := SelectReleaseBinaryAsset(release, "linux", runtime.GOARCH)
+	return err == nil
+}
+
+// dockerLocalImageRef builds a validated local image name for a release tag.
+func dockerLocalImageRef(version string) (string, error) {
+	if version == "" || version != strings.TrimSpace(version) || strings.Contains(version, "@") {
+		return "", errors.New("release tag is empty, contains surrounding whitespace, or is not a Docker tag")
+	}
+	image := "local/new-api:" + version
+	if !isSafeImageReference(image) {
+		return "", fmt.Errorf("release tag %q cannot form a safe local image reference", version)
+	}
+	return image, nil
 }
 
 // applyDockerFromGitHub downloads the linux binary from the release, builds a
 // local image local/new-api:{tag}, and schedules the current container replacement.
-func (s *Service) applyDockerFromGitHub(ctx context.Context, eng DockerEngine, info *Info) error {
+func (s *Service) applyDockerFromGitHub(ctx context.Context, eng DockerEngine, info *Info, options DockerRecreateOptions) error {
 	goos, goarch := "linux", runtime.GOARCH
 	if goarch == "" {
 		goarch = "amd64"
 	}
 
-	binAsset, sumAsset, err := SelectBinaryAsset(info.Release.Assets, goos, goarch)
+	binAsset, sumAsset, err := SelectReleaseBinaryAsset(info.Release, goos, goarch)
 	if err != nil {
 		return fmt.Errorf("select release asset: %w", err)
 	}
@@ -448,13 +471,16 @@ func (s *Service) applyDockerFromGitHub(ctx context.Context, eng DockerEngine, i
 		baseImage = "calciumion/new-api:latest"
 	}
 
-	targetImage := dockerLocalImageRef(info.LatestVersion)
+	targetImage, err := dockerLocalImageRef(info.LatestVersion)
+	if err != nil {
+		return fmt.Errorf("build local image reference: %w", err)
+	}
 	s.setStatus(PhaseApplying, "building local image from release binary", true, "")
 	if err := eng.BuildImageWithBinary(ctx, baseImage, binPath, targetImage); err != nil {
 		return err
 	}
 	s.setStatus(PhaseApplying, "recreating container onto "+targetImage, true, "")
-	return eng.RecreateSelfLocal(ctx, targetImage)
+	return eng.RecreateSelfLocalWithOptions(ctx, targetImage, options)
 }
 
 func fileSHA256Hex(path string) (string, error) {

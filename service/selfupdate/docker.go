@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -143,6 +144,7 @@ type containerMount struct {
 	Type        string `json:"Type"`
 	Source      string `json:"Source"`
 	Destination string `json:"Destination"`
+	RW          bool   `json:"RW"`
 }
 
 type containerEndpointIPAMConfig struct {
@@ -246,6 +248,15 @@ func httpError(action string, resp *http.Response) error {
 // DockerEngine interface
 // ----------------------------------------------------------------------------
 
+// DockerRecreateOptions controls optional behavior for a scheduled recreation.
+// ComposeSync is nil for the historical recreate-only behavior.
+type DockerRecreateOptions struct {
+	ComposeSync        *ComposeSyncOptions
+	DropDockerImageEnv bool
+
+	composePrepared *composePreparedUpdate
+}
+
 // DockerEngine is the interface for Docker Engine operations used by self-update.
 type DockerEngine interface {
 	// Ping checks that the Docker socket is reachable (GET /_ping).
@@ -263,6 +274,10 @@ type DockerEngine interface {
 	// currently running image.
 	RecreateSelf(ctx context.Context, image string) error
 
+	// RecreateSelfWithOptions adds optional behavior while preserving the
+	// historical RecreateSelf call for existing callers.
+	RecreateSelfWithOptions(ctx context.Context, image string, options DockerRecreateOptions) error
+
 	// BuildImageWithBinary creates targetImage by copying binaryPath to /new-api
 	// inside a temporary container based on baseImage, then committing it.
 	// Used when updating from a GitHub Release binary while running in Docker.
@@ -271,6 +286,10 @@ type DockerEngine interface {
 	// RecreateSelfLocal schedules the same helper for an already-local image
 	// reference without pulling from a registry.
 	RecreateSelfLocal(ctx context.Context, image string) error
+
+	// RecreateSelfLocalWithOptions adds optional behavior while preserving the
+	// historical RecreateSelfLocal call for existing callers.
+	RecreateSelfLocalWithOptions(ctx context.Context, image string, options DockerRecreateOptions) error
 }
 
 // NewDockerEngine creates a production DockerEngine that communicates over the
@@ -418,7 +437,7 @@ func (d *dockerEngineImpl) findRunningContainerByHostname(ctx context.Context, h
 
 // inspectContainer calls GET /containers/{id}/json.
 func (d *dockerEngineImpl) inspectContainer(ctx context.Context, id string) (*ContainerInspect, error) {
-	req, err := d.client.request(ctx, http.MethodGet, "/containers/"+id+"/json", nil)
+	req, err := d.client.request(ctx, http.MethodGet, "/containers/"+url.PathEscape(id)+"/json", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +462,7 @@ func (d *dockerEngineImpl) inspectContainer(ctx context.Context, id string) (*Co
 
 // inspectImage calls GET /images/{name}/json and returns the image ID.
 func (d *dockerEngineImpl) inspectImage(ctx context.Context, name string) (string, error) {
-	req, err := d.client.request(ctx, http.MethodGet, "/images/"+name+"/json", nil)
+	req, err := d.client.request(ctx, http.MethodGet, "/images/"+url.PathEscape(name)+"/json", nil)
 	if err != nil {
 		return "", err
 	}
@@ -470,8 +489,12 @@ func (d *dockerEngineImpl) inspectImage(ctx context.Context, name string) (strin
 // the streaming progress response until EOF.
 func (d *dockerEngineImpl) PullImage(ctx context.Context, image string) error {
 	name, tag := splitImageTag(image)
-	path := fmt.Sprintf("/images/create?fromImage=%s&tag=%s", name, tag)
-	req, err := d.client.request(ctx, http.MethodPost, path, nil)
+	query := url.Values{
+		"fromImage": {name},
+		"tag":       {tag},
+	}
+	requestPath := "/images/create?" + query.Encode()
+	req, err := d.client.request(ctx, http.MethodPost, requestPath, nil)
 	if err != nil {
 		return err
 	}
@@ -490,6 +513,11 @@ func (d *dockerEngineImpl) PullImage(ctx context.Context, image string) error {
 
 // RecreateSelf pulls the requested image and schedules the recreate helper.
 func (d *dockerEngineImpl) RecreateSelf(ctx context.Context, image string) error {
+	return d.RecreateSelfWithOptions(ctx, image, DockerRecreateOptions{})
+}
+
+// RecreateSelfWithOptions pulls the requested image and schedules the recreate helper.
+func (d *dockerEngineImpl) RecreateSelfWithOptions(ctx context.Context, image string, options DockerRecreateOptions) error {
 	// 1. Inspect current container.
 	ci, err := d.InspectSelf(ctx)
 	if err != nil {
@@ -519,7 +547,7 @@ func (d *dockerEngineImpl) RecreateSelf(ctx context.Context, image string) error
 
 	// The running process cannot stop its own container and then continue the
 	// recreate sequence. Hand the destructive switch to an independent helper.
-	return d.scheduleRecreateHelper(ctx, ci, targetImage, false)
+	return d.scheduleRecreateHelper(ctx, ci, targetImage, options)
 }
 
 // postEmpty issues a POST with no request body and expects a 2xx response.
@@ -541,14 +569,16 @@ func (d *dockerEngineImpl) postEmpty(ctx context.Context, path string) error {
 
 // renameContainer issues POST /containers/{id}/rename?name={newName}.
 func (d *dockerEngineImpl) renameContainer(ctx context.Context, id, newName string) error {
-	return d.postEmpty(ctx, fmt.Sprintf("/containers/%s/rename?name=%s", id, newName))
+	query := url.Values{"name": {newName}}
+	return d.postEmpty(ctx, "/containers/"+url.PathEscape(id)+"/rename?"+query.Encode())
 }
 
 // createContainer issues POST /containers/create?name={name} with JSON body
 // and returns the new container ID.
 func (d *dockerEngineImpl) createContainer(ctx context.Context, name string, bodyBytes []byte) (string, error) {
+	query := url.Values{"name": {name}}
 	req, err := d.client.request(ctx, http.MethodPost,
-		fmt.Sprintf("/containers/create?name=%s", name),
+		"/containers/create?"+query.Encode(),
 		bytes.NewReader(bodyBytes),
 	)
 	if err != nil {
@@ -576,8 +606,9 @@ func (d *dockerEngineImpl) createContainer(ctx context.Context, name string, bod
 
 // deleteContainer issues DELETE /containers/{id}?force=true.
 func (d *dockerEngineImpl) deleteContainer(ctx context.Context, id string) error {
+	query := url.Values{"force": {"true"}}
 	req, err := d.client.request(ctx, http.MethodDelete,
-		fmt.Sprintf("/containers/%s?force=true", id), nil)
+		"/containers/"+url.PathEscape(id)+"?"+query.Encode(), nil)
 	if err != nil {
 		return err
 	}
@@ -639,6 +670,11 @@ func (d *dockerEngineImpl) BuildImageWithBinary(ctx context.Context, baseImage, 
 
 // RecreateSelfLocal schedules an independent helper to recreate onto a local image.
 func (d *dockerEngineImpl) RecreateSelfLocal(ctx context.Context, image string) error {
+	return d.RecreateSelfLocalWithOptions(ctx, image, DockerRecreateOptions{DropDockerImageEnv: true})
+}
+
+// RecreateSelfLocalWithOptions schedules an independent helper to recreate onto a local image.
+func (d *dockerEngineImpl) RecreateSelfLocalWithOptions(ctx context.Context, image string, options DockerRecreateOptions) error {
 	ci, err := d.InspectSelf(ctx)
 	if err != nil {
 		return fmt.Errorf("inspect self: %w", err)
@@ -652,7 +688,7 @@ func (d *dockerEngineImpl) RecreateSelfLocal(ctx context.Context, image string) 
 		return fmt.Errorf("local image %s not found: %w", targetImage, err)
 	}
 
-	return d.scheduleRecreateHelper(ctx, ci, targetImage, true)
+	return d.scheduleRecreateHelper(ctx, ci, targetImage, options)
 }
 
 func filterEnv(env []string, dropKey string) []string {
@@ -691,8 +727,9 @@ func tarOneFile(name string, data []byte, mode int64) ([]byte, error) {
 }
 
 func (d *dockerEngineImpl) putContainerArchive(ctx context.Context, id, path string, tarBytes []byte) error {
+	query := url.Values{"path": {path}}
 	req, err := d.client.request(ctx, http.MethodPut,
-		fmt.Sprintf("/containers/%s/archive?path=%s", id, path),
+		"/containers/"+url.PathEscape(id)+"/archive?"+query.Encode(),
 		bytes.NewReader(tarBytes),
 	)
 	if err != nil {
@@ -711,8 +748,12 @@ func (d *dockerEngineImpl) putContainerArchive(ctx context.Context, id, path str
 }
 
 func (d *dockerEngineImpl) commitContainer(ctx context.Context, id, repo, tag string) error {
-	path := fmt.Sprintf("/commit?container=%s&repo=%s&tag=%s", id, repo, tag)
-	req, err := d.client.request(ctx, http.MethodPost, path, nil)
+	query := url.Values{
+		"container": {id},
+		"repo":      {repo},
+		"tag":       {tag},
+	}
+	req, err := d.client.request(ctx, http.MethodPost, "/commit?"+query.Encode(), nil)
 	if err != nil {
 		return err
 	}

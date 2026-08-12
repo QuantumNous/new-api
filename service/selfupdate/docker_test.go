@@ -2,6 +2,8 @@ package selfupdate
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -330,6 +333,7 @@ func TestEngineClient_RecreateSelf_OK(t *testing.T) {
 			imageRef,
 			"unix:///var/run/docker.sock",
 			"false",
+			"",
 		}, body.Cmd)
 		var hostConfig helperHostConfig
 		require.NoError(t, json.Unmarshal(body.HostConfig, &hostConfig))
@@ -547,7 +551,7 @@ func TestEngineClient_ReplaceContainer_RollbackWhenUnhealthy(t *testing.T) {
 
 	ec := fakeEngineClient(mux)
 	d := &dockerEngineImpl{client: ec}
-	err := d.replaceContainer(context.Background(), oldContainerID, targetImage, true)
+	err := d.replaceContainer(context.Background(), oldContainerID, targetImage, DockerRecreateOptions{DropDockerImageEnv: true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unhealthy")
 	assert.True(t, deletedNew, "unhealthy replacement should be removed")
@@ -556,6 +560,403 @@ func TestEngineClient_ReplaceContainer_RollbackWhenUnhealthy(t *testing.T) {
 	assert.True(t, rollbackStart, "old container should be restarted")
 }
 
+func TestEngineClient_ReplaceContainer_ReportsRollbackFailures(t *testing.T) {
+	const (
+		oldContainerID = "rollback-errors-old"
+		newContainerID = "rollback-errors-new"
+	)
+
+	mux := newFakeMux()
+	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id":     oldContainerID,
+			"Name":   "/myapp",
+			"Config": map[string]any{"Image": "local/new-api:v1"},
+		})
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/rename", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("name") == "myapp" {
+			http.Error(w, "rename rollback failed", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": newContainerID})
+	})
+	mux.handle(http.MethodPost, "/containers/"+newContainerID+"/start", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "replacement start failed", http.StatusInternalServerError)
+	})
+	mux.handle(http.MethodDelete, "/containers/"+newContainerID, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "delete rollback failed", http.StatusInternalServerError)
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/start", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "restart rollback failed", http.StatusInternalServerError)
+	})
+
+	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
+	err := d.replaceContainer(context.Background(), oldContainerID, "local/new-api:v2", DockerRecreateOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start replacement container")
+	assert.Contains(t, err.Error(), "rollback failed")
+	assert.Contains(t, err.Error(), "remove replacement container")
+	assert.Contains(t, err.Error(), "restore old container name")
+	assert.Contains(t, err.Error(), "restart old container")
+}
+
+func TestEngineClient_ScheduleRecreateHelper_RejectsNonUnixTransport(t *testing.T) {
+	ci := &ContainerInspect{ID: "old-container", Image: "local/new-api:v1"}
+	ci.Config.Image = "local/new-api:v1"
+
+	for _, network := range []string{"npipe", "tcp"} {
+		t.Run(network, func(t *testing.T) {
+			d := &dockerEngineImpl{network: network, address: "ignored"}
+			err := d.scheduleRecreateHelper(context.Background(), ci, "local/new-api:v2", DockerRecreateOptions{
+				ComposeSync: &ComposeSyncOptions{ComposeFile: "/does/not/matter/compose.yaml"},
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "requires a unix socket")
+			assert.NotContains(t, err.Error(), "compose sync")
+		})
+	}
+}
+
+func TestEngineClient_ScheduleRecreateHelper_RestrictsHelperHostConfig(t *testing.T) {
+	ci := &ContainerInspect{
+		ID:    "old-container",
+		Image: "local/new-api:v1",
+		Mounts: []containerMount{{
+			Type:        "bind",
+			Source:      "/host/run/docker.sock",
+			Destination: "/var/run/docker.sock",
+			RW:          true,
+		}},
+	}
+	ci.Config.Image = "local/new-api:v1"
+
+	mux := newFakeMux()
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		var body containerCreateBody
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		var hostConfig helperHostConfig
+		require.NoError(t, json.Unmarshal(body.HostConfig, &hostConfig))
+		assert.Equal(t, []string{"/host/run/docker.sock:/var/run/docker.sock:rw"}, hostConfig.Binds)
+		assert.True(t, hostConfig.AutoRemove)
+		assert.Equal(t, "none", hostConfig.NetworkMode)
+		assert.Len(t, body.Cmd, 6)
+		assert.Empty(t, body.Cmd[5])
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": "helper"})
+	})
+	mux.handle(http.MethodPost, "/containers/helper/start", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	d := &dockerEngineImpl{
+		client:     fakeEngineClient(mux),
+		dockerHost: "unix:///var/run/docker.sock",
+		network:    "unix",
+		address:    "/var/run/docker.sock",
+	}
+	require.NoError(t, d.scheduleRecreateHelper(context.Background(), ci, "local/new-api:v2", DockerRecreateOptions{}))
+}
+
+func TestEngineClient_ScheduleRecreateHelper_RejectsDockerImageEnvironmentBeforeHelperCreation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("container-side POSIX path mapping requires a Linux filesystem")
+	}
+	composeDir := t.TempDir()
+	composePath := filepath.Join(composeDir, "compose.yaml")
+	require.NoError(t, os.WriteFile(composePath, []byte("services:\n  new-api:\n    image: local/new-api:v1\n"), 0o600))
+
+	ci := &ContainerInspect{
+		ID:    "old-container",
+		Image: "local/new-api:v1",
+		Mounts: []containerMount{
+			{Type: "bind", Source: "/host/run/docker.sock", Destination: "/var/run/docker.sock", RW: true},
+			{Type: "bind", Source: composeDir, Destination: composeDir, RW: true},
+		},
+	}
+	ci.Config.Image = "local/new-api:v1"
+	ci.Config.Env = []string{"NEWAPI_DOCKER_IMAGE=old/image:tag"}
+	ci.Config.Labels = map[string]string{composeServiceLabel: "new-api"}
+
+	createCalled := false
+	mux := newFakeMux()
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		createCalled = true
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	d := &dockerEngineImpl{
+		client:     fakeEngineClient(mux),
+		dockerHost: "unix:///var/run/docker.sock",
+		network:    "unix",
+		address:    "/var/run/docker.sock",
+	}
+
+	err := d.scheduleRecreateHelper(context.Background(), ci, "local/new-api:v2", DockerRecreateOptions{
+		ComposeSync: &ComposeSyncOptions{
+			ComposeFile:          composePath,
+			RejectDockerImageEnv: true,
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "NEWAPI_DOCKER_IMAGE")
+	assert.False(t, createCalled, "Compose preflight must fail before helper creation")
+}
+
+func TestEngineClient_ScheduleRecreateHelper_DeletesHelperWhenStartFails(t *testing.T) {
+	const helperID = "helper-start-failure"
+	ci := &ContainerInspect{ID: "old-container", Image: "local/new-api:v1"}
+	ci.Config.Image = "local/new-api:v1"
+
+	deleted := false
+	mux := newFakeMux()
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": helperID})
+	})
+	mux.handle(http.MethodPost, "/containers/"+helperID+"/start", func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "start failed", http.StatusInternalServerError)
+	})
+	mux.handle(http.MethodDelete, "/containers/"+helperID, func(w http.ResponseWriter, r *http.Request) {
+		deleted = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	d := &dockerEngineImpl{
+		client:     fakeEngineClient(mux),
+		dockerHost: "unix:///var/run/docker.sock",
+		network:    "unix",
+		address:    "/var/run/docker.sock",
+	}
+
+	err := d.scheduleRecreateHelper(context.Background(), ci, "local/new-api:v2", DockerRecreateOptions{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start update helper")
+	assert.True(t, deleted)
+}
+func TestEngineClient_ScheduleRecreateHelper_ComposeSpecIsBoundToValidatedDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("container-side POSIX path mapping requires a Linux filesystem")
+	}
+	composeDir := t.TempDir()
+	composePath := filepath.Join(composeDir, "compose.yaml")
+	composeContent := []byte("services:\n  new-api:\n    image: local/new-api:v1\n")
+	require.NoError(t, os.WriteFile(composePath, composeContent, 0o600))
+
+	ci := &ContainerInspect{
+		ID:    "old-container",
+		Image: "local/new-api:v1",
+		Mounts: []containerMount{
+			{Type: "bind", Source: "/host/run/docker.sock", Destination: "/var/run/docker.sock", RW: true},
+			{Type: "bind", Source: composeDir, Destination: composeDir, RW: true},
+		},
+	}
+	ci.Config.Image = "local/new-api:v1"
+	ci.Config.Labels = map[string]string{composeServiceLabel: "new-api"}
+
+	mux := newFakeMux()
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		var body containerCreateBody
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		var hostConfig helperHostConfig
+		require.NoError(t, json.Unmarshal(body.HostConfig, &hostConfig))
+		assert.Equal(t, []string{
+			"/host/run/docker.sock:/var/run/docker.sock:rw",
+			composeDir + ":" + composeHelperDir + ":rw",
+		}, hostConfig.Binds)
+		assert.True(t, hostConfig.AutoRemove)
+		assert.Equal(t, "none", hostConfig.NetworkMode)
+		require.Len(t, body.Cmd, 6)
+
+		specBytes, err := base64.RawURLEncoding.DecodeString(body.Cmd[5])
+		require.NoError(t, err)
+		var spec composeSyncSpec
+		require.NoError(t, json.Unmarshal(specBytes, &spec))
+		assert.Equal(t, "compose.yaml", spec.ComposeFile)
+		assert.Equal(t, "new-api", spec.ComposeService)
+		assert.Equal(t, fmt.Sprintf("%x", sha256.Sum256(composeContent)), spec.ExpectedSHA256)
+		assert.NotContains(t, body.Cmd[5], composeDir)
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": "helper"})
+	})
+	mux.handle(http.MethodPost, "/containers/helper/start", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	d := &dockerEngineImpl{
+		client:     fakeEngineClient(mux),
+		dockerHost: "unix:///var/run/docker.sock",
+		network:    "unix",
+		address:    "/var/run/docker.sock",
+	}
+	require.NoError(t, d.scheduleRecreateHelper(context.Background(), ci, "local/new-api:v2", DockerRecreateOptions{
+		ComposeSync: &ComposeSyncOptions{ComposeFile: composePath},
+	}))
+}
+
+func TestEngineClient_ReplaceContainer_AppliesComposeAfterReadiness(t *testing.T) {
+	composeDir := t.TempDir()
+	composePath := filepath.Join(composeDir, "compose.yaml")
+	original := []byte("services:\n  new-api:\n    image: local/new-api:v1\n")
+	require.NoError(t, os.WriteFile(composePath, original, 0o600))
+	hash := sha256.Sum256(original)
+
+	const (
+		oldContainerID = "compose-old"
+		newContainerID = "compose-new"
+		targetImage    = "local/new-api:v2"
+	)
+	var events []string
+	mux := newFakeMux()
+	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id": oldContainerID, "Name": "/myapp",
+			"Config": map[string]any{"Healthcheck": map[string]any{"Test": []string{"CMD", "true"}}},
+		})
+	})
+	mux.handle(http.MethodGet, "/containers/"+newContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		events = append(events, "ready")
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"Id":    newContainerID,
+			"State": map[string]any{"Status": "running", "Running": true, "Health": map[string]any{"Status": "healthy"}},
+		})
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) {
+		events = append(events, "stop")
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/rename", func(w http.ResponseWriter, r *http.Request) {
+		events = append(events, "rename")
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		events = append(events, "create")
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": newContainerID})
+	})
+	mux.handle(http.MethodPost, "/containers/"+newContainerID+"/start", func(w http.ResponseWriter, r *http.Request) {
+		events = append(events, "start")
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodDelete, "/containers/"+oldContainerID, func(w http.ResponseWriter, r *http.Request) {
+		events = append(events, "delete-old")
+		updated, err := os.ReadFile(composePath)
+		require.NoError(t, err)
+		assert.Contains(t, string(updated), targetImage)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
+	err := d.replaceContainer(context.Background(), oldContainerID, targetImage, DockerRecreateOptions{
+		composePrepared: &composePreparedUpdate{
+			spec:         composeSyncSpec{ComposeFile: "compose.yaml", ComposeService: "new-api"},
+			originalHash: hash,
+			mountedDir:   composeDir,
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"stop", "rename", "create", "start", "ready", "delete-old"}, events)
+	updated, err := os.ReadFile(composePath)
+	require.NoError(t, err)
+	assert.Contains(t, string(updated), targetImage)
+	backups, err := filepath.Glob(filepath.Join(composeDir, ".compose.yaml.new-api-update-*.backup"))
+	require.NoError(t, err)
+	assert.Empty(t, backups)
+}
+
+func TestEngineClient_ReplaceContainer_RollsBackWhenComposeChangesAfterPreparation(t *testing.T) {
+	composeDir := t.TempDir()
+	composePath := filepath.Join(composeDir, "compose.yaml")
+	original := []byte("services:\n  new-api:\n    image: local/new-api:v1\n")
+	manuallyChanged := []byte("services:\n  new-api:\n    image: manually/changed:latest\n")
+	require.NoError(t, os.WriteFile(composePath, original, 0o600))
+	hash := sha256.Sum256(original)
+
+	const oldContainerID, newContainerID = "sync-failure-old", "sync-failure-new"
+	newDeleted, oldRenamedBack, oldRestarted := false, false, false
+	mux := newFakeMux()
+	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{"Id": oldContainerID, "Name": "/myapp", "Config": map[string]any{"Healthcheck": map[string]any{"Test": []string{"CMD", "true"}}}})
+		require.NoError(t, os.WriteFile(composePath, manuallyChanged, 0o600))
+	})
+	mux.handle(http.MethodGet, "/containers/"+newContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{"Id": newContainerID, "State": map[string]any{"Status": "running", "Running": true, "Health": map[string]any{"Status": "healthy"}}})
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/rename", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("name") == "myapp" {
+			oldRenamedBack = true
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": newContainerID})
+	})
+	mux.handle(http.MethodPost, "/containers/"+newContainerID+"/start", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.handle(http.MethodDelete, "/containers/"+newContainerID, func(w http.ResponseWriter, r *http.Request) { newDeleted = true; w.WriteHeader(http.StatusNoContent) })
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/start", func(w http.ResponseWriter, r *http.Request) { oldRestarted = true; w.WriteHeader(http.StatusNoContent) })
+
+	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
+	err := d.replaceContainer(context.Background(), oldContainerID, "local/new-api:v2", DockerRecreateOptions{
+		composePrepared: &composePreparedUpdate{
+			spec:         composeSyncSpec{ComposeFile: "compose.yaml", ComposeService: "new-api"},
+			originalHash: hash,
+			mountedDir:   composeDir,
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "synchronize compose declaration")
+	assert.True(t, newDeleted)
+	assert.True(t, oldRenamedBack)
+	assert.True(t, oldRestarted)
+	remaining, readErr := os.ReadFile(composePath)
+	require.NoError(t, readErr)
+	assert.Equal(t, manuallyChanged, remaining)
+}
+
+func TestEngineClient_ReplaceContainer_RetainsComposeBackupWhenOldRemovalFails(t *testing.T) {
+	composeDir := t.TempDir()
+	composePath := filepath.Join(composeDir, "compose.yaml")
+	original := []byte("services:\n  new-api:\n    image: local/new-api:v1\n")
+	require.NoError(t, os.WriteFile(composePath, original, 0o600))
+	hash := sha256.Sum256(original)
+
+	const oldContainerID, newContainerID = "partial-old", "partial-new"
+	mux := newFakeMux()
+	mux.handle(http.MethodGet, "/containers/"+oldContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{"Id": oldContainerID, "Name": "/myapp", "Config": map[string]any{"Healthcheck": map[string]any{"Test": []string{"CMD", "true"}}}})
+	})
+	mux.handle(http.MethodGet, "/containers/"+newContainerID+"/json", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, map[string]any{"Id": newContainerID, "State": map[string]any{"Status": "running", "Running": true, "Health": map[string]any{"Status": "healthy"}}})
+	})
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/stop", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.handle(http.MethodPost, "/containers/"+oldContainerID+"/rename", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.handle(http.MethodPost, "/containers/create", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusCreated, map[string]any{"Id": newContainerID})
+	})
+	mux.handle(http.MethodPost, "/containers/"+newContainerID+"/start", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.handle(http.MethodDelete, "/containers/"+oldContainerID, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "old removal failed", http.StatusInternalServerError)
+	})
+
+	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
+	err := d.replaceContainer(context.Background(), oldContainerID, "local/new-api:v2", DockerRecreateOptions{
+		composePrepared: &composePreparedUpdate{
+			spec:         composeSyncSpec{ComposeFile: "compose.yaml", ComposeService: "new-api"},
+			originalHash: hash,
+			mountedDir:   composeDir,
+		},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "replacement container is healthy and compose declaration is synchronized")
+	assert.Contains(t, err.Error(), "remove old container")
+	updated, readErr := os.ReadFile(composePath)
+	require.NoError(t, readErr)
+	assert.Contains(t, string(updated), "local/new-api:v2")
+	backups, globErr := filepath.Glob(filepath.Join(composeDir, ".compose.yaml.new-api-update-*.backup"))
+	require.NoError(t, globErr)
+	assert.Len(t, backups, 1, "backup must remain for manual recovery")
+}
 func TestEngineClient_ReplaceContainer_RemovesOldAfterHealthy(t *testing.T) {
 	const (
 		oldContainerID = "healthyold"
@@ -601,7 +1002,7 @@ func TestEngineClient_ReplaceContainer_RemovesOldAfterHealthy(t *testing.T) {
 	})
 
 	d := &dockerEngineImpl{client: fakeEngineClient(mux)}
-	require.NoError(t, d.replaceContainer(context.Background(), oldContainerID, "local/new-api:v2", true))
+	require.NoError(t, d.replaceContainer(context.Background(), oldContainerID, "local/new-api:v2", DockerRecreateOptions{DropDockerImageEnv: true}))
 	assert.True(t, deletedOld)
 }
 
@@ -620,6 +1021,38 @@ func TestReplacementContainerBody_NormalizesDockerGeneratedHostname(t *testing.T
 	ci.Config.Hostname = "custom-hostname"
 	body = replacementContainerBody(ci, "local/new-api:v2", false)
 	assert.Equal(t, "custom-hostname", body.Hostname)
+}
+
+func TestFilterEnv_RemovesOnlyExactEnvironmentKey(t *testing.T) {
+	env := []string{
+		"KEEP=one",
+		"NEWAPI_DOCKER_IMAGE=first",
+		"NEWAPI_DOCKER_IMAGE_EXTRA=retain",
+		"NEWAPI_DOCKER_IMAGE=",
+		"KEEP=two",
+		"NEWAPI_DOCKER_IMAGE=second",
+	}
+
+	assert.Equal(t, []string{
+		"KEEP=one",
+		"NEWAPI_DOCKER_IMAGE_EXTRA=retain",
+		"KEEP=two",
+	}, filterEnv(env, "NEWAPI_DOCKER_IMAGE"))
+	assert.Nil(t, filterEnv(nil, "NEWAPI_DOCKER_IMAGE"))
+	assert.Empty(t, filterEnv([]string{}, "NEWAPI_DOCKER_IMAGE"))
+}
+
+func TestReplacementContainerBody_DropsAllDockerImageEnvironmentValues(t *testing.T) {
+	ci := &ContainerInspect{}
+	ci.Config.Env = []string{
+		"NEWAPI_DOCKER_IMAGE=first",
+		"KEEP=one",
+		"NEWAPI_DOCKER_IMAGE_EXTRA=retain",
+		"NEWAPI_DOCKER_IMAGE=second",
+	}
+
+	body := replacementContainerBody(ci, "local/new-api:v2", true)
+	assert.Equal(t, []string{"KEEP=one", "NEWAPI_DOCKER_IMAGE_EXTRA=retain"}, body.Env)
 }
 
 func TestEngineClient_BuildImageWithBinary_PreservesImageDefaultCommand(t *testing.T) {
@@ -737,4 +1170,91 @@ func TestDrain_NilSafe(t *testing.T) {
 	drain(nil)
 	drain(&http.Response{Body: nil})
 	drain(&http.Response{Body: io.NopCloser(strings.NewReader("data"))})
+}
+
+func TestRunDockerUpdateHelper_RejectsInvalidArgumentsBeforeDocker(t *testing.T) {
+	base := []string{"/new-api", dockerUpdateHelperCommand, "old", "local/new-api:v2", "unix:///missing.sock", "true", ""}
+	validHash := sha256.Sum256([]byte("compose"))
+	validSpec, err := json.Marshal(composeSyncSpec{
+		ComposeFile:    "compose.yaml",
+		ComposeService: "new-api",
+		ExpectedSHA256: fmt.Sprintf("%x", validHash),
+	})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{name: "wrong count", args: base[:6]},
+		{name: "invalid bool", args: append(append([]string(nil), base[:5]...), "maybe", "")},
+		{name: "invalid base64", args: append(append([]string(nil), base[:6]...), "%%%")},
+		{name: "invalid JSON", args: append(append([]string(nil), base[:6]...), base64.RawURLEncoding.EncodeToString([]byte("{")))},
+		{name: "invalid spec", args: append(append([]string(nil), base[:6]...), base64.RawURLEncoding.EncodeToString([]byte(`{"compose_file":"../escape.yaml","compose_service":"new-api","expected_sha256":"0000000000000000000000000000000000000000000000000000000000000000"}`)))},
+		{name: "invalid checksum", args: append(append([]string(nil), base[:6]...), base64.RawURLEncoding.EncodeToString([]byte(`{"compose_file":"compose.yaml","compose_service":"new-api","expected_sha256":"not-a-checksum"}`)))},
+		{name: "unsafe service", args: append(append([]string(nil), base[:6]...), base64.RawURLEncoding.EncodeToString([]byte(`{"compose_file":"compose.yaml","compose_service":"../other","expected_sha256":"0000000000000000000000000000000000000000000000000000000000000000"}`)))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handled, err := RunDockerUpdateHelper(tc.args)
+			assert.True(t, handled)
+			require.Error(t, err)
+		})
+	}
+
+	encodedValidSpec := base64.RawURLEncoding.EncodeToString(validSpec)
+	handled, err := RunDockerUpdateHelper(append(append([]string(nil), base[:6]...), encodedValidSpec))
+	assert.True(t, handled)
+	require.Error(t, err, "a valid specification proceeds to Docker engine construction")
+}
+
+func TestRunDockerUpdateHelper_IgnoresNormalInvocation(t *testing.T) {
+	handled, err := RunDockerUpdateHelper([]string{"/new-api", "serve"})
+	assert.False(t, handled)
+	require.NoError(t, err)
+}
+
+func TestEngineClient_EscapesDockerResourceAndQueryValues(t *testing.T) {
+	requests := make(chan *http.Request, 4)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r
+		switch r.Method {
+		case http.MethodGet:
+			jsonResponse(w, http.StatusOK, map[string]any{"Id": "image-id"})
+		case http.MethodPost:
+			w.WriteHeader(http.StatusNoContent)
+		case http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer srv.Close()
+
+	d := &dockerEngineImpl{client: &engineClient{do: srv.Client().Do, base: srv.URL}}
+	ctx := context.Background()
+	require.NoError(t, d.renameContainer(ctx, "old/id", "new&name=value"))
+	require.NoError(t, d.deleteContainer(ctx, "old/id"))
+	_, err := d.inspectImage(ctx, "registry.example/app:tag/with?query")
+	require.NoError(t, err)
+	require.NoError(t, d.commitContainer(ctx, "old&id", "local/new-api&other=x", "v2?tag"))
+	close(requests)
+
+	var seen []string
+	for request := range requests {
+		seen = append(seen, request.Method+" "+request.URL.EscapedPath()+"?"+request.URL.RawQuery)
+		switch request.Method {
+		case http.MethodGet:
+			assert.Contains(t, request.URL.EscapedPath(), "%2F")
+		case http.MethodDelete:
+			assert.Contains(t, request.URL.EscapedPath(), "%2F")
+			assert.Equal(t, "true", request.URL.Query().Get("force"))
+		case http.MethodPost:
+			if request.URL.Path == "/commit" {
+				assert.Equal(t, "old&id", request.URL.Query().Get("container"))
+				assert.Equal(t, "local/new-api&other=x", request.URL.Query().Get("repo"))
+				assert.Equal(t, "v2?tag", request.URL.Query().Get("tag"))
+			} else {
+				assert.Equal(t, "new&name=value", request.URL.Query().Get("name"))
+			}
+		}
+	}
+	assert.Len(t, seen, 4)
 }
