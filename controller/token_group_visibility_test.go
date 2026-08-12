@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,9 +20,11 @@ import (
 
 func setupTokenGroupVisibilityTestDB(t *testing.T) {
 	t.Helper()
+	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "enforce")
 	db := openTokenControllerTestDB(t)
 	if err := db.AutoMigrate(
 		&model.Token{}, &model.User{}, &model.TokenGroupVisibility{}, &model.TokenGroupVisibilityTarget{},
+		&model.TokenGroupVisibilityRevision{},
 		&model.EntitlementPackage{}, &model.UserEntitlement{}, &model.TokenEntitlement{}, &model.EntitlementDailyUsage{},
 	); err != nil {
 		t.Fatalf("failed to migrate token visibility tables: %v", err)
@@ -82,6 +85,71 @@ func TestTokenGroupVisibilityAdminFlagOffDoesNotRequireSchema(t *testing.T) {
 	}
 }
 
+func TestTokenGroupVisibilityAdminReadReturnsDegradedStateOnDatabaseError(t *testing.T) {
+	if err := openTokenControllerTestDB(t).AutoMigrate(&model.Token{}, &model.User{}); err != nil {
+		t.Fatalf("failed to migrate baseline tables: %v", err)
+	}
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "enforce")
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/group/token-visibility", nil, 99)
+	GetTokenGroupVisibilityPolicies(ctx)
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatal("database policy read failure must not be reported as success")
+	}
+	var state model.TokenGroupVisibilityState
+	if err := common.Unmarshal(response.Data, &state); err != nil {
+		t.Fatalf("degraded response must retain canonical state data: %v body=%s", err, recorder.Body.String())
+	}
+	if state.Enabled != true || state.ReadSource != "database_error" || !state.Degraded || state.Policies == nil {
+		t.Fatalf("unexpected degraded state: %#v", state)
+	}
+}
+
+func TestTokenGroupVisibilityAdminBatchUsesDigestCAS(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	createVisibilityTestUser(t, 1, "cas-admin-target", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility/batch", map[string]any{
+		"policies":        []model.TokenGroupVisibilityPolicy{},
+		"expected_digest": "stale",
+		"allow_empty":     true,
+	}, 99)
+	ReplaceTokenGroupVisibilityPolicies(ctx)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("stale digest must return HTTP 409, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&model.TokenGroupVisibility{}).Error; err != nil {
+		t.Fatalf("stale CAS must keep existing policy: %v", err)
+	}
+}
+
+func TestTokenGroupVisibilityAdminBatchRequiresExpectedDigest(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	createVisibilityTestUser(t, 1, "cas-required-digest", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityPublic,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility/batch", map[string]any{
+		"policies":    []model.TokenGroupVisibilityPolicy{},
+		"allow_empty": true,
+	}, 99)
+	ReplaceTokenGroupVisibilityPolicies(ctx)
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatal("batch policy writes without expected_digest must be rejected")
+	}
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&model.TokenGroupVisibility{}).Error; err != nil {
+		t.Fatalf("missing digest rejection must not mutate the policy: %v", err)
+	}
+}
+
 func TestAddTokenEnforcesTargetedVisibility(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
@@ -135,6 +203,174 @@ func TestLegacyUsernameTargetInputIsResolvedToStableUserId(t *testing.T) {
 	}
 	if _, ok := groups["default"]; !ok {
 		t.Fatal("renaming a targeted user must not revoke the user_id-bound policy")
+	}
+}
+
+func TestDuplicateTargetsAreRejected(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	target := createVisibilityTestUser(t, 1, "duplicate-target", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id, target.Id},
+	}); err == nil {
+		t.Fatal("duplicate user IDs must be rejected")
+	}
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, Usernames: []string{"duplicate-target", "duplicate-target"},
+	}); err == nil {
+		t.Fatal("duplicate usernames must be rejected")
+	}
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id}, Usernames: []string{"duplicate-target"},
+	}); err == nil {
+		t.Fatal("the same user supplied through both ID and username must be rejected")
+	}
+}
+
+func TestNonTargetedPoliciesRejectTargetFields(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	for _, visibility := range []string{model.TokenGroupVisibilityPublic, model.TokenGroupVisibilityHidden} {
+		t.Run(visibility, func(t *testing.T) {
+			err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+				Group: "default", Visibility: visibility, UserIds: []int{1},
+			})
+			if err == nil {
+				t.Fatalf("%s policy with user_ids must be rejected", visibility)
+			}
+		})
+	}
+}
+
+func TestVisibilityPoliciesRejectNegativeTimeWindow(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	for _, policy := range []model.TokenGroupVisibilityPolicy{
+		{Group: "default", Visibility: model.TokenGroupVisibilityPublic, StartTime: -1},
+		{Group: "default", Visibility: model.TokenGroupVisibilityHidden, EndTime: -1},
+	} {
+		if err := model.SaveTokenGroupVisibilityPolicy(policy); err == nil {
+			t.Fatalf("negative time window must be rejected: %#v", policy)
+		}
+	}
+}
+
+func TestVisibilityCASRejectsStaleDigestAndProtectsEmptyState(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	createVisibilityTestUser(t, 1, "cas-target", "default")
+	requirePolicy := func(policy model.TokenGroupVisibilityPolicy) {
+		t.Helper()
+		if err := model.SaveTokenGroupVisibilityPolicy(policy); err != nil {
+			t.Fatal(err)
+		}
+	}
+	requirePolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic})
+	state, err := model.GetTokenGroupVisibilityState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := model.ReplaceTokenGroupVisibilityPoliciesCAS(nil, "stale"); !errors.Is(err, model.ErrTokenGroupVisibilityConflict) {
+		t.Fatalf("expected stale digest conflict, got %v", err)
+	}
+	updatedDigest, err := model.ReplaceTokenGroupVisibilityPoliciesCAS(nil, state.Digest)
+	if err != nil {
+		t.Fatalf("expected CAS clear to succeed with current digest: %v", err)
+	}
+	if updatedDigest == state.Digest {
+		t.Fatal("empty replacement must produce a new digest")
+	}
+}
+
+func TestVisibilityCASRejectsRevisionDriftAndSaveDeleteRefreshRevision(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	createVisibilityTestUser(t, 1, "revision-target", "default")
+	policy := model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic}
+	if err := model.SaveTokenGroupVisibilityPolicy(policy); err != nil {
+		t.Fatal(err)
+	}
+	state, err := model.GetTokenGroupVisibilityState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var revision model.TokenGroupVisibilityRevision
+	if err := model.DB.First(&revision, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.Digest != state.Digest {
+		t.Fatalf("Save must keep revision digest aligned: revision=%q state=%q", revision.Digest, state.Digest)
+	}
+	if err := model.DB.Model(&model.TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", "bad-revision-digest").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := model.ReplaceTokenGroupVisibilityPoliciesCAS(nil, state.Digest); !errors.Is(err, model.ErrTokenGroupVisibilityRevisionDrift) {
+		t.Fatalf("expected revision drift rejection, got %v", err)
+	}
+	var persisted model.TokenGroupVisibility
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&persisted).Error; err != nil {
+		t.Fatalf("revision drift must preserve policy: %v", err)
+	}
+	if persisted.Visibility != model.TokenGroupVisibilityPublic {
+		t.Fatalf("revision drift changed policy unexpectedly: %#v", persisted)
+	}
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden}); !errors.Is(err, model.ErrTokenGroupVisibilityRevisionDrift) {
+		t.Fatalf("Save must reject a stale revision digest, got %v", err)
+	}
+	if err := model.DB.Model(&model.TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", "").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden}); err != nil {
+		t.Fatalf("Save must initialize and refresh an empty revision digest: %v", err)
+	}
+	updatedPolicies, err := model.GetTokenGroupVisibilityPolicies()
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedDigest := model.TokenGroupVisibilityPoliciesDigest(updatedPolicies)
+	if err := model.DB.First(&revision, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.Digest != updatedDigest {
+		t.Fatalf("Save left revision digest stale: revision=%q policies=%q", revision.Digest, updatedDigest)
+	}
+	if err := model.DeleteTokenGroupVisibilityPolicy("default"); err != nil {
+		t.Fatalf("Delete must refresh revision digest atomically: %v", err)
+	}
+	updatedPolicies, err = model.GetTokenGroupVisibilityPolicies()
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedDigest = model.TokenGroupVisibilityPoliciesDigest(updatedPolicies)
+	if err := model.DB.First(&revision, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.Digest != updatedDigest {
+		t.Fatalf("Delete left revision digest stale: revision=%q policies=%q", revision.Digest, updatedDigest)
+	}
+}
+
+func TestTokenGroupVisibilityAdminBatchRejectsRevisionDrift(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	createVisibilityTestUser(t, 1, "revision-controller-target", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := model.GetTokenGroupVisibilityState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := model.DB.Model(&model.TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", "bad-revision-digest").Error; err != nil {
+		t.Fatal(err)
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility/batch", map[string]any{
+		"policies":        []model.TokenGroupVisibilityPolicy{},
+		"expected_digest": state.Digest,
+		"allow_empty":     true,
+	}, 99)
+	ReplaceTokenGroupVisibilityPolicies(ctx)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("revision drift must return HTTP 409, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&model.TokenGroupVisibility{}).Error; err != nil {
+		t.Fatalf("revision drift must preserve policy: %v", err)
 	}
 }
 
@@ -347,9 +583,11 @@ func TestEntitlementRemainsIndependentFromHiddenAndTargetedVisibility(t *testing
 
 	setVisibility := func(visibility string) {
 		t.Helper()
-		if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
-			Group: "default", Visibility: visibility, UserIds: []int{target.Id},
-		}); err != nil {
+		policy := model.TokenGroupVisibilityPolicy{Group: "default", Visibility: visibility}
+		if visibility == model.TokenGroupVisibilityTargeted {
+			policy.UserIds = []int{target.Id}
+		}
+		if err := model.SaveTokenGroupVisibilityPolicy(policy); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -405,7 +643,7 @@ func TestVisibilityWithoutPolicyPreservesSelectableGroups(t *testing.T) {
 	}
 }
 
-func TestUpdateTokenAllowsEditingExistingHiddenGroupButRejectsMovingIntoIt(t *testing.T) {
+func TestUpdateTokenRejectsExistingHiddenGroupEditsButAllowsDisable(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
 	user := createVisibilityTestUser(t, 1, "bob", "default")
@@ -436,8 +674,24 @@ func TestUpdateTokenAllowsEditingExistingHiddenGroupButRejectsMovingIntoIt(t *te
 		"id": token.Id, "name": "edited", "group": "default", "expired_time": -1, "unlimited_quota": true,
 	}, user.Id)
 	UpdateToken(ctx)
+	if decodeAPIResponse(t, recorder).Success {
+		t.Fatal("editing an existing hidden-group token must be rejected for a non-target user")
+	}
+
+	ctx, recorder = newAuthenticatedContext(t, http.MethodPut, "/api/token/?status_only=1", map[string]any{
+		"id": token.Id, "status": common.TokenStatusDisabled, "group": "default",
+	}, user.Id)
+	UpdateToken(ctx)
 	if !decodeAPIResponse(t, recorder).Success {
-		t.Fatalf("expected editing an existing token without changing its hidden group to succeed: %s", recorder.Body.String())
+		t.Fatalf("disabling an existing hidden-group token should remain allowed: %s", recorder.Body.String())
+	}
+
+	ctx, recorder = newAuthenticatedContext(t, http.MethodPut, "/api/token/?status_only=1", map[string]any{
+		"id": token.Id, "status": common.TokenStatusEnabled, "group": "default",
+	}, user.Id)
+	UpdateToken(ctx)
+	if decodeAPIResponse(t, recorder).Success {
+		t.Fatal("re-enabling an existing hidden-group token must be rejected for a non-target user")
 	}
 
 	ctx, recorder = newAuthenticatedContext(t, http.MethodPut, "/api/token/", map[string]any{
@@ -469,15 +723,17 @@ func TestVisibilityTimeBoundariesAndDatabaseReadThrough(t *testing.T) {
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden, StartTime: now + 60}); err != nil {
 		t.Fatal(err)
 	}
-	assertSelectable(true)
+	assertSelectable(false)
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden, EndTime: now - 1}); err != nil {
 		t.Fatal(err)
 	}
-	assertSelectable(true)
+	// Expired hidden policies remain fail-closed until an administrator
+	// explicitly changes the policy to public or removes it.
+	assertSelectable(false)
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden, EndTime: now}); err != nil {
 		t.Fatal(err)
 	}
-	assertSelectable(true)
+	assertSelectable(false)
 	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden, StartTime: now, EndTime: now + 60}); err != nil {
 		t.Fatal(err)
 	}
@@ -487,6 +743,100 @@ func TestVisibilityTimeBoundariesAndDatabaseReadThrough(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertSelectable(true)
+}
+
+func TestTargetedPolicyDirectlyGrantsNonGlobalGroup(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	original := setting.UserUsableGroups2JSONString()
+	t.Cleanup(func() {
+		if err := setting.UpdateUserUsableGroupsByJSONString(original); err != nil {
+			t.Fatalf("failed to restore user usable groups: %v", err)
+		}
+	})
+	if err := setting.UpdateUserUsableGroupsByJSONString(`{"default":"默认分组"}`); err != nil {
+		t.Fatal(err)
+	}
+	target := createVisibilityTestUser(t, 1, "direct-target", "default")
+	other := createVisibilityTestUser(t, 2, "direct-other", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "svip", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	targetGroups, err := service.GetUserSelectableTokenGroups(target.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if desc, ok := targetGroups["svip"]; !ok || desc == "" {
+		t.Fatalf("targeted user must receive non-global group directly, got %#v", targetGroups)
+	}
+	otherGroups, err := service.GetUserSelectableTokenGroups(other.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := otherGroups["svip"]; ok {
+		t.Fatalf("non-target user must not receive targeted non-global group: %#v", otherGroups)
+	}
+}
+
+func TestShadowModePreservesLegacyDecision(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "shadow")
+	target := createVisibilityTestUser(t, 1, "shadow-target", "default")
+	other := createVisibilityTestUser(t, 2, "shadow-other", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "default", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	groups, err := service.GetUserSelectableTokenGroups(other.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := groups["default"]; !ok {
+		t.Fatal("shadow mode must preserve legacy access while reporting a diff")
+	}
+}
+
+func TestInvalidVisibilityModeFailsClosed(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "unexpected")
+	user := createVisibilityTestUser(t, 1, "invalid-mode", "default")
+	state, err := model.GetTokenGroupVisibilityState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Mode != model.TokenGroupVisibilityModeInvalid || !state.Degraded {
+		t.Fatalf("invalid mode must be visible as degraded state: %#v", state)
+	}
+	if _, err := service.GetUserSelectableTokenGroups(user.Id); err == nil {
+		t.Fatal("invalid mode must fail closed instead of returning legacy groups")
+	}
+}
+
+func TestInvalidVisibilityModeRejectsBatchWrites(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "unexpected")
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility/batch", map[string]any{
+		"policies":        []model.TokenGroupVisibilityPolicy{{Group: "default", Visibility: model.TokenGroupVisibilityPublic}},
+		"expected_digest": "invalid-mode-snapshot",
+		"allow_empty":     true,
+	}, 99)
+	ReplaceTokenGroupVisibilityPolicies(ctx)
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatal("invalid visibility mode must reject administrative writes")
+	}
+	var state model.TokenGroupVisibilityState
+	if err := common.Unmarshal(response.Data, &state); err != nil {
+		t.Fatalf("invalid mode write response must retain state data: %v", err)
+	}
+	if !state.Degraded || state.Mode != model.TokenGroupVisibilityModeInvalid {
+		t.Fatalf("unexpected invalid-mode write state: %#v", state)
+	}
 }
 
 func TestTargetedVisibilityReadsUserIdTargetsThroughDatabase(t *testing.T) {
@@ -623,7 +973,7 @@ func TestReplaceTokenGroupVisibilityPoliciesIsAtomic(t *testing.T) {
 	}
 }
 
-func TestReplaceTokenGroupVisibilityPoliciesAllowsExistingOrphansOnly(t *testing.T) {
+func TestReplaceTokenGroupVisibilityPoliciesRejectsOrphans(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
 	t.Cleanup(func() {
@@ -643,15 +993,15 @@ func TestReplaceTokenGroupVisibilityPoliciesAllowsExistingOrphansOnly(t *testing
 
 	if err := model.ReplaceTokenGroupVisibilityPolicies([]model.TokenGroupVisibilityPolicy{
 		{Group: "default", Visibility: model.TokenGroupVisibilityHidden},
-	}); err != nil {
-		t.Fatalf("existing orphan should remain editable in full replacement: %v", err)
+	}); err == nil {
+		t.Fatal("existing orphan must be rejected in full replacement")
 	}
 	policies, err := model.GetTokenGroupVisibilityPolicies()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(policies) != 1 || policies[0].Group != "default" || policies[0].Visibility != model.TokenGroupVisibilityHidden {
-		t.Fatalf("existing orphan replacement was not persisted: %#v", policies)
+	if len(policies) != 1 || policies[0].Group != "default" || policies[0].Visibility != model.TokenGroupVisibilityPublic {
+		t.Fatalf("rejected orphan replacement must leave DB unchanged: %#v", policies)
 	}
 
 	if err := model.ReplaceTokenGroupVisibilityPolicies([]model.TokenGroupVisibilityPolicy{

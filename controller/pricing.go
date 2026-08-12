@@ -33,6 +33,36 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
+// filterPricingByVisibilityForUser applies the same model-level visibility
+// resolver used by /v1/models to pricing rows.  In particular, an `all` entry
+// is only a legacy group shortcut; it must not bypass an explicit hidden or
+// targeted policy once enforcement is active.  Anonymous callers retain the
+// existing public pricing semantics.
+func filterPricingByVisibilityForUser(pricing []model.Pricing, userId int) ([]model.Pricing, error) {
+	if userId <= 0 || !model.TokenGroupVisibilityEnforced() || len(pricing) == 0 {
+		return pricing, nil
+	}
+	modelNames := make([]string, 0, len(pricing))
+	for _, item := range pricing {
+		modelNames = append(modelNames, item.ModelName)
+	}
+	authorizedNames, err := service.FilterModelsByUserGroups(userId, modelNames)
+	if err != nil {
+		return nil, err
+	}
+	allowed := make(map[string]struct{}, len(authorizedNames))
+	for _, name := range authorizedNames {
+		allowed[name] = struct{}{}
+	}
+	filtered := make([]model.Pricing, 0, len(pricing))
+	for _, item := range pricing {
+		if _, ok := allowed[item.ModelName]; ok {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
+}
+
 func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
@@ -71,6 +101,14 @@ func GetPricing(c *gin.Context) {
 		autoGroups = service.GetUserAutoGroup(group)
 	}
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
+	if exists {
+		filteredPricing, visibilityErr := filterPricingByVisibilityForUser(pricing, userId.(int))
+		if visibilityErr != nil {
+			common.ApiError(c, visibilityErr)
+			return
+		}
+		pricing = filteredPricing
+	}
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; !ok {

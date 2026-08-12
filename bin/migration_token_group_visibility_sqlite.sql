@@ -23,3 +23,10 @@ CREATE TABLE IF NOT EXISTS "token_group_visibility_targets" (
 CREATE INDEX IF NOT EXISTS "idx_token_group_visibility_targets_visibility_id" ON "token_group_visibility_targets" ("visibility_id");
 CREATE INDEX IF NOT EXISTS "idx_token_group_visibility_targets_user_id" ON "token_group_visibility_targets" ("user_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_visibility_user" ON "token_group_visibility_targets" ("visibility_id", "user_id");
+
+CREATE TABLE IF NOT EXISTS "token_group_visibility_revisions" (
+  "id" integer PRIMARY KEY,
+  "digest" varchar(64) NOT NULL DEFAULT '',
+  "updated_at" datetime NOT NULL
+);
+INSERT OR IGNORE INTO "token_group_visibility_revisions" ("id", "digest", "updated_at") VALUES (1, '', CURRENT_TIMESTAMP);

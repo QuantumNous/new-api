@@ -113,7 +113,7 @@ func p2GORMIndexNames(t *testing.T) []string {
 	t.Helper()
 	names := make([]string, 0, 5)
 	cache := &sync.Map{}
-	for _, value := range []interface{}{&TokenGroupVisibility{}, &TokenGroupVisibilityTarget{}} {
+	for _, value := range []interface{}{&TokenGroupVisibility{}, &TokenGroupVisibilityTarget{}, &TokenGroupVisibilityRevision{}} {
 		parsed, err := schema.Parse(value, cache, schema.NamingStrategy{})
 		require.NoError(t, err)
 		for _, index := range parsed.ParseIndexes() {
@@ -159,6 +159,9 @@ func TestTokenGroupVisibilityHandwrittenSQLiteDDLIsAutoMigrateStable(t *testing.
 	db := openP2SQLiteMigrationTestDB(t)
 	sql := readP2MigrationSQL(t, "migration_token_group_visibility_sqlite.sql")
 	require.NoError(t, db.Exec(sql).Error)
+	var revisions []TokenGroupVisibilityRevision
+	require.NoError(t, db.Find(&revisions).Error)
+	require.Len(t, revisions, 1)
 
 	before := make(map[string]sqliteIndexSnapshot)
 	for table, indexes := range map[string]map[string]sqliteIndexSnapshot{
@@ -170,7 +173,7 @@ func TestTokenGroupVisibilityHandwrittenSQLiteDDLIsAutoMigrateStable(t *testing.
 		}
 	}
 
-	require.NoError(t, db.AutoMigrate(&TokenGroupVisibility{}, &TokenGroupVisibilityTarget{}))
+	require.NoError(t, db.AutoMigrate(&TokenGroupVisibility{}, &TokenGroupVisibilityTarget{}, &TokenGroupVisibilityRevision{}))
 
 	after := make(map[string]sqliteIndexSnapshot)
 	for table, indexes := range map[string]map[string]sqliteIndexSnapshot{
@@ -215,5 +218,14 @@ func TestTokenGroupVisibilityStartEndTagsUseExplicitBigintType(t *testing.T) {
 		field, ok := parsedTarget.FieldsByDBName[column]
 		require.True(t, ok, "missing %s field", column)
 		require.Equal(t, "bigint", field.TagSettings["TYPE"], "unexpected %s type tag", column)
+	}
+}
+
+func TestTokenGroupVisibilityRevisionSchema(t *testing.T) {
+	parsed, err := schema.Parse(&TokenGroupVisibilityRevision{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+	for _, column := range []string{"id", "digest", "updated_at"} {
+		_, ok := parsed.FieldsByDBName[column]
+		require.True(t, ok, "missing %s field", column)
 	}
 }
