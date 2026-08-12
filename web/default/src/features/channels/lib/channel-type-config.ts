@@ -295,6 +295,21 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Async Seedance via POST/GET /v1/video/generations. Client uses logic model names; adaptor maps resolution (default 720p) to sd-2-0-* / sd-2-0-mini-* / sd-2-5-*. Unsupported tiers return 400. per_second + resolution billing.',
     },
   },
+  69: {
+    id: 69,
+    name: CHANNEL_TYPES[69],
+    icon: 'openai',
+    defaultBaseUrl: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
+    supportedModels: ['seedance2.0-yk-933', 'seedance2.0-ykst-933'],
+    hints: {
+      key: 'Bearer token (KYY / yk-video API Key)',
+      models:
+        'Client: seedance2.0-yk-933 → videos_933_c1; seedance2.0-ykst-933 → videos_stable (per-task)',
+      baseUrl: 'Default: https://zcbservice.aizfw.cn/kyyReactApiServer',
+      other:
+        'Async video: POST /v2/model-center/tasks, poll GET /v2/model-center/tasks/{id}. Supports reference_images/videos/audios, first_image/last_image, and VolcEngine content[] normalize. Completed tasks expose video_url/result_url.',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [

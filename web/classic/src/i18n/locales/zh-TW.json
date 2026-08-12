@@ -3865,6 +3865,8 @@
     "sora2u_key_prompt": "格式：Bearer token（Sora2U API Key，sk_sora_...）",
     "zzdh_key_prompt": "格式：Bearer token（zz API Key）",
     "mao_key_prompt": "格式：Bearer token（catertx / mao API Key）",
+    "ykvideo_key_prompt": "格式：Bearer token（KYY / yk-video API Key）",
+    "yk-video 渠道说明": "yk-video（KYY model-center）非同步影片：對外模型 seedance2.0-yk-933→videos_933_c1、seedance2.0-ykst-933→videos_stable（按次）。提交 POST /v2/model-center/tasks，查詢 GET /v2/model-center/tasks/{id}。支援 reference_images/videos/audios、首尾幀，以及火山官方 content[] 正規化。預設 Base URL https://zcbservice.aizfw.cn/kyyReactApiServer，Key 為 Bearer token。",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "speed 字段用於控制 Claude 推理速度模式。預設關閉以避免意外切換到 fast 模式",
     "SSE 事件": "SSE 事件",
     "SSE数据流": "SSE數據流",

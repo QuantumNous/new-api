@@ -3972,6 +3972,8 @@
     "sora2u_key_prompt": "Format: Bearer token (Sora2U API Key, sk_sora_...)",
     "zzdh_key_prompt": "Format: Bearer token (zz API Key)",
     "mao_key_prompt": "Format: Bearer token (catertx / mao API Key)",
+    "ykvideo_key_prompt": "Format: Bearer token (KYY / yk-video API Key)",
+    "yk-video 渠道说明": "yk-video (KYY model-center) async video: client models seedance2.0-yk-933→videos_933_c1, seedance2.0-ykst-933→videos_stable (per-task). POST /v2/model-center/tasks, poll GET /v2/model-center/tasks/{id}. Supports reference_images/videos/audios, first/last frame, and VolcEngine content[] normalize. Default Base URL https://zcbservice.aizfw.cn/kyyReactApiServer. Key is a Bearer token.",
     "speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式": "The speed field controls Claude inference speed mode. Disabled by default to avoid unintentionally switching to fast mode",
     "SSE 事件": "SSE Events",
     "SSE数据流": "SSE Stream",

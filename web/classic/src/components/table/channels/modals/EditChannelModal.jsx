@@ -172,6 +172,8 @@ function type2secretPrompt(type) {
       return 'zzdh_key_prompt';
     case 68:
       return 'mao_key_prompt';
+    case 69:
+      return 'ykvideo_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -795,6 +797,13 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://api.catertx.com',
+          }));
+          break;
+        case 69: // yk-video
+          localModels = ['seedance2.0-yk-933', 'seedance2.0-ykst-933'];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
           }));
           break;
         default:
@@ -2874,7 +2883,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65 || inputs.type === 66 || inputs.type === 67 || inputs.type === 68) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65 || inputs.type === 66 || inputs.type === 67 || inputs.type === 68 || inputs.type === 69) && (
                       <Banner
                         type='info'
                         closeIcon={null}
@@ -2896,7 +2905,9 @@ const EditChannelModal = (props) => {
                                         ? 'zz 渠道说明'
                                         : inputs.type === 68
                                           ? 'mao 渠道说明'
-                                          : '异步视频渠道通用说明',
+                                          : inputs.type === 69
+                                            ? 'yk-video 渠道说明'
+                                            : '异步视频渠道通用说明',
                         )}
                       />
                     )}
