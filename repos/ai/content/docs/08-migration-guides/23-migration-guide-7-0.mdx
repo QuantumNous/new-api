@@ -1,0 +1,1911 @@
+---
+title: Migrate AI SDK 6.x to 7.0
+description: Learn how to upgrade AI SDK 6.x to 7.0.
+---
+
+# Migrate AI SDK 6.x to 7.0
+
+Use the command below to add the migration skill:
+
+```bash
+npx skills add vercel/ai --skill migrate-ai-sdk-v6-to-v7
+```
+
+Then ask your agent:
+
+```txt
+Use the migrate-ai-sdk-v6-to-v7 skill and migrate my app from AI SDK v6 to v7.
+```
+
+## Recommended Migration Process
+
+1. Backup your project. If you use a versioning control system, make sure all previous versions are committed.
+1. Upgrade to AI SDK 7.0.
+1. Follow the breaking changes guide below.
+1. Verify your project is working as expected.
+1. Commit your changes.
+
+An example upgrade command would be:
+
+```
+pnpm install ai @ai-sdk/react @ai-sdk/openai @ai-sdk/otel
+```
+
+## Codemods
+
+The AI SDK provides Codemod transformations to help upgrade your codebase when a
+feature is deprecated, removed, or otherwise changed.
+
+Codemods are transformations that run on your codebase automatically. They
+allow you to easily apply many changes without having to manually go through
+every file.
+
+You can run all v7 codemods (v6 -> v7 migration) by running the following
+command from the root of your project:
+
+```sh
+npx @ai-sdk/codemod v7
+```
+
+Individual codemods can be run by specifying the name of the codemod:
+
+```sh
+npx @ai-sdk/codemod <codemod-name> <path>
+```
+
+For example, to run a specific v7 codemod:
+
+```sh
+npx @ai-sdk/codemod v7/rename-system-to-instructions src/
+```
+
+<Note>
+  Codemods are intended as a tool to help you with the upgrade process. They may
+  not cover all of the changes you need to make. You may need to make additional
+  changes manually.
+</Note>
+
+## Codemod Table
+
+| Codemod Name                                                        | Description                                                                                         |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `remove-experimental-custom-provider`                               | Replaces `experimental_customProvider` with `customProvider`                                        |
+| `remove-experimental-generate-image`                                | Replaces `experimental_generateImage` and `Experimental_GenerateImageResult` with stable names      |
+| `replace-experimental-output-with-output`                           | Replaces `experimental_output` options and result access with `output`                              |
+| `remove-experimental-prepare-step`                                  | Replaces `experimental_prepareStep` with `prepareStep`                                              |
+| `replace-cached-input-tokens`                                       | Replaces `usage.cachedInputTokens` with `usage.inputTokenDetails.cacheReadTokens`                   |
+| `replace-reasoning-tokens`                                          | Replaces `usage.reasoningTokens` with `usage.outputTokenDetails.reasoningTokens`                    |
+| `remove-experimental-active-tools`                                  | Replaces `experimental_activeTools` with `activeTools`                                              |
+| `remove-tool-call-options-type`                                     | Replaces the removed `ToolCallOptions` type with `ToolExecutionOptions`                             |
+| `remove-is-tool-or-dynamic-tool-uipart`                             | Replaces `isToolOrDynamicToolUIPart` with `isToolUIPart`                                            |
+| `remove-media-content-part-type`                                    | Replaces tool result content parts with `type: 'media'` with `type: 'file-data'`                    |
+| `replace-anthropic-cache-creation-input-tokens`                     | Replaces Anthropic `cacheCreationInputTokens` metadata access with standard usage fields            |
+| `rename-experimental-transcribe`                                    | Renames `experimental_transcribe` and `Experimental_TranscriptionResult` to stable names            |
+| `rename-experimental-generate-speech`                               | Renames `experimental_generateSpeech` and `Experimental_SpeechResult` to stable names               |
+| `rename-call-settings-type`                                         | Replaces `CallSettings` with `LanguageModelCallOptions & Omit<RequestOptions, 'timeout'>`           |
+| `rename-step-count-is`                                              | Renames `stepCountIs` to `isStepCount`                                                              |
+| `rename-system-to-instructions`                                     | Renames `system` prompt options, lifecycle fields, and repair-tool-call fields to `instructions`    |
+| `rename-experimental-on-start-to-on-start`                          | Renames `experimental_onStart` to `onStart`                                                         |
+| `rename-experimental-on-step-start-to-on-step-start`                | Renames `experimental_onStepStart` to `onStepStart`                                                 |
+| `rename-on-finish-to-on-end`                                        | Renames `onFinish` callbacks to `onEnd`                                                             |
+| `rename-on-step-finish-to-on-step-end`                              | Renames `onStepFinish` callbacks to `onStepEnd`                                                     |
+| `rename-experimental-on-finish-to-on-end`                           | Renames `experimental_onFinish` callbacks to `onEnd`                                                |
+| `rename-experimental-telemetry-to-telemetry`                        | Renames `experimental_telemetry` options to `telemetry`                                             |
+| `rename-on-rerank-finish-to-on-rerank-end`                          | Renames telemetry `onRerankFinish` callbacks to `onRerankEnd`                                       |
+| `rename-on-embed-finish-to-on-embed-end`                            | Renames telemetry `onEmbedFinish` callbacks to `onEmbedEnd`                                         |
+| `rename-full-stream-to-stream`                                      | Renames `streamText` result `fullStream` access to `stream`                                         |
+| `move-include-raw-chunks-to-include`                                | Moves `includeRawChunks` into `include.rawChunks`                                                   |
+| `rename-experimental-include-to-include`                            | Renames `experimental_include` to `include`                                                         |
+| `rename-experimental-on-tool-call-start-to-on-tool-execution-start` | Renames `experimental_onToolCallStart` to `onToolExecutionStart`                                    |
+| `rename-experimental-on-tool-call-finish-to-on-tool-execution-end`  | Renames `experimental_onToolCallFinish` to `onToolExecutionEnd`                                     |
+| `rename-experimental-context-to-context`                            | Renames tool callback `experimental_context` access to `context`                                    |
+| `rename-google-generative-ai-to-google`                             | Renames Google provider types, classes, and functions that include `GoogleGenerativeAI` to `Google` |
+| `replace-image-message-part-with-file`                              | Replaces image message parts with file parts using `mediaType: 'image'`                             |
+
+## All Packages
+
+### Minimum Node.js Version
+
+AI SDK 7.0 requires **Node.js 22** or later. The SDK is tested on Node.js **22**, **24**, and **26**.
+
+Node.js 18 and 20 are no longer supported. Node.js 22 reached end-of-maintenance on **April 30, 2026**; for production workloads, prefer **Node.js 24 (LTS)** or **Node.js 26**. See the [Node.js release schedule](https://nodejs.org/en/about/previous-releases) for current status and support timelines.
+
+Update the `engines` field in your `package.json` if you enforce a minimum Node.js version:
+
+```json filename="package.json"
+{
+  "engines": {
+    "node": ">=22"
+  }
+}
+```
+
+### ESM Only — CommonJS Support Removed
+
+All AI SDK packages are now ESM-only. The `require()` function is no longer supported.
+
+If your project uses CommonJS (`require()`), switch to ESM `import` syntax:
+
+```tsx filename="Before (CommonJS)"
+const { generateText } = require('ai');
+const { openai } = require('@ai-sdk/openai');
+```
+
+```tsx filename="After (ESM)"
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+```
+
+If your `package.json` does not already include `"type": "module"`, add it or rename your files to use the `.mjs` extension.
+
+## AI SDK Core
+
+### Core API Renames and Removals
+
+#### Provider Management: Remove Deprecated `experimental_customProvider`
+
+The deprecated `experimental_customProvider` export has been removed in AI SDK 7. Replace it with `customProvider`.
+
+```tsx filename="AI SDK 6"
+import { experimental_customProvider } from 'ai';
+
+export const myProvider = experimental_customProvider({
+  languageModels: {
+    // ...
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+import { customProvider } from 'ai';
+
+export const myProvider = customProvider({
+  languageModels: {
+    // ...
+  },
+});
+```
+
+This is only an import and symbol rename. The `customProvider` options and
+behavior are unchanged.
+
+#### Remove Deprecated `experimental_generateImage` Export
+
+The deprecated `experimental_generateImage` export has been removed in AI SDK 7. Replace it with `generateImage`.
+
+The deprecated `Experimental_GenerateImageResult` type export has also been removed. Replace it with `GenerateImageResult`.
+
+```tsx filename="AI SDK 6"
+import {
+  experimental_generateImage,
+  type Experimental_GenerateImageResult,
+} from 'ai';
+
+const result: Experimental_GenerateImageResult =
+  await experimental_generateImage({
+    model: yourImageModel,
+    prompt: 'A red panda eating bamboo',
+  });
+```
+
+```tsx filename="AI SDK 7"
+import { generateImage, type GenerateImageResult } from 'ai';
+
+const result: GenerateImageResult = await generateImage({
+  model: yourImageModel,
+  prompt: 'A red panda eating bamboo',
+});
+```
+
+#### `experimental_transcribe` Renamed to `transcribe`
+
+The transcription API has graduated out of experimental status and has been
+renamed to `transcribe`. The `Experimental_TranscriptionResult` type has also
+been renamed to `TranscriptionResult`.
+
+```tsx filename="AI SDK 6"
+import {
+  experimental_transcribe as transcribe,
+  type Experimental_TranscriptionResult,
+} from 'ai';
+
+const result: Experimental_TranscriptionResult = await transcribe({
+  model: yourTranscriptionModel,
+  audio,
+});
+```
+
+```tsx filename="AI SDK 7"
+import { transcribe, type TranscriptionResult } from 'ai';
+
+const result: TranscriptionResult = await transcribe({
+  model: yourTranscriptionModel,
+  audio,
+});
+```
+
+The old names continue to work as deprecated aliases in AI SDK 7 and will be
+removed in a future major release.
+
+#### `experimental_generateSpeech` Renamed to `generateSpeech`
+
+The speech generation function has graduated out of experimental status and has
+been renamed to `generateSpeech`. The `Experimental_SpeechResult` type has also
+been renamed to `SpeechResult`.
+
+```tsx filename="AI SDK 6"
+import { experimental_generateSpeech as generateSpeech } from 'ai';
+
+const result = await generateSpeech({
+  model: yourSpeechModel,
+  text: 'Hello',
+});
+```
+
+```tsx filename="AI SDK 7"
+import { generateSpeech } from 'ai';
+
+const result = await generateSpeech({
+  model: yourSpeechModel,
+  text: 'Hello',
+});
+```
+
+The old `experimental_generateSpeech` and `Experimental_SpeechResult` exports
+continue to work as deprecated aliases in AI SDK 7 and will be removed in a
+future major release.
+
+#### Structured Outputs: Remove Deprecated `experimental_output` Option and Result
+
+The deprecated `experimental_output` option has been removed in AI SDK 7. Replace all remaining usages with `output`.
+
+The deprecated `generateText()` result property `experimental_output` has also been removed. Read `result.output` instead.
+
+This name was deprecated in AI SDK 6, so if you already migrated to `output`, no changes are needed. Otherwise, update both the call options and any result access:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  experimental_output: Output.object({
+    schema: recipeSchema,
+  }),
+  prompt: 'Generate a recipe.',
+});
+
+console.log(result.experimental_output);
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  output: Output.object({
+    schema: recipeSchema,
+  }),
+  prompt: 'Generate a recipe.',
+});
+
+console.log(result.output);
+```
+
+#### `CallSettings` Renamed to `LanguageModelCallOptions` and `RequestOptions`
+
+`CallSettings` has been split into `LanguageModelCallOptions` (model-facing options) and `RequestOptions` (transport options). Replace usages in custom wrappers or helpers:
+
+- `CallSettings` → `LanguageModelCallOptions & Omit<RequestOptions, 'timeout'>` (note: `CallSettings` never included `timeout`)
+
+The deprecated `CallSettings` type remains available in AI SDK 7.
+
+#### Stop Condition Helper Rename: `stepCountIs` -> `isStepCount`
+
+Rename imports and usage in tool-loop stop conditions:
+
+```tsx filename="Before"
+import { stepCountIs } from 'ai';
+
+stopWhen: stepCountIs(3);
+```
+
+```tsx filename="After"
+import { isStepCount } from 'ai';
+
+stopWhen: isStepCount(3);
+```
+
+### Prompts and Step Preparation
+
+#### `system` Renamed to `instructions`
+
+The top-level prompt option for system instructions has been renamed from
+`system` to `instructions`.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  system: 'You are a helpful assistant.',
+  prompt: 'Hello!',
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  instructions: 'You are a helpful assistant.',
+  prompt: 'Hello!',
+});
+```
+
+This applies to AI SDK functions that accept `prompt` or `messages`, including
+`generateText`, `streamText`, `generateObject`, `streamObject`, and `streamUI`.
+
+The same rename applies to `prepareStep` results for `generateText` and
+`streamText`, and to the options passed into `experimental_repairToolCall`:
+
+```tsx filename="AI SDK 6"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello!',
+  prepareStep: () => ({
+    system: 'Use concise answers for this step.',
+  }),
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello!',
+  prepareStep: () => ({
+    instructions: 'Use concise answers for this step.',
+  }),
+});
+```
+
+The `system` option is still accepted as a deprecated fallback. When both
+`instructions` and `system` are provided, `instructions` takes precedence.
+
+#### `prepareStep` Instructions Carry Forward
+
+In AI SDK 7, instructions returned from `prepareStep` are used in future steps
+until `prepareStep` returns another `instructions` or `system` override. This
+matches how `messages` returned from `prepareStep` carry forward.
+
+In AI SDK 6, `prepareStep` instruction overrides only applied to the current
+step. Later steps fell back to the top-level `system` instructions unless they
+returned their own override.
+
+If your `prepareStep` logic depends on one-step-only instruction overrides,
+return the desired instructions for each step explicitly:
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  instructions: 'Use the default behavior.',
+  prompt: 'Hello!',
+  prepareStep: ({ stepNumber, initialInstructions }) => ({
+    instructions:
+      stepNumber === 0
+        ? 'Use special instructions for the first step.'
+        : initialInstructions,
+  }),
+});
+```
+
+The `prepareStep` callback receives both `instructions`, which is the current
+instruction state for the step, and `initialInstructions`, which is the
+top-level instruction value from the original call.
+
+If your tool call repair function forwards the current system instructions to
+another model call, read and pass `instructions` instead of `system`:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  tools,
+  prompt: 'Hello!',
+  experimental_repairToolCall: async ({ system, messages }) => {
+    return repairWithModel({ system, messages });
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  tools,
+  prompt: 'Hello!',
+  experimental_repairToolCall: async ({ instructions, messages }) => {
+    return repairWithModel({ instructions, messages });
+  },
+});
+```
+
+Lifecycle callback events for `generateText`, `streamText`, and agents also use
+`instructions` instead of `system`:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  experimental_onStart: ({ system }) => {
+    console.log(system);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  onStart: ({ instructions }) => {
+    console.log(instructions);
+  },
+});
+```
+
+#### Prompt Messages: System Messages in `prompt` or `messages` Are Rejected by Default
+
+AI SDK 7 rejects system messages in the `prompt` or `messages` fields by default. System instructions should usually be passed with the top-level `instructions` option.
+
+This can break older persisted chats or custom prompt arrays that include `{ role: 'system' }` messages:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  messages: [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'Hello!' },
+  ],
+});
+```
+
+Move system instructions to the `instructions` option when possible:
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  instructions: 'You are a helpful assistant.',
+  messages: [{ role: 'user', content: 'Hello!' }],
+});
+```
+
+If you need to keep existing chat histories that already contain system messages, opt in to the previous behavior with `allowSystemInMessages: true`:
+
+<Note type="warning">
+  Only use `allowSystemInMessages` for trusted messages. If users can submit or
+  edit these messages, they could inject a system message that overrides or sets
+  the system prompt. In most cases, system instructions should only be set by
+  trusted server-side code through the `instructions` property.
+</Note>
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  allowSystemInMessages: true,
+  messages: persistedMessages,
+});
+```
+
+This applies to AI SDK functions that accept `prompt` or `messages`, including `generateText`, `streamText`, `generateObject`, `streamObject`, and `streamUI`.
+
+#### Remove Deprecated `experimental_prepareStep` Option
+
+The deprecated `experimental_prepareStep` option has been removed in AI SDK 7. Replace all remaining usages with `prepareStep`.
+
+This option was deprecated in AI SDK 5, so if you already migrated to `prepareStep`, no changes are needed. Otherwise, update `generateText` calls:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  tools: { weather },
+  experimental_prepareStep: ({ stepNumber }) => {
+    console.log('Preparing step', stepNumber);
+    return {
+      activeTools: ['weather'],
+    };
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  tools: { weather },
+  prepareStep: ({ stepNumber }) => {
+    console.log('Preparing step', stepNumber);
+    return {
+      activeTools: ['weather'],
+    };
+  },
+});
+```
+
+#### `prepareStep` Message Overrides Carry Forward
+
+When `prepareStep` returns `messages`, those messages are now used as the base for subsequent steps. The next step receives those messages plus the response messages from the previous step.
+
+In AI SDK 6, a `messages` override only applied to the current step. To keep that behavior, rebuild the current step's messages from `initialMessages` and `responseMessages` inside `prepareStep`:
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  tools: { weather },
+  prepareStep: ({ initialMessages, responseMessages }) => {
+    return {
+      messages: [
+        ...initialMessages,
+        ...responseMessages,
+        // add any one-step-only message changes here
+      ],
+    };
+  },
+});
+```
+
+### Lifecycle Events
+
+#### `experimental_onStart` Renamed to `onStart`
+
+The generation start callback for `generateText`, `streamText`, and agents has
+been renamed from `experimental_onStart` to `onStart`.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  experimental_onStart: () => {
+    console.log('Generation started');
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  onStart: () => {
+    console.log('Generation started');
+  },
+});
+```
+
+#### `experimental_onStepStart` Renamed to `onStepStart`
+
+The per-step start callback for `generateText`, `streamText`, and agents has
+been renamed from `experimental_onStepStart` to `onStepStart`.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  experimental_onStepStart: ({ stepNumber }) => {
+    console.log(`Step ${stepNumber} started`);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  onStepStart: ({ stepNumber }) => {
+    console.log(`Step ${stepNumber} started`);
+  },
+});
+```
+
+#### `onFinish` Renamed to `onEnd`
+
+The final lifecycle callback for `generateText`, `streamText`, and agents has
+been renamed from `onFinish` to `onEnd`.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  onFinish: ({ text }) => {
+    console.log(text);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  onEnd: ({ text }) => {
+    console.log(text);
+  },
+});
+```
+
+The same rename applies to `streamText`, `Agent.generate()`,
+`Agent.stream()`, and `ToolLoopAgent` settings. The `onFinish` option is still
+accepted as a deprecated alias. When both `onEnd` and `onFinish` are provided,
+`onEnd` takes precedence.
+
+#### `onStepFinish` Renamed to `onStepEnd`
+
+The per-step lifecycle callback has been renamed from `onStepFinish` to
+`onStepEnd`.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  onStepFinish: ({ stepNumber, usage }) => {
+    console.log(`Step ${stepNumber} used ${usage.totalTokens} tokens`);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+  onStepEnd: ({ stepNumber, usage }) => {
+    console.log(`Step ${stepNumber} used ${usage.totalTokens} tokens`);
+  },
+});
+```
+
+This applies to `generateText`, `streamText`, `generateObject`,
+`streamObject`, agents, workflow agents, and UI message stream helpers.
+Telemetry integrations should implement `onStepEnd`.
+
+The `onStepFinish` option is still accepted as a deprecated alias for
+user-facing callbacks. When both `onStepEnd` and `onStepFinish` are provided,
+`onStepEnd` takes precedence.
+
+#### Embed Callbacks
+
+The per-call callback option for completed `embed` and `embedMany` operations has been renamed from `experimental_onFinish` to `onEnd`.
+
+```tsx filename="AI SDK 6"
+const result = await embed({
+  model: yourEmbeddingModel,
+  value,
+  experimental_onFinish(event) {
+    console.log('Embedding finished:', event.usage.tokens);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await embed({
+  model: yourEmbeddingModel,
+  value,
+  onEnd(event) {
+    console.log('Embedding ended:', event.usage.tokens);
+  },
+});
+```
+
+#### Rerank Callback
+
+The per-call callback option for completed `rerank` operations has been renamed from `experimental_onFinish` to `onEnd`.
+
+```tsx filename="AI SDK 6"
+const result = await rerank({
+  model: yourRerankingModel,
+  documents,
+  query,
+  experimental_onFinish(event) {
+    console.log('Rerank finished:', event.ranking.length);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await rerank({
+  model: yourRerankingModel,
+  documents,
+  query,
+  onEnd(event) {
+    console.log('Rerank ended:', event.ranking.length);
+  },
+});
+```
+
+### Usage and Result Shape Changes
+
+#### `cachedInputTokens` and `reasoningTokens` Removed from `LanguageModelUsage`
+
+The deprecated top-level `cachedInputTokens` and `reasoningTokens` fields have been removed from `LanguageModelUsage`.
+
+Use `inputTokenDetails.cacheReadTokens` and `outputTokenDetails.reasoningTokens` instead:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+});
+
+console.log(result.usage.cachedInputTokens);
+console.log(result.usage.reasoningTokens);
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello!',
+});
+
+console.log(result.usage.inputTokenDetails.cacheReadTokens);
+console.log(result.usage.outputTokenDetails.reasoningTokens);
+```
+
+### Telemetry
+
+#### OpenTelemetry Moved to `@ai-sdk/otel`
+
+OpenTelemetry span collection is no longer built into the `ai` package. To continue receiving OpenTelemetry traces, you must install the new `@ai-sdk/otel` package and register the `OpenTelemetry` instance globally.
+
+```bash
+pnpm install @ai-sdk/otel
+```
+
+Previously, OpenTelemetry spans were emitted automatically when `experimental_telemetry` was enabled:
+
+```tsx filename="AI SDK 6"
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_telemetry: { isEnabled: true },
+});
+```
+
+Now, you must install `@ai-sdk/otel` and register the `OpenTelemetry` instance once at application startup. For Next.js, place this in your `instrumentation.ts` file alongside your OpenTelemetry provider setup:
+
+```tsx filename="instrumentation"
+import { registerTelemetry } from 'ai';
+import { OpenTelemetry } from '@ai-sdk/otel';
+
+registerTelemetry(new OpenTelemetry());
+
+// ... your OpenTelemetry provider setup (e.g. registerOTel, NodeTracerProvider)
+```
+
+For Node.js applications (without Next.js), register the integration at the top level of your entry file.
+
+This applies to all AI SDK functions that accept `experimental_telemetry`, including `generateText`, `streamText`, `ToolLoopAgent`, `embed`, `embedMany`, and `rerank`.
+
+#### Enabled by Default When an Integration Is Registered
+
+In AI SDK 6, telemetry was opt-in — you had to set `experimental_telemetry: { isEnabled: true }` on every call to emit events. In AI SDK 7, telemetry is opt-out: once you register a telemetry integration (for example `OpenTelemetry` or `DevToolsTelemetry`), all AI SDK calls emit telemetry events by default.
+
+```tsx filename="AI SDK 6"
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_telemetry: { isEnabled: true },
+});
+```
+
+```tsx filename="AI SDK 7"
+import { generateText } from 'ai';
+import { registerTelemetry } from 'ai';
+import { OpenTelemetry } from '@ai-sdk/otel';
+
+registerTelemetry(new OpenTelemetry());
+
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+});
+```
+
+You can safely remove `experimental_telemetry: { isEnabled: true }` from all of your calls. If you are already passing other fields like `functionId` or `integrations`, keep them — only `isEnabled: true` is redundant:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_telemetry: {
+    isEnabled: true,
+    functionId: 'my-awesome-function',
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_telemetry: {
+    functionId: 'my-awesome-function',
+  },
+});
+```
+
+To opt out of telemetry for a specific call, set `isEnabled: false`:
+
+```tsx
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_telemetry: { isEnabled: false },
+});
+```
+
+To disable telemetry globally, do not register any telemetry integrations.
+
+This applies to all AI SDK functions that accept `experimental_telemetry`, including `generateText`, `streamText`, `ToolLoopAgent`, `embed`, `embedMany`, and `rerank`.
+
+#### `tracer` Property Removed from `experimental_telemetry`
+
+The `tracer` property on `experimental_telemetry` has been removed. If you were passing a custom OpenTelemetry `Tracer`, pass it to the `OpenTelemetry` constructor instead:
+
+```tsx filename="AI SDK 6"
+import { generateText } from 'ai';
+import { trace } from '@opentelemetry/api';
+
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_telemetry: {
+    isEnabled: true,
+    tracer: trace.getTracer('my-app'),
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+import { registerTelemetry } from 'ai';
+import { OpenTelemetry } from '@ai-sdk/otel';
+import { trace } from '@opentelemetry/api';
+
+registerTelemetry(
+  new OpenTelemetry({
+    tracer: trace.getTracer('my-app'),
+  }),
+);
+```
+
+This applies to all AI SDK functions that accept `experimental_telemetry`, including `streamText`, `generateObject`, `streamObject`, `embed`, and `embedMany`.
+
+If you were not passing a custom `tracer` (relying on the default global tracer), no changes are needed — the `OpenTelemetry` is registered globally by default and uses `trace.getTracer('ai')` when no custom tracer is provided.
+
+#### `experimental_telemetry` Renamed to `telemetry`
+
+The telemetry option has graduated out of experimental status and has been renamed to `telemetry`. The old name `experimental_telemetry` continues to work as a deprecated alias in AI SDK 7 and will be removed in a future major release.
+
+```tsx filename="AI SDK 6"
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_telemetry: {
+    functionId: 'story-agent',
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  telemetry: {
+    functionId: 'story-agent',
+  },
+});
+```
+
+This applies to all AI SDK functions and agents that accept telemetry configuration, including `generateText`, `streamText`, `generateObject`, `streamObject`, `embed`, `embedMany`, `rerank`, `ToolLoopAgent`, and `WorkflowAgent`.
+
+No behavior changes beyond the rename. You can migrate incrementally — mixed usage of `telemetry` and `experimental_telemetry` in the same codebase is supported during the deprecation window.
+
+#### `onRerankFinish` Renamed to `onRerankEnd`
+
+The telemetry integration callback for individual reranking model calls has been renamed from `onRerankFinish` to `onRerankEnd`.
+
+This also applies to the `type` field emitted on `AI_SDK_TELEMETRY_TRACING_CHANNEL`: tracing-channel subscribers now receive `onRerankEnd` instead of `onRerankFinish`.
+
+Update telemetry integrations and tracing-channel subscribers to use `onRerankEnd`.
+
+```tsx filename="AI SDK 6"
+import type { Telemetry } from 'ai';
+
+const telemetry: Telemetry = {
+  onRerankFinish(event) {
+    console.log('Rerank finished:', event.ranking.length);
+  },
+};
+```
+
+```tsx filename="AI SDK 7"
+import type { Telemetry } from 'ai';
+
+const telemetry: Telemetry = {
+  onRerankEnd(event) {
+    console.log('Rerank ended:', event.ranking.length);
+  },
+};
+```
+
+#### `onEmbedFinish` Renamed to `onEmbedEnd`
+
+The telemetry integration callback for individual embedding model calls has been renamed from `onEmbedFinish` to `onEmbedEnd`.
+
+This also applies to the `type` field emitted on `AI_SDK_TELEMETRY_TRACING_CHANNEL`: tracing-channel subscribers now receive `onEmbedEnd` instead of `onEmbedFinish`.
+
+Update telemetry integrations and tracing-channel subscribers to use `onEmbedEnd`.
+
+```tsx filename="AI SDK 6"
+import type { Telemetry } from 'ai';
+
+const telemetry: Telemetry = {
+  onEmbedFinish(event) {
+    console.log('Embedding finished:', event.embeddings.length);
+  },
+};
+```
+
+```tsx filename="AI SDK 7"
+import type { Telemetry } from 'ai';
+
+const telemetry: Telemetry = {
+  onEmbedEnd(event) {
+    console.log('Embedding ended:', event.embeddings.length);
+  },
+};
+```
+
+### Streaming and Include Options
+
+#### `StreamTextResult.fullStream` Renamed to `stream`
+
+The full event stream returned by `streamText` has been renamed from
+`fullStream` to `stream`.
+
+```tsx filename="AI SDK 6"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello!',
+});
+
+for await (const part of result.fullStream) {
+  console.log(part);
+}
+```
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello!',
+});
+
+for await (const part of result.stream) {
+  console.log(part);
+}
+```
+
+The `fullStream` property is still available as a deprecated alias for
+`stream`.
+
+#### `streamText` `onChunk` Receives All Stream Parts
+
+In AI SDK 7, `streamText` calls `onChunk` for every `TextStreamPart` emitted by
+the stream. In AI SDK 6, `onChunk` only received a subset of stream parts such as
+text deltas, reasoning deltas, sources, tool calls, tool input deltas, tool
+results, custom parts, and raw chunks.
+
+Update handlers that assume the old subset to guard the chunk types they process:
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello',
+  onChunk({ chunk }) {
+    if (chunk.type === 'text-delta') {
+      console.log(chunk.text);
+    }
+  },
+});
+```
+
+`onChunk` can now also receive lifecycle, boundary, and terminal parts such as
+`start`, `start-step`, `text-start`, `text-end`, `reasoning-start`,
+`reasoning-end`, `tool-input-end`, `finish-step`, `finish`, `abort`, and
+`error`.
+
+#### Move `includeRawChunks` to `include.rawChunks`
+
+The top-level `includeRawChunks` option on `streamText` is deprecated in AI SDK 7. Move it into the `include` options object as `rawChunks`.
+
+```tsx filename="AI SDK 6"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello',
+  includeRawChunks: true,
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello',
+  include: {
+    rawChunks: true,
+  },
+});
+```
+
+The deprecated top-level option continues to work in AI SDK 7, so you can migrate incrementally.
+
+#### Rename `experimental_include` to `include`
+
+The `experimental_include` option for `generateText`, `streamText`, and
+`ToolLoopAgent` is now stable and has been renamed to `include`.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  experimental_include: {
+    requestBody: false,
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  include: {
+    requestBody: false,
+  },
+});
+```
+
+The deprecated `experimental_include` name continues to work for backwards
+compatibility. If both `include` and `experimental_include` are provided,
+`include` takes precedence.
+
+#### Request and Response Bodies Are Excluded by Default
+
+In AI SDK 7, `generateText` and `streamText` no longer include request bodies in
+step results by default. `generateText` also no longer includes response bodies
+by default. This reduces memory usage, especially when prompts or provider
+responses contain large payloads such as images or files.
+
+If your application reads `result.request.body`, `step.request.body`,
+`result.response.body`, or `step.response.body`, opt in with `include`.
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Hello',
+  include: {
+    requestBody: true,
+    responseBody: true,
+  },
+});
+```
+
+For `streamText`, only `requestBody` is available:
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Hello',
+  include: {
+    requestBody: true,
+  },
+});
+```
+
+### Result Message Changes
+
+#### Step Response Messages Are No Longer Accumulated
+
+In AI SDK 7, `step.response.messages` on each `StepResult` only contains the
+response messages produced by that particular step.
+
+In AI SDK 6, `step.response.messages` accumulated response messages from all
+previous steps. If your application reads `step.response.messages` from an
+intermediate or final step and expects the full assistant/tool message history,
+use the top-level `result.responseMessages` instead.
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Use tools if needed',
+  tools,
+  stopWhen: isStepCount(5),
+});
+
+// Accumulated response messages from all steps:
+const responseMessages = result.responseMessages;
+
+// Response messages produced by each individual step:
+const stepMessages = result.steps.map(step => step.response.messages);
+```
+
+If you specifically need to reconstruct response messages from step results,
+flatten the per-step messages:
+
+```tsx filename="AI SDK 7"
+const responseMessages = result.steps.flatMap(step => step.response.messages);
+```
+
+Prefer `result.responseMessages` when you want the full response message history.
+It also includes response messages produced before the first model step, such as
+tool results from approved tool calls in the input messages.
+
+### Tools and Tool Execution
+
+#### Tool Execution Callbacks
+
+The tool execution callback options for `generateText` and `streamText` have been renamed:
+
+- `experimental_onToolCallStart` is now `onToolExecutionStart`
+- `experimental_onToolCallFinish` is now `onToolExecutionEnd`
+
+The old names continue to work as deprecated aliases in AI SDK 7 and will be removed in a future major release. They are only used as fallbacks when the new callback names are not provided.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  tools,
+  prompt: 'Hello',
+  experimental_onToolCallStart(event) {
+    console.log('Tool starting:', event.toolCall.toolName);
+  },
+  experimental_onToolCallFinish(event) {
+    console.log('Tool finished:', event.toolCall.toolName);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  tools,
+  prompt: 'Hello',
+  onToolExecutionStart(event) {
+    console.log('Tool starting:', event.toolCall.toolName);
+  },
+  onToolExecutionEnd(event) {
+    console.log('Tool finished:', event.toolCall.toolName);
+  },
+});
+```
+
+#### Context: `experimental_context` Became Tool `context`, and Shared Runtime Data Moved to `runtimeContext`
+
+In AI SDK 7, the tool callback option previously exposed as `experimental_context` has been renamed to `context` and is now stable.
+
+The bigger behavioral change is that AI SDK now separates:
+
+- tool-specific `context`, which is passed to tool callbacks from `toolsContext`
+- shared generation/agent runtime data, which flows through `runtimeContext`
+
+In AI SDK 6, tools often read from one generic runtime context object. In AI SDK 7, each tool gets its own scoped `context`, and you provide those values through `toolsContext`, keyed by tool name.
+
+`tool()` infers the type of a tool's `context` from its `contextSchema`, so each tool only sees the fields declared for that specific tool.
+
+In AI SDK 6, tool code often accessed `experimental_context` and had to cast it manually:
+
+```tsx filename="AI SDK 6"
+const weather = tool({
+  inputSchema: z.object({
+    location: z.string(),
+  }),
+  execute: async ({ location }, { experimental_context }) => {
+    const { weatherApiKey } = experimental_context as {
+      weatherApiKey: string;
+    };
+
+    return getWeather(location, weatherApiKey);
+  },
+});
+```
+
+In AI SDK 7, rename `experimental_context` to `context`, declare the tool-specific context with `contextSchema`, and pass the per-tool values through `toolsContext`. The `execute` callback, approval callback, and tool input lifecycle hooks then receive a typed `context` automatically:
+
+```tsx filename="AI SDK 7"
+const weather = tool({
+  inputSchema: z.object({
+    location: z.string(),
+  }),
+  contextSchema: z.object({
+    apiKey: z.string(),
+  }),
+  execute: async ({ location }, { context: { apiKey } }) => {
+    return getWeather(location, apiKey);
+  },
+});
+
+const result = await generateText({
+  model: yourModel,
+  tools: { weather },
+  runtimeContext: {
+    requestId: 'req-123',
+  },
+  toolsContext: {
+    weather: {
+      apiKey: process.env.WEATHER_API_KEY!,
+    },
+  },
+  prepareStep: async ({ runtimeContext, toolsContext }) => {
+    console.log(runtimeContext.requestId);
+    console.log(toolsContext.weather.apiKey);
+
+    return {};
+  },
+});
+```
+
+Use `runtimeContext` for shared generation or agent state that should be visible in `prepareStep`, events, and step results. Tool callbacks no longer read from that shared object. A tool's `context` now comes from its own entry in `toolsContext`, so it is limited to the fields that tool declared in `contextSchema`.
+
+Potential breaking issues:
+
+- If you still destructure `experimental_context` in tool callbacks, rename it to `context`.
+- If you were previously passing one shared runtime object for both orchestration and tools, split it into `runtimeContext` and `toolsContext`.
+- Move tool-specific values into `toolsContext` under the matching tool name.
+- Rename shared top-level `context` usage to `runtimeContext` in `generateText`, `streamText`, and `ToolLoopAgent`.
+- Rename `prepareStep` usage from `context` to `runtimeContext`.
+- If a tool callback accesses fields that are not declared in its `contextSchema`, TypeScript will now report errors. Add those fields to that tool's schema.
+- If you have helper types or wrappers that assumed `experimental_context` or `context` was `unknown`, update them to accept a generic `CONTEXT` type.
+- If at least one tool declares `contextSchema`, `toolsContext` becomes required and only includes the tools that actually declare contextual data.
+- If you were relying on every tool callback seeing the same full runtime object, move shared step data to `runtimeContext`, or explicitly provide the needed per-tool data in each tool's `toolsContext` entry.
+
+#### Migrate Deprecated `needsApproval` to `toolApproval`
+
+The `needsApproval` property on `tool()` and `dynamicTool()` is deprecated in
+AI SDK 7 for `generateText`, `streamText`, and `ToolLoopAgent`.
+
+Move approval logic to the `toolApproval` setting on the call or agent instead.
+This keeps approval policy close to the generation or agent configuration and
+lets you vary it by request.
+
+```tsx filename="AI SDK 6"
+const deleteFile = tool({
+  inputSchema: z.object({
+    path: z.string(),
+  }),
+  needsApproval: async ({ path }) => !path.startsWith('/tmp/'),
+  execute: async ({ path }) => {
+    await removeFile(path);
+    return { success: true };
+  },
+});
+
+await streamText({
+  model: yourModel,
+  tools: { deleteFile },
+});
+```
+
+```tsx filename="AI SDK 7"
+const deleteFile = tool({
+  inputSchema: z.object({
+    path: z.string(),
+  }),
+  execute: async ({ path }) => {
+    await removeFile(path);
+    return { success: true };
+  },
+});
+
+await streamText({
+  model: yourModel,
+  tools: { deleteFile },
+  toolApproval: {
+    deleteFile: async ({ path }) =>
+      path.startsWith('/tmp/') ? undefined : 'user-approval',
+  },
+});
+```
+
+If you were using `needsApproval: true`, migrate it to
+`toolApproval: { myTool: 'user-approval' }`. If you were using a
+`needsApproval` function, move that logic into a per-tool
+`SingleToolApprovalFunction` or a generic `toolApproval` callback. This
+guidance applies to `generateText`, `streamText`, and `ToolLoopAgent`.
+
+#### Remove Deprecated `experimental_activeTools` Option
+
+The deprecated `experimental_activeTools` option has been removed in AI SDK 7. Replace all remaining usages with `activeTools`.
+
+This option was deprecated in AI SDK 5, so if you already migrated to `activeTools`, no changes are needed. Otherwise, update both `generateText` and `streamText` calls:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  tools: { weather },
+  experimental_activeTools: ['weather'],
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  tools: { weather },
+  activeTools: ['weather'],
+});
+```
+
+#### Remove Deprecated `ToolCallOptions` Type
+
+The deprecated `ToolCallOptions` type has been removed in AI SDK 7. Replace all remaining usages with `ToolExecutionOptions`.
+
+If you already migrated away from the deprecated name in AI SDK 6, no changes are needed. Otherwise, update imports and type references:
+
+```tsx filename="AI SDK 6"
+import { ToolCallOptions } from 'ai';
+
+function executeWithOptions(options: ToolCallOptions) {
+  // ...
+}
+```
+
+```tsx filename="AI SDK 7"
+import { ToolExecutionOptions } from 'ai';
+
+function executeWithOptions(options: ToolExecutionOptions) {
+  // ...
+}
+```
+
+### UI Messages
+
+#### Remove Deprecated `isToolOrDynamicToolUIPart` Function
+
+The deprecated `isToolOrDynamicToolUIPart` function has been removed in AI SDK 7. Replace all remaining usages with `isToolUIPart`.
+
+If you already migrated away from the deprecated name in AI SDK 6, no changes are needed. Otherwise, update imports and calls:
+
+```tsx filename="AI SDK 6"
+import { isToolOrDynamicToolUIPart } from 'ai';
+
+if (isToolOrDynamicToolUIPart(part)) {
+  console.log('Tool part found');
+}
+```
+
+```tsx filename="AI SDK 7"
+import { isToolUIPart } from 'ai';
+
+if (isToolUIPart(part)) {
+  console.log('Tool part found');
+}
+```
+
+### Tool and Message Content Parts
+
+#### Remove Deprecated `media` Content Part Type
+
+The deprecated tool result content part of `{ type: 'media' }` has been removed in AI SDK 7.
+
+Use `{ type: 'file-data' }` for all inline file content, including images.
+
+#### Tool Result Content: Migrate Away From `image-*` and `file-*` variants to `file`
+
+All `image-*` and legacy `file-*` content part types for `toModelOutput` results are deprecated in AI SDK 7 in favor of a single canonical `file` variant that mirrors the top-level `FilePart` shape. Auto-migration is applied at runtime, so existing tool outputs continue to work without code changes. However, updating to the new shape is recommended.
+
+The new shape carries a tagged `data` discriminated union, and it always has `mediaType`:
+
+- `{ type: 'file-data', data, mediaType, filename? }` → `{ type: 'file', mediaType, filename, data: { type: 'data', data } }`
+- `{ type: 'file-url', url, mediaType }` → `{ type: 'file', mediaType, data: { type: 'url', url: new URL(url) } }`
+- `{ type: 'file-reference', providerReference }` → `{ type: 'file', mediaType, data: { type: 'reference', reference: providerReference } }`
+
+Images are just files with an image media type, so the `image-*` aliases collapse into the same shape — pass `mediaType: 'image'` (or a more specific `image/*` subtype) instead:
+
+- `{ type: 'image-data', data, mediaType }` → `{ type: 'file', mediaType, data: { type: 'data', data } }`
+- `{ type: 'image-url', url }` → `{ type: 'file', mediaType: 'image', data: { type: 'url', url: new URL(url) } }`
+- `{ type: 'image-file-reference', providerReference }` → `{ type: 'file', mediaType: 'image', data: { type: 'reference', reference: providerReference } }`
+
+The `-id` content part types (`file-id` and `image-file-id`) are also generally deprecated in favor of the `reference` data shape, which carries a full `ProviderReference` (a provider-to-file-ID map like `{ openai: 'file_123', anthropic: 'file_abc' }`) that lets the same logical file be reused across providers. The single-ID `-id` variants required the runtime to know which provider the ID belonged to; the explicit reference shape removes that ambiguity:
+
+- `{ type: 'file-id', fileId }` → `{ type: 'file', mediaType, data: { type: 'reference', reference: { [provider]: fileId } } }`
+- `{ type: 'image-file-id', fileId }` → `{ type: 'file', mediaType: 'image', data: { type: 'reference', reference: { [provider]: fileId } } }`
+
+`mediaType` on the new `file` variant accepts either a full IANA type (e.g. `'image/png'`) or just a top-level segment (e.g. `'image'`, `'audio'`, `'video'`, `'text'`). When only a top-level segment is provided, the subtype is auto-detected from inline bytes where possible. Update parsing/validation and discriminated unions to handle the single canonical `file` variant.
+
+#### Message Parts: Migrate Away From Deprecated `image` Part
+
+The `{ type: 'image', image, mediaType? }` user-message content part is deprecated. Use `{ type: 'file', data, mediaType }` with an image `mediaType` instead.
+
+```tsx filename="AI SDK 6"
+{ type: 'image', image: bytes }
+```
+
+```tsx filename="AI SDK 7"
+{ type: 'file', mediaType: 'image', data: bytes }
+```
+
+`mediaType` on `FilePart` now accepts either a full IANA type (e.g. `'image/png'`) or just a top-level segment (e.g. `'image'`). When only a top-level segment is provided, the subtype is auto-detected from inline bytes where possible.
+
+#### Message Parts: Handle New `reasoning-file` Content Type
+
+Some models can now return files as part of their reasoning trace, separate from regular output files. These files, which would have previously were using the `file` type, are now in a distinct `reasoning-file` type.
+
+Update all exhaustive part handling (TypeScript unions, `switch` statements, runtime validators, renderers, serializers) to support `type: 'reasoning-file'`.
+
+Also audit any code that reads generated files from `result.files` or `step.files`: files referenced in reasoning are now represented as `reasoning-file` parts in `content` / `reasoning`. In practice, this should rarely require an update because models usually reference the same file in their reasoning that they later output as regular content. Prior to supporting `reasoning-file` as a distinct type, this would result in the same files appearing in `result.files` or `step.files` as a duplicate.
+
+### Reasoning
+
+#### Reasoning Configuration: Remove Overlapping Settings
+
+The new top-level `reasoning` option is the provider-agnostic way to control reasoning effort.
+
+When migrating to the top-level `reasoning` option, remove overlapping reasoning settings from `providerOptions`.
+
+If both are present, provider-specific reasoning settings in `providerOptions` take precedence, which can silently bypass your new top-level `reasoning` configuration.
+
+### Multi-Step Result Shape
+
+#### `generateText` and `streamText` `usage` Now Includes All Steps
+
+The `usage` property on `generateText` and `streamText` results now returns the total token usage across all steps. This matches what `totalUsage` previously represented.
+
+Use `finalStep.usage` to read the previous `usage` behavior, which only returned token usage from the final step:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Write a haiku, then revise it.',
+  stopWhen: stepCountIs(2),
+});
+
+console.log(result.usage);
+console.log(result.totalUsage);
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Write a haiku, then revise it.',
+  stopWhen: isStepCount(2),
+});
+
+console.log(result.finalStep.usage); // final step only
+console.log(result.usage); // all steps
+```
+
+`totalUsage` is deprecated. Replace `result.totalUsage` with `result.usage`.
+
+#### `generateText` and `streamText` Result Properties Now Include All Steps
+
+The top-level `content`, `toolCalls`, `staticToolCalls`, `dynamicToolCalls`,
+`toolResults`, `staticToolResults`, `dynamicToolResults`, `files`, `sources`,
+and `warnings` properties on `generateText` and `streamText` results now return
+values accumulated across every step.
+
+In AI SDK 6, these properties only returned values from the final step. Use
+`finalStep` to read the previous behavior:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Use a tool, then summarize the result.',
+  stopWhen: stepCountIs(2),
+});
+
+console.log(result.toolCalls);
+console.log(result.toolResults);
+console.log(result.files);
+console.log(result.sources);
+console.log(result.warnings);
+console.log(result.content);
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Use a tool, then summarize the result.',
+  stopWhen: isStepCount(2),
+});
+
+console.log(result.finalStep.toolCalls); // final step only
+console.log(result.finalStep.toolResults); // final step only
+console.log(result.finalStep.files); // final step only
+console.log(result.finalStep.sources); // final step only
+console.log(result.finalStep.warnings); // final step only
+console.log(result.finalStep.content); // final step only
+console.log(result.toolCalls); // all steps
+console.log(result.toolResults); // all steps
+console.log(result.files); // all steps
+console.log(result.sources); // all steps
+console.log(result.warnings); // all steps
+console.log(result.content); // all steps
+```
+
+For `streamText`, await `finalStep` first when you need final-step-only values:
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Use a tool, then summarize the result.',
+  stopWhen: isStepCount(2),
+});
+
+const finalStep = await result.finalStep;
+
+console.log(finalStep.toolCalls); // final step only
+console.log(finalStep.toolResults); // final step only
+console.log(finalStep.files); // final step only
+console.log(finalStep.sources); // final step only
+console.log(finalStep.warnings); // final step only
+console.log(finalStep.content); // final step only
+console.log(await result.toolCalls); // all steps
+console.log(await result.toolResults); // all steps
+console.log(await result.files); // all steps
+console.log(await result.sources); // all steps
+console.log(await result.warnings); // all steps
+console.log(await result.content); // all steps
+```
+
+#### Final-Step Result Properties Moved to `finalStep`
+
+The top-level `reasoning`, `reasoningText`, `request`, `response`, and `providerMetadata` result properties on `generateText` and `streamText` are deprecated in AI SDK 7.
+
+Use `result.finalStep` when you need final-step reasoning or final-step metadata:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Write a haiku, then revise it.',
+  stopWhen: stepCountIs(2),
+});
+
+console.log(result.reasoningText);
+console.log(result.request.body);
+console.log(result.response.headers);
+console.log(result.providerMetadata?.anthropic);
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Write a haiku, then revise it.',
+  stopWhen: isStepCount(2),
+});
+
+console.log(result.finalStep.reasoningText);
+console.log(result.finalStep.request.body);
+console.log(result.finalStep.response.headers);
+console.log(result.finalStep.providerMetadata?.anthropic);
+```
+
+For `streamText`, await `finalStep` first:
+
+```tsx filename="AI SDK 7"
+const result = streamText({
+  model: yourModel,
+  prompt: 'Write a haiku, then revise it.',
+  stopWhen: isStepCount(2),
+});
+
+const finalStep = await result.finalStep;
+
+console.log(finalStep.reasoningText);
+console.log(finalStep.request.body);
+console.log(finalStep.response.headers);
+```
+
+The deprecated top-level aliases continue to work in AI SDK 7 so you can migrate incrementally.
+
+#### `generateText` and `streamText` `onEnd` Result Properties Changed
+
+The `onEnd` callback for `generateText`, `streamText`, and agents follows
+the same result property changes as `generateText` and `streamText` results:
+
+- `usage` now contains usage across all steps. `totalUsage` is deprecated; use
+  `usage` instead.
+- `content`, `toolCalls`, `toolResults`, `files`, `sources`, and `warnings` now
+  contain values from all steps.
+- Final-step-only properties are available on `finalStep`. The top-level
+  `reasoning`, `reasoningText`, `request`, `response`, and `providerMetadata`
+  properties are deprecated.
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Use a tool, then summarize the result.',
+  stopWhen: stepCountIs(2),
+  onFinish(event) {
+    console.log(event.usage); // final step only
+    console.log(event.totalUsage); // all steps
+    console.log(event.toolCalls); // final step only
+    console.log(event.providerMetadata);
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: yourModel,
+  prompt: 'Use a tool, then summarize the result.',
+  stopWhen: isStepCount(2),
+  onEnd(event) {
+    console.log(event.finalStep.usage); // final step only
+    console.log(event.usage); // all steps
+    console.log(event.finalStep.toolCalls); // final step only
+    console.log(event.toolCalls); // all steps
+    console.log(event.finalStep.providerMetadata);
+  },
+});
+```
+
+The deprecated top-level aliases on the `onEnd` event continue to work in AI
+SDK 7 so you can migrate incrementally.
+
+### Stream Response Helpers
+
+#### `streamText` Response Helpers Deprecated — Use Stateless Helpers
+
+The `toUIMessageStream`, `toUIMessageStreamResponse`, `pipeUIMessageStreamToResponse`, `toTextStreamResponse`, and `pipeTextStreamToResponse` methods on the `streamText` result are now deprecated. They still work in v7 (with deprecation warnings) and will be removed in the next major release.
+
+The equivalent stateless helpers live on the top-level `'ai'` export. Use them directly so the same transformation can be composed over any `stream` / `textStream` — not just a `streamText` result.
+
+**UI message stream**
+
+```tsx filename="AI SDK 6"
+const result = streamText({ model, prompt });
+
+const uiStream = result.toUIMessageStream({
+  originalMessages,
+  generateMessageId,
+  onFinish,
+});
+```
+
+```tsx filename="AI SDK 7"
+import { streamText, toUIMessageStream } from 'ai';
+
+const result = streamText({ model, prompt });
+
+const uiStream = toUIMessageStream({
+  stream: result.stream,
+  generateMessageId,
+  originalMessages,
+  onFinish,
+});
+```
+
+**UI message stream `Response`**
+
+```tsx filename="AI SDK 6"
+return result.toUIMessageStreamResponse({ originalMessages });
+```
+
+```tsx filename="AI SDK 7"
+import { createUIMessageStreamResponse, toUIMessageStream } from 'ai';
+
+const uiStream = toUIMessageStream({
+  stream: result.stream,
+  generateMessageId,
+  originalMessages,
+  onFinish,
+});
+
+return createUIMessageStreamResponse({
+  stream: uiStream,
+});
+```
+
+**Pipe UI message stream to Node.js response**
+
+```tsx filename="AI SDK 6"
+result.pipeUIMessageStreamToResponse(response, { originalMessages });
+```
+
+```tsx filename="AI SDK 7"
+import { pipeUIMessageStreamToResponse, toUIMessageStream } from 'ai';
+
+const uiStream = toUIMessageStream({
+  stream: result.stream,
+  generateMessageId,
+  originalMessages,
+  onFinish,
+});
+
+pipeUIMessageStreamToResponse({
+  stream: uiStream,
+  response,
+});
+```
+
+**Text stream `Response`**
+
+```tsx filename="AI SDK 6"
+return result.toTextStreamResponse();
+```
+
+```tsx filename="AI SDK 7"
+import { createTextStreamResponse, toTextStream } from 'ai';
+
+const textStream = toTextStream({
+  stream: result.stream,
+});
+
+return createTextStreamResponse({ stream: textStream });
+```
+
+**Pipe text stream to Node.js response**
+
+```tsx filename="AI SDK 6"
+result.pipeTextStreamToResponse(response);
+```
+
+```tsx filename="AI SDK 7"
+import { pipeTextStreamToResponse, toTextStream } from 'ai';
+
+const textStream = toTextStream({
+  stream: result.stream,
+});
+
+pipeTextStreamToResponse({ response, stream: textStream });
+```
+
+## MCP Package
+
+### MCP Transport: `redirect` Default Changed from `'follow'` to `'error'`
+
+The `redirect` option on `MCPTransportConfig` (used by both HTTP and SSE transports) now defaults to `'error'` instead of `'follow'`. This means HTTP redirects are rejected by default to prevent server-side request forgery (SSRF) attacks where an MCP server could redirect requests to unintended hosts.
+
+If your MCP server relies on HTTP redirects, explicitly set `redirect: 'follow'` in your transport configuration:
+
+```tsx filename="AI SDK 6"
+const mcpClient = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://your-server.com/mcp',
+  },
+});
+```
+
+```tsx filename="AI SDK 7"
+const mcpClient = await createMCPClient({
+  transport: {
+    type: 'http',
+    url: 'https://your-server.com/mcp',
+    redirect: 'follow',
+  },
+});
+```
+
+If the MCP server you use does not issue redirects, no changes are needed — the new default is more secure.
+
+## Vue Package
+
+### `Chat` Class Deprecated in Favor of `useChat` Composable
+
+The `Chat` class exported from `@ai-sdk/vue` is deprecated in AI SDK 7 in favor of the new `useChat` composable. `useChat` exposes reactive refs for `messages`, `status`, and `error`, and automatically recreates the underlying chat when its init object changes — so reactive inputs (a route param, a selected model, etc.) flow through without manual orchestration.
+
+```tsx filename="AI SDK 6"
+<script setup lang="ts">
+import { Chat } from '@ai-sdk/vue';
+
+const chat = new Chat({});
+</script>
+
+<template>
+  <div v-for="m in chat.messages" :key="m.id">
+    <!-- ... -->
+  </div>
+  <button @click="chat.sendMessage({ text: 'hi' })">Send</button>
+</template>
+```
+
+```tsx filename="AI SDK 7"
+<script setup lang="ts">
+import { useChat } from '@ai-sdk/vue';
+
+const { messages, sendMessage } = useChat({
+  id: chatId,
+  transport: new DefaultChatTransport({
+    api: `/api/chats/${chatId}`,
+    body: { model: model.value },
+  }),
+});
+</script>
+
+<template>
+  <div v-for="m in messages" :key="m.id">
+    <!-- ... -->
+  </div>
+  <button @click="sendMessage({ text: 'hi' })">Send</button>
+</template>
+```
+
+To make the init reactive (recreate the chat when its inputs change), pass a getter or ref:
+
+```tsx filename="AI SDK 7"
+const { messages, sendMessage } = useChat(() => ({
+  id: chatId.value,
+  transport: new DefaultChatTransport({
+    api: `/api/chats/${chatId.value}`,
+    body: { model: model.value },
+  }),
+}));
+```
+
+The `Chat` class continues to work as a deprecated export, so you can migrate incrementally.
+
+## OpenAI Provider
+
+### Responses Reasoning Summary Defaults to Detailed
+
+For the OpenAI Responses provider, setting `reasoning` or `providerOptions.openai.reasoningEffort` to a value other than `'none'` now defaults `providerOptions.openai.reasoningSummary` to `'detailed'`.
+
+If you want to keep reasoning summaries disabled, set `providerOptions.openai.reasoningSummary` to `null`.
+
+## Anthropic Provider
+
+### `providerMetadata.anthropic.cacheCreationInputTokens` Removed
+
+The Anthropic-specific `cacheCreationInputTokens` field on `providerMetadata.anthropic` has been removed from the responses of `generateText` and `streamText` (as well as the `@ai-sdk/google-vertex/anthropic` sub-provider). This duplicated information that is already available on the standard, provider-agnostic `usage` object.
+
+Use `result.usage.inputTokenDetails.cacheWriteTokens` to read the number of tokens written to the cache, and `result.usage.inputTokenDetails.cacheReadTokens` to read the number of tokens served from the cache:
+
+```tsx filename="AI SDK 6"
+const result = await generateText({
+  model: anthropic('claude-sonnet-4-5'),
+  messages: [
+    /* ... messages with cacheControl ... */
+  ],
+});
+
+console.log(result.providerMetadata?.anthropic?.cacheCreationInputTokens);
+```
+
+```tsx filename="AI SDK 7"
+const result = await generateText({
+  model: anthropic('claude-sonnet-4-5'),
+  messages: [
+    /* ... messages with cacheControl ... */
+  ],
+});
+
+console.log(result.usage.inputTokenDetails.cacheWriteTokens);
+```
+
+If you need the raw Anthropic-shaped usage payload (including `cache_creation_input_tokens`, `cache_read_input_tokens`, `cache_creation`, `service_tier`, etc.), it is still available unchanged at `result.finalStep.providerMetadata?.anthropic?.usage`.
+
+## Google Provider
+
+### Renamed Types, Classes, and Functions: `GenerativeAI` Affix Removed
+
+Every type, class, and function in `@ai-sdk/google` that contained `GoogleGenerativeAI` has been renamed to use simply `Google` — for example, `createGoogleGenerativeAI` → `createGoogle` and `GoogleGenerativeAIProvider` → `GoogleProvider`.
+
+The old names still work as deprecated aliases, but you should migrate to the new names, if you currently reference them.
+
+The main entry point the `google` constant, remains unchanged, so if that's all you use from the provider, no changes are required.
+
+## xAI Provider
+
+### Default Model Now Uses the Responses API
+
+In AI SDK 7, `xai(modelId)` (and `xai.languageModel(modelId)`) uses the xAI Responses API by default instead of the Chat Completions API. Both APIs were already available in AI SDK 6 via `xai.chat(modelId)` and `xai.responses(modelId)`; AI SDK 7 only changes which one `xai(modelId)` uses by default. To keep using the Chat Completions API, use `xai.chat(modelId)`.
+
+```tsx filename="AI SDK 6"
+// used the Chat Completions API
+const model = xai('grok-4.3');
+```
+
+```tsx filename="AI SDK 7"
+// now uses the Responses API
+const model = xai('grok-4.3');
+
+// use the Chat Completions API explicitly
+const chatModel = xai.chat('grok-4.3');
+```
+
+# Migration Skill
+
+Use the command below to add the migration skill and guide your agent
+
+```bash
+npx skills add vercel/ai --skill migrate-ai-sdk-v6-to-v7
+```

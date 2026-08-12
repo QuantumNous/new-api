@@ -1,0 +1,493 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "start-step"
+  },
+  {
+    "type": "reasoning-start",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "**Deleting",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " a",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " file",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "**\n\nI",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " need",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " use",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " delete",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "_file",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " tool",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " right",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " away",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " specifically",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " for",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " \"",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "report",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".pdf",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".\"",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " won",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "’t",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " ask",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " for",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " extra",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " confirmation",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " Once",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " call",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " tool",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " can",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " let",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " user",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " know",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " that",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " deletion",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " request",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " is",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " pending",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " approval",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " The",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " system",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " has",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " an",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " approval",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " process",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " in",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " place",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " so",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I'll",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " make",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " sure",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " communicate",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " that",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " request",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " has",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " been",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " sent",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " and",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " is",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " awaiting",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " approval",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " Now",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I'll",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " call",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " functions",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".delete",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "_file",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " get",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " this",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " done",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "toolName": "delete_file",
+    "dynamic": true
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "inputTextDelta": "{\""
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "inputTextDelta": "filename"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "inputTextDelta": "\":\""
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "inputTextDelta": "report"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "inputTextDelta": ".pdf"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "inputTextDelta": "\"}"
+  },
+  {
+    "type": "reasoning-end",
+    "id": "run-019b259a-5def-7000-8000-0a449f226de9"
+  },
+  {
+    "type": "tool-approval-request",
+    "approvalId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ"
+  },
+  {
+    "type": "finish-step"
+  },
+  {
+    "type": "finish"
+  }
+]

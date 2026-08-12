@@ -1,0 +1,281 @@
+---
+title: Replicate
+description: Learn how to use Replicate models with the AI SDK.
+---
+
+# Replicate Provider
+
+[Replicate](https://replicate.com/) is a platform for running open-source AI models.
+It is a popular choice for running image generation models.
+
+## Setup
+
+The Replicate provider is available via the `@ai-sdk/replicate` module. You can install it with
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @ai-sdk/replicate" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @ai-sdk/replicate" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @ai-sdk/replicate" dark />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add @ai-sdk/replicate" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+You can import the default provider instance `replicate` from `@ai-sdk/replicate`:
+
+```ts
+import { replicate } from '@ai-sdk/replicate';
+```
+
+If you need a customized setup, you can import `createReplicate` from `@ai-sdk/replicate`
+and create a provider instance with your settings:
+
+```ts
+import { createReplicate } from '@ai-sdk/replicate';
+
+const replicate = createReplicate({
+  apiToken: process.env.REPLICATE_API_TOKEN ?? '',
+});
+```
+
+You can use the following optional settings to customize the Replicate provider instance:
+
+- **baseURL** _string_
+
+  Use a different URL prefix for API calls, e.g. to use proxy servers.
+  The default prefix is `https://api.replicate.com/v1`.
+
+- **apiToken** _string_
+
+  API token that is being sent using the `Authorization` header. It defaults to
+  the `REPLICATE_API_TOKEN` environment variable.
+
+- **headers** _Record&lt;string,string&gt;_
+
+  Custom headers to include in the requests.
+
+- **fetch** _(input: RequestInfo, init?: RequestInit) => Promise&lt;Response&gt;_
+
+  Custom [fetch](https://developer.mozilla.org/en-US/docs/Web/API/fetch) implementation.
+
+## Image Models
+
+You can create Replicate image models using the `.image()` factory method.
+For more on image generation with the AI SDK see [generateImage()](/docs/reference/ai-sdk-core/generate-image).
+
+<Note>
+  Model support for `size` and other parameters varies by model. Check the
+  model's documentation on [Replicate](https://replicate.com/explore) for
+  supported options and additional parameters that can be passed via
+  `providerOptions.replicate`.
+</Note>
+
+### Supported Image Models
+
+The following image models are currently supported by the Replicate provider:
+
+**Text-to-Image Models:**
+
+- [black-forest-labs/flux-1.1-pro-ultra](https://replicate.com/black-forest-labs/flux-1.1-pro-ultra)
+- [black-forest-labs/flux-1.1-pro](https://replicate.com/black-forest-labs/flux-1.1-pro)
+- [black-forest-labs/flux-dev](https://replicate.com/black-forest-labs/flux-dev)
+- [black-forest-labs/flux-pro](https://replicate.com/black-forest-labs/flux-pro)
+- [black-forest-labs/flux-schnell](https://replicate.com/black-forest-labs/flux-schnell)
+- [bytedance/sdxl-lightning-4step](https://replicate.com/bytedance/sdxl-lightning-4step)
+- [fofr/aura-flow](https://replicate.com/fofr/aura-flow)
+- [fofr/latent-consistency-model](https://replicate.com/fofr/latent-consistency-model)
+- [fofr/realvisxl-v3-multi-controlnet-lora](https://replicate.com/fofr/realvisxl-v3-multi-controlnet-lora)
+- [fofr/sdxl-emoji](https://replicate.com/fofr/sdxl-emoji)
+- [fofr/sdxl-multi-controlnet-lora](https://replicate.com/fofr/sdxl-multi-controlnet-lora)
+- [ideogram-ai/ideogram-v2-turbo](https://replicate.com/ideogram-ai/ideogram-v2-turbo)
+- [ideogram-ai/ideogram-v2](https://replicate.com/ideogram-ai/ideogram-v2)
+- [lucataco/dreamshaper-xl-turbo](https://replicate.com/lucataco/dreamshaper-xl-turbo)
+- [lucataco/open-dalle-v1.1](https://replicate.com/lucataco/open-dalle-v1.1)
+- [lucataco/realvisxl-v2.0](https://replicate.com/lucataco/realvisxl-v2.0)
+- [lucataco/realvisxl2-lcm](https://replicate.com/lucataco/realvisxl2-lcm)
+- [luma/photon-flash](https://replicate.com/luma/photon-flash)
+- [luma/photon](https://replicate.com/luma/photon)
+- [nvidia/sana](https://replicate.com/nvidia/sana)
+- [playgroundai/playground-v2.5-1024px-aesthetic](https://replicate.com/playgroundai/playground-v2.5-1024px-aesthetic)
+- [recraft-ai/recraft-v3-svg](https://replicate.com/recraft-ai/recraft-v3-svg)
+- [recraft-ai/recraft-v3](https://replicate.com/recraft-ai/recraft-v3)
+- [stability-ai/stable-diffusion-3.5-large-turbo](https://replicate.com/stability-ai/stable-diffusion-3.5-large-turbo)
+- [stability-ai/stable-diffusion-3.5-large](https://replicate.com/stability-ai/stable-diffusion-3.5-large)
+- [stability-ai/stable-diffusion-3.5-medium](https://replicate.com/stability-ai/stable-diffusion-3.5-medium)
+- [tstramer/material-diffusion](https://replicate.com/tstramer/material-diffusion)
+
+**Inpainting and Image Editing Models:**
+
+- [black-forest-labs/flux-fill-pro](https://replicate.com/black-forest-labs/flux-fill-pro)
+- [black-forest-labs/flux-fill-dev](https://replicate.com/black-forest-labs/flux-fill-dev)
+
+**Flux-2 Models (Multi-Reference Image Generation):**
+
+These models support up to 8 input reference images for style transfer and composition:
+
+- [black-forest-labs/flux-2-pro](https://replicate.com/black-forest-labs/flux-2-pro)
+- [black-forest-labs/flux-2-dev](https://replicate.com/black-forest-labs/flux-2-dev)
+
+You can also use [versioned models](https://replicate.com/docs/topics/models/versions).
+The id for versioned models is the Replicate model id followed by a colon and the version ID (`$modelId:$versionId`), e.g.
+`bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637`.
+
+<Note>
+  You can also pass any available Replicate model ID as a string if needed.
+</Note>
+
+### Basic Usage
+
+```ts
+import { replicate } from '@ai-sdk/replicate';
+import { generateImage } from 'ai';
+import { writeFile } from 'node:fs/promises';
+
+const { image } = await generateImage({
+  model: replicate.image('black-forest-labs/flux-schnell'),
+  prompt: 'The Loch Ness Monster getting a manicure',
+  aspectRatio: '16:9',
+});
+
+await writeFile('image.webp', image.uint8Array);
+
+console.log('Image saved as image.webp');
+```
+
+### Model-specific options
+
+```ts highlight="9-11"
+import { replicate, type ReplicateImageModelOptions } from '@ai-sdk/replicate';
+import { generateImage } from 'ai';
+
+const { image } = await generateImage({
+  model: replicate.image('recraft-ai/recraft-v3'),
+  prompt: 'The Loch Ness Monster getting a manicure',
+  size: '1365x1024',
+  providerOptions: {
+    replicate: {
+      style: 'realistic_image',
+    } satisfies ReplicateImageModelOptions,
+  },
+});
+```
+
+### Versioned Models
+
+```ts
+import { replicate } from '@ai-sdk/replicate';
+import { generateImage } from 'ai';
+
+const { image } = await generateImage({
+  model: replicate.image(
+    'bytedance/sdxl-lightning-4step:5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637',
+  ),
+  prompt: 'The Loch Ness Monster getting a manicure',
+});
+```
+
+### Image Editing
+
+Replicate supports image editing through various models. Pass input images via `prompt.images` to transform or edit existing images.
+
+#### Basic Image Editing
+
+Transform an existing image using text prompts:
+
+```ts
+const imageBuffer = readFileSync('./input-image.png');
+
+const { images } = await generateImage({
+  model: replicate.image('black-forest-labs/flux-fill-dev'),
+  prompt: {
+    text: 'Turn the cat into a golden retriever dog',
+    images: [imageBuffer],
+  },
+  providerOptions: {
+    replicate: {
+      guidance_scale: 7.5,
+      num_inference_steps: 30,
+    } satisfies ReplicateImageModelOptions,
+  },
+});
+```
+
+#### Inpainting with Mask
+
+Edit specific parts of an image using a mask. For FLUX Fill models, white areas in the mask indicate where the image should be edited:
+
+```ts
+const image = readFileSync('./input-image.png');
+const mask = readFileSync('./mask.png'); // White = inpaint, black = keep
+
+const { images } = await generateImage({
+  model: replicate.image('black-forest-labs/flux-fill-pro'),
+  prompt: {
+    text: 'A sunlit indoor lounge area with a pool containing a flamingo',
+    images: [image],
+    mask: mask,
+  },
+  providerOptions: {
+    replicate: {
+      guidance_scale: 7.5,
+      num_inference_steps: 30,
+    } satisfies ReplicateImageModelOptions,
+  },
+});
+```
+
+#### Multi-Reference Image Generation (Flux-2)
+
+Flux-2 models support up to 8 input reference images for style transfer, composition, and multi-subject generation:
+
+```ts
+import { replicate } from '@ai-sdk/replicate';
+import { generateImage } from 'ai';
+
+const reference1 = readFileSync('./style-reference.png');
+const reference2 = readFileSync('./subject-reference.png');
+
+const { images } = await generateImage({
+  model: replicate.image('black-forest-labs/flux-2-pro'),
+  prompt: {
+    text: 'Combine the style and subjects from the reference images',
+    images: [reference1, reference2],
+  },
+});
+```
+
+<Note>
+  Flux-2 models use a different input format internally (`input_image`,
+  `input_image_2`, etc.) which is handled automatically. Note that Flux-2 models
+  do not support mask-based inpainting.
+</Note>
+
+<Note>
+  Input images can be provided as `Buffer`, `ArrayBuffer`, `Uint8Array`, or
+  base64-encoded strings. Different Replicate models have different parameter
+  names and capabilities — check the model's documentation on
+  [Replicate](https://replicate.com/explore) for details.
+</Note>
+
+### Provider Options
+
+Common provider options for image generation:
+
+- **maxWaitTimeInSeconds** _number_ - Maximum time in seconds to wait for the prediction to complete in sync mode. By default, Replicate uses [sync mode](https://replicate.com/docs/topics/predictions/create-a-prediction#timeout-duration) with a 60-second timeout. Set to a positive number to use a custom duration (e.g., `120` for 2 minutes). When not specified, uses the default 60-second wait.
+- **guidance_scale** _number_ - Guidance scale for classifier-free guidance. Higher values make the output more closely match the prompt.
+- **num_inference_steps** _number_ - Number of denoising steps. More steps = higher quality but slower.
+- **negative_prompt** _string_ - Negative prompt to guide what to avoid in the generation.
+- **output_format** _'png' | 'jpg' | 'webp'_ - Output image format.
+- **output_quality** _number (1-100)_ - Output image quality. Only applies to jpg and webp.
+- **strength** _number (0-1)_ - Strength of the transformation for img2img. Lower values keep more of the original image.
+
+For more details, see the [Replicate models page](https://replicate.com/explore).

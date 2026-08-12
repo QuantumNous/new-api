@@ -1,0 +1,130 @@
+---
+title: DevTools
+description: Debug and inspect AI SDK applications with DevTools
+---
+
+# DevTools
+
+<Note type="warning">
+  AI SDK DevTools is intended for local development only. Do not use in
+  production environments.
+</Note>
+
+AI SDK DevTools gives you full visibility over your AI SDK calls with [`generateText`](/docs/reference/ai-sdk-core/generate-text), [`streamText`](/docs/reference/ai-sdk-core/stream-text), and [`ToolLoopAgent`](/docs/reference/ai-sdk-core/tool-loop-agent). It helps you debug and inspect LLM requests, responses, tool calls, and multi-step interactions through a web-based UI.
+
+DevTools is composed of two parts:
+
+1. **Telemetry Integration**: Captures runs and steps from your AI SDK calls via the [telemetry](/docs/ai-sdk-core/telemetry) system
+2. **Viewer**: A web UI to inspect the captured data
+
+## Installation
+
+Install the DevTools package:
+
+```bash
+pnpm add @ai-sdk/devtools
+```
+
+## Requirements
+
+- AI SDK v7 (`ai@latest`)
+- Node.js compatible runtime
+
+## Using DevTools
+
+### Register the integration
+
+Register `DevToolsTelemetry` globally so it captures all AI SDK calls:
+
+```ts
+import { registerTelemetry } from 'ai';
+import { DevToolsTelemetry } from '@ai-sdk/devtools';
+
+registerTelemetry(DevToolsTelemetry());
+```
+
+Telemetry is enabled automatically once an integration is registered — no per-call configuration is needed:
+
+```ts
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: openai('gpt-4o'),
+  prompt: 'What cities are in the United States?',
+});
+```
+
+You can also pass the integration to individual calls instead of registering it globally:
+
+```ts highlight="7-9"
+import { streamText } from 'ai';
+import { DevToolsTelemetry } from '@ai-sdk/devtools';
+
+const result = streamText({
+  model: openai('gpt-4o'),
+  prompt: 'Hello!',
+  telemetry: {
+    integrations: [DevToolsTelemetry()],
+  },
+});
+```
+
+### Launch the viewer
+
+Start the DevTools viewer:
+
+```bash
+npx @ai-sdk/devtools
+```
+
+Open [http://localhost:4983](http://localhost:4983) to view your AI SDK interactions.
+
+### Monorepo usage
+
+If you are using a monorepo setup (e.g. Turborepo, Nx), start DevTools from the same workspace where your AI SDK code runs.
+
+For example, if your API is in `apps/api`, run:
+
+```bash
+cd apps/api
+npx @ai-sdk/devtools
+```
+
+## Captured data
+
+DevTools captures the following information from your AI SDK calls:
+
+- **Input parameters and prompts**: View the complete input sent to your LLM
+- **Output content and tool calls**: Inspect generated text and tool invocations
+- **Token usage and timing**: Monitor resource consumption and performance
+- **Raw provider data**: Access complete request and response payloads
+
+### Runs and steps
+
+DevTools organizes captured data into runs and steps:
+
+- **Run**: A complete multi-step AI interaction, grouped by the initial prompt
+- **Step**: A single LLM call within a run (e.g., one `generateText` or `streamText` call)
+
+Multi-step interactions, such as those created by tool calling or agent loops, are grouped together as a single run with multiple steps. Nested sub-agent calls are linked to their parent run, making it easy to trace the full execution tree.
+
+## How it works
+
+The `DevToolsTelemetry` integration hooks into the AI SDK [telemetry](/docs/ai-sdk-core/telemetry) lifecycle to capture all `generateText`, `streamText`, `generateObject`, and `streamObject` calls. Captured data is stored locally in a JSON file (`.devtools/generations.json`) and served through a web UI built with Hono and React.
+
+<Note type="warning">
+  The integration automatically adds `.devtools` to your `.gitignore` file.
+  Verify that `.devtools` is in your `.gitignore` to ensure you don't commit
+  sensitive AI interaction data to your repository.
+</Note>
+
+## Security considerations
+
+DevTools stores all AI interactions locally in plain text files, including:
+
+- User prompts and messages
+- LLM responses
+- Tool call arguments and results
+- API request and response data
+
+**Only use DevTools in local development environments.** Do not enable DevTools in production or when handling sensitive data.

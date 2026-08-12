@@ -1,0 +1,34 @@
+{
+  "metrics": {
+    "latencyMs": 2202
+  },
+  "output": {
+    "message": {
+      "content": [
+        {
+          "reasoningContent": {
+            "reasoningText": {
+              "signature": "EvYBCkgICxABGAIqQA9E9VC377UnbjdfXCw4RwQaaIXsqocZKzI3WwWtXT/wBjzAkBOfIiVkP/mhvsPGb5oQW/2j+E1tZcNFoXIb26YSDBTSbDrbHwXJoAl3/hoMA/Qo4rIHvObP/yBrIjAT+l69mh9k7evFO+w+ransSD5YGq4hYrieOyJH3k/zHv8nBJwiz3Nlrb3jNFi2Ib0qXJH7BIK0hR85yYIoccReoJUpeLEMxeWbsO6f0EpOSMSi3YDLd1U9NAw7Itjeay1fEBPHwvawt2M4e/rn52SsuEz3p2DfOZm+N3bnL63rg0Cb9lFcp3k5kuU1h6hcGAE=",
+              "text": "Let me count the r's in \"strawberry\":\n\ns-t-r-a-w-b-e-r-r-y\n\nThere are 3 r's."
+            }
+          }
+        },
+        {
+          "text": "There are **3** r's in \"strawberry\":\n\n1. st**r**awbe**r****r**y"
+        }
+      ],
+      "role": "assistant"
+    }
+  },
+  "stopReason": "end_turn",
+  "usage": {
+    "cacheReadInputTokenCount": 0,
+    "cacheReadInputTokens": 0,
+    "cacheWriteInputTokenCount": 0,
+    "cacheWriteInputTokens": 0,
+    "inputTokens": 51,
+    "outputTokens": 78,
+    "serverToolUsage": {},
+    "totalTokens": 129
+  }
+}

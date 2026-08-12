@@ -1,0 +1,361 @@
+---
+title: Cohere
+description: Learn how to use the Cohere provider for the AI SDK.
+---
+
+# Cohere Provider
+
+The [Cohere](https://cohere.com/) provider contains language and embedding model support for the Cohere chat API.
+
+## Setup
+
+The Cohere provider is available in the `@ai-sdk/cohere` module. You can install it with
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @ai-sdk/cohere" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @ai-sdk/cohere" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @ai-sdk/cohere" dark />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add @ai-sdk/cohere" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+You can import the default provider instance `cohere` from `@ai-sdk/cohere`:
+
+```ts
+import { cohere } from '@ai-sdk/cohere';
+```
+
+If you need a customized setup, you can import `createCohere` from `@ai-sdk/cohere`
+and create a provider instance with your settings:
+
+```ts
+import { createCohere } from '@ai-sdk/cohere';
+
+const cohere = createCohere({
+  // custom settings
+});
+```
+
+You can use the following optional settings to customize the Cohere provider instance:
+
+- **baseURL** _string_
+
+  Use a different URL prefix for API calls, e.g. to use proxy servers.
+  The default prefix is `https://api.cohere.com/v2`.
+
+- **apiKey** _string_
+
+  API key that is being sent using the `Authorization` header.
+  It defaults to the `COHERE_API_KEY` environment variable.
+
+- **headers** _Record&lt;string,string&gt;_
+
+  Custom headers to include in the requests.
+
+- **fetch** _(input: RequestInfo, init?: RequestInit) => Promise&lt;Response&gt;_
+
+  Custom [fetch](https://developer.mozilla.org/en-US/docs/Web/API/fetch) implementation.
+  Defaults to the global `fetch` function.
+  You can use it as a middleware to intercept requests,
+  or to provide a custom fetch implementation for e.g. testing.
+
+- **generateId** _() => string_
+
+  Optional function to generate unique IDs for each request.
+  Defaults to the SDK's built-in ID generator.
+
+## Language Models
+
+You can create models that call the [Cohere chat API](https://docs.cohere.com/v2/docs/chat-api) using a provider instance.
+The first argument is the model id, e.g. `command-r-plus`.
+Some Cohere chat models support tool calls.
+
+```ts
+const model = cohere('command-r-plus');
+```
+
+### Example
+
+You can use Cohere language models to generate text with the `generateText` function:
+
+```ts
+import { cohere } from '@ai-sdk/cohere';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: cohere('command-r-plus'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+});
+```
+
+Cohere language models can also be used in the `streamText` function
+and support structured data generation with [`Output`](/docs/reference/ai-sdk-core/output)
+(see [AI SDK Core](/docs/ai-sdk-core)).
+
+### Model Capabilities
+
+| Model                         | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
+| ----------------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
+| `command-a-03-2025`           | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-a-reasoning-08-2025` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-a-vision-07-2025`    | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-r7b-12-2024`         | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-r-plus-04-2024`      | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-r-plus`              | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-r-08-2024`           | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-r-03-2024`           | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command-r`                   | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `command`                     | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `command-nightly`             | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `command-light`               | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `command-light-nightly`       | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+
+<Note>
+  The table above lists popular models. Please see the [Cohere
+  docs](https://docs.cohere.com/v2/docs/models#command) for a full list of
+  available models. You can also pass any available provider model ID as a
+  string if needed.
+</Note>
+
+#### Image Inputs
+
+Vision-capable Cohere models such as `command-a-vision-07-2025` accept image inputs as part of the message content. You can pass images as raw bytes, base64-encoded strings, or URLs:
+
+```ts
+import { cohere } from '@ai-sdk/cohere';
+import { generateText } from 'ai';
+import { readFileSync } from 'node:fs';
+
+const { text } = await generateText({
+  model: cohere('command-a-vision-07-2025'),
+  messages: [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Describe the image in detail.' },
+        {
+          type: 'file',
+          mediaType: 'image',
+          data: readFileSync('./data/comic-cat.png'),
+        },
+      ],
+    },
+  ],
+});
+```
+
+You can use the `cohere` provider option on a file part to set the [image input detail](https://docs.cohere.com/docs/image-inputs) to `high`, `low`, or `auto`:
+
+```ts highlight="2,16-18"
+import { cohere } from '@ai-sdk/cohere';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: cohere('command-a-vision-07-2025'),
+  messages: [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'Describe the image in detail.' },
+        {
+          type: 'file',
+          mediaType: 'image',
+          data: 'https://github.com/vercel/ai/blob/main/examples/ai-functions/data/comic-cat.png?raw=true',
+
+          // Cohere specific options - image detail:
+          providerOptions: {
+            cohere: { detail: 'high' },
+          },
+        },
+      ],
+    },
+  ],
+});
+```
+
+#### Reasoning
+
+Cohere has introduced reasoning with the `command-a-reasoning-08-2025` model. You can learn more at https://docs.cohere.com/docs/reasoning.
+
+```ts
+import { cohere, type CohereLanguageModelChatOptions } from '@ai-sdk/cohere';
+import { generateText } from 'ai';
+
+async function main() {
+  const { text, reasoning } = await generateText({
+    model: cohere('command-a-reasoning-08-2025'),
+    prompt:
+      "Alice has 3 brothers and she also has 2 sisters. How many sisters does Alice's brother have?",
+    // optional: reasoning options
+    providerOptions: {
+      cohere: {
+        thinking: {
+          type: 'enabled',
+          tokenBudget: 100,
+        },
+      } satisfies CohereLanguageModelChatOptions,
+    },
+  });
+
+  console.log(reasoning);
+  console.log(text);
+}
+
+main().catch(console.error);
+```
+
+## Embedding Models
+
+You can create models that call the [Cohere embed API](https://docs.cohere.com/v2/reference/embed)
+using the `.embedding()` factory method.
+
+```ts
+const model = cohere.embedding('embed-english-v3.0');
+```
+
+You can use Cohere embedding models to generate embeddings with the `embed` function:
+
+```ts
+import { cohere, type CohereEmbeddingModelOptions } from '@ai-sdk/cohere';
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: cohere.embedding('embed-english-v3.0'),
+  value: 'sunny day at the beach',
+  providerOptions: {
+    cohere: {
+      inputType: 'search_document',
+    } satisfies CohereEmbeddingModelOptions,
+  },
+});
+```
+
+Cohere embedding models support additional provider options that can be passed via `providerOptions.cohere`:
+
+```ts
+import { cohere, type CohereEmbeddingModelOptions } from '@ai-sdk/cohere';
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: cohere.embedding('embed-english-v3.0'),
+  value: 'sunny day at the beach',
+  providerOptions: {
+    cohere: {
+      inputType: 'search_document',
+      truncate: 'END',
+    } satisfies CohereEmbeddingModelOptions,
+  },
+});
+```
+
+The following provider options are available:
+
+- **inputType** _'search_document' | 'search_query' | 'classification' | 'clustering'_
+
+  Specifies the type of input passed to the model. Default is `search_query`.
+  - `search_document`: Used for embeddings stored in a vector database for search use-cases.
+  - `search_query`: Used for embeddings of search queries run against a vector DB to find relevant documents.
+  - `classification`: Used for embeddings passed through a text classifier.
+  - `clustering`: Used for embeddings run through a clustering algorithm.
+
+- **truncate** _'NONE' | 'START' | 'END'_
+
+  Specifies how the API will handle inputs longer than the maximum token length.
+  Default is `END`.
+  - `NONE`: If selected, when the input exceeds the maximum input token length will return an error.
+  - `START`: Will discard the start of the input until the remaining input is exactly the maximum input token length for the model.
+  - `END`: Will discard the end of the input until the remaining input is exactly the maximum input token length for the model.
+
+### Model Capabilities
+
+| Model                           | Embedding Dimensions |
+| ------------------------------- | -------------------- |
+| `embed-english-v3.0`            | 1024                 |
+| `embed-multilingual-v3.0`       | 1024                 |
+| `embed-english-light-v3.0`      | 384                  |
+| `embed-multilingual-light-v3.0` | 384                  |
+| `embed-english-v2.0`            | 4096                 |
+| `embed-english-light-v2.0`      | 1024                 |
+| `embed-multilingual-v2.0`       | 768                  |
+
+## Reranking Models
+
+You can create models that call the [Cohere rerank API](https://docs.cohere.com/v2/reference/rerank)
+using the `.reranking()` factory method.
+
+```ts
+const model = cohere.reranking('rerank-v3.5');
+```
+
+You can use Cohere reranking models to rerank documents with the `rerank` function:
+
+```ts
+import { cohere } from '@ai-sdk/cohere';
+import { rerank } from 'ai';
+
+const documents = [
+  'sunny day at the beach',
+  'rainy afternoon in the city',
+  'snowy night in the mountains',
+];
+
+const { ranking } = await rerank({
+  model: cohere.reranking('rerank-v3.5'),
+  documents,
+  query: 'talk about rain',
+  topN: 2,
+});
+
+console.log(ranking);
+// [
+//   { originalIndex: 1, score: 0.9, document: 'rainy afternoon in the city' },
+//   { originalIndex: 0, score: 0.3, document: 'sunny day at the beach' }
+// ]
+```
+
+Cohere reranking models support additional provider options that can be passed via `providerOptions.cohere`:
+
+```ts
+import { cohere, type CohereRerankingModelOptions } from '@ai-sdk/cohere';
+import { rerank } from 'ai';
+
+const { ranking } = await rerank({
+  model: cohere.reranking('rerank-v3.5'),
+  documents: ['sunny day at the beach', 'rainy afternoon in the city'],
+  query: 'talk about rain',
+  providerOptions: {
+    cohere: {
+      maxTokensPerDoc: 1000,
+      priority: 1,
+    } satisfies CohereRerankingModelOptions,
+  },
+});
+```
+
+The following provider options are available:
+
+- **maxTokensPerDoc** _number_
+
+  Maximum number of tokens per document. Default is `4096`.
+
+- **priority** _number_
+
+  Priority of the request. Default is `0`.
+
+### Model Capabilities
+
+| Model                      |
+| -------------------------- |
+| `rerank-v3.5`              |
+| `rerank-english-v3.0`      |
+| `rerank-multilingual-v3.0` |

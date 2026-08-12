@@ -1,0 +1,195 @@
+---
+title: DeepSeek
+description: Learn how to use DeepSeek's models with the AI SDK.
+---
+
+# DeepSeek Provider
+
+The [DeepSeek](https://www.deepseek.com) provider offers access to powerful language models through the DeepSeek API.
+
+API keys can be obtained from the [DeepSeek Platform](https://platform.deepseek.com/api_keys).
+
+## Setup
+
+The DeepSeek provider is available via the `@ai-sdk/deepseek` module. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @ai-sdk/deepseek" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @ai-sdk/deepseek" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @ai-sdk/deepseek" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @ai-sdk/deepseek" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+You can import the default provider instance `deepSeek` from `@ai-sdk/deepseek`:
+
+```ts
+import { deepSeek } from '@ai-sdk/deepseek';
+```
+
+For custom configuration, you can import `createDeepSeek` and create a provider instance with your settings:
+
+```ts
+import { createDeepSeek } from '@ai-sdk/deepseek';
+
+const deepSeek = createDeepSeek({
+  apiKey: process.env.DEEPSEEK_API_KEY ?? '',
+});
+```
+
+You can use the following optional settings to customize the DeepSeek provider instance:
+
+- **baseURL** _string_
+
+  Use a different URL prefix for API calls.
+  The default prefix is `https://api.deepseek.com`.
+
+- **apiKey** _string_
+
+  API key that is being sent using the `Authorization` header. It defaults to
+  the `DEEPSEEK_API_KEY` environment variable.
+
+- **headers** _Record&lt;string,string&gt;_
+
+  Custom headers to include in the requests.
+
+- **fetch** _(input: RequestInfo, init?: RequestInit) => Promise&lt;Response&gt;_
+
+  Custom [fetch](https://developer.mozilla.org/en-US/docs/Web/API/fetch) implementation.
+
+## Language Models
+
+You can create language models using a provider instance:
+
+```ts
+import { deepSeek } from '@ai-sdk/deepseek';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: deepSeek('deepseek-chat'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+});
+```
+
+You can also use the `.chat()` or `.languageModel()` factory methods:
+
+```ts
+const model = deepSeek.chat('deepseek-chat');
+// or
+const model = deepSeek.languageModel('deepseek-chat');
+```
+
+DeepSeek language models can be used in the `streamText` function
+(see [AI SDK Core](/docs/ai-sdk-core)).
+
+The following optional provider options are available for DeepSeek models:
+
+- `thinking` _object_
+
+  Optional. Controls thinking mode (chain-of-thought reasoning). You can enable thinking mode either by using the `deepseek-reasoner` model or by setting this option.
+  - `type`: `'adaptive' | 'enabled' | 'disabled'` - Enable, disable, or let the model decide (`adaptive`) when to think. See [DeepSeek's thinking mode docs](https://api-docs.deepseek.com/guides/thinking_mode).
+
+- `reasoningEffort` _'low' | 'medium' | 'high' | 'xhigh' | 'max'_
+
+  Optional. Controls thinking strength for DeepSeek V4 reasoning models. Per
+  DeepSeek's docs, `low` and `medium` are mapped to `high`, and `xhigh` is
+  mapped to `max` server-side for compatibility with other providers. When
+  using the top-level `reasoning` setting, `minimal` is sent as `low`, and
+  `low`, `medium`, `high`, and `xhigh` pass through to DeepSeek's native
+  effort values.
+
+```ts highlight="7-12"
+import {
+  deepSeek,
+  type DeepSeekLanguageModelChatOptions,
+} from '@ai-sdk/deepseek';
+import { generateText } from 'ai';
+
+const { text, reasoning } = await generateText({
+  model: deepSeek('deepseek-chat'),
+  prompt: 'How many "r"s are in the word "strawberry"?',
+  providerOptions: {
+    deepseek: {
+      thinking: { type: 'enabled' },
+      reasoningEffort: 'high',
+    } satisfies DeepSeekLanguageModelChatOptions,
+  },
+});
+```
+
+### Reasoning
+
+DeepSeek has reasoning support for the `deepseek-reasoner` model. The reasoning is exposed through streaming:
+
+```ts
+import { deepSeek } from '@ai-sdk/deepseek';
+import { streamText } from 'ai';
+
+const result = streamText({
+  model: deepSeek('deepseek-reasoner'),
+  prompt: 'How many "r"s are in the word "strawberry"?',
+});
+
+for await (const part of result.stream) {
+  if (part.type === 'reasoning') {
+    // This is the reasoning text
+    console.log('Reasoning:', part.text);
+  } else if (part.type === 'text') {
+    // This is the final answer
+    console.log('Answer:', part.text);
+  }
+}
+```
+
+See [AI SDK UI: Chatbot](/docs/ai-sdk-ui/chatbot#reasoning) for more details
+on how to integrate reasoning into your chatbot.
+
+### Cache Token Usage
+
+DeepSeek provides context caching on disk technology that can significantly reduce token costs for repeated content. You can access the cache hit/miss metrics through the `providerMetadata` property in the response:
+
+```ts
+import { deepSeek } from '@ai-sdk/deepseek';
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: deepSeek('deepseek-chat'),
+  prompt: 'Your prompt here',
+});
+
+console.log(result.providerMetadata);
+// Example output: { deepseek: { promptCacheHitTokens: 1856, promptCacheMissTokens: 5 } }
+```
+
+The metrics include:
+
+- `promptCacheHitTokens`: Number of input tokens that were cached
+- `promptCacheMissTokens`: Number of input tokens that were not cached
+
+<Note>
+  For more details about DeepSeek's caching system, see the [DeepSeek caching
+  documentation](https://api-docs.deepseek.com/guides/kv_cache#checking-cache-hit-status).
+</Note>
+
+## Model Capabilities
+
+| Model               | Text Generation     | Object Generation   | Image Input         | Tool Usage          | Tool Streaming      |
+| ------------------- | ------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
+| `deepseek-chat`     | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| `deepseek-reasoner` | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
+
+<Note>
+  Please see the [DeepSeek
+  docs](https://api-docs.deepseek.com/quick_start/pricing) for a full list of
+  available models. You can also pass any available provider model ID as a
+  string if needed.
+</Note>

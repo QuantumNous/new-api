@@ -1,0 +1,296 @@
+---
+title: llama.cpp
+description: Learn how to use the llama.cpp provider.
+---
+
+# llama.cpp Provider
+
+[lgrammel/ai-sdk-llama-cpp](https://github.com/lgrammel/ai-sdk-llama-cpp) is a community provider that enables local LLM inference using [llama.cpp](https://github.com/ggerganov/llama.cpp) directly within Node.js via native C++ bindings.
+
+This provider loads llama.cpp directly into Node.js memory, eliminating the need for an external server while providing native performance and GPU acceleration.
+
+## Features
+
+- **Native Performance**: Direct C++ bindings using node-addon-api (N-API)
+- **GPU Acceleration**: Automatic Metal support on macOS
+- **Streaming & Non-streaming**: Full support for both `generateText` and `streamText`
+- **Structured Output**: Generate JSON objects with schema validation using `Output`
+- **Embeddings**: Generate embeddings with `embed` and `embedMany`
+- **Chat Templates**: Automatic or configurable chat template formatting (llama3, chatml, gemma, etc.)
+- **GGUF Support**: Load any GGUF-format model
+
+<Note>
+  This provider currently only supports **macOS** (Apple Silicon or Intel).
+  Windows and Linux are not supported.
+</Note>
+
+## Prerequisites
+
+Before installing, ensure you have the following:
+
+- **macOS** (Apple Silicon or Intel)
+- **Node.js** >= 22.0.0
+- **CMake** >= 3.15
+- **Xcode Command Line Tools**
+
+```bash
+# Install Xcode Command Line Tools (includes Clang)
+xcode-select --install
+
+# Install CMake via Homebrew
+brew install cmake
+```
+
+## Setup
+
+The llama.cpp provider is available in the `ai-sdk-llama-cpp` module. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add ai-sdk-llama-cpp" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install ai-sdk-llama-cpp" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add ai-sdk-llama-cpp" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add ai-sdk-llama-cpp" dark />
+  </Tab>
+</Tabs>
+
+The installation will automatically compile llama.cpp as a static library with Metal support and build the native Node.js addon.
+
+## Provider Instance
+
+You can import `llamaCpp` from `ai-sdk-llama-cpp` and create a model instance:
+
+```ts
+import { llamaCpp } from 'ai-sdk-llama-cpp';
+
+const model = llamaCpp({
+  modelPath: './models/llama-3.2-1b-instruct.Q4_K_M.gguf',
+});
+```
+
+### Configuration Options
+
+You can customize the model instance with the following options:
+
+- **modelPath** _string_ (required)
+
+  Path to the GGUF model file.
+
+- **contextSize** _number_
+
+  Maximum context size. Default: `2048`.
+
+- **gpuLayers** _number_
+
+  Number of layers to offload to GPU. Default: `99` (all layers). Set to `0` to disable GPU.
+
+- **threads** _number_
+
+  Number of CPU threads. Default: `4`.
+
+- **debug** _boolean_
+
+  Enable verbose debug output from llama.cpp. Default: `false`.
+
+- **chatTemplate** _string_
+
+  Chat template to use for formatting messages. Default: `"auto"` (uses the template embedded in the GGUF model file). Available templates include: `llama3`, `chatml`, `gemma`, `mistral-v1`, `mistral-v3`, `phi3`, `phi4`, `deepseek`, and more.
+
+```ts
+const model = llamaCpp({
+  modelPath: './models/your-model.gguf',
+  contextSize: 4096,
+  gpuLayers: 99,
+  threads: 8,
+  chatTemplate: 'llama3',
+});
+```
+
+## Language Models
+
+### Text Generation
+
+You can use llama.cpp models to generate text with the `generateText` function:
+
+```ts
+import { generateText } from 'ai';
+import { llamaCpp } from 'ai-sdk-llama-cpp';
+
+const model = llamaCpp({
+  modelPath: './models/llama-3.2-1b-instruct.Q4_K_M.gguf',
+});
+
+try {
+  const { text } = await generateText({
+    model,
+    prompt: 'Explain quantum computing in simple terms.',
+  });
+
+  console.log(text);
+} finally {
+  await model.dispose();
+}
+```
+
+### Streaming
+
+The provider fully supports streaming with `streamText`:
+
+```ts
+import { streamText } from 'ai';
+import { llamaCpp } from 'ai-sdk-llama-cpp';
+
+const model = llamaCpp({
+  modelPath: './models/llama-3.2-1b-instruct.Q4_K_M.gguf',
+});
+
+try {
+  const result = streamText({
+    model,
+    prompt: 'Write a haiku about programming.',
+  });
+
+  for await (const chunk of result.textStream) {
+    process.stdout.write(chunk);
+  }
+} finally {
+  await model.dispose();
+}
+```
+
+### Structured Output
+
+Generate type-safe JSON objects that conform to a schema using [`Output`](/docs/reference/ai-sdk-core/output):
+
+```ts
+import { generateText, Output } from 'ai';
+import { z } from 'zod';
+import { llamaCpp } from 'ai-sdk-llama-cpp';
+
+const model = llamaCpp({
+  modelPath: './models/your-model.gguf',
+});
+
+try {
+  const { output: recipe } = await generateText({
+    model,
+    output: Output.object({
+      schema: z.object({
+        name: z.string(),
+        ingredients: z.array(
+          z.object({
+            name: z.string(),
+            amount: z.string(),
+          }),
+        ),
+        steps: z.array(z.string()),
+      }),
+    }),
+    prompt: 'Generate a recipe for chocolate chip cookies.',
+  });
+
+  console.log(recipe);
+} finally {
+  await model.dispose();
+}
+```
+
+The structured output feature uses GBNF grammar constraints to ensure the model generates valid JSON that conforms to your schema.
+
+### Generation Parameters
+
+Standard AI SDK generation parameters are supported:
+
+```ts
+const { text } = await generateText({
+  model,
+  prompt: 'Hello!',
+  maxTokens: 256,
+  temperature: 0.7,
+  topP: 0.9,
+  topK: 40,
+  stopSequences: ['\n'],
+});
+```
+
+## Embedding Models
+
+You can create embedding models using the `llamaCpp.embedding()` factory method:
+
+```ts
+import { embed, embedMany } from 'ai';
+import { llamaCpp } from 'ai-sdk-llama-cpp';
+
+const model = llamaCpp.embedding({
+  modelPath: './models/nomic-embed-text-v1.5.Q4_K_M.gguf',
+});
+
+try {
+  const { embedding } = await embed({
+    model,
+    value: 'Hello, world!',
+  });
+
+  const { embeddings } = await embedMany({
+    model,
+    values: ['Hello, world!', 'Goodbye, world!'],
+  });
+} finally {
+  model.dispose();
+}
+```
+
+## Model Downloads
+
+You'll need to download GGUF-format models separately. Popular sources:
+
+- [Hugging Face](https://huggingface.co/models?search=gguf) - Search for GGUF models
+- [TheBloke's Models](https://huggingface.co/TheBloke) - Popular quantized models
+
+Example download:
+
+```bash
+# Create models directory
+mkdir -p models
+
+# Download a model (example: Llama 3.2 1B)
+wget -P models/ https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf
+```
+
+## Resource Management
+
+<Note type="warning">
+  Always call `model.dispose()` when done to unload the model and free GPU/CPU
+  resources. This is especially important when loading multiple models to
+  prevent memory leaks.
+</Note>
+
+```ts
+const model = llamaCpp({
+  modelPath: './models/your-model.gguf',
+});
+
+try {
+  // Use the model...
+} finally {
+  await model.dispose();
+}
+```
+
+## Limitations
+
+- **macOS only**: Windows and Linux are not supported
+- **No tool/function calling**: Tool calls are not supported
+- **No image inputs**: Only text prompts are supported
+
+## Additional Resources
+
+- [GitHub Repository](https://github.com/lgrammel/ai-sdk-llama-cpp)
+- [npm Package](https://www.npmjs.com/package/ai-sdk-llama-cpp)
+- [llama.cpp](https://github.com/ggerganov/llama.cpp) - The underlying inference engine

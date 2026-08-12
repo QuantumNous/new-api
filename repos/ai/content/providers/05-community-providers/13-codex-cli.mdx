@@ -1,0 +1,171 @@
+---
+title: Codex CLI
+description: Learn how to use the Codex CLI provider to access OpenAI GPT-5 models through the Codex CLI.
+---
+
+# Codex CLI Provider
+
+The [ai-sdk-provider-codex-cli](https://github.com/ben-vargas/ai-sdk-provider-codex-cli) community provider enables using OpenAI's GPT-5 series models through the [Codex CLI](https://github.com/openai/codex). It's useful for developers who want to use their ChatGPT Plus/Pro subscription or API key authentication.
+
+## Version Compatibility
+
+| Provider Version | AI SDK Version | NPM Tag     | Status      |
+| ---------------- | -------------- | ----------- | ----------- |
+| 1.x              | v6             | `latest`    | Stable      |
+| 0.x              | v5             | `ai-sdk-v5` | Maintenance |
+
+```bash
+# AI SDK v6 (default)
+npm install ai-sdk-provider-codex-cli ai
+
+# AI SDK v5
+npm install ai-sdk-provider-codex-cli@ai-sdk-v5 ai@^5.0.0
+```
+
+## Setup
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add ai-sdk-provider-codex-cli" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install ai-sdk-provider-codex-cli" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add ai-sdk-provider-codex-cli" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add ai-sdk-provider-codex-cli" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+You can import the default provider instance `codexCli` from `ai-sdk-provider-codex-cli`:
+
+```ts
+import { codexCli } from 'ai-sdk-provider-codex-cli';
+```
+
+If you need a customized setup, you can import `createCodexCli` and provide default settings that apply to every model:
+
+```ts
+import { createCodexCli } from 'ai-sdk-provider-codex-cli';
+
+const codexCli = createCodexCli({
+  defaultSettings: {
+    reasoningEffort: 'medium',
+    approvalMode: 'on-failure',
+    sandboxMode: 'workspace-write',
+    verbose: true,
+  },
+});
+```
+
+Or pass settings per-model:
+
+```ts
+const model = codexCli('gpt-5.1-codex', {
+  reasoningEffort: 'high',
+  approvalMode: 'on-failure',
+  sandboxMode: 'workspace-write',
+});
+```
+
+Model settings:
+
+- **reasoningEffort** _'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'_ - Controls reasoning depth.
+- **approvalMode** _'untrusted' | 'on-failure' | 'on-request' | 'never'_ - Tool approval policy.
+- **sandboxMode** _'read-only' | 'workspace-write' | 'danger-full-access'_ - Sandbox restrictions.
+- **mcpServers** _Record&lt;string, McpServerConfig&gt;_ - MCP server configurations.
+- **verbose** _boolean_ - Enable verbose logging.
+- **logger** _Logger | false_ - Custom logger or disable logging.
+
+## Language Models
+
+Create models that call GPT-5 through the Codex CLI using the provider instance:
+
+```ts
+const model = codexCli('gpt-5.2-codex');
+```
+
+**Current Generation Models:**
+
+- **gpt-5.3-codex**: Latest agentic coding model
+- **gpt-5.2**: Latest general purpose model
+- **gpt-5.1-codex-max**: Flagship model with deep reasoning (supports `xhigh` reasoning)
+- **gpt-5.1-codex-mini**: Lightweight, faster variant
+
+**Legacy Models (still supported):**
+
+- **gpt-5.1**: General purpose
+- **gpt-5.1-codex**: Codex variant
+- **gpt-5**: Previous generation
+- **gpt-5-codex**: Previous Codex variant
+- **gpt-5-codex-mini**: Previous lightweight variant
+
+### Example
+
+```ts
+import { codexCli } from 'ai-sdk-provider-codex-cli';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: codexCli('gpt-5.2-codex'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+});
+```
+
+### Reasoning Configuration
+
+```ts
+const model = codexCli('gpt-5.1-codex-max', {
+  reasoningEffort: 'high', // 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+  reasoningSummary: 'detailed',
+});
+```
+
+<Note>
+  The `xhigh` reasoning effort is available on `gpt-5.1-codex-max` and newer
+  model families that support it (including GPT-5.2 variants when supported by
+  your Codex CLI version).
+</Note>
+
+### Model Capabilities
+
+| Model                | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
+| -------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
+| `gpt-5.3-codex`      | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `gpt-5.2-codex`      | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `gpt-5.2`            | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `gpt-5.1-codex-max`  | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `gpt-5.1-codex-mini` | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `gpt-5.1`            | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| `gpt-5.1-codex`      | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+
+<Note>
+  Tool Usage and Tool Streaming show ❌ because this provider does not support
+  AI SDK custom tools (Zod schemas passed to `generateText`/`streamText`).
+  Instead, the Codex CLI executes its own tools autonomously, which can be
+  observed via streaming events. Object generation uses native JSON Schema
+  support via `--output-schema` for guaranteed schema compliance.
+</Note>
+
+## Authentication
+
+The provider uses your existing ChatGPT Plus/Pro subscription through the Codex CLI:
+
+```bash
+npm install -g @openai/codex
+codex  # Follow the interactive authentication setup
+```
+
+Alternatively, you can use an OpenAI API key by setting the `OPENAI_API_KEY` environment variable.
+
+## Requirements
+
+- Node.js 22 or higher
+- Codex CLI installed globally (v0.42.0+ for JSON support, v0.60.0+ recommended for latest models)
+- ChatGPT Plus/Pro subscription or OpenAI API key
+
+For more details, see the [provider documentation](https://github.com/ben-vargas/ai-sdk-provider-codex-cli).

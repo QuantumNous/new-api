@@ -1,0 +1,396 @@
+---
+title: Multi-Modal Agent
+description: Learn how to build a multi-modal agent that can process images and PDFs with the AI SDK.
+tags: ['multi-modal', 'agent', 'images', 'pdf', 'vision', 'next']
+---
+
+# Multi-Modal Agent
+
+In this guide, you will build a multi-modal agent capable of understanding both images and PDFs.
+
+Multi-modal refers to the ability of the agent to understand and generate responses in multiple formats. In this guide, we'll focus on images and PDFs - two common document types that modern language models can process natively.
+
+<Note>
+  For a complete list of providers and their multi-modal capabilities, visit the
+  [providers documentation](/providers/ai-sdk-providers).
+</Note>
+
+We'll build this agent using OpenAI's GPT-4o, but the same code works seamlessly with other providers - you can switch between them by changing just one line of code.
+
+## Prerequisites
+
+To follow this quickstart, you'll need:
+
+- Node.js 22+ and pnpm installed on your local development machine.
+- A Vercel AI Gateway API key.
+
+If you haven't obtained your Vercel AI Gateway API key, you can do so by [signing up](https://vercel.com/d?to=%2F%5Bteam%5D%2F%7E%2Fai&title=Go+to+AI+Gateway) on the Vercel website.
+
+## Create Your Application
+
+Start by creating a new Next.js application. This command will create a new directory named `multi-modal-agent` and set up a basic Next.js application inside it.
+
+<div className="mb-4">
+  <Note>
+    Be sure to select yes when prompted to use the App Router. If you are
+    looking for the Next.js Pages Router quickstart guide, you can find it
+    [here](/docs/getting-started/nextjs-pages-router).
+  </Note>
+</div>
+
+<Snippet text="pnpm create next-app@latest multi-modal-agent" />
+
+Navigate to the newly created directory:
+
+<Snippet text="cd multi-modal-agent" />
+
+### Install dependencies
+
+Install `ai` and `@ai-sdk/react`, the AI SDK package and the AI SDK's React package respectively.
+
+<Note>
+  The AI SDK is designed to be a unified interface to interact with any large
+  language model. This means that you can change model and providers with just
+  one line of code! Learn more about [available providers](/providers) and
+  [building custom providers](/providers/community-providers/custom-providers)
+  in the [providers](/providers) section.
+</Note>
+<div className="my-4">
+  <Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+    <Tab>
+      <Snippet text="pnpm add ai @ai-sdk/react" dark />
+    </Tab>
+    <Tab>
+      <Snippet text="npm install ai @ai-sdk/react" dark />
+    </Tab>
+    <Tab>
+      <Snippet text="yarn add ai @ai-sdk/react" dark />
+    </Tab>
+
+    <Tab>
+      <Snippet text="bun add ai @ai-sdk/react" dark />
+    </Tab>
+
+  </Tabs>
+</div>
+
+### Configure your Vercel AI Gateway API key
+
+Create a `.env.local` file in your project root and add your Vercel AI Gateway API key. This key authenticates your application with Vercel AI Gateway.
+
+<Snippet text="touch .env.local" />
+
+Edit the `.env.local` file:
+
+```env filename=".env.local"
+AI_GATEWAY_API_KEY=your_api_key_here
+```
+
+Replace `your_api_key_here` with your actual Vercel AI Gateway API key.
+
+<Note className="mb-4">
+  The AI SDK's Vercel AI Gateway Provider is the default global provider, so you
+  can access models using a simple string in the model configuration. If you
+  prefer to use a specific provider like OpenAI directly, see the [provider
+  management](/docs/ai-sdk-core/provider-management) documentation.
+</Note>
+
+## Implementation Plan
+
+To build a multi-modal agent, you will need to:
+
+- Create a Route Handler to handle incoming chat messages and generate responses.
+- Wire up the UI to display chat messages, provide a user input, and handle submitting new messages.
+- Add the ability to upload images and PDFs and attach them alongside the chat messages.
+
+## Create a Route Handler
+
+Create a route handler, `app/api/chat/route.ts` and add the following code:
+
+```tsx filename="app/api/chat/route.ts"
+import {
+  streamText,
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+  type UIMessage,
+} from 'ai';
+
+// Allow streaming responses up to 30 seconds
+export const maxDuration = 30;
+
+export async function POST(req: Request) {
+  const { messages }: { messages: UIMessage[] } = await req.json();
+
+  const result = streamText({
+    model: 'openai/gpt-4o',
+    messages: await convertToModelMessages(messages),
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+  });
+}
+```
+
+Let's take a look at what is happening in this code:
+
+1. Define an asynchronous `POST` request handler and extract `messages` from the body of the request. The `messages` variable contains a history of the conversation between you and the agent and provides the agent with the necessary context to make the next generation.
+2. Convert the UI messages to model messages using `convertToModelMessages`, which transforms the UI-focused message format to the format expected by the language model.
+3. Call [`streamText`](/docs/reference/ai-sdk-core/stream-text), which is imported from the `ai` package. This function accepts a configuration object that contains a `model` provider and `messages` (converted in step 2). You can pass additional [settings](/docs/ai-sdk-core/settings) to further customize the model's behavior.
+4. The `streamText` function returns a [`StreamTextResult`](/docs/reference/ai-sdk-core/stream-text#result-object). Pass its `stream` to `toUIMessageStream` and return it with `createUIMessageStreamResponse` to create a streamed response object.
+5. Finally, return the result to the client to stream the response.
+
+This Route Handler creates a POST request endpoint at `/api/chat`.
+
+## Wire up the UI
+
+Now that you have a Route Handler that can query a large language model (LLM), it's time to setup your frontend. [ AI SDK UI ](/docs/ai-sdk-ui) abstracts the complexity of a chat interface into one hook, [`useChat`](/docs/reference/ai-sdk-ui/use-chat).
+
+Update your root page (`app/page.tsx`) with the following code to show a list of chat messages and provide a user message input:
+
+```tsx filename="app/page.tsx"
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useState } from 'react';
+
+export default function Chat() {
+  const [input, setInput] = useState('');
+
+  const { messages, sendMessage } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+    }),
+  });
+
+  return (
+    <div className="flex flex-col w-full max-w-md py-24 mx-auto stretch">
+      {messages.map(m => (
+        <div key={m.id} className="whitespace-pre-wrap">
+          {m.role === 'user' ? 'User: ' : 'AI: '}
+          {m.parts.map((part, index) => {
+            if (part.type === 'text') {
+              return <span key={`${m.id}-text-${index}`}>{part.text}</span>;
+            }
+            return null;
+          })}
+        </div>
+      ))}
+
+      <form
+        onSubmit={async event => {
+          event.preventDefault();
+          sendMessage({
+            role: 'user',
+            parts: [{ type: 'text', text: input }],
+          });
+          setInput('');
+        }}
+        className="fixed bottom-0 w-full max-w-md mb-8 border border-gray-300 rounded shadow-xl"
+      >
+        <input
+          className="w-full p-2"
+          value={input}
+          placeholder="Say something..."
+          onChange={e => setInput(e.target.value)}
+        />
+      </form>
+    </div>
+  );
+}
+```
+
+<Note>
+  Make sure you add the `"use client"` directive to the top of your file. This
+  allows you to add interactivity with JavaScript.
+</Note>
+
+This page utilizes the `useChat` hook, configured with `DefaultChatTransport` to specify the API endpoint. The `useChat` hook provides multiple utility functions and state variables:
+
+- `messages` - the current chat messages (an array of objects with `id`, `role`, and `parts` properties).
+- `sendMessage` - function to send a new message to the AI.
+- Each message contains a `parts` array that can include text, images, PDFs, and other content types.
+- Files are converted to data URLs before being sent to maintain compatibility across different environments.
+
+## Add File Upload
+
+To make your agent multi-modal, let's add the ability to upload and send both images and PDFs to the model. In v5, files are sent as part of the message's `parts` array. Files are converted to data URLs using the FileReader API before being sent to the server.
+
+Update your root page (`app/page.tsx`) with the following code:
+
+```tsx filename="app/page.tsx" highlight="4-5,10-12,15-39,46-81,87-97"
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useRef, useState } from 'react';
+import Image from 'next/image';
+
+async function convertFilesToDataURLs(files: FileList) {
+  return Promise.all(
+    Array.from(files).map(
+      file =>
+        new Promise<{
+          type: 'file';
+          mediaType: string;
+          url: string;
+        }>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve({
+              type: 'file',
+              mediaType: file.type,
+              url: reader.result as string,
+            });
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        }),
+    ),
+  );
+}
+
+export default function Chat() {
+  const [input, setInput] = useState('');
+  const [files, setFiles] = useState<FileList | undefined>(undefined);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { messages, sendMessage } = useChat({
+    transport: new DefaultChatTransport({
+      api: '/api/chat',
+    }),
+  });
+
+  return (
+    <div className="flex flex-col w-full max-w-md py-24 mx-auto stretch">
+      {messages.map(m => (
+        <div key={m.id} className="whitespace-pre-wrap">
+          {m.role === 'user' ? 'User: ' : 'AI: '}
+          {m.parts.map((part, index) => {
+            if (part.type === 'text') {
+              return <span key={`${m.id}-text-${index}`}>{part.text}</span>;
+            }
+            if (part.type === 'file' && part.mediaType?.startsWith('image/')) {
+              return (
+                <Image
+                  key={`${m.id}-image-${index}`}
+                  src={part.url}
+                  width={500}
+                  height={500}
+                  alt={`attachment-${index}`}
+                />
+              );
+            }
+            if (part.type === 'file' && part.mediaType === 'application/pdf') {
+              return (
+                <iframe
+                  key={`${m.id}-pdf-${index}`}
+                  src={part.url}
+                  width={500}
+                  height={600}
+                  title={`pdf-${index}`}
+                />
+              );
+            }
+            return null;
+          })}
+        </div>
+      ))}
+
+      <form
+        className="fixed bottom-0 w-full max-w-md p-2 mb-8 border border-gray-300 rounded shadow-xl space-y-2"
+        onSubmit={async event => {
+          event.preventDefault();
+
+          const fileParts =
+            files && files.length > 0
+              ? await convertFilesToDataURLs(files)
+              : [];
+
+          sendMessage({
+            role: 'user',
+            parts: [{ type: 'text', text: input }, ...fileParts],
+          });
+
+          setInput('');
+          setFiles(undefined);
+
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        }}
+      >
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          className=""
+          onChange={event => {
+            if (event.target.files) {
+              setFiles(event.target.files);
+            }
+          }}
+          multiple
+          ref={fileInputRef}
+        />
+        <input
+          className="w-full p-2"
+          value={input}
+          placeholder="Say something..."
+          onChange={e => setInput(e.target.value)}
+        />
+      </form>
+    </div>
+  );
+}
+```
+
+In this code, you:
+
+1. Add a helper function `convertFilesToDataURLs` to convert file uploads to data URLs.
+1. Create state to hold the input text, files, and a ref to the file input field.
+1. Configure `useChat` with `DefaultChatTransport` to specify the API endpoint.
+1. Display messages using the `parts` array structure, rendering text, images, and PDFs appropriately.
+1. Update the `onSubmit` function to send messages with the `sendMessage` function, including both text and file parts.
+1. Add a file input field to the form, including an `onChange` handler to handle updating the files state.
+
+## Running Your Application
+
+With that, you have built everything you need for your multi-modal agent! To start your application, use the command:
+
+<Snippet text="pnpm run dev" />
+
+Head to your browser and open http://localhost:3000. You should see an input field and a button to upload files.
+
+Try uploading an image or PDF and asking the model questions about it. Watch as the model's response is streamed back to you!
+
+## Using Other Providers
+
+With the AI SDK's unified provider interface you can easily switch to other providers that support multi-modal capabilities:
+
+```tsx filename="app/api/chat/route.ts"
+// Using Anthropic
+const result = streamText({
+  model: 'anthropic/claude-sonnet-4-20250514',
+  messages: await convertToModelMessages(messages),
+});
+
+// Using Google
+const result = streamText({
+  model: 'google/gemini-2.5-flash',
+  messages: await convertToModelMessages(messages),
+});
+```
+
+Install the provider package (`@ai-sdk/anthropic` or `@ai-sdk/google`) and update your API keys in `.env.local`. The rest of your code remains the same.
+
+<Note>
+  Different providers may have varying file size limits and performance
+  characteristics. Check the [provider
+  documentation](/providers/ai-sdk-providers) for specific details.
+</Note>
+
+## Where to Next?
+
+You've built a multi-modal AI agent using the AI SDK! Experiment and extend the functionality of this application further by exploring [tool calling](/docs/ai-sdk-core/tools-and-tool-calling).

@@ -1,0 +1,102 @@
+---
+title: A2A
+description: A2A Protocol Provider for the AI SDK
+---
+
+# A2A
+
+The [dracoblue/a2a-ai-provider](https://github.com/dracoblue/a2a-ai-provider) is a community provider enables the use of [A2A protocol](https://a2aproject.github.io/A2A/specification/) compliant agents with the [AI SDK](https://ai-sdk.dev/). This allows developers to stream, send, and receive text, tool calls, and artifacts using a standardized JSON-RPC interface over HTTP.
+
+<Note type="warning">
+  The `a2a-ai-provider` package is under constant development.
+</Note>
+
+The provider supports (by using the official a2a-js sdk [@a2a-js/sdk](https://github.com/a2aproject/a2a-js)):
+
+- **Streaming Text Responses** via `sendSubscribe` and SSE
+- **File & Artifact Uploads** to the A2A server
+- **Multi-modal Messaging** with support for text and file parts
+- **Full JSON-RPC 2.0 Compliance** for A2A-compatible LLM agents
+
+Learn more about A2A at the [A2A Project Site](https://a2aproject.github.io/A2A/).
+
+## Setup
+
+Install the `a2a-ai-provider` from npm:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add a2a-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install a2a-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add a2a-ai-provider" dark />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add a2a-ai-provider" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+To create a provider instance for an A2A server:
+
+```ts
+import { a2a } from 'a2a-ai-provider';
+```
+
+## Examples
+
+You can now use the provider with the AI SDK like this:
+
+### `generateText`
+
+```ts
+import { a2a } from 'a2a-ai-provider';
+import { generateText } from 'ai';
+
+const result = await generateText({
+  model: a2a('https://your-a2a-server.example.com'),
+  prompt: 'What is love?',
+});
+
+console.log(result.text);
+```
+
+### `streamText`
+
+```ts
+import { a2a } from 'a2a-ai-provider';
+import { streamText } from 'ai';
+
+const chatId = 'unique-chat-id'; // for each conversation to keep history in a2a server
+
+const streamResult = streamText({
+  model: a2a('https://your-a2a-server.example.com'),
+  prompt: 'What is love?',
+  providerOptions: {
+    a2a: {
+      contextId: chatId,
+    },
+  },
+});
+
+await streamResult.consumeStream();
+
+console.log(await streamResult.content);
+```
+
+## Features
+
+- **Text Streaming**: Streams token-by-token output from the A2A server
+- **File Uploads**: Send files as part of your prompts
+- **Artifact Handling**: Receives file artifacts in streamed or final results
+
+## Additional Resources
+
+- [GitHub Repository](https://github.com/DracoBlue/a2a-ai-provider)
+- [A2A Protocol Spec](https://a2aproject.github.io/A2A/specification/)
+- License: MIT

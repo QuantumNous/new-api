@@ -1,0 +1,277 @@
+---
+title: Requesty
+description: Requesty Provider for the AI SDK
+---
+
+# Requesty
+
+[Requesty](https://requesty.ai/) is a unified LLM gateway that provides access to over 300 large language models from leading providers like OpenAI, Anthropic, Google, Mistral, AWS, and more. The Requesty provider for the AI SDK enables seamless integration with all these models while offering enterprise-grade advantages:
+
+- **Universal Model Access**: One API key for 300+ models from multiple providers
+- **99.99% Uptime SLA**: Enterprise-grade infrastructure with intelligent failover and load balancing
+- **Cost Optimization**: Pay-as-you-go pricing with intelligent routing and prompt caching to reduce costs by up to 80%
+- **Advanced Security**: Prompt injection detection, end-to-end encryption, and GDPR compliance
+- **Real-time Observability**: Built-in monitoring, tracing, and analytics
+- **Intelligent Routing**: Automatic failover and performance-based routing
+- **Reasoning Support**: Advanced reasoning capabilities with configurable effort levels
+
+Learn more about Requesty's capabilities in the [Requesty Documentation](https://docs.requesty.ai).
+
+## Setup
+
+The Requesty provider is available in the `@requesty/ai-sdk` module. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @requesty/ai-sdk" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @requesty/ai-sdk" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @requesty/ai-sdk" dark />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add @requesty/ai-sdk" dark />
+  </Tab>
+</Tabs>
+
+## API Key Setup
+
+For security, you should set your API key as an environment variable named exactly `REQUESTY_API_KEY`:
+
+```bash
+# Linux/Mac
+export REQUESTY_API_KEY=your_api_key_here
+
+# Windows Command Prompt
+set REQUESTY_API_KEY=your_api_key_here
+
+# Windows PowerShell
+$env:REQUESTY_API_KEY="your_api_key_here"
+```
+
+You can obtain your Requesty API key from the [Requesty Dashboard](https://app.requesty.ai/api-keys).
+
+## Provider Instance
+
+You can import the default provider instance `requesty` from `@requesty/ai-sdk`:
+
+```typescript
+import { requesty } from '@requesty/ai-sdk';
+```
+
+Alternatively, you can create a custom provider instance using `createRequesty`:
+
+```typescript
+import { createRequesty } from '@requesty/ai-sdk';
+
+const customRequesty = createRequesty({
+  apiKey: 'YOUR_REQUESTY_API_KEY',
+});
+```
+
+## Language Models
+
+Requesty supports both chat and completion models with a simple, unified interface:
+
+```typescript
+// Using the default provider instance
+const model = requesty('openai/gpt-4o');
+
+// Using a custom provider instance
+const customModel = customRequesty('anthropic/claude-3.5-sonnet');
+```
+
+You can find the full list of available models in the [Requesty Models documentation](https://requesty.ai/models).
+
+## Examples
+
+Here are examples of using Requesty with the AI SDK:
+
+### `generateText`
+
+```javascript
+import { requesty } from '@requesty/ai-sdk';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: requesty('openai/gpt-4o'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+});
+
+console.log(text);
+```
+
+### `streamText`
+
+```javascript
+import { requesty } from '@requesty/ai-sdk';
+import { streamText } from 'ai';
+
+const result = streamText({
+  model: requesty('anthropic/claude-3.5-sonnet'),
+  prompt: 'Write a short story about AI.',
+});
+
+for await (const chunk of result.textStream) {
+  console.log(chunk);
+}
+```
+
+### Structured Output
+
+```javascript
+import { requesty } from '@requesty/ai-sdk';
+import { generateText, Output } from 'ai';
+import { z } from 'zod';
+
+const { output } = await generateText({
+  model: requesty('openai/gpt-4o'),
+  output: Output.object({
+    schema: z.object({
+      recipe: z.object({
+        name: z.string(),
+        ingredients: z.array(z.string()),
+        steps: z.array(z.string()),
+      }),
+    }),
+  }),
+  prompt: 'Generate a recipe for chocolate chip cookies.',
+});
+
+console.log(output.recipe);
+```
+
+## Advanced Features
+
+### Reasoning Support
+
+Requesty provides advanced reasoning capabilities with configurable effort levels for supported models:
+
+```javascript
+import { createRequesty } from '@requesty/ai-sdk';
+import { generateText } from 'ai';
+
+const requesty = createRequesty({ apiKey: process.env.REQUESTY_API_KEY });
+
+// Using reasoning effort
+const { text, reasoning } = await generateText({
+  model: requesty('openai/o3-mini', {
+    reasoningEffort: 'medium',
+  }),
+  prompt: 'Solve this complex problem step by step...',
+});
+
+console.log('Response:', text);
+console.log('Reasoning:', reasoning);
+```
+
+#### Reasoning Effort Values
+
+- `'low'` - Minimal reasoning effort
+- `'medium'` - Moderate reasoning effort
+- `'high'` - High reasoning effort
+- `'max'` - Maximum reasoning effort (Requesty-specific)
+- Budget strings (e.g., `"10000"`) - Specific token budget for reasoning
+
+#### Supported Reasoning Models
+
+- **OpenAI**: `openai/o3-mini`, `openai/o3`
+- **Anthropic**: `anthropic/claude-sonnet-4-0`, other Claude reasoning models
+- **Deepseek**: All Deepseek reasoning models (automatic reasoning)
+
+### Custom Configuration
+
+Configure Requesty with custom settings:
+
+```javascript
+import { createRequesty } from '@requesty/ai-sdk';
+
+const requesty = createRequesty({
+  apiKey: process.env.REQUESTY_API_KEY,
+  baseURL: 'https://router.requesty.ai/v1',
+  headers: {
+    'Custom-Header': 'custom-value',
+  },
+  extraBody: {
+    custom_field: 'value',
+  },
+});
+```
+
+### Passing Extra Body Parameters
+
+There are three ways to pass extra body parameters to Requesty:
+
+#### 1. Via Provider Options
+
+```javascript
+await streamText({
+  model: requesty('anthropic/claude-3.5-sonnet'),
+  messages: [{ role: 'user', content: 'Hello' }],
+  providerOptions: {
+    requesty: {
+      custom_field: 'value',
+      reasoning_effort: 'high',
+    },
+  },
+});
+```
+
+#### 2. Via Model Settings
+
+```javascript
+const model = requesty('anthropic/claude-3.5-sonnet', {
+  extraBody: {
+    custom_field: 'value',
+  },
+});
+```
+
+#### 3. Via Provider Factory
+
+```javascript
+const requesty = createRequesty({
+  apiKey: process.env.REQUESTY_API_KEY,
+  extraBody: {
+    custom_field: 'value',
+  },
+});
+```
+
+## Enterprise Features
+
+Requesty offers several enterprise-grade features:
+
+1. **99.99% Uptime SLA**: Advanced routing and failover mechanisms keep your AI application online when other services fail.
+
+2. **Intelligent Load Balancing**: Real-time performance-based routing automatically selects the best-performing providers.
+
+3. **Cost Optimization**: Intelligent routing can reduce API costs by up to 40% while maintaining response quality.
+
+4. **Advanced Security**: Built-in prompt injection detection, end-to-end encryption, and GDPR compliance.
+
+5. **Real-time Observability**: Comprehensive monitoring, tracing, and analytics for all requests.
+
+6. **Geographic Restrictions**: Comply with regional regulations through configurable geographic controls.
+
+7. **Model Access Control**: Fine-grained control over which models and providers can be accessed.
+
+## Key Benefits
+
+- **Zero Downtime**: Automatic failover with \<50ms switching time
+- **Multi-Provider Redundancy**: Seamless switching between healthy providers
+- **Intelligent Queuing**: Retry logic with exponential backoff
+- **Developer-Friendly**: Straightforward setup with unified API
+- **Flexibility**: Switch between models and providers without code changes
+- **Enterprise Support**: Available for high-volume users with custom SLAs
+
+## Additional Resources
+
+- [Requesty Provider Repository](https://github.com/requestyai/ai-sdk-requesty)
+- [Requesty Documentation](https://docs.requesty.ai/)
+- [Requesty Dashboard](https://app.requesty.ai/analytics)
+- [Requesty Discord Community](https://discord.com/invite/Td3rwAHgt4)
+- [Requesty Status Page](https://status.requesty.ai)

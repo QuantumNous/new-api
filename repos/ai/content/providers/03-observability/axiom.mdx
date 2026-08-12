@@ -1,0 +1,178 @@
+---
+title: Axiom
+description: Measure, observe, and improve your AI SDK application with Axiom
+---
+
+# Axiom Observability
+
+**Axiom** is a data platform with specialized features for **AI engineering workflows**, helping you build sophisticated AI systems with confidence.
+
+Axiom’s integration with the AI SDK uses a model wrapper to automatically capture detailed traces for every LLM call, giving you immediate visibility into your application's performance, cost, and behavior.
+
+## Setup
+
+### 1. Configure Axiom
+
+First, you'll need an Axiom organization, a dataset to send traces to, and an API token.
+
+- [Create an Axiom organization](https://app.axiom.co/register).
+- [Create a new dataset](https://app.axiom.co/datasets) (e.g., `my-ai-app`).
+- [Create an API token](https://app.axiom.co/settings/api-tokens) with ingest permissions for your dataset.
+
+### 2. Install the Axiom SDK
+
+Install the Axiom package in your project:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add axiom" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install axiom" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add axiom" dark />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add axiom" dark />
+  </Tab>
+</Tabs>
+
+### 3. Set Environment Variables
+
+Configure your environment variables in a `.env` file. This uses the standard OpenTelemetry configuration to send traces directly to your Axiom dataset.
+
+```bash filename=".env"
+# Axiom Configuration
+AXIOM_TOKEN="YOUR_AXIOM_API_TOKEN"
+AXIOM_DATASET="your-axiom-dataset-name"
+
+# Vercel and OpenTelemetry Configuration
+OTEL_SERVICE_NAME="my-ai-app"
+OTEL_EXPORTER_OTLP_ENDPOINT="https://api.axiom.co/v1/traces"
+OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer YOUR_AXIOM_API_TOKEN,X-Axiom-Dataset=your-axiom-dataset-name"
+
+# Your AI Provider Key
+OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+```
+
+Replace the placeholder values with your actual Axiom token and dataset name.
+
+### 4. Set Up Instrumentation
+
+To send data to Axiom, configure a tracer. For example, use a dedicated instrumentation file and load it before the rest of your app. An example configuration for a Node.js environment:
+
+1. Install dependencies:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet
+      text="pnpm i dotenv @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @opentelemetry/api"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="npm i dotenv @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @opentelemetry/api"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="yarn add dotenv @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @opentelemetry/api"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="bun add dotenv @opentelemetry/exporter-trace-otlp-http @opentelemetry/resources @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/semantic-conventions @opentelemetry/api"
+      dark
+    />
+  </Tab>
+</Tabs>
+
+2. Create instrumentation file:
+
+```typescript filename="src/instrumentation.ts"
+import { trace } from '@opentelemetry/api';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import type { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node';
+import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
+import { initAxiomAI, RedactionPolicy } from 'axiom/ai';
+
+const tracer = trace.getTracer('my-tracer');
+
+const sdk = new NodeSDK({
+  resource: resourceFromAttributes({
+    [ATTR_SERVICE_NAME]: 'my-ai-app',
+  }) as Resource,
+  spanProcessor: new SimpleSpanProcessor(
+    new OTLPTraceExporter({
+      url: `https://api.axiom.co/v1/traces`,
+      headers: {
+        Authorization: `Bearer ${process.env.AXIOM_TOKEN}`,
+        'X-Axiom-Dataset': process.env.AXIOM_DATASET,
+      },
+    }),
+  ),
+});
+
+sdk.start();
+
+initAxiomAI({ tracer, redactionPolicy: RedactionPolicy.AxiomDefault });
+```
+
+### 5. Wrap and Use the AI Model
+
+In your application code, import `wrapAISDKModel` from Axiom and use it to wrap your existing AI SDK model client.
+
+```typescript
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText } from 'ai';
+import { wrapAISDKModel } from 'axiom/ai';
+
+// 1. Create your standard AI model provider
+const openaiProvider = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// 2. Wrap the model to enable automatic tracing
+const tracedGpt4o = wrapAISDKModel(openaiProvider('gpt-4o'));
+
+// 3. Use the wrapped model as you normally would
+const { text } = await generateText({
+  model: tracedGpt4o,
+  prompt: 'What is the capital of Spain?',
+});
+
+console.log(text);
+```
+
+Any calls made using the `tracedGpt4o` model will now automatically send detailed traces to your Axiom dataset.
+
+## What You'll See in Axiom
+
+Once integrated, your Axiom dataset will include:
+
+- **AI Trace Waterfall:** A dedicated view to visualize single and multi-step LLM workflows.
+- **Gen AI Dashboard:** A pre-built dashboard to monitor cost, latency, token usage, and error rates.
+- **Detailed Spans:** Rich telemetry for every call, including the full prompt and completion, token counts, and model information.
+
+## Advanced Usage
+
+Axiom’s AI SDK offers more advanced instrumentation for deeper visibility:
+
+- **Business Context:** Use the `withSpan` function to group LLM calls under a specific business capability (e.g., `customer_support_agent`).
+- **Tool Tracing:** Use the `wrapTool` helper to automatically trace the execution of tools your AI model calls.
+
+To learn more about these features, see the [Axiom AI SDK Instrumentation guide](https://axiom.co/docs/ai-engineering/observe/axiom-ai-sdk-instrumentation).
+
+## Additional Resources
+
+- [Axiom AI Engineering Documentation](https://axiom.co/docs/ai-engineering/overview)
+- [Axiom AI SDK on GitHub](https://github.com/axiomhq/ai)
+- [Full Quickstart Guide](https://axiom.co/docs/ai-engineering/quickstart)

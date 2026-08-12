@@ -1,0 +1,344 @@
+---
+title: Runpod
+description: Runpod Provider for the AI SDK
+---
+
+# Runpod
+
+The official [Runpod](https://runpod.io) provider contains language model and image generation support for public & private endpoints.
+
+## Setup
+
+The Runpod provider is available in the `@runpod/ai-sdk-provider` module. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @runpod/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @runpod/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @runpod/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @runpod/ai-sdk-provider" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+You can import the default provider instance `runpod` from `@runpod/ai-sdk-provider`:
+
+```ts
+import { runpod } from '@runpod/ai-sdk-provider';
+```
+
+If you need a customized setup, you can import `createRunpod` and create a provider instance with your settings:
+
+```ts
+import { createRunpod } from '@runpod/ai-sdk-provider';
+
+const runpod = createRunpod({
+  apiKey: 'your-api-key', // optional, defaults to RUNPOD_API_KEY environment variable
+  baseURL: 'custom-url', // optional, for custom endpoints
+  headers: {
+    /* custom headers */
+  }, // optional
+});
+```
+
+You can use the following optional settings to customize the Runpod provider instance:
+
+- **baseURL** _string_
+
+  Use a different URL prefix for API calls, e.g. to use proxy servers or custom endpoints.
+  Supports vLLM deployments, SGLang servers, and any OpenAI-compatible API.
+  The default prefix is `https://api.runpod.ai/v2`.
+
+- **apiKey** _string_
+
+  API key that is being sent using the `Authorization` header.
+  It defaults to the `RUNPOD_API_KEY` environment variable.
+  You can obtain your api key from the [Runpod Console](https://console.runpod.io/user/settings) under "API Keys".
+
+- **headers** _Record&lt;string,string&gt;_
+
+  Custom headers to include in the requests.
+
+- **fetch** _(input: RequestInfo, init?: RequestInit) => Promise&lt;Response&gt;_
+
+  Custom [fetch](https://developer.mozilla.org/en-US/docs/Web/API/fetch) implementation.
+  You can use it as a middleware to intercept requests,
+  or to provide a custom fetch implementation for e.g. testing.
+
+## Language Models
+
+You can create language models using the provider instance. The first argument is the model ID:
+
+```ts
+import { runpod } from '@runpod/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: runpod('qwen/qwen3-32b-awq'),
+  prompt: 'What is the capital of Germany?',
+});
+```
+
+**Returns:**
+
+- `text` - Generated text string
+- `finishReason` - Why generation stopped ('stop', 'length', etc.)
+- `usage` - Token usage information (prompt, completion, total tokens)
+
+### Streaming
+
+```ts
+import { runpod } from '@runpod/ai-sdk-provider';
+import { streamText } from 'ai';
+
+const { textStream } = await streamText({
+  model: runpod('qwen/qwen3-32b-awq'),
+  prompt:
+    'Write a short poem about artificial intelligence in exactly 4 lines.',
+  temperature: 0.7,
+});
+
+for await (const delta of textStream) {
+  process.stdout.write(delta);
+}
+```
+
+### Model Capabilities
+
+| Model ID              | Description                                                         | Streaming           | Object Generation   | Tool Usage          | Reasoning Notes           |
+| --------------------- | ------------------------------------------------------------------- | ------------------- | ------------------- | ------------------- | ------------------------- |
+| `qwen/qwen3-32b-awq`  | 32B parameter multilingual model with strong reasoning capabilities | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | Standard reasoning events |
+| `openai/gpt-oss-120b` | 120B parameter open-source GPT model                                | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | Standard reasoning events |
+
+**Note:** An up-to-date list of all available models can be found in the [Runpod Public Endpoint Reference](https://docs.runpod.io/hub/public-endpoint-reference).
+
+### Chat Conversations
+
+```ts
+const { text } = await generateText({
+  model: runpod('qwen/qwen3-32b-awq'),
+  messages: [
+    { role: 'system', content: 'You are a helpful assistant.' },
+    { role: 'user', content: 'What is the capital of France?' },
+  ],
+});
+```
+
+### Tool Calling
+
+```ts
+import { generateText, tool } from 'ai';
+import { z } from 'zod';
+
+const { text, toolCalls } = await generateText({
+  model: runpod('openai/gpt-oss-120b'),
+  prompt: 'What is the weather like in San Francisco?',
+  tools: {
+    getWeather: tool({
+      description: 'Get weather information for a city',
+      inputSchema: z.object({
+        city: z.string().describe('The city name'),
+      }),
+      execute: async ({ city }) => {
+        return `The weather in ${city} is sunny.`;
+      },
+    }),
+  },
+});
+```
+
+**Additional Returns:**
+
+- `toolCalls` - Array of tool calls made by the model
+- `toolResults` - Results from executed tools
+
+### Structured output
+
+Using [`Output`](/docs/reference/ai-sdk-core/output) to enforce structured output is not supported by two models that are part of this provider.
+
+You can still return structured data by instructing the model to return JSON and validating it yourself.
+
+```ts
+import { runpod } from '@runpod/ai-sdk-provider';
+import { generateText } from 'ai';
+import { z } from 'zod';
+
+const RecipeSchema = z.object({
+  name: z.string(),
+  ingredients: z.array(z.string()),
+  steps: z.array(z.string()),
+});
+
+const { text } = await generateText({
+  model: runpod('qwen/qwen3-32b-awq'),
+  messages: [
+    {
+      role: 'system',
+      content:
+        'return ONLY valid JSON matching { name: string; ingredients: string[]; steps: string[] }',
+    },
+    { role: 'user', content: 'generate a lasagna recipe.' },
+  ],
+  temperature: 0,
+});
+
+const parsed = JSON.parse(text);
+const result = RecipeSchema.safeParse(parsed);
+
+if (!result.success) {
+  // handle invalid JSON shape
+}
+
+console.log(result.success ? result.data : parsed);
+```
+
+## Image Models
+
+You can create Runpod image models using the `.imageModel()` factory method.
+
+### Basic Usage
+
+```ts
+import { runpod } from '@runpod/ai-sdk-provider';
+import { generateImage } from 'ai';
+
+const { image } = await generateImage({
+  model: runpod.imageModel('qwen/qwen-image'),
+  prompt: 'A serene mountain landscape at sunset',
+  aspectRatio: '4:3',
+});
+
+// Save to filesystem
+import { writeFileSync } from 'fs';
+writeFileSync('landscape.jpg', image.uint8Array);
+```
+
+**Returns:**
+
+- `image.uint8Array` - Binary image data (efficient for processing/saving)
+- `image.base64` - Base64 encoded string (for web display)
+- `image.mediaType` - MIME type ('image/jpeg' or 'image/png')
+- `warnings` - Array of any warnings about unsupported parameters
+
+### Model Capabilities
+
+| Model ID                               | Description                     | Supported Aspect Ratios               |
+| -------------------------------------- | ------------------------------- | ------------------------------------- |
+| `bytedance/seedream-3.0`               | Advanced text-to-image model    | 1:1, 4:3, 3:4                         |
+| `bytedance/seedream-4.0`               | Text-to-image (v4)              | 1:1 (supports 1024, 2048, 4096)       |
+| `bytedance/seedream-4.0-edit`          | Image editing (v4, multi-image) | 1:1 (supports 1024, 1536, 2048, 4096) |
+| `black-forest-labs/flux-1-schnell`     | Fast image generation (4 steps) | 1:1, 4:3, 3:4                         |
+| `black-forest-labs/flux-1-dev`         | High-quality image generation   | 1:1, 4:3, 3:4                         |
+| `black-forest-labs/flux-1-kontext-dev` | Context-aware image generation  | 1:1, 4:3, 3:4                         |
+| `qwen/qwen-image`                      | Text-to-image generation        | 1:1, 4:3, 3:4                         |
+| `qwen/qwen-image-edit`                 | Image editing (prompt-guided)   | 1:1, 4:3, 3:4                         |
+
+**Note**: The provider uses strict validation for image parameters. Unsupported aspect ratios (like `16:9`, `9:16`, `3:2`, `2:3`) will throw an `InvalidArgumentError` with a clear message about supported alternatives.
+
+An up-to-date list of all available image models can be found in the [Runpod Public Endpoint Reference](https://docs.runpod.io/hub/public-endpoint-reference).
+
+### Advanced Parameters
+
+```ts
+const { image } = await generateImage({
+  model: runpod.imageModel('bytedance/seedream-3.0'),
+  prompt: 'A sunset over mountains',
+  size: '1328x1328',
+  seed: 42,
+  providerOptions: {
+    runpod: {
+      negative_prompt: 'blurry, low quality',
+      enable_safety_checker: true,
+    },
+  },
+});
+```
+
+#### Modify Image
+
+Transform existing images using text prompts.
+
+```ts
+// Example: Transform existing image
+const { image } = await generateImage({
+  model: runpod.imageModel('black-forest-labs/flux-1-kontext-dev'),
+  prompt: 'Transform this into a cyberpunk style with neon lights',
+  aspectRatio: '1:1',
+  providerOptions: {
+    runpod: {
+      image: 'https://example.com/input-image.jpg',
+    },
+  },
+});
+
+// Example: Using base64 encoded image
+const { image } = await generateImage({
+  model: runpod.imageModel('black-forest-labs/flux-1-kontext-dev'),
+  prompt: 'Make this image look like a painting',
+  providerOptions: {
+    runpod: {
+      image: 'data:image/png;base64,iVBORw0KGgoAAAANS...',
+    },
+  },
+});
+```
+
+### Advanced Configuration
+
+```ts
+// Full control over generation parameters
+const { image } = await generateImage({
+  model: runpod.imageModel('black-forest-labs/flux-1-dev'),
+  prompt: 'A majestic dragon breathing fire in a medieval castle',
+  size: '1328x1328',
+  seed: 42, // For reproducible results
+  providerOptions: {
+    runpod: {
+      negative_prompt: 'blurry, low quality, distorted, ugly, bad anatomy',
+      enable_safety_checker: true,
+      num_inference_steps: 50, // Higher quality (default: 28)
+      guidance: 3.5, // Stronger prompt adherence (default: 2)
+      output_format: 'png', // High quality format
+      // Polling settings for long generations
+      maxPollAttempts: 30,
+      pollIntervalMillis: 4000,
+    },
+  },
+});
+
+// Fast generation with minimal steps
+const { image } = await generateImage({
+  model: runpod.imageModel('black-forest-labs/flux-1-schnell'),
+  prompt: 'A simple red apple',
+  aspectRatio: '1:1',
+  providerOptions: {
+    runpod: {
+      num_inference_steps: 2, // Even faster (default: 4)
+      guidance: 10, // Higher guidance for simple prompts
+      output_format: 'jpg', // Smaller file size
+    },
+  },
+});
+```
+
+### Provider Options
+
+Runpod image models support flexible provider options through the `providerOptions.runpod` object:
+
+| Option                  | Type      | Default | Description                                                             |
+| ----------------------- | --------- | ------- | ----------------------------------------------------------------------- |
+| `negative_prompt`       | `string`  | `""`    | Text describing what you don't want in the image                        |
+| `enable_safety_checker` | `boolean` | `true`  | Enable content safety filtering                                         |
+| `image`                 | `string`  | -       | Input image: URL or base64 data URI (required for Flux Kontext models)  |
+| `num_inference_steps`   | `number`  | Auto    | Number of denoising steps (Flux: 4 for schnell, 28 for others)          |
+| `guidance`              | `number`  | Auto    | Guidance scale for prompt adherence (Flux: 7 for schnell, 2 for others) |
+| `output_format`         | `string`  | `"png"` | Output image format ("png" or "jpg")                                    |
+| `maxPollAttempts`       | `number`  | `60`    | Maximum polling attempts for async generation                           |
+| `pollIntervalMillis`    | `number`  | `5000`  | Polling interval in milliseconds (5 seconds)                            |

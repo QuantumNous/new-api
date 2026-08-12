@@ -1,0 +1,274 @@
+---
+title: Aihubmix
+description: Learn how to use Aihubmix with the AI SDK.
+---
+
+# Aihubmix Provider
+
+The [Aihubmix](https://aihubmix.com/) provider contains unified access to multiple AI providers through the Aihubmix API, including OpenAI, Anthropic Claude, and Google Gemini models. View all available models at [aihubmix.com/models](https://aihubmix.com/models).
+
+## Setup
+
+The Aihubmix provider is available in the `@aihubmix/ai-sdk-provider` module. You can install it with
+
+<Tabs items={['pnpm', 'npm', 'yarn']}>
+  <Tab>
+    <Snippet text="pnpm add @aihubmix/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @aihubmix/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @aihubmix/ai-sdk-provider" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+### Method 1: Using createAihubmix
+
+To create an Aihubmix provider instance, use the `createAihubmix` function:
+
+```typescript
+import { createAihubmix } from '@aihubmix/ai-sdk-provider';
+
+const aihubmix = createAihubmix({
+  apiKey: 'AIHUBMIX_API_KEY',
+});
+```
+
+You can obtain your Aihubmix API key from the [Aihubmix Keys](https://aihubmix.com/token).
+
+### Method 2: Using Environment Variables
+
+Alternatively, you can use the pre-configured `aihubmix` instance by setting the `AIHUBMIX_API_KEY` environment variable:
+
+```bash
+# .env
+AIHUBMIX_API_KEY=your_api_key_here
+```
+
+Then import and use the pre-configured instance:
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+```
+
+## Usage
+
+### Chat Completion
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: aihubmix('o4-mini'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+});
+```
+
+### Claude Model
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: aihubmix('claude-sonnet-4-5-20250929'),
+  prompt: 'Explain quantum computing in simple terms.',
+});
+```
+
+### Gemini Model
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: aihubmix('gemini-2.5-flash'),
+  prompt: 'Create a Python script to sort a list of numbers.',
+});
+```
+
+### Image Generation
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { generateImage } from 'ai';
+
+const { image } = await generateImage({
+  model: aihubmix.image('gpt-image-1'),
+  prompt: 'A beautiful sunset over mountains',
+});
+```
+
+### Embeddings
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: aihubmix.embedding('text-embedding-ada-002'),
+  value: 'Hello, world!',
+});
+```
+
+### Transcription
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { transcribe } from 'ai';
+
+const { text } = await transcribe({
+  model: aihubmix.transcription('whisper-1'),
+  audio: audioFile,
+});
+```
+
+### Stream Text
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { streamText } from 'ai';
+
+const result = streamText({
+  model: aihubmix('gpt-3.5-turbo'),
+  prompt: 'Write a short story about a robot learning to paint.',
+  maxOutputTokens: 256,
+  temperature: 0.3,
+  maxRetries: 3,
+});
+
+let fullText = '';
+for await (const textPart of result.textStream) {
+  fullText += textPart;
+  process.stdout.write(textPart);
+}
+
+console.log('\nUsage:', await result.usage);
+console.log('Finish reason:', await result.finishReason);
+```
+
+### Structured Output
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { generateText, Output } from 'ai';
+import { z } from 'zod';
+
+const result = await generateText({
+  model: aihubmix('gpt-4o-mini'),
+  output: Output.object({
+    schema: z.object({
+      recipe: z.object({
+        name: z.string(),
+        ingredients: z.array(
+          z.object({
+            name: z.string(),
+            amount: z.string(),
+          }),
+        ),
+        steps: z.array(z.string()),
+      }),
+    }),
+  }),
+  prompt: 'Generate a lasagna recipe.',
+});
+
+console.log(JSON.stringify(result.output.recipe, null, 2));
+console.log('Token usage:', result.usage);
+console.log('Finish reason:', result.finishReason);
+```
+
+### Streaming Structured Output
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { streamText, Output } from 'ai';
+import { z } from 'zod';
+
+const result = streamText({
+  model: aihubmix('gpt-4o-mini'),
+  output: Output.object({
+    schema: z.object({
+      recipe: z.object({
+        name: z.string(),
+        ingredients: z.array(
+          z.object({
+            name: z.string(),
+            amount: z.string(),
+          }),
+        ),
+        steps: z.array(z.string()),
+      }),
+    }),
+  }),
+  prompt: 'Generate a lasagna recipe.',
+});
+
+for await (const objectPart of result.partialOutputStream) {
+  console.log(objectPart);
+}
+
+console.log('Token usage:', await result.usage);
+console.log('Final object:', await result.output);
+```
+
+### Embed Many
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { embedMany } from 'ai';
+
+const { embeddings, usage } = await embedMany({
+  model: aihubmix.embedding('text-embedding-3-small'),
+  values: [
+    'sunny day at the beach',
+    'rainy afternoon in the city',
+    'snowy night in the mountains',
+  ],
+});
+
+console.log('Embeddings:', embeddings);
+console.log('Usage:', usage);
+```
+
+### Speech Synthesis
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { generateSpeech } from 'ai';
+
+const { audio } = await generateSpeech({
+  model: aihubmix.speech('tts-1'),
+  text: 'Hello, this is a test for speech synthesis.',
+});
+```
+
+## Tools
+
+The Aihubmix provider supports various tools including web search:
+
+```ts
+import { aihubmix } from '@aihubmix/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: aihubmix('gpt-5'),
+  prompt: 'What are the latest developments in AI?',
+  tools: {
+    webSearchPreview: aihubmix.tools.webSearch({
+      searchContextSize: 'high',
+    }),
+  },
+});
+```
+
+## Additional Resources
+
+- [Aihubmix Provider Repository](https://github.com/inferera/aihubmix)
+- [Aihubmix Documentation](https://docs.aihubmix.com/en)
+- [Aihubmix Dashboard](https://aihubmix.com)

@@ -1,0 +1,181 @@
+---
+title: Claude Code
+description: Learn how to use the Claude Code harness adapter.
+---
+
+# Claude Code Harness
+
+The Claude Code harness adapter connects `HarnessAgent` to Claude Code through
+`@anthropic-ai/claude-agent-sdk`. The adapter runs a bridge inside the sandbox
+and streams Claude Code events back to the host over a sandbox-exposed
+WebSocket.
+
+<Note>
+  Harness packages are **experimental**. Expect breaking changes between
+  releases as this early API gets further refined.
+</Note>
+
+## Setup
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet
+      text="pnpm add @ai-sdk/harness @ai-sdk/harness-claude-code @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="npm install @ai-sdk/harness @ai-sdk/harness-claude-code @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="yarn add @ai-sdk/harness @ai-sdk/harness-claude-code @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="bun add @ai-sdk/harness @ai-sdk/harness-claude-code @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+</Tabs>
+
+The adapter bootstraps the Claude Code bridge dependencies inside the sandbox
+when the first session starts.
+
+## Import
+
+```ts
+import { claudeCode, createClaudeCode } from '@ai-sdk/harness-claude-code';
+```
+
+`claudeCode` is equivalent to `createClaudeCode()` with its default configuration.
+
+## Basic Usage
+
+```ts
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { claudeCode } from '@ai-sdk/harness-claude-code';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+
+const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+});
+
+const session = await agent.createSession();
+
+let exitCode = 0;
+try {
+  const result = await agent.stream({
+    session,
+    prompt: 'Check the test failures and fix the production code.',
+  });
+
+  for await (const part of result.stream) {
+    if (part.type === 'text-delta') {
+      process.stdout.write(part.text);
+    }
+  }
+} catch (err) {
+  exitCode = 1;
+  console.error(err);
+} finally {
+  await session.destroy();
+  process.exit(exitCode);
+}
+```
+
+To use this agent, ensure environment variables include `VERCEL_OIDC_TOKEN` for
+Vercel Sandbox, and one of the variables listed under [authentication](#authentication)
+for Claude Code.
+
+## Adapter Settings
+
+Use `createClaudeCode()` to configure the runtime:
+
+```ts
+const harness = createClaudeCode({
+  model: 'claude-sonnet-4-6',
+  maxTurns: 10,
+  thinking: 'adaptive',
+});
+```
+
+Settings:
+
+- `auth`: direct Anthropic or AI Gateway authentication settings.
+- `model`: Anthropic model id passed to the underlying Claude Code runtime.
+- `maxTurns`: maximum internal turns before yielding.
+- `thinking`: `off`, `on`, or `adaptive`.
+- `port`: bridge port override.
+- `startupTimeoutMs`: maximum time to wait for the bridge to start.
+
+## Authentication
+
+By default, authentication is resolved from the host environment and forwarded
+to the sandbox bridge. The adapter checks for AI Gateway and Anthropic credentials.
+
+Supported environment variables:
+
+- `VERCEL_OIDC_TOKEN`
+- `AI_GATEWAY_API_KEY`
+- `AI_GATEWAY_BASE_URL`
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_AUTH_TOKEN`
+- `ANTHROPIC_BASE_URL`
+
+You can also pass explicit auth settings:
+
+```ts
+const harness = createClaudeCode({
+  auth: {
+    gateway: {
+      apiKey: process.env.AI_GATEWAY_API_KEY,
+    },
+  },
+});
+```
+
+## Sandbox
+
+Claude Code requires a network sandbox with at least one exposed port,
+e.g. `@ai-sdk/sandbox-vercel`:
+
+```ts
+const sandbox = createVercelSandbox({
+  runtime: 'node24',
+  ports: [4000],
+});
+```
+
+## Built-in Tools
+
+The adapter exposes these common Claude Code built-ins through `agent.tools`:
+
+- `read`
+- `write`
+- `edit`
+- `bash`
+- `glob`
+- `grep`
+- `webSearch`
+
+Additional Claude Code built-ins may also appear in `agent.tools` when they do
+not fit a common tool shape.
+
+Claude Code supports built-in tool approval requests when `permissionMode` is
+`allow-reads` or `allow-edits`.
+
+## Related
+
+- [HarnessAgent](/docs/ai-sdk-harnesses/harness-agent)
+- [Harness tools](/docs/ai-sdk-harnesses/tools)
+- [Harness adapters](/docs/ai-sdk-harnesses/harness-adapters)

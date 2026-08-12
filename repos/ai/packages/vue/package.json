@@ -1,0 +1,80 @@
+{
+  "name": "@ai-sdk/vue",
+  "version": "4.0.14",
+  "type": "module",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "pnpm clean && tsup --tsconfig tsconfig.build.json",
+    "build:watch": "pnpm clean && tsup --watch",
+    "clean": "del-cli dist *.tsbuildinfo",
+    "type-check": "tsc --build",
+    "test": "vitest --config vitest.config.js --run",
+    "test:update": "vitest --config vitest.config.js --run -u",
+    "test:watch": "vitest --config vitest.config.js"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/**/*",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.test-d.ts",
+    "!src/**/__snapshots__",
+    "!src/**/__fixtures__",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "dependencies": {
+    "@ai-sdk/provider-utils": "workspace:*",
+    "ai": "workspace:*",
+    "swrv": "^1.2.0"
+  },
+  "devDependencies": {
+    "@ai-sdk/test-server": "workspace:*",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/user-event": "^14.6.1",
+    "@testing-library/vue": "^8.1.0",
+    "@types/node": "22.19.19",
+    "@vercel/ai-tsconfig": "workspace:*",
+    "@vitejs/plugin-vue": "5.2.0",
+    "jsdom": "^24.1.3",
+    "msw": "2.6.4",
+    "tsup": "^7.2.0",
+    "typescript": "5.8.3",
+    "vitest": "4.1.6",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "vue": "^3.3.4"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "homepage": "https://ai-sdk.dev/docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vercel/ai",
+    "directory": "packages/vue"
+  },
+  "bugs": {
+    "url": "https://github.com/vercel/ai/issues"
+  },
+  "keywords": [
+    "ai",
+    "vue"
+  ]
+}

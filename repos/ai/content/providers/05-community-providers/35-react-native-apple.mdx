@@ -1,0 +1,258 @@
+---
+title: React Native Apple
+description: Learn how to use the Apple provider for on-device AI.
+---
+
+# React Native Apple Provider
+
+[@react-native-ai/apple](https://github.com/callstackincubator/ai/tree/main/packages/apple-llm) is a community provider that brings Apple's on-device AI capabilities to React Native and Expo applications. It allows you to run the AI SDK entirely on-device, leveraging Apple Intelligence foundation models available from iOS 26+ to provide text generation, embeddings, transcription, and speech synthesis through Apple's native AI frameworks.
+
+## Setup
+
+The Apple provider is available in the `@react-native-ai/apple` module. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @react-native-ai/apple" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @react-native-ai/apple" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @react-native-ai/apple" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @react-native-ai/apple" dark />
+  </Tab>
+</Tabs>
+
+### Prerequisites
+
+Before using the Apple provider, you need:
+
+- **React Native or Expo application**: This provider only works with React Native and Expo applications. For setup instructions, see the [Expo Quickstart guide](/docs/getting-started/expo)
+- **iOS 26+**: Required for Apple Intelligence foundation models and core functionality
+
+### Provider Instance
+
+You can import the default provider instance `apple` from `@react-native-ai/apple`:
+
+```ts
+import { apple } from '@react-native-ai/apple';
+```
+
+### Availability Check
+
+Before using Apple AI features, you can check if they're available on the current device:
+
+```ts
+if (!apple.isAvailable()) {
+  // Handle fallback logic for unsupported devices
+}
+```
+
+## Language Models
+
+Apple provides on-device language models through Apple Foundation Models, available on iOS 26+ with Apple Intelligence enabled devices.
+
+### Text Generation
+
+Generate text using Apple's on-device language models:
+
+```ts
+import { apple } from '@react-native-ai/apple';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: apple(),
+  prompt: 'Explain quantum computing in simple terms',
+});
+```
+
+### Streaming Text Generation
+
+For real-time text generation:
+
+```ts
+import { apple } from '@react-native-ai/apple';
+import { streamText } from 'ai';
+
+const result = streamText({
+  model: apple(),
+  prompt: 'Write a short story about space exploration',
+});
+
+for await (const chunk of result.textStream) {
+  console.log(chunk);
+}
+```
+
+### Structured Output Generation
+
+Generate structured data using Zod schemas:
+
+```ts
+import { apple } from '@react-native-ai/apple';
+import { generateText, Output } from 'ai';
+import { z } from 'zod';
+
+const result = await generateText({
+  model: apple(),
+  output: Output.object({
+    schema: z.object({
+      recipe: z.string(),
+      ingredients: z.array(z.string()),
+      cookingTime: z.string(),
+    }),
+  }),
+  prompt: 'Create a recipe for chocolate chip cookies',
+});
+```
+
+### Model Configuration
+
+Configure generation parameters:
+
+```ts
+const { text } = await generateText({
+  model: apple(),
+  prompt: 'Generate creative content',
+  temperature: 0.8, // Controls randomness (0-1)
+  maxTokens: 150, // Maximum tokens to generate
+  topP: 0.9, // Nucleus sampling threshold
+  topK: 40, // Top-K sampling parameter
+});
+```
+
+### Tool Calling
+
+The Apple provider supports tool calling, where tools are executed by Apple Intelligence rather than the AI SDK. Tools must be pre-registered with the provider using `createAppleProvider` before they can be used in generation calls.
+
+```ts
+import { createAppleProvider } from '@react-native-ai/apple';
+import { generateText, tool } from 'ai';
+import { z } from 'zod';
+
+const getWeather = tool({
+  description: 'Get current weather information',
+  parameters: z.object({
+    city: z.string().describe('The city name'),
+  }),
+  execute: async ({ city }) => {
+    return `Weather in ${city}: Sunny, 25°C`;
+  },
+});
+
+// Create a provider with all available tools
+const apple = createAppleProvider({
+  availableTools: {
+    getWeather,
+  },
+});
+
+// Use the provider with selected tools
+const result = await generateText({
+  model: apple(),
+  prompt: 'What is the weather like in San Francisco?',
+  tools: { getWeather },
+});
+```
+
+<Note>
+  Since tools are executed by Apple Intelligence rather than the AI SDK,
+  multi-step features like `stopWhen`, `onStepStart`, and `onStepEnd` are not
+  supported.
+</Note>
+
+## Text Embeddings
+
+Apple provides multilingual text embeddings using `NLContextualEmbedding`, available on iOS 17+.
+
+```ts
+import { apple } from '@react-native-ai/apple';
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: apple.embeddingModel(),
+  value: 'Hello world',
+});
+```
+
+## Audio Transcription
+
+Apple provides speech-to-text transcription using `SpeechAnalyzer` and `SpeechTranscriber`, available on iOS 26+.
+
+```ts
+import { apple } from '@react-native-ai/apple';
+import { transcribe } from 'ai';
+
+const response = await transcribe({
+  model: apple.transcriptionModel(),
+  audio: audioBuffer,
+});
+
+console.log(response.text);
+```
+
+## Speech Synthesis
+
+Apple provides text-to-speech synthesis using `AVSpeechSynthesizer`, available on iOS 13+ with enhanced features on iOS 17+.
+
+### Basic Speech Generation
+
+Convert text to speech:
+
+```ts
+import { apple } from '@react-native-ai/apple';
+import { generateSpeech } from 'ai';
+
+const response = await generateSpeech({
+  model: apple.speechModel(),
+  text: 'Hello from Apple on-device speech!',
+  language: 'en-US',
+});
+```
+
+### Voice Selection
+
+You can configure the voice to use for speech synthesis by passing its identifier to the `voice` option.
+
+```ts
+const response = await generateSpeech({
+  model: apple.speechModel(),
+  text: 'Custom voice example',
+  voice: 'com.apple.ttsbundle.Samantha-compact',
+});
+```
+
+To check for available voices, you can use the `getVoices` method:
+
+```ts
+import { AppleSpeech } from '@react-native-ai/apple';
+
+const voices = await AppleSpeech.getVoices();
+console.log(voices);
+```
+
+## Platform Requirements
+
+Different Apple AI features have varying iOS version requirements:
+
+| Feature             | Minimum iOS Version | Additional Requirements           |
+| ------------------- | ------------------- | --------------------------------- |
+| Text Generation     | iOS 26+             | Apple Intelligence enabled device |
+| Text Embeddings     | iOS 17+             | -                                 |
+| Audio Transcription | iOS 26+             | Language assets downloaded        |
+| Speech Synthesis    | iOS 13+             | iOS 17+ for Personal Voice        |
+
+<Note>
+  Apple Intelligence features are currently available on selected devices. Check
+  Apple's documentation for the latest device compatibility information.
+</Note>
+
+## Additional Resources
+
+- [React Native Apple Provider GitHub Repository](https://github.com/callstackincubator/ai/tree/main/packages/apple-llm)
+- [React Native AI Documentation](https://www.react-native-ai.dev/)
+- [Apple Intelligence](https://www.apple.com/apple-intelligence/)
+- [Apple Foundation Models](https://developer.apple.com/documentation/foundationmodels)

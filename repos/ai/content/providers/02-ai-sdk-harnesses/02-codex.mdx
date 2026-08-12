@@ -1,0 +1,189 @@
+---
+title: Codex
+description: Learn how to use the Codex harness adapter.
+---
+
+# Codex Harness
+
+The Codex harness adapter connects `HarnessAgent` to Codex through
+`@openai/codex-sdk`. The adapter runs a bridge inside the sandbox and streams
+Codex thread events back to the host over a sandbox-exposed WebSocket.
+
+<Note>
+  Harness packages are **experimental**. Expect breaking changes between
+  releases as this early API gets further refined.
+</Note>
+
+## Setup
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet
+      text="pnpm add @ai-sdk/harness @ai-sdk/harness-codex @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="npm install @ai-sdk/harness @ai-sdk/harness-codex @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="yarn add @ai-sdk/harness @ai-sdk/harness-codex @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="bun add @ai-sdk/harness @ai-sdk/harness-codex @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+</Tabs>
+
+The adapter bootstraps the Codex bridge dependencies inside the sandbox when
+the first session starts.
+
+## Import
+
+```ts
+import { codex, createCodex } from '@ai-sdk/harness-codex';
+```
+
+`codex` is equivalent to `createCodex()` with its default configuration.
+
+## Basic Usage
+
+```ts
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { codex } from '@ai-sdk/harness-codex';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+
+const agent = new HarnessAgent({
+  harness: codex,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+});
+
+const session = await agent.createSession();
+
+let exitCode = 0;
+try {
+  const result = await agent.stream({
+    session,
+    prompt: 'Check the test failures and fix the production code.',
+  });
+
+  for await (const part of result.stream) {
+    if (part.type === 'text-delta') {
+      process.stdout.write(part.text);
+    }
+  }
+} catch (err) {
+  exitCode = 1;
+  console.error(err);
+} finally {
+  await session.destroy();
+  process.exit(exitCode);
+}
+```
+
+To use this agent, ensure environment variables include `VERCEL_OIDC_TOKEN` for
+Vercel Sandbox, and one of the variables listed under [authentication](#authentication)
+for Codex.
+
+## Adapter Settings
+
+Use `createCodex()` to configure the runtime:
+
+```ts
+const harness = createCodex({
+  model: 'gpt-5.5',
+  reasoningEffort: 'high',
+  webSearch: true,
+});
+```
+
+Settings:
+
+- `auth`: OpenAI, OpenAI-compatible, or AI Gateway authentication settings.
+- `model`: OpenAI model id. If omitted, the adapter uses its pinned default.
+- `reasoningEffort`: `low`, `medium`, or `high`.
+- `webSearch`: allow live web search.
+- `port`: bridge port override.
+- `startupTimeoutMs`: maximum time to wait for the bridge to start.
+
+## Authentication
+
+By default, authentication is resolved from the host environment and forwarded
+to the sandbox bridge. The adapter checks for AI Gateway and OpenAI credentials.
+
+Supported environment variables:
+
+- `VERCEL_OIDC_TOKEN`
+- `AI_GATEWAY_API_KEY`
+- `AI_GATEWAY_BASE_URL`
+- `OPENAI_API_KEY`
+- `CODEX_API_KEY`
+- `OPENAI_BASE_URL`
+- `OPENAI_ORGANIZATION`
+- `OPENAI_PROJECT`
+
+You can also pass explicit auth settings:
+
+```ts
+const harness = createCodex({
+  auth: {
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY,
+    },
+  },
+});
+```
+
+For OpenAI-compatible endpoints, use `auth.openaiCompatible`.
+
+## Sandbox
+
+Codex requires a network sandbox with at least one exposed port,
+e.g. `@ai-sdk/sandbox-vercel`:
+
+```ts
+const sandbox = createVercelSandbox({
+  runtime: 'node24',
+  ports: [4000],
+});
+```
+
+## Built-in Tools
+
+The adapter exposes these common Codex built-ins through `agent.tools`:
+
+- `bash`
+- `webSearch`
+
+Additional Codex built-ins may also appear in `agent.tools` when they do not
+fit a common tool shape.
+
+Codex file changes may also appear as dynamic `fileChange` tool parts because
+some Codex file mutations do not originate from a visible model-callable tool.
+
+## Known Limitations
+
+Codex does not currently support built-in tool approval requests. Use
+`permissionMode: 'allow-all'` with this adapter. Host-executed AI SDK tool
+approvals still work.
+
+Codex does not currently support built-in tool filtering. You can still use
+`activeTools` and `inactiveTools` to filter host-executed tools, but filtering
+Codex built-ins such as `bash` or `webSearch` will throw.
+
+## Related
+
+- [HarnessAgent](/docs/ai-sdk-harnesses/harness-agent)
+- [Harness tools](/docs/ai-sdk-harnesses/tools)
+- [Harness adapters](/docs/ai-sdk-harnesses/harness-adapters)
