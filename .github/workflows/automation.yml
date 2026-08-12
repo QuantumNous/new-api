@@ -1,0 +1,20 @@
+name: E2E Test
+
+on: [pull_request]
+
+jobs:
+  cypress-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Cypress run
+        uses: cypress-io/github-action@v7
+        with:
+          start: pnpm start
+          wait-on: 'http://ip6-localhost:3000'
+          wait-on-timeout: 120
