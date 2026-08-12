@@ -278,6 +278,102 @@ func TestVisibilityCASRejectsStaleDigestAndProtectsEmptyState(t *testing.T) {
 	}
 }
 
+func TestVisibilityCASRejectsRevisionDriftAndSaveDeleteRefreshRevision(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	createVisibilityTestUser(t, 1, "revision-target", "default")
+	policy := model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic}
+	if err := model.SaveTokenGroupVisibilityPolicy(policy); err != nil {
+		t.Fatal(err)
+	}
+	state, err := model.GetTokenGroupVisibilityState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var revision model.TokenGroupVisibilityRevision
+	if err := model.DB.First(&revision, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.Digest != state.Digest {
+		t.Fatalf("Save must keep revision digest aligned: revision=%q state=%q", revision.Digest, state.Digest)
+	}
+	if err := model.DB.Model(&model.TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", "bad-revision-digest").Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := model.ReplaceTokenGroupVisibilityPoliciesCAS(nil, state.Digest); !errors.Is(err, model.ErrTokenGroupVisibilityRevisionDrift) {
+		t.Fatalf("expected revision drift rejection, got %v", err)
+	}
+	var persisted model.TokenGroupVisibility
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&persisted).Error; err != nil {
+		t.Fatalf("revision drift must preserve policy: %v", err)
+	}
+	if persisted.Visibility != model.TokenGroupVisibilityPublic {
+		t.Fatalf("revision drift changed policy unexpectedly: %#v", persisted)
+	}
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden}); !errors.Is(err, model.ErrTokenGroupVisibilityRevisionDrift) {
+		t.Fatalf("Save must reject a stale revision digest, got %v", err)
+	}
+	if err := model.DB.Model(&model.TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", "").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityHidden}); err != nil {
+		t.Fatalf("Save must initialize and refresh an empty revision digest: %v", err)
+	}
+	updatedPolicies, err := model.GetTokenGroupVisibilityPolicies()
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedDigest := model.TokenGroupVisibilityPoliciesDigest(updatedPolicies)
+	if err := model.DB.First(&revision, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.Digest != updatedDigest {
+		t.Fatalf("Save left revision digest stale: revision=%q policies=%q", revision.Digest, updatedDigest)
+	}
+	if err := model.DeleteTokenGroupVisibilityPolicy("default"); err != nil {
+		t.Fatalf("Delete must refresh revision digest atomically: %v", err)
+	}
+	updatedPolicies, err = model.GetTokenGroupVisibilityPolicies()
+	if err != nil {
+		t.Fatal(err)
+	}
+	updatedDigest = model.TokenGroupVisibilityPoliciesDigest(updatedPolicies)
+	if err := model.DB.First(&revision, 1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if revision.Digest != updatedDigest {
+		t.Fatalf("Delete left revision digest stale: revision=%q policies=%q", revision.Digest, updatedDigest)
+	}
+}
+
+func TestTokenGroupVisibilityAdminBatchRejectsRevisionDrift(t *testing.T) {
+	setupTokenGroupVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	createVisibilityTestUser(t, 1, "revision-controller-target", "default")
+	if err := model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{Group: "default", Visibility: model.TokenGroupVisibilityPublic}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := model.GetTokenGroupVisibilityState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := model.DB.Model(&model.TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", "bad-revision-digest").Error; err != nil {
+		t.Fatal(err)
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/group/token-visibility/batch", map[string]any{
+		"policies":        []model.TokenGroupVisibilityPolicy{},
+		"expected_digest": state.Digest,
+		"allow_empty":     true,
+	}, 99)
+	ReplaceTokenGroupVisibilityPolicies(ctx)
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("revision drift must return HTTP 409, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if err := model.DB.Where(map[string]interface{}{"group": "default"}).First(&model.TokenGroupVisibility{}).Error; err != nil {
+		t.Fatalf("revision drift must preserve policy: %v", err)
+	}
+}
+
 func TestAddTokenVisibilityFlagDisabledPreservesLegacyBehavior(t *testing.T) {
 	setupTokenGroupVisibilityTestDB(t)
 	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "false")

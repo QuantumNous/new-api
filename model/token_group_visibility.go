@@ -84,6 +84,7 @@ type TokenGroupVisibilityState struct {
 }
 
 var ErrTokenGroupVisibilityConflict = errors.New("令牌分组可见性策略已被其他管理员修改，请刷新后重试")
+var ErrTokenGroupVisibilityRevisionDrift = errors.New("令牌分组可见性 revision 与策略快照不一致，已拒绝写入")
 
 func TokenGroupVisibilityEnabled() bool {
 	return common.GetEnvOrDefaultBool("TOKEN_GROUP_VISIBILITY_ENABLED", false)
@@ -365,7 +366,27 @@ func SaveTokenGroupVisibilityPolicy(policy TokenGroupVisibilityPolicy) error {
 		if err := ensureTokenGroupVisibilityRevisionTx(tx); err != nil {
 			return err
 		}
-		return saveTokenGroupVisibilityPolicyTx(tx, normalized)
+		revision, err := lockTokenGroupVisibilityRevisionTx(tx)
+		if err != nil {
+			return err
+		}
+		current, err := getTokenGroupVisibilityPoliciesFromDB(tx)
+		if err != nil {
+			return err
+		}
+		currentDigest := TokenGroupVisibilityPoliciesDigest(current)
+		if err := validateTokenGroupVisibilityRevision(revision, currentDigest); err != nil {
+			return err
+		}
+		if revision.Digest == "" {
+			if err := tx.Model(&TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", currentDigest).Error; err != nil {
+				return err
+			}
+		}
+		if err := saveTokenGroupVisibilityPolicyTx(tx, normalized); err != nil {
+			return err
+		}
+		return updateTokenGroupVisibilityRevisionDigestTx(tx)
 	})
 }
 
@@ -376,6 +397,29 @@ func ensureTokenGroupVisibilityRevisionTx(tx *gorm.DB) error {
 		return tx.Create(&TokenGroupVisibilityRevision{Id: 1, Digest: "", UpdatedAt: time.Now()}).Error
 	}
 	return err
+}
+
+func lockTokenGroupVisibilityRevisionTx(tx *gorm.DB) (TokenGroupVisibilityRevision, error) {
+	var revision TokenGroupVisibilityRevision
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&revision, 1).Error
+	return revision, err
+}
+
+func updateTokenGroupVisibilityRevisionDigestTx(tx *gorm.DB) error {
+	updated, err := getTokenGroupVisibilityPoliciesFromDB(tx)
+	if err != nil {
+		return err
+	}
+	digest := TokenGroupVisibilityPoliciesDigest(updated)
+	return tx.Model(&TokenGroupVisibilityRevision{}).Where("id = ?", 1).
+		Updates(map[string]interface{}{"digest": digest, "updated_at": time.Now()}).Error
+}
+
+func validateTokenGroupVisibilityRevision(revision TokenGroupVisibilityRevision, currentDigest string) error {
+	if revision.Digest != "" && revision.Digest != currentDigest {
+		return ErrTokenGroupVisibilityRevisionDrift
+	}
+	return nil
 }
 
 // ReplaceTokenGroupVisibilityPolicies validates the complete desired state
@@ -409,8 +453,7 @@ func ReplaceTokenGroupVisibilityPoliciesCAS(policies []TokenGroupVisibilityPolic
 		// The singleton revision row is locked for the duration of this
 		// transaction. It is created by the explicit schema migration before
 		// enforcement; a missing row is a deployment-preparation failure.
-		var revision TokenGroupVisibilityRevision
-		lockErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&revision, 1).Error
+		revision, lockErr := lockTokenGroupVisibilityRevisionTx(tx)
 		if lockErr != nil {
 			return lockErr
 		}
@@ -418,11 +461,15 @@ func ReplaceTokenGroupVisibilityPoliciesCAS(policies []TokenGroupVisibilityPolic
 		if err != nil {
 			return err
 		}
-		if expectedDigest != "" && expectedDigest != TokenGroupVisibilityPoliciesDigest(current) {
+		currentDigest := TokenGroupVisibilityPoliciesDigest(current)
+		if err := validateTokenGroupVisibilityRevision(revision, currentDigest); err != nil {
+			return err
+		}
+		if expectedDigest != "" && expectedDigest != currentDigest {
 			return ErrTokenGroupVisibilityConflict
 		}
 		if revision.Digest == "" {
-			if err := tx.Model(&TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", TokenGroupVisibilityPoliciesDigest(current)).Error; err != nil {
+			if err := tx.Model(&TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", currentDigest).Error; err != nil {
 				return err
 			}
 		}
@@ -461,16 +508,39 @@ func ReplaceTokenGroupVisibilityPoliciesCAS(policies []TokenGroupVisibilityPolic
 
 func DeleteTokenGroupVisibilityPolicy(group string) error {
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := ensureTokenGroupVisibilityRevisionTx(tx); err != nil {
+			return err
+		}
+		revision, err := lockTokenGroupVisibilityRevisionTx(tx)
+		if err != nil {
+			return err
+		}
+		current, err := getTokenGroupVisibilityPoliciesFromDB(tx)
+		if err != nil {
+			return err
+		}
+		currentDigest := TokenGroupVisibilityPoliciesDigest(current)
+		if err := validateTokenGroupVisibilityRevision(revision, currentDigest); err != nil {
+			return err
+		}
+		if revision.Digest == "" {
+			if err := tx.Model(&TokenGroupVisibilityRevision{}).Where("id = ?", 1).Update("digest", currentDigest).Error; err != nil {
+				return err
+			}
+		}
 		var row TokenGroupVisibility
 		if err := tx.Where(map[string]interface{}{"group": group}).First(&row).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
+			return updateTokenGroupVisibilityRevisionDigestTx(tx)
 		} else if err != nil {
 			return err
 		}
 		if err := tx.Where("visibility_id = ?", row.Id).Delete(&TokenGroupVisibilityTarget{}).Error; err != nil {
 			return err
 		}
-		return tx.Delete(&row).Error
+		if err := tx.Delete(&row).Error; err != nil {
+			return err
+		}
+		return updateTokenGroupVisibilityRevisionDigestTx(tx)
 	})
 	return err
 }

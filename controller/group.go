@@ -122,7 +122,7 @@ func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
 	}
 	resultingDigest, err := model.ReplaceTokenGroupVisibilityPoliciesCAS(request.Policies, request.ExpectedDigest)
 	if err != nil {
-		if errors.Is(err, model.ErrTokenGroupVisibilityConflict) {
+		if errors.Is(err, model.ErrTokenGroupVisibilityConflict) || errors.Is(err, model.ErrTokenGroupVisibilityRevisionDrift) {
 			c.JSON(http.StatusConflict, gin.H{"success": false, "message": err.Error()})
 			return
 		}
