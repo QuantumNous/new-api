@@ -10,6 +10,7 @@ trustPolicyExclude:
   - 'semver@6.3.1' # installed by babel, ecosystem has been on v7 for 7 years now, but babel is horribly out of date, 6.3.1 is the latest v6 and was released 3 years ago
   - 'undici@6.21.2' # installed by cheerio@1.0.0 -> html-link-extractor@1.0.5 -> markdown-link-extractor@4.0.3, is only 1 year old, v6, v7 and v8 are maintained in parallel
   - '@netlify/edge-bundler@14.7.0' # existing Netlify dev transitive flagged by pnpm 11.9 trust downgrade checks
+  - '@platformatic/flame@1.7.0' # trusted publishing failed due to a missing sigstore module in npm, then an established maintainer published it manually
   - '@netlify/serverless-functions-api@2.7.1' # existing Netlify dev transitive flagged by pnpm 11.9 trust downgrade checks
   - '@netlify/zip-it-and-ship-it@14.1.11' # existing Netlify dev transitive flagged by pnpm 11.9 trust downgrade checks
 

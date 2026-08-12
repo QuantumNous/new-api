@@ -30,7 +30,7 @@ You will need a [WorkOS account](https://dashboard.workos.com/signup).
    WORKOS_CLIENT_ID=<YOUR_CLIENT_ID>
    WORKOS_API_KEY=<YOUR_API_SECRET_KEY>
    WORKOS_COOKIE_PASSWORD=<YOUR_COOKIE_PASSWORD>
-   WORKOS_REDIRECT_URI=http://localhost:3000/callback
+   WORKOS_REDIRECT_URI=http://localhost:3000/api/auth/callback
    ```
    `WORKOS_COOKIE_PASSWORD` is the private key used to encrypt the session cookie. It has to be at least 32 characters long. You can use the [1Password generator](https://1password.com/password-generator/) or the `openssl` library to generate a strong password via the command line:
    ```bash

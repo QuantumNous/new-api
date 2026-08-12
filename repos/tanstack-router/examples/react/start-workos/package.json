@@ -14,9 +14,9 @@
   "license": "MIT",
   "dependencies": {
     "@radix-ui/themes": "^3.3.0",
-    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router": "^1.170.18",
     "@tanstack/react-router-devtools": "^1.167.0",
-    "@tanstack/react-start": "^1.168.27",
+    "@tanstack/react-start": "^1.168.28",
     "@workos/authkit-tanstack-react-start": "^0.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

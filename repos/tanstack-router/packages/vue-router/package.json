@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/vue-router",
-  "version": "1.170.16",
+  "version": "1.170.17",
   "description": "Modern and scalable routing for Vue applications",
   "author": "Tanner Linsley",
   "license": "MIT",

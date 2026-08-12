@@ -904,11 +904,6 @@ export function getLocationChangeInfo(
   return { fromLocation, toLocation, pathChanged, hrefChanged, hashChanged }
 }
 
-export const locationHistoryActions = new WeakMap<
-  ParsedLocation,
-  HistoryAction
->()
-
 type LightweightRouteMatchResult = {
   matchedRoutes: ReadonlyArray<AnyRoute>
   fullPath: string
@@ -978,6 +973,8 @@ export class RouterCore<
   )}`
   _scroll: {
     next: boolean
+    // True until the current PUSH/REPLACE renders, so its hash owns window scroll.
+    hash?: boolean
     restoring?: boolean
     restoration?: boolean
     reset?: boolean
@@ -2475,9 +2472,8 @@ export class RouterCore<
         try {
           this.beforeLoad()
           if (historyAction) {
-            locationHistoryActions.set(this.latestLocation, historyAction)
-          } else {
-            locationHistoryActions.delete(this.latestLocation)
+            this._scroll.hash =
+              historyAction === 'PUSH' || historyAction === 'REPLACE'
           }
           const next = this.latestLocation
           const prevLocation = this.stores.resolvedLocation.get()

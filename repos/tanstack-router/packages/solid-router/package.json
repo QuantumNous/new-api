@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/solid-router",
-  "version": "1.170.17",
+  "version": "1.170.18",
   "description": "Modern and scalable routing for Solid applications",
   "author": "Tanner Linsley",
   "license": "MIT",

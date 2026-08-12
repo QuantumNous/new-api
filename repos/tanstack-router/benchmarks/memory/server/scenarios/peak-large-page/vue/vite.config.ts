@@ -22,6 +22,19 @@ export default defineConfig({
     minify: false,
   },
   test: {
+    // Keep lazily-compiled code alive for the whole run: the pinned
+    // collections age code fast enough for V8 to flush unused bytecode,
+    // and the mid-measurement recompile injects a multi-MB allocation
+    // burst at a run-dependent time.
+    execArgv: [
+      '--no-flush-bytecode',
+      // Pre-size the V8 heap so no space has to grow mid-measurement:
+      // heap-growth events allocate several MB at a run-dependent moment,
+      // which flips the measured peak bimodally between identical runs.
+      '--initial-old-space-size=64',
+      '--min-semi-space-size=16',
+      '--max-semi-space-size=16',
+    ],
     name: '@benchmarks/memory-server peak-large-page (vue)',
     watch: false,
     environment: 'node',

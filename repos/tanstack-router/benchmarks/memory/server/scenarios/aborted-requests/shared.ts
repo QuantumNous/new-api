@@ -1,3 +1,4 @@
+import { settleAndPinGc } from '#memory-server/bench-utils'
 import type { StartRequestHandler } from '#memory-server/bench-utils'
 
 export type { StartRequestHandler }
@@ -6,15 +7,13 @@ type Framework = 'react' | 'solid' | 'vue'
 
 type AbortedRequestReadMode = 'first-chunk' | 'shell-before-deferred'
 type AbortedRequestCancelMode = 'plain' | 'swallow-abort-error'
-type AbortedRequestDrainMode = 'microtasks' | 'tasks'
 
 type AbortedRequestMode = {
   readMode: AbortedRequestReadMode
   cancelMode: AbortedRequestCancelMode
-  drainMode: AbortedRequestDrainMode
 }
 
-const abortedRequestIterations = 100
+const abortedRequestIterations = 40
 let abortedRequestCounter = 0
 const eagerMarker = 'data-bench="aborted-requests-eager"'
 const alphaFallbackMarker = 'data-bench="aborted-requests-alpha-fallback"'
@@ -29,17 +28,14 @@ const abortedRequestModes: Record<Framework, AbortedRequestMode> = {
   react: {
     readMode: 'first-chunk',
     cancelMode: 'plain',
-    drainMode: 'microtasks',
   },
   solid: {
     readMode: 'first-chunk',
     cancelMode: 'plain',
-    drainMode: 'tasks',
   },
   vue: {
     readMode: 'shell-before-deferred',
     cancelMode: 'swallow-abort-error',
-    drainMode: 'tasks',
   },
 }
 
@@ -188,13 +184,12 @@ async function cancelReader(
   await reader.cancel()
 }
 
-async function drainCancellation(mode: AbortedRequestDrainMode) {
-  await Promise.resolve()
-  await Promise.resolve()
-
-  if (mode === 'tasks') {
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  }
+// Post-abort settlement barrier. Settles renderer teardown across a fixed
+// number of event-loop turns, then (under CodSpeed) pins a collection point
+// after every aborted request, so the measured peak cannot drift with how
+// much floating garbage the previous iterations happened to leave behind.
+async function drainCancellation() {
+  await settleAndPinGc()
 }
 
 async function assertAbortedRequestsSanity(
@@ -233,7 +228,7 @@ async function assertAbortedRequestsSanity(
   // does not observe Request.signal for this in-process request.
   controller.abort()
   await cancelReader(reader, mode.cancelMode)
-  await drainCancellation(mode.drainMode)
+  await drainCancellation()
 }
 
 async function runAbortedRequestLoop(
@@ -255,7 +250,7 @@ async function runAbortedRequestLoop(
     )
     controller.abort()
     await cancelReader(reader, mode.cancelMode)
-    await drainCancellation(mode.drainMode)
+    await drainCancellation()
   }
 }
 
@@ -270,7 +265,7 @@ export function createWorkloadGroup(
     sanity: () => assertAbortedRequestsSanity(handler, mode),
     workloads: [
       {
-        name: `mem aborted-requests (${framework})`,
+        name: `mem server aborted-requests (${framework})`,
         run,
       },
     ],

@@ -15,9 +15,9 @@
     "@emotion/styled": "11.14.0",
     "@fontsource-variable/roboto": "5.2.5",
     "@mui/material": "6.4.7",
-    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router": "^1.170.18",
     "@tanstack/react-router-devtools": "^1.167.0",
-    "@tanstack/react-start": "^1.168.27",
+    "@tanstack/react-start": "^1.168.28",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^4.4.3"

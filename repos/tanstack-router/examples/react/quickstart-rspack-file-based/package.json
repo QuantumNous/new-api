@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.2",
-    "@tanstack/react-router": "^1.170.17",
+    "@tanstack/react-router": "^1.170.18",
     "@tanstack/react-router-devtools": "^1.167.0",
     "postcss": "^8.5.1",
     "react": "^19.0.0",
@@ -19,7 +19,7 @@
   "devDependencies": {
     "@rsbuild/core": "^2.0.11",
     "@rsbuild/plugin-react": "^2.0.0",
-    "@tanstack/router-plugin": "^1.168.19",
+    "@tanstack/router-plugin": "^1.168.20",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "typescript": "^6.0.2"

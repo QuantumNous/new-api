@@ -3,11 +3,18 @@ name: Benchmarks
 
 on:
   push:
+    # Broad on purpose: CodSpeed compares each PR against the run on its
+    # merge-base commit. Skipping main pushes that don't touch packages/**
+    # (pnpm config, CI, root tooling) leaves those commits without a baseline
+    # run, and CodSpeed silently falls back to an older, possibly outlier run —
+    # which then flags phantom regressions on every PR until the next eligible
+    # push. Only paths that cannot affect benchmark results are excluded.
     branches:
       - 'main'
-    paths:
-      - 'packages/**'
-      - 'benchmarks/**'
+    paths-ignore:
+      - 'docs/**'
+      - 'examples/**'
+      - 'e2e/**'
   pull_request:
     paths:
       - 'packages/**'

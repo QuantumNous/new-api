@@ -58,7 +58,7 @@ export function createWorkload(
   }
 
   return {
-    name: `mem mount-unmount (${framework})`,
+    name: `mem client mount-unmount (${framework})`,
     cycle,
     async run() {
       for (let index = 0; index < mountUnmountIterations; index++) {

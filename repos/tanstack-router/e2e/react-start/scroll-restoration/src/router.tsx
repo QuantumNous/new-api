@@ -7,13 +7,32 @@ export function getRouter() {
   const router = createRouter({
     routeTree,
     scrollRestoration: true,
-    scrollToTopSelectors: ['[data-scroll-restoration-id="carry-over-reset"]'],
+    scrollToTopSelectors: [
+      '[data-scroll-restoration-id="carry-over-reset"]',
+      '#hash-scroll-nested',
+      '#hash-scroll-reset-target',
+      '#issue-7687-reset-probe',
+      '#issue-7687-scroller',
+      () =>
+        typeof document === 'undefined'
+          ? undefined
+          : document.getElementById('issue-7687-stale-selector'),
+      '#ssr-scroll-key-nested',
+    ],
     getScrollRestorationKey: (location) => {
       if (location.pathname === '/ssr-scroll-key') {
         return 'ssr-scroll-key'
       }
 
       if (location.pathname === '/hash-scroll-repro') {
+        const scrollKey =
+          'scrollKey' in location.search ? location.search.scrollKey : undefined
+        return typeof scrollKey === 'string'
+          ? `${location.pathname}:${scrollKey}`
+          : location.pathname
+      }
+
+      if (location.pathname.startsWith('/issue-7687')) {
         return location.pathname
       }
 

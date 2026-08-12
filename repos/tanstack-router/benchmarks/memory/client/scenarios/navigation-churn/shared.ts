@@ -105,7 +105,7 @@ export function createWorkload(
   }
 
   return {
-    name: `mem navigation-churn (${framework})`,
+    name: `mem client navigation-churn (${framework})`,
     before,
     navigate: (target: Target) => navigateTo(target),
     async run() {

@@ -163,7 +163,7 @@ export function createWorkload(
   }
 
   return {
-    name: `mem loader-data-retention (${framework})`,
+    name: `mem client loader-data-retention (${framework})`,
     before,
     navigate: (id: string) => navigateTo(id),
     async run() {

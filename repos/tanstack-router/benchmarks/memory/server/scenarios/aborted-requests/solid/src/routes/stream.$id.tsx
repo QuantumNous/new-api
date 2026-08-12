@@ -6,25 +6,32 @@ import {
   type RecordGroup,
 } from '../../../deferred-records'
 
-const alphaDelayMs = 50
-const betaDelayMs = 75
-const abortProbeAlphaDelayMs = 500
-const abortProbeBetaDelayMs = 750
+const alphaResolveTicks = 4
+const betaResolveTicks = 6
+const abortProbeAlphaResolveTicks = 40
+const abortProbeBetaResolveTicks = 60
 
 function isAbortProbeId(id: string) {
   return id === 'sanity-mid-stream' || id.startsWith('abort-')
 }
 
-function getDelay(id: string, group: RecordGroup) {
+function getResolveTicks(id: string, group: RecordGroup) {
   if (isAbortProbeId(id)) {
-    return group === 'alpha' ? abortProbeAlphaDelayMs : abortProbeBetaDelayMs
+    return group === 'alpha'
+      ? abortProbeAlphaResolveTicks
+      : abortProbeBetaResolveTicks
   }
 
-  return group === 'alpha' ? alphaDelayMs : betaDelayMs
+  return group === 'alpha' ? alphaResolveTicks : betaResolveTicks
 }
 
-function resolveAfterDelay<T>(
-  delayMs: number,
+// One tick = one 0ms timers-phase hop. Counting event-loop turns instead of
+// milliseconds keeps the resolve/abort interleaving a pure function of the
+// event-loop schedule: a wall-clock delay races the abort differently
+// depending on runner load and instrumentation overhead, which made this
+// benchmark's single measured run swing between runs.
+function resolveAfterTicks<T>(
+  ticks: number,
   signal: AbortSignal,
   value: () => T,
   abortedValue: () => T,
@@ -35,17 +42,28 @@ function resolveAfterDelay<T>(
       return
     }
 
-    const timeoutId = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort)
-      resolve(value())
-    }, delayMs)
+    let remaining = ticks
+    let timeoutId: ReturnType<typeof setTimeout>
 
     const onAbort = () => {
       clearTimeout(timeoutId)
       resolve(abortedValue())
     }
 
+    const step = () => {
+      remaining -= 1
+
+      if (remaining <= 0) {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value())
+        return
+      }
+
+      timeoutId = setTimeout(step, 0)
+    }
+
     signal.addEventListener('abort', onAbort, { once: true })
+    timeoutId = setTimeout(step, 0)
   })
 }
 
@@ -54,10 +72,8 @@ function makeDeferredRecords(
   group: RecordGroup,
   signal: AbortSignal,
 ) {
-  const delayMs = getDelay(id, group)
-
-  return resolveAfterDelay(
-    delayMs,
+  return resolveAfterTicks(
+    getResolveTicks(id, group),
     signal,
     () => makeAbortedRequestRecords(id, group),
     () => [],

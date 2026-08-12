@@ -296,7 +296,7 @@ export function createWorkload(
   }
 
   return {
-    name: `mem interrupted-navigations (${framework})`,
+    name: `mem client interrupted-navigations (${framework})`,
     before,
     interrupt,
     async run() {
