@@ -48,7 +48,7 @@ describe('RuntimePulseBand', () => {
 
     expect(wrapper.get('[data-home-request-total]').text()).toBe('300')
     expect(wrapper.get('.runtime-request-caption').text()).toContain(
-      i18n.global.t('showcase.runtime.rolling24h')
+      i18n.global.t('showcase.runtime.todaySuccess')
     )
     const trend = wrapper.get('.runtime-trend polyline')
     expect(trend.attributes('points')?.split(' ')).toHaveLength(24)
@@ -68,7 +68,7 @@ describe('RuntimePulseBand', () => {
       i18n.global.t('showcase.runtime.metricsUnavailable')
     )
     expect(wrapper.text()).not.toContain(
-      i18n.global.t('showcase.runtime.rolling24h')
+      i18n.global.t('showcase.runtime.todaySuccess')
     )
     wrapper.unmount()
   })
@@ -110,10 +110,30 @@ describe('RuntimePulseBand', () => {
     const wrapper = mountBand(true, 0)
 
     expect(wrapper.get('[data-home-request-total]').text()).toBe('0')
-    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('0')
+    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('——')
     expect(wrapper.text()).not.toContain(
       i18n.global.t('showcase.runtime.metricsUnavailable')
     )
+    wrapper.unmount()
+  })
+
+  it('keeps the trend as a dash placeholder while the total is zero', () => {
+    const wrapper = mount(RuntimePulseBand, {
+      global: { plugins: [i18n] },
+      props: {
+        runtime: { days: 1, hours: 2, minutes: 3, seconds: 4 },
+        uptimeLabel: '99.95%',
+        requestMetrics: {
+          available: true,
+          requests_24h: 0,
+          hourly_requests: [4, ...Array(23).fill(0)],
+          generated_at: 1_700_000_000,
+        },
+      },
+    })
+
+    expect(wrapper.find('.runtime-trend polyline').exists()).toBe(false)
+    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('——')
     wrapper.unmount()
   })
 })

@@ -106,6 +106,7 @@ const trendPoints = computed(() => {
   if (
     values.length !== 24 ||
     requestValue.value === null ||
+    requestValue.value === 0 ||
     !values.some((value) => value > 0)
   ) {
     return ''
@@ -281,7 +282,7 @@ onBeforeUnmount(() => {
           {{
             requestValue === null
               ? t('showcase.runtime.metricsUnavailable')
-              : `${t('showcase.runtime.rolling24h')} · ${t(
+              : `${t('showcase.runtime.todaySuccess')} · ${t(
                   'showcase.runtime.protectedBy'
                 )}`
           }}
@@ -297,7 +298,7 @@ onBeforeUnmount(() => {
             <polyline :points="trendPoints" />
           </svg>
           <span v-else class="runtime-trend-placeholder" aria-hidden="true">{{
-            requestValue === null ? '--' : '0'
+            requestValue === null ? '--' : '——'
           }}</span>
           <span>{{ t('showcase.runtime.trend24h') }}</span>
         </div>

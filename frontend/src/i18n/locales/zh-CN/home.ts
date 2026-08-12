@@ -112,7 +112,6 @@ export default {
       servedTag: '已处理请求',
       stableCalls: '稳定调用',
       todaySuccess: '次（今日成功）',
-      rolling24h: '次（滚动 24 小时）',
       protectedBy: '多上游智能调度护航',
       metricsUnavailable: '请求指标暂不可用',
       recentAvailability: '近 7 天',
