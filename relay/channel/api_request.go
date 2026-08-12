@@ -315,6 +315,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
+	service.CaptureUpstreamBillingReference(c, resp)
 	return resp, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -290,4 +291,59 @@ func TestModelListsHonorTargetedGroupVisibility(t *testing.T) {
 	}
 	require.Contains(t, selfModels(target.Id), "zz-targeted-only-model")
 	require.NotContains(t, selfModels(nonTarget.Id), "zz-targeted-only-model")
+
+	blockedRecorder := httptest.NewRecorder()
+	blockedCtx, _ := gin.CreateTestContext(blockedRecorder)
+	blockedCtx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/models?group=default", nil)
+	blockedCtx.Set("id", nonTarget.Id)
+	GetUserModels(blockedCtx)
+	require.Equal(t, http.StatusForbidden, blockedRecorder.Code)
+}
+
+func TestGetUserModelsFiltersByRequestedSelectableGroup(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	user := &model.User{
+		Id:       3001,
+		Username: "group-filter-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, db.Create(user).Error)
+	require.NoError(t, db.Create([]model.Ability{
+		{Group: "default", Model: "zz-default-only", ChannelId: 1, Enabled: true},
+		{Group: "vip", Model: "zz-vip-only", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	requestModels := func(group string) []string {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/models?group="+group, nil)
+		ctx.Set("id", user.Id)
+		GetUserModels(ctx)
+		require.Equal(t, http.StatusOK, recorder.Code)
+		var response struct {
+			Success bool     `json:"success"`
+			Data    []string `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.True(t, response.Success)
+		return response.Data
+	}
+
+	require.Equal(t, []string{"zz-default-only"}, requestModels("default"))
+	require.Equal(t, []string{"zz-vip-only"}, requestModels("vip"))
+	originalAutoGroups := setting.AutoGroups2JsonString()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateAutoGroupsByJsonString(originalAutoGroups))
+	})
+	require.NoError(t, setting.UpdateAutoGroupsByJsonString(`["default","vip"]`))
+	require.ElementsMatch(t, []string{"zz-default-only", "zz-vip-only"}, requestModels("auto"))
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/models?group=not-selectable", nil)
+	ctx.Set("id", user.Id)
+	GetUserModels(ctx)
+	require.Equal(t, http.StatusForbidden, recorder.Code)
 }

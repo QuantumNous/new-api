@@ -190,6 +190,10 @@ func Distribute() func(c *gin.Context) {
 				c.Set("entitlement_total_quota", entitlementGrant.TotalQuota)
 			}
 		}
+		if isPlaygroundImage2ChatRequest(c.Request.URL.Path, modelRequest.Model) {
+			abortWithOpenAiMessage(c, http.StatusBadRequest, "gpt-image-2 must use the image generation or edit endpoint")
+			return
+		}
 		maybeSetImage2TestPin(c, modelRequest, time.Now())
 		channelId, ok := common.GetContextKey(c, constant.ContextKeyTokenSpecificChannelId)
 		if ok {
@@ -237,26 +241,25 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				// check path is /pg/chat/completions
-				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-					playgroundRequest := &dto.PlayGroundRequest{}
-					err = common.UnmarshalBodyReusable(c, playgroundRequest)
-					if err != nil {
-						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
+				// All authenticated playground endpoints accept an explicit group.
+				if isPlaygroundPath(c.Request.URL.Path) {
+					playgroundGroup, groupErr := getPlaygroundGroup(c)
+					if groupErr != nil {
+						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": groupErr.Error()}))
 						return
 					}
-					if playgroundRequest.Group != "" {
-						if entitlementGrant != nil && playgroundRequest.Group != entitlementGrant.Package.Group {
+					if playgroundGroup != "" {
+						if entitlementGrant != nil && playgroundGroup != entitlementGrant.Package.Group {
 							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 							return
 						}
 						userId := c.GetInt("id")
-						if err := service.ValidateUserSelectableTokenGroup(userId, playgroundRequest.Group); err != nil ||
-							(!service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup) {
+						if err := service.ValidateUserSelectableTokenGroup(userId, playgroundGroup); err != nil ||
+							(!service.GroupInUserUsableGroups(usingGroup, playgroundGroup) && playgroundGroup != usingGroup) {
 							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 							return
 						}
-						usingGroup = playgroundRequest.Group
+						usingGroup = playgroundGroup
 						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 					}
 				}
@@ -353,11 +356,61 @@ func Distribute() func(c *gin.Context) {
 // - multipart/form-data
 func getModelFromRequest(c *gin.Context) (*ModelRequest, error) {
 	var modelRequest ModelRequest
+	if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		if _, err := c.MultipartForm(); err != nil {
+			return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
+		}
+		modelRequest.Model = c.PostForm("model")
+		modelRequest.Group = c.PostForm("group")
+		return &modelRequest, nil
+	}
 	err := common.UnmarshalBodyReusable(c, &modelRequest)
 	if err != nil {
 		return nil, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 	}
 	return &modelRequest, nil
+}
+
+func isPlaygroundPath(path string) bool {
+	return strings.HasPrefix(path, "/pg/")
+}
+
+func isPlaygroundImage2ChatRequest(path, modelName string) bool {
+	if !strings.HasPrefix(path, "/pg/chat/completions") {
+		return false
+	}
+	normalized := strings.ToLower(strings.TrimSpace(modelName))
+	return normalized == "gpt-image-2" ||
+		strings.HasPrefix(normalized, "gpt-image-2-") ||
+		strings.HasPrefix(normalized, "gpt-image-2_") ||
+		strings.HasPrefix(normalized, "gpt-image-2.")
+}
+
+func isImageGenerationsPath(path string) bool {
+	return strings.HasPrefix(path, "/v1/images/generations") || strings.HasPrefix(path, "/pg/images/generations")
+}
+
+func isImageEditsPath(path string) bool {
+	return strings.HasPrefix(path, "/v1/images/edits") || strings.HasPrefix(path, "/pg/images/edits")
+}
+
+func getPlaygroundGroup(c *gin.Context) (string, error) {
+	if !isPlaygroundPath(c.Request.URL.Path) {
+		return "", nil
+	}
+	if strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
+		if _, err := c.MultipartForm(); err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(c.PostForm("group")), nil
+	}
+	var request struct {
+		Group string `json:"group"`
+	}
+	if err := common.UnmarshalBodyReusable(c, &request); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(request.Group), nil
 }
 
 func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
@@ -473,9 +526,9 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = c.Param("model")
 		}
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
+	if isImageGenerationsPath(c.Request.URL.Path) {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
-	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
+	} else if isImageEditsPath(c.Request.URL.Path) {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
 		contentType := c.ContentType()
 		if slices.Contains([]string{gin.MIMEPOSTForm, gin.MIMEMultipartPOSTForm}, contentType) {

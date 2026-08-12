@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 
@@ -144,6 +145,27 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 	})
 
+	// A transport-level 200 is not enough to settle a streaming request. Some
+	// compatible upstreams answer with an SSE content type and then terminate
+	// before emitting any usable event (for example after an internal 5xx).
+	// Treat that as an upstream failure: estimating prompt usage here would
+	// otherwise create a successful consume log for a request that produced no
+	// response at all.
+	if info.StreamStatus == nil || info.ReceivedResponseCount == 0 {
+		return nil, types.NewOpenAIError(
+			fmt.Errorf("upstream stream ended without response data"),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
+		)
+	}
+	if !info.StreamStatus.IsNormalEnd() {
+		return nil, types.NewOpenAIError(
+			fmt.Errorf("upstream stream ended abnormally: %s", info.StreamStatus.Summary()),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
+		)
+	}
+
 	// 对音频模型，从倒数第二个stream data中提取usage信息
 	if isAudioModel && secondLastStreamData != "" {
 		var streamResp struct {
@@ -178,6 +200,20 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	// 处理token计算
 	if err := processTokens(info.RelayMode, streamItems, &responseTextBuilder, &toolCount); err != nil {
 		logger.LogError(c, "error processing tokens: "+err.Error())
+	}
+
+	// A role-only (or otherwise semantically empty) SSE frame is not a usable
+	// completion.  In particular, some compatible upstreams emit one such
+	// frame and then EOF, which used to make us estimate and charge all prompt
+	// tokens despite the caller receiving no result.  Explicit upstream usage
+	// remains authoritative: a provider may legitimately report a zero-token
+	// completion for a successful non-text/tool response.
+	if !containStreamUsage && responseTextBuilder.Len() == 0 && toolCount == 0 {
+		return nil, types.NewOpenAIError(
+			fmt.Errorf("upstream stream ended without usable completion data"),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
+		)
 	}
 
 	if !containStreamUsage {
@@ -571,6 +607,12 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
+	if info != nil && (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		if err := validateImageResponse(responseBody); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
+	}
+
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
@@ -590,6 +632,22 @@ func OpenaiHandlerWithUsage(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 	return &usageResp.Usage, nil
+}
+
+// validateImageResponse rejects an HTTP-success response that does not contain
+// an image result. It must run before the response is written to the client so
+// ImageHelper can avoid treating an empty response as a billable success.
+func validateImageResponse(responseBody []byte) error {
+	var imageResponse dto.ImageResponse
+	if err := common.Unmarshal(responseBody, &imageResponse); err != nil {
+		return fmt.Errorf("invalid image response: %w", err)
+	}
+	for _, item := range imageResponse.Data {
+		if strings.TrimSpace(item.Url) != "" || strings.TrimSpace(item.B64Json) != "" {
+			return nil
+		}
+	}
+	return fmt.Errorf("image response contains no usable image data")
 }
 
 func applyUsagePostProcessing(info *relaycommon.RelayInfo, usage *dto.Usage, responseBody []byte) {

@@ -482,6 +482,22 @@ func TestImage2LateFiveXXGuardBlocksAtExactBoundary(t *testing.T) {
 	require.Equal(t, "image2_replay_guard_elapsed", decision.Reason)
 }
 
+func TestImage2SafeFailoverNeverReplaysGatewayTimeouts(t *testing.T) {
+	for _, status := range []int{http.StatusGatewayTimeout, 524} {
+		decision := EvaluateImage2SafeFailover(SafeFailoverInput{
+			RelayMode: relayconstant.RelayModeImagesGenerations,
+			ModelName: "gpt-image-2",
+			Error: types.NewErrorWithStatusCode(
+				errors.New("ambiguous gateway timeout"),
+				types.ErrorCodeBadResponseStatusCode,
+				status,
+			),
+		})
+		require.False(t, decision.Retry)
+		require.Equal(t, "image2_gateway_timeout", decision.Reason)
+	}
+}
+
 func TestImage2SafeFailoverAttemptBoundaries(t *testing.T) {
 	makeInput := func(retryIndex, maxAttempts int) SafeFailoverInput {
 		return SafeFailoverInput{

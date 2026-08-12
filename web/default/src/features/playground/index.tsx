@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { PlaygroundInput } from './components/playground-input'
@@ -34,8 +35,8 @@ export function Playground() {
 
   // Load models
   const { data: modelsData, isLoading: isLoadingModels } = useQuery({
-    queryKey: ['playground-models'],
-    queryFn: getUserModels,
+    queryKey: ['playground-models', config.group],
+    queryFn: () => getUserModels(config.group),
   })
 
   // Load groups
@@ -79,6 +80,13 @@ export function Playground() {
   }, [groupsData, setGroups])
 
   const handleSendMessage = (text: string) => {
+    if (/^gpt-image-2(?:$|[-_.])/i.test(config.model.trim())) {
+      toast.error(
+        'GPT Image 2 must use the image generation or edit endpoint. This Playground view is not ready for Image2 yet.'
+      )
+      return
+    }
+
     const userMessage = createUserMessage(text)
     const assistantMessage = createLoadingAssistantMessage()
 

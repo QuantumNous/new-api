@@ -32,6 +32,32 @@ import {
   processIncompleteThinkTags,
 } from '../../helpers';
 
+const getImageResponseContent = (data) => {
+  if (!Array.isArray(data?.data)) return '';
+
+  return data.data
+    .map((item, index) => {
+      const source =
+        item?.url ||
+        (item?.b64_json ? `data:image/png;base64,${item.b64_json}` : '');
+      return source ? `![Generated image ${index + 1}](${source})` : '';
+    })
+    .filter(Boolean)
+    .join('\n\n');
+};
+
+const getDebugBody = (body) => {
+  if (!(typeof FormData !== 'undefined' && body instanceof FormData)) {
+    return body;
+  }
+
+  const fields = {};
+  body.forEach((value, key) => {
+    fields[key] = typeof value === 'string' ? value : '[binary image]';
+  });
+  return fields;
+};
+
 export const useApiRequest = (
   setMessage,
   setDebugData,
@@ -173,10 +199,18 @@ export const useApiRequest = (
 
   // 非流式请求
   const handleNonStreamRequest = useCallback(
-    async (payload) => {
+    async (payload, options = {}) => {
+      const endpoint = options.endpoint || API_ENDPOINTS.CHAT_COMPLETIONS;
+      const isMultipart =
+        typeof FormData !== 'undefined' && payload instanceof FormData;
+      const debugBody = getDebugBody(payload);
+      const debugRequest =
+        endpoint === API_ENDPOINTS.CHAT_COMPLETIONS
+          ? debugBody
+          : { endpoint, body: debugBody };
       setDebugData((prev) => ({
         ...prev,
-        request: payload,
+        request: debugRequest,
         timestamp: new Date().toISOString(),
         response: null,
         sseMessages: null, // 非流式请求清除 SSE 消息
@@ -185,13 +219,17 @@ export const useApiRequest = (
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       try {
-        const response = await fetch(API_ENDPOINTS.CHAT_COMPLETIONS, {
+        const headers = {
+          'New-Api-User': getUserIdFromLocalStorage(),
+        };
+        if (!isMultipart) {
+          headers['Content-Type'] = 'application/json';
+        }
+
+        const response = await fetch(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'New-Api-User': getUserIdFromLocalStorage(),
-          },
-          body: JSON.stringify(payload),
+          headers,
+          body: isMultipart ? payload : JSON.stringify(payload),
         });
 
         if (!response.ok) {
@@ -239,7 +277,29 @@ export const useApiRequest = (
         }));
         setActiveDebugTab(DEBUG_TABS.RESPONSE);
 
-        if (data.choices?.[0]) {
+        if (options.responseType === 'image') {
+          const content = getImageResponseContent(data);
+          setMessage((prevMessage) => {
+            const newMessages = [...prevMessage];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage?.status === MESSAGE_STATUS.LOADING) {
+              const autoCollapseState = applyAutoCollapseLogic(
+                lastMessage,
+                true,
+              );
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                content: content || t('图片接口返回了空结果'),
+                status: content
+                  ? MESSAGE_STATUS.COMPLETE
+                  : MESSAGE_STATUS.ERROR,
+                ...autoCollapseState,
+              };
+              setTimeout(() => saveMessages(newMessages), 0);
+            }
+            return newMessages;
+          });
+        } else if (data.choices?.[0]) {
           const choice = data.choices[0];
           let content = choice.message?.content || '';
           let reasoningContent =
@@ -297,7 +357,14 @@ export const useApiRequest = (
         });
       }
     },
-    [setDebugData, setActiveDebugTab, setMessage, t, applyAutoCollapseLogic],
+    [
+      setDebugData,
+      setActiveDebugTab,
+      setMessage,
+      t,
+      applyAutoCollapseLogic,
+      saveMessages,
+    ],
   );
 
   // SSE请求
@@ -421,7 +488,11 @@ export const useApiRequest = (
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
             const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage && lastMessage.status !== MESSAGE_STATUS.COMPLETE && lastMessage.status !== MESSAGE_STATUS.ERROR) {
+            if (
+              lastMessage &&
+              lastMessage.status !== MESSAGE_STATUS.COMPLETE &&
+              lastMessage.status !== MESSAGE_STATUS.ERROR
+            ) {
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 content: (lastMessage.content || '') + errorMessage,
@@ -536,11 +607,11 @@ export const useApiRequest = (
 
   // 发送请求
   const sendRequest = useCallback(
-    (payload, isStream) => {
+    (payload, isStream, options = {}) => {
       if (isStream) {
         handleSSE(payload);
       } else {
-        handleNonStreamRequest(payload);
+        handleNonStreamRequest(payload, options);
       }
     },
     [handleSSE, handleNonStreamRequest],

@@ -17,10 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Input, Typography, Button, Switch } from '@douyinfe/semi-ui';
 import { IconFile } from '@douyinfe/semi-icons';
-import { FileText, Plus, X, Image } from 'lucide-react';
+import { FileText, Plus, X, Image, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const ImageUrlInput = ({
@@ -31,6 +31,7 @@ const ImageUrlInput = ({
   disabled = false,
 }) => {
   const { t } = useTranslation();
+  const fileInputRef = useRef(null);
   const handleAddImageUrl = () => {
     const newUrls = [...imageUrls, ''];
     onImageUrlsChange(newUrls);
@@ -45,6 +46,24 @@ const ImageUrlInput = ({
   const handleRemoveImageUrl = (index) => {
     const newUrls = imageUrls.filter((_, i) => i !== index);
     onImageUrlsChange(newUrls);
+  };
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        onImageUrlsChange([
+          ...imageUrls.filter((url) => String(url).trim() !== ''),
+          reader.result,
+        ]);
+        onImageEnabledChange(true);
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
   };
 
   return (
@@ -84,6 +103,23 @@ const ImageUrlInput = ({
             onClick={handleAddImageUrl}
             className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
             disabled={!imageEnabled || disabled}
+          />
+          <Button
+            icon={<Upload size={14} />}
+            size='small'
+            theme='solid'
+            type='tertiary'
+            onClick={() => fileInputRef.current?.click()}
+            className='!rounded-full !w-4 !h-4 !p-0 !min-w-0'
+            disabled={disabled}
+          />
+          <input
+            ref={fileInputRef}
+            type='file'
+            accept='image/*'
+            className='hidden'
+            onChange={handleFileChange}
+            disabled={disabled}
           />
         </div>
       </div>

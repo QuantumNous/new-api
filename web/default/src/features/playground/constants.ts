@@ -38,11 +38,11 @@ export const DEFAULT_CONFIG: PlaygroundConfig = {
 }
 
 export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
-  temperature: true,
-  top_p: true,
+  temperature: false,
+  top_p: false,
   max_tokens: false,
-  frequency_penalty: true,
-  presence_penalty: true,
+  frequency_penalty: false,
+  presence_penalty: false,
   seed: false,
 }
 
@@ -50,7 +50,10 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
-  PARAMETER_ENABLED: 'playground_parameter_enabled',
+  // This deliberately starts a new storage generation: old versions enabled
+  // sampling parameters by default, causing unsupported parameters to be
+  // sent merely by opening the Playground.
+  PARAMETER_ENABLED: 'playground_parameter_enabled_v2',
 } as const
 
 // Error messages

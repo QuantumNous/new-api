@@ -527,6 +527,63 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	requestedGroup := strings.TrimSpace(c.Query("group"))
+	if requestedGroup != "" {
+		requestedGroups := map[string]string{requestedGroup: ""}
+		if requestedGroup == "auto" {
+			requestedGroups = make(map[string]string)
+			for _, autoGroup := range setting.GetAutoGroups() {
+				if description, authorized := groups[autoGroup]; authorized {
+					requestedGroups[autoGroup] = description
+				}
+			}
+		}
+		if len(requestedGroups) == 0 {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "无权访问该分组",
+			})
+			return
+		}
+		if requestedGroup != "auto" {
+			if _, authorized := groups[requestedGroup]; !authorized {
+				c.JSON(http.StatusForbidden, gin.H{
+					"success": false,
+					"message": "无权访问该分组",
+				})
+				return
+			}
+		}
+
+		models := make([]string, 0)
+		for group := range requestedGroups {
+			for _, groupModel := range model.GetGroupEnabledModels(group) {
+				if !common.StringsContains(models, groupModel) {
+					models = append(models, groupModel)
+				}
+			}
+		}
+		entitlementPackages, entitlementErr := model.GetUserEntitlementPackages(id, true)
+		if entitlementErr == nil {
+			for _, item := range entitlementPackages {
+				if _, selected := requestedGroups[item.Group]; !selected {
+					continue
+				}
+				for _, entitlementModel := range strings.Split(item.Models, ",") {
+					entitlementModel = strings.TrimSpace(entitlementModel)
+					if entitlementModel != "" && !common.StringsContains(models, entitlementModel) {
+						models = append(models, entitlementModel)
+					}
+				}
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    models,
+		})
+		return
+	}
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -218,6 +219,13 @@ func buildImage2SmartRouter(req Image2RequestCapability, channels []*model.Chann
 // another capability-compatible channel. A late 5xx or transport failure at
 // the image guard is blocked unless explicit non-acceptance evidence exists.
 func EvaluateImage2SafeFailover(input SafeFailoverInput) SafeFailoverDecision {
+	// A gateway timeout is ambiguous for image generation: the upstream may
+	// still finish and bill the original task. Never replay 504/524 through a
+	// second image channel, regardless of the generic relay retry policy.
+	if input.Error != nil && (input.Error.StatusCode == http.StatusGatewayTimeout || input.Error.StatusCode == 524) {
+		return SafeFailoverDecision{Reason: "image2_gateway_timeout"}
+	}
+
 	decision := EvaluateSafeFailover(input)
 	if !decision.Retry {
 		return decision

@@ -36,7 +36,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -48,7 +47,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -166,6 +164,37 @@ export const buildApiPayload = (
     }
   });
 
+  return payload;
+};
+
+export const isGptImage2Model = (model = '') =>
+  /^gpt-image-2(?:$|[-_.])/i.test(String(model).trim());
+
+export const isBananaImageModel = (model = '') =>
+  /(?:nano-banana|gemini-(?:2\.0-flash-exp-image-generation|2\.5-flash-image|3(?:\.1)?-.*image-preview))/i.test(
+    String(model).trim(),
+  );
+
+export const getPlaygroundModelKind = (model = '') => {
+  if (isGptImage2Model(model)) return 'gpt-image-2';
+  if (isBananaImageModel(model)) return 'banana';
+  return 'chat';
+};
+
+export const buildImagePayload = (inputs, prompt) => {
+  const payload = {
+    model: inputs.model,
+    group: inputs.group,
+    prompt: prompt.trim(),
+    n: Math.max(1, Number(inputs.imageN) || 1),
+  };
+
+  // "auto" is a Playground UI placeholder, not an Image API capability.
+  // Omit it so the selected channel can apply its own compatible default.
+  if (inputs.imageSize && inputs.imageSize !== 'auto') payload.size = inputs.imageSize;
+  if (inputs.imageQuality && inputs.imageQuality !== 'auto') {
+    payload.quality = inputs.imageQuality;
+  }
   return payload;
 };
 

@@ -17,9 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, processModelsData, processGroupsData } from '../../helpers';
+import {
+  API,
+  processModelsData,
+  processGroupsData,
+  showError,
+} from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 
 export const useDataLoader = (
@@ -30,10 +35,18 @@ export const useDataLoader = (
   setGroups,
 ) => {
   const { t } = useTranslation();
+  const latestModelRequestRef = useRef(0);
 
   const loadModels = useCallback(async () => {
+    const requestId = ++latestModelRequestRef.current;
     try {
-      const res = await API.get(API_ENDPOINTS.USER_MODELS);
+      const groupQuery = inputs.group
+        ? `?group=${encodeURIComponent(inputs.group)}`
+        : '';
+      const res = await API.get(`${API_ENDPOINTS.USER_MODELS}${groupQuery}`);
+      if (requestId !== latestModelRequestRef.current) {
+        return;
+      }
       const { success, message, data } = res.data;
 
       if (success) {
@@ -50,9 +63,11 @@ export const useDataLoader = (
         showError(t(message));
       }
     } catch (error) {
-      showError(t('加载模型失败'));
+      if (requestId === latestModelRequestRef.current) {
+        showError(t('加载模型失败'));
+      }
     }
-  }, [inputs.model, handleInputChange, setModels, t]);
+  }, [inputs.group, inputs.model, handleInputChange, setModels, t]);
 
   const loadGroups = useCallback(async () => {
     try {

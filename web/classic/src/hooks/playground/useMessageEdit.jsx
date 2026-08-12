@@ -23,9 +23,14 @@ import { useTranslation } from 'react-i18next';
 import {
   getTextContent,
   buildApiPayload,
+  buildImagePayload,
+  isGptImage2Model,
   createLoadingAssistantMessage,
 } from '../../helpers';
-import { MESSAGE_ROLES } from '../../constants/playground.constants';
+import {
+  API_ENDPOINTS,
+  MESSAGE_ROLES,
+} from '../../constants/playground.constants';
 
 export const useMessageEdit = (
   setMessage,
@@ -97,17 +102,28 @@ export const useMessageEdit = (
               setTimeout(() => saveMessages(messagesUntilUser), 0);
 
               setTimeout(() => {
-                const payload = buildApiPayload(
-                  messagesUntilUser,
-                  null,
-                  inputs,
-                  parameterEnabled,
-                );
+                const payload = isGptImage2Model(inputs.model)
+                  ? buildImagePayload(inputs, editValue)
+                  : buildApiPayload(
+                      messagesUntilUser,
+                      null,
+                      inputs,
+                      parameterEnabled,
+                    );
                 setMessage((prevMsg) => [
                   ...prevMsg,
                   createLoadingAssistantMessage(),
                 ]);
-                sendRequest(payload, inputs.stream);
+                sendRequest(
+                  payload,
+                  isGptImage2Model(inputs.model) ? false : inputs.stream,
+                  isGptImage2Model(inputs.model)
+                    ? {
+                        endpoint: API_ENDPOINTS.IMAGE_GENERATIONS,
+                        responseType: 'image',
+                      }
+                    : undefined,
+                );
               }, 100);
             },
             onCancel: () => {

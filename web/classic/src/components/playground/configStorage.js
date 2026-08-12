@@ -23,6 +23,7 @@ import {
 } from '../../constants/playground.constants';
 
 const MESSAGES_STORAGE_KEY = 'playground_messages';
+const PARAMETER_POLICY_VERSION = 2;
 
 /**
  * 保存配置到 localStorage
@@ -32,6 +33,7 @@ export const saveConfig = (config) => {
   try {
     const configToSave = {
       ...config,
+      parameterPolicyVersion: PARAMETER_POLICY_VERSION,
       timestamp: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
@@ -75,10 +77,13 @@ export const loadConfig = () => {
             ? parsedConfig?.inputs?.max_tokens
             : parsedMaxTokens,
         },
-        parameterEnabled: {
-          ...DEFAULT_CONFIG.parameterEnabled,
-          ...parsedConfig.parameterEnabled,
-        },
+        parameterEnabled:
+          parsedConfig.parameterPolicyVersion === PARAMETER_POLICY_VERSION
+            ? {
+                ...DEFAULT_CONFIG.parameterEnabled,
+                ...parsedConfig.parameterEnabled,
+              }
+            : DEFAULT_CONFIG.parameterEnabled,
         showDebugPanel:
           parsedConfig.showDebugPanel || DEFAULT_CONFIG.showDebugPanel,
         customRequestMode:

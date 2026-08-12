@@ -38,6 +38,7 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 import {
   MESSAGE_ROLES,
   ERROR_MESSAGES,
+  API_ENDPOINTS,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -47,6 +48,8 @@ import {
   createLoadingAssistantMessage,
   getTextContent,
   buildApiPayload,
+  buildImagePayload,
+  isGptImage2Model,
   encodeToBase64,
 } from '../../helpers';
 
@@ -75,6 +78,46 @@ const generateAvatarDataUrl = (username) => {
     </svg>
   `;
   return `data:image/svg+xml;base64,${encodeToBase64(svg)}`;
+};
+
+const dataUrlToFile = (dataUrl, index = 0) => {
+  const match = String(dataUrl).match(/^data:([^;]+);base64,(.*)$/);
+  if (!match) return null;
+
+  const [, mimeType, encoded] = match;
+  const bytes = Uint8Array.from(atob(encoded), (char) => char.charCodeAt(0));
+  return new File([bytes], `reference-${index + 1}.png`, {
+    type: mimeType || 'image/png',
+  });
+};
+
+const imageSourceToFile = async (source, index = 0) => {
+  if (typeof File !== 'undefined' && source instanceof File) return source;
+  if (String(source).startsWith('data:')) {
+    const file = dataUrlToFile(source, index);
+    if (file) return file;
+  }
+
+  const response = await fetch(source, { mode: 'cors' });
+  if (!response.ok) {
+    throw new Error(`参考图下载失败（HTTP ${response.status}）`);
+  }
+  const blob = await response.blob();
+  return new File([blob], `reference-${index + 1}.png`, {
+    type: blob.type || 'image/png',
+  });
+};
+
+const buildImageEditFormData = (inputs, prompt, imageFiles) => {
+  const payload = buildImagePayload(inputs, prompt);
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    formData.append(key, String(value));
+  });
+  imageFiles.forEach((imageFile) => {
+    formData.append('image', imageFile, imageFile.name || 'reference.png');
+  });
+  return formData;
 };
 
 const Playground = () => {
@@ -196,6 +239,24 @@ const Playground = () => {
         }
       }
 
+      if (isGptImage2Model(inputs.model)) {
+        const lastUserMessage = [...message]
+          .reverse()
+          .find((item) => item.role === MESSAGE_ROLES.USER);
+        const prompt = getTextContent(lastUserMessage) || '示例图片提示词';
+        const imageSources = (
+          inputs.imageEnabled ? inputs.imageUrls : []
+        ).filter((url) => String(url).trim() !== '');
+        const endpoint = imageSources.length
+          ? API_ENDPOINTS.IMAGE_EDITS
+          : API_ENDPOINTS.IMAGE_GENERATIONS;
+        return {
+          endpoint,
+          body: buildImagePayload(inputs, prompt),
+          ...(imageSources.length ? { image: '[binary image]' } : {}),
+        };
+      }
+
       // 默认预览逻辑
       let messages = [...message];
 
@@ -236,9 +297,7 @@ const Playground = () => {
   }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
 
   // 发送消息
-  function onMessageSend(content, attachment) {
-    console.log('attachment: ', attachment);
-
+  async function onMessageSend(content, attachment) {
     // 创建用户消息和加载消息
     const userMessage = createMessage(MESSAGE_ROLES.USER, content);
     const loadingMessage = createLoadingAssistantMessage();
@@ -247,6 +306,22 @@ const Playground = () => {
     if (customRequestMode && customRequestBody) {
       try {
         const customPayload = JSON.parse(customRequestBody);
+
+        // A JSON editor cannot safely construct Image2 edits (multipart) and
+        // previously sent Image2 requests through the chat-only endpoint.
+        // Keep this path fail-closed so it cannot bypass the native image
+        // generation/edit dispatch below.
+        if (
+          isGptImage2Model(inputs.model) ||
+          isGptImage2Model(customPayload.model)
+        ) {
+          Toast.error(
+            t(
+              'Image2 暂不支持自定义请求体模式，请关闭该模式后使用图片生成或编辑。',
+            ),
+          );
+          return;
+        }
 
         setMessage((prevMessage) => {
           const newMessages = [...prevMessage, userMessage, loadingMessage];
@@ -267,8 +342,10 @@ const Playground = () => {
       }
     }
 
-    // 默认模式
-    const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
+    // Image2 使用原生图片端点；香蕉系列继续使用兼容的聊天端点。
+    const validImageUrls = (inputs.imageEnabled ? inputs.imageUrls : []).filter(
+      (url) => String(url).trim() !== '',
+    );
     const messageContent = buildMessageContent(
       content,
       validImageUrls,
@@ -278,6 +355,66 @@ const Playground = () => {
       MESSAGE_ROLES.USER,
       messageContent,
     );
+
+    if (isGptImage2Model(inputs.model)) {
+      const messagesWithLoading = [userMessageWithImages, loadingMessage];
+      setMessage((prevMessage) => {
+        const newMessages = [...prevMessage, ...messagesWithLoading];
+        setTimeout(() => saveMessagesImmediately(newMessages), 0);
+        return newMessages;
+      });
+
+      try {
+        const attachedFile =
+          typeof File !== 'undefined' && attachment instanceof File
+            ? attachment
+            : null;
+        const sources = validImageUrls.length
+          ? validImageUrls
+          : attachedFile
+            ? [attachedFile]
+            : [];
+        if (sources.length > 0) {
+          const imageFiles = await Promise.all(
+            sources.map((source, index) => imageSourceToFile(source, index)),
+          );
+          const formData = buildImageEditFormData(inputs, content, imageFiles);
+          sendRequest(formData, false, {
+            endpoint: API_ENDPOINTS.IMAGE_EDITS,
+            responseType: 'image',
+          });
+        } else {
+          const payload = buildImagePayload(inputs, content);
+          sendRequest(payload, false, {
+            endpoint: API_ENDPOINTS.IMAGE_GENERATIONS,
+            responseType: 'image',
+          });
+        }
+      } catch (error) {
+        const errorMessage = error?.message || t('图片请求构造失败');
+        Toast.error(errorMessage);
+        setMessage((prevMessage) => {
+          const newMessages = [...prevMessage];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage?.status === 'loading') {
+            newMessages[newMessages.length - 1] = {
+              ...lastMessage,
+              content: `${t('请求发生错误')}: ${errorMessage}`,
+              status: 'error',
+            };
+          }
+          setTimeout(() => saveMessagesImmediately(newMessages), 0);
+          return newMessages;
+        });
+      }
+
+      if (inputs.imageEnabled) {
+        setTimeout(() => handleInputChange('imageEnabled', false), 100);
+      }
+      return;
+    }
+
+    // 默认聊天模式（包括香蕉系列）
 
     setMessage((prevMessage) => {
       const newMessages = [...prevMessage, userMessageWithImages];
