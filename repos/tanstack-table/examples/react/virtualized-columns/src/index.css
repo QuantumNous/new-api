@@ -1,0 +1,40 @@
+html {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-family: arial, sans-serif;
+  table-layout: fixed;
+}
+
+thead {
+  background: lightgray;
+}
+
+tr {
+  border-bottom: 1px solid lightgray;
+}
+
+th {
+  border-bottom: 1px solid lightgray;
+  border-right: 1px solid lightgray;
+  padding: 2px 4px;
+  text-align: left;
+}
+
+td {
+  padding: 6px;
+}
+
+.container {
+  border: 1px solid lightgray;
+  margin: 1rem auto;
+}
+
+.app {
+  margin: 1rem auto;
+  text-align: center;
+}
