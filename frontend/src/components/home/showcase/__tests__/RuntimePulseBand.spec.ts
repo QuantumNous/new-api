@@ -110,14 +110,17 @@ describe('RuntimePulseBand', () => {
     const wrapper = mountBand(true, 0)
 
     expect(wrapper.get('[data-home-request-total]').text()).toBe('0')
-    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('--')
+    expect(
+      wrapper.get('[data-zero-trend-wave] path').attributes('d')
+    ).toContain('C')
+    expect(wrapper.find('.runtime-trend-placeholder').exists()).toBe(false)
     expect(wrapper.text()).not.toContain(
       i18n.global.t('showcase.runtime.metricsUnavailable')
     )
     wrapper.unmount()
   })
 
-  it('keeps the trend as a dash placeholder while the total is zero', () => {
+  it('uses the floating wave for zero totals even when buckets are inconsistent', () => {
     const wrapper = mount(RuntimePulseBand, {
       global: { plugins: [i18n] },
       props: {
@@ -133,7 +136,8 @@ describe('RuntimePulseBand', () => {
     })
 
     expect(wrapper.find('.runtime-trend polyline').exists()).toBe(false)
-    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('--')
+    expect(wrapper.get('[data-zero-trend-wave]')).toBeTruthy()
+    expect(wrapper.find('.runtime-trend-placeholder').exists()).toBe(false)
     wrapper.unmount()
   })
 })

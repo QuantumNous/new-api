@@ -576,7 +576,8 @@ html.light .landing-shell > #hero-immersive-stage {
   line-height: 1;
 }
 
-.runtime-trend polyline {
+.runtime-trend polyline,
+.runtime-trend-wave path {
   fill: none;
   stroke: var(--accent);
   stroke-linecap: round;
@@ -584,6 +585,32 @@ html.light .landing-shell > #hero-immersive-stage {
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
   filter: drop-shadow(0 0 4px var(--chart-line-glow));
+}
+
+.runtime-trend-wave path {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: runtime-trend-wave-float 2.8s ease-in-out infinite;
+}
+
+@keyframes runtime-trend-wave-float {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: translateY(2px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-trend-wave path {
+    animation: none;
+    opacity: 0.78;
+    transform: none;
+  }
 }
 
 .runtime-trend span {

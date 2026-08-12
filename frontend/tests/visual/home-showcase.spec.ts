@@ -461,7 +461,7 @@ test('home runtime workbench remains self-contained', async ({ page }) => {
   await expect(page.getByText('每一枚令牌，都有自己的路由表')).toHaveCount(0)
 })
 
-test('zero request trend uses the request caption text style', async ({
+test('zero request trend uses a floating wave placeholder', async ({
   page,
 }) => {
   await configureStablePage(page, { theme: 'light', authenticated: true })
@@ -487,35 +487,31 @@ test('zero request trend uses the request caption text style', async ({
 
   await expect(page.locator('[data-home-request-total]')).toHaveText('0')
   await expect(page.locator('.runtime-trend polyline')).toHaveCount(0)
-  await expect(page.locator('.runtime-trend-placeholder')).toHaveText('--')
+  await expect(page.locator('[data-zero-trend-wave]')).toHaveCount(1)
+  await expect(page.locator('[data-zero-trend-wave] path')).toHaveAttribute(
+    'd',
+    /C/
+  )
+  await expect(page.locator('.runtime-trend-placeholder')).toHaveCount(0)
 
   const styles = await page.evaluate(() => {
-    const caption = document.querySelector<HTMLElement>(
-      '.runtime-request-caption'
+    const wave = document.querySelector<SVGPathElement>(
+      '[data-zero-trend-wave] path'
     )
-    const placeholder = document.querySelector<HTMLElement>(
-      '.runtime-trend-placeholder'
-    )
-    if (!caption || !placeholder) {
-      throw new Error('Runtime request caption or trend placeholder missing')
+    if (!wave) {
+      throw new Error('Zero request trend wave missing')
     }
-    const captionStyle = getComputedStyle(caption)
-    const placeholderStyle = getComputedStyle(placeholder)
+    const waveStyle = getComputedStyle(wave)
     return {
-      caption: {
-        color: captionStyle.color,
-        fontSize: captionStyle.fontSize,
-        fontWeight: captionStyle.fontWeight,
-      },
-      placeholder: {
-        color: placeholderStyle.color,
-        fontSize: placeholderStyle.fontSize,
-        fontWeight: placeholderStyle.fontWeight,
-      },
+      animationName: waveStyle.animationName,
+      stroke: waveStyle.stroke,
+      opacity: waveStyle.opacity,
     }
   })
 
-  expect(styles.placeholder).toEqual(styles.caption)
+  expect(styles.animationName).toBe('none')
+  expect(styles.stroke).not.toBe('none')
+  expect(Number(styles.opacity)).toBeGreaterThan(0)
   await assertNoHorizontalOverflow(page)
 })
 

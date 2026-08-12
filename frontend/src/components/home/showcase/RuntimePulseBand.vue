@@ -92,6 +92,7 @@ const formattedRequestTarget = computed(() =>
 const formattedDisplayRequests = computed(() =>
   displayRequests.value.toLocaleString(locale.value)
 )
+const isZeroRequestTrend = computed(() => requestValue.value === 0)
 const requestTotalClasses = computed(() => {
   const length = formattedRequestTarget.value.length
   return {
@@ -296,6 +297,18 @@ onBeforeUnmount(() => {
             :aria-label="t('showcase.runtime.trend24h')"
           >
             <polyline :points="trendPoints" />
+          </svg>
+          <svg
+            v-else-if="isZeroRequestTrend"
+            class="runtime-trend-wave"
+            viewBox="0 0 240 54"
+            role="img"
+            :aria-label="t('showcase.runtime.trend24h')"
+            data-zero-trend-wave
+          >
+            <path
+              d="M2 27 C22 18,42 36,62 27 S102 18,122 27 S162 36,182 27 S222 18,238 27"
+            />
           </svg>
           <span v-else class="runtime-trend-placeholder" aria-hidden="true"
             >--</span
