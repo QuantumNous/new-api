@@ -112,6 +112,7 @@ describe("SKAG landing configuration", () => {
     expect(config.ctaLabel).toBe("Obter chave da API DeepSeek");
     expect(config.hideSecondaryCta).toBe(true);
     expect(config.compactHero).toBe(true);
+    expect(config.hideCodeWindow).toBe(true);
     expect(config.exampleModel).toBe("deepseek-v4-flash");
   });
 
@@ -132,12 +133,14 @@ describe("SKAG landing configuration", () => {
     expect(kimi.ctaLabel).toBe("Obter chave da API Kimi");
     expect(kimi.hideSecondaryCta).toBe(true);
     expect(kimi.compactHero).toBe(true);
+    expect(kimi.hideCodeWindow).toBe(true);
     expect(kimi.exampleModel).toBe("kimi-k2.5");
 
     expect(`${qwen.h1Lead} ${qwen.h1Accent}`).toBe("API Qwen para equipes no Brasil");
     expect(qwen.ctaLabel).toBe("Obter chave da API Qwen");
     expect(qwen.hideSecondaryCta).toBe(true);
     expect(qwen.compactHero).toBe(true);
+    expect(qwen.hideCodeWindow).toBe(true);
     expect(qwen.exampleModel).toBe("qwen3.7-plus");
   });
 

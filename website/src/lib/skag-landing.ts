@@ -36,6 +36,7 @@ export type SkagLandingConfig = {
   secondaryCtaLabel?: string;
   hideSecondaryCta?: boolean;
   compactHero?: boolean;
+  hideCodeWindow?: boolean;
   trustLine?: string;
   /** Shown under the price table. */
   priceFootnote: string;
@@ -312,6 +313,7 @@ const DEEPSEEK_API: SkagLandingConfig = {
   ctaLabel: "Get your DeepSeek API key",
   hideSecondaryCta: true,
   compactHero: true,
+  hideCodeWindow: true,
   pricingTitle: "DeepSeek API access",
   priceRows: [
     { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.056", official: "$0.14" },
@@ -372,6 +374,7 @@ const PT_DEEPSEEK_API: SkagLandingConfig = {
   ctaLabel: "Obter chave da API DeepSeek",
   hideSecondaryCta: true,
   compactHero: true,
+  hideCodeWindow: true,
   trustLine: "DeepSeek · GPT · Claude · Gemini · Qwen · GLM — uma chave, uma fatura · sem cartão de crédito para começar",
   pricingTitle: "Acesso à API DeepSeek",
   priceRows: [
@@ -440,6 +443,7 @@ const KIMI_API: SkagLandingConfig = {
   ctaLabel: "Get your Kimi API key",
   hideSecondaryCta: true,
   compactHero: true,
+  hideCodeWindow: true,
   pricingTitle: "Kimi API access",
   priceRows: [
     { label: "Kimi K3 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
@@ -499,6 +503,7 @@ const PT_KIMI_API: SkagLandingConfig = {
   ctaLabel: "Obter chave da API Kimi",
   hideSecondaryCta: true,
   compactHero: true,
+  hideCodeWindow: true,
   trustLine: "Kimi · DeepSeek · Qwen · GPT · Claude · Gemini — uma chave, uma fatura · sem cartão de crédito para começar",
   pricingTitle: "Acesso à API Kimi",
   priceRows: [
@@ -564,6 +569,7 @@ const QWEN_API: SkagLandingConfig = {
   ctaLabel: "Get your Qwen API key",
   hideSecondaryCta: true,
   compactHero: true,
+  hideCodeWindow: true,
   pricingTitle: "Qwen API access",
   priceRows: [
     { label: "Qwen 3.7 Plus / 1M tokens", flatkey: "$0.24", official: "$0.40" },
@@ -623,6 +629,7 @@ const PT_QWEN_API: SkagLandingConfig = {
   ctaLabel: "Obter chave da API Qwen",
   hideSecondaryCta: true,
   compactHero: true,
+  hideCodeWindow: true,
   trustLine: "Qwen · DeepSeek · Kimi · GPT · Claude · Gemini — uma chave, uma fatura · sem cartão de crédito para começar",
   pricingTitle: "Acesso à API Qwen",
   priceRows: [

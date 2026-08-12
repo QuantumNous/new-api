@@ -26,6 +26,7 @@ export function SkagLandingPage({ config }: Props) {
   const pathname = config.pathname ?? skagLandingPath(config.slug);
   const trustLine = config.trustLine ?? SKAG_TRUST_LINE;
   const compactHero = config.compactHero ?? false;
+  const hideCodeWindow = config.hideCodeWindow ?? false;
 
   return (
     <SiteShell locale={locale} pathname={pathname} expandNavigationAtTablet>
@@ -46,11 +47,12 @@ export function SkagLandingPage({ config }: Props) {
           />
           <div
             className={cn(
-              "relative mx-auto grid max-w-7xl items-center px-6",
-              compactHero ? "gap-8 xl:grid-cols-[1fr_1fr]" : "gap-12 lg:grid-cols-[1fr_1fr]"
+              "relative mx-auto items-center px-6",
+              hideCodeWindow ? "max-w-6xl" : "grid max-w-7xl",
+              !hideCodeWindow && (compactHero ? "gap-8 xl:grid-cols-[1fr_1fr]" : "gap-12 lg:grid-cols-[1fr_1fr]")
             )}
           >
-            <div className="mx-auto max-w-3xl text-center lg:mx-0 lg:text-left">
+            <div className={cn(hideCodeWindow ? "mx-auto max-w-6xl text-center lg:text-left" : "mx-auto max-w-3xl text-center lg:mx-0 lg:text-left")}>
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/35 bg-emerald-50/85 px-4 py-2 font-mono text-xs font-bold tracking-[0.18em] text-emerald-700 uppercase shadow-[0_18px_48px_rgba(16,185,129,0.16)] dark:border-emerald-300/35 dark:bg-emerald-300/10 dark:text-emerald-300 dark:shadow-[0_0_40px_rgba(52,211,153,0.16)]">
                 <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_16px_rgba(16,185,129,0.75)] dark:bg-emerald-300 dark:shadow-[0_0_16px_rgba(52,211,153,0.9)]" />
                 {config.badge}
@@ -112,7 +114,7 @@ export function SkagLandingPage({ config }: Props) {
               </div>
             </div>
 
-            <CodeWindow config={config} apiBaseUrl={apiBaseUrl} />
+            {!hideCodeWindow && <CodeWindow config={config} apiBaseUrl={apiBaseUrl} />}
           </div>
         </section>
 

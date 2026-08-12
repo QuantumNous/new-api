@@ -71,19 +71,21 @@ describe("SkagLandingPage", () => {
 
     expect(html).toContain("Obter chave da API DeepSeek");
     expect(html).not.toContain("Ver preços ao vivo");
-    expect(html).toContain("xl:grid-cols-[1fr_1fr]");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).toContain("max-w-6xl");
   });
 
   test("keeps Kimi and Qwen Portuguese pages compact with only their primary CTA", () => {
-    for (const [slug, ctaLabel, model] of [
-      ["kimi-api", "Obter chave da API Kimi", "kimi-k2.5"],
-      ["qwen-api", "Obter chave da API Qwen", "qwen3.7-plus"],
+    for (const [slug, ctaLabel, priceLabel] of [
+      ["kimi-api", "Obter chave da API Kimi", "Kimi K3 / 1M tokens"],
+      ["qwen-api", "Obter chave da API Qwen", "Qwen 3.7 Plus / 1M tokens"],
     ] as const) {
       const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig(slug, "pt")} />);
       expect(html).toContain(ctaLabel);
-      expect(html).toContain(model);
+      expect(html).toContain(priceLabel);
       expect(html).not.toContain("Ver preços ao vivo");
-      expect(html).toContain("xl:grid-cols-[1fr_1fr]");
+      expect(html).not.toContain("from openai import OpenAI");
+      expect(html).toContain("max-w-6xl");
     }
   });
 });
