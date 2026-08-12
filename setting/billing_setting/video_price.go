@@ -115,3 +115,53 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 	}
 	return nil
 }
+
+// FindVideoPriceRule returns the best rule for a model and its resolved
+// dimensions. A rule is a candidate when every key in its Match equals the
+// corresponding resolved dimension; the candidate with the most constraints
+// wins. ValidateVideoPriceRules guarantees no tie is possible.
+func FindVideoPriceRule(rules []VideoPriceRule, model string, dims map[string]string) (VideoPriceRule, bool) {
+	best := VideoPriceRule{}
+	found := false
+	for _, r := range rules {
+		if r.Model != model {
+			continue
+		}
+		matched := true
+		for k, want := range r.Match {
+			// A dimension the adapter did not resolve cannot satisfy a
+			// constraint, so the rule is not a candidate. Configuring a
+			// dimension the code cannot yet produce must degrade to "no
+			// match" rather than silently fall through to a cheaper rule.
+			if got, ok := dims[k]; !ok || got != want {
+				matched = false
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		if !found || len(r.Match) > len(best.Match) {
+			best = r
+			found = true
+		}
+	}
+	return best, found
+}
+
+// IsVideoModelConfigured reports whether a model appears in the price table at
+// all. Presence selects strict per-second billing for that model; absence keeps
+// the channel's previous billing path.
+func IsVideoModelConfigured(rules []VideoPriceRule, model string) bool {
+	for _, r := range rules {
+		if r.Model == model {
+			return true
+		}
+	}
+	return false
+}
+
+// GetVideoPriceRules returns the live rule set.
+func GetVideoPriceRules() []VideoPriceRule {
+	return videoPriceSetting.VideoPriceRules
+}
