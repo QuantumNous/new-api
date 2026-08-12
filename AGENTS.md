@@ -63,7 +63,7 @@ Version-pinned upstream source repositories are vendored as squashed Git subtree
 - Pattern files must record the dependency version/ref, exact implementation and test paths inspected, the behavior or lifecycle observed, project-specific adaptations, and relevant verification commands. Keep them concise; do not copy large upstream code blocks.
 - Evidence precedence is: project rules and observable project tests, pinned upstream implementation and tests, upstream documentation, then web results or guesses. A vendored pattern never overrides project security, billing, database-compatibility, i18n, or test-quality rules.
 - Implement against normal dependencies using the observed real pattern, then run the nearest focused project tests plus the appropriate package-level checks. Report the exact commands and results.
-- If a manifest version and its subtree ref differ, the manifest is authoritative. Update the subtree and `repos/README.md` before treating that source as evidence.
+- If a lockfile resolution and its subtree ref differ, the lockfile is authoritative. Update the subtree and `repos/README.md` before treating that source as evidence.
 - When introducing or substantially expanding a behavior-defining dependency, evaluate adding its pinned source as a squashed subtree. Small data-only utilities and transitive dependencies do not need vendoring unless their behavior is under investigation.
 
 ## Rules

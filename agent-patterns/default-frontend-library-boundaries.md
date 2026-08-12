@@ -1,7 +1,7 @@
 # Default frontend library boundaries
 
 - Scope: React components in `web/`, especially forms, server state, local stores, and translated UI
-- Dependency refs: React `v19.2.7`, Base UI `v1.6.0`, React Query `5.101.2`, React Hook Form `v7.80.0`, Zod `v4.4.3`, Zustand `v5.0.14`, i18next `v26.3.4`, react-i18next `v17.0.8`
+- Dependency refs: React `v19.2.7`, Base UI `v1.6.0`, React Query `5.101.2`, React Hook Form `v7.82.0`, Zod `v4.4.3`, Zustand `v5.0.14`, i18next `v26.3.6`, react-i18next `v17.0.10`
 - Project evidence: `web/src/components/ui/`, `web/src/features/`, `web/src/routes/`, `web/src/stores/`, and `web/AGENTS.md`
 - Upstream implementation: `repos/base-ui/packages/react/src/form/Form.tsx`, `repos/tanstack-query/packages/react-query/src/useQuery.ts`, `repos/tanstack-query/packages/react-query/src/useBaseQuery.ts`, `repos/react-hook-form/src/useForm.ts`, `repos/zod/packages/zod/src/v4/classic/schemas.ts`, `repos/zustand/src/react.ts`, `repos/react-i18next/src/useTranslation.js`
 - Upstream tests/examples: `repos/base-ui/packages/react/src/form/Form.test.tsx`, `repos/tanstack-query/packages/react-query/src/__tests__/useQuery.test.tsx`, `repos/react-hook-form/src/__tests__/useForm.test.tsx`, `repos/zod/packages/zod/src/v4/classic/tests/`, `repos/zustand/tests/basic.test.tsx`, `repos/react-i18next/test/useTranslation.spec.jsx`
