@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -30,6 +31,54 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those. TechMobi
+// serves the seedance resolution set (480p/720p/1080p/4K), all of which
+// NormalizeResolution classifies.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -130,7 +179,46 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if modelName == "" {
 		modelName = info.OriginModelName
 	}
-	ratio, ok := GetVideoGenerationRatio(modelName, req.Resolution, len(req.Videos()) > 0)
+	hasVideo := len(req.Videos()) > 0
+	// The upstream renders 720p when the resolution is omitted. Naming it here
+	// is behaviour-preserving for GetVideoGenerationRatio — which buckets "" and
+	// "720p" into the same base-tier key — and lets the configured price table
+	// match a rule on the tier actually rendered.
+	resolution := req.Resolution
+	if strings.TrimSpace(resolution) == "" {
+		resolution = "720p"
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// The configured table is keyed on info.OriginModelName — the client-facing
+	// name the administrator also prices with ModelPrice, which is the
+	// denominator in ComputeSecondBilling. The legacy videoGenerationPriceTable
+	// keys on the upstream name instead because it ships real upstream model
+	// ids; the two keys are deliberately different and must not be "unified".
+	//
+	// Capture only when the length is actually knowable: frames and a
+	// model-chosen duration are not, and a fabricated length would misprice the
+	// request silently, whereas skipping capture leaves it on the legacy path.
+	if seconds, ok := taskcommon.SeedanceBillableSeconds(req); ok {
+		if dims, ok := resolveDimensions(resolution, hasVideo); ok {
+			a.secondBillingModel = info.OriginModelName
+			a.secondBillingDims = dims
+			a.secondBillingSeconds = seconds
+			a.secondBillingModelPrice = info.PriceData.ModelPrice
+			a.secondBillingRules = rules
+		}
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy hardcoded ratios from also applying.
+	if billing_setting.IsVideoModelConfigured(rules, info.OriginModelName) {
+		return nil
+	}
+
+	ratio, ok := GetVideoGenerationRatio(modelName, req.Resolution, hasVideo)
 	if !ok || ratio == 1.0 {
 		return nil
 	}
