@@ -41,6 +41,18 @@ variable "cert_rotation" {
   default     = 1
 }
 
+variable "certificate_map_name" {
+  type        = string
+  description = "Optional Certificate Manager map name. When set, the HTTPS proxy uses this map instead of the legacy Compute managed certificate."
+  default     = ""
+}
+
+variable "certificate_manager_certificate_name" {
+  type        = string
+  description = "Existing Certificate Manager certificate referenced by certificate_map_name."
+  default     = ""
+}
+
 variable "website_cloud_run_service_name" {
   type        = string
   description = "Name of the Next.js website Cloud Run service. When empty, no website backend/host_rule is created and the LB stays single-backend (original behavior)."
