@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flatkey New User Onboarding"
+  short_description: "Guide Flatkey signup and API key setup"
+  default_prompt: "Use $flatkey-new-user-onboarding to help a new user sign up for Flatkey, verify email, claim credits, create an API key, and open the quickstart docs."

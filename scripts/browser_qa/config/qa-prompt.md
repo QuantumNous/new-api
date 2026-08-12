@@ -1,0 +1,49 @@
+Use `$flatkey-new-user-onboarding`. The runtime has already loaded the exact selected-environment QA policy content from `staging-cloud-qa-policy.md` below; follow that trusted policy block exactly without trying to read local files or use shell.
+
+The runtime injects the run id, selected target environment, and the run-scoped disposable QA identity for this run. Use only that identity. Do not use non-run-scoped accounts, payment, subscription, invite, admin, global settings, real model calls, cookie mutation, storage mutation, shell, arbitrary web/search, route/mock, PDF, unsafe code execution, or coordinate mouse actions. Do not bypass, forge, replay, outsource, or solve CAPTCHA/Turnstile through a third-party service.
+
+Execution contracts:
+
+- core_body = recorded replay -> qa_replay_checkpoint (synchronously completes runtime fixed cases)
+- core = core_body -> no exploration -> terminal cleanup/report
+- normal = core_body -> qa_start_exploration -> bounded exploration -> terminal cleanup/report
+
+Normal includes the complete core replay. Never skip, shorten, replace, or redo the recorded replay with exploration. Do not explore before qa_replay_checkpoint.
+
+Core mode must not call qa_start_exploration. Normal mode must call qa_start_exploration exactly once after qa_replay_checkpoint succeeds.
+
+First replay the required registration flow through signup, verification, onboarding, starting credit, API key creation, docs entry point, and cleanup readiness on the selected environment. Call `qa_replay_checkpoint` only after replay reaches the checkpoint. qa_replay_checkpoint blocks until runtime fixed cases complete; the runtime executes enabled fixed cases deterministically in the existing browser session. Start exploration with `qa_start_exploration` only after that checkpoint succeeds. In core mode, stop after qa_replay_checkpoint succeeds and do not explore. Exploration is limited to 5 minutes and 30 browser actions.
+
+After qa_replay_checkpoint, do not register a second account, do not create an extra API key, and do not rerun registration as open-ended exploration. Use only the temporary account created by this replay and the current API key state from that replay.
+
+Post-checkpoint exploration allows only navigation, read-only inspection, and non-submitting field, dialog, or client-side validation checks. Do not submit, confirm, save, create, delete, resend, register, logout, or trigger any server state change after qa_replay_checkpoint. Recorded replay and independent runtime cleanup are the only server-write exceptions. In production, writes are limited to the recorded replay for the run-scoped disposable QA identity and independent cleanup for that same run.
+
+Bounded exploration uses a hypothesis queue. For each item: observe -> propose one reproducible hypothesis -> take the smallest low-risk action -> collect evidence -> discard if disproved or record if confirmed -> continue to the next item. Stop when the 5 minute or 30 browser action budget is exhausted; this is the 30 actions limit. Also stop when no high-value hypothesis remains or a safety boundary is reached.
+
+Exploration priority is fixed: 1 replay-adjacent recovery/navigation; 2 form validation/repeat actions/loading states are limited to non-submitting client-side observation; 3 same-origin API/frontend exceptions; 4 locale/empty-state/UI consistency; 5 low-risk adjacent allowed paths.
+
+Exploration scope is limited to registration, verification, onboarding, existing API-key page state, non-submitted dialog validation, and docs entry points on the selected environment. Forbidden scope includes payment, subscription, invite, admin, global settings, arbitrary navigation outside authorized origins, real model calls, CAPTCHA/Turnstile bypass, second account, second key, and extra API key creation.
+
+Formal findings require at least one real evidence path from `screenshots/*.png`, `browser/console.jsonl`, or `browser/network.jsonl`. Claims without evidence are observations/info only and must not be actionable. Third-party allowlist/egress denials for GTM, Mixpanel, app.solvea.cx, or similar services default to environment observation/info unless independent staging same-origin evidence proves product impact.
+
+Each finding and coverage candidate must include `proposed_case`. Set `proposed_case` to a closed fixed-case DSL object only when the proposal is high confidence, evidence-backed, selected-environment scoped, safe to replay, and expressible without inventing behavior outside the fixed-case DSL. Otherwise set `proposed_case: null`.
+
+Allowed `proposed_case` objects contain only `fixture`, `start`, `steps`, `assertions`, and `cleanup`. Use only fixed-case DSL actions and assertions with relative selected-environment paths and semantic locators (`role`, `label`, `text`, or `test_id`). Do not use credentials, secrets, arbitrary CSS or XPath selectors, JavaScript, shell, file transfer, arbitrary network calls, non-selected origins, administrator actions, payment actions, subscription actions, account mutation, or cleanup-requiring proposals. Proposal cleanup must be `not_required`.
+
+Allowed fixed-case DSL steps are `navigate`, `navigate_back`, `click`, `fill`, `select`, `wait_for`, and `begin_network_capture`. `begin_network_capture` takes an empty object only.
+
+Allowed fixed-case DSL assertions are `page_status_not`, `url_not_contains`, `element_visible`, `element_hidden`, `element_enabled`, `element_disabled`, `element_value_equals`, `element_count_equals`, `network_request_sent`, and `network_request_not_sent`. Prioritize UI state assertions: use `element_visible`, `element_hidden`, `element_enabled`, or `element_disabled` with a locator only; use `element_value_equals` with locator and value; use `element_count_equals` with locator and count 0..1000.
+
+Network assertions require exactly one `begin_network_capture` step in the same `proposed_case`. Use `network_request_sent` or `network_request_not_sent` only for same-origin requests with method `GET`, `POST`, `PUT`, `PATCH`, or `DELETE`, a relative pathname without query or fragment, and `timeout_ms` 0..5000. Do not include headers, bodies, cookies, auth, query, or fragment data. Do not submit or manufacture server writes only to satisfy a network assertion. If a safe proposed case cannot express the behavior, keep `proposed_case: null`.
+
+Runtime cleanup is owned by the runtime after Codex exits. Do not attempt account, token, cookie, or artifact cleanup yourself.
+
+If the selected environment is production and CAPTCHA/Turnstile normally blocks registration or verification before `qa_replay_checkpoint`, stop replay, do not solve the challenge, and call `qa_report_human_verification_blocked` with no arguments. Do not include token, widget response, query string, cookie, verification code, or challenge content.
+
+Screenshots must use only `qa_capture_screenshot` with a short logical name. Do not call `browser_take_screenshot`, do not provide filenames or paths to any browser tool, and do not choose selectors or output locations for screenshots.
+
+Use console and network tools only without `filename` arguments. Browser evidence, screenshot masking, raw MCP output cleanup, redaction, upload, account cleanup, and API key cleanup are owned by the runtime.
+
+Cookie-free docs access must not reuse a staging session. If an independent cookie-free docs context is unavailable, verify only the link target and do not navigate the docs site from a context that contains staging cookies.
+
+Write each finding `title` in concise Simplified Chinese. Keep required product names, UI labels, URLs, and HTTP status codes unchanged. Do not translate or expose credentials, verification data, cookies, authorization values, query strings, or fragments.

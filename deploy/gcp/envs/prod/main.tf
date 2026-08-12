@@ -9,6 +9,7 @@ locals {
     "iamcredentials.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "compute.googleapis.com",
+    "certificatemanager.googleapis.com",
     "run.googleapis.com",
     "sqladmin.googleapis.com",
     "redis.googleapis.com",
@@ -21,6 +22,39 @@ locals {
     "servicenetworking.googleapis.com",
     "vpcaccess.googleapis.com",
   ]
+}
+
+// Adopt the production Certificate Manager resources created during the
+// 2026-08-12 zero-downtime certificate recovery. These import blocks are
+// idempotent after the resources enter Terraform state.
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map.managed[0]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["www.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/www-flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["one.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/one-flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["router.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/router-flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["console.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/console-flatkey-ai"
 }
 
 module "apis" {
@@ -387,12 +421,14 @@ module "cloud_run_web" {
 module "cloud_lb" {
   count = var.enable_load_balancer ? 1 : 0
 
-  source                 = "../../modules/cloud-lb"
-  project_id             = var.project_id
-  region                 = var.region
-  cloud_run_service_name = var.enable_legacy_runtime ? module.cloud_run.service_name : ""
-  default_backend        = var.lb_default_backend
-  domains                = var.lb_domains
+  source                               = "../../modules/cloud-lb"
+  project_id                           = var.project_id
+  region                               = var.region
+  cloud_run_service_name               = var.enable_legacy_runtime ? module.cloud_run.service_name : ""
+  default_backend                      = var.lb_default_backend
+  domains                              = var.lb_domains
+  certificate_map_name                 = var.certificate_map_name
+  certificate_manager_certificate_name = var.certificate_manager_certificate_name
 
   // Host-based split: when the website is enabled, route var.website_domains to
   // the Next.js backend; all other hosts stay on the Go backend. Empty otherwise.
