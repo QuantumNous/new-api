@@ -50,6 +50,15 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
+		// chimera: 桌面端设备授权流（docs/chimera-desktop-auth.md）。
+		// 凭据与 Turnstile 均在浏览器确认页完成，桌面端只持设备码轮询。
+		chimeraDeviceRoute := apiRouter.Group("/chimera/device")
+		{
+			chimeraDeviceRoute.POST("/code", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ChimeraDeviceCode)
+			chimeraDeviceRoute.GET("/verify", middleware.CriticalRateLimit(), controller.ChimeraDeviceVerifyPage)
+			chimeraDeviceRoute.POST("/authorize", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.ChimeraDeviceAuthorize)
+			chimeraDeviceRoute.POST("/token", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ChimeraDeviceToken)
+		}
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
 		// OAuth routes - specific routes must come before :provider wildcard
 		apiRouter.POST("/oauth/state", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TryUserAuth(), anonymousRequestBodyLimit, controller.GenerateOAuthCode)
