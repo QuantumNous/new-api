@@ -1,0 +1,434 @@
+---
+description: 'Rsbuild 支持在代码中引用图片、字体、音频、视频等类型的静态资源。'
+---
+
+# 静态资源
+
+Rsbuild 支持在代码中引用图片、字体、音频、视频等类型的静态资源。
+
+:::tip 什么是静态资源
+静态资源是指 Web 应用中不会发生变化的文件。常见的静态资源包括图片、字体、视频、样式表和 JavaScript 文件。这些资源通常存储在服务器或 CDN 上，当用户访问 Web 应用时会被传送到用户的浏览器。由于它们不会发生变化，静态资源可以被浏览器缓存，从而提高 Web 应用的性能。
+:::
+
+## 静态资源格式
+
+以下是 Rsbuild 默认支持的静态资源格式：
+
+- **图片**：png、jpg、jpeg、gif、svg、bmp、webp、ico、apng、avif、tif、tiff、jfif、pjpeg、pjp、cur。
+- **字体**：woff、woff2、eot、ttf、otf、ttc。
+- **音频**：mp3、wav、flac、aac、m4a、opus。
+- **视频**：mp4、webm、ogg、mov。
+
+如果你需要引用其他格式的静态资源，请参考 [扩展静态资源类型](#extend-asset-types)。
+
+:::tip SVG 图片
+SVG 图片是一种特殊情况，Rsbuild 提供了 SVG 转 React 组件的能力，对 SVG 进行单独处理，详见 [SVGR 插件](/plugins/list/plugin-svgr)。
+:::
+
+## 在 JS 文件中引用
+
+在 JS 文件中，可以直接通过 `import` 的方式引用相对路径下的静态资源：
+
+```tsx
+// 引用 static 目录下的 logo.png 图片
+import logo from './static/logo.png';
+
+console.log(logo); // "/static/logo.[hash].png"
+
+export default () => <img src={logo} />;
+```
+
+也可以使用[路径别名](/guide/advanced/alias)来引用：
+
+```tsx
+import logo from '@/static/logo.png';
+
+console.log(logo); // "/static/logo.[hash].png"
+
+export default () => <img src={logo} />;
+```
+
+### URL assets
+
+Rsbuild 支持使用 JavaScript 原生的 [URL](https://developer.mozilla.org/docs/Web/API/URL) 和 [import.meta.url](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Operators/import.meta) 相配合，来引用静态资源。
+
+```tsx
+const logo = new URL('./static/logo.png', import.meta.url).href;
+
+console.log(logo); // "/static/logo.[hash].png"
+
+export default () => <img src={logo} />;
+```
+
+如果你使用 `new URL()` 引用 `.js` 或 `.ts` 文件，它们将被视为 URL assets，不会经过 Rsbuild 内置的 `swc-loader` 处理。
+
+```tsx
+// foo.ts 文件将保持原始内容被输出到产物目录下
+const fooTs = new URL('./foo.ts', import.meta.url).href;
+
+console.log(fooTs); // "/static/foo.[hash].ts"
+```
+
+同理，当使用 `new URL()` 引用 `.css` 或 `.scss` 文件时，它们将被视为 URL assets，不会经过 Rsbuild 内置的 CSS loaders 处理。
+
+```tsx
+// foo.css 文件将保持原始内容被输出到产物目录下
+const fooCss = new URL('./foo.css', import.meta.url).href;
+
+console.log(fooCss); // "/static/foo.[hash].css"
+```
+
+## 在 CSS 文件中引用
+
+在 CSS 文件中，可以引用相对路径下的静态资源：
+
+```css
+.logo {
+  background-image: url('../static/logo.png');
+}
+```
+
+也支持使用[路径别名](/guide/advanced/alias)来引用：
+
+```css
+.logo {
+  background-image: url('@/static/logo.png');
+}
+```
+
+如果需要在 CSS 文件中引用绝对路径下的静态资源：
+
+```css
+@font-face {
+  font-family: DingTalk;
+  src: url('/image/font/foo.ttf');
+}
+```
+
+默认情况下，Rsbuild 内置的 `css-loader` 会解析 `url()` 中的绝对路径并寻找指定的模块。如果你希望跳过绝对路径的解析，可以配置 [`tools.cssLoader`](/config/tools/css-loader#toolscssloader) 来过滤指定的路径，被过滤的路径将被原样保留在代码中。
+
+```ts
+export default {
+  tools: {
+    cssLoader: {
+      url: {
+        filter: (url) => {
+          if (/\/image\/font/.test(url)) {
+            return false;
+          }
+          return true;
+        },
+      },
+    },
+  },
+};
+```
+
+## 资源内联
+
+引用静态资源的结果取决于文件体积：
+
+- 当文件体积小于 4KiB 时，会自动被转换为 base64 字符串并内联到代码中。
+- 当文件体积大于 4KiB 时，会返回一个 URL，同时文件会被输出到构建产物目录下。
+
+```js
+import largeImage from './static/largeImage.png';
+import smallImage from './static/smallImage.png';
+
+console.log(largeImage); // "/static/largeImage.[hash].png"
+console.log(smallImage); // "data:image/png;base64,iVBORw0KGgo..."
+```
+
+添加 `?url` query 参数，可以确保资源始终作为单独的文件加载，并返回一个 URL：
+
+```js
+import image from './static/image.png?url';
+
+console.log(image); // "/static/image.[hash].png"
+```
+
+添加 `?inline` query 参数，可以强制将资源内联到代码中，无论文件体积如何：
+
+```js
+import image from './static/image.png?inline';
+
+console.log(image); // "data:image/png;base64,iVBORw0KGgo..."
+```
+
+关于资源内联的更详细介绍，请参考 [静态资源内联](/guide/optimization/inline-assets) 章节。
+
+## 导入为字符串
+
+### 通过导入属性
+
+Rsbuild 支持通过 `type: 'text'` 导入属性将文件原始内容作为字符串导入到 JavaScript 中。
+
+```ts
+import svgText from './static/logo.svg' with { type: 'text' };
+import imageText from './static/image.png' with { type: 'text' };
+import jsonText from './data.json' with { type: 'text' };
+import componentText from './component.tsx' with { type: 'text' };
+import styleText from './style.css' with { type: 'text' };
+
+console.log(svgText); // 输出 SVG 文件的原始内容
+```
+
+`type: 'text'` 导入属性支持将资源的原始内容作为字符串导入，不会经过默认的资源、脚本或样式处理流程。
+
+导入属性只影响当前导入，普通导入仍会保持默认行为：
+
+```ts
+import { foo } from './foo.js';
+import fooText from './foo.js' with { type: 'text' };
+
+console.log(foo); // foo.js 导出的内容
+console.log(fooText); // foo.js 的原始内容
+```
+
+动态导入也可以通过第二个参数传入导入属性：
+
+```ts
+const { default: fooText } = await import('./foo.js', {
+  with: { type: 'text' },
+});
+
+console.log(fooText); // foo.js 的原始内容
+```
+
+:::tip
+`type: 'text'` 在 Rsbuild >= 2.1.3 中支持，推荐优先使用它，而不是 `?raw` 查询参数。
+:::
+
+### 通过查询参数
+
+Rsbuild 也支持通过 `?raw` 查询参数将文件内容作为字符串导入：
+
+```ts
+import rawSvg from './static/logo.svg?raw';
+import rawImage from './static/image.png?raw';
+import rawJson from './data.json?raw';
+import rawComponent from './component.tsx?raw';
+import rawStyle from './style.css?raw';
+
+console.log(rawSvg); // 输出 SVG 文件的原始内容
+```
+
+## 构建产物
+
+当静态资源被引用后，会自动被输出到构建产物的目录下，你可以：
+
+- 通过 [output.filename](/config/output/filename) 来修改产物的文件名。
+- 通过 [output.distPath](/config/output/dist-path) 来修改产物的输出路径。
+
+请阅读 [构建产物](/guide/basic/output-files) 来了解更多细节。
+
+## URL 前缀
+
+引用静态资源后返回的 URL 中会自动包含路径前缀：
+
+- 在开发模式下，通过 [dev.assetPrefix](/config/dev/asset-prefix) 设置路径前缀。
+- 在生产模式下，通过 [output.assetPrefix](/config/output/asset-prefix) 设置路径前缀。
+- 当 `dev.assetPrefix` 或 `output.assetPrefix` 未配置时，将自动使用 [server.base](/config/server/base) 的值作为默认前缀。
+
+比如将 `output.assetPrefix` 设置为 `https://example.com`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://example.com',
+  },
+};
+```
+
+```js
+import logo from './static/logo.png';
+
+console.log(logo); // "https://example.com/static/logo.[hash].png"
+```
+
+## public 目录 \{#public-folder}
+
+项目根目录下的 public 目录可以用于放置一些静态资源，这些资源不会被 Rsbuild 构建，并且可以直接通过 URL 引用。
+
+- 当你启动开发服务器时，这些资源会被托管在 [server.base](/config/server/base) 根路径下（默认 `/`）。
+- 当你执行生产模式构建时，这些资源会被拷贝到 [dist 目录](/guide/basic/output-files)。
+
+比如，你可以在 public 目录下放置 `robots.txt`、`manifest.json` 或 `favicon.ico` 等文件。
+
+### 引用方式
+
+你可以通过 URL 来引用 public 目录下的文件。
+
+例如，在 HTML 模板中，`./public/favicon.ico` 文件可以被引用为 `/favicon.ico`，[BASE_URL](/guide/advanced/env-vars#processenvbase_url) 对应服务端的基础路径。
+
+```html title="index.html"
+<link rel="icon" href="<%= process.env.BASE_URL %>/favicon.ico" />
+```
+
+### 注意事项
+
+下面是一些使用 public 目录的注意事项：
+
+- 通过 URL 引用 public 目录中的资源时，请使用绝对路径，而不是相对路径，以确保资源在部署后能够正确访问。
+
+```html title="src/index.html"
+<!-- 错误 -->
+<link rel="icon" href="../public/favicon.ico" />
+
+<!-- 正确 -->
+<link rel="icon" href="/favicon.ico" />
+```
+
+- 请避免在源代码中 import public 目录下的文件，正确的方式是通过 URL 引用。你可以将源代码中 import 的静态资源放在 `/src/assets` 目录下。
+
+```js title="src/index.js"
+// 错误
+import logo from '../public/logo.png';
+
+// 正确
+import logo from './assets/logo.png';
+```
+
+- 在生产模式构建过程中，public 目录中的文件将会被拷贝到构建产物目录（默认为 `dist`）下，请注意不要和产物文件出现名称冲突。当 public 下的文件和产物重名时，构建产物具有更高的优先级，会覆盖 public 下的同名文件。这个功能可以通过将 [server.publicDir.copyOnBuild](/config/server/public-dir) 设置为 `false` 来禁用。
+
+### 自定义行为
+
+Rsbuild 提供了 [server.publicDir](/config/server/public-dir) 选项，可以用于自定义 public 目录的名称和行为，也可以用于禁用 public 目录。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    publicDir: false,
+  },
+};
+```
+
+## 类型声明
+
+当你在 TypeScript 代码中引用静态资源时，TypeScript 可能会提示该模块缺少类型定义：
+
+```
+TS2307: Cannot find module './logo.png' or its corresponding type declarations.
+```
+
+此时你可以使用以下任一方法添加类型声明：
+
+- 方法一：如果项目里安装了 `@rsbuild/core` 包，你可以在 `tsconfig.json` 中添加 `@rsbuild/core` 提供的 [预设类型](/guide/basic/typescript#preset-types)：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["@rsbuild/core/types"]
+  }
+}
+```
+
+- 方法二：手动添加需要的类型声明：
+
+```ts title="src/env.d.ts"
+// 以 png 图片为例
+declare module '*.png' {
+  const content: string;
+  export default content;
+}
+```
+
+添加类型声明后，如果依然存在上述错误提示，请尝试重启当前 IDE，或者调整 `env.d.ts` 所在的目录，使 TypeScript 能够正确识别类型定义。
+
+## 扩展静态资源类型 \{#extend-asset-types}
+
+如果 Rsbuild 内置的静态资源类型不能满足你的需求，可以通过以下方式扩展额外的静态资源类型。
+
+### 使用 `source.assetsInclude`
+
+通过 [source.assetsInclude](/config/source/assets-include) 配置项，你可以指定需要被视为静态资源的额外文件类型。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    assetsInclude: /\.pdf$/,
+  },
+};
+```
+
+添加以上配置后，你就可以在代码里引用 `*.pdf` 文件了，比如：
+
+```js
+import myFile from './static/myFile.pdf';
+
+console.log(myFile); // "/static/myFile.[hash].pdf"
+```
+
+### 使用 `tools.rspack`
+
+可以通过 [tools.rspack](/config/tools/rspack) 来修改内置的 Rspack 配置，并添加自定义的静态资源处理规则。
+
+比如，把 `*.pdf` 文件当做静态资源输出到产物目录，可以添加以下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack(config, { addRules }) {
+      addRules([
+        {
+          test: /\.pdf$/,
+          // 将资源转换为单独的文件，并且导出产物地址
+          type: 'asset/resource',
+        },
+      ]);
+    },
+  },
+};
+```
+
+关于 asset modules 的更多介绍，请参考 [Rspack - Asset modules](https://rspack.rs/zh/guide/features/asset-module)。
+
+### 相关配置
+
+扩展的静态资源类型会受到以下配置项的影响：
+
+- [output.filename.assets](/config/output/filename)：设置扩展的静态资源的名称。
+- [output.distPath.assets](/config/output/dist-path)：设置扩展的静态资源的输出目录。
+- [output.dataUriLimit.assets](/config/output/data-uri-limit)：设置扩展的静态资源内联的体积阈值。
+
+## 自定义规则
+
+在某些场景下，你可能需要跳过 Rsbuild 内置的静态资源处理规则，并添加一些自定义规则。
+
+以 PNG 图片为例，你需要：
+
+1. 通过 [tools.bundlerChain](/config/tools/bundler-chain) 来修改内置的 Rspack 配置，通过 `exclude` 排除 `.png` 文件。
+2. 通过 [tools.rspack](/config/tools/rspack) 来添加自定义的静态资源处理规则。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain(chain, { CHAIN_ID }) {
+      chain.module
+        // 通过 `CHAIN_ID.RULE.IMAGE` 来定位到内置的图片规则
+        .rule(CHAIN_ID.RULE.IMAGE)
+        .exclude.add(/\.png$/);
+    },
+    rspack(config, { addRules }) {
+      addRules([
+        {
+          test: /\.png$/,
+          // 添加一个自定义的 loader 来处理 png 图片
+          loader: 'custom-png-loader',
+        },
+      ]);
+    },
+  },
+};
+```
+
+## 图片格式
+
+在使用图片资源时，你可以根据下方表格中图片的优缺点以及适用场景，来选择合适的图片格式。
+
+| 格式 | 优点                                                             | 缺点                                   | 适用场景                                                                     |
+| ---- | ---------------------------------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| PNG  | 无损压缩，不会丢失图片细节，不失真，支持半透明                   | 不适合色表复杂的图片                   | 适合颜色数量少，边界层次分明的图片，适合用在 logo、icon、透明图等场景        |
+| JPG  | 颜色丰富                                                         | 有损压缩，会导致图片失真，不支持透明度 | 适合颜色数量多，颜色带有渐变、过度复杂的图片，适合用在人像照片、风景图等场景 |
+| WebP | 同时支持有损压缩与无损压缩，支持透明度，体积比 PNG 和 JPG 小很多 | iOS 兼容性不好                         | 几乎任何场景的像素图片，支持 WebP 的宿主环境，都应该首选 WebP 图片格式       |
+| SVG  | 无损格式，不失真,支持透明度                                      | 不适合复杂图形                         | 适合矢量图,适合用于 icon                                                     |

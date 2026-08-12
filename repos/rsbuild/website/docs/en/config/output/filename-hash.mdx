@@ -1,0 +1,115 @@
+---
+description: 'Configure whether to add a hash value to output filenames.'
+---
+
+# output.filenameHash
+
+- **Type:**
+
+```ts
+type FilenameHash =
+  | boolean
+  | string
+  | {
+      enable?: boolean | 'always';
+      format?: string;
+    };
+```
+
+- **Default:** `true`
+
+Configure whether to add a hash value to output filenames.
+
+You can use the following formats:
+
+- `true`: JavaScript and CSS filenames include hash in production mode for web targets, while other assets always include hash in all modes.
+- `false`: Disable filename hash.
+- `string`: Enable filename hash and customize the hash format, such as `'contenthash:16'`.
+- `object`: Configure `enable` and `format` separately. `enable` controls whether to add filename hash; `format` sets the hash format.
+
+If [output.filename](/config/output/filename) is configured, it has a higher priority than `output.filenameHash`.
+
+### Disable hash
+
+By default, output file names include a hash value:
+
+```bash
+dist/static/css/index.7879e19dab.css
+dist/static/js/index.18a568e5ab.js
+```
+
+You can set `output.filenameHash` to `false` to disable this behavior:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: false,
+  },
+};
+```
+
+After rebuilding, the output filenames become:
+
+```bash
+dist/static/css/index.css
+dist/static/js/index.js
+```
+
+### Hash format
+
+The default hash format is `contenthash:10`, which generates a 10-character hash based on the content of the file.
+
+You can set `output.filenameHash` to other formats supported by Rspack and customize the length.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: 'contenthash:16',
+  },
+};
+```
+
+The optional hash formats are:
+
+- `contenthash` (recommended): The hash value of the file content. The hash value will only change when the content of the file itself changes.
+- `chunkhash`: The hash value of the chunk. The hash value will only change when the content of the chunk (and its included modules) changes.
+- `fullhash`: The hash value of the entire compilation. If any file changes, the hash values of all output files in the entire project will change.
+
+You can also configure the hash format using an object:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: {
+      format: 'contenthash:16',
+    },
+  },
+};
+```
+
+### Always enable hash
+
+By default, JavaScript and CSS filenames include hash only in production mode for web targets, and do not include hash in development builds. When `output.target` is not `web`, JavaScript bundle filenames do not include hash by default, such as Node.js bundles.
+
+If you need JavaScript and CSS filenames to always include hash, set `filenameHash.enable` to `'always'`. This also applies to development builds and Node.js bundles.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: {
+      enable: 'always',
+    },
+  },
+};
+```
+
+:::tip
+Enabling filename hash in development mode may cause HMR to fail, especially for CSS files.
+:::
+
+## Version history
+
+| Version | Changes                                  |
+| ------- | ---------------------------------------- |
+| v2.0.0  | Default hash length changed from 8 to 10 |
+| v2.0.4  | Added support for the object format      |

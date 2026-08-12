@@ -1,0 +1,53 @@
+{
+  "name": "rsbuild-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "scripts/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --workspace-concurrency=10 --filter \"./packages/*\" --filter \"./scripts/*\" run build",
+    "check-spell": "pnpx cspell && heading-case",
+    "doc": "cd website && node --run dev",
+    "e2e": "cd ./e2e && pnpm e2e",
+    "format": "oxfmt . && heading-case --write",
+    "format:check": "oxfmt . --check",
+    "lint": "rslint --type-check",
+    "prebundle": "pnpm --parallel --filter \"./packages/*\" run prebundle",
+    "prepare": "simple-git-hooks && node --run prebundle",
+    "sort-package-json": "pnpx sort-package-json \"./package.json\" \"packages/*/package.json\"",
+    "test": "rstest",
+    "test:watch": "rstest watch"
+  },
+  "devDependencies": {
+    "@rslint/core": "catalog:",
+    "@rstest/adapter-rslib": "catalog:",
+    "@rstest/core": "catalog:",
+    "@scripts/config": "workspace:*",
+    "@scripts/test-helper": "workspace:*",
+    "@types/node": "catalog:",
+    "cross-env": "catalog:",
+    "cspell-ban-words": "catalog:",
+    "heading-case": "catalog:",
+    "nano-staged": "catalog:",
+    "oxfmt": "catalog:",
+    "simple-git-hooks": "catalog:",
+    "typescript": "catalog:"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm exec nano-staged"
+  },
+  "nano-staged": {
+    "*.{md,mdx,json,css,less,scss}": "oxfmt --no-error-on-unmatched-pattern",
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "rslint --type-check",
+      "oxfmt --no-error-on-unmatched-pattern"
+    ]
+  },
+  "engines": {
+    "node": ">=22.18.0",
+    "pnpm": ">=11.0.0"
+  },
+  "packageManager": "pnpm@11.9.0"
+}

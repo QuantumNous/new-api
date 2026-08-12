@@ -1,0 +1,13 @@
+.foo {
+  position: relative;
+}
+
+.foo .bar,
+.foo .baz {
+  height: 100%;
+  overflow: hidden;
+}
+
+.foo .lol {
+  width: 80%;
+}

@@ -1,0 +1,63 @@
+---
+description: 'Specifies the range of target browsers that the project is compatible with.'
+---
+
+# output.overrideBrowserslist
+
+- **Type:** `string[]`
+- **Default:** `undefined`
+
+Specifies the range of target browsers that the project is compatible with.
+
+This value will be used by tools such as [SWC](https://github.com/swc-project/swc) and [Lightning CSS](https://github.com/parcel-bundler/lightningcss) to identify the JavaScript syntax that needs to be transformed and the CSS browser prefixes that need to be added.
+
+## Priority
+
+The `overrideBrowserslist` config will override the `.browserslistrc` config file in the project and the `browserslist` field in package.json.
+
+In most cases, it is recommended to use the `.browserslistrc` file rather than the `overrideBrowserslist` config. Because the `.browserslistrc` file is the official config file, it is more general and can be recognized by other libraries in the community.
+
+> For more details, see [Browserslist](/guide/advanced/browserslist).
+
+## Default value
+
+If there is no `browserslist` configs defined in the project, nor `overrideBrowserslist` defined, then Rsbuild uses the [default value](/guide/advanced/browserslist#default-values).
+
+## Example
+
+An example of mobile web applications:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4', 'last 2 versions', '> 0.2%', 'not dead'],
+  },
+};
+```
+
+Check out the [browserslist documentation](https://github.com/browserslist/browserslist) to learn more about browserslist.
+
+## Set by environment
+
+When you build for multiple [environments](/config/environments), you can set different browserslist for each environment:
+
+For example, set different browserslist for `web` and `node` environments:
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+        overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4'],
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        overrideBrowserslist: ['node >= 20'],
+      },
+    },
+  },
+};
+```

@@ -1,0 +1,74 @@
+name: Ecosystem CI
+
+on:
+  push:
+    branches: ['main']
+
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'The branch of the Ecosystem CI run'
+        required: true
+        default: 'main'
+
+permissions: {}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    if: github.repository == 'web-infra-dev/rsbuild' && github.event_name != 'workflow_dispatch'
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: changes
+        with:
+          predicate-quantifier: 'every'
+          filters: |
+            changed:
+              - "!**/*.md"
+              - "!**/*.mdx"
+              - "!**/_meta.json"
+              - "!**/dictionary.txt"
+
+  ecosystem_ci_dispatch:
+    name: Dispatch ecosystem CI
+    runs-on: ubuntu-latest
+    if: github.repository == 'web-infra-dev/rsbuild' && github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Trigger Ecosystem CI
+        uses: rstackjs/rstack-ecosystem-ci/.github/actions/ecosystem_ci_dispatch@f0d685b33462055bb07a8a3620b753696ad5f515 # v0.3.3
+        with:
+          github-token: ${{ secrets.REPO_RSBUILD_ECO_CI_GITHUB_TOKEN_NEXT }}
+          ecosystem-owner: web-infra-dev
+          ecosystem-repo: rsbuild
+          workflow-file: rsbuild-ecosystem-ci-selected.yml
+          client-payload: '{"ref":"${{ github.event.inputs.branch }}","repo":"web-infra-dev/rsbuild","suite":"-","suiteRefType":"precoded","suiteRef":"precoded"}'
+          branch: ${{ github.event.inputs.branch }}
+
+  ecosystem_ci_per_commit:
+    name: Run ecosystem CI per commit
+    needs: changes
+    runs-on: ubuntu-latest
+    if: github.repository == 'web-infra-dev/rsbuild' && github.event_name != 'workflow_dispatch' && needs.changes.outputs.changed == 'true'
+    permissions:
+      contents: write
+    steps:
+      - name: Trigger Ecosystem CI
+        uses: rstackjs/rstack-ecosystem-ci/.github/actions/ecosystem_ci_per_commit@f0d685b33462055bb07a8a3620b753696ad5f515 # v0.3.3
+        with:
+          github-token: ${{ secrets.REPO_RSBUILD_ECO_CI_GITHUB_TOKEN_NEXT }}
+          ecosystem-owner: web-infra-dev
+          ecosystem-repo: rsbuild
+          workflow-file: rsbuild-ecosystem-ci-from-commit.yml
+          client-payload: '{"commitSHA":"${{ github.sha }}","updateComment":true,"repo":"web-infra-dev/rsbuild","suite":"-","suiteRefType":"precoded","suiteRef":"precoded"}'

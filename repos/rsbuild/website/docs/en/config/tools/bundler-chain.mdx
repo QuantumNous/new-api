@@ -1,0 +1,285 @@
+---
+description: 'Reference for the Rsbuild tools.bundler-chain option, including behavior, defaults, configuration details, and usage examples.'
+---
+
+# tools.bundlerChain
+
+- **Type:**
+
+```ts
+type BundlerChainFn = (chain: RspackChain, utils: ModifyBundlerChainUtils) => Promise<void> | void;
+```
+
+- **Default:** `undefined`
+
+import RspackChain from '@en/shared/rspackChain.mdx';
+
+<RspackChain />
+
+You can use rspack-chain to modify the default Rspack config through `tools.bundlerChain`. Its value is a function that takes two arguments:
+
+- The first argument is a `rspack-chain` instance, which you can use to modify the Rspack config.
+- The second argument is an utils object, including `env`, `isProd`, `CHAIN_ID`, etc.
+
+> `tools.bundlerChain` will be executed earlier than [tools.rspack](/config/tools/rspack), so it will be overridden by `tools.rspack`.
+
+:::tip
+The built-in Rspack config in Rsbuild may change with iterations, and these changes will not be reflected in semver. Therefore, your custom config may become invalid when you upgrade Rsbuild.
+:::
+
+## Examples
+
+Please refer to: [RspackChain examples](/guide/configuration/rspack#use-bundler-chain).
+
+## Utils
+
+### env
+
+- **Type:** `'development' | 'production' | 'test'`
+
+The `env` parameter can be used to determine whether the current environment is development, production or test. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { env }) => {
+      if (env === 'development') {
+        chain.devtool('cheap-module-eval-source-map');
+      }
+    },
+  },
+};
+```
+
+### isDev
+
+- **Type:** `boolean`
+
+A boolean value indicating whether this is a development build. Set to `true` when the [mode](/config/mode) is `development`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (config, { isDev }) => {
+      if (isDev) {
+        config.devtool = 'eval-cheap-source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isProd
+
+- **Type:** `boolean`
+
+A boolean value indicating whether this is a production build. Set to `true` when the [mode](/config/mode) is `production`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { isProd }) => {
+      if (isProd) {
+        chain.devtool('source-map');
+      }
+    },
+  },
+};
+```
+
+### target
+
+- **Type:** `'web' | 'node' | 'web-worker'`
+
+The current [build target](/config/output/target).
+
+You can set different Rspack configurations for different build targets, for example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { target }) => {
+      if (target === 'node') {
+        // ...
+        return;
+      }
+    },
+  },
+};
+```
+
+### isServer
+
+- **Type:** `boolean`
+
+A boolean value indicating whether the [build target](/config/output/target) is `node`, equivalent to `target === 'node'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { isServer }) => {
+      if (isServer) {
+        // ...
+      }
+    },
+  },
+};
+```
+
+### isWebWorker
+
+- **Type:** `boolean`
+
+A boolean value indicating whether the [build target](/config/output/target) is `web-worker`, equivalent to `target === 'web-worker'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { isWebWorker }) => {
+      if (isWebWorker) {
+        // ...
+      }
+    },
+  },
+};
+```
+
+### rspack
+
+- **Type:** `Rspack`
+
+The Rspack instance, the same as `import { rspack } from '@rsbuild/core'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { rspack }) => {
+      chain.plugin('extra-define').use(rspack.DefinePlugin, [
+        {
+          'process.env': {
+            NODE_ENV: JSON.stringify(process.env.NODE_ENV),
+          },
+        },
+      ]);
+    },
+  },
+};
+```
+
+### environment
+
+- **Type:** [EnvironmentContext](/api/javascript-api/environment-api#environment-context)
+
+Context information for the current environment.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { environment }) => {
+      console.log(environment);
+    },
+  },
+};
+```
+
+### environments
+
+- **Type:** `Record<string, EnvironmentContext>`
+
+Context information for all environments.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { environments }) => {
+      console.log(environments);
+    },
+  },
+};
+```
+
+### HtmlPlugin
+
+- **Type:** `typeof import('html-rspack-plugin')`
+
+The default export of [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin).
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { HtmlPlugin }) => {
+      console.log(HtmlPlugin);
+    },
+  },
+};
+```
+
+## CHAIN_ID
+
+Some common chain IDs are predefined in the Rsbuild, and you can use these IDs to locate the built-in Rule or Plugin.
+
+:::tip
+Please note that some of these rules or plugins are not available by default. They will only be included in the Rspack or webpack configuration when you enable specific options or register certain plugins.
+
+For example, the `RULE.STYLUS` rule exists only when the Stylus plugin is registered.
+:::
+
+### CHAIN_ID.RULE
+
+| ID            | Description                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| `RULE.JS`     | Rule for `js` and `ts`                                                                          |
+| `RULE.SVG`    | Rule for `svg`                                                                                  |
+| `RULE.CSS`    | Rule for `css`                                                                                  |
+| `RULE.WASM`   | Rule for `WASM`                                                                                 |
+| `RULE.FONT`   | Rule for `font`                                                                                 |
+| `RULE.IMAGE`  | Rule for `image`                                                                                |
+| `RULE.MEDIA`  | Rule for `media`                                                                                |
+| `RULE.VUE`    | Rule for `vue` (requires [Vue plugin](/plugins/list/plugin-vue))                                |
+| `RULE.LESS`   | Rule for `less` (requires [Less plugin](/plugins/list/plugin-less))                             |
+| `RULE.SASS`   | Rule for `sass` (requires [Sass plugin](/plugins/list/plugin-sass))                             |
+| `RULE.SVELTE` | Rule for `svelte` (requires [Svelte plugin](/plugins/list/plugin-svelte))                       |
+| `RULE.STYLUS` | Rule for `stylus` (requires [Stylus plugin](https://github.com/rstackjs/rsbuild-plugin-stylus)) |
+
+### CHAIN_ID.ONE_OF
+
+`ONE_OF.[ID]` points to a specific branch inside a rule's `oneOf` list, such as the main branch or `?raw`/`?inline` branches. It is not a top-level rule; it lives under `RULE.JS`, `RULE.CSS`, and similar rules.
+
+| ID                  | Description                                             |
+| ------------------- | ------------------------------------------------------- |
+| `ONE_OF.JS_MAIN`    | Main JS branch under `RULE.JS` (SWC transforms)         |
+| `ONE_OF.JS_RAW`     | `?raw` branch under `RULE.JS`                           |
+| `ONE_OF.CSS_MAIN`   | Main CSS branch under `RULE.CSS`                        |
+| `ONE_OF.CSS_RAW`    | `?raw` branch under `RULE.CSS`                          |
+| `ONE_OF.CSS_INLINE` | `?inline` branch under `RULE.CSS`                       |
+| `ONE_OF.SVG_URL`    | SVG branch for emitting a separate file                 |
+| `ONE_OF.SVG_INLINE` | SVG branch for inlining as data URI                     |
+| `ONE_OF.SVG_ASSET`  | SVG branch for auto selection between data URI and file |
+
+### CHAIN_ID.USE
+
+`USE.[ID]` can match a certain loader.
+
+| ID            | Description                        |
+| ------------- | ---------------------------------- |
+| `USE.SWC`     | correspond to `builtin:swc-loader` |
+| `USE.STYLE`   | correspond to `style-loader`       |
+| `USE.POSTCSS` | correspond to `postcss-loader`     |
+
+See [Custom loader](/guide/configuration/rspack#custom-loader) for more details.
+
+### CHAIN_ID.PLUGIN
+
+`PLUGIN.[ID]` can match a certain Rspack or webpack plugin.
+
+See [Custom plugin](/guide/configuration/rspack#custom-plugin) for more details.
+
+### CHAIN_ID.MINIMIZER
+
+`MINIMIZER.[ID]` can match a certain minimizer.
+
+| ID              | Description                                                                                                               |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `MINIMIZER.JS`  | correspond to [SwcJsMinimizerRspackPlugin](https://rspack.rs/plugins/rspack/swc-js-minimizer-rspack-plugin)               |
+| `MINIMIZER.CSS` | correspond to [LightningCssMinimizerRspackPlugin](https://rspack.rs/plugins/rspack/lightning-css-minimizer-rspack-plugin) |

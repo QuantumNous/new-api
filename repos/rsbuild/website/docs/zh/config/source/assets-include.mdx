@@ -1,0 +1,49 @@
+---
+description: 'Rsbuild 默认会将常见的图片、字体、音频、视频等文件视为静态资源。通过配置 source.assetsInclude，你可以添加更多的文件类型，这些新增的静态资源将按照与内置静态资源相同的规则进行处理，详见 静态资源。'
+---
+
+# source.assetsInclude
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)
+- **默认值：** `undefined`
+- **版本：** `>= 1.0.18`
+
+指定需要被视为静态资源的额外文件类型。
+
+Rsbuild 默认会将常见的图片、字体、音频、视频等文件视为静态资源。通过配置 `source.assetsInclude`，你可以添加更多的文件类型，这些新增的静态资源将按照与内置静态资源相同的规则进行处理，详见 [静态资源](/guide/basic/static-assets)。
+
+`source.assetsInclude` 的值与 Rspack loader 的 `test` 选项相同，可以是正则表达式、字符串、数组、逻辑条件等，详见 [Rspack RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)。
+
+## 示例
+
+- 将 `.json5` 文件视为静态资源：
+
+```ts
+export default defineConfig({
+  source: {
+    assetsInclude: /\.json5$/,
+  },
+});
+```
+
+- 将多种文件类型视为静态资源：
+
+```ts
+export default defineConfig({
+  source: {
+    assetsInclude: [/\.json5$/, /\.pdf$/],
+  },
+});
+```
+
+- 将指定文件视为静态资源：
+
+```ts
+import path from 'node:path';
+
+export default defineConfig({
+  source: {
+    assetsInclude: path.resolve(__dirname, 'src/assets/foo.json5'),
+  },
+});
+```

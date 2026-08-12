@@ -1,0 +1,494 @@
+---
+description: 'Modifies the tags that are injected into the HTML page.'
+---
+
+# html.tags
+
+- **Type:**
+
+```ts
+type TagsConfig = HtmlTag | HtmlTagHandler | Array<HtmlTag | HtmlTagHandler>;
+```
+
+- **Default:** `undefined`
+
+Modifies the tags that are injected into the HTML page.
+
+> In Rsbuild plugins, you can modify tags by using [api.modifyHTMLTags](/plugins/dev/hooks#modifyhtmltags) hook.
+
+## Basic example
+
+For example, add a `script` tag to the `head` and inject it after the existing tags:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+      },
+    ],
+  },
+};
+```
+
+The generated HTML file will look like:
+
+```html
+<html>
+  <head>
+    <!-- some other head tags... -->
+    <script src="https://example.com/script.js"></script>
+  </head>
+  <body>
+    <!-- some other body tags... -->
+  </body>
+</html>
+```
+
+## Tag object
+
+`html.tags` can accept an array, where each element is a `HtmlTag` object that describes the tag to be injected.
+
+```ts
+type HtmlTag = {
+  tag: string;
+  attrs?: Record<string, string | boolean | null | undefined>;
+  children?: string;
+  hash?: boolean | string | ((url: string, hash: string) => string);
+  publicPath?: boolean | string | ((url: string, publicPath: string) => string);
+  append?: boolean;
+  head?: boolean;
+  metadata?: Record<string, any>;
+};
+```
+
+### tag
+
+- **Type:** `string`
+- **Default:** `undefined`
+
+The HTML tag name to be generated. Should be a valid HTML element name.
+
+For example, inject a `script` tag and a `link` tag:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // Result: <script src="https://example.com/script.js"></script>
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+      },
+      // Result: <link href="https://example.com/style.css" rel="stylesheet">
+      {
+        tag: 'link',
+        attrs: { href: 'https://example.com/style.css', rel: 'stylesheet' },
+      },
+    ],
+  },
+};
+```
+
+### attrs
+
+- **Type:** `Record<string, string | boolean | null | undefined>`
+- **Default:** `undefined`
+
+HTML attributes to be applied to the tag.
+
+- `string` values will be rendered as `attribute="value"`
+- `true` renders as boolean attribute (e.g., `<input disabled>`)
+- `false` or `null` or `undefined` values will omit the attribute
+
+For example, inject a `script` tag with `src` and `type` attributes:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // Result: <script src="https://example.com/script.js" type="text/javascript" defer></script>
+      {
+        tag: 'script',
+        attrs: {
+          src: 'https://example.com/script.js',
+          type: 'text/javascript',
+          defer: true,
+        },
+      },
+    ],
+  },
+};
+```
+
+### children
+
+- **Type:** `string`
+- **Default:** `undefined`
+
+The innerHTML content of the tag. The content is inserted as-is without HTML escaping, so ensure it is safe to prevent XSS vulnerabilities.
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // Result: <script>console.log("Hello, world!");</script>
+      {
+        tag: 'script',
+        children: 'console.log("Hello, world!");',
+      },
+    ],
+  },
+};
+```
+
+### hash
+
+- **Type:** `boolean | string | ((url: string, hash: string) => string)`
+- **Default:** `false`
+
+Controls whether to add a hash query parameter to asset URLs for cache invalidation, only affects the `src` attribute of the `script` tag and the `href` attribute of the `link` tag.
+
+- `false`: No hash query
+- `true`: Generate hash based on HTML content
+- `string`: Uses a custom hash string
+- `function`: Custom hash generation via a function
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      // Result: <script src="https://example.com/script.js?8327ec63"></script>
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        hash: true,
+      },
+    ],
+  },
+};
+```
+
+### publicPath
+
+- **Type:** `boolean | string | ((url: string, publicPath: string) => string)`
+- **Default:** `true`
+
+Controls whether to prepend the asset prefix to resource URLs. Only affects the `src` attribute of the `script` tag and the `href` attribute of the `link` tag.
+
+- `true`: Prepends asset prefix to the URL
+- `false`: Uses the URL as-is
+- `string`: Uses a custom prefix
+- `function`: Custom path transformation via a function
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://cdn.example.com/',
+  },
+  html: {
+    tags: [
+      // Result: <script src="https://cdn.example.com/script.js"></script>
+      {
+        tag: 'script',
+        attrs: { src: '/script.js' },
+        publicPath: true,
+      },
+    ],
+  },
+};
+```
+
+### append
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Controls whether to insert the tag after existing tags.
+
+- `true`: Insert after existing tags
+- `false`: Insert before existing tags
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        append: false,
+      },
+    ],
+  },
+};
+```
+
+See [Injection position](#injection-position) for more details.
+
+### head
+
+- **Type:** `boolean`
+- **Default:** auto-detect
+
+Specifies whether to inject the tag into the HTML `<head>` element.
+
+- `true`: Inject into `<head>`
+- `false`: Inject into `<body>`
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        head: false,
+      },
+    ],
+  },
+};
+```
+
+For elements allowed in the `<head>`, the default is `true`; for other elements, the default is `false`.
+
+Allowed element types in the `<head>` include:
+
+- `title`
+- `base`
+- `link`
+- `style`
+- `meta`
+- `script`
+- `noscript`
+- `template`
+
+See [Injection position](#injection-position) for more details.
+
+### metadata
+
+- **Type:** `Record<string, any>`
+- **Default:** `undefined`
+
+The metadata object for tags, used to store additional information about tags. `metadata` does not affect the generated HTML content.
+
+For example, Rsbuild plugins can add metadata to tags to identify their source; in subsequent processes, you can perform special handling on tags based on the metadata:
+
+```ts title="rsbuild.config.ts"
+const myPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    api.modifyHTMLTags(({ headTags, bodyTags }) => {
+      headTags.push({
+        tag: 'script',
+        attrs: { src: 'https://example.com/script.js' },
+        metadata: {
+          from: 'my-plugin',
+        },
+      });
+      return { headTags, bodyTags };
+    });
+  },
+};
+
+export default {
+  plugins: [myPlugin],
+  html: {
+    tags: [
+      (tags) => {
+        return tags.map((tag) => {
+          if (tag.metadata?.from === 'my-plugin') {
+            return {
+              ...tag,
+              // ...extra options
+            };
+          }
+          return tag;
+        });
+      },
+    ],
+  },
+};
+```
+
+### Injection position
+
+The final injection position of the tag is determined by the [head](#head) and [append](#append) options.
+
+- `append`: Defines the injection position of the current tag relative to existing tags, defaults to `true`
+- `head`: Specifies whether to add the current tag to the HTML `<head>` element, defaults to `true` for element types allowed in the `<head>`, otherwise `false`.
+- If two tag objects have the same `head` and `append` options, they will be inserted into the same area and hold their relative positions to each other.
+
+```html
+<html>
+  <head>
+    <!-- tags with `{ head: true, append: false }` here -->
+    <!-- existing head tags... -->
+    <!-- tags with `{ head: true, append: true }` here -->
+  </head>
+  <body>
+    <!-- tags with `{ head: false, append: false }` here -->
+    <!-- existing body tags... -->
+    <!-- tags with `{ head: false, append: true }` here -->
+  </body>
+</html>
+```
+
+## Tags handler
+
+```ts
+type HtmlTagContext = {
+  hash: string;
+  entryName: string;
+  outputName: string;
+  publicPath: string;
+};
+
+type HtmlTagHandler = (tags: HtmlTag[], context: HtmlTagContext) => HtmlTag[] | void;
+```
+
+`html.tags` can also accept functions that can arbitrarily modify tags by writing logic to the callback, often used to ensure the relative position of tags while inserting them.
+
+The callback function accepts a tag list as an argument and needs to modify or return a new tag array directly.
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      (tags) => [{ tag: 'script', attrs: { src: 'a.js' } }, ...tags],
+      (tags) => {
+        // Modify 'a.js' tag
+        const target = tags.find((tag) => tag.attrs?.src === 'a.js');
+        if (target) {
+          target.attrs ||= {};
+          target.attrs.defer = true;
+        }
+      },
+      (tags) => {
+        // Insert 'b.js' after 'a.js'
+        const targetIndex = tags.findIndex((tag) => tag.attrs?.src === 'a.js');
+
+        tags.splice(targetIndex + 1, 0, {
+          tag: 'script',
+          attrs: { src: 'd.js' },
+        });
+      },
+    ],
+  },
+};
+```
+
+The HTML file will look like:
+
+```html
+<html>
+  <head>
+    <script src="/a.js" defer></script>
+    <script src="/d.js"></script>
+    <!-- some other head tags... -->
+  </head>
+  <body>
+    <!-- some body tags... -->
+  </body>
+</html>
+```
+
+## Limitation
+
+This configuration modifies the content of HTML files after Rsbuild completes building, and does not resolve or parse new modules. It cannot be used to import uncompiled source code files, nor can it replace configurations such as [source.preEntry](/config/source/pre-entry).
+
+For example, for the following project:
+
+```
+web-app
+├── src
+│   ├── index.tsx
+│   └── polyfill.ts
+└── rsbuild.config.ts
+```
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://example.com/',
+  },
+  html: {
+    tags: [{ tag: 'script', attrs: { src: './src/polyfill.ts' } }],
+  },
+};
+```
+
+The tag object here will be directly added to the HTML file after processing, but the `polyfill.ts` will not be transpiled or bundled, so there will be a 404 error when processing this script in the application.
+
+```html
+<body>
+  <script src="https://example.com/src/polyfill.ts"></script>
+</body>
+```
+
+Reasonable use cases include:
+
+- Injecting static assets with **determined paths** on CDN.
+- Injecting inline scripts that need to be loaded on the first screen.
+
+For example, the usage of the following example:
+
+```
+web-app
+├── src
+│   └── index.tsx
+├── public
+│   └── service-worker.js
+└── rsbuild.config.ts
+```
+
+```ts title="rsbuild.config.ts"
+function report() {
+  fetch('https://www.example.com/report');
+}
+
+export default {
+  html: {
+    output: {
+      assetPrefix: 'https://example.com/',
+    },
+    tags: [
+      // Inject asset from the `public` directory.
+      { tag: 'script', attrs: { src: 'service-worker.js' } },
+      // Inject asset from other CDN url.
+      {
+        tag: 'script',
+        publicPath: false,
+        attrs: { src: 'https://cdn.example.com/foo.js' },
+      },
+      // Inject inline script.
+      {
+        tag: 'script',
+        children: report.toString() + '\nreport()',
+      },
+    ],
+  },
+};
+```
+
+The result will look like:
+
+```html
+<body>
+  <script src="https://example.com/service-worker.js"></script>
+  <script src="https://cdn.example.com/foo.js"></script>
+  <script>
+    function report() {
+      fetch('https://www.example.com/report');
+    }
+    report();
+  </script>
+</body>
+```
+
+## Version history
+
+| Version | Changes                             |
+| ------- | ----------------------------------- |
+| v1.4.7  | Added support for `metadata` option |

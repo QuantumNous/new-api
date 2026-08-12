@@ -1,0 +1,97 @@
+---
+description: '你可以阅读 插件系统 来了解 Rsbuild 插件的功能，以及如何开发一个 Rsbuild 插件。'
+---
+
+# 总览
+
+## 插件系统
+
+你可以阅读 [插件系统](/plugins/dev/index) 来了解 Rsbuild 插件的功能，以及如何开发一个 Rsbuild 插件。
+
+## 使用插件
+
+在 Rsbuild 配置中通过 [plugins](/config/plugins) 选项注册插件。
+
+使用 Rsbuild 的 JavaScript API 时，通过 [addPlugins](/api/javascript-api/instance#rsbuildaddplugins) 方法注册插件。
+
+## 官方插件
+
+以下是 Rsbuild 官方提供的插件。
+
+### React
+
+适用于 React 框架的插件有：
+
+- [@rsbuild/plugin-react](/plugins/list/plugin-react)：提供对 React 的支持。
+- [@rsbuild/plugin-svgr](/plugins/list/plugin-svgr)：支持将 SVG 图片转换为一个 React 组件使用。
+- [@rsbuild/plugin-styled-components](https://github.com/rsbuild-contrib/rsbuild-plugin-styled-components)：提供对 styled-components 的编译时支持。
+
+### Vue
+
+适用于 Vue 框架的插件有：
+
+- [@rsbuild/plugin-vue](/plugins/list/plugin-vue)：提供对 Vue 3 SFC（单文件组件）的支持。
+- [@rsbuild/plugin-vue-jsx](https://github.com/rstackjs/rsbuild-plugin-vue-jsx)：提供对 Vue 3 JSX / TSX 语法的支持。
+- [@rsbuild/plugin-vue2](https://github.com/rstackjs/rsbuild-plugin-vue2)：提供对 Vue 2 SFC（单文件组件）的支持。
+- [@rsbuild/plugin-vue2-jsx](https://github.com/rstackjs/rsbuild-plugin-vue2-jsx)：提供对 Vue 2 JSX / TSX 语法的支持。
+
+### Preact
+
+适用于 Preact 框架的插件有：
+
+- [@rsbuild/plugin-preact](/plugins/list/plugin-preact)：提供对 Preact 的支持。
+
+### Svelte
+
+适用于 Svelte 框架的插件有：
+
+- [@rsbuild/plugin-svelte](/plugins/list/plugin-svelte)：提供对 Svelte 组件（`.svelte` 文件）的支持。
+
+### Solid
+
+适用于 Solid 框架的插件有：
+
+- [@rsbuild/plugin-solid](/plugins/list/plugin-solid)：提供对 Solid 的支持。
+
+### 通用插件
+
+以下是与框架无关的通用插件：
+
+- [@rsbuild/plugin-assets-retry](https://github.com/rstackjs/rsbuild-plugin-assets-retry)：用于在静态资源加载失败时自动发起重试请求。
+- [@rsbuild/plugin-babel](/plugins/list/plugin-babel)：提供对 Babel 转译能力的支持。
+- [@rsbuild/plugin-tailwindcss](/plugins/list/plugin-tailwindcss)：使用 Tailwind CSS v4。
+- [@rsbuild/plugin-sass](/plugins/list/plugin-sass)：使用 Sass 作为 CSS 预处理器。
+- [@rsbuild/plugin-less](/plugins/list/plugin-less)：使用 Less 作为 CSS 预处理器。
+- [@rsbuild/plugin-basic-ssl](https://github.com/rstackjs/rsbuild-plugin-basic-ssl): 为 HTTPS server 生成不受信任的自签名证书。
+- [@rsbuild/plugin-eslint](https://github.com/rstackjs/rsbuild-plugin-eslint)：用于在编译过程中运行 ESLint 检查。
+- [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check)：用于在单独的进程中运行 TypeScript 类型检查。
+- [@rsbuild/plugin-image-compress](https://github.com/rstackjs/rsbuild-plugin-image-compress)：压缩图片资源。
+- [@rsbuild/plugin-mdx](https://github.com/rstackjs/rsbuild-plugin-mdx)：提供 MDX 支持。
+- [@rsbuild/plugin-node-polyfill](https://github.com/rstackjs/rsbuild-plugin-node-polyfill)：用于注入 Node 核心模块在浏览器端的 polyfills。
+- [@rsbuild/plugin-source-build](https://github.com/rstackjs/rsbuild-plugin-source-build)：用于 monorepo 场景，支持引用其他子目录的源代码，并完成构建和热更新。
+- [@rsbuild/plugin-check-syntax](https://github.com/rstackjs/rsbuild-plugin-check-syntax)：检查构建产物的语法兼容性，判断是否存在导致兼容性问题的高级语法。
+- [@rsbuild/plugin-css-minimizer](https://github.com/rstackjs/rsbuild-plugin-css-minimizer)：用于自定义 CSS 压缩工具，切换到 [cssnano](https://github.com/cssnano/cssnano) 或其他工具进行 CSS 压缩。
+- [@rsbuild/plugin-typed-css-modules](https://github.com/rstackjs/rsbuild-plugin-typed-css-modules)：用于为 CSS Modules 文件生成类型声明。
+- [@rsbuild/plugin-pug](https://github.com/rstackjs/rsbuild-plugin-pug)：提供对 Pug 模板引擎的支持。
+- [@rsbuild/plugin-rem](https://github.com/rstackjs/rsbuild-plugin-rem)：用于实现移动端页面的 rem 自适应布局。
+- [@rsbuild/plugin-umd](https://github.com/rstackjs/rsbuild-plugin-umd)：用于构建 UMD 格式的产物。
+- [@rsbuild/plugin-yaml](https://github.com/rstackjs/rsbuild-plugin-yaml)：引用 YAML 文件，并将其转换为 JavaScript 对象。
+- [@rsbuild/plugin-toml](https://github.com/rstackjs/rsbuild-plugin-toml)：引用 TOML 文件，并将其转换为 JavaScript 对象。
+
+:::tip
+你可以在 [web-infra-dev/rsbuild](https://github.com/web-infra-dev/rsbuild) 和 [rstackjs](https://github.com/rstackjs) 中找到这些插件的源代码。
+:::
+
+## 社区插件
+
+你可以在 [awesome-rstack - Rsbuild Plugins](https://github.com/rstackjs/awesome-rstack#rsbuild-plugins) 中查看社区提供的 Rsbuild 插件。
+
+也可以在 npm 上搜索 [rsbuild-plugin](https://npmjs.com/search?q=rsbuild-plugin&ranking=popularity) 关键词来发现更多 Rsbuild 插件。
+
+### React
+
+- [rsbuild-plugin-react-router](https://github.com/rstackjs/rsbuild-plugin-react-router)：提供与 React Router 的集成。
+
+### Angular
+
+- [@ng-rsbuild/plugin-angular](https://github.com/nrwl/angular-rspack)：允许你轻松直接地构建 Angular 应用程序。

@@ -1,0 +1,79 @@
+---
+description: 'UnoCSS 是一个灵活可扩展的原子化的 CSS 引擎，所有 CSS 工具类都是通过 preset 提供的。'
+---
+
+# UnoCSS
+
+[UnoCSS](https://unocss.dev/) 是一个灵活可扩展的原子化的 CSS 引擎，所有 CSS 工具类都是通过 preset 提供的。
+
+你可以通过 PostCSS 插件来在 Rsbuild 中接入 UnoCSS。
+
+## 安装 UnoCSS
+
+首先，你需要安装 `unocss` 和 `@unocss/postcss`。
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add unocss @unocss/postcss -D" />
+
+## 配置 PostCSS
+
+你可以通过 [postcss.config.mjs](https://github.com/webpack/postcss-loader#config) 或 [tools.postcss](/config/tools/postcss) 来注册 `unocss` 的 PostCSS 插件。
+
+```js title="postcss.config.mjs"
+import UnoCSS from '@unocss/postcss';
+
+export default {
+  plugins: [UnoCSS()],
+};
+```
+
+Rsbuild 默认使用 [Lightning CSS](/guide/styling/css-usage#lightning-css) 添加浏览器前缀，因此你只需要注册 `UnoCSS` 插件。
+
+## 配置 UnoCSS
+
+在当前项目的根目录创建 `uno.config.ts` 文件，并添加以下内容：
+
+```js title="uno.config.ts"
+import { defineConfig, presetUno } from 'unocss';
+
+export default defineConfig({
+  content: {
+    filesystem: ['./src/**/*.{html,js,ts,jsx,tsx}'],
+  },
+  presets: [presetUno()],
+});
+```
+
+:::tip
+上述配置仅供参考，你可以根据项目需要进行调整。
+:::
+
+## 引入 CSS
+
+在 CSS 入口文件中添加 `@unocss` 指令：
+
+```css title="main.css"
+@unocss preflights;
+@unocss default;
+```
+
+根据需求不同，你可以选择性地导入 UnoCSS 提供的 CSS 样式。请参考 [UnoCSS 文档](https://unocss.dev/integrations/postcss#usage) 来了解 `@unocss` 指令的详细用法。
+
+## 完成
+
+你已经完成了在 Rsbuild 中接入 UnoCSS 的全部步骤！
+
+你可以在任意组件或 HTML 中使用 UnoCSS 的 utility classes，比如：
+
+```html
+<h1 class="px-2 items-center justify-between">Hello world!</h1>
+```
+
+更多用法请参考 [UnoCSS 文档](https://unocss.dev/)。
+
+## VS Code 插件
+
+UnoCSS 提供了 [VS Code 插件](https://unocss.dev/integrations/vscode)，用于在 VS Code 中提示 UnoCSS 的 utilities classes。
+
+你可以在 VS Code 中安装该插件，即可开启更多智能化功能。

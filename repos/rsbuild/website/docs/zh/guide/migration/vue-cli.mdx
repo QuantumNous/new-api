@@ -1,0 +1,139 @@
+---
+description: '本章节介绍如何将 Vue CLI 项目迁移到 Rsbuild。'
+---
+
+# Vue CLI
+
+本章节介绍如何将 [Vue CLI](https://github.com/vuejs/vue-cli) 项目迁移到 Rsbuild。
+
+## 安装依赖
+
+首先，将 Vue CLI 的 npm 依赖替换为 Rsbuild 的依赖。
+
+import { PackageManagerTabs } from '@theme';
+
+- 移除 Vue CLI 的依赖：
+
+<PackageManagerTabs command="remove @vue/cli-service @vue/cli-plugin-babel @vue/cli-plugin-eslint" />
+
+- 安装 Rsbuild 的依赖：
+
+<PackageManagerTabs command="add @rsbuild/core @rsbuild/plugin-vue -D" />
+
+:::tip
+如果你的项目是基于 Vue 2 的，请将 `@rsbuild/plugin-vue` 替换为 `@rsbuild/plugin-vue2`。
+:::
+
+## 更新 npm scripts
+
+下一步，将 package.json 中的 npm scripts 更新为 Rsbuild 的 CLI 命令。
+
+```json title="package.json"
+{
+  "scripts": {
+    "serve": "vue-cli-service serve", // [!code --]
+    "build": "vue-cli-service build", // [!code --]
+    "serve": "rsbuild", // [!code ++]
+    "build": "rsbuild build", // [!code ++]
+    "preview": "rsbuild preview" // [!code ++]
+  }
+}
+```
+
+:::tip
+Rsbuild 未集成 ESLint，因此没有提供用于替换 `vue-cli-service lint` 的命令，可直接使用 ESLint 的 [CLI 命令](https://eslint.org/docs/latest/use/command-line-interface) 作为替代。
+:::
+
+## 创建配置文件
+
+在 package.json 的同级目录下创建 Rsbuild 的配置文件 `rsbuild.config.ts`，并添加以下内容：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginVue } from '@rsbuild/plugin-vue';
+
+export default defineConfig({
+  plugins: [pluginVue()],
+  source: {
+    // 指定入口文件
+    entry: {
+      index: './src/main.js',
+    },
+  },
+});
+```
+
+:::tip
+如果你的项目是基于 Vue 2 的，请使用 `import { pluginVue2 } from '@rsbuild/plugin-vue2';`。
+:::
+
+## HTML 模板
+
+Vue CLI 默认使用 `public/index.html` 文件作为 HTML 模板。在 Rsbuild 中，通过 [html.template](/config/html/template) 指定 HTML 模板：
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  html: {
+    template: './public/index.html',
+  },
+});
+```
+
+在 HTML 模板中，如果使用了 Vue CLI 的 `BASE_URL` 变量，请替换为 Rsbuild 的 [assetPrefix 变量](/config/html/template-parameters)，并使用斜杠进行连接：
+
+```html
+<link rel="icon" href="<%= BASE_URL %>favicon.ico" />
+<!-- [!code --] -->
+<link rel="icon" href="<%= assetPrefix %>/favicon.ico" />
+<!-- [!code ++] -->
+```
+
+至此，已完成从 Vue CLI 到 Rsbuild 的基本迁移。运行 `npm run serve` 启动开发服务器。
+
+## 配置迁移
+
+以下是 Vue CLI 配置对应的 Rsbuild 配置：
+
+| Vue CLI                                                                                                                                 | Rsbuild                                                                                                                                                |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [publicPath](https://cli.vuejs.org/config/#publicpath)                                                                                  | [dev.assetPrefix](/config/dev/asset-prefix) / [output.assetPrefix](/config/output/asset-prefix)                                                        |
+| [outputDir](https://cli.vuejs.org/config/#outputdir) / [assetsDir](https://cli.vuejs.org/config/#assetsdir)                             | [output.distPath](/config/output/dist-path)                                                                                                            |
+| [filenameHashing](https://cli.vuejs.org/config/#filenamehashing)                                                                        | [output.filenameHash](/config/output/filename-hash)                                                                                                    |
+| [pages](https://cli.vuejs.org/config/#pages)                                                                                            | [source.entry](/config/source/entry) / [html.template](/config/html/template) / [html.title](/config/html/title)                                       |
+| [transpileDependencies](https://cli.vuejs.org/config/#transpiledependencies)                                                            | [source.include](/config/source/include)                                                                                                               |
+| [productionSourceMap](https://cli.vuejs.org/config/#productionsourcemap) / [css.sourceMap](https://cli.vuejs.org/config/#css-sourcemap) | [output.sourceMap](/config/output/source-map)                                                                                                          |
+| [crossorigin](https://cli.vuejs.org/config/#crossorigin)                                                                                | [html.crossorigin](/config/html/crossorigin)                                                                                                           |
+| [configureWebpack](https://cli.vuejs.org/config/#configurewebpack)                                                                      | [tools.rspack](/config/tools/rspack)                                                                                                                   |
+| [chainWebpack](https://cli.vuejs.org/config/#chainwebpack)                                                                              | [tools.bundlerChain](/config/tools/bundler-chain)                                                                                                      |
+| [css.extract](https://cli.vuejs.org/config/#css-extract)                                                                                | [output.injectStyles](/config/output/inject-styles)                                                                                                    |
+| [css.loaderOptions](https://cli.vuejs.org/config/#css-loaderoptions)                                                                    | [tools.cssLoader](/config/tools/css-loader) / [less](/plugins/list/plugin-less) / [sass](/plugins/list/plugin-sass) / [postcss](/config/tools/postcss) |
+| [devServer.proxy](https://cli.vuejs.org/config/#devserver-proxy)                                                                        | [server.proxy](/config/server/proxy)                                                                                                                   |
+
+说明：
+
+- 在迁移 configureWebpack 时，注意大部分 webpack 和 Rspack 配置是相同的，但也存在一些差异或 Rspack 未实现的功能。
+- 上述表格尚未覆盖到 Vue CLI 的所有配置，欢迎补充。
+
+## 环境变量
+
+Vue CLI 默认会将 `VUE_APP_` 开头的环境变量注入到 client 代码中，而 Rsbuild 默认会注入 `PUBLIC_` 开头的环境变量（参考 [public 变量](/guide/advanced/env-vars#public-variables)）。
+
+为了兼容 Vue CLI 的行为，可手动调用 Rsbuild 提供的 [loadEnv](/api/javascript-api/core#loadenv) 方法来读取 `VUE_APP_` 开头的环境变量，并通过 [source.define](/config/source/define) 配置项注入到 client 代码中。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig, loadEnv } from '@rsbuild/core';
+
+const { publicVars } = loadEnv({ prefixes: ['VUE_APP_'] });
+
+export default defineConfig({
+  source: {
+    define: publicVars,
+  },
+});
+```
+
+## 内容补充
+
+当前文档只涵盖了迁移过程的部分事项，如果你发现有合适的内容可以补充，欢迎通过 pull request 来完善文档 🤝。
+
+> Rsbuild 的文档位于 [rsbuild/website](https://github.com/web-infra-dev/rsbuild/tree/main/website) 目录。

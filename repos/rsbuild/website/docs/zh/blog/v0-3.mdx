@@ -1,0 +1,73 @@
+---
+description: 'Rsbuild 0.3 发布，支持模块联邦，并调整 TOML/YAML 插件、JavaScript API 与 Node 产物配置。'
+date: 2024-01-10 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 0.3 发布
+
+_2024 年 1 月 10 日_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-3.png)
+
+Rsbuild 0.3 版本升级 Rspack 到 0.5 并支持了模块联邦。此外，还包含一些 API 的不兼容更新，请参考当前文档进行升级。
+
+## Rspack 0.5
+
+将 Rspack 升级到 v0.5.0，详情见：[Rspack 0.5 发布公告](https://rspack.rs/zh/blog/announcing-0-5)
+
+主要变动：
+
+- [支持 Module Federation](https://rspack.rs/zh/blog/module-federation-added-to-rspack)
+- [移除已弃用的 builtins 选项](https://rspack.rs/zh/blog/announcing-0-5#%E7%A7%BB%E9%99%A4%E5%B7%B2%E5%BC%83%E7%94%A8%E7%9A%84-builtins-options)
+
+## TOML / YAML 插件
+
+在 JS 中导入 TOML 和 YAML 的需求并不常见，所以从 v0.3.0 开始，Rsbuild 核心将不再默认支持导入 TOML 和 YAML。
+
+TOML 和 YAML 将变成独立的插件：
+
+- TOML:
+
+```ts
+// rsbuild.config.ts
+import { pluginToml } from '@rsbuild/plugin-toml';
+
+export default {
+  plugins: [pluginToml()],
+};
+```
+
+- YAML:
+
+```ts
+// rsbuild.config.ts
+import { pluginYaml } from '@rsbuild/plugin-yaml';
+
+export default {
+  plugins: [pluginYaml()],
+};
+```
+
+## JavaScript API
+
+包含一些 JavaScript API 的参数变更：
+
+- `rsbuild.startDevServer` 的 `printURLs` 选项已被弃用，改用 [server.printUrls](/config/server/print-urls) 代替。
+- `rsbuild.startDevServer` 的 `logger` 选项已被弃用，改用 [logger.override()](/api/javascript-api/core#logger) 代替。
+
+## Node 产物
+
+- 调整针对 Node.js 的默认 browserslist，从 `node >= 14` 变为 `node >= 16`。
+- `output.distPath.server` 的默认值从 `'bundles'` 改为 `'server'`。

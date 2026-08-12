@@ -1,0 +1,54 @@
+{
+  "name": "create-rsbuild",
+  "version": "2.1.4",
+  "description": "Create a new Rsbuild project",
+  "homepage": "https://rsbuild.rs",
+  "bugs": {
+    "url": "https://github.com/web-infra-dev/rsbuild/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web-infra-dev/rsbuild",
+    "directory": "packages/create-rsbuild"
+  },
+  "bin": {
+    "create-rsbuild": "./bin.js"
+  },
+  "files": [
+    "template-*/**",
+    "dist",
+    "bin.js"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rslib --syntax es2023",
+    "dev": "rslib --syntax es2023 -w",
+    "start": "node ./dist/index.js"
+  },
+  "dependencies": {
+    "create-rstack": "catalog:"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*",
+    "@rsbuild/plugin-babel": "workspace:*",
+    "@rsbuild/plugin-preact": "workspace:*",
+    "@rsbuild/plugin-react": "workspace:*",
+    "@rsbuild/plugin-solid": "workspace:*",
+    "@rsbuild/plugin-svelte": "workspace:*",
+    "@rsbuild/plugin-vue": "workspace:*",
+    "@rslib/core": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

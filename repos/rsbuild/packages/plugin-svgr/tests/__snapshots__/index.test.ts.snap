@@ -1,0 +1,824 @@
+// Rstest Snapshot v1
+
+exports[`svgr > configure SVGR options 1`] = `
+{
+  "oneOf": [
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "resourceQuery": /\\^\\\\\\?url\\$/,
+      "type": "asset/resource",
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?inline\\$/,
+      "type": "asset/inline",
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?raw\\$/,
+      "type": "asset/source",
+    },
+    {
+      "resourceQuery": /react/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "default",
+            "svgo": true,
+            "svgoConfig": {
+              "datauri": "base64",
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "parser": {
+        "dataUrlCondition": {
+          "maxSize": 4096,
+        },
+      },
+      "type": "asset",
+    },
+  ],
+  "test": /\\\\\\.svg\\$/,
+}
+`;
+
+exports[`svgr > exportType default / mixedImport false 1`] = `
+{
+  "oneOf": [
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "resourceQuery": /\\^\\\\\\?url\\$/,
+      "type": "asset/resource",
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?inline\\$/,
+      "type": "asset/inline",
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?raw\\$/,
+      "type": "asset/source",
+    },
+    {
+      "resourceQuery": /react/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "default",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "issuer": [
+        /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+        /\\\\\\.mdx\\$/,
+      ],
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "default",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "parser": {
+        "dataUrlCondition": {
+          "maxSize": 4096,
+        },
+      },
+      "type": "asset",
+    },
+  ],
+  "test": /\\\\\\.svg\\$/,
+}
+`;
+
+exports[`svgr > exportType default / mixedImport true 1`] = `
+{
+  "oneOf": [
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "resourceQuery": /\\^\\\\\\?url\\$/,
+      "type": "asset/resource",
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?inline\\$/,
+      "type": "asset/inline",
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?raw\\$/,
+      "type": "asset/source",
+    },
+    {
+      "resourceQuery": /react/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "default",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "issuer": [
+        /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+        /\\\\\\.mdx\\$/,
+      ],
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "default",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "parser": {
+        "dataUrlCondition": {
+          "maxSize": 4096,
+        },
+      },
+      "type": "asset",
+    },
+  ],
+  "test": /\\\\\\.svg\\$/,
+}
+`;
+
+exports[`svgr > exportType named / mixedImport false 1`] = `
+{
+  "oneOf": [
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "resourceQuery": /\\^\\\\\\?url\\$/,
+      "type": "asset/resource",
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?inline\\$/,
+      "type": "asset/inline",
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?raw\\$/,
+      "type": "asset/source",
+    },
+    {
+      "resourceQuery": /react/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "default",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "issuer": [
+        /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+        /\\\\\\.mdx\\$/,
+      ],
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "named",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "parser": {
+        "dataUrlCondition": {
+          "maxSize": 4096,
+        },
+      },
+      "type": "asset",
+    },
+  ],
+  "test": /\\\\\\.svg\\$/,
+}
+`;
+
+exports[`svgr > exportType named / mixedImport true 1`] = `
+{
+  "oneOf": [
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "resourceQuery": /\\^\\\\\\?url\\$/,
+      "type": "asset/resource",
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?inline\\$/,
+      "type": "asset/inline",
+    },
+    {
+      "type": "asset/source",
+      "with": {
+        "type": "text",
+      },
+    },
+    {
+      "resourceQuery": /\\^\\\\\\?raw\\$/,
+      "type": "asset/source",
+    },
+    {
+      "resourceQuery": /react/,
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "default",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+      ],
+    },
+    {
+      "issuer": [
+        /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+        /\\\\\\.mdx\\$/,
+      ],
+      "type": "javascript/auto",
+      "use": [
+        {
+          "loader": "builtin:swc-loader",
+          "options": {
+            "collectTypeScriptInfo": {
+              "exportedEnum": false,
+              "typeExports": true,
+            },
+            "detectSyntax": "auto",
+            "env": {
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+            "isModule": "unknown",
+            "jsc": {
+              "experimental": {
+                "cacheRoot": "<ROOT>/packages/plugin-svgr/tests/node_modules/.cache/.swc",
+                "keepImportAttributes": true,
+              },
+              "externalHelpers": true,
+              "output": {
+                "charset": "utf8",
+              },
+              "parser": {
+                "decorators": true,
+              },
+              "transform": {
+                "decoratorVersion": "2023-11",
+                "legacyDecorator": false,
+                "react": {
+                  "development": true,
+                  "refresh": false,
+                  "runtime": "automatic",
+                },
+              },
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/loader.mjs",
+          "options": {
+            "exportType": "named",
+            "svgo": true,
+            "svgoConfig": {
+              "plugins": [
+                {
+                  "name": "preset-default",
+                  "params": {
+                    "overrides": {
+                      "removeViewBox": false,
+                    },
+                  },
+                },
+                "prefixIds",
+              ],
+            },
+          },
+        },
+        {
+          "loader": "<ROOT>/packages/plugin-svgr/src/assetLoader.mjs",
+          "options": {
+            "limit": 4096,
+            "name": "static/svg/[name].[contenthash:10].svg",
+          },
+        },
+      ],
+    },
+    {
+      "generator": {
+        "filename": "static/svg/[name].[contenthash:10].svg",
+      },
+      "parser": {
+        "dataUrlCondition": {
+          "maxSize": 4096,
+        },
+      },
+      "type": "asset",
+    },
+  ],
+  "test": /\\\\\\.svg\\$/,
+}
+`;

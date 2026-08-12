@@ -1,0 +1,20 @@
+{
+  "name": "@e2e/helper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Common helper functions used in E2E test cases.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./server": {
+      "types": "./server.ts",
+      "default": "./server.ts"
+    }
+  },
+  "dependencies": {
+    "@jridgewell/trace-mapping": "catalog:"
+  }
+}

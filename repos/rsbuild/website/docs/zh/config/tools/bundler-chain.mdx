@@ -1,0 +1,285 @@
+---
+description: 'Rsbuild 的 tools.bundler-chain 配置项参考，包含作用、默认值、配置行为和使用示例。'
+---
+
+# tools.bundlerChain
+
+- **类型：**
+
+```ts
+type BundlerChainFn = (chain: RspackChain, utils: ModifyBundlerChainUtils) => Promise<void> | void;
+```
+
+- **默认值：** `undefined`
+
+import RspackChain from '@zh/shared/rspackChain.mdx';
+
+<RspackChain />
+
+你可以通过 `tools.bundlerChain` 来调用 rspack-chain 以修改默认的 Rspack 配置，它的值是一个函数，接收两个参数：
+
+- 第一个参数为 `rspack-chain` 实例，你可以通过它来修改 Rspack 配置。
+- 第二个参数为一个工具对象，包括 `env`、`isProd`、`CHAIN_ID` 等。
+
+> `tools.bundlerChain` 会早于 [tools.rspack](/config/tools/rspack) 被执行，因此会被 `tools.rspack` 覆盖。
+
+:::tip
+Rsbuild 内置的 Rspack 配置会随着迭代而发生变化，这些变化不会反映在 semver 中，因此在升级 Rsbuild 时，你的自定义配置可能会失效。
+:::
+
+## 示例
+
+参考：[RspackChain 示例](/guide/configuration/rspack#use-bundler-chain)。
+
+## 工具对象 \{#utils}
+
+### env
+
+- **类型：** `'development' | 'production' | 'test'`
+
+通过 env 参数可以判断当前环境为 development、production 还是 test，比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { env }) => {
+      if (env === 'development') {
+        chain.devtool('cheap-module-eval-source-map');
+      }
+    },
+  },
+};
+```
+
+### isDev
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前是否为开发模式构建，当 [mode](/config/mode) 为 `development` 时，值为 `true`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (config, { isDev }) => {
+      if (isDev) {
+        config.devtool = 'eval-cheap-source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isProd
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前是否为生产模式构建，当 [mode](/config/mode) 为 `production` 时，值为 `true`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { isProd }) => {
+      if (isProd) {
+        chain.devtool('source-map');
+      }
+    },
+  },
+};
+```
+
+### target
+
+- **类型：** `'web' | 'node' | 'web-worker'`
+
+当前 [构建目标](/config/output/target)。
+
+你可以为不同的构建目标设置不同的 Rspack 配置，比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { target }) => {
+      if (target === 'node') {
+        // ...
+        return;
+      }
+    },
+  },
+};
+```
+
+### isServer
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前 [构建目标](/config/output/target) 是否为 `node`，等价于 `target === 'node'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { isServer }) => {
+      if (isServer) {
+        // ...
+      }
+    },
+  },
+};
+```
+
+### isWebWorker
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前 [构建目标](/config/output/target) 是否为 `web-worker`，等价于 `target === 'web-worker'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { isWebWorker }) => {
+      if (isWebWorker) {
+        // ...
+      }
+    },
+  },
+};
+```
+
+### rspack
+
+- **类型：** `Rspack`
+
+Rspack 实例，等价于 `import { rspack } from '@rsbuild/core'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { rspack }) => {
+      chain.plugin('extra-define').use(rspack.DefinePlugin, [
+        {
+          'process.env': {
+            NODE_ENV: JSON.stringify(process.env.NODE_ENV),
+          },
+        },
+      ]);
+    },
+  },
+};
+```
+
+### environment
+
+- **类型：** [EnvironmentContext](/api/javascript-api/environment-api#environment-context)
+
+和当前环境有关的上下文信息。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { environment }) => {
+      console.log(environment);
+    },
+  },
+};
+```
+
+### environments
+
+- **类型：** `Record<string, EnvironmentContext>`
+
+所有环境的上下文信息。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { environments }) => {
+      console.log(environments);
+    },
+  },
+};
+```
+
+### HtmlPlugin
+
+- **类型：** `typeof import('html-rspack-plugin')`
+
+对应 [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) 插件的默认导出。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { HtmlPlugin }) => {
+      console.log(HtmlPlugin);
+    },
+  },
+};
+```
+
+## CHAIN_ID
+
+Rsbuild 中预先定义了一些常用的 Chain ID，你可以通过这些 ID 来定位到内置的 Rule 或 Plugin。
+
+:::tip
+请留意，下列的一部分 Rule 或 Plugin 并不是默认存在的，当你开启特定配置项、或是注册某些插件后，它们才会被包含在 Rspack 或 webpack 配置中。
+
+比如，`RULE.STYLUS` 仅在注册了 Stylus 插件后才会存在。
+:::
+
+### CHAIN_ID.RULE
+
+| ID            | 描述                                                                                          |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| `RULE.JS`     | 处理 `js` 和 `ts` 的规则                                                                      |
+| `RULE.SVG`    | 处理 `svg` 的规则                                                                             |
+| `RULE.CSS`    | 处理 `css` 的规则                                                                             |
+| `RULE.WASM`   | 处理 `wasm` 的规则                                                                            |
+| `RULE.FONT`   | 处理 `font` 的规则                                                                            |
+| `RULE.IMAGE`  | 处理 `image` 的规则                                                                           |
+| `RULE.MEDIA`  | 处理 `media` 的规则                                                                           |
+| `RULE.VUE`    | 处理 `vue` 的规则（依赖 [Vue 插件](/plugins/list/plugin-vue)）                                |
+| `RULE.LESS`   | 处理 `less` 的规则（依赖 [Less 插件](/plugins/list/plugin-less)）                             |
+| `RULE.SASS`   | 处理 `sass` 的规则（依赖 [Sass 插件](/plugins/list/plugin-sass)）                             |
+| `RULE.SVELTE` | 处理 `svelte` 的规则（依赖 [Svelte 插件](/plugins/list/plugin-svelte)）                       |
+| `RULE.STYLUS` | 处理 `stylus` 的规则（依赖 [Stylus 插件](https://github.com/rstackjs/rsbuild-plugin-stylus)） |
+
+### CHAIN_ID.ONE_OF
+
+`ONE_OF.[ID]` 用于定位规则内部 `oneOf` 的具体分支，比如主分支或 `?raw`/`?inline` 分支；它不是顶层规则，而是挂在 `RULE.JS`、`RULE.CSS` 等规则下面。
+
+| ID                  | 描述                                         |
+| ------------------- | -------------------------------------------- |
+| `ONE_OF.JS_MAIN`    | `RULE.JS` 下的主分支（SWC 转换）             |
+| `ONE_OF.JS_RAW`     | `RULE.JS` 下的 `?raw` 分支                   |
+| `ONE_OF.CSS_MAIN`   | `RULE.CSS` 下的主分支                        |
+| `ONE_OF.CSS_RAW`    | `RULE.CSS` 下的 `?raw` 分支                  |
+| `ONE_OF.CSS_INLINE` | `RULE.CSS` 下的 `?inline` 分支               |
+| `ONE_OF.SVG_URL`    | SVG 输出为独立文件的分支                     |
+| `ONE_OF.SVG_INLINE` | SVG 内联为 data URI 的分支                   |
+| `ONE_OF.SVG_ASSET`  | SVG 在 data URI 与独立文件之间自动选择的分支 |
+
+### CHAIN_ID.USE
+
+通过 `USE.[ID]` 可以匹配到对应的 loader。
+
+| ID            | 描述                      |
+| ------------- | ------------------------- |
+| `USE.SWC`     | 对应 `builtin:swc-loader` |
+| `USE.POSTCSS` | 对应 `postcss-loader`     |
+| `USE.STYLE`   | 对应 `style-loader`       |
+
+详见 [自定义 loader](/guide/configuration/rspack#custom-loader)
+
+### CHAIN_ID.PLUGIN
+
+通过 `PLUGIN.[ID]` 可以匹配到特定的 Rspack 或 webpack plugin。
+
+详见 [自定义 Plugin](/guide/configuration/rspack#custom-plugin)
+
+### CHAIN_ID.MINIMIZER
+
+通过 `MINIMIZER.[ID]` 可以匹配到对应的压缩工具。
+
+| ID              | 描述                                                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `MINIMIZER.JS`  | 对应 [SwcJsMinimizerRspackPlugin](https://rspack.rs/zh/plugins/rspack/swc-js-minimizer-rspack-plugin)               |
+| `MINIMIZER.CSS` | 对应 [LightningCssMinimizerRspackPlugin](https://rspack.rs/zh/plugins/rspack/lightning-css-minimizer-rspack-plugin) |

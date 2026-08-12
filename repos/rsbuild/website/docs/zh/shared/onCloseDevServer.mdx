@@ -1,0 +1,9 @@
+关闭开发服务器时调用，可用于在开发服务器关闭时执行清理操作。
+
+Rsbuild CLI 会自动在合适的时机调用此钩子，使用 JavaScript API 的用户需要手动调用 [server.close()](/api/javascript-api/instance#close-server) 方法来触发此钩子。
+
+- **类型：**
+
+```ts
+function onCloseDevServer(callback: () => Promise<void> | void): void;
+```

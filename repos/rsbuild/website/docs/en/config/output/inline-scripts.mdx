@@ -1,0 +1,183 @@
+---
+description: 'Whether to inline output scripts files (.js files) into HTML with script tags.'
+---
+
+# output.inlineScripts
+
+- **Type:**
+
+```ts
+type InlineChunkTestFunction = (params: { size: number; name: string }) => boolean;
+
+type InlineChunkTest = RegExp | InlineChunkTestFunction;
+
+type InlineChunkConfig =
+  | boolean
+  | InlineChunkTest
+  | { enable?: boolean | 'auto'; test: InlineChunkTest };
+```
+
+- **Default:** `false`
+
+Whether to inline output scripts files (.js files) into HTML with `<script>` tags.
+
+Note that, with this option enabled, the script files will no longer be written to the dist directory, they will only exist inside the HTML file instead.
+
+## Example
+
+By default, we have the following output files:
+
+```bash
+dist/html/main/index.html
+dist/static/css/style.css
+dist/static/js/main.js
+```
+
+After turning on the `output.inlineScripts` option:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: true,
+  },
+};
+```
+
+The output files of production build will become:
+
+```bash
+dist/html/main/index.html
+dist/static/css/style.css
+```
+
+And `dist/static/js/main.js` will be inlined in `index.html`:
+
+```html
+<html>
+  <head>
+    <script>
+      // content of dist/static/js/main.js
+    </script>
+  </head>
+</html>
+```
+
+:::tip
+Setting `inlineScripts: true` is equivalent to setting [inlineScripts.enable](#enable) to `'auto'`. This indicates that inline scripts will only be enabled in production mode.
+:::
+
+### Script tag position
+
+When using `output.inlineScripts`, we recommend setting [html.inject](/config/html/inject) to `'body'`.
+
+As the default injection position of the script tag is the `<head>` tag, changing the injection position to the `<body>` tag can ensure that the inlined script can access the DOM elements in `<body>`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    inject: 'body', // [!code highlight]
+  },
+  output: {
+    inlineScripts: true,
+  },
+};
+```
+
+### Using RegExp
+
+To inline part of the JS files, set `inlineScripts` to a regular expression that matches the URL of the JS file that needs to be inlined.
+
+For example, to inline `main.js` into HTML, add the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: /[\\/]main\.\w+\.js$/,
+  },
+};
+```
+
+:::tip
+Production filenames include a hash value by default, such as `static/js/main.18a568e5ab.js`. In regular expressions, use `\w+` to match the hash.
+:::
+
+### Using function
+
+You can also set `output.inlineScripts` to a function that accepts the following parameters:
+
+- `name`: The filename, such as `static/js/main.18a568e5ab.js`.
+- `size`: The file size in bytes.
+
+For example, if we want to inline assets that are smaller than 10 kB, we can add the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts({ size }) {
+      return size < 10 * 1000;
+    },
+  },
+};
+```
+
+### Async chunks
+
+When you use [dynamic import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import) in JavaScript, Rspack will generate an async chunk. By default, `output.inlineScripts` will not inline async chunks into the HTML.
+
+To inline async chunks into the HTML, change Rspack's default behavior using the [tools.rspack](/config/tools/rspack) config by setting [module.parser.javascript.dynamicImportMode](https://rspack.rs/config/module-parser#javascriptdynamicimportmode) to `'eager'`. In this case, Rspack will not generate separate JS files for dynamic imports.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: true,
+  },
+  tools: {
+    rspack: {
+      module: {
+        parser: {
+          javascript: {
+            dynamicImportMode: 'eager',
+          },
+        },
+      },
+    },
+  },
+};
+```
+
+## Options
+
+### enable
+
+- **Type:** `boolean | 'auto'`
+- **Default:** `false`
+
+Whether to enable the inline scripts feature. If set to `'auto'`, it will be enabled when the `mode` is `'production'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: {
+      enable: 'auto',
+      test: /[\\/]main\.\w+\.js$/,
+    },
+  },
+};
+```
+
+### test
+
+- **Type:** `RegExp | ((params: { size: number; name: string }) => boolean)`
+
+The regular expression or function to match the files that need to be inlined.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: {
+      enable: true,
+      test: /[\\/]main\.\w+\.js$/,
+    },
+  },
+};
+```

@@ -1,0 +1,152 @@
+---
+description: 'Rsbuild 0.5 adds Lightning CSS, custom server support, and more flexible minify options.'
+date: 2024-03-19 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 0.5
+
+_March 19, 2024_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-5.png)
+
+Rsbuild 0.5 is an important milestone. As of this release, most of the Rsbuild API has reached a stable state and we expect to release Rsbuild 1.0 in Q3 2024.
+
+Main changes:
+
+- ⚡️ Support for [Lightning CSS](https://lightningcss.dev/) to speed up CSS compilation.
+- 🌟 Support for custom server based on the new JavaScript API.
+- 🍭 Refactor the SVGR plugin to support more usages.
+- 📍 Support for custom minify options.
+
+## ⚡️ Supports Lightning CSS
+
+Lightning CSS is a high performance CSS parser, transformer and minifier written in Rust. It supports parsing and transforming many modern CSS features into syntax supported by target browsers, and also provides a better compression ratio.
+
+Rsbuild provides the Lightning CSS plugin to use Lightning CSS on an opt-in basis, replacing the built-in PostCSS, autoprefixer, and SWC CSS minimizer in Rsbuild.
+
+All you need to do is register the Lightning CSS plugin in the Rsbuild configuration to complete the switch:
+
+```ts title="rsbuild.config.ts"
+import { pluginLightningcss } from '@rsbuild/plugin-lightningcss';
+
+export default {
+  plugins: [pluginLightningcss()],
+};
+```
+
+In a real large-scale web application, we have integrated the Rsbuild Lightning CSS plugin and used [Rsdoctor](https://rsdoctor.rs/) to analyze the changes in build time:
+
+- CSS compilation time was reduced from 8.4s to 0.12s, a 70x improvement.
+- The overall build time was reduced from 33.1s to 25.4s, a 30% increase.
+
+## 🌟 Support for custom server
+
+Rsbuild now supports replacing the dev server with a custom server that reuses Rsbuild's page preview, routing, and module hot update features. This makes it easier to integrate Rsbuild with other Node.js frameworks.
+
+For example, you can implement a custom server based on express:
+
+```ts
+import express from 'express';
+import { createRsbuild } from '@rsbuild/core';
+
+async function startCustomServer() {
+  const app = express();
+  const rsbuild = await createRsbuild({
+    config: {
+      server: {
+        middlewareMode: true,
+      },
+    },
+  });
+  const { port, middlewares } = await rsbuild.createDevServer();
+
+  app.use(middlewares);
+  app.listen(port);
+}
+```
+
+For more details, please refer to [Rsbuild - createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver).
+
+## 🍭 Refactoring SVGR plugin
+
+In versions prior to 0.5.0, the default usage of the SVGR plugin was the same as create-react-app, allowing SVGs to be used via mixed import:
+
+```js
+import logoUrl, { ReactComponent as Logo } from './logo.svg';
+
+console.log(logoUrl); // -> string
+console.log(Logo); // -> React component
+```
+
+However, there are two problems with this approach:
+
+1. **Increased bundle size**: Mixed import causes a single SVG module to be compiled into two types of code (even if some exports are not used), which will increase the bundle size.
+2. **Slow down compiling**: Mixed import will cause extra compilation overhead. Even if the ReactComponent export is not used in the code, the SVG file will still be compiled by SVGR. And SVGR is based on Babel, which has a high performance overhead.
+
+So we have refactored the `@rsbuild/plugin-svgr` plugin to support converting SVGs to React components via the `?react` query. This approach can solve the problems mentioned above, and is more in line with community best practices.
+
+```jsx
+import logoUrl from './logo.svg';
+import Logo from './logo.svg?react';
+
+console.log(logoUrl); // -> string
+console.log(Logo); // -> React component
+```
+
+The SVGR plugin now supports switching between different SVGR usages. If a project needs to use the previous mixed import usage, you can manually enable the [mixedImport](/plugins/list/plugin-svgr#mixedimport) option:
+
+```js
+pluginSvgr({
+  mixedImport: true,
+});
+```
+
+## 📍 Custom minify options
+
+The `output.disableMinimize` option has been renamed to [output.minify](/config/output/minify), and it allows customizing JS and HTML minification options.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: {
+      jsOptions: {
+        minimizerOptions: {
+          mangle: false,
+        },
+      },
+    },
+  },
+};
+```
+
+Projects using `output.disableMinimize` can refer to the example below:
+
+```ts
+export default {
+  output: {
+    disableMinimize: true, // [!code --]
+    minify: false, // [!code ++]
+  },
+};
+```
+
+> See ["allow customize minify options"](https://github.com/web-infra-dev/rsbuild/issues/1681).
+
+---
+
+For more information, please refer to:
+
+- [Rsbuild 0.5.0 Changelog](https://github.com/web-infra-dev/rsbuild/releases/tag/v0.5.0)
+- [Rsbuild 0.5.0 Breaking Changes](https://github.com/web-infra-dev/rsbuild/discussions/1732)
