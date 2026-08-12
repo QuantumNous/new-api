@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 )
 
@@ -81,6 +82,40 @@ func ComputeSecondBilling(
 
 func isPositiveFinite(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+// SeedanceBillableSeconds reports the output length a seedance request will be
+// charged for. It reads only dto.SeedanceVideoRequest — the shared inbound
+// format every seedance channel exposes — so the rule lives here rather than in
+// any one channel: doubao and byteplus both submit to Ark and must not drift.
+//
+// Ark renders 5 seconds when neither duration nor frames is given, which is the
+// seedance family default the sibling adaptors already rely on. Two shapes are
+// unknowable at submit time and must not be guessed:
+//
+//   - frames, which sets the length in frames at a per-model fps the gateway
+//     does not know. It is checked first because the upstream documents frames
+//     and duration as "取其一" — when both are present the model decides which
+//     one wins, so duration is not authoritative either.
+//   - duration -1 (and any other non-positive value), which explicitly hands
+//     the length to the model.
+//
+// Both report false so the caller skips capture and the request keeps its
+// previous billing rather than being priced off a fabricated length.
+func SeedanceBillableSeconds(seedReq *dto.SeedanceVideoRequest) (float64, bool) {
+	if seedReq == nil {
+		return 0, false
+	}
+	if seedReq.Frames != nil {
+		return 0, false
+	}
+	if seedReq.Duration != nil {
+		if *seedReq.Duration <= 0 {
+			return 0, false
+		}
+		return float64(*seedReq.Duration), true
+	}
+	return 5, true
 }
 
 // Canonical resolution vocabulary for price rule Match keys.

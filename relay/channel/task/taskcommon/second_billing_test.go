@@ -4,8 +4,53 @@ import (
 	"math"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 )
+
+func ptrInt(i int) *int { return &i }
+
+// The seedance duration is optional, may be -1 ("let the model decide"), and
+// has a sibling `frames` field the upstream may honour instead. Only a length
+// the gateway can actually know may be billed; every other shape must report
+// false so the calling adaptor skips capture rather than pricing a guessed
+// length. Shared by doubao and byteplus, which both submit to Ark.
+func TestSeedanceBillableSeconds(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration *int
+		frames   *int
+		want     float64
+		wantOK   bool
+	}{
+		{name: "absent defaults to 5s", want: 5, wantOK: true},
+		{name: "explicit 10s", duration: ptrInt(10), want: 10, wantOK: true},
+		{name: "auto length -1 is unknowable", duration: ptrInt(-1)},
+		{name: "zero is unknowable", duration: ptrInt(0)},
+		{name: "frames alone is unknowable", frames: ptrInt(121)},
+		{name: "frames alongside duration is unknowable", duration: ptrInt(5), frames: ptrInt(121)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := dto.SeedanceVideoRequest{Duration: tt.duration, Frames: tt.frames}
+			got, ok := SeedanceBillableSeconds(&req)
+			if ok != tt.wantOK {
+				t.Fatalf("SeedanceBillableSeconds ok = %v, want %v", ok, tt.wantOK)
+			}
+			if ok && got != tt.want {
+				t.Fatalf("SeedanceBillableSeconds = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// A nil request has no knowable length; reporting true would make the caller
+// bill 5 seconds for a request it could not even parse.
+func TestSeedanceBillableSeconds_NilIsUnknowable(t *testing.T) {
+	if _, ok := SeedanceBillableSeconds(nil); ok {
+		t.Fatal("nil request must not resolve to a billable length")
+	}
+}
 
 func TestComputeSecondBilling_OutputDuration(t *testing.T) {
 	rules := []billing_setting.VideoPriceRule{

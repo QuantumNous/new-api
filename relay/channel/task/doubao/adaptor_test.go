@@ -587,36 +587,3 @@ func TestDoubaoSecondBillingRatios_ConfiguredButUnmatchedErrors(t *testing.T) {
 		t.Fatal("a configured model with no matching rule must fail loudly")
 	}
 }
-
-// Doubao's duration is optional, may be -1 ("let the model decide"), and has a
-// sibling `frames` field the upstream may honour instead. Only a length the
-// gateway can actually know may be billed; every other shape must report false
-// so EstimateBilling skips capture rather than pricing a guessed length.
-func TestDoubaoBillableSeconds(t *testing.T) {
-	tests := []struct {
-		name     string
-		duration *int
-		frames   *int
-		want     float64
-		wantOK   bool
-	}{
-		{name: "absent defaults to 5s", want: 5, wantOK: true},
-		{name: "explicit 10s", duration: ptrInt(10), want: 10, wantOK: true},
-		{name: "auto length -1 is unknowable", duration: ptrInt(-1)},
-		{name: "zero is unknowable", duration: ptrInt(0)},
-		{name: "frames alone is unknowable", frames: ptrInt(121)},
-		{name: "frames alongside duration is unknowable", duration: ptrInt(5), frames: ptrInt(121)},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := dto.SeedanceVideoRequest{Duration: tt.duration, Frames: tt.frames}
-			got, ok := billableSeconds(&req)
-			if ok != tt.wantOK {
-				t.Fatalf("billableSeconds ok = %v, want %v", ok, tt.wantOK)
-			}
-			if ok && got != tt.want {
-				t.Fatalf("billableSeconds = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}

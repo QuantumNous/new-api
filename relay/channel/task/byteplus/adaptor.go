@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,6 +39,76 @@ var bytePlusAssetLeaseNow = func() int64 { return time.Now().Unix() }
 // existing Doubao and VolcEngine channels.
 type TaskAdaptor struct {
 	doubao.TaskAdaptor
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	//
+	// These shadow the embedded Doubao adaptor's identically-purposed fields
+	// deliberately. This adaptor overrides EstimateBilling, so Doubao's fields
+	// are never populated on a BytePlus request; without its own state the
+	// promoted SecondBillingRatios would compile, always return (nil, nil), and
+	// silently leave every request on the legacy token-settled path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+// It must be defined here rather than inherited: the promoted Doubao method
+// closes over Doubao's fields, which this adaptor's EstimateBilling never sets.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// ValidateTaskPriceData refuses a per-second-configured model that is not priced
+// with a positive, finite fixed ModelPrice.
+//
+// This channel used to settle every completed task from upstream total_tokens.
+// That recalculation is skipped only when the task is marked PerCallBilling,
+// which controller/relay.go derives from PriceData.UsePrice — true exactly when
+// a ModelPrice entry resolved. So a model configured for per-second billing but
+// priced by ModelRatio would reserve per-second and then be re-priced from
+// tokens at completion, silently contradicting the reservation the customer was
+// quoted. Fail before submission instead. ComputeSecondBilling additionally
+// divides by ModelPrice, so a non-positive one could not be priced at all.
+//
+// Models absent from the price table are untouched: they still need ModelRatio
+// and UsePrice=false for token settlement to work.
+func (a *TaskAdaptor) ValidateTaskPriceData(info *relaycommon.RelayInfo) *dto.TaskError {
+	if info == nil {
+		return service.TaskErrorWrapperLocal(errors.New("missing byteplus relay info"), "model_price_error", http.StatusBadRequest)
+	}
+	if !billing_setting.IsVideoModelConfigured(billing_setting.GetVideoPriceRules(), info.OriginModelName) {
+		return nil
+	}
+	if !info.PriceData.UsePrice || !isPositiveFinite(info.PriceData.ModelPrice) {
+		return service.TaskErrorWrapperLocal(
+			errors.New("model price must be a positive finite fixed price"),
+			"model_price_error", http.StatusBadRequest)
+	}
+	return nil
+}
+
+func isPositiveFinite(v float64) bool {
+	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -48,15 +120,76 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	modelName := strings.TrimSpace(info.OriginModelName)
+	// priceModelName is the client-facing name the administrator prices, and
+	// the only name the per-second table is keyed on. It is deliberately NOT
+	// the legacy path's seedReq.Model fallback below: ValidateTaskPriceData
+	// keys on OriginModelName, so falling back here would price a request the
+	// fixed-price guard never checked, dividing the configured rate by a
+	// ModelPrice resolved for a different name.
+	priceModelName := strings.TrimSpace(info.OriginModelName)
+	modelName := priceModelName
 	if modelName == "" {
 		modelName = seedReq.Model
 	}
-	ratio, ok := getVideoInputRatio(modelName, seedReq.Resolution, len(seedReq.Videos()) > 0)
+	// Ark defaults an omitted resolution to the 720p tier. Naming it explicitly
+	// is behaviour-preserving for getVideoInputRatio — which buckets "" and
+	// "720p" into the same base-tier key — and lets the configured price table
+	// match a rule on the tier actually rendered.
+	resolution := seedReq.Resolution
+	if strings.TrimSpace(resolution) == "" {
+		resolution = "720p"
+	}
+	hasVideo := len(seedReq.Videos()) > 0
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// Task model mapping rewrites info.UpstreamModelName to a private ep-*
+	// endpoint, which must never reach pricing.
+	//
+	// Capture only when the length is actually knowable: a wrong duration would
+	// misprice the request silently, whereas skipping capture leaves it on the
+	// legacy token-settled path, which is the documented previous behaviour.
+	if seconds, ok := taskcommon.SeedanceBillableSeconds(seedReq); ok {
+		if dims, ok := resolveDimensions(resolution, hasVideo); ok {
+			a.secondBillingModel = priceModelName
+			a.secondBillingDims = dims
+			a.secondBillingSeconds = seconds
+			a.secondBillingModelPrice = info.PriceData.ModelPrice
+			a.secondBillingRules = rules
+		}
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy video_input ratio from also applying.
+	if billing_setting.IsVideoModelConfigured(rules, priceModelName) {
+		return nil
+	}
+
+	ratio, ok := getVideoInputRatio(modelName, seedReq.Resolution, hasVideo)
 	if !ok || ratio == 1.0 {
 		return nil
 	}
 	return map[string]float64{"video_input": ratio}
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those. BytePlus
+// serves 480p/720p/1080p/4K, all of which NormalizeResolution classifies.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
 }
 
 func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {

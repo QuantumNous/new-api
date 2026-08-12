@@ -209,7 +209,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// Capture only when the length is actually knowable: a wrong duration would
 	// misprice the request silently, whereas skipping capture leaves it on the
 	// legacy path, which is the documented pre-existing behaviour.
-	if seconds, ok := billableSeconds(seedReq); ok {
+	if seconds, ok := taskcommon.SeedanceBillableSeconds(seedReq); ok {
 		if dims, ok := resolveDimensions(resolution, hasVideo); ok {
 			a.secondBillingModel = info.OriginModelName
 			a.secondBillingDims = dims
@@ -246,34 +246,6 @@ func resolveDimensions(resolution string, hasVideo bool) (map[string]string, boo
 		"resolution": label,
 		"has_video":  has,
 	}, true
-}
-
-// billableSeconds reports the output length this request will be charged for.
-//
-// Ark renders 5 seconds when neither duration nor frames is given, which is the
-// seedance family default the sibling adaptors already rely on. Two shapes are
-// unknowable at submit time and must not be guessed:
-//
-//   - frames, which sets the length in frames at a per-model fps the gateway
-//     does not know. It is checked first because the upstream documents frames
-//     and duration as "取其一" — when both are present the model decides which
-//     one wins, so duration is not authoritative either.
-//   - duration -1 (and any other non-positive value), which explicitly hands
-//     the length to the model.
-//
-// Both report false so the caller skips capture and the request keeps its
-// previous billing rather than being priced off a fabricated length.
-func billableSeconds(seedReq *dto.SeedanceVideoRequest) (float64, bool) {
-	if seedReq.Frames != nil {
-		return 0, false
-	}
-	if seedReq.Duration != nil {
-		if *seedReq.Duration <= 0 {
-			return 0, false
-		}
-		return float64(*seedReq.Duration), true
-	}
-	return 5, true
 }
 
 // doubaoExtensions are optional fields beyond the official seedance schema that
