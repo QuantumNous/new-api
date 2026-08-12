@@ -576,7 +576,25 @@ func RelayTask(c *gin.Context) {
 		Retry:      common.GetPointer(0),
 	}
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	// Non-auto groups: prefer ordered failover list (model order override or Priority snapshot).
+	var orderedChannelIDs []int
+	useOrderedChannels := false
+	if _, locked := relayInfo.LockedChannel.(*model.Channel); !locked {
+		if relayInfo.TokenGroup != "auto" {
+			orderedChannelIDs = service.ResolveTaskFailoverChannelIDs(relayInfo.TokenGroup, relayInfo.OriginModelName)
+			useOrderedChannels = len(orderedChannelIDs) > 0
+		}
+	}
+
+	maxRetry := common.RetryTimes
+	if useOrderedChannels {
+		if n := len(orderedChannelIDs) - 1; n > maxRetry {
+			maxRetry = n
+		}
+	}
+
+	var successChannel *model.Channel
+	for ; retryParam.GetRetry() <= maxRetry; retryParam.IncreaseRetry() {
 		var channel *model.Channel
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
@@ -586,6 +604,22 @@ func RelayTask(c *gin.Context) {
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
 					break
 				}
+			}
+		} else if useOrderedChannels {
+			idx := retryParam.GetRetry()
+			if idx >= len(orderedChannelIDs) {
+				taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("no more failover channels"), "get_channel_failed", http.StatusInternalServerError)
+				break
+			}
+			ch, chErr := model.CacheGetChannel(orderedChannelIDs[idx])
+			if chErr != nil || ch == nil {
+				taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("failover channel #%d missing", orderedChannelIDs[idx]), "get_channel_failed", http.StatusInternalServerError)
+				break
+			}
+			channel = ch
+			if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
+				taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_channel_failed", http.StatusInternalServerError)
+				break
 			}
 		} else {
 			var channelErr *types.NewAPIError
@@ -611,6 +645,7 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			successChannel = channel
 			break
 		}
 
@@ -621,7 +656,8 @@ func RelayTask(c *gin.Context) {
 				types.NewOpenAIError(taskErr.Error, types.ErrorCodeBadResponseStatusCode, taskErr.StatusCode))
 		}
 
-		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
+		remain := maxRetry - retryParam.GetRetry()
+		if !shouldRetryTaskRelay(c, channel.Id, taskErr, remain) {
 			break
 		}
 	}
@@ -643,6 +679,24 @@ func RelayTask(c *gin.Context) {
 			if s, ok := v.(string); ok && s != "" {
 				task.PrivateData.RequestBody = s
 			}
+		}
+		if storage, bodyErr := common.GetBodyStorage(c); bodyErr == nil {
+			if b, bErr := storage.Bytes(); bErr == nil && len(b) > 0 {
+				task.PrivateData.ClientRequestBody = string(b)
+			}
+		}
+		selectGroup := relayInfo.TokenGroup
+		if autoGroup := common.GetContextKeyString(c, constant.ContextKeyAutoGroup); autoGroup != "" {
+			selectGroup = autoGroup
+		}
+		failoverIDs := orderedChannelIDs
+		if len(failoverIDs) == 0 {
+			failoverIDs = service.ResolveTaskFailoverChannelIDs(selectGroup, relayInfo.OriginModelName)
+		}
+		task.PrivateData.FailoverChannelIDs = failoverIDs
+		task.PrivateData.SameChannelMaxRetries = operation_setting.GetTaskSameChannelMaxRetries()
+		if successChannel != nil {
+			task.PrivateData.TriedChannelIDs = []int{successChannel.Id}
 		}
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId

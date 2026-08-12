@@ -229,6 +229,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
 	}
+	// Persist upstream create body for same-channel async resubmit when adaptor did not set it.
+	if _, ok := c.Get(taskcommon.GinKeyUpstreamRequestBody); !ok && requestBody != nil {
+		data, readErr := io.ReadAll(requestBody)
+		if readErr == nil {
+			c.Set(taskcommon.GinKeyUpstreamRequestBody, string(data))
+			requestBody = bytes.NewReader(data)
+		}
+	}
 
 	// 9. 发送请求
 	resp, err := adaptor.DoRequest(c, info, requestBody)
