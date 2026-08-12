@@ -2967,6 +2967,11 @@ exports[`doStream > tool call > should stream tool call 1`] = `
     "type": "tool-input-delta",
   },
   {
+    "delta": "",
+    "id": "call_eee11723464a4b9eb8cee71d",
+    "type": "tool-input-delta",
+  },
+  {
     "id": "call_eee11723464a4b9eb8cee71d",
     "type": "tool-input-end",
   },

@@ -15,6 +15,7 @@ export type ResponsesProviderMetadata = {
   responseId: string | null | undefined;
   logprobs?: Array<OpenAIResponsesLogprobs>;
   serviceTier?: string;
+  reasoningContext?: string;
 };
 
 export type ResponsesReasoningProviderMetadata = {

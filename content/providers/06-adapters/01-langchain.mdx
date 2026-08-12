@@ -18,17 +18,7 @@ enabling you to use LangChain models and LangGraph agents with AI SDK UI compone
 
 ## Installation
 
-<Tabs items={['pnpm', 'npm', 'yarn']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/langchain @langchain/core" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/langchain @langchain/core" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/langchain @langchain/core" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/langchain @langchain/core" />
 
 <Note>`@langchain/core` is a required peer dependency.</Note>
 
@@ -472,7 +462,7 @@ const langchainMessages = convertModelMessages(modelMessages);
 
 **Returns:** `BaseMessage[]`
 
-### `toUIMessageStream(stream)`
+### `toUIMessageStream(stream, options?)`
 
 Converts a LangChain/LangGraph stream to an AI SDK `UIMessageStream`. Automatically detects the stream type and handles direct model streams, LangGraph streams, and `streamEvents()` output.
 
@@ -505,8 +495,47 @@ return createUIMessageStreamResponse({
 **Parameters:**
 
 - `stream`: `AsyncIterable<AIMessageChunk> | ReadableStream` - LangChain model stream, LangGraph stream, or `streamEvents()` output
+- `options`: `ToUIMessageStreamOptions<TState>` (optional)
+  - `sendStart`: Whether to emit the outer `start` chunk. Defaults to `true`.
+  - `sendFinish`: Whether to emit the outer `finish` chunk. Defaults to `true`.
+  - `onStart`, `onToken`, `onText`, `onFinal`, `onFinish`, `onError`, and `onAbort`: Optional stream lifecycle callbacks.
 
 **Returns:** `ReadableStream<UIMessageChunk>`
+
+#### Composing into a caller-owned stream
+
+By default, `toUIMessageStream` emits outer `start` and `finish` chunks. When
+the caller owns the message lifecycle, suppress those chunks to avoid duplicate
+boundaries. All converted text, reasoning, tool, data, and step chunks remain
+unchanged.
+
+```ts
+import { toUIMessageStream } from '@ai-sdk/langchain';
+import { createUIMessageStream } from 'ai';
+
+const stream = createUIMessageStream({
+  async execute({ writer }) {
+    writer.write({ type: 'start' });
+
+    const reader = toUIMessageStream(langchainStream, {
+      sendStart: false,
+      sendFinish: false,
+    }).getReader();
+
+    while (true) {
+      const { done, value: chunk } = await reader.read();
+      if (done) break;
+      writer.write(chunk);
+    }
+
+    writer.write({ type: 'finish' });
+  },
+});
+```
+
+Set either option independently when the caller owns only one lifecycle
+boundary. If a boundary is suppressed, the caller is responsible for supplying
+it when the final stream protocol requires it.
 
 ### `LangSmithDeploymentTransport`
 

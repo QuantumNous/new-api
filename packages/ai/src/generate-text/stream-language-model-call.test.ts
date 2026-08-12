@@ -8,7 +8,7 @@ import {
   convertReadableStreamToArray,
 } from '@ai-sdk/provider-utils/test';
 import { describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { NoSuchToolError } from '../error/no-such-tool-error';
 import { MockLanguageModelV4 } from '../test/mock-language-model-v4';
 import type {

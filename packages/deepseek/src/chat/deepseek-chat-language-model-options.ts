@@ -27,6 +27,13 @@ export const deepseekLanguageModelChatOptions = z.object({
    * is mapped to `max` server-side for compatibility with other providers.
    */
   reasoningEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+
+  /**
+   * Whether to use strict JSON schema validation for structured outputs.
+   * Only applies when the serving endpoint supports JSON schema response
+   * formats (e.g. Azure). Defaults to `true`.
+   */
+  strictJsonSchema: z.boolean().optional(),
 });
 
 export type DeepSeekLanguageModelChatOptions = z.infer<

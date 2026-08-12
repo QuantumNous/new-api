@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { InvalidArgumentError } from '@ai-sdk/provider';
 import { createOpenAI } from './openai-provider';
 
 vi.mock('./version', () => ({
@@ -93,6 +94,38 @@ describe('createOpenAI', () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
       const call = fetchMock.mock.calls[0]!;
       expect(call[0]).toBe('https://option.openai.example/v1/embeddings');
+    });
+
+    it('rejects an empty baseURL option during provider creation', () => {
+      expect(() =>
+        createOpenAI({
+          apiKey: 'test-api-key',
+          baseURL: '',
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          name: 'AI_InvalidArgumentError',
+          argument: 'baseURL',
+          message: 'baseURL must be a non-empty string.',
+        }),
+      );
+    });
+
+    it('rejects an empty OPENAI_BASE_URL during provider creation', () => {
+      process.env.OPENAI_BASE_URL = '';
+
+      try {
+        createOpenAI({ apiKey: 'test-api-key' });
+      } catch (error) {
+        expect(InvalidArgumentError.isInstance(error)).toBe(true);
+        expect(error).toMatchObject({
+          argument: 'baseURL',
+          message: 'baseURL must be a non-empty string.',
+        });
+        return;
+      }
+
+      throw new Error('Expected createOpenAI to reject an empty base URL.');
     });
 
     it('uses the Responses API for the default language model', async () => {

@@ -11,7 +11,9 @@ run(async () => {
     timeout: 10 * 60 * 1000,
   });
   const agent = new HarnessAgent({
-    harness: createClaudeCode({ thinking: 'adaptive' }),
+    harness: createClaudeCode({
+      thinking: { type: 'adaptive', display: 'summarized' },
+    }),
     sandbox,
   });
 

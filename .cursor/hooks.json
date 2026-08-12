@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": "pnpm fix"
+      }
+    ]
+  },
+  "version": 1
+}

@@ -29,8 +29,8 @@ const myAnthropic = customProvider({
 const myOpenAI = customProvider({
   languageModels: {
     // replacement model with custom provider options:
-    'gpt-5': wrapLanguageModel({
-      model: openai('gpt-5'),
+    'gpt-5.6': wrapLanguageModel({
+      model: openai('gpt-5.6'),
       middleware: defaultSettingsMiddleware({
         settings: {
           providerOptions: {

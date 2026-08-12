@@ -47,7 +47,8 @@ describe('StreamingToolCallTracker', () => {
 
       parts.length = 0;
 
-      // Third delta: completes the JSON
+      // Third delta: completes the JSON — must not finalize before flush,
+      // since a parsable buffer can still be the prefix of longer arguments
       tracker.processDelta({
         index: 0,
         function: { arguments: ' Francisco"}' },
@@ -59,6 +60,13 @@ describe('StreamingToolCallTracker', () => {
           id: 'call_1',
           delta: ' Francisco"}',
         },
+      ]);
+
+      parts.length = 0;
+
+      tracker.flush();
+
+      expect(parts).toEqual([
         { type: 'tool-input-end', id: 'call_1' },
         {
           type: 'tool-call',
@@ -90,6 +98,13 @@ describe('StreamingToolCallTracker', () => {
           id: 'call_1',
           delta: '{"city": "London"}',
         },
+      ]);
+
+      parts.length = 0;
+
+      tracker.flush();
+
+      expect(parts).toEqual([
         { type: 'tool-input-end', id: 'call_1' },
         {
           type: 'tool-call',
@@ -98,6 +113,40 @@ describe('StreamingToolCallTracker', () => {
           input: '{"city": "London"}',
         },
       ]);
+    });
+
+    it('should not finalize a tool call when its argument prefix is parsable JSON', () => {
+      const { parts, controller } = createCollector();
+      const tracker = new StreamingToolCallTracker(controller);
+
+      tracker.processDelta({
+        index: 0,
+        id: 'call_1',
+        type: 'function',
+        function: { name: 'search', arguments: '{"query": "test"}' },
+      });
+
+      // the parsable prefix must not emit tool-input-end / tool-call
+      expect(parts.map(part => part.type)).toEqual([
+        'tool-input-start',
+        'tool-input-delta',
+      ]);
+
+      tracker.processDelta({
+        index: 0,
+        function: { arguments: ', "limit": 10}' },
+      });
+
+      tracker.flush();
+
+      expect(parts.at(-1)).toEqual({
+        type: 'tool-call',
+        toolCallId: 'call_1',
+        toolName: 'search',
+        input: '{"query": "test"}, "limit": 10}',
+      });
+
+      expect(parts.filter(part => part.type === 'tool-call')).toHaveLength(1);
     });
 
     it('should handle multiple concurrent tool calls', () => {
@@ -128,13 +177,15 @@ describe('StreamingToolCallTracker', () => {
       const { parts, controller } = createCollector();
       const tracker = new StreamingToolCallTracker(controller);
 
-      // Complete tool call in one chunk
       tracker.processDelta({
         index: 0,
         id: 'call_1',
         type: 'function',
         function: { name: 'fn', arguments: '{}' },
       });
+
+      // Finalize via flush
+      tracker.flush();
 
       parts.length = 0;
 
@@ -324,13 +375,15 @@ describe('StreamingToolCallTracker', () => {
       const { parts, controller } = createCollector();
       const tracker = new StreamingToolCallTracker(controller);
 
-      // Complete tool call in one chunk
       tracker.processDelta({
         index: 0,
         id: 'call_1',
         type: 'function',
         function: { name: 'fn', arguments: '{}' },
       });
+
+      // First flush finalizes the tool call
+      tracker.flush();
 
       parts.length = 0;
 
@@ -364,6 +417,8 @@ describe('StreamingToolCallTracker', () => {
         function: { name: 'fn', arguments: '{}' },
         extra_content: { google: { thought_signature: 'sig123' } },
       } as any);
+
+      tracker.flush();
 
       const toolCallEvent = parts.find(p => p.type === 'tool-call');
       expect(toolCallEvent).toEqual({
@@ -420,6 +475,8 @@ describe('StreamingToolCallTracker', () => {
         type: 'function',
         function: { name: 'fn', arguments: '{}' },
       });
+
+      tracker.flush();
 
       const toolCallEvent = parts.find(p => p.type === 'tool-call');
       expect(toolCallEvent).toEqual({

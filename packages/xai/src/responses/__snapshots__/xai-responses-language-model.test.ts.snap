@@ -11500,6 +11500,12 @@ exports[`XaiResponsesLanguageModel > doStream > text streaming > should stream w
     "type": "tool-call",
   },
   {
+    "result": {},
+    "toolCallId": "fc_98a8d4aa-fc8b-fd93-e673-d5a8f1c9cee8_0",
+    "toolName": "web_search",
+    "type": "tool-result",
+  },
+  {
     "id": "text-msg_98a8d4aa-fc8b-fd93-e673-d5a8f1c9cee8",
     "type": "text-start",
   },
@@ -12950,6 +12956,12 @@ exports[`XaiResponsesLanguageModel > doStream > text streaming > should stream x
     "type": "tool-call",
   },
   {
+    "result": {},
+    "toolCallId": "ctc_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_xs_call_24148162",
+    "toolName": "x_search",
+    "type": "tool-result",
+  },
+  {
     "id": "ws_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_call_55360208",
     "toolName": "web_search",
     "type": "tool-input-start",
@@ -13034,6 +13046,30 @@ exports[`XaiResponsesLanguageModel > doStream > text streaming > should stream x
     "type": "tool-call",
   },
   {
+    "result": {},
+    "toolCallId": "ws_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_call_09546004",
+    "toolName": "web_search",
+    "type": "tool-result",
+  },
+  {
+    "result": {},
+    "toolCallId": "ws_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_call_45339693",
+    "toolName": "web_search",
+    "type": "tool-result",
+  },
+  {
+    "result": {},
+    "toolCallId": "ws_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_call_55360208",
+    "toolName": "web_search",
+    "type": "tool-result",
+  },
+  {
+    "result": {},
+    "toolCallId": "ws_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_call_63718660",
+    "toolName": "web_search",
+    "type": "tool-result",
+  },
+  {
     "id": "ctc_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_xs_call_14963218",
     "toolName": "view_x_video",
     "type": "tool-input-start",
@@ -13053,6 +13089,12 @@ exports[`XaiResponsesLanguageModel > doStream > text streaming > should stream x
     "toolCallId": "ctc_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_xs_call_14963218",
     "toolName": "view_x_video",
     "type": "tool-call",
+  },
+  {
+    "result": {},
+    "toolCallId": "ctc_b7b464ea-cc85-d44a-0f2f-1f7320e703c3_xs_call_14963218",
+    "toolName": "view_x_video",
+    "type": "tool-result",
   },
   {
     "id": "text-msg_b7b464ea-cc85-d44a-0f2f-1f7320e703c3",

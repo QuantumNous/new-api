@@ -42,7 +42,7 @@ run(async () => {
     },
     prompt: 'What are the tourist attractions in San Francisco?',
 
-    experimental_repairToolCall: async ({
+    repairToolCall: async ({
       toolCall,
       tools,
       error,

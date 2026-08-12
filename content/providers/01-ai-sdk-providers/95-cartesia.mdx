@@ -1,0 +1,319 @@
+---
+title: Cartesia
+description: Learn how to use the Cartesia provider for the AI SDK.
+---
+
+# Cartesia Provider
+
+The [Cartesia](https://cartesia.ai/) provider contains Sonic speech generation,
+Ink-Whisper batch transcription, and Ink 2 realtime and streaming transcription
+support.
+
+## Setup
+
+The Cartesia provider is available in the `@ai-sdk/cartesia` module. You can install it with
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @ai-sdk/cartesia" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @ai-sdk/cartesia" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @ai-sdk/cartesia" dark />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add @ai-sdk/cartesia" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+You can import the default provider instance `cartesia` from `@ai-sdk/cartesia`:
+
+```ts
+import { cartesia } from '@ai-sdk/cartesia';
+```
+
+If you need a customized setup, you can import `createCartesia` from `@ai-sdk/cartesia` and create a provider instance with your settings:
+
+```ts
+import { createCartesia } from '@ai-sdk/cartesia';
+
+const cartesia = createCartesia({
+  // custom settings, e.g.
+  fetch: customFetch,
+});
+```
+
+You can use the following optional settings to customize the Cartesia provider instance:
+
+- **apiKey** _string_
+
+  API key that is being sent using the `Authorization` header.
+  It defaults to the `CARTESIA_API_KEY` environment variable.
+
+- **version** _string_
+
+  The Cartesia API version to use (sent via the `Cartesia-Version` header).
+
+- **headers** _Record&lt;string,string&gt;_
+
+  Custom headers to include in the requests.
+
+- **fetch** _(input: RequestInfo, init?: RequestInit) => Promise&lt;Response&gt;_
+
+  Custom [fetch](https://developer.mozilla.org/en-US/docs/Web/API/fetch) implementation.
+  Defaults to the global `fetch` function.
+  You can use it as a middleware to intercept requests,
+  or to provide a custom fetch implementation for e.g. testing.
+
+- **webSocket** _WebSocketConstructor_
+
+  Custom WebSocket implementation for Ink 2 streaming transcription.
+  Defaults to the global `WebSocket` constructor.
+
+## Speech Models
+
+You can create models that call the [Cartesia text-to-speech API](https://docs.cartesia.ai/api-reference/tts/bytes)
+using the `.speech()` factory method.
+
+The first argument is the model id, e.g. `sonic-3.5`.
+
+```ts
+const model = cartesia.speech('sonic-3.5');
+```
+
+You can use the model with the `generateSpeech` function. Cartesia requires a `voice` id:
+
+```ts
+import { generateSpeech } from 'ai';
+import { cartesia } from '@ai-sdk/cartesia';
+
+const result = await generateSpeech({
+  model: cartesia.speech('sonic-3.5'),
+  text: 'Hello, world!',
+  voice: '694f9389-aac1-45b6-b726-9d9369183238',
+});
+```
+
+You can also pass additional provider-specific options using the `providerOptions` argument:
+
+```ts highlight="7-12"
+import { generateSpeech } from 'ai';
+import { cartesia, type CartesiaSpeechModelOptions } from '@ai-sdk/cartesia';
+
+const result = await generateSpeech({
+  model: cartesia.speech('sonic-3.5'),
+  text: 'Hello, world!',
+  voice: '694f9389-aac1-45b6-b726-9d9369183238',
+  providerOptions: {
+    cartesia: {
+      container: 'wav',
+      encoding: 'pcm_s16le',
+      sampleRate: 24000,
+    } satisfies CartesiaSpeechModelOptions,
+  },
+});
+```
+
+The following provider options are available:
+
+- **container** _string_
+
+  Container format for the output audio.
+  Supported values: `'raw'`, `'wav'`, `'mp3'`.
+  Optional.
+
+- **encoding** _string_
+
+  Encoding type for the audio output.
+  Supported values: `'pcm_f32le'`, `'pcm_s16le'`, `'pcm_mulaw'`, `'pcm_alaw'`.
+  Optional.
+
+- **sampleRate** _number_
+
+  Sample rate for the output audio in Hz (e.g. `8000`, `16000`, `22050`, `24000`, `44100`, `48000`).
+  Optional.
+
+- **bitRate** _number_
+
+  Bitrate for `mp3` output in bits per second (e.g. `32000`, `64000`, `128000`, `192000`).
+  Optional.
+
+- **speed** _number_
+
+  Controls the speed of the generated speech between `0.6` and `1.5`.
+  Optional.
+
+- **language** _string_
+
+  The language to generate speech in (ISO 639-1 code).
+  Optional.
+
+### Model Capabilities
+
+| Model          |
+| -------------- |
+| `sonic-3.5`    |
+| `sonic-3`      |
+| `sonic-2`      |
+| `sonic-turbo`  |
+| `sonic-latest` |
+
+## Realtime Transcription Models
+
+<Note type="warning">Realtime is an experimental feature.</Note>
+
+You can create a model for Cartesia's realtime [Ink 2](https://docs.cartesia.ai/build-with-cartesia/stt/latest)
+API using the `.experimental_realtime()` factory method:
+
+```ts
+import { cartesia } from '@ai-sdk/cartesia';
+
+const model = cartesia.experimental_realtime('ink-2');
+```
+
+Realtime sessions run in the browser and require a short-lived access token
+created on your server with `cartesia.experimental_realtime.getToken()`:
+
+```ts
+const token = await cartesia.experimental_realtime.getToken({
+  model: 'ink-2',
+  sessionConfig: {
+    inputAudioFormat: { type: 'audio/pcm', rate: 24000 },
+    inputAudioTranscription: { language: 'en' },
+    turnDetection: { type: 'server-vad' },
+  },
+});
+```
+
+Ink 2 produces input transcription events and supports English audio. Turn
+detection is enabled by default. To use manual finalization instead, set
+`turnDetection` to `null` in the session config and call `commitAudio()` when
+the current input is complete.
+
+See [Realtime](/docs/ai-sdk-core/realtime) for the complete browser session
+setup.
+
+### Model Capabilities
+
+| Model   | Streaming Transcription | Turn Detection      |
+| ------- | ----------------------- | ------------------- |
+| `ink-2` | <Check size={18} />     | <Check size={18} /> |
+
+## Streaming Transcription Models
+
+<Note type="warning">Streaming transcription is an experimental feature.</Note>
+
+Ink 2 is also available through the transcription streaming API. Create the
+model with `.transcription()` and pass it to `experimental_streamTranscribe`:
+
+```ts
+import { cartesia } from '@ai-sdk/cartesia';
+import { experimental_streamTranscribe as streamTranscribe } from 'ai';
+
+const result = streamTranscribe({
+  model: cartesia.transcription('ink-2'),
+  audio, // ReadableStream<Uint8Array | string> containing raw audio chunks
+  inputAudioFormat: { type: 'audio/pcm', rate: 24000 },
+  providerOptions: {
+    cartesia: {
+      language: 'en',
+    },
+  },
+});
+
+for await (const part of result.fullStream) {
+  if (part.type === 'transcript-partial') {
+    console.log('partial:', part.text);
+  }
+
+  if (part.type === 'transcript-final') {
+    console.log('final:', part.text);
+  }
+}
+```
+
+The provider creates a short-lived, STT-scoped Cartesia access token before
+opening the WebSocket, so the API key is not included in the WebSocket URL.
+Send audio chunks at approximately their playback rate; Cartesia's realtime
+endpoint is intended for live audio rather than bulk file upload.
+
+Ink 2 supports English audio and uses Cartesia's native turn detection by
+default. To finalize only when the input audio stream ends, pass
+`providerOptions.cartesia.streaming.turnDetection: false`.
+
+See [Transcription](/docs/ai-sdk-core/transcription) for more information about
+streaming transcription.
+
+### Model Capabilities
+
+| Model   | Streaming Transcription | Turn Detection      |
+| ------- | ----------------------- | ------------------- |
+| `ink-2` | <Check size={18} />     | <Check size={18} /> |
+
+## Batch Transcription Models
+
+You can create models that call the [Cartesia transcription API](https://docs.cartesia.ai/api-reference/stt/transcribe)
+using the `.transcription()` factory method.
+
+The first argument is the model id e.g. `ink-whisper`.
+
+```ts
+const model = cartesia.transcription('ink-whisper');
+```
+
+You can use the model with the `transcribe` function:
+
+```ts
+import { transcribe } from 'ai';
+import { cartesia } from '@ai-sdk/cartesia';
+import { readFile } from 'fs/promises';
+
+const result = await transcribe({
+  model: cartesia.transcription('ink-whisper'),
+  audio: await readFile('audio.mp3'),
+});
+```
+
+You can also pass additional provider-specific options using the `providerOptions` argument:
+
+```ts highlight="11-15"
+import { transcribe } from 'ai';
+import {
+  cartesia,
+  type CartesiaTranscriptionModelOptions,
+} from '@ai-sdk/cartesia';
+import { readFile } from 'fs/promises';
+
+const result = await transcribe({
+  model: cartesia.transcription('ink-whisper'),
+  audio: await readFile('audio.mp3'),
+  providerOptions: {
+    cartesia: {
+      language: 'en',
+    } satisfies CartesiaTranscriptionModelOptions,
+  },
+});
+```
+
+The following provider options are available:
+
+- **language** _string_
+
+  The language of the audio (ISO 639-1 code). If not specified, it defaults to English.
+  Optional.
+
+- **timestampGranularities** _array of strings_
+
+  The timestamp granularities to populate. Currently only `'word'` is supported.
+  Optional.
+
+### Model Capabilities
+
+| Model         | Transcription       | Duration            | Segments            | Language            |
+| ------------- | ------------------- | ------------------- | ------------------- | ------------------- |
+| `ink-whisper` | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |

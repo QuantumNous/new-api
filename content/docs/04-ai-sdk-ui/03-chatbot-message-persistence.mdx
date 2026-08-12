@@ -96,7 +96,7 @@ When processing messages on the server that contain tool calls, custom metadata,
 
 When your messages include tool calls, validate them against your tool definitions:
 
-```tsx filename="app/api/chat/route.ts" highlight="9-27,34-39"
+```tsx filename="app/api/chat/route.ts" highlight="7-8,14-27,35-45"
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
@@ -286,7 +286,7 @@ export default function Chat({
 
 When loading messages from storage that contain tools, metadata, or custom data
 parts, validate them using `validateUIMessages` before processing (see the
-[validation section](#validating-messages-from-database) above).
+[validation section](#validating-messages-on-the-server) above).
 
 </Note>
 
@@ -416,7 +416,7 @@ export async function POST(req: Request) {
 
 Alternatively, you can use `createUIMessageStream` to control the message ID by writing a start message part:
 
-```tsx filename="app/api/chat/route.ts" highlight="9-19"
+```tsx filename="app/api/chat/route.ts" highlight="14-18,25-27"
 import {
   generateId,
   streamText,

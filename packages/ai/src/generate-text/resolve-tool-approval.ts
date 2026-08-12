@@ -9,6 +9,7 @@ import type {
   ToolApprovalConfiguration,
   ToolApprovalStatus,
 } from './tool-approval-configuration';
+import { getOwn } from '../util/get-own';
 import type { TypedToolCall } from './tool-call';
 import { validateToolContext } from './validate-tool-context';
 
@@ -75,13 +76,17 @@ export async function resolveToolApproval<
   }
 
   const toolName = toolCall.toolName;
-  const tool = tools?.[toolName];
+  // `toolName` can be client-controlled, so look tools/approvals up by own
+  // property only: a name that matches an inherited object property (e.g.
+  // `constructor`, `toString`) resolves to "no such tool"/"unconfigured"
+  // instead of a value on `Object.prototype`.
+  const tool = getOwn(tools, toolName);
 
   // assume that the input has been validated and matches the tool's input schema
   const input = toolCall.input as InferToolInput<TOOLS[keyof TOOLS]>;
 
   // user-defined per-tool approval
-  const userDefinedToolApprovalStatus = toolApproval?.[toolName];
+  const userDefinedToolApprovalStatus = getOwn(toolApproval, toolName);
   if (userDefinedToolApprovalStatus != null) {
     const approvalStatus: ToolApprovalStatus | undefined =
       typeof userDefinedToolApprovalStatus === 'function'
@@ -90,8 +95,7 @@ export async function resolveToolApproval<
             messages,
             toolContext: await validateToolContext({
               toolName,
-              context:
-                toolsContext?.[toolName as keyof InferToolSetContext<TOOLS>],
+              context: getOwn(toolsContext, toolName),
               contextSchema: tool?.contextSchema,
             }),
             runtimeContext,
@@ -113,8 +117,7 @@ export async function resolveToolApproval<
           messages,
           context: await validateToolContext({
             toolName,
-            context:
-              toolsContext?.[toolName as keyof InferToolSetContext<TOOLS>],
+            context: getOwn(toolsContext, toolName),
             contextSchema: tool?.contextSchema,
           }),
         })

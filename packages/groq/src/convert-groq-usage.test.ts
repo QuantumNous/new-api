@@ -216,6 +216,71 @@ describe('convertGroqUsage', () => {
     });
   });
 
+  it('should map cached_tokens to cacheRead and subtract from noCache', () => {
+    const result = convertGroqUsage({
+      prompt_tokens: 4641,
+      completion_tokens: 1817,
+      prompt_tokens_details: {
+        cached_tokens: 4608,
+      },
+    });
+
+    expect(result).toStrictEqual({
+      inputTokens: {
+        total: 4641,
+        noCache: 33, // 4641 - 4608
+        cacheRead: 4608,
+        cacheWrite: undefined,
+      },
+      outputTokens: {
+        total: 1817,
+        text: 1817,
+        reasoning: undefined,
+      },
+      raw: {
+        prompt_tokens: 4641,
+        completion_tokens: 1817,
+        prompt_tokens_details: {
+          cached_tokens: 4608,
+        },
+      },
+    });
+  });
+
+  it('should treat zero cached_tokens as a cache miss (cacheRead 0)', () => {
+    const result = convertGroqUsage({
+      prompt_tokens: 20,
+      completion_tokens: 10,
+      prompt_tokens_details: {
+        cached_tokens: 0,
+      },
+    });
+
+    expect(result.inputTokens).toStrictEqual({
+      total: 20,
+      noCache: 20,
+      cacheRead: 0,
+      cacheWrite: undefined,
+    });
+  });
+
+  it('should leave cacheRead undefined when cached_tokens is null', () => {
+    const result = convertGroqUsage({
+      prompt_tokens: 20,
+      completion_tokens: 10,
+      prompt_tokens_details: {
+        cached_tokens: null,
+      },
+    });
+
+    expect(result.inputTokens).toStrictEqual({
+      total: 20,
+      noCache: 20,
+      cacheRead: undefined,
+      cacheWrite: undefined,
+    });
+  });
+
   it('should handle missing prompt_tokens and completion_tokens', () => {
     const result = convertGroqUsage({});
 

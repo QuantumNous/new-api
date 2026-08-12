@@ -837,8 +837,16 @@ describe('ByteDanceVideoModel', () => {
       await model.doGenerate({
         ...defaultOptions,
         inputReferences: [
-          { type: 'url', url: 'https://example.com/ref1.png' },
-          { type: 'url', url: 'https://example.com/ref2.png' },
+          {
+            type: 'url',
+            url: 'https://example.com/ref1.png',
+            mediaType: 'image/png',
+          },
+          {
+            type: 'url',
+            url: 'https://example.com/ref2.png',
+            mediaType: 'image/png',
+          },
         ],
       });
 
@@ -856,6 +864,139 @@ describe('ByteDanceVideoModel', () => {
         {
           type: 'image_url',
           image_url: { url: 'https://example.com/ref2.png' },
+          role: 'reference_image',
+        },
+      ]);
+    });
+
+    it('should add a reference video from inputReferences with video media type', async () => {
+      const model = createBasicModel({
+        modelId: 'dreamina-seedance-2-0-260128',
+      });
+
+      await model.doGenerate({
+        ...defaultOptions,
+        inputReferences: [
+          {
+            type: 'url',
+            url: 'https://example.com/a.mp4',
+            mediaType: 'video/mp4',
+          },
+        ],
+      });
+
+      const requestBody = await server.calls[0].requestBodyJson;
+      expect(requestBody.content).toStrictEqual([
+        {
+          type: 'text',
+          text: prompt,
+        },
+        {
+          type: 'video_url',
+          video_url: { url: 'https://example.com/a.mp4' },
+          role: 'reference_video',
+        },
+      ]);
+    });
+
+    it('should add a reference image from inputReferences with image media type', async () => {
+      const model = createBasicModel({
+        modelId: 'dreamina-seedance-2-0-260128',
+      });
+
+      await model.doGenerate({
+        ...defaultOptions,
+        inputReferences: [
+          {
+            type: 'url',
+            url: 'https://example.com/a.png',
+            mediaType: 'image/png',
+          },
+        ],
+      });
+
+      const requestBody = await server.calls[0].requestBodyJson;
+      expect(requestBody.content).toStrictEqual([
+        {
+          type: 'text',
+          text: prompt,
+        },
+        {
+          type: 'image_url',
+          image_url: { url: 'https://example.com/a.png' },
+          role: 'reference_image',
+        },
+      ]);
+    });
+
+    it('should route a mix of video and image inputReferences by media type', async () => {
+      const model = createBasicModel({
+        modelId: 'dreamina-seedance-2-0-260128',
+      });
+
+      await model.doGenerate({
+        ...defaultOptions,
+        inputReferences: [
+          {
+            type: 'url',
+            url: 'https://example.com/a.mp4',
+            mediaType: 'video/mp4',
+          },
+          {
+            type: 'url',
+            url: 'https://example.com/b.png',
+            mediaType: 'image/png',
+          },
+        ],
+      });
+
+      const requestBody = await server.calls[0].requestBodyJson;
+      expect(requestBody.content).toStrictEqual([
+        {
+          type: 'text',
+          text: prompt,
+        },
+        {
+          type: 'video_url',
+          video_url: { url: 'https://example.com/a.mp4' },
+          role: 'reference_video',
+        },
+        {
+          type: 'image_url',
+          image_url: { url: 'https://example.com/b.png' },
+          role: 'reference_image',
+        },
+      ]);
+    });
+
+    it('should warn when a URL inputReference has no mediaType and treat it as an image reference', async () => {
+      const model = createBasicModel({
+        modelId: 'dreamina-seedance-2-0-260128',
+      });
+
+      const result = await model.doGenerate({
+        ...defaultOptions,
+        inputReferences: [{ type: 'url', url: 'https://example.com/a.mp4' }],
+      });
+
+      expect(result.warnings).toContainEqual({
+        type: 'unsupported',
+        feature: 'inputReferences',
+        details:
+          'ByteDance requires an explicit mediaType to route URL references as ' +
+          'video or image. Pass { data: url, mediaType: "video/mp4" } for video ' +
+          'references. The reference was treated as an image.',
+      });
+
+      const requestBody = await server.calls[0].requestBodyJson;
+      expect(requestBody.content).toStrictEqual([
+        {
+          type: 'text',
+          text: prompt,
+        },
+        {
+          type: 'image_url',
+          image_url: { url: 'https://example.com/a.mp4' },
           role: 'reference_image',
         },
       ]);

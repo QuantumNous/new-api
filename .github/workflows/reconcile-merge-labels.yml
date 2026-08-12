@@ -1,0 +1,272 @@
+# Reconcile issue labels for merged pull requests.
+#
+# TRACKING_START_DATE limits the initial rollout to recent merges. To backfill,
+# move it backward in small increments; processed pull requests are excluded by
+# their task-merge-tracking-* labels, so repeated runs are safe.
+
+name: Reconcile Merge Labels
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Log intended label changes without applying them
+        type: boolean
+        default: true
+
+concurrency:
+  group: reconcile-merge-labels
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  TRACKING_START_DATE: '2026-07-16'
+
+jobs:
+  reconcile:
+    name: Reconcile Merge Labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository_owner == 'vercel'
+    env:
+      DRY_RUN: ${{ inputs.dry_run || false }}
+    steps:
+      - name: Reconcile labels
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const trackingStartDate = process.env.TRACKING_START_DATE;
+            const dryRun = process.env.DRY_RUN === 'true';
+            const { owner, repo } = context.repo;
+            const targetBases = ['main', 'release-v6.0', 'release-v5.0'];
+            const processedLabels = [
+              'task-merge-tracking-done',
+              'task-merge-tracking-no-issue',
+            ];
+            const summary = {
+              scanned: 0,
+              tracked: 0,
+              skipped: 0,
+              withoutIssue: 0,
+              failures: 0,
+            };
+
+            const escapeRegExp = value =>
+              value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            const repositoryReference = `${escapeRegExp(owner)}/${escapeRegExp(repo)}`;
+            const closingReferencePattern = new RegExp(
+              [
+                '\\b(?:close[sd]?|fix(?:e[sd]?|ed)?|resolve[sd]?)',
+                '\\s*:?\\s*<?',
+                `(?:#(\\d+)|${repositoryReference}#(\\d+)|`,
+                `https?:\\/\\/github\\.com\\/${repositoryReference}\\/issues\\/(\\d+))`,
+                '\\b>?',
+              ].join(''),
+              'gi',
+            );
+
+            function getClosingIssueNumbers(body) {
+              const bodyWithoutComments = body.replace(/<!--[\s\S]*?(?:-->|$)/g, '');
+              const issueNumbers = [];
+              let match;
+
+              while ((match = closingReferencePattern.exec(bodyWithoutComments)) !== null) {
+                issueNumbers.push(Number(match[1] ?? match[2] ?? match[3]));
+              }
+
+              return issueNumbers;
+            }
+
+            function getMergedLabel(baseBranch) {
+              if (baseBranch === 'main') {
+                return 'merged-main';
+              }
+
+              const releaseMatch = /^release-(v.+)$/.exec(baseBranch);
+              return releaseMatch ? `merged-${releaseMatch[1]}` : undefined;
+            }
+
+            async function findFirstIssue(body) {
+              const seen = new Set();
+
+              for (const issueNumber of getClosingIssueNumbers(body)) {
+                if (seen.has(issueNumber)) {
+                  continue;
+                }
+                seen.add(issueNumber);
+
+                try {
+                  const { data: issue } = await github.rest.issues.get({
+                    owner,
+                    repo,
+                    issue_number: issueNumber,
+                  });
+
+                  if (issue.pull_request == null) {
+                    return issueNumber;
+                  }
+
+                  core.info(
+                    `Ignoring #${issueNumber}: the reference points to a pull request.`,
+                  );
+                } catch (error) {
+                  if (error.status === 404 || error.status === 410) {
+                    core.info(
+                      `Ignoring #${issueNumber}: no accessible issue exists with that number.`,
+                    );
+                    continue;
+                  }
+                  throw error;
+                }
+              }
+
+              return undefined;
+            }
+
+            async function addLabel(issueNumber, label, targetDescription) {
+              if (dryRun) {
+                core.info(`[dry-run] Would add ${label} to ${targetDescription}.`);
+                return;
+              }
+
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                labels: [label],
+              });
+            }
+
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(trackingStartDate)) {
+              summary.failures++;
+              core.error(
+                `TRACKING_START_DATE must use YYYY-MM-DD format; received ${trackingStartDate}.`,
+              );
+            } else {
+              core.info(
+                `Reconciling merges since ${trackingStartDate}; dry-run=${dryRun}.`,
+              );
+
+              const candidateNumbers = new Set();
+
+              for (const base of targetBases) {
+                const query = [
+                  `repo:${owner}/${repo}`,
+                  'is:pr',
+                  'is:merged',
+                  `base:${base}`,
+                  `merged:>=${trackingStartDate}`,
+                  ...processedLabels.map(label => `-label:"${label}"`),
+                ].join(' ');
+
+                try {
+                  const results = await github.paginate(
+                    github.rest.search.issuesAndPullRequests,
+                    { q: query, per_page: 100 },
+                  );
+
+                  for (const result of results) {
+                    candidateNumbers.add(result.number);
+                  }
+                } catch (error) {
+                  summary.failures++;
+                  core.error(`Failed to search ${base}: ${error.message}`);
+                }
+              }
+
+              for (const pullNumber of candidateNumbers) {
+                summary.scanned++;
+
+                try {
+                  const { data: pull } = await github.rest.pulls.get({
+                    owner,
+                    repo,
+                    pull_number: pullNumber,
+                  });
+                  const labels = new Set(pull.labels.map(label => label.name));
+                  const baseBranch = pull.base.ref;
+                  const mergedLabel = getMergedLabel(baseBranch);
+
+                  if (
+                    pull.merged_at == null ||
+                    !targetBases.includes(baseBranch) ||
+                    processedLabels.some(label => labels.has(label)) ||
+                    mergedLabel == null
+                  ) {
+                    summary.skipped++;
+                    core.info(
+                      `Skipping PR #${pullNumber}: it is no longer an unprocessed target merge.`,
+                    );
+                    continue;
+                  }
+
+                  const issueNumber = await findFirstIssue(pull.body ?? '');
+
+                  if (issueNumber == null) {
+                    await addLabel(
+                      pullNumber,
+                      'task-merge-tracking-no-issue',
+                      `PR #${pullNumber}`,
+                    );
+                    summary.withoutIssue++;
+                    continue;
+                  }
+
+                  // Preserve this order: only mark the PR done after the issue
+                  // label succeeds. Retrying either operation is idempotent.
+                  await addLabel(
+                    issueNumber,
+                    mergedLabel,
+                    `issue #${issueNumber}`,
+                  );
+                  await addLabel(
+                    pullNumber,
+                    'task-merge-tracking-done',
+                    `PR #${pullNumber}`,
+                  );
+                  summary.tracked++;
+                } catch (error) {
+                  summary.failures++;
+                  core.error(`Failed to process PR #${pullNumber}: ${error.message}`);
+                }
+              }
+            }
+
+            await core.summary
+              .addHeading('Merge label reconciliation')
+              .addTable([
+                [
+                  { data: 'Result', header: true },
+                  { data: 'Count', header: true },
+                ],
+                ['PRs scanned', String(summary.scanned)],
+                ['PRs tracked', String(summary.tracked)],
+                ['PRs skipped', String(summary.skipped)],
+                ['PRs without an issue', String(summary.withoutIssue)],
+                ['Failures', String(summary.failures)],
+              ])
+              .write();
+
+            core.info(
+              [
+                `PRs scanned: ${summary.scanned}`,
+                `PRs tracked: ${summary.tracked}`,
+                `PRs skipped: ${summary.skipped}`,
+                `PRs without an issue: ${summary.withoutIssue}`,
+                `Failures: ${summary.failures}`,
+              ].join('; '),
+            );
+
+            if (summary.failures > 0) {
+              core.setFailed(
+                `Merge label reconciliation completed with ${summary.failures} failure(s).`,
+              );
+            }

@@ -73,14 +73,21 @@ export function useCompletion({
   fetch,
   onFinish,
   onError,
-  experimental_throttle: throttleWaitMs,
+  throttle: throttleWait,
+  experimental_throttle,
 }: UseCompletionOptions & {
   /**
    * Custom throttle wait in ms for the completion and data updates.
    * Default is undefined, which disables throttling.
    */
+  throttle?: number;
+
+  /**
+   * @deprecated Use `throttle` instead.
+   */
   experimental_throttle?: number;
 } = {}): UseCompletionHelpers {
+  const throttleWaitMs = throttleWait ?? experimental_throttle;
   // Generate an unique id for the completion if not provided.
   const hookId = useId();
   const completionId = id || hookId;

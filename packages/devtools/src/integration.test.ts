@@ -4,12 +4,14 @@ import { DevToolsTelemetry } from './integration.js';
 
 const mockCreateRun = vi.fn();
 const mockCreateStep = vi.fn();
+const mockGetStepsForRun = vi.fn();
 const mockUpdateStepResult = vi.fn();
 const mockNotifyServerAsync = vi.fn();
 
 vi.mock('./db.js', () => ({
   createRun: (...args: unknown[]) => mockCreateRun(...args),
   createStep: (...args: unknown[]) => mockCreateStep(...args),
+  getStepsForRun: (...args: unknown[]) => mockGetStepsForRun(...args),
   updateStepResult: (...args: unknown[]) => mockUpdateStepResult(...args),
   notifyServerAsync: (...args: unknown[]) => mockNotifyServerAsync(...args),
 }));
@@ -230,6 +232,35 @@ describe('DevToolsTelemetry', () => {
           "fromProvider": true,
         }
       `);
+    });
+
+    it('groups resumed calls under a shared run id', async () => {
+      mockGetStepsForRun.mockResolvedValueOnce([]).mockResolvedValueOnce([{}]);
+      const integration = DevToolsTelemetry({
+        runId: 'tool-approval-run',
+      }) as unknown as TestIntegration;
+
+      await integration.onStart!(
+        makeStartEvent({ operationId: 'ai.streamText' }),
+      );
+      await integration.onStepStart!(makeStepStartEvent());
+      await integration.onEnd!({ callId: 'call-1' });
+
+      await integration.onStart!(
+        makeStartEvent({
+          callId: 'call-2',
+          operationId: 'ai.streamText',
+        }),
+      );
+      await integration.onStepStart!(makeStepStartEvent({ callId: 'call-2' }));
+
+      expect(mockCreateRun.mock.calls.map(([runId]) => runId)).toEqual([
+        'tool-approval-run',
+        'tool-approval-run',
+      ]);
+      expect(
+        mockCreateStep.mock.calls.map(([step]) => step.step_number),
+      ).toEqual([1, 2]);
     });
   });
 

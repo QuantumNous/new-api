@@ -13,6 +13,29 @@ describe('asSchema', () => {
       additionalProperties: false,
     });
   });
+
+  it('should validate with callable standard schemas', async () => {
+    class CallableStandardSchema {
+      static readonly '~standard' = {
+        version: 1 as const,
+        vendor: 'effect',
+        validate: (value: unknown) =>
+          typeof value === 'object' &&
+          value !== null &&
+          'model' in value &&
+          typeof value.model === 'string'
+            ? { value: { model: value.model } }
+            : { issues: [{ message: 'model must be a string' }] },
+      };
+    }
+
+    const schema = asSchema(CallableStandardSchema);
+
+    await expect(schema.validate?.({ model: 'test-model' })).resolves.toEqual({
+      success: true,
+      value: { model: 'test-model' },
+    });
+  });
 });
 
 describe('zodSchema', () => {

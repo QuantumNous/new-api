@@ -18,7 +18,7 @@ import {
 } from 'ai';
 import { MockLanguageModelV4, convertArrayToReadableStream } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { WorkflowAgent } from './workflow-agent.js';
 
 // ============================================================================
@@ -497,6 +497,30 @@ describe('WorkflowAgent (ToolLoopAgent compat)', () => {
             "role": "user",
           },
         ]
+      `);
+    });
+
+    it('should expose finishReason and totalUsage on the stream result', async () => {
+      const agent = new WorkflowAgent({
+        model: mockModel,
+      });
+
+      const { writable } = createMockWritable();
+      const result = await agent.stream({
+        messages: [{ role: 'user' as const, content: 'test' }],
+        writable,
+      });
+
+      expect({
+        finishReason: result.finishReason,
+        inputTokens: result.totalUsage.inputTokens,
+        outputTokens: result.totalUsage.outputTokens,
+      }).toMatchInlineSnapshot(`
+        {
+          "finishReason": "stop",
+          "inputTokens": 3,
+          "outputTokens": 10,
+        }
       `);
     });
   });

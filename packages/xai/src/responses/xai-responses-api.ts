@@ -26,7 +26,11 @@ export type XaiResponsesSystemMessage = {
 
 export type XaiResponsesUserMessageContentPart =
   | { type: 'input_text'; text: string }
-  | { type: 'input_image'; image_url: string }
+  | {
+      type: 'input_image';
+      image_url: string;
+      detail?: 'low' | 'high' | 'auto';
+    }
   | { type: 'input_file'; file_id: string }
   | { type: 'input_file'; file_url: string };
 
@@ -44,7 +48,18 @@ export type XaiResponsesAssistantMessage = {
 export type XaiResponsesFunctionCallOutput = {
   type: 'function_call_output';
   call_id: string;
-  output: string;
+  output:
+    | string
+    | Array<
+        | {
+            type: 'input_text';
+            text: string;
+          }
+        | {
+            type: 'input_image';
+            image_url: string;
+          }
+      >;
 };
 
 export type XaiResponsesReasoning = {

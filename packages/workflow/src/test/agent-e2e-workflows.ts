@@ -6,7 +6,7 @@ import { WorkflowAgent } from '../workflow-agent.js';
 import { mockTextModel, mockSequenceModel } from '../providers/mock.js';
 import { createTestSandbox } from './test-sandbox.js';
 import { FatalError, getWritable } from 'workflow';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 // ============================================================================
 // Tool step functions
@@ -143,7 +143,7 @@ export async function agentErrorToolE2e() {
 }
 
 // ============================================================================
-// experimental_repairToolCall serialization
+// repairToolCall serialization
 // ============================================================================
 
 async function repairToolCall({
@@ -179,7 +179,7 @@ export async function agentRepairToolCallE2e() {
   const result = await agent.stream({
     messages: [{ role: 'user', content: 'add 3 and 7' }],
     writable: getWritable(),
-    experimental_repairToolCall: repairToolCall as any,
+    repairToolCall: repairToolCall as any,
   });
   return {
     stepCount: result.steps.length,

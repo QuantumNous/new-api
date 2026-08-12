@@ -163,10 +163,9 @@ function appendLegacyToolResultParts(
         });
         break;
       case 'file': {
-        if (
-          contentPart.data.type === 'data' &&
-          getTopLevelMediaType(contentPart.mediaType) === 'image'
-        ) {
+        if (contentPart.data.type === 'data') {
+          const topLevelMediaType = getTopLevelMediaType(contentPart.mediaType);
+
           parts.push(
             {
               inlineData: {
@@ -175,7 +174,10 @@ function appendLegacyToolResultParts(
               },
             },
             {
-              text: 'Tool executed successfully and returned this image as a response',
+              text:
+                `Tool executed successfully and returned this ` +
+                `${topLevelMediaType === 'image' ? 'image' : 'file'} ` +
+                `as a response`,
             },
           );
         } else {

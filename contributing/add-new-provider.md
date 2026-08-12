@@ -20,7 +20,9 @@ https://github.com/vercel/ai/pull/8136/files
 6. Add documentation in `content/providers/01-ai-sdk-providers/<last number + 10>-<provider>.mdx`
 7. Bootstrap the npm package and Trusted Publisher (Vercel IT team) — see [Bootstrapping a new `@ai-sdk/*` package](./releases.md#bootstrapping-a-new-ai-sdk-package). This is required before the first automated release can publish the package with provenance.
 
-See also [providers.md](providers.md)
+See also [providers.md](providers.md) and
+[secure-url-handling.md](secure-url-handling.md) (when fetching URLs that come
+from provider responses).
 
 ## When in pre-release mode
 

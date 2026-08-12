@@ -8,6 +8,7 @@ import {
   convertUint8ArrayToBase64,
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
+  parseProviderOptions,
   postJsonToApi,
   resolve,
   serializeModelOptions,
@@ -20,6 +21,7 @@ import {
   modelMaxImagesPerCall,
   type AmazonBedrockImageModelId,
 } from './amazon-bedrock-image-settings';
+import { amazonBedrockImageModelOptionsSchema } from './amazon-bedrock-image-model-options';
 import { AmazonBedrockErrorSchema } from './amazon-bedrock-error';
 import { z } from 'zod/v4';
 
@@ -85,8 +87,18 @@ export class AmazonBedrockImageModel implements ImageModelV4 {
 
     // Prefer the new `amazonBedrock` providerOptions key; fall back to the
     // legacy `bedrock` key for backward compatibility.
-    const amazonBedrockOptions = (providerOptions?.amazonBedrock ??
-      providerOptions?.bedrock) as Record<string, any> | undefined;
+    const amazonBedrockOptions =
+      (await parseProviderOptions({
+        provider: 'amazonBedrock',
+        providerOptions,
+        schema: amazonBedrockImageModelOptionsSchema,
+      })) ??
+      (await parseProviderOptions({
+        provider: 'bedrock',
+        providerOptions,
+        schema: amazonBedrockImageModelOptionsSchema,
+      })) ??
+      {};
 
     // Build image generation config (common to most modes)
     const imageGenerationConfig = {

@@ -1,13 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { app, startViewer } from './server.js';
 
-const { mockOn, mockServe } = vi.hoisted(() => {
+const { mockOn, mockServe, mockExit } = vi.hoisted(() => {
   const mockOn = vi.fn();
   return {
+    mockExit: vi.fn(),
     mockOn,
     mockServe: vi.fn(() => ({ on: mockOn })),
   };
 });
+
+vi.spyOn(process, 'exit').mockImplementation(mockExit as never);
 
 vi.mock('@hono/node-server', () => ({
   serve: mockServe,
@@ -20,6 +23,10 @@ vi.mock('../db.js', () => ({
   clearDatabase: vi.fn(),
   reloadDb: vi.fn(),
 }));
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('viewer server security', () => {
   it('serves API requests from the local viewer without wildcard CORS', async () => {
@@ -65,5 +72,31 @@ describe('viewer server security', () => {
       }),
       expect.any(Function),
     );
+  });
+});
+
+describe('viewer server errors', () => {
+  it('shows a monorepo-safe command when the port is already in use', () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    mockExit.mockImplementationOnce(() => {
+      throw new Error('process exited');
+    });
+
+    startViewer();
+    const errorHandler = mockOn.mock.calls[0][1];
+    expect(() =>
+      errorHandler(
+        Object.assign(new Error('port is already in use'), {
+          code: 'EADDRINUSE',
+        }),
+      ),
+    ).toThrow('process exited');
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '   AI_SDK_DEVTOOLS_PORT=4984 npx @ai-sdk/devtools@latest\n',
+    );
+    expect(mockExit).toHaveBeenCalledWith(1);
   });
 });

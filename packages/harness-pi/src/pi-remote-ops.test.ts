@@ -16,6 +16,7 @@ function makeMockSandbox(behaviors: {
     stderr?: string;
     exitCode?: number;
   };
+  realpath?: (path: string) => string | null;
   readBinary?: (path: string) => Uint8Array | null;
 }): {
   sandbox: Experimental_SandboxSession;
@@ -38,7 +39,10 @@ function makeMockSandbox(behaviors: {
         workingDirectory?: string;
       }) => {
         runCalls.push({ command, workingDirectory });
-        const result = behaviors.run?.(command) ?? {};
+        const result =
+          mockRealpathCommand(command, behaviors.realpath) ??
+          behaviors.run?.(command) ??
+          {};
         return {
           exitCode: result.exitCode ?? 0,
           stdout: result.stdout ?? '',
@@ -63,6 +67,26 @@ function makeMockSandbox(behaviors: {
   } as unknown as Experimental_SandboxSession;
 
   return { sandbox, runCalls, readCalls, writeCalls };
+}
+
+function mockRealpathCommand(
+  command: string,
+  resolvePath: ((path: string) => string | null) | undefined,
+): { stdout?: string; stderr?: string; exitCode?: number } | undefined {
+  if (!command.includes('realpath')) {
+    return undefined;
+  }
+
+  const target = command.match(/target='([^']+)'/)?.[1];
+  if (!target) {
+    return undefined;
+  }
+
+  const resolvedPath = resolvePath?.(target) ?? target;
+  if (resolvedPath === null) {
+    return { stdout: '__PI_REALPATH_NOT_FOUND__\n', exitCode: 2 };
+  }
+  return { stdout: `${resolvedPath}\n` };
 }
 
 const hostWorkDir = '/tmp/pi-test-host';
@@ -108,14 +132,33 @@ describe('createPiRemoteOps.readBuffer', () => {
     const buf = await env.ops.readBuffer(skillPath);
     expect(buf.toString('utf8')).toBe('skill');
   });
+
+  it('rejects workspace symlinks that resolve outside readable roots', async () => {
+    const outsideSecretPath = '/home/vercel-sandbox/CODEX_API_KEY';
+    const env = makeOps({
+      realpath: p =>
+        p === `${sandboxWorkDir}/repo-controlled-secret-link`
+          ? outsideSecretPath
+          : p,
+      readBinary: p =>
+        p === outsideSecretPath
+          ? new TextEncoder().encode('CODEX_API_KEY=secret')
+          : null,
+    });
+
+    await expect(
+      env.ops.readBuffer('repo-controlled-secret-link'),
+    ).rejects.toThrow(/escapes the readable roots/);
+    expect(env.readCalls).toEqual([]);
+  });
 });
 
 describe('createPiRemoteOps.writeFile', () => {
   it('mkdir -p the parent and writes via writeTextFile', async () => {
     const env = makeOps({ readBinary: () => null });
     await env.ops.writeFile('src/new.ts', 'export {};');
-    expect(env.runCalls[0]?.command).toContain('mkdir -p');
-    expect(env.runCalls[0]?.command).toContain(`'${sandboxWorkDir}/src'`);
+    expect(env.runCalls[1]?.command).toContain('mkdir -p');
+    expect(env.runCalls[1]?.command).toContain(`'${sandboxWorkDir}/src'`);
     expect(env.writeCalls).toEqual([
       { path: `${sandboxWorkDir}/src/new.ts`, content: 'export {};' },
     ]);
@@ -152,6 +195,26 @@ describe('createPiRemoteOps.writeFile', () => {
       'modify',
       'a.txt',
       expect.anything(),
+    );
+  });
+
+  it('rejects workspace symlinks that resolve outside the workspace', async () => {
+    const outsideConfigPath = '/home/vercel-sandbox/victim-config.json';
+    const env = makeOps({
+      realpath: p =>
+        p === `${sandboxWorkDir}/repo-controlled-write-link`
+          ? outsideConfigPath
+          : p,
+      readBinary: p =>
+        p === outsideConfigPath ? new TextEncoder().encode('{}') : null,
+    });
+
+    await expect(
+      env.ops.writeFile('repo-controlled-write-link', '{"owned":true}\n'),
+    ).rejects.toThrow(/escapes the workspace/);
+    expect(env.writeCalls).toEqual([]);
+    expect(env.runCalls.some(call => call.command.includes('mkdir -p'))).toBe(
+      false,
     );
   });
 });
@@ -191,7 +254,10 @@ describe('createPiRemoteOps.listDirectory', () => {
     });
     const names = await env.ops.listDirectory('.');
     expect(names).toEqual(['node_modules/', 'README.md', 'src/']);
-    expect(env.runCalls[0]?.command).toContain('ls -1Ap');
+    const cmd =
+      env.runCalls.find(call => call.command.includes('ls -1Ap'))?.command ??
+      '';
+    expect(cmd).toContain('ls -1Ap');
   });
 
   it('throws on __PI_LS_NOT_FOUND__ sentinel', async () => {
@@ -220,7 +286,8 @@ describe('createPiRemoteOps.grepFiles', () => {
     // The inner command is wrapped in `bash -lc '...'`, so its single quotes
     // get escaped to `'\''` in the outer string. We just look for the
     // signature substrings without quoting.
-    const cmd = env.runCalls[0]?.command ?? '';
+    const cmd =
+      env.runCalls.find(call => call.command.includes('grep '))?.command ?? '';
     expect(cmd).toContain('grep');
     expect(cmd).toContain('-R');
     expect(cmd).toContain('-i');
@@ -235,6 +302,27 @@ describe('createPiRemoteOps.grepFiles', () => {
     const env = makeOps({ run: () => ({ stdout: '' }) });
     const out = await env.ops.grepFiles('x', {});
     expect(out).toBe('No matches found');
+  });
+
+  it('rejects workspace symlinks before running grep outside readable roots', async () => {
+    const outsideSecretPath = '/home/vercel-sandbox/CODEX_API_KEY';
+    const env = makeOps({
+      realpath: p =>
+        p === `${sandboxWorkDir}/repo-controlled-secret-link`
+          ? outsideSecretPath
+          : p,
+      run: () => ({ stdout: 'CODEX_API_KEY=secret\n' }),
+    });
+
+    await expect(
+      env.ops.grepFiles('secret', {
+        path: 'repo-controlled-secret-link',
+        literal: true,
+      }),
+    ).rejects.toThrow(/escapes the readable roots/);
+    expect(env.runCalls.some(call => call.command.includes('grep '))).toBe(
+      false,
+    );
   });
 });
 

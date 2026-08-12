@@ -11,6 +11,14 @@ function messageEvent(targetWindow: Window, data: unknown): MessageEvent {
   return { source: targetWindow, data } as MessageEvent;
 }
 
+function originEvent(
+  targetWindow: Window,
+  origin: string,
+  data: unknown,
+): MessageEvent {
+  return { source: targetWindow, origin, data } as unknown as MessageEvent;
+}
+
 describe('MCPAppBridge', () => {
   it('responds to app initialization requests', async () => {
     const targetWindow = createTargetWindow();
@@ -192,5 +200,109 @@ describe('MCPAppBridge', () => {
     expect(callTool).not.toHaveBeenCalled();
     const [response] = targetWindow.postMessage.mock.calls[0];
     expect(response.error?.message).toContain('not app-visible');
+  });
+
+  it('drops messages from an unexpected origin when a concrete origin is set', () => {
+    const targetWindow = createTargetWindow();
+    const onError = vi.fn();
+    const bridge = new MCPAppBridge({
+      targetWindow,
+      targetOrigin: 'https://proxy.example',
+      handlers: { onError },
+    });
+
+    bridge.handleMessage(
+      originEvent(targetWindow, 'https://evil.example', {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'ui/initialize',
+        params: {},
+      }),
+    );
+
+    expect(targetWindow.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('handles messages from the matching origin', async () => {
+    const targetWindow = createTargetWindow();
+    const bridge = new MCPAppBridge({
+      targetWindow,
+      targetOrigin: 'https://proxy.example',
+    });
+
+    bridge.handleMessage(
+      originEvent(targetWindow, 'https://proxy.example', {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'ui/initialize',
+        params: {},
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(targetWindow.postMessage).toHaveBeenCalled();
+    });
+    const [, origin] = targetWindow.postMessage.mock.calls[0];
+    expect(origin).toBe('https://proxy.example');
+  });
+
+  async function requestResult(method: string, params: unknown) {
+    const targetWindow = createTargetWindow();
+    const bridge = new MCPAppBridge({
+      targetWindow,
+      handlers: {
+        readResource: async p => ({ ok: p }),
+        openLink: async p => ({ ok: p }),
+        requestDisplayMode: p => ({ mode: p.mode }),
+      },
+    });
+    bridge.handleMessage(
+      messageEvent(targetWindow, { jsonrpc: '2.0', id: 9, method, params }),
+    );
+    await vi.waitFor(() => {
+      expect(targetWindow.postMessage).toHaveBeenCalled();
+    });
+    return targetWindow.postMessage.mock.calls[0][0];
+  }
+
+  it('rejects resources/read outside the ui:// scope', async () => {
+    const response = await requestResult('resources/read', {
+      uri: 'file:///etc/passwd',
+    });
+    expect(response.result).toBeUndefined();
+    expect(response.error.message).toContain('ui://');
+  });
+
+  it('allows resources/read for ui:// resources', async () => {
+    const response = await requestResult('resources/read', {
+      uri: 'ui://app/data',
+    });
+    expect(response.result).toEqual({ ok: { uri: 'ui://app/data' } });
+  });
+
+  it('rejects ui/open-link with a javascript: scheme', async () => {
+    const response = await requestResult('ui/open-link', {
+      // eslint-disable-next-line no-script-url
+      url: 'javascript:alert(1)',
+    });
+    expect(response.result).toBeUndefined();
+    expect(response.error.message).toContain('scheme');
+  });
+
+  it('allows ui/open-link with an https URL', async () => {
+    const response = await requestResult('ui/open-link', {
+      url: 'https://example.com',
+    });
+    expect(response.result).toEqual({ ok: { url: 'https://example.com' } });
+  });
+
+  it('rejects malformed request params', async () => {
+    const readResponse = await requestResult('resources/read', { uri: 42 });
+    expect(readResponse.error.message).toContain('resources/read');
+
+    const modeResponse = await requestResult('ui/request-display-mode', {
+      mode: 'zoomed',
+    });
+    expect(modeResponse.error.message).toContain('ui/request-display-mode');
   });
 });

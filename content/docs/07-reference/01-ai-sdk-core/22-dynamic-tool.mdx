@@ -14,7 +14,7 @@ The `dynamicTool` function creates tools where the input and output types are no
 
 Unlike the regular `tool` function, `dynamicTool` accepts and returns `unknown` types, allowing you to work with tools that have runtime-determined schemas.
 
-```ts highlight={"1,4,9,10,11"}
+```ts highlight={"1,4,9,11"}
 import { dynamicTool } from 'ai';
 import { z } from 'zod';
 
@@ -130,7 +130,7 @@ export const customTool = dynamicTool({
               isOptional: true,
               type: '(options: ToolExecutionOptions<Context>) => void | PromiseLike<void>',
               description:
-                'Optional function that is called when the argument streaming starts. Only called when the tool is used in a streaming context.'
+                'Optional function that is called when the model starts generating the tool input. In non-streaming contexts, it is called immediately before onInputAvailable.'
             },
             {
               name: 'onInputDelta',

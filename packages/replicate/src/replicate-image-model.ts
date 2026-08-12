@@ -197,6 +197,9 @@ export class ReplicateImageModel implements ImageModelV4 {
       outputArray.map(async url => {
         const { value: image } = await getFromApi({
           url,
+          // url is an output image URL from the provider response; validate it.
+          validateUrl: true,
+          trustedOrigin: this.config.baseURL,
           successfulResponseHandler: createBinaryResponseHandler(),
           failedResponseHandler: replicateFailedResponseHandler,
           abortSignal,

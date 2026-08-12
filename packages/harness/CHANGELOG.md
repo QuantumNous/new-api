@@ -1,5 +1,154 @@
 # @ai-sdk/harness
 
+## 1.0.36
+
+### Patch Changes
+
+- Updated dependencies [70f18c3]
+- Updated dependencies [cd06458]
+  - ai@7.0.31
+  - @ai-sdk/provider-utils@5.0.11
+
+## 1.0.35
+
+### Patch Changes
+
+- ai@7.0.30
+
+## 1.0.34
+
+### Patch Changes
+
+- ai@7.0.29
+
+## 1.0.33
+
+### Patch Changes
+
+- Updated dependencies [0bc8d4f]
+  - ai@7.0.28
+
+## 1.0.32
+
+### Patch Changes
+
+- Updated dependencies [ac01b79]
+- Updated dependencies [31c7be8]
+- Updated dependencies [2696562]
+  - ai@7.0.27
+  - @ai-sdk/provider-utils@5.0.10
+
+## 1.0.31
+
+### Patch Changes
+
+- Updated dependencies [27d294d]
+  - ai@7.0.26
+
+## 1.0.30
+
+### Patch Changes
+
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [7805e4a]
+- Updated dependencies [f8e82fd]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - ai@7.0.25
+
+## 1.0.29
+
+### Patch Changes
+
+- Updated dependencies [e193290]
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - ai@7.0.24
+
+## 1.0.28
+
+### Patch Changes
+
+- Updated dependencies [930f949]
+  - ai@7.0.23
+
+## 1.0.27
+
+### Patch Changes
+
+- Updated dependencies [8f89c25]
+  - ai@7.0.22
+
+## 1.0.26
+
+### Patch Changes
+
+- Updated dependencies [308a519]
+  - ai@7.0.21
+
+## 1.0.25
+
+### Patch Changes
+
+- 44e988a: fix(harness): fix harness tool approval regression
+
+## 1.0.24
+
+### Patch Changes
+
+- Updated dependencies [b9ac19f]
+- Updated dependencies [a4186d6]
+  - ai@7.0.20
+
+## 1.0.23
+
+### Patch Changes
+
+- 39c8276: fix(harness): improve opaque sandbox bridge error handling
+- 91fe6d8: fix(harness): emit `finish-step` stream parts correctly per the underlying model steps
+- 0be5014: fix(harness): fix obsolete portions of harness package readme
+
+## 1.0.22
+
+### Patch Changes
+
+- Updated dependencies [be7f05a]
+- Updated dependencies [ee55a07]
+- Updated dependencies [aad737d]
+- Updated dependencies [0f93c57]
+  - ai@7.0.19
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/provider-utils@5.0.7
+
+## 1.0.21
+
+### Patch Changes
+
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - ai@7.0.18
+
+## 1.0.20
+
+### Patch Changes
+
+- b7aa06a: fix(harness): include step numbers on harness step-end telemetry events.
+  - ai@7.0.17
+
+## 1.0.19
+
+### Patch Changes
+
+- Updated dependencies [a8f9b6d]
+  - ai@7.0.16
+
+## 1.0.18
+
+### Patch Changes
+
+- ai@7.0.15
+
 ## 1.0.17
 
 ### Patch Changes

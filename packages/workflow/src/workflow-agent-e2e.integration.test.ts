@@ -85,10 +85,10 @@ describe('WorkflowAgent integration', { timeout: 120_000 }, () => {
   });
 
   // ==========================================================================
-  // experimental_repairToolCall serialization
+  // repairToolCall serialization
   // ==========================================================================
 
-  describe('experimental_repairToolCall', () => {
+  describe('repairToolCall', () => {
     it('callback survives serialization and repairs malformed tool input', async () => {
       const run = await start(agentRepairToolCallE2e, []);
       const rv = await run.returnValue;

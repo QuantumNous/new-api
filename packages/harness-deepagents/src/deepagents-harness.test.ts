@@ -55,17 +55,28 @@ function textStream(text: string): ReadableStream<Uint8Array> {
   });
 }
 
-function fakeSandboxSession(): HarnessV1NetworkSandboxSession {
+function fakeSandboxSession({
+  spawnEnvs,
+}: {
+  spawnEnvs?: Array<Record<string, string | undefined>>;
+} = {}): HarnessV1NetworkSandboxSession {
   const session = {
     run: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
     readTextFile: async () => null,
     writeTextFile: async () => {},
-    spawn: async () => ({
-      stdout: textStream('{"type":"bridge-ready","port":4319}\n'),
-      stderr: textStream(''),
-      kill: async () => {},
-      wait: async () => ({ exitCode: 0 }),
-    }),
+    spawn: async ({
+      env,
+    }: {
+      env?: Record<string, string | undefined>;
+    } = {}) => {
+      if (env) spawnEnvs?.push(env);
+      return {
+        stdout: textStream('{"type":"bridge-ready","port":4319}\n'),
+        stderr: textStream(''),
+        kill: async () => {},
+        wait: async () => ({ exitCode: 0 }),
+      };
+    },
   };
   return {
     id: 'test-sandbox',
@@ -131,6 +142,22 @@ describe('createDeepAgents', () => {
   it('exposes a lifecycle state schema for resume payloads', () => {
     const harness = createDeepAgents();
     expect(harness.lifecycleStateSchema).toBeDefined();
+  });
+
+  it('passes the harness client app to the bridge environment', async () => {
+    const spawnEnvs: Array<Record<string, string | undefined>> = [];
+    const harness = createDeepAgents();
+    const session = await harness.doStart({
+      sessionId: 'test-session',
+      sessionWorkDir: '/vercel/sandbox/deepagents-test-session',
+      sandboxSession: fakeSandboxSession({ spawnEnvs }),
+    } as unknown as Parameters<typeof harness.doStart>[0]);
+
+    expect(spawnEnvs.at(0)?.AI_SDK_HARNESS_CLIENT_APP).toBe(
+      'ai-sdk/harness-deepagents/0.0.0-test',
+    );
+
+    await session.doDestroy();
   });
 
   it('resolves the turn when the channel closes with reason "suspended"', async () => {

@@ -5,4 +5,4 @@ export {
   useAIState,
   useActions,
   useSyncUIState,
-} from './rsc-shared.mjs';
+} from './rsc-shared.js';

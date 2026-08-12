@@ -44,6 +44,29 @@ There are 3 r's.",
       },
     },
   },
+  "request": {
+    "body": {
+      "additionalModelRequestFields": undefined,
+      "additionalModelResponseFieldPaths": [
+        "/delta/stop_sequence",
+      ],
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello",
+            },
+          ],
+          "role": "user",
+        },
+      ],
+      "system": [
+        {
+          "text": "System Prompt",
+        },
+      ],
+    },
+  },
   "response": {
     "headers": {
       "content-length": "865",
@@ -105,6 +128,29 @@ There are **3** "r"s in "strawberry."",
       "usage": {
         "cacheWriteInputTokens": 0,
       },
+    },
+  },
+  "request": {
+    "body": {
+      "additionalModelRequestFields": undefined,
+      "additionalModelResponseFieldPaths": [
+        "/delta/stop_sequence",
+      ],
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello",
+            },
+          ],
+          "role": "user",
+        },
+      ],
+      "system": [
+        {
+          "text": "System Prompt",
+        },
+      ],
     },
   },
   "response": {

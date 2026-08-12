@@ -301,6 +301,42 @@ const someTool = tool({
   codebase.
 </Note>
 
+### Remove `name` from Function Tool Definitions
+
+Function tool names come from their keys in the `tools` object. In AI SDK 5, a
+`name` property could pass type checking because it was part of the
+provider-defined member of the `Tool` type, but it did not set the name of a
+function tool. The AI SDK 6 types no longer accept the property in a function
+tool definition.
+
+Remove `name` from `tool()` and use the intended name as the key in the `tools`
+object:
+
+```tsx filename="AI SDK 5"
+import { tool } from 'ai';
+import { z } from 'zod';
+
+const tools = {
+  getWeather: tool({
+    name: 'getWeather',
+    inputSchema: z.object({}),
+    outputSchema: z.any(),
+  }),
+};
+```
+
+```tsx filename="AI SDK 6"
+import { tool } from 'ai';
+import { z } from 'zod';
+
+const tools = {
+  getWeather: tool({
+    inputSchema: z.object({}),
+    outputSchema: z.any(),
+  }),
+};
+```
+
 ### `cachedInputTokens` and `reasoningTokens` in `LanguageModelUsage` Deprecation
 
 `cachedInputTokens` and `reasoningTokens` in `LanguageModelUsage` have been deprecated.

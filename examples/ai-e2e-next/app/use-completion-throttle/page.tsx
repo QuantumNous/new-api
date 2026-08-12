@@ -11,7 +11,7 @@ export default function Chat() {
 
   const { completion, input, handleInputChange, handleSubmit } = useCompletion({
     api: '/api/use-completion-throttle',
-    experimental_throttle: 50,
+    throttle: 50,
   });
 
   return (

@@ -7,7 +7,7 @@ import {
 import { sandboxShellTool } from '../../tools/sandbox-shell-tool';
 
 export const sandboxAgent = new ToolLoopAgent({
-  model: openai('gpt-5.5'),
+  model: openai('gpt-5.6'),
 
   tools: {
     shell: sandboxShellTool(),

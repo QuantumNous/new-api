@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/provider-utils",
-  "version": "5.0.5",
+  "version": "5.0.11",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

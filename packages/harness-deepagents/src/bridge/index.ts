@@ -1,7 +1,7 @@
 // In-sandbox turn driver on `@ai-sdk/harness/bridge`; third-party imports stay external (tsup) and install in-sandbox from src/bridge/package.json — keep import/externals/deps in sync.
 
 import { randomUUID } from 'node:crypto';
-import { argv } from 'node:process';
+import { argv, env as procEnv } from 'node:process';
 import {
   runBridge,
   type BridgeEvent,
@@ -24,6 +24,7 @@ const NATIVE_TO_COMMON: Readonly<Record<string, string>> = {
   edit_file: 'edit',
   execute: 'bash',
 };
+const HARNESS_CLIENT_APP = procEnv.AI_SDK_HARNESS_CLIENT_APP;
 
 function toCommonName(nativeName: string): string {
   return NATIVE_TO_COMMON[nativeName] ?? nativeName;
@@ -48,14 +49,22 @@ function parseArgs(rawArgs: string[]): Record<string, string> {
 // `creator/model` slug (gateway translates); direct Anthropic wants the bare id.
 function buildModel(rawModel: string | undefined) {
   if (!rawModel) return undefined;
-  const baseUrl = process.env.ANTHROPIC_BASE_URL;
+  const baseUrl = procEnv.ANTHROPIC_BASE_URL;
   const model = baseUrl ? rawModel : rawModel.replace(/^anthropic[/:]/, '');
   return new ChatAnthropic({
     model,
-    ...(process.env.ANTHROPIC_API_KEY
-      ? { apiKey: process.env.ANTHROPIC_API_KEY }
-      : {}),
+    ...(procEnv.ANTHROPIC_API_KEY ? { apiKey: procEnv.ANTHROPIC_API_KEY } : {}),
     ...(baseUrl ? { anthropicApiUrl: baseUrl } : {}),
+    ...(procEnv.AI_GATEWAY_API_KEY && HARNESS_CLIENT_APP
+      ? {
+          clientOptions: {
+            defaultHeaders: {
+              'User-Agent': HARNESS_CLIENT_APP,
+              'x-client-app': HARNESS_CLIENT_APP,
+            },
+          },
+        }
+      : {}),
   });
 }
 
@@ -389,6 +398,7 @@ async function runTurn(start: StartMessage, turn: BridgeTurn): Promise<void> {
         approvalId,
         toolCallId: approvalId,
       });
+      flushStep();
       const decision = await turn.requestToolApproval(approvalId);
       if (decision.approved) {
         const queue = approvedToolQueue.get(action.name) ?? [];

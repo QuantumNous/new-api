@@ -6,7 +6,7 @@ import { run } from '../../lib/run';
 
 run(async () => {
   const result = streamText({
-    model: openai('gpt-5.4'),
+    model: openai('gpt-5.6'),
     tools: {
       weather: weatherTool,
       slowApi: tool({

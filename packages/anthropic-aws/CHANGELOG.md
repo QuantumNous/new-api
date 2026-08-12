@@ -1,5 +1,84 @@
 # @ai-sdk/anthropic-aws
 
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [cd06458]
+- Updated dependencies [afcf19c]
+  - @ai-sdk/provider-utils@5.0.11
+  - @ai-sdk/anthropic@4.0.16
+
+## 2.0.7
+
+### Patch Changes
+
+- Updated dependencies [31c7be8]
+  - @ai-sdk/provider-utils@5.0.10
+  - @ai-sdk/anthropic@4.0.15
+
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - @ai-sdk/anthropic@4.0.14
+
+## 2.0.5
+
+### Patch Changes
+
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - @ai-sdk/anthropic@4.0.13
+
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [308a519]
+  - @ai-sdk/anthropic@4.0.12
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [0f93c57]
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/anthropic@4.0.11
+  - @ai-sdk/provider-utils@5.0.7
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - @ai-sdk/anthropic@4.0.10
+
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [2e45d9c]
+  - @ai-sdk/anthropic@4.0.9
+
+## 2.0.0
+
+### Major Changes
+
+- a23b676: Release `@ai-sdk/anthropic-aws` as `2.0.0`. The provider was initially published as `1.0.0` because its `major` changeset was applied to the package's starting `0.0.1` version (`0.0.1` → `1.0.0`) rather than to the `1.0.0` intended for its first stable release. This major bump corrects the version to `2.0.0` to reflect the intended v2 line.
+
+## 1.0.8
+
+### Patch Changes
+
+- Updated dependencies [0aa0ff3]
+  - @ai-sdk/anthropic@4.0.8
+
 ## 1.0.7
 
 ### Patch Changes

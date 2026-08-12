@@ -58,11 +58,13 @@ function fakeNetworkSandboxSessionForStartupSuccess({
   bridgePortUrl,
   runs,
   spawns,
+  spawnEnvs,
   writes,
 }: {
   bridgePortUrl: string;
   runs: string[];
   spawns: string[];
+  spawnEnvs?: Array<Record<string, string | undefined>>;
   writes: Array<{ path: string; content: string }>;
 }): HarnessV1NetworkSandboxSession {
   const session = {
@@ -80,8 +82,15 @@ function fakeNetworkSandboxSessionForStartupSuccess({
     }) => {
       writes.push({ path, content });
     },
-    spawn: async ({ command }: { command: string }) => {
+    spawn: async ({
+      command,
+      env,
+    }: {
+      command: string;
+      env?: Record<string, string | undefined>;
+    }) => {
       spawns.push(command);
+      if (env) spawnEnvs?.push(env);
       return {
         stdout: textStream('{"type":"bridge-ready","port":4319}\n'),
         stderr: textStream(''),
@@ -164,6 +173,7 @@ describe('createCodex adapter', () => {
   it('quotes dynamic startup paths in shell commands', async () => {
     const runs: string[] = [];
     const spawns: string[] = [];
+    const spawnEnvs: Array<Record<string, string | undefined>> = [];
     const writes: Array<{ path: string; content: string }> = [];
     const harness = createCodex();
     const session = await harness.doStart({
@@ -172,6 +182,7 @@ describe('createCodex adapter', () => {
         bridgePortUrl: 'ws://127.0.0.1:1',
         runs,
         spawns,
+        spawnEnvs,
         writes,
       }),
       sessionWorkDir: '/vercel/sandbox/codex-s1; env > /tmp/workdir-leak #',
@@ -183,6 +194,9 @@ describe('createCodex adapter', () => {
     expect(spawns).toEqual([
       "node /tmp/harness/codex/bridge.mjs --workdir '/vercel/sandbox/codex-s1; env > /tmp/workdir-leak #' --bridge-state-dir '/vercel/sandbox/.agent-runs/s1; env > /tmp/leak #/bridge' --bootstrap-dir '/tmp/harness/codex' --cli-shim-dir '/vercel/sandbox/.agent-runs/s1; env > /tmp/leak #/codex'",
     ]);
+    expect(spawnEnvs.at(0)?.AI_SDK_HARNESS_CLIENT_APP).toBe(
+      'ai-sdk/harness-codex/0.0.0-test',
+    );
     await session.doDestroy();
   });
 

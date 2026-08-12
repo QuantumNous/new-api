@@ -11,6 +11,7 @@ import { InvalidToolInputError } from '../error/invalid-tool-input-error';
 import { NoSuchToolError } from '../error/no-such-tool-error';
 import { ToolCallRepairError } from '../error/tool-call-repair-error';
 import type { Instructions } from '../prompt';
+import { getOwn } from '../util/get-own';
 import type { DynamicToolCall, TypedToolCall } from './tool-call';
 import type { ToolCallRepairFunction } from './tool-call-repair-function';
 import type { ToolInputRefinement } from './tool-input-refinement';
@@ -66,7 +67,7 @@ export async function parseToolCall<TOOLS extends ToolSet>({
           toolCall,
           tools,
           inputSchema: async ({ toolName }) => {
-            const { inputSchema } = tools[toolName];
+            const inputSchema = getOwn(tools, toolName)?.inputSchema;
             return await asSchema(inputSchema).jsonSchema;
           },
           instructions,
@@ -95,7 +96,7 @@ export async function parseToolCall<TOOLS extends ToolSet>({
     // use parsed input when possible
     const parsedInput = await safeParseJSON({ text: toolCall.input });
     const input = parsedInput.success ? parsedInput.value : toolCall.input;
-    const tool = tools?.[toolCall.toolName];
+    const tool = getOwn(tools, toolCall.toolName);
 
     // TODO AI SDK 6: special invalid tool call parts
     return {
@@ -121,7 +122,7 @@ async function refineParsedToolCallInput<TOOLS extends ToolSet>({
   toolCall: TypedToolCall<TOOLS>;
   refineToolInput: ToolInputRefinement<TOOLS> | undefined;
 }): Promise<TypedToolCall<TOOLS>> {
-  const refine = refineToolInput?.[toolCall.toolName];
+  const refine = getOwn(refineToolInput, toolCall.toolName);
 
   if (refine == null) {
     return toolCall;
@@ -169,7 +170,7 @@ async function doParseToolCall<TOOLS extends ToolSet>({
 }): Promise<TypedToolCall<TOOLS>> {
   const toolName = toolCall.toolName as keyof TOOLS & string;
 
-  const tool = tools[toolName];
+  const tool = getOwn(tools, toolName);
 
   if (tool == null) {
     // provider-executed dynamic tools are not part of our list of tools:

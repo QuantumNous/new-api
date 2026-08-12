@@ -576,6 +576,34 @@ describe('discoverAuthorizationServerMetadata', () => {
     expect(metadata).toEqual(tenantMetadata);
   });
 
+  it('accepts OAuth metadata when code challenge methods are omitted', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        issuer: 'https://auth.example.com',
+        authorization_endpoint: 'https://auth.example.com/authorize',
+        token_endpoint: 'https://auth.example.com/token',
+        registration_endpoint: 'https://auth.example.com/register',
+        response_types_supported: ['code'],
+      }),
+    });
+
+    expect(
+      await discoverAuthorizationServerMetadata('https://auth.example.com'),
+    ).toMatchInlineSnapshot(`
+      {
+        "authorization_endpoint": "https://auth.example.com/authorize",
+        "issuer": "https://auth.example.com",
+        "registration_endpoint": "https://auth.example.com/register",
+        "response_types_supported": [
+          "code",
+        ],
+        "token_endpoint": "https://auth.example.com/token",
+      }
+    `);
+  });
+
   it('tries URLs in order and returns first successful metadata', async () => {
     // First OAuth URL fails with 404
     mockFetch.mockResolvedValueOnce({

@@ -1,31 +1,17 @@
 ---
 title: ByteDance
-description: Learn how to use ByteDance Seedance video models with the AI SDK.
+description: Learn how to use ByteDance Seedance video and Seedream image models with the AI SDK.
 ---
 
 # ByteDance Provider
 
-The [ByteDance](https://www.bytedance.com/) provider contains support for the Seedance family of video generation models through the [BytePlus ModelArk](https://docs.byteplus.com/en/docs/ModelArk/Video_Generation_API) platform. Seedance provides high-quality text-to-video and image-to-video generation capabilities, including audio-video synchronization, first-and-last frame control, and multi-reference image generation.
+The [ByteDance](https://www.bytedance.com/) provider contains support for the Seedance family of video generation models and the Seedream family of image generation models through the [BytePlus ModelArk](https://docs.byteplus.com/en/docs/ModelArk/) platform. Seedance provides high-quality text-to-video and image-to-video generation capabilities, including audio-video synchronization, first-and-last frame control, and multi-reference image generation (see the [video generation API](https://docs.byteplus.com/en/docs/ModelArk/Video_Generation_API)). Seedream provides text-to-image and image-to-image generation, including multi-image blending and batch image generation (see the [image generation API](https://docs.byteplus.com/en/docs/ModelArk/1824690)).
 
 ## Setup
 
 The ByteDance provider is available via the `@ai-sdk/bytedance` module. You can install it with
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/bytedance" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/bytedance" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/bytedance" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add @ai-sdk/bytedance" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/bytedance" />
 
 ## Provider Instance
 
@@ -72,6 +58,149 @@ You can use the following optional settings to customize the ByteDance provider 
   You can use it as a middleware to intercept requests,
   or to provide a custom fetch implementation for e.g. testing.
 
+## Image Models
+
+You can create ByteDance Seedream image models using the `.image()` factory method.
+For more on image generation with the AI SDK see [generateImage()](/docs/reference/ai-sdk-core/generate-image).
+
+### Text-to-Image
+
+Generate images from text prompts:
+
+```ts
+import { byteDance, type ByteDanceImageModelOptions } from '@ai-sdk/bytedance';
+import { generateImage } from 'ai';
+
+const { image } = await generateImage({
+  model: byteDance.image('seedream-5-0-260128'),
+  prompt: 'A salamander in a forest pond at dusk surrounded by fireflies',
+  size: '2048x2048',
+  providerOptions: {
+    bytedance: {
+      watermark: false,
+    } satisfies ByteDanceImageModelOptions,
+  },
+});
+```
+
+<Note>
+  ByteDance identifies Seedream models by their ModelArk model id (e.g.
+  `seedream-5-0-260128`) or an account-specific endpoint id (e.g. `ep-...`). The
+  `size` parameter accepts pixel dimensions (`{width}x{height}`); resolution
+  levels such as `2K` can be passed via `providerOptions.bytedance.size`.
+</Note>
+
+### Image Editing
+
+Pass input images via `prompt.images` to transform an existing image
+(image-to-image):
+
+```ts
+import { readFileSync } from 'node:fs';
+import { byteDance, type ByteDanceImageModelOptions } from '@ai-sdk/bytedance';
+import { generateImage } from 'ai';
+
+const inputImage = readFileSync('./input-image.png');
+
+const { image } = await generateImage({
+  model: byteDance.image('seedream-5-0-260128'),
+  prompt: {
+    text: 'Change the salamander to a snow weasel',
+    images: [inputImage],
+  },
+  providerOptions: {
+    bytedance: {
+      watermark: false,
+    } satisfies ByteDanceImageModelOptions,
+  },
+});
+```
+
+You can also pass multiple images to blend styles and elements from several
+references into a single output (multi-image blending). Images may be provided
+as binary data, base64 strings, or URLs:
+
+```ts
+import { byteDance, type ByteDanceImageModelOptions } from '@ai-sdk/bytedance';
+import { generateImage } from 'ai';
+
+const { image } = await generateImage({
+  model: byteDance.image('seedream-5-0-260128'),
+  prompt: {
+    text: 'Replace the clothing in image 1 with the outfit from image 2',
+    images: ['https://example.com/model.png', 'https://example.com/outfit.png'],
+  },
+  providerOptions: {
+    bytedance: {
+      watermark: false,
+    } satisfies ByteDanceImageModelOptions,
+  },
+});
+```
+
+<Note>
+  Seedream does not support mask-based inpainting. Describe the edit in the
+  prompt, optionally with markers drawn on the input image (interactive editing,
+  supported by `dola-seedream-5-0-pro-260628`).
+</Note>
+
+### Image Model Options
+
+The following options are available via `providerOptions.bytedance`. You can
+type them with `ByteDanceImageModelOptions`.
+
+- **watermark** _boolean_
+
+  Whether to add an "AI generated" watermark to the bottom-right corner of the
+  output image.
+
+- **outputFormat** _'png' | 'jpeg'_
+
+  Format of the generated image file. Supported by `seedream-5-0` and
+  `dola-seedream-5-0-pro`; `seedream-4-5` / `seedream-4-0` always return `jpeg`.
+
+- **size** _string_
+
+  A resolution level (e.g. `1K`, `2K`, `3K`, `4K`) as an alternative to passing
+  pixel dimensions via the top-level `size` parameter. When set, this overrides
+  the top-level `size`. Available levels vary by model.
+
+- **sequentialImageGeneration** _'auto' | 'disabled'_
+
+  Set to `'auto'` to generate a batch of related images (e.g. storyboards or
+  brand visuals). Defaults to `'disabled'` (single image).
+
+- **maxImages** _number_
+
+  Maximum number of images to generate when `sequentialImageGeneration` is
+  `'auto'`. The number of input reference images plus generated images must not
+  exceed the model's limit.
+
+- **optimizePromptMode** _'standard' | 'fast'_
+
+  Prompt optimization mode. `seedream-4-0` supports both `standard` and `fast`;
+  other models support `standard` only.
+
+<Note>
+  Additional ModelArk fields can also be passed through
+  `providerOptions.bytedance` and are validated by ModelArk.
+</Note>
+
+### Image Model Capabilities
+
+| Model             | Model ID                                                 | Capabilities                                                                                                                          |
+| ----------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Seedream 5.0 Pro  | `dola-seedream-5-0-pro-260628`                           | Text-to-image, single/multi image-to-image, interactive editing (markers). Sizes: 1K, 2K. Formats: png, jpeg. Up to 10 references.    |
+| Seedream 5.0 Lite | `seedream-5-0-260128` (alias `seedream-5-0-lite-260128`) | Text-to-image, single/multi image-to-image, batch generation. Sizes: 2K, 3K, 4K. Formats: png, jpeg. Up to 14 references.             |
+| Seedream 4.5      | `seedream-4-5-251128`                                    | Text-to-image, single/multi image-to-image, batch generation. Sizes: 2K, 4K. Format: jpeg. Up to 14 references.                       |
+| Seedream 4.0      | `seedream-4-0-250828`                                    | Text-to-image, single/multi image-to-image, batch generation, fast prompt mode. Sizes: 1K, 2K, 4K. Format: jpeg. Up to 14 references. |
+
+<Note>
+  You can also pass any model or endpoint id string if needed, e.g. for future
+  models not yet listed here. Streaming image output is not currently supported
+  through the AI SDK integration.
+</Note>
+
 ## Video Models
 
 You can create ByteDance video models using the `.video()` factory method.
@@ -82,10 +211,7 @@ For more on video generation with the AI SDK see [generateVideo()](/docs/referen
 Generate videos from text prompts:
 
 ```ts
-import {
-  byteDance,
-  type ByteDanceVideoProviderOptions,
-} from '@ai-sdk/bytedance';
+import { byteDance, type ByteDanceVideoModelOptions } from '@ai-sdk/bytedance';
 import { experimental_generateVideo as generateVideo } from 'ai';
 
 const { video } = await generateVideo({
@@ -97,7 +223,7 @@ const { video } = await generateVideo({
   providerOptions: {
     bytedance: {
       watermark: false,
-    } satisfies ByteDanceVideoProviderOptions,
+    } satisfies ByteDanceVideoModelOptions,
   },
 });
 
@@ -109,10 +235,7 @@ console.log(video.url);
 Generate videos from a first-frame image with an optional text prompt:
 
 ```ts
-import {
-  byteDance,
-  type ByteDanceVideoProviderOptions,
-} from '@ai-sdk/bytedance';
+import { byteDance, type ByteDanceVideoModelOptions } from '@ai-sdk/bytedance';
 import { experimental_generateVideo as generateVideo } from 'ai';
 
 const { video } = await generateVideo({
@@ -125,7 +248,7 @@ const { video } = await generateVideo({
   providerOptions: {
     bytedance: {
       watermark: false,
-    } satisfies ByteDanceVideoProviderOptions,
+    } satisfies ByteDanceVideoModelOptions,
   },
 });
 ```
@@ -135,10 +258,7 @@ const { video } = await generateVideo({
 Seedance 1.5 Pro supports generating synchronized audio alongside the video:
 
 ```ts
-import {
-  byteDance,
-  type ByteDanceVideoProviderOptions,
-} from '@ai-sdk/bytedance';
+import { byteDance, type ByteDanceVideoModelOptions } from '@ai-sdk/bytedance';
 import { experimental_generateVideo as generateVideo } from 'ai';
 
 const { video } = await generateVideo({
@@ -152,7 +272,7 @@ const { video } = await generateVideo({
     bytedance: {
       generateAudio: true,
       watermark: false,
-    } satisfies ByteDanceVideoProviderOptions,
+    } satisfies ByteDanceVideoModelOptions,
   },
 });
 ```
@@ -162,10 +282,7 @@ const { video } = await generateVideo({
 Generate smooth transitions between a starting and ending keyframe image:
 
 ```ts
-import {
-  byteDance,
-  type ByteDanceVideoProviderOptions,
-} from '@ai-sdk/bytedance';
+import { byteDance, type ByteDanceVideoModelOptions } from '@ai-sdk/bytedance';
 import { experimental_generateVideo as generateVideo } from 'ai';
 
 const { video } = await generateVideo({
@@ -180,7 +297,7 @@ const { video } = await generateVideo({
       lastFrameImage: 'https://example.com/last-frame.jpg',
       generateAudio: true,
       watermark: false,
-    } satisfies ByteDanceVideoProviderOptions,
+    } satisfies ByteDanceVideoModelOptions,
   },
 });
 ```
@@ -190,10 +307,7 @@ const { video } = await generateVideo({
 Using the Seedance 1.0 Lite I2V model, you can provide multiple reference images (1-4) that the model uses to faithfully reproduce object shapes, colors, and textures:
 
 ```ts
-import {
-  byteDance,
-  type ByteDanceVideoProviderOptions,
-} from '@ai-sdk/bytedance';
+import { byteDance, type ByteDanceVideoModelOptions } from '@ai-sdk/bytedance';
 import { experimental_generateVideo as generateVideo } from 'ai';
 
 const { video } = await generateVideo({
@@ -210,7 +324,7 @@ const { video } = await generateVideo({
         'https://example.com/lawn.png',
       ],
       watermark: false,
-    } satisfies ByteDanceVideoProviderOptions,
+    } satisfies ByteDanceVideoModelOptions,
   },
 });
 ```
@@ -220,10 +334,7 @@ const { video } = await generateVideo({
 Seedance 2.0 supports reference videos that guide the style, motion, or composition of the generated video:
 
 ```ts
-import {
-  byteDance,
-  type ByteDanceVideoProviderOptions,
-} from '@ai-sdk/bytedance';
+import { byteDance, type ByteDanceVideoModelOptions } from '@ai-sdk/bytedance';
 import { experimental_generateVideo as generateVideo } from 'ai';
 
 const { video } = await generateVideo({
@@ -236,7 +347,7 @@ const { video } = await generateVideo({
     bytedance: {
       referenceVideos: ['https://example.com/reference-video.mp4'],
       watermark: false,
-    } satisfies ByteDanceVideoProviderOptions,
+    } satisfies ByteDanceVideoModelOptions,
   },
 });
 ```
@@ -246,10 +357,7 @@ const { video } = await generateVideo({
 Seedance 2.0 supports reference audio that is used as background music or sound for the generated video:
 
 ```ts
-import {
-  byteDance,
-  type ByteDanceVideoProviderOptions,
-} from '@ai-sdk/bytedance';
+import { byteDance, type ByteDanceVideoModelOptions } from '@ai-sdk/bytedance';
 import { experimental_generateVideo as generateVideo } from 'ai';
 
 const { video } = await generateVideo({
@@ -262,14 +370,15 @@ const { video } = await generateVideo({
       referenceAudio: ['https://example.com/background-music.mp3'],
       generateAudio: true,
       watermark: false,
-    } satisfies ByteDanceVideoProviderOptions,
+    } satisfies ByteDanceVideoModelOptions,
   },
 });
 ```
 
-### Video Provider Options
+### Video Model Options
 
-The following provider options are available via `providerOptions.bytedance`:
+The following options are available via `providerOptions.bytedance`. You can
+type them with `ByteDanceVideoModelOptions`.
 
 #### Generation Options
 
@@ -279,7 +388,8 @@ The following provider options are available via `providerOptions.bytedance`:
 
 - **generateAudio** _boolean_
 
-  Whether to generate synchronized audio for the video. Only supported by Seedance 1.5 Pro.
+  Whether to generate synchronized audio for the video. Supported by Seedance
+  1.5 Pro and Seedance 2.0.
 
 - **cameraFixed** _boolean_
 
@@ -305,7 +415,10 @@ The following provider options are available via `providerOptions.bytedance`:
 
 - **referenceImages** _string[]_
 
-  Array of reference image URLs (1-4 images) for multi-reference image-to-video generation. The model extracts key features from each image and reproduces them in the video. Use `[Image 1]`, `[Image 2]`, etc. in your prompt to reference specific images. Supported by Seedance 1.0 Lite I2V.
+  Array of reference image URLs for multi-reference image-to-video generation.
+  The model extracts key features from each image and reproduces them in the
+  video. Use `[Image 1]`, `[Image 2]`, etc. in your prompt to reference
+  specific images.
 
 #### Media Reference Options
 

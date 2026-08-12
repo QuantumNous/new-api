@@ -1,5 +1,11 @@
 # @ai-sdk/provider
 
+## 4.0.3
+
+### Patch Changes
+
+- 0f93c57: feat (video): support video (not just image) reference inputs in `inputReferences` for reference-to-video generation
+
 ## 4.0.2
 
 ### Patch Changes

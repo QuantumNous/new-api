@@ -38,7 +38,7 @@ export async function POST(req: Request) {
   console.log(JSON.stringify(messages, null, 2));
 
   const result = streamText({
-    model: openai('gpt-5'),
+    model: openai('gpt-5.6'),
     messages: await convertToModelMessages(messages),
     tools,
     providerOptions: {

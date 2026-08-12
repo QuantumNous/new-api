@@ -5,6 +5,8 @@ import {
 } from '@ai-sdk/provider';
 import {
   loadApiKey,
+  validateBaseURL,
+  withoutTrailingSlash,
   withUserAgentSuffix,
   type FetchFunction,
 } from '@ai-sdk/provider-utils';
@@ -72,6 +74,10 @@ export interface ReplicateProvider extends ProviderV4 {
 export function createReplicate(
   options: ReplicateProviderSettings = {},
 ): ReplicateProvider {
+  const baseURL =
+    withoutTrailingSlash(validateBaseURL(options.baseURL)) ??
+    'https://api.replicate.com/v1';
+
   const getHeaders = () =>
     withUserAgentSuffix(
       {
@@ -88,7 +94,7 @@ export function createReplicate(
   const createImageModel = (modelId: ReplicateImageModelId) =>
     new ReplicateImageModel(modelId, {
       provider: 'replicate',
-      baseURL: options.baseURL ?? 'https://api.replicate.com/v1',
+      baseURL,
       headers: getHeaders(),
       fetch: options.fetch,
     });
@@ -96,7 +102,7 @@ export function createReplicate(
   const createVideoModel = (modelId: ReplicateVideoModelId) =>
     new ReplicateVideoModel(modelId, {
       provider: 'replicate.video',
-      baseURL: options.baseURL ?? 'https://api.replicate.com/v1',
+      baseURL,
       headers: getHeaders,
       fetch: options.fetch,
     });

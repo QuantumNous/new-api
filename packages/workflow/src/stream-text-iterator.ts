@@ -9,6 +9,7 @@ import {
   type Experimental_LanguageModelStreamPart as ModelCallStreamPart,
   type Experimental_SandboxSession as SandboxSession,
   type LanguageModel,
+  type LanguageModelUsage,
   type ModelMessage,
   type StepResult,
   type ToolCallRepairFunction,
@@ -17,10 +18,12 @@ import {
 } from 'ai';
 import { createRestrictedTelemetryDispatcher } from 'ai/internal';
 import {
+  type DoStreamStepRawResult,
   doStreamStep,
   type ModelStopCondition,
   type ParsedToolCall,
   type ProviderExecutedToolResult,
+  type StreamFinish,
 } from './do-stream-step.js';
 import { serializeToolSet } from './serializable-schema.js';
 import type {
@@ -344,7 +347,7 @@ export async function* streamTextIterator({
         headers: currentGenerationSettings.headers,
       } as never);
 
-      const { toolCalls, finish, step, providerExecutedToolResults } =
+      const { toolCalls, finish, raw, providerExecutedToolResults } =
         await doStreamStep(
           conversationPrompt,
           currentModel,
@@ -356,11 +359,16 @@ export async function* streamTextIterator({
             includeRawChunks,
             repairToolCall,
             responseFormat,
-            runtimeContext: currentRuntimeContext,
-            toolsContext: currentToolsContext,
-            stepNumber,
           },
         );
+      // Reconstruct the full StepResult outside the step boundary so the
+      // durable event log doesn't carry StepResult's redundant copies (or the
+      // per-chunk snapshot the step used to return).
+      const step = buildStepResult(raw, toolCalls, finish, {
+        stepNumber,
+        runtimeContext: currentRuntimeContext,
+        toolsContext: currentToolsContext,
+      });
 
       await telemetryDispatcher.onLanguageModelCallEnd?.({
         callId: step.callId,
@@ -512,6 +520,108 @@ function normalizeStepForTelemetry(step: StepResult<any, any>) {
     ...step,
     model: step.model ?? { provider: 'unknown', modelId: 'unknown' },
   };
+}
+
+/**
+ * Reconstruct a full `StepResult` from the minimal aggregates returned by
+ * `doStreamStep`. Runs outside the step boundary so StepResult's redundant
+ * fields (duplicate tool-call lists, `content`, `reasoningText`, the
+ * always-empty `*ToolResults` arrays) and the per-chunk snapshot don't cross
+ * it. The shape matches what the AI SDK's `streamText` exposes to callers.
+ */
+function buildStepResult(
+  raw: DoStreamStepRawResult,
+  toolCalls: ParsedToolCall[],
+  finish: StreamFinish | undefined,
+  opts: {
+    stepNumber: number;
+    runtimeContext: Context;
+    toolsContext: Record<string, Context | undefined>;
+  },
+): StepResult<ToolSet, any> {
+  const { text, reasoning: reasoningParts, responseMetadata, warnings } = raw;
+  const reasoningText = reasoningParts.map(r => r.text).join('') || undefined;
+
+  const validToolCalls = toolCalls
+    .filter(tc => !tc.invalid)
+    .map(tc => ({
+      type: 'tool-call' as const,
+      toolCallId: tc.toolCallId,
+      toolName: tc.toolName,
+      input: tc.input,
+      ...(tc.dynamic ? { dynamic: true as const } : {}),
+    }));
+
+  return {
+    callId: 'workflow-agent',
+    stepNumber: opts.stepNumber,
+    model: {
+      provider: responseMetadata?.modelId?.split(':')[0] ?? 'unknown',
+      modelId: responseMetadata?.modelId ?? 'unknown',
+    },
+    functionId: undefined,
+    metadata: undefined,
+    runtimeContext: opts.runtimeContext ?? {},
+    toolsContext: opts.toolsContext ?? {},
+    content: [
+      ...(text ? [{ type: 'text' as const, text }] : []),
+      ...validToolCalls,
+    ],
+    text,
+    reasoning: reasoningParts.map(r => ({
+      type: 'reasoning' as const,
+      text: r.text,
+    })),
+    reasoningText,
+    files: [],
+    sources: [],
+    toolCalls: validToolCalls,
+    staticToolCalls: [],
+    dynamicToolCalls: validToolCalls.filter(tc => tc.dynamic),
+    toolResults: [],
+    staticToolResults: [],
+    dynamicToolResults: [],
+    finishReason: finish?.finishReason ?? 'other',
+    rawFinishReason: finish?.rawFinishReason,
+    usage:
+      finish?.usage ??
+      ({
+        inputTokens: 0,
+        inputTokenDetails: {
+          noCacheTokens: undefined,
+          cacheReadTokens: undefined,
+          cacheWriteTokens: undefined,
+        },
+        outputTokens: 0,
+        outputTokenDetails: {
+          textTokens: undefined,
+          reasoningTokens: undefined,
+        },
+        totalTokens: 0,
+      } as LanguageModelUsage),
+    performance: {
+      effectiveOutputTokensPerSecond: 0,
+      outputTokensPerSecond: undefined,
+      inputTokensPerSecond: undefined,
+      effectiveTotalTokensPerSecond: 0,
+      stepTimeMs: 0,
+      responseTimeMs: 0,
+      toolExecutionMs: {},
+      timeToFirstOutputMs: undefined,
+    },
+    warnings,
+    request: {
+      body: '',
+      messages: [], // TODO implement step request messages
+    },
+    response: {
+      id: responseMetadata?.id ?? 'unknown',
+      timestamp: responseMetadata?.timestamp ?? new Date(),
+      modelId: responseMetadata?.modelId ?? 'unknown',
+      messages: [],
+    },
+    providerMetadata: finish?.providerMetadata ?? {},
+  } as StepResult<ToolSet, any>;
 }
 
 /**

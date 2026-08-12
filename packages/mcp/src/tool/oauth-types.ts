@@ -69,7 +69,7 @@ export const OAuthMetadataSchema = z.looseObject({
   scopes_supported: z.array(z.string()).optional(),
   response_types_supported: z.array(z.string()),
   grant_types_supported: z.array(z.string()).optional(),
-  code_challenge_methods_supported: z.array(z.string()),
+  code_challenge_methods_supported: z.array(z.string()).optional(),
   token_endpoint_auth_methods_supported: z.array(z.string()).optional(),
   token_endpoint_auth_signing_alg_values_supported: z
     .array(z.string())

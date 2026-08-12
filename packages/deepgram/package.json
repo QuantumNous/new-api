@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/deepgram",
-  "version": "3.0.5",
+  "version": "3.0.11",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

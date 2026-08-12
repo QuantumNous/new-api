@@ -34,7 +34,7 @@ export {
 export {
   prepareHarnessSandboxTemplate,
   prewarmHarness,
-} from '../src/agent/prewarm';
+} from '../src/agent/prepare-harness-sandbox-template';
 export {
   prepareSandboxForHarness,
   type PrepareSandboxForHarnessResult,

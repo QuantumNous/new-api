@@ -1490,7 +1490,7 @@ describe('KlingAIVideoModel', () => {
       expect(result.warnings).toContainEqual(
         expect.objectContaining({
           type: 'unsupported',
-          feature: 'frameImages',
+          feature: 'image',
         }),
       );
     });
@@ -1527,6 +1527,176 @@ describe('KlingAIVideoModel', () => {
         type: 'url',
         url: 'https://p1.a.kwimgs.com/output/video-001.mp4',
         mediaType: 'video/mp4',
+      });
+    });
+  });
+
+  describe('video input guard', () => {
+    it('should warn and not send a video inputReference as an image', async () => {
+      const model = createBasicModel({ modelId: 'kling-v2.6-i2v' });
+
+      const result = await model.doGenerate({
+        ...i2vDefaultOptions,
+        image: undefined,
+        inputReferences: [
+          {
+            type: 'url',
+            url: 'https://example.com/reference.mp4',
+            mediaType: 'video/mp4',
+          },
+          { type: 'url', url: 'https://example.com/ref-image.png' },
+        ],
+      });
+
+      // The video reference must produce an unsupported warning.
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'inputReferences',
+        }),
+      );
+
+      // The video URL must not be sent in image_list; only the image remains.
+      const body = await server.calls[0].requestBodyJson;
+      expect(body).toMatchObject({
+        image_list: [{ image: 'https://example.com/ref-image.png' }],
+      });
+      expect(JSON.stringify(body)).not.toContain(
+        'https://example.com/reference.mp4',
+      );
+    });
+
+    it('should warn and not send a file-based video inputReference as an image', async () => {
+      const model = createBasicModel({ modelId: 'kling-v2.6-i2v' });
+
+      const result = await model.doGenerate({
+        ...i2vDefaultOptions,
+        image: undefined,
+        inputReferences: [
+          {
+            type: 'file',
+            data: new Uint8Array([0, 0, 0, 24]),
+            mediaType: 'video/mp4',
+          },
+          { type: 'url', url: 'https://example.com/ref-image.png' },
+        ],
+      });
+
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'inputReferences',
+        }),
+      );
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body).toMatchObject({
+        image_list: [{ image: 'https://example.com/ref-image.png' }],
+      });
+    });
+
+    it('should warn and not send a video start image (frame image)', async () => {
+      const model = createBasicModel({ modelId: 'kling-v2.6-i2v' });
+
+      const result = await model.doGenerate({
+        ...i2vDefaultOptions,
+        image: {
+          type: 'url',
+          url: 'https://example.com/start.mp4',
+          mediaType: 'video/mp4',
+        },
+      });
+
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'frameImages',
+        }),
+      );
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body.image).toBeUndefined();
+    });
+
+    it('should warn and not send a video first_frame image', async () => {
+      const model = createBasicModel({ modelId: 'kling-v2.6-i2v' });
+
+      const result = await model.doGenerate({
+        ...i2vDefaultOptions,
+        image: undefined,
+        frameImages: [
+          {
+            image: {
+              type: 'url',
+              url: 'https://example.com/start.mp4',
+              mediaType: 'video/mp4',
+            },
+            frameType: 'first_frame',
+          },
+        ],
+      });
+
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'frameImages',
+        }),
+      );
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body.image).toBeUndefined();
+    });
+
+    it('should warn and not send a video last_frame image as image_tail', async () => {
+      const model = createBasicModel({ modelId: 'kling-v2.6-i2v' });
+
+      const result = await model.doGenerate({
+        ...i2vDefaultOptions,
+        frameImages: [
+          {
+            image: {
+              type: 'url',
+              url: 'https://example.com/end.mp4',
+              mediaType: 'video/mp4',
+            },
+            frameType: 'last_frame',
+          },
+        ],
+      });
+
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'frameImages',
+        }),
+      );
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body.image_tail).toBeUndefined();
+    });
+
+    it('should not warn or filter when image references have no video mediaType', async () => {
+      const model = createBasicModel({ modelId: 'kling-v2.6-i2v' });
+
+      const result = await model.doGenerate({
+        ...i2vDefaultOptions,
+        image: undefined,
+        inputReferences: [
+          {
+            type: 'url',
+            url: 'https://example.com/ref-image.png',
+            mediaType: 'image/png',
+          },
+        ],
+      });
+
+      expect(result.warnings).not.toContainEqual(
+        expect.objectContaining({ feature: 'inputReferences' }),
+      );
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body).toMatchObject({
+        image_list: [{ image: 'https://example.com/ref-image.png' }],
       });
     });
   });

@@ -1,10 +1,10 @@
 {
   "name": "@ai-sdk/rsc",
-  "version": "3.0.14",
+  "version": "3.0.31",
+  "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,
-  "main": "./dist/rsc-client.mjs",
-  "module": "./dist/rsc-client.mjs",
+  "main": "./dist/rsc-client.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup --tsconfig tsconfig.build.json",
@@ -27,9 +27,9 @@
     "./package.json": "./package.json",
     ".": {
       "types": "./dist/index.d.ts",
-      "react-server": "./dist/rsc-server.mjs",
-      "module": "./dist/rsc-client.mjs",
-      "import": "./dist/rsc-client.mjs"
+      "react-server": "./dist/rsc-server.js",
+      "import": "./dist/rsc-client.js",
+      "default": "./dist/rsc-client.js"
     }
   },
   "files": [

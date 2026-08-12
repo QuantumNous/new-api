@@ -3,6 +3,7 @@ import { streamText } from 'ai';
 import { run } from '../../lib/run';
 
 const models = [
+  'grok-4.5',
   'grok-4',
   'grok-4-1-fast-reasoning',
   'grok-4-1-fast-non-reasoning',

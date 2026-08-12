@@ -18,32 +18,7 @@ sandbox-exposed WebSocket.
 
 ## Setup
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet
-      text="pnpm add @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
-      dark
-    />
-  </Tab>
-  <Tab>
-    <Snippet
-      text="npm install @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
-      dark
-    />
-  </Tab>
-  <Tab>
-    <Snippet
-      text="yarn add @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
-      dark
-    />
-  </Tab>
-  <Tab>
-    <Snippet
-      text="bun add @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
-      dark
-    />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel" />
 
 The adapter bootstraps the bridge's Node dependencies (the `deepagents` package
 and LangChain) inside the sandbox via `pnpm` when the first session starts.

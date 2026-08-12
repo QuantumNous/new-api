@@ -496,6 +496,121 @@ describe('amazon-bedrock-anthropic-provider', () => {
     expect(transformedBody?.anthropic_beta).toBeUndefined();
   });
 
+  it('should translate eager_input_streaming on tools into the fine-grained-tool-streaming beta', () => {
+    const provider = createAmazonBedrockAnthropic({
+      region: 'us-east-1',
+      accessKeyId: 'test-key',
+      secretAccessKey: 'test-secret',
+    });
+    provider('test-model-id');
+
+    const constructorCall = vi.mocked(AnthropicLanguageModel).mock.calls[
+      vi.mocked(AnthropicLanguageModel).mock.calls.length - 1
+    ];
+    const config = constructorCall[1];
+
+    const transformedBody = config.transformRequestBody?.(
+      {
+        model: 'test-model-id',
+        messages: [{ role: 'user', content: 'Hello' }],
+        max_tokens: 1024,
+        tools: [
+          {
+            name: 'get_weather',
+            input_schema: { type: 'object', properties: {} },
+            eager_input_streaming: true,
+          },
+          {
+            name: 'get_time',
+            input_schema: { type: 'object', properties: {} },
+          },
+        ],
+      },
+      new Set(),
+    );
+
+    expect(transformedBody?.tools).toEqual([
+      { name: 'get_weather', input_schema: { type: 'object', properties: {} } },
+      { name: 'get_time', input_schema: { type: 'object', properties: {} } },
+    ]);
+    expect(transformedBody?.anthropic_beta).toEqual([
+      'fine-grained-tool-streaming-2025-05-14',
+    ]);
+  });
+
+  it('should not add the fine-grained-tool-streaming beta when no tool has eager_input_streaming', () => {
+    const provider = createAmazonBedrockAnthropic({
+      region: 'us-east-1',
+      accessKeyId: 'test-key',
+      secretAccessKey: 'test-secret',
+    });
+    provider('test-model-id');
+
+    const constructorCall = vi.mocked(AnthropicLanguageModel).mock.calls[
+      vi.mocked(AnthropicLanguageModel).mock.calls.length - 1
+    ];
+    const config = constructorCall[1];
+
+    const transformedBody = config.transformRequestBody?.(
+      {
+        model: 'test-model-id',
+        messages: [{ role: 'user', content: 'Hello' }],
+        max_tokens: 1024,
+        tools: [
+          {
+            name: 'get_weather',
+            input_schema: { type: 'object', properties: {} },
+          },
+        ],
+      },
+      new Set(),
+    );
+
+    expect(transformedBody?.anthropic_beta).toBeUndefined();
+  });
+
+  it('should strip eager_input_streaming from tools that also get version remapped', () => {
+    const provider = createAmazonBedrockAnthropic({
+      region: 'us-east-1',
+      accessKeyId: 'test-key',
+      secretAccessKey: 'test-secret',
+    });
+    provider('test-model-id');
+
+    const constructorCall = vi.mocked(AnthropicLanguageModel).mock.calls[
+      vi.mocked(AnthropicLanguageModel).mock.calls.length - 1
+    ];
+    const config = constructorCall[1];
+
+    const transformedBody = config.transformRequestBody?.(
+      {
+        model: 'test-model-id',
+        messages: [{ role: 'user', content: 'Hello' }],
+        max_tokens: 1024,
+        tools: [
+          {
+            name: 'get_weather',
+            input_schema: { type: 'object', properties: {} },
+            eager_input_streaming: true,
+          },
+          { type: 'bash_20241022', name: 'bash' },
+        ],
+      },
+      new Set(),
+    );
+
+    expect(transformedBody?.tools).toEqual([
+      { name: 'get_weather', input_schema: { type: 'object', properties: {} } },
+      { type: 'bash_20250124', name: 'bash' },
+    ]);
+    expect(transformedBody?.anthropic_beta).toEqual(
+      expect.arrayContaining([
+        'fine-grained-tool-streaming-2025-05-14',
+        'computer-use-2025-01-24',
+      ]),
+    );
+  });
+
   it('should not support URL sources to force base64 conversion', () => {
     const provider = createAmazonBedrockAnthropic({
       region: 'us-east-1',

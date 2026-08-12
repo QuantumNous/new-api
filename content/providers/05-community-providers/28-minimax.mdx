@@ -13,20 +13,7 @@ API keys can be obtained from the [MiniMax Platform](https://platform.minimax.io
 
 The MiniMax provider is available via the `vercel-minimax-ai-provider` module. You can install it with:
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add vercel-minimax-ai-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install vercel-minimax-ai-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add vercel-minimax-ai-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add vercel-minimax-ai-provider" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="vercel-minimax-ai-provider" />
 
 ## Provider Instance
 
@@ -102,10 +89,10 @@ Both formats access the same MiniMax models with the same capabilities.
 
 ## Model Capabilities
 
-| Model               | Text Generation     | Object Generation   | Image Input         | Tool Usage          | Tool Streaming      |
-| ------------------- | ------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `MiniMax-M2`        | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `MiniMax-M2-Stable` | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model               | Text Generation | Object Generation | Image Input | Tool Usage | Tool Streaming |
+| ------------------- | --------------- | ----------------- | ----------- | ---------- | -------------- |
+| `MiniMax-M2`        | <Check />       | <Check />         | <Cross />   | <Check />  | <Check />      |
+| `MiniMax-M2-Stable` | <Check />       | <Check />         | <Cross />   | <Check />  | <Check />      |
 
 <Note>
   Please see the [MiniMax

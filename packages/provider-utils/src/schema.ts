@@ -69,7 +69,13 @@ export type ZodSchema<SCHEMA = any> =
   | z3.Schema<SCHEMA, z3.ZodTypeDef, any>
   | z4.core.$ZodType<SCHEMA, any>;
 
-export type StandardSchema<SCHEMA = any> = StandardSchemaV1<unknown, SCHEMA> &
+export type StandardSchema<SCHEMA = any> = StandardSchemaV1<unknown, SCHEMA> & {
+  readonly '~standard': StandardSchemaV1.Props<unknown, SCHEMA> & {
+    readonly jsonSchema?: StandardJSONSchemaV1.Converter;
+  };
+};
+
+type StandardSchemaWithJsonSchema<SCHEMA = any> = StandardSchema<SCHEMA> &
   StandardJSONSchemaV1<unknown, SCHEMA>;
 
 export type FlexibleSchema<SCHEMA = any> =
@@ -154,12 +160,19 @@ function standardSchema<OBJECT>(
   standardSchema: StandardSchema<OBJECT>,
 ): Schema<OBJECT> {
   return jsonSchema(
-    () =>
-      addAdditionalPropertiesToJsonSchema(
+    () => {
+      if (!hasStandardJsonSchema(standardSchema)) {
+        throw new Error(
+          `Standard schema vendor '${standardSchema['~standard'].vendor}' does not support JSON Schema conversion.`,
+        );
+      }
+
+      return addAdditionalPropertiesToJsonSchema(
         standardSchema['~standard'].jsonSchema.input({
           target: 'draft-07',
         }) as JSONSchema7,
-      ),
+      );
+    },
     {
       validate: async value => {
         const result = await standardSchema['~standard'].validate(value);
@@ -175,6 +188,12 @@ function standardSchema<OBJECT>(
       },
     },
   );
+}
+
+function hasStandardJsonSchema<OBJECT>(
+  schema: StandardSchema<OBJECT>,
+): schema is StandardSchemaWithJsonSchema<OBJECT> {
+  return schema['~standard'].jsonSchema != null;
 }
 
 export function zod3Schema<OBJECT>(

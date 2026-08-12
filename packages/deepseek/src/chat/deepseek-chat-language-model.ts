@@ -50,6 +50,7 @@ export type DeepSeekChatConfig = {
   url: (options: { modelId: string; path: string }) => string;
   fetch?: FetchFunction;
   supportsThinking?: boolean;
+  supportsStructuredOutputs?: boolean;
 };
 
 export class DeepSeekChatLanguageModel implements LanguageModelV4 {
@@ -117,10 +118,14 @@ export class DeepSeekChatLanguageModel implements LanguageModelV4 {
         schema: deepseekLanguageModelChatOptions,
       })) ?? {};
 
+    const supportsStructuredOutputs =
+      this.config.supportsStructuredOutputs === true;
+
     const { messages, warnings } = convertToDeepSeekChatMessages({
       prompt,
       responseFormat,
       modelId: this.modelId,
+      supportsStructuredOutputs,
     });
     const allWarnings: SharedV4Warning[] = [...warnings];
 
@@ -175,7 +180,19 @@ export class DeepSeekChatLanguageModel implements LanguageModelV4 {
         frequency_penalty: frequencyPenalty,
         presence_penalty: presencePenalty,
         response_format:
-          responseFormat?.type === 'json' ? { type: 'json_object' } : undefined,
+          responseFormat?.type === 'json'
+            ? supportsStructuredOutputs && responseFormat.schema != null
+              ? {
+                  type: 'json_schema',
+                  json_schema: {
+                    schema: responseFormat.schema,
+                    strict: deepseekOptions.strictJsonSchema ?? true,
+                    name: responseFormat.name ?? 'response',
+                    description: responseFormat.description,
+                  },
+                }
+              : { type: 'json_object' }
+            : undefined,
         stop: stopSequences,
         messages,
         tools: deepseekTools,

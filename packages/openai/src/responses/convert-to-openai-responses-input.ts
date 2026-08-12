@@ -1,6 +1,7 @@
 import {
   UnsupportedFunctionalityError,
   type LanguageModelV4Prompt,
+  type SharedV4ProviderOptions,
   type LanguageModelV4ToolApprovalResponsePart,
   type SharedV4Warning,
 } from '@ai-sdk/provider';
@@ -20,6 +21,7 @@ import {
   applyPatchInputSchema,
   applyPatchOutputSchema,
 } from '../tool/apply-patch';
+import { computerInputSchema, computerOutputSchema } from '../tool/computer';
 import {
   localShellInputSchema,
   localShellOutputSchema,
@@ -39,6 +41,17 @@ import {
 
 function serializeToolCallArguments(input: unknown): string {
   return JSON.stringify(input === undefined ? {} : input);
+}
+
+type OpenAIPromptCacheBreakpoint = { mode: 'explicit' };
+
+function getPromptCacheBreakpoint(
+  providerOptions: SharedV4ProviderOptions | undefined,
+  providerOptionsName: string,
+): OpenAIPromptCacheBreakpoint | undefined {
+  return providerOptions?.[providerOptionsName]?.promptCacheBreakpoint as
+    | OpenAIPromptCacheBreakpoint
+    | undefined;
 }
 
 /**
@@ -65,6 +78,7 @@ export async function convertToOpenAIResponsesInput({
   hasLocalShellTool = false,
   hasShellTool = false,
   hasApplyPatchTool = false,
+  hasComputerTool = false,
   customProviderToolNames,
 }: {
   prompt: LanguageModelV4Prompt;
@@ -80,6 +94,7 @@ export async function convertToOpenAIResponsesInput({
   hasLocalShellTool?: boolean;
   hasShellTool?: boolean;
   hasApplyPatchTool?: boolean;
+  hasComputerTool?: boolean;
   customProviderToolNames?: Set<string>;
 }): Promise<{
   input: OpenAIResponsesInput;
@@ -89,16 +104,48 @@ export async function convertToOpenAIResponsesInput({
   const warnings: Array<SharedV4Warning> = [];
   const processedApprovalIds = new Set<string>();
 
-  for (const { role, content } of prompt) {
+  for (const { role, content, providerOptions } of prompt) {
     switch (role) {
       case 'system': {
         switch (systemMessageMode) {
           case 'system': {
-            input.push({ role: 'system', content });
+            const promptCacheBreakpoint = getPromptCacheBreakpoint(
+              providerOptions,
+              providerOptionsName,
+            );
+            input.push({
+              role: 'system',
+              content:
+                promptCacheBreakpoint == null
+                  ? content
+                  : [
+                      {
+                        type: 'input_text',
+                        text: content,
+                        prompt_cache_breakpoint: promptCacheBreakpoint,
+                      },
+                    ],
+            });
             break;
           }
           case 'developer': {
-            input.push({ role: 'developer', content });
+            const promptCacheBreakpoint = getPromptCacheBreakpoint(
+              providerOptions,
+              providerOptionsName,
+            );
+            input.push({
+              role: 'developer',
+              content:
+                promptCacheBreakpoint == null
+                  ? content
+                  : [
+                      {
+                        type: 'input_text',
+                        text: content,
+                        prompt_cache_breakpoint: promptCacheBreakpoint,
+                      },
+                    ],
+            });
             break;
           }
           case 'remove': {
@@ -124,9 +171,23 @@ export async function convertToOpenAIResponsesInput({
           content: content.map((part, index) => {
             switch (part.type) {
               case 'text': {
-                return { type: 'input_text', text: part.text };
+                const promptCacheBreakpoint = getPromptCacheBreakpoint(
+                  part.providerOptions,
+                  providerOptionsName,
+                );
+                return {
+                  type: 'input_text',
+                  text: part.text,
+                  ...(promptCacheBreakpoint != null && {
+                    prompt_cache_breakpoint: promptCacheBreakpoint,
+                  }),
+                };
               }
               case 'file': {
+                const promptCacheBreakpoint = getPromptCacheBreakpoint(
+                  part.providerOptions,
+                  providerOptionsName,
+                );
                 switch (part.data.type) {
                   case 'reference': {
                     const fileId = resolveProviderReference({
@@ -141,12 +202,18 @@ export async function convertToOpenAIResponsesInput({
                         detail:
                           part.providerOptions?.[providerOptionsName]
                             ?.imageDetail,
+                        ...(promptCacheBreakpoint != null && {
+                          prompt_cache_breakpoint: promptCacheBreakpoint,
+                        }),
                       };
                     }
 
                     return {
                       type: 'input_file',
                       file_id: fileId,
+                      ...(promptCacheBreakpoint != null && {
+                        prompt_cache_breakpoint: promptCacheBreakpoint,
+                      }),
                     };
                   }
                   case 'text': {
@@ -172,12 +239,18 @@ export async function convertToOpenAIResponsesInput({
                         detail:
                           part.providerOptions?.[providerOptionsName]
                             ?.imageDetail,
+                        ...(promptCacheBreakpoint != null && {
+                          prompt_cache_breakpoint: promptCacheBreakpoint,
+                        }),
                       };
                     } else {
                       if (part.data.type === 'url') {
                         return {
                           type: 'input_file',
                           file_url: part.data.url.toString(),
+                          ...(promptCacheBreakpoint != null && {
+                            prompt_cache_breakpoint: promptCacheBreakpoint,
+                          }),
                         };
                       }
 
@@ -204,6 +277,9 @@ export async function convertToOpenAIResponsesInput({
                                   : `part-${index}`),
                               file_data: `data:${fullMediaType};base64,${convertToBase64(part.data.data)}`,
                             }),
+                        ...(promptCacheBreakpoint != null && {
+                          prompt_cache_breakpoint: promptCacheBreakpoint,
+                        }),
                       };
                     }
                   }
@@ -328,7 +404,7 @@ export async function convertToOpenAIResponsesInput({
               }
 
               // Provider-defined tool calls (local_shell, shell, apply_patch,
-              // and custom tools) are stored by the API and can be sent as an
+              // computer, and custom tools) are stored by the API and can be sent as an
               // `item_reference` to reduce payload size. Plain client-executed
               // function calls must NOT be: the matching `function_call_output`
               // can only reference the call by `call_id` (`call_...`), which
@@ -341,6 +417,7 @@ export async function convertToOpenAIResponsesInput({
                 (hasLocalShellTool && resolvedToolName === 'local_shell') ||
                 (hasShellTool && resolvedToolName === 'shell') ||
                 (hasApplyPatchTool && resolvedToolName === 'apply_patch') ||
+                (hasComputerTool && resolvedToolName === 'computer') ||
                 (customProviderToolNames?.has(resolvedToolName) ?? false);
 
               if (store && id != null && isProviderDefinedToolCall) {
@@ -401,6 +478,55 @@ export async function convertToOpenAIResponsesInput({
                   id: id!,
                   status: 'completed',
                   operation: parsedInput.operation,
+                });
+
+                break;
+              }
+
+              if (hasComputerTool && resolvedToolName === 'computer') {
+                const parsedInput = await validateTypes({
+                  value: part.input,
+                  schema: computerInputSchema,
+                });
+                input.push({
+                  type: 'computer_call',
+                  call_id: part.toolCallId,
+                  id: id!,
+                  status: parsedInput.status,
+                  actions: parsedInput.actions.map(action => {
+                    switch (action.type) {
+                      case 'click':
+                      case 'double_click':
+                      case 'move':
+                        return {
+                          ...action,
+                          keys: action.keys,
+                        };
+                      case 'drag':
+                        return {
+                          ...action,
+                          keys: action.keys,
+                        };
+                      case 'scroll':
+                        return {
+                          type: 'scroll' as const,
+                          x: action.x,
+                          y: action.y,
+                          scroll_x: action.scrollX,
+                          scroll_y: action.scrollY,
+                          keys: action.keys,
+                        };
+                      default:
+                        return action;
+                    }
+                  }),
+                  pending_safety_checks: parsedInput.pendingSafetyChecks.map(
+                    safetyCheck => ({
+                      id: safetyCheck.id,
+                      code: safetyCheck.code,
+                      message: safetyCheck.message,
+                    }),
+                  ),
                 });
 
                 break;
@@ -796,6 +922,35 @@ export async function convertToOpenAIResponsesInput({
             continue;
           }
 
+          if (
+            hasComputerTool &&
+            resolvedToolName === 'computer' &&
+            output.type === 'json'
+          ) {
+            const parsedOutput = await validateTypes({
+              value: output.value,
+              schema: computerOutputSchema,
+            });
+
+            input.push({
+              type: 'computer_call_output',
+              call_id: part.toolCallId,
+              output: {
+                type: 'computer_screenshot',
+                image_url: parsedOutput.output.imageUrl,
+                file_id: parsedOutput.output.fileId,
+                detail: parsedOutput.output.detail,
+              },
+              acknowledged_safety_checks:
+                parsedOutput.acknowledgedSafetyChecks?.map(safetyCheck => ({
+                  id: safetyCheck.id,
+                  code: safetyCheck.code,
+                  message: safetyCheck.message,
+                })),
+            });
+            continue;
+          }
+
           if (customProviderToolNames?.has(resolvedToolName)) {
             let outputValue: OpenAIResponsesCustomToolCallOutput['output'];
             switch (output.type) {
@@ -813,9 +968,19 @@ export async function convertToOpenAIResponsesInput({
               case 'content':
                 outputValue = output.value
                   .map(item => {
+                    const promptCacheBreakpoint = getPromptCacheBreakpoint(
+                      item.providerOptions,
+                      providerOptionsName,
+                    );
                     switch (item.type) {
                       case 'text':
-                        return { type: 'input_text' as const, text: item.text };
+                        return {
+                          type: 'input_text' as const,
+                          text: item.text,
+                          ...(promptCacheBreakpoint != null && {
+                            prompt_cache_breakpoint: promptCacheBreakpoint,
+                          }),
+                        };
                       case 'file': {
                         const topLevel = getTopLevelMediaType(item.mediaType);
                         const imageDetail =
@@ -831,12 +996,18 @@ export async function convertToOpenAIResponsesInput({
                               type: 'input_image' as const,
                               image_url: `data:${fullMediaType};base64,${convertToBase64(item.data.data)}`,
                               detail: imageDetail,
+                              ...(promptCacheBreakpoint != null && {
+                                prompt_cache_breakpoint: promptCacheBreakpoint,
+                              }),
                             };
                           }
                           return {
                             type: 'input_file' as const,
                             filename: item.filename ?? 'data',
                             file_data: `data:${fullMediaType};base64,${convertToBase64(item.data.data)}`,
+                            ...(promptCacheBreakpoint != null && {
+                              prompt_cache_breakpoint: promptCacheBreakpoint,
+                            }),
                           };
                         }
 
@@ -846,11 +1017,17 @@ export async function convertToOpenAIResponsesInput({
                               type: 'input_image' as const,
                               image_url: item.data.url.toString(),
                               detail: imageDetail,
+                              ...(promptCacheBreakpoint != null && {
+                                prompt_cache_breakpoint: promptCacheBreakpoint,
+                              }),
                             };
                           }
                           return {
                             type: 'input_file' as const,
                             file_url: item.data.url.toString(),
+                            ...(promptCacheBreakpoint != null && {
+                              prompt_cache_breakpoint: promptCacheBreakpoint,
+                            }),
                           };
                         }
 
@@ -897,9 +1074,19 @@ export async function convertToOpenAIResponsesInput({
             case 'content':
               contentValue = output.value
                 .map(item => {
+                  const promptCacheBreakpoint = getPromptCacheBreakpoint(
+                    item.providerOptions,
+                    providerOptionsName,
+                  );
                   switch (item.type) {
                     case 'text': {
-                      return { type: 'input_text' as const, text: item.text };
+                      return {
+                        type: 'input_text' as const,
+                        text: item.text,
+                        ...(promptCacheBreakpoint != null && {
+                          prompt_cache_breakpoint: promptCacheBreakpoint,
+                        }),
+                      };
                     }
 
                     case 'file': {
@@ -917,12 +1104,18 @@ export async function convertToOpenAIResponsesInput({
                             type: 'input_image' as const,
                             image_url: `data:${fullMediaType};base64,${convertToBase64(item.data.data)}`,
                             detail: imageDetail,
+                            ...(promptCacheBreakpoint != null && {
+                              prompt_cache_breakpoint: promptCacheBreakpoint,
+                            }),
                           };
                         }
                         return {
                           type: 'input_file' as const,
                           filename: item.filename ?? 'data',
                           file_data: `data:${fullMediaType};base64,${convertToBase64(item.data.data)}`,
+                          ...(promptCacheBreakpoint != null && {
+                            prompt_cache_breakpoint: promptCacheBreakpoint,
+                          }),
                         };
                       }
 
@@ -932,11 +1125,17 @@ export async function convertToOpenAIResponsesInput({
                             type: 'input_image' as const,
                             image_url: item.data.url.toString(),
                             detail: imageDetail,
+                            ...(promptCacheBreakpoint != null && {
+                              prompt_cache_breakpoint: promptCacheBreakpoint,
+                            }),
                           };
                         }
                         return {
                           type: 'input_file' as const,
                           file_url: item.data.url.toString(),
+                          ...(promptCacheBreakpoint != null && {
+                            prompt_cache_breakpoint: promptCacheBreakpoint,
+                          }),
                         };
                       }
 

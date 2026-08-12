@@ -1,5 +1,6 @@
 import { isJSONObject, type JSONObject } from '@ai-sdk/provider';
 import { convertBase64ToUint8Array } from '@ai-sdk/provider-utils';
+import * as z4 from 'zod/v4';
 import type { MCPClient } from './mcp-client';
 import type {
   ClientCapabilities,
@@ -87,12 +88,42 @@ function getToolUiMeta(meta?: ToolMeta): JSONObject | undefined {
   return isJSONObject(uiMeta) ? uiMeta : undefined;
 }
 
+/**
+ * Filters a string array to its string elements, dropping the field entirely
+ * (rather than failing the parse) if the value is not an array.
+ */
+const optionalStringArray = z4
+  .array(z4.unknown())
+  .transform(items => items.filter((v): v is string => typeof v === 'string'))
+  .optional()
+  .catch(undefined);
+
+const MCPAppResourceCSPSchema = z4.looseObject({
+  connectDomains: optionalStringArray,
+  resourceDomains: optionalStringArray,
+  frameDomains: optionalStringArray,
+});
+
+/**
+ * Runtime schema for `_meta.ui` on an MCP App resource. Each known field is
+ * validated; a malformed field is dropped (`.catch(undefined)`) rather than
+ * failing the whole parse, and unknown keys pass through for forward-compat.
+ */
+const MCPAppResourceMetaSchema = z4.looseObject({
+  prefersBorder: z4.boolean().optional().catch(undefined),
+  csp: MCPAppResourceCSPSchema.optional().catch(undefined),
+  permissions: z4.record(z4.string(), z4.unknown()).optional().catch(undefined),
+});
+
 function getResourceUiMeta(meta: unknown): MCPAppResourceMeta | undefined {
   const resourceMeta = isJSONObject(meta) ? meta : undefined;
   const rawUiMeta = resourceMeta?.ui;
-  const uiMeta = isJSONObject(rawUiMeta) ? rawUiMeta : undefined;
+  if (!isJSONObject(rawUiMeta)) {
+    return undefined;
+  }
 
-  return uiMeta as MCPAppResourceMeta | undefined;
+  const parsed = MCPAppResourceMetaSchema.safeParse(rawUiMeta);
+  return parsed.success ? (parsed.data as MCPAppResourceMeta) : undefined;
 }
 
 function parseVisibility(value: unknown): MCPAppToolVisibility[] | undefined {

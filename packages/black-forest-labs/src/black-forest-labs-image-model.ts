@@ -236,6 +236,9 @@ export class BlackForestLabsImageModel implements ImageModelV4 {
 
     const { value: imageBytes, responseHeaders } = await getFromApi({
       url: imageUrl,
+      // imageUrl comes from the provider response body; validate it.
+      validateUrl: true,
+      trustedOrigin: this.config.baseURL,
       // Only send credentials if the response-supplied URL points back at the
       // provider; the image is typically delivered from a CDN, so the API key
       // must not travel to a foreign host.
@@ -320,8 +323,10 @@ export class BlackForestLabsImageModel implements ImageModelV4 {
     for (let i = 0; i < maxPollAttempts; i++) {
       const { value } = await getFromApi({
         url: url.toString(),
-        // The polling URL comes from the provider response; only send
-        // credentials when it stays on a trusted provider host.
+        // The polling URL comes from the provider response; validate it.
+        validateUrl: true,
+        trustedOrigin: this.config.baseURL,
+        // Only send credentials when it stays on a trusted provider host.
         headers: isTrustedUrl(url.toString(), this.config.baseURL)
           ? headers
           : undefined,

@@ -1,5 +1,96 @@
 # @ai-sdk/azure
 
+## 4.0.17
+
+### Patch Changes
+
+- Updated dependencies [cd06458]
+- Updated dependencies [75f86f4]
+  - @ai-sdk/provider-utils@5.0.11
+  - @ai-sdk/openai@4.0.16
+  - @ai-sdk/deepseek@3.0.12
+
+## 4.0.16
+
+### Patch Changes
+
+- Updated dependencies [0063c2d]
+  - @ai-sdk/openai@4.0.15
+
+## 4.0.15
+
+### Patch Changes
+
+- 49ae04d: fix: Azure DeepSeek structured output returns JSON in reasoning with empty text
+- Updated dependencies [49ae04d]
+  - @ai-sdk/deepseek@3.0.11
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [31c7be8]
+  - @ai-sdk/provider-utils@5.0.10
+  - @ai-sdk/deepseek@3.0.10
+  - @ai-sdk/openai@4.0.14
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - @ai-sdk/openai@4.0.13
+  - @ai-sdk/deepseek@3.0.9
+
+## 4.0.12
+
+### Patch Changes
+
+- Updated dependencies [e193290]
+- Updated dependencies [e193290]
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - @ai-sdk/openai@4.0.12
+  - @ai-sdk/deepseek@3.0.8
+
+## 4.0.11
+
+### Patch Changes
+
+- Updated dependencies [b2b1bb9]
+  - @ai-sdk/openai@4.0.11
+
+## 4.0.10
+
+### Patch Changes
+
+- Updated dependencies [fdb6d5d]
+- Updated dependencies [0f93c57]
+  - @ai-sdk/openai@4.0.10
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/deepseek@3.0.7
+  - @ai-sdk/provider-utils@5.0.7
+
+## 4.0.9
+
+### Patch Changes
+
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - @ai-sdk/openai@4.0.9
+  - @ai-sdk/deepseek@3.0.6
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [b51ed36]
+  - @ai-sdk/openai@4.0.8
+
 ## 4.0.7
 
 ### Patch Changes

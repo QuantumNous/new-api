@@ -326,12 +326,12 @@ When the user clicks the "Regenerate" button, the AI provider will regenerate th
 <Note>This feature is currently only available for React.</Note>
 
 By default, the `useChat` hook will trigger a render every time a new chunk is received.
-You can throttle the UI updates with the `experimental_throttle` option.
+You can throttle the UI updates with the `throttle` option.
 
 ```tsx filename="page.tsx" highlight="2-3"
 const { messages, ... } = useChat({
   // Throttle the messages and data updates to 50ms:
-  experimental_throttle: 50
+  throttle: 50
 })
 ```
 
@@ -1092,8 +1092,8 @@ By using `FileList`, you can send multiple files as attachments along with a mes
 <Note>
   Currently, only `image/*` and `text/*` content types get automatically
   converted into [multi-modal content
-  parts](/docs/foundations/prompts#multi-modal-messages). You will need to
-  handle other content types manually.
+  parts](/docs/foundations/prompts#file-parts). You will need to handle other
+  content types manually.
 </Note>
 
 ```tsx filename="app/page.tsx"

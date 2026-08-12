@@ -17,7 +17,7 @@ export const maxDuration = 60;
  * GPT-5 supports reasoning tokens which will be displayed in the UI
  */
 const model = new ChatOpenAI({
-  model: 'gpt-5',
+  model: 'gpt-5.6',
   reasoning: {
     effort: 'low', // 'low' | 'medium' | 'high' - controls reasoning depth
     summary: 'auto', // Enable reasoning summary output for streaming

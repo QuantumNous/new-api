@@ -23,6 +23,10 @@ export type { OpenAISpeechModelOptions } from './speech/openai-speech-model-opti
 export type { OpenAITranscriptionModelOptions } from './transcription/openai-transcription-model-options';
 export type { OpenAIFilesOptions } from './files/openai-files-options';
 export type {
+  OpenAIComputerAction,
+  OpenAIComputerSafetyCheck,
+} from './tool/computer';
+export type {
   OpenaiResponsesCompactionProviderMetadata,
   OpenaiResponsesProviderMetadata,
   OpenaiResponsesReasoningProviderMetadata,

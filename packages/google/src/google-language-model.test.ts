@@ -455,6 +455,83 @@ describe('doGenerate', () => {
     };
   };
 
+  it('should send PDF tool result data as inlineData for Gemini 2.5 legacy tool results', async () => {
+    server.urls[TEST_URL_GEMINI_2_5_FLASH_LITE].response = {
+      type: 'json-value',
+      body: {
+        candidates: [
+          {
+            content: {
+              parts: [{ text: 'done' }],
+              role: 'model',
+            },
+            finishReason: 'STOP',
+            index: 0,
+          },
+        ],
+      },
+    };
+
+    const model = provider.chat('gemini-2.5-flash-lite');
+
+    await model.doGenerate({
+      prompt: [
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolName: 'catalogSearch',
+              toolCallId: 'testCallId',
+              output: {
+                type: 'content',
+                value: [
+                  { type: 'text', text: 'metadata' },
+                  {
+                    type: 'file',
+                    data: { type: 'data', data: 'JVBERi0xLjQK' },
+                    mediaType: 'application/pdf',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const requestBody = await server.calls[0].requestBodyJson;
+    const parts = requestBody.contents[0].parts;
+    const textParts = parts
+      .filter((part: any) => part.text != null)
+      .map((part: any) => part.text);
+
+    expect(textParts).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('JVBERi0xLjQK')]),
+    );
+    expect(parts).toEqual([
+      {
+        functionResponse: {
+          id: 'testCallId',
+          name: 'catalogSearch',
+          response: {
+            name: 'catalogSearch',
+            content: 'metadata',
+          },
+        },
+      },
+      {
+        inlineData: {
+          mimeType: 'application/pdf',
+          data: 'JVBERi0xLjQK',
+        },
+      },
+      {
+        text: 'Tool executed successfully and returned this file as a response',
+      },
+    ]);
+  });
+
   describe('text', () => {
     beforeEach(() => {
       prepareJsonFixtureResponse('google-text');
@@ -957,6 +1034,74 @@ describe('doGenerate', () => {
         },
       }
     `);
+  });
+
+  it('should expand standalone threshold provider option into safetySettings', async () => {
+    prepareJsonFixtureResponse('google-text');
+
+    await model.doGenerate({
+      prompt: TEST_PROMPT,
+      providerOptions: {
+        google: {
+          threshold: 'BLOCK_NONE',
+        },
+      },
+    });
+
+    const expectedSafetySettings = [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_NONE',
+      },
+    ];
+    const requestBody = await server.calls[0].requestBodyJson;
+
+    expect(requestBody.safetySettings).toEqual(
+      expect.arrayContaining(expectedSafetySettings),
+    );
+    expect(requestBody.safetySettings).toHaveLength(
+      expectedSafetySettings.length,
+    );
+  });
+
+  it('should let safetySettings take precedence over standalone threshold provider option', async () => {
+    prepareJsonFixtureResponse('google-text');
+
+    await model.doGenerate({
+      prompt: TEST_PROMPT,
+      providerOptions: {
+        google: {
+          threshold: 'BLOCK_NONE',
+          safetySettings: [
+            {
+              category: 'HARM_CATEGORY_HATE_SPEECH',
+              threshold: 'BLOCK_ONLY_HIGH',
+            },
+          ],
+        },
+      },
+    });
+
+    const requestBody = await server.calls[0].requestBodyJson;
+
+    expect(requestBody.safetySettings).toEqual([
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_ONLY_HIGH',
+      },
+    ]);
   });
 
   it('should pass tools and toolChoice', async () => {
@@ -2951,6 +3096,78 @@ describe('doGenerate', () => {
         },
       },
     });
+  });
+
+  it('should pass imageConfig.personGeneration, imageConfig.prominentPeople and imageConfig.imageOutputOptions on Vertex', async () => {
+    prepareJsonFixtureResponse('google-text');
+
+    const vertexModel = new GoogleLanguageModel('gemini-pro', {
+      provider: 'google.vertex.chat',
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+      headers: { 'x-goog-api-key': 'test-api-key' },
+      generateId: () => 'test-id',
+    });
+
+    const { warnings } = await vertexModel.doGenerate({
+      prompt: TEST_PROMPT,
+      providerOptions: {
+        google: {
+          imageConfig: {
+            aspectRatio: '16:9',
+            personGeneration: 'ALLOW_ADULT',
+            prominentPeople: 'BLOCK_PROMINENT_PEOPLE',
+            imageOutputOptions: {
+              mimeType: 'image/jpeg',
+              compressionQuality: 75,
+            },
+          },
+        },
+      },
+    });
+
+    expect(await server.calls[0].requestBodyJson).toMatchObject({
+      generationConfig: {
+        imageConfig: {
+          aspectRatio: '16:9',
+          personGeneration: 'ALLOW_ADULT',
+          prominentPeople: 'BLOCK_PROMINENT_PEOPLE',
+          imageOutputOptions: {
+            mimeType: 'image/jpeg',
+            compressionQuality: 75,
+          },
+        },
+      },
+    });
+    expect(warnings).toEqual([]);
+  });
+
+  it('should warn and drop Vertex-only imageConfig fields on the Gemini API', async () => {
+    prepareJsonFixtureResponse('google-text');
+
+    const { warnings } = await model.doGenerate({
+      prompt: TEST_PROMPT,
+      providerOptions: {
+        google: {
+          imageConfig: {
+            aspectRatio: '16:9',
+            prominentPeople: 'BLOCK_PROMINENT_PEOPLE',
+          },
+        },
+      },
+    });
+
+    const requestBody = await server.calls[0].requestBodyJson;
+    expect(requestBody.generationConfig.imageConfig).toEqual({
+      aspectRatio: '16:9',
+    });
+    expect(warnings).toEqual([
+      {
+        type: 'other',
+        message:
+          "'imageConfig.prominentPeople' is a Vertex AI option and is " +
+          'ignored with the current Google provider (google.generative-ai).',
+      },
+    ]);
   });
 
   it('should pass retrievalConfig in provider options', async () => {

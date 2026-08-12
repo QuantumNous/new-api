@@ -51,7 +51,7 @@ fastify.listen({ port: 8080 });
 
 `createUIMessageStream` can be used to send custom data to the client.
 
-```ts filename='index.ts' highlight="8-11,18"
+```ts filename='index.ts' highlight="12-17"
 import { createUIMessageStream, streamText, toUIMessageStream } from 'ai';
 import Fastify from 'fastify';
 
@@ -98,7 +98,7 @@ fastify.listen({ port: 8080 });
 
 You can use the `textStream` property to get a text stream from the result and then pipe it to the response.
 
-```ts filename='index.ts' highlight="15"
+```ts filename='index.ts' highlight="14"
 import { streamText } from 'ai';
 import Fastify from 'fastify';
 

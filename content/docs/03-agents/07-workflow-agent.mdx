@@ -702,7 +702,7 @@ For persistence, store `UIMessage[]` as your source of truth and call [`convertT
 
 ### Everything else
 
-Other options carry over with the same names: `prepareStep`, `onStepEnd`, `onEnd`, `onError`, `toolChoice`, `activeTools`, `timeout`, `experimental_repairToolCall`, `experimental_sandbox`, and the usual generation settings (`temperature`, `maxOutputTokens`, `topP`, …). `WorkflowAgent` additionally adds `prepareCall` (runs once before the loop) and the `experimental_onStart` / `experimental_onStepStart` / `onToolExecutionStart` / `onToolExecutionEnd` lifecycle callbacks documented above.
+Other options carry over with the same names: `prepareStep`, `onStepEnd`, `onEnd`, `onError`, `toolChoice`, `activeTools`, `timeout`, `repairToolCall`, `experimental_sandbox`, and the usual generation settings (`temperature`, `maxOutputTokens`, `topP`, …). `WorkflowAgent` additionally adds `prepareCall` (runs once before the loop) and the `experimental_onStart` / `experimental_onStepStart` / `onToolExecutionStart` / `onToolExecutionEnd` lifecycle callbacks documented above.
 
 ## Next Steps
 

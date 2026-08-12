@@ -43,6 +43,7 @@ updates:
   - package-ecosystem: npm
     directories:
       - /
+      - /apps/*
       - /examples/*
       - /tools/*
     schedule:

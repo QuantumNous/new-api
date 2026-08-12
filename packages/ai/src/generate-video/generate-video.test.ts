@@ -1202,6 +1202,70 @@ describe('experimental_generateVideo', () => {
       ]);
     });
 
+    it('should detect video media type from binary inputReferences without object form', async () => {
+      let capturedArgs!: Parameters<Experimental_VideoModelV4['doGenerate']>[0];
+      const mp4Bytes = new Uint8Array([
+        0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70,
+      ]);
+
+      await experimental_generateVideo({
+        model: new MockVideoModelV4({
+          doGenerate: async args => {
+            capturedArgs = args;
+            return createMockResponse({
+              videos: [
+                { type: 'base64', data: mp4Base64, mediaType: 'video/mp4' },
+              ],
+            });
+          },
+        }),
+        prompt: 'a clip',
+        inputReferences: [mp4Bytes],
+      });
+
+      expect(capturedArgs.inputReferences).toStrictEqual([
+        {
+          type: 'file',
+          mediaType: 'video/mp4',
+          data: mp4Bytes,
+        },
+      ]);
+    });
+
+    it('should carry mediaType from the object form for URL references', async () => {
+      let capturedArgs!: Parameters<Experimental_VideoModelV4['doGenerate']>[0];
+
+      await experimental_generateVideo({
+        model: new MockVideoModelV4({
+          doGenerate: async args => {
+            capturedArgs = args;
+            return createMockResponse({
+              videos: [
+                { type: 'base64', data: mp4Base64, mediaType: 'video/mp4' },
+              ],
+            });
+          },
+        }),
+        prompt: 'a clip',
+        inputReferences: [
+          {
+            data: 'https://example.com/role.mp4',
+            mediaType: 'video/mp4',
+          },
+          'https://example.com/plain.png',
+        ],
+      });
+
+      expect(capturedArgs.inputReferences).toStrictEqual([
+        {
+          type: 'url',
+          url: 'https://example.com/role.mp4',
+          mediaType: 'video/mp4',
+        },
+        { type: 'url', url: 'https://example.com/plain.png' },
+      ]);
+    });
+
     it('should pass inputReferences as undefined when not provided', async () => {
       let capturedArgs!: Parameters<Experimental_VideoModelV4['doGenerate']>[0];
 

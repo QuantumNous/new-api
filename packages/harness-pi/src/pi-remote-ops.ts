@@ -65,6 +65,10 @@ interface RunShellResult {
   output: Buffer;
 }
 
+function lastOutputLine(output: Buffer): string | undefined {
+  return output.toString('utf8').trim().split('\n').filter(Boolean).at(-1);
+}
+
 export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
   const runShell = async (
     command: string,
@@ -94,9 +98,83 @@ export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
     };
   };
 
+  const resolveExistingSandboxPath = async (
+    remotePath: string,
+    inputPath: string,
+  ): Promise<string> => {
+    const result = await runShell(
+      [
+        `target=${shellQuote(remotePath)}`,
+        `if [ ! -e "$target" ]; then echo "__PI_REALPATH_NOT_FOUND__"; exit 2; fi`,
+        `resolved=$(realpath "$target" 2>/dev/null) || { echo "__PI_REALPATH_FAILED__"; exit 3; }`,
+        `printf '%s\\n' "$resolved"`,
+      ].join('; '),
+    );
+
+    const output = result.output.toString('utf8');
+    if (output.includes('__PI_REALPATH_NOT_FOUND__')) {
+      throw new Error(`Path not found: ${inputPath}`);
+    }
+    if (output.includes('__PI_REALPATH_FAILED__') || result.exitCode !== 0) {
+      throw new Error(`Unable to resolve path: ${inputPath}`);
+    }
+
+    const resolvedPath = lastOutputLine(result.output);
+    if (!resolvedPath) {
+      throw new Error(`Unable to resolve path: ${inputPath}`);
+    }
+    return resolvedPath;
+  };
+
+  const resolveReadableSandboxPath = async (
+    remotePath: string,
+    inputPath: string,
+  ): Promise<string> =>
+    options.paths.assertReadableSandboxPath(
+      await resolveExistingSandboxPath(remotePath, inputPath),
+    );
+
+  const resolveWritableSandboxPath = async (
+    remotePath: string,
+    inputPath: string,
+  ): Promise<string> => {
+    const result = await runShell(
+      [
+        `target=${shellQuote(remotePath)}`,
+        `if [ -e "$target" ] || [ -L "$target" ]; then resolved=$(realpath "$target" 2>/dev/null) || { echo "__PI_REALPATH_FAILED__"; exit 3; }; printf '%s\\n' "$resolved"; exit 0; fi`,
+        `dir=$(dirname "$target")`,
+        `base=$(basename "$target")`,
+        `missing="$base"`,
+        `while [ ! -e "$dir" ] && [ ! -L "$dir" ]; do parent=$(dirname "$dir"); if [ "$parent" = "$dir" ]; then echo "__PI_REALPATH_NOT_FOUND__"; exit 2; fi; missing="$(basename "$dir")/$missing"; dir="$parent"; done`,
+        `resolved_dir=$(realpath "$dir" 2>/dev/null) || { echo "__PI_REALPATH_FAILED__"; exit 3; }`,
+        `printf '%s/%s\\n' "$resolved_dir" "$missing"`,
+      ].join('; '),
+    );
+
+    const output = result.output.toString('utf8');
+    if (
+      output.includes('__PI_REALPATH_NOT_FOUND__') ||
+      output.includes('__PI_REALPATH_FAILED__') ||
+      result.exitCode !== 0
+    ) {
+      throw new Error(`Unable to resolve path: ${inputPath}`);
+    }
+
+    const resolvedPath = lastOutputLine(result.output);
+    if (!resolvedPath) {
+      throw new Error(`Unable to resolve path: ${inputPath}`);
+    }
+    return options.paths.assertSandboxPath(resolvedPath);
+  };
+
   const readBuffer = async (inputPath: string): Promise<Buffer> => {
+    const remotePath = options.paths.toReadableSandboxPath(inputPath);
+    const resolvedPath = await resolveReadableSandboxPath(
+      remotePath,
+      inputPath,
+    );
     const bytes = await options.sandbox.readBinaryFile({
-      path: options.paths.toReadableSandboxPath(inputPath),
+      path: resolvedPath,
     });
     if (!bytes) {
       throw new Error(`Path not found: ${inputPath}`);
@@ -109,12 +187,18 @@ export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
     content: string,
   ): Promise<void> => {
     const remotePath = options.paths.toSandboxPath(inputPath);
-    const previous = await options.sandbox.readBinaryFile({ path: remotePath });
-    await runShell(`mkdir -p ${shellQuote(path.posix.dirname(remotePath))}`);
-    await options.sandbox.writeTextFile({ path: remotePath, content });
+    const resolvedPath = await resolveWritableSandboxPath(
+      remotePath,
+      inputPath,
+    );
+    const previous = await options.sandbox.readBinaryFile({
+      path: resolvedPath,
+    });
+    await runShell(`mkdir -p ${shellQuote(path.posix.dirname(resolvedPath))}`);
+    await options.sandbox.writeTextFile({ path: resolvedPath, content });
     options.onFileChange?.(
       previous ? 'modify' : 'create',
-      options.paths.toRelativePath(remotePath),
+      options.paths.toRelativePath(resolvedPath),
       Buffer.from(content, 'utf8'),
     );
   };
@@ -141,11 +225,15 @@ export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
     limit: number = 500,
   ): Promise<string[]> => {
     const remotePath = options.paths.toReadableSandboxPath(inputPath);
+    const resolvedPath = await resolveReadableSandboxPath(
+      remotePath,
+      inputPath,
+    );
     const result = await runShell(
       [
-        `if [ ! -e ${shellQuote(remotePath)} ]; then echo "__PI_LS_NOT_FOUND__"; exit 2; fi`,
-        `if [ ! -d ${shellQuote(remotePath)} ]; then echo "__PI_LS_NOT_DIR__"; exit 3; fi`,
-        `cd ${shellQuote(remotePath)}`,
+        `if [ ! -e ${shellQuote(resolvedPath)} ]; then echo "__PI_LS_NOT_FOUND__"; exit 2; fi`,
+        `if [ ! -d ${shellQuote(resolvedPath)} ]; then echo "__PI_LS_NOT_DIR__"; exit 3; fi`,
+        `cd ${shellQuote(resolvedPath)}`,
         'ls -1Ap',
       ].join('; '),
     );
@@ -174,10 +262,14 @@ export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
     limit: number = 1_000,
   ): Promise<string[]> => {
     const remotePath = options.paths.toReadableSandboxPath(inputPath);
+    const resolvedPath = await resolveReadableSandboxPath(
+      remotePath,
+      inputPath,
+    );
     const result = await runShell(
       [
-        `if [ ! -e ${shellQuote(remotePath)} ]; then echo "__PI_FIND_NOT_FOUND__"; exit 2; fi`,
-        `if [ -d ${shellQuote(remotePath)} ]; then find ${shellQuote(remotePath)} -type f -print; else printf '%s\\n' ${shellQuote(remotePath)}; fi`,
+        `if [ ! -e ${shellQuote(resolvedPath)} ]; then echo "__PI_FIND_NOT_FOUND__"; exit 2; fi`,
+        `if [ -d ${shellQuote(resolvedPath)} ]; then find ${shellQuote(resolvedPath)} -type f -print; else printf '%s\\n' ${shellQuote(resolvedPath)}; fi`,
       ].join('; '),
     );
 
@@ -186,7 +278,7 @@ export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
       throw new Error(`Path not found: ${inputPath}`);
     }
 
-    const searchRoot = remotePath;
+    const searchRoot = resolvedPath;
     return output
       .split('\n')
       .filter(Boolean)
@@ -218,10 +310,14 @@ export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
     },
   ): Promise<string> => {
     const remotePath = options.paths.toReadableSandboxPath(input.path ?? '.');
-    const relativeTarget = options.paths.toRelativePath(remotePath);
+    const resolvedPath = await resolveReadableSandboxPath(
+      remotePath,
+      input.path ?? '.',
+    );
+    const relativeTarget = options.paths.toRelativePath(resolvedPath);
     const targetPath =
       relativeTarget.startsWith('../') || path.posix.isAbsolute(relativeTarget)
-        ? remotePath
+        ? resolvedPath
         : relativeTarget;
     const flags = [
       '-R',
@@ -237,7 +333,7 @@ export function createPiRemoteOps(options: PiRemoteOpsOptions): PiRemoteOps {
     const limit = Math.max(1, input.limit ?? 100);
     const result = await runShell(
       [
-        `if [ ! -e ${shellQuote(remotePath)} ]; then echo "__PI_GREP_NOT_FOUND__"; exit 2; fi`,
+        `if [ ! -e ${shellQuote(resolvedPath)} ]; then echo "__PI_GREP_NOT_FOUND__"; exit 2; fi`,
         `cd ${shellQuote(options.paths.sandboxWorkDir)}`,
         `grep ${flags.map(shellQuote).join(' ')} -- ${shellQuote(pattern)} ${shellQuote(targetPath)} 2>/dev/null | head -n ${limit}`,
       ].join('; '),

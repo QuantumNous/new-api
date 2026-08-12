@@ -8,18 +8,20 @@ import {
   combineHeaders,
   convertBase64ToUint8Array,
   createJsonResponseHandler,
-  getWebSocketConstructor,
+  connectToWebSocket,
   mediaTypeToExtension,
   parseProviderOptions,
   postFormDataToApi,
-  readWebSocketMessageText,
   safeParseJSON,
   serializeModelOptions,
   toWebSocketUrl,
+  waitForWebSocketBufferDrain,
   WORKFLOW_DESERIALIZE,
   WORKFLOW_SERIALIZE,
   type FetchFunction,
+  type WebSocketConnection,
   type WebSocketConstructor,
+  type WebSocketLike,
 } from '@ai-sdk/provider-utils';
 import { z } from 'zod/v4';
 import { xaiFailedResponseHandler } from './xai-error';
@@ -273,20 +275,26 @@ function createXaiStreamingTranscriptionStream({
 
   return new ReadableStream({
     start: controller => {
-      const WebSocketConstructor = getWebSocketConstructor(webSocket);
-      const ws = new WebSocketConstructor(url, undefined, { headers });
       const doneTexts = new Map<number, string>();
+      // per-channel finalized utterances + latest revisable text, used to
+      // reconstruct the finish text (xAI's `transcript.done` has empty text):
+      const finalizedTexts = new Map<number, string[]>();
+      const pendingTexts = new Map<number, string>();
       let doneDuration: number | undefined;
       let audioReader:
         | ReadableStreamDefaultReader<Uint8Array | string>
         | undefined;
+      let connection: WebSocketConnection | undefined;
 
       cleanup = (closeCode?: number) => {
-        abortSignal?.removeEventListener('abort', abort);
-        void audioReader?.cancel().catch(() => {});
-        try {
-          ws.close(closeCode);
-        } catch {}
+        if (audioReader != null) {
+          void audioReader.cancel().catch(() => {});
+        } else {
+          // pre-open failure or abort: cancel the caller's audio stream so an
+          // upstream producer piping into it does not hang:
+          void audio.cancel().catch(() => {});
+        }
+        connection?.close(closeCode);
       };
 
       const finishWithError = (error: unknown) => {
@@ -314,117 +322,138 @@ function createXaiStreamingTranscriptionStream({
         cleanup(1000);
       };
 
-      const abort = () => {
-        finishWithError(abortSignal?.reason ?? new Error('Aborted'));
-      };
-      if (abortSignal?.aborted) {
-        abort();
-        return;
-      }
-      abortSignal?.addEventListener('abort', abort, { once: true });
-
-      const sendAudio = async () => {
+      const sendAudio = async (socket: WebSocketLike) => {
         audioReader = audio.getReader();
         try {
           while (true) {
             const { done, value } = await audioReader.read();
             if (done || finished) break;
-            ws.send(
+            socket.send(
               value instanceof Uint8Array
                 ? value
                 : convertBase64ToUint8Array(value),
             );
+            // backpressure: pause reads while the socket buffer is full
+            await waitForWebSocketBufferDrain(socket);
           }
         } finally {
           audioReader.releaseLock();
+          // unlocked again: cleanup must cancel `audio`, not the reader
+          audioReader = undefined;
         }
         if (!finished) {
-          ws.send(JSON.stringify({ type: 'audio.done' }));
+          socket.send(JSON.stringify({ type: 'audio.done' }));
         }
       };
 
-      ws.onmessage = event => {
-        void readWebSocketMessageText(event.data)
-          .then(async text => {
-            const parsed = await safeParseJSON({ text });
-            if (!parsed.success) return;
-            const raw = parsed.value as XaiStreamingTranscriptionEvent;
+      connection = connectToWebSocket({
+        url,
+        headers,
+        webSocket,
+        abortSignal,
+        onAbort: finishWithError,
+        onProcessingError: finishWithError,
+        onMessageText: async text => {
+          const parsed = await safeParseJSON({ text });
+          if (!parsed.success) return;
+          const raw = parsed.value as XaiStreamingTranscriptionEvent;
 
-            if (includeRawChunks) {
-              controller.enqueue({ type: 'raw', rawValue: raw });
-            }
+          if (includeRawChunks) {
+            controller.enqueue({ type: 'raw', rawValue: raw });
+          }
 
-            switch (raw.type) {
-              case 'transcript.created': {
-                controller.enqueue({ type: 'stream-start', warnings });
-                void sendAudio().catch(finishWithError);
+          switch (raw.type) {
+            case 'transcript.created': {
+              controller.enqueue({ type: 'stream-start', warnings });
+              const socket = connection?.socket;
+              if (socket == null) {
+                finishWithError(new Error('WebSocket is not connected.'));
                 break;
               }
+              void sendAudio(socket).catch(finishWithError);
+              break;
+            }
 
-              case 'transcript.partial': {
-                const id = channelId(raw.channel_index);
+            case 'transcript.partial': {
+              const id = channelId(raw.channel_index);
+              const channelIndex = raw.channel_index ?? 0;
+              // only `speech_final` completes an utterance; `is_final`
+              // fragments are re-sent/revised later, so they stay partials:
+              if (raw.is_final && raw.speech_final) {
                 const timing = timingFromXaiEvent(raw);
-                if (raw.is_final) {
-                  controller.enqueue({
-                    type: 'transcript-final',
-                    id,
-                    text: raw.text ?? '',
-                    ...timing,
-                    channelIndex: raw.channel_index,
-                  });
-                } else {
-                  controller.enqueue({
-                    type: 'transcript-partial',
-                    id,
-                    text: raw.text ?? '',
-                    startSecond: raw.start,
-                    durationInSeconds: raw.duration,
-                    channelIndex: raw.channel_index,
-                  });
+                if (raw.text) {
+                  finalizedTexts.set(channelIndex, [
+                    ...(finalizedTexts.get(channelIndex) ?? []),
+                    raw.text,
+                  ]);
                 }
-                break;
+                pendingTexts.delete(channelIndex);
+                controller.enqueue({
+                  type: 'transcript-final',
+                  id,
+                  text: raw.text ?? '',
+                  ...timing,
+                  channelIndex: raw.channel_index,
+                });
+              } else {
+                pendingTexts.set(channelIndex, raw.text ?? '');
+                controller.enqueue({
+                  type: 'transcript-partial',
+                  id,
+                  text: raw.text ?? '',
+                  startSecond: raw.start,
+                  durationInSeconds: raw.duration,
+                  channelIndex: raw.channel_index,
+                });
               }
-
-              case 'transcript.done': {
-                const channelIndex = raw.channel_index ?? 0;
-                doneTexts.set(channelIndex, raw.text ?? '');
-                doneDuration = raw.duration ?? doneDuration;
-                maybeFinish();
-                break;
-              }
-
-              case 'error': {
-                // xAI STT errors are terminal: surface the server message
-                // instead of letting the socket close mask it.
-                finishWithError(new Error(raw.message ?? 'xAI STT error'));
-                break;
-              }
+              break;
             }
-          })
-          .catch(finishWithError);
-      };
 
-      ws.onerror = () => {
-        finishWithError(
-          new Error(
-            'xAI streaming transcription error.' +
-              (webSocket == null
-                ? ' Note: the native WebSocket implementation in browsers,' +
-                  ' Node.js, Deno, and Bun cannot send the Authorization' +
-                  ' header required by xAI. Pass a header-capable WebSocket' +
-                  " implementation (e.g. the 'ws' package) via" +
-                  ' createXai({ webSocket }).'
-                : ''),
-          ),
-        );
-      };
+            case 'transcript.done': {
+              const channelIndex = raw.channel_index ?? 0;
+              // `transcript.done` text is empty; fall back to the
+              // accumulated utterances plus any trailing unfinalized text:
+              const accumulated = [
+                ...(finalizedTexts.get(channelIndex) ?? []),
+                ...(pendingTexts.get(channelIndex)
+                  ? [pendingTexts.get(channelIndex) as string]
+                  : []),
+              ].join(' ');
+              doneTexts.set(channelIndex, raw.text || accumulated);
+              doneDuration = raw.duration ?? doneDuration;
+              maybeFinish();
+              break;
+            }
 
-      ws.onclose = () => {
-        if (finished) return;
-        finished = true;
-        cleanup();
-        controller.close();
-      };
+            case 'error': {
+              // xAI STT errors are terminal: surface the server message
+              // instead of letting the socket close mask it.
+              finishWithError(new Error(raw.message ?? 'xAI STT error'));
+              break;
+            }
+          }
+        },
+        onSocketError: () => {
+          finishWithError(
+            new Error(
+              'xAI streaming transcription error.' +
+                (webSocket == null
+                  ? ' Note: the native WebSocket implementation in browsers,' +
+                    ' Node.js, Deno, and Bun cannot send the Authorization' +
+                    ' header required by xAI. Pass a header-capable WebSocket' +
+                    " implementation (e.g. the 'ws' package) via" +
+                    ' createXai({ webSocket }).'
+                  : ''),
+            ),
+          );
+        },
+        onClose: () => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          controller.close();
+        },
+      });
     },
 
     cancel: () => {

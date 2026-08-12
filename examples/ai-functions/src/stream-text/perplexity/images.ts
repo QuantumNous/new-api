@@ -1,4 +1,7 @@
-import { perplexity } from '@ai-sdk/perplexity';
+import {
+  perplexity,
+  type PerplexityLanguageModelOptions,
+} from '@ai-sdk/perplexity';
 import { streamText } from 'ai';
 import { run } from '../../lib/run';
 
@@ -10,7 +13,7 @@ run(async () => {
     providerOptions: {
       perplexity: {
         return_images: true,
-      },
+      } satisfies PerplexityLanguageModelOptions,
     },
   });
 

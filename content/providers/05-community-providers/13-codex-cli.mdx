@@ -24,20 +24,7 @@ npm install ai-sdk-provider-codex-cli@ai-sdk-v5 ai@^5.0.0
 
 ## Setup
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add ai-sdk-provider-codex-cli" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install ai-sdk-provider-codex-cli" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add ai-sdk-provider-codex-cli" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add ai-sdk-provider-codex-cli" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="ai-sdk-provider-codex-cli" />
 
 ## Provider Instance
 
@@ -133,15 +120,15 @@ const model = codexCli('gpt-5.1-codex-max', {
 
 ### Model Capabilities
 
-| Model                | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
-| -------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `gpt-5.3-codex`      | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-5.2-codex`      | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-5.2`            | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-5.1-codex-max`  | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-5.1-codex-mini` | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-5.1`            | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `gpt-5.1-codex`      | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
+| Model                | Image Input | Object Generation | Tool Usage | Tool Streaming |
+| -------------------- | ----------- | ----------------- | ---------- | -------------- |
+| `gpt-5.3-codex`      | <Check />   | <Check />         | <Cross />  | <Cross />      |
+| `gpt-5.2-codex`      | <Check />   | <Check />         | <Cross />  | <Cross />      |
+| `gpt-5.2`            | <Check />   | <Check />         | <Cross />  | <Cross />      |
+| `gpt-5.1-codex-max`  | <Check />   | <Check />         | <Cross />  | <Cross />      |
+| `gpt-5.1-codex-mini` | <Check />   | <Check />         | <Cross />  | <Cross />      |
+| `gpt-5.1`            | <Check />   | <Check />         | <Cross />  | <Cross />      |
+| `gpt-5.1-codex`      | <Check />   | <Check />         | <Cross />  | <Cross />      |
 
 <Note>
   Tool Usage and Tool Streaming show ❌ because this provider does not support

@@ -1,5 +1,80 @@
 # @ai-sdk/openai
 
+## 4.0.16
+
+### Patch Changes
+
+- 75f86f4: fix(provider/openai, provider/open-responses): throw a descriptive error when the Responses API returns a 200 with no `output`
+
+  A successful (200) Responses body missing the `output` array previously threw an opaque `output is not iterable` TypeError from `doGenerate`. Both providers now surface a clear `APICallError` ("Responses API returned no output …"), including the incomplete-details reason (and status, for open-responses) when present. When the body includes a `response.error`, its message is surfaced first so upstream error details aren't masked by the generic fallback. This makes malformed/incomplete upstream responses actionable instead of a cryptic crash.
+
+- Updated dependencies [cd06458]
+  - @ai-sdk/provider-utils@5.0.11
+
+## 4.0.15
+
+### Patch Changes
+
+- 0063c2d: Add the client-executed OpenAI Responses API computer tool with batched actions and screenshot outputs.
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [31c7be8]
+  - @ai-sdk/provider-utils@5.0.10
+
+## 4.0.13
+
+### Patch Changes
+
+- 7805e4a: Fix realtime transcription auth header handling: per-call `authorization` headers now override configuration headers regardless of header-key casing (last case-variant wins), and the `Bearer` scheme is matched case-insensitively.
+- cd12954: Reject empty OpenAI, Anthropic, and Replicate base URLs with a helpful AI SDK
+  invalid argument error.
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+
+## 4.0.12
+
+### Patch Changes
+
+- e193290: Add `connectToWebSocket` to `@ai-sdk/provider-utils`: a shared WebSocket connect layer (constructor resolution, header hygiene, abort wiring, message decoding) analogous to `postToApi` for HTTP. The openai and xai streaming transcription models now use it instead of hand-rolled connects. For openai and xai this also means WebSocket constructor failures now surface as stream errors instead of throwing synchronously from `doStream`, an already-aborted signal no longer constructs a socket, and the caller's audio stream is cancelled on pre-open failures. Messages are processed in order with close handling deferred behind pending frames, audio send loops apply backpressure via the socket's bufferedAmount, and failed sends cancel the caller's audio stream.
+- e193290: Fix streaming transcription over header-capable WebSocket implementations: the realtime WebSocket handshake sent the api key in both the `openai-insecure-api-key` subprotocol and the `Authorization` header, which OpenAI rejects ("You must only send one of protocol api key and Authorization header"). The Authorization header is now stripped when the subprotocol carries the key.
+- e193290: Strip undefined header values before the streaming transcription WebSocket constructor (header-capable implementations like `ws` throw on undefined values).
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+
+## 4.0.11
+
+### Patch Changes
+
+- b2b1bb9: feat(provider/openai): add GPT-5.6 reasoning and prompt cache controls
+
+## 4.0.10
+
+### Patch Changes
+
+- fdb6d5d: feat(provider/openai,provider/gateway): add gpt-5.6 model ids
+- Updated dependencies [0f93c57]
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/provider-utils@5.0.7
+
+## 4.0.9
+
+### Patch Changes
+
+- ac306ed: Fix `StreamingToolCallTracker` finalizing streaming tool calls on parsable partial JSON. Tool calls now only finalize during stream flush, restoring the behavior of #13137: a parsable argument buffer can still be the prefix of a longer argument string, so finalizing early could act on truncated tool inputs.
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+
+## 4.0.8
+
+### Patch Changes
+
+- b51ed36: Send inline image file parts in OpenAI chat requests as data URLs instead of bare base64 strings.
+
 ## 4.0.7
 
 ### Patch Changes

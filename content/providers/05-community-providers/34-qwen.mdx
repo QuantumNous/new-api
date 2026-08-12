@@ -17,21 +17,7 @@ description: Learn how to use the Qwen provider.
 
 The Qwen provider is available in the `qwen-ai-provider` module. You can install it with
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add qwen-ai-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install qwen-ai-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add qwen-ai-provider" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add qwen-ai-provider" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="qwen-ai-provider" />
 
 ## Provider Instance
 
@@ -104,14 +90,14 @@ Qwen language models can also be used in the `streamText` function and support s
 
 ### Model Capabilities
 
-| Model                     | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
-| ------------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `qwen-vl-max`             | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen-plus-latest`        | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen-max`                | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen2.5-72b-instruct`    | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen2.5-14b-instruct-1m` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen2.5-vl-72b-instruct` | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                     | Image Input | Object Generation | Tool Usage | Tool Streaming |
+| ------------------------- | ----------- | ----------------- | ---------- | -------------- |
+| `qwen-vl-max`             | <Check />   | <Check />         | <Check />  | <Check />      |
+| `qwen-plus-latest`        | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `qwen-max`                | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `qwen2.5-72b-instruct`    | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `qwen2.5-14b-instruct-1m` | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `qwen2.5-vl-72b-instruct` | <Check />   | <Check />         | <Check />  | <Check />      |
 
 <Note>
   The table above lists popular models. Please see the [Qwen

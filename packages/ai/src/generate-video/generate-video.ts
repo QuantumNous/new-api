@@ -28,7 +28,6 @@ import { prepareRetries } from '../util/prepare-retries';
 import { VERSION } from '../version';
 import type { GenerateVideoResult } from './generate-video-result';
 import { splitDataUrl } from '../prompt/split-data-url';
-import { convertDataContentToUint8Array } from '../prompt/data-content';
 
 export type GenerateVideoPrompt =
   | string
@@ -49,7 +48,7 @@ export type GenerateVideoPrompt =
  * @param fps - Frames per second for the video.
  * @param seed - Seed for the video generation.
  * @param frameImages - Role-tagged image inputs for image-to-video and first-last-frame generation.
- * @param inputReferences - Reference image inputs for reference-to-video generation.
+ * @param inputReferences - Reference image or video inputs for reference-to-video generation.
  * @param generateAudio - Whether the model should generate audio alongside the video.
  * @param providerOptions - Additional provider-specific options that are passed through to the provider
  * as body parameters.
@@ -141,9 +140,26 @@ export async function experimental_generateVideo({
   }>;
 
   /**
-   * Reference image inputs for reference-to-video generation.
+   * Reference inputs for reference-to-video generation.
+   *
+   * Each entry may be a plain image/video ({@link DataContent}), or an object
+   * form that carries an explicit `mediaType`.
    */
-  inputReferences?: Array<DataContent>;
+  inputReferences?: Array<
+    | DataContent
+    | {
+        /**
+         * The reference image or video.
+         */
+        data: DataContent;
+
+        /**
+         * The media type of the reference (e.g. 'image/png',
+         * 'video/mp4').
+         */
+        mediaType?: string;
+      }
+  >;
 
   /**
    * Whether the model should generate audio alongside the video.
@@ -201,16 +217,19 @@ export async function experimental_generateVideo({
 
   const normalizedFrameImages:
     | Array<Experimental_VideoModelV4FrameImage>
-    | undefined = frameImages?.map(frame => ({
-    image: normalizeImageData(frame.image),
-    frameType: frame.frameType,
-  }));
+    | undefined = frameImages?.flatMap(frame => {
+    const normalizedImage = normalizeImageData(frame.image);
+    return normalizedImage != null
+      ? [{ image: normalizedImage, frameType: frame.frameType }]
+      : [];
+  });
 
   const normalizedInputReferences:
     | Array<Experimental_VideoModelV4File>
-    | undefined = inputReferences?.map(reference =>
-    normalizeImageData(reference),
-  );
+    | undefined = inputReferences?.flatMap(reference => {
+    const normalized = normalizeReferenceData(reference);
+    return normalized != null ? [normalized] : [];
+  });
 
   const effectiveInputReferences =
     normalizedFrameImages != null && normalizedFrameImages.length > 0
@@ -426,13 +445,24 @@ function normalizePrompt(promptArg: GenerateVideoPrompt): {
   };
 }
 
+function detectFileMediaType(
+  data: Uint8Array,
+  restrictToImages: boolean,
+): string {
+  const detected = restrictToImages
+    ? detectMediaType({ data, topLevelType: 'image' })
+    : detectMediaType({ data });
+  return detected ?? 'image/png';
+}
+
 /**
  * Normalizes a {@link DataContent} image into a {@link Experimental_VideoModelV4File}.
  * Accepts a URL string, a data URL, a base64 string, or binary image data.
  */
 function normalizeImageData(
   dataContent: DataContent,
-): Experimental_VideoModelV4File {
+  { restrictToImages = true }: { restrictToImages?: boolean } = {},
+): Experimental_VideoModelV4File | undefined {
   if (typeof dataContent === 'string') {
     if (
       dataContent.startsWith('http://') ||
@@ -446,28 +476,73 @@ function normalizeImageData(
 
     if (dataContent.startsWith('data:')) {
       const { mediaType, base64Content } = splitDataUrl(dataContent);
+      const data = convertBase64ToUint8Array(base64Content ?? '');
       return {
         type: 'file',
-        mediaType: mediaType ?? 'image/png',
-        data: convertBase64ToUint8Array(base64Content ?? ''),
+        mediaType: mediaType ?? detectFileMediaType(data, restrictToImages),
+        data,
       };
     }
 
     const bytes = convertBase64ToUint8Array(dataContent);
     return {
       type: 'file',
-      mediaType:
-        detectMediaType({ data: bytes, topLevelType: 'image' }) ?? 'image/png',
+      mediaType: detectFileMediaType(bytes, restrictToImages),
       data: bytes,
     };
   }
 
-  const bytes = convertDataContentToUint8Array(dataContent);
+  if (dataContent instanceof Uint8Array || dataContent instanceof ArrayBuffer) {
+    const bytes =
+      dataContent instanceof Uint8Array
+        ? dataContent
+        : new Uint8Array(dataContent);
+    return {
+      type: 'file',
+      mediaType: detectFileMediaType(bytes, restrictToImages),
+      data: bytes,
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * Normalizes a reference input into a {@link Experimental_VideoModelV4File},
+ * accepting either a plain {@link DataContent} or the object form that carries
+ * an explicit `mediaType`.
+ */
+function normalizeReferenceData(
+  reference:
+    | DataContent
+    | {
+        data: DataContent;
+        mediaType?: string;
+      },
+): Experimental_VideoModelV4File | undefined {
+  const isObjectForm =
+    typeof reference === 'object' &&
+    reference != null &&
+    !(reference instanceof Uint8Array) &&
+    !(reference instanceof ArrayBuffer) &&
+    'data' in reference;
+
+  if (!isObjectForm) {
+    return normalizeImageData(reference as DataContent, {
+      restrictToImages: false,
+    });
+  }
+
+  const normalized = normalizeImageData(reference.data, {
+    restrictToImages: false,
+  });
+  if (normalized == null) {
+    return normalized;
+  }
+
   return {
-    type: 'file',
-    mediaType:
-      detectMediaType({ data: bytes, topLevelType: 'image' }) ?? 'image/png',
-    data: bytes,
+    ...normalized,
+    ...(reference.mediaType != null ? { mediaType: reference.mediaType } : {}),
   };
 }
 

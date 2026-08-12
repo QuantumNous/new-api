@@ -9,6 +9,7 @@ import {
 import { z } from 'zod/v4';
 import { InvalidArgumentError } from '../error';
 import { jsonValueSchema } from '../types/json-value';
+import { getOwn } from '../util/get-own';
 import { providerMetadataSchema } from '../types/provider-metadata';
 import type {
   DataUIPart,
@@ -29,12 +30,12 @@ const uiMessagesSchema = lazySchema(() =>
   zodSchema(
     z
       .array(
-        z.object({
-          id: z.string(),
-          role: z.enum(['system', 'user', 'assistant']),
-          metadata: z.unknown().optional(),
-          parts: z
-            .array(
+        z
+          .object({
+            id: z.string(),
+            role: z.enum(['system', 'user', 'assistant']),
+            metadata: z.unknown().optional(),
+            parts: z.array(
               z.union([
                 z.object({
                   type: z.literal('text'),
@@ -342,9 +343,21 @@ const uiMessagesSchema = lazySchema(() =>
                   }),
                 }),
               ]),
-            )
-            .nonempty('Message must contain at least one part'),
-        }),
+            ),
+          })
+          .superRefine((message, context) => {
+            if (message.role !== 'assistant' && message.parts.length === 0) {
+              context.addIssue({
+                origin: 'array',
+                code: 'too_small',
+                minimum: 1,
+                inclusive: true,
+                input: message.parts,
+                path: ['parts'],
+                message: 'Message must contain at least one part',
+              });
+            }
+          }),
       )
       .nonempty('Messages array must not be empty'),
   ),
@@ -456,7 +469,7 @@ export async function safeValidateUIMessages<UI_MESSAGE extends UIMessage>({
               InferUIMessageTools<UI_MESSAGE>
             >;
             const toolName = toolPart.type.slice(5);
-            const tool = tools[toolName];
+            const tool = getOwn(tools, toolName);
 
             if (
               !tool &&

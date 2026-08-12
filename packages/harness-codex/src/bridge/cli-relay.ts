@@ -74,7 +74,7 @@ export function isToolRelayCommand({
   command: string;
   cliShimPath: string;
 }): boolean {
-  return parseToolRelayCommand({ command, cliShimPath }) !== undefined;
+  return parseToolRelayCommands({ command, cliShimPath }) !== undefined;
 }
 
 export function parseToolRelayCommand({
@@ -84,10 +84,21 @@ export function parseToolRelayCommand({
   command: string;
   cliShimPath: string;
 }): { toolName: string; input: unknown } | undefined {
-  return parseToolRelayCommandInternal({ command, cliShimPath, depth: 0 });
+  const calls = parseToolRelayCommands({ command, cliShimPath });
+  return calls?.length === 1 ? calls[0] : undefined;
 }
 
-function parseToolRelayCommandInternal({
+export function parseToolRelayCommands({
+  command,
+  cliShimPath,
+}: {
+  command: string;
+  cliShimPath: string;
+}): Array<{ toolName: string; input: unknown }> | undefined {
+  return parseToolRelayCommandsInternal({ command, cliShimPath, depth: 0 });
+}
+
+function parseToolRelayCommandsInternal({
   command,
   cliShimPath,
   depth,
@@ -95,16 +106,32 @@ function parseToolRelayCommandInternal({
   command: string;
   cliShimPath: string;
   depth: number;
-}): { toolName: string; input: unknown } | undefined {
+}): Array<{ toolName: string; input: unknown }> | undefined {
+  const commands = splitShellAndCommands(command);
+  if (!commands) return undefined;
+  if (commands.length > 1) {
+    const relayCalls: Array<{ toolName: string; input: unknown }> = [];
+    for (const nestedCommand of commands) {
+      const nestedCalls = parseToolRelayCommandsInternal({
+        command: nestedCommand,
+        cliShimPath,
+        depth,
+      });
+      if (!nestedCalls) return undefined;
+      relayCalls.push(...nestedCalls);
+    }
+    return relayCalls;
+  }
+
   const argv = parseShellWords(command);
   if (!argv) return undefined;
 
   const relayCall = parseDirectToolRelayArgv({ argv, cliShimPath });
-  if (relayCall) return relayCall;
+  if (relayCall) return [relayCall];
 
   const innerCommand = extractShellEvalCommand(argv);
   if (!innerCommand || depth >= 2) return undefined;
-  return parseToolRelayCommandInternal({
+  return parseToolRelayCommandsInternal({
     command: innerCommand,
     cliShimPath,
     depth: depth + 1,
@@ -137,6 +164,49 @@ function extractShellEvalCommand(argv: string[]): string | undefined {
   }
   if (argv[1] !== '-c' && argv[1] !== '-lc') return undefined;
   return argv[2];
+}
+
+function splitShellAndCommands(command: string): string[] | undefined {
+  const commands: string[] = [];
+  let start = 0;
+  let quote: '"' | "'" | undefined;
+
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    if (quote === "'") {
+      if (char === "'") quote = undefined;
+      continue;
+    }
+    if (quote === '"') {
+      if (char === '"') {
+        quote = undefined;
+      } else if (char === '\\') {
+        i++;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === '\\') {
+      i++;
+      continue;
+    }
+    if (char === '&' && command[i + 1] === '&') {
+      const nestedCommand = command.slice(start, i).trim();
+      if (!nestedCommand) return undefined;
+      commands.push(nestedCommand);
+      start = i + 2;
+      i++;
+    }
+  }
+
+  if (quote) return undefined;
+  const nestedCommand = command.slice(start).trim();
+  if (!nestedCommand) return undefined;
+  commands.push(nestedCommand);
+  return commands;
 }
 
 function parseShellWords(command: string): string[] | undefined {

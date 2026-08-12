@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/harness-opencode",
-  "version": "1.0.17",
+  "version": "1.0.37",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

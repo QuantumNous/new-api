@@ -9,4 +9,5 @@ export type {
   DeepInfraProviderSettings,
 } from './deepinfra-provider';
 export type { OpenAICompatibleErrorData as DeepInfraErrorData } from '@ai-sdk/openai-compatible';
+export type { DeepInfraImageModelOptions } from './deepinfra-image-model-options';
 export { VERSION } from './version';

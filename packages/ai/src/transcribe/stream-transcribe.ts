@@ -15,6 +15,7 @@ import type { TranscriptionModel } from '../types/transcription-model';
 import type { TranscriptionModelResponseMetadata } from '../types/transcription-model-response-metadata';
 import type { Warning } from '../types/warning';
 import { asAsyncIterableStream } from '../util/async-iterable-stream';
+import { mergeAbortSignals } from '../util/merge-abort-signals';
 import { VERSION } from '../version';
 import type {
   StreamTranscriptionResult,
@@ -113,9 +114,10 @@ export function streamTranscribe({
       message:
         `The ${resolvedModel.provider} model "${resolvedModel.modelId}" does not support streaming transcription.` +
         (typeof model === 'string'
-          ? ' String model IDs resolve through the global provider (AI Gateway by default),' +
-            ' which does not support streaming transcription yet.' +
-            " Pass a provider model instance instead, e.g. openai.transcription('gpt-realtime-whisper')."
+          ? ' String model IDs resolve through the global provider (AI Gateway by default).' +
+            ' If that provider does not support streaming transcription, pass a provider model' +
+            " instance instead (e.g. openai.transcription('gpt-realtime-whisper'))" +
+            ' or upgrade @ai-sdk/gateway to a version with streaming transcription support.'
           : ''),
     });
   }
@@ -253,7 +255,8 @@ export function streamTranscribe({
       audio,
       inputAudioFormat,
       providerOptions,
-      abortSignal,
+      // merged so cancelling fullStream also aborts a still-pending doStream
+      abortSignal: mergeAbortSignals(abortSignal, pipeAbortController.signal),
       headers: headersWithUserAgent,
       includeRawChunks,
     });
@@ -271,39 +274,84 @@ export function streamTranscribe({
     const reason =
       error ?? new Error('Transcription stream was cancelled or errored.');
     rejectPendingPromises(reason);
+    // When `doStream` rejects before the model stream exists (e.g. auth or
+    // header resolution failure), nothing has taken ownership of `audio` yet,
+    // so cancel it directly — otherwise an upstream producer piping into it
+    // hangs forever. When the model did take a reader, `audio` is locked and
+    // the cancel rejects, which is fine: the model's cleanup owns it then.
+    audio.cancel(reason).catch(() => {});
     transform.writable.abort(reason).catch(() => {
       // the writable is already errored when the model stream failed mid-pipe
     });
   });
 
+  // Transcription streams can be unbounded (live microphone + raw chunks), so
+  // unlike streamText we cannot retain an unread tee branch for replay. The
+  // output stream has one owner: either fullStream, or the first result promise
+  // getter which claims and drains it internally.
+  let streamOwner: 'unclaimed' | 'full-stream' | 'result-promises' =
+    'unclaimed';
+
+  function consumeStream() {
+    if (streamOwner === 'full-stream' || streamOwner === 'result-promises') {
+      return;
+    }
+    streamOwner = 'result-promises';
+    const reader = transform.readable.getReader();
+    void (async () => {
+      while (!(await reader.read()).done) {
+        // drain; results surface via the promises
+      }
+    })().catch(() => {
+      // stream errors reject the promises via the pipe handler above
+    });
+  }
+
+  function getFullStream() {
+    if (streamOwner !== 'unclaimed') {
+      throw new Error(
+        streamOwner === 'full-stream'
+          ? 'fullStream can only be accessed once.'
+          : 'fullStream cannot be accessed after a result promise.',
+      );
+    }
+    streamOwner = 'full-stream';
+    // Direct ownership preserves backpressure and cancellation: cancelling
+    // this stream reaches Transformer.cancel and aborts the model pipe.
+    return asAsyncIterableStream(transform.readable);
+  }
+
   return {
     get text() {
+      consumeStream();
       return textPromise.promise;
     },
     get segments() {
+      consumeStream();
       return segmentsPromise.promise;
     },
     get language() {
+      consumeStream();
       return languagePromise.promise;
     },
     get durationInSeconds() {
+      consumeStream();
       return durationInSecondsPromise.promise;
     },
     get warnings() {
+      consumeStream();
       return warningsPromise.promise;
     },
     get responses() {
+      consumeStream();
       return responsesPromise.promise;
     },
     get providerMetadata() {
+      consumeStream();
       return providerMetadataPromise.promise;
     },
-    // `transform.readable` is fresh and exclusively owned here, so attach the
-    // async iterator in place rather than piping through another transform.
-    // The extra transform (as `createAsyncIterableStream` would add) chains two
-    // transforms fed by the active model pipe below and surfaces a spurious
-    // unhandled `undefined` rejection when the consumer cancels early on
-    // Node.js 26.
-    fullStream: asAsyncIterableStream(transform.readable),
+    get fullStream() {
+      return getFullStream();
+    },
   };
 }

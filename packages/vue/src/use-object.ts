@@ -17,10 +17,7 @@ import { ref, type Ref } from 'vue';
 // use function to allow for mocking in tests
 const getOriginalFetch = () => fetch;
 
-export type Experimental_UseObjectOptions<
-  SCHEMA extends FlexibleSchema,
-  RESULT,
-> = {
+export type UseObjectOptions<SCHEMA extends FlexibleSchema, RESULT> = {
   /** API endpoint that streams JSON chunks matching the schema */
   api: string;
 
@@ -52,7 +49,7 @@ export type Experimental_UseObjectOptions<
   credentials?: RequestCredentials;
 };
 
-export type Experimental_UseObjectHelpers<RESULT, INPUT> = {
+export type UseObjectHelpers<RESULT, INPUT> = {
   /** POST the input and start streaming */
   submit: (input: INPUT) => void;
 
@@ -78,7 +75,7 @@ let uniqueId = 0;
 const useSWRV = (swrv.default as (typeof SwrvModule)['default']) || swrv;
 const store: Record<string, any> = {};
 
-export const experimental_useObject = function useObject<
+export function useObject<
   SCHEMA extends FlexibleSchema,
   RESULT = InferSchema<SCHEMA>,
   INPUT = any,
@@ -92,10 +89,7 @@ export const experimental_useObject = function useObject<
   onFinish,
   headers,
   credentials,
-}: Experimental_UseObjectOptions<
-  SCHEMA,
-  RESULT
->): Experimental_UseObjectHelpers<RESULT, INPUT> {
+}: UseObjectOptions<SCHEMA, RESULT>): UseObjectHelpers<RESULT, INPUT> {
   // Generate an unique id for the object if not provided.
   const completionId = id || `completion-${uniqueId++}`;
 
@@ -229,4 +223,4 @@ export const experimental_useObject = function useObject<
     stop,
     clear,
   };
-};
+}

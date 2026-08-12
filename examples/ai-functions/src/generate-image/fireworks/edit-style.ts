@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { fireworks } from '@ai-sdk/fireworks';
+import { fireworks, type FireworksImageModelOptions } from '@ai-sdk/fireworks';
 import { generateImage } from 'ai';
 import { presentImages } from '../../lib/present-image';
 import { run } from '../../lib/run';
@@ -26,6 +26,12 @@ run(async () => {
       images: [imageBuffer],
     },
     aspectRatio: '1:1',
+    providerOptions: {
+      fireworks: {
+        output_format: 'jpeg',
+        safety_tolerance: 2,
+      } satisfies FireworksImageModelOptions,
+    },
   });
 
   console.log('OUTPUT IMAGE:');

@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/harness-codex",
-  "version": "1.0.18",
+  "version": "1.0.38",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

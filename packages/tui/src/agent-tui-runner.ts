@@ -11,8 +11,10 @@ import {
 } from './tui/terminal-renderer';
 import {
   convertToModelMessages,
+  generateId,
   getToolName,
   isToolUIPart,
+  type ChatTransport,
   type StepResultPerformance,
   type Experimental_SandboxSession,
   type LanguageModelUsage,
@@ -77,17 +79,16 @@ export type AgentTUIRenderer = {
   ): Promise<UIMessage | undefined>;
 };
 
-export type AgentTUIRunnerOptions<
-  TAgent extends AgentTUIAgent = AgentTUIAgent,
-> = Omit<RunAgentTUIOptions, 'agent'> & {
-  agent: TAgent;
+export type AgentTUIRunnerOptions = RunAgentTUIOptions & {
   renderer?: AgentTUIRenderer;
   screen?: TerminalOutput;
   userInput?: TerminalInput;
 };
 
-export class AgentTUIRunner<TAgent extends AgentTUIAgent = AgentTUIAgent> {
-  private readonly agent: TAgent;
+export class AgentTUIRunner {
+  private readonly agent?: AgentTUIAgent;
+  private readonly transport?: ChatTransport<UIMessage>;
+  private readonly chatId = generateId();
   private readonly renderer: AgentTUIRenderer;
   private readonly title?: string;
   private readonly tools: TerminalPartDisplayMode;
@@ -96,8 +97,9 @@ export class AgentTUIRunner<TAgent extends AgentTUIAgent = AgentTUIAgent> {
   private readonly contextSize?: number;
   private readonly sandbox?: Experimental_SandboxSession;
 
-  constructor(options: AgentTUIRunnerOptions<TAgent>) {
+  constructor(options: AgentTUIRunnerOptions) {
     this.agent = options.agent;
+    this.transport = options.transport;
     this.renderer = createRenderer(options) ?? createDefaultRenderer(options);
     this.title = options.title;
     this.tools = options.tools ?? 'auto-collapsed';
@@ -213,9 +215,26 @@ export class AgentTUIRunner<TAgent extends AgentTUIAgent = AgentTUIAgent> {
     generateMessageId: () => string,
   ): Promise<AgentTUIStreamResult> {
     const abortController = new AbortController();
-    const result = await this.agent.stream({
+    const abort = () => abortController.abort();
+
+    if (this.transport) {
+      return {
+        uiMessageStream: await this.transport.sendMessages({
+          trigger: 'submit-message',
+          chatId: this.chatId,
+          messageId: undefined,
+          messages,
+          abortSignal: abortController.signal,
+        }),
+        message: lastAssistantMessage(messages),
+        abort,
+      };
+    }
+
+    const agent = this.agent!;
+    const result = await agent.stream({
       prompt: await convertToModelMessages(messages, {
-        tools: this.agent.tools as ToolSet,
+        tools: agent.tools as ToolSet,
       }),
       abortSignal: abortController.signal,
       options: undefined,
@@ -229,7 +248,7 @@ export class AgentTUIRunner<TAgent extends AgentTUIAgent = AgentTUIAgent> {
         messages,
       ),
       message: lastAssistantMessage(messages),
-      abort: () => abortController.abort(),
+      abort,
     };
   }
 }

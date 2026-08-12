@@ -62,6 +62,7 @@ export async function prepareResponsesTools({
     | { type: 'mcp' }
     | { type: 'image_generation' }
     | { type: 'apply_patch' }
+    | { type: 'computer' }
     | {
         type: 'allowed_tools';
         mode: 'auto' | 'required';
@@ -168,6 +169,12 @@ export async function prepareResponsesTools({
           case 'openai.apply_patch': {
             openaiTools.push({
               type: 'apply_patch',
+            });
+            break;
+          }
+          case 'openai.computer': {
+            openaiTools.push({
+              type: 'computer',
             });
             break;
           }
@@ -374,7 +381,8 @@ export async function prepareResponsesTools({
           resolvedToolName === 'web_search_preview' ||
           resolvedToolName === 'web_search' ||
           resolvedToolName === 'mcp' ||
-          resolvedToolName === 'apply_patch'
+          resolvedToolName === 'apply_patch' ||
+          resolvedToolName === 'computer'
             ? { type: resolvedToolName }
             : resolvedCustomProviderToolNames.has(resolvedToolName)
               ? { type: 'custom', name: resolvedToolName }

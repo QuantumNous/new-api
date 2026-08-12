@@ -3,6 +3,7 @@ import {
   buildCliShimScript,
   isToolRelayCommand,
   parseToolRelayCommand,
+  parseToolRelayCommands,
 } from './cli-relay';
 
 describe('buildCliShimScript', () => {
@@ -54,6 +55,27 @@ describe('parseToolRelayCommand', () => {
       input: { city: 'Reykjavik' },
     });
     expect(isToolRelayCommand({ command, cliShimPath })).toBe(true);
+  });
+
+  test('extracts multiple intended host tool calls joined with &&', () => {
+    const command =
+      `/bin/bash -lc "` +
+      `node ${cliShimPath} weather '{\\"city\\":\\"Paris\\"}' && ` +
+      `node ${cliShimPath} weather '{\\"city\\":\\"Reykjavik\\"}'"`;
+
+    expect(parseToolRelayCommands({ command, cliShimPath })).toEqual([
+      { toolName: 'weather', input: { city: 'Paris' } },
+      { toolName: 'weather', input: { city: 'Reykjavik' } },
+    ]);
+    expect(isToolRelayCommand({ command, cliShimPath })).toBe(true);
+  });
+
+  test('rejects compound commands containing a non-relay command', () => {
+    const command =
+      `node ${cliShimPath} weather '{"city":"Paris"}' && ` + 'cat /etc/passwd';
+
+    expect(parseToolRelayCommands({ command, cliShimPath })).toBeUndefined();
+    expect(isToolRelayCommand({ command, cliShimPath })).toBe(false);
   });
 
   test('rejects commands that only mention the shim path', () => {

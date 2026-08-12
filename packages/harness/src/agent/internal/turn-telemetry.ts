@@ -241,6 +241,7 @@ export function createTurnTelemetry(opts: {
       dispatcher.onStepEnd?.(
         cast<'onStepEnd'>({
           callId,
+          stepNumber,
           finishReason: info.finishReason,
           usage: info.usage,
           providerMetadata: info.providerMetadata,
@@ -313,6 +314,7 @@ export function createTurnTelemetry(opts: {
         dispatcher.onStepEnd?.(
           cast<'onStepEnd'>({
             callId,
+            stepNumber,
             finishReason: info.finishReason,
             usage: info.usage,
             providerMetadata: undefined,

@@ -29,6 +29,7 @@ createFeatureTestSuite({
       createChatModel('gpt-5'),
       createChatModel('gpt-5-mini'),
       createChatModel('gpt-5-nano'),
+      createChatModel('gpt-5.6'),
     ],
     embeddingModels: [
       createEmbeddingModelWithCapabilities(

@@ -1,6 +1,7 @@
 import { createTestServer } from '@ai-sdk/test-server/with-vitest';
 import { createAmazonBedrock } from './amazon-bedrock-provider';
 import { AmazonBedrockImageModel } from './amazon-bedrock-image-model';
+import type { AmazonBedrockImageModelOptions } from './amazon-bedrock-image-model-options';
 import { injectFetchHeaders } from './inject-fetch-headers';
 import { describe, it, expect } from 'vitest';
 
@@ -76,6 +77,106 @@ describe('doGenerate', () => {
         },
       }
     `);
+  });
+
+  it('should accept the new `amazonBedrock` providerOptions key', async () => {
+    await model.doGenerate({
+      prompt,
+      files: undefined,
+      mask: undefined,
+      n: 1,
+      size: '1024x1024',
+      aspectRatio: undefined,
+      seed: 1234,
+      providerOptions: {
+        amazonBedrock: {
+          negativeText: 'bad',
+          quality: 'premium',
+          cfgScale: 1.2,
+          style: 'PHOTOREALISM',
+        } satisfies AmazonBedrockImageModelOptions,
+      },
+    });
+
+    expect(await server.calls[0].requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "imageGenerationConfig": {
+          "cfgScale": 1.2,
+          "height": 1024,
+          "numberOfImages": 1,
+          "quality": "premium",
+          "seed": 1234,
+          "width": 1024,
+        },
+        "taskType": "TEXT_IMAGE",
+        "textToImageParams": {
+          "negativeText": "bad",
+          "style": "PHOTOREALISM",
+          "text": "A cute baby sea otter",
+        },
+      }
+    `);
+  });
+
+  it('should prefer `amazonBedrock` providerOptions over the legacy `bedrock` key', async () => {
+    await model.doGenerate({
+      prompt,
+      files: undefined,
+      mask: undefined,
+      n: 1,
+      size: undefined,
+      aspectRatio: undefined,
+      seed: undefined,
+      providerOptions: {
+        bedrock: {
+          negativeText: 'legacy',
+          quality: 'standard',
+          cfgScale: 1,
+          style: 'DESIGN_SKETCH',
+        } satisfies AmazonBedrockImageModelOptions,
+        amazonBedrock: {
+          negativeText: 'preferred',
+          quality: 'premium',
+          cfgScale: 2,
+          style: 'PHOTOREALISM',
+        } satisfies AmazonBedrockImageModelOptions,
+      },
+    });
+
+    expect(await server.calls[0].requestBodyJson).toMatchInlineSnapshot(`
+      {
+        "imageGenerationConfig": {
+          "cfgScale": 2,
+          "numberOfImages": 1,
+          "quality": "premium",
+        },
+        "taskType": "TEXT_IMAGE",
+        "textToImageParams": {
+          "negativeText": "preferred",
+          "style": "PHOTOREALISM",
+          "text": "A cute baby sea otter",
+        },
+      }
+    `);
+  });
+
+  it('should reject invalid provider options', async () => {
+    await expect(
+      model.doGenerate({
+        prompt,
+        files: undefined,
+        mask: undefined,
+        n: 1,
+        size: undefined,
+        aspectRatio: undefined,
+        seed: undefined,
+        providerOptions: {
+          amazonBedrock: {
+            quality: 'ultra',
+          },
+        },
+      }),
+    ).rejects.toThrow('invalid amazonBedrock provider options');
   });
 
   it('should properly combine headers from all sources', async () => {

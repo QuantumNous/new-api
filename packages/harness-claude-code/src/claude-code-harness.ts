@@ -22,6 +22,10 @@ import {
 } from '@ai-sdk/harness';
 import {
   classifyDiskLog,
+  createBridgeErrorHandler,
+  createBridgeStartupError,
+  drainBridgeProcessStream,
+  forwardBridgeProcessStream,
   markBridgeStarting,
   resolveSandboxHomeDir,
   SandboxChannel,
@@ -45,9 +49,16 @@ import {
   type InboundMessage,
   type OutboundMessage,
 } from './claude-code-bridge-protocol';
+import type { ClaudeCodeThinkingConfig } from './claude-code-thinking';
+import { VERSION } from './version';
 
 type ClaudeCodeChannel = SandboxChannel<OutboundMessage, InboundMessage>;
 type ClaudeCodeRespawnStrategy = 'replay' | 'rerun';
+
+/**
+ * Value to use in User-Agent and `x-client-app` headers.
+ */
+const CLAUDE_CODE_CLIENT_APP = `ai-sdk/harness-claude-code/${VERSION}`;
 
 export type ClaudeCodeHarnessSettings = {
   readonly auth?: ClaudeCodeAuthOptions;
@@ -62,10 +73,10 @@ export type ClaudeCodeHarnessSettings = {
    */
   readonly maxTurns?: number;
   /**
-   * Controls extended-thinking behavior. `'off'` disables thinking,
-   * `'on'` forces it on, `'adaptive'` lets the runtime decide.
+   * Controls extended-thinking behavior and whether reasoning is summarized or
+   * omitted. Defaults to `{ type: 'adaptive', display: 'summarized' }`.
    */
-  readonly thinking?: 'off' | 'on' | 'adaptive';
+  readonly thinking?: ClaudeCodeThinkingConfig;
   /**
    * Override the port the bridge binds inside the sandbox. By default the
    * adapter uses the first port the sandbox declares via `sandbox.ports`.
@@ -363,6 +374,14 @@ const CLAUDE_CODE_BUILTIN_TOOLS = {
       args: z.string().optional(),
     }),
   }),
+  ToolSearch: tool({
+    description:
+      'Search deferred MCP / catalog tools so the model can load them on demand',
+    inputSchema: z.object({
+      query: z.string(),
+      max_results: z.number().optional(),
+    }),
+  }),
 } as const satisfies Record<string, HarnessV1BuiltinTool<any, any>>;
 
 /*
@@ -410,6 +429,10 @@ export function createClaudeCode(
   settings: ClaudeCodeHarnessSettings = {},
 ): HarnessV1<typeof CLAUDE_CODE_BUILTIN_TOOLS> {
   let cachedBootstrap: HarnessV1Bootstrap | undefined;
+  const thinking = settings.thinking ?? {
+    type: 'adaptive',
+    display: 'summarized',
+  };
 
   return {
     specificationVersion: 'harness-v1',
@@ -474,6 +497,10 @@ export function createClaudeCode(
               }),
             )
         : undefined;
+      const onBridgeError = createBridgeErrorHandler({
+        harnessId: 'claude-code',
+        sessionId: startOpts.sessionId,
+      });
 
       // Builds the `connect` thunk a `SandboxChannel` re-invokes on every
       // (re)connect: open the socket, then wait for `bridge-hello` so the
@@ -502,6 +529,7 @@ export function createClaudeCode(
             outboundSchema: outboundMessageSchema,
             initialLastSeenEventId: coords.lastSeenEventId,
             onDiagnostic,
+            onBridgeError,
           });
           await attachChannel.open(isContinue ? { resume: true } : undefined);
           return createSession({
@@ -513,7 +541,7 @@ export function createClaudeCode(
             proc: undefined,
             model: settings.model,
             maxTurns: settings.maxTurns,
-            thinking: settings.thinking,
+            thinking,
             isResume: true,
             continueOnFirstPrompt: false,
             rerunContinue: false,
@@ -565,6 +593,13 @@ export function createClaudeCode(
       const token = randomBytes(32).toString('hex');
       const env = {
         ...resolveClaudeCodeEnv(settings.auth),
+        /*
+         * The Claude Agent SDK does not expose arbitrary model-request
+         * headers. It reads this environment variable and sends the value as
+         * `x-client-app`, while also appending `client-app/<value>` to
+         * `User-Agent`, so this is the attribution path for AI Gateway.
+         */
+        CLAUDE_AGENT_SDK_CLIENT_APP: CLAUDE_CODE_CLIENT_APP,
         BRIDGE_CHANNEL_TOKEN: token,
         BRIDGE_WS_PORT: String(port),
         ...(sandboxHomeDir ? { HOME: sandboxHomeDir } : {}),
@@ -612,14 +647,10 @@ export function createClaudeCode(
       });
 
       const bridgeStartupStderr: string[] = [];
-      /*
-       * Bridge stderr is the only diagnostic channel for sandbox-side crashes
-       * and startup failures. Start forwarding before `bridge-ready`, otherwise
-       * module-resolution, auth, and syntax errors can be lost behind the
-       * generic startup failure below.
-       */
-      const bridgeStartupStderrDone = forwardBridgeStderr({
+      const bridgeStartupStderrDone = forwardBridgeProcessStream({
         stream: proc.stderr,
+        streamName: 'stderr',
+        source: 'claude-code',
         collectTail: bridgeStartupStderr,
       });
       void bridgeStartupStderrDone;
@@ -647,7 +678,7 @@ export function createClaudeCode(
             stderrDone: bridgeStartupStderrDone,
           }),
       });
-      void drainRest(proc.stdout);
+      void drainBridgeProcessStream(proc.stdout);
 
       const wsUrl =
         (await sandboxSession.getPortUrl({
@@ -659,6 +690,7 @@ export function createClaudeCode(
         connect: buildConnect(wsUrl),
         outboundSchema: outboundMessageSchema,
         onDiagnostic,
+        onBridgeError,
         // In replay mode the respawned bridge reloaded the finished turn from
         // disk; seed the cursor and resume so it streams the tail (incl.
         // `finish`) rather than starting empty.
@@ -676,7 +708,7 @@ export function createClaudeCode(
         proc,
         model: settings.model,
         maxTurns: settings.maxTurns,
-        thinking: settings.thinking,
+        thinking,
         isResume: respawnStrategy !== undefined,
         continueOnFirstPrompt: respawnStrategy !== undefined,
         rerunContinue: respawnStrategy === 'rerun',
@@ -753,126 +785,6 @@ async function readBridgeAsset(name: string): Promise<string> {
     }
   }
   throw lastErr ?? new Error(`bridge asset not found: ${name}`);
-}
-
-async function createBridgeStartupError({
-  message,
-  proc,
-  stdoutTail,
-  stderrTail,
-  stderrDone,
-}: {
-  message: string;
-  proc: Experimental_SandboxProcess;
-  stdoutTail: string[];
-  stderrTail: string[];
-  stderrDone: Promise<void>;
-}): Promise<Error> {
-  await Promise.race([
-    stderrDone,
-    new Promise<void>(resolve => setTimeout(resolve, 250)),
-  ]).catch(() => {});
-
-  let exitStatus = '';
-  try {
-    const result = (await Promise.race([
-      proc.wait(),
-      new Promise<undefined>(resolve => setTimeout(resolve, 250)),
-    ])) as { exitCode?: number } | undefined;
-    if (result?.exitCode !== undefined) {
-      exitStatus = ` Exit code: ${result.exitCode}.`;
-    }
-  } catch {}
-
-  const details: string[] = [];
-  if (stdoutTail.length > 0) {
-    details.push(`stdout:\n${stdoutTail.join('\n')}`);
-  }
-  if (stderrTail.length > 0) {
-    details.push(`stderr:\n${stderrTail.join('\n')}`);
-  }
-
-  return new Error(
-    `${message}${exitStatus}${
-      details.length > 0 ? `\n\n${details.join('\n\n')}` : ''
-    }`,
-  );
-}
-
-function lineDecoder() {
-  let buffer = '';
-  return {
-    push(chunk: string): string[] {
-      buffer += chunk;
-      const lines: string[] = [];
-      let nl: number;
-      while ((nl = buffer.indexOf('\n')) !== -1) {
-        const raw = buffer.slice(0, nl);
-        buffer = buffer.slice(nl + 1);
-        const line = raw.replace(/\r$/, '').trim();
-        if (line.length > 0) lines.push(line);
-      }
-      return lines;
-    },
-    flush(): string[] {
-      const line = buffer.replace(/\r$/, '').trim();
-      buffer = '';
-      return line.length > 0 ? [line] : [];
-    },
-  };
-}
-
-async function forwardBridgeStderr({
-  stream,
-  collectTail,
-}: {
-  stream: ReadableStream<Uint8Array>;
-  collectTail?: string[];
-}): Promise<void> {
-  try {
-    const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
-    const decoder = lineDecoder();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) {
-        for (const line of decoder.flush()) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          if (collectTail) {
-            collectTail.push(trimmed);
-            if (collectTail.length > 20) collectTail.shift();
-          }
-          // eslint-disable-next-line no-console
-          console.log(`[bridge stderr] ${trimmed}`);
-        }
-        return;
-      }
-      if (value) {
-        for (const line of decoder.push(value)) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          if (collectTail) {
-            collectTail.push(trimmed);
-            if (collectTail.length > 20) collectTail.shift();
-          }
-          // eslint-disable-next-line no-console
-          console.log(`[bridge stderr] ${trimmed}`);
-        }
-      }
-    }
-  } catch {
-    // Reader errors are non-fatal — best-effort diagnostic only.
-  }
-}
-
-async function drainRest(stream: ReadableStream<Uint8Array>): Promise<void> {
-  try {
-    const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
-    while (true) {
-      const { done } = await reader.read();
-      if (done) return;
-    }
-  } catch {}
 }
 
 /**
@@ -1056,7 +968,7 @@ function createSession({
   proc: Experimental_SandboxProcess | undefined;
   model: string | undefined;
   maxTurns: number | undefined;
-  thinking: 'off' | 'on' | 'adaptive' | undefined;
+  thinking: ClaudeCodeThinkingConfig;
   isResume: boolean;
   continueOnFirstPrompt: boolean;
   rerunContinue: boolean;
@@ -1463,14 +1375,16 @@ function createSession({
       }
       stopped = true;
       /*
-       * Gracefully freeze the active turn at a precise cursor. `channel.suspend`
-       * stops processing inbound frames (the cursor stops advancing exactly at
-       * the last delivered event), drains what was already dispatched, then
-       * closes the host socket with reason `'suspended'` — which `wireTurn`'s
-       * `onClose` treats as a clean turn end. The bridge keeps the turn running
-       * and accumulates events past the cursor for the next slice to replay. The
+       * First ask the runtime to interrupt the active model turn, then freeze
+       * the host at a precise cursor. `channel.suspend` stops processing
+       * inbound frames (the cursor stops advancing exactly at the last
+       * delivered event), drains what was already dispatched, then closes the
+       * host socket with reason `'suspended'` — which `wireTurn`'s `onClose`
+       * treats as a clean turn end. The bridge keeps the turn running and
+       * accumulates events past the cursor for the next slice to replay. The
        * sandbox process is deliberately left alive (no `shutdown`/`detach`).
        */
+      await channel.interrupt();
       const lastSeenEventId = await channel.suspend();
       const payload: HarnessV1ContinueTurnState = {
         type: 'continue-turn',

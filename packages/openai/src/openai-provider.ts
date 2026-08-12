@@ -13,6 +13,7 @@ import type {
 import {
   loadApiKey,
   loadOptionalSetting,
+  validateBaseURL,
   withoutTrailingSlash,
   withUserAgentSuffix,
   type FetchFunction,
@@ -175,10 +176,12 @@ export function createOpenAI(
 ): OpenAIProvider {
   const baseURL =
     withoutTrailingSlash(
-      loadOptionalSetting({
-        settingValue: options.baseURL,
-        environmentVariableName: 'OPENAI_BASE_URL',
-      }),
+      validateBaseURL(
+        loadOptionalSetting({
+          settingValue: options.baseURL,
+          environmentVariableName: 'OPENAI_BASE_URL',
+        }),
+      ),
     ) ?? 'https://api.openai.com/v1';
 
   const providerName = options.name ?? 'openai';

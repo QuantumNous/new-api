@@ -4,7 +4,7 @@ import { run } from '../../lib/run';
 
 run(async () => {
   const result = streamText({
-    model: xai('grok-3-beta'),
+    model: xai('grok-4.5'),
     prompt: 'Invent a new holiday and describe its traditions.',
   });
 

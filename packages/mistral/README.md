@@ -1,6 +1,6 @@
 # AI SDK - Mistral Provider
 
-The **[Mistral provider](https://ai-sdk.dev/providers/ai-sdk-providers/mistral)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model support for the Mistral chat API.
+The **[Mistral provider](https://ai-sdk.dev/providers/ai-sdk-providers/mistral)** for the [AI SDK](https://ai-sdk.dev/docs) contains language model, embedding model, and speech model support for Mistral APIs.
 
 > **Deploying to Vercel?** With Vercel's AI Gateway you can access Mistral (and hundreds of models from other providers) — no additional packages, API keys, or extra cost. [Get started with AI Gateway](https://vercel.com/ai-gateway).
 

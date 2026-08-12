@@ -1,5 +1,173 @@
 # @ai-sdk/react
 
+## 4.0.34
+
+### Patch Changes
+
+- Updated dependencies [70f18c3]
+- Updated dependencies [cd06458]
+- Updated dependencies [d84ea43]
+  - ai@7.0.31
+  - @ai-sdk/provider-utils@5.0.11
+  - @ai-sdk/mcp@2.0.15
+
+## 4.0.33
+
+### Patch Changes
+
+- ai@7.0.30
+
+## 4.0.32
+
+### Patch Changes
+
+- ai@7.0.29
+
+## 4.0.31
+
+### Patch Changes
+
+- 48e7e78: Harden MCP Apps handling of server-supplied resource metadata and the host/iframe bridge:
+
+  - Runtime-validate `_meta.ui` and drop malformed or non-string fields.
+  - Gate iframe permissions deny-by-default via a new `sandbox.allowedPermissions` allowlist.
+  - Derive a concrete `postMessage` target origin and validate inbound message origins.
+  - Validate inbound bridge params: limit `resources/read` to `ui://` resources and allow only `https`/`http`/`mailto` in `ui/open-link`.
+  - Add `fingerprintMCPAppResource` / `detectMCPAppResourceDrift` for pinning and comparing app resources.
+
+- Updated dependencies [48e7e78]
+  - @ai-sdk/mcp@2.0.14
+
+## 4.0.30
+
+### Patch Changes
+
+- Updated dependencies [0bc8d4f]
+  - ai@7.0.28
+
+## 4.0.29
+
+### Patch Changes
+
+- 519c72b: fix (react/mcp-apps): sanitize server-supplied CSP domains in `getMCPAppCSP` so values cannot inject extra directives, sources, or policies into the generated Content-Security-Policy
+
+## 4.0.28
+
+### Patch Changes
+
+- Updated dependencies [ac01b79]
+- Updated dependencies [31c7be8]
+- Updated dependencies [2696562]
+  - ai@7.0.27
+  - @ai-sdk/provider-utils@5.0.10
+  - @ai-sdk/mcp@2.0.13
+
+## 4.0.27
+
+### Patch Changes
+
+- Updated dependencies [27d294d]
+  - ai@7.0.26
+
+## 4.0.26
+
+### Patch Changes
+
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [7805e4a]
+- Updated dependencies [f8e82fd]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - ai@7.0.25
+  - @ai-sdk/mcp@2.0.12
+
+## 4.0.25
+
+### Patch Changes
+
+- Updated dependencies [e193290]
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - ai@7.0.24
+  - @ai-sdk/mcp@2.0.11
+
+## 4.0.24
+
+### Patch Changes
+
+- Updated dependencies [930f949]
+  - ai@7.0.23
+
+## 4.0.23
+
+### Patch Changes
+
+- Updated dependencies [8f89c25]
+  - ai@7.0.22
+
+## 4.0.22
+
+### Patch Changes
+
+- Updated dependencies [308a519]
+  - ai@7.0.21
+
+## 4.0.21
+
+### Patch Changes
+
+- d26bf99: Align React development dependencies with React 18 so workspace-linked examples do not bundle duplicate React copies.
+- Updated dependencies [b9ac19f]
+- Updated dependencies [a4186d6]
+  - ai@7.0.20
+
+## 4.0.20
+
+### Patch Changes
+
+- Updated dependencies [be7f05a]
+- Updated dependencies [ee55a07]
+- Updated dependencies [aad737d]
+- Updated dependencies [0f93c57]
+  - ai@7.0.19
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/mcp@2.0.10
+  - @ai-sdk/provider-utils@5.0.7
+
+## 4.0.19
+
+### Patch Changes
+
+- 0363440: Promote `useObject` (React, Vue) and `StructuredObject` (Svelte) to stable exports, with deprecated experimental aliases for backwards compatibility.
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - ai@7.0.18
+  - @ai-sdk/mcp@2.0.9
+
+## 4.0.18
+
+### Patch Changes
+
+- 3271474: Promote the `throttle` option on `useChat` and `useCompletion` to stable, with a deprecated `experimental_throttle` alias for backwards compatibility.
+- Updated dependencies [3e6e955]
+- Updated dependencies [eebd14b]
+  - @ai-sdk/mcp@2.0.8
+  - ai@7.0.17
+
+## 4.0.17
+
+### Patch Changes
+
+- Updated dependencies [a8f9b6d]
+  - ai@7.0.16
+
+## 4.0.16
+
+### Patch Changes
+
+- ai@7.0.15
+
 ## 4.0.15
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "ai",
-  "version": "7.0.14",
+  "version": "7.0.31",
   "type": "module",
   "description": "AI SDK by Vercel - build apps like ChatGPT, Claude, Gemini, and more with a single interface for any model using the Vercel AI Gateway or go direct to OpenAI, Anthropic, Google, or any other model provider.",
   "license": "Apache-2.0",

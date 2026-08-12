@@ -6,15 +6,19 @@ import {
 import {
   convertToBase64,
   getTopLevelMediaType,
+  parseProviderOptions,
   resolveFullMediaType,
   resolveProviderReference,
 } from '@ai-sdk/provider-utils';
-import type { XaiChatPrompt } from './xai-chat-prompt';
+import type { XaiChatPrompt, XaiUserMessageContent } from './xai-chat-prompt';
+import { xaiFilePartProviderOptions } from './xai-file-part-options';
 
-export function convertToXaiChatMessages(prompt: LanguageModelV4Prompt): {
+export async function convertToXaiChatMessages(
+  prompt: LanguageModelV4Prompt,
+): Promise<{
   messages: XaiChatPrompt;
   warnings: Array<SharedV4Warning>;
-} {
+}> {
   const messages: XaiChatPrompt = [];
   const warnings: Array<SharedV4Warning> = [];
 
@@ -31,54 +35,68 @@ export function convertToXaiChatMessages(prompt: LanguageModelV4Prompt): {
           break;
         }
 
-        messages.push({
-          role: 'user',
-          content: content.map(part => {
-            switch (part.type) {
-              case 'text': {
-                return { type: 'text', text: part.text };
-              }
-              case 'file': {
-                switch (part.data.type) {
-                  case 'reference': {
-                    return {
-                      type: 'file',
-                      file: {
-                        file_id: resolveProviderReference({
-                          reference: part.data.reference,
-                          provider: 'xai',
+        const userContent: Array<XaiUserMessageContent> = [];
+
+        for (const part of content) {
+          switch (part.type) {
+            case 'text': {
+              userContent.push({ type: 'text', text: part.text });
+              break;
+            }
+            case 'file': {
+              switch (part.data.type) {
+                case 'reference': {
+                  userContent.push({
+                    type: 'file',
+                    file: {
+                      file_id: resolveProviderReference({
+                        reference: part.data.reference,
+                        provider: 'xai',
+                      }),
+                    },
+                  });
+                  break;
+                }
+                case 'text': {
+                  throw new UnsupportedFunctionalityError({
+                    functionality: 'text file parts',
+                  });
+                }
+                case 'url':
+                case 'data': {
+                  if (getTopLevelMediaType(part.mediaType) === 'image') {
+                    const filePartOptions = await parseProviderOptions({
+                      provider: 'xai',
+                      providerOptions: part.providerOptions,
+                      schema: xaiFilePartProviderOptions,
+                    });
+
+                    userContent.push({
+                      type: 'image_url',
+                      image_url: {
+                        url:
+                          part.data.type === 'url'
+                            ? part.data.url.toString()
+                            : `data:${resolveFullMediaType({ part })};base64,${convertToBase64(part.data.data)}`,
+                        ...(filePartOptions?.imageDetail != null && {
+                          detail: filePartOptions.imageDetail,
                         }),
                       },
-                    };
-                  }
-                  case 'text': {
+                    });
+                  } else {
                     throw new UnsupportedFunctionalityError({
-                      functionality: 'text file parts',
+                      functionality: `file part media type ${part.mediaType}`,
                     });
                   }
-                  case 'url':
-                  case 'data': {
-                    if (getTopLevelMediaType(part.mediaType) === 'image') {
-                      return {
-                        type: 'image_url',
-                        image_url: {
-                          url:
-                            part.data.type === 'url'
-                              ? part.data.url.toString()
-                              : `data:${resolveFullMediaType({ part })};base64,${convertToBase64(part.data.data)}`,
-                        },
-                      };
-                    } else {
-                      throw new UnsupportedFunctionalityError({
-                        functionality: `file part media type ${part.mediaType}`,
-                      });
-                    }
-                  }
+                  break;
                 }
               }
+              break;
             }
-          }),
-        });
+          }
+        }
+
+        messages.push({ role: 'user', content: userContent });
 
         break;
       }

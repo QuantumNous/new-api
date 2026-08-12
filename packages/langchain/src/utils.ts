@@ -1505,6 +1505,11 @@ export function processLangGraphEvent(
         const text = getMessageText(msg);
         if (text) {
           const seen = messageSeen.get(msgId);
+          if (seen?.reasoning && !seen.text) {
+            controller.enqueue({ type: 'reasoning-end', id: msgId });
+            seen.reasoning = false;
+          }
+
           if (!seen?.text) {
             controller.enqueue({ type: 'text-start', id: msgId });
             getOrCreateMessageSeen(messageSeen, msgId).text = true;

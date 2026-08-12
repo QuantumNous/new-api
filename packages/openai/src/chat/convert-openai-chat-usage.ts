@@ -6,6 +6,7 @@ export type OpenAIChatUsage = {
   total_tokens?: number | null;
   prompt_tokens_details?: {
     cached_tokens?: number | null;
+    cache_write_tokens?: number | null;
   } | null;
   completion_tokens_details?: {
     reasoning_tokens?: number | null;
@@ -37,15 +38,17 @@ export function convertOpenAIChatUsage(
   const promptTokens = usage.prompt_tokens ?? 0;
   const completionTokens = usage.completion_tokens ?? 0;
   const cachedTokens = usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const cacheWriteTokens =
+    usage.prompt_tokens_details?.cache_write_tokens ?? undefined;
   const reasoningTokens =
     usage.completion_tokens_details?.reasoning_tokens ?? 0;
 
   return {
     inputTokens: {
       total: promptTokens,
-      noCache: promptTokens - cachedTokens,
+      noCache: promptTokens - cachedTokens - (cacheWriteTokens ?? 0),
       cacheRead: cachedTokens,
-      cacheWrite: undefined,
+      cacheWrite: cacheWriteTokens,
     },
     outputTokens: {
       total: completionTokens,

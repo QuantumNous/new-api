@@ -80,6 +80,32 @@ describe('parseToolCall', () => {
     `);
   });
 
+  it('should not treat an inherited object property as a refinement for a tool whose name collides with it', async () => {
+    // `refineToolInput` is keyed by tool name; a tool named after an
+    // Object.prototype member must not resolve to the inherited method and be
+    // invoked as a refiner. With no own entry for `toString`, the raw parsed
+    // input is returned unchanged.
+    const result = await parseToolCall({
+      toolCall: {
+        type: 'tool-call',
+        toolName: 'toString',
+        toolCallId: '123',
+        input: '{"value": "raw"}',
+      },
+      tools: {
+        toString: tool({
+          inputSchema: z.object({ value: z.string() }),
+        }),
+      } as const,
+      repairToolCall: undefined,
+      refineToolInput: { testTool: () => ({ value: 'refined' }) } as any,
+      messages: [],
+      instructions: undefined,
+    });
+
+    expect(result.input).toEqual({ value: 'raw' });
+  });
+
   it('should successfully parse a valid provider-executed dynamic tool call', async () => {
     const result = await parseToolCall({
       toolCall: {

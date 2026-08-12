@@ -12,21 +12,7 @@ The [Groq](https://groq.com/) provider contains language model support for the G
 The Groq provider is available via the `@ai-sdk/groq` module.
 You can install it with
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/groq" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/groq" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/groq" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add @ai-sdk/groq" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/groq" />
 
 ## Provider Instance
 
@@ -296,28 +282,28 @@ const { text } = await generateText({
 
 ## Model Capabilities
 
-| Model                                           | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
-| ----------------------------------------------- | ------------------- | ------------------- | ------------------- | ------------------- |
-| `gemma2-9b-it`                                  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `llama-3.1-8b-instant`                          | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `llama-3.3-70b-versatile`                       | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `meta-llama/llama-guard-4-12b`                  | <Check size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `deepseek-r1-distill-llama-70b`                 | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `meta-llama/llama-4-maverick-17b-128e-instruct` | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `meta-llama/llama-4-scout-17b-16e-instruct`     | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `meta-llama/llama-prompt-guard-2-22m`           | <Cross size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `meta-llama/llama-prompt-guard-2-86m`           | <Cross size={18} /> | <Check size={18} /> | <Cross size={18} /> | <Cross size={18} /> |
-| `moonshotai/kimi-k2-instruct-0905`              | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen/qwen3-32b`                                | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `llama-guard-3-8b`                              | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `llama3-70b-8192`                               | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `llama3-8b-8192`                                | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `mixtral-8x7b-32768`                            | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen-qwq-32b`                                  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `qwen-2.5-32b`                                  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `deepseek-r1-distill-qwen-32b`                  | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `openai/gpt-oss-20b`                            | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `openai/gpt-oss-120b`                           | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                                           | Image Input | Object Generation | Tool Usage | Tool Streaming |
+| ----------------------------------------------- | ----------- | ----------------- | ---------- | -------------- |
+| `gemma2-9b-it`                                  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `llama-3.1-8b-instant`                          | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `llama-3.3-70b-versatile`                       | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `meta-llama/llama-guard-4-12b`                  | <Check />   | <Check />         | <Cross />  | <Cross />      |
+| `deepseek-r1-distill-llama-70b`                 | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `meta-llama/llama-4-maverick-17b-128e-instruct` | <Check />   | <Check />         | <Check />  | <Check />      |
+| `meta-llama/llama-4-scout-17b-16e-instruct`     | <Check />   | <Check />         | <Check />  | <Check />      |
+| `meta-llama/llama-prompt-guard-2-22m`           | <Cross />   | <Check />         | <Cross />  | <Cross />      |
+| `meta-llama/llama-prompt-guard-2-86m`           | <Cross />   | <Check />         | <Cross />  | <Cross />      |
+| `moonshotai/kimi-k2-instruct-0905`              | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `qwen/qwen3-32b`                                | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `llama-guard-3-8b`                              | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `llama3-70b-8192`                               | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `llama3-8b-8192`                                | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `mixtral-8x7b-32768`                            | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `qwen-qwq-32b`                                  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `qwen-2.5-32b`                                  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `deepseek-r1-distill-qwen-32b`                  | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `openai/gpt-oss-20b`                            | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `openai/gpt-oss-120b`                           | <Cross />   | <Check />         | <Check />  | <Check />      |
 
 <Note>
   The tables above list the most commonly used models. Please see the [Groq
@@ -479,7 +465,7 @@ The following provider options are available:
 
 ### Model Capabilities
 
-| Model                    | Transcription       | Duration            | Segments            | Language            |
-| ------------------------ | ------------------- | ------------------- | ------------------- | ------------------- |
-| `whisper-large-v3`       | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `whisper-large-v3-turbo` | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                    | Transcription | Duration  | Segments  | Language  |
+| ------------------------ | ------------- | --------- | --------- | --------- |
+| `whisper-large-v3`       | <Check />     | <Check /> | <Check /> | <Check /> |
+| `whisper-large-v3-turbo` | <Check />     | <Check /> | <Check /> | <Check /> |

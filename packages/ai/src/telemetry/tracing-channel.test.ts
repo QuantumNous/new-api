@@ -5,6 +5,7 @@ import { convertArrayToReadableStream } from '@ai-sdk/provider-utils/test';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod/v4';
 import { embed } from '../embed/embed';
+import { embedMany } from '../embed/embed-many';
 import { generateText } from '../generate-text';
 import { streamText } from '../generate-text/stream-text';
 import { isStepCount } from '../generate-text/stop-condition';
@@ -583,6 +584,36 @@ describe.runIf(isNodeRuntime())('telemetry tracing channel publisher', () => {
     `);
   });
 
+  it('traces the current embedMany lifecycle sequence', async () => {
+    const sequence = await collectTracingChannelEventSequence(async () => {
+      await embedMany({
+        model: new MockEmbeddingModelV4({
+          maxEmbeddingsPerCall: 2,
+          doEmbed: async ({ values }) => ({
+            embeddings: values.map(() => [0.1, 0.2, 0.3]),
+            usage: { tokens: 10 },
+            warnings: [],
+          }),
+        }),
+        values: [
+          'sunny day at the beach',
+          'rainy day in the city',
+          'cloudy day in the mountains',
+        ],
+        telemetry: {
+          functionId: 'tracing-channel-embed-many-test',
+        },
+      });
+    });
+
+    expect(sequence).toMatchInlineSnapshot(`
+      [
+        "bindStart embedMany",
+        "asyncEnd embedMany",
+      ]
+    `);
+  });
+
   it('traces the current rerank lifecycle sequence', async () => {
     const sequence = await collectTracingChannelEventSequence(async () => {
       await rerank({
@@ -639,6 +670,47 @@ describe.runIf(isNodeRuntime())('telemetry tracing channel publisher', () => {
       embedding: [0.1, 0.2, 0.3],
       usage: { tokens: 10 },
       warnings: [],
+    });
+  });
+
+  it('publishes the embedMany result on asyncEnd', async () => {
+    const messages = await collectTracingChannelAsyncEndMessages(async () => {
+      await embedMany({
+        model: new MockEmbeddingModelV4({
+          maxEmbeddingsPerCall: 2,
+          doEmbed: async ({ values }) => ({
+            embeddings: values.map(() => [0.1, 0.2, 0.3]),
+            usage: { tokens: 10 },
+            warnings: [],
+          }),
+        }),
+        values: [
+          'sunny day at the beach',
+          'rainy day in the city',
+          'cloudy day in the mountains',
+        ],
+        telemetry: {
+          functionId: 'tracing-channel-embed-many-result-test',
+        },
+      });
+    });
+
+    const embedManyMessage = messages.find(
+      message => message.type === 'embedMany',
+    );
+
+    expect(embedManyMessage?.result).toMatchObject({
+      values: [
+        'sunny day at the beach',
+        'rainy day in the city',
+        'cloudy day in the mountains',
+      ],
+      embeddings: [
+        [0.1, 0.2, 0.3],
+        [0.1, 0.2, 0.3],
+        [0.1, 0.2, 0.3],
+      ],
+      usage: { tokens: 20 },
     });
   });
 

@@ -49,6 +49,11 @@ export type UseChatOptions<UI_MESSAGE extends UIMessage> = (
    * Custom throttle wait in ms for the chat messages and data updates.
    * Default is undefined, which disables throttling.
    */
+  throttle?: number;
+
+  /**
+   * @deprecated Use `throttle` instead.
+   */
   experimental_throttle?: number;
 
   /**
@@ -58,10 +63,12 @@ export type UseChatOptions<UI_MESSAGE extends UIMessage> = (
 };
 
 export function useChat<UI_MESSAGE extends UIMessage = UIMessage>({
-  experimental_throttle: throttleWaitMs,
+  throttle,
+  experimental_throttle,
   resume = false,
   ...options
 }: UseChatOptions<UI_MESSAGE> = {}): UseChatHelpers<UI_MESSAGE> {
+  const throttleWaitMs = throttle ?? experimental_throttle;
   // the Chat instance is created once and not recreated when options change,
   // so it would normally keep the callbacks/transport from the first render forever
 

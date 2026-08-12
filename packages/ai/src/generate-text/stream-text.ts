@@ -74,6 +74,7 @@ import { consumeStream } from '../util/consume-stream';
 import { createIdMap } from '../util/create-id-map';
 import { createStitchableStream } from '../util/create-stitchable-stream';
 import type { DownloadFunction } from '../util/download/download-function';
+import { getOwn } from '../util/get-own';
 import { mergeAbortSignals } from '../util/merge-abort-signals';
 import { mergeObjects } from '../util/merge-objects';
 import { notify } from '../util/notify';
@@ -355,7 +356,8 @@ export function streamText<
   providerOptions,
   activeTools,
   toolOrder,
-  experimental_repairToolCall: repairToolCall,
+  experimental_repairToolCall,
+  repairToolCall = experimental_repairToolCall,
   experimental_refineToolInput: refineToolInput,
   experimental_transform: transform,
   experimental_download: download,
@@ -492,6 +494,13 @@ export function streamText<
 
     /**
      * A function that attempts to repair a tool call that failed to parse.
+     */
+    repairToolCall?: ToolCallRepairFunction<TOOLS>;
+
+    /**
+     * A function that attempts to repair a tool call that failed to parse.
+     *
+     * @deprecated Use `repairToolCall` instead.
      */
     experimental_repairToolCall?: ToolCallRepairFunction<TOOLS>;
 
@@ -1580,6 +1589,19 @@ class DefaultStreamTextResult<
       // Re-enter the streamText tracing context after stream setup returns.
       const runInStreamTextTracingChannelContext = <T>(execute: () => T): T =>
         streamTextTracingChannelContext?.run(execute) ?? execute();
+      const runInTracingChannelSpanInStreamText =
+        telemetryDispatcher.runInTracingChannelSpan == null
+          ? undefined
+          : <T>(
+              options: Parameters<
+                NonNullable<TelemetryDispatcher['runInTracingChannelSpan']>
+              >[0] & {
+                execute: () => PromiseLike<T>;
+              },
+            ) =>
+              runInStreamTextTracingChannelContext(() =>
+                telemetryDispatcher.runInTracingChannelSpan!(options),
+              );
 
       await notify({
         event: startEvent,
@@ -1615,6 +1637,10 @@ class DefaultStreamTextResult<
           ),
           ...revalidationDeniedToolApprovals,
         ];
+        const localDeniedToolApprovalsWithoutResults =
+          localDeniedToolApprovals.filter(
+            toolApproval => toolApproval.existingToolResult == null,
+          );
 
         const deniedProviderExecutedToolApprovals = deniedToolApprovals.filter(
           toolApproval => toolApproval.toolCall.providerExecuted,
@@ -1667,8 +1693,7 @@ class DefaultStreamTextResult<
                   telemetryDispatcher.onToolExecutionEnd,
                 ),
                 executeToolInTelemetryContext: telemetryDispatcher.executeTool,
-                runInTracingChannelSpan:
-                  telemetryDispatcher.runInTracingChannelSpan,
+                runInTracingChannelSpan: runInTracingChannelSpanInStreamText,
                 onPreliminaryToolResult: result => {
                   toolExecutionStepStreamController?.enqueue(result);
                 },
@@ -1682,7 +1707,10 @@ class DefaultStreamTextResult<
           );
 
           // Local tool results (approved + denied) are sent as tool results:
-          if (toolOutputs.length > 0 || localDeniedToolApprovals.length > 0) {
+          if (
+            toolOutputs.length > 0 ||
+            localDeniedToolApprovalsWithoutResults.length > 0
+          ) {
             const localToolContent: ToolContent = [];
 
             // add regular tool results for approved tool calls:
@@ -1694,7 +1722,7 @@ class DefaultStreamTextResult<
                 output: await createToolModelOutput({
                   toolCallId: output.toolCallId,
                   input: output.input,
-                  tool: tools?.[output.toolName],
+                  tool: getOwn(tools, output.toolName),
                   output:
                     output.type === 'tool-result'
                       ? output.output
@@ -1705,7 +1733,7 @@ class DefaultStreamTextResult<
             }
 
             // add execution denied tool results for denied local tool approvals:
-            for (const toolApproval of localDeniedToolApprovals) {
+            for (const toolApproval of localDeniedToolApprovalsWithoutResults) {
               localToolContent.push({
                 type: 'tool-result' as const,
                 toolCallId: toolApproval.toolCall.toolCallId,
@@ -2240,7 +2268,7 @@ class DefaultStreamTextResult<
                   // the client tool's result is sent back.
                   for (const toolCall of stepToolCalls) {
                     if (toolCall.providerExecuted !== true) continue;
-                    const tool = tools?.[toolCall.toolName];
+                    const tool = getOwn(tools, toolCall.toolName);
                     if (
                       tool?.type === 'provider' &&
                       tool.supportsDeferredResults

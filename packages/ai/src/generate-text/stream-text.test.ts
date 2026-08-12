@@ -28261,6 +28261,116 @@ describe('streamText', () => {
       });
     });
 
+    it('should emit denied output without duplicating an existing execution-denied result', async () => {
+      const prompts: LanguageModelV4Prompt[] = [];
+      const result = streamText({
+        model: new MockLanguageModelV4({
+          doStream: async ({ prompt }) => {
+            prompts.push(prompt);
+            return {
+              stream: convertArrayToReadableStream([
+                { type: 'stream-start', warnings: [] },
+                { type: 'text-start', id: '1' },
+                {
+                  type: 'text-delta',
+                  id: '1',
+                  delta: 'Hello, world!',
+                },
+                { type: 'text-end', id: '1' },
+                {
+                  type: 'finish',
+                  finishReason: { unified: 'stop', raw: 'stop' },
+                  usage: testUsage,
+                },
+              ]),
+            };
+          },
+        }),
+        tools: {
+          tool1: tool({
+            inputSchema: z.object({ value: z.string() }),
+            execute: vi.fn(),
+          }),
+        },
+        toolApproval: {
+          tool1: 'user-approval',
+        },
+        stopWhen: isStepCount(3),
+        _internal: {
+          generateId: mockId({ prefix: 'id' }),
+          generateCallId: () => 'test-telemetry-call-id',
+        },
+        messages: [
+          { role: 'user', content: 'test-input' },
+          {
+            role: 'assistant',
+            content: [
+              {
+                input: {
+                  value: 'value',
+                },
+                toolCallId: 'call-1',
+                toolName: 'tool1',
+                type: 'tool-call',
+              },
+              {
+                approvalId: 'id-1',
+                toolCallId: 'call-1',
+                type: 'tool-approval-request',
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            content: [
+              {
+                approvalId: 'id-1',
+                type: 'tool-approval-response',
+                approved: false,
+                reason: 'User denied the request',
+              },
+              {
+                type: 'tool-result',
+                toolCallId: 'call-1',
+                toolName: 'tool1',
+                output: {
+                  type: 'execution-denied',
+                  reason: 'User denied the request',
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const uiChunks = await convertAsyncIterableToArray(
+        result.toUIMessageStream(),
+      );
+
+      expect({
+        deniedChunks: uiChunks.filter(
+          chunk => chunk.type === 'tool-output-denied',
+        ),
+        promptExecutionDeniedOccurrences:
+          JSON.stringify(prompts).match(/execution-denied/g)?.length ?? 0,
+        responseExecutionDeniedOccurrences:
+          JSON.stringify(await result.responseMessages).match(
+            /execution-denied/g,
+          )?.length ?? 0,
+      }).toMatchInlineSnapshot(`
+        {
+          "deniedChunks": [
+            {
+              "toolCallId": "call-1",
+              "type": "tool-output-denied",
+            },
+          ],
+          "promptExecutionDeniedOccurrences": 1,
+          "responseExecutionDeniedOccurrences": 0,
+        }
+      `);
+    });
+
     describe('provider-executed tool (MCP) approval', () => {
       describe('when a provider-executed tool emits tool-approval-request', () => {
         let result: StreamTextResult<any, any, any>;

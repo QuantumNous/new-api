@@ -13,20 +13,7 @@ API keys can be obtained from the [Moonshot Platform](https://platform.moonshot.
 
 The Moonshot AI provider is available via the `@ai-sdk/moonshotai` module. You can install it with:
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/moonshotai" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/moonshotai" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/moonshotai" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add @ai-sdk/moonshotai" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/moonshotai" />
 
 ## Provider Instance
 
@@ -75,7 +62,7 @@ import { moonshotai } from '@ai-sdk/moonshotai';
 import { generateText } from 'ai';
 
 const { text } = await generateText({
-  model: moonshotai('kimi-k2.5'),
+  model: moonshotai('kimi-k3'),
   prompt: 'Write a vegetarian lasagna recipe for 4 people.',
 });
 ```
@@ -83,9 +70,9 @@ const { text } = await generateText({
 You can also use the `.chatModel()` or `.languageModel()` factory methods:
 
 ```ts
-const model = moonshotai.chatModel('kimi-k2.5');
+const model = moonshotai.chatModel('kimi-k3');
 // or
-const model = moonshotai.languageModel('kimi-k2.5');
+const model = moonshotai.languageModel('kimi-k3');
 ```
 
 Moonshot AI language models can be used in the `streamText` function
@@ -100,6 +87,30 @@ For other Moonshot models, object generation falls back to JSON mode instead of 
 For best reliability, it is strongly recommended to include your schema requirements in your prompt in addition to passing the schema through `Output`.
 
 ### Reasoning Models
+
+Kimi K3 always reasons. It currently supports only the `max` reasoning effort,
+which you can configure through provider options:
+
+```ts
+import {
+  moonshotai,
+  type MoonshotAILanguageModelOptions,
+} from '@ai-sdk/moonshotai';
+import { generateText } from 'ai';
+
+const { text, reasoningText } = await generateText({
+  model: moonshotai('kimi-k3'),
+  providerOptions: {
+    moonshotai: {
+      reasoningEffort: 'max',
+    } satisfies MoonshotAILanguageModelOptions,
+  },
+  prompt: 'How many "r"s are in the word "strawberry"?',
+});
+
+console.log(reasoningText);
+console.log(text);
+```
 
 Moonshot AI offers thinking models like `kimi-k2-thinking` that generate intermediate reasoning tokens before their final response. The reasoning output is streamed through the standard AI SDK reasoning parts.
 
@@ -131,6 +142,10 @@ See [AI SDK UI: Chatbot](/docs/ai-sdk-ui/chatbot#reasoning) for more details on 
 
 The following optional provider options are available for Moonshot AI language models:
 
+- **reasoningEffort** _'max'_
+
+  Reasoning effort for Kimi K3. Currently, only `'max'` is supported.
+
 - **thinking** _object_
 
   Configuration for thinking/reasoning models like Kimi K2 Thinking.
@@ -151,16 +166,17 @@ The following optional provider options are available for Moonshot AI language m
 
 ## Model Capabilities
 
-| Model                    | Image Input         | Object Generation   | Tool Usage          | Tool Streaming      |
-| ------------------------ | ------------------- | ------------------- | ------------------- | ------------------- |
-| `moonshot-v1-8k`         | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `moonshot-v1-32k`        | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `moonshot-v1-128k`       | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `kimi-k2`                | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `kimi-k2.5`              | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `kimi-k2-thinking`       | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `kimi-k2-thinking-turbo` | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
-| `kimi-k2-turbo`          | <Cross size={18} /> | <Check size={18} /> | <Check size={18} /> | <Check size={18} /> |
+| Model                    | Image Input | Object Generation | Tool Usage | Tool Streaming |
+| ------------------------ | ----------- | ----------------- | ---------- | -------------- |
+| `moonshot-v1-8k`         | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `moonshot-v1-32k`        | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `moonshot-v1-128k`       | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `kimi-k2`                | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `kimi-k2.5`              | <Check />   | <Check />         | <Check />  | <Check />      |
+| `kimi-k2-thinking`       | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `kimi-k2-thinking-turbo` | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `kimi-k2-turbo`          | <Cross />   | <Check />         | <Check />  | <Check />      |
+| `kimi-k3`                | <Check />   | <Check />         | <Check />  | <Check />      |
 
 <Note>
   Please see the [Moonshot AI docs](https://platform.moonshot.ai/docs/intro) for

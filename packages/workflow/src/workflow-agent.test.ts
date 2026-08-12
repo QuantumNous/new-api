@@ -20,7 +20,7 @@ import {
 } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
 import { FatalError } from 'workflow';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createTestSandbox } from './test/test-sandbox.js';
 import type { ParsedToolCall } from './do-stream-step.js';
 import type { StreamTextIteratorYieldValue } from './stream-text-iterator.js';
@@ -2185,14 +2185,14 @@ describe('WorkflowAgent', () => {
       expect(Object.keys(lastCall.tools)).toEqual(['tool1']);
     });
 
-    it('should use constructor experimental_repairToolCall when not specified in stream()', async () => {
+    it('should use constructor repairToolCall when not specified in stream()', async () => {
       const mockModel = createMockModel();
       const repairFn: ToolCallRepairFunction<ToolSet> = vi.fn();
 
       const agent = new WorkflowAgent({
         model: mockModel,
         tools: {},
-        experimental_repairToolCall: repairFn,
+        repairToolCall: repairFn,
       });
 
       const mockWritable = new WritableStream({
@@ -3060,7 +3060,7 @@ describe('WorkflowAgent', () => {
       await agent.stream({
         messages: [{ role: 'user', content: 'test' }],
         writable: mockWritable,
-        experimental_repairToolCall: repairFn,
+        repairToolCall: repairFn,
       });
 
       // Verify repairToolCall is passed through to streamTextIterator

@@ -18,14 +18,14 @@ need updating (e.g. Markdown). Throttling can mitigate this.
 
 ## Solution
 
-Use the `experimental_throttle` option to throttle the UI updates:
+Use the `throttle` option to throttle the UI updates:
 
 ### `useChat`
 
 ```tsx filename="page.tsx" highlight="2-3"
 const { messages, ... } = useChat({
   // Throttle the messages and data updates to 50ms:
-  experimental_throttle: 50
+  throttle: 50
 })
 ```
 
@@ -34,6 +34,6 @@ const { messages, ... } = useChat({
 ```tsx filename="page.tsx" highlight="2-3"
 const { completion, ... } = useCompletion({
   // Throttle the completion and data updates to 50ms:
-  experimental_throttle: 50
+  throttle: 50
 })
 ```

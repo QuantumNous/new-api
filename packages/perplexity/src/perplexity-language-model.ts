@@ -14,6 +14,7 @@ import {
   createJsonErrorResponseHandler,
   createJsonResponseHandler,
   isCustomReasoning,
+  parseProviderOptions,
   postJsonToApi,
   serializeModelOptions,
   WORKFLOW_SERIALIZE,
@@ -25,6 +26,7 @@ import { z } from 'zod/v4';
 import { convertPerplexityUsage } from './convert-perplexity-usage';
 import { convertToPerplexityMessages } from './convert-to-perplexity-messages';
 import { mapPerplexityFinishReason } from './map-perplexity-finish-reason';
+import { perplexityLanguageModelOptions } from './perplexity-language-model-options';
 import type { PerplexityLanguageModelId } from './perplexity-options';
 
 type PerplexityChatConfig = {
@@ -68,7 +70,7 @@ export class PerplexityLanguageModel implements LanguageModelV4 {
     // No URLs are supported.
   };
 
-  private getArgs({
+  private async getArgs({
     prompt,
     maxOutputTokens,
     temperature,
@@ -83,6 +85,13 @@ export class PerplexityLanguageModel implements LanguageModelV4 {
     providerOptions,
   }: LanguageModelV4CallOptions) {
     const warnings: SharedV4Warning[] = [];
+
+    const perplexityOptions =
+      (await parseProviderOptions({
+        provider: 'perplexity',
+        providerOptions,
+        schema: perplexityLanguageModelOptions,
+      })) ?? {};
 
     if (topK != null) {
       warnings.push({ type: 'unsupported', feature: 'topK' });
@@ -127,7 +136,7 @@ export class PerplexityLanguageModel implements LanguageModelV4 {
             : undefined,
 
         // provider extensions
-        ...(providerOptions?.perplexity ?? {}),
+        ...perplexityOptions,
 
         // messages:
         messages: convertToPerplexityMessages(prompt),
@@ -139,7 +148,7 @@ export class PerplexityLanguageModel implements LanguageModelV4 {
   async doGenerate(
     options: LanguageModelV4CallOptions,
   ): Promise<LanguageModelV4GenerateResult> {
-    const { args: body, warnings } = this.getArgs(options);
+    const { args: body, warnings } = await this.getArgs(options);
 
     const {
       responseHeaders,
@@ -225,7 +234,7 @@ export class PerplexityLanguageModel implements LanguageModelV4 {
   async doStream(
     options: LanguageModelV4CallOptions,
   ): Promise<LanguageModelV4StreamResult> {
-    const { args, warnings } = this.getArgs(options);
+    const { args, warnings } = await this.getArgs(options);
 
     const body = { ...args, stream: true };
 

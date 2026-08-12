@@ -13,20 +13,7 @@ API keys can be obtained from the [Console](https://modelstudio.console.alibabac
 
 The Alibaba provider is available via the `@ai-sdk/alibaba` module. You can install it with:
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add @ai-sdk/alibaba" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install @ai-sdk/alibaba" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add @ai-sdk/alibaba" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="bun add @ai-sdk/alibaba" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="@ai-sdk/alibaba" />
 
 ## Provider Instance
 
@@ -353,6 +340,21 @@ const { video } = await generateVideo({
 });
 ```
 
+`wan2.7` models additionally support the `aspectRatio` option (mapped to the
+API's `ratio` parameter) and always generate audio. Multi-shot structure is
+described directly in the prompt instead of the `shotType` option:
+
+```ts
+const { video } = await generateVideo({
+  model: alibaba.video('wan2.7-t2v'),
+  prompt:
+    'A serene mountain lake at sunset. The camera pans across the water, then cuts to a close-up of ripples catching the light.',
+  resolution: '1920x1080',
+  aspectRatio: '16:9',
+  duration: 5,
+});
+```
+
 ### Image-to-Video
 
 Generate videos from a first-frame image and optional text prompt:
@@ -402,8 +404,10 @@ const { video } = await generateVideo({
 
 ### Reference-to-Video
 
-Generate videos using reference images and/or videos for character consistency. Use character identifiers
-(`character1`, `character2`, etc.) in your prompt to reference them:
+Generate videos using reference images and/or videos for character consistency.
+
+For `wan2.6` models, use character identifiers (`character1`, `character2`, etc.)
+in your prompt to reference them. References must be public URLs:
 
 ```ts
 import { alibaba, type AlibabaVideoModelOptions } from '@ai-sdk/alibaba';
@@ -418,6 +422,59 @@ const { video } = await generateVideo({
   providerOptions: {
     alibaba: {
       pollTimeoutMs: 600000, // 10 minutes
+    } satisfies AlibabaVideoModelOptions,
+  },
+});
+```
+
+For `wan2.7` models, use `Image 1`, `Image 2`, `Video 1`, etc. in your prompt
+(images and videos are counted separately, in reference order). Image references
+can be public URLs or inline file data; video references must be public URLs:
+
+```ts
+import { alibaba, type AlibabaVideoModelOptions } from '@ai-sdk/alibaba';
+import { experimental_generateVideo as generateVideo } from 'ai';
+import { readFile } from 'node:fs/promises';
+
+const imageBytes = await readFile('./character.png');
+
+const { video } = await generateVideo({
+  model: alibaba.video('wan2.7-r2v'),
+  prompt: 'Image 1 walks through the scene shown in Image 2.',
+  resolution: '1920x1080',
+  duration: 5,
+  inputReferences: [
+    imageBytes, // inline image data, sent as base64 data URI
+    'https://example.com/background.png',
+  ],
+  providerOptions: {
+    alibaba: {
+      ratio: '16:9',
+      pollTimeoutMs: 600000, // 10 minutes
+    } satisfies AlibabaVideoModelOptions,
+  },
+});
+```
+
+For full control over the `wan2.7` media array (e.g. voice references or explicit
+media types), use the `media` provider option, which overrides the automatic
+mapping from `inputReferences` and `frameImages`:
+
+```ts
+const { video } = await generateVideo({
+  model: alibaba.video('wan2.7-r2v'),
+  prompt: 'Video 1 walks into the room. Image 1 looks up and says hello.',
+  providerOptions: {
+    alibaba: {
+      media: [
+        {
+          type: 'reference_video',
+          url: 'https://example.com/character.mp4',
+          referenceVoice: 'https://example.com/voice.mp3',
+        },
+        { type: 'reference_image', url: 'https://example.com/scene.png' },
+        { type: 'first_frame', url: 'https://example.com/opening-frame.png' },
+      ],
     } satisfies AlibabaVideoModelOptions,
   },
 });
@@ -449,12 +506,24 @@ The following provider options are available via `providerOptions.alibaba`:
 
 - **audio** _boolean_
 
-  Whether to generate audio (for I2V and R2V models that support it).
+  Whether to generate audio (for `wan2.6` I2V and R2V models; `wan2.7` models always generate audio).
 
 - **referenceUrls** _string[]_
 
-  Array of reference image/video URLs for reference-to-video mode. Supports 0-5 images and 0-3 videos, max 5 total.
+  Array of reference image/video URLs for reference-to-video mode (`wan2.6` models). Supports 0-5 images and 0-3 videos, max 5 total.
   Prefer the top-level `inputReferences` option when passing reference images.
+
+- **media** _Array&lt;\{ type, url, referenceVoice? \}&gt;_
+
+  Explicit media array for reference-to-video mode (`wan2.7` models). Each item has a `type`
+  (`'reference_image'`, `'reference_video'`, or `'first_frame'`), a `url` (public URL, or a
+  `data:{mime};base64,{data}` URI for images), and an optional `referenceVoice` audio URL.
+  Overrides the automatic mapping from `inputReferences` and `frameImages`.
+
+- **ratio** `'16:9'` | `'9:16'` | `'1:1'` | `'4:3'` | `'3:4'`
+
+  Aspect ratio (`wan2.7` text-to-video and reference-to-video models).
+  The top-level `aspectRatio` option is mapped to this parameter automatically.
 
 - **pollIntervalMs** _number_
 
@@ -474,10 +543,12 @@ The following provider options are available via `providerOptions.alibaba`:
 
 #### Text-to-Video
 
-| Model                | Audio | Resolution        | Duration |
-| -------------------- | ----- | ----------------- | -------- |
-| `wan2.6-t2v`         | Yes   | 720P, 1080P       | 2-15s    |
-| `wan2.5-t2v-preview` | Yes   | 480P, 720P, 1080P | 5s, 10s  |
+| Model                   | Audio | Resolution        | Duration |
+| ----------------------- | ----- | ----------------- | -------- |
+| `wan2.6-t2v`            | Yes   | 720P, 1080P       | 2-15s    |
+| `wan2.5-t2v-preview`    | Yes   | 480P, 720P, 1080P | 5s, 10s  |
+| `wan2.7-t2v`            | Yes   | 720P, 1080P       | 2-15s    |
+| `wan2.7-t2v-2026-06-12` | Yes   | 720P, 1080P       | 2-15s    |
 
 #### Image-to-Video (First Frame)
 
@@ -488,10 +559,12 @@ The following provider options are available via `providerOptions.alibaba`:
 
 #### Reference-to-Video
 
-| Model              | Audio    | Resolution  | Duration |
-| ------------------ | -------- | ----------- | -------- |
-| `wan2.6-r2v-flash` | Optional | 720P, 1080P | 2-10s    |
-| `wan2.6-r2v`       | Yes      | 720P, 1080P | 2-10s    |
+| Model                   | Audio    | Resolution  | Duration                      |
+| ----------------------- | -------- | ----------- | ----------------------------- |
+| `wan2.6-r2v-flash`      | Optional | 720P, 1080P | 2-10s                         |
+| `wan2.6-r2v`            | Yes      | 720P, 1080P | 2-10s                         |
+| `wan2.7-r2v`            | Yes      | 720P, 1080P | 2-10s (with video ref), 2-15s |
+| `wan2.7-r2v-2026-06-12` | Yes      | 720P, 1080P | 2-10s (with video ref), 2-15s |
 
 <Note>
   The tables above list models available in the Singapore International region.

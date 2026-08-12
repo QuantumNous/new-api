@@ -14,7 +14,15 @@ interface XaiVideoSharedOptions {
   resolution?: XaiVideoResolution | null;
 }
 
-interface XaiVideoEditModeOptions extends XaiVideoSharedOptions {
+interface XaiVideoUserOptions {
+  /**
+   * A unique identifier representing the end user, for abuse monitoring.
+   */
+  user?: string;
+}
+
+interface XaiVideoEditModeOptions
+  extends XaiVideoSharedOptions, XaiVideoUserOptions {
   /**
    * Select edit-video mode explicitly for best autocomplete and narrowing.
    */
@@ -32,7 +40,8 @@ interface XaiVideoExtendModeOptions extends XaiVideoSharedOptions {
   videoUrl: string;
 }
 
-interface XaiVideoReferenceToVideoOptions extends XaiVideoSharedOptions {
+interface XaiVideoReferenceToVideoOptions
+  extends XaiVideoSharedOptions, XaiVideoUserOptions {
   /**
    * Select reference-to-video mode explicitly for best autocomplete and narrowing.
    */
@@ -41,13 +50,15 @@ interface XaiVideoReferenceToVideoOptions extends XaiVideoSharedOptions {
   referenceImageUrls: string[];
 }
 
-interface XaiVideoGenerationOptions extends XaiVideoSharedOptions {
+interface XaiVideoGenerationOptions
+  extends XaiVideoSharedOptions, XaiVideoUserOptions {
   mode?: undefined;
   videoUrl?: undefined;
   referenceImageUrls?: undefined;
 }
 
-interface XaiLegacyEditVideoOptions extends XaiVideoSharedOptions {
+interface XaiLegacyEditVideoOptions
+  extends XaiVideoSharedOptions, XaiVideoUserOptions {
   /**
    * Legacy backward-compatible shape: omitting `mode` while providing
    * `videoUrl` behaves like edit-video.
@@ -56,7 +67,8 @@ interface XaiLegacyEditVideoOptions extends XaiVideoSharedOptions {
   videoUrl: string;
 }
 
-interface XaiLegacyReferenceToVideoOptions extends XaiVideoSharedOptions {
+interface XaiLegacyReferenceToVideoOptions
+  extends XaiVideoSharedOptions, XaiVideoUserOptions {
   /**
    * Legacy backward-compatible shape: omitting `mode` while providing
    * `referenceImageUrls` behaves like reference-to-video.
@@ -94,8 +106,13 @@ const baseFields = {
   resolution: resolutionSchema.nullish(),
 };
 
+const userField = {
+  user: z.string().optional(),
+};
+
 const editVideoSchema = z.object({
   ...baseFields,
+  ...userField,
   mode: z.literal('edit-video'),
   videoUrl: nonEmptyStringSchema,
   referenceImageUrls: z.undefined().optional(),
@@ -110,6 +127,7 @@ const extendVideoSchema = z.object({
 
 const referenceToVideoSchema = z.object({
   ...baseFields,
+  ...userField,
   mode: z.literal('reference-to-video'),
   referenceImageUrls: z.array(nonEmptyStringSchema).min(1).max(7),
   videoUrl: z.undefined().optional(),
@@ -117,6 +135,7 @@ const referenceToVideoSchema = z.object({
 
 const autoDetectSchema = z.object({
   ...baseFields,
+  ...userField,
   mode: z.undefined().optional(),
   videoUrl: nonEmptyStringSchema.optional(),
   referenceImageUrls: z.array(nonEmptyStringSchema).min(1).max(7).optional(),
@@ -133,6 +152,7 @@ const runtimeSchema = z.looseObject({
   mode: modeSchema.optional(),
   videoUrl: nonEmptyStringSchema.optional(),
   referenceImageUrls: z.array(nonEmptyStringSchema).min(1).max(7).optional(),
+  user: z.string().optional(),
   ...baseFields,
 });
 

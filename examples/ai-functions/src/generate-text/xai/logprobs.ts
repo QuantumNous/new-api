@@ -4,7 +4,7 @@ import { run } from '../../lib/run';
 
 run(async () => {
   const result = await generateText({
-    model: xai.responses('grok-4-latest'),
+    model: xai.responses('grok-4.5'),
     prompt: 'write one short sentence about san francisco',
     providerOptions: {
       xai: {

@@ -112,8 +112,8 @@ type BaseTool<
       >;
 
   /**
-   * Optional function that is called when the argument streaming starts.
-   * Only called when the tool is used in a streaming context.
+   * Optional function that is called when the model starts generating the tool input.
+   * In non-streaming contexts, it is called immediately before `onInputAvailable`.
    */
   onInputStart?: (
     options: ToolExecutionOptions<NoInfer<CONTEXT>>,

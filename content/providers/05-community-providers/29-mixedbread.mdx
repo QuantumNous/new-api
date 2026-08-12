@@ -11,21 +11,7 @@ description: Learn how to use the Mixedbread provider.
 
 The Mixedbread provider is available in the `mixedbread-ai-provider` module. You can install it with
 
-<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-  <Tab>
-    <Snippet text="pnpm add mixedbread-ai-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="npm install mixedbread-ai-provider" dark />
-  </Tab>
-  <Tab>
-    <Snippet text="yarn add mixedbread-ai-provider" dark />
-  </Tab>
-
-  <Tab>
-    <Snippet text="bun add mixedbread-ai-provider" dark />
-  </Tab>
-</Tabs>
+<InstallPackages packages="mixedbread-ai-provider" />
 
 ## Provider Instance
 
@@ -126,12 +112,12 @@ The following provider options are available:
 
 ### Model Capabilities
 
-| Model                             | Context Length | Dimension | Custom Dimensions   |
-| --------------------------------- | -------------- | --------- | ------------------- |
-| `mxbai-embed-large-v1`            | 512            | 1024      | <Check size={18} /> |
-| `mxbai-embed-2d-large-v1`         | 512            | 1024      | <Check size={18} /> |
-| `deepset-mxbai-embed-de-large-v1` | 512            | 1024      | <Check size={18} /> |
-| `mxbai-embed-xsmall-v1`           | 4096           | 384       | <Cross size={18} /> |
+| Model                             | Context Length | Dimension | Custom Dimensions |
+| --------------------------------- | -------------- | --------- | ----------------- |
+| `mxbai-embed-large-v1`            | 512            | 1024      | <Check />         |
+| `mxbai-embed-2d-large-v1`         | 512            | 1024      | <Check />         |
+| `deepset-mxbai-embed-de-large-v1` | 512            | 1024      | <Check />         |
+| `mxbai-embed-xsmall-v1`           | 4096           | 384       | <Cross />         |
 
 <Note>
   The table above lists popular models. Please see the [Mixedbread

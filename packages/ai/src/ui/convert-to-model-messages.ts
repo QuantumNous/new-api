@@ -11,6 +11,7 @@ import {
 } from '@ai-sdk/provider-utils';
 import { createToolModelOutput } from '../prompt/create-tool-model-output';
 import { MessageConversionError } from '../prompt/message-conversion-error';
+import { getOwn } from '../util/get-own';
 import {
   getToolName,
   isCustomContentUIPart,
@@ -256,7 +257,7 @@ export async function convertToModelMessages<UI_MESSAGE extends UIMessage>(
                           part.state === 'output-error'
                             ? part.errorText
                             : part.output,
-                        tool: options?.tools?.[toolName],
+                        tool: getOwn(options?.tools, toolName),
                         errorMode:
                           part.state === 'output-error' ? 'json' : 'none',
                       }),
@@ -375,7 +376,7 @@ export async function convertToModelMessages<UI_MESSAGE extends UIMessage>(
                             toolPart.state === 'output-error'
                               ? toolPart.errorText
                               : toolPart.output,
-                          tool: options?.tools?.[toolName],
+                          tool: getOwn(options?.tools, toolName),
                           errorMode:
                             toolPart.state === 'output-error' ? 'text' : 'none',
                         }),

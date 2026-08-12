@@ -2,6 +2,7 @@ export {
   toBaseMessages,
   toUIMessageStream,
   convertModelMessages,
+  type ToUIMessageStreamOptions,
 } from './adapter';
 
 export {

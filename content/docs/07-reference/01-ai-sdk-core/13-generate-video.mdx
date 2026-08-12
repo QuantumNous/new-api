@@ -118,9 +118,10 @@ console.log(videos);
     },
     {
       name: 'inputReferences',
-      type: 'Array<DataContent>',
+      type: 'Array<DataContent | { data: DataContent; mediaType?: string }>',
       isOptional: true,
-      description: 'Reference image inputs for reference-to-video generation.',
+      description:
+        'Reference image or video inputs for reference-to-video generation. Use the object form with an explicit mediaType for URL-based video references. Providers route each reference by its media type and warn when a reference kind is unsupported.',
     },
     {
       name: 'generateAudio',

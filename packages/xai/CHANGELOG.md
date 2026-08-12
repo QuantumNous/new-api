@@ -1,5 +1,100 @@
 # @ai-sdk/xai
 
+## 4.0.16
+
+### Patch Changes
+
+- 1e2ae1f: fix(xai): handle empty HTTP 202 responses while polling videos
+- 54e5498: fix(provider/xai): preserve images in Responses API tool results
+- Updated dependencies [cd06458]
+  - @ai-sdk/provider-utils@5.0.11
+  - @ai-sdk/openai-compatible@3.0.12
+
+## 4.0.15
+
+### Patch Changes
+
+- 91a3d6e: feat(provider/xai): support end-user identifiers for video generation and editing
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [0b61267]
+  - @ai-sdk/openai-compatible@3.0.11
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [31c7be8]
+  - @ai-sdk/provider-utils@5.0.10
+  - @ai-sdk/openai-compatible@3.0.10
+
+## 4.0.12
+
+### Patch Changes
+
+- 4be62c1: fix(provider-utils): validate provider-response URLs in `getFromApi`
+
+  `getFromApi` now has a `validateUrl` flag. It is optional so existing callers keep compiling (omitting it behaves like `false`, i.e. no validation), but all AI SDK provider packages set it explicitly at every call site so each one makes a visible trust decision. When `true`, the URL is routed through `fetchWithValidatedRedirects` — the same guard used by `downloadBlob` — which rejects private/loopback/link-local targets, re-validates every redirect hop, strips proxy/metadata/cookie request headers, and drops all caller headers except the user-agent on cross-origin redirects (custom API-key headers must not follow a redirect off-origin any more than `Authorization` may); blocked URLs throw `DownloadError`. It is enabled at the image/video/audio download and polling call sites where the URL comes from a provider response body; URLs built from developer-configured endpoints pass `validateUrl: false` and are unaffected.
+
+  A new optional `credentialedOrigin` withholds caller headers unless the URL is same-origin with it, so the API key is not sent to a response-supplied host on a different origin.
+
+  A new optional `trustedOrigin` exempts URLs (and redirect hops) that are same-origin with the developer-configured provider endpoint from target validation, so self-hosted and localhost deployments whose response URLs point back at the configured host keep working; all other hops are still validated.
+
+  Also closes range gaps in `validateDownloadUrl` (IPv4 `224.0.0.0/4` multicast and the TEST-NET documentation ranges `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`; IPv6 documentation ranges `2001:db8::/32` and `3fff::/20`), and follows only the fetch-spec redirect status codes (301/302/303/307/308) — a `Location` header on any other status is not followed. This guard performs string/literal checks only and does not resolve DNS; hostnames that resolve to private addresses and DNS rebinding remain out of scope and must be constrained at the network layer (or by injecting a Node `fetch` that pins the resolved IP at connect time) for server deployments handling untrusted URLs. See `contributing/secure-url-handling.md`.
+
+- Updated dependencies [4be62c1]
+- Updated dependencies [7805e4a]
+- Updated dependencies [cd12954]
+  - @ai-sdk/provider-utils@5.0.9
+  - @ai-sdk/openai-compatible@3.0.9
+
+## 4.0.11
+
+### Patch Changes
+
+- e193290: Add `connectToWebSocket` to `@ai-sdk/provider-utils`: a shared WebSocket connect layer (constructor resolution, header hygiene, abort wiring, message decoding) analogous to `postToApi` for HTTP. The openai and xai streaming transcription models now use it instead of hand-rolled connects. For openai and xai this also means WebSocket constructor failures now surface as stream errors instead of throwing synchronously from `doStream`, an already-aborted signal no longer constructs a socket, and the caller's audio stream is cancelled on pre-open failures. Messages are processed in order with close handling deferred behind pending frames, audio send loops apply backpressure via the socket's bufferedAmount, and failed sends cancel the caller's audio stream.
+- e193290: Strip undefined header values before the streaming transcription WebSocket constructor (header-capable implementations like `ws` throw on undefined values).
+- e193290: Fix streaming transcription stream parts against the live xAI STT API: `transcript-final` was emitted for every `is_final: true` event, but xAI re-sends the finalized text with `speech_final: false` before the `speech_final: true` event (duplicating finals) and also finalizes _fragments_ whose text the eventual `speech_final` event merges and re-punctuates (later-revised finals). `transcript-final` is now only emitted on `speech_final: true`; finalized fragments surface as `transcript-partial`. Additionally, xAI's `transcript.done` event arrives with an empty `text`, which produced an empty `finish.text` and made `experimental_streamTranscribe` throw `NoTranscriptGeneratedError` despite a full transcript having streamed — the finish text now falls back to the accumulated finalized utterances (plus any trailing unfinalized text).
+- Updated dependencies [e193290]
+  - @ai-sdk/provider-utils@5.0.8
+  - @ai-sdk/openai-compatible@3.0.8
+
+## 4.0.10
+
+### Patch Changes
+
+- 0f93c57: feat (video): support video (not just image) reference inputs in `inputReferences` for reference-to-video generation
+- d25a084: feat (provider/xai): add grok-4.5 model id
+- Updated dependencies [0f93c57]
+  - @ai-sdk/provider@4.0.3
+  - @ai-sdk/openai-compatible@3.0.7
+  - @ai-sdk/provider-utils@5.0.7
+
+## 4.0.9
+
+### Patch Changes
+
+- 72eee24: feat: support `imageDetail` provider option on image file parts to control image processing resolution
+- Updated dependencies [ac306ed]
+  - @ai-sdk/provider-utils@5.0.6
+  - @ai-sdk/openai-compatible@3.0.6
+
+## 4.0.8
+
+### Patch Changes
+
+- 8e006de: fix: send reasoning effort `none` to the xAI API when the top-level `reasoning: 'none'` option is set
+- 8e006de: fix: omit the reasoning effort parameter and emit an unsupported warning when the top-level `reasoning` option is used with xAI models that reject it (`grok-4.20-reasoning`, `grok-4.20-non-reasoning`, and dated variants)
+
+## 4.0.7
+
+### Patch Changes
+
+- 5520b8a: Emit provider-executed tool results for completed xAI Responses API streaming tool calls.
+
 ## 4.0.6
 
 ### Patch Changes

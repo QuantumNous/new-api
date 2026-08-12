@@ -4,7 +4,7 @@ import { run } from '../../lib/run';
 import { z } from 'zod';
 
 const agent = new ToolLoopAgent({
-  model: openai('gpt-5'),
+  model: openai('gpt-5.6'),
   instructions: 'You are a helpful that answers questions about the weather.',
   tools: {
     weather: tool({

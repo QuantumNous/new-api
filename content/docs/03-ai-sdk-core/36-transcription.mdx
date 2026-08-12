@@ -71,6 +71,12 @@ for await (const part of result.fullStream) {
 console.log(await result.text);
 ```
 
+`fullStream` is a single-consumer live stream and can only be accessed once.
+When you need both stream parts and final results, access `fullStream` first and
+await the result promises while or after consuming it. Accessing a result
+promise first consumes the stream internally, so `fullStream` is no longer
+available. This avoids retaining an unbounded replay buffer for live audio.
+
 To access the final transcript metadata:
 
 ```ts
@@ -83,13 +89,20 @@ const durationInSeconds = await result.durationInSeconds; // duration in seconds
 The `audio` stream must contain raw audio chunks. `Uint8Array` chunks are raw bytes; `string` chunks are base64-encoded raw bytes. Always set `inputAudioFormat` to match the chunks you send.
 
 <Note>
-  Streaming transcription requires a provider model instance (e.g.
-  `openai.transcription('gpt-realtime-whisper')`). String model IDs resolve
-  through the global provider (AI Gateway by default), which does not support
-  streaming transcription yet.
+  String model IDs resolve through the global provider (AI Gateway by
+  default). AI Gateway supports streaming transcription for supported models
+  (e.g. `openai/gpt-realtime-whisper`, `xai/grok-stt`), so string IDs work:
+  `experimental_streamTranscribe({ model: 'openai/gpt-realtime-whisper', ...
+  })`. You can also pass a provider model instance (e.g.
+  `openai.transcription('gpt-realtime-whisper')`) to stream directly against
+  the provider.
 </Note>
 
-OpenAI streaming transcription uses `openai.transcription('gpt-realtime-whisper')`. xAI uses the same `xai.transcription()` model for request/response and streaming transcription; `experimental_streamTranscribe` uses xAI's WebSocket STT transport under the hood.
+OpenAI streaming transcription uses `openai.transcription('gpt-realtime-whisper')`.
+Cartesia uses `cartesia.transcription('ink-2')` for streaming-only Ink 2
+transcription. xAI uses the same `xai.transcription()` model for request/response
+and streaming transcription; `experimental_streamTranscribe` selects the
+provider's WebSocket STT transport.
 
 ```ts
 import { xai } from '@ai-sdk/xai';
@@ -141,7 +154,7 @@ const transcript = await transcribe({
 When `audio` is a URL, the SDK downloads the file with a default **2 GiB** size limit.
 You can customize this using `createDownload`:
 
-```ts highlight="1,8"
+```ts highlight="1,7"
 import { transcribe, createDownload } from 'ai';
 import { openai } from '@ai-sdk/openai';
 
@@ -154,7 +167,7 @@ const transcript = await transcribe({
 
 You can also provide a fully custom download function:
 
-```ts highlight="6-12"
+```ts highlight="7-13"
 import { transcribe } from 'ai';
 import { openai } from '@ai-sdk/openai';
 
@@ -197,7 +210,7 @@ that you can use to abort the transcription process or set a timeout.
 
 This is particularly useful when combined with URL downloads to prevent long-running requests:
 
-```ts highlight="8"
+```ts highlight="7"
 import { openai } from '@ai-sdk/openai';
 import { transcribe } from 'ai';
 
@@ -306,5 +319,7 @@ try {
 | [Google Vertex](/providers/ai-sdk-providers/google-vertex#transcription-models) | `chirp_3`                |
 | [Google Vertex](/providers/ai-sdk-providers/google-vertex#transcription-models) | `telephony`              |
 | [xAI](/providers/ai-sdk-providers/xai#transcription-models)                     | `default`                |
+| [Cartesia](/providers/ai-sdk-providers/cartesia#transcription-models)           | `ink-whisper`            |
+| [Cartesia](/providers/ai-sdk-providers/cartesia#streaming-transcription-models) | `ink-2`                  |
 
 Above are a small subset of the transcription models supported by the AI SDK providers. For more, see the respective provider documentation.

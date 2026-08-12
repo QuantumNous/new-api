@@ -203,7 +203,7 @@ export async function chat(messages: UIMessage[], request: ChatRequestContext) {
   const result = await agent.stream({
     messages: modelMessages,
     writable: getWritable<ModelCallStreamPart>(),
-    experimental_repairToolCall: repairToolCall as any,
+    repairToolCall: repairToolCall as any,
   });
 
   return { messages: result.messages };

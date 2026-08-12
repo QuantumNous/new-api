@@ -15,7 +15,7 @@ import { asSchema } from '@ai-sdk/provider-utils';
 import { createTestServer } from '@ai-sdk/test-server/with-vitest';
 import fs from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { AnthropicLanguageModelOptions } from './anthropic-language-model-options';
 import { getModelCapabilities } from './anthropic-language-model';
 import { anthropic, createAnthropic } from './anthropic-provider';
@@ -221,6 +221,51 @@ describe('AnthropicLanguageModel', () => {
       });
     });
 
+    describe('reasoning (thinking disabled)', () => {
+      it('should forward thinking { type: "disabled" } to the API instead of stripping it', async () => {
+        prepareJsonFixtureResponse('anthropic-text');
+
+        const result = await provider('claude-sonnet-5').doGenerate({
+          prompt: TEST_PROMPT,
+          maxOutputTokens: 100,
+          providerOptions: {
+            anthropic: {
+              thinking: { type: 'disabled' },
+            } satisfies AnthropicLanguageModelOptions,
+          },
+        });
+
+        const requestBody = await server.calls[0].requestBodyJson;
+        expect(requestBody.thinking).toEqual({ type: 'disabled' });
+        // disabled thinking must not reserve a thinking budget in max_tokens
+        expect(requestBody.max_tokens).toBe(100);
+        expect(result.warnings).toEqual([]);
+      });
+
+      it('should not strip temperature / topP / topK when thinking is disabled', async () => {
+        prepareJsonFixtureResponse('anthropic-text');
+
+        const result = await provider('claude-sonnet-4-5').doGenerate({
+          prompt: TEST_PROMPT,
+          maxOutputTokens: 100,
+          temperature: 0.5,
+          topK: 0.1,
+          providerOptions: {
+            anthropic: {
+              thinking: { type: 'disabled' },
+            } satisfies AnthropicLanguageModelOptions,
+          },
+        });
+
+        const requestBody = await server.calls[0].requestBodyJson;
+        expect(requestBody.thinking).toEqual({ type: 'disabled' });
+        // unlike enabled thinking, disabled thinking keeps sampling params
+        expect(requestBody.temperature).toBe(0.5);
+        expect(requestBody.top_k).toBe(0.1);
+        expect(result.warnings).toEqual([]);
+      });
+    });
+
     describe('top-level reasoning (newer models with adaptive thinking)', () => {
       it('should not set thinking config when reasoning is "provider-default"', async () => {
         prepareJsonFixtureResponse('anthropic-text');
@@ -245,7 +290,7 @@ describe('AnthropicLanguageModel', () => {
         });
 
         const requestBody = await server.calls[0].requestBodyJson;
-        expect(requestBody.thinking).toBeUndefined();
+        expect(requestBody.thinking).toEqual({ type: 'disabled' });
         expect(requestBody.output_config).toBeUndefined();
         expect(result.warnings).toEqual([]);
       });
@@ -396,7 +441,7 @@ describe('AnthropicLanguageModel', () => {
         });
 
         const requestBody = await server.calls[0].requestBodyJson;
-        expect(requestBody.thinking).toBeUndefined();
+        expect(requestBody.thinking).toEqual({ type: 'disabled' });
         expect(result.warnings).toEqual([]);
       });
 
@@ -536,7 +581,7 @@ describe('AnthropicLanguageModel', () => {
         });
 
         const requestBody = await server.calls[0].requestBodyJson;
-        expect(requestBody.thinking).toBeUndefined();
+        expect(requestBody.thinking).toEqual({ type: 'disabled' });
         expect(requestBody.output_config).toBeUndefined();
       });
 

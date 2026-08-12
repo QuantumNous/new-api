@@ -33,6 +33,10 @@ describe('resolvePiEnv', () => {
       apiKey: 'gw-key',
       baseUrl: 'https://gw.example',
       authHeader: true,
+      headers: {
+        'User-Agent': 'ai-sdk/harness-pi/0.0.0-test',
+        'x-client-app': 'ai-sdk/harness-pi/0.0.0-test',
+      },
     });
   });
 
@@ -54,6 +58,10 @@ describe('resolvePiEnv', () => {
       apiKey: 'oidc-env',
       baseUrl: 'https://gw.example',
       authHeader: true,
+      headers: {
+        'User-Agent': 'ai-sdk/harness-pi/0.0.0-test',
+        'x-client-app': 'ai-sdk/harness-pi/0.0.0-test',
+      },
     });
   });
 
@@ -88,6 +96,13 @@ describe('resolvePiEnv', () => {
     );
     expect(anthropicCall?.[1].headers).toEqual({
       authorization: 'Bearer tok',
+    });
+    const gatewayCall = r.registerProvider.mock.calls.find(
+      call => call[0] === 'vercel-ai-gateway',
+    );
+    expect(gatewayCall?.[1].headers).toEqual({
+      'User-Agent': 'ai-sdk/harness-pi/0.0.0-test',
+      'x-client-app': 'ai-sdk/harness-pi/0.0.0-test',
     });
   });
 
@@ -130,6 +145,15 @@ describe('resolvePiEnv', () => {
     expect(env).toEqual({
       AI_GATEWAY_API_KEY: 'ambient',
       AI_GATEWAY_BASE_URL: 'https://amb',
+    });
+    expect(r.registerProvider).toHaveBeenCalledWith('vercel-ai-gateway', {
+      apiKey: 'ambient',
+      baseUrl: 'https://amb',
+      authHeader: true,
+      headers: {
+        'User-Agent': 'ai-sdk/harness-pi/0.0.0-test',
+        'x-client-app': 'ai-sdk/harness-pi/0.0.0-test',
+      },
     });
   });
 

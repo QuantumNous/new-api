@@ -1,9 +1,8 @@
 {
   "name": "@ai-sdk/devtools",
-  "version": "1.0.2",
+  "version": "1.0.6",
   "type": "module",
   "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {

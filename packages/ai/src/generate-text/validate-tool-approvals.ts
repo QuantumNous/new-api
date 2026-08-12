@@ -9,6 +9,7 @@ import {
 } from '@ai-sdk/provider-utils';
 import { InvalidToolApprovalSignatureError } from '../error/invalid-tool-approval-signature-error';
 import { InvalidToolInputError } from '../error/invalid-tool-input-error';
+import { getOwn } from '../util/get-own';
 import type { CollectedToolApprovals } from './collect-tool-approvals';
 import { resolveToolApproval } from './resolve-tool-approval';
 import { verifyToolApprovalSignature } from './tool-approval-signature';
@@ -47,7 +48,11 @@ export async function validateApprovedToolApprovals<
 
   for (const approval of approvedToolApprovals) {
     const { toolCall, approvalRequest } = approval;
-    const tool = tools?.[toolCall.toolName];
+    // Look up the tool by own property only: `toolName` comes from
+    // client-supplied history, so a name matching an inherited object property
+    // (e.g. `constructor`, `toString`) must resolve to "no such tool" rather
+    // than a prototype value that would silently skip input validation below.
+    const tool = getOwn(tools, toolCall.toolName);
 
     if (toolApprovalSecret != null) {
       if (approvalRequest.signature == null) {

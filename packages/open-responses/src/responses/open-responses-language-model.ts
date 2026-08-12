@@ -1,13 +1,14 @@
-import type {
-  LanguageModelV4,
-  LanguageModelV4CallOptions,
-  LanguageModelV4Content,
-  LanguageModelV4FinishReason,
-  LanguageModelV4GenerateResult,
-  LanguageModelV4StreamPart,
-  LanguageModelV4StreamResult,
-  LanguageModelV4Usage,
-  SharedV4Warning,
+import {
+  APICallError,
+  type LanguageModelV4,
+  type LanguageModelV4CallOptions,
+  type LanguageModelV4Content,
+  type LanguageModelV4FinishReason,
+  type LanguageModelV4GenerateResult,
+  type LanguageModelV4StreamPart,
+  type LanguageModelV4StreamResult,
+  type LanguageModelV4Usage,
+  type SharedV4Warning,
 } from '@ai-sdk/provider';
 import {
   combineHeaders,
@@ -228,10 +229,37 @@ export class OpenResponsesLanguageModel implements LanguageModelV4 {
       fetch: this.config.fetch,
     });
 
+    if (response.error) {
+      throw new APICallError({
+        message: response.error.message,
+        url: this.config.url,
+        requestBodyValues: body,
+        statusCode: 400,
+        responseHeaders,
+        responseBody: rawResponse as string,
+        isRetryable: false,
+      });
+    }
+
+    if (response.output == null) {
+      const detail = response.incomplete_details?.reason ?? response.status;
+      throw new APICallError({
+        message: detail
+          ? `Responses API returned no output (${detail})`
+          : 'Responses API returned no output',
+        url: this.config.url,
+        requestBodyValues: body,
+        statusCode: 500,
+        responseHeaders,
+        responseBody: rawResponse as string,
+        isRetryable: false,
+      });
+    }
+
     const content: Array<LanguageModelV4Content> = [];
     let hasToolCalls = false;
 
-    for (const part of response.output!) {
+    for (const part of response.output) {
       switch (part.type) {
         // TODO AI SDK 7 adjust reasoning in the specification to better support the reasoning structure from open responses.
         case 'reasoning': {

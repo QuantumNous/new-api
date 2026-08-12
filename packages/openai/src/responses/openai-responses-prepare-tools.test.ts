@@ -1541,6 +1541,44 @@ describe('prepareResponsesTools', () => {
     });
   });
 
+  describe('computer', () => {
+    it('should prepare computer tool', async () => {
+      const result = await prepareResponsesTools({
+        tools: [
+          {
+            type: 'provider',
+            id: 'openai.computer',
+            name: 'computer',
+            args: {},
+          },
+        ],
+        toolChoice: undefined,
+      });
+
+      expect(result).toEqual({
+        tools: [{ type: 'computer' }],
+        toolChoice: undefined,
+        toolWarnings: [],
+      });
+    });
+
+    it('should handle computer tool choice', async () => {
+      const result = await prepareResponsesTools({
+        tools: [
+          {
+            type: 'provider',
+            id: 'openai.computer',
+            name: 'computer',
+            args: {},
+          },
+        ],
+        toolChoice: { type: 'tool', toolName: 'computer' },
+      });
+
+      expect(result.toolChoice).toEqual({ type: 'computer' });
+    });
+  });
+
   describe('apply_patch', () => {
     it('should prepare apply_patch tool', async () => {
       const result = await prepareResponsesTools({

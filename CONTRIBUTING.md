@@ -1,6 +1,24 @@
 # Contributing to the AI SDK
 
-We deeply appreciate your interest in contributing to our repository! Whether you're reporting bugs, suggesting enhancements, improving docs, or submitting pull requests, your contributions help improve the project for everyone.
+We deeply appreciate your interest in contributing to our repository! Whether you're reporting bugs, suggesting enhancements, improving docs, sharing community projects, building provider integrations, or submitting pull requests, your contributions help improve the project for everyone.
+
+## How We Value Contributions
+
+AI SDK maintenance is becoming increasingly automated. Maintainers and automated workflows will take on more of the routine work involved in reviewing new issues, triaging reports, reproducing bugs, and preparing bug fix pull requests.
+
+Because of this, the most helpful contribution is often a high-quality issue rather than a complete pull request. Clear bug reports, minimal reproductions, failing tests, precise documentation feedback, and thoughtful feature requests help us understand the problem and make better fixes for everyone.
+
+Pull requests are still welcome, especially when they:
+
+- Fix documentation, examples, or typos.
+- Add a failing test or reproduction that precisely captures a bug.
+- Clarify an issue with a small, focused change.
+- Improve the quality of an existing fix with valuable review or context.
+- Contribute community-maintained examples, integrations, or provider implementations.
+
+You do not need to send a full implementation for maintainers to value your contribution. When an issue leads to a bug fix pull request, we will credit the issue author with co-authorship where appropriate. Pull request authors will also be credited when their work adds valuable input to resolving a bug report or improves the quality of the fix.
+
+We know this transition may feel different from how open source contribution has traditionally worked. We value our community and all the ways people help AI SDK grow. If this process creates friction or frustration, please open a `feedback` issue and tell us what is not working.
 
 ## Reporting Bugs
 
@@ -8,7 +26,8 @@ If you've encountered a bug in the project, we encourage you to report it to us.
 
 1. **Check the Issue Tracker**: Before submitting a new bug report, please check our issue tracker to see if the bug has already been reported. If it has, you can add to the existing report.
 2. **Create a New Issue**: If the bug hasn't been reported, create a new issue. Provide a clear title and a detailed description of the bug. Include any relevant logs, error messages, and steps to reproduce the issue.
-3. **Label Your Issue**: If possible, label your issue as a `bug` so it's easier for maintainers to identify.
+3. **Add a reproduction when possible**: A minimal repository, StackBlitz, failing test, or small runnable example is often the fastest path to a fix.
+4. **Link related work**: If you opened a pull request with a failing test, reproduction, or suggested fix, link it from the issue so maintainers can credit the relevant contributors.
 
 ## Suggesting Enhancements
 
@@ -16,6 +35,10 @@ We're always looking for suggestions to make our project better. If you have an 
 
 1. **Check the Issue Tracker**: Similar to bug reports, please check if someone else has already suggested the enhancement. If so, feel free to add your thoughts to the existing issue.
 2. **Create a New Issue**: If your enhancement hasn't been suggested yet, create a new issue. Provide a detailed description of your suggested enhancement and how it would benefit the project.
+
+## Sharing Feedback
+
+Use the `feedback` issue type for community feedback, process feedback, or ideas about how to make AI SDK a better project to use and contribute to. This is the best place to tell us how the move toward more automated maintenance is affecting you.
 
 ## Improving Documentation
 
@@ -78,7 +101,11 @@ Please run `pnpm update-references` in workspace root to update the `references`
 
 ### Submitting Pull Requests
 
-We greatly appreciate your pull requests. Here are the steps to submit them:
+We greatly appreciate focused pull requests. Before investing in a full implementation for a bug fix, please consider opening or improving an issue first. Maintainers and automated workflows may prepare the final fix, and we will credit high-quality reports that lead to fixes.
+
+Pull requests are most helpful when they include documentation fixes, reproduction examples, failing tests, or small focused changes that make the issue clearer.
+
+Here are the steps to submit them:
 
 1. **Create a New Branch**: Initiate your changes in a fresh branch. It's recommended to name the branch in a manner that signifies the changes you're implementing.
 2. **Add a patch changeset**: If you update any packages, add a **patch** changeset to your branch by running `pnpm changeset` in the workspace root.

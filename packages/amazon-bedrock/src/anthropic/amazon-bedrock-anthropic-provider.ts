@@ -280,41 +280,52 @@ export function createAmazonBedrockAnthropic(
             : undefined;
 
         const requiredBetas = new Set<string>(betas);
-        const transformedTools = tools?.map((tool: Record<string, unknown>) => {
-          const toolType = tool.type as string | undefined;
-
-          if (toolType && toolType in BEDROCK_TOOL_VERSION_MAP) {
-            const newType =
-              BEDROCK_TOOL_VERSION_MAP[
-                toolType as keyof typeof BEDROCK_TOOL_VERSION_MAP
-              ];
-            if (newType in BEDROCK_TOOL_BETA_MAP) {
-              requiredBetas.add(BEDROCK_TOOL_BETA_MAP[newType]);
+        const transformedTools = tools?.map(
+          (rawTool: Record<string, unknown>) => {
+            // Bedrock rejects the per-tool eager_input_streaming field even when
+            // the fine-grained-tool-streaming beta is declared, but the beta alone
+            // enables the same behavior, so translate the field into the beta
+            const { eager_input_streaming: eagerInputStreaming, ...tool } =
+              rawTool;
+            if (eagerInputStreaming === true) {
+              requiredBetas.add('fine-grained-tool-streaming-2025-05-14');
             }
-            const newName =
-              newType in BEDROCK_TOOL_NAME_MAP
-                ? BEDROCK_TOOL_NAME_MAP[newType]
-                : tool.name;
-            return {
-              ...tool,
-              type: newType,
-              name: newName,
-            };
-          }
 
-          if (toolType && toolType in BEDROCK_TOOL_BETA_MAP) {
-            requiredBetas.add(BEDROCK_TOOL_BETA_MAP[toolType]);
-          }
+            const toolType = tool.type as string | undefined;
 
-          if (toolType && toolType in BEDROCK_TOOL_NAME_MAP) {
-            return {
-              ...tool,
-              name: BEDROCK_TOOL_NAME_MAP[toolType],
-            };
-          }
+            if (toolType && toolType in BEDROCK_TOOL_VERSION_MAP) {
+              const newType =
+                BEDROCK_TOOL_VERSION_MAP[
+                  toolType as keyof typeof BEDROCK_TOOL_VERSION_MAP
+                ];
+              if (newType in BEDROCK_TOOL_BETA_MAP) {
+                requiredBetas.add(BEDROCK_TOOL_BETA_MAP[newType]);
+              }
+              const newName =
+                newType in BEDROCK_TOOL_NAME_MAP
+                  ? BEDROCK_TOOL_NAME_MAP[newType]
+                  : tool.name;
+              return {
+                ...tool,
+                type: newType,
+                name: newName,
+              };
+            }
 
-          return tool;
-        });
+            if (toolType && toolType in BEDROCK_TOOL_BETA_MAP) {
+              requiredBetas.add(BEDROCK_TOOL_BETA_MAP[toolType]);
+            }
+
+            if (toolType && toolType in BEDROCK_TOOL_NAME_MAP) {
+              return {
+                ...tool,
+                name: BEDROCK_TOOL_NAME_MAP[toolType],
+              };
+            }
+
+            return tool;
+          },
+        );
 
         return {
           ...rest,

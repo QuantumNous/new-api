@@ -9,6 +9,7 @@ import type {
 } from '@ai-sdk/provider-utils';
 import type { TimeoutConfiguration } from '../prompt/request-options';
 import type { Telemetry, TelemetryDispatcher } from '../telemetry/telemetry';
+import { getOwn } from '../util/get-own';
 import { executeToolCall } from './execute-tool-call';
 import { resolveToolApproval } from './resolve-tool-approval';
 import type { LanguageModelStreamPart } from './stream-language-model-call';
@@ -95,7 +96,7 @@ export function executeToolsFromStream<
               return;
             }
 
-            const tool = tools?.[chunk.toolName];
+            const tool = getOwn(tools, chunk.toolName);
 
             if (tool == null) {
               // ignore tool calls for tools that are not available,

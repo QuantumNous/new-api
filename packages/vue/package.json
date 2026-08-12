@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/vue",
-  "version": "4.0.14",
+  "version": "4.0.31",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/google",
-  "version": "4.0.8",
+  "version": "4.0.18",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

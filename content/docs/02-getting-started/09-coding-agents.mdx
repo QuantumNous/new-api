@@ -33,22 +33,7 @@ Once you've installed the `ai` package, you already have the full AI SDK documen
 
 Install the `ai` package if you haven't already:
 
-<div className="my-4">
-  <Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-    <Tab>
-      <Snippet text="pnpm add ai" dark />
-    </Tab>
-    <Tab>
-      <Snippet text="npm install ai" dark />
-    </Tab>
-    <Tab>
-      <Snippet text="yarn add ai" dark />
-    </Tab>
-    <Tab>
-      <Snippet text="bun add ai" dark />
-    </Tab>
-  </Tabs>
-</div>
+<InstallPackages packages="ai" />
 
 After installation, your agent can reference the bundled source code and documentation at paths like:
 
@@ -70,22 +55,7 @@ AI SDK DevTools gives you full visibility into your AI SDK calls during developm
 
 Install the DevTools package:
 
-<div className="my-4">
-  <Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
-    <Tab>
-      <Snippet text="pnpm add @ai-sdk/devtools" dark />
-    </Tab>
-    <Tab>
-      <Snippet text="npm install @ai-sdk/devtools" dark />
-    </Tab>
-    <Tab>
-      <Snippet text="yarn add @ai-sdk/devtools" dark />
-    </Tab>
-    <Tab>
-      <Snippet text="bun add @ai-sdk/devtools" dark />
-    </Tab>
-  </Tabs>
-</div>
+<InstallPackages packages="@ai-sdk/devtools" />
 
 ### Register the integration
 
@@ -114,7 +84,7 @@ const result = await generateText({
 Start the DevTools viewer in a separate terminal:
 
 ```bash
-npx @ai-sdk/devtools
+npx @ai-sdk/devtools@latest
 ```
 
 Open [http://localhost:4983](http://localhost:4983) to inspect your AI SDK interactions in real time.

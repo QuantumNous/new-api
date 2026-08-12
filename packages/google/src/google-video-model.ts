@@ -94,13 +94,11 @@ function convertFileToGoogleImage(
       ? file.data
       : convertUint8ArrayToBase64(file.data);
 
-  // The Gemini Developer API (generativelanguage.googleapis.com) requires
-  // inline image bytes wrapped as `inlineData`.
+  // Veo's predictLongRunning endpoint uses Vertex-style image payloads, not
+  // Gemini generateContent inlineData.
   return {
-    inlineData: {
-      mimeType: file.mediaType || 'image/png',
-      data: base64Data,
-    },
+    bytesBase64Encoded: base64Data,
+    mimeType: file.mediaType || 'image/png',
   };
 }
 
@@ -109,16 +107,21 @@ function convertProviderReferenceImage(
 ): Record<string, unknown> {
   if (refImg.bytesBase64Encoded) {
     return {
-      inlineData: {
+      image: {
+        bytesBase64Encoded: refImg.bytesBase64Encoded,
         mimeType: 'image/png',
-        data: refImg.bytesBase64Encoded,
       },
+      referenceType: 'asset',
     };
   }
 
   if (refImg.gcsUri) {
     return {
-      gcsUri: refImg.gcsUri,
+      image: {
+        gcsUri: refImg.gcsUri,
+        mimeType: 'image/png',
+      },
+      referenceType: 'asset',
     };
   }
 
@@ -304,6 +307,7 @@ export class GoogleVideoModel implements Experimental_VideoModelV4 {
       const { value: statusOperation, responseHeaders: pollHeaders } =
         await getFromApi({
           url: `${this.config.baseURL}/${operationName}`,
+          validateUrl: false,
           headers: combineHeaders(
             await resolve(this.config.headers),
             options.headers,

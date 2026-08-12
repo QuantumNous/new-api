@@ -17,9 +17,10 @@ describe('validateDownloadUrl', () => {
     });
 
     it('should allow public IP addresses', () => {
-      expect(() =>
-        validateDownloadUrl('https://203.0.113.1/file'),
-      ).not.toThrow();
+      // 8.8.8.8 — a genuinely public, globally-routable address. The TEST-NET
+      // documentation ranges (192.0.2/24, 198.51.100/24, 203.0.113/24) are
+      // blocked.
+      expect(() => validateDownloadUrl('https://8.8.8.8/file')).not.toThrow();
     });
 
     it('should allow URLs with ports', () => {
@@ -137,6 +138,38 @@ describe('validateDownloadUrl', () => {
         DownloadError,
       );
     });
+
+    it('should block 224.0.0.0/4 (multicast)', () => {
+      expect(() => validateDownloadUrl('http://224.0.0.1/file')).toThrow(
+        DownloadError,
+      );
+      expect(() => validateDownloadUrl('http://239.255.255.250/file')).toThrow(
+        DownloadError,
+      );
+    });
+
+    it('should block the TEST-NET documentation ranges', () => {
+      // TEST-NET-1 (192.0.2.0/24)
+      expect(() => validateDownloadUrl('http://192.0.2.1/file')).toThrow(
+        DownloadError,
+      );
+      // TEST-NET-2 (198.51.100.0/24)
+      expect(() => validateDownloadUrl('http://198.51.100.1/file')).toThrow(
+        DownloadError,
+      );
+      // TEST-NET-3 (203.0.113.0/24)
+      expect(() => validateDownloadUrl('http://203.0.113.1/file')).toThrow(
+        DownloadError,
+      );
+      // Neighboring public /24s stay allowed.
+      expect(() => validateDownloadUrl('http://192.0.3.1/file')).not.toThrow();
+      expect(() =>
+        validateDownloadUrl('http://198.51.101.1/file'),
+      ).not.toThrow();
+      expect(() =>
+        validateDownloadUrl('http://203.0.114.1/file'),
+      ).not.toThrow();
+    });
   });
 
   describe('blocked IPv6 addresses', () => {
@@ -166,6 +199,25 @@ describe('validateDownloadUrl', () => {
         DownloadError,
       );
     });
+
+    it('should block 2001:db8::/32 (documentation)', () => {
+      expect(() => validateDownloadUrl('http://[2001:db8::1]/file')).toThrow(
+        DownloadError,
+      );
+    });
+
+    it('should block 3fff::/20 (documentation, RFC 9637)', () => {
+      expect(() => validateDownloadUrl('http://[3fff::1]/file')).toThrow(
+        DownloadError,
+      );
+      expect(() => validateDownloadUrl('http://[3fff:fff::1]/file')).toThrow(
+        DownloadError,
+      );
+      // 3fff:1000::/20 is outside the documentation range.
+      expect(() =>
+        validateDownloadUrl('http://[3fff:1000::1]/file'),
+      ).not.toThrow();
+    });
   });
 
   describe('IPv4-mapped IPv6 addresses', () => {
@@ -189,7 +241,7 @@ describe('validateDownloadUrl', () => {
 
     it('should allow ::ffff: with public IP', () => {
       expect(() =>
-        validateDownloadUrl('http://[::ffff:203.0.113.1]/file'),
+        validateDownloadUrl('http://[::ffff:8.8.8.8]/file'),
       ).not.toThrow();
     });
   });
@@ -279,13 +331,15 @@ describe('validateDownloadUrl', () => {
 
     it('should allow NAT64 with a public embedded IPv4', () => {
       expect(() =>
-        validateDownloadUrl('http://[64:ff9b::203.0.113.1]/file'),
+        validateDownloadUrl('http://[64:ff9b::8.8.8.8]/file'),
       ).not.toThrow();
     });
 
     it('should allow a regular public IPv6 address', () => {
+      // 2606:4700::/32 (Cloudflare) — a genuinely public, globally-routable
+      // address. `2001:db8::/32` is the documentation range and is blocked.
       expect(() =>
-        validateDownloadUrl('http://[2001:db8::1]/file'),
+        validateDownloadUrl('http://[2606:4700::1]/file'),
       ).not.toThrow();
     });
   });

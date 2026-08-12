@@ -263,6 +263,7 @@ function convertFilePartToContent({
       kind = 'video';
       break;
     case 'application':
+    case 'text':
       kind = 'document';
       break;
     default:

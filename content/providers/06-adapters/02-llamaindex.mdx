@@ -13,7 +13,7 @@ Here is a basic example that uses both AI SDK and LlamaIndex together with the [
 
 The AI SDK `@ai-sdk/llamaindex` package uses the stream result from calling the `chat` method on a [LlamaIndex ChatEngine](https://ts.llamaindex.ai/modules/chat_engine) or the `query` method on a [LlamaIndex QueryEngine](https://ts.llamaindex.ai/modules/query_engines) to pipe text to the client.
 
-```tsx filename="app/api/completion/route.ts" highlight="17"
+```tsx filename="app/api/completion/route.ts" highlight="18-20"
 import { OpenAI, SimpleChatEngine } from 'llamaindex';
 import { toUIMessageStream } from '@ai-sdk/llamaindex';
 import { createUIMessageStreamResponse } from 'ai';

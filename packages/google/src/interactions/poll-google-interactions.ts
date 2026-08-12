@@ -105,6 +105,7 @@ export async function pollGoogleInteractionUntilTerminal({
         responseHeaders,
       } = await getFromApi({
         url,
+        validateUrl: false,
         headers,
         failedResponseHandler: googleFailedResponseHandler,
         successfulResponseHandler: createJsonResponseHandler(

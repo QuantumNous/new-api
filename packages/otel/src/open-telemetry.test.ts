@@ -903,6 +903,16 @@ describe('OpenTelemetry', () => {
       expect(mock.mock.calls[2][2]).toBe(mock.mock.calls[3][2]);
     });
 
+    it('parents execute_tool under the root span before a step starts', () => {
+      integration.onStart!(makeOnStartEvent());
+      integration.onToolExecutionStart!(makeToolCallStartEvent());
+
+      const mock = tracer.startSpan as ReturnType<typeof vi.fn>;
+      const toolParentContext = mock.mock.calls[1][2];
+
+      expect(trace.getSpan(toolParentContext)).toBe(tracer.spans[0]);
+    });
+
     it('sets gen_ai.tool.call.result on success', () => {
       integration.onStart!(makeOnStartEvent());
       integration.onStepStart!(makeStepStartEvent());

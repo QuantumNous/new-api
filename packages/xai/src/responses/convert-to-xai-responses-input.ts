@@ -6,10 +6,13 @@ import {
 import {
   convertToBase64,
   getTopLevelMediaType,
+  parseProviderOptions,
   resolveFullMediaType,
   resolveProviderReference,
 } from '@ai-sdk/provider-utils';
+import { xaiFilePartProviderOptions } from '../xai-file-part-options';
 import type {
+  XaiResponsesFunctionCallOutput,
   XaiResponsesInput,
   XaiResponsesUserMessageContentPart,
 } from './xai-responses-api';
@@ -71,9 +74,18 @@ export async function convertToXaiResponsesInput({
                         ? block.data.url.toString()
                         : `data:${resolveFullMediaType({ part: block })};base64,${convertToBase64(block.data.data)}`;
 
+                    const filePartOptions = await parseProviderOptions({
+                      provider: 'xai',
+                      providerOptions: block.providerOptions,
+                      schema: xaiFilePartProviderOptions,
+                    });
+
                     contentParts.push({
                       type: 'input_image',
                       image_url: imageUrl,
+                      ...(filePartOptions?.imageDetail != null && {
+                        detail: filePartOptions.imageDetail,
+                      }),
                     });
                   } else if (block.data.type === 'url') {
                     // xAI's Responses API accepts non-image documents (PDF, text, CSV, etc.)
@@ -230,7 +242,7 @@ export async function convertToXaiResponsesInput({
           }
           const output = part.output;
 
-          let outputValue: string;
+          let outputValue: XaiResponsesFunctionCallOutput['output'];
           switch (output.type) {
             case 'text':
             case 'error-text':
@@ -244,14 +256,39 @@ export async function convertToXaiResponsesInput({
               outputValue = JSON.stringify(output.value);
               break;
             case 'content':
-              outputValue = output.value
-                .map(item => {
-                  if (item.type === 'text') {
-                    return item.text;
+              outputValue = [];
+              for (const item of output.value) {
+                switch (item.type) {
+                  case 'text': {
+                    outputValue.push({
+                      type: 'input_text',
+                      text: item.text,
+                    });
+                    break;
                   }
-                  return '';
-                })
-                .join('');
+                  case 'file': {
+                    if (
+                      getTopLevelMediaType(item.mediaType) === 'image' &&
+                      (item.data.type === 'data' || item.data.type === 'url')
+                    ) {
+                      outputValue.push({
+                        type: 'input_image',
+                        image_url:
+                          item.data.type === 'url'
+                            ? item.data.url.toString()
+                            : `data:${resolveFullMediaType({ part: item })};base64,${convertToBase64(item.data.data)}`,
+                      });
+                    }
+                    break;
+                  }
+                  case 'custom': {
+                    break;
+                  }
+                  default: {
+                    const _exhaustiveCheck: never = item;
+                  }
+                }
+              }
               break;
             default: {
               const _exhaustiveCheck: never = output;

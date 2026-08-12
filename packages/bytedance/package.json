@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/bytedance",
-  "version": "2.0.6",
+  "version": "2.0.13",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

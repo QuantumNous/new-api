@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/azure",
-  "version": "4.0.7",
+  "version": "4.0.17",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,

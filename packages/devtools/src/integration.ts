@@ -11,6 +11,7 @@ import type {
 import {
   createRun,
   createStep,
+  getStepsForRun,
   updateStepResult,
   notifyServerAsync,
 } from './db.js';
@@ -28,6 +29,15 @@ interface CallState {
   functionId: string | undefined;
   settings: Record<string, unknown>;
   stepStates: Map<number, StepState>;
+  stepNumberOffset: number;
+}
+
+export interface DevToolsTelemetryOptions {
+  /**
+   * Identifier used to group multiple AI SDK calls into one DevTools run.
+   * Reuse the same value when resuming an interrupted interaction.
+   */
+  runId?: string;
 }
 
 const activeSteps = new Map<string, StepState>();
@@ -99,7 +109,9 @@ function getOperationType(operationId: string): OperationType {
  * Telemetry is enabled by default — no need to set `telemetry`
  * unless you want to configure `functionId`, `recordInputs`, or `recordOutputs`.
  */
-export function DevToolsTelemetry(): Telemetry {
+export function DevToolsTelemetry(
+  options: DevToolsTelemetryOptions = {},
+): Telemetry {
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
       '@ai-sdk/devtools should not be used in production. ' +
@@ -179,6 +191,7 @@ export function DevToolsTelemetry(): Telemetry {
         seed: event.seed,
       },
       stepStates: new Map(),
+      stepNumberOffset: 0,
     };
     callStates.set(callId, state);
     return state;
@@ -211,6 +224,11 @@ export function DevToolsTelemetry(): Telemetry {
         startEvent,
       );
 
+      if (options.runId != null) {
+        state.runId = options.runId;
+        state.stepNumberOffset = (await getStepsForRun(options.runId)).length;
+      }
+
       await createRun(state.runId, parentInfo, state.functionId);
     },
 
@@ -238,7 +256,7 @@ export function DevToolsTelemetry(): Telemetry {
       await createStep({
         id: stepId,
         run_id: state.runId,
-        step_number: stepNumber + 1,
+        step_number: state.stepNumberOffset + stepNumber + 1,
         type: state.operationType,
         model_id: stepStartEvent.modelId,
         provider: stepStartEvent.provider ?? null,
@@ -288,7 +306,7 @@ export function DevToolsTelemetry(): Telemetry {
       await createStep({
         id: stepId,
         run_id: state.runId,
-        step_number: stepStartEvent.stepNumber + 1,
+        step_number: state.stepNumberOffset + stepStartEvent.stepNumber + 1,
         type: state.operationType,
         model_id: stepStartEvent.modelId,
         provider: stepStartEvent.provider ?? null,

@@ -23,7 +23,7 @@ const checkpointer = new MemorySaver();
  * The model to use for the agent
  */
 const model = new ChatOpenAI({
-  model: 'gpt-5',
+  model: 'gpt-5.6',
   reasoning: {
     effort: 'low', // 'low' | 'medium' | 'high' - controls reasoning depth
     summary: 'auto', // Enable reasoning summary output for streaming

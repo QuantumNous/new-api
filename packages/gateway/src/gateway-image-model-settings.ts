@@ -12,6 +12,7 @@ export type GatewayImageModelId =
   | 'bytedance/seedream-4.0'
   | 'bytedance/seedream-4.5'
   | 'bytedance/seedream-5.0-lite'
+  | 'bytedance/seedream-5.0-pro'
   | 'google/imagen-4.0-fast-generate-001'
   | 'google/imagen-4.0-generate-001'
   | 'google/imagen-4.0-ultra-generate-001'

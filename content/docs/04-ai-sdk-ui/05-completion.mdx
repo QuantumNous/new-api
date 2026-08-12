@@ -143,12 +143,12 @@ When the user clicks the "Stop" button, the fetch request will be aborted. This 
 <Note>This feature is currently only available for React.</Note>
 
 By default, the `useCompletion` hook will trigger a render every time a new chunk is received.
-You can throttle the UI updates with the `experimental_throttle` option.
+You can throttle the UI updates with the `throttle` option.
 
 ```tsx filename="page.tsx" highlight="2-3"
 const { completion, ... } = useCompletion({
   // Throttle the completion and data updates to 50ms:
-  experimental_throttle: 50
+  throttle: 50
 })
 ```
 

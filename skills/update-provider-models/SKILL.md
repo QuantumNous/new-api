@@ -88,7 +88,7 @@ export const reasoningModelIds = [
 
 For each `.mdx` file found in `content/`, add or update entries:
 
-- **Capability tables**: Add a row for the new model in the correct position with the appropriate capability checks (`<Check size={18} />` or `<Cross size={18} />`).
+- **Capability tables**: Add a row for the new model in the correct position with the appropriate capability checks (`<Check />` or `<Cross />`).
 - **Inline code examples**: If replacing a preview/older model as the recommended one, update code snippets like `const model = provider('old-model')` to use the new model.
 - **"Latest" descriptions**: Update text like "Latest model with enhanced reasoning" to reference the new model.
 

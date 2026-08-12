@@ -43,6 +43,14 @@ describe('writeToServerResponse', () => {
 
     it('should respect backpressure and wait for drain event', async () => {
       const mockResponse = createBackpressureMockResponse();
+      const flushReceivers: unknown[] = [];
+      const writtenChunkCountsAtFlush: number[] = [];
+      Object.assign(mockResponse, {
+        flush(this: ServerResponse) {
+          flushReceivers.push(this);
+          writtenChunkCountsAtFlush.push(mockResponse.writtenChunks.length);
+        },
+      });
       let drainEventCount = 0;
       let readyToEnqueue: ((value: unknown) => void) | null = null;
 
@@ -76,6 +84,7 @@ describe('writeToServerResponse', () => {
       // Wait for first chunk to be written
       await vi.advanceTimersByTimeAsync(10);
       expect(mockResponse.writeCallCount).toBe(1);
+      expect(writtenChunkCountsAtFlush).toEqual([1]);
 
       // Enqueue second chunk - it should trigger write which returns false (backpressure)
       readyToEnqueue!(new TextEncoder().encode('chunk2'));
@@ -84,6 +93,7 @@ describe('writeToServerResponse', () => {
       // Second chunk write should have been called but returned false
       expect(mockResponse.writeCallCount).toBe(2);
       expect(mockResponse.writtenChunks.length).toBe(2);
+      expect(writtenChunkCountsAtFlush).toEqual([1, 2]);
 
       // Enqueue third chunk - it should NOT trigger write yet (still waiting for drain from chunk 2)
       readyToEnqueue!(new TextEncoder().encode('chunk3'));
@@ -91,11 +101,13 @@ describe('writeToServerResponse', () => {
 
       // Third chunk shouldn't be written yet (waiting for drain)
       expect(mockResponse.writeCallCount).toBe(2);
+      expect(writtenChunkCountsAtFlush).toEqual([1, 2]);
 
       // Simulate drain to allow third write
       mockResponse.simulateDrain();
       await vi.advanceTimersByTimeAsync(10);
       expect(mockResponse.writeCallCount).toBe(3);
+      expect(writtenChunkCountsAtFlush).toEqual([1, 2, 3]);
 
       // Close the stream
       readyToEnqueue!(null);
@@ -107,6 +119,11 @@ describe('writeToServerResponse', () => {
       expect(drainEventCount).toBeGreaterThanOrEqual(1);
       // Verify all chunks were eventually written
       expect(mockResponse.writtenChunks).toHaveLength(3);
+      expect(flushReceivers).toEqual([
+        mockResponse,
+        mockResponse,
+        mockResponse,
+      ]);
     });
   });
 

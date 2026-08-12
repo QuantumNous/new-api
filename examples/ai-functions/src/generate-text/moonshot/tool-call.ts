@@ -5,7 +5,7 @@ import { weatherTool } from '../../tools/weather-tool';
 
 run(async () => {
   const result = await generateText({
-    model: moonshotai('kimi-k2.5'),
+    model: moonshotai('kimi-k3'),
     tools: { weather: weatherTool },
     stopWhen: isStepCount(2),
     prompt: 'What is the weather in San Francisco?',

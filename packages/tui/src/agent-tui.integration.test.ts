@@ -5,7 +5,7 @@ import { createDeferred } from './util/deferred';
 import type { LanguageModelV4StreamPart } from '@ai-sdk/provider';
 import { MockLanguageModelV4 } from 'ai/test';
 import { simulateReadableStream, ToolLoopAgent, tool } from 'ai';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 describe('AgentTUIRunner integration', () => {
   it('drives a ToolLoopAgent with mock terminal input and screen snapshots', async () => {

@@ -64,6 +64,61 @@ function assertToolCallParams(params: unknown): MCPAppToolCallParams {
 }
 
 /**
+ * Validates `resources/read` params and limits reads to `ui://` app resources.
+ */
+function assertResourceReadParams(params: unknown): { uri: string } {
+  if (!isJSONObject(params) || typeof params.uri !== 'string') {
+    throw new Error('Invalid resources/read params');
+  }
+  if (!params.uri.startsWith('ui://')) {
+    throw new Error(
+      `resources/read is limited to ui:// resources: ${params.uri}`,
+    );
+  }
+  return { uri: params.uri };
+}
+
+/**
+ * Validates `ui/open-link` params and allows only `https:`/`http:`/`mailto:`
+ * URLs.
+ */
+function assertOpenLinkParams(params: unknown): { url: string } {
+  if (!isJSONObject(params) || typeof params.url !== 'string') {
+    throw new Error('Invalid ui/open-link params');
+  }
+
+  let scheme: string;
+  try {
+    scheme = new URL(params.url).protocol;
+  } catch {
+    throw new Error(`Invalid ui/open-link url: ${params.url}`);
+  }
+
+  if (scheme !== 'https:' && scheme !== 'http:' && scheme !== 'mailto:') {
+    throw new Error(`Disallowed ui/open-link scheme: ${scheme}`);
+  }
+
+  return { url: params.url };
+}
+
+/**
+ * Validates params for `ui/request-display-mode`.
+ */
+function assertDisplayModeParams(params: unknown): {
+  mode: 'inline' | 'fullscreen' | 'pip';
+} {
+  if (
+    !isJSONObject(params) ||
+    (params.mode !== 'inline' &&
+      params.mode !== 'fullscreen' &&
+      params.mode !== 'pip')
+  ) {
+    throw new Error('Invalid ui/request-display-mode params');
+  }
+  return { mode: params.mode };
+}
+
+/**
  * Host-side JSON-RPC bridge for one MCP App iframe.
  *
  * It handles the MCP Apps initialization handshake, sends tool input/result
@@ -146,10 +201,22 @@ export class MCPAppBridge {
   }
 
   /**
+   * Whether a `message` event came from the expected proxy window and origin.
+   * The origin check is skipped only when `targetOrigin` is the `'*'` default.
+   * Callers that intercept events before {@link handleMessage} share this check.
+   */
+  acceptsEvent(event: MessageEvent): boolean {
+    return (
+      event.source === this.targetWindow &&
+      (this.targetOrigin === '*' || event.origin === this.targetOrigin)
+    );
+  }
+
+  /**
    * Processes one `message` event from the sandbox proxy iframe.
    */
   handleMessage(event: MessageEvent): void {
-    if (event.source !== this.targetWindow || !isJsonRpcMessage(event.data)) {
+    if (!this.acceptsEvent(event) || !isJsonRpcMessage(event.data)) {
       return;
     }
 
@@ -307,7 +374,9 @@ export class MCPAppBridge {
         if (this.handlers.readResource == null) {
           throw new Error('No resources/read handler configured');
         }
-        return this.handlers.readResource(request.params as { uri: string });
+        return this.handlers.readResource(
+          assertResourceReadParams(request.params),
+        );
 
       case 'resources/list':
         if (this.handlers.listResources == null) {
@@ -319,7 +388,7 @@ export class MCPAppBridge {
         if (this.handlers.openLink == null) {
           throw new Error('No ui/open-link handler configured');
         }
-        return this.handlers.openLink(request.params as { url: string });
+        return this.handlers.openLink(assertOpenLinkParams(request.params));
 
       case 'ui/message':
         return this.handlers.sendMessage?.(request.params) ?? {};
@@ -330,7 +399,7 @@ export class MCPAppBridge {
       case 'ui/request-display-mode':
         return (
           this.handlers.requestDisplayMode?.(
-            request.params as { mode: 'inline' | 'fullscreen' | 'pip' },
+            assertDisplayModeParams(request.params),
           ) ?? { mode: this.hostContext.displayMode ?? 'inline' }
         );
 

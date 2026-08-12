@@ -1,6 +1,10 @@
 export { asArray } from './as-array';
 export type { Arrayable } from './as-array';
 export * from './combine-headers';
+export {
+  connectToWebSocket,
+  type WebSocketConnection,
+} from './connect-to-websocket';
 export { convertAsyncIteratorToReadableStream } from './convert-async-iterator-to-readable-stream';
 export { convertInlineFileDataToUint8Array } from './convert-inline-file-data-to-uint8-array';
 export { convertImageModelFileToDataUri } from './convert-image-model-file-to-data-uri';
@@ -91,7 +95,17 @@ export {
   type StreamingToolCallTrackerOptions,
 } from './streaming-tool-call-tracker';
 export { stripFileExtension } from './strip-file-extension';
+export {
+  TRANSCRIPTION_STREAM_AUDIO_DONE_FRAME_TYPE as EXPERIMENTAL_TRANSCRIPTION_STREAM_AUDIO_DONE_FRAME_TYPE,
+  TRANSCRIPTION_STREAM_START_FRAME_TYPE as EXPERIMENTAL_TRANSCRIPTION_STREAM_START_FRAME_TYPE,
+  parseTranscriptionStreamClientFrame as experimental_parseTranscriptionStreamClientFrame,
+  parseTranscriptionStreamPart as experimental_parseTranscriptionStreamPart,
+  serializeTranscriptionStreamPart as experimental_serializeTranscriptionStreamPart,
+  type TranscriptionStreamClientFrame as Experimental_TranscriptionStreamClientFrame,
+  type TranscriptionStreamStartFrame as Experimental_TranscriptionStreamStartFrame,
+} from './transcription-stream-envelope';
 export * from './uint8-utils';
+export { validateBaseURL } from './validate-base-url';
 export { validateDownloadUrl } from './validate-download-url';
 export * from './validate-types';
 export { VERSION } from './version';
@@ -99,6 +113,7 @@ export {
   getWebSocketConstructor,
   readWebSocketMessageText,
   toWebSocketUrl,
+  waitForWebSocketBufferDrain,
   type WebSocketConstructor,
   type WebSocketLike,
 } from './websocket';

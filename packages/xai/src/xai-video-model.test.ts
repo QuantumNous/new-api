@@ -114,6 +114,102 @@ describe('XaiVideoModel', () => {
       });
     });
 
+    it('should pass user unchanged to the video generation endpoint', async () => {
+      const model = createModel();
+
+      await model.doGenerate({
+        ...defaultOptions,
+        providerOptions: {
+          xai: {
+            user: 'tenant/user:123',
+            pollIntervalMs: 10,
+            pollTimeoutMs: 5000,
+          },
+        },
+      });
+
+      expect(server.calls[0].requestUrl).toBe(
+        `${TEST_BASE_URL}/videos/generations`,
+      );
+      expect(await server.calls[0].requestBodyJson).toStrictEqual({
+        model: 'grok-imagine-video',
+        prompt,
+        user: 'tenant/user:123',
+      });
+    });
+
+    it('should omit user when it is not configured', async () => {
+      const model = createModel();
+
+      await model.doGenerate({ ...defaultOptions });
+
+      expect(await server.calls[0].requestBodyJson).not.toHaveProperty('user');
+    });
+
+    it('should pass user unchanged to the video editing endpoint', async () => {
+      const model = createModel();
+
+      await model.doGenerate({
+        ...defaultOptions,
+        providerOptions: {
+          xai: {
+            mode: 'edit-video',
+            videoUrl: 'https://example.com/source-video.mp4',
+            user: 'tenant/user:123',
+            pollIntervalMs: 10,
+            pollTimeoutMs: 5000,
+          },
+        },
+      });
+
+      expect(server.calls[0].requestUrl).toBe(`${TEST_BASE_URL}/videos/edits`);
+      expect(await server.calls[0].requestBodyJson).toStrictEqual({
+        model: 'grok-imagine-video',
+        prompt,
+        video: { url: 'https://example.com/source-video.mp4' },
+        user: 'tenant/user:123',
+      });
+    });
+
+    it('should not pass user to the video extension endpoint', async () => {
+      const model = createModel();
+
+      await model.doGenerate({
+        ...defaultOptions,
+        providerOptions: {
+          xai: {
+            mode: 'extend-video',
+            videoUrl: 'https://example.com/source-video.mp4',
+            user: 'tenant/user:123',
+            pollIntervalMs: 10,
+            pollTimeoutMs: 5000,
+          },
+        },
+      });
+
+      expect(server.calls[0].requestUrl).toBe(
+        `${TEST_BASE_URL}/videos/extensions`,
+      );
+      expect(await server.calls[0].requestBodyJson).not.toHaveProperty('user');
+    });
+
+    it('should reject non-string user values', async () => {
+      const model = createModel();
+
+      await expect(
+        model.doGenerate({
+          ...defaultOptions,
+          providerOptions: {
+            xai: {
+              user: 123,
+              pollIntervalMs: 10,
+              pollTimeoutMs: 5000,
+            },
+          },
+        }),
+      ).rejects.toThrow(InvalidArgumentError);
+    });
+
     it('should poll the correct status URL', async () => {
       const model = createModel();
 
@@ -248,6 +344,28 @@ describe('XaiVideoModel', () => {
       expect(body).toMatchObject({
         image: { url: 'data:image/jpeg;base64,aGVsbG8=' },
       });
+    });
+
+    it('should warn and exclude a video image input from the image field', async () => {
+      const model = createModel();
+
+      const result = await model.doGenerate({
+        ...defaultOptions,
+        image: {
+          type: 'url',
+          url: 'https://example.com/clip.mp4',
+          mediaType: 'video/mp4',
+        },
+      });
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body).not.toHaveProperty('image');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'image',
+        }),
+      );
     });
 
     it('should send video object to /videos/edits for video editing with explicit mode', async () => {
@@ -644,6 +762,50 @@ describe('XaiVideoModel', () => {
   });
 
   describe('error handling', () => {
+    it('should preserve unsuccessful polling status handling', async () => {
+      server.urls[`${TEST_BASE_URL}/videos/req-123`].response = {
+        type: 'error',
+        status: 500,
+        body: JSON.stringify({
+          code: 'status_error',
+          error: 'status endpoint failed',
+        }),
+      };
+
+      const model = createModel();
+
+      await expect(
+        model.doGenerate({ ...defaultOptions }),
+      ).rejects.toMatchObject({
+        message: 'status_error: status endpoint failed',
+        statusCode: 500,
+      });
+
+      server.urls[`${TEST_BASE_URL}/videos/req-123`].response = {
+        type: 'json-value',
+        body: doneStatusResponse,
+      };
+    });
+
+    it('should preserve malformed HTTP 200 completion handling', async () => {
+      server.urls[`${TEST_BASE_URL}/videos/req-123`].response = {
+        type: 'error',
+        status: 200,
+        body: '{',
+      };
+
+      const model = createModel();
+
+      await expect(model.doGenerate({ ...defaultOptions })).rejects.toThrow(
+        'Invalid JSON response',
+      );
+
+      server.urls[`${TEST_BASE_URL}/videos/req-123`].response = {
+        type: 'json-value',
+        body: doneStatusResponse,
+      };
+    });
+
     it('should throw when status is expired', async () => {
       server.urls[`${TEST_BASE_URL}/videos/req-123`].response = {
         type: 'json-value',
@@ -927,6 +1089,33 @@ describe('XaiVideoModel', () => {
       expect(result.warnings).toEqual([]);
     });
 
+    it('should warn and exclude a video first_frame from the image field', async () => {
+      const model = createModel();
+
+      const result = await model.doGenerate({
+        ...defaultOptions,
+        frameImages: [
+          {
+            image: {
+              type: 'url',
+              url: 'https://example.com/clip.mp4',
+              mediaType: 'video/mp4',
+            },
+            frameType: 'first_frame',
+          },
+        ],
+      });
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body).not.toHaveProperty('image');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'frameImages',
+        }),
+      );
+    });
+
     it('should warn and ignore a last_frame image', async () => {
       const model = createModel();
 
@@ -1043,6 +1232,34 @@ describe('XaiVideoModel', () => {
         image: { url: 'https://example.com/first.png' },
       });
       expect(body).not.toHaveProperty('reference_images');
+      expect(result.warnings).toContainEqual(
+        expect.objectContaining({
+          type: 'unsupported',
+          feature: 'inputReferences',
+        }),
+      );
+    });
+
+    it('should warn and exclude a video inputReference from reference_images', async () => {
+      const model = createModel();
+
+      const result = await model.doGenerate({
+        ...defaultOptions,
+        inputReferences: [
+          { type: 'url', url: 'https://example.com/ref1.jpg' },
+          {
+            type: 'url',
+            url: 'https://example.com/clip.mp4',
+            mediaType: 'video/mp4',
+          },
+        ],
+      });
+
+      const body = await server.calls[0].requestBodyJson;
+      expect(body).toMatchObject({
+        reference_images: [{ url: 'https://example.com/ref1.jpg' }],
+      });
+      expect(body.reference_images).toHaveLength(1);
       expect(result.warnings).toContainEqual(
         expect.objectContaining({
           type: 'unsupported',
@@ -1270,6 +1487,84 @@ describe('XaiVideoModel', () => {
   });
 
   describe('polling behaviour', () => {
+    it.each([
+      {
+        mode: 'generation',
+        providerOptions: {
+          xai: { pollIntervalMs: 10, pollTimeoutMs: 5000 },
+        },
+      },
+      {
+        mode: 'editing',
+        providerOptions: {
+          xai: {
+            mode: 'edit-video' as const,
+            videoUrl: 'https://example.com/input.mp4',
+            pollIntervalMs: 10,
+            pollTimeoutMs: 5000,
+          },
+        },
+      },
+    ])(
+      'should treat an empty HTTP 202 as pending for $mode',
+      async ({ providerOptions }) => {
+        server.urls[`${TEST_BASE_URL}/videos/req-123`].response = ({
+          callNumber,
+        }) =>
+          callNumber === 1
+            ? { type: 'empty', status: 202 }
+            : { type: 'json-value', body: doneStatusResponse };
+
+        const model = createModel();
+        const result = await model.doGenerate({
+          ...defaultOptions,
+          providerOptions,
+        });
+
+        expect(result.videos[0]).toMatchInlineSnapshot(`
+          {
+            "mediaType": "video/mp4",
+            "type": "url",
+            "url": "https://vidgen.x.ai/output/video-001.mp4",
+          }
+        `);
+        expect(server.calls).toHaveLength(3);
+      },
+    );
+
+    it('should time out while repeatedly receiving empty HTTP 202 responses', async () => {
+      server.urls[`${TEST_BASE_URL}/videos/req-123`].response = {
+        type: 'empty',
+        status: 202,
+      };
+      const model = createModel();
+
+      await expect(
+        model.doGenerate({
+          ...defaultOptions,
+          providerOptions: {
+            xai: { pollIntervalMs: 10, pollTimeoutMs: 30 },
+          },
+        }),
+      ).rejects.toThrow('timed out');
+    });
+
+    it('should honor abort after an empty HTTP 202 response', async () => {
+      const abortController = new AbortController();
+      server.urls[`${TEST_BASE_URL}/videos/req-123`].response = () => {
+        queueMicrotask(() => abortController.abort());
+        return { type: 'empty', status: 202 };
+      };
+      const model = createModel();
+
+      await expect(
+        model.doGenerate({
+          ...defaultOptions,
+          abortSignal: abortController.signal,
+        }),
+      ).rejects.toThrow(/aborted/i);
+    });
+
     it('should retry polling on pending before resolving done', async () => {
       // callNumber is global across all URLs in the test.
       // Call 0 = POST /generations. Polls start at callNumber 1.

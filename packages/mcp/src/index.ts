@@ -22,6 +22,10 @@ export {
   type MCPAppResourceCSP,
   type MCPAppResourceMeta,
 } from './tool/mcp-apps';
+export {
+  fingerprintMCPAppResource,
+  detectMCPAppResourceDrift,
+} from './tool/mcp-app-fingerprint';
 export { ElicitationRequestSchema, ElicitResultSchema } from './tool/types';
 export type {
   CallToolResult,

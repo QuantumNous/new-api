@@ -40,7 +40,7 @@ run(async () => {
     },
     prompt: 'What are the tourist attractions in San Francisco?',
 
-    experimental_repairToolCall: async ({ toolCall }) => {
+    repairToolCall: async ({ toolCall }) => {
       return toolCall.toolName === 'attractions'
         ? {
             type: 'tool-call' as const,

@@ -3,7 +3,7 @@ import { openai } from '@ai-sdk/openai';
 import { ToolLoopAgent, type InferAgentUIMessage } from 'ai';
 
 export const sandboxAgent = new ToolLoopAgent({
-  model: openai('gpt-5.5'),
+  model: openai('gpt-5.6'),
 
   tools: {
     shell: sandboxShellTool(),

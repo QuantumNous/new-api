@@ -70,7 +70,7 @@ Please note the code for handling `undefined` values in the JSX.
 ```tsx filename='app/page.tsx'
 'use client';
 
-import { experimental_useObject as useObject } from '@ai-sdk/react';
+import { useObject } from '@ai-sdk/react';
 import { notificationSchema } from './api/use-object/schema';
 
 export default function Page() {
@@ -130,7 +130,7 @@ You can also use the `stop` function to stop the object generation process.
 ```tsx filename='app/page.tsx' highlight="7,16,21,24"
 'use client';
 
-import { experimental_useObject as useObject } from '@ai-sdk/react';
+import { useObject } from '@ai-sdk/react';
 import { notificationSchema } from './api/use-object/schema';
 
 export default function Page() {
@@ -193,7 +193,7 @@ On the client, you wrap the schema in `z.array()` to generate an array of object
 ```tsx filename='app/page.tsx'
 'use client';
 
-import { experimental_useObject as useObject } from '@ai-sdk/react';
+import { useObject } from '@ai-sdk/react';
 import { notificationSchema } from '../api/use-object/schema';
 import z from 'zod';
 
@@ -267,7 +267,7 @@ export async function POST(req: Request) {
 ```tsx filename='app/page.tsx'
 'use client';
 
-import { experimental_useObject as useObject } from '@ai-sdk/react';
+import { useObject } from '@ai-sdk/react';
 import { z } from 'zod';
 
 export default function Page() {

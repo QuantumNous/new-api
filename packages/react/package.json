@@ -1,6 +1,6 @@
 {
   "name": "@ai-sdk/react",
-  "version": "4.0.15",
+  "version": "4.0.34",
   "type": "module",
   "license": "Apache-2.0",
   "sideEffects": false,
@@ -54,7 +54,8 @@
     "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^24.1.3",
     "msw": "2.6.4",
-    "react-dom": "^19.2.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tsup": "^7.2.0",
     "typescript": "5.8.3",
     "zod": "3.25.76"
