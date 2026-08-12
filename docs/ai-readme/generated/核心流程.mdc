@@ -1,0 +1,144 @@
+---
+description: '核心流程 - 启动、认证、渠道分发、协议转发和计费结算调用链；当需要修改关键业务路径或排查请求时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 核心流程
+
+## 服务启动
+
+```mermaid
+flowchart TD
+    Main["main.go"] --> Resources["InitResources"]
+    Resources --> Env["环境与日志"]
+    Resources --> Database["主库与日志库"]
+    Resources --> Authz["权限策略"]
+    Resources --> Cache["Redis 与配置缓存"]
+    Resources --> I18n["后端国际化"]
+    Main --> Jobs["缓存同步与系统任务"]
+    Main --> Gin["Gin Engine"]
+    Gin --> Router["router.SetRouter"]
+    Router --> API["管理 API"]
+    Router --> Relay["模型转发 API"]
+    Router --> Video["视频任务 API"]
+    Router --> Web["嵌入前端或重定向"]
+```
+
+1. `main.go` 先配置 relaykit 日志桥接，再调用 `InitResources`。
+2. `InitResources` 依次加载环境、日志、费率设置、HTTP 客户端、编码器、数据库、Casbin、Option、Redis、监控、i18n 和自定义 OAuth。
+3. 数据库就绪后启动渠道缓存、配置同步、权限同步、看板聚合、凭据刷新、订阅重置、实例心跳与数据库租约系统任务。
+4. Gin 全局注册恢复、请求 ID、版本、i18n 和访问日志，再由 `router.SetRouter` 挂载全部路由。
+5. 收到退出信号后使用可配置超时优雅关闭 HTTP 服务，并在需要时持久化内存中的配额看板数据。
+
+## 认证与管理请求
+
+```mermaid
+sequenceDiagram
+    participant Browser as 浏览器
+    participant Router as API Router
+    participant Auth as Auth Middleware
+    participant Controller as Controller
+    participant Service as Service
+    participant Model as Model
+    Browser->>Router: /api 请求
+    Router->>Auth: UserAuth 或 AdminAuth
+    Auth->>Model: 校验会话 访问令牌 权限版本
+    Model-->>Auth: 用户与角色上下文
+    Auth-->>Controller: 写入 Gin Context
+    Controller->>Service: 执行业务逻辑
+    Service->>Model: 查询或事务更新
+    Model-->>Service: 数据结果
+    Service-->>Controller: 业务结果或错误
+    Controller-->>Browser: 统一 JSON 响应
+```
+
+- 匿名入口使用请求体限制、关键操作限流和 Turnstile 等中间件。
+- 登录成功后，服务端会话与访问令牌共同构成前端认证包；敏感 Cookie 请求还经过 Origin 防护。
+- 管理接口使用 `AdminAuth` 或授权目录中的细粒度权限；前端菜单权限不能替代后端校验。
+- 用户认证版本和会话缓存用于多实例失效传播，注销、密码变更和管理员操作会触发相应失效。
+
+## 同步模型转发
+
+```mermaid
+sequenceDiagram
+    participant Client as API 客户端
+    participant Middleware as TokenAuth 与 Distribute
+    participant Relay as controller.Relay
+    participant Adaptor as Channel Adaptor
+    participant Billing as BillingSession
+    participant Upstream as 上游供应商
+    participant Log as 消费日志
+    Client->>Middleware: 兼容协议请求
+    Middleware->>Middleware: 鉴权 限流 模型解析 渠道选择
+    Middleware-->>Relay: 渠道 用户 Token 模型上下文
+    Relay->>Adaptor: 解析并验证请求
+    Adaptor-->>Relay: RelayInfo 与价格参数
+    Relay->>Billing: PreConsumeBilling
+    Billing-->>Relay: 钱包或订阅预扣结果
+    Relay->>Upstream: 转换后的上游请求
+    Upstream-->>Adaptor: 普通响应或流
+    Adaptor-->>Client: 转换为客户端协议
+    Relay->>Billing: SettleBilling
+    Billing->>Log: 实际用量 差额 饱和审计
+```
+
+1. `router/relay-router.go` 根据入口选择 `RelayFormat`，并统一经过性能检查、Token 鉴权、模型限流与 `middleware.Distribute`。
+2. 分发中间件解析模型、用户组、自动组、渠道亲和与重试条件，将选中的渠道信息写入 Gin Context。
+3. `controller.Relay` 创建 `relay/common.RelayInfo`，获取 adaptor，解析和验证请求，计算输入 Token 与预扣价格。
+4. `service.PreConsumeBilling` 根据用户偏好选择订阅或钱包资金源；存在配额饱和标记或负数时必须在扣费前失败。
+5. adaptor 构造上游请求并转换普通或流式响应；错误分类决定是否重试其他渠道。
+6. 最终用量通过 `service.SettleBilling` 或兼容结算路径计算差额，更新用户、Token、订阅和渠道统计并写消费日志。
+
+## 异步任务
+
+```mermaid
+flowchart LR
+    Submit["任务提交"] --> Validate["适配器校验与计费估算"]
+    Validate --> PreConsume["强制全额预扣"]
+    PreConsume --> Upstream["上游创建任务"]
+    Upstream --> Persist["保存 Task 与私有计费数据"]
+    Persist --> Poll["系统任务轮询"]
+    Poll --> Final["完成 失败或取消"]
+    Final --> Reconcile["实际配额重算与差额结算"]
+    Reconcile --> Audit["任务日志与饱和审计"]
+```
+
+- Midjourney、Suno 和视频任务通过任务 adaptor 处理提交与查询。
+- adaptor 的 `EstimateBilling` 可从标准 DTO、metadata 或额外参数读取时长、分辨率等倍率；这些路径必须执行同等上界校验。
+- 异步任务设置 `ForcePreConsume`，禁止信任额度旁路；任务创建成功后保存资金来源和预扣数据供后续幂等结算。
+- 数据库租约系统任务负责轮询；完成、失败或取消后以真实扣费结果重算，并防止重复结算。
+
+## 前端认证与数据流
+
+```mermaid
+flowchart TD
+    Bootstrap["main.tsx 启动"] --> Query["QueryClient"]
+    Bootstrap --> AuthStore["Zustand Auth Store"]
+    AuthStore --> Session["auth-session bootstrap 与 refresh"]
+    Session --> Http["统一 Axios 实例"]
+    Http --> API["后端 API"]
+    API --> Query
+    Query --> Feature["Feature Hooks 与页面"]
+    Feature --> Router["TanStack Router"]
+    AuthStore --> Guard["authenticated route guard"]
+    Guard --> Router
+```
+
+- `web/src/main.tsx` 创建 QueryClient、Router 和主题、i18n、Tooltip、Toaster 等全局 Provider。
+- `web/src/lib/auth-session.ts` 负责启动恢复、令牌刷新、跨标签页同步和认证失败清理。
+- `web/src/lib/http-client.ts` 统一注入访问令牌、会话标识、凭据与错误处理。
+- 服务端数据优先由 React Query 管理；认证、系统外观和通知偏好由 Zustand 管理。
+- `_authenticated/route.tsx` 与根路由订阅认证状态，用户切换或注销时清理对应查询缓存。
+
+## 修改检查点
+
+| 修改范围 | 必须联动检查 |
+| --- | --- |
+| 新 relay 协议或入口 | 路由、RelayFormat、请求验证、adaptor、流式支持、错误重试、测试 |
+| 新渠道 | 渠道类型、分发条件、模型映射、请求与响应转换、计费估算、渠道测试 |
+| 计费 | 输入上界、PriceData、Checked 配额转换、预扣、结算、退款、日志审计 |
+| 认证 | 会话、访问令牌、Origin、认证版本、多标签同步、前端缓存清理 |
+| 异步任务 | 提交校验、强制预扣、任务持久化、租约轮询、幂等结算 |
+| 前端数据获取 | queryKey、失效策略、统一 API 实例、加载错误空状态和权限路由 |

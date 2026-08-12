@@ -1,0 +1,145 @@
+---
+description: '组件接口 - 前端功能模块、共享组件、Provider 和组合约定；当需要新增页面或复用 UI 能力时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 组件接口
+
+## 前端组成
+
+```mermaid
+flowchart TB
+    Route["web src routes"] --> Feature["web src features"]
+    Feature --> Shared["web src components"]
+    Feature --> Hook["Feature hooks 与 lib"]
+    Shared --> UI["Base UI 与通用 UI primitives"]
+    Feature --> Query["React Query 与统一 API"]
+    Route --> Layout["Authenticated Layout"]
+    Layout --> Nav["Sidebar Header Main"]
+```
+
+- 路由文件负责路径、搜索参数、权限守卫和挂载 Feature，不承载大段业务 UI。
+- `features/<feature>/` 按领域组织页面、组件、hooks、schema、类型和 API。
+- `components/` 只放跨 Feature 复用的 UI 与布局能力。
+- 用户文案在组件内通过 `useTranslation()` 调用 `t()`；非 React 工具只有在不要求语言切换重渲染时才直接使用 i18next。
+
+## 功能模块
+
+| Feature | 入口职责 | 主要组件或能力 |
+| --- | --- | --- |
+| `about` | 关于与项目信息 | About 页面内容 |
+| `auth` | 登录、注册、OAuth、Telegram、2FA、Passkey 和重置密码 | 表单、OAuth callback、认证 API 与跳转 helper |
+| `channels` | 渠道列表、创建编辑、测试、批量操作和上游模型同步 | Channel table、mutate drawer、连接与模型映射校验 |
+| `chat` | 内置聊天体验 | 会话布局、消息渲染和预设 |
+| `dashboard` | 额度、流量、用户和模型统计 | 筛选、图表、Sankey、状态与公告 hooks |
+| `errors` | 401、403、404、500、503 页面 | 路由级错误展示 |
+| `home` | 公开首页内容 | 状态、公告与导航模块 |
+| `keys` | API Key 列表、自动组和密钥管理 | Table、mutate drawer、group combobox、批量操作 |
+| `legal` | 用户协议与隐私政策 | HTML 内容展示 |
+| `models` | 模型、供应商、部署和同步配置 | Model table、form schema、deployment settings |
+| `performance-metrics` | 前后端性能指标 | 统计卡、趋势与明细 |
+| `playground` | API 调试与流式请求 | 参数编辑、流响应 hook 和结果展示 |
+| `pricing` | 模型价格、筛选、动态计费表达式展示 | Pricing table、filter、billing expression parser |
+| `profile` | 用户资料、安全和登录会话 | 账户表单、Passkey、2FA、session 管理 |
+| `rankings` | 用量排行榜 | 时间范围和排行展示 |
+| `redemption-codes` | 兑换码管理 | Provider、table、drawer、delete dialog |
+| `setup` | 首次安装向导 | 管理员与系统初始化表单 |
+| `subscriptions` | 套餐与用户订阅管理 | Provider、table、mutate drawer、格式化 helper |
+| `system-info` | 节点、版本和运行信息 | 实例状态与系统详情 |
+| `system-settings` | 站点、认证、计费、模型、运营、安全和内容设置 | 分区表单、校验和 Option 更新 |
+| `usage-logs` | 消费日志、详情和费用拆解 | Table、筛选、音频预览、费用与工具附加费 |
+| `users` | 用户管理 | Provider、table、mutate drawer、delete dialog |
+| `wallet` | 余额、充值和支付 | 支付方式、金额计算和支付 hook |
+
+## 共享组件族
+
+| 目录或组件 | 对外职责 | 使用约定 |
+| --- | --- | --- |
+| `components/ui/` | Button、Dialog、Drawer、Menu、Input、Select、Tabs、Tooltip 等基础组件 | 优先组合已有 primitive，不在 Feature 复制基础控件 |
+| `components/layout/` | 认证后框架、侧栏、页头、导航、面包屑和聊天预设 | 由布局路由使用，Feature 只提供页面内容 |
+| `components/data-table/` | 泛型表格、移动卡片、工具栏、筛选、批量动作、空状态和骨架 | 通过 typed column、toolbar 配置与 render callback 组合 |
+| `components/ai-elements/` | AI 消息、推理、工具栏、网页预览和相关交互元素 | 聊天或 Playground 使用，保持流式状态可访问 |
+| `components/json-code-editor/` | JSON 编辑、格式化和校验 | 用于设置与高级参数，错误通过明确状态返回 |
+| `components/model-group-selector/` | 模型与分组选择 | 保持固定布局和溢出行为，修改需布局回归测试 |
+| `components/html-content.tsx` | 受控 HTML 内容渲染 | 使用 DOMPurify，不绕过安全清理 |
+| 全局反馈组件 | Toaster、loading bar、error component | 使用统一入口，不在页面创建第二套通知系统 |
+
+## DataTable 组合接口
+
+```mermaid
+flowchart LR
+    Feature["Feature Table"] --> Columns["ColumnDef"]
+    Feature --> Page["DataTablePage"]
+    Page --> Desktop["Desktop Table"]
+    Page --> Mobile["MobileCardList 或 CardGrid"]
+    Page --> Toolbar["DataTableToolbar"]
+    Toolbar --> Filter["Faceted Filter"]
+    Toolbar --> View["View Options 与 View Mode"]
+    Toolbar --> Bulk["Bulk Actions"]
+    Page --> Empty["TableEmpty"]
+    Page --> Skeleton["TableSkeleton"]
+```
+
+- `DataTablePage<TData>` 是完整列表页容器，接收表格实例、列定义、移动端渲染和工具栏配置。
+- `DataTableToolbar<TData>` 组合搜索、分面筛选、视图切换和批量动作。
+- `MobileCardList<TData>`、`DataTableCardGrid<TData>` 和 `CardRowContent<TData>` 提供响应式替代表现。
+- Feature 层决定业务列、权限和 mutation；共享表格层不导入具体业务类型。
+
+## Feature Provider 模式
+
+Users、Redemptions、Subscriptions 等模块使用 Provider 保存列表页局部协调状态。
+
+```mermaid
+flowchart TD
+    Page["Feature Page"] --> Provider["Feature Provider"]
+    Provider --> Table["Table"]
+    Provider --> Primary["Primary Buttons"]
+    Provider --> Dialogs["Drawers 与 Dialogs"]
+    Table --> Context["选择项与当前行"]
+    Primary --> Context
+    Dialogs --> Mutation["React Query Mutation"]
+    Mutation --> Invalidate["失效列表与统计查询"]
+```
+
+Provider 只管理抽屉类型、当前行、选择与确认流程；服务端列表数据仍由 React Query 管理。自定义 `useFeature` hook 在 Provider 外使用时应快速报错。
+
+## 表单与 Drawer 接口
+
+- 表单 schema 使用 Zod，类型通过 `z.infer` 生成；React Hook Form 负责字段状态与提交。
+- 创建和编辑共用 mutate drawer 时，以显式 mode 或当前实体区分，打开时重置 default values。
+- 服务端错误映射到字段或统一 toast，提交期间禁用重复操作。
+- 危险操作使用确认 Dialog，并显示目标对象；密钥、支付和权限操作按后端要求触发安全验证。
+- Props 使用明确类型；非必要不解构 props，避免不稳定的中间对象。
+
+## 路由到 Feature 映射
+
+| 路由区域 | Feature |
+| --- | --- |
+| `/(auth)/*`、`/oauth/$provider` | `auth` |
+| `/_authenticated/dashboard/*` | `dashboard` |
+| `/_authenticated/channels` | `channels` |
+| `/_authenticated/keys` | `keys` |
+| `/_authenticated/models/*` | `models` |
+| `/_authenticated/users` | `users` |
+| `/_authenticated/usage-logs/*` | `usage-logs` |
+| `/_authenticated/redemption-codes` | `redemption-codes` |
+| `/_authenticated/subscriptions` | `subscriptions` |
+| `/_authenticated/wallet` | `wallet` |
+| `/_authenticated/profile` | `profile` |
+| `/_authenticated/system-settings/*` | `system-settings` |
+| `/_authenticated/system-info` | `system-info` |
+| `/_authenticated/playground` | `playground` |
+| `/_authenticated/chat/*`、`chat2link` | `chat` |
+| `/pricing/*`、`/rankings`、`/about` | `pricing`、`rankings`、`about` |
+| `/setup` | `setup` |
+
+## 组件修改检查点
+
+1. 先寻找 `components/ui`、`data-table` 和同 Feature 的现有组合模式。
+2. 面向用户的文本使用 `t()`，新增键同步七种前端语言。
+3. 控件具备可访问名称、键盘操作、焦点恢复和正确 ARIA 状态。
+4. 布局、滚动、选择、禁用、加载、空和错误状态变化补充行为回归测试。
+5. 服务端数据使用 React Query；临时表单和对话框状态不提升到全局 store。
+6. 修改 TS 或 TSX 后运行相关 `bun test`、`bun run typecheck` 和涉及文件 lint。

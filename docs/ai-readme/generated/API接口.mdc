@@ -1,0 +1,134 @@
+---
+description: 'API接口 - 管理 API、兼容协议、异步任务和鉴权边界；当需要新增路由、控制器或客户端调用时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# API 接口
+
+## 路由总览
+
+```mermaid
+flowchart LR
+    Client["客户端"] --> API["/api 管理接口"]
+    Client --> Relay["/v1 与 /v1beta 兼容接口"]
+    Client --> Task["/mj /suno /kling /jimeng 任务接口"]
+    Client --> Dashboard["Dashboard Billing 兼容接口"]
+    Browser["浏览器"] --> Web["SPA 静态资源与回退"]
+    API --> Controller["controller"]
+    Relay --> RelayController["controller.Relay"]
+    Task --> TaskController["RelayTask 与 RelayTaskFetch"]
+```
+
+`router.SetRouter` 注册管理 API、Dashboard 兼容接口、模型转发、视频任务和 Web 路由。管理 API 主要使用用户会话或访问令牌；模型转发使用项目 Token。
+
+## 管理 API 路由族
+
+| 前缀 | 主要能力 | 典型权限 | 注册位置 |
+| --- | --- | --- | --- |
+| `/api/setup`、`/api/status`、`/api/notice`、`/api/about`、`/api/home_page_content` | 初始化、公开站点状态与内容 | 公开或按接口限制 | `router/api-router.go` |
+| `/api/pricing`、`/api/rankings`、`/api/perf-metrics` | 定价、排行和公开性能统计 | 导航模块权限或公开 | `router/api-router.go` |
+| `/api/oauth/*`、`/api/verification`、`/api/reset_password`、`/api/verify` | OAuth、邮箱验证、重置和敏感操作验证 | 匿名限流、可选用户或用户认证 | `router/api-router.go` |
+| `/api/user/*` | 注册、登录、刷新、2FA、Passkey、会话、个人资料、充值、签到、绑定和管理员用户管理 | 匿名、UserAuth、AdminAuth 分组 | `router/api-router.go` |
+| `/api/subscription/*` | 套餐展示、自助购买、支付回调、管理员套餐与用户订阅管理 | UserAuth 或 AdminAuth | `router/api-router.go` |
+| `/api/option/*` | 系统 Option、支付合规、渠道亲和缓存和费率工具 | RootAuth | `router/api-router.go` |
+| `/api/custom-oauth-provider/*` | 自定义 OAuth 发现与 CRUD | RootAuth | `router/api-router.go` |
+| `/api/performance/*` | 运行统计、磁盘缓存、GC 和日志文件维护 | RootAuth | `router/api-router.go` |
+| `/api/ratio_sync/*` | 可同步渠道和上游费率抓取 | RootAuth | `router/api-router.go` |
+| `/api/token/*`、`/api/usage/token/*` | API Key CRUD、批量密钥、自动组和 Token 用量 | UserAuth | `router/api-router.go` |
+| `/api/redemption/*` | 兑换码查询、创建、更新、批量和删除 | AdminAuth | `router/api-router.go` |
+| `/api/log/*` | 管理员与用户消费日志、统计和日志详情 | AdminAuth 或 UserAuth | `router/api-router.go` |
+| `/api/channel/*` | 渠道 CRUD、测试、批量操作、密钥查看和上游模型 | AdminAuth，密钥查看附加敏感验证 | `router/api-router.go`、`channel-router.go` |
+| `/api/authz/catalog` | 权限目录 | AdminAuth | `router/authz-router.go` |
+| `/api/system-task/*` | 系统任务列表、运行历史和手动触发 | RootAuth | `router/api-router.go` |
+| `/api/system-info/*` | 多实例和系统信息 | RootAuth | `router/api-router.go` |
+| `/api/data/*` | 看板、统计和使用数据 | UserAuth 或 AdminAuth | `router/api-router.go` |
+| `/api/group/*`、`/api/prefill_group/*` | 分组信息、倍率与预填组管理 | UserAuth 或 AdminAuth | `router/api-router.go` |
+| `/api/mj/*`、`/api/task/*` | 管理控制台中的异步任务查询 | UserAuth 或 AdminAuth | `router/api-router.go` |
+| `/api/vendors/*`、`/api/models/*`、`/api/deployments/*` | 供应商、模型元数据与部署管理 | UserAuth 读取，AdminAuth 写入 | `router/api-router.go` |
+
+支付 webhook 包括 Stripe、Creem、Waffo、Waffo Pancake 和 Epay 相关入口。每个回调自行校验签名、幂等标识与订单状态，不能仅依赖路由层匿名请求体限制。
+
+## 兼容模型接口
+
+| 方法与路径 | 协议格式 | 处理器 |
+| --- | --- | --- |
+| `GET /v1/models`、`GET /v1/models/:model` | OpenAI、Anthropic 或 Gemini 模型列表识别 | `controller.ListModels`、`RetrieveModel` |
+| `GET /v1beta/models` | Gemini 模型列表 | `controller.ListModels` |
+| `GET /v1beta/openai/models` | Gemini OpenAI 兼容模型列表 | `controller.ListModels` |
+| `GET /v1/realtime` | OpenAI Realtime WebSocket | `controller.Relay` |
+| `POST /v1/messages` | Claude Messages | `controller.Relay` |
+| `POST /v1/completions` | OpenAI Completions | `controller.Relay` |
+| `POST /v1/chat/completions` | OpenAI Chat Completions | `controller.Relay` |
+| `POST /v1/responses` | OpenAI Responses | `controller.Relay` |
+| `POST /v1/responses/compact` | Responses Compaction | `controller.Relay` |
+| `POST /v1/alpha/search` | Codex Alpha Search | `controller.Relay` |
+| `POST /v1/edits` | OpenAI Edits 兼容 | `controller.Relay` |
+| `POST /v1/images/generations`、`POST /v1/images/edits` | OpenAI Images | `controller.Relay` |
+| `POST /v1/embeddings` | Embeddings | `controller.Relay` |
+| `POST /v1/audio/transcriptions`、`/translations`、`/speech` | OpenAI Audio | `controller.Relay` |
+| `POST /v1/rerank` | Rerank | `controller.Relay` |
+| `POST /v1/engines/:model/embeddings` | Gemini 兼容嵌入 | `controller.Relay` |
+| `POST /v1/models/*path` | Gemini 风格路径兼容 | `controller.Relay` |
+| `POST /v1/moderations` | OpenAI Moderations | `controller.Relay` |
+| `POST /v1beta/models/*path` | Gemini 原生生成与流式调用 | `controller.Relay` |
+| `POST /pg/chat/completions` | 登录用户 Playground | `controller.Playground` |
+
+`/v1/images/variations`、Files、Fine-tunes 和删除模型相关兼容路径已注册但返回未实现，新增实现前要确认协议语义和计费方式。
+
+## 异步任务接口
+
+| 路径族 | 主要端点 | 处理器 |
+| --- | --- | --- |
+| `/mj`、`/:mode/mj` | submit action、shorten、modal、imagine、change、simple-change、describe、blend、edits、video；task fetch、image seed、list、swap、upload | `controller.RelayMidjourney` |
+| `/suno` | `POST /submit/:action`、`POST /fetch`、`GET /fetch/:id` | `RelayTask`、`RelayTaskFetch` |
+| `/v1/video` | `POST /video/generations`、`GET /video/generations/:task_id` | `RelayTask`、`RelayTaskFetch` |
+| `/v1/videos` | 创建视频、查询视频、remix、内容代理 | `RelayTask`、`RelayTaskFetch`、`VideoProxy` |
+| `/kling/v1` | text2video、image2video 和对应任务查询 | `RelayTask`、`RelayTaskFetch` |
+| Jimeng 官方路径 | 创建任务 | `RelayTask` |
+
+所有异步提交都必须完成参数上界校验、渠道分发、强制预扣和任务持久化；查询接口不得泄露其他用户任务或私有计费数据。
+
+## Dashboard 兼容接口
+
+- `GET /dashboard/billing/subscription`
+- `GET /v1/dashboard/billing/subscription`
+- `GET /dashboard/billing/usage`
+- `GET /v1/dashboard/billing/usage`
+
+这些接口使用 Token 鉴权，为 OpenAI 风格客户端提供订阅到期和用量窗口信息。
+
+## 中间件顺序
+
+```mermaid
+flowchart LR
+    Request["请求"] --> Global["RequestId Version I18n Logger"]
+    Global --> Route["CORS Decompress Stats RouteTag"]
+    Route --> Auth["Session 或 Token Auth"]
+    Auth --> Limit["Critical Search Model Rate Limit"]
+    Limit --> Performance["SystemPerformanceCheck"]
+    Performance --> Distribute["渠道分发"]
+    Distribute --> Handler["Controller 或 Relay"]
+```
+
+- 路由新增时复用现有中间件组合，尤其注意匿名请求体上限、禁用缓存、Origin 防护和敏感操作二次验证。
+- 模型转发必须在 `Distribute` 之后读取渠道上下文；模型列表接口只需 TokenAuth，不执行上游渠道调用。
+- 错误响应使用项目现有响应结构或 `types.NewAPIError`，不要在同一路由族引入不兼容格式。
+
+## DTO 与协议规则
+
+1. 客户端 JSON 解析后再发往上游的可选标量使用指针加 `omitempty`，保留显式 `0`、`0.0` 和 `false`。
+2. JSON 编解码调用根模块 `common` 包装器；relaykit 内保持独立，使用自身允许的实现。
+3. `max_tokens`、图片数量、视频时长、分辨率倍率和批量数量在 validator 或 adaptor 绕行入口处设置上界。
+4. multipart、metadata 和 `Extra` 参数与标准 DTO 承担相同的安全校验责任。
+5. 新渠道若支持 `StreamOptions`，同步加入 `streamSupportedChannels`。
+
+## 新增接口清单
+
+- 路由层：HTTP 方法、路径、RouteTag、中间件顺序和权限。
+- 控制器层：绑定、验证、错误映射、审计信息和响应格式。
+- 服务层：事务、幂等、计费、缓存失效和多实例一致性。
+- 模型层：三数据库兼容、迁移、锁与测试。
+- 前端：统一 Axios、React Query、i18n、权限导航和错误状态。
+- 测试：鉴权边界、成功合同、失败合同、显式零值和计费输入上界。

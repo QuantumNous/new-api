@@ -1,0 +1,86 @@
+---
+description: '项目结构 - 目录树、模块职责与依赖关系；当需要定位代码或评估修改范围时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 项目结构
+
+## 顶层目录
+
+```text
+new-api/                         # 项目根目录与 Go 主模块
+├── main.go                      # 进程启动、资源初始化和 HTTP 服务入口
+├── router/                      # API、模型转发、任务和静态站点路由
+├── controller/                  # Gin 请求处理、参数校验和响应组装
+├── service/                     # 计费、认证、任务、渠道及基础业务服务
+├── model/                       # GORM 模型、数据库迁移、查询和缓存
+├── relay/                       # 请求转发、协议处理和供应商适配器
+│   ├── channel/                 # 上游供应商的适配器实现
+│   ├── common/                  # 转发上下文、计费与公共转换逻辑
+│   ├── helper/                  # 请求验证、价格与模型映射辅助逻辑
+│   └── constant/                # 转发模式相关常量
+├── relaykit/                    # 可独立构建的协议转换 Go 模块
+├── middleware/                  # 认证、分发、限流、日志和请求治理
+├── setting/                     # 系统、模型、费率和运行配置
+├── common/                      # JSON、Redis、环境、配额数学等公共设施
+├── dto/                         # 控制器和转发请求的数据结构
+├── constant/                    # 渠道、API 类型和上下文常量
+├── types/                       # 跨模块共享的业务类型
+├── oauth/                       # OAuth 提供商和自定义登录实现
+├── i18n/                        # Go 后端的英文与中文国际化
+├── pkg/                         # billingexpr、cachex、ionet 等内部包
+├── web/                         # React 管理控制台
+│   ├── src/routes/              # TanStack Router 文件路由
+│   ├── src/features/            # 按业务功能组织的页面和逻辑
+│   ├── src/components/          # 通用与 UI 组件
+│   ├── src/stores/              # Zustand 客户端状态
+│   ├── src/lib/                 # API、认证、缓存和通用工具
+│   └── src/i18n/                # 七种前端语言资源
+├── electron/                    # 桌面封装相关代码
+├── docs/                        # 项目文档与 AI README
+└── .github/                     # CI、Issue 与 PR 配置
+```
+
+## 模块职责
+
+| 模块 | 主要职责 | 常见修改入口 |
+| --- | --- | --- |
+| `router/` | 注册 URL、HTTP 方法、中间件和处理器 | `router/main.go`、`router/api-router.go`、`router/relay-router.go` |
+| `controller/` | 接收请求、调用业务逻辑并输出响应 | 与资源同名的控制器文件 |
+| `service/` | 可复用业务逻辑、计费结算和后台任务 | `service/*` |
+| `model/` | 数据模型、事务、迁移、持久化和缓存 | `model/main.go` 与实体文件 |
+| `relay/` | 统一转发流程和供应商协议适配 | `relay/relay_adaptor.go`、`relay/channel/*` |
+| `relaykit/` | 独立协议类型与转换能力 | `relaykit/relayconvert/*`、`relaykit/types/*` |
+| `middleware/` | 横切请求策略和渠道分配 | `middleware/auth.go`、`middleware/distributor.go` |
+| `setting/` | 动态配置定义、加载和缓存 | `setting/*_setting/` |
+| `web/src/features/` | 控制台业务页面和领域组件 | 对应功能目录 |
+| `web/src/lib/` | 前端跨功能基础设施 | `web/src/lib/api.ts`、认证与缓存模块 |
+
+## 依赖关系
+
+```mermaid
+flowchart TD
+    Main["main.go"] --> Router["router"]
+    Router --> Middleware["middleware"]
+    Router --> Controller["controller"]
+    Controller --> Service["service"]
+    Controller --> Model["model"]
+    Controller --> Relay["relay"]
+    Service --> Model
+    Relay --> RelayCommon["relay common"]
+    Relay --> Channel["relay channel"]
+    Relay --> Relaykit["relaykit 独立模块"]
+    Middleware --> Model
+    Middleware --> Setting["setting"]
+    Web["web React"] --> Router
+```
+
+## 入口与边界
+
+- 后端进程入口是 `main.go`；路由汇总入口是 `router/main.go`。
+- 前端入口是 `web/src/main.tsx`，路由根节点是 `web/src/routes/__root.tsx`。
+- `relaykit/` 具有独立 `go.mod`，不得反向依赖根模块。
+- 后端调用顺序以 Router 到 Controller 到 Service 到 Model 为主；部分简单 CRUD 控制器会直接调用 Model。
+- 静态前端产物 `web/dist` 被嵌入 Go 二进制，并由 `router/web-router.go` 提供 SPA 回退。

@@ -1,0 +1,135 @@
+---
+description: '状态管理 - 前端 Zustand、React Query、路由和浏览器持久化边界；当需要新增客户端状态或调整数据同步时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 状态管理
+
+## 状态分层
+
+```mermaid
+flowchart TB
+    Server["后端 API 真值"] --> Query["TanStack React Query"]
+    Query --> Feature["Feature hooks 与页面"]
+    Auth["Zustand Auth Store"] --> Feature
+    Config["Zustand System Config Store"] --> Feature
+    Notify["Zustand Notification Store"] --> Feature
+    Router["TanStack Router 状态"] --> Feature
+    Storage["localStorage Cookie"] --> Auth
+    Storage --> Config
+    Storage --> Notify
+    Storage --> Feature
+```
+
+| 状态类型 | 所有者 | 适用内容 |
+| --- | --- | --- |
+| 服务端异步状态 | React Query | 用户、渠道、模型、Token、日志、订阅、配置和统计等 API 数据 |
+| 认证会话状态 | `useAuthStore` | 用户、访问令牌、会话 SID、2FA 流程和启动状态 |
+| 全局系统外观 | `useSystemConfigStore` | 系统名称、Logo、页脚、主题相关服务端配置 |
+| 通知偏好 | `useNotificationStore` | 通知开关与浏览器持久化偏好 |
+| URL 与页面状态 | TanStack Router | 路径、搜索参数、重定向和认证布局 |
+| 局部交互状态 | 组件或 Feature Provider | 抽屉、对话框、选择项、表单和表格视图 |
+| 浏览器持久化 | localStorage 或 Cookie | 明确需要跨刷新保留的偏好、筛选和会话辅助信息 |
+
+## 认证 Store
+
+`web/src/stores/auth-store.ts` 暴露 `useAuthStore`，核心结构为 `auth` slice：
+
+| 字段或动作 | 作用 |
+| --- | --- |
+| `user` | 当前用户资料，未认证时为 `null` |
+| `accessToken` | 短期访问令牌，只由认证流程更新 |
+| `session` | 服务端会话信息和 SID |
+| `bootstrapState` | `idle`、处理中或完成等启动恢复状态 |
+| `pending2FAFlowToken` | 登录二次验证期间的短期流程令牌 |
+| `setBundle` | 原子替换用户、令牌和会话认证包 |
+| `reset` | 注销或认证失效时清空敏感状态 |
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Bootstrapping: 应用启动
+    Bootstrapping --> Authenticated: 恢复或刷新成功
+    Bootstrapping --> Anonymous: 无有效会话
+    Authenticated --> Refreshing: 令牌需要刷新
+    Refreshing --> Authenticated: 刷新成功
+    Refreshing --> Anonymous: 刷新失败
+    Authenticated --> Anonymous: 注销或会话撤销
+    Anonymous --> Authenticated: 登录完成
+```
+
+- `web/src/lib/auth-session.ts` 是认证生命周期协调器，负责 bootstrap、refresh、logout、跨标签页同步与 QueryClient 清理。
+- `web/src/lib/http-client.ts` 从 store 读取令牌和 SID，并处理并发刷新及认证错误。
+- `web/src/routes/__root.tsx` 订阅认证包变化；用户或 SID 切换时清除旧身份关联的查询缓存。
+- 组件使用选择器订阅所需字段，避免订阅整个 store。
+
+## 系统配置与通知
+
+- `useSystemConfigStore` 使用 Zustand `persist` 保存展示配置，并提供 `getSystemName`、`getLogo`、`getFooterHtml` 等非 React 读取入口。
+- 服务端 `/api/status` 等结果由 hooks 拉取后写入系统配置；该 store 是展示快照，不替代后端 Option 真值。
+- `useNotificationStore` 持久化通知偏好，动作集中在 store 内，不由组件直接拼接 localStorage key。
+- 主题还通过 `next-themes` 和 CSS 变量管理；主题选择与服务端站点配置应保持职责分离。
+
+## React Query
+
+`web/src/main.tsx` 创建单例 QueryClient，并配置全局 query 与 mutation 错误处理。
+
+```mermaid
+sequenceDiagram
+    participant View as 页面组件
+    participant Hook as Feature Query Hook
+    participant Client as 统一 Axios Client
+    participant API as 后端 API
+    participant Cache as Query Cache
+    View->>Hook: 渲染并订阅 queryKey
+    Hook->>Client: 发起请求
+    Client->>API: 携带认证与凭据
+    API-->>Client: 数据或错误
+    Client-->>Cache: 标准化结果
+    Cache-->>View: data loading error
+    View->>Hook: mutation
+    Hook->>API: 创建 更新 删除
+    API-->>Hook: 成功
+    Hook->>Cache: invalidateQueries 或更新缓存
+```
+
+规则：
+
+1. 服务端资源不复制进 Zustand，除非它是应用启动所需的全局快照并有明确同步入口。
+2. queryKey 使用稳定数组并体现资源和参数层级；切换用户后不得复用旧用户私有数据。
+3. mutation 成功后失效直接相关查询，必要时进行可回滚的乐观更新。
+4. GET 去重、认证刷新和通用错误由统一 HTTP 客户端处理，Feature 不重复实现拦截器。
+5. 页面必须处理加载、空、错误和重新获取状态。
+
+## 路由与局部状态
+
+- `web/src/routes/` 使用文件路由；`_authenticated` 布局承担认证守卫和主应用框架。
+- 可分享、可回退或影响数据查询的筛选优先放 URL 搜索参数，并用 Zod 校验。
+- 表格选择、抽屉和批量操作状态由 Feature Provider 管理，例如 Users、Redemptions、Subscriptions 等 Provider。
+- 表单状态由 React Hook Form 管理，Zod schema 放在 Feature 的 `lib/` 中；不要把临时输入写入全局 store。
+- Dashboard 等页面的图表偏好可通过专用 helper 持久化，但需提供缺省值和旧数据兼容。
+
+## 新增状态决策
+
+```mermaid
+flowchart TD
+    New["新增状态"] --> Remote{"是否来自后端"}
+    Remote -->|是| Query["React Query"]
+    Remote -->|否| Share{"是否跨页面共享"}
+    Share -->|否| Local["组件或 Feature Provider"]
+    Share -->|是| URL{"是否应分享或回退"}
+    URL -->|是| Router["Router Search Params"]
+    URL -->|否| Persist{"是否跨刷新保留"}
+    Persist -->|否| Zustand["Zustand Store"]
+    Persist -->|是| Persisted["Zustand persist 或专用存储 helper"]
+```
+
+## 修改检查点
+
+- 认证状态变更同时检查令牌刷新、跨标签同步、路由重定向、查询缓存和敏感信息清理。
+- 持久化结构变更提供缺省值或迁移，避免旧 localStorage 导致启动失败。
+- Store 动作保持原子，避免组件按顺序执行多个 set 形成中间不一致状态。
+- Query 参数变更同步更新 queryKey；mutation 后检查列表、详情、统计和权限视图的失效范围。
+- 新全局状态需要证明跨页面共享价值，否则保留在 Feature 或组件内。

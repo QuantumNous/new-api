@@ -1,0 +1,58 @@
+---
+description: '团队标准 - Git规范、质量门禁和Review约定；当需要了解团队开发规范时使用'
+alwaysApply: false
+---
+
+# 团队标准
+
+## Git 规范
+
+```mermaid
+gitGraph
+    commit
+    branch feature
+    checkout feature
+    commit
+    checkout main
+    merge feature
+```
+
+### 分支策略
+
+| 分支类型 | 命名规则 | 用途 |
+| --- | --- | --- |
+| 主分支 | <!-- TODO --> | 发布与长期维护 |
+| 功能分支 | <!-- TODO --> | 功能开发 |
+| 修复分支 | <!-- TODO --> | 缺陷修复 |
+
+### Commit 规范
+
+<!-- TODO: 填写提交消息格式、语言、scope 和是否要求签名 -->
+
+## 质量门禁
+
+| 检查项 | 最低要求 | 命令或工具 |
+| --- | --- | --- |
+| Go 测试 | 受影响包通过，必要时 `make test` | `go test`、testify |
+| relaykit | 独立构建和测试 | `GOWORK=off go build ./...`、`go test ./...` |
+| 前端类型 | 无类型错误 | `bun run typecheck` |
+| 前端测试 | 受影响测试通过 | `bun test` |
+| 前端 lint | 涉及文件无 error | `bun run lint` |
+| 格式 | 项目格式检查通过 | `bun run format:check` |
+
+<!-- TODO: 确认合并前是否要求全量构建、覆盖率、安全扫描和人工验收 -->
+
+## Code Review
+
+- [ ] 行为和接口合同正确
+- [ ] 权限、敏感数据与错误处理完整
+- [ ] 三数据库兼容性已检查
+- [ ] 计费输入、预扣、结算和审计链路安全
+- [ ] 前端 i18n、可访问性和响应式状态完整
+- [ ] 测试保护真实回归路径
+
+<!-- TODO: 补充 Review 人数、所有者、紧急合并和回滚约定 -->
+
+## Pull Request
+
+<!-- TODO: 补充标题格式、关联工作项、变更说明、截图和发布说明要求 -->

@@ -1,0 +1,71 @@
+---
+description: '开发指南 - 本地环境、常用命令、配置和验证规则；当需要搭建环境或提交修改时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 开发指南
+
+## 环境准备
+
+| 工具 | 用途 | 依据 |
+| --- | --- | --- |
+| Go 1.25.1 | 根模块和 relaykit 编译、测试 | `go.mod`、`relaykit/go.mod` |
+| Bun | 前端依赖、脚本和构建 | `web/package.json`、根目录 `AGENTS.md` |
+| Docker Compose | 本地 PostgreSQL、Redis 与 API 服务 | `docker-compose.dev.yml` |
+| SQLite | 未配置 `SQL_DSN` 时的默认数据库 | `model/main.go` |
+
+## 常用命令
+
+```mermaid
+flowchart LR
+    Install["bun install"] --> WebDev["bun run dev"]
+    GoRun["go run ."] --> API["API 端口 3000"]
+    Compose["make dev api"] --> API
+    Verify["make test"] --> RootTest["根 Go 模块测试"]
+    Verify --> KitTest["relaykit 测试"]
+```
+
+| 场景 | 命令 | 工作目录 |
+| --- | --- | --- |
+| 运行完整本地栈 | `make dev` | 根目录 |
+| 启动 Docker 后端 | `make dev-api` | 根目录 |
+| 重建 Docker API | `make dev-api-rebuild` | 根目录 |
+| 启动前端开发服务器 | `make dev-web` | 根目录 |
+| 直接启动 Go 服务 | `go run .` | 根目录，要求已生成 `web/dist` |
+| 构建前端 | `bun run build` | `web/` |
+| 前端类型检查 | `bun run typecheck` | `web/` |
+| 前端 lint | `bun run lint` | `web/` |
+| 前端格式检查 | `bun run format:check` | `web/` |
+| 同步前端翻译 | `bun run i18n:sync` | `web/` |
+| 测试两个 Go 模块 | `make test` | 根目录 |
+| 单独验证 relaykit 构建 | `GOWORK=off go build ./...` | `relaykit/` |
+
+## 本地服务
+
+- Docker 开发配置在 `3000` 暴露 API，使用 PostgreSQL 15 和 Redis 7。
+- Rsbuild 前端默认通过 `5173` 提供页面，并把 `/api`、`/mj`、`/pg` 代理到 `VITE_REACT_APP_SERVER_URL`，缺省为 `http://localhost:3000`。
+- `PORT` 控制 Go 服务端口；未设置时使用应用默认端口。
+- `SQL_DSN` 缺省时使用 `SQLITE_PATH` 指定的 SQLite；`LOG_SQL_DSN` 缺省时日志复用主数据库。
+
+## 重要配置分类
+
+| 分类 | 环境变量示例 | 说明 |
+| --- | --- | --- |
+| 数据库 | `SQL_DSN`、`LOG_SQL_DSN`、`SQLITE_PATH` | 主库、日志库和 SQLite 路径 |
+| 缓存 | `REDIS_CONN_STRING`、`MEMORY_CACHE_ENABLED`、`SYNC_FREQUENCY` | Redis 与进程缓存 |
+| 会话 | `SESSION_SECRET`、`SESSION_COOKIE_SECURE`、`SESSION_COOKIE_TRUSTED_URL` | 浏览器会话和 Origin 防护 |
+| 转发 | `RELAY_TIMEOUT`、`STREAMING_TIMEOUT`、`TLS_INSECURE_SKIP_VERIFY` | 上游连接与流式超时 |
+| 节点 | `NODE_TYPE`、`FRONTEND_BASE_URL` | 主从职责和前端托管方式 |
+| 性能 | `ENABLE_PPROF`、`PYROSCOPE_URL`、`BATCH_UPDATE_ENABLED` | 分析、监控和批量写入 |
+
+完整注释示例见 `.env.example`。敏感值只放环境变量或本地 `.env`，不得提交。
+
+## 修改检查
+
+1. Go 代码至少运行受影响包测试；共享逻辑或数据库行为扩大到相关模块测试。
+2. 修改 `relaykit/` 时独立运行 `GOWORK=off go build ./...` 和相关测试。
+3. 修改 TS 或 TSX 后运行 `bun run typecheck`，并对涉及文件执行 lint。
+4. 前端新增文案时使用 `t()`，并按 i18n 技能同步七种语言。
+5. 数据库修改检查三种主数据库；计费修改追踪验证、预扣、结算和审计完整链路。

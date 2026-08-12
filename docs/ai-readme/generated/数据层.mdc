@@ -1,0 +1,120 @@
+---
+description: '数据层 - 数据库拓扑、核心实体、事务锁、迁移和缓存规则；当需要修改持久化模型或数据一致性时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 数据层
+
+## 存储拓扑
+
+```mermaid
+flowchart TB
+    Service["Controller Service Relay"] --> Gorm["GORM v2"]
+    Gorm --> MainDB["主数据库"]
+    MainDB --> SQLite["SQLite"]
+    MainDB --> MySQL["MySQL"]
+    MainDB --> PostgreSQL["PostgreSQL"]
+    Service --> LogDB["日志数据库"]
+    LogDB --> MainReuse["复用主数据库"]
+    LogDB --> ClickHouse["可选 ClickHouse"]
+    Service --> Redis["Redis"]
+    Service --> Memory["进程内缓存"]
+```
+
+- `model.DB` 保存业务数据，`model.LOG_DB` 保存消费日志；未配置独立日志库时复用主库。
+- 主库必须同时支持 SQLite、MySQL 5.7.8 以上和 PostgreSQL 9.6 以上。
+- ClickHouse 仅用于可选日志存储，不能成为主业务事务的依赖。
+- Redis 支撑共享缓存、限流和多实例协作；进程内缓存用于渠道、选项、用户和统计等热点数据。
+
+## 核心实体
+
+| 领域 | 主要实体 | 文件 | 关系与用途 |
+| --- | --- | --- | --- |
+| 用户认证 | `User`、`UserSession`、`PasskeyCredential`、`TwoFA`、`TwoFABackupCode` | `model/user.go`、`user_session.go`、`passkey.go`、`twofa.go` | 用户、会话、Passkey 与二次认证凭据 |
+| 外部身份 | `UserOAuthBinding`、`CustomOAuthProvider`、`ExternalIdentityClaim`、`AuthFlow` | `model/user_oauth_binding.go`、`custom_oauth_provider.go`、`external_identity_claim.go`、`auth_flow.go` | OAuth 配置、绑定、唯一身份声明和短期认证流程 |
+| 授权 | `CasbinRule`、`AuthzRole` | `model/casbin_rule.go`、`authz_role.go` | Casbin 策略与角色元数据 |
+| 渠道模型 | `Channel`、`Ability`、`Model`、`Vendor`、`Pricing`、`PrefillGroup` | `model/channel.go`、`ability.go`、`model_meta.go`、`vendor_meta.go`、`pricing.go`、`prefill_group.go` | 上游渠道、模型能力、展示元数据、价格和预填组 |
+| API 凭据 | `Token` | `model/token.go` | 用户 API Key、模型与分组限制、额度和状态 |
+| 计费充值 | `TopUp`、`Redemption` | `model/topup.go`、`redemption.go` | 支付订单、充值结果和兑换码 |
+| 订阅 | `SubscriptionPlan`、`SubscriptionOrder`、`UserSubscription`、`SubscriptionPreConsumeRecord` | `model/subscription.go` | 套餐、订单、用户订阅、预扣与幂等结算 |
+| 异步任务 | `Task`、`Midjourney`、`TaskPrivateData`、`TaskBillingContext` | `model/task.go`、`midjourney.go` | 视频、音乐、绘图任务状态与私有计费数据 |
+| 日志统计 | `Log`、`QuotaData`、`FlowQuotaData`、`RankingQuotaTotal`、`PerfMetric` | `model/log.go`、`usedata.go`、`usedata_flow.go`、`usedata_rankings.go`、`perf_metric.go` | 消费审计、看板聚合、排行和性能指标 |
+| 系统配置 | `Option`、`Setup`、`SystemTask`、`SystemTaskLock`、`SystemInstance` | `model/option.go`、`setup.go`、`system_task.go`、`system_instance.go` | 动态配置、首次安装、任务租约和节点心跳 |
+| 运营功能 | `Checkin`、`CheckinRecord` | `model/checkin.go` | 签到设置与用户签到记录 |
+
+## 主要关系
+
+```mermaid
+erDiagram
+    USER ||--o{ TOKEN : owns
+    USER ||--o{ USER_SESSION : opens
+    USER ||--o{ USER_OAUTH_BINDING : binds
+    USER ||--o{ PASSKEY_CREDENTIAL : registers
+    USER ||--o{ USER_SUBSCRIPTION : receives
+    SUBSCRIPTION_PLAN ||--o{ USER_SUBSCRIPTION : defines
+    SUBSCRIPTION_PLAN ||--o{ SUBSCRIPTION_ORDER : sells
+    USER ||--o{ TOP_UP : pays
+    USER ||--o{ LOG : consumes
+    TOKEN ||--o{ LOG : records
+    CHANNEL ||--o{ ABILITY : exposes
+    MODEL ||--o{ BOUND_CHANNEL : binds
+    USER ||--o{ TASK : submits
+    CHANNEL ||--o{ TASK : executes
+    SYSTEM_TASK ||--o{ SYSTEM_TASK_LOCK : leases
+```
+
+关系图表达业务关联，具体外键并不都由数据库约束维护；删除与缓存失效逻辑必须阅读对应模型方法。
+
+## 初始化与迁移
+
+1. `model.InitDB` 根据 `SQL_DSN` 选择驱动，配置连接池和 GORM logger。
+2. 主节点执行 AutoMigrate、兼容迁移和必要的数据修复；从节点避免重复执行主节点职责。
+3. `model.CheckSetup` 检查首次安装状态，随后加载 Option Map。
+4. `model.InitLogDB` 选择独立日志库、ClickHouse 或复用主库。
+5. 迁移新增列和默认值必须验证三个主数据库；SQLite 不支持的 `ALTER COLUMN` 需要专用回退。
+
+## 事务与并发
+
+- 常规写入优先使用 GORM `Transaction`、`Create`、`Updates`、`Where` 和 `Find`。
+- MySQL 与 PostgreSQL 的标准行锁统一通过 `lockForUpdate(tx)`；该 helper 在 SQLite 跳过不支持的语法。
+- 充值回调、兑换码、订阅预扣、任务状态和配额扣减依赖事务与幂等键，不能拆成无事务的先查后写。
+- 系统任务使用 `SystemTaskLock` 的数据库租约在多主节点间去重，并记录运行历史。
+- 用户、Token 与订阅配额列受数据库整数范围约束，计费转换必须先经过 `common/quota_math.go` 的饱和函数。
+
+## 跨数据库规则
+
+| 场景 | 规则 |
+| --- | --- |
+| 保留字列 | 使用 `commonGroupCol`、`commonKeyCol`，不要硬编码单一方言引号 |
+| 布尔值 | 原生 SQL 使用 `commonTrueVal` 和 `commonFalseVal` |
+| 数据库分支 | 主库使用 `common.UsingMainDatabase`，日志库使用 `common.UsingLogDatabase` |
+| JSON 数据 | 优先 TEXT 与应用层编解码，避免无回退的方言 JSON 类型 |
+| 主键 | 交给 GORM 生成，不写 `AUTO_INCREMENT` 或 `SERIAL` |
+| 默认值 | 业务默认由代码归一化，避免易反复迁移的布尔 default tag |
+| 原生 SQL | 只在 GORM 无法表达时使用，并为三个主数据库提供有效路径 |
+
+## 缓存与一致性
+
+```mermaid
+flowchart LR
+    Write["数据库写入"] --> Invalidate["本地缓存失效"]
+    Invalidate --> Redis["Redis 同步或版本标记"]
+    Redis --> Peer["其他实例刷新"]
+    Database["数据库真值"] --> Rebuild["周期同步或按需回源"]
+    Rebuild --> Local["进程内缓存"]
+```
+
+- 渠道、Option、用户基础信息、认证版本、Token 自动组、价格与统计各自有缓存策略，修改时使用所在模型已有的更新和失效入口。
+- 开启 Redis 会同时开启内存缓存以保持兼容；不能假设所有实例立即共享 Go 内存状态。
+- 缓存未命中应回源数据库；权限与认证相关缓存需以版本或显式失效保证撤权及时生效。
+- 看板配额数据可批量聚合，退出时根据配置落库；消费账本与配额扣减本身不能只存在缓存中。
+
+## 数据层修改清单
+
+1. 明确变更属于主库、日志库还是缓存，并确认事务边界。
+2. 检查 SQLite、MySQL 和 PostgreSQL 的 DDL、锁、布尔与引用差异。
+3. 检查历史数据迁移、零值兼容、索引和唯一性约束。
+4. 检查读写路径的缓存更新、多实例传播和回源行为。
+5. 对资金、额度、订阅和任务状态增加确定性的事务回归测试。

@@ -1,0 +1,48 @@
+---
+description: '边界定义 - 模块职责边界和跨仓库协作关系；当需要明确模块职责或跨项目协作时使用'
+alwaysApply: false
+---
+
+# 边界定义
+
+## 模块职责矩阵
+
+| 模块 | 负责 | 不负责 |
+| --- | --- | --- |
+| `router` | URL、HTTP 方法和中间件组合 | 业务事务与数据库查询 |
+| `controller` | 请求绑定、校验、服务编排和响应 | 可复用业务规则与持久化细节 |
+| `service` | 业务逻辑、计费、任务和外部协作 | HTTP 路径注册与页面组件 |
+| `model` | GORM 模型、事务、迁移和缓存 | 协议转换与前端状态 |
+| `relay` | 转发编排、渠道适配和用量转换 | 管理控制台 CRUD |
+| `relaykit` | 独立协议类型与转换 | 根模块配置、数据库和业务服务 |
+| `web` | 管理控制台、用户交互和 API 消费 | 服务端权限与计费真值 |
+
+<!-- TODO: 由团队确认或修正上表，并补充特殊例外 -->
+
+## 模块间协作
+
+```mermaid
+flowchart LR
+    Router["Router"] --> Controller["Controller"]
+    Controller --> Service["Service"]
+    Service --> Model["Model"]
+    Controller --> Relay["Relay"]
+    Relay --> Kit["Relaykit"]
+    Web["Web"] --> Router
+```
+
+<!-- TODO: 描述允许的跨层调用、循环依赖规避方式和公共类型归属 -->
+
+## 跨仓库协作
+
+| 仓库或系统 | 职责 | 协作方式 | 所有人 |
+| --- | --- | --- | --- |
+| <!-- TODO --> | <!-- TODO --> | <!-- TODO --> | <!-- TODO --> |
+
+## 接口约定
+
+<!-- TODO: 描述外部网关、支付平台、监控系统、部署平台和版本兼容约定 -->
+
+## 变更边界
+
+<!-- TODO: 列出必须先评审的公开 API、数据库 Schema、计费语义和跨仓库契约 -->

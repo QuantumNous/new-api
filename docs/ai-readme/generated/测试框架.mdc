@@ -1,0 +1,134 @@
+---
+description: '测试框架 - Go 与前端测试工具、目录、fixture 和质量门禁；当需要新增回归测试或验证修改时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 测试框架
+
+## 工具链
+
+| 范围 | 工具 | 主要用途 |
+| --- | --- | --- |
+| Go 根模块 | 标准 `testing`、`testify/require`、`testify/assert` | 单元、事务、HTTP、回归和协议测试 |
+| relaykit | 独立 Go module、标准 `testing`、testify | 协议转换、零值、流式和注册表测试 |
+| HTTP | Gin test context、`httptest` | 中间件、控制器和路由合同 |
+| 数据库 | SQLite fixture、显式迁移与事务 | 模型、锁、订阅、任务和配额行为 |
+| Redis | `miniredis` | 缓存、限流和多实例相关行为 |
+| 前端 | Bun test runner | TypeScript 纯逻辑与组件测试 |
+| DOM | happy-dom、Testing Library 风格查询 | 组件交互、布局合同和可访问状态 |
+| CI | GitHub Actions | Go vet、build、test，前端 typecheck 与 test |
+
+## 测试分布
+
+```mermaid
+flowchart TB
+    Root["根 Go module"] --> Common["common tests"]
+    Root --> Controller["controller tests"]
+    Root --> Middleware["middleware tests"]
+    Root --> Model["model tests"]
+    Root --> Relay["relay 与 channel tests"]
+    Root --> Service["service tests"]
+    Root --> Setting["setting tests"]
+    Kit["relaykit module"] --> DTO["dto tests"]
+    Kit --> Convert["relayconvert tests"]
+    Web["web"] --> Feature["feature tests"]
+    Web --> Component["component tests"]
+    Web --> Lib["lib tests"]
+```
+
+- Go 测试与被测 package 同目录，文件名为 `*_test.go`。
+- 前端模块测试放在该模块的 `__tests__/` 目录；现有少量 `lib/*.test.ts` 是历史布局，新测试遵循 `web/AGENTS.md` 的专属目录要求。
+- relaykit 测试必须在 `GOWORK=off` 下独立通过，不能依赖根模块测试环境。
+
+## 常用命令
+
+| 场景 | 命令 | 工作目录 |
+| --- | --- | --- |
+| 根模块与 relaykit 全量测试 | `make test` | 根目录 |
+| 根模块受影响 package | `GOWORK=off go test ./path/to/package` | 根目录 |
+| 单个 Go 测试 | `GOWORK=off go test ./path/to/package -run '^TestName$'` | 根目录 |
+| relaykit 全量测试 | `GOWORK=off go test ./...` | `relaykit/` |
+| relaykit 独立构建 | `GOWORK=off go build ./...` | `relaykit/` |
+| 前端全量测试 | `bun test` | `web/` |
+| 单个前端测试文件 | `bun test src/path/file.test.ts` | `web/` |
+| 前端类型检查 | `bun run typecheck` | `web/` |
+| 前端 lint | `bun run lint` | `web/` |
+| 前端格式检查 | `bun run format:check` | `web/` |
+
+`make test` 有意排除根 main package，因为其嵌入的 `web/dist` 通常只在前端构建后存在；CI 会先创建占位文件，再执行 vet 和 build。
+
+## Go 测试约定
+
+1. 新增或大幅重写测试使用 `require` 处理 setup 和必须终止的断言，使用 `assert` 处理可继续检查的值。
+2. 表格测试使用明确输入和精确期望，不使用随机输入、长循环、sleep 或耗时比较制造伪压力测试。
+3. fixture 显式初始化数据库、Gin context、用户组、设置、缓存和全局变量，并在测试结束恢复。
+4. 测试保护用户可见行为、API 合同、数据兼容、计费不变量或真实回归，不断言无意义的私有常量和文件布局。
+5. 控制器和中间件测试覆盖 HTTP 状态、错误码、权限边界、Header、Cookie 与 Context 传播。
+6. 数据库测试覆盖事务、幂等、唯一性、锁和失败回滚；方言相关代码至少验证 SQLite 路径并审查其他数据库分支。
+
+## 重点回归区域
+
+| 区域 | 现有代表测试 | 保护的合同 |
+| --- | --- | --- |
+| 配额数学 | `common/quota_math_test.go` | NaN、无穷、溢出和饱和转换 |
+| 请求上界 | `relay/helper/max_tokens_bounds_test.go`、`openai_image_request_test.go` | token、图片数量与显式零值 |
+| 计费结算 | `service/quota_saturation_test.go`、`tiered_settle_test.go`、`task_billing_test.go` | 预扣、差额、任务和审计 |
+| 订阅 | `model/subscription_auth_test.go`、`subscription_reset_test.go` | 资金来源、重置和并发授权 |
+| 数据库锁 | `model/locking_test.go`、`task_cas_test.go` | 跨方言锁 helper 与 CAS 状态更新 |
+| 认证会话 | `controller/auth_session_test.go`、`service/auth_session_test.go`、`model/user_session_test.go` | 登录、刷新、撤销和迁移 |
+| 权限 | `service/authz/authz_test.go`、`controller/channel_authz_test.go` | Casbin 与资源操作权限 |
+| 协议转换 | `relaykit/relayconvert/*_test.go` | OpenAI、Claude、Gemini 请求响应互转 |
+| 渠道适配 | `relay/channel/*/*_test.go` | 上游 payload、流、usage 和工具计费 |
+| 前端认证 | `web/src/lib/auth-session.test.ts`、`features/auth/*test*` | bootstrap、刷新、OAuth 和重定向 |
+| 前端业务 | Feature `__tests__` | 表单、选择、布局、费用与验证行为 |
+
+## 计费测试要求
+
+```mermaid
+flowchart LR
+    Input["边界输入"] --> Validate["Validator 拒绝或接受"]
+    Validate --> Price["PriceData 与 OtherRatios"]
+    Price --> Convert["Checked 配额转换"]
+    Convert --> Pre["预扣"]
+    Pre --> Settle["结算或退款"]
+    Settle --> Log["日志与 quota saturation"]
+```
+
+- 每个用户可控乘数测试缺省、最小值、最大允许值、最大值加一和显式零值。
+- unsigned 字段测试巨大正数，防止包装后的负数语义绕过。
+- 计费转换测试正常、NaN、正负无穷和越界值，并验证不会生成负 charge。
+- 饱和场景验证预扣前失败或被安全处理，同时在需要的账单路径记录 `QuotaClamp`。
+- 任务计费测试提交、轮询完成、失败、取消、重复回调和幂等结算。
+
+## 前端测试约定
+
+1. 纯函数使用显式 fixture 和输入输出断言；组件从用户视角按 role、label 和可访问名称查询。
+2. 交互测试执行点击、输入、键盘和焦点行为，断言可见结果、ARIA 状态或对外回调。
+3. happy-dom 只提供浏览器边界；网络、时间、存储和浏览器 API 在必要处做可控 mock，并逐测试清理。
+4. 不断言完整 Tailwind class 字符串；布局测试断言稳定的尺寸、方向、溢出、滚动和降级合同。
+5. 异步测试等待明确 Promise 或界面状态，不使用固定 sleep。
+6. i18n 测试优先使用稳定语义定位，只有翻译文本本身是合同时才断言具体文案。
+
+## CI 门禁
+
+```mermaid
+flowchart LR
+    PR["Pull Request"] --> GoVet["go vet 根模块与 relaykit"]
+    GoVet --> GoBuild["go build 根模块与 relaykit"]
+    GoBuild --> GoTest["make test"]
+    PR --> BunInstall["bun install frozen lockfile"]
+    BunInstall --> Typecheck["bun run typecheck"]
+    Typecheck --> BunTest["bun test"]
+```
+
+CI 使用 `GOWORK=off` 验证两个 Go module。前端 CI 固定 Bun 版本并使用 frozen lockfile。当前工作流不自动运行前端 lint 与 format，因此本地修改仍需按 `web/AGENTS.md` 执行涉及文件检查。
+
+## 失败排查
+
+- 根 module 编译提示缺少 `web/dist`：先运行 `bun run build`，或仅测试受影响的非 main package。
+- relaykit 测试意外引用根包：使用 `GOWORK=off` 重跑并移除根模块依赖。
+- 数据库测试互相影响：检查共享 DB、全局 Option、缓存和事务是否在每个 fixture 中重置。
+- 前端测试缺 DOM API：确认测试是否显式创建 happy-dom Window，并只补充被测行为需要的 API。
+- 单测通过但全量失败：检查 package 全局状态、测试顺序依赖、环境变量和未清理 mock。

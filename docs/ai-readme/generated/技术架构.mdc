@@ -1,0 +1,65 @@
+---
+description: '技术架构 - 系统分层、技术栈和关键设计约束；当需要设计功能或判断依赖边界时使用'
+alwaysApply: false
+---
+
+<!-- AI生成，可根据团队规范更新 -->
+
+# 技术架构
+
+## 系统分层
+
+```mermaid
+flowchart TB
+    UI["React 控制台"] --> HTTP["Gin HTTP 与 WebSocket"]
+    Client["OpenAI Claude Gemini 兼容客户端"] --> HTTP
+    HTTP --> CrossCut["认证 限流 分发 日志"]
+    CrossCut --> Handler["Controller 与 Relay Handler"]
+    Handler --> Domain["Service 业务与计费"]
+    Handler --> Adapter["Provider Adaptor"]
+    Domain --> Persistence["GORM Redis 内存缓存"]
+    Adapter --> Upstream["上游 AI 服务"]
+    Persistence --> SQL["SQLite MySQL PostgreSQL"]
+    Persistence --> LogDB["主库或 ClickHouse 日志库"]
+```
+
+## 技术栈
+
+| 层次 | 技术 | 代码位置 |
+| --- | --- | --- |
+| 后端语言 | Go 1.25.1 模块声明 | `go.mod` |
+| HTTP | Gin 1.9、gzip、CORS、WebSocket | `main.go`、`router/`、`middleware/` |
+| ORM 与数据库 | GORM 1.25；SQLite、MySQL、PostgreSQL；可选 ClickHouse 日志 | `model/main.go` |
+| 缓存 | go-redis v8、进程内缓存 | `common/redis.go`、`model/*_cache.go` |
+| 认证授权 | JWT、会话、Casbin、WebAuthn、OAuth、2FA | `middleware/auth.go`、`service/authz/`、`oauth/` |
+| 转发 | 自有 relay 与独立 relaykit 协议转换 | `relay/`、`relaykit/` |
+| 前端 | React 19、TypeScript、TanStack Router 与 Query | `web/package.json` |
+| UI | Base UI、Tailwind CSS 4、Hugeicons、Lucide、VChart | `web/src/components/`、`web/src/styles/` |
+| 前端状态 | Zustand、React Query、浏览器存储 | `web/src/stores/`、`web/src/lib/` |
+| 构建质量 | Rsbuild、Bun、tsgo、oxlint、oxfmt | `web/package.json`、`web/rsbuild.config.ts` |
+| 国际化 | go-i18n；i18next 与 react-i18next | `i18n/`、`web/src/i18n/` |
+
+## 运行拓扑
+
+- Go 服务可同时提供管理 API、兼容转发 API 和嵌入式前端资源。
+- 设置 `FRONTEND_BASE_URL` 时，非主节点可把未匹配的页面请求重定向到独立前端。
+- 主数据库保存业务对象；日志默认进入日志数据库配置，可选 ClickHouse。
+- Redis 可用于共享缓存和限流；启用 Redis 时仍启用内存缓存以兼容现有同步机制。
+- 定时任务使用数据库租约避免多主节点重复执行，并保存运行历史。
+
+## 关键设计约束
+
+1. `relaykit/` 必须保持独立可构建，使用 `GOWORK=off go build ./...` 验证。
+2. JSON 编解码调用根模块的 `common` 包装器，业务代码不直接调用 `encoding/json` 的 marshal 或 unmarshal。
+3. 数据层同时兼容 SQLite、MySQL 5.7.8 以上与 PostgreSQL 9.6 以上；常规行锁统一使用 `model.lockForUpdate`。
+4. 计费必须经过有界输入、饱和配额转换、预扣与结算审计，不允许算术溢出产生负费用。
+5. 可选上游请求标量使用指针加 `omitempty`，以区分缺省值和显式零值。
+6. 前端用户文案经过 i18next，新增或修改翻译需同步全部支持语言。
+7. 受保护的项目身份、组织归属和相关元数据不得移除、替换或重命名。
+
+## 扩展点
+
+- 新供应商：实现 `relay/channel` 适配接口，并接入渠道类型、请求转换、响应转换与流式能力。
+- 新协议：在 `relaykit` 定义独立类型和转换，再由根模块的路由与处理器接入。
+- 新业务资源：按 Router、Controller、Service、Model 顺序扩展，并在前端 `features` 和文件路由中接入。
+- 新动态设置：在 `setting` 的领域子包定义配置和加载逻辑，通过 Option 模型持久化。
