@@ -77,7 +77,7 @@ describe("SkagLandingPage", () => {
 
   test("keeps Kimi and Qwen Portuguese pages compact with only their primary CTA", () => {
     for (const [slug, ctaLabel, priceLabel] of [
-      ["kimi-api", "Obter chave da API Kimi K3", "Kimi K3 / 1M tokens"],
+      ["kimi-api", "Obter chave da API Kimi K2.5", "Kimi K2.5 / 1M tokens"],
       ["qwen-api", "Obter chave da API Qwen", "Qwen 3.7 Plus / 1M tokens"],
     ] as const) {
       const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig(slug, "pt")} />);

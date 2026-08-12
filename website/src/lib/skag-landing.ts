@@ -124,7 +124,7 @@ const CHINESE_AI: SkagLandingConfig = {
   ctaLabel: "Get your API key",
   pricingTitle: "Output price vs official",
   priceRows: [
-    { label: "Kimi K3 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
+    { label: "Kimi K2.5 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
     { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.07", official: "$0.14" },
     { label: "Qwen 3.7 Plus / 1M tokens", flatkey: "$0.24", official: "$0.40" },
     { label: "GLM 5.2 / 1M tokens", flatkey: "$0.56", official: "$1.40" },
@@ -434,19 +434,19 @@ const PT_DEEPSEEK_API: SkagLandingConfig = {
 
 const KIMI_API: SkagLandingConfig = {
   slug: "kimi-api",
-  keyword: "kimi k3 api",
-  badge: "Kimi K3 · new model access",
-  h1Lead: "Kimi K3",
+  keyword: "kimi k2.5 api",
+  badge: "Kimi K2.5 · long context · agents",
+  h1Lead: "Kimi K2.5",
   h1Accent: "API",
   description:
-    "Explore Kimi K3 through one OpenAI-compatible API account. Get a key, keep your existing SDK, and check the current Kimi model availability and live pricing before you build.",
-  ctaLabel: "Get your Kimi K3 API key",
+    "Call Kimi K2.5 through one OpenAI-compatible API key. Keep your existing SDK, switch base_url and api_key, and use one account for Kimi alongside DeepSeek, Qwen, and other supported models.",
+  ctaLabel: "Get your Kimi K2.5 API key",
   hideSecondaryCta: true,
   compactHero: true,
   hideCodeWindow: true,
-  pricingTitle: "Kimi K3 API access",
+  pricingTitle: "Kimi K2.5 API access",
   priceRows: [
-    { label: "Kimi K3 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
+    { label: "Kimi K2.5 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
     { label: "OpenAI SDK migration", flatkey: "base_url + key", official: "Provider SDK work" },
     { label: "Kimi and other models", flatkey: "One key", official: "Separate accounts" },
   ],
@@ -455,16 +455,16 @@ const KIMI_API: SkagLandingConfig = {
   codeTitle: "Call Kimi through /v1",
   features: [
     {
-      title: "Kimi K3 in one API account",
-      body: "Start from one account instead of adding another vendor console, then compare the Kimi models currently available with DeepSeek, Qwen, GPT, Claude, and Gemini.",
+      title: "Kimi K2.5 from one catalog",
+      body: "Use Kimi K2.5 without a separate integration, then compare it with DeepSeek, Qwen, GPT, Claude, and Gemini from the same account.",
     },
     {
       title: "OpenAI-compatible API",
       body: "Keep the OpenAI SDK already in your application. Change base_url, set a flatkey API key, and select a supported Kimi model id.",
     },
     {
-      title: "Current availability and pricing",
-      body: "Check the current Kimi catalog and live pricing before you build, then manage usage alongside the rest of your model spend.",
+      title: "Live pricing before you scale",
+      body: "Check Kimi K2.5 pricing and availability in one account, then manage its spend alongside the rest of your model usage.",
     },
     {
       title: "A low-commitment way to evaluate",
@@ -473,9 +473,8 @@ const KIMI_API: SkagLandingConfig = {
   ],
   faq: [
     {
-      question: "Is Kimi K3 available through this API?",
-      answer:
-        "Get a flatkey API key and check the live catalog for the current Kimi K3 availability, model IDs, pricing, and access status before you integrate.",
+      question: "Can I call Kimi K2.5 through this API?",
+      answer: "Yes. Use the kimi-k2.5 model ID with a flatkey API key and the OpenAI-compatible /v1 base URL.",
     },
     {
       question: "Can I use my existing OpenAI SDK?",
@@ -484,9 +483,9 @@ const KIMI_API: SkagLandingConfig = {
     ...SHARED_FAQ,
   ],
   seo: {
-    title: "Kimi K3 API — OpenAI-compatible access and live availability",
+    title: "Kimi K2.5 API — OpenAI-compatible access with one API key",
     description:
-      "Explore Kimi K3 through one OpenAI-compatible API account. Keep your SDK, check current availability and live pricing, and compare Kimi with other frontier models.",
+      "Call Kimi K2.5 through one OpenAI-compatible API key. Keep your SDK, check live pricing, and compare Kimi with other frontier models in one account.",
   },
 };
 
@@ -494,20 +493,20 @@ const PT_KIMI_API: SkagLandingConfig = {
   slug: "kimi-api",
   locale: "pt",
   pathname: "/kimi-api",
-  keyword: "api kimi k3",
-  badge: "Kimi K3 · acesso a novo modelo",
-  h1Lead: "API Kimi K3",
+  keyword: "api kimi k2.5",
+  badge: "Kimi K2.5 · contexto longo · agentes",
+  h1Lead: "API Kimi K2.5",
   h1Accent: "para começar",
   description:
-    "Conheça o Kimi K3 com uma única conta de API compatível com OpenAI. Obtenha uma chave, mantenha o SDK que sua equipe já usa e confira disponibilidade e preços atuais antes de integrar.",
-  ctaLabel: "Obter chave da API Kimi K3",
+    "Use Kimi K2.5 com uma única chave de API compatível com OpenAI. Mantenha o SDK que sua equipe já usa, altere base_url e api_key e gerencie Kimi, DeepSeek, Qwen e outros modelos compatíveis em uma só conta.",
+  ctaLabel: "Obter chave da API Kimi K2.5",
   hideSecondaryCta: true,
   compactHero: true,
   hideCodeWindow: true,
   trustLine: "Kimi · DeepSeek · Qwen · GPT · Claude · Gemini — uma chave, uma fatura · sem cartão de crédito para começar",
-  pricingTitle: "Acesso à API Kimi K3",
+  pricingTitle: "Acesso à API Kimi K2.5",
   priceRows: [
-    { label: "Kimi K3 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
+    { label: "Kimi K2.5 / 1M tokens", flatkey: "$1.20", official: "$3.00" },
     { label: "Migração do SDK OpenAI", flatkey: "base_url + key", official: "Trabalho por fornecedor" },
     { label: "Kimi e outros modelos", flatkey: "Uma chave", official: "Contas separadas" },
   ],
@@ -516,16 +515,16 @@ const PT_KIMI_API: SkagLandingConfig = {
   codeTitle: "Chame Kimi via /v1",
   features: [
     {
-      title: "Kimi K3 em uma conta de API",
-      body: "Comece em uma única conta em vez de adicionar outro console de fornecedor e compare os modelos Kimi disponíveis com DeepSeek, Qwen, GPT, Claude e Gemini.",
+      title: "Kimi K2.5 em um único catálogo",
+      body: "Use Kimi K2.5 sem uma integração separada e compare-o com DeepSeek, Qwen, GPT, Claude e Gemini na mesma conta.",
     },
     {
       title: "API compatível com OpenAI",
       body: "Mantenha o SDK da OpenAI que já existe no seu aplicativo. Altere base_url, use uma chave flatkey e escolha um ID de modelo Kimi compatível.",
     },
     {
-      title: "Disponibilidade e preço atuais",
-      body: "Confira o catálogo Kimi e os preços ao vivo antes de integrar e acompanhe o uso junto com os demais modelos.",
+      title: "Preço visível antes de escalar",
+      body: "Confira preço e disponibilidade do Kimi K2.5 em uma conta e acompanhe o gasto junto com o uso dos demais modelos.",
     },
     {
       title: "Avalie sem outra assinatura",
@@ -534,9 +533,8 @@ const PT_KIMI_API: SkagLandingConfig = {
   ],
   faq: [
     {
-      question: "O Kimi K3 está disponível nesta API?",
-      answer:
-        "Obtenha uma chave de API flatkey e consulte o catálogo ao vivo para disponibilidade atual do Kimi K3, IDs de modelo, preços e status de acesso antes de integrar.",
+      question: "Posso chamar o Kimi K2.5 por esta API?",
+      answer: "Sim. Use o ID de modelo kimi-k2.5 com uma chave de API flatkey e a base URL /v1 compatível com OpenAI.",
     },
     {
       question: "Posso usar meu SDK atual da OpenAI?",
@@ -552,9 +550,9 @@ const PT_KIMI_API: SkagLandingConfig = {
     },
   ],
   seo: {
-    title: "API Kimi K3 no Brasil — acesso compatível com OpenAI",
+    title: "API Kimi K2.5 no Brasil — acesso compatível com OpenAI",
     description:
-      "Conheça o Kimi K3 com uma conta de API compatível com OpenAI. Mantenha seu SDK, consulte disponibilidade e preços atuais e compare Kimi com outros modelos.",
+      "Use Kimi K2.5 com uma chave de API compatível com OpenAI. Mantenha seu SDK, consulte preços ao vivo e compare Kimi com outros modelos em uma só conta.",
   },
 };
 

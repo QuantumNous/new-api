@@ -125,8 +125,13 @@ export function SiteHeader(props: Props) {
     };
 
     closeMobileMenuAtDesktop();
-    media.addEventListener("change", closeMobileMenuAtDesktop);
-    return () => media.removeEventListener("change", closeMobileMenuAtDesktop);
+    if (media.addEventListener) {
+      media.addEventListener("change", closeMobileMenuAtDesktop);
+      return () => media.removeEventListener("change", closeMobileMenuAtDesktop);
+    }
+
+    media.addListener(closeMobileMenuAtDesktop);
+    return () => media.removeListener(closeMobileMenuAtDesktop);
   }, [props.expandNavigationAtTablet]);
 
   const productItems = useMemo<NavItem[]>(

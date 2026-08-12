@@ -22,7 +22,7 @@ describe("SKAG landing configuration", () => {
     expect(h1("chinese-ai")).toBe("Chinese AI Models, One API");
     expect(h1("chinese-ai-models-api")).toBe("Chinese AI Models API");
     expect(h1("deepseek-api")).toBe("Stable DeepSeek API");
-    expect(h1("kimi-api")).toBe("Kimi K3 API");
+    expect(h1("kimi-api")).toBe("Kimi K2.5 API");
     expect(h1("qwen-api")).toBe("Use Qwen without GPU setup");
     expect(h1("openai-compatible")).toBe("OpenAI-Compatible API");
     expect(h1("gateway")).toBe("LLM API Gateway");
@@ -129,9 +129,9 @@ describe("SKAG landing configuration", () => {
     const kimi = getSkagLandingConfig("kimi-api", "pt");
     const qwen = getSkagLandingConfig("qwen-api", "pt");
 
-    expect(kimi.keyword).toBe("api kimi k3");
-    expect(`${kimi.h1Lead} ${kimi.h1Accent}`).toBe("API Kimi K3 para começar");
-    expect(kimi.ctaLabel).toBe("Obter chave da API Kimi K3");
+    expect(kimi.keyword).toBe("api kimi k2.5");
+    expect(`${kimi.h1Lead} ${kimi.h1Accent}`).toBe("API Kimi K2.5 para começar");
+    expect(kimi.ctaLabel).toBe("Obter chave da API Kimi K2.5");
     expect(kimi.hideSecondaryCta).toBe(true);
     expect(kimi.compactHero).toBe(true);
     expect(kimi.hideCodeWindow).toBe(true);
