@@ -16,7 +16,7 @@ Here is a quick guide to doing code contributions to the library.
    pnpm install
    ```
 
-Pay attention that we use pnpm v9 along with Node.js 20.
+Pay attention that we use pnpm v11 along with Node.js 22.
 
 4. If you've added a code that should be tested, ensure the test suite still passes.
 

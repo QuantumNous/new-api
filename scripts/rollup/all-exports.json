@@ -1,5 +1,6 @@
 [
   "Controller",
+  "FieldArray",
   "Form",
   "FormProvider",
   "FormStateSubscribe",

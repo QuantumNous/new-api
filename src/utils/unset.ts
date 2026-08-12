@@ -1,3 +1,5 @@
+import { PROTOTYPE_KEYWORDS } from '../constants';
+
 import isEmptyObject from './isEmptyObject';
 import isKey from './isKey';
 import isNullOrUndefined from './isNullOrUndefined';
@@ -42,7 +44,9 @@ export default function unset(object: any, path: string | (string | number)[]) {
     : isKey(path)
       ? [path]
       : stringToPath(path);
-
+  if (paths.some((segment) => PROTOTYPE_KEYWORDS.includes(String(segment)))) {
+    return object;
+  }
   const childObject = paths.length === 1 ? object : baseGet(object, paths);
 
   const index = paths.length - 1;

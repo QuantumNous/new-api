@@ -12,7 +12,7 @@ export default <T extends string | readonly string[] | undefined>(
     (currentName) =>
       currentName &&
       (exact
-        ? currentName === signalName
+        ? currentName === signalName || currentName.startsWith(signalName + '.')
         : currentName.startsWith(signalName) ||
           signalName.startsWith(currentName)),
   );

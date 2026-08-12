@@ -1068,6 +1068,48 @@ describe('remove', () => {
         }),
       );
     });
+
+    it('should always place array root validation error under root key after remove', async () => {
+      const arrayRootError = {
+        type: 'min',
+        message: 'Need at least 1 item',
+      };
+
+      const resolver = jest.fn().mockImplementation((values) => {
+        if (!values.test?.length) {
+          return { values: {}, errors: { test: arrayRootError } };
+        }
+        return { values, errors: {} };
+      });
+
+      const { result } = renderHook(() => {
+        const { control, formState } = useForm({
+          mode: VALIDATION_MODE.onChange,
+          resolver,
+          defaultValues: { test: [{ value: 'a' }] },
+        });
+        const { remove } = useFieldArray({ control, name: 'test' });
+        return { formState, remove };
+      });
+
+      result.current.formState.errors;
+
+      await act(async () => {
+        result.current.remove(0);
+      });
+
+      await waitFor(() => {
+        const errors = result.current.formState.errors as Record<string, any>;
+        expect(errors.test?.root).toEqual(
+          expect.objectContaining({
+            type: 'min',
+            message: 'Need at least 1 item',
+          }),
+        );
+        expect(errors.test?.type).toBeUndefined();
+        expect(errors.test?.message).toBeUndefined();
+      });
+    });
   });
 
   it('should remove correct value with async reset', async () => {

@@ -1,6 +1,6 @@
 <div align="center">
     <p align="center">
-        <a href="https://react-hook-form.com/jp" title="React Hook Form - Simple React forms validation">
+        <a href="https://react-hook-form.com" title="React Hook Form - Simple React forms validation">
             <img src="https://raw.githubusercontent.com/bluebill1049/react-hook-form/master/docs/logo.png" alt="React Hook Form Logo - React hook custom hook for form validation" width="300px" />
         </a>
     </p>
@@ -21,7 +21,7 @@
 
 <div align="center">
     <p align="center">
-        <a href="https://react-hook-form.com/jp" title="React Hook Form - Simple React forms validation">
+        <a href="https://react-hook-form.com" title="React Hook Form - Simple React forms validation">
             <img src="https://raw.githubusercontent.com/bluebill1049/react-hook-form/master/docs/example.gif" alt="React Hook Form video - React custom hook for form validation" width="100%" />
         </a>
     </p>
@@ -38,7 +38,7 @@
 - React Native との互換性
 - [Yup](https://github.com/jquense/yup), [Joi](https://github.com/hapijs/joi), [Superstruct](https://github.com/ianstormtaylor/superstruct) またはカスタムをサポート
 - ブラウザのネイティブバリデーションをサポート
-- [Form Builder](https://react-hook-form.com/jp/form-builder) でフォームを素早く作成
+- [Form Builder](https://react-hook-form.com/form-builder) でフォームを素早く作成
 
 ## インストール
 
@@ -48,12 +48,12 @@
 
 - [動機](https://medium.com/@bruce1049/form-validation-with-hook-in-3kb-c5414edf7d64)
 - [ビデオチュートリアル](https://www.youtube.com/watch?v=-mFXqOaqgZk&t)
-- [始める](https://react-hook-form.com/jp/get-started)
-- [API](https://react-hook-form.com/jp/api)
+- [始める](https://react-hook-form.com/get-started)
+- [API](https://react-hook-form.com/docs)
 - [例](https://github.com/bluebill1049/react-hook-form/tree/master/examples)
-- [デモ](https://react-hook-form.com/jp)
-- [Form Builder](https://react-hook-form.com/jp/form-builder)
-- [FAQs](https://react-hook-form.com/jp/faqs)
+- [デモ](https://react-hook-form.com)
+- [Form Builder](https://react-hook-form.com/form-builder)
+- [FAQs](https://react-hook-form.com/faqs)
 
 ## クイックスタート
 

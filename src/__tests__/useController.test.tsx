@@ -1847,4 +1847,47 @@ describe('useController', () => {
 
     render(<Component />);
   });
+
+  it('should update the field value when a parent object is cleared with setValue', async () => {
+    function App() {
+      const { control, setValue } = useForm<{
+        data: { type: string };
+      }>();
+
+      const { field } = useController({ control, name: 'data.type' });
+      const watched = useWatch({ control, name: 'data.type', exact: false });
+
+      return (
+        <div>
+          <p>controller:{String(field.value)}</p>
+          <p>watch:{String(watched)}</p>
+          <button
+            type="button"
+            onClick={() => setValue('data', { type: 'foo' })}
+          >
+            set
+          </button>
+          <button type="button" onClick={() => setValue('data', null as never)}>
+            clear
+          </button>
+        </div>
+      );
+    }
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'set' }));
+    await waitFor(() =>
+      expect(screen.getByText('controller:foo')).toBeVisible(),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'clear' }));
+
+    // The controlled field must reflect the cleared parent object and stay in
+    // sync with useWatch, instead of holding on to the stale 'foo' value.
+    await waitFor(() =>
+      expect(screen.getByText('controller:undefined')).toBeVisible(),
+    );
+    expect(screen.getByText('watch:undefined')).toBeVisible();
+  });
 });

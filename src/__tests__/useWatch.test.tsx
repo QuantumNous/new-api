@@ -1098,9 +1098,6 @@ describe('useWatch', () => {
         'Number',
         'Totals',
         'Type',
-        'Number',
-        'Totals',
-        'Type',
         'Totals',
       ]);
     });
@@ -1229,7 +1226,7 @@ describe('useWatch', () => {
           defaultValue: itemsDefault,
         });
 
-        watchData.push(useWatchedItems);
+        watchData.push(JSON.parse(JSON.stringify(useWatchedItems)));
 
         return (
           <div>
@@ -1426,7 +1423,7 @@ describe('useWatch', () => {
         const Test = ({ control }: { control: Control<FormValues> }) => {
           const values = useWatch({ control });
           const options = values.options;
-          watchedValue.push(values);
+          watchedValue.push(JSON.parse(JSON.stringify(values)));
 
           return (
             <div>
