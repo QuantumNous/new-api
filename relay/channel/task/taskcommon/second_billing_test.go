@@ -116,3 +116,78 @@ func TestComputeSecondBilling_DoesNotMutateMatch(t *testing.T) {
 		t.Fatalf("Match was mutated: %v", shared)
 	}
 }
+
+func TestNormalizeResolution(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{"720p", "720p", true},
+		{"720P", "720p", true},
+		{"  1080p  ", "1080p", true},
+		{"4K", "4k", true},
+		{"2160p", "4k", true},
+		{"480p", "480p", true},
+		{"1792x1024", "1080p", true},
+		{"1024x1792", "1080p", true},
+		{"1280x720", "720p", true},
+		{"720x1280", "720p", true},
+		{"854x480", "480p", true},
+		{"3840x2160", "4k", true},
+		{"", "", false},
+		{"banana", "", false},
+		{"999x999", "", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.in, func(t *testing.T) {
+			got, ok := NormalizeResolution(tc.in)
+			if ok != tc.ok {
+				t.Fatalf("ok = %v, want %v", ok, tc.ok)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeResolution_MalformedDimensions(t *testing.T) {
+	// Anything that cannot be classified must be refused rather than guessed.
+	for _, in := range []string{"x", "1280x", "x720", "1280x720x30", "-1280x720", "0x0", "abcxdef", "1280*720"} {
+		t.Run(in, func(t *testing.T) {
+			if _, ok := NormalizeResolution(in); ok {
+				t.Fatalf("%q must not classify", in)
+			}
+		})
+	}
+}
+
+// Short sides are matched exactly, so the dimension strings channels actually
+// send are pinned here: a missing anchor rejects a real request rather than
+// mispricing it, which makes this the regression guard for that trade-off.
+func TestNormalizeResolution_ChannelEmittedDimensions(t *testing.T) {
+	cases := map[string]string{
+		// sora sizes (relay/channel/task/sora/adaptor.go)
+		"720x1280":  "720p",
+		"1280x720":  "720p",
+		"1792x1024": "1080p",
+		"1024x1792": "1080p",
+		// kling sizes (relay/channel/task/kling/adaptor.go)
+		"1920x1080": "1080p",
+		"1080x1920": "1080p",
+		// uppercase separator is as legitimate as an uppercase label
+		"3840X2160": "4k",
+	}
+	for in, want := range cases {
+		t.Run(in, func(t *testing.T) {
+			got, ok := NormalizeResolution(in)
+			if !ok {
+				t.Fatalf("%q must classify as %q", in, want)
+			}
+			if got != want {
+				t.Fatalf("got %q, want %q", got, want)
+			}
+		})
+	}
+}

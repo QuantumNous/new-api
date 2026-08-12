@@ -3,6 +3,8 @@ package taskcommon
 import (
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 )
@@ -79,4 +81,82 @@ func ComputeSecondBilling(
 
 func isPositiveFinite(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+// Canonical resolution vocabulary for price rule Match keys.
+const (
+	Resolution480p  = "480p"
+	Resolution720p  = "720p"
+	Resolution1080p = "1080p"
+	Resolution4K    = "4k"
+)
+
+var resolutionAliases = map[string]string{
+	"480p":  Resolution480p,
+	"720p":  Resolution720p,
+	"1080p": Resolution1080p,
+	"4k":    Resolution4K,
+	"2160p": Resolution4K,
+}
+
+// resolutionByShortSide classifies pixel dimensions by their smaller side, so
+// portrait and landscape of one tier normalize to the same label (sora's
+// 1792x1024 and 1024x1792 are both the 1080p tier).
+//
+// Short sides are matched exactly rather than by open-ended ranges. A range
+// ("anything from 720 up is 720p") silently absorbs dimensions no channel
+// sends — 999x999 would price as 720p — and a wrong-but-plausible tier bills
+// the customer at the wrong rate with nothing to alert on. An exact table
+// refuses instead, and refusal is loud: ComputeSecondBilling turns an
+// unmatched dimension on a configured model into a rejected request. Adding a
+// new channel's dimensions is then a deliberate line here, reviewed against
+// that channel's documented set, instead of an accident of where a threshold
+// happened to fall.
+var resolutionByShortSide = map[int]string{
+	480:  Resolution480p,  // 854x480, 640x480
+	720:  Resolution720p,  // 1280x720, 720x1280 (sora)
+	1024: Resolution1080p, // 1792x1024, 1024x1792 (sora-2-pro)
+	1080: Resolution1080p, // 1920x1080, 1080x1920 (kling)
+	2160: Resolution4K,    // 3840x2160
+}
+
+// NormalizeResolution folds labels, aliases, and pixel dimensions into the
+// canonical vocabulary. Returns false when the input cannot be classified;
+// callers must then refuse to price the request rather than guess a tier.
+func NormalizeResolution(raw string) (string, bool) {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	if s == "" {
+		return "", false
+	}
+	if label, ok := resolutionAliases[s]; ok {
+		return label, true
+	}
+	if w, h, ok := parseDimensions(s); ok {
+		short := h
+		if w < h {
+			short = w
+		}
+		if label, ok := resolutionByShortSide[short]; ok {
+			return label, true
+		}
+	}
+	return "", false
+}
+
+// parseDimensions splits a "WxH" pixel size. Both sides must be whole positive
+// numbers; anything else is not a size we are willing to price.
+func parseDimensions(s string) (int, int, bool) {
+	parts := strings.Split(s, "x")
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	w, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+	if err != nil || w <= 0 {
+		return 0, 0, false
+	}
+	h, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err != nil || h <= 0 {
+		return 0, 0, false
+	}
+	return w, h, true
 }
