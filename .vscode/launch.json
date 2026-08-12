@@ -1,0 +1,53 @@
+{
+    "version": "0.1.0",
+    "configurations": [
+        {
+            "name": "Node.js - Debug Current File",
+            "type": "node",
+            "request": "launch",
+            "program": "${file}"
+        },
+        {
+            "name": "generate documents",
+            "port": 9229,
+            "program": "${workspaceFolder}/docs/libs/template-parse/build.js",
+            "args": [
+                "--env",
+                "dev",
+                "--watch"
+            ],
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "pwa-node"
+        },
+        {
+            "name": "Debug Jest-Electron Current File",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/packages/vchart",
+            "program": "${workspaceFolder}/packages/vchart/node_modules/jest/bin/jest.js",
+            "args": [
+                "${file}",
+                "--watch"
+            ],
+            "env": {
+                "DEBUG_MODE": "1"
+            },
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "unit test",
+            "type": "pwa-node",
+            "request": "launch",
+            "program": "${workspaceFolder}/packages/vchart/node_modules/jest/bin/jest.js",
+            "args": [
+                "${file}"
+            ],
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ]
+}

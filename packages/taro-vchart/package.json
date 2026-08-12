@@ -1,0 +1,96 @@
+{
+  "name": "@visactor/taro-vchart",
+  "version": "2.1.1",
+  "description": "Taro VChart 图表组件",
+  "sideEffects": false,
+  "main": "esm/index.js",
+  "files": [
+    "esm",
+    "cjs"
+  ],
+  "scripts": {
+    "build": "bundle --clean",
+    "build:tt": "taro build --type tt",
+    "build:lark": "taro build --type lark",
+    "build:h5": "taro build --type h5",
+    "build:wx": "taro build --type weapp",
+    "dev:tt": "npm run build:tt -- --watch",
+    "dev:lark": "npm run build:lark -- --watch",
+    "dev:h5": "npm run build:h5 -- --watch",
+    "dev:wx": "npm run build:wx -- --watch"
+  },
+  "keywords": [
+    "taro",
+    "charts",
+    "visualization",
+    "VChart",
+    "animation",
+    "storytelling",
+    "VisActor",
+    "graphics",
+    "interaction"
+  ],
+  "homepage": "https://www.visactor.io/vchart",
+  "bugs": "https://github.com/VisActor/VChart/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VisActor/VChart",
+    "directory": "packages/taro-vchart"
+  },
+  "author": {
+    "name": "VisActor",
+    "url": "https://www.visactor.io/"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@visactor/vchart": "workspace:2.1.1",
+    "@visactor/vchart-extension": "workspace:2.1.1"
+  },
+  "devDependencies": {
+    "@internal/bundler": "workspace:*",
+    "@internal/eslint-config": "workspace:*",
+    "@rushstack/eslint-patch": "~1.1.4",
+    "@internal/ts-config": "workspace:*",
+    "@vitejs/plugin-react": "3.1.0",
+    "eslint": "~8.18.0",
+    "vite": "3.2.6",
+    "typescript": "4.9.5",
+    "@babel/core": "7.20.12",
+    "@babel/runtime": "7.17.0",
+    "@rollup/plugin-typescript": "11.1.0",
+    "@tarojs/cli": "3.3.17",
+    "@tarojs/components": "3.3.17",
+    "@tarojs/mini-runner": "3.3.17",
+    "@tarojs/plugin-platform-lark": "^1.0.4",
+    "@tarojs/react": "3.3.17",
+    "@tarojs/runtime": "3.3.17",
+    "@tarojs/taro": "3.3.17",
+    "@tarojs/webpack-runner": "3.3.17",
+    "@types/react": "^18.0.0",
+    "@types/webpack-env": "^1.13.6",
+    "@typescript-eslint/eslint-plugin": "5.30.0",
+    "@typescript-eslint/parser": "5.30.0",
+    "@tarojs/plugin-platform-alipay": "3.3.17",
+    "@tarojs/plugin-platform-jd": "3.3.17",
+    "@tarojs/plugin-platform-qq": "3.3.17",
+    "@tarojs/plugin-platform-swan": "3.3.17",
+    "@tarojs/plugin-platform-tt": "3.3.17",
+    "@tarojs/plugin-platform-weapp": "3.3.17",
+    "babel-preset-taro": "3.3.17",
+    "eslint-config-taro": "3.3.17",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-react": "7.30.1",
+    "eslint-plugin-react-hooks": "4.6.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "rollup": "3.20.5",
+    "rollup-plugin-import-css": "^3.0.2",
+    "stylelint": "9.3.0",
+    "tslib": "2.3.1",
+    "rimraf": "3.0.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

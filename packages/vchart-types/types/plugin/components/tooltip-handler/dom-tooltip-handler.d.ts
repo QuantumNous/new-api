@@ -1,0 +1,43 @@
+import type { ITooltipActual, ITooltipPositionActual } from '../../../typings/tooltip';
+import { BaseTooltipHandler } from './base';
+import { type Maybe } from '@visactor/vutils';
+import type { IContainerSize } from '@visactor/vrender-components';
+import type { ITooltipSpec, TooltipHandlerParams } from '../../../component/tooltip';
+import type { IComponentPluginService } from '../interface';
+import type { ILayoutPoint } from '../../../typings';
+export declare class DomTooltipHandler extends BaseTooltipHandler {
+    static readonly type: string;
+    readonly type: string;
+    protected _tooltipContainer: HTMLElement;
+    protected _domStyle: {
+        panelPadding?: number[];
+        panel: Partial<CSSStyleDeclaration>;
+        row: Partial<CSSStyleDeclaration>;
+        title: Partial<CSSStyleDeclaration>;
+        shape: Partial<CSSStyleDeclaration>;
+        key: Partial<CSSStyleDeclaration>;
+        value: Partial<CSSStyleDeclaration>;
+    };
+    protected _rootDom?: HTMLElement;
+    protected _tooltipActual?: ITooltipActual;
+    protected _container: Maybe<HTMLDivElement>;
+    protected _cacheCustomTooltipPosition: ILayoutPoint;
+    getVisibility(): boolean;
+    setVisibility(_value: boolean): void;
+    getRootDom(): HTMLElement;
+    constructor();
+    onAdd(service: IComponentPluginService<any>): void;
+    initEl(): void;
+    initRootDom(): void;
+    protected _getTooltipBoxSize(actualTooltip: ITooltipActual, changePositionOnly: boolean): IContainerSize | undefined;
+    protected _removeTooltip(): void;
+    protected _updateTooltip(visible: boolean, params: TooltipHandlerParams): void;
+    protected _initStyle(): void;
+    protected _updateDomStringByCol(actualTooltip?: ITooltipActual): void;
+    protected _updateDomStyle(sizeKey: 'width' | 'height', refreshSize: boolean): void;
+    protected _getParentElement(spec: ITooltipSpec): HTMLElement;
+    isTooltipShown(): boolean;
+    reInit(): void;
+    protected _updatePosition({ x, y }: ITooltipPositionActual, resetTransition?: boolean): void;
+}
+export declare const registerDomTooltipHandler: () => void;

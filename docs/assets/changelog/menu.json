@@ -1,0 +1,26 @@
+{
+  "menu": "changelog",
+  "children": [
+    {
+      "path": "release",
+      "title": {
+        "zh": "版本记录",
+        "en": "release"
+      }
+    },
+    {
+      "path": "v2-upgrade-guide",
+      "title": {
+        "zh": "2.0升级指南",
+        "en": "Migration from v1 to v2"
+      }
+    },
+    {
+      "path": "release-v1",
+      "title": {
+        "zh": "V1 版本记录",
+        "en": "V1 release"
+      }
+    }
+  ]
+}

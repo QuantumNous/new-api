@@ -1,0 +1,50 @@
+name: Dispatch develop-synced after sync/main merged (Scheme A)
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - develop
+
+jobs:
+  dispatch_develop_synced:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'sync/main-')
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Derive version from sync branch
+        id: version
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          echo "Head branch: ${BRANCH}"
+          VERSION="${BRANCH#sync/main-}"
+          if [ -z "${VERSION}" ] || [ "${VERSION}" = "${BRANCH}" ]; then
+            echo "Failed to parse version from branch ${BRANCH}, skip dispatch."
+            echo "version=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Parsed version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Send repository_dispatch develop-synced
+        if: steps.version.outputs.version != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          OWNER_REPO="${GITHUB_REPOSITORY}"
+
+          echo "Sending repository_dispatch develop-synced for version ${VERSION} to ${OWNER_REPO}"
+
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${OWNER_REPO}/dispatches" \
+            -d "{\"event_type\":\"develop-synced\",\"client_payload\":{\"version\":\"${VERSION}\"}}"
