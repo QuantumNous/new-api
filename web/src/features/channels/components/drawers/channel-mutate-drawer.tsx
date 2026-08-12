@@ -1143,12 +1143,15 @@ export function ChannelMutateDrawer({
 
   // Transform models to multi-select options
   const modelOptions = useMemo(() => {
+    if (currentType === 61) {
+      return [{ value: 'MiniMax-H3', label: 'MiniMax-H3' }]
+    }
     const allModels = new Set([...allModelsList, ...currentModelsArray])
     return [...allModels].map((model) => ({
       value: model,
       label: model,
     }))
-  }, [allModelsList, currentModelsArray])
+  }, [allModelsList, currentModelsArray, currentType])
 
   const modelMappingGuardrail = useMemo<ModelMappingGuardrail>(() => {
     if (!currentModelMapping?.trim()) {
@@ -1267,6 +1270,14 @@ export function ChannelMutateDrawer({
     }
   }, [isEditing, channelData, form])
 
+  useEffect(() => {
+    if (currentType !== 61 || currentModels === 'MiniMax-H3') return
+    form.setValue('models', 'MiniMax-H3', {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }, [currentModels, currentType, form])
+
   // Handle type change - set default values for specific types
   useEffect(() => {
     if (isEditing) return // Don't auto-set defaults when editing
@@ -1285,14 +1296,6 @@ export function ChannelMutateDrawer({
       if (!currentOther || currentOther === '') {
         form.setValue('other', 'v2.1')
       }
-    }
-
-    // SiftQ exposes one fixed video model, so keep the routing model exact.
-    if (currentType === 61) {
-      form.setValue('models', 'MiniMax-H3', {
-        shouldDirty: true,
-        shouldValidate: true,
-      })
     }
   }, [currentType, isEditing, form])
 
@@ -3286,7 +3289,8 @@ export function ChannelMutateDrawer({
                                       placeholder={t(
                                         'Select models or add custom ones'
                                       )}
-                                      allowCreate
+                                      allowCreate={currentType !== 61}
+                                      disabled={currentType === 61}
                                       createLabel='Add custom model "{{value}}"'
                                       maxVisibleChips={8}
                                       copyChipOnClick

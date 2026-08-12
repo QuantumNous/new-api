@@ -28,13 +28,11 @@ const requestContextKey = "siftq_video_request"
 
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
-	apiKey  string
-	baseURL string
+	apiKey string
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
-	a.baseURL = info.ChannelBaseUrl
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
@@ -218,15 +216,22 @@ func (a *TaskAdaptor) ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error
 }
 
 func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, result *relaycommon.TaskInfo) int {
+	quota, _ := a.AdjustBillingOnCompleteWithClamp(task, result)
+	return quota
+}
+
+// AdjustBillingOnCompleteWithClamp preserves quota saturation metadata for the
+// polling settlement path while AdjustBillingOnComplete remains compatible
+// with task adaptors that only return a quota.
+func (a *TaskAdaptor) AdjustBillingOnCompleteWithClamp(task *model.Task, result *relaycommon.TaskInfo) (int, *common.QuotaClamp) {
 	if task == nil || result == nil || result.OutputSeconds <= 0 || task.PrivateData.BillingContext == nil {
-		return 0
+		return 0, nil
 	}
 	estimated := task.PrivateData.BillingContext.OtherRatios["seconds"]
 	if estimated <= 0 {
-		return 0
+		return 0, nil
 	}
-	quota, _ := common.QuotaFromFloatChecked(float64(task.Quota) * float64(result.OutputSeconds) / estimated)
-	return quota
+	return common.QuotaFromFloatChecked(float64(task.Quota) * float64(result.OutputSeconds) / estimated)
 }
 
 func (a *TaskAdaptor) GetModelList() []string { return ModelList }
@@ -255,21 +260,32 @@ func convertRequest(req relaycommon.TaskSubmitReq) (*videoRequest, string, error
 	if err := req.UnmarshalMetadata(&overrides); err != nil {
 		return nil, "", errors.Wrap(err, "parse SiftQ metadata")
 	}
-	duration := req.Duration
+	duration := 0
 	if overrides.Duration != nil {
 		duration = *overrides.Duration
-	}
-	if duration == 0 && req.Seconds != "" {
-		duration, _ = strconv.Atoi(req.Seconds)
-	}
-	if duration == 0 {
-		duration = defaultDuration
+	} else {
+		duration = req.Duration
+		if duration == 0 && req.Seconds != "" {
+			var err error
+			duration, err = strconv.Atoi(strings.TrimSpace(req.Seconds))
+			if err != nil {
+				return nil, "", fmt.Errorf("seconds must be an integer")
+			}
+		}
+		if duration == 0 {
+			duration = defaultDuration
+		}
 	}
 	if duration < 4 || duration > 15 {
 		return nil, "", fmt.Errorf("duration must be an integer from 4 through 15")
 	}
-	resolution := strings.ToUpper(strings.TrimSpace(overrides.Resolution))
-	if resolution == "" {
+	resolution := ""
+	if overrides.Resolution != nil {
+		resolution = strings.ToUpper(strings.TrimSpace(*overrides.Resolution))
+		if resolution == "" {
+			return nil, "", fmt.Errorf("resolution cannot be empty")
+		}
+	} else {
 		resolution = strings.ToUpper(strings.TrimSpace(req.Size))
 	}
 	if resolution == "" {
@@ -304,25 +320,31 @@ func convertRequest(req relaycommon.TaskSubmitReq) (*videoRequest, string, error
 	if err != nil {
 		return nil, "", err
 	}
-	ratio := strings.TrimSpace(overrides.Ratio)
-	if ratio == "" {
-		if mode == "text" {
-			ratio = defaultTextRatio
+	ratio := adaptiveRatio
+	if mode == "frame" {
+		// Frame-based generation always derives its ratio from the input image.
+	} else {
+		if overrides.Ratio != nil {
+			ratio = strings.TrimSpace(*overrides.Ratio)
+			if ratio == "" {
+				return nil, "", fmt.Errorf("ratio cannot be empty")
+			}
 		} else {
-			ratio = adaptiveRatio
+			if mode == "text" {
+				ratio = defaultTextRatio
+			}
+		}
+		if _, ok := validRatios[ratio]; !ok {
+			return nil, "", fmt.Errorf("invalid ratio %q", ratio)
+		}
+		if mode == "text" && ratio == adaptiveRatio {
+			return nil, "", fmt.Errorf("text-to-video requires a concrete ratio")
 		}
 	}
-	if _, ok := validRatios[ratio]; !ok {
-		return nil, "", fmt.Errorf("invalid ratio %q", ratio)
-	}
-	if mode == "text" && ratio == adaptiveRatio {
-		return nil, "", fmt.Errorf("text-to-video requires a concrete ratio")
-	}
-	if mode == "frame" {
-		ratio = adaptiveRatio
-	}
-	if overrides.CallbackURL != "" {
-		parsed, err := url.ParseRequestURI(overrides.CallbackURL)
+	callbackURL := ""
+	if overrides.CallbackURL != nil {
+		callbackURL = strings.TrimSpace(*overrides.CallbackURL)
+		parsed, err := url.ParseRequestURI(callbackURL)
 		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
 			return nil, "", fmt.Errorf("callback_url must be an absolute HTTP(S) URL")
 		}
@@ -340,7 +362,7 @@ func convertRequest(req relaycommon.TaskSubmitReq) (*videoRequest, string, error
 		Resolution:  resolution,
 		Duration:    duration,
 		Ratio:       ratio,
-		CallbackURL: overrides.CallbackURL,
+		CallbackURL: callbackURL,
 	}, action, nil
 }
 
@@ -451,11 +473,11 @@ func validateMediaURL(value, mediaType string, maxBytes int) error {
 		if !validMediaMIME(mediaType, mime) {
 			return fmt.Errorf("unsupported %s MIME type %q", mediaType, mime)
 		}
-		if _, err := base64.StdEncoding.DecodeString(parts[1]); err != nil {
-			return fmt.Errorf("invalid base64 data URI")
-		}
 		if base64.StdEncoding.DecodedLen(len(parts[1])) > maxBytes {
 			return fmt.Errorf("%s exceeds size limit", mediaType)
+		}
+		if _, err := base64.StdEncoding.DecodeString(parts[1]); err != nil {
+			return fmt.Errorf("invalid base64 data URI")
 		}
 		return nil
 	}

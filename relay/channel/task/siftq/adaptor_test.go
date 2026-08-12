@@ -111,7 +111,12 @@ func TestConvertRequestRejectsInvalidContractCombinations(t *testing.T) {
 		req  relaycommon.TaskSubmitReq
 	}{
 		{name: "duration too short", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 3}},
+		{name: "zero duration override", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 5, Metadata: map[string]interface{}{"duration": 0}}},
+		{name: "non-integer seconds", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Seconds: "five"}},
 		{name: "invalid resolution", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 5, Size: "1080P"}},
+		{name: "empty resolution override", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 5, Metadata: map[string]interface{}{"resolution": ""}}},
+		{name: "empty ratio override", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 5, Metadata: map[string]interface{}{"ratio": ""}}},
+		{name: "empty callback override", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 5, Metadata: map[string]interface{}{"callback_url": ""}}},
 		{name: "adaptive text ratio", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 5, Metadata: map[string]interface{}{"ratio": "adaptive"}}},
 		{name: "last frame without first", req: relaycommon.TaskSubmitReq{Model: ModelName, Prompt: "x", Duration: 5, Metadata: map[string]interface{}{"content": []interface{}{
 			map[string]interface{}{"type": "text", "text": "x"},
@@ -131,6 +136,18 @@ func TestConvertRequestRejectsInvalidContractCombinations(t *testing.T) {
 	}
 }
 
+func TestConvertRequestIgnoresFrameRatioOverride(t *testing.T) {
+	payload, _, err := convertRequest(relaycommon.TaskSubmitReq{
+		Model:    ModelName,
+		Prompt:   "camera pushes in",
+		Duration: 5,
+		Image:    "https://example.com/first.png",
+		Metadata: map[string]interface{}{"ratio": "not-a-ratio"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, adaptiveRatio, payload.Ratio)
+}
+
 func TestConvertRequestRejectsMetadataDurationOutsideBillingBounds(t *testing.T) {
 	_, _, err := convertRequest(relaycommon.TaskSubmitReq{
 		Model:    ModelName,
@@ -144,6 +161,11 @@ func TestConvertRequestRejectsMetadataDurationOutsideBillingBounds(t *testing.T)
 func TestValidateMediaURLRejectsMalformedBase64(t *testing.T) {
 	err := validateMediaURL("data:image/png;base64,not-base64!", "image", 30<<20)
 	require.ErrorContains(t, err, "invalid base64")
+}
+
+func TestValidateMediaURLRejectsOversizedBase64BeforeDecoding(t *testing.T) {
+	err := validateMediaURL("data:image/png;base64,%%%%", "image", 2)
+	require.ErrorContains(t, err, "exceeds size limit")
 }
 
 func TestValidateRequestRequiresFixedModel(t *testing.T) {
@@ -197,6 +219,8 @@ func TestParseTaskResult(t *testing.T) {
 		{name: "running", body: `{"task":{"id":"1","status":"running"}}`, wantStatus: model.TaskStatusInProgress},
 		{name: "succeeded", body: `{"task":{"id":"1","status":"succeeded","content":{"url":"https://example.com/out.mp4"},"modality":"video","usage":{"output_seconds":5}}}`, wantStatus: model.TaskStatusSuccess, wantURL: "https://example.com/out.mp4"},
 		{name: "failed", body: `{"task":{"id":"1","status":"failed","error":{"code":"2013","message":"invalid request"}}}`, wantStatus: model.TaskStatusFailure},
+		{name: "cancelled", body: `{"task":{"id":"1","status":"cancelled"}}`, wantStatus: model.TaskStatusFailure},
+		{name: "unknown status remains retriable", body: `{"task":{"id":"1","status":"pausing"}}`, wantErr: true},
 		{name: "missing terminal url", body: `{"task":{"id":"1","status":"succeeded","modality":"video"}}`, wantErr: true},
 		{name: "legacy shape rejected", body: `{"task_id":"1","status":"Success","file_id":"2"}`, wantErr: true},
 	}
@@ -210,6 +234,62 @@ func TestParseTaskResult(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, test.wantStatus, model.TaskStatus(result.Status))
 			assert.Equal(t, test.wantURL, result.Url)
+		})
+	}
+}
+
+func TestAdjustBillingOnComplete(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	tests := []struct {
+		name      string
+		task      *model.Task
+		result    *relaycommon.TaskInfo
+		wantQuota int
+		wantClamp common.QuotaClampKind
+	}{
+		{
+			name: "scales pre-charge by actual duration",
+			task: &model.Task{Quota: 1000, PrivateData: model.TaskPrivateData{BillingContext: &model.TaskBillingContext{
+				OtherRatios: map[string]float64{"seconds": 5},
+			}}},
+			result:    &relaycommon.TaskInfo{OutputSeconds: 10},
+			wantQuota: 2000,
+		},
+		{
+			name:      "missing billing context keeps pre-charge",
+			task:      &model.Task{Quota: 1000},
+			result:    &relaycommon.TaskInfo{OutputSeconds: 10},
+			wantQuota: 0,
+		},
+		{
+			name: "zero output duration keeps pre-charge",
+			task: &model.Task{Quota: 1000, PrivateData: model.TaskPrivateData{BillingContext: &model.TaskBillingContext{
+				OtherRatios: map[string]float64{"seconds": 5},
+			}}},
+			result:    &relaycommon.TaskInfo{},
+			wantQuota: 0,
+		},
+		{
+			name: "reports saturated quota",
+			task: &model.Task{Quota: common.MaxQuota, PrivateData: model.TaskPrivateData{BillingContext: &model.TaskBillingContext{
+				OtherRatios: map[string]float64{"seconds": 0.01},
+			}}},
+			result:    &relaycommon.TaskInfo{OutputSeconds: 15},
+			wantQuota: common.MaxQuota,
+			wantClamp: common.QuotaClampOverflow,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			quota, clamp := adaptor.AdjustBillingOnCompleteWithClamp(test.task, test.result)
+			assert.Equal(t, test.wantQuota, quota)
+			if test.wantClamp == "" {
+				assert.Nil(t, clamp)
+			} else {
+				require.NotNil(t, clamp)
+				assert.Equal(t, test.wantClamp, clamp.Kind)
+			}
 		})
 	}
 }

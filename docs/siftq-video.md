@@ -27,9 +27,9 @@ Send a request to either `POST /v1/video/generations` or `POST /v1/videos`:
 }
 ```
 
-Supported standard fields include `prompt`, `image`, `images`, `duration`, and `size`. `size` accepts `768P` or `2K`.
+Supported standard fields include `prompt`, `image`, `images`, `duration`, and `size`. `duration` must be an integer from 4 through 15, and `size` accepts `768P` or `2K`.
 
-For first-frame input, pass `image`. For first-and-last-frame input, pass two entries in `images`. These modes use the input frame ratio and are submitted upstream with `ratio: "adaptive"`.
+For first-frame input, pass `image`. For first-and-last-frame input, pass two entries in `images`. These modes use the input frame ratio and are always submitted upstream with `ratio: "adaptive"`; a `metadata.ratio` value is ignored for frame-based requests.
 
 For reference image, video, or audio inputs, pass the SiftQ `content` array through `metadata`:
 

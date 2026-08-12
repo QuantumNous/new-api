@@ -25,9 +25,9 @@ type videoRequest struct {
 type requestOverrides struct {
 	Content     []contentItem `json:"content,omitempty"`
 	Duration    *int          `json:"duration,omitempty"`
-	Resolution  string        `json:"resolution,omitempty"`
-	Ratio       string        `json:"ratio,omitempty"`
-	CallbackURL string        `json:"callback_url,omitempty"`
+	Resolution  *string       `json:"resolution,omitempty"`
+	Ratio       *string       `json:"ratio,omitempty"`
+	CallbackURL *string       `json:"callback_url,omitempty"`
 }
 
 type createResponse struct {
