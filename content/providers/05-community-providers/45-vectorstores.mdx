@@ -1,0 +1,107 @@
+---
+title: vectorstores
+description: Learn how to use vector databases with the AI SDK.
+---
+
+# vectorstores Provider
+
+The [vectorstores provider](https://www.vectorstores.org/integration/vercel/) integrates [vectorstores](https://www.vectorstores.org/) with the AI SDK, enabling AI workflows that retrieve and store data in vector databases.
+
+## Setup
+
+The vectorstores provider is available in the `@vectorstores/vercel` module. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @vectorstores/vercel @vectorstores/core" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @vectorstores/vercel @vectorstores/core" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @vectorstores/vercel @vectorstores/core" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @vectorstores/vercel @vectorstores/core" dark />
+  </Tab>
+</Tabs>
+
+## Document Indexing
+
+Before you can use the vectorstores provider, you need to define an index for your documents. An index stores document embeddings in a vector database, enabling semantic search over your content.
+
+An easy way to create an index is by using the `VectorStoreIndex.fromDocuments` function from the `@vectorstores/core` package. This function will automatically chunk your documents into smaller chunks, embed them, and store them in the vector database.
+
+To be able to embed the documents, you need an embedding model. You can use the `vercelEmbedding` function (see [Utilities](#utilities)) to use any AI SDK embedding model.
+
+Once you have an index, you can use a retriever to find the most relevant documents based on similarity to a given query.
+
+## Utilities
+
+The vectorstores provider offers two main utility functions for integrating AI SDK with vectorstores.
+
+### vercelEmbedding
+
+The `vercelEmbedding` function adapts any AI SDK embedding model for use with vectorstores. This enables you to use embedding providers like OpenAI or Cohere within the vectorstores ecosystem.
+
+Here is an example of how to create an index using the `vercelEmbedding` function:
+
+```ts
+import { openai } from '@ai-sdk/openai';
+import { vercelEmbedding } from '@vectorstores/vercel';
+import { VectorStoreIndex } from '@vectorstores/core';
+
+const documents = [new Document({ text: 'This is a large document.' })];
+
+const index = await VectorStoreIndex.fromDocuments(documents, {
+  embedFunc: vercelEmbedding(openai.embedding('text-embedding-3-small')),
+});
+```
+
+### vercelTool
+
+The `vercelTool` function wraps a vectorstores retriever as an AI SDK tool, enabling agents that can autonomously access data in vector databases.
+
+```ts
+import { generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { vercelTool } from '@vectorstores/vercel';
+
+const { text } = await generateText({
+  model: openai('gpt-5-mini'),
+  tools: {
+    search: vercelTool({
+      retriever: index.asRetriever(),
+      description: 'Search the knowledge base for pricing information',
+    }),
+  },
+  prompt: 'What is the price of a burrito?',
+});
+```
+
+#### Configuration Options
+
+| Option             | Type          | Required | Description                                                                                 |
+| ------------------ | ------------- | -------- | ------------------------------------------------------------------------------------------- |
+| `retriever`        | BaseRetriever | Yes      | The vectorstores retriever instance to wrap                                                 |
+| `description`      | string        | Yes      | Guidance text helping the LLM understand when and how to use the tool                       |
+| `noResultsMessage` | string        | No       | Custom fallback message when no documents match (default: "No results found in documents.") |
+
+## Use Cases
+
+### Agentic RAG
+
+Ask questions over the knowledge stores in the vector database. The LLM autonomously decides whether to query the vector database using a tool, retrieves relevant content, and incorporates findings into responses.
+
+[View example →](https://github.com/marcusschiesser/vectorstores/blob/main/examples/vercel/agentic-rag.ts)
+
+### Agent Memory Systems
+
+Store and retrieve user-specific information across conversations by combining a tool storing memories in the vector database and a tool retrieving memories from the vector database.
+
+[View example →](https://github.com/marcusschiesser/vectorstores/blob/main/examples/vercel/agent-memory.ts)
+
+## References
+
+- [Vectorstores Documentation](https://www.vectorstores.org/)
+- [Vectorstores AI SDK Integration](https://www.vectorstores.org/integration/vercel/)

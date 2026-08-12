@@ -1,0 +1,568 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - release-v*
+  pull_request:
+    branches:
+      - main
+      - release-v*
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 'Lint & Format'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ultracite check
+        run: pnpm run check
+
+      - name: Validate docs <PropertiesTable> usage
+        run: pnpm run validate:docs
+
+  konsistent:
+    name: 'Code Consistency'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run konsistent
+        run: pnpm konsistent
+
+  build-examples:
+    name: 'Build Examples (${{ matrix.shard }})'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: next-core
+            filters: --filter=@example/next --filter=@example/next-openai --filter=@example/next-agent
+          - shard: next-integrations
+            filters: --filter=@example/next-fastapi --filter=@example/next-google-vertex --filter=@example/next-langchain --filter=@example/next-workflow
+          - shard: next-telemetry
+            filters: --filter=@example/next-openai-kasada-bot-protection --filter=@example/next-openai-pages --filter=@example/next-openai-rate-limits --filter=@example/next-openai-telemetry --filter=@example/next-openai-telemetry-sentry
+          - shard: other-frameworks
+            filters: --filter=@example/angular --filter=@example/nest --filter=@example/nuxt-openai --filter=@example/sveltekit-openai
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore build caches
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            .turbo/cache
+            examples/**/.next/cache
+            examples/**/.angular/cache
+          key: ${{ runner.os }}-build-examples-${{ matrix.shard }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-examples-${{ matrix.shard }}-
+
+      - name: Build Examples
+        run: pnpm exec turbo build ${{ matrix.filters }}
+
+  types:
+    name: 'TypeScript'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run TypeScript type check
+        run: pnpm run type-check:full
+
+  build-packages:
+    name: 'Build Packages'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm run build:packages
+
+      - name: Archive package build artifacts
+        run: tar -czf package-build-artifacts.tgz packages/*/dist
+
+      - name: Upload package build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: package-build-artifacts
+          path: package-build-artifacts.tgz
+
+  bundle-size:
+    name: 'Bundle Size Check'
+    runs-on: ubuntu-latest
+    needs: build-packages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download package build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package-build-artifacts
+
+      - name: Extract package build artifacts
+        run: tar -xzf package-build-artifacts.tgz
+
+      - name: Check bundle size
+        run: cd packages/ai && pnpm run check-bundle-size
+
+      - name: Upload bundle size metafiles
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bundle-size-metafiles
+          path: packages/ai/dist-bundle-check/*.json
+
+  test_node_versions:
+    name: 'Test Node Versions'
+    runs-on: ubuntu-latest
+    outputs:
+      node_versions: ${{ steps.node-versions.outputs.node_versions }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Select Node versions
+        id: node-versions
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo 'node_versions=[22,24,26]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+          if git diff --name-only "$BASE_SHA" "${{ github.sha }}" | grep -E '^packages/[^/]+/(src/|test/|tests/|.*\.test(-d)?\.(ts|tsx|js|jsx)$)'; then
+            echo 'node_versions=[22,24,26]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'node_versions=[22]' >> "$GITHUB_OUTPUT"
+          fi
+
+  test_matrix:
+    name: 'Test'
+    runs-on: ubuntu-latest
+    needs: [build-packages, test_node_versions]
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+    strategy:
+      matrix:
+        node-version: ${{ fromJSON(needs.test_node_versions.outputs.node_versions) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download package build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package-build-artifacts
+
+      - name: Extract package build artifacts
+        run: tar -xzf package-build-artifacts.tgz
+
+      - name: Run tests
+        env:
+          SKIP_RSC_E2E: '1'
+        run: pnpm test:ci
+
+  test_rsc_e2e:
+    name: 'Test RSC e2e'
+    runs-on: ubuntu-latest
+    needs: build-packages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Detect RSC e2e changes
+        id: rsc-e2e
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+          if git diff --name-only "$BASE_SHA" "${{ github.sha }}" | grep -E '^(packages/rsc/|pnpm-lock.yaml$|package.json$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.rsc-e2e.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Download package build artifacts
+        if: steps.rsc-e2e.outputs.run == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package-build-artifacts
+
+      - name: Extract package build artifacts
+        if: steps.rsc-e2e.outputs.run == 'true'
+        run: tar -xzf package-build-artifacts.tgz
+
+      - name: Resolve Playwright version
+        if: steps.rsc-e2e.outputs.run == 'true'
+        id: playwright-version
+        working-directory: packages/rsc
+        run: |
+          VERSION="$(pnpm exec playwright --version | awk '{print $2}')"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: steps.rsc-e2e.outputs.run == 'true'
+        id: playwright-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright system dependencies
+        if: steps.rsc-e2e.outputs.run == 'true'
+        working-directory: packages/rsc
+        run: |
+          # `playwright install --with-deps` shells out to apt-get. When the
+          # Ubuntu mirror is slow the command can exceed the timeout; `timeout`
+          # only kills the direct child, leaving an orphaned apt-get holding the
+          # dpkg lock so every retry fails instantly with exit code 100. Run each
+          # attempt in its own process group, kill the whole group on timeout,
+          # and wait for the dpkg lock to free before retrying.
+          ATTEMPTS=3
+          PER_ATTEMPT_TIMEOUT=15m
+
+          wait_for_apt_lock() {
+            for _ in $(seq 1 60); do
+              if ! sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+                return 0
+              fi
+              echo "Waiting for dpkg lock to be released..."
+              sleep 5
+            done
+          }
+
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            STATUS=0
+            # `setsid` puts the command in a new process group; `timeout
+            # --kill-after` escalates to SIGKILL so the whole group (including
+            # apt-get) is torn down on timeout.
+            setsid timeout --signal=TERM --kill-after=30s "$PER_ATTEMPT_TIMEOUT" \
+              pnpm exec playwright install-deps chromium || STATUS=$?
+            if [ "$STATUS" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -eq "$ATTEMPTS" ]; then
+              echo "::error::playwright install-deps failed after $ATTEMPTS attempts (last exit code: $STATUS)"
+              exit 1
+            fi
+            if [ "$STATUS" -eq 124 ]; then
+              echo "Attempt $attempt timed out after ${PER_ATTEMPT_TIMEOUT}, retrying..."
+            else
+              echo "Attempt $attempt failed with exit code $STATUS, retrying..."
+            fi
+            wait_for_apt_lock
+          done
+
+      - name: Install Playwright browsers
+        if: steps.rsc-e2e.outputs.run == 'true'
+        working-directory: packages/rsc
+        run: |
+          # Browser binaries are restored from cache when available; this only
+          # downloads them on a cache miss and is fast compared to the apt step.
+          ATTEMPTS=3
+          PER_ATTEMPT_TIMEOUT=10m
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            STATUS=0
+            timeout "$PER_ATTEMPT_TIMEOUT" pnpm exec playwright install chromium || STATUS=$?
+            if [ "$STATUS" -eq 0 ]; then
+              break
+            fi
+            if [ "$attempt" -eq "$ATTEMPTS" ]; then
+              echo "::error::playwright install failed after $ATTEMPTS attempts (last exit code: $STATUS)"
+              exit 1
+            fi
+            echo "Attempt $attempt failed with exit code $STATUS, retrying..."
+          done
+
+      - name: Run RSC e2e tests
+        if: steps.rsc-e2e.outputs.run == 'true'
+        working-directory: packages/rsc
+        run: pnpm test:e2e
+
+  test_ai_matrix:
+    name: 'Test AI'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24, 26]
+        shard: ['1/4', '2/4', '3/4', '4/4']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build AI dependencies
+        run: pnpm exec turbo build --filter=ai
+
+      - name: Run AI tests
+        working-directory: packages/ai
+        run: |
+          pnpm test:node --shard ${{ matrix.shard }}
+          pnpm test:edge --shard ${{ matrix.shard }}
+
+  test_codemod_matrix:
+    name: 'Test Codemod'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24, 26]
+        shard: ['1/4', '2/4', '3/4', '4/4']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run codemod tests
+        working-directory: packages/codemod
+        run: pnpm exec vitest --config vitest.config.ts --run --shard ${{ matrix.shard }}
+
+  # separate "test" job to set as required in branch protections,
+  # as the matrix build names above change each time Node versions change
+  test:
+    runs-on: ubuntu-latest
+    needs:
+      [
+        build-packages,
+        test_node_versions,
+        test_matrix,
+        test_rsc_e2e,
+        test_ai_matrix,
+        test_codemod_matrix,
+      ]
+    if: ${{ !cancelled() }}
+    steps:
+      - name: All required jobs passed
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) }}
+        run: exit 0
+      - name: Some required job failed or was skipped
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: exit 1
+
+  load-time_matrix:
+    name: 'Load Time Check'
+    runs-on: ubuntu-latest
+    needs: build-packages
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: 'ai'
+            max-load-time: 105
+          - module: '@ai-sdk/openai'
+            max-load-time: 70
+          - module: '@ai-sdk/openai-compatible'
+            max-load-time: 70
+          - module: '@ai-sdk/anthropic'
+            max-load-time: 70
+          - module: '@ai-sdk/google'
+            max-load-time: 70
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download package build artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: package-build-artifacts
+
+      - name: Extract package build artifacts
+        run: tar -xzf package-build-artifacts.tgz
+
+      - name: Measure and check load time for ${{ matrix.module }}
+        id: load-time
+        working-directory: examples/ai-functions
+        run: |
+          echo "📦 Measuring load time for ${{ matrix.module }}..."
+          pnpm tsx src/benchmark/load-time.ts "${{ matrix.module }}" | tee load-time-output.txt
+
+          # Extract the average time from the output
+          AVERAGE_TIME=$(grep "Average:" load-time-output.txt | awk '{print $2}' | sed 's/ms//')
+
+          echo ""
+          echo "🔍 Checking threshold..."
+          echo "Average load time: ${AVERAGE_TIME}ms"
+          echo "Maximum allowed: ${{ matrix.max-load-time }}ms"
+
+          if (( $(echo "$AVERAGE_TIME > ${{ matrix.max-load-time }}" | bc -l) )); then
+            echo ""
+            echo "❌ Load time check failed!"
+            echo "${{ matrix.module }}: ${AVERAGE_TIME}ms exceeds ${{ matrix.max-load-time }}ms threshold"
+            echo ""
+            echo "To fix this:"
+            echo "1. Investigate and optimize slow module initialization"
+            echo "2. Update the max-load-time in .github/workflows/ci.yml if the increase is justified"
+            exit 1
+          else
+            echo ""
+            echo "✅ Load time check passed!"
+            echo "${{ matrix.module }}: ${AVERAGE_TIME}ms is within ${{ matrix.max-load-time }}ms threshold"
+
+            # write result to summary
+            echo "- Load Time Check for ${{ matrix.module }}: ${AVERAGE_TIME}ms (Max: ${{ matrix.max-load-time }}ms)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # separate "load-time" job to set as required in branch protections,
+  # as the matrix build names above change each time modules are added/removed
+  load-time:
+    runs-on: ubuntu-latest
+    needs: [build-packages, load-time_matrix]
+    if: ${{ !cancelled() }}
+    steps:
+      - name: All required jobs passed
+        if: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) }}
+        run: exit 0
+      - name: Some required job failed or was skipped
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: exit 1

@@ -1,0 +1,290 @@
+---
+title: Helicone
+description: Monitor and optimize your AI SDK applications with minimal configuration using Helicone
+---
+
+# Helicone Observability
+
+[Helicone](https://helicone.ai) is an open-source LLM observability platform that helps you monitor, analyze, and optimize your AI applications. Built-in observability tracks every request automatically, providing comprehensive insights into performance, costs, user behavior, and model usage without requiring additional instrumentation.
+
+## Setup
+
+The Helicone provider is available in the `@helicone/ai-sdk-provider` package. Install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @helicone/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @helicone/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @helicone/ai-sdk-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @helicone/ai-sdk-provider" dark />
+  </Tab>
+</Tabs>
+
+Setting up Helicone:
+
+1. Create a Helicone account at [helicone.ai](https://helicone.ai)
+2. Get your API key from the [Helicone Dashboard](https://us.helicone.ai/settings/api-keys)
+3. Set your API key as an environment variable:
+   ```bash filename=".env"
+   HELICONE_API_KEY=your-helicone-api-key
+   ```
+4. Use Helicone in your application:
+
+   ```javascript
+   import { createHelicone } from '@helicone/ai-sdk-provider';
+   import { generateText } from 'ai';
+
+   const helicone = createHelicone({
+     apiKey: process.env.HELICONE_API_KEY,
+   });
+
+   // Use the provider with any supported model: https://helicone.ai/models
+   const result = await generateText({
+     model: helicone('claude-4.5-haiku'),
+     prompt: 'Hello world',
+   });
+
+   console.log(result.text);
+   ```
+
+That's it! Your requests are now being logged and monitored through Helicone with automatic observability.
+
+[→ Learn more about Helicone AI Gateway](https://docs.helicone.ai)
+
+## Key Observability Features
+
+Helicone provides comprehensive observability for your AI applications with zero additional instrumentation:
+
+**Automatic Request Tracking**
+
+- Every request is logged automatically with full request/response data
+- Track latency, tokens, costs, and model performance in real-time
+- No OpenTelemetry setup or additional configuration required
+
+**Analytics Dashboard**
+
+- View metrics across all your AI requests: costs, latency, token usage, and error rates
+- Filter by user, session, model, or custom properties
+- Identify performance bottlenecks and optimize model selection
+
+**User & Session Analytics**
+
+- Track individual user behavior and usage patterns
+- Monitor conversation flows with session tracking
+- Analyze user engagement and feature adoption
+
+**Cost Monitoring**
+
+- Real-time cost tracking per request, user, feature, or model
+- Budget alerts and cost optimization insights
+- Compare costs across different models and providers
+
+**Debugging & Troubleshooting**
+
+- Full request/response logging for every call
+- Error tracking with detailed context
+- Search and filter requests to identify issues quickly
+
+[→ Learn more about Helicone Observability](https://docs.helicone.ai)
+
+## Observability Configuration
+
+### User Tracking
+
+Track individual user behavior and analyze usage patterns across your application. This helps you understand which users are most active, identify power users, and monitor per-user costs:
+
+```javascript
+import { createHelicone } from '@helicone/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const helicone = createHelicone({
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+const result = await generateText({
+  model: helicone('gpt-4o-mini', {
+    extraBody: {
+      helicone: {
+        userId: 'user@example.com',
+      },
+    },
+  }),
+  prompt: 'Hello world',
+});
+```
+
+**What you can track:**
+
+- Total requests per user
+- Cost per user
+- Average latency per user
+- Most common use cases by user segment
+
+[→ Learn more about User Metrics](https://docs.helicone.ai/features/advanced-usage/user-metrics)
+
+### Custom Properties
+
+Add structured metadata to segment and analyze requests by feature, environment, or any custom dimension. This enables powerful filtering and insights in your analytics dashboard:
+
+```javascript
+import { createHelicone } from '@helicone/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const helicone = createHelicone({
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+const result = await generateText({
+  model: helicone('gpt-4o-mini', {
+    extraBody: {
+      helicone: {
+        properties: {
+          feature: 'translation',
+          source: 'mobile-app',
+          language: 'French',
+          environment: 'production',
+        },
+      },
+    },
+  }),
+  prompt: 'Translate this text to French',
+});
+```
+
+**Use cases for custom properties:**
+
+- Compare performance across different features or environments
+- Track costs by product area or customer tier
+- Identify which features drive the most AI usage
+- A/B test different prompts or models by tagging experiments
+
+[→ Learn more about Custom Properties](https://docs.helicone.ai/features/advanced-usage/custom-properties)
+
+### Session Tracking
+
+Group related requests into sessions to analyze conversation flows and multi-turn interactions. This is essential for understanding user journeys and debugging complex conversations:
+
+```javascript
+import { createHelicone } from '@helicone/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const helicone = createHelicone({
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+const result = await generateText({
+  model: helicone('gpt-4o-mini', {
+    extraBody: {
+      helicone: {
+        sessionId: 'convo-123',
+        sessionName: 'Travel Planning',
+        sessionPath: '/chats/travel',
+      },
+    },
+  }),
+  prompt: 'Tell me more about that',
+});
+```
+
+**Session tracking benefits:**
+
+- View complete conversation history in a single timeline
+- Calculate total cost per session/conversation
+- Measure session duration and message counts
+- Identify where users drop off in multi-turn conversations
+- Debug issues by replaying entire conversation flows
+
+[→ Learn more about Sessions](https://docs.helicone.ai/features/sessions)
+
+## Advanced Observability Features
+
+### Tags and Organization
+
+Add tags to organize and filter requests in your analytics dashboard:
+
+```javascript
+import { createHelicone } from '@helicone/ai-sdk-provider';
+import { generateText } from 'ai';
+
+const helicone = createHelicone({
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+const result = await generateText({
+  model: helicone('gpt-4o-mini', {
+    extraBody: {
+      helicone: {
+        tags: ['customer-support', 'urgent'],
+        properties: {
+          ticketId: 'TICKET-789',
+          priority: 'high',
+          department: 'support',
+        },
+      },
+    },
+  }),
+  prompt: 'Help resolve this customer issue',
+});
+```
+
+**Tags insights:**
+
+- Filter and group requests by tags
+- Track performance across different categories
+- Identify patterns in tagged requests
+- Build custom dashboards around specific tags
+
+[→ Learn more about Helicone Features](https://docs.helicone.ai)
+
+### Streaming Response Tracking
+
+Monitor streaming responses with full observability, including time-to-first-token and total streaming duration:
+
+```javascript
+import { createHelicone } from '@helicone/ai-sdk-provider';
+import { streamText } from 'ai';
+
+const helicone = createHelicone({
+  apiKey: process.env.HELICONE_API_KEY,
+});
+
+const result = await streamText({
+  model: helicone('gpt-4o-mini', {
+    extraBody: {
+      helicone: {
+        userId: 'user@example.com',
+        sessionId: 'stream-session-123',
+        tags: ['streaming', 'content-generation'],
+      },
+    },
+  }),
+  prompt: 'Write a short story about AI',
+});
+
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+**Streaming metrics tracked:**
+
+- Time to first token (TTFT)
+- Total streaming duration
+- Tokens per second
+- Complete request/response logging even for streams
+- User experience metrics for real-time applications
+- All metadata (sessions, users, tags) tracked for streamed responses
+
+## Resources
+
+- [Helicone Documentation](https://docs.helicone.ai)
+- [AI SDK Provider Package](https://github.com/Helicone/ai-sdk-provider)
+- [Helicone GitHub Repository](https://github.com/Helicone/helicone)
+- [Discord Community](https://discord.gg/7aSCGCGUeu)
+- [Supported Models](https://helicone.ai/models)

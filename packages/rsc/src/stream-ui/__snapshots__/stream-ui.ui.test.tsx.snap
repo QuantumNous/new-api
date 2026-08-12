@@ -1,0 +1,213 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`options.headers > should pass headers to model 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": true,
+          "value": "{ "content": "headers test" }",
+        },
+        "value": "{ "content": "headers test" }",
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`options.providerMetadata > should pass provider metadata to model 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": true,
+          "value": "{ "content": "provider metadata test" }",
+        },
+        "value": "{ "content": "provider metadata test" }",
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`result.value > should render text 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": false,
+          "next": {
+            "done": false,
+            "next": {
+              "done": false,
+              "next": {
+                "done": false,
+                "next": {
+                  "done": false,
+                  "next": {
+                    "done": true,
+                    "value": "{ "content": "Hello, world!" }",
+                  },
+                  "value": "{ "content": "Hello, world!" }",
+                },
+                "value": "{ "content": "Hello, world!"",
+              },
+              "value": "{ "content": "Hello, world",
+            },
+            "value": "{ "content": "Hello, ",
+          },
+          "value": "{ "content": ",
+        },
+        "value": "{ ",
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`result.value > should render text function returned ui 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": false,
+          "next": {
+            "done": false,
+            "next": {
+              "done": false,
+              "next": {
+                "done": false,
+                "next": {
+                  "done": false,
+                  "next": {
+                    "done": true,
+                    "value": <h1>
+                      { "content": "Hello, world!" }
+                    </h1>,
+                  },
+                  "value": <h1>
+                    { "content": "Hello, world!" }
+                  </h1>,
+                },
+                "value": <h1>
+                  { "content": "Hello, world!"
+                </h1>,
+              },
+              "value": <h1>
+                { "content": "Hello, world
+              </h1>,
+            },
+            "value": <h1>
+              { "content": "Hello, 
+            </h1>,
+          },
+          "value": <h1>
+            { "content": 
+          </h1>,
+        },
+        "value": <h1>
+          { 
+        </h1>,
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`result.value > should render tool call results 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": true,
+        "value": <div>
+          tool1: 
+          value
+        </div>,
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`result.value > should render tool call results with generator render function 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": true,
+          "value": <div>
+            tool: 
+            value
+          </div>,
+        },
+        "value": <div>
+          Loading...
+        </div>,
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`result.value > should show better error messages if legacy options are passed 1`] = `[Error: Tool definition in \`streamUI\` should not have \`render\` property. Use \`generate\` instead. Found in tool: tool1]`;
+
+exports[`rsc - streamUI() onFinish callback > should contain final React node 1`] = `
+<React.Suspense>
+  <Unknown
+    n={Promise {}}
+  />
+</React.Suspense>
+`;

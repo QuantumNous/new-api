@@ -1,0 +1,257 @@
+---
+title: ACP (Agent Client Protocol)
+description: ACP Provider for the AI SDK
+---
+
+# ACP (Agent Client Protocol)
+
+[ACP (Agent Client Protocol)](https://agentclientprotocol.com/) is an open protocol that enables seamless communication between AI agents and client applications.
+
+The ACP provider bridges ACP agents (like Claude Code, Gemini CLI, Codex CLI, and **[many more](https://agentclientprotocol.com/overview/agents)**) to the AI SDK by communicating with them via the Agent Client Protocol and exposing them through the `LanguageModel` interface, enabling you to build web applications and Node.js services with ACP agents.
+
+## Key Features
+
+- **Multiple Agent Support**: Works with Claude Code, Gemini CLI, Codex CLI, and other ACP-compatible agents
+- **MCP Server Integration**: Connect MCP (Model Context Protocol) servers to enhance agent capabilities
+- **Tool Execution**: Agents can execute tools and report results through the AI SDK interface
+- **Process Management**: Automatic spawning and lifecycle management of agent processes
+
+Learn more about ACP in the [Agent Client Protocol Documentation](https://agentclientprotocol.com).
+
+## Setup
+
+The ACP provider is available in the `@mcpc-tech/acp-ai-provider` module. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @mcpc-tech/acp-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @mcpc-tech/acp-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @mcpc-tech/acp-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @mcpc-tech/acp-ai-provider" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+To create an ACP provider instance, use the `createACPProvider` function:
+
+```typescript
+import { createACPProvider } from '@mcpc-tech/acp-ai-provider';
+
+const provider = createACPProvider({
+  command: 'gemini',
+  args: ['--experimental-acp'],
+  session: {
+    cwd: process.cwd(),
+    mcpServers: [],
+  },
+});
+```
+
+### Configuration Options
+
+The provider accepts the following configuration:
+
+- **command** _string_ (required)
+
+  The command to execute the ACP agent (e.g., `'gemini'`, `'claude-code-acp'`, `'codex-acp'`).
+
+- **args** _string[]_ (optional)
+
+  Arguments to pass to the command (e.g., `['--experimental-acp']`).
+
+- **env** _Record&lt;string, string&gt;_ (optional)
+
+  Environment variables for the agent process.
+
+- **session** _ACPSessionConfig_ (required)
+
+  Session configuration including:
+  - `cwd`: Working directory for the agent
+  - `mcpServers`: Array of MCP server configurations to provide tools to the agent
+
+- **authMethodId** _string_ (optional)
+
+  Authentication method ID to use if required by the ACP agent.
+
+## Language Models
+
+The ACP provider exposes a single language model that represents the configured ACP agent:
+
+```typescript
+const model = provider.languageModel();
+```
+
+> **Note**: Currently, you cannot select a specific model. See [Limitations](#limitations) for more details.
+
+## Examples
+
+### Text Generation
+
+```javascript
+import { createACPProvider } from '@mcpc-tech/acp-ai-provider';
+import { generateText } from 'ai';
+
+const provider = createACPProvider({
+  command: 'gemini',
+  args: ['--experimental-acp'],
+  session: {
+    cwd: process.cwd(),
+    mcpServers: [],
+  },
+});
+
+const { text } = await generateText({
+  model: provider.languageModel(),
+  prompt: 'What is the Agent Client Protocol?',
+});
+
+console.log(text);
+```
+
+### Streaming Text
+
+```javascript
+import { createACPProvider } from '@mcpc-tech/acp-ai-provider';
+import { streamText } from 'ai';
+
+const provider = createACPProvider({
+  command: 'claude-code-acp',
+  session: {
+    cwd: process.cwd(),
+    mcpServers: [],
+  },
+});
+
+const { textStream } = streamText({
+  model: provider.languageModel(),
+  prompt: 'Write a simple Hello World program',
+});
+
+for await (const chunk of textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+### Using with MCP Servers (Tools)
+
+Tools are provided to ACP agents through MCP (Model Context Protocol) servers, not through the AI SDK's `tools` parameter:
+
+```javascript
+import { createACPProvider } from '@mcpc-tech/acp-ai-provider';
+import { generateText } from 'ai';
+
+const provider = createACPProvider({
+  command: 'gemini',
+  args: ['--experimental-acp'],
+  session: {
+    cwd: process.cwd(),
+    mcpServers: [
+      {
+        type: 'stdio',
+        name: 'filesystem',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
+      },
+    ],
+  },
+});
+
+const result = await generateText({
+  model: provider.languageModel(),
+  prompt: 'List files in /tmp',
+});
+```
+
+## Working with Tools
+
+The ACP provider handles tool execution through provider-defined tools. Tools are called and executed by the ACP agent, and results are reported back through the AI SDK's streaming interface.
+
+To stream tool calls, pass the provider tools to the AI SDK:
+
+```javascript
+const result = await generateText({
+  model: provider.languageModel(),
+  prompt: 'List files in /tmp',
+  tools: provider.tools,
+});
+```
+
+Tool calls follow this structure:
+
+```typescript
+{
+  toolCallId: string; // Unique ID of the tool call
+  toolName: string; // Name of the tool being called
+  args: Record<string, unknown>; // Input arguments
+}
+```
+
+## Advanced Features
+
+### Multiple Agent Support
+
+The ACP provider works with various ACP-compatible agents:
+
+- **Gemini CLI**: Use `command: 'gemini'` with `args: ['--experimental-acp']`
+- **Claude Code**: Use `command: 'claude-code-acp'`
+- **Codex CLI**: Use `command: 'codex-acp'`
+- **[And many more...](https://agentclientprotocol.com/overview/agents)**: See the official ACP agents page for the complete list of supported agents
+
+### Custom Authentication
+
+Some agents require authentication. Specify the auth method ID:
+
+```typescript
+const provider = createACPProvider({
+  command: 'gemini',
+  args: ['--experimental-acp'],
+  authMethodId: 'gemini-api-key',
+  session: {
+    cwd: process.cwd(),
+    mcpServers: [],
+  },
+});
+```
+
+### Process Environment Variables
+
+Pass environment variables to the agent process:
+
+```typescript
+const provider = createACPProvider({
+  command: 'gemini',
+  args: ['--experimental-acp'],
+  env: {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    DEBUG: 'true',
+  },
+  session: {
+    cwd: process.cwd(),
+    mcpServers: [],
+  },
+});
+```
+
+## Limitations
+
+- **Tool Definition**: Tools must be provided through MCP servers in the session configuration, not through the AI SDK's `tools` parameter
+- **Process Lifecycle**: Each language model instance spawns a new agent process; ensure proper cleanup
+- **Node.js Only**: Currently supports Node.js environments with child process capabilities
+- **File Operations**: Basic file operation support through ACP's client interface
+- **Model Selection**: Currently, model selection is not yet supported. See https://github.com/agentclientprotocol/agent-client-protocol/pull/182 for updates on this feature
+
+## Additional Resources
+
+- [ACP AI Provider GitHub Repository](https://github.com/mcpc-tech/mcpc/tree/main/packages/acp-ai-provider)
+- [Agent Client Protocol Documentation](https://agentclientprotocol.com)
+- [Model Context Protocol Documentation](https://modelcontextprotocol.io)
+- [NPM Package](https://www.npmjs.com/package/@mcpc-tech/acp-ai-provider)
+- [JSR Package](https://jsr.io/@mcpc/acp-ai-provider)
+- [Examples](https://github.com/mcpc-tech/mcpc/tree/main/packages/acp-ai-provider/examples)

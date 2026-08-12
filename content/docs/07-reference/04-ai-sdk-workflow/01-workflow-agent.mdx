@@ -1,0 +1,940 @@
+---
+title: WorkflowAgent
+description: API Reference for the WorkflowAgent class.
+---
+
+# `WorkflowAgent`
+
+Creates a durable, resumable AI agent for use inside a workflow. `WorkflowAgent` handles the agent loop, tool schema serialization across workflow step boundaries, and built-in tool approval flows.
+
+Unlike [`ToolLoopAgent`](/docs/reference/ai-sdk-core/tool-loop-agent) from the `ai` package, `WorkflowAgent` is designed to survive process restarts, pause for human approval, and integrate with the Workflow DevKit's step mechanism.
+
+`WorkflowAgent` supports `runtimeContext` for shared agent state and `toolsContext` for per-tool context. Because these values can cross workflow and step boundaries, keep them serializable durable data. Unlike `ToolLoopAgent`, do not place functions, class instances, symbols, database clients, or SDK clients in context; pass identifiers or configuration and recreate non-serializable resources inside step functions.
+
+```ts
+import { WorkflowAgent } from '@ai-sdk/workflow';
+import { tool } from 'ai';
+import { z } from 'zod';
+
+const agent = new WorkflowAgent({
+  model: 'anthropic/claude-sonnet-4-6',
+  instructions: 'You are a helpful assistant.',
+  tools: {
+    weather: tool({
+      description: 'Get the weather in a location',
+      inputSchema: z.object({
+        location: z.string(),
+      }),
+      execute: async ({ location }) => ({
+        location,
+        temperature: 72,
+      }),
+    }),
+  },
+});
+
+const result = await agent.stream({
+  messages: [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: 'What is the weather in NYC?' }],
+    },
+  ],
+});
+
+console.log(result.messages);
+```
+
+To see `WorkflowAgent` in action, check out [these examples](#examples).
+
+## Import
+
+<Snippet
+  text={`import { WorkflowAgent } from "@ai-sdk/workflow"`}
+  prompt={false}
+/>
+
+## Constructor
+
+### Parameters
+
+<PropertiesTable
+  content={[
+    {
+      name: 'id',
+      type: 'string',
+      isOptional: true,
+      description: 'The id of the agent.',
+    },
+    {
+      name: 'model',
+      type: 'LanguageModel',
+      isRequired: true,
+      description:
+        "The language model to use. A string compatible with the Vercel AI Gateway (e.g., 'anthropic/claude-sonnet-4-6') or a provider instance (e.g., `openai('gpt-4o')`).",
+    },
+    {
+      name: 'instructions',
+      type: 'Instructions',
+      isOptional: true,
+      description:
+        'Instructions for the agent, used as the system prompt. Supports provider-specific options (e.g., caching) when using the SystemModelMessage form.',
+    },
+    {
+      name: 'tools',
+      type: 'Record<string, Tool>',
+      isOptional: true,
+      description:
+        'A set of tools the agent can call. Keys are tool names. Tools are serialized to JSON Schema across workflow step boundaries and validated with Ajv at runtime.',
+    },
+    {
+      name: 'toolChoice',
+      type: 'ToolChoice',
+      isOptional: true,
+      description:
+        "Tool call selection strategy. Options: 'auto' | 'none' | 'required' | { type: 'tool', toolName: string }. Default: 'auto'.",
+    },
+    {
+      name: 'stopWhen',
+      type: 'StopCondition | StopCondition[]',
+      isOptional: true,
+      description:
+        'Default stop condition for the agent loop. Per-stream values override this default. Use `isLoopFinished()` to let the agent run until all tool calls have completed, but beware of potential runaway loops. See https://ai-sdk.dev/v7/docs/reference/ai-sdk-core/loop-finished#isloopfinished.',
+    },
+    {
+      name: 'activeTools',
+      type: 'ActiveTools<TTools>',
+      isOptional: true,
+      description:
+        'Default set of active tools. Limits which tools the model can call without changing tool call and result types. Per-stream values override this default.',
+    },
+    {
+      name: 'output',
+      type: 'OutputSpecification',
+      isOptional: true,
+      description:
+        'Default structured output specification. Per-stream values override this default.',
+    },
+    {
+      name: 'experimental_repairToolCall',
+      type: 'ToolCallRepairFunction',
+      isOptional: true,
+      description:
+        'Default function to repair tool calls that fail to parse. Per-stream values override this default.',
+    },
+    {
+      name: 'experimental_download',
+      type: 'DownloadFunction',
+      isOptional: true,
+      description:
+        'Default custom download function for URLs. Per-stream values override this default.',
+    },
+    {
+      name: 'experimental_sandbox',
+      type: 'Experimental_SandboxSession',
+      isOptional: true,
+      description:
+        'Default sandbox session passed to tool execution as `experimental_sandbox` and exposed to `prepareStep`. Per-stream values override this default.',
+    },
+    {
+      name: 'prepareStep',
+      type: 'PrepareStepCallback',
+      isOptional: true,
+      description:
+        'Callback called before each step in the agent loop. Use it to modify settings, manage context, inject messages dynamically, or override `experimental_sandbox` for the current step. Receives step number, previous steps, messages, context, and sandbox.',
+    },
+    {
+      name: 'prepareCall',
+      type: 'PrepareCallCallback',
+      isOptional: true,
+      description:
+        'Callback called once before the agent loop starts. Use it to transform model, instructions, tools configuration, or other settings based on runtime context. Cannot override `tools` (bound at construction for type safety).',
+    },
+    {
+      name: 'runtimeContext',
+      type: 'Context',
+      isOptional: true,
+      description:
+        'Default shared runtime context for every stream call. Flows through `prepareStep`, lifecycle callbacks, and step results. Per-stream values override this default. Must be serializable when used in workflows.',
+    },
+    {
+      name: 'toolsContext',
+      type: 'InferToolSetContext<TTools>',
+      isOptional: true,
+      description:
+        'Default per-tool context map for every stream call. Each tool receives only its own validated entry as `context`. Per-stream values override this default. Must be serializable when used in workflows.',
+    },
+    {
+      name: 'telemetry',
+      type: 'TelemetryOptions',
+      isOptional: true,
+      description:
+        'Telemetry configuration with options for enabling/disabling telemetry, setting a function ID, and recording inputs/outputs.',
+    },
+    {
+      name: 'experimental_onStart',
+      type: 'WorkflowAgentOnStartCallback',
+      isOptional: true,
+      description:
+        'Callback called when the agent starts streaming, before any LLM calls. Receives the model, messages, runtime context, and tools context. If also specified in `stream()`, both callbacks fire (constructor first). Experimental (can break in patch releases).',
+      properties: [
+        {
+          type: 'GenerateTextStartEvent',
+          parameters: [
+            {
+              name: 'model',
+              type: 'LanguageModel',
+              description: 'The model being used for the generation.',
+            },
+            {
+              name: 'messages',
+              type: 'Array<ModelMessage>',
+              description: 'The messages being sent to the model.',
+            },
+            {
+              name: 'runtimeContext',
+              type: 'Context',
+              description: 'The shared runtime context for the agent loop.',
+            },
+            {
+              name: 'toolsContext',
+              type: 'InferToolSetContext<Tools>',
+              description: 'The per-tool context map for the agent loop.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'experimental_onStepStart',
+      type: 'WorkflowAgentOnStepStartCallback',
+      isOptional: true,
+      description:
+        'Callback called before each step (LLM call) begins. Receives step number, model, messages, previous steps, runtime context, and tools context. If also specified in `stream()`, both callbacks fire (constructor first). Experimental (can break in patch releases).',
+      properties: [
+        {
+          type: 'GenerateTextStepStartEvent',
+          parameters: [
+            {
+              name: 'model',
+              type: 'LanguageModel',
+              description: 'The model being used for this step.',
+            },
+            {
+              name: 'messages',
+              type: 'Array<ModelMessage>',
+              description:
+                'The messages that will be sent to the model for this step.',
+            },
+            {
+              name: 'steps',
+              type: 'ReadonlyArray<StepResult>',
+              description: 'Results from all previously finished steps.',
+            },
+            {
+              name: 'runtimeContext',
+              type: 'Context',
+              description: 'The shared runtime context for this step.',
+            },
+            {
+              name: 'toolsContext',
+              type: 'InferToolSetContext<Tools>',
+              description: 'The per-tool context map for this step.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'onToolExecutionStart',
+      type: 'WorkflowAgentonToolExecutionStartCallback',
+      isOptional: true,
+      description:
+        "Callback called right before a tool's execute function runs. If also specified in `stream()`, both callbacks fire (constructor first). Experimental (can break in patch releases).",
+      properties: [
+        {
+          type: 'ToolExecutionStartEvent',
+          parameters: [
+            {
+              name: 'callId',
+              type: 'string',
+              description:
+                'Unique identifier for this generation call, used to correlate events.',
+            },
+            {
+              name: 'toolCall',
+              type: '{ type: "tool-call"; toolCallId: string; toolName: string; input: unknown }',
+              description: 'The tool call being executed.',
+            },
+            {
+              name: 'messages',
+              type: 'Array<ModelMessage>',
+              description:
+                'Messages that were sent to the language model to initiate the response that contained the tool call.',
+            },
+            {
+              name: 'toolContext',
+              type: 'InferToolContext<TOOLS[toolName]>',
+              description:
+                'Tool-specific context object for the tool call that is about to execute. Narrowed to the context type of the individual tool, not the entire tool set.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'onToolExecutionEnd',
+      type: 'WorkflowAgentonToolExecutionEndCallback',
+      isOptional: true,
+      description:
+        "Callback called right after a tool's execute function completes or errors. The `toolOutput` field is a discriminated union: check `toolOutput.type` to determine whether the result is `'tool-result'` or `'tool-error'`. If also specified in `stream()`, both callbacks fire (constructor first). Experimental (can break in patch releases).",
+      properties: [
+        {
+          type: 'ToolExecutionEndEvent',
+          parameters: [
+            {
+              name: 'callId',
+              type: 'string',
+              description:
+                'Unique identifier for this generation call, used to correlate events.',
+            },
+            {
+              name: 'toolCall',
+              type: '{ type: "tool-call"; toolCallId: string; toolName: string; input: unknown }',
+              description: 'The tool call that was executed.',
+            },
+            {
+              name: 'durationMs',
+              type: 'number',
+              description:
+                'Tool execution time in milliseconds. Workflow agents use `durationMs`; AI SDK Core generation callbacks use `toolExecutionMs`.',
+            },
+            {
+              name: 'messages',
+              type: 'Array<ModelMessage>',
+              description:
+                'Messages that were sent to the language model to initiate the response that contained the tool call.',
+            },
+            {
+              name: 'toolContext',
+              type: 'InferToolContext<TOOLS[toolName]>',
+              description:
+                'Tool-specific context object for the tool call that just completed. Narrowed to the context type of the individual tool, not the entire tool set.',
+            },
+            {
+              name: 'toolOutput',
+              type: 'ToolOutput<TOOLS>',
+              description:
+                "Discriminated union representing the tool execution result. When `type` is `'tool-result'`, the `output` field contains the tool's return value. When `type` is `'tool-error'`, the `error` field contains the error.",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'onStepEnd',
+      type: 'WorkflowAgentOnStepEndCallback',
+      isOptional: true,
+      description:
+        'Callback invoked after each agent step completes. If also specified in `stream()`, both callbacks fire (constructor first).',
+    },
+    {
+      name: 'onStepFinish',
+      type: 'WorkflowAgentOnStepFinishCallback',
+      isOptional: true,
+      description:
+        'Deprecated. Use `onStepEnd` instead. This alias is only used as a fallback when `onStepEnd` is not provided.',
+    },
+    {
+      name: 'onEnd',
+      type: 'WorkflowAgentOnEndCallback',
+      isOptional: true,
+      description:
+        'Callback called when all agent steps are finished and the response is complete. Receives steps, messages, text, finish reason, total usage, and context. If also specified in `stream()`, both callbacks fire (constructor first).',
+    },
+    {
+      name: 'maxOutputTokens',
+      type: 'number',
+      isOptional: true,
+      description: 'Maximum number of tokens the model is allowed to generate.',
+    },
+    {
+      name: 'temperature',
+      type: 'number',
+      isOptional: true,
+      description: 'Sampling temperature, controls randomness.',
+    },
+    {
+      name: 'topP',
+      type: 'number',
+      isOptional: true,
+      description: 'Top-p (nucleus) sampling parameter.',
+    },
+    {
+      name: 'topK',
+      type: 'number',
+      isOptional: true,
+      description: 'Top-k sampling parameter.',
+    },
+    {
+      name: 'presencePenalty',
+      type: 'number',
+      isOptional: true,
+      description: 'Presence penalty parameter.',
+    },
+    {
+      name: 'frequencyPenalty',
+      type: 'number',
+      isOptional: true,
+      description: 'Frequency penalty parameter.',
+    },
+    {
+      name: 'stopSequences',
+      type: 'string[]',
+      isOptional: true,
+      description: 'Custom token sequences which stop the model output.',
+    },
+    {
+      name: 'seed',
+      type: 'number',
+      isOptional: true,
+      description: 'Seed for deterministic generation (if supported).',
+    },
+    {
+      name: 'maxRetries',
+      type: 'number',
+      isOptional: true,
+      description: 'How many times to retry on failure. Default: 2.',
+    },
+    {
+      name: 'headers',
+      type: 'Record<string, string | undefined>',
+      isOptional: true,
+      description:
+        'Additional HTTP headers to be sent with the request. Only applicable for HTTP-based providers.',
+    },
+    {
+      name: 'providerOptions',
+      type: 'ProviderOptions',
+      isOptional: true,
+      description: 'Additional provider-specific configuration.',
+    },
+  ]}
+/>
+
+## Properties
+
+<PropertiesTable
+  content={[
+    {
+      name: 'id',
+      type: 'string | undefined',
+      description:
+        'The id of the agent. Used for telemetry identification. Read-only.',
+    },
+    {
+      name: 'tools',
+      type: 'Record<string, Tool>',
+      description: 'The tool set configured for this agent. Read-only.',
+    },
+  ]}
+/>
+
+## Methods
+
+### `stream()`
+
+Runs the agent loop, streaming responses and executing tool calls as needed. Returns a promise resolving to a `WorkflowAgentStreamResult`.
+
+```ts
+const result = await agent.stream({
+  messages: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+});
+```
+
+<PropertiesTable
+  content={[
+    {
+      name: 'prompt',
+      type: 'string | Array<ModelMessage>',
+      description: 'A prompt string or a list of messages. You can either use `prompt` or `messages` but not both.',
+    },
+    {
+      name: 'messages',
+      type: 'Array<ModelMessage>',
+      description: 'The conversation messages to process. You can either use `prompt` or `messages` but not both.',
+    },
+    {
+      name: 'writable',
+      type: 'WritableStream<ModelCallStreamPart>',
+      isOptional: true,
+      description:
+        'A writable stream that receives raw model stream parts in real-time. Convert to UI message chunks at the response boundary using `createModelCallToUIChunkTransform()`.',
+    },
+    {
+      name: 'system',
+      type: 'string',
+      isOptional: true,
+      description: 'Override the system prompt for this call.',
+    },
+    {
+      name: 'stopWhen',
+      type: 'StopCondition | StopCondition[]',
+      isOptional: true,
+      description: 'Condition(s) for ending the agent loop. Use `isLoopFinished()` to let the agent run until all tool calls have completed, but beware of potential runaway loops. See https://ai-sdk.dev/v7/docs/reference/ai-sdk-core/loop-finished#isloopfinished.',
+    },
+
+    {
+      name: 'toolChoice',
+      type: 'ToolChoice',
+      isOptional: true,
+      description: "Override the tool choice strategy for this call. Default: 'auto'.",
+    },
+    {
+      name: 'activeTools',
+      type: 'ActiveTools<TTools>',
+      isOptional: true,
+      description: 'Limits the subset of tools available for this call without changing tool call and result types.',
+    },
+    {
+      name: 'output',
+      type: 'OutputSpecification',
+      isOptional: true,
+      description:
+        'Structured output specification. Use `Output.object({ schema })` for typed objects or `Output.text()` for text.',
+    },
+    {
+      name: 'timeout',
+      type: 'number',
+      isOptional: true,
+      description: 'Timeout in milliseconds. Creates an AbortSignal that aborts the operation after the given time.',
+    },
+    {
+      name: 'sendFinish',
+      type: 'boolean',
+      isOptional: true,
+      description: "Whether to send a 'finish' chunk to the writable stream when streaming completes. Default: true.",
+    },
+    {
+      name: 'preventClose',
+      type: 'boolean',
+      isOptional: true,
+      description: 'Whether to prevent the writable stream from being closed after streaming completes. Default: false.',
+    },
+    {
+      name: 'includeRawChunks',
+      type: 'boolean',
+      isOptional: true,
+      description: 'Include raw, unprocessed chunks from the provider in the stream. Default: false.',
+    },
+    {
+      name: 'experimental_repairToolCall',
+      type: 'ToolCallRepairFunction',
+      isOptional: true,
+      description: 'Callback to attempt automatic recovery when a tool call cannot be parsed.',
+    },
+    {
+      name: 'experimental_transform',
+      type: 'StreamTextTransform | Array<StreamTextTransform>',
+      isOptional: true,
+      description: 'Stream transformations applied in order. Must maintain the stream structure.',
+    },
+    {
+      name: 'experimental_download',
+      type: 'DownloadFunction',
+      isOptional: true,
+      description: 'Custom download function for fetching files/URLs.',
+    },
+    {
+      name: 'experimental_sandbox',
+      type: 'Experimental_SandboxSession',
+      isOptional: true,
+      description:
+        'Sandbox session passed to tool execution as `experimental_sandbox` and exposed to `prepareStep`. Overrides the constructor default.',
+    },
+    {
+      name: 'telemetry',
+      type: 'TelemetryOptions',
+      isOptional: true,
+      description: 'Per-call telemetry configuration.',
+    },
+    {
+      name: 'runtimeContext',
+      type: 'Context',
+      isOptional: true,
+      description:
+        'Shared runtime context for this stream call. Overrides the constructor default and flows through `prepareStep`, lifecycle callbacks, and step results. Must be serializable when used in workflows.',
+    },
+    {
+      name: 'toolsContext',
+      type: 'InferToolSetContext<TTools>',
+      isOptional: true,
+      description:
+        'Per-tool context map for this stream call. Overrides the constructor default. Each tool receives only its own validated entry as `context`. Must be serializable when used in workflows.',
+    },
+    {
+      name: 'prepareStep',
+      type: 'PrepareStepCallback',
+      isOptional: true,
+      description: 'Per-call prepareStep override.',
+    },
+    {
+      name: 'experimental_onStart',
+      type: 'WorkflowAgentOnStartCallback',
+      isOptional: true,
+      description:
+        'Per-call onStart callback. If also specified in the constructor, both fire (constructor first). Experimental.',
+    },
+    {
+      name: 'experimental_onStepStart',
+      type: 'WorkflowAgentOnStepStartCallback',
+      isOptional: true,
+      description:
+        'Per-call onStepStart callback. If also specified in the constructor, both fire (constructor first). Experimental.',
+    },
+    {
+      name: 'onToolExecutionStart',
+      type: 'WorkflowAgentonToolExecutionStartCallback',
+      isOptional: true,
+      description:
+        'Per-call onToolExecutionStart callback. If also specified in the constructor, both fire (constructor first).',
+    },
+    {
+      name: 'onToolExecutionEnd',
+      type: 'WorkflowAgentonToolExecutionEndCallback',
+      isOptional: true,
+      description:
+        'Per-call onToolExecutionEnd callback. If also specified in the constructor, both fire (constructor first).',
+    },
+    {
+      name: 'onStepEnd',
+      type: 'WorkflowAgentOnStepEndCallback',
+      isOptional: true,
+      description:
+        'Per-call onStepEnd callback. If also specified in the constructor, both fire (constructor first).',
+    },
+    {
+      name: 'onStepFinish',
+      type: 'WorkflowAgentOnStepFinishCallback',
+      isOptional: true,
+      description:
+        'Deprecated. Use `onStepEnd` instead. This alias is only used as a fallback when `onStepEnd` is not provided.',
+    },
+    {
+      name: 'onEnd',
+      type: 'WorkflowAgentOnEndCallback',
+      isOptional: true,
+      description:
+        'Per-call onEnd callback. If also specified in the constructor, both fire (constructor first).',
+    },
+    {
+      name: 'onError',
+      type: 'WorkflowAgentOnErrorCallback',
+      isOptional: true,
+      description: 'Callback invoked when an error occurs during streaming.',
+    },
+    {
+      name: 'onAbort',
+      type: 'WorkflowAgentOnAbortCallback',
+      isOptional: true,
+      description: 'Callback invoked when the operation is aborted. Receives all previously finished steps.',
+    },
+
+]}
+/>
+
+#### Returns
+
+Returns a `Promise<WorkflowAgentStreamResult>` with the following properties:
+
+<PropertiesTable
+  content={[
+    {
+      name: 'messages',
+      type: 'Array<ModelMessage>',
+      description: 'The final messages including all tool calls and results.',
+    },
+    {
+      name: 'steps',
+      type: 'Array<StepResult>',
+      description: 'Details for all steps taken by the agent.',
+    },
+    {
+      name: 'toolCalls',
+      type: 'Array<ToolCall>',
+      description:
+        'Tool calls from the last step, including unexecuted calls (e.g., tools requiring approval).',
+    },
+    {
+      name: 'toolResults',
+      type: 'Array<ToolResult>',
+      description:
+        'Tool results from the last step. Only includes results for tools that were executed.',
+    },
+    {
+      name: 'output',
+      type: 'OUTPUT',
+      description:
+        'The structured output if an `output` specification was provided.',
+    },
+  ]}
+/>
+
+## Utilities
+
+### `createModelCallToUIChunkTransform()`
+
+Creates a `TransformStream` that converts raw `ModelCallStreamPart` chunks (written by the agent to the `writable` stream) into `UIMessageChunk` objects suitable for client consumption.
+
+```ts
+import { createModelCallToUIChunkTransform } from '@ai-sdk/workflow';
+
+return createUIMessageStreamResponse({
+  stream: run.readable.pipeThrough(createModelCallToUIChunkTransform()),
+});
+```
+
+### `toUIMessageChunk()`
+
+Converts a single `ModelCallStreamPart` to a `UIMessageChunk`. Returns `undefined` for parts that don't map to UI chunks.
+
+```ts
+import { toUIMessageChunk } from '@ai-sdk/workflow';
+
+const uiChunk = toUIMessageChunk(modelCallPart);
+```
+
+## Types
+
+### `ActiveTools`
+
+```ts
+type ActiveTools<TTools extends ToolSet> =
+  | ReadonlyArray<keyof TTools & string>
+  | undefined;
+```
+
+Limits a workflow agent call to the listed tool names. `undefined` means no tool restriction is applied.
+
+### `InferWorkflowAgentUIMessage`
+
+Infers the UI message type for a `WorkflowAgent` instance. Optionally accepts a second type argument for custom message metadata.
+
+```ts
+import { WorkflowAgent, InferWorkflowAgentUIMessage } from '@ai-sdk/workflow';
+
+const agent = new WorkflowAgent({
+  model: 'anthropic/claude-sonnet-4-6',
+  tools: { weather: weatherTool },
+});
+
+type MyAgentUIMessage = InferWorkflowAgentUIMessage<typeof agent>;
+```
+
+### `InferWorkflowAgentTools`
+
+Infers the tool set type of a `WorkflowAgent` instance.
+
+```ts
+import { WorkflowAgent, InferWorkflowAgentTools } from '@ai-sdk/workflow';
+
+type MyTools = InferWorkflowAgentTools<typeof myAgent>;
+```
+
+## Examples
+
+### Basic Agent with Tools
+
+```ts
+import { WorkflowAgent } from '@ai-sdk/workflow';
+import { tool } from 'ai';
+import { z } from 'zod';
+
+const agent = new WorkflowAgent({
+  model: 'anthropic/claude-sonnet-4-6',
+  instructions: 'You are a helpful assistant.',
+  tools: {
+    weather: tool({
+      description: 'Get weather for a location',
+      inputSchema: z.object({
+        location: z.string(),
+      }),
+      execute: async ({ location }) => ({
+        location,
+        temperature: 72,
+        condition: 'sunny',
+      }),
+    }),
+  },
+});
+
+const result = await agent.stream({
+  messages: [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: 'What is the weather in NYC?' }],
+    },
+  ],
+});
+
+console.log(result.messages);
+console.log(result.steps);
+```
+
+### Agent in a Workflow with Durable Tools
+
+```ts filename="workflow/agent-chat.ts"
+import { WorkflowAgent, type ModelCallStreamPart } from '@ai-sdk/workflow';
+import { convertToModelMessages, tool, type UIMessage } from 'ai';
+import { getWritable } from 'workflow';
+import { z } from 'zod';
+
+// Tool execute functions marked with 'use step' become durable workflow steps
+// with automatic retries and persistence
+async function searchFlightsStep(input: {
+  origin: string;
+  destination: string;
+}) {
+  'use step';
+  const response = await fetch(`https://api.flights.example/search?...`);
+  return response.json();
+}
+
+export async function chat(messages: UIMessage[]) {
+  'use workflow';
+
+  const modelMessages = await convertToModelMessages(messages);
+
+  const agent = new WorkflowAgent({
+    model: 'anthropic/claude-sonnet-4-6',
+    instructions: 'You are a flight booking assistant.',
+    tools: {
+      searchFlights: tool({
+        description: 'Search for available flights',
+        inputSchema: z.object({
+          origin: z.string(),
+          destination: z.string(),
+        }),
+        execute: searchFlightsStep,
+      }),
+    },
+  });
+
+  const result = await agent.stream({
+    messages: modelMessages,
+    writable: getWritable<ModelCallStreamPart>(),
+  });
+
+  return { messages: result.messages };
+}
+```
+
+```ts filename="app/api/chat/route.ts"
+import { createModelCallToUIChunkTransform } from '@ai-sdk/workflow';
+import { createUIMessageStreamResponse, type UIMessage } from 'ai';
+import { start } from 'workflow/api';
+import { chat } from '@/workflow/agent-chat';
+
+export async function POST(request: Request) {
+  const { messages }: { messages: UIMessage[] } = await request.json();
+
+  const run = await start(chat, [messages]);
+
+  return createUIMessageStreamResponse({
+    stream: run.readable.pipeThrough(createModelCallToUIChunkTransform()),
+  });
+}
+```
+
+### Agent with Structured Output
+
+```ts
+import { WorkflowAgent, Output } from '@ai-sdk/workflow';
+import { z } from 'zod';
+
+const analysisAgent = new WorkflowAgent({
+  model: 'anthropic/claude-sonnet-4-6',
+});
+
+const result = await analysisAgent.stream({
+  messages: [
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: 'Analyze: "The product exceeded my expectations!"',
+        },
+      ],
+    },
+  ],
+  output: Output.object({
+    schema: z.object({
+      sentiment: z.enum(['positive', 'negative', 'neutral']),
+      score: z.number(),
+      summary: z.string(),
+    }),
+  }),
+});
+
+console.log(result.output);
+// { sentiment: 'positive', score: 9, summary: '...' }
+```
+
+### Agent with Tool Approval
+
+For `WorkflowAgent`, tool approval is configured on the tool definition with
+`needsApproval`. For `generateText`, `streamText`, and `ToolLoopAgent`, use
+`toolApproval` instead.
+
+```ts
+import { WorkflowAgent } from '@ai-sdk/workflow';
+import { tool } from 'ai';
+import { z } from 'zod';
+
+const agent = new WorkflowAgent({
+  model: 'anthropic/claude-sonnet-4-6',
+  tools: {
+    bookFlight: tool({
+      description: 'Book a flight',
+      inputSchema: z.object({
+        flightId: z.string(),
+        passengerName: z.string(),
+      }),
+      needsApproval: true, // Pauses the agent until user approves
+      execute: bookFlightStep,
+    }),
+  },
+});
+```
+
+### Agent with Lifecycle Callbacks
+
+```ts
+import { WorkflowAgent } from '@ai-sdk/workflow';
+
+const agent = new WorkflowAgent({
+  model: 'anthropic/claude-sonnet-4-6',
+  tools: { weather: weatherTool },
+
+  // Agent-wide callbacks
+  onStepEnd({ usage }) {
+    console.log('Tokens used:', usage.totalTokens);
+  },
+});
+
+const result = await agent.stream({
+  messages,
+
+  // Per-call callbacks (both fire)
+  onStepEnd({ usage }) {
+    await trackUsage(usage);
+  },
+
+  onEnd({ steps, totalUsage }) {
+    console.log(
+      `Done in ${steps.length} steps, ${totalUsage.totalTokens} tokens`,
+    );
+  },
+});
+```

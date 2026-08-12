@@ -1,0 +1,1136 @@
+---
+title: Lifecycle Callbacks
+description: Observe AI SDK lifecycle events in generateText, streamText, embed, embedMany, and rerank calls
+---
+
+# Lifecycle Callbacks
+
+Event callbacks let you run your own code at important points in an AI SDK call.
+You can attach them directly to `generateText`, `streamText`, `embed`, `embedMany`, and `rerank` calls to observe what happened, record usage, debug multi-step generations, and monitor tool execution.
+
+They are especially useful when you want application-specific logic close to the call site:
+
+- Log which model, prompt shape, and settings were used for a request.
+- Record token usage, latency, finish reasons, and warnings for analytics or billing.
+- Understand how a multi-step tool call moved from model response to tool execution to final answer.
+- Track tool inputs, tool outputs, execution time, and errors.
+- Attach your own request, user, tenant, or workflow identifiers through `runtimeContext` and `toolsContext`.
+
+For automatic OpenTelemetry instrumentation across your application, use [Telemetry](/docs/ai-sdk-core/telemetry).
+Use event callbacks when you want to run custom code for a specific AI SDK call.
+
+## Basic Usage
+
+Pass callbacks as options to the AI SDK function you are calling:
+
+```tsx highlight="8-18"
+import { generateText } from 'ai';
+__PROVIDER_IMPORT__;
+
+const result = await generateText({
+  model: __MODEL__,
+  prompt: 'What is the weather in San Francisco?',
+
+  onStart({ callId, modelId }) {
+    console.log('Generation started', { callId, modelId });
+  },
+
+  onEnd({ callId, usage, finishReason }) {
+    console.log('Generation finished', {
+      callId,
+      finishReason,
+      totalTokens: usage.totalTokens,
+    });
+  },
+});
+```
+
+Callbacks can be synchronous or asynchronous. If a callback throws, the error is caught internally and the AI SDK call continues.
+Because callbacks run as part of the lifecycle, keep them fast or enqueue expensive work in a background system.
+
+## Use Cases
+
+### Request Logging
+
+Use `onStart` and `onEnd` to record one application log for the beginning and end of a call.
+The `callId` is available across lifecycle events, so you can correlate logs from the same request.
+
+```tsx highlight="8-20"
+import { generateText } from 'ai';
+__PROVIDER_IMPORT__;
+
+const result = await generateText({
+  model: __MODEL__,
+  prompt: 'Write a short product description for a camping mug.',
+
+  onStart({ callId, provider, modelId }) {
+    logger.info('ai.request.started', {
+      callId,
+      provider,
+      modelId,
+    });
+  },
+
+  onEnd({ callId, finishReason, usage, warnings }) {
+    logger.info('ai.request.finished', {
+      callId,
+      finishReason,
+      usage,
+      warningCount: warnings?.length ?? 0,
+    });
+  },
+});
+```
+
+This pattern works well for audit logs, internal dashboards, and tracking usage for a particular feature.
+
+### Measuring Model Performance
+
+`onLanguageModelCallEnd` runs after a provider response has been normalized and parsed.
+For `streamText`, the event also includes streaming-specific timing data such as time to first output and gaps between output chunks.
+
+```tsx highlight="8-19"
+import { streamText } from 'ai';
+__PROVIDER_IMPORT__;
+
+const result = streamText({
+  model: __MODEL__,
+  prompt: 'Explain partial prerendering in two paragraphs.',
+
+  onLanguageModelCallEnd({ callId, modelId, usage, performance }) {
+    metrics.histogram('ai.model.response_time_ms', performance.responseTimeMs, {
+      callId,
+      modelId,
+    });
+
+    metrics.gauge('ai.model.tokens_per_second', {
+      output: performance.outputTokensPerSecond,
+      total: performance.effectiveTotalTokensPerSecond,
+      tokens: usage.totalTokens,
+    });
+  },
+});
+
+for await (const textPart of result.textStream) {
+  process.stdout.write(textPart);
+}
+```
+
+Use model-call events when you want to measure provider work specifically.
+Use step events when you want timing that includes SDK-managed work such as local tool execution.
+
+### Debugging Multi-Step Tool Calls
+
+When you use tools with `generateText` or `streamText`, a single user request can involve multiple model calls.
+Each model call is a step. The model may call a tool in one step, receive the tool result, and then produce a final answer in the next step.
+
+```tsx highlight="10-29"
+import { generateText, isStepCount, tool } from 'ai';
+import { z } from 'zod';
+__PROVIDER_IMPORT__;
+
+const result = await generateText({
+  model: __MODEL__,
+  stopWhen: isStepCount(5),
+  prompt: 'What is the weather in San Francisco?',
+  tools: {
+    weather: tool({
+      description: 'Get the weather in a location',
+      inputSchema: z.object({ location: z.string() }),
+      execute: async ({ location }) => getWeather(location),
+    }),
+  },
+
+  onStepStart({ stepNumber, messages, steps }) {
+    console.log(`Step ${stepNumber} started`, {
+      messageCount: messages.length,
+      previousSteps: steps.length,
+    });
+  },
+
+  onStepEnd({ stepNumber, finishReason, toolCalls, usage, performance }) {
+    console.log(`Step ${stepNumber} finished`, {
+      finishReason,
+      toolCalls: toolCalls.map(toolCall => toolCall.toolName),
+      totalTokens: usage.totalTokens,
+      stepTimeMs: performance.stepTimeMs,
+    });
+  },
+});
+```
+
+This helps answer questions such as:
+
+- Did the model call a tool or answer directly?
+- How many steps did the request take?
+- Which step used the most tokens?
+- Did time go to the model response or to local tool execution?
+
+### Monitoring Tool Execution
+
+Tool execution callbacks run around the tool's `execute` function.
+Use them to record tool usage, latency, successful results, and tool errors.
+
+```tsx highlight="17-35"
+import { generateText, tool } from 'ai';
+import { z } from 'zod';
+__PROVIDER_IMPORT__;
+
+const result = await generateText({
+  model: __MODEL__,
+  prompt: 'Find flights from SFO to JFK tomorrow morning.',
+  tools: {
+    searchFlights: tool({
+      description: 'Search available flights',
+      inputSchema: z.object({
+        origin: z.string(),
+        destination: z.string(),
+      }),
+      execute: async input => searchFlights(input),
+    }),
+  },
+
+  onToolExecutionStart({ callId, toolCall }) {
+    logger.info('ai.tool.started', {
+      callId,
+      toolCallId: toolCall.toolCallId,
+      toolName: toolCall.toolName,
+      input: toolCall.input,
+    });
+  },
+
+  onToolExecutionEnd({ callId, toolCall, toolExecutionMs, toolOutput }) {
+    logger.info('ai.tool.finished', {
+      callId,
+      toolCallId: toolCall.toolCallId,
+      toolName: toolCall.toolName,
+      durationMs: toolExecutionMs,
+      success: toolOutput.type === 'tool-result',
+    });
+  },
+});
+```
+
+`toolOutput` is a discriminated union. When `toolOutput.type` is `'tool-result'`, the output is available on `toolOutput.output`. When it is `'tool-error'`, the error is available on `toolOutput.error`.
+
+### Observing Embeddings and Reranking
+
+Embedding and reranking callbacks are simpler: they expose `onStart` and `onEnd` around the operation.
+This is useful for retrieval pipelines where you want to understand how often you are embedding, how many values you embed, and how reranking changes result sets.
+
+```tsx highlight="10-23"
+import { embedMany, rerank } from 'ai';
+import { cohere } from '@ai-sdk/cohere';
+
+const values = ['sunny day at the beach', 'rainy afternoon in the city'];
+
+const { embeddings } = await embedMany({
+  model: 'openai/text-embedding-3-small',
+  values,
+
+  onStart({ callId, operationId, modelId, value }) {
+    logger.info('ai.embedding.started', {
+      callId,
+      operationId,
+      modelId,
+      valueCount: Array.isArray(value) ? value.length : 1,
+    });
+  },
+
+  onEnd({ callId, usage }) {
+    logger.info('ai.embedding.finished', {
+      callId,
+      tokens: usage.tokens,
+    });
+  },
+});
+
+const { ranking } = await rerank({
+  model: cohere.reranking('rerank-v3.5'),
+  documents: values,
+  query: 'talk about rain',
+
+  onEnd({ callId, ranking }) {
+    logger.info('ai.rerank.finished', {
+      callId,
+      topResult: ranking[0],
+    });
+  },
+});
+```
+
+## Generation Lifecycle
+
+`generateText` and `streamText` expose the richest lifecycle because they can involve prompts, model calls, tool calls, and multiple steps.
+
+A typical single-step generation runs in this order:
+
+1. `onStart`
+2. `onStepStart`
+3. `onLanguageModelCallStart`
+4. `onLanguageModelCallEnd`
+5. `onStepEnd`
+6. `onEnd`
+
+A multi-step generation with local tool execution usually runs like this:
+
+1. `onStart`
+2. `onStepStart`
+3. `onLanguageModelCallStart`
+4. `onLanguageModelCallEnd`
+5. `onToolExecutionStart`
+6. `onToolExecutionEnd`
+7. `onStepEnd`
+8. Repeat step callbacks until the stop condition is met
+9. `onEnd`
+
+`onStepStart` and `onStepEnd` describe the full step.
+`onLanguageModelCallStart` and `onLanguageModelCallEnd` describe only the model call inside that step.
+This distinction matters when the step includes local tool execution: the step duration can be longer than the model response duration.
+
+## Runtime and Tool Context
+
+Lifecycle callbacks receive the full `runtimeContext` and `toolsContext` values that flow through the call.
+This makes callbacks useful for attaching application context without changing prompts or tool inputs.
+
+```tsx highlight="8-17,23-28"
+import { generateText, tool } from 'ai';
+import { z } from 'zod';
+__PROVIDER_IMPORT__;
+
+const result = await generateText({
+  model: __MODEL__,
+  prompt: 'Check the order status.',
+  runtimeContext: {
+    requestId: 'req_123',
+    tenantId: 'tenant_abc',
+  },
+  tools: {
+    getOrderStatus: tool({
+      inputSchema: z.object({ orderId: z.string() }),
+      contextSchema: z.object({ region: z.string() }),
+      execute: async ({ orderId }, { context }) =>
+        getOrderStatus(orderId, context.region),
+    }),
+  },
+  toolsContext: {
+    getOrderStatus: {
+      region: 'us-east-1',
+    },
+  },
+
+  onStart({ callId, runtimeContext }) {
+    logger.info('ai.request.started', {
+      callId,
+      requestId: runtimeContext.requestId,
+      tenantId: runtimeContext.tenantId,
+    });
+  },
+
+  onToolExecutionStart({ toolCall, toolContext }) {
+    logger.info('ai.tool.started', {
+      toolName: toolCall.toolName,
+      region: toolContext.region,
+    });
+  },
+});
+```
+
+<Note>
+  Telemetry integrations can filter `runtimeContext` and `toolsContext` before
+  exporting them. Lifecycle callbacks receive the full context objects. Be
+  careful not to log secrets or sensitive user data from callbacks.
+</Note>
+
+## Available Callbacks
+
+### `generateText` and `streamText`
+
+<PropertiesTable
+  content={[
+    {
+      name: 'onStart',
+      type: '(event: GenerateTextStartEvent) => void | Promise<void>',
+      description:
+        'Called once when the generation operation begins, before any model calls.',
+    },
+    {
+      name: 'onStepStart',
+      type: '(event: GenerateTextStepStartEvent) => void | Promise<void>',
+      description:
+        'Called before each generation step. Each step represents one model call and any SDK-managed work around it.',
+    },
+    {
+      name: 'onLanguageModelCallStart',
+      type: '(event: LanguageModelCallStartEvent) => void | Promise<void>',
+      description:
+        'Called immediately before the provider model call begins. Scoped to model work only.',
+    },
+    {
+      name: 'onLanguageModelCallEnd',
+      type: '(event: LanguageModelCallEndEvent) => void | Promise<void>',
+      description:
+        'Called after the model response has been normalized and parsed, before local tool execution begins.',
+    },
+    {
+      name: 'onToolExecutionStart',
+      type: '(event: ToolExecutionStartEvent) => void | Promise<void>',
+      description: "Called before a local tool's `execute` function runs.",
+    },
+    {
+      name: 'onToolExecutionEnd',
+      type: '(event: ToolExecutionEndEvent) => void | Promise<void>',
+      description:
+        "Called after a local tool's `execute` function completes or errors.",
+    },
+    {
+      name: 'onStepEnd',
+      type: '(event: GenerateTextStepEndEvent) => void | Promise<void>',
+      description:
+        'Called after each generation step completes. Receives the step result, including usage and performance.',
+    },
+    {
+      name: 'onEnd',
+      type: '(event: GenerateTextEndEvent) => void | Promise<void>',
+      description:
+        'Called once when the full generation completes. Receives final output and aggregated usage across all steps.',
+    },
+  ]}
+/>
+
+<Note>`onStepFinish` is deprecated. Use `onStepEnd` for new code.</Note>
+
+### `embed` and `embedMany`
+
+<PropertiesTable
+  content={[
+    {
+      name: 'onStart',
+      type: '(event: EmbedStartEvent) => void | Promise<void>',
+      description:
+        'Called when the embedding operation begins, before the embedding model is called.',
+    },
+    {
+      name: 'onEnd',
+      type: '(event: EmbedEndEvent) => void | Promise<void>',
+      description:
+        'Called when the embedding operation completes, after the embedding model returns.',
+    },
+  ]}
+/>
+
+### `rerank`
+
+<PropertiesTable
+  content={[
+    {
+      name: 'onStart',
+      type: '(event: RerankStartEvent) => void | Promise<void>',
+      description:
+        'Called when the reranking operation begins, before the reranking model is called.',
+    },
+    {
+      name: 'onEnd',
+      type: '(event: RerankEndEvent) => void | Promise<void>',
+      description:
+        'Called when the reranking operation completes, after the reranking model returns.',
+    },
+  ]}
+/>
+
+## Event Data Reference
+
+The exact event data depends on the callback. The tables below summarize the fields you will most commonly use.
+
+### Text Generation Events
+
+#### onStart
+
+Called once before any model calls are made.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'operationId',
+      type: 'string',
+      description:
+        "Operation type, such as 'ai.generateText' or 'ai.streamText'.",
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for the resolved model.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Model identifier for the resolved model.',
+    },
+    {
+      name: 'messages',
+      type: 'Array<ModelMessage>',
+      description: 'Messages for this generation.',
+    },
+    {
+      name: 'instructions',
+      type: 'Instructions | undefined',
+      description: 'Instructions provided to the model.',
+    },
+    {
+      name: 'tools',
+      type: 'ToolSet | undefined',
+      description: 'Tools available for this generation.',
+    },
+    {
+      name: 'toolChoice',
+      type: 'ToolChoice | undefined',
+      description: 'Tool choice strategy for this generation.',
+    },
+    {
+      name: 'activeTools',
+      type: 'ActiveTools<TOOLS>',
+      description: 'Limits which tools are available for the model to call.',
+    },
+    {
+      name: 'maxRetries',
+      type: 'number',
+      description: 'Maximum number of retries for failed requests.',
+    },
+    {
+      name: 'timeout',
+      type: 'TimeoutConfiguration | undefined',
+      description: 'Timeout configuration for the generation.',
+    },
+    {
+      name: 'headers',
+      type: 'Record<string, string | undefined> | undefined',
+      description: 'Additional HTTP headers sent with the request.',
+    },
+    {
+      name: 'providerOptions',
+      type: 'ProviderOptions | undefined',
+      description: 'Provider-specific options.',
+    },
+    {
+      name: 'runtimeContext',
+      type: 'CONTEXT',
+      description: 'User-defined runtime context for the generation.',
+    },
+    {
+      name: 'toolsContext',
+      type: 'InferToolSetContext<TOOLS>',
+      description: 'Per-tool context map passed via `toolsContext`.',
+    },
+  ]}
+/>
+
+#### onStepStart
+
+Called before each step begins.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'stepNumber',
+      type: 'number',
+      description: 'Zero-based index of the current step.',
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for the resolved model.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Model identifier for the resolved model.',
+    },
+    {
+      name: 'messages',
+      type: 'Array<ModelMessage>',
+      description: 'Messages that will be sent to the model for this step.',
+    },
+    {
+      name: 'tools',
+      type: 'ToolSet | undefined',
+      description: 'Tools available for this generation.',
+    },
+    {
+      name: 'activeTools',
+      type: 'ActiveTools<TOOLS>',
+      description: 'Limits which tools are available for this step.',
+    },
+    {
+      name: 'steps',
+      type: 'ReadonlyArray<StepResult>',
+      description: 'Results from previous steps. Empty for the first step.',
+    },
+    {
+      name: 'providerOptions',
+      type: 'ProviderOptions | undefined',
+      description: 'Provider-specific options for this step.',
+    },
+    {
+      name: 'runtimeContext',
+      type: 'CONTEXT',
+      description:
+        'Runtime context for this step. May be updated from `prepareStep` between steps.',
+    },
+    {
+      name: 'toolsContext',
+      type: 'InferToolSetContext<TOOLS>',
+      description:
+        'Per-tool context map for this step. May be updated from `prepareStep` between steps.',
+    },
+  ]}
+/>
+
+#### onLanguageModelCallStart
+
+Called immediately before the provider model call begins.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for this model call.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Model identifier for this model call.',
+    },
+    {
+      name: 'instructions',
+      type: 'Instructions | undefined',
+      description: 'Instructions that will be sent to the model.',
+    },
+    {
+      name: 'messages',
+      type: 'Array<ModelMessage>',
+      description: 'Messages that will be sent to the model.',
+    },
+    {
+      name: 'tools',
+      type: 'ReadonlyArray<Record<string, unknown>> | undefined',
+      description: 'Prepared tool definitions for the model call, if any.',
+    },
+  ]}
+/>
+
+#### onLanguageModelCallEnd
+
+Called after the provider response has been normalized and parsed, before local tool execution begins.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for this model call.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Model identifier for this model call.',
+    },
+    {
+      name: 'finishReason',
+      type: 'FinishReason',
+      description: 'Unified reason why the model call finished.',
+    },
+    {
+      name: 'usage',
+      type: 'LanguageModelUsage',
+      description: 'Token usage reported by the model call.',
+    },
+    {
+      name: 'content',
+      type: 'ReadonlyArray<ContentPart<TOOLS>>',
+      description: 'Content parts produced by the model call.',
+    },
+    {
+      name: 'responseId',
+      type: 'string',
+      description: 'Provider-returned response ID for this model call.',
+    },
+    {
+      name: 'performance',
+      type: 'LanguageModelCallPerformance',
+      description:
+        'Timing and throughput metrics, including response time, tokens per second, and streaming timing when available.',
+    },
+  ]}
+/>
+
+#### onToolExecutionStart
+
+Called before a local tool's `execute` function runs.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'toolCall',
+      type: 'TypedToolCall',
+      description:
+        'The tool call that is about to execute, including `toolCallId`, `toolName`, and `input`.',
+    },
+    {
+      name: 'messages',
+      type: 'Array<ModelMessage>',
+      description:
+        'Messages sent to the model to initiate the response that contained the tool call. Does not include the system prompt or the assistant response that contained the tool call.',
+    },
+    {
+      name: 'toolContext',
+      type: 'InferToolContext<TOOLS[toolName]>',
+      description: 'Tool-specific context object for the tool call.',
+    },
+  ]}
+/>
+
+#### onToolExecutionEnd
+
+Called after a local tool's `execute` function completes or errors.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'toolCall',
+      type: 'TypedToolCall',
+      description: 'The tool call that completed.',
+    },
+    {
+      name: 'toolExecutionMs',
+      type: 'number',
+      description: 'Execution time of the tool call in milliseconds.',
+    },
+    {
+      name: 'messages',
+      type: 'Array<ModelMessage>',
+      description:
+        'Messages sent to the model to initiate the response that contained the tool call. Does not include the system prompt or the assistant response that contained the tool call.',
+    },
+    {
+      name: 'toolContext',
+      type: 'InferToolContext<TOOLS[toolName]>',
+      description: 'Tool-specific context object for the completed tool call.',
+    },
+    {
+      name: 'toolOutput',
+      type: "{ type: 'tool-result'; output: unknown } | { type: 'tool-error'; error: unknown }",
+      description:
+        'Discriminated union representing either a successful tool result or a tool error.',
+    },
+  ]}
+/>
+
+#### onStepEnd
+
+Called after each step completes. The event is the full `StepResult` for that step.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'stepNumber',
+      type: 'number',
+      description: 'Zero-based index of the completed step.',
+    },
+    {
+      name: 'model',
+      type: '{ provider: string; modelId: string }',
+      description: 'Information about the model that produced this step.',
+    },
+    {
+      name: 'content',
+      type: 'Array<ContentPart>',
+      description: 'Content generated in this step.',
+    },
+    {
+      name: 'text',
+      type: 'string',
+      description: 'Text generated in this step.',
+    },
+    {
+      name: 'toolCalls',
+      type: 'Array<TypedToolCall>',
+      description: 'Tool calls made in this step.',
+    },
+    {
+      name: 'toolResults',
+      type: 'Array<TypedToolResult>',
+      description: 'Tool results produced in this step.',
+    },
+    {
+      name: 'finishReason',
+      type: 'FinishReason',
+      description: 'Unified reason why the step finished.',
+    },
+    {
+      name: 'usage',
+      type: 'LanguageModelUsage',
+      description: 'Token usage for this step.',
+    },
+    {
+      name: 'performance',
+      type: 'StepResultPerformance',
+      description:
+        'Timing and throughput metrics for this step, including model response time and tool execution time.',
+    },
+    {
+      name: 'warnings',
+      type: 'CallWarning[] | undefined',
+      description: 'Warnings from the model provider.',
+    },
+    {
+      name: 'request',
+      type: 'LanguageModelRequestMetadata',
+      description:
+        'Request metadata, including request body and request messages when included.',
+    },
+    {
+      name: 'response',
+      type: 'LanguageModelResponseMetadata',
+      description:
+        'Response metadata, including response headers, body, and messages when included.',
+    },
+    {
+      name: 'runtimeContext',
+      type: 'CONTEXT',
+      description: 'Runtime context for this step.',
+    },
+    {
+      name: 'toolsContext',
+      type: 'InferToolSetContext<TOOLS>',
+      description: 'Per-tool context map for this step.',
+    },
+  ]}
+/>
+
+#### onEnd
+
+Called once when the full generation completes.
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this generation call.',
+    },
+    {
+      name: 'steps',
+      type: 'Array<StepResult>',
+      description: 'Results from all steps in the generation.',
+    },
+    {
+      name: 'finalStep',
+      type: 'StepResult',
+      description: 'The final step. This is a shortcut for `steps.at(-1)`.',
+    },
+    {
+      name: 'responseMessages',
+      type: 'Array<ResponseMessage>',
+      description: 'Response messages generated during the call.',
+    },
+    {
+      name: 'content',
+      type: 'Array<ContentPart>',
+      description: 'Content generated across all steps.',
+    },
+    {
+      name: 'text',
+      type: 'string',
+      description: 'Text generated in the final step.',
+    },
+    {
+      name: 'toolCalls',
+      type: 'Array<TypedToolCall>',
+      description: 'Tool calls made across all steps.',
+    },
+    {
+      name: 'toolResults',
+      type: 'Array<TypedToolResult>',
+      description: 'Tool results produced across all steps.',
+    },
+    {
+      name: 'finishReason',
+      type: 'FinishReason',
+      description: 'Unified reason why the final step finished.',
+    },
+    {
+      name: 'usage',
+      type: 'LanguageModelUsage',
+      description: 'Aggregated token usage across all steps.',
+    },
+    {
+      name: 'warnings',
+      type: 'CallWarning[] | undefined',
+      description: 'Warnings from the model provider across all steps.',
+    },
+  ]}
+/>
+
+### Embedding Events
+
+`embed` and `embedMany` share the same event interfaces.
+Use `operationId` to distinguish `'ai.embed'` from `'ai.embedMany'`.
+For `embed`, `value` is a single string. For `embedMany`, `value` is an array of strings.
+
+#### onStart
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this embedding call.',
+    },
+    {
+      name: 'operationId',
+      type: 'string',
+      description: "Operation type, such as 'ai.embed' or 'ai.embedMany'.",
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for the embedding model.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Embedding model identifier.',
+    },
+    {
+      name: 'value',
+      type: 'string | Array<string>',
+      description: 'Value or values being embedded.',
+    },
+    {
+      name: 'maxRetries',
+      type: 'number',
+      description: 'Maximum number of retries for failed requests.',
+    },
+    {
+      name: 'headers',
+      type: 'Record<string, string | undefined> | undefined',
+      description: 'Additional HTTP headers sent with the request.',
+    },
+    {
+      name: 'providerOptions',
+      type: 'ProviderOptions | undefined',
+      description: 'Provider-specific options.',
+    },
+  ]}
+/>
+
+#### onEnd
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this embedding call.',
+    },
+    {
+      name: 'operationId',
+      type: 'string',
+      description: "Operation type, such as 'ai.embed' or 'ai.embedMany'.",
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for the embedding model.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Embedding model identifier.',
+    },
+    {
+      name: 'value',
+      type: 'string | Array<string>',
+      description: 'Value or values that were embedded.',
+    },
+    {
+      name: 'embedding',
+      type: 'Embedding | Array<Embedding>',
+      description: 'Resulting embedding or embeddings.',
+    },
+    {
+      name: 'usage',
+      type: 'EmbeddingModelUsage',
+      description: 'Token usage for the embedding operation.',
+    },
+    {
+      name: 'warnings',
+      type: 'Array<Warning>',
+      description: 'Warnings from the embedding model.',
+    },
+    {
+      name: 'providerMetadata',
+      type: 'ProviderMetadata | undefined',
+      description: 'Optional provider-specific metadata.',
+    },
+    {
+      name: 'response',
+      type: '{ headers?: Record<string, string>; body?: unknown } | Array<{ headers?: Record<string, string>; body?: unknown } | undefined> | undefined',
+      description:
+        'Response data. For `embedMany`, this can be one response per chunk.',
+    },
+  ]}
+/>
+
+### Rerank Events
+
+#### onStart
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this rerank call.',
+    },
+    {
+      name: 'operationId',
+      type: 'string',
+      description: "Operation type, 'ai.rerank'.",
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for the reranking model.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Reranking model identifier.',
+    },
+    {
+      name: 'documents',
+      type: 'Array<JSONObject | string>',
+      description: 'Documents being reranked.',
+    },
+    {
+      name: 'query',
+      type: 'string',
+      description: 'Query to rerank the documents against.',
+    },
+    {
+      name: 'topN',
+      type: 'number | undefined',
+      description: 'Number of top documents to return.',
+    },
+    {
+      name: 'maxRetries',
+      type: 'number',
+      description: 'Maximum number of retries for failed requests.',
+    },
+    {
+      name: 'headers',
+      type: 'Record<string, string | undefined> | undefined',
+      description: 'Additional HTTP headers sent with the request.',
+    },
+    {
+      name: 'providerOptions',
+      type: 'ProviderOptions | undefined',
+      description: 'Provider-specific options.',
+    },
+  ]}
+/>
+
+#### onEnd
+
+<PropertiesTable
+  content={[
+    {
+      name: 'callId',
+      type: 'string',
+      description: 'Unique identifier for this rerank call.',
+    },
+    {
+      name: 'operationId',
+      type: 'string',
+      description: "Operation type, 'ai.rerank'.",
+    },
+    {
+      name: 'provider',
+      type: 'string',
+      description: 'Provider identifier for the reranking model.',
+    },
+    {
+      name: 'modelId',
+      type: 'string',
+      description: 'Reranking model identifier.',
+    },
+    {
+      name: 'documents',
+      type: 'Array<JSONObject | string>',
+      description: 'Documents that were reranked.',
+    },
+    {
+      name: 'query',
+      type: 'string',
+      description: 'Query the documents were reranked against.',
+    },
+    {
+      name: 'ranking',
+      type: 'Array<{ originalIndex: number; score: number; document: JSONObject | string }>',
+      description:
+        'Reranked results sorted by relevance score in descending order.',
+    },
+    {
+      name: 'warnings',
+      type: 'Array<Warning>',
+      description: 'Warnings from the reranking model.',
+    },
+    {
+      name: 'providerMetadata',
+      type: 'ProviderMetadata | undefined',
+      description: 'Optional provider-specific metadata.',
+    },
+    {
+      name: 'response',
+      type: '{ id?: string; timestamp: Date; modelId: string; headers?: Record<string, string>; body?: unknown }',
+      description: 'Response data including headers and body.',
+    },
+  ]}
+/>

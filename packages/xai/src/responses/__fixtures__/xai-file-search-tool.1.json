@@ -1,0 +1,81 @@
+{
+  "created_at": 1762189566,
+  "id": "resp_file_search_123",
+  "max_output_tokens": null,
+  "model": "grok-4-fast-non-reasoning",
+  "object": "response",
+  "output": [
+    {
+      "type": "file_search_call",
+      "id": "fs_123",
+      "status": "completed",
+      "queries": ["AI safety research"],
+      "results": [
+        {
+          "file_id": "file_abc123",
+          "filename": "ai-safety-paper.pdf",
+          "score": 0.95,
+          "text": "Recent advances in AI safety research have focused on alignment techniques..."
+        },
+        {
+          "file_id": "file_def456",
+          "filename": "research-notes.md",
+          "score": 0.82,
+          "text": "Key findings from the AI safety workshop include recommendations for..."
+        }
+      ]
+    },
+    {
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Based on the documents in your collection, I found relevant information about AI safety research. The main findings indicate that recent advances have focused on alignment techniques and the workshop recommendations emphasize the importance of interpretability.",
+          "logprobs": [],
+          "annotations": []
+        }
+      ],
+      "id": "msg_file_search_123",
+      "role": "assistant",
+      "type": "message",
+      "status": "completed"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "temperature": null,
+  "text": {
+    "format": {
+      "type": "text"
+    }
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "file_search",
+      "vector_store_ids": ["collection_test123"]
+    }
+  ],
+  "top_p": null,
+  "usage": {
+    "input_tokens": 500,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 150,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 650,
+    "num_sources_used": 0,
+    "num_server_side_tools_used": 1
+  },
+  "user": null,
+  "incomplete_details": null,
+  "status": "completed",
+  "store": true,
+  "metadata": {}
+}

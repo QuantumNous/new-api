@@ -1,0 +1,196 @@
+---
+title: OpenCode
+description: Learn how to use the OpenCode harness adapter.
+---
+
+# OpenCode Harness
+
+The OpenCode harness adapter connects `HarnessAgent` to OpenCode through
+`@opencode-ai/sdk`. The adapter runs a bridge inside the sandbox, starts an
+OpenCode server in that sandbox, and streams OpenCode session events back to
+the host over a sandbox-exposed WebSocket.
+
+<Note>
+  Harness packages are **experimental**. Expect breaking changes between
+  releases as this early API gets further refined.
+</Note>
+
+## Setup
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet
+      text="pnpm add @ai-sdk/harness @ai-sdk/harness-opencode @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="npm install @ai-sdk/harness @ai-sdk/harness-opencode @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="yarn add @ai-sdk/harness @ai-sdk/harness-opencode @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="bun add @ai-sdk/harness @ai-sdk/harness-opencode @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+</Tabs>
+
+The adapter bootstraps the OpenCode bridge dependencies inside the sandbox when
+the first session starts. The bridge package depends on `@opencode-ai/sdk` and
+`opencode-ai`.
+
+## Import
+
+```ts
+import { openCode, createOpenCode } from '@ai-sdk/harness-opencode';
+```
+
+`openCode` is equivalent to `createOpenCode()` with its default configuration.
+
+## Basic Usage
+
+```ts
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { openCode } from '@ai-sdk/harness-opencode';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+
+const agent = new HarnessAgent({
+  harness: openCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+});
+
+const session = await agent.createSession();
+
+let exitCode = 0;
+try {
+  const result = await agent.stream({
+    session,
+    prompt: 'Check the test failures and fix the production code.',
+  });
+
+  for await (const part of result.stream) {
+    if (part.type === 'text-delta') {
+      process.stdout.write(part.text);
+    }
+  }
+} catch (err) {
+  exitCode = 1;
+  console.error(err);
+} finally {
+  await session.destroy();
+  process.exit(exitCode);
+}
+```
+
+To use this agent, ensure environment variables include `VERCEL_OIDC_TOKEN` for
+Vercel Sandbox, and one of the variables listed under [authentication](#authentication)
+for OpenCode.
+
+## Adapter Settings
+
+Use `createOpenCode()` to configure the runtime:
+
+```ts
+const harness = createOpenCode({
+  model: 'anthropic/claude-sonnet-4-6',
+  reasoningVariant: 'high',
+});
+```
+
+Settings:
+
+- `auth`: Anthropic, OpenAI, OpenAI-compatible, or AI Gateway authentication
+  settings.
+- `model`: OpenCode model id. Provider-prefixed values such as
+  `anthropic/claude-sonnet-4-6` are passed through to OpenCode.
+- `provider`: provider id to use with an unprefixed `model`.
+- `reasoningVariant`: OpenCode reasoning/thinking variant for supported models,
+  such as `low`, `medium`, or `high`.
+- `port`: bridge port override.
+- `startupTimeoutMs`: maximum time to wait for the bridge to start.
+
+## Authentication
+
+By default, authentication is resolved from the host environment and forwarded
+to the sandbox bridge. The adapter checks for AI Gateway, Anthropic, and OpenAI
+credentials.
+
+Supported environment variables:
+
+- `AI_GATEWAY_API_KEY`
+- `AI_GATEWAY_BASE_URL`
+- `VERCEL_OIDC_TOKEN`
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_AUTH_TOKEN`
+- `ANTHROPIC_BASE_URL`
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `OPENAI_ORGANIZATION`
+- `OPENAI_PROJECT`
+
+You can also pass explicit auth settings:
+
+```ts
+const harness = createOpenCode({
+  auth: {
+    gateway: {
+      apiKey: process.env.AI_GATEWAY_API_KEY,
+    },
+  },
+});
+```
+
+For OpenAI-compatible endpoints, use `auth.openaiCompatible` and set `name` to
+the OpenCode provider id.
+
+## Sandbox
+
+OpenCode requires a network sandbox with at least one exposed port,
+e.g. `@ai-sdk/sandbox-vercel`:
+
+```ts
+const sandbox = createVercelSandbox({
+  runtime: 'node24',
+  ports: [4000],
+});
+```
+
+## Built-in Tools
+
+The adapter exposes these common OpenCode built-ins through `agent.tools`:
+
+- `read`
+- `write`
+- `edit`
+- `bash`
+- `glob`
+- `grep`
+- `ls`
+- `webfetch`
+- `skill`
+- `todowrite`
+- `agent`
+
+Additional OpenCode built-ins may also appear in `agent.tools` when they do
+not fit a common tool shape.
+
+OpenCode supports built-in tool approval requests when `permissionMode` is
+`allow-reads` or `allow-edits`. Host-executed AI SDK tool approvals also work.
+
+## Related
+
+- [HarnessAgent](/docs/ai-sdk-harnesses/harness-agent)
+- [Harness tools](/docs/ai-sdk-harnesses/tools)
+- [Harness adapters](/docs/ai-sdk-harnesses/harness-adapters)

@@ -1,0 +1,427 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doGenerate > reasoning > should extract reasoning and text response 1`] = `
+{
+  "content": [
+    {
+      "providerMetadata": {
+        "amazonBedrock": {
+          "signature": "EvYBCkgICxABGAIqQA9E9VC377UnbjdfXCw4RwQaaIXsqocZKzI3WwWtXT/wBjzAkBOfIiVkP/mhvsPGb5oQW/2j+E1tZcNFoXIb26YSDBTSbDrbHwXJoAl3/hoMA/Qo4rIHvObP/yBrIjAT+l69mh9k7evFO+w+ransSD5YGq4hYrieOyJH3k/zHv8nBJwiz3Nlrb3jNFi2Ib0qXJH7BIK0hR85yYIoccReoJUpeLEMxeWbsO6f0EpOSMSi3YDLd1U9NAw7Itjeay1fEBPHwvawt2M4e/rn52SsuEz3p2DfOZm+N3bnL63rg0Cb9lFcp3k5kuU1h6hcGAE=",
+        },
+        "bedrock": {
+          "signature": "EvYBCkgICxABGAIqQA9E9VC377UnbjdfXCw4RwQaaIXsqocZKzI3WwWtXT/wBjzAkBOfIiVkP/mhvsPGb5oQW/2j+E1tZcNFoXIb26YSDBTSbDrbHwXJoAl3/hoMA/Qo4rIHvObP/yBrIjAT+l69mh9k7evFO+w+ransSD5YGq4hYrieOyJH3k/zHv8nBJwiz3Nlrb3jNFi2Ib0qXJH7BIK0hR85yYIoccReoJUpeLEMxeWbsO6f0EpOSMSi3YDLd1U9NAw7Itjeay1fEBPHwvawt2M4e/rn52SsuEz3p2DfOZm+N3bnL63rg0Cb9lFcp3k5kuU1h6hcGAE=",
+        },
+      },
+      "text": "Let me count the r's in "strawberry":
+
+s-t-r-a-w-b-e-r-r-y
+
+There are 3 r's.",
+      "type": "reasoning",
+    },
+    {
+      "text": "There are **3** r's in "strawberry":
+
+1. st**r**awbe**r****r**y",
+      "type": "text",
+    },
+  ],
+  "finishReason": {
+    "raw": "end_turn",
+    "unified": "stop",
+  },
+  "providerMetadata": {
+    "amazonBedrock": {
+      "stopSequence": null,
+      "usage": {
+        "cacheWriteInputTokens": 0,
+      },
+    },
+    "bedrock": {
+      "stopSequence": null,
+      "usage": {
+        "cacheWriteInputTokens": 0,
+      },
+    },
+  },
+  "response": {
+    "headers": {
+      "content-length": "865",
+      "content-type": "application/json",
+    },
+    "id": undefined,
+    "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+    "timestamp": undefined,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "noCache": 51,
+      "total": 51,
+    },
+    "outputTokens": {
+      "reasoning": undefined,
+      "text": 78,
+      "total": 78,
+    },
+    "raw": {
+      "cacheReadInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "inputTokens": 51,
+      "outputTokens": 78,
+      "totalTokens": 129,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doGenerate > text > should extract text response 1`] = `
+{
+  "content": [
+    {
+      "text": "Let me count the "r"s in "strawberry":
+
+s-t-**r**-a-w-b-e-**r**-**r**-y
+
+There are **3** "r"s in "strawberry."",
+      "type": "text",
+    },
+  ],
+  "finishReason": {
+    "raw": "end_turn",
+    "unified": "stop",
+  },
+  "providerMetadata": {
+    "amazonBedrock": {
+      "stopSequence": null,
+      "usage": {
+        "cacheWriteInputTokens": 0,
+      },
+    },
+    "bedrock": {
+      "stopSequence": null,
+      "usage": {
+        "cacheWriteInputTokens": 0,
+      },
+    },
+  },
+  "response": {
+    "headers": {
+      "content-length": "435",
+      "content-type": "application/json",
+    },
+    "id": undefined,
+    "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+    "timestamp": undefined,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "noCache": 22,
+      "total": 22,
+    },
+    "outputTokens": {
+      "reasoning": undefined,
+      "text": 57,
+      "total": 57,
+    },
+    "raw": {
+      "cacheReadInputTokens": 0,
+      "cacheWriteInputTokens": 0,
+      "inputTokens": 22,
+      "outputTokens": 57,
+      "totalTokens": 79,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doStream > reasoning > should stream reasoning and text parts 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": undefined,
+    "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+    "timestamp": undefined,
+    "type": "response-metadata",
+  },
+  {
+    "id": "0",
+    "type": "reasoning-start",
+  },
+  {
+    "delta": "Let me count the r",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s in "",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "strawberry":",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "
+
+s-t-r-a",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-w-b-e-r",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-r-y
+
+r",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " appears at positions ",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "3, 8",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", and 9.
+
+So there",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " are 3 r's.",
+    "id": "0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "",
+    "id": "0",
+    "providerMetadata": {
+      "amazonBedrock": {
+        "signature": "Ep0CCkgICxABGAIqQOWPB6/PmA5SW9jC6FvaNq3E+U9ev4FMWcFWuAho+VGLCtazKc5WDjQ5i0MuxsY0o5pKDSVWVKii8KJDusXH4eASDK7jyzuk8iij7fJNihoMxHO9haYzt48R36HVIjCb/EmIFrJLIXShqN6DN//T6vZBtO9qj1QhNWJa3CGm8VZoq80S2/Ok4U0aVaIDiZcqggHC2b8BHuv8BHZrmsR0wjU1ynansBGMdfjnG+iIv8R5lPpRmYGhSVwNybwP3aQZ6o8Dr48Rau8TJfdsArW+r7bvL7bPs4f5nnlp2vG7WkMzWwABHK3fdM44zZ1GZQaWyECNWR2GfY6dXiklo94vgpFTPuZ97mfiN3LY6uYyBwL8RkDaGAE=",
+      },
+      "bedrock": {
+        "signature": "Ep0CCkgICxABGAIqQOWPB6/PmA5SW9jC6FvaNq3E+U9ev4FMWcFWuAho+VGLCtazKc5WDjQ5i0MuxsY0o5pKDSVWVKii8KJDusXH4eASDK7jyzuk8iij7fJNihoMxHO9haYzt48R36HVIjCb/EmIFrJLIXShqN6DN//T6vZBtO9qj1QhNWJa3CGm8VZoq80S2/Ok4U0aVaIDiZcqggHC2b8BHuv8BHZrmsR0wjU1ynansBGMdfjnG+iIv8R5lPpRmYGhSVwNybwP3aQZ6o8Dr48Rau8TJfdsArW+r7bvL7bPs4f5nnlp2vG7WkMzWwABHK3fdM44zZ1GZQaWyECNWR2GfY6dXiklo94vgpFTPuZ97mfiN3LY6uYyBwL8RkDaGAE=",
+      },
+    },
+    "type": "reasoning-delta",
+  },
+  {
+    "id": "0",
+    "type": "reasoning-end",
+  },
+  {
+    "id": "1",
+    "type": "text-start",
+  },
+  {
+    "delta": "There",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": " are **3** r's in "",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": "strawberry":",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": "
+
+1",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": ". st",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r**awbe",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**r****",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r**y",
+    "id": "1",
+    "type": "text-delta",
+  },
+  {
+    "id": "1",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "end_turn",
+      "unified": "stop",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "noCache": 51,
+        "total": 51,
+      },
+      "outputTokens": {
+        "reasoning": undefined,
+        "text": 94,
+        "total": 94,
+      },
+      "raw": {
+        "inputTokens": 51,
+        "outputTokens": 94,
+        "serverToolUsage": {},
+        "totalTokens": 145,
+      },
+    },
+  },
+]
+`;
+
+exports[`doStream > text > should stream text deltas 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": undefined,
+    "modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+    "timestamp": undefined,
+    "type": "response-metadata",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "Let",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " me count the "",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r"s in "",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "strawberry":
+
+s-t-",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r**-a-w-b",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "-e-**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r**-**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r**-y
+
+There",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " are **3",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "** r",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "'s in "strawberry."",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "end_turn",
+      "unified": "stop",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "noCache": 22,
+        "total": 22,
+      },
+      "outputTokens": {
+        "reasoning": undefined,
+        "text": 55,
+        "total": 55,
+      },
+      "raw": {
+        "inputTokens": 22,
+        "outputTokens": 55,
+        "serverToolUsage": {},
+        "totalTokens": 77,
+      },
+    },
+  },
+]
+`;

@@ -1,0 +1,334 @@
+---
+title: Track Agent Token Usage
+description: Learn how to track the active context window with ToolLoopAgent.
+tags: ['next']
+---
+
+# Track Agent Token Usage
+
+<Note>
+  For more information about building agents, check out the [ToolLoopAgent
+  documentation](/docs/reference/ai-sdk-core/tool-loop-agent).
+</Note>
+
+Tracking token consumption in agentic applications helps you monitor costs and implement context management strategies.
+This recipe shows how to track usage across steps and make it available throughout your agent's lifecycle.
+
+## Start with a Basic Agent
+
+First, set up a basic `ToolLoopAgent` with a tool. Define an `AgentUIMessage` type using `InferAgentUIMessage` to get type-safe messages on the frontend, including typed tool calls and results.
+
+```typescript filename='ai/agent.ts'
+import { type InferAgentUIMessage, ToolLoopAgent, tool } from 'ai';
+import { z } from 'zod';
+
+export const agent = new ToolLoopAgent({
+  model: 'anthropic/claude-haiku-4.5',
+  tools: {
+    greet: tool({
+      description: 'Greets a person by their name.',
+      inputSchema: z.object({ name: z.string() }),
+      execute: async ({ name }) => `Greeted ${name}`,
+    }),
+  },
+});
+
+export type AgentUIMessage = InferAgentUIMessage<typeof agent>;
+```
+
+Create a route handler that streams the agent's response. Use `AgentUIMessage` to type the messages coming from the client.
+
+```tsx filename='app/api/chat/route.ts'
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+} from 'ai';
+import { type AgentUIMessage, agent } from '@/ai/agent';
+
+export async function POST(req: Request) {
+  const { messages }: { messages: AgentUIMessage[] } = await req.json();
+
+  const result = await agent.stream({
+    messages: await convertToModelMessages(messages),
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+  });
+}
+```
+
+And a basic chat interface using `useChat`. Pass `AgentUIMessage` as a generic to get type-safe access to messages, including typed tool invocations and results.
+
+```tsx filename='app/page.tsx'
+'use client';
+
+import { type AgentUIMessage } from '@/ai/agent';
+import { useChat } from '@ai-sdk/react';
+import { useState } from 'react';
+
+export default function Chat() {
+  const [input, setInput] = useState('');
+  const { messages, sendMessage } = useChat<AgentUIMessage>();
+
+  return (
+    <div>
+      {messages.map(m => (
+        <div key={m.id}>
+          <strong>{m.role}:</strong>
+          {m.parts.map(
+            (p, i) => p.type === 'text' && <span key={i}>{p.text}</span>,
+          )}
+        </div>
+      ))}
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          sendMessage({ text: input });
+          setInput('');
+        }}
+      >
+        <input value={input} onChange={e => setInput(e.target.value)} />
+      </form>
+    </div>
+  );
+}
+```
+
+## Access Usage Between Steps with Message Metadata
+
+To track token usage, attach it to each message using the `messageMetadata` callback. First, define a metadata type and pass it as a second generic to `InferAgentUIMessage`.
+
+```typescript filename='ai/agent.ts' highlight="1,15-16"
+import {
+  type InferAgentUIMessage,
+  type LanguageModelUsage,
+  ToolLoopAgent,
+  tool,
+} from 'ai';
+import { z } from 'zod';
+
+export const agent = new ToolLoopAgent({
+  model: 'anthropic/claude-haiku-4.5',
+  tools: {
+    greet: tool({
+      description: 'Greets a person by their name.',
+      inputSchema: z.object({ name: z.string() }),
+      execute: async ({ name }) => `Greeted ${name}`,
+    }),
+  },
+});
+
+type AgentMetadata = { usage: LanguageModelUsage };
+export type AgentUIMessage = InferAgentUIMessage<typeof agent, AgentMetadata>;
+```
+
+Now add the `messageMetadata` callback to the route handler. Pass `AgentUIMessage` as the message generic to `toUIMessageStream` to type the callback. When a step finishes, the `finish-step` part contains usage data that you can include in the message metadata.
+
+```tsx filename='app/api/chat/route.ts' highlight="16-25"
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+  type ToolSet,
+} from 'ai';
+import { type AgentUIMessage, agent } from '@/ai/agent';
+
+export async function POST(req: Request) {
+  const { messages }: { messages: AgentUIMessage[] } = await req.json();
+
+  const result = await agent.stream({
+    messages: await convertToModelMessages(messages),
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream<ToolSet, AgentUIMessage>({
+      stream: result.stream,
+      messageMetadata: ({ part }) => {
+        if (part.type === 'finish-step') {
+          return { usage: part.usage };
+        }
+      },
+    }),
+  });
+}
+```
+
+Now you can access the metadata on the client. The `AgentUIMessage` type already includes the metadata shape, giving you type-safe access to `m.metadata.usage`.
+
+```typescript filename='app/page.tsx' highlight="17-19"
+'use client';
+
+import { type AgentUIMessage } from '@/ai/agent';
+import { useChat } from '@ai-sdk/react';
+import { useState } from 'react';
+
+export default function Chat() {
+  const [input, setInput] = useState('');
+  const { messages, sendMessage } = useChat<AgentUIMessage>();
+
+  return (
+    <div>
+      {messages.map((m) => (
+        <div key={m.id}>
+          <strong>{m.role}:</strong>
+          {m.parts.map((p, i) => p.type === 'text' && <span key={i}>{p.text}</span>)}
+          {m.metadata?.usage && (
+            <div>Input tokens: {m.metadata.usage.inputTokens}</div>
+          )}
+        </div>
+      ))}
+      <form onSubmit={(e) => {
+        e.preventDefault();
+        sendMessage({ text: input });
+        setInput('');
+      }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} />
+      </form>
+    </div>
+  );
+}
+```
+
+## Pass Usage Back to the Agent with Call Options
+
+You now have usage data displayed in the UI. But what if you want to act on that data? For example, you might want to implement context compaction when approaching token limits.
+
+To manipulate messages or apply context management strategies, you'd use the `prepareStep` callback. However, `prepareStep` only has access to steps from the current run. On the first step of a new request, `steps` is empty, leaving you with no visibility into how many tokens the conversation has accumulated across previous requests.
+
+To solve this, pass the usage from previous messages back to the agent. Use `callOptionsSchema` to define the data shape and `prepareCall` to make it available on `context`, where `prepareStep` can access it.
+
+```typescript filename='ai/agent.ts' highlight="11-13,21-26"
+import {
+  type InferAgentUIMessage,
+  type LanguageModelUsage,
+  ToolLoopAgent,
+  tool,
+} from 'ai';
+import { z } from 'zod';
+
+export const agent = new ToolLoopAgent({
+  model: 'anthropic/claude-haiku-4.5',
+  callOptionsSchema: z.object({
+    lastInputTokens: z.number(),
+  }),
+  tools: {
+    greet: tool({
+      description: 'Greets a person by their name.',
+      inputSchema: z.object({ name: z.string() }),
+      execute: async ({ name }) => `Greeted ${name}`,
+    }),
+  },
+  prepareCall: ({ options, ...settings }) => {
+    return {
+      ...settings,
+      context: { lastInputTokens: options.lastInputTokens },
+    };
+  },
+});
+
+type AgentMetadata = { usage: LanguageModelUsage };
+export type AgentUIMessage = InferAgentUIMessage<typeof agent, AgentMetadata>;
+```
+
+Extract the last input token count from previous messages and pass it to the agent.
+
+```tsx filename='app/api/chat/route.ts' highlight="12-14,18-20"
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  toUIMessageStream,
+  type ToolSet,
+} from 'ai';
+import { type AgentUIMessage, agent } from '@/ai/agent';
+
+export async function POST(req: Request) {
+  const { messages }: { messages: AgentUIMessage[] } = await req.json();
+
+  const lastInputTokens =
+    messages.filter(m => m.role === 'assistant').at(-1)?.metadata?.usage
+      ?.inputTokens ?? 0;
+
+  const result = await agent.stream({
+    messages: await convertToModelMessages(messages),
+    options: {
+      lastInputTokens,
+    },
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream<ToolSet, AgentUIMessage>({
+      stream: result.stream,
+      messageMetadata: ({ part }) => {
+        if (part.type === 'finish-step') {
+          return { usage: part.usage };
+        }
+      },
+    }),
+  });
+}
+```
+
+## Access Usage in prepareStep and Tools
+
+With the usage on `context`, you can access it in `prepareStep` to make decisions about context management, or pass it to your tools.
+
+```typescript filename='ai/agent.ts' highlight="9-11,31-40"
+import {
+  type InferAgentUIMessage,
+  type LanguageModelUsage,
+  ToolLoopAgent,
+  tool,
+} from 'ai';
+import { z } from 'zod';
+
+type TContext = {
+  lastInputTokens: number;
+};
+
+export const agent = new ToolLoopAgent({
+  model: 'anthropic/claude-haiku-4.5',
+  callOptionsSchema: z.object({
+    lastInputTokens: z.number(),
+  }),
+  tools: {
+    greet: tool({
+      description: 'Greets a person by their name.',
+      inputSchema: z.object({ name: z.string() }),
+      execute: async ({ name }) => `Greeted ${name}`,
+    }),
+  },
+  prepareCall: ({ options, ...settings }) => {
+    return {
+      ...settings,
+      context: { lastInputTokens: options.lastInputTokens },
+    };
+  },
+  prepareStep: ({ steps, context }) => {
+    const lastStep = steps.at(-1);
+    const lastStepUsage =
+      lastStep?.usage?.inputTokens ??
+      (context as TContext)?.lastInputTokens ??
+      0;
+    console.log('Last step input tokens:', lastStepUsage);
+    // You can use this to implement context compaction strategies
+    return {
+      context: {
+        ...context,
+        lastStepUsage,
+      },
+    };
+  },
+});
+
+type AgentMetadata = { usage: LanguageModelUsage };
+export type AgentUIMessage = InferAgentUIMessage<typeof agent, AgentMetadata>;
+```
+
+The `prepareStep` callback runs before each step, giving you access to:
+
+- `steps`: All previous steps with their usage data
+- `context`: The context set by `prepareCall` (usage from the previous request)
+
+This allows you to track token consumption across the entire conversation lifecycle and implement strategies like context compaction when approaching token limits.

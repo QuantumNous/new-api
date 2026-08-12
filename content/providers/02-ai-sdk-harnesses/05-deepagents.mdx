@@ -1,0 +1,201 @@
+---
+title: Deep Agents
+description: Learn how to use the Deep Agents harness adapter.
+---
+
+# Deep Agents Harness
+
+The Deep Agents harness adapter connects `HarnessAgent` to
+[Deep Agents](https://github.com/langchain-ai/deepagentsjs), a LangGraph-based agent
+runtime. The adapter runs a Node bridge inside the sandbox that drives the
+`deepagents` package and streams its `streamEvents` output back to the host over a
+sandbox-exposed WebSocket.
+
+<Note>
+  Harness packages are **experimental**. Expect breaking changes between
+  releases as this early API gets further refined.
+</Note>
+
+## Setup
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet
+      text="pnpm add @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="npm install @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="yarn add @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="bun add @ai-sdk/harness @ai-sdk/harness-deepagents @ai-sdk/sandbox-vercel"
+      dark
+    />
+  </Tab>
+</Tabs>
+
+The adapter bootstraps the bridge's Node dependencies (the `deepagents` package
+and LangChain) inside the sandbox via `pnpm` when the first session starts.
+
+## Import
+
+```ts
+import { deepAgents, createDeepAgents } from '@ai-sdk/harness-deepagents';
+```
+
+`deepAgents` is equivalent to `createDeepAgents()` with its default
+configuration.
+
+## Basic Usage
+
+```ts
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { deepAgents } from '@ai-sdk/harness-deepagents';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+
+const agent = new HarnessAgent({
+  harness: deepAgents,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+});
+
+const session = await agent.createSession();
+
+let exitCode = 0;
+try {
+  const result = await agent.stream({
+    session,
+    prompt: 'Analyze this codebase and suggest improvements.',
+  });
+
+  for await (const part of result.stream) {
+    if (part.type === 'text-delta') {
+      process.stdout.write(part.text);
+    }
+  }
+} catch (err) {
+  exitCode = 1;
+  console.error(err);
+} finally {
+  await session.destroy();
+  process.exit(exitCode);
+}
+```
+
+To use this agent, ensure environment variables include `VERCEL_OIDC_TOKEN` for
+Vercel Sandbox, and one of the variables listed under
+[authentication](#authentication) for the model provider.
+
+## Adapter Settings
+
+Use `createDeepAgents()` to configure the runtime:
+
+```ts
+const harness = createDeepAgents({
+  model: 'claude-sonnet-4',
+});
+```
+
+Settings:
+
+- `auth`: Anthropic or AI Gateway authentication settings.
+- `model`: model id passed to the Deep Agents (LangChain) runtime. Through AI
+  Gateway, use the `creator/model` slug (e.g. `anthropic/claude-sonnet-4-6`,
+  `google/gemini-2.5-flash`, `openai/gpt-4.1-mini`).
+- `port`: bridge port override.
+- `startupTimeoutMs`: maximum time to wait for the bridge to start.
+
+## Authentication
+
+Deep Agents always drives the Anthropic client. Non-Anthropic models reach it
+through AI Gateway's Anthropic-compatible endpoint, which translates to any
+model (Gemini, OpenAI, etc.), tool calls included. Authentication is resolved
+from the host environment and forwarded to the sandbox bridge: explicit
+Anthropic auth first, then AI Gateway credentials, then ambient Anthropic
+credentials.
+
+Supported environment variables:
+
+- `AI_GATEWAY_API_KEY`
+- `VERCEL_OIDC_TOKEN`
+- `AI_GATEWAY_BASE_URL`
+- `ANTHROPIC_API_KEY`
+- `ANTHROPIC_AUTH_TOKEN`
+- `ANTHROPIC_BASE_URL`
+
+You can also pass explicit auth settings (`anthropic` or `gateway`). To run a
+non-Anthropic model, route it through AI Gateway:
+
+```ts
+const harness = createDeepAgents({
+  model: 'google/gemini-2.5-flash',
+  auth: {
+    gateway: {
+      apiKey: process.env.AI_GATEWAY_API_KEY,
+    },
+  },
+});
+```
+
+## Sandbox
+
+Deep Agents requires a network sandbox with at least one exposed port,
+e.g. `@ai-sdk/sandbox-vercel`:
+
+```ts
+const sandbox = createVercelSandbox({
+  runtime: 'node24',
+  ports: [4000],
+});
+```
+
+## Skills
+
+Skills passed to the session are materialized as native Deep Agents skill folders
+(`<name>/SKILL.md` plus any attached files) under `$HOME/.agents/skills/` in the
+sandbox (outside the work dir, so they can't clash with cloned code), and loaded
+via Deep Agents' `skills` option — so the agent loads them on demand and skill
+file references resolve. Skills already present under `<workDir>/.agents/skills/`
+(e.g. in a cloned repo) are also discovered.
+
+## Built-in Tools
+
+The adapter exposes these Deep Agents built-ins through `agent.tools`:
+
+- `read`
+- `write`
+- `edit`
+- `bash`
+- `grep`
+- `glob`
+- `ls`
+- `task`
+- `write_todos`
+
+## Known Limitations
+
+- **Resuming a stopped session's conversation** is not supported — after
+  `session.stop()`, Deep Agents' in-memory conversation state (LangGraph
+  `MemorySaver`) is gone; only the sandbox workspace persists via its snapshot.
+  Use `session.detach()` for cross-process handoff or `session.suspendTurn()` for
+  turn continuation while keeping the live bridge running.
+- **Manual compaction** is not supported.
+
+## Related
+
+- [HarnessAgent](/docs/ai-sdk-harnesses/harness-agent)
+- [Harness tools](/docs/ai-sdk-harnesses/tools)
+- [Harness adapters](/docs/ai-sdk-harnesses/harness-adapters)

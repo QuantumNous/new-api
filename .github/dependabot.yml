@@ -1,0 +1,188 @@
+# Dependabot configuration — migrated from .github/renovate.json5
+#
+# This file lives on the default branch (main) only. Dependabot reads it from
+# main and applies each entry to the branch named in `target-branch` (or to main
+# when omitted). To cover a new `release-vX.Y` branch, duplicate the three
+# entries below with a new `target-branch` — Dependabot has no wildcard for
+# branches.
+#
+# Cadence mapping from the old Renovate config (Dependabot only supports
+# daily/weekly/monthly intervals and one entry per ecosystem+directory):
+#   - packages/*           -> weekly (Fri 5am LA). prod & dev are split into
+#                             separate groups; Dependabot cannot schedule
+#                             dep-types separately within one directory.
+#   - root/examples/tools  -> monthly (Renovate ran these quarterly; monthly is
+#                             Dependabot's longest interval).
+#   - .github/workflows    -> monthly (Renovate ran the 3rd Friday monthly).
+# SHA-pinned actions stay pinned: Dependabot bumps the digest and the version
+# comment, matching helpers:pinGitHubActionDigests for already-pinned actions.
+version: 2
+
+updates:
+  # ====================================================================== main
+  - package-ecosystem: npm
+    directories:
+      - /packages/*
+    schedule:
+      interval: weekly
+      day: friday
+      time: '05:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      packages-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      packages-development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /examples/*
+      - /tools/*
+    schedule:
+      interval: monthly
+      time: '05:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      other-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      other-development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: '05:00'
+      timezone: America/Los_Angeles
+    commit-message:
+      prefix: 'ci'
+    groups:
+      github-actions:
+        patterns: ['*']
+
+  # ============================================================== release-v6.0
+  - package-ecosystem: npm
+    directories:
+      - /packages/*
+    target-branch: release-v6.0
+    schedule:
+      interval: weekly
+      day: friday
+      time: '05:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      packages-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      packages-development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /examples/*
+      - /tools/*
+    target-branch: release-v6.0
+    schedule:
+      interval: monthly
+      time: '05:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      other-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      other-development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: release-v6.0
+    schedule:
+      interval: monthly
+      time: '05:00'
+      timezone: America/Los_Angeles
+    commit-message:
+      prefix: 'ci'
+    groups:
+      github-actions:
+        patterns: ['*']
+
+  # ============================================================== release-v5.0
+  - package-ecosystem: npm
+    directories:
+      - /packages/*
+    target-branch: release-v5.0
+    schedule:
+      interval: weekly
+      day: friday
+      time: '05:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      packages-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      packages-development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /examples/*
+      - /tools/*
+    target-branch: release-v5.0
+    schedule:
+      interval: monthly
+      time: '05:00'
+      timezone: America/Los_Angeles
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    groups:
+      other-production:
+        dependency-type: production
+        update-types: [minor, patch]
+      other-development:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: release-v5.0
+    schedule:
+      interval: monthly
+      time: '05:00'
+      timezone: America/Los_Angeles
+    commit-message:
+      prefix: 'ci'
+    groups:
+      github-actions:
+        patterns: ['*']

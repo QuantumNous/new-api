@@ -1,0 +1,19 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # Please go to Vercel Community
+        > [!IMPORTANT]
+        > **New Discussions in this repo are no longer actively monitored and will be automatically closed.**
+        > **Please join us at [community.vercel.com/ai-sdk](https://community.vercel.com/ai-sdk).**
+  - type: checkboxes
+    attributes:
+      label: Acknowledgement
+      options:
+        - label: I acknowledge that this discussion will be automatically closed.
+          required: true
+  - type: textarea
+    attributes:
+      label: Feedback
+    validations:
+      required: true

@@ -1,0 +1,44 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doEmbed > should expose the raw response 1`] = `
+{
+  "body": {
+    "data": [
+      {
+        "embedding": [
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+        ],
+        "index": 0,
+        "object": "embedding",
+      },
+      {
+        "embedding": [
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          1,
+        ],
+        "index": 1,
+        "object": "embedding",
+      },
+    ],
+    "id": "b322cfc2b9d34e2f8e14fc99874faee5",
+    "model": "mistral-embed",
+    "object": "list",
+    "usage": {
+      "prompt_tokens": 8,
+      "total_tokens": 8,
+    },
+  },
+  "headers": {
+    "content-length": "267",
+    "content-type": "application/json",
+    "test-header": "test-value",
+  },
+}
+`;

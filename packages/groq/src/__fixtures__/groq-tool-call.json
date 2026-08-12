@@ -1,0 +1,42 @@
+{
+  "id": "chatcmpl-1fd017fc-60b8-44eb-a736-375b8e1bc3e7",
+  "object": "chat.completion",
+  "created": 1770770815,
+  "model": "llama-3.3-70b-versatile",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "ax9fskhev",
+            "type": "function",
+            "function": {
+              "name": "weather",
+              "arguments": "{}"
+            }
+          }
+        ]
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "queue_time": 0.179481775,
+    "prompt_tokens": 218,
+    "prompt_time": 0.01182836,
+    "completion_tokens": 15,
+    "completion_time": 0.044602289,
+    "total_tokens": 233,
+    "total_time": 0.056430649
+  },
+  "usage_breakdown": null,
+  "system_fingerprint": "fp_f8b414701e",
+  "x_groq": {
+    "id": "req_01kh52madzem68scv0bcz3vm00",
+    "seed": 1790130236
+  },
+  "service_tier": "on_demand"
+}

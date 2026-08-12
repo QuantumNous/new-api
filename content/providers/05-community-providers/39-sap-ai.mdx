@@ -1,0 +1,124 @@
+---
+title: SAP AI Core
+description: Learn how to use the SAP AI Core provider for the AI SDK.
+---
+
+# SAP AI Core Provider
+
+[jerome-benoit/sap-ai-provider](https://github.com/jerome-benoit/sap-ai-provider) is a community provider for SAP AI Core built on the official **@sap-ai-sdk/orchestration** and **@sap-ai-sdk/foundation-models** packages.
+
+Two npm packages are published from this repository:
+
+- `@jerome-benoit/sap-ai-provider` - Language Model V4 for AI SDK 5.x & 6.x (recommended)
+- `@jerome-benoit/sap-ai-provider-v2` - Language Model V2 for AI SDK 5.x
+
+## Features
+
+Both providers offer:
+
+- **Dual API Support**: Choose between Orchestration API (with data masking, content filtering, document grounding, translation) or Foundation Models API (`logprobs`, `seed`, `dataSources`)
+- **Tool calling** and **multi-modal input** (images)
+- **Streaming support** for real-time text generation
+- **Text embeddings** for RAG and semantic search
+
+## Setup
+
+### @jerome-benoit/sap-ai-provider (recommended)
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @jerome-benoit/sap-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @jerome-benoit/sap-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @jerome-benoit/sap-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @jerome-benoit/sap-ai-provider" dark />
+  </Tab>
+</Tabs>
+
+### @jerome-benoit/sap-ai-provider-v2
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @jerome-benoit/sap-ai-provider-v2" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @jerome-benoit/sap-ai-provider-v2" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @jerome-benoit/sap-ai-provider-v2" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add @jerome-benoit/sap-ai-provider-v2" dark />
+  </Tab>
+</Tabs>
+
+Authentication is handled automatically via the `AICORE_SERVICE_KEY` environment variable (local) or `VCAP_SERVICES` (SAP BTP).
+
+## Provider Instance
+
+You can import the default provider instance `sapai` from `@jerome-benoit/sap-ai-provider`:
+
+```ts
+import { sapai } from '@jerome-benoit/sap-ai-provider';
+```
+
+If you need a customized setup, you can import `createSAPAIProvider` and create a provider instance with your settings:
+
+```ts
+import { createSAPAIProvider } from '@jerome-benoit/sap-ai-provider';
+
+const sapai = createSAPAIProvider({
+  resourceGroup: 'default',
+  api: 'orchestration', // or 'foundation-models'
+});
+```
+
+You can use the following optional settings to customize the SAP AI provider instance:
+
+- **resourceGroup** _string_
+
+  SAP AI Core resource group. Defaults to `'default'`.
+
+- **deploymentId** _string_
+
+  Specific deployment ID. If not provided, the SDK resolves deployment automatically.
+
+- **api** _'orchestration' | 'foundation-models'_
+
+  API to use. Defaults to `'orchestration'`. Can be overridden per model or per call via `providerOptions`.
+
+- **name** _string_
+
+  Provider name used as key in `providerOptions`. Defaults to `'sap-ai'`.
+
+- **defaultSettings** _object_
+
+  Default model settings including `modelParams`, `masking`, `filtering`, `grounding`, and `translation`.
+
+## Language Models
+
+You can create models that call the SAP AI Core API using the provider instance. The first argument is the model id. Model naming follows SAP AI Core conventions with vendor prefixes:
+
+```ts
+const model = sapai('gpt-4.1');
+const claudeModel = sapai('anthropic--claude-3.5-sonnet');
+const geminiModel = sapai('gemini-2.0-flash');
+```
+
+<Note>
+  Model availability depends on your SAP AI Core tenant configuration and
+  region.
+</Note>
+
+## Embedding Models
+
+You can create models that call the SAP AI Core embeddings API using the `.embeddingModel()` factory method:
+
+```ts
+const model = sapai.embeddingModel('text-embedding-3-small');
+```

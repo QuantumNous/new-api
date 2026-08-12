@@ -1,0 +1,311 @@
+---
+title: Voyage AI
+description: Learn how to use the Voyage AI provider.
+---
+
+# Voyage AI Provider
+
+[patelvivekdev/voyage-ai-provider](https://github.com/patelvivekdev/voyageai-ai-provider) is a community provider that uses [Voyage AI](https://www.voyageai.com) to provide Embedding support for the AI SDK.
+
+## Setup
+
+The Voyage provider is available in the `voyage-ai-provider` module. You can install it with
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add voyage-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install voyage-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add voyage-ai-provider" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="bun add voyage-ai-provider" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+You can import the default provider instance `voyage` from `voyage-ai-provider`:
+
+```ts
+import { voyage } from 'voyage-ai-provider';
+```
+
+If you need a customized setup, you can import `createVoyage` from `voyage-ai-provider` and create a provider instance with your settings:
+
+```ts
+import { createVoyage } from 'voyage-ai-provider';
+
+const voyage = createVoyage({
+  // custom settings
+});
+```
+
+You can use the following optional settings to customize the Voyage provider instance:
+
+- **baseURL** _string_
+
+  The base URL of the Voyage API.
+  The default prefix is `https://api.voyageai.com/v1`.
+
+- **apiKey** _string_
+
+  API key that is being sent using the `Authorization` header.
+  It defaults to the `VOYAGE_API_KEY` environment variable.
+
+- **headers** _Record&lt;string,string&gt;_
+
+  Custom headers to include in the requests.
+
+- **fetch** _(input: RequestInfo, init?: RequestInit) => Promise&lt;Response&gt;_
+
+  Custom [fetch](https://developer.mozilla.org/en-US/docs/Web/API/fetch) implementation.
+  Defaults to the global `fetch` function.
+  You can use it as a middleware to intercept requests,
+  or to provide a custom fetch implementation for e.g. testing.
+
+## Text Embedding Models
+
+You can create models that call the [Voyage embeddings API](https://docs.voyageai.com/reference/embeddings-api)
+using the `.embeddingModel()` factory method.
+
+```ts
+import { voyage } from 'voyage-ai-provider';
+
+const embeddingModel = voyage.embeddingModel('voyage-3.5-lite');
+```
+
+You can use Voyage embedding models to generate embeddings with the `embed` or `embedMany` function:
+
+```ts
+import { voyage } from 'voyage-ai-provider';
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: voyage.embeddingModel('voyage-3.5-lite'),
+  value: 'sunny day at the beach',
+  providerOptions: {
+    voyage: {
+      inputType: 'document',
+    },
+  },
+});
+```
+
+Voyage embedding models support additional provider options that can be passed via `providerOptions.voyage`:
+
+```ts
+import { voyage } from 'voyage-ai-provider';
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: voyage.embeddingModel('voyage-3.5-lite'),
+  value: 'sunny day at the beach',
+  providerOptions: {
+    voyage: {
+      inputType: 'query',
+      outputDimension: 512,
+    },
+  },
+});
+```
+
+The following [provider options](https://docs.voyageai.com/reference/embeddings-api) are available:
+
+- **inputType** _'query' | 'document' | 'null'_
+
+  Specifies the type of input passed to the model. Defaults to `'null'`.
+  - `'null'`: When `inputType` is `'null'`, the embedding model directly converts the inputs into numerical vectors.
+
+  For retrieval/search purposes it is recommended to use `'query'` or `'document'`.
+  - `'query'`: The input is a search query, e.g., "Represent the query for retrieving supporting documents: ...".
+  - `'document'`: The input is a document to be stored in a vector database, e.g., "Represent the document for retrieval: ...".
+
+- **outputDimension** _number_
+
+  The number of dimensions for the resulting output embeddings. Default is `'null'`.
+  - For example, `voyage-code-3` and `voyage-3-large` support: 2048, 1024 (default), 512, and 256.
+  - Refer to the [model documentation](https://docs.voyageai.com/docs/embeddings) for supported values.
+
+- **outputDtype** _'float' | 'int8' | 'uint8' | 'binary' | 'ubinary'_
+
+  The data type for the output embeddings. Defaults to `'float'`.
+  - `'float'`: 32-bit floating-point numbers (supported by all models).
+  - `'int8'`, `'uint8'`: 8-bit integer types (supported by `voyage-3-large`, `voyage-3.5`, `voyage-3.5-lite`, and `voyage-code-3`).
+  - `'binary'`, `'ubinary'`: Bit-packed, quantized single-bit embedding values (`voyage-3-large`, `voyage-3.5`, `voyage-3.5-lite`, and `voyage-code-3`). The returned list length is 1/8 of `outputDimension`. `'binary'` uses offset binary encoding.
+
+  See [FAQ: Output Data Types](https://docs.voyageai.com/docs/faq#what-is-quantization-and-output-data-types) for more details.
+
+- **truncation** _boolean_
+
+  Whether to truncate the input texts to fit within the model's context length. If not specified, defaults to true.
+
+You can find more models on the [Voyage Library](https://docs.voyageai.com/docs/embeddings) homepage.
+
+### Model Capabilities
+
+| Model                   | Default Dimensions             | Context Length |
+| ----------------------- | ------------------------------ | -------------- |
+| `voyage-3.5`            | 1024 (default), 256, 512, 2048 | 32,000         |
+| `voyage-3.5-lite`       | 1024 (default), 256, 512, 2048 | 32,000         |
+| `voyage-3-large`        | 1024 (default), 256, 512, 2048 | 32,000         |
+| `voyage-3`              | 1024                           | 32,000         |
+| `voyage-code-3`         | 1024 (default), 256, 512, 2048 | 32,000         |
+| `voyage-3-lite`         | 512                            | 32,000         |
+| `voyage-finance-2`      | 1024                           | 32,000         |
+| `voyage-multilingual-2` | 1024                           | 32,000         |
+| `voyage-law-2`          | 1024                           | 32,000         |
+| `voyage-code-2`         | 1024                           | 16,000         |
+
+<Note>
+  The table above lists popular models. Please see the [Voyage
+  docs](https://docs.voyageai.com/docs/embeddings) for a full list of available
+  models.
+</Note>
+
+## Image Embedding
+
+### Example 1: Embed an image as a single embedding
+
+```ts
+import { voyage, ImageEmbeddingInput } from 'voyage-ai-provider';
+import { embedMany } from 'ai';
+
+const imageModel = voyage.imageEmbeddingModel('voyage-multimodal-3');
+
+const { embeddings } = await embedMany<ImageEmbeddingInput>({
+  model: imageModel,
+  values: [
+    {
+      image:
+        'https://raw.githubusercontent.com/voyage-ai/voyage-multimodal-3/refs/heads/main/images/banana_200_x_200.jpg',
+    },
+    {
+      image: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...',
+    },
+  ],
+  // or you can pass the array of images url and base64 string directly
+  // values: [
+  //   'https://raw.githubusercontent.com/voyage-ai/voyage-multimodal-3/refs/heads/main/images/banana_200_x_200.jpg',
+  //   'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...',
+  // ],
+});
+```
+
+### Example 2: Embed multiple images as single embedding
+
+```ts
+import { voyage, ImageEmbeddingInput } from 'voyage-ai-provider';
+import { embedMany } from 'ai';
+
+const imageModel = voyage.imageEmbeddingModel('voyage-multimodal-3');
+
+const { embeddings } = await embedMany<ImageEmbeddingInput>({
+  model: imageModel,
+  values: [
+    {
+      image: [
+        'https://raw.githubusercontent.com/voyage-ai/voyage-multimodal-3/refs/heads/main/images/banana_200_x_200.jpg',
+        'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...',
+      ],
+    },
+  ],
+});
+```
+
+<Note>
+  If you get an image URL not found error, convert the image to base64 and pass the
+  base64 data URL in the image array. The value should be a Base64-encoded image in the
+  data URL format `data:[mediatype];base64,<data>`. Supported media types: `image/png`,
+  `image/jpeg`, `image/webp`, and `image/gif`.
+</Note>
+
+## Multimodal Embedding
+
+### Example 1: Embed multiple texts and images as single embedding
+
+```ts
+import { voyage, MultimodalEmbeddingInput } from 'voyage-ai-provider';
+import { embedMany } from 'ai';
+
+const multimodalModel = voyage.multimodalEmbeddingModel('voyage-multimodal-3');
+
+const { embeddings } = await embedMany<MultimodalEmbeddingInput>({
+  model: multimodalModel,
+  values: [
+    {
+      text: ['Hello, world!', 'This is a banana'],
+      image: [
+        'https://raw.githubusercontent.com/voyage-ai/voyage-multimodal-3/refs/heads/main/images/banana_200_x_200.jpg',
+      ],
+    },
+    {
+      text: ['Hello, coders!', 'This is a coding test'],
+      image: ['data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...'],
+    },
+  ],
+});
+```
+
+The following constraints apply to the `values` list:
+
+- The list must not contain more than 1,000 values.
+- Each image must not contain more than 16 million pixels or be larger than 20 MB in size.
+- With every 560 pixels of an image being counted as a token, each input in the list must not exceed 32,000 tokens, and the total number of tokens across all inputs must not exceed 320,000.
+
+Voyage multimodal embedding models support additional provider options that can be passed via `providerOptions.voyage`:
+
+```ts
+import { voyage, MultimodalEmbeddingInput } from 'voyage-ai-provider';
+import { embedMany } from 'ai';
+
+const multimodalModel = voyage.multimodalEmbeddingModel('voyage-multimodal-3');
+
+const { embeddings } = await embedMany<MultimodalEmbeddingInput>({
+  model: multimodalModel,
+  values: [
+    {
+      text: ['Hello, world!'],
+      image: ['data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA...'],
+    },
+  ],
+  providerOptions: {
+    voyage: {
+      inputType: 'query',
+      outputEncoding: 'base64',
+      truncation: true,
+    },
+  },
+});
+```
+
+The following provider options are available:
+
+- **inputType** _'query' | 'document'_
+
+  Specifies the type of input passed to the model. Defaults to `'query'`.
+
+  When `inputType` is specified as `'query'` or `'document'`, Voyage automatically prepends a prompt to your inputs before vectorizing them, creating vectors tailored for retrieval/search tasks:
+  - `'query'`: Prepends "Represent the query for retrieving supporting documents: "
+  - `'document'`: Prepends "Represent the document for retrieval: "
+
+- **outputEncoding** _'base64'_
+
+  The data encoding for the resulting output embeddings. Defaults to `null` (list of 32-bit floats).
+  - If `null`, embeddings are returned as a list of floating-point numbers (float32).
+  - If `'base64'`, embeddings are returned as a Base64-encoded NumPy array of single-precision floats.
+
+  See [FAQ: Output Data Types](https://docs.voyageai.com/docs/faq#what-is-quantization-and-output-data-types) for more details.
+
+- **truncation** _boolean_
+
+  Whether to truncate the inputs to fit within the model's context length. If not specified, defaults to `true`.
+
+### Model Capabilities
+
+| Model                 | Context Length (tokens) | Embedding Dimension |
+| --------------------- | ----------------------- | ------------------- |
+| `voyage-multimodal-3` | 32,000                  | 1024                |

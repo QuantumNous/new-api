@@ -1,0 +1,113 @@
+---
+title: Clarifai
+description: Use Clarifai OpenAI compatible API with the AI SDK.
+---
+
+# Clarifai Provider
+
+[Clarifai](https://docs.clarifai.com/getting-started/quickstart) is a platform for building, deploying, and scaling AI-powered applications. It provides a suite of tools and APIs for computer vision, natural language processing, and generative AI. Clarifai offers an OpenAI-compatible API through its full-stack AI development platform, making it easy to integrate powerful AI capabilities using the AI SDK.
+
+## Setup
+
+The Clarifai provider is available via the `@ai-sdk/openai-compatible` module as it is compatible with the OpenAI API. You can install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn']}>
+  <Tab>
+    <Snippet text="pnpm add @ai-sdk/openai-compatible" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @ai-sdk/openai-compatible" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @ai-sdk/openai-compatible" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+To use Clarifai, you can create a custom provider instance with the `createOpenAICompatible` function from `@ai-sdk/openai-compatible`:
+
+```ts
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+
+const clarifai = createOpenAICompatible({
+  name: 'clarifai',
+  baseURL: 'https://api.clarifai.com/v2/ext/openai/v1',
+  apiKey: process.env.CLARIFAI_PAT,
+});
+```
+
+<Note>
+  You can obtain an API key by creating a Personal Access Token (PAT) in your Clarifai [account settings](https://clarifai.com/settings/security). Make sure to set the `CLARIFAI_PAT` environment variable with your PAT.
+
+New users can sign up for a free account on [Clarifai](https://clarifai.com/signup) to get started.
+
+</Note>
+
+## Language Models
+
+You can interact with various large language models (LLMs) available on Clarifai using the provider instance. For example, to use [DeepSeek-R1](https://clarifai.com/deepseek-ai/deepseek-chat/models/DeepSeek-R1-0528-Qwen3-8B), a powerful open-source language model:
+
+```ts
+const model = clarifai.chatModel(
+  'https://clarifai.com/deepseek-ai/deepseek-chat/models/DeepSeek-R1-0528-Qwen3-8B',
+);
+```
+
+### Example - Generate Text
+
+You can use Clarifai language models to generate text with the `generateText` function:
+
+```ts
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { generateText } from 'ai';
+
+const clarifai = createOpenAICompatible({
+  name: 'clarifai',
+  baseURL: 'https://api.clarifai.com/v2/ext/openai/v1',
+  apiKey: process.env.CLARIFAI_PAT,
+});
+
+const model = clarifai.chatModel(
+  'https://clarifai.com/deepseek-ai/deepseek-chat/models/DeepSeek-R1-0528-Qwen3-8B',
+);
+
+const { text, usage, finishReason } = await generateText({
+  model,
+  prompt: 'What is photosynthesis?',
+});
+
+console.log(text);
+console.log('Token usage:', usage);
+console.log('Finish reason:', finishReason);
+```
+
+### Example - Streaming Text
+
+You can also stream text responses from Clarifai models using the `streamText` function:
+
+```ts
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { streamText } from 'ai';
+
+const clarifai = createOpenAICompatible({
+  name: 'clarifai',
+  baseURL: 'https://api.clarifai.com/v2/ext/openai/v1',
+  apiKey: process.env.CLARIFAI_PAT,
+});
+
+const model = clarifai.chatModel(
+  'https://clarifai.com/deepseek-ai/deepseek-chat/models/DeepSeek-R1-0528-Qwen3-8B',
+);
+
+const result = streamText({
+  model,
+  prompt: 'What is photosynthesis?',
+});
+
+for await (const message of result.textStream) {
+  console.log(message);
+}
+```
+
+For full list of available models, you can refer to the [Clarifai Model Gallery](https://clarifai.com/explore).

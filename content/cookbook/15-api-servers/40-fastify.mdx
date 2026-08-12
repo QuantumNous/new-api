@@ -1,0 +1,123 @@
+---
+title: Fastify
+description: Learn how to use the AI SDK in a Fastify server
+tags: ['api servers', 'streaming']
+---
+
+# Fastify
+
+You can use the AI SDK in a [Fastify](https://fastify.dev/) server to generate and stream text and objects to the client.
+
+## Examples
+
+The examples start a simple HTTP server that listens on port 8080. You can e.g. test it using `curl`:
+
+```bash
+curl -X POST http://localhost:8080
+```
+
+<Note>
+  The examples use the Vercel AI Gateway. Ensure that your AI Gateway API key is
+  set in the `AI_GATEWAY_API_KEY` environment variable.
+</Note>
+
+**Full example**: [github.com/vercel/ai/examples/fastify](https://github.com/vercel/ai/tree/main/examples/fastify)
+
+### UI Message Stream
+
+You can use the `toUIMessageStream` helper to convert the result stream to a UI message stream and then send it in the response.
+
+```ts filename='index.ts'
+import { streamText, toUIMessageStream } from 'ai';
+import Fastify from 'fastify';
+
+const fastify = Fastify({ logger: true });
+
+fastify.post('/', async function (request, reply) {
+  const result = streamText({
+    model: 'openai/gpt-4o',
+    prompt: 'Invent a new holiday and describe its traditions.',
+  });
+
+  reply.header('Content-Type', 'text/plain; charset=utf-8');
+
+  return reply.send(toUIMessageStream({ stream: result.stream }));
+});
+
+fastify.listen({ port: 8080 });
+```
+
+### Sending Custom Data
+
+`createUIMessageStream` can be used to send custom data to the client.
+
+```ts filename='index.ts' highlight="8-11,18"
+import { createUIMessageStream, streamText, toUIMessageStream } from 'ai';
+import Fastify from 'fastify';
+
+const fastify = Fastify({ logger: true });
+
+fastify.post('/stream-data', async function (request, reply) {
+  // immediately start streaming the response
+  const stream = createUIMessageStream({
+    execute: async ({ writer }) => {
+      writer.write({ type: 'start' });
+
+      writer.write({
+        type: 'data-custom',
+        data: {
+          custom: 'initialized call',
+        },
+      });
+
+      const result = streamText({
+        model: 'openai/gpt-4o',
+        prompt: 'Invent a new holiday and describe its traditions.',
+      });
+
+      writer.merge(
+        toUIMessageStream({ stream: result.stream, sendStart: false }),
+      );
+    },
+    onError: error => {
+      // Error messages are masked by default for security reasons.
+      // If you want to expose the error message to the client, you can do so here:
+      return error instanceof Error ? error.message : String(error);
+    },
+  });
+
+  reply.header('Content-Type', 'text/plain; charset=utf-8');
+
+  return reply.send(stream);
+});
+
+fastify.listen({ port: 8080 });
+```
+
+### Text Stream
+
+You can use the `textStream` property to get a text stream from the result and then pipe it to the response.
+
+```ts filename='index.ts' highlight="15"
+import { streamText } from 'ai';
+import Fastify from 'fastify';
+
+const fastify = Fastify({ logger: true });
+
+fastify.post('/', async function (request, reply) {
+  const result = streamText({
+    model: 'openai/gpt-4o',
+    prompt: 'Invent a new holiday and describe its traditions.',
+  });
+
+  reply.header('Content-Type', 'text/plain; charset=utf-8');
+
+  return reply.send(result.textStream);
+});
+
+fastify.listen({ port: 8080 });
+```
+
+## Troubleshooting
+
+- Streaming not working when [proxied](/docs/troubleshooting/streaming-not-working-when-proxied)

@@ -1,0 +1,3008 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doGenerate > reasoning > should extract reasoning content 1`] = `
+{
+  "content": [
+    {
+      "text": "The word **"strawberry"** contains **3** instances of the letter **"r"**.  
+
+Here's the breakdown for clarity:  
+- **s** → not r  
+- **t** → not r  
+- **r** → **1st r**  
+- **a** → not r  
+- **w** → not r  
+- **b** → not r  
+- **e** → not r  
+- **r** → **2nd r**  
+- **r** → **3rd r**  
+- **y** → not r  
+
+💡 **Why the confusion?**  
+This is a common trick question! Many people miscount because:  
+- They overlook the **first "r"** in "straw" (position 3).  
+- They assume the double "r" in "berry" counts as *one* occurrence (but the question asks for *individual letters*, not sounds or syllables).  
+- Cognitive bias: The brain sometimes "skips" repeated letters during quick scanning.  
+
+✅ **Verification**:  
+- Spelling: **s-t-r-a-w-b-e-r-r-y** (10 letters total).  
+- Letter positions of "r": 3rd, 8th, and 9th characters (1-based indexing).  
+- Code check (Python):  
+  \`\`\`python
+  "strawberry".count("r")  # Returns 3
+  \`\`\`  
+
+**Answer: 3** 🍓",
+      "type": "text",
+    },
+    {
+      "text": "We are asked: "How many 'r's are in the word 'strawberry'?" This is a straightforward letter counting question. However, sometimes people get tricked by double letters. Let's write out the word: s t r a w b e r r y. Now count the occurrences of the letter 'r' (case-insensitive, but the word is given in lowercase in the question? The word is written as "strawberry" in quotes, so we consider the lowercase version). Let's list each character:
+
+1. s
+2. t
+3. r  -> first r
+4. a
+5. w
+6. b
+7. e
+8. r  -> second r
+9. r  -> third r? Wait, let's check: after 'e' is 'r', then another 'r'? Actually, the spelling is s-t-r-a-w-b-e-r-r-y. So positions:
+- index 0: s
+- index 1: t
+- index 2: r (1st r)
+- index 3: a
+- index 4: w
+- index 5: b
+- index 6: e
+- index 7: r (2nd r)
+- index 8: r (3rd r?) Wait, no: after index 7 is r, then index 8 is r? Let me spell carefully: 
+"strawberry" has 10 letters? Let's count total letters: s(1), t(2), r(3), a(4), w(5), b(6), e(7), r(8), r(9), y(10). Yes, 10 letters. So the letters at positions 3rd (if starting count at 1) is r, then 8th is r, 9th is r? Wait, position numbering:
+1: s
+2: t
+3: r  -> first r
+4: a
+5: w
+6: b
+7: e
+8: r  -> second r
+9: r  -> third r? But that would be two r's in a row at the end part. However, I think I made a mistake: the correct spelling of "strawberry" is s-t-r-a-w-b-e-r-r-y. So after 'e' (7th letter), the 8th letter is 'r', the 9th letter is 'r', and the 10th is 'y'. So there are two consecutive r's. Therefore, total r's: the one at position 3, and the two at positions 8 and 9? Wait, position 3 is the first r, then positions 8 and 9 are both r's? That would be three r's. But that doesn't sound right. Let me verify with actual knowledge: I know that "strawberry" has double r after the b and e? Wait, let's think: strawberry -> straw + berry. "Berry" has two r's? Actually, "berry" is b-e-r-r-y, which has two r's. And "straw" has one r. So total r's: in "straw": one r (the third letter), in "berry": two r's (the third and fourth letters of "berry", but when combined, the full word is s-t-r-a-w-b-e-r-r-y. So the r in "straw" is at position 3, then in "berry" part, after b and e, there are two r's. So that makes 1 + 2 = 3 r's? But wait, is there an r in "straw"? Yes: s-t-r-a-w -> the third letter is r. Then "berry": b-e-r-r-y -> the third and fourth letters of "berry" are r and r. However, when concatenated, the full word has the letters: s, t, r, a, w, b, e, r, r, y. So indeed there are three r's: one at index 2 (0-based), one at index 7, and one at index 8. But I have a doubt because I recall a common trick question: "How many r's are in the word strawberry?" and the answer is often said to be 3, but some people might think it's 2 because they overlook the first r. However, let me double-check the spelling. I can look it up mentally: S-T-R-A-W-B-E-R-R-Y. Count the R's: 
+- After T, there is R (1)
+- After E, there is R (2)
+- After that R, there is another R (3)
+Yes, three. But wait, is the letter after E actually two R's? Yes, "rr" is a double r. So total of three R's. However, I have seen this question before and sometimes the answer is 3. But let me confirm with a reliable source: I know that in the word "strawberry", there are 3 instances of the letter 'r'. For example, if you type it out and count: s (no), t (no), r (yes, count=1), a (no), w (no), b (no), e (no), r (yes, count=2), r (yes, count=3), y (no). So answer should be 3.
+
+But wait, I recall a similar trick question: "How many r's are in the word 'strawberry'?" and some people answer 2 because they think of the double r as one sound, but the question asks for the letter "r", so we count each occurrence. So it's 3.
+
+However, let me make sure there isn't a common misspelling. The standard English spelling is with double r in the berry part and one r in the straw part. Yes.
+
+Therefore, the answer is 3.
+
+But I've also seen a meme where the question is "how many r's in the word strawberry" and the answer is "three" but people often say two. So I think it's 3.
+
+Let me write a quick code in mind: 
+word = "strawberry"
+count = 0
+for char in word:
+    if char == 'r':
+        count += 1
+print(count) -> this would output 3.
+
+Yes.
+
+So final answer: 3.",
+      "type": "reasoning",
+    },
+  ],
+  "finishReason": {
+    "raw": "stop",
+    "unified": "stop",
+  },
+  "request": {
+    "body": "{"model":"qwen-plus","messages":[{"role":"user","content":[{"type":"text","text":"Hello"}]}]}",
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "The word **"strawberry"** contains **3** instances of the letter **"r"**.  
+
+Here's the breakdown for clarity:  
+- **s** → not r  
+- **t** → not r  
+- **r** → **1st r**  
+- **a** → not r  
+- **w** → not r  
+- **b** → not r  
+- **e** → not r  
+- **r** → **2nd r**  
+- **r** → **3rd r**  
+- **y** → not r  
+
+💡 **Why the confusion?**  
+This is a common trick question! Many people miscount because:  
+- They overlook the **first "r"** in "straw" (position 3).  
+- They assume the double "r" in "berry" counts as *one* occurrence (but the question asks for *individual letters*, not sounds or syllables).  
+- Cognitive bias: The brain sometimes "skips" repeated letters during quick scanning.  
+
+✅ **Verification**:  
+- Spelling: **s-t-r-a-w-b-e-r-r-y** (10 letters total).  
+- Letter positions of "r": 3rd, 8th, and 9th characters (1-based indexing).  
+- Code check (Python):  
+  \`\`\`python
+  "strawberry".count("r")  # Returns 3
+  \`\`\`  
+
+**Answer: 3** 🍓",
+            "reasoning_content": "We are asked: "How many 'r's are in the word 'strawberry'?" This is a straightforward letter counting question. However, sometimes people get tricked by double letters. Let's write out the word: s t r a w b e r r y. Now count the occurrences of the letter 'r' (case-insensitive, but the word is given in lowercase in the question? The word is written as "strawberry" in quotes, so we consider the lowercase version). Let's list each character:
+
+1. s
+2. t
+3. r  -> first r
+4. a
+5. w
+6. b
+7. e
+8. r  -> second r
+9. r  -> third r? Wait, let's check: after 'e' is 'r', then another 'r'? Actually, the spelling is s-t-r-a-w-b-e-r-r-y. So positions:
+- index 0: s
+- index 1: t
+- index 2: r (1st r)
+- index 3: a
+- index 4: w
+- index 5: b
+- index 6: e
+- index 7: r (2nd r)
+- index 8: r (3rd r?) Wait, no: after index 7 is r, then index 8 is r? Let me spell carefully: 
+"strawberry" has 10 letters? Let's count total letters: s(1), t(2), r(3), a(4), w(5), b(6), e(7), r(8), r(9), y(10). Yes, 10 letters. So the letters at positions 3rd (if starting count at 1) is r, then 8th is r, 9th is r? Wait, position numbering:
+1: s
+2: t
+3: r  -> first r
+4: a
+5: w
+6: b
+7: e
+8: r  -> second r
+9: r  -> third r? But that would be two r's in a row at the end part. However, I think I made a mistake: the correct spelling of "strawberry" is s-t-r-a-w-b-e-r-r-y. So after 'e' (7th letter), the 8th letter is 'r', the 9th letter is 'r', and the 10th is 'y'. So there are two consecutive r's. Therefore, total r's: the one at position 3, and the two at positions 8 and 9? Wait, position 3 is the first r, then positions 8 and 9 are both r's? That would be three r's. But that doesn't sound right. Let me verify with actual knowledge: I know that "strawberry" has double r after the b and e? Wait, let's think: strawberry -> straw + berry. "Berry" has two r's? Actually, "berry" is b-e-r-r-y, which has two r's. And "straw" has one r. So total r's: in "straw": one r (the third letter), in "berry": two r's (the third and fourth letters of "berry", but when combined, the full word is s-t-r-a-w-b-e-r-r-y. So the r in "straw" is at position 3, then in "berry" part, after b and e, there are two r's. So that makes 1 + 2 = 3 r's? But wait, is there an r in "straw"? Yes: s-t-r-a-w -> the third letter is r. Then "berry": b-e-r-r-y -> the third and fourth letters of "berry" are r and r. However, when concatenated, the full word has the letters: s, t, r, a, w, b, e, r, r, y. So indeed there are three r's: one at index 2 (0-based), one at index 7, and one at index 8. But I have a doubt because I recall a common trick question: "How many r's are in the word strawberry?" and the answer is often said to be 3, but some people might think it's 2 because they overlook the first r. However, let me double-check the spelling. I can look it up mentally: S-T-R-A-W-B-E-R-R-Y. Count the R's: 
+- After T, there is R (1)
+- After E, there is R (2)
+- After that R, there is another R (3)
+Yes, three. But wait, is the letter after E actually two R's? Yes, "rr" is a double r. So total of three R's. However, I have seen this question before and sometimes the answer is 3. But let me confirm with a reliable source: I know that in the word "strawberry", there are 3 instances of the letter 'r'. For example, if you type it out and count: s (no), t (no), r (yes, count=1), a (no), w (no), b (no), e (no), r (yes, count=2), r (yes, count=3), y (no). So answer should be 3.
+
+But wait, I recall a similar trick question: "How many r's are in the word 'strawberry'?" and some people answer 2 because they think of the double r as one sound, but the question asks for the letter "r", so we count each occurrence. So it's 3.
+
+However, let me make sure there isn't a common misspelling. The standard English spelling is with double r in the berry part and one r in the straw part. Yes.
+
+Therefore, the answer is 3.
+
+But I've also seen a meme where the question is "how many r's in the word strawberry" and the answer is "three" but people often say two. So I think it's 3.
+
+Let me write a quick code in mind: 
+word = "strawberry"
+count = 0
+for char in word:
+    if char == 'r':
+        count += 1
+print(count) -> this would output 3.
+
+Yes.
+
+So final answer: 3.",
+            "role": "assistant",
+          },
+        },
+      ],
+      "created": 1770764902,
+      "id": "chatcmpl-296c9a8c-4984-9b34-9b83-844f6208995e",
+      "model": "qwen3-max",
+      "object": "chat.completion",
+      "system_fingerprint": null,
+      "usage": {
+        "completion_tokens": 1668,
+        "completion_tokens_details": {
+          "reasoning_tokens": 1353,
+        },
+        "prompt_tokens": 24,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+        },
+        "total_tokens": 1692,
+      },
+    },
+    "headers": {
+      "content-length": "5790",
+      "content-type": "application/json",
+    },
+    "id": "chatcmpl-296c9a8c-4984-9b34-9b83-844f6208995e",
+    "modelId": "qwen3-max",
+    "timestamp": 2026-02-10T23:08:22.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "noCache": 24,
+      "total": 24,
+    },
+    "outputTokens": {
+      "reasoning": 1353,
+      "text": 315,
+      "total": 1668,
+    },
+    "raw": {
+      "completion_tokens": 1668,
+      "completion_tokens_details": {
+        "reasoning_tokens": 1353,
+      },
+      "prompt_tokens": 24,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+      },
+      "total_tokens": 1692,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doGenerate > text > should extract text content 1`] = `
+{
+  "content": [
+    {
+      "text": "## The Festival of Forgotten Things (Obsidiana)
+
+**When:** The first full moon after the autumn equinox (typically late September or early October).
+
+**Why it Exists:** In our hyper-connected, fast-paced world, we constantly accumulate—digital clutter, half-used supplies, unread books, outdated gadgets, and emotional baggage. Obsidiana arose as a gentle counterbalance: a night to honor what we've let go of, what we've outgrown, and what quietly served us before fading away. It's not about loss, but about **gratitude for the role these things played** and the space they free up for new growth.
+
+**Core Traditions:**
+
+1.  **The Gathering of the Discarded (Dusk):**
+    *   People collect small, symbolic items representing things they've released over the past year. This could be:
+        *   A worn-out pen that wrote important letters.
+        *   A cracked teacup from a beloved set.
+        *   A printed photo of a place they no longer visit.
+        *   A USB drive with old, unused files.
+        *   A smooth stone representing a worry they've let go of.
+        *   A dried flower from a bouquet long past its prime.
+    *   *Crucially:* These items are **not trash**. They are chosen deliberately for their *meaning*, not their utility. Nothing hazardous or truly large is brought.
+
+2.  **The Cleansing & Honoring (Moonrise):**
+    *   Communities gather in parks, gardens, or quiet clearings. Small, safe fire pits or designated "release bowls" are prepared.
+    *   Each person holds their item and shares a brief, quiet thought or sentence aloud (or silently if preferred): *"Thank you for holding my words," "Thank you for warming my hands," "Thank you for the lesson," "Thank you for the memory."*
+    *   **The Release:** Instead of burning everything (which isn't always practical or eco-friendly), there are options:
+        *   **Biodegradable Items:** Placed in a communal compost bin or buried shallowly in a designated garden area, symbolizing return to the earth.
+        *   **Non-Biodegradable but Meaningful:** Placed in a beautiful, shared "Memory Jar" or mosaic project that will be displayed in a community center for a year, then respectfully recycled.
+        *   **Digital "Items":** Represented by writing the name/type on a small slip of paper, which is then burned or composted. Alternatively, people might perform a symbolic "digital cleanse" at home beforehand (deleting old files, unsubscribing).
+    *   **The Fire Ritual (Optional & Safe):** For truly combustible, natural items (like the dried flower or a written note), a small, controlled fire is used. Watching the smoke rise under the full moon is a powerful symbol of release and transformation.
+
+3.  **The Feast of Simple Sustenance (Late Evening):**
+    *   After the release, a potluck feast is shared. The emphasis is on **simple, seasonal, and often "imperfect" foods** – slightly misshapen vegetables, bread ends, leftover grains transformed into a hearty soup or casserole. This celebrates resourcefulness and finding value in what might otherwise be overlooked.
+    *   Conversation is light and reflective, focusing on gratitude for the *process* of letting go and the space it creates, not on the specific losses.
+
+4.  **The Silent Walk Home (Midnight):**
+    *   As the moon reaches its peak, people walk home in comfortable silence (or very quiet conversation). This is a time for personal reflection on the space now cleared – mentally, emotionally, physically – and the potential it holds for the coming season. Many carry a single, smooth river stone given at the gathering as a reminder of the night's intention.
+
+**Symbolism & Spirit:**
+*   **The Obsidian Stone:** The holiday's namesake. Obsidian is volcanic glass – formed from rapid cooling, sharp yet smooth, capable of reflecting light. It symbolizes transformation through release, clarity gained from letting go, and the beauty found in what was once molten chaos.
+*   **The Full Moon:** Represents culmination, illumination, and the cyclical nature of release and renewal. What is released now makes space for the new cycle beginning after the equinox.
+*   **Not Mourning, But Acknowledging:** Obsidiana avoids sadness. It's a respectful nod to the past, acknowledging that things have their season and purpose, and their departure is natural and necessary for growth. It combats the guilt of "waste" by reframing release as an act of conscious gratitude and stewardship.
+
+**Modern Twist:** In cities, community centers or libraries might host "Digital Detox & Declutter" workshops leading up to Obsidiana, helping people prepare their symbolic "digital items." Apps might offer guided reflections for the Silent Walk.
+
+Obsidiana is a quiet, reflective holiday that offers a profound antidote to modern accumulation – a night to honor the quiet dignity of what we leave behind, making space for what is yet to come.",
+      "type": "text",
+    },
+  ],
+  "finishReason": {
+    "raw": "stop",
+    "unified": "stop",
+  },
+  "request": {
+    "body": "{"model":"qwen-plus","messages":[{"role":"user","content":[{"type":"text","text":"Hello"}]}]}",
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "## The Festival of Forgotten Things (Obsidiana)
+
+**When:** The first full moon after the autumn equinox (typically late September or early October).
+
+**Why it Exists:** In our hyper-connected, fast-paced world, we constantly accumulate—digital clutter, half-used supplies, unread books, outdated gadgets, and emotional baggage. Obsidiana arose as a gentle counterbalance: a night to honor what we've let go of, what we've outgrown, and what quietly served us before fading away. It's not about loss, but about **gratitude for the role these things played** and the space they free up for new growth.
+
+**Core Traditions:**
+
+1.  **The Gathering of the Discarded (Dusk):**
+    *   People collect small, symbolic items representing things they've released over the past year. This could be:
+        *   A worn-out pen that wrote important letters.
+        *   A cracked teacup from a beloved set.
+        *   A printed photo of a place they no longer visit.
+        *   A USB drive with old, unused files.
+        *   A smooth stone representing a worry they've let go of.
+        *   A dried flower from a bouquet long past its prime.
+    *   *Crucially:* These items are **not trash**. They are chosen deliberately for their *meaning*, not their utility. Nothing hazardous or truly large is brought.
+
+2.  **The Cleansing & Honoring (Moonrise):**
+    *   Communities gather in parks, gardens, or quiet clearings. Small, safe fire pits or designated "release bowls" are prepared.
+    *   Each person holds their item and shares a brief, quiet thought or sentence aloud (or silently if preferred): *"Thank you for holding my words," "Thank you for warming my hands," "Thank you for the lesson," "Thank you for the memory."*
+    *   **The Release:** Instead of burning everything (which isn't always practical or eco-friendly), there are options:
+        *   **Biodegradable Items:** Placed in a communal compost bin or buried shallowly in a designated garden area, symbolizing return to the earth.
+        *   **Non-Biodegradable but Meaningful:** Placed in a beautiful, shared "Memory Jar" or mosaic project that will be displayed in a community center for a year, then respectfully recycled.
+        *   **Digital "Items":** Represented by writing the name/type on a small slip of paper, which is then burned or composted. Alternatively, people might perform a symbolic "digital cleanse" at home beforehand (deleting old files, unsubscribing).
+    *   **The Fire Ritual (Optional & Safe):** For truly combustible, natural items (like the dried flower or a written note), a small, controlled fire is used. Watching the smoke rise under the full moon is a powerful symbol of release and transformation.
+
+3.  **The Feast of Simple Sustenance (Late Evening):**
+    *   After the release, a potluck feast is shared. The emphasis is on **simple, seasonal, and often "imperfect" foods** – slightly misshapen vegetables, bread ends, leftover grains transformed into a hearty soup or casserole. This celebrates resourcefulness and finding value in what might otherwise be overlooked.
+    *   Conversation is light and reflective, focusing on gratitude for the *process* of letting go and the space it creates, not on the specific losses.
+
+4.  **The Silent Walk Home (Midnight):**
+    *   As the moon reaches its peak, people walk home in comfortable silence (or very quiet conversation). This is a time for personal reflection on the space now cleared – mentally, emotionally, physically – and the potential it holds for the coming season. Many carry a single, smooth river stone given at the gathering as a reminder of the night's intention.
+
+**Symbolism & Spirit:**
+*   **The Obsidian Stone:** The holiday's namesake. Obsidian is volcanic glass – formed from rapid cooling, sharp yet smooth, capable of reflecting light. It symbolizes transformation through release, clarity gained from letting go, and the beauty found in what was once molten chaos.
+*   **The Full Moon:** Represents culmination, illumination, and the cyclical nature of release and renewal. What is released now makes space for the new cycle beginning after the equinox.
+*   **Not Mourning, But Acknowledging:** Obsidiana avoids sadness. It's a respectful nod to the past, acknowledging that things have their season and purpose, and their departure is natural and necessary for growth. It combats the guilt of "waste" by reframing release as an act of conscious gratitude and stewardship.
+
+**Modern Twist:** In cities, community centers or libraries might host "Digital Detox & Declutter" workshops leading up to Obsidiana, helping people prepare their symbolic "digital items." Apps might offer guided reflections for the Silent Walk.
+
+Obsidiana is a quiet, reflective holiday that offers a profound antidote to modern accumulation – a night to honor the quiet dignity of what we leave behind, making space for what is yet to come.",
+            "role": "assistant",
+          },
+        },
+      ],
+      "created": 1770764844,
+      "id": "chatcmpl-2655c1fe-749c-96df-b204-e413daa7caee",
+      "model": "qwen3-max",
+      "object": "chat.completion",
+      "system_fingerprint": null,
+      "usage": {
+        "completion_tokens": 1064,
+        "prompt_tokens": 18,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+        },
+        "total_tokens": 1082,
+      },
+    },
+    "headers": {
+      "content-length": "5342",
+      "content-type": "application/json",
+    },
+    "id": "chatcmpl-2655c1fe-749c-96df-b204-e413daa7caee",
+    "modelId": "qwen3-max",
+    "timestamp": 2026-02-10T23:07:24.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "noCache": 18,
+      "total": 18,
+    },
+    "outputTokens": {
+      "reasoning": 0,
+      "text": 1064,
+      "total": 1064,
+    },
+    "raw": {
+      "completion_tokens": 1064,
+      "prompt_tokens": 18,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+      },
+      "total_tokens": 1082,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doGenerate > tool call > should extract tool call content 1`] = `
+{
+  "content": [
+    {
+      "input": "{"location": "San Francisco"}",
+      "toolCallId": "call_962bfd2ab8f54b89a1161356",
+      "toolName": "weather",
+      "type": "tool-call",
+    },
+  ],
+  "finishReason": {
+    "raw": "tool_calls",
+    "unified": "tool-calls",
+  },
+  "request": {
+    "body": "{"model":"qwen-plus","messages":[{"role":"user","content":[{"type":"text","text":"Hello"}]}]}",
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "logprobs": null,
+          "message": {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "arguments": "{"location": "San Francisco"}",
+                  "name": "weather",
+                },
+                "id": "call_962bfd2ab8f54b89a1161356",
+                "index": 0,
+                "type": "function",
+              },
+            ],
+          },
+        },
+      ],
+      "created": 1770764857,
+      "id": "chatcmpl-bc7fc58d-c03f-9c9f-af73-91bea326c99f",
+      "model": "qwen3-max",
+      "object": "chat.completion",
+      "system_fingerprint": null,
+      "usage": {
+        "completion_tokens": 22,
+        "prompt_tokens": 295,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+        },
+        "total_tokens": 317,
+      },
+    },
+    "headers": {
+      "content-length": "537",
+      "content-type": "application/json",
+    },
+    "id": "chatcmpl-bc7fc58d-c03f-9c9f-af73-91bea326c99f",
+    "modelId": "qwen3-max",
+    "timestamp": 2026-02-10T23:07:37.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "noCache": 295,
+      "total": 295,
+    },
+    "outputTokens": {
+      "reasoning": 0,
+      "text": 22,
+      "total": 22,
+    },
+    "raw": {
+      "completion_tokens": 22,
+      "prompt_tokens": 295,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+      },
+      "total_tokens": 317,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doStream > reasoning > should stream reasoning 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "chatcmpl-3792851e-8f1b-9182-a1dc-b84603c81344",
+    "modelId": "qwen3-max",
+    "timestamp": 2026-02-10T23:09:02.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "test-reasoning-id",
+    "type": "reasoning-start",
+  },
+  {
+    "delta": "We",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " are asked:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "How many",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " '",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "r's are in the",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " word 'strawberry'",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "?" We need to count",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the occurrences of the letter",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " 'r' (case-sensitive",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "? The word is given",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " in lowercase, and",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the question uses lowercase",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "r", so we assume",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " case-insensitive but",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the word is all",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " lowercase). Let's write the",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " word: s t r a",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " w b e r r y",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".
+
+Now, let's",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " go through each letter:
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "s: not r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "
+t: not r
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "r: yes (",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "1)
+a: not r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "
+w: not r
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "b: not r
+e",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": not r
+r:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " yes (2)
+r:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " yes (3) ???",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " Wait, let's",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " check spelling: strawberry",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " is spelled s-t-r-a",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-w-b-e-r-r-y",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ". So after '",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "e', there are",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " two 'r's in",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " a row? Actually",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", let me confirm",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": 
+Standard spelling: s",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-t-r-a-w-b-e",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-r-r-y. Yes",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", there is "",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "rr" after "",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "be". So positions",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ":
+1: s
+2",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": t
+3: r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " (first r)
+4",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": a
+5: w",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "
+6: b
+7",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": e
+8: r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " (second r)
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "9: r (third r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "?) Wait, no:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " position 8 is",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r, position ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "9 is r? Let",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s count indices:
+
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "Index: 1",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ":s, 2",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ":t, 3:r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", 4:a, ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "5:w, 6:b",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", 7:e, ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "8:r, 9",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ":r, 10:y",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "? Wait, that would",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " be 10 letters",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "? Let's count total",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " letters in "straw",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "berry": 
+s(",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "1), t(2",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "), r(3),",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " a(4), w",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "(5), b(",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "6), e(7",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "), r(8),",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r(9), y(",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "10). Yes, ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "10 letters. So",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " there are three r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s? Wait, at",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " position 3, ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "8, and 9:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " that's three r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s. But I think I",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " recall that "str",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "awberry" has two",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r's? Let me double",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-check the spelling. Actually",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", I think I made",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " a mistake: The",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " correct spelling is s",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-t-r-a-w-b-e",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-r-r-y. So after",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "straw"",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " (which has one",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r at position 3",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "), then "berry",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "" part: b-e-r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-r-y. In",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "berry", there are two",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r's together. So total",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r's: one",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " in "straw" (",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "the third letter) and two",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " in "berry" (the",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " eighth and ninth letters",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "). So that is",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " three r's?",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " Wait, let's write",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " it out:
+
+s t",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r a w b e r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r y
+Letters",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": 
+1. s
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "2. t
+3.",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r  -> count",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " 1
+4. a",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "
+5. w
+6",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ". b
+7. e",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "
+8. r  ->",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " count 2
+9.",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r  -> count 3",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "
+10. y
+
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "So indeed there are three occurrences",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " of the letter 'r'.",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " But I have a feeling",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " that sometimes people might mis",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "count. Let me verify",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " with a quick mental check",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": The word "str",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "awberry" contains",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the substring "rr",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "" which is two r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s, plus the earlier",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r in "straw",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "", so total 3.",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " However, I recall a",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " common trick question:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "How many r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s in strawberry?"",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " and some people might",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " say 2 because",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " they think of the",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " double r as one sound",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", but the question asks",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " for the letter "",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "r", so we count",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " each occurrence. Let",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " me confirm with an",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " external source: I know",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " that "strawberry",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "" has 3 r's",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ". For example, in the",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " word "raspberry",",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " there are also 3 r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s? Wait, raspberry",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": r-a-s-p",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-b-e-r-r-y",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " -> r at start, then",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " r at position 7",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", and r at position",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " 8? Actually",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", raspberry: r(",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "1), a(2),",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " s(3), p(",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "4), b(5",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "), e(6), r",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "(7), r(8",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "), y(9) ->",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " that's three r's as",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " well. But for strawberry",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", yes, three",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".
+
+Wait, let me",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " spell it slowly: S",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-T-R (that",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "'s one R), A-W",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "-B-E, then",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " R-R (that's",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " two more R's),",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " Y. So total",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " three.
+
+I think I've",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " seen this as a common trick",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " question where people might overlook",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the first R and",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " only count the double",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " R, saying 2,",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " or they might count",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the double R as one",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " and say 2 total",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ". But the correct",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " answer is 3",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".
+
+However, let",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " me make sure there",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " is no alternative spelling",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ". No, standard",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " English spelling is with",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " three r's.
+
+Therefore",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", the answer should be ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "3.
+
+But wait",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ", the question is:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "How many "",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "r"s are in the word",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " "strawberry",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ""?" The quotes",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " around r and strawberry",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " suggest we are counting",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the character. So",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " answer is 3",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".
+
+I can also write",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " a quick code in mind",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ": 
+word = "str",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "awberry"
+count = ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "0
+for char",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " in word:
+   ",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " if char == 'r':
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "        count += 1
+",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": "print(count) ->",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " 3.
+
+Yes",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ".
+
+So final answer:",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " 3.",
+    "id": "test-reasoning-id",
+    "type": "reasoning-delta",
+  },
+  {
+    "id": "test-reasoning-id",
+    "type": "reasoning-end",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "The word **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ""strawberry"**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " contains **3** instances",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of the letter **"r",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ""**.  
+
+Here",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " is the breakdown for",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " clarity:  
+- **s",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "** → not r  
+",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "- **t** → not",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " r  
+- **r**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " → **1st r",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**  
+- **a**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " → not r  
+- **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "w** → not r  
+",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "- **b** → not",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " r  
+- **e**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " → not r  
+- **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r** → **2nd",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " r**  
+- **r",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "** → **3rd r",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**  
+- **y**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " → not r  
+
+⚠",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "️ **Common Pit",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "fall**:  
+Many",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " people mistakenly count only",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " **2** "",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "r"s because:",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  
+- They overlook",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the **first "r",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ""** in "straw",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "" (position 3).",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  
+- They treat",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the double "r" in",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " "berry" as a",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " single unit (but",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the question asks for *",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "individual letter occurrences*, not sounds",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " or digraphs).",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  
+
+✅ **Verification**:",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  
+- Spelling confirmed",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " via standard English dictionaries (",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "e.g., Merriam",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "-Webster, Oxford).",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  
+- Programmatic check (",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "e.g., Python",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ": \`len([",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "c for c in",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " "strawberry" if",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " c == "r"])\`",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " returns \`3\`).",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  
+
+**Answer: ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "3**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "noCache": 24,
+        "total": 24,
+      },
+      "outputTokens": {
+        "reasoning": 1084,
+        "text": 271,
+        "total": 1355,
+      },
+      "raw": {
+        "completion_tokens": 1355,
+        "completion_tokens_details": {
+          "reasoning_tokens": 1084,
+        },
+        "prompt_tokens": 24,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+        },
+        "total_tokens": 1379,
+      },
+    },
+  },
+]
+`;
+
+exports[`doStream > text > should stream text 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "chatcmpl-d2d6aab7-cbca-970f-8aa6-7d58c9724733",
+    "modelId": "qwen3-max",
+    "timestamp": 2026-02-10T23:08:26.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "##",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " The Festival",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of Shared",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Stories",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ": "Tale",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "weave Day"
+
+**When",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ":** The first full moon after",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the autumn equinox (",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "symbolizing the transition",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " into introspection and",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " gathering as nights grow longer",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ").
+
+**Core Concept:** Tale",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "weave Day celebrates",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the power of human connection",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " through the simple, profound",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " act of sharing personal",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " stories—especially those that",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " reveal vulnerability, growth",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", or unexpected kindness. It",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "’s a deliberate counter",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "point to curated online",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " personas, fostering authentic",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " community bonds.
+
+**Trad",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "itions & Rituals:**
+
+",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "1.  **The Story",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Stone Exchange:**
+   ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " *   In the days",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " leading up, participants find or",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " craft a smooth, palm",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "-sized stone.
+    *  ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " On Taleweave Day",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " evening, people gather in homes",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", community centers, parks",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " (weather permitting), or even",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " virtually in small groups",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ".
+    *   Each",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " person holds their stone and shares",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " a brief, true",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " story from their life",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ". This isn't about grand",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " achievements, but moments",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of:
+        *  ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " **Learning:** A mistake",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " that taught a valuable",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " lesson.
+        *   **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Connection:** An unexpected act",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of kindness received or",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " given.
+        *   **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Wonder:** A moment",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of awe or simple",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " beauty observed.
+        *",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "   **Resilience:**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " How they navigated a small",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " challenge.
+    *   After",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " sharing, they pass their",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " stone to someone else in the",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " circle. The recipient",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " holds the stone,",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " acknowledging the gift of",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the story, before",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " sharing their own.",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " The stones physically weave",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " the group together through",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " narrative.
+
+2.",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  **The Listening",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Feast:**
+   ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " *   Food is central",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", but with a twist",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ": it must be simple",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", shared from common",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " dishes (no individual",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " plating), and ideally",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " made collaboratively beforehand",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " by the group.
+",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "    *   **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Crucially:**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " During the meal, there is",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " a designated period of **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "silent eating** (",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "15-3",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "0 minutes). This",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " isn't awkward silence, but",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " intentional space to s",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "avor the food,",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " observe companions, and reflect",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " on the stories just",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " heard. Conversation resumes",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " afterward, often naturally",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " flowing from the shared",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " narratives.
+
+3.",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "  **The Tape",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "stry of Voices (Community",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Level):**
+   ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " *   Larger communities",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " might host a public",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " "Story Grove."",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Volunteers set up cozy",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " nooks with blankets",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", cushions, and warm",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " drinks.
+    *",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "   Anyone can sit",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " and listen to short",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", pre-volunte",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ered stories read aloud",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " by diverse community members (",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "elders, children",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", newcomers, long",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "-time residents) –",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " anonymized if desired",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", focusing on universal human",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " experiences.
+    *  ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Alternatively, a large",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " communal loom or fabric",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " banner is set up where",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " people can embroider a",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " simple symbol representing a story they",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " heard or wish to share,",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " creating a physical "tape",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "stry" of the community's",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " collective voice over the years.
+
+",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "4.  **The Un",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "sent Letter (Personal",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Reflection):**
+   ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " *   Individuals are",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " encouraged to write a short",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " letter to someone who",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " impacted their story (a",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " mentor, a stranger",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", even a past version",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of themselves). They",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " don't send it;",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " instead, they fold",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " it and place it in",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " a special box at",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " home or a community collection",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " point (which might",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " be ceremonially compost",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ed or recycled later",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", symbolizing release).",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " This honors the story",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " without demanding a response.
+
+**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Symbol:** An intertwined",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " spiral or a simple",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " woven knot, representing interconnected",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ness and the threads",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of narrative.
+
+**Why",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " it Matters:** In an age",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of digital noise and superficial",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " connection, Talewe",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "ave Day creates sacred",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " space for deep listening",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", empathy, and the",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " recognition that everyone has",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " a story worth hearing",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ". It builds bridges",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " across generations, backgrounds",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", and experiences, reminding us",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of our shared humanity",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " through the most ancient",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " form of connection: storytelling",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ". The passed stones become",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " tangible reminders of the vulnerability",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " and trust exchanged,",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " often kept on a",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " windowsill or shelf",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " as a year-round",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " touchstone.
+
+**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Mantra:** *"",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "I hear you. Your",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " story matters. We",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " are woven together."*",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "noCache": 18,
+        "total": 18,
+      },
+      "outputTokens": {
+        "reasoning": 0,
+        "text": 779,
+        "total": 779,
+      },
+      "raw": {
+        "completion_tokens": 779,
+        "prompt_tokens": 18,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+        },
+        "total_tokens": 797,
+      },
+    },
+  },
+]
+`;
+
+exports[`doStream > tool call > should stream tool call 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "chatcmpl-8e243c57-23b3-9db2-a02e-e3c53929c368",
+    "modelId": "qwen3-max",
+    "timestamp": 2026-02-10T23:08:58.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "call_eee11723464a4b9eb8cee71d",
+    "toolName": "weather",
+    "type": "tool-input-start",
+  },
+  {
+    "delta": "{"location": "San Francisco",
+    "id": "call_eee11723464a4b9eb8cee71d",
+    "type": "tool-input-delta",
+  },
+  {
+    "delta": ""}",
+    "id": "call_eee11723464a4b9eb8cee71d",
+    "type": "tool-input-delta",
+  },
+  {
+    "id": "call_eee11723464a4b9eb8cee71d",
+    "type": "tool-input-end",
+  },
+  {
+    "input": "{"location": "San Francisco"}",
+    "toolCallId": "call_eee11723464a4b9eb8cee71d",
+    "toolName": "weather",
+    "type": "tool-call",
+  },
+  {
+    "finishReason": {
+      "raw": "tool_calls",
+      "unified": "tool-calls",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "noCache": 295,
+        "total": 295,
+      },
+      "outputTokens": {
+        "reasoning": 0,
+        "text": 22,
+        "total": 22,
+      },
+      "raw": {
+        "completion_tokens": 22,
+        "prompt_tokens": 295,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+        },
+        "total_tokens": 317,
+      },
+    },
+  },
+]
+`;

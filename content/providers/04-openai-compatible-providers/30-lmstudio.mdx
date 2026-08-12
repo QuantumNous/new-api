@@ -1,0 +1,140 @@
+---
+title: LM Studio
+description: Use the LM Studio OpenAI compatible API with the AI SDK.
+---
+
+# LM Studio Provider
+
+[LM Studio](https://lmstudio.ai/) is a user interface for running local models.
+
+It contains an OpenAI compatible API server that you can use with the AI SDK.
+You can start the local server under the [Local Server tab](https://lmstudio.ai/docs/basics/server) in the LM Studio UI ("Start Server" button).
+
+## Setup
+
+The LM Studio provider is available via the `@ai-sdk/openai-compatible` module as it is compatible with the OpenAI API.
+You can install it with
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add @ai-sdk/openai-compatible" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install @ai-sdk/openai-compatible" dark />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add @ai-sdk/openai-compatible" dark />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add @ai-sdk/openai-compatible" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+To use LM Studio, you can create a custom provider instance with the `createOpenAICompatible` function from `@ai-sdk/openai-compatible`:
+
+```ts
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+
+const lmstudio = createOpenAICompatible({
+  name: 'lmstudio',
+  baseURL: 'http://localhost:1234/v1',
+});
+```
+
+<Note>
+  LM Studio uses port `1234` by default, but you can change in the [app's Local
+  Server tab](https://lmstudio.ai/docs/basics/server).
+</Note>
+
+## Language Models
+
+You can interact with local LLMs in [LM Studio](https://lmstudio.ai/docs/basics/server#endpoints-overview) using a provider instance.
+The first argument is the model id, e.g. `llama-3.2-1b`.
+
+```ts
+const model = lmstudio('llama-3.2-1b');
+```
+
+###### To be able to use a model, you need to [download it first](https://lmstudio.ai/docs/basics/download-model).
+
+### Example
+
+You can use LM Studio language models to generate text with the `generateText` function:
+
+```ts
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { generateText } from 'ai';
+
+const lmstudio = createOpenAICompatible({
+  name: 'lmstudio',
+  baseURL: 'https://localhost:1234/v1',
+});
+
+const { text } = await generateText({
+  model: lmstudio('llama-3.2-1b'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
+  maxRetries: 1, // immediately error if the server is not running
+});
+```
+
+LM Studio language models can also be used with `streamText`.
+
+## Embedding Models
+
+You can create models that call the [LM Studio embeddings API](https://lmstudio.ai/docs/basics/server#endpoints-overview)
+using the `.embeddingModel()` factory method.
+
+```ts
+const model = lmstudio.embeddingModel('text-embedding-nomic-embed-text-v1.5');
+```
+
+### Example - Embedding a Single Value
+
+```tsx
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { embed } from 'ai';
+
+const lmstudio = createOpenAICompatible({
+  name: 'lmstudio',
+  baseURL: 'https://localhost:1234/v1',
+});
+
+// 'embedding' is a single embedding object (number[])
+const { embedding } = await embed({
+  model: lmstudio.embeddingModel('text-embedding-nomic-embed-text-v1.5'),
+  value: 'sunny day at the beach',
+});
+```
+
+### Example - Embedding Many Values
+
+When loading data, e.g. when preparing a data store for retrieval-augmented generation (RAG),
+it is often useful to embed many values at once (batch embedding).
+
+The AI SDK provides the [`embedMany`](/docs/reference/ai-sdk-core/embed-many) function for this purpose.
+Similar to `embed`, you can use it with embeddings models,
+e.g. `lmstudio.embeddingModel('text-embedding-nomic-embed-text-v1.5')` or `lmstudio.embeddingModel('text-embedding-bge-small-en-v1.5')`.
+
+```tsx
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { embedMany } from 'ai';
+
+const lmstudio = createOpenAICompatible({
+  name: 'lmstudio',
+  baseURL: 'https://localhost:1234/v1',
+});
+
+// 'embeddings' is an array of embedding objects (number[][]).
+// It is sorted in the same order as the input values.
+const { embeddings } = await embedMany({
+  model: lmstudio.embeddingModel('text-embedding-nomic-embed-text-v1.5'),
+  values: [
+    'sunny day at the beach',
+    'rainy afternoon in the city',
+    'snowy night in the mountains',
+  ],
+});
+```

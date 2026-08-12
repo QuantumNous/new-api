@@ -1,0 +1,35 @@
+name: Support Request
+description: Report a bug, feature request or other issue with the AI SDK.
+labels: ['support']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is ask for help regarding an issue that could be a bug or a feature request.
+  - type: textarea
+    attributes:
+      label: Description
+      description: A detailed description. Please include relevant information such as reproduction steps, code examples, and any other information that might help us understand the issue.
+      placeholder: |
+        Reproduction steps, code examples, background, etc...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: AI SDK Version
+      description: Which version of the AI SDK are you using?
+      placeholder: |
+        Examples:
+        - ai: 4.1.2
+        - @ai-sdk/react: 2.1.0
+        - @ai-sdk/openai: 0.5.2
+    validations:
+      required: false
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://community.vercel.com/guidelines)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

@@ -1,0 +1,236 @@
+---
+title: Hindsight
+description: Learn how to use Hindsight persistent memory with the AI SDK.
+---
+
+# Hindsight
+
+[Hindsight](https://hindsight.vectorize.io) is a persistent memory service for AI agents. The [`@vectorize-io/hindsight-ai-sdk`](https://www.npmjs.com/package/@vectorize-io/hindsight-ai-sdk) package provides five AI SDK-compatible tools that give your agents long-term memory across conversations.
+
+Features include:
+
+- Five memory tools: `retain`, `recall`, `reflect`, `getMentalModel`, and `getDocument`
+- Works with `generateText`, `streamText`, and `ToolLoopAgent`
+- Infrastructure options (budget, tags, async mode) configured at tool creation — semantic choices left to the model
+- Multi-user memory isolation via `bankId`
+- Full TypeScript support
+
+## Setup
+
+Hindsight can be run locally with Docker or used as a cloud service.
+
+### Self-Hosted (Docker)
+
+```bash
+export OPENAI_API_KEY=your-key
+docker run --rm -it -p 8888:8888 -p 9999:9999 \
+  -e HINDSIGHT_API_LLM_API_KEY=$OPENAI_API_KEY \
+  -v $HOME/.hindsight-docker:/home/hindsight/.pg0 \
+  ghcr.io/vectorize-io/hindsight:latest
+```
+
+The API will be available at `http://localhost:8888` and the UI at `http://localhost:9999`.
+
+### Cloud
+
+Sign up and get your API URL from the [Hindsight dashboard](https://ui.hindsight.vectorize.io/signup).
+
+## Installation
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet
+      text="pnpm add @vectorize-io/hindsight-ai-sdk @vectorize-io/hindsight-client"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="npm install @vectorize-io/hindsight-ai-sdk @vectorize-io/hindsight-client"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="yarn add @vectorize-io/hindsight-ai-sdk @vectorize-io/hindsight-client"
+      dark
+    />
+  </Tab>
+  <Tab>
+    <Snippet
+      text="bun add @vectorize-io/hindsight-ai-sdk @vectorize-io/hindsight-client"
+      dark
+    />
+  </Tab>
+</Tabs>
+
+## Creating Tools
+
+Initialize a `HindsightClient` and pass it to `createHindsightTools` along with a `bankId` that identifies the memory store (typically a user ID):
+
+```ts
+import { HindsightClient } from '@vectorize-io/hindsight-client';
+import { createHindsightTools } from '@vectorize-io/hindsight-ai-sdk';
+
+const client = new HindsightClient({ baseUrl: process.env.HINDSIGHT_API_URL });
+
+const tools = createHindsightTools({
+  client,
+  bankId: 'user-123',
+});
+```
+
+## Basic Usage
+
+### generateText
+
+```ts
+import { HindsightClient } from '@vectorize-io/hindsight-client';
+import { createHindsightTools } from '@vectorize-io/hindsight-ai-sdk';
+import { generateText, isStepCount } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
+const client = new HindsightClient({ baseUrl: process.env.HINDSIGHT_API_URL });
+const tools = createHindsightTools({ client, bankId: 'user-123' });
+
+const { text } = await generateText({
+  model: openai('gpt-4o'),
+  tools,
+  stopWhen: isStepCount(5),
+  system: 'You are a helpful assistant with long-term memory.',
+  prompt: 'Remember that I prefer dark mode and large fonts.',
+});
+```
+
+### ToolLoopAgent
+
+```ts
+import { ToolLoopAgent } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { HindsightClient } from '@vectorize-io/hindsight-client';
+import { createHindsightTools } from '@vectorize-io/hindsight-ai-sdk';
+
+const client = new HindsightClient({ baseUrl: process.env.HINDSIGHT_API_URL });
+
+const agent = new ToolLoopAgent({
+  model: openai('gpt-4o'),
+  tools: createHindsightTools({ client, bankId: 'user-123' }),
+  instructions: 'You are a helpful assistant with long-term memory.',
+});
+
+const result = await agent.generate({
+  prompt: 'Remember that my favorite editor is Neovim',
+});
+```
+
+## Multi-User Memory
+
+In multi-user applications, create tools inside your request handler so each request uses the correct `bankId` for the authenticated user:
+
+```ts
+// app/api/chat/route.ts
+import {
+  createUIMessageStreamResponse,
+  streamText,
+  isStepCount,
+  convertToModelMessages,
+  toUIMessageStream,
+} from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { HindsightClient } from '@vectorize-io/hindsight-client';
+import { createHindsightTools } from '@vectorize-io/hindsight-ai-sdk';
+
+const hindsightClient = new HindsightClient({
+  baseUrl: process.env.HINDSIGHT_API_URL,
+});
+
+export async function POST(req: Request) {
+  const { messages, userId } = await req.json();
+
+  const tools = createHindsightTools({
+    client: hindsightClient,
+    bankId: userId,
+  });
+
+  const result = streamText({
+    model: openai('gpt-4o'),
+    tools,
+    stopWhen: isStepCount(5),
+    system: 'You are a helpful assistant with long-term memory.',
+    messages: await convertToModelMessages(messages),
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+  });
+}
+```
+
+The `HindsightClient` instance is shared (created once at module level), while `createHindsightTools` is called per-request with the current user's ID.
+
+## Configuration
+
+Infrastructure options are configured at tool creation time, keeping the application in control of cost, tagging, and performance while leaving semantic choices (what to remember, what to search for) to the model.
+
+```ts
+const tools = createHindsightTools({
+  client,
+  bankId: userId,
+  retain: {
+    async: true,
+    tags: ['env:prod', 'app:support'],
+    metadata: { version: '2.0' },
+  },
+  recall: {
+    budget: 'high',
+    types: ['experience', 'world'],
+    maxTokens: 2048,
+    includeEntities: true,
+  },
+  reflect: {
+    budget: 'mid',
+  },
+});
+```
+
+### `retain` options
+
+| Parameter     | Type                     | Default  | Description                               |
+| ------------- | ------------------------ | -------- | ----------------------------------------- |
+| `async`       | `boolean`                | `false`  | Fire-and-forget ingestion mode            |
+| `tags`        | `string[]`               | —        | Tags applied to all retained memories     |
+| `metadata`    | `Record<string, string>` | —        | Metadata applied to all retained memories |
+| `description` | `string`                 | built-in | Override the default tool description     |
+
+### `recall` options
+
+| Parameter         | Type                                           | Default     | Description                              |
+| ----------------- | ---------------------------------------------- | ----------- | ---------------------------------------- |
+| `budget`          | `'low' \| 'mid' \| 'high'`                     | `'mid'`     | Retrieval depth and latency tradeoff     |
+| `types`           | `('world' \| 'experience' \| 'observation')[]` | all         | Restrict results to specified fact types |
+| `maxTokens`       | `number`                                       | API default | Maximum total tokens returned            |
+| `includeEntities` | `boolean`                                      | `false`     | Include entity observations in results   |
+| `includeChunks`   | `boolean`                                      | `false`     | Include raw source chunks in results     |
+| `description`     | `string`                                       | built-in    | Override the default tool description    |
+
+### `reflect` options
+
+| Parameter     | Type                       | Default     | Description                           |
+| ------------- | -------------------------- | ----------- | ------------------------------------- |
+| `budget`      | `'low' \| 'mid' \| 'high'` | `'mid'`     | Synthesis depth and latency tradeoff  |
+| `maxTokens`   | `number`                   | API default | Maximum response tokens               |
+| `description` | `string`                   | built-in    | Override the default tool description |
+
+## Memory Tools
+
+| Tool             | Description                               |
+| ---------------- | ----------------------------------------- |
+| `retain`         | Stores information in the memory bank     |
+| `recall`         | Searches memories using a query           |
+| `reflect`        | Synthesizes insights from stored memories |
+| `getMentalModel` | Retrieves a structured knowledge model    |
+| `getDocument`    | Retrieves a stored document by identifier |
+
+## More Information
+
+For full API documentation and configuration options, see the [Hindsight documentation](https://hindsight.vectorize.io/sdks/integrations/ai-sdk).

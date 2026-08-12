@@ -1,0 +1,214 @@
+---
+title: Cloudflare AI Gateway
+description: Learn how to use the Cloudflare AI Gateway provider for the AI SDK.
+---
+
+# Cloudflare AI Gateway
+
+The Cloudflare AI Gateway Provider is a library that integrates Cloudflare's AI Gateway with the Vercel AI SDK. It enables seamless access to multiple AI models from various providers through a unified interface, with automatic fallback for high availability.
+
+## Features
+
+- **Runtime Agnostic**: Compatible with Node.js, Edge Runtime, and other JavaScript runtimes supported by the Vercel AI SDK.
+- **Automatic Fallback**: Automatically switches to the next available model if one fails, ensuring resilience.
+- **Multi-Provider Support**: Supports models from OpenAI, Anthropic, DeepSeek, Google AI Studio, Grok, Mistral, Perplexity AI, Replicate, and Groq.
+- **Cloudflare AI Gateway Integration**: Leverages Cloudflare's AI Gateway for request management, caching, and rate limiting.
+- **Simplified Configuration**: Easy setup with support for API key authentication or Cloudflare AI bindings.
+
+## Setup
+
+The Cloudflare AI Gateway Provider is available in the `ai-gateway-provider` module. Install it with:
+
+<Tabs items={['pnpm', 'npm', 'yarn', 'bun']}>
+  <Tab>
+    <Snippet text="pnpm add ai-gateway-provider" />
+  </Tab>
+  <Tab>
+    <Snippet text="npm install ai-gateway-provider" />
+  </Tab>
+  <Tab>
+    <Snippet text="yarn add ai-gateway-provider" />
+  </Tab>
+
+  <Tab>
+    <Snippet text="bun add ai-gateway-provider" dark />
+  </Tab>
+</Tabs>
+
+## Provider Instance
+
+Create an `aigateway` provider instance using the `createAiGateway` function. You can authenticate using an API key or a Cloudflare AI binding.
+
+### API Key Authentication
+
+```typescript
+import { createAiGateway } from 'ai-gateway-provider';
+
+const aigateway = createAiGateway({
+  accountId: 'your-cloudflare-account-id',
+  gateway: 'your-gateway-name',
+  apiKey: 'your-cloudflare-api-key', // Only required if your gateway has authentication enabled
+  options: {
+    skipCache: true, // Optional request-level settings
+  },
+});
+```
+
+### Cloudflare AI Binding
+
+This method is only available inside Cloudflare Workers.
+
+Configure an AI binding in your `wrangler.toml`:
+
+```bash
+[AI]
+binding = "AI"
+```
+
+In your worker, create a new instance using the binding:
+
+```typescript
+import { createAiGateway } from 'ai-gateway-provider';
+
+const aigateway = createAiGateway({
+  binding: env.AI.gateway('my-gateway'),
+  options: {
+    skipCache: true, // Optional request-level settings
+  },
+});
+```
+
+## Language Models
+
+Create a model instance by passing an array of models to the `aigateway` provider. The provider will attempt to use the models in order, falling back to the next if one fails.
+
+```typescript
+import { createAiGateway } from 'ai-gateway-provider';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+
+const aigateway = createAiGateway({
+  accountId: 'your-cloudflare-account-id',
+  gateway: 'your-gateway-name',
+  apiKey: 'your-cloudflare-api-key',
+});
+
+const openai = createOpenAI({ apiKey: 'openai-api-key' });
+const anthropic = createAnthropic({ apiKey: 'anthropic-api-key' });
+
+const model = aigateway([
+  anthropic('claude-haiku-4-5'), // Primary model
+  openai('gpt-4o-mini'), // Fallback model
+]);
+```
+
+### Request Options
+
+Customize Cloudflare AI Gateway settings per request:
+
+- `cacheKey`: Custom cache key for the request.
+- `cacheTtl`: Cache time-to-live in seconds.
+- `skipCache`: Bypass caching.
+- `metadata`: Custom metadata for the request.
+- `collectLog`: Enable/disable log collection.
+- `eventId`: Custom event identifier.
+- `requestTimeoutMs`: Request timeout in milliseconds.
+- `retries`:
+  - `maxAttempts`: Number of retry attempts (1-5).
+  - `retryDelayMs`: Delay between retries.
+  - `backoff`: Retry strategy (`constant`, `linear`, `exponential`).
+
+Example:
+
+```typescript
+const aigateway = createAiGateway({
+  accountId: 'your-cloudflare-account-id',
+  gateway: 'your-gateway-name',
+  apiKey: 'your-cloudflare-api-key',
+  options: {
+    cacheTtl: 3600, // Cache for 1 hour
+    metadata: { userId: 'user123' },
+    retries: {
+      maxAttempts: 3,
+      retryDelayMs: 1000,
+      backoff: 'exponential',
+    },
+  },
+});
+```
+
+## Examples
+
+### `generateText`
+
+Generate non-streaming text using the Cloudflare AI Gateway Provider:
+
+```typescript
+import { createAiGateway } from 'ai-gateway-provider';
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText } from 'ai';
+
+const aigateway = createAiGateway({
+  accountId: 'your-cloudflare-account-id',
+  gateway: 'your-gateway-name',
+  apiKey: 'your-cloudflare-api-key',
+});
+
+const openai = createOpenAI({ apiKey: 'openai-api-key' });
+
+const { text } = await generateText({
+  model: aigateway([openai('gpt-4o-mini')]),
+  prompt: 'Write a greeting.',
+});
+
+console.log(text); // Output: "Hello"
+```
+
+### `streamText`
+
+Stream text responses using the Cloudflare AI Gateway Provider:
+
+```typescript
+import { createAiGateway } from 'ai-gateway-provider';
+import { createOpenAI } from '@ai-sdk/openai';
+import { streamText } from 'ai';
+
+const aigateway = createAiGateway({
+  accountId: 'your-cloudflare-account-id',
+  gateway: 'your-gateway-name',
+  apiKey: 'your-cloudflare-api-key',
+});
+
+const openai = createOpenAI({ apiKey: 'openai-api-key' });
+
+const result = await streamText({
+  model: aigateway([openai('gpt-4o-mini')]),
+  prompt: 'Write a multi-part greeting.',
+});
+
+let accumulatedText = '';
+for await (const chunk of result.textStream) {
+  accumulatedText += chunk;
+}
+
+console.log(accumulatedText); // Output: "Hello world!"
+```
+
+## Supported Providers
+
+- OpenAI
+- Anthropic
+- DeepSeek
+- Google AI Studio
+- Grok
+- Mistral
+- Perplexity AI
+- Replicate
+- Groq
+
+## Error Handling
+
+The provider throws the following custom errors:
+
+- `AiGatewayUnauthorizedError`: Invalid or missing API key when authentication is enabled.
+- `AiGatewayDoesNotExist`: Specified Cloudflare AI Gateway does not exist.

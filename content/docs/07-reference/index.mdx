@@ -1,0 +1,38 @@
+---
+title: Reference
+description: Reference documentation for the AI SDK
+---
+
+# API Reference
+
+<IndexCards
+  cards={[
+    {
+      title: 'AI SDK Core',
+      description: 'Switch between model providers without changing your code.',
+      href: '/docs/reference/ai-sdk-core',
+    },
+    {
+      title: 'AI SDK RSC',
+      description:
+        'Use React Server Components to stream user interfaces to the client.',
+      href: '/docs/reference/ai-sdk-rsc',
+    },
+    {
+      title: 'AI SDK UI',
+      description:
+        'Use hooks to integrate user interfaces that interact with language models.',
+      href: '/docs/reference/ai-sdk-ui',
+    },
+    {
+      title: 'AI SDK Workflow',
+      description: 'Build durable, resumable AI agents with @ai-sdk/workflow.',
+      href: '/docs/reference/ai-sdk-workflow',
+    },
+    {
+      title: 'AI SDK TUI',
+      description: 'Run AI SDK agents in an interactive terminal UI.',
+      href: '/docs/reference/ai-sdk-tui',
+    },
+  ]}
+/>
