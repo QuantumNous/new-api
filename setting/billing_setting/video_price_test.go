@@ -491,3 +491,78 @@ func TestGetVideoPriceRulesIsRaceFreeDuringReload(t *testing.T) {
 	}()
 	wg.Wait()
 }
+
+func TestNormalizeVideoPriceRules_FoldsMatchValues(t *testing.T) {
+	// Administrators type rule values by hand. Adapters emit canonical,
+	// already-normalized dimensions, so an un-folded "4K" would never match and
+	// every request for that model would be rejected as unpriceable.
+	rules := []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "4K", "has_video": "True"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+		{Model: "m", Match: map[string]string{"resolution": "  2160P  "},
+			PricePerSecond: 2, Basis: BasisOutputDuration},
+	}
+	if err := NormalizeVideoPriceRules(rules); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := rules[0].Match["resolution"]; got != "4k" {
+		t.Fatalf("resolution = %q, want 4k", got)
+	}
+	if got := rules[0].Match["has_video"]; got != "true" {
+		t.Fatalf("has_video = %q, want true", got)
+	}
+	if got := rules[1].Match["resolution"]; got != "4k" {
+		t.Fatalf("aliased resolution = %q, want 4k", got)
+	}
+}
+
+func TestNormalizeVideoPriceRules_RejectsUncanonicalValues(t *testing.T) {
+	cases := []struct {
+		name  string
+		match map[string]string
+	}{
+		{"unknown resolution", map[string]string{"resolution": "1440p"}},
+		{"nonsense resolution", map[string]string{"resolution": "banana"}},
+		{"non-boolean has_video", map[string]string{"has_video": "yes"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rules := []VideoPriceRule{
+				{Model: "m", Match: tc.match, PricePerSecond: 1, Basis: BasisOutputDuration},
+			}
+			if err := NormalizeVideoPriceRules(rules); err == nil {
+				t.Fatalf("expected rejection for %s", tc.name)
+			}
+		})
+	}
+}
+
+func TestNormalizeVideoPriceRules_LeavesUnknownDimensionsAlone(t *testing.T) {
+	// A dimension no adapter emits yet must survive untouched: it is how a new
+	// dimension is rolled out, and FindVideoPriceRule already refuses to match
+	// a rule constraining something unresolved.
+	rules := []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"fps": "30"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+	}
+	if err := NormalizeVideoPriceRules(rules); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := rules[0].Match["fps"]; got != "30" {
+		t.Fatalf("fps = %q, want 30 untouched", got)
+	}
+}
+
+func TestNormalizeAndValidate_NormalizesBeforeValidating(t *testing.T) {
+	// Normalization can create an ambiguity that was not visible in the raw
+	// input: "4K" and "4k" are the same tier once folded.
+	s := &VideoPriceSetting{VideoPriceRules: []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "4K"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+		{Model: "m", Match: map[string]string{"resolution": "4k"},
+			PricePerSecond: 2, Basis: BasisOutputDuration},
+	}}
+	if err := s.NormalizeAndValidate(); err == nil {
+		t.Fatal("folded duplicates must be rejected as ambiguous")
+	}
+}

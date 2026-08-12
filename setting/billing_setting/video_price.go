@@ -3,6 +3,7 @@ package billing_setting
 import (
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 
 	"github.com/QuantumNous/new-api/setting/config"
@@ -143,6 +144,66 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 	return nil
 }
 
+// Canonical values a rule's Match may constrain. Adapters normalize what the
+// upstream sends before matching, so a rule has to be expressed in the same
+// vocabulary or it can never match.
+//
+// This duplicates taskcommon.NormalizeResolution's vocabulary rather than
+// calling it: taskcommon imports this package, so the dependency cannot run the
+// other way. The two must be kept in step; TestNormalizeVideoPriceRules guards
+// this side.
+var (
+	canonicalResolutions = map[string]string{
+		"480p":  "480p",
+		"720p":  "720p",
+		"1080p": "1080p",
+		"4k":    "4k",
+		"2160p": "4k",
+	}
+	canonicalHasVideo = map[string]string{
+		"true":  "true",
+		"false": "false",
+	}
+	// Only dimensions with a closed vocabulary are normalized. Anything else is
+	// left untouched so a new dimension can be configured before every adapter
+	// emits it -- FindVideoPriceRule already refuses to match a rule that
+	// constrains a dimension nobody resolved.
+	canonicalDimensions = map[string]map[string]string{
+		"resolution": canonicalResolutions,
+		"has_video":  canonicalHasVideo,
+	}
+)
+
+// NormalizeVideoPriceRules folds hand-written Match values to the canonical
+// forms adapters emit, and rejects values outside a known vocabulary.
+//
+// Administrators write these by hand, so "4K", "2160p" and " 720P " are all
+// plausible input for a value an adapter will always report as "4k" or "720p".
+// Silently keeping the raw spelling would make the rule unmatchable, and for a
+// configured model an unmatchable rule means every request is rejected as
+// unpriceable. Rejecting an unrecognized value here surfaces the typo when it
+// is saved rather than when traffic arrives.
+//
+// Rules are modified in place.
+func NormalizeVideoPriceRules(rules []VideoPriceRule) error {
+	for i, r := range rules {
+		for key, raw := range r.Match {
+			vocabulary, closed := canonicalDimensions[key]
+			if !closed {
+				continue
+			}
+			canonical, ok := vocabulary[strings.ToLower(strings.TrimSpace(raw))]
+			if !ok {
+				return fmt.Errorf(
+					"video price rule %d (model %s): %s=%q is not a recognized value",
+					i, r.Model, key, raw)
+			}
+			r.Match[key] = canonical
+		}
+	}
+	return nil
+}
+
 // NormalizeAndValidate makes this setting a normalizing config, so ConfigManager
 // validates a candidate rule set before swapping it in and keeps the rules
 // already serving traffic when the candidate is rejected. Without it, rules
@@ -150,6 +211,9 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 // most-constrained-wins tie-break — which assumes ties are impossible — would
 // silently decide prices by JSON array order.
 func (s *VideoPriceSetting) NormalizeAndValidate() error {
+	if err := NormalizeVideoPriceRules(s.VideoPriceRules); err != nil {
+		return err
+	}
 	return ValidateVideoPriceRules(s.VideoPriceRules)
 }
 

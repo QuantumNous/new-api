@@ -236,3 +236,23 @@ func TestNormalizeResolution_ChannelEmittedDimensions(t *testing.T) {
 		})
 	}
 }
+
+// The admin-facing normalizer in billing_setting duplicates this vocabulary,
+// because taskcommon imports billing_setting and the dependency cannot run the
+// other way. If the two drift, a rule an administrator saves successfully can
+// become permanently unmatchable. This pins the pairing from this side.
+func TestNormalizeResolution_MatchesAdminVocabulary(t *testing.T) {
+	adminAccepts := []string{"480p", "720p", "1080p", "4k", "2160p"}
+	for _, in := range adminAccepts {
+		t.Run(in, func(t *testing.T) {
+			got, ok := NormalizeResolution(in)
+			if !ok {
+				t.Fatalf("%q is accepted by the admin normalizer but rejected here", in)
+			}
+			folded, _ := NormalizeResolution(got)
+			if folded != got {
+				t.Fatalf("%q normalizes to %q which is not itself canonical", in, got)
+			}
+		})
+	}
+}
