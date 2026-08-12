@@ -116,6 +116,16 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 	return nil
 }
 
+// NormalizeAndValidate makes this setting a normalizing config, so ConfigManager
+// validates a candidate rule set before swapping it in and keeps the rules
+// already serving traffic when the candidate is rejected. Without it, rules
+// stored in the database would reach memory unvalidated and FindVideoPriceRule's
+// most-constrained-wins tie-break — which assumes ties are impossible — would
+// silently decide prices by JSON array order.
+func (s *VideoPriceSetting) NormalizeAndValidate() error {
+	return ValidateVideoPriceRules(s.VideoPriceRules)
+}
+
 // FindVideoPriceRule returns the best rule for a model and its resolved
 // dimensions. A rule is a candidate when every key in its Match equals the
 // corresponding resolved dimension; the candidate with the most constraints
