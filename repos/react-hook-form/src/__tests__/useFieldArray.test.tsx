@@ -678,7 +678,12 @@ describe('useFieldArray', () => {
 
         return (
           <form>
-            {errors.test?.type && <p>Array error: {errors.test.message}</p>}
+            {(errors.test?.root?.type ?? errors.test?.type) && (
+              <p>
+                Array error:{' '}
+                {errors.test?.root?.message ?? errors.test?.message}
+              </p>
+            )}
             {fields.map((item, i) => (
               <div key={item.id}>
                 <input {...register(`test.${i}.value` as const)} />
@@ -1319,6 +1324,52 @@ describe('useFieldArray', () => {
       fireEvent.click(screen.getByRole('button', { name: 'reset' }));
 
       expect(fieldsTemp).toEqual([{ id: '5', value: 'default' }]);
+    });
+
+    it('should only notify a useWatch subscriber once when reset is called', () => {
+      let renderCount = 0;
+
+      const Watch = ({ control }: { control: Control<any> }) => {
+        useWatch({ control, name: 'test' });
+        renderCount++;
+        return null;
+      };
+
+      const App = () => {
+        const { register, reset, control } = useForm({
+          defaultValues: {
+            test: [{ value: 'default' }],
+          },
+        });
+        const { fields } = useFieldArray({
+          name: 'test',
+          control,
+        });
+
+        return (
+          <form>
+            {fields.map((field, index) => (
+              <input key={field.id} {...register(`test.${index}.value`)} />
+            ))}
+
+            <button
+              type={'button'}
+              onClick={() => reset({ test: [{ value: 'reset' }] })}
+            >
+              reset
+            </button>
+
+            <Watch control={control} />
+          </form>
+        );
+      };
+
+      render(<App />);
+      renderCount = 0;
+
+      fireEvent.click(screen.getByRole('button', { name: 'reset' }));
+
+      expect(renderCount).toBe(1);
     });
 
     it('should reset with field array with shouldUnregister set to false', () => {

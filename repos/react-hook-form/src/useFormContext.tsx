@@ -99,6 +99,7 @@ export const FormProvider = <
   formState,
   resetField,
   reset,
+  resetDefaultValues,
   handleSubmit,
   unregister,
   control,
@@ -106,7 +107,9 @@ export const FormProvider = <
   setFocus,
   subscribe,
 }: FormProviderProps<TFieldValues, TContext, TTransformedValues>) => {
-  const memoizedValue = React.useMemo(
+  const memoizedValue = React.useMemo<
+    UseFormReturn<TFieldValues, TContext, TTransformedValues>
+  >(
     () => ({
       watch,
       getValues,
@@ -119,6 +122,7 @@ export const FormProvider = <
       formState,
       resetField,
       reset,
+      resetDefaultValues,
       handleSubmit,
       unregister,
       control,
@@ -135,6 +139,7 @@ export const FormProvider = <
       handleSubmit,
       register,
       reset,
+      resetDefaultValues,
       resetField,
       setError,
       setFocus,

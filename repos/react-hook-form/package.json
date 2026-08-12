@@ -1,7 +1,7 @@
 {
   "name": "react-hook-form",
   "description": "Performant, flexible and extensible forms library for React Hooks",
-  "version": "7.80.0",
+  "version": "7.82.0",
   "main": "dist/index.cjs.js",
   "module": "dist/index.esm.mjs",
   "umd:main": "dist/index.umd.js",
@@ -44,15 +44,15 @@
     "test:type": "tsc -p src/__typetest__/tsconfig.json",
     "bench": "tsx scripts/bench.ts",
     "bench:compare": "tsx scripts/bench-compare.ts",
-    "e2e": "cypress run",
-    "e2e:watch": "cypress open",
+    "e2e": "playwright test",
+    "e2e:watch": "playwright test --ui",
     "api-extractor": "api-extractor run --local",
     "api-extractor:build": "pnpm build:esm && pnpm api-extractor",
     "api-extractor:ci": "node scripts/apiExtractor.js",
     "postversion": "git push && git push origin v$npm_package_version",
     "prepublishOnly": "pnpm install && pnpm lint:fix && pnpm type && pnpm test && pnpm build",
     "bundlewatch": "pnpm build:modern && bundlewatch",
-    "start": "pnpm build:esm && pnpm --dir ./app install && pnpm --dir ./app run dev",
+    "start": "pnpm build:esm && cd ./app && pnpm install && pnpm run dev",
     "csb:install": "npm i -g pnpm@8 && pnpm i"
   },
   "keywords": [
@@ -75,6 +75,7 @@
   "devDependencies": {
     "@eslint/compat": "^1.4.1",
     "@microsoft/api-extractor": "^7.58.9",
+    "@playwright/test": "^1.61.1",
     "@rollup/plugin-commonjs": "^28.0.9",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-terser": "^0.4.4",
@@ -87,10 +88,9 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "bundlewatch": "^0.4.2",
-    "cypress": "^15.17.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-cypress": "^5.4.0",
+    "eslint-plugin-playwright": "^2.10.5",
     "eslint-plugin-prettier": "^5.5.6",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -118,7 +118,7 @@
     "files": [
       {
         "path": "./dist/index.cjs.js",
-        "maxSize": "12.5 kB"
+        "maxSize": "14.0 kB"
       }
     ]
   },

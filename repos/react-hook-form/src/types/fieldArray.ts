@@ -282,3 +282,32 @@ export type UseFieldArrayReturn<
     disabled?: boolean;
   })[];
 };
+
+/**
+
+ *
+ * @example
+ * ```tsx
+ * const { fields } = useFieldArray({
+ *   name: 'test',
+ * });
+ *
+ * <FieldArray
+ *   render={({ fields }) =>
+ *     fields.map((field, index) => (
+ *       <input key={field.id} {...register(`test.${index}.value`)} />
+ *     ))
+ *   }
+ * />
+ * ```
+ */
+export type FieldArrayProps<
+  TFieldValues extends FieldValues = FieldValues,
+  TFieldArrayName extends FieldArrayPath<TFieldValues> =
+    FieldArrayPath<TFieldValues>,
+  TKeyName extends string = 'id',
+> = {
+  render: (
+    fieldArray: UseFieldArrayReturn<TFieldValues, TFieldArrayName, TKeyName>,
+  ) => React.ReactElement;
+} & UseFieldArrayProps<TFieldValues, TFieldArrayName, TKeyName>;

@@ -1,6 +1,6 @@
 <div align="center">
     <p align="center">
-      <a href="https://react-hook-form.com/zh" title="React Hook Form - Simple React forms validation">
+      <a href="https://react-hook-form.com" title="React Hook Form - Simple React forms validation">
         <img src="https://raw.githubusercontent.com/bluebill1049/react-hook-form/master/docs/logo.png" alt="React Hook Form Logo - hook custom hook for form validation" width="330px" />
       </a>
     </p>
@@ -19,7 +19,7 @@
 
 </div>
 
-<div align="center"><p align="center"><a href="https://react-hook-form.com/zh" title="React Hook Form - Simple React forms validation"><img src="https://raw.githubusercontent.com/bluebill1049/react-hook-form/master/docs/example.gif" alt="React Hook Form Logo - React hook form validation" width="100%" /></a></p></div>
+<div align="center"><p align="center"><a href="https://react-hook-form.com" title="React Hook Form - Simple React forms validation"><img src="https://raw.githubusercontent.com/bluebill1049/react-hook-form/master/docs/example.gif" alt="React Hook Form Logo - React hook form validation" width="100%" /></a></p></div>
 
 <a href="./README.V6.md">English</a> | 繁中 | <a href="./README.zh-CN.md">簡中</a> | <a href="./README.ja-JP.md">日本語</a> | <a href="./README.ko-KR.md">한국어</a> | <a href="./README.fr-FR.md">Français</a> | <a href="./README.it-IT.md">Italiano</a> | <a href="./README.pt-BR.md">Português</a> | <a href="./README.es-ES.md">Español</a> | <a href="./README.ru-RU.md">Русский</a> | <a href="./README.de-DE.md">Deutsch</a> | <a href="./README.tr-TR.md">Türkçe</a>
 
@@ -41,12 +41,12 @@
 
 - [動機](https://medium.com/@bruce1049/form-validation-with-hook-in-3kb-c5414edf7d64)
 - [影片教學](https://www.youtube.com/watch?v=-mFXqOaqgZk&t)
-- [開始](https://react-hook-form.com/zh/get-started)
-- [API](https://react-hook-form.com/zh/api)
+- [開始](https://react-hook-form.com/get-started)
+- [API](https://react-hook-form.com/docs)
 - [範例](https://github.com/bluebill1049/react-hook-form/tree/master/examples)
-- [Demo](https://react-hook-form.com/zh)
-- [Form Builder](https://react-hook-form.com/zh/form-builder)
-- [常見問題](https://react-hook-form.com/zh/faqs)
+- [Demo](https://react-hook-form.com)
+- [Form Builder](https://react-hook-form.com/form-builder)
+- [常見問題](https://react-hook-form.com/faqs)
 
 ## 快速開始
 

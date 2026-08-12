@@ -364,6 +364,23 @@ describe('getDirtyFields', () => {
     ).toEqual({});
   });
 
+  it('should not leave a stray empty array for a field array with no default value once all items are removed (#13600)', () => {
+    expect(getDirtyFields({}, { data: [] })).toEqual({});
+  });
+
+  it('should not leave a stray empty array for a nested field array with no default value once all items are removed (#13600)', () => {
+    expect(
+      getDirtyFields(
+        { test: [{ firstName: 'bill' }, { firstName: 'bill' }] },
+        {
+          test: [{ firstName: 'luo' }, { firstName: 'luo', keyValue: [] }],
+        },
+      ),
+    ).toEqual({
+      test: [{ firstName: true }, { firstName: true }],
+    });
+  });
+
   it('should mark null values as dirty when comparing with defaultValues', () => {
     expect(
       getDirtyFields(
@@ -378,6 +395,49 @@ describe('getDirtyFields', () => {
       ),
     ).toEqual({
       name: true,
+    });
+  });
+
+  it('should mark an array-valued registered field as dirty with a boolean rather than diffing elements (#13584)', () => {
+    const fieldRefs = {
+      fruits: { _f: { name: 'fruits', ref: {} } },
+    };
+
+    expect(
+      getDirtyFields(
+        { fruits: ['apple'] },
+        { fruits: ['apple', 'banana'] },
+        undefined,
+        fieldRefs,
+      ),
+    ).toEqual({
+      fruits: true,
+    });
+
+    expect(
+      getDirtyFields(
+        { fruits: ['apple'] },
+        { fruits: ['apple'] },
+        undefined,
+        fieldRefs,
+      ),
+    ).toEqual({});
+  });
+
+  it('should still diff a field array element-by-element when the array path itself is not a registered leaf', () => {
+    const fieldRefs = {
+      test: [{ value: { _f: { name: 'test.0.value', ref: {} } } }],
+    };
+
+    expect(
+      getDirtyFields(
+        { test: [{ value: 'a' }, { value: 'b' }] },
+        { test: [{ value: 'a' }, { value: 'changed' }] },
+        undefined,
+        fieldRefs,
+      ),
+    ).toEqual({
+      test: [undefined, { value: true }],
     });
   });
 });

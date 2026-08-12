@@ -345,4 +345,25 @@ describe('unset', () => {
       delete Array.prototype.somePolyfill;
     });
   });
+
+  it('should not traverse or delete prototype properties via __proto__ path', () => {
+    const protoPollutionKey = '__rhfTestPolluted__';
+
+    // Simulate Object.prototype being extended (e.g. by another library)
+    (Object.prototype as any)[protoPollutionKey] = 'SENSITIVE';
+
+    try {
+      // Without the fix, unset traverses into Object.prototype via baseGet
+      // and deletes the property from there.
+      unset({}, `__proto__.${protoPollutionKey}`);
+      unset({}, ['__proto__', protoPollutionKey]);
+      unset({}, `constructor.${protoPollutionKey}`);
+      unset({}, `prototype.${protoPollutionKey}`);
+
+      // The prototype property must still exist — unset must be a no-op.
+      expect((Object.prototype as any)[protoPollutionKey]).toBe('SENSITIVE');
+    } finally {
+      delete (Object.prototype as any)[protoPollutionKey];
+    }
+  });
 });

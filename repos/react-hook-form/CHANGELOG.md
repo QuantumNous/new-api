@@ -1,5 +1,42 @@
 # Changelog
 
+## [7.81.0] - 2026-07-05
+
+### Added
+
+- `FieldArray` component built on `useFieldArray` for controlled field-array rendering
+
+### Fixed
+
+- `clearErrors` changing the `name` value from `form.subscribe`
+- `reset` triggering `subscribe` with the latest name instead of `undefined`
+- `setValues` leaving stale elements behind when shrinking a field array
+- `flatten` preserving `Date` values as leaf nodes
+- `useFieldArray` min length validation error changing location in the `errors` object
+- `useController` not reflecting a cleared parent object in controlled fields
+
+### Security
+
+- Harden `unset()` against prototype-path traversal (`__proto__` / `constructor` / `prototype`), matching the existing `set()` guard
+
+### Performance
+
+- Improve re-render with `useFieldArray` reset
+
+## [7.80.0] - 2026-06-20
+
+### Added
+
+- `disabled` prop support for individual fields within `useFieldArray`
+
+### Fixed
+
+- `deepEqual` incorrectly treating empty array `[]` and empty plain object `{}` as equal
+
+### Performance
+
+- Improve `onChange`, `setValid`, dirty checking, `setValue`, and `setValues` performance
+
 ## [7.79.0] - 2026-06-13
 
 ### Added

@@ -80,6 +80,7 @@ export type SetValueConfig = Partial<{
   shouldValidate: boolean;
   shouldDirty: boolean;
   shouldTouch: boolean;
+  delayError: boolean;
 }>;
 
 export type TriggerConfig = Partial<{

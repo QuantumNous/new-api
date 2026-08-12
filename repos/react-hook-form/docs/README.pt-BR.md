@@ -49,12 +49,12 @@
 
 - [Motivação](https://medium.com/@bruce1049/form-validation-with-hook-in-3kb-c5414edf7d64)
 - [Video tutorial](https://www.youtube.com/watch?v=-mFXqOaqgZk&t)
-- [Como iniciar](https://react-hook-form.com/pt/get-started)
-- [API](https://react-hook-form.com/pt/api)
+- [Como iniciar](https://react-hook-form.com/get-started)
+- [API](https://react-hook-form.com/docs)
 - [Exemplos](https://github.com/bluebill1049/react-hook-form/tree/master/examples)
-- [Demonstração](https://react-hook-form.com/pt)
-- [Form Builder](https://react-hook-form.com/pt/form-builder)
-- [FAQs](https://react-hook-form.com/pt/faqs)
+- [Demonstração](https://react-hook-form.com)
+- [Form Builder](https://react-hook-form.com/form-builder)
+- [FAQs](https://react-hook-form.com/faqs)
 
 ## Começo rápido
 

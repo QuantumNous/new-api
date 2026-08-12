@@ -5,11 +5,11 @@ runs:
   using: composite
   steps:
     - name: Install pnpm
-      uses: pnpm/action-setup@v4
+      uses: pnpm/action-setup@v6
       with:
-        version: 9
-    - name: Setup Node version to 20
-      uses: actions/setup-node@v5
+        version: 11.7.0
+    - name: Setup Node version to 22
+      uses: actions/setup-node@v6
       with:
         node-version: 22
         cache: pnpm

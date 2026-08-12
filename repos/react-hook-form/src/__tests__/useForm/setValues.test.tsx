@@ -227,6 +227,71 @@ describe('setValues', () => {
     expect(screen.getByRole('textbox')).toHaveValue('111');
   });
 
+  it('should not leave a stale element behind when setValues shrinks a field array', async () => {
+    const { result } = renderHook(() =>
+      useForm<{ test: { name: string }[] }>({
+        defaultValues: {
+          test: [{ name: 'a' }, { name: 'b' }, { name: 'c' }],
+        },
+      }),
+    );
+
+    result.current.register('test.0.name');
+    result.current.register('test.1.name');
+    result.current.register('test.2.name');
+
+    await act(async () => {
+      result.current.setValues({
+        test: [{ name: 'x' }, { name: 'y' }],
+      });
+    });
+
+    expect(result.current.getValues()).toEqual({
+      test: [{ name: 'x' }, { name: 'y' }],
+    });
+  });
+
+  it('should handle setValues shrinking a field array down to empty', async () => {
+    const { result } = renderHook(() =>
+      useForm<{ test: { name: string }[] }>({
+        defaultValues: {
+          test: [{ name: 'a' }, { name: 'b' }],
+        },
+      }),
+    );
+
+    result.current.register('test.0.name');
+    result.current.register('test.1.name');
+
+    await act(async () => {
+      result.current.setValues({
+        test: [],
+      });
+    });
+
+    expect(result.current.getValues()).toEqual({ test: [] });
+  });
+
+  it('should still propagate an explicitly set undefined value to a mounted field', async () => {
+    const { result } = renderHook(() =>
+      useForm<{ a: string | undefined; b: string }>({
+        defaultValues: { a: '1', b: '2' },
+      }),
+    );
+
+    result.current.register('a');
+    result.current.register('b');
+
+    await act(async () => {
+      result.current.setValues({
+        a: undefined,
+        b: '2',
+      });
+    });
+
+    expect(result.current.getValues()).toEqual({ a: undefined, b: '2' });
+  });
+
   it('should update deep nested registered input values when setValues is called', async () => {
     const Component = () => {
       const { register, setValues } = useForm({
