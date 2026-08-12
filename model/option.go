@@ -229,8 +229,9 @@ func validateOptionValue(key string, value string) error {
 		if err := common.UnmarshalJsonStr(value, &checkGroupRatio); err != nil {
 			return err
 		}
-		if _, ok := checkGroupRatio[common.GetDefaultUserGroup()]; !ok {
-			return errors.New("cannot remove default user group: " + common.GetDefaultUserGroup())
+		defaultGroup := common.GetDefaultUserGroup()
+		if _, ok := checkGroupRatio[defaultGroup]; !ok {
+			return errors.New("不能移除默认分组: " + defaultGroup)
 		}
 	}
 	return nil
