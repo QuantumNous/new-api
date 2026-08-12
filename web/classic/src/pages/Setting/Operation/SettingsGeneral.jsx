@@ -52,6 +52,8 @@ export default function GeneralSettings(props) {
     'general_setting.custom_currency_exchange_rate': '',
     QuotaPerUnit: '',
     RetryTimes: '',
+    TaskSameChannelMaxRetries: '2',
+    TaskCrossChannelFailoverEnabled: true,
     USDExchangeRate: '',
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
@@ -274,6 +276,19 @@ export default function GeneralSettings(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Input
+                  field={'TaskSameChannelMaxRetries'}
+                  label={t('异步任务同渠最大重试次数')}
+                  initValue={'2'}
+                  placeholder={'2'}
+                  extraText={t(
+                    '视频等异步任务失败后，同一渠道最多再提交次数，用尽后换下一渠道',
+                  )}
+                  onChange={handleFieldChange('TaskSameChannelMaxRetries')}
+                  showClear
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Select
                   field='general_setting.quota_display_type'
                   label={t('额度展示类型')}
@@ -388,6 +403,21 @@ export default function GeneralSettings(props) {
                   checkedText='｜'
                   uncheckedText='〇'
                   onChange={handleFieldChange('SelfUseModeEnabled')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'TaskCrossChannelFailoverEnabled'}
+                  label={t('异步任务跨渠容灾')}
+                  extraText={t(
+                    '异步视频生成失败且同渠重试用尽后，自动换下一渠道重试',
+                  )}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange(
+                    'TaskCrossChannelFailoverEnabled',
+                  )}
                 />
               </Col>
             </Row>

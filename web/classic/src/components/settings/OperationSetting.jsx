@@ -29,6 +29,7 @@ import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLim
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsSeedanceAsset from '../../pages/Setting/Operation/SettingsSeedanceAsset';
 import SettingsSeedanceOfficialAsset from '../../pages/Setting/Operation/SettingsSeedanceOfficialAsset';
+import SettingsTaskModelChannelOrder from '../../pages/Setting/Operation/SettingsTaskModelChannelOrder';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -46,6 +47,9 @@ const OperationSetting = () => {
     QuotaPerUnit: 0,
     USDExchangeRate: 0,
     RetryTimes: 0,
+    TaskSameChannelMaxRetries: 2,
+    TaskCrossChannelFailoverEnabled: true,
+    TaskModelChannelOrder: '{}',
     'general_setting.quota_display_type': 'USD',
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
@@ -168,6 +172,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 异步任务渠道容灾顺序 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsTaskModelChannelOrder options={inputs} refresh={onRefresh} />
         </Card>
         {/* Seedance 素材网关 */}
         <Card style={{ marginTop: '10px' }}>
