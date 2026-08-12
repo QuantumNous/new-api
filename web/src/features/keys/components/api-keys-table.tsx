@@ -39,11 +39,15 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
+
+import { getUsers } from '@/features/users/api'
+import type { User } from '@/features/users/types'
 
 import { getApiKeys, searchApiKeys } from '../api'
 import {
@@ -188,9 +192,26 @@ function ApiKeysMobileList({
 
 export function ApiKeysTable() {
   const { t } = useTranslation()
-  const { refreshTrigger } = useApiKeys()
+  const { refreshTrigger, isAdmin, selectedUserId, setSelectedUserId } =
+    useApiKeys()
   const [now, setNow] = useState(() => Date.now())
-  const columns = useApiKeysColumns(now)
+
+  // Fetch users list for admin user selector
+  const { data: usersData } = useQuery({
+    queryKey: ['admin-users-list'],
+    queryFn: async () => {
+      const result = await getUsers({ p: 1, page_size: 200 })
+      if (result.success && result.data?.items) {
+        return result.data.items as User[]
+      }
+      return []
+    },
+    enabled: isAdmin,
+    staleTime: 60_000,
+  })
+  const users = usersData || []
+
+  const columns = useApiKeysColumns(now, isAdmin)
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -199,6 +220,13 @@ export function ApiKeysTable() {
 
     return () => window.clearInterval(intervalId)
   }, [])
+
+  // Reset selected user when leaving admin mode
+  useEffect(() => {
+    if (!isAdmin) {
+      setSelectedUserId(null)
+    }
+  }, [isAdmin, setSelectedUserId])
 
   const {
     globalFilter,
@@ -240,18 +268,24 @@ export function ApiKeysTable() {
       globalFilter,
       tokenFilter,
       refreshTrigger,
+      isAdmin,
+      selectedUserId,
     ],
     queryFn: async () => {
+      const adminUserId =
+        isAdmin && selectedUserId != null ? selectedUserId : undefined
       const result = shouldSearch
         ? await searchApiKeys({
             keyword: globalFilter,
             token: tokenFilter,
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
+            user_id: adminUserId,
           })
         : await getApiKeys({
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
+            user_id: adminUserId,
           })
 
       if (!result.success) {
@@ -308,13 +342,35 @@ export function ApiKeysTable() {
       toolbarProps={{
         searchPlaceholder: t('Filter by name...'),
         additionalSearch: (
-          <Input
-            placeholder={t('Filter by API key...')}
-            aria-label={t('Filter by API key...')}
-            value={tokenFilterInput}
-            onChange={(e) => setTokenFilterInput(e.target.value)}
-            className='w-full sm:w-50 lg:w-60'
-          />
+          <div className='flex w-full flex-wrap items-center gap-2 sm:w-auto'>
+            <Input
+              placeholder={t('Filter by API key...')}
+              aria-label={t('Filter by API key...')}
+              value={tokenFilterInput}
+              onChange={(e) => setTokenFilterInput(e.target.value)}
+              className='w-full sm:w-50 lg:w-60'
+            />
+            {isAdmin && (
+              <ComboboxInput
+                className='w-full sm:w-50'
+                placeholder={t('Admin filter')}
+                value={
+                  selectedUserId != null ? String(selectedUserId) : '_all'
+                }
+                onValueChange={(v) => {
+                  if (v === '_all') setSelectedUserId(null)
+                  else setSelectedUserId(Number(v))
+                }}
+                options={[
+                  { value: '_all', label: t('All users') },
+                  ...users.map((user) => ({
+                    value: String(user.id),
+                    label: user.username,
+                  })),
+                ]}
+                />
+            )}
+          </div>
         ),
         filters: [
           {

@@ -32,12 +32,16 @@ import type {
 // API Key Management
 // ============================================================================
 
-// Get paginated API keys list
+// Get paginated API keys list (admin pass ?user_id=X to query others)
 export async function getApiKeys(
   params: GetApiKeysParams = {}
 ): Promise<GetApiKeysResponse> {
-  const { p = 1, size = 10 } = params
-  const res = await api.get(`/api/token/?p=${p}&size=${size}`)
+  const { p = 1, size = 10, user_id } = params
+  const queryParams = new URLSearchParams()
+  queryParams.set('p', String(p))
+  queryParams.set('size', String(size))
+  if (user_id) queryParams.set('user_id', String(user_id))
+  const res = await api.get(`/api/token/?${queryParams.toString()}`)
   return res.data
 }
 
@@ -45,12 +49,13 @@ export async function getApiKeys(
 export async function searchApiKeys(
   params: SearchApiKeysParams
 ): Promise<GetApiKeysResponse> {
-  const { keyword = '', token = '', p, size } = params
+  const { keyword = '', token = '', p, size, user_id } = params
   const queryParams = new URLSearchParams()
   if (keyword) queryParams.set('keyword', keyword)
   if (token) queryParams.set('token', token)
   if (p != null) queryParams.set('p', String(p))
   if (size != null) queryParams.set('size', String(size))
+  if (user_id) queryParams.set('user_id', String(user_id))
   const res = await api.get(`/api/token/search?${queryParams.toString()}`)
   return res.data
 }
@@ -69,9 +74,9 @@ export async function getTokenAutoGroups(): Promise<
   return res.data
 }
 
-// Create a new API key
+// Create a new API key (admin passes user_id for target user)
 export async function createApiKey(
-  data: ApiKeyFormData
+  data: ApiKeyFormData & { user_id?: number }
 ): Promise<ApiResponse<ApiKey>> {
   const res = await api.post('/api/token/', data)
   return res.data

@@ -73,7 +73,10 @@ function useGroupRatios(): Record<string, number | string> {
   return data ?? {}
 }
 
-export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
+export function useApiKeysColumns(
+  now: number,
+  isAdmin?: boolean
+): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
   const groupRatios = useGroupRatios()
   const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -190,6 +193,26 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       },
       size: 170,
     },
+    ...(isAdmin
+      ? [
+          {
+            id: 'username' as const,
+            accessorKey: 'user_id' as const,
+            header: t('Username'),
+            cell: ({ row }: { row: { original: ApiKey } }) => {
+              const username = row.original.username
+              const userId = row.original.user_id
+              if (!userId) return <span className='text-muted-foreground text-xs'>—</span>
+              return (
+                <span className='text-muted-foreground text-xs'>
+                  {username || `#${userId}`}
+                </span>
+              )
+            },
+            size: 120,
+          },
+        ]
+      : []),
     {
       accessorKey: 'group',
       header: t('Group'),

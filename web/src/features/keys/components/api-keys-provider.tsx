@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import useDialogState from '@/hooks/use-dialog'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { fetchTokenKey, fetchTokenKeysBatch } from '../api'
 import { ERROR_MESSAGES } from '../constants'
@@ -41,6 +43,9 @@ type ApiKeysContextType = {
   loadingKeys: Record<number, boolean>
   copiedKeyId: number | null
   markKeyCopied: (id: number) => void
+  isAdmin: boolean
+  selectedUserId: number | null
+  setSelectedUserId: (id: number | null) => void
 }
 
 const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null)
@@ -58,6 +63,11 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
 
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  // Admin mode: Root can select a target user to manage their tokens
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
+  const userRole = useAuthStore((s) => s.auth.user?.role)
+  const isAdmin = useMemo(() => userRole === ROLE.SUPER_ADMIN, [userRole])
 
   useEffect(() => {
     return () => clearTimeout(copiedTimerRef.current)
@@ -171,6 +181,9 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         loadingKeys,
         copiedKeyId,
         markKeyCopied,
+        isAdmin,
+        selectedUserId,
+        setSelectedUserId,
       }}
     >
       {children}

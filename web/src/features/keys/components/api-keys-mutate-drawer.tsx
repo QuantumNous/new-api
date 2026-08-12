@@ -50,6 +50,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
@@ -66,6 +67,9 @@ import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
+import { getUsers } from '@/features/users/api'
+import type { User } from '@/features/users/types'
 
 import {
   createApiKey,
@@ -103,7 +107,28 @@ export function ApiKeysMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const currentRowId = currentRow?.id
-  const { triggerRefresh } = useApiKeys()
+  const { triggerRefresh, isAdmin, selectedUserId } = useApiKeys()
+  const adminMode = isAdmin && selectedUserId != null
+  const authUser = useAuthStore((s) => s.auth.user)
+  const [targetUserId, setTargetUserId] = useState<number>(
+    () => authUser?.id ?? 0
+  )
+
+  // Fetch users for admin user selector
+  const { data: usersData } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: async () => {
+      const result = await getUsers({ p: 1, page_size: 200 })
+      if (result.success && result.data?.items) {
+        return result.data.items as User[]
+      }
+      return []
+    },
+    enabled: open && isAdmin,
+    staleTime: 60_000,
+  })
+  const selectableUsers = usersData || []
+
   const { status, loading: statusLoading } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -203,6 +228,10 @@ export function ApiKeysMutateDrawer({
     if (!open) {
       setInitializedTarget(null)
       return
+    }
+    // Reset targetUserId to self when drawer opens
+    if (isAdmin && !isUpdate && authUser?.id) {
+      setTargetUserId(authUser.id)
     }
     if (
       !groupsFetched ||
@@ -306,6 +335,7 @@ export function ApiKeysMutateDrawer({
               i === 0 && data.name
                 ? data.name
                 : `${data.name || 'default'}-${Math.random().toString(36).slice(2, 8)}`,
+            ...(isAdmin && { user_id: targetUserId }),
           })
           if (result.success) {
             successCount++
@@ -411,6 +441,27 @@ export function ApiKeysMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {isAdmin && !isUpdate && (
+                <FormItem>
+                  <FormLabel>{t('Target User')}</FormLabel>
+                  <FormControl>
+                    <ComboboxInput
+                      className='w-full'
+                      placeholder={t('Search users...')}
+                      value={String(targetUserId)}
+                      onValueChange={(v) => setTargetUserId(Number(v))}
+                      options={selectableUsers.map((user) => ({
+                        value: String(user.id),
+                        label: user.username,
+                      }))}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Select the user this API key belongs to')}
+                  </FormDescription>
+                </FormItem>
+              )}
 
               <FormField
                 control={form.control}
