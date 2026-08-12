@@ -1,0 +1,478 @@
+---
+description: 'Babel plugin documentation covering plugin capabilities, setup, and available options.'
+---
+
+# Babel plugin
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-babel" />
+
+Rsbuild uses SWC transpilation by default. When existing functions cannot meet the requirements, and some Babel presets or plugins need to be added for additional processing, you can use Rsbuild's Babel Plugin.
+
+## Quick start
+
+### Install plugin
+
+Run the following command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-babel -D" />
+
+### Register plugin
+
+Register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { pluginBabel } from '@rsbuild/plugin-babel';
+
+export default {
+  plugins: [pluginBabel()],
+};
+```
+
+## Compilation cache
+
+After using the Babel plugin, Rsbuild will perform the Babel transpilation in addition to the standard SWC transpilation, which adds additional compilation overhead. This can cause a noticeable decrease in build speed.
+
+To reduce the overhead of Babel transpilation, the `@rsbuild/plugin-babel` enables Babel compilation cache by default. If you want to disable the cache, you can set [performance.buildCache](/config/performance/build-cache) to `false`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    buildCache: false,
+  },
+};
+```
+
+## Options
+
+### babelLoaderOptions
+
+These options are passed to `babel-loader`. For details, see the [babel-loader documentation](https://github.com/babel/babel-loader).
+
+- **Type:** `Object | Function`
+- **Default:**
+
+```ts
+const defaultOptions = {
+  babelrc: false,
+  compact: config.mode === 'production',
+  configFile: false,
+  plugins: [
+    ['@babel/plugin-proposal-decorators', config.source.decorators],
+    ...(isLegacyDecorators ? ['@babel/plugin-transform-class-properties'] : []),
+  ],
+  presets: [
+    [
+      '@babel/preset-typescript',
+      {
+        allExtensions: true,
+        allowDeclareFields: true,
+        allowNamespaces: true,
+        isTSX: true,
+        optimizeConstEnums: true,
+      },
+    ],
+  ],
+};
+```
+
+#### Function type
+
+When configuration is of type `Function`, the default Babel configuration will be passed as the first parameter. You can directly modify the configuration object or return an object as the final `babel-loader` configuration.
+
+```js
+pluginBabel({
+  babelLoaderOptions: (config) => {
+    // Add a Babel plugin
+    // note: the plugin have been added to the default config to support antd load on demand
+    config.plugins ||= [];
+    config.plugins.push([
+      'babel-plugin-import',
+      {
+        libraryName: 'my-components',
+        libraryDirectory: 'es',
+        style: true,
+      },
+    ]);
+  },
+});
+```
+
+The second parameter of the function provides some more convenient utility functions. Please continue reading the documentation below.
+
+:::tip
+The above example is just for reference. Usually you do not need to manually configure `babel-plugin-import`, because Rsbuild already provides a more general `source.transformImport` configuration.
+:::
+
+#### Object type
+
+When configuration's type is `Object`, the config will be shallow merged with default config by `Object.assign`.
+
+:::caution
+Note that `Object.assign` is a shallow copy and will completely overwrite the built-in `presets` or `plugins` array, please use it with caution.
+:::
+
+```js
+pluginBabel({
+  babelLoaderOptions: {
+    plugins: [
+      [
+        'babel-plugin-import',
+        {
+          libraryName: 'my-components',
+          libraryDirectory: 'es',
+          style: true,
+        },
+      ],
+    ],
+  },
+});
+```
+
+#### Util functions
+
+When configuration is a Function, the tool functions available for the second parameter are as follows:
+
+##### addPlugins
+
+- **Type:** `(plugins: BabelPlugin[]) => void`
+
+Add some Babel plugins. For example:
+
+```js
+pluginBabel({
+  babelLoaderOptions: (config, { addPlugins }) => {
+    addPlugins([
+      [
+        'babel-plugin-import',
+        {
+          libraryName: 'my-components',
+          libraryDirectory: 'es',
+          style: true,
+        },
+      ],
+    ]);
+  },
+});
+```
+
+##### addPresets
+
+- **Type:** `(presets: BabelPlugin[]) => void`
+
+Add Babel preset configuration. (No need to add presets in most cases)
+
+```js
+pluginBabel({
+  babelLoaderOptions: (config, { addPresets }) => {
+    addPresets(['@babel/preset-env']);
+  },
+});
+```
+
+##### removePlugins
+
+- **Type:** `(plugins: string | string[]) => void`
+
+To remove the Babel plugin, just pass in the name of the plugin to be removed, you can pass in a single string or an array of strings.
+
+```js
+pluginBabel({
+  babelLoaderOptions: (config, { removePlugins }) => {
+    removePlugins('babel-plugin-import');
+  },
+});
+```
+
+##### removePresets
+
+- **Type:** `(presets: string | string[]) => void`
+
+To remove the Babel preset configuration, pass in the name of the preset to be removed, you can pass in a single string or an array of strings.
+
+```js
+pluginBabel({
+  babelLoaderOptions: (config, { removePresets }) => {
+    removePresets('@babel/preset-env');
+  },
+});
+```
+
+##### modifyPresetEnvOptions
+
+- **Type:** `(options: PresetEnvOptions) => void`
+
+Modify the options of an existing `@babel/preset-env` preset. If the preset is not present in `config.presets`, this function has no effect.
+
+```js
+pluginBabel({
+  babelLoaderOptions: (config, { addPresets, modifyPresetEnvOptions }) => {
+    addPresets(['@babel/preset-env']);
+    modifyPresetEnvOptions({
+      targets: ['chrome >= 107'],
+    });
+  },
+});
+```
+
+##### modifyPresetReactOptions
+
+- **Type:** `(options: PresetReactOptions) => void`
+
+Modify the options of an existing `@babel/preset-react` preset. If the preset is not present in `config.presets`, this function has no effect.
+
+```js
+pluginBabel({
+  babelLoaderOptions: (config, { addPresets, modifyPresetReactOptions }) => {
+    addPresets(['@babel/preset-react']);
+    modifyPresetReactOptions({
+      runtime: 'automatic',
+    });
+  },
+});
+```
+
+### include
+
+- **Type:** `string | RegExp | (string | RegExp)[]`
+- **Default:** `undefined`
+
+Used to specify the files that need to be compiled by Babel.
+
+Due to the performance overhead of Babel compilation, matching only certain files through `include` can reduce the number of modules compiled by Babel, thereby improving build performance.
+
+For example, to only compile `.custom.js` files:
+
+```js
+pluginBabel({
+  include: /\.custom\.js$/,
+});
+```
+
+:::tip
+When you configure the `include` or `exclude` options, Rsbuild will create a separate Rspack rule to apply babel-loader and swc-loader.
+
+This separate rule is completely independent of the SWC rule built into Rsbuild and is not affected by [source.include](/config/source/include) and [source.exclude](/config/source/exclude).
+:::
+
+### exclude
+
+- **Type:** `string | RegExp | (string | RegExp)[]`
+- **Default:** `undefined`
+
+Used to specify the files that do not need to be compiled by Babel.
+
+Due to the performance overhead of Babel compilation, excluding certain files through `exclude` can reduce the number of modules compiled by Babel, thereby improving build performance.
+
+For example, to ignore `.js` files under `node_modules`:
+
+```js
+pluginBabel({
+  // Exclude .js files under node_modules to improve build performance
+  exclude: /[\\/]node_modules[\\/].*\.js$/,
+});
+```
+
+### parallel
+
+- **Type:** `boolean`
+- **Default:** `false`
+- **Version:** `>= 2.0.0`
+
+Whether to run Babel transformations in parallel using worker threads. When enabled, JavaScript modules are processed across multiple worker threads, reducing pressure on the main thread and improving overall build performance when compiling large numbers of modules.
+
+```ts
+pluginBabel({
+  parallel: true,
+});
+```
+
+> This feature is based on Rspack's parallel loader. Options transferred to worker threads must comply with the [HTML structured clone algorithm](https://nodejs.org/api/worker_threads.html#portpostmessagevalue-transferlist). Otherwise, transmission will fail. For example, functions cannot be passed as options. See [Rspack - Rule.use.parallel](https://rspack.rs/config/module-rules#rulesuseparallel) for more details.
+
+## Configure multiple plugins
+
+By using the `include` and `exclude` options, you can register multiple `@rsbuild/plugin-babel` instances and create separate Babel rules for different files.
+
+For example:
+
+```ts
+export default {
+  plugins: [
+    pluginBabel({
+      exclude: /\.legacy\.js$/,
+      babelLoaderOptions: {
+        plugins: ['babel-plugin-modern'],
+      },
+    }),
+    pluginBabel({
+      include: /\.legacy\.js$/,
+      babelLoaderOptions: {
+        plugins: ['babel-plugin-legacy'],
+      },
+    }),
+  ],
+};
+```
+
+## Execution order
+
+After using `@rsbuild/plugin-babel`, Rsbuild will use both `babel-loader` and `builtin:swc-loader` to compile JavaScript files, with Babel running before SWC.
+
+This means that if you are using some new ECMAScript features in your code, you may need to add Babel plugins to ensure that Babel can correctly compile these new features.
+
+For example, add the [@babel/plugin-transform-private-methods](https://www.npmjs.com/package/@babel/plugin-transform-private-methods) plugin to enable Babel to correctly compile [private properties](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Private_properties):
+
+```ts
+pluginBabel({
+  babelLoaderOptions: {
+    plugins: ['@babel/plugin-transform-private-methods'],
+  },
+});
+```
+
+## Usage guides
+
+### Use React Compiler
+
+This section explains how to enable React Compiler with the Babel plugin. This is an optional approach, mainly useful when you are maintaining an existing Babel-based setup, using an older version of Rsbuild, or need Babel-plugin-based customization. For most projects, we recommend using the Rust-based React Compiler instead. See the [React Compiler guide](/guide/framework/react#react-compiler) for the recommended setup.
+
+Steps to use React Compiler with the Babel plugin:
+
+1. Upgrade `react` and `react-dom` to v19. If you can't upgrade, install the [react-compiler-runtime](https://npmjs.com/package/react-compiler-runtime) package to run the compiled code on earlier versions.
+2. Install [@rsbuild/plugin-babel](/plugins/list/plugin-babel) and [babel-plugin-react-compiler](https://npmjs.com/package/babel-plugin-react-compiler).
+3. Register the Babel plugin in your Rsbuild config file:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact(),
+    pluginBabel({
+      include: /\.[jt]sx?$/,
+      exclude: [/[\\/]node_modules[\\/]/],
+      babelLoaderOptions(opts) {
+        opts.plugins ??= [];
+        opts.plugins.unshift('babel-plugin-react-compiler');
+      },
+    }),
+  ],
+});
+```
+
+:::tip
+The `include` pattern uses `/\.[jt]sx?$/` to match `.js`, `.jsx`, `.ts`, and `.tsx` files. This ensures React Compiler can optimize both components and [custom hooks](https://react.dev/learn/reusing-logic-with-custom-hooks), which are often defined in plain `.ts` files. The `exclude` for `node_modules` prevents the compiler from processing third-party dependencies.
+
+If you only want to compile JSX/TSX files, you can use `include: /\.(?:jsx|tsx)$/` instead, but custom hooks in `.ts` files will not be optimized.
+:::
+
+> You can also refer to the [example project](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/react-compiler-babel).
+
+#### Configure React Compiler
+
+To configure React Compiler through Babel, pass the compiler options to `babel-plugin-react-compiler`:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+const ReactCompilerConfig = {
+  /* ... */
+};
+
+export default defineConfig({
+  plugins: [
+    pluginReact(),
+    pluginBabel({
+      include: /\.[jt]sx?$/,
+      exclude: [/[\\/]node_modules[\\/]/],
+      babelLoaderOptions(opts) {
+        opts.plugins ??= [];
+        opts.plugins.unshift(['babel-plugin-react-compiler', ReactCompilerConfig]);
+      },
+    }),
+  ],
+});
+```
+
+For React 17 and 18 projects, install [react-compiler-runtime](https://npmjs.com/package/react-compiler-runtime) and specify the `target`:
+
+```ts title="rsbuild.config.ts"
+const ReactCompilerConfig = {
+  target: '18', // '17' | '18' | '19'
+};
+```
+
+## Debugging configs
+
+After modifying the `babel-loader` configuration, you can view the final generated configuration in [Rsbuild debug mode](/guide/debug/debug-mode).
+
+First, enable debug mode by using the `DEBUG=rsbuild` option:
+
+```bash
+# Debug development mode
+DEBUG=rsbuild pnpm dev
+
+# Debug production mode
+DEBUG=rsbuild pnpm build
+```
+
+Then open the generated `rspack.config.web.mjs` file and search for the `babel-loader` keyword to see the complete `babel-loader` configuration.
+
+## FAQ
+
+### Compilation freezes
+
+After using the babel plugin, if the compilation progress bar is stuck, but there is no Error log on the terminal, it is usually because an exception occurred during the compilation. In some cases, when Error is caught by webpack or other modules, the error log cannot be output correctly. The most common scenario is that there is an exception in the Babel config, which is caught by webpack, and webpack swallows the Error in some cases.
+
+**Solution:**
+
+If this problem occurs after you modify the Babel config, it is recommended to check for the following incorrect usages:
+
+1. You have configured a plugin or preset that does not exist, maybe the name is misspelled, or it is not installed correctly.
+
+```ts
+// wrong example
+pluginBabel({
+  babelLoaderOptions: (config, { addPlugins }) => {
+    // The plugin has the wrong name or is not installed
+    addPlugins('babel-plugin-not-exists');
+  },
+});
+```
+
+2. Whether multiple babel-plugin-imports are configured, but the name of each babel-plugin-import is not declared in the third item of the array.
+
+```ts
+// wrong example
+pluginBabel({
+  babelLoaderOptions: (config, { addPlugins }) => {
+    addPlugins([
+      ['babel-plugin-import', { libraryName: 'antd', libraryDirectory: 'es' }],
+      ['babel-plugin-import', { libraryName: 'antd-mobile', libraryDirectory: 'es' }],
+    ]);
+  },
+});
+```
+
+```ts
+// correct example
+pluginBabel({
+  babelLoaderOptions: (config, { addPlugins }) => {
+    addPlugins([
+      ['babel-plugin-import', { libraryName: 'antd', libraryDirectory: 'es' }, 'antd'],
+      [
+        'babel-plugin-import',
+        { libraryName: 'antd-mobile', libraryDirectory: 'es' },
+        'antd-mobile',
+      ],
+    ]);
+  },
+});
+```

@@ -1,0 +1,54 @@
+---
+description: 'Add a script before the entry file of each page. This script will be executed before the page code.'
+---
+
+# source.preEntry
+
+- **Type:** `string | string[]`
+- **Default:** `undefined`
+
+Add a script before the entry file of each page. This script will be executed before the page code. Use this to execute global logic, such as injecting polyfills, setting global styles, etc.
+
+## Add a single script
+
+First create a `src/polyfill.ts` file:
+
+```js
+console.log('I am a polyfill');
+```
+
+Then configure `src/polyfill.ts` to `source.preEntry`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    preEntry: './src/polyfill.ts',
+  },
+};
+```
+
+Re-run the compilation and visit any page. You can see that the code in `src/polyfill.ts` has been executed, and `I am a polyfill` is logged in the console.
+
+## Add global style
+
+You can also configure global styles using `source.preEntry`. This CSS code will be loaded earlier than the page code, such as introducing a `normalize.css` file:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    preEntry: './src/normalize.css',
+  },
+};
+```
+
+## Add multiple scripts
+
+You can add multiple scripts by setting `preEntry` to an array, and they will be executed in array order:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    preEntry: ['./src/polyfill-a.ts', './src/polyfill-b.ts'],
+  },
+};
+```

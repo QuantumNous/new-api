@@ -1,0 +1,74 @@
+---
+description: '配置 legal comments 的处理方式。'
+---
+
+# output.legalComments
+
+- **类型：** `'linked' | 'inline' | 'none'`
+- **默认值：** `'linked'`
+
+配置 legal comments 的处理方式。
+
+## 什么是 legal comments？
+
+Legal comments 是 JS 或 CSS 文件中的一些特殊注释，这些注释包含 `@license` 或 `@preserve`，或是以 `//!` 开头。默认情况下，这些注释保留在输出文件中，因为这遵循了代码原作者的意图。
+
+例如 React 的 `LICENSE` 注释：
+
+```js
+/**
+ * @license React
+ * react.production.js
+ *
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+```
+
+## 可选值
+
+你可以通过 `legalComments` 来配置如何处理 legal comments：
+
+### `linked`
+
+将所有 legal comments 移至 `*.LICENSE.txt` 文件，并通过注释链接到它们。
+
+```js title="rsbuild.config.js"
+export default {
+  output: {
+    legalComments: 'linked',
+  },
+};
+```
+
+`.LICENSE.txt` 文件不会被页面加载，因此它们不会影响页面的性能。
+
+### `inline`
+
+保留所有 legal comments 在代码的原始位置。这可能会导致输出文件的体积变大。
+
+```js title="rsbuild.config.js"
+export default {
+  output: {
+    legalComments: 'inline',
+  },
+};
+```
+
+### `none`
+
+移除所有 legal comments。
+
+```js title="rsbuild.config.js"
+export default {
+  output: {
+    legalComments: 'none',
+  },
+};
+```
+
+:::tip
+移除 license 注释可能会违反部分开源软件的许可协议要求。在使用此选项前，请确认你具有移除这些注释的权利。
+:::

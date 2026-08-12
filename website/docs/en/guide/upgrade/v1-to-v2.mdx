@@ -1,0 +1,571 @@
+---
+description: 'This document lists all breaking changes from Rsbuild v1 to 2.0. Use it as a migration reference.'
+---
+
+import { PackageManagerTabs } from '@theme';
+
+# Upgrading from v1 to v2
+
+This document lists all breaking changes from Rsbuild v1 to 2.0. Use it as a migration reference.
+
+## Using Agent Skills
+
+If you are using a coding agent that supports Skills, install the [rsbuild-v2-upgrade](https://github.com/rstackjs/agent-skills#rsbuild-v2-upgrade) skill to help with the upgrade process from v1 to v2.
+
+```bash
+npx skills add rstackjs/agent-skills --skill rsbuild-v2-upgrade
+```
+
+After installation, let the coding agent guide you through the upgrade.
+
+## Upgrade Rsbuild to v2
+
+- Upgrade `@rsbuild/core` to the 2.0 release.
+
+- If you use `@rsbuild/plugin-react` or `@rsbuild/plugin-svgr`, upgrade them to the 2.0 release as well to keep them compatible with `@rsbuild/core`. For example:
+
+```json
+{
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.0",
+    "@rsbuild/plugin-react": "^2.0.0",
+    "@rsbuild/plugin-svgr": "^2.0.0"
+  }
+}
+```
+
+- For other Rsbuild plugins, we recommend upgrading to the latest version too:
+
+```bash
+# Upgrade Rsbuild dependencies in the current directory
+npx taze major --include /rsbuild/ -w
+
+# Or recursively upgrade Rsbuild dependencies in the entire monorepo
+npx taze major --include /rsbuild/ -w -r
+```
+
+## Rspack v2
+
+Rsbuild v2 now depends on [@rspack/core](https://www.npmjs.com/package/@rspack/core) v2. If you use custom Rspack configurations or plugins, you may need to make corresponding adjustments.
+
+See the [Rspack v2 upgrade guide](https://github.com/web-infra-dev/rspack/discussions/9270) for all breaking changes.
+
+## Default browserslist updated
+
+In Rsbuild 2.0, the default browserslist have been updated to better reflect the modern web platform baseline.
+
+### Web target
+
+The default web browserslist has moved to a more modern [baseline](https://web-platform-dx.github.io/web-features/), the new default corresponds to [`baseline widely available on 2025-05-01`](https://browsersl.ist/#q=baseline+widely+available+on+2025-05-01):
+
+- Chrome 87 → 107
+- Edge 88 → 107
+- Firefox 78 → 104
+- Safari 14 → 16
+
+This change affects JavaScript and CSS transformations, as well as polyfill behavior.
+
+If your project defines its own browserslist configuration, for example via `.browserslistrc` or `package.json#browserslist`, Rsbuild will continue to use it. The defaults only apply when no browserslist configuration is found.
+
+To keep the previous behavior, create a `.browserslistrc` file in your project root:
+
+```text title=".browserslistrc"
+chrome >= 87
+edge >= 88
+firefox >= 78
+safari >= 14
+```
+
+### Node target
+
+Rsbuild 2.0 also updates the default Node.js target. Since Node.js 18 reached end of life in April 2025, Rsbuild now defaults to Node 20+.
+
+- Node 16 → 20
+
+To keep the previous behavior, use [output.overrideBrowserslist](/config/output/override-browserslist):
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    overrideBrowserslist: ['node >= 16'],
+  },
+};
+```
+
+## Node.js support
+
+Rsbuild 2.0 requires Node.js 20.19+ or 22.12+, Node.js 18 is no longer supported.
+
+## Pure ESM package
+
+[@rsbuild/core](https://www.npmjs.com/package/@rsbuild/core) is now published as a pure ESM package.
+
+## Dependency changes
+
+### Polyfill
+
+[core-js](https://www.npmjs.com/package/core-js) polyfill has been changed from a default dependency of `@rsbuild/core` to an optional peer dependency, which reduces the installation size by 1.2 MB.
+
+If you enabled [output.polyfill](/config/output/polyfill), install `core-js` v3 in your project:
+
+<PackageManagerTabs command="add core-js" />
+
+### Module Federation
+
+If you use the [moduleFederation.options](/config/module-federation/options) option, install [@module-federation/runtime-tools](https://www.npmjs.com/package/@module-federation/runtime-tools) manually in your project, it is an optional peer dependency of `@rspack/core`:
+
+<PackageManagerTabs command="add @module-federation/runtime-tools" />
+
+This change only affects projects that use Module Federation v1.5 through `moduleFederation.options`. If you are using Module Federation v2, no action is required.
+
+## Configuration
+
+### Default server host
+
+The default value of [server.host](/config/server/host) has changed from `'0.0.0.0'` to `'localhost'`.
+
+This change prevents the dev server from being exposed to the local network by default, ensuring "secure by default" behavior.
+
+If you need to access the server from other devices on the same network (e.g., for mobile testing), you can manually set the host to `'0.0.0.0'`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '0.0.0.0',
+  },
+};
+```
+
+Alternatively, you can use the `--host` CLI flag to enable network access on demand:
+
+```bash
+rsbuild --host
+```
+
+### Default decorators version
+
+The default value of [source.decorators.version](/config/source/decorators#decoratorsversion) has changed from `2022-03` to `2023-11`.
+
+For most projects, this change has little practical impact. If your project depends on the previous default behavior, set the decorators version explicitly:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: '2022-03',
+    },
+  },
+};
+```
+
+### Node output
+
+When [output.target](/config/output/target) is set to `node`, Rsbuild 2.0 defaults to ESM output via [output.module](/config/output/module) and keeps [output.minify](/config/output/minify) disabled. In Rsbuild v1, the default was CommonJS output with minification enabled.
+
+This keeps Node bundles aligned with modern ESM conventions while preserving clearer stack traces for debugging.
+
+As a result, your runtime needs to load ESM bundles (for example, set `"type": "module"` in package.json or use `.mjs` output) unless you opt back into CommonJS.
+
+To restore v1 behavior, explicitly disable ESM output and enable minification:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    module: false,
+    minify: true,
+  },
+};
+```
+
+### Remove `source.alias`
+
+The deprecated `source.alias` option has been removed. Use [resolve.alias](/config/resolve/alias) instead.
+
+```diff title="rsbuild.config.ts"
+export default {
+- source: {
++ resolve: {
+    alias: {
+      '@': './src',
+    },
+  },
+};
+```
+
+### Remove `source.aliasStrategy`
+
+The deprecated `source.aliasStrategy` option has been removed. Use [resolve.aliasStrategy](/config/resolve/alias-strategy) instead.
+
+```diff title="rsbuild.config.ts"
+export default {
+- source: {
++ resolve: {
+    aliasStrategy: 'prefer-alias',
+  },
+};
+```
+
+### Remove `performance.bundleAnalyze`
+
+The deprecated `performance.bundleAnalyze` option has been removed.
+
+In earlier versions, Rsbuild bundled `webpack-bundle-analyzer` by default. Rsdoctor now provides built-in bundle size analysis, so this functionality no longer needs to live inside `@rsbuild/core`. Removing it also helps reduce the installation size.
+
+Use [Rsdoctor](/guide/debug/rsdoctor) to analyze bundle size, or register [webpack-bundle-analyzer](https://www.npmjs.com/package/webpack-bundle-analyzer) yourself via [tools.rspack](/config/tools/rspack):
+
+```ts title="rsbuild.config.ts"
+import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
+
+export default {
+  tools: {
+    rspack: {
+      plugins: [
+        new BundleAnalyzerPlugin({
+          analyzerMode: 'static',
+        }),
+      ],
+    },
+  },
+};
+```
+
+### Remove `performance.removeMomentLocale`
+
+The `performance.removeMomentLocale` option has been removed.
+
+This option existed to drop Moment.js locale data from the bundle, but Rspack v2 does not include Moment locales by default, so the option is no longer necessary.
+
+> For background, see [web-infra-dev/rsbuild#6991](https://github.com/web-infra-dev/rsbuild/pull/6991).
+
+### Remove `performance.profile`
+
+The `performance.profile` option has been removed. If you relied on it to emit a stats JSON file, use [stats.toJson()](/api/javascript-api/instance#stats-object) in a custom plugin instead:
+
+```ts title="rsbuild.config.ts"
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const statsJsonPlugin = {
+  name: 'stats-json-plugin',
+  setup(api) {
+    api.onAfterBuild(({ stats }) => {
+      writeFileSync(
+        join(api.context.distPath, 'stats.json'),
+        JSON.stringify(stats?.toJson({}), null, 2),
+      );
+    });
+  },
+};
+
+export default {
+  plugins: [statsJsonPlugin],
+};
+```
+
+### Migrate `performance.chunkSplit`
+
+`performance.chunkSplit` is deprecated in Rsbuild 2.0, but not removed yet, so it still works.
+
+We recommend migrating to the new [splitChunks](/config/split-chunks) option. It aligns with Rspack's [optimization.splitChunks](https://rspack.rs/plugins/webpack/split-chunks-plugin) and provides presets that mirror `performance.chunkSplit.strategy`.
+
+#### strategy
+
+- `strategy: 'split-by-experience'` → `splitChunks.preset: 'default'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'split-by-experience',
+-    },
+-  },
++  splitChunks: {
++    preset: 'default',
++  },
+};
+```
+
+- `strategy: 'split-by-module'` → `splitChunks.preset: 'per-package'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'split-by-module',
+-    },
+-  },
++  splitChunks: {
++    preset: 'per-package',
++  },
+};
+```
+
+- `strategy: 'single-vendor'` → `splitChunks.preset: 'single-vendor'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'single-vendor',
+-    },
+-  },
++  splitChunks: {
++    preset: 'single-vendor',
++  },
+};
+```
+
+- `strategy: 'all-in-one'` → disable chunk splitting
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'all-in-one',
+-    },
+-  },
++  splitChunks: false,
+};
+```
+
+- `strategy: 'custom'` + `splitChunks` → `splitChunks.preset: 'none'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'custom',
+-      splitChunks: {
+-        // ...
+-      },
+-    },
+-  },
++  splitChunks: {
++    preset: 'none',
++    // ...
++  },
+};
+```
+
+- `strategy: 'split-by-size'` → configure `minSize` / `maxSize` directly
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'split-by-size',
+-      minSize: 20000,
+-      maxSize: 50000,
+-    },
+-  },
++  splitChunks: {
++    preset: 'none',
++    minSize: 20000,
++    maxSize: 50000,
++  },
+};
+```
+
+- `override` → `splitChunks` directly
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      override: {
+-        // ...
+-      },
+-    },
+-  },
++  splitChunks: {
++    // ...
++  },
+};
+```
+
+#### forceSplitting
+
+`forceSplitting` is syntactic sugar for `cacheGroups`, so you can replace it directly with `cacheGroups`:
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      forceSplitting: {
+-        axios: /node_modules[\\/]axios/,
+-      },
+-    },
+-  },
++  splitChunks: {
++    cacheGroups: {
++      axios: {
++        test: /node_modules[\\/]axios/,
++        name: 'axios',
++        chunks: 'all',
++        priority: 0, // Use 1 when using single-vendor preset
++        enforce: true,
++      },
++    },
++  },
+};
+```
+
+### Proxy middleware upgraded
+
+Rsbuild has upgraded its dependency on [http-proxy-middleware](https://github.com/chimurai/http-proxy-middleware) from v2 to v4 and some options have changed.
+
+You can follow the examples below to migrate your config, or check the [http-proxy-middleware v3 breaking changes](https://github.com/chimurai/http-proxy-middleware/blob/master/MIGRATION_V3.md#v3-breaking-changes) for more details.
+
+- The `context` option is replaced by `pathFilter`:
+
+```diff title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: [
+      {
+-       context: '/api',
++       pathFilter: '/api',
+        target: 'https://example.com',
+      },
+    ],
+  },
+};
+```
+
+- Rsbuild now applies default proxy options to all config styles. In array-style proxy config, [`changeOrigin`](https://github.com/chimurai/http-proxy-middleware#httpxy-options) now defaults to `true`, matching the record-style config. If you relied on the previous `false` default, set it explicitly:
+
+```diff title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: [
+      {
+        pathFilter: '/api',
+        target: 'https://example.com',
++       changeOrigin: false,
+      },
+    ],
+  },
+};
+```
+
+- Proxy events are now configured in a unified way using the `on` option:
+
+```diff title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      '/api': {
+-       onOpen: () => {},
+-       onClose: () => {},
+-       onError: () => {},
+-       onProxyReq: () => {},
+-       onProxyRes: () => {},
++       on: {
++         open: () => {},
++         close: () => {},
++         error: () => {},
++         proxyReq: () => {},
++         proxyRes: () => {},
++       },
+      },
+    },
+  },
+};
+```
+
+## JavaScript API
+
+- Removed the deprecated `compiler` parameter from `rsbuild.build()`.
+- Removed the deprecated `compiler` parameter from `rsbuild.startDevServer()`.
+- Removed the deprecated [content-changed](/api/javascript-api/server-api#sockwrite) message type from `sockWrite`. Use `full-reload` instead.
+- Renamed `rsbuild.onAfterStartProdServer` method to `rsbuild.onAfterStartPreviewServer`
+- Renamed `rsbuild.onBeforeStartProdServer` method to `rsbuild.onBeforeStartPreviewServer`
+- The default value of the `loader` parameter of [loadConfig](/api/javascript-api/core#loadconfig) method has changed from `jiti` to `auto`, preferring the native Node.js loader.
+
+## Plugin API
+
+- Renamed `api.onAfterStartProdServer` hook to `api.onAfterStartPreviewServer`
+- Renamed `api.onBeforeStartProdServer` hook to `api.onBeforeStartPreviewServer`
+
+## Dropping webpack support
+
+Rsbuild 2.0 no longer supports using webpack as the bundler. In Rsbuild v1, this capability was mainly used to validate compatibility between Rspack and webpack. As Rspack has gradually matured and stabilized, this purpose is no longer necessary, so the related support has been removed.
+
+The specific changes are as follows:
+
+- Removed the `@rsbuild/webpack` package.
+- Removed the `@rsbuild/plugin-webpack-swc` package.
+- Removed the `provider` configuration option.
+- Removed the `tools.webpack` and `tools.webpackChain` configuration options.
+- Removed the `api.modifyWebpackChain` and `api.modifyWebpackConfig` plugin hooks.
+- Removed the `webpack` type from the `api.context.bundlerType`.
+- Removed webpack-related types.
+
+## Built-in rule changes
+
+The built-in JS and CSS transform rules now use [oneOf](https://rspack.rs/config/module-rules#rulesoneof) to separate different branches. If you customized the JS or CSS rules with [tools.bundlerChain](/config/tools/bundler-chain#toolsbundlerchain) or [api.modifyBundlerChain](/plugins/dev/hooks#modifybundlerchain), you may need to adjust your configuration.
+
+### JavaScript rule
+
+The built-in JS rule is now split into two `oneOf` branches:
+
+- `CHAIN_ID.ONE_OF.JS_MAIN`: for SWC transforms
+- `CHAIN_ID.ONE_OF.JS_RAW`: for `?raw` imports
+
+If you previously added loaders on `CHAIN_ID.RULE.JS`, move them to the `JS_MAIN` branch:
+
+```diff title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain(chain, { CHAIN_ID }) {
+      const jsRule = chain.module.rule(CHAIN_ID.RULE.JS);
+
+-     jsRule.use('my-loader').loader('my-loader');
++     jsRule
++       .oneOf(CHAIN_ID.ONE_OF.JS_MAIN)
++       .use('my-loader')
++       .loader('my-loader');
+    },
+  },
+};
+```
+
+### CSS rule
+
+The built-in CSS rule is split into three `oneOf` branches:
+
+- `CHAIN_ID.ONE_OF.CSS_MAIN`: normal CSS transforms
+- `CHAIN_ID.ONE_OF.CSS_RAW`: for `?raw` imports
+- `CHAIN_ID.ONE_OF.CSS_INLINE`: for `?inline` imports
+
+If you previously added loaders on `CHAIN_ID.RULE.CSS`, move them to the `CSS_MAIN` branch:
+
+```diff title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain(chain, { CHAIN_ID }) {
+      const cssRule = chain.module.rule(CHAIN_ID.RULE.CSS);
+
+-     cssRule.use('my-css-loader').loader('my-css-loader');
++     cssRule
++       .oneOf(CHAIN_ID.ONE_OF.CSS_MAIN)
++       .use('my-css-loader')
++       .loader('my-css-loader');
+    },
+  },
+};
+```
+
+The built-in rules in the Less/Sass/Stylus plugins have the same `oneOf` change, so update customizations to use the corresponding `ONE_OF` branches there as well.
+
+## Others
+
+- The query parameter `?__inline=false` has been removed, use `?url` instead.
+- The `dev.setupMiddlewares` option is deprecated, use [server.setup](/config/server/setup) instead.
+- `style-loader` has been upgraded from v3 to v4, and some options of `tools.styleLoader` have changed. See the [style-loader v4.0.0 release notes](https://github.com/webpack/style-loader/releases/tag/v4.0.0) for details.
+- The deprecated template parameters have been removed from `html.templateParameters`
+  - `webpackConfig`: use `rspackConfig` instead.
+  - `htmlWebpackPlugin`: use `htmlPlugin` instead.
+- If you customized Rsbuild logs with the global `logger.override()`, switch to [customLogger](/config/custom-logger) in v2. Instance loggers in v2 are no longer affected by the global `logger.override()`.

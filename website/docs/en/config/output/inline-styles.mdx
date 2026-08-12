@@ -1,0 +1,142 @@
+---
+description: 'Whether to inline output style files (.css files) into HTML with style tags.'
+---
+
+# output.inlineStyles
+
+- **Type:**
+
+```ts
+type InlineChunkTestFunction = (params: { size: number; name: string }) => boolean;
+
+type InlineChunkTest = RegExp | InlineChunkTestFunction;
+
+type InlineChunkConfig =
+  | boolean
+  | InlineChunkTest
+  | { enable?: boolean | 'auto'; test: InlineChunkTest };
+```
+
+- **Default:** `false`
+
+Whether to inline output style files (.css files) into HTML with `<style>` tags.
+
+When this option is enabled, style files are no longer written to the dist directory and only exist inside the HTML file.
+
+## Example
+
+By default, the following output files are generated:
+
+```bash
+dist/html/main/index.html
+dist/static/css/style.css
+dist/static/js/main.js
+```
+
+After enabling the `output.inlineStyles` option:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineStyles: true,
+  },
+};
+```
+
+The output files of production build will become:
+
+```bash
+dist/html/main/index.html
+dist/static/js/main.js
+```
+
+And `dist/static/css/style.css` will be inlined in `index.html`:
+
+```html
+<html>
+  <head>
+    <style>
+      /* content of dist/static/css/style.css */
+    </style>
+  </head>
+  <body></body>
+</html>
+```
+
+:::tip
+Setting `inlineStyles: true` is equivalent to setting [inlineStyles.enable](#enable) to `'auto'`. This indicates that inline styles will only be enabled in production mode.
+:::
+
+### Using RegExp
+
+To inline part of the CSS files, set `inlineStyles` to a regular expression that matches the URL of the CSS file that needs to be inlined.
+
+For example, to inline `main.css` into HTML, add the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineStyles: /[\\/]main\.\w+\.css$/,
+  },
+};
+```
+
+:::tip
+Production filenames include a hash value by default, such as `static/css/main.18a568e5ab.css`. In regular expressions, use `\w+` to match the hash.
+:::
+
+### Using function
+
+Set `output.inlineStyles` to a function that accepts the following parameters:
+
+- `name`: The filename, such as `static/css/main.18a568e5ab.css`.
+- `size`: The file size in bytes.
+
+To inline assets smaller than 10 kB, add the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineStyles({ size }) {
+      return size < 10 * 1000;
+    },
+  },
+};
+```
+
+## Options
+
+### enable
+
+- **Type:** `boolean | 'auto'`
+- **Default:** `false`
+
+Whether to enable the inline styles feature. If set to `'auto'`, it will be enabled when the `mode` is `'production'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineStyles: {
+      enable: 'auto',
+      test: /[\\/]main\.\w+\.css$/,
+    },
+  },
+};
+```
+
+### test
+
+- **Type:** `RegExp | ((params: { size: number; name: string }) => boolean)`
+
+The regular expression or function to match the CSS files that need to be inlined.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineStyles: {
+      enable: true,
+      test: /[\\/]main\.\w+\.css$/,
+    },
+  },
+};
+```

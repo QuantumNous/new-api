@@ -1,0 +1,46 @@
+---
+description: '在开发模式下，Rsbuild 默认会将构建产物保存在 dev server 的内存中，而不是写入磁盘，这样可以减少 fs 操作产生的开销。你可以参考 查看静态资源 查看当前构建生成的所有静态资源。'
+---
+
+# dev.writeToDisk
+
+- **类型：** `boolean | ((filename: string) => boolean)`
+- **默认值：** `false`
+
+用于控制是否将开发模式的构建产物写入到磁盘上。
+
+:::tip
+在开发模式下，Rsbuild 默认会将构建产物保存在 dev server 的内存中，而不是写入磁盘，这样可以减少 fs 操作产生的开销。你可以参考 [查看静态资源](/guide/basic/server#view-static-assets) 查看当前构建生成的所有静态资源。
+:::
+
+## 写入磁盘
+
+你可以选择将构建产物写入到磁盘，这通常用于排查构建产物的内容，或是配置静态资源的代理规则。
+
+只需要将 `dev.writeToDisk` 配置项设置为 `true` 即可：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    writeToDisk: true,
+  },
+};
+```
+
+:::tip
+`writeToDisk: true` 用于在开发模式下查看构建产物，它不会改变 dev server 的行为，通过浏览器访问文件时，dev server 仍将从内存中读取文件内容。
+:::
+
+## 匹配部分文件
+
+你也可以将 `dev.writeToDisk` 设置为函数来匹配一部分文件，函数返回 `false` 时不会写入文件，返回值 `true` 时会将文件写入磁盘。
+
+例如将文件写入磁盘，并排除热更新临时文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    writeToDisk: (file) => !file.includes('.hot-update.'),
+  },
+};
+```

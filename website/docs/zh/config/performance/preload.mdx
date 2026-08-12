@@ -1,0 +1,244 @@
+---
+description: '为 Rsbuild 构建生成的静态资源注入 link 标签。'
+---
+
+# performance.preload
+
+- **类型：**
+
+```ts
+type Preload = undefined | true | PreloadOptions | PreloadOptions[];
+
+interface PreloadOptions {
+  type?: ResourceHintsIncludeType;
+  include?: ResourceHintsFilter;
+  exclude?: ResourceHintsFilter;
+  dedupe?: boolean;
+}
+```
+
+- **默认值：** `undefined`
+
+为 Rsbuild 构建生成的静态资源注入 [`<link rel="preload">`](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Attributes/rel/preload) 标签。
+
+## 什么是 preload
+
+`<link>` 元素的 rel 属性的 preload 值允许你在 HTML 的 `<head>` 中声明获取请求，指定页面很快就需要的资源，这些资源是你希望在页面生命周期的早期就开始加载的，早于浏览器的主要渲染机制启动。
+
+这可以确保它们更早可用，并且不太可能阻塞页面的渲染，从而提高性能。尽管名称中包含 "load" 一词，但它并不加载和执行脚本，而只是安排脚本以更高的优先级进行下载和缓存。
+
+## 启用 preload
+
+当设置 `performance.preload` 为 `true` 时，Rsbuild 将使用以下默认选项，对资源进行预获取，这表示 preload 当前页面的所有异步资源，包含异步 JS 及其关联的 CSS、image、font 等资源。
+
+```js
+const defaultOptions = {
+  type: 'async-chunks',
+};
+```
+
+比如，在入口文件中动态引入了其他模块：
+
+```js title="index.js"
+import('./foo');
+import('./bar');
+```
+
+在 HTML 中注入的标签为：
+
+```html
+<html>
+  <head>
+    <title>Rsbuild App</title>
+    <script defer src="/static/js/index.js"></script>
+    <!-- 生成的 preload 标签 -->
+    <link href="/static/js/async/src_bar_js.js" rel="preload" as="script" />
+    <link href="/static/js/async/src_foo_js.js" rel="preload" as="script" />
+  </head>
+</html>
+```
+
+## 手动注入
+
+`performance.preload` 只能为 Rsbuild 构建生成的静态资源注入 preload 标签，如果你需要 preload 其他资源，可以通过 [html.tags](/config/html/tags) 手动添加标签：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'link',
+        attrs: {
+          rel: 'preload',
+          as: 'script',
+          href: 'https://example.com/some-script.js',
+        },
+      },
+    ],
+  },
+};
+```
+
+注入的 HTML 标签如下：
+
+```html
+<link rel="preload" as="script" href="https://example.com/some-script.js" />
+```
+
+## 选项
+
+`performance.preload` 可以设置为一个对象或对象数组来指定选项。
+
+### preload.type
+
+- **类型：**
+
+```ts
+type ResourceHintsIncludeType = 'async-chunks' | 'initial' | 'all-assets' | 'all-chunks';
+```
+
+- **默认值：** `'async-chunks'`
+
+指定哪些类型的资源会被包含，目前支持的值如下：
+
+- `async-chunks`: 包含当前页面的所有异步资源，比如异步的 JS chunks，以及它关联的 CSS、image、font 等静态资源。
+- `initial`: 包含当前页面的所有非异步资源。
+- `all-chunks`: 包含当前页面的所有异步和非异步资源。
+- `all-assets`: 包含所有页面的所有资源。
+
+例如，为了包含当前页面中所有 png 图片，可以配置为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preload: {
+      type: 'all-chunks',
+      include: [/\.png$/],
+    },
+  },
+};
+```
+
+你也可以将 `performance.preload` 设置为数组来应用多条 preload 规则，匹配到的资源会被合并并去重：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preload: [
+      {
+        include: /\.js$/,
+      },
+      {
+        type: 'all-chunks',
+        include: /\.png$/,
+      },
+    ],
+  },
+};
+```
+
+### preload.include
+
+- **类型：**
+
+```ts
+type ResourceHintsFilter =
+  | string
+  | RegExp
+  | ((filename: string) => boolean)
+  | Array<string | RegExp | ((filename: string) => boolean)>;
+```
+
+- **默认值：** `undefined`
+
+一个额外的过滤器，用于指定哪些资源会被包含。
+
+- 当 `include` 为一个正则表达式时，它会被直接用于匹配文件名：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preload: {
+      // 匹配所有 .png 文件
+      include: /\.png$/,
+    },
+  },
+};
+```
+
+- 当 `include` 为一个字符串时，它会被转换为正则表达式来匹配文件名：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preload: {
+      include: '\\.png', // 等价于 `new RegExp('\\.png')`
+    },
+  },
+};
+```
+
+- 当 `include` 为函数时，它会被调用并传入文件名作为参数：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preload: {
+      include: (filename) => filename.endsWith('.png'),
+    },
+  },
+};
+```
+
+- 当 `include` 为一个数组时，它可以包含多个过滤器，文件名只要匹配任何一个过滤器都会被包含：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preload: {
+      include: [/\.png$/, '\\.jpg'],
+    },
+  },
+};
+```
+
+### preload.exclude
+
+- **类型：**
+
+```ts
+type ResourceHintsFilter =
+  | string
+  | RegExp
+  | ((filename: string) => boolean)
+  | Array<string | RegExp | ((filename: string) => boolean)>;
+```
+
+- **默认值：** `undefined`
+
+一个额外的过滤器，用于指定哪些资源会被排除，用法与 `include` 类似。
+
+### preload.dedupe
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+是否对已经在当前 HTML 内容中存在的 script 资源进行预加载。默认情况下，如果某个资源已通过 script 标签添加到当前的 HTML 中，则不会进行额外的预加载。
+
+设置为 `false` 时，Rsbuild 将为所有符合条件的资源生成 preload 标签，即使这些资源已经在 HTML 中存在。
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preload: {
+      dedupe: false,
+    },
+  },
+};
+```
+
+## 版本历史
+
+| 版本    | 变更内容                                |
+| ------- | --------------------------------------- |
+| v2.0.12 | 支持将 `performance.preload` 设置为数组 |

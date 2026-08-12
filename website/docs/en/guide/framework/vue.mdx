@@ -1,0 +1,97 @@
+---
+description: 'This document explains how to build Vue applications with Rsbuild, including Vue 2 support.'
+---
+
+# Vue
+
+This document explains how to build Vue applications with Rsbuild, including Vue 2 support.
+
+## Create a Vue application
+
+Create a Vue application with Rsbuild using [create-rsbuild](/guide/start/quick-start#create-an-rsbuild-application). Run this command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+  }}
+/>
+
+Then select `Vue` when prompted to "Select framework".
+
+## Vue 3
+
+### Use Vue in an existing project
+
+To compile Vue SFC (Single File Components), register the Rsbuild [Vue plugin](/plugins/list/plugin-vue). The plugin automatically adds the necessary configuration for Vue builds.
+
+For example, register in `rsbuild.config.ts`:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginVue } from '@rsbuild/plugin-vue';
+
+export default defineConfig({
+  plugins: [pluginVue()],
+});
+```
+
+:::tip
+For projects using Vue CLI, you can refer to the [Vue CLI Migration Guide](/guide/migration/vue-cli).
+:::
+
+### Use the JSX syntax of Vue
+
+To use the JSX syntax of Vue, you also need to register the [@rsbuild/plugin-vue-jsx](https://github.com/rstackjs/rsbuild-plugin-vue-jsx).
+
+### TypeScript support
+
+Rsbuild supports compiling TypeScript by default.
+
+Please refer to the [TypeScript - IDE Support](https://vuejs.org/guide/typescript/overview.html#ide-support) section of the Vue documentation to learn how to set up Vue TypeScript support in your IDE.
+
+## Vue 2
+
+### Use Vue 2 in an existing project
+
+To compile Vue SFC (Single File Components), you need to register the Rsbuild [Vue 2 plugin](https://github.com/rstackjs/rsbuild-plugin-vue2). The plugin will automatically add the necessary configuration for Vue builds.
+
+For example, register in `rsbuild.config.ts`:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginVue2 } from '@rsbuild/plugin-vue2';
+
+export default defineConfig({
+  plugins: [pluginVue2()],
+});
+```
+
+:::tip
+
+- The Vue 2 plugin only supports Vue >= 2.7.0.
+- For projects using Vue CLI, you can refer to the [Vue CLI Migration Guide](/guide/migration/vue-cli).
+
+:::
+
+### Use the JSX syntax of Vue
+
+To use the JSX syntax of Vue, you also need to register the [@rsbuild/plugin-vue2-jsx](https://github.com/rstackjs/rsbuild-plugin-vue2-jsx).
+
+### Type declarations
+
+In a TypeScript project, you need to add type definitions for `*.vue` files so that TypeScript can recognize them correctly.
+
+Create `env.d.ts` in the `src` directory and add the following content:
+
+```ts title="src/env.d.ts"
+declare module '*.vue' {
+  import Vue from 'vue';
+
+  export default Vue;
+}
+```

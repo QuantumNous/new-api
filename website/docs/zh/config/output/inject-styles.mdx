@@ -1,0 +1,42 @@
+---
+description: '控制是否将 CSS 内联到 JS 文件中，并在运行时注入页面，而不是提取为独立的 `.css` 文件。'
+---
+
+# output.injectStyles
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+是否将 CSS 样式插入到 DOM 中。
+
+默认情况下，Rsbuild 会把 CSS 提取为独立的 `.css` 文件，并输出到构建产物目录。设置该选项为 `true` 后，CSS 文件会被内联到 JS 文件中，并在运行时通过 `<style>` 标签插入到页面上。该功能基于 [style-loader](https://npmjs.com/package/style-loader) 实现。
+
+## 示例
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    injectStyles: true,
+  },
+};
+```
+
+## 配置 style-loader
+
+在开启 `output.injectStyles` 时，你可以通过 [tools.styleLoader](/config/tools/style-loader) 来修改 `style-loader` 的选项。
+
+## 使用场景
+
+建议仅在开发模式开启 `injectStyles` 选项。
+
+对于生产模式构建，建议使用 Rsbuild 的默认行为，将 CSS 抽取为单独的 bundle，以便浏览器能够并行加载 CSS 和 JS 资源。
+
+比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    injectStyles: process.env.NODE_ENV === 'development',
+  },
+};
+```

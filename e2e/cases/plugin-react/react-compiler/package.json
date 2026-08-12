@@ -1,0 +1,10 @@
+{
+  "name": "@e2e/react-compiler",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  }
+}

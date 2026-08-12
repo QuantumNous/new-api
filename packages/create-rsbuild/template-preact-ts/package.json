@@ -1,0 +1,20 @@
+{
+  "name": "rsbuild-preact-ts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rsbuild build",
+    "dev": "rsbuild --open",
+    "preview": "rsbuild preview"
+  },
+  "dependencies": {
+    "preact": "^10.29.3"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.1.4",
+    "@rsbuild/plugin-preact": "^2.0.0",
+    "@types/node": "^24.13.2",
+    "typescript": "^6.0.3"
+  }
+}

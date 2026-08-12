@@ -1,0 +1,24 @@
+name: Issue Labeled
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+jobs:
+  reply-labeled:
+    name: Reply need reproduction
+    runs-on: ubuntu-latest
+    if: github.repository == 'web-infra-dev/rsbuild'
+    permissions:
+      issues: write
+    steps:
+      - name: need reproduction
+        if: github.event.label.name == 'need reproduction'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_BODY: |
+            Hello @${{ github.event.issue.user.login }}. Please provide a reproduction repository or online demo. For background, see [Why reproductions are required](https://antfu.me/posts/why-reproductions-are-required). Thanks ❤️
+        run: gh issue comment "$ISSUE_NUMBER" --repo "$GITHUB_REPOSITORY" --body "$COMMENT_BODY"
