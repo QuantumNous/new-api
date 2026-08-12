@@ -127,6 +127,7 @@ func main() {
 		}
 		return a
 	}
+	service.TaskFailoverRecreateFunc = relay.RecreateAsyncTaskOnChannel
 
 	// Channel upstream model update check task
 	controller.StartChannelUpstreamModelUpdateTask()

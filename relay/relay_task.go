@@ -216,8 +216,8 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
-	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过）
-	if info.Billing == nil && !info.PriceData.FreeModel {
+	// 7. 预扣费（仅首次 — 重试时 info.Billing 已存在，跳过；跨渠 failover 重建跳过）
+	if info.Billing == nil && !info.PriceData.FreeModel && !info.SkipPreConsume {
 		info.ForcePreConsume = true
 		if apiErr := service.PreConsumeBilling(c, info.PriceData.Quota, info); apiErr != nil {
 			return nil, service.TaskErrorFromAPIError(apiErr)
