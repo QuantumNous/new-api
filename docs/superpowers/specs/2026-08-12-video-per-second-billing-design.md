@@ -278,6 +278,37 @@ rather than separate `seconds` and `resolution` ratios so that repeated
 Group ratio, wallet, subscription weighting, refunds, and pre-consumption are
 untouched. This design supplies billable units and nothing else.
 
+## Upstream Estimates Stay Authoritative Where They Exist
+
+One channel, `modelapiseedance`, returns `usage.estimated_usd` on submit and
+overwrites the reservation through the existing `AdjustBillingOnSubmit` seam
+(`relay/relay_task.go` step 11 replaces `OtherRatios` wholesale). Every other
+video channel inherits `BaseBilling`'s no-op, so for them the configured table
+is the final price.
+
+That overwrite is kept deliberately.
+
+The upstream prices the same way this table does — per second of duration — so
+for a request with no reference video both computations take the same inputs and
+produce the same number. The overwrite is a no-op in value terms.
+
+Where they diverge is the `total_duration` case, and there the upstream is
+strictly better informed. Input media length cannot be determined locally
+without fetching customer-controlled URLs, so the reservation falls back to
+`fallback_seconds` at the maximum supported duration. The upstream knows the
+real length. Suppressing the correction would bill every reference-video request
+at the worst case and never refund the difference — which is neither the
+published price nor a defensible charge.
+
+`recalcQuotaFromRatios` divides out the previous ratios before applying the new
+ones, so `ModelPrice × QuotaPerUnit × GroupRatio` survives the replacement and
+group-specific discounts still apply.
+
+So: the configured table governs the reservation everywhere, and governs the
+final price everywhere except this one channel, where a better-informed upstream
+figure supersedes it. This is not the table losing authority — it is the same
+per-second contract, priced by the party that can see the input media.
+
 ## Multi-Node Behaviour
 
 Production is multi-node (Rule 11).
