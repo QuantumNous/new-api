@@ -129,6 +129,7 @@ func multipartFormToBodyMap(formData *multipart.Form) map[string]interface{} {
 	scalarKeys := []string{
 		"prompt", "model", "seconds", "duration", "size", "aspect_ratio", "ratio",
 		"resolution", "fps", "seed",
+		"image", "input_reference", "first_image", "first_frame", "last_frame", "last_image",
 	}
 	for _, key := range scalarKeys {
 		if vals := formData.Value[key]; len(vals) > 0 {
@@ -146,7 +147,10 @@ func multipartFormToBodyMap(formData *multipart.Form) map[string]interface{} {
 		}
 	}
 	// JSON array fields may be posted as a single JSON string.
-	for _, key := range []string{"reference_images", "reference_videos", "reference_audios", "image_with_roles", "extra"} {
+	for _, key := range []string{
+		"reference_images", "reference_videos", "reference_audios", "image_with_roles", "extra",
+		"images", "image_urls", "image_url", "referenceImages",
+	} {
 		if vals := formData.Value[key]; len(vals) > 0 {
 			raw := strings.TrimSpace(vals[0])
 			if raw == "" {
@@ -155,6 +159,9 @@ func multipartFormToBodyMap(formData *multipart.Form) map[string]interface{} {
 			var parsed interface{}
 			if err := common.Unmarshal([]byte(raw), &parsed); err == nil {
 				body[key] = parsed
+			} else {
+				// Plain URL string (or comma-separated) fallback.
+				body[key] = raw
 			}
 		}
 	}

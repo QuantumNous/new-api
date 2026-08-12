@@ -43,6 +43,68 @@ func TestNormalizeCreateBodyMapsImageWithRoles(t *testing.T) {
 	}
 }
 
+func TestNormalizeCreateBodyMapsImagesToReference(t *testing.T) {
+	body := map[string]interface{}{
+		"prompt": "hello",
+		"images": []interface{}{
+			"https://cdn.example.com/a.png",
+			"https://cdn.example.com/b.png",
+		},
+		"resolution": "1080p",
+	}
+	if err := normalizeCreateBody(body, "zzdh-Minimax-h3"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := body["images"]; ok {
+		t.Fatal("images alias should be removed")
+	}
+	refs, ok := body["reference_images"].([]interface{})
+	if !ok || len(refs) != 2 {
+		t.Fatalf("reference_images = %#v", body["reference_images"])
+	}
+	if refs[0] != "https://cdn.example.com/a.png" || refs[1] != "https://cdn.example.com/b.png" {
+		t.Fatalf("refs = %#v", refs)
+	}
+	if body["model"] != "zzdh-Minimax-h3-1080p" {
+		t.Fatalf("model = %#v", body["model"])
+	}
+}
+
+func TestNormalizeCreateBodyMapsInputReference(t *testing.T) {
+	body := map[string]interface{}{
+		"prompt":          "hello",
+		"input_reference": "https://cdn.example.com/ref.png",
+	}
+	if err := normalizeCreateBody(body, "zzdh-Minimax-h3"); err != nil {
+		t.Fatal(err)
+	}
+	refs, ok := body["reference_images"].([]interface{})
+	if !ok || len(refs) != 1 || refs[0] != "https://cdn.example.com/ref.png" {
+		t.Fatalf("reference_images = %#v", body["reference_images"])
+	}
+	if _, ok := body["input_reference"]; ok {
+		t.Fatal("input_reference should be removed")
+	}
+}
+
+func TestNormalizeCreateBodyFirstFrameAlias(t *testing.T) {
+	body := map[string]interface{}{
+		"prompt":      "hello",
+		"first_frame": "https://cdn.example.com/first.png",
+		"images":      []interface{}{"https://cdn.example.com/ref.png"},
+	}
+	if err := normalizeCreateBody(body, "zzdh-Minimax-h3"); err != nil {
+		t.Fatal(err)
+	}
+	if body["image"] != "https://cdn.example.com/first.png" {
+		t.Fatalf("image = %#v", body["image"])
+	}
+	refs, ok := body["reference_images"].([]interface{})
+	if !ok || len(refs) != 1 || refs[0] != "https://cdn.example.com/ref.png" {
+		t.Fatalf("reference_images = %#v", body["reference_images"])
+	}
+}
+
 func TestNormalizeCreateBodyStripsMismatchedResolution(t *testing.T) {
 	body := map[string]interface{}{
 		"prompt":     "x",

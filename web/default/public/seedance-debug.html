@@ -2849,22 +2849,7 @@
         plazaLoaded = true;
         setStatus(`加载模型广场失败：${err.message}`, "bad");
       }
-      // 调试页固定展示的模型（即使广场为空或尚未上架）
-      {
-        const seen = new Set(plazaModels.map((m) => m.id));
-        for (const id of ["fr-seedance-2.0", "fr-seedance-2.5", "sdvip720"]) {
-          if (seen.has(id)) continue;
-          seen.add(id);
-          const p = MODEL_PROFILES[id];
-          plazaModels.push({
-            id,
-            label: (p && p.label) || id,
-            description: (p && p.hint) || "",
-            profileKey: resolveProfileKey(id),
-          });
-        }
-        plazaModels.sort((a, b) => a.id.localeCompare(b.id, "zh-CN"));
-      }
+      // 仅展示模型广场中已上架的模型，不强制注入未上架 ID
       renderModelSelect();
     }
 
