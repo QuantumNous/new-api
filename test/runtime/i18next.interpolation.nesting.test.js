@@ -34,6 +34,7 @@ describe('i18next.interpolation.nesting', () => {
             test_baz: 'baz',
             foo: '$t(bar, {"firstName": "{{firstName}}", "lastName": "{{lastName}}" })',
             fooSingle: `$t(bar, {'firstName': '{{firstName}}', 'lastName': '{{lastName}}' })`,
+            fooMultiline: '$t(bar, {\n  "firstName": "Marc",\n  "lastName": "Weber"\n})',
             bar: '{{firstName}} {{lastName}}',
 
             item_one: 'item',
@@ -125,6 +126,10 @@ describe('i18next.interpolation.nesting', () => {
           { firstName: `Cool`, lastName: `Dood`, interpolation: { escapeValue: false } },
         ],
         expected: `Cool Dood`,
+      },
+      {
+        args: ['fooMultiline'],
+        expected: `Marc Weber`,
       },
       {
         args: [

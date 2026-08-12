@@ -607,7 +607,7 @@ class Translator extends EventEmitter {
     const useOptionsReplaceForData = options.replace && !isString(options.replace);
     let data = useOptionsReplaceForData ? options.replace : options;
     if (useOptionsReplaceForData && typeof options.count !== 'undefined') {
-      data.count = options.count;
+      data = { ...data, count: options.count };
     }
 
     if (this.options.interpolation.defaultVariables) {

@@ -255,6 +255,12 @@ describe('Translator', () => {
           expect(t.translate.apply(t, test.args)).toEqual(test.expected);
         });
       });
+
+      it('does not mutate the passed replace object when count is set', () => {
+        const replace = { testParam: 'test-param' };
+        t.translate('translation:test', { returnDetails: true, replace, count: 1 });
+        expect(replace).toEqual({ testParam: 'test-param' });
+      });
     });
   });
 });
