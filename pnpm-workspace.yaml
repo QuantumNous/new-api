@@ -10,6 +10,7 @@ packages:
   - 'examples/svelte/*'
   - 'examples/vue/*'
   - 'examples/lit/*'
+  - 'examples/marko/*'
   - 'benchmarks'
 
 allowBuilds:

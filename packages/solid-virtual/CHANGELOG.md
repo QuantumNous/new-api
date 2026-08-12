@@ -1,5 +1,18 @@
 # @tanstack/solid-virtual
 
+## 3.13.33
+
+### Patch Changes
+
+- Updated dependencies [[`6cbecd8`](https://github.com/TanStack/virtual/commit/6cbecd887df56faaee3b6a81a1aae8049de0671e), [`d49cc52`](https://github.com/TanStack/virtual/commit/d49cc526fe248be7b5ad97ec6ac814db8271b0d0), [`cf7834d`](https://github.com/TanStack/virtual/commit/cf7834daade953fea5dfd2ab5685c15771ca300a)]:
+  - @tanstack/virtual-core@3.17.4
+
+## 3.13.32
+
+### Patch Changes
+
+- [#1203](https://github.com/TanStack/virtual/pull/1203) [`95ef53b`](https://github.com/TanStack/virtual/commit/95ef53b7fdfe79b0fc190a83ef63a15fa40e50bc) - Preserve measured item sizes when reactive virtualizer options change.
+
 ## 3.13.31
 
 ### Patch Changes

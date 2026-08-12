@@ -81,7 +81,9 @@ function createVirtualizerBase<
         },
       }),
     )
-    virtualizer.measure()
+    virtualizer._willUpdate()
+    setVirtualItems(reconcile(instance.getVirtualItems(), { key: 'index' }))
+    setTotalSize(instance.getTotalSize())
   })
 
   return virtualizer

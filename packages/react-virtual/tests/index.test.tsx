@@ -27,6 +27,7 @@ interface ListProps {
   itemSize?: number
   rangeExtractor?: (range: Range) => number[]
   dynamic?: boolean
+  gap?: number
 }
 
 function List({
@@ -37,6 +38,7 @@ function List({
   itemSize,
   rangeExtractor,
   dynamic,
+  gap,
 }: ListProps) {
   renderer()
 
@@ -57,6 +59,7 @@ function List({
     },
     measureElement: () => itemSize ?? 0,
     rangeExtractor,
+    gap,
   })
 
   React.useEffect(() => {
@@ -158,6 +161,23 @@ test('should handle count change', () => {
   expect(screen.queryByText('Row 2')).toBeInTheDocument()
   expect(screen.queryByText('Row 4')).toBeInTheDocument()
   expect(screen.queryByText('Row 5')).not.toBeInTheDocument()
+})
+
+test('should handle gap change', () => {
+  const { rerender } = render(<List count={10} gap={0} />)
+
+  expect(screen.getByTestId('item-1')).toHaveStyle({
+    transform: 'translateY(50px)',
+  })
+
+  rerender(<List count={10} gap={40} />)
+
+  expect(screen.getByTestId('item-1')).toHaveStyle({
+    transform: 'translateY(90px)',
+  })
+  expect(screen.getByTestId('item-2')).toHaveStyle({
+    transform: 'translateY(180px)',
+  })
 })
 
 test('should handle handle height change', () => {

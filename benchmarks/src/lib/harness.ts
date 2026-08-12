@@ -8,6 +8,8 @@ import type { ScenarioInput, ScenarioMetrics } from '../scenarios/types'
 export interface HarnessHandle {
   /** Container element the library is told to scroll. */
   getScrollContainer: () => HTMLElement | null
+  /** Optional wider DOM root for accuracy probes (e.g. virtualized item wrappers). */
+  getSearchRoot?: () => HTMLElement | null
   /** Programmatically scroll to a target offset (px). */
   scrollToOffset?: (offset: number) => void
   /** Programmatically scroll to a target index. Some libraries expose
@@ -42,6 +44,21 @@ declare global {
 
 function nextFrame(): Promise<number> {
   return new Promise((resolve) => requestAnimationFrame(resolve))
+}
+
+async function waitForTargetItem(
+  searchRoot: HTMLElement,
+  targetIndex: number,
+  timeoutMs = 2000,
+): Promise<HTMLElement | null> {
+  const selector = `[data-index="${targetIndex}"]`
+  const start = performance.now()
+  while (performance.now() - start < timeoutMs) {
+    const el = searchRoot.querySelector(selector) as HTMLElement | null
+    if (el) return el
+    await nextFrame()
+  }
+  return searchRoot.querySelector(selector) as HTMLElement | null
 }
 
 function waitFor<T>(
@@ -203,13 +220,8 @@ export function installBenchAPI(): void {
         }
         actionMs = performance.now() - t0
 
-        // Now: find the DOM element for the target index. Its viewport-relative
-        // top tells us where it actually landed. With align:'start', we want
-        // item[targetIndex]'s top to be at viewport top — i.e., offset 0.
-        const itemSelector = `[data-index="${targetIndex}"]`
-        const itemEl = container.querySelector(
-          itemSelector,
-        ) as HTMLElement | null
+        const searchRoot = h.getSearchRoot?.() ?? container
+        const itemEl = await waitForTargetItem(searchRoot, targetIndex)
         if (itemEl) {
           const itemRect = itemEl.getBoundingClientRect()
           const containerRect = container.getBoundingClientRect()
@@ -269,11 +281,8 @@ export function installBenchAPI(): void {
         }
         actionMs = performance.now() - t0
 
-        // Compute landing error: distance between the relevant edge of the
-        // target item and the relevant edge of the viewport.
-        const itemEl = container.querySelector(
-          `[data-index="${targetIndex}"]`,
-        ) as HTMLElement | null
+        const searchRoot = h.getSearchRoot?.() ?? container
+        const itemEl = await waitForTargetItem(searchRoot, targetIndex)
         if (itemEl) {
           const iRect = itemEl.getBoundingClientRect()
           const cRect = container.getBoundingClientRect()

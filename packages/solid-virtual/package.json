@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/solid-virtual",
-  "version": "3.13.31",
+  "version": "3.13.33",
   "description": "Headless UI for virtualizing scrollable elements in Solid",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -26,6 +26,8 @@
     "clean": "premove ./dist ./coverage",
     "test:eslint": "eslint ./src",
     "test:types": "tsc",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm run test:lib --watch",
     "test:build": "publint --strict",
     "build": "vite build"
   },

@@ -1,6 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { RacListboxPageRoot } from './pages/RacListboxPage'
+import { RacPageRoot } from './pages/RacPage'
 import { TanstackPageRoot } from './pages/TanstackPage'
+import { TanstackRacPageRoot } from './pages/TanstackRacPage'
 import { VirtuaPageRoot } from './pages/VirtuaPage'
 import { VirtuosoPageRoot } from './pages/VirtuosoPage'
 import { WindowPageRoot } from './pages/WindowPage'
@@ -28,12 +31,18 @@ function App() {
   switch (lib) {
     case 'tanstack':
       return <TanstackPageRoot scenario={scenario} />
+    case 'tanstack-rac':
+      return <TanstackRacPageRoot scenario={scenario} />
     case 'virtua':
       return <VirtuaPageRoot scenario={scenario} />
     case 'virtuoso':
       return <VirtuosoPageRoot scenario={scenario} />
     case 'window':
       return <WindowPageRoot scenario={scenario} />
+    case 'rac':
+      return <RacPageRoot scenario={scenario} />
+    case 'rac-listbox':
+      return <RacListboxPageRoot scenario={scenario} />
     default:
       return (
         <div style={{ padding: 24 }}>

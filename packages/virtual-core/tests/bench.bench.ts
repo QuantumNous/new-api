@@ -243,3 +243,74 @@ describe('Layer 6: defaultRangeExtractor', () => {
     })
   }
 })
+
+// ─── Multi-lane: cold-mount lane assignment (getFurthestMeasurement) ──────────
+// Divergent lane heights (variable estimateSize) force the backward scan in
+// getFurthestMeasurement to walk further before all lanes "settle".
+
+describe('Multi-lane cold mount: getMeasurements with variable sizes', () => {
+  for (const lanes of [2, 4, 8]) {
+    for (const n of [10000, 100000]) {
+      bench(`lanes=${lanes} n=${n}`, () => {
+        const v = new Virtualizer({
+          count: n,
+          lanes,
+          // Variable sizes → lanes diverge → longer backward scans.
+          estimateSize: (i: number) => 20 + ((i * 37) % 120),
+          getScrollElement: () => null,
+          scrollToFn: () => {},
+          observeElementRect: () => {},
+          observeElementOffset: () => {},
+        })
+        ;(v as any).getMeasurements()
+      })
+    }
+  }
+})
+
+// Uniform sizes: the common same-height grid. The old backward scan settled
+// quickly here (balanced lanes → shallow walk), so this isolates the flat
+// constant-factor win from dropping the per-placement Map allocations + sort,
+// independent of scan depth. Guards against regressing the most common case.
+describe('Multi-lane cold mount: getMeasurements with uniform sizes', () => {
+  for (const lanes of [2, 4, 8]) {
+    for (const n of [10000, 100000]) {
+      bench(`lanes=${lanes} n=${n}`, () => {
+        const v = new Virtualizer({
+          count: n,
+          lanes,
+          estimateSize: () => 50,
+          getScrollElement: () => null,
+          scrollToFn: () => {},
+          observeElementRect: () => {},
+          observeElementOffset: () => {},
+        })
+        ;(v as any).getMeasurements()
+      })
+    }
+  }
+})
+
+// Worst case: 'measure' mode keeps items uncached across rebuilds, so every
+// rebuild re-runs getFurthestMeasurement for the whole (unmeasured) list.
+describe('Multi-lane rebuild storm: measure mode, 50× getMeasurements', () => {
+  for (const lanes of [2, 4]) {
+    const n = 20000
+    bench(`lanes=${lanes} n=${n} ×50 rebuilds`, () => {
+      const v = new Virtualizer({
+        count: n,
+        lanes,
+        laneAssignmentMode: 'measured',
+        estimateSize: (i: number) => 20 + ((i * 37) % 120),
+        getScrollElement: () => null,
+        scrollToFn: () => {},
+        observeElementRect: () => {},
+        observeElementOffset: () => {},
+      })
+      for (let r = 0; r < 50; r++) {
+        ;(v as any).itemSizeCacheVersion++
+        ;(v as any).getMeasurements()
+      }
+    })
+  }
+})

@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@tanstack/vue-query": "^5.80.7",
-    "@tanstack/vue-virtual": "^3.13.31",
+    "@tanstack/vue-virtual": "^3.13.32",
     "vue": "^3.5.16"
   },
   "devDependencies": {

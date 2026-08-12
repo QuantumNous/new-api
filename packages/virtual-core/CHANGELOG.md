@@ -1,5 +1,15 @@
 # @tanstack/virtual-core
 
+## 3.17.4
+
+### Patch Changes
+
+- [#1224](https://github.com/TanStack/virtual/pull/1224) [`6cbecd8`](https://github.com/TanStack/virtual/commit/6cbecd887df56faaee3b6a81a1aae8049de0671e) - Improve multi-lane virtualization performance: replace the backward scan in getMeasurements with an incremental per-lane argmin (O(lanes) shortest-lane lookup). Placement output is unchanged and the single-lane fast path is untouched.
+
+- [#1223](https://github.com/TanStack/virtual/pull/1223) [`d49cc52`](https://github.com/TanStack/virtual/commit/d49cc526fe248be7b5ad97ec6ac814db8271b0d0) - Made gap option changes invalidate measurements
+
+- [#1220](https://github.com/TanStack/virtual/pull/1220) [`cf7834d`](https://github.com/TanStack/virtual/commit/cf7834daade953fea5dfd2ab5685c15771ca300a) - Reset iOS gesture/deferral state in `cleanup()` so it no longer leaks across scroll element swaps.
+
 ## 3.17.3
 
 ### Patch Changes
