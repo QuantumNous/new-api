@@ -22,6 +22,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -33,6 +34,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -40,11 +42,134 @@ import (
 
 const videoGenerationsPath = "/v1/videos/generations"
 
+// defaultUpstreamResolution is the tier the upstream renders when the request
+// omits `resolution` (BlockRun SDK v0.17.0 VideoGenerateOptions: "Seedance
+// defaults to 720p"). Naming it here is behaviour-preserving — validateResolution
+// already treats "" as the model default — and lets the configured price table
+// match a rule on the tier actually rendered rather than refusing to price a
+// request whose tier is in fact documented.
+const defaultUpstreamResolution = "720p"
+
 type TaskAdaptor struct {
 	taskcommon.BaseBilling
 	ChannelType int
 	apiKey      string // EVM wallet private key (0x hex)
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those. This channel
+// forwards `resolution` upstream verbatim as a tier label, which
+// NormalizeResolution passes through after folding case ("4K" -> "4k"), so a
+// value validateResolution accepts stays priceable.
+//
+// One accepted value is deliberately NOT priceable: 360p is in this channel's
+// supportedResolutions but has no tier in the shared vocabulary. Refusing is the
+// safe outcome — folding it into 480p would overcharge silently, whereas
+// refusing leaves an unconfigured model on the per-call path and makes a
+// configured one fail loudly at submit rather than mis-bill.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
+}
+
+// EstimateBilling captures the per-second billing inputs. This channel bills
+// purely per call today, so there is no legacy per-second estimate to preserve:
+// it always returns nil and all per-second pricing flows through
+// SecondBillingRatios. A model absent from the price table is left exactly as it
+// is today.
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if info == nil {
+		return nil
+	}
+	// Reuse the request already parsed by BindSeedanceRequest instead of
+	// re-decoding the body.
+	seedReq, err := taskcommon.GetSeedanceRequest(c)
+	if err != nil || seedReq == nil {
+		return nil
+	}
+	// taskcommon.SeedanceBillableSeconds is deliberately NOT reused: it encodes
+	// Ark's semantics, and neither half holds for this upstream. Ark renders 5s
+	// when the length is omitted, whereas BlockRun documents an absent
+	// duration_seconds as "the model's default duration" — a per-model number
+	// this gateway does not know. And Ark lets `frames` win over `duration`,
+	// whereas this channel drops frames entirely (see droppedSeedanceFields), so
+	// refusing to price a request that carries both would refuse a length this
+	// channel does know.
+	//
+	// What remains is the one case both agree on: a non-positive or absent
+	// duration is not determinable. Capture nothing rather than price off a
+	// guess, which leaves the request on the per-call path exactly as today.
+	if seedReq.Duration == nil || *seedReq.Duration <= 0 {
+		return nil
+	}
+	seconds := *seedReq.Duration
+
+	resolution := seedReq.Resolution
+	if strings.TrimSpace(resolution) == "" {
+		resolution = defaultUpstreamResolution
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// Keyed on info.OriginModelName — the client-facing name the administrator
+	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
+	// Not the upstream name: the three whitelabel models carry different rates,
+	// so keying on the mapped name would divide one model's rate by another's
+	// price.
+	//
+	// has_video is always false: validateSeedanceValues rejects video input
+	// outright, so a request carrying video never reaches billing.
+	if dims, ok := resolveDimensions(resolution, false); ok {
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(seconds)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
