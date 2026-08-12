@@ -47,6 +47,9 @@ token.expired: "This token has expired"
 token.exhausted: "This token quota is exhausted TokenStatusExhausted[sk-{{.Prefix}}***{{.Suffix}}]"
 token.status_unavailable: "This token status is unavailable"
 token.db_error: "Invalid token, database query error, please contact administrator"
+token.auto_groups_too_many: "A token can select at most {{.Max}} Auto groups"
+token.auto_groups_duplicate: "Auto group {{.Group}} is duplicated"
+token.auto_groups_invalid: "Auto group {{.Group}} is unavailable or unauthorized"
 
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"

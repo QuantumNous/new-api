@@ -124,7 +124,7 @@ func formatUserLogs(logs []*Log, startIdx int) {
 			// Remove operation-audit details (operator/route info), admin-only.
 			delete(otherMap, "audit_info")
 			// delete(otherMap, "reject_reason")
-			delete(otherMap, "stream_status")
+			// delete(otherMap, "stream_status")
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 	}

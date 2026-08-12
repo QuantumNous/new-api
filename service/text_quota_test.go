@@ -284,9 +284,18 @@ func TestCalculateTextQuotaSummaryUsesOpenAIBillingUsageBeforeTopLevelUsage(t *t
 }
 
 func TestUsageBillingPathForLog(t *testing.T) {
-	require.Equal(t, usageBillingPathLocal, usageBillingPathForLog(true, &dto.Usage{
+	require.Equal(t, usageBillingPathAnthropic, usageBillingPathForLog(true, &dto.Usage{
 		BillingUsage: dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{InputTokens: 1}),
 	}))
+	invalidBillingUsage := &dto.Usage{
+		PromptTokens: 1,
+		BillingUsage: &dto.BillingUsage{
+			Source:   dto.BillingUsageSourceClaudeMessages,
+			Semantic: dto.BillingUsageSemanticAnthropic,
+		},
+	}
+	require.Equal(t, usageBillingPathLocal, usageBillingPathForLog(true, invalidBillingUsage))
+	require.Equal(t, usageBillingPathUpstream, usageBillingPathForLog(false, invalidBillingUsage))
 	require.Equal(t, usageBillingPathUpstream, usageBillingPathForLog(false, &dto.Usage{}))
 	require.Equal(t, usageBillingPathOpenAI, usageBillingPathForLog(false, &dto.Usage{
 		BillingUsage: dto.NewOpenAIChatBillingUsage(&dto.Usage{PromptTokens: 1}),
@@ -297,7 +306,7 @@ func TestUsageBillingPathForLog(t *testing.T) {
 	require.Equal(t, usageBillingPathGemini, usageBillingPathForLog(false, &dto.Usage{
 		BillingUsage: dto.NewGeminiChatBillingUsage(&dto.GeminiUsageMetadata{PromptTokenCount: 1}),
 	}))
-	require.Equal(t, usageBillingPathGeminiEstimated, usageBillingPathForLog(false, &dto.Usage{
+	require.Equal(t, usageBillingPathGeminiEstimated, usageBillingPathForLog(true, &dto.Usage{
 		BillingUsage: dto.NewEstimatedGeminiChatBillingUsage(&dto.Usage{PromptTokens: 1}),
 	}))
 }
@@ -306,7 +315,7 @@ func TestAppendUsageBillingPathForLogWritesAdminInfo(t *testing.T) {
 	other := map[string]interface{}{
 		"admin_info": map[string]interface{}{},
 	}
-	appendUsageBillingPathForLog(other, false, &dto.Usage{
+	appendUsageBillingPathForLog(other, true, &dto.Usage{
 		BillingUsage: dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{InputTokens: 1}),
 	})
 
