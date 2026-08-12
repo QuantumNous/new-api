@@ -1,0 +1,98 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`useWatch fieldArray with shouldUnregister true should watch correct input update with single field array input 1`] = `
+[
+  [
+    {
+      "id": "0",
+      "prop": "test",
+    },
+    {
+      "id": "1",
+      "prop": "test1",
+    },
+  ],
+  [
+    {
+      "prop": "test",
+    },
+    {
+      "prop": "test1",
+    },
+  ],
+  [
+    {
+      "prop": "test",
+    },
+    {
+      "prop": "test1",
+    },
+  ],
+  [
+    {
+      "prop": "test",
+    },
+    {
+      "prop": "ShouldBeTHere",
+    },
+    {
+      "prop": "test1",
+    },
+  ],
+  [
+    {
+      "prop": "test",
+    },
+    {
+      "prop": "ShouldBeTHere",
+    },
+    {
+      "prop": "test1",
+    },
+  ],
+  [
+    {
+      "prop": "ShouldBeTHere",
+    },
+    {
+      "prop": "test1",
+    },
+  ],
+]
+`;
+
+exports[`useWatch reset with useFieldArray should return current value with radio type 1`] = `
+[
+  {},
+  {
+    "options": [
+      {
+        "option": "yes",
+      },
+      {
+        "option": "yes",
+      },
+    ],
+  },
+  {
+    "options": [
+      {
+        "option": "yes",
+      },
+      {
+        "option": "yes",
+      },
+    ],
+  },
+  {
+    "options": [
+      {
+        "option": "no",
+      },
+      {
+        "option": "yes",
+      },
+    ],
+  },
+]
+`;
