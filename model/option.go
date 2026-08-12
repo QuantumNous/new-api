@@ -335,22 +335,23 @@ func updateOptionMap(key string, value string) (err error) {
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "InviteTopupRebateEnabled":
-			was := common.InviteTopupRebateEnabled
-			common.InviteTopupRebateEnabled = boolValue
-			// First/last turn-ON stamps the cutoff: only later top-ups earn rebate.
-			// Turning OFF does not clear the stamp (re-enable keeps original start).
-			// If admin never had a stamp and enables, set now.
-			if boolValue && !was {
-				if common.InviteTopupRebateEnabledAt <= 0 {
-					common.InviteTopupRebateEnabledAt = common.GetTimestamp()
-					common.OptionMap["InviteTopupRebateEnabledAt"] = strconv.FormatInt(common.InviteTopupRebateEnabledAt, 10)
-					// Persist cutoff so restarts / other nodes share the same boundary.
-					_ = DB.Save(&Option{
-						Key:   "InviteTopupRebateEnabledAt",
-						Value: common.OptionMap["InviteTopupRebateEnabledAt"],
-					}).Error
+			// Every off→on transition restarts the eligibility window. Keeping an
+			// older stamp would let backfill reward top-ups that completed while
+			// the feature was switched off.
+			if boolValue && !common.InviteTopupRebateEnabled {
+				enabledAt := strconv.FormatInt(common.GetTimestamp(), 10)
+				// Persist before publishing the enabled state: if the write fails,
+				// nodes would otherwise grant against different cutoffs.
+				if err := DB.Save(&Option{
+					Key:   "InviteTopupRebateEnabledAt",
+					Value: enabledAt,
+				}).Error; err != nil {
+					return err
 				}
+				common.InviteTopupRebateEnabledAt, _ = strconv.ParseInt(enabledAt, 10, 64)
+				common.OptionMap["InviteTopupRebateEnabledAt"] = enabledAt
 			}
+			common.InviteTopupRebateEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":

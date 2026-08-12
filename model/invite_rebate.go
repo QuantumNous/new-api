@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const InviteRebateStatusGranted = "granted"
@@ -85,6 +86,22 @@ func CalculateInviteTopupRebate(topupQuota int, ratioBp int) int {
 	return int(v)
 }
 
+// insertInviteRebateLedger inserts one ledger row, ignoring a topup_id conflict.
+// Conflict-ignore (rather than reacting to a unique violation after the fact) is
+// required because on PostgreSQL a constraint violation aborts the surrounding
+// transaction, leaving it unusable for the credit that follows.
+// Reports whether this call is the one that claimed the top-up.
+func insertInviteRebateLedger(db *gorm.DB, row *InviteRebate) (inserted bool, err error) {
+	res := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "topup_id"}},
+		DoNothing: true,
+	}).Create(row)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
 // insertInviteRebateSkip records a non-grant outcome under unique topup_id so
 // BackfillMissingInviteTopupRebates can advance past this order. Duplicate is OK.
 func insertInviteRebateSkip(db *gorm.DB, inviteeId, inviterId, topupQuota, ratioBp int, topUp *TopUp) {
@@ -102,7 +119,7 @@ func insertInviteRebateSkip(db *gorm.DB, inviteeId, inviterId, topupQuota, ratio
 		Status:      InviteRebateStatusSkipped,
 		CreatedAt:   common.GetTimestamp(),
 	}
-	if err := db.Create(row).Error; err != nil && !isDuplicateKeyError(err) {
+	if _, err := insertInviteRebateLedger(db, row); err != nil {
 		common.SysError(fmt.Sprintf(
 			"invite rebate skip-row failed topup_id=%d invitee_id=%d err=%q",
 			topUp.Id, inviteeId, err.Error(),
@@ -140,21 +157,6 @@ func inviteRebateBeforeEnabledCutoff(topUp *TopUp) bool {
 		ts = common.GetTimestamp()
 	}
 	return ts < cutoff
-}
-
-func isDuplicateKeyError(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, gorm.ErrDuplicatedKey) {
-		return true
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "duplicate") ||
-		strings.Contains(msg, "unique constraint") ||
-		strings.Contains(msg, "unique_violation") ||
-		strings.Contains(msg, "constraint failed") ||
-		strings.Contains(msg, "unique index")
 }
 
 // GrantInviteTopupRebate credits inviter aff_quota for one successful top-up.
@@ -266,50 +268,87 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 	}
 
 	granted := false
+	// credited is what the inviter actually received; it is below rebate when
+	// aff_quota is close to the int32 column ceiling, and zero at the ceiling.
+	credited := 0
 	run := func(inner *gorm.DB) error {
+		// Re-read the inviter under a row lock: the credit is computed from the
+		// current aff_quota, and the status may have changed since the unlocked read.
+		var lockedInviter User
+		if err := lockForUpdate(inner).Select("id", "status", "aff_quota", "aff_history").
+			First(&lockedInviter, invitee.InviterId).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		// Temporary: leave no ledger row so a later backfill can grant after re-enable.
+		if lockedInviter.Status != common.UserStatusEnabled {
+			return nil
+		}
+
+		// aff_quota / aff_history are int32 columns, so the credit saturates.
+		// Use the checked helpers so the clamp is reported rather than silently
+		// producing a ledger row that overstates what was paid out.
+		newAffQuota, quotaClamp := common.QuotaFromFloatChecked(float64(lockedInviter.AffQuota) + float64(rebate))
+		newAffHistory, historyClamp := common.QuotaFromFloatChecked(float64(lockedInviter.AffHistoryQuota) + float64(rebate))
+		credited = newAffQuota - lockedInviter.AffQuota
+		if credited < 0 {
+			credited = 0
+		}
+		historyDelta := newAffHistory - lockedInviter.AffHistoryQuota
+		if historyDelta < 0 {
+			historyDelta = 0
+		}
+		if quotaClamp != nil || historyClamp != nil {
+			common.SysError(fmt.Sprintf(
+				"invite rebate saturated inviter_id=%d topup_id=%d rebate=%d credited=%d history_credited=%d aff_quota_clamp=%q aff_history_clamp=%q",
+				lockedInviter.Id, topUp.Id, rebate, credited, historyDelta, quotaClamp.Error(), historyClamp.Error(),
+			))
+		}
+
+		status := InviteRebateStatusGranted
+		if credited <= 0 {
+			// Fully saturated: record a permanent skip carrying the real (zero)
+			// amount so totals stay honest and backfill stops rescanning.
+			status = InviteRebateStatusSkipped
+		}
 		row := &InviteRebate{
 			InviterId:   invitee.InviterId,
 			InviteeId:   inviteeId,
 			TopupId:     topUp.Id,
 			TradeNo:     topUp.TradeNo,
 			TopupQuota:  topupQuota,
-			RebateQuota: rebate,
+			RebateQuota: credited,
 			RatioBp:     ratioBp,
-			Status:      InviteRebateStatusGranted,
+			Status:      status,
 			CreatedAt:   common.GetTimestamp(),
 		}
-		if err := inner.Create(row).Error; err != nil {
-			if isDuplicateKeyError(err) {
-				// already granted or permanently skipped for this topup
-				return nil
-			}
+		inserted, err := insertInviteRebateLedger(inner, row)
+		if err != nil {
 			return err
 		}
-		// Only credit enabled inviter (re-check status under same tx when possible).
-		// Saturate to MaxQuota without dialect-specific LEAST (SQLite has no LEAST by default).
-		capHeadroom := common.MaxQuota - rebate
-		if capHeadroom < 0 {
-			capHeadroom = 0
+		if !inserted {
+			// Already granted or permanently skipped for this top-up.
+			return nil
 		}
-		res := inner.Model(&User{}).
-			Where("id = ? AND status = ?", invitee.InviterId, common.UserStatusEnabled).
+		if credited <= 0 {
+			return nil
+		}
+
+		res := inner.Model(&User{}).Where("id = ?", lockedInviter.Id).
 			Updates(map[string]interface{}{
-				"aff_quota": gorm.Expr(
-					"CASE WHEN aff_quota > ? THEN ? ELSE aff_quota + ? END",
-					capHeadroom, common.MaxQuota, rebate,
-				),
-				"aff_history": gorm.Expr(
-					"CASE WHEN aff_history > ? THEN ? ELSE aff_history + ? END",
-					capHeadroom, common.MaxQuota, rebate,
-				),
+				"aff_quota":   gorm.Expr("aff_quota + ?", credited),
+				"aff_history": gorm.Expr("aff_history + ?", historyDelta),
 			})
 		if res.Error != nil {
 			return res.Error
 		}
-		if res.RowsAffected == 0 {
-			// Inviter became disabled between read and update: remove ledger so retry is possible.
-			_ = inner.Delete(&InviteRebate{}, "id = ?", row.Id).Error
-			return nil
+		if res.RowsAffected != 1 {
+			// Fail instead of committing a granted ledger row the inviter never
+			// received; the rollback also frees topup_id for a later retry.
+			return fmt.Errorf("invite rebate credit updated %d rows (inviter_id=%d topup_id=%d)",
+				res.RowsAffected, lockedInviter.Id, topUp.Id)
 		}
 		granted = true
 		return nil
@@ -336,7 +375,7 @@ func GrantInviteTopupRebate(tx *gorm.DB, inviteeId int, topupQuota int, topUp *T
 			}()
 			RecordLog(invitee.InviterId, LogTypeSystem, fmt.Sprintf(
 				"邀请充值返佣 %s（被邀请用户 #%d，订单 %s，基数 %s，比例 %d bp）",
-				logger.LogQuota(rebate), inviteeId, topUp.TradeNo, logger.LogQuota(topupQuota), ratioBp,
+				logger.LogQuota(credited), inviteeId, topUp.TradeNo, logger.LogQuota(topupQuota), ratioBp,
 			))
 		}()
 	}
@@ -409,11 +448,14 @@ func ListInviteesWithRebateStats(inviterId int, pageInfo *common.PageInfo) (item
 		RebateCount    int64
 	}
 	var sums []sumRow
-	_ = DB.Model(&InviteRebate{}).
+	if err = DB.Model(&InviteRebate{}).
 		Select("invitee_id, COALESCE(SUM(topup_quota),0) as topup_quota_sum, COALESCE(SUM(rebate_quota),0) as rebate_quota_sum, COUNT(*) as rebate_count").
 		Where("inviter_id = ? AND invitee_id IN ? AND status = ?", inviterId, ids, InviteRebateStatusGranted).
 		Group("invitee_id").
-		Scan(&sums).Error
+		Scan(&sums).Error; err != nil {
+		// Returning zeroed totals here would understate every invitee.
+		return nil, 0, err
+	}
 	for _, s := range sums {
 		if idx, ok := indexById[s.InviteeId]; ok {
 			items[idx].TopupQuotaSum = s.TopupQuotaSum
@@ -470,7 +512,6 @@ func GetInviteRebateAdminSummary(inviterId int) (topupQuotaSum int64, rebateQuot
 	rebateQuotaSum = s.RebateQuotaSum
 	return
 }
-
 
 // creditedQuotaForTopUp estimates the quota actually added for a successful top-up,
 // matching the formulas used by each recharge path. Uses common.QuotaFromFloat so
@@ -586,7 +627,6 @@ func BackfillMissingInviteTopupRebates(limit int) (scanned int, granted int, err
 	return scanned, granted, nil
 }
 
-
 // InviteRebateLeaderboardEntry is a public-safe leaderboard row.
 // Username/DisplayName are masked; no emails or raw aff codes.
 type InviteRebateLeaderboardEntry struct {
@@ -684,15 +724,18 @@ LIMIT ?`
 			RebateQuotaSum int64
 		}
 		var me meRow
-		_ = DB.Raw(`
+		// A failed rank query must not silently report the viewer as rank 1.
+		if err = DB.Raw(`
 SELECT COALESCE((SELECT COUNT(*) FROM users WHERE inviter_id = ? AND deleted_at IS NULL),0) AS invitee_count,
        COALESCE((SELECT SUM(rebate_quota) FROM invite_rebates WHERE inviter_id = ? AND status = 'granted'),0) AS rebate_quota_sum
-`, viewerId, viewerId).Scan(&me).Error
+`, viewerId, viewerId).Scan(&me).Error; err != nil {
+			return nil, 0, err
+		}
 		if me.InviteeCount > 0 || me.RebateQuotaSum > 0 {
 			// Count how many rank strictly above me
 			var better int64
 			if by == "invitees" {
-				_ = DB.Raw(`
+				err = DB.Raw(`
 SELECT COUNT(*) FROM (
   SELECT u.id,
          COALESCE(ic.cnt,0) AS invitee_count,
@@ -706,7 +749,7 @@ SELECT COUNT(*) FROM (
 WHERE t.invitee_count > ? OR (t.invitee_count = ? AND t.rebate_quota_sum > ?) OR (t.invitee_count = ? AND t.rebate_quota_sum = ? AND t.id < ?)
 `, common.UserStatusEnabled, me.InviteeCount, me.InviteeCount, me.RebateQuotaSum, me.InviteeCount, me.RebateQuotaSum, viewerId).Scan(&better).Error
 			} else {
-				_ = DB.Raw(`
+				err = DB.Raw(`
 SELECT COUNT(*) FROM (
   SELECT u.id,
          COALESCE(ic.cnt,0) AS invitee_count,
@@ -719,6 +762,9 @@ SELECT COUNT(*) FROM (
 ) t
 WHERE t.rebate_quota_sum > ? OR (t.rebate_quota_sum = ? AND t.invitee_count > ?) OR (t.rebate_quota_sum = ? AND t.invitee_count = ? AND t.id < ?)
 `, common.UserStatusEnabled, me.RebateQuotaSum, me.RebateQuotaSum, me.InviteeCount, me.RebateQuotaSum, me.InviteeCount, viewerId).Scan(&better).Error
+			}
+			if err != nil {
+				return nil, 0, err
 			}
 			myRank = int(better) + 1
 		}

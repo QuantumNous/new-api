@@ -120,7 +120,6 @@ func TestGrantInviteTopupRebate_SuccessAndIdempotent(t *testing.T) {
 	assert.Equal(t, 5000, got.AffHistoryQuota)
 }
 
-
 func TestGrantInviteTopupRebate_MissingInviter(t *testing.T) {
 	setupInviteRebateTest(t)
 	// invitee points at non-existent inviter
@@ -132,7 +131,6 @@ func TestGrantInviteTopupRebate_MissingInviter(t *testing.T) {
 	require.NoError(t, DB.Where("topup_id = ?", topUp.Id).First(&row).Error)
 	assert.Equal(t, InviteRebateStatusSkipped, row.Status)
 }
-
 
 func TestCalculateInviteTopupRebate_OverflowSafe(t *testing.T) {
 	// Overflow guard: product exceeds int64 → 0
@@ -184,7 +182,6 @@ func TestGrantInviteTopupRebate_UserIdMismatch(t *testing.T) {
 	assert.Equal(t, InviteRebateStatusSkipped, row.Status)
 }
 
-
 func TestBackfillMissingInviteTopupRebates(t *testing.T) {
 	setupInviteRebateTest(t)
 	inviter := createIRUser(t, "ir_inviter_bf", 0, 0)
@@ -212,7 +209,7 @@ func TestBackfillMissingInviteTopupRebates(t *testing.T) {
 
 	var inv User
 	require.NoError(t, DB.First(&inv, inviter.Id).Error)
-	// Amount 10 * QuotaPerUnit * 1% 
+	// Amount 10 * QuotaPerUnit * 1%
 	expect := CalculateInviteTopupRebate(int(float64(10)*common.QuotaPerUnit), 100)
 	assert.Equal(t, expect, inv.AffQuota)
 }
@@ -228,7 +225,6 @@ func TestTransferAffQuota_DisabledUser(t *testing.T) {
 	err := u.TransferAffQuotaToQuota(int(common.QuotaPerUnit))
 	require.Error(t, err)
 }
-
 
 func TestBackfillMissingInviteTopupRebates_ProgressPastNonGrantable(t *testing.T) {
 	setupInviteRebateTest(t)
@@ -299,6 +295,50 @@ func TestCalculateInviteTopupRebate_CapsAtMaxQuota(t *testing.T) {
 	assert.LessOrEqual(t, maxInviteTopupRebateQuota, common.MaxQuota)
 }
 
+// The ledger must record what the inviter actually received: aff_quota is an
+// int32 column, so a rebate near the ceiling is credited only in part, and not
+// at all once the ceiling is reached.
+func TestGrantInviteTopupRebate_LedgerRecordsSaturatedCredit(t *testing.T) {
+	t.Run("partially saturated", func(t *testing.T) {
+		setupInviteRebateTest(t)
+		inviter := createIRUser(t, "ir_inviter_sat", 0, common.MaxQuota-2000)
+		invitee := createIRUser(t, "ir_invitee_sat", inviter.Id, 0)
+		topUp := &TopUp{UserId: invitee.Id, Amount: 10, TradeNo: "IR-SAT-1", Status: common.TopUpStatusSuccess}
+		require.NoError(t, DB.Create(topUp).Error)
+
+		// 500000 * 1% = 5000 requested, only 2000 of headroom left.
+		require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+
+		var row InviteRebate
+		require.NoError(t, DB.Where("topup_id = ?", topUp.Id).First(&row).Error)
+		assert.Equal(t, InviteRebateStatusGranted, row.Status)
+		assert.Equal(t, 2000, row.RebateQuota)
+
+		var got User
+		require.NoError(t, DB.First(&got, inviter.Id).Error)
+		assert.Equal(t, common.MaxQuota, got.AffQuota)
+		assert.Equal(t, common.MaxQuota, got.AffHistoryQuota)
+	})
+
+	t.Run("fully saturated", func(t *testing.T) {
+		setupInviteRebateTest(t)
+		inviter := createIRUser(t, "ir_inviter_full", 0, common.MaxQuota)
+		invitee := createIRUser(t, "ir_invitee_full", inviter.Id, 0)
+		topUp := &TopUp{UserId: invitee.Id, Amount: 10, TradeNo: "IR-SAT-2", Status: common.TopUpStatusSuccess}
+		require.NoError(t, DB.Create(topUp).Error)
+
+		require.NoError(t, GrantInviteTopupRebate(nil, invitee.Id, 500000, topUp))
+
+		var row InviteRebate
+		require.NoError(t, DB.Where("topup_id = ?", topUp.Id).First(&row).Error)
+		assert.Equal(t, InviteRebateStatusSkipped, row.Status)
+		assert.Equal(t, 0, row.RebateQuota)
+
+		var got User
+		require.NoError(t, DB.First(&got, inviter.Id).Error)
+		assert.Equal(t, common.MaxQuota, got.AffQuota)
+	})
+}
 
 func TestGrantInviteTopupRebate_BeforeEnabledCutoff(t *testing.T) {
 	setupInviteRebateTest(t)
@@ -368,7 +408,6 @@ func TestBackfillMissingInviteTopupRebates_IgnoresHistorical(t *testing.T) {
 	assert.Equal(t, int64(1), grantN)
 }
 
-
 func TestGrantInviteTopupRebate_RejectsNonSuccessStatus(t *testing.T) {
 	setupInviteRebateTest(t)
 	inviter := createIRUser(t, "ir_inviter_pend", 0, 0)
@@ -415,4 +454,3 @@ func TestBackfillMissingInviteTopupRebates_IgnoresPending(t *testing.T) {
 	require.NoError(t, DB.Model(&InviteRebate{}).Count(&n).Error)
 	assert.Equal(t, int64(0), n)
 }
-
