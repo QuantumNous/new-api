@@ -39,6 +39,7 @@ alert_emails = [
   "shilong.zhong@shulex-tech.com",
   "wei.zhou@shulex-tech.com",
   "xingyu.liu@shulex-tech.com",
+  "swing.hu@shulex-tech.com",
 ]
 
 // Usage reconciliation token (BLOCKRUN_USAGE_SUMMARY_TOKEN) is wired into Cloud Run.
