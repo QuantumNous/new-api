@@ -181,6 +181,7 @@ resource "random_id" "cert_suffix" {
 }
 
 resource "google_compute_managed_ssl_certificate" "main" {
+  count   = var.certificate_map_name == "" ? 1 : 0
   project = var.project_id
   name    = "${var.name_prefix}-cert-${random_id.cert_suffix.hex}"
 
@@ -191,6 +192,32 @@ resource "google_compute_managed_ssl_certificate" "main" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+data "google_certificate_manager_certificate" "managed" {
+  count    = var.certificate_map_name != "" ? 1 : 0
+  project  = var.project_id
+  location = "global"
+  name     = var.certificate_manager_certificate_name
+}
+
+resource "google_certificate_manager_certificate_map" "managed" {
+  count    = var.certificate_map_name != "" ? 1 : 0
+  project  = var.project_id
+  location = "global"
+  name     = var.certificate_map_name
+}
+
+resource "google_certificate_manager_certificate_map_entry" "managed" {
+  for_each = var.certificate_map_name != "" ? toset(var.domains) : toset([])
+  project  = var.project_id
+  location = "global"
+  name     = replace(each.value, ".", "-")
+  map      = google_certificate_manager_certificate_map.managed[0].name
+  hostname = each.value
+  certificates = [
+    data.google_certificate_manager_certificate.managed[0].name,
+  ]
 }
 
 // URL map — default_service is the Go backend (any host / direct IP / Cloudflare
@@ -314,7 +341,8 @@ resource "google_compute_target_https_proxy" "https" {
   project          = var.project_id
   name             = "${var.name_prefix}-https-proxy"
   url_map          = google_compute_url_map.https.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.main.id]
+  ssl_certificates = var.certificate_map_name == "" ? [google_compute_managed_ssl_certificate.main[0].id] : null
+  certificate_map  = var.certificate_map_name != "" ? google_certificate_manager_certificate_map.managed[0].id : null
 
   // Advertise HTTP/3 (QUIC over UDP/443). Clients that don't negotiate QUIC fall
   // back to HTTP/2 over TCP automatically, so this is a zero-risk, in-place update

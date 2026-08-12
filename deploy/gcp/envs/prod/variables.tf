@@ -68,6 +68,18 @@ variable "lb_domains" {
   default     = []
 }
 
+variable "certificate_map_name" {
+  type        = string
+  description = "Existing Certificate Manager map used by the production HTTPS proxy."
+  default     = ""
+}
+
+variable "certificate_manager_certificate_name" {
+  type        = string
+  description = "Existing Certificate Manager certificate used by certificate_map_name."
+  default     = ""
+}
+
 variable "lb_default_backend" {
   type        = string
   description = "Default LB backend for hosts that do not match an explicit host_rule."

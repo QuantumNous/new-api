@@ -4,7 +4,7 @@ output "ip_address" {
 }
 
 output "ssl_certificate_id" {
-  value = google_compute_managed_ssl_certificate.main.id
+  value = var.certificate_map_name == "" ? google_compute_managed_ssl_certificate.main[0].id : null
 }
 
 output "ssl_certificate_status_hint" {
