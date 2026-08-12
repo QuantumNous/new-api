@@ -1,0 +1,43 @@
+{
+  "name": "react_fluent_withhoc",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "i18next": "^23.12.3",
+    "i18next-browser-languagedetector": "^8.0.0",
+    "i18next-fluent": "^2.0.0",
+    "i18next-fluent-backend": "^1.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-i18next": "^15.0.1",
+    "react-scripts": "^5.0.1"
+  },
+  "devDependencies": {
+    "babel-plugin-macros": "^3.1.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "development": [
+      "last 2 chrome versions",
+      "last 2 firefox versions",
+      "last 2 edge versions"
+    ],
+    "production": [
+      ">1%",
+      "last 4 versions",
+      "Firefox ESR",
+      "not ie < 11"
+    ]
+  }
+}
