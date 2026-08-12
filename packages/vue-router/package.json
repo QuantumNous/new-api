@@ -1,0 +1,95 @@
+{
+  "name": "@tanstack/vue-router",
+  "version": "1.170.16",
+  "description": "Modern and scalable routing for Vue applications",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/router.git",
+    "directory": "packages/vue-router"
+  },
+  "homepage": "https://tanstack.com/router",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "vue",
+    "location",
+    "router",
+    "routing",
+    "async",
+    "async router",
+    "typescript"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test": "pnpm run test:unit",
+    "test:eslint": "eslint",
+    "test:types": "pnpm run test:unit .test-d.ts",
+    "test:unit": "vitest",
+    "test:unit:ui": "vitest --ui --watch",
+    "test:unit:dev": "pnpm run test:unit --watch --hideSkippedTests",
+    "test:perf": "vitest bench",
+    "test:perf:dev": "pnpm run test:perf --watch --hideSkippedTests",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "build": "vite build && tsc -p tsconfig.build.json"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "development": "./dist/esm/index.dev.js",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./ssr/server": {
+      "import": {
+        "types": "./dist/esm/ssr/server.d.ts",
+        "default": "./dist/esm/ssr/server.js"
+      }
+    },
+    "./ssr/client": {
+      "import": {
+        "types": "./dist/esm/ssr/client.d.ts",
+        "default": "./dist/esm/ssr/client.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "skills",
+    "bin",
+    "!skills/_artifacts"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@tanstack/history": "workspace:*",
+    "@tanstack/router-core": "workspace:*",
+    "@tanstack/vue-store": "^0.9.3",
+    "@vue/runtime-dom": "^3.5.25",
+    "isbot": "^5.1.22"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/vue": "^8.1.0",
+    "@types/node": ">=20",
+    "@vitejs/plugin-vue-jsx": "^4.1.2",
+    "combinate": "^1.1.11",
+    "vite": "*",
+    "vue": "^3.5.25",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "vue": "^3.3.0"
+  }
+}

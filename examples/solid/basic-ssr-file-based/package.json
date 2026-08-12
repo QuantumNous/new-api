@@ -1,0 +1,29 @@
+{
+  "name": "tanstack-router-solid-example-basic-ssr-file-based",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "vite build --ssr",
+    "serve": "NODE_ENV=production node server",
+    "debug": "node --inspect-brk server"
+  },
+  "dependencies": {
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/router-plugin": "^1.168.19",
+    "compression": "^1.8.0",
+    "express": "^5.2.1",
+    "get-port": "^7.1.0",
+    "node-fetch": "^3.3.2",
+    "solid-js": "^1.9.10"
+  },
+  "devDependencies": {
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "@types/express": "^5.0.6",
+    "vite-plugin-solid": "^2.11.11",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

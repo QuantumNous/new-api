@@ -1,0 +1,26 @@
+{
+  "name": "tanstack-router-vue-example-basic-jsx",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3000",
+    "build": "vite build && vue-tsc --noEmit",
+    "serve": "vite preview",
+    "start": "vite"
+  },
+  "dependencies": {
+    "@tanstack/vue-router": "^1.170.16",
+    "@tanstack/vue-router-devtools": "^1.167.0",
+    "redaxios": "^0.5.1",
+    "vue": "^3.5.13",
+    "tailwindcss": "4.1.18"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vue-tsc": "^3.1.5",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "@tailwindcss/vite": "^4.2.2"
+  }
+}

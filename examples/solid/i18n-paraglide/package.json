@@ -1,0 +1,26 @@
+{
+  "name": "tanstack-router-solid-i18n-paraglide",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "start": "vite --port 3000",
+    "build": "vite build && tsc",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/router-plugin": "^1.168.19",
+    "solid-js": "^1.9.10",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.6",
+    "vite-plugin-solid": "^2.11.11",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "@inlang/paraglide-js": "^2.4.0"
+  }
+}

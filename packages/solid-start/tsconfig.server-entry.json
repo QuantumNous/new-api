@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "paths": {
+      "@tanstack/solid-start/server": ["./src/server.tsx"]
+    }
+  },
+  "include": ["src/default-entry"]
+}

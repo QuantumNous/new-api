@@ -1,0 +1,25 @@
+{
+  "name": "tanstack-router-solid-example-quickstart-rspack-file-based",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rsbuild dev --port 3000",
+    "build": "rsbuild build && tsc --noEmit",
+    "preview": "rsbuild preview"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "postcss": "^8.5.1",
+    "solid-js": "^1.9.10",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.11",
+    "@rsbuild/plugin-babel": "^1.1.2",
+    "@rsbuild/plugin-solid": "^1.1.1",
+    "@tanstack/router-plugin": "^1.168.19",
+    "typescript": "^6.0.2"
+  }
+}

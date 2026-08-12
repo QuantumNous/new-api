@@ -1,0 +1,31 @@
+{
+  "name": "router-solid-monorepo-solid-query",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "post-query": "pnpm --filter @router-solid-mono-solid-query/post-query",
+    "post-feature": "pnpm --filter @router-solid-mono-solid-query/post-feature",
+    "router": "pnpm --filter @router-solid-mono-solid-query/router",
+    "app": "pnpm --filter @router-solid-mono-solid-query/app",
+    "dev": "pnpm post-query build && pnpm router build && pnpm post-feature build && pnpm app dev"
+  },
+  "dependencies": {
+    "@tanstack/solid-query": "^5.90.9",
+    "@tanstack/solid-query-devtools": "^5.90.0",
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "@tanstack/router-plugin": "^1.168.19",
+    "solid-js": "^1.9.10",
+    "redaxios": "^0.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^6.0.2",
+    "vite-plugin-solid": "^2.11.11",
+    "vite": "^8.0.14",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

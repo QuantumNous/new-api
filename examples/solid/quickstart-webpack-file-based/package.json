@@ -1,0 +1,31 @@
+{
+  "name": "tanstack-router-solid-example-quickstart-webpack-file-based",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "webpack serve --port 3001 --no-open",
+    "build": "webpack build && tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "solid-js": "^1.9.10",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-typescript": "^7.27.1",
+    "@tanstack/router-plugin": "^1.168.19",
+    "babel-loader": "^10.0.0",
+    "babel-preset-solid": "^1.9.10",
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.6.3",
+    "postcss": "^8.5.6",
+    "postcss-loader": "^8.2.0",
+    "style-loader": "^4.0.0",
+    "typescript": "^6.0.2",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.2.4"
+  }
+}
