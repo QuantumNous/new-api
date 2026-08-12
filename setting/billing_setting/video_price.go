@@ -174,6 +174,14 @@ var (
 		"true":  "true",
 		"false": "false",
 	}
+	// kling prices by generation mode rather than by output resolution, so a
+	// rule for that channel constrains "mode" instead. Folding it here stops a
+	// plausible typo ("Std") from saving cleanly and then rejecting every
+	// request for the model.
+	canonicalMode = map[string]string{
+		"std": "std",
+		"pro": "pro",
+	}
 	// Only dimensions with a closed vocabulary are normalized. Anything else is
 	// left untouched so a new dimension can be configured before every adapter
 	// emits it -- FindVideoPriceRule already refuses to match a rule that
@@ -181,6 +189,7 @@ var (
 	canonicalDimensions = map[string]map[string]string{
 		"resolution": canonicalResolutions,
 		"has_video":  canonicalHasVideo,
+		"mode":       canonicalMode,
 	}
 )
 

@@ -658,3 +658,29 @@ func TestValidateVideoPriceRules_StillStrictForSaves(t *testing.T) {
 		t.Fatal("ValidateVideoPriceRules must stay strict")
 	}
 }
+
+func TestNormalizeVideoPriceRules_FoldsModeForKling(t *testing.T) {
+	// kling prices by generation mode, not resolution. Without folding, "Std"
+	// saves cleanly and then never matches the "std" adapters emit -- which for
+	// a configured model rejects every request.
+	rules := []VideoPriceRule{
+		{Model: "kling", Match: map[string]string{"mode": " Pro "},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+	}
+	if err := NormalizeVideoPriceRules(rules); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := rules[0].Match["mode"]; got != "pro" {
+		t.Fatalf("mode = %q, want pro", got)
+	}
+}
+
+func TestNormalizeVideoPriceRules_RejectsUnknownMode(t *testing.T) {
+	rules := []VideoPriceRule{
+		{Model: "kling", Match: map[string]string{"mode": "turbo"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+	}
+	if err := NormalizeVideoPriceRules(rules); err == nil {
+		t.Fatal("an unrecognized mode must be rejected at save time")
+	}
+}
