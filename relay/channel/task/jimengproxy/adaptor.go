@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -54,6 +55,102 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those. This channel
+// forwards `resolution` upstream verbatim as a tier label ("720p", "1080p"),
+// which NormalizeResolution passes through after folding case; a client may also
+// send pixel dimensions, which it folds by short side so portrait and landscape
+// of one tier price identically. An unclassifiable value refuses rather than
+// guessing a tier, which on a configured model becomes a rejected request.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
+}
+
+// EstimateBilling captures the per-second billing inputs. This channel bills
+// purely per call today, so there is no legacy per-second estimate to preserve:
+// it always returns nil and all per-second pricing flows through
+// SecondBillingRatios. A model absent from the price table is left exactly as it
+// is today.
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if info == nil {
+		return nil
+	}
+	// Price the body the upstream will actually receive. Both inbound shapes
+	// (seedance content[] and the basic task request) funnel into the same
+	// stored TaskSubmitReq, and convertToSubmitPayload copies duration and
+	// resolution from it verbatim.
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	payload := a.convertToSubmitPayload(&req)
+	// convertToSubmitPayload forwards duration only when positive and applies no
+	// default of its own, so a non-positive value means the upstream picks the
+	// length — unknowable here. Capture nothing rather than price off a guess,
+	// which leaves the request on the per-call path exactly as today.
+	if payload.Duration <= 0 {
+		return nil
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// Keyed on info.OriginModelName — the client-facing name the administrator
+	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
+	// Not the upstream name: model mapping would otherwise divide one model's
+	// per-second rate by another model's price.
+	if dims, ok := resolveDimensions(payload.Resolution, false); ok {
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(payload.Duration)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
