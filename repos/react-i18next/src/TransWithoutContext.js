@@ -554,7 +554,7 @@ export function Trans({
     warnOnce(
       i18n,
       'NO_I18NEXT_INSTANCE',
-      `Trans: You need to pass in an i18next instance using i18nextReactModule`,
+      `Trans: You need to pass in an i18next instance using initReactI18next or by passing it via props or context. In monorepo setups, make sure there is only one instance of react-i18next.`,
       { i18nKey },
     );
     return children;

@@ -39,7 +39,7 @@ export const useTranslation = (ns, props = {}) => {
     warnOnce(
       i18n,
       'NO_I18NEXT_INSTANCE',
-      'useTranslation: You will need to pass in an i18next instance by using initReactI18next',
+      'useTranslation: You will need to pass in an i18next instance by using initReactI18next or by passing it via props or context. In monorepo setups, make sure there is only one instance of react-i18next.',
     );
   }
 
@@ -214,6 +214,21 @@ export const useTranslation = (ns, props = {}) => {
   }, [t, finalI18n, ready, finalI18n.resolvedLanguage, finalI18n.language, finalI18n.languages]);
 
   if (i18n && useSuspense && !ready) {
+    let inDevelopment = false;
+    try {
+      // statically replaced by bundlers (webpack/vite/metro define it, rollup replaces it
+      // in our UMD builds); evaluated at runtime in Node
+      inDevelopment = process.env.NODE_ENV !== 'production';
+    } catch (e) {
+      // no `process` in this runtime (raw ESM in the browser, some edge runtimes): stay quiet
+    }
+    if (inDevelopment) {
+      warnOnce(
+        i18n,
+        'SUSPENDED_WHILE_LOADING',
+        'useTranslation: suspended while translations are loading (useSuspense is true by default). Add a <Suspense> boundary above this component, or set react.useSuspense: false in the i18next init options. https://react.i18next.com/latest/usetranslation-hook',
+      );
+    }
     throw new Promise((resolve) => {
       const onLoaded = () => resolve();
       if (props.lng) {

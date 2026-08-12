@@ -97,7 +97,7 @@
   const deepExtend = (target, source, overwrite) => {
     for (const prop in source) {
       if (prop !== '__proto__' && prop !== 'constructor') {
-        if (prop in target) {
+        if (Object.prototype.hasOwnProperty.call(target, prop)) {
           if (isString$1(target[prop]) || target[prop] instanceof String || isString$1(source[prop]) || source[prop] instanceof String) {
             if (overwrite) target[prop] = source[prop];
           } else {
@@ -461,11 +461,15 @@
     } = selector(createProxy());
     const keySeparator = opts?.keySeparator ?? '.';
     const nsSeparator = opts?.nsSeparator ?? ':';
+    const strict = opts?.enableSelector === 'strict';
     if (path.length > 1 && nsSeparator) {
       const ns = opts?.ns;
-      const nsArray = Array.isArray(ns) ? ns : null;
-      if (nsArray && nsArray.length > 1 && nsArray.slice(1).includes(path[0])) {
-        return `${path[0]}${nsSeparator}${path.slice(1).join(keySeparator)}`;
+      const nsList = strict ? Array.isArray(ns) ? ns : ns ? [ns] : null : Array.isArray(ns) ? ns : null;
+      if (nsList) {
+        const candidates = strict ? nsList : nsList.length > 1 ? nsList.slice(1) : [];
+        if (candidates.includes(path[0])) {
+          return `${path[0]}${nsSeparator}${path.slice(1).join(keySeparator)}`;
+        }
       }
     }
     return path.join(keySeparator);
@@ -877,7 +881,10 @@
       const useOptionsReplaceForData = options.replace && !isString$1(options.replace);
       let data = useOptionsReplaceForData ? options.replace : options;
       if (useOptionsReplaceForData && typeof options.count !== 'undefined') {
-        data.count = options.count;
+        data = {
+          ...data,
+          count: options.count
+        };
       }
       if (this.options.interpolation.defaultVariables) {
         data = {
@@ -1187,10 +1194,10 @@
       const skipOnVariables = options?.interpolation?.skipOnVariables !== undefined ? options.interpolation.skipOnVariables : this.options.interpolation.skipOnVariables;
       const todos = [{
         regex: this.regexpUnescape,
-        safeValue: val => regexSafe(val)
+        safeValue: val => val
       }, {
         regex: this.regexp,
-        safeValue: val => this.escapeValue ? regexSafe(this.escape(val)) : regexSafe(val)
+        safeValue: val => this.escapeValue ? this.escape(val) : val
       }];
       todos.forEach(todo => {
         replaces = 0;
@@ -1214,9 +1221,9 @@
             value = makeString(value);
           }
           const safeValue = todo.safeValue(value);
-          str = str.replace(match[0], safeValue);
+          str = str.replace(match[0], regexSafe(safeValue));
           if (skipOnVariables) {
-            todo.regex.lastIndex += value.length;
+            todo.regex.lastIndex += safeValue.length;
             todo.regex.lastIndex -= match[0].length;
           } else {
             todo.regex.lastIndex = 0;
@@ -1266,7 +1273,7 @@
         clonedOptions = clonedOptions.replace && !isString$1(clonedOptions.replace) ? clonedOptions.replace : clonedOptions;
         clonedOptions.applyPostProcessor = false;
         delete clonedOptions.defaultValue;
-        const keyEndIndex = /{.*}/.test(match[1]) ? match[1].lastIndexOf('}') + 1 : match[1].indexOf(this.formatSeparator);
+        const keyEndIndex = /{.*}/s.test(match[1]) ? match[1].lastIndexOf('}') + 1 : match[1].indexOf(this.formatSeparator);
         if (keyEndIndex !== -1) {
           formatters = match[1].slice(keyEndIndex).split(this.formatSeparator).map(elem => elem.trim()).filter(Boolean);
           match[1] = match[1].slice(0, keyEndIndex);
@@ -1395,10 +1402,14 @@
     format(value, format, lng, options = {}) {
       if (!format) return value;
       if (value == null) return value;
-      const formats = format.split(this.formatSeparator);
-      if (formats.length > 1 && formats[0].indexOf('(') > 1 && !formats[0].includes(')') && formats.find(f => f.includes(')'))) {
-        const lastIndex = formats.findIndex(f => f.includes(')'));
-        formats[0] = [formats[0], ...formats.splice(1, lastIndex)].join(this.formatSeparator);
+      const rawFormats = format.split(this.formatSeparator);
+      const formats = [];
+      for (let i = 0; i < rawFormats.length; i++) {
+        let f = rawFormats[i];
+        while (f.indexOf('(') > -1 && !f.includes(')') && i + 1 < rawFormats.length) {
+          f = `${f}${this.formatSeparator}${rawFormats[++i]}`;
+        }
+        formats.push(f);
       }
       const result = formats.reduce((mem, f) => {
         const {
@@ -1657,6 +1668,7 @@
     nsSeparator: ':',
     pluralSeparator: '_',
     contextSeparator: '_',
+    enableSelector: false,
     partialBundledLanguages: false,
     saveMissing: false,
     updateMissing: false,
@@ -2831,7 +2843,7 @@
   }) {
     const i18n = i18nFromProps || getI18n();
     if (!i18n) {
-      warnOnce(i18n, 'NO_I18NEXT_INSTANCE', `Trans: You need to pass in an i18next instance using i18nextReactModule`, {
+      warnOnce(i18n, 'NO_I18NEXT_INSTANCE', `Trans: You need to pass in an i18next instance using initReactI18next or by passing it via props or context. In monorepo setups, make sure there is only one instance of react-i18next.`, {
         i18nKey
       });
       return children;
@@ -3579,7 +3591,7 @@
     const i18n = i18nFromProps || i18nFromContext || getI18n();
     if (i18n && !i18n.reportNamespaces) i18n.reportNamespaces = new ReportNamespaces();
     if (!i18n) {
-      warnOnce(i18n, 'NO_I18NEXT_INSTANCE', 'useTranslation: You will need to pass in an i18next instance by using initReactI18next');
+      warnOnce(i18n, 'NO_I18NEXT_INSTANCE', 'useTranslation: You will need to pass in an i18next instance by using initReactI18next or by passing it via props or context. In monorepo setups, make sure there is only one instance of react-i18next.');
     }
     const i18nOptions = React.useMemo(() => ({
       ...getDefaults(),
@@ -3701,6 +3713,13 @@
       return arr;
     }, [t, finalI18n, ready, finalI18n.resolvedLanguage, finalI18n.language, finalI18n.languages]);
     if (i18n && useSuspense && !ready) {
+      let inDevelopment = false;
+      try {
+        inDevelopment = "development" !== 'production';
+      } catch (e) {}
+      if (inDevelopment) {
+        warnOnce(i18n, 'SUSPENDED_WHILE_LOADING', 'useTranslation: suspended while translations are loading (useSuspense is true by default). Add a <Suspense> boundary above this component, or set react.useSuspense: false in the i18next init options. https://react.i18next.com/latest/usetranslation-hook');
+      }
       throw new Promise(resolve => {
         const onLoaded = () => resolve();
         if (props.lng) {
