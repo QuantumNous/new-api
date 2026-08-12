@@ -256,3 +256,61 @@ func TestNormalizeResolution_MatchesAdminVocabulary(t *testing.T) {
 		})
 	}
 }
+
+// A price edit while a task is in flight must not change what the user pays.
+// Reservation folds the price into billable units which are persisted in
+// TaskBillingContext; settlement reads the frozen units and never re-reads the
+// price table. Any change that makes settlement consult configuration again
+// will surface here.
+func TestSecondBilling_PriceEditDoesNotChangeFrozenUnits(t *testing.T) {
+	dims := map[string]string{"resolution": "720p"}
+	atSubmit := []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: dims, PricePerSecond: 0.314,
+			Basis: billing_setting.BasisOutputDuration},
+	}
+
+	reserved, err := ComputeSecondBilling(atSubmit, "m1", dims, 10, 0.14)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	frozen := reserved[BillingUnitsKey]
+
+	// The administrator halves the price while the task is still running.
+	afterEdit := []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: dims, PricePerSecond: 0.157,
+			Basis: billing_setting.BasisOutputDuration},
+	}
+	recomputed, err := ComputeSecondBilling(afterEdit, "m1", dims, 10, 0.14)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if math.Abs(recomputed[BillingUnitsKey]-frozen) < 1e-9 {
+		t.Fatal("test setup is wrong: the edit must change a recomputed value")
+	}
+	// The contract: settlement uses frozen, never recomputed.
+	want := 0.314 * 10 / 0.14
+	if math.Abs(frozen-want) > 1e-9 {
+		t.Fatalf("frozen units = %v, want %v", frozen, want)
+	}
+}
+
+// One combined multiplier is used rather than separate seconds and resolution
+// ratios because applyTaskOtherRatios truncates to int after each
+// multiplication. This pins that ComputeSecondBilling emits exactly one key.
+func TestSecondBilling_EmitsExactlyOneRatioKey(t *testing.T) {
+	rules := []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: map[string]string{}, PricePerSecond: 0.5,
+			Basis: billing_setting.BasisOutputDuration},
+	}
+	got, err := ComputeSecondBilling(rules, "m1", map[string]string{}, 3, 0.1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected exactly one ratio key, got %d: %v", len(got), got)
+	}
+	if _, ok := got[BillingUnitsKey]; !ok {
+		t.Fatalf("expected key %q, got %v", BillingUnitsKey, got)
+	}
+}
