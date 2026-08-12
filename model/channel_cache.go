@@ -201,6 +201,55 @@ func CacheGetChannel(id int) (*Channel, error) {
 	return c, nil
 }
 
+// ListSatisfiedChannelIDs returns enabled channel IDs for group+model, priority-desc order.
+// Used for async task failover candidate snapshots (deterministic order, not weight-random).
+func ListSatisfiedChannelIDs(group string, modelName string) []int {
+	if !common.MemoryCacheEnabled {
+		return listSatisfiedChannelIDsFromDB(group, modelName)
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	var channels []int
+	for _, candidate := range ChannelModelLookupCandidates(modelName) {
+		channels = group2model2channels[group][candidate]
+		if len(channels) > 0 {
+			break
+		}
+	}
+	if len(channels) == 0 {
+		return nil
+	}
+	out := make([]int, len(channels))
+	copy(out, channels)
+	return out
+}
+
+func listSatisfiedChannelIDsFromDB(group string, modelName string) []int {
+	seen := map[int]bool{}
+	var ordered []int
+	for _, candidate := range ChannelModelLookupCandidates(modelName) {
+		var abilities []Ability
+		err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, candidate, true).
+			Order("priority DESC").
+			Find(&abilities).Error
+		if err != nil {
+			continue
+		}
+		for _, a := range abilities {
+			if seen[a.ChannelId] {
+				continue
+			}
+			seen[a.ChannelId] = true
+			ordered = append(ordered, a.ChannelId)
+		}
+		if len(ordered) > 0 {
+			break
+		}
+	}
+	return ordered
+}
+
 func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 	if !common.MemoryCacheEnabled {
 		channel, err := GetChannelById(id, true)
