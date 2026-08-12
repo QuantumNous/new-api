@@ -216,6 +216,8 @@ func setupSubscriptionMigrationServiceTestDB(t *testing.T) {
 		&model.SubscriptionProviderBinding{},
 		&model.UserSubscriptionContract{},
 		&model.SubscriptionChangeIntent{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	))
 }
 
