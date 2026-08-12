@@ -34,7 +34,8 @@ pnpm e2e
 ## Testing
 
 - Prefer adding e2e tests over unit tests, unless testing single-function behavior.
-- Run `pnpm build` once before any `pnpm e2e` command, including focused cases.
+- Update all affected unit test snapshots, not just a subset.
+- Run `pnpm build` once before `pnpm test` or any `pnpm e2e` command, including focused cases.
 
 ## Project structure
 

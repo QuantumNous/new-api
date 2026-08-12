@@ -1,6 +1,6 @@
 {
   "name": "@rsbuild/core",
-  "version": "2.1.4",
+  "version": "2.1.6",
   "description": "The Rspack-based build tool.",
   "homepage": "https://rsbuild.rs",
   "bugs": {
@@ -52,6 +52,7 @@
     "@jridgewell/remapping": "catalog:",
     "@jridgewell/trace-mapping": "catalog:",
     "@rslib/core": "catalog:",
+    "@rstackjs/load-config": "catalog:",
     "@types/cors": "catalog:",
     "@types/node": "catalog:",
     "@types/on-finished": "catalog:",

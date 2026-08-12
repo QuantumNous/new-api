@@ -1,6 +1,7 @@
 import net from 'node:net';
 import { stripVTControlCharacters as stripAnsi } from 'node:util';
-import { expect, getRandomPort, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 
 const HOST = '0.0.0.0';
 

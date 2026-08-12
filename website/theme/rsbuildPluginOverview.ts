@@ -9,7 +9,7 @@ export const rsbuildPluginOverview: RsbuildPlugin = {
   name: 'rsbuild-doc:overview',
 
   async setup(api) {
-    const root = path.join(__dirname, '../docs/en/config/');
+    const root = path.join(import.meta.dirname, '../docs/en/config/');
     const globPath = path.join(root, '**/*.{mdx,md}');
 
     const files = await glob(globPath);

@@ -1,17 +1,12 @@
 import path from 'node:path';
-import { expect, readDirContents, test } from '@e2e/helper';
-import fse from 'fs-extra';
+import { expect, test } from '@e2e/helper';
+import { readDirContents } from '@rstackjs/test-utils';
 
-const clean = () => {
-  fse.removeSync(path.join(import.meta.dirname, 'dist'));
-};
-
-test('should run inspect command correctly', async ({ execCliSync }) => {
-  clean();
-
+test('should run inspect command correctly', async ({ prepareDist, execCliSync }) => {
+  const distPath = await prepareDist();
   execCliSync('inspect');
 
-  const files = await readDirContents(path.join(import.meta.dirname, 'dist/.rsbuild'));
+  const files = await readDirContents(path.join(distPath, '.rsbuild'));
   const fileNames = Object.keys(files);
 
   const config = fileNames.find((item) => item.includes('rsbuild.config.mjs'));
@@ -25,12 +20,14 @@ test('should run inspect command correctly', async ({ execCliSync }) => {
   expect(files[rspackConfig!]).toContain("mode: 'development'");
 });
 
-test('should run inspect command with mode option correctly', async ({ execCliSync }) => {
-  clean();
-
+test('should run inspect command with mode option correctly', async ({
+  prepareDist,
+  execCliSync,
+}) => {
+  const distPath = await prepareDist();
   execCliSync('inspect --mode production');
 
-  const files = await readDirContents(path.join(import.meta.dirname, 'dist/.rsbuild'));
+  const files = await readDirContents(path.join(distPath, '.rsbuild'));
   const fileNames = Object.keys(files);
 
   const config = fileNames.find((item) => item.includes('rsbuild.config.mjs'));
@@ -41,12 +38,14 @@ test('should run inspect command with mode option correctly', async ({ execCliSy
   expect(files[rspackConfig!]).toContain("mode: 'production'");
 });
 
-test('should run inspect command with output option correctly', async ({ execCliSync }) => {
-  clean();
-
+test('should run inspect command with output option correctly', async ({
+  prepareDist,
+  execCliSync,
+}) => {
+  const distPath = await prepareDist();
   execCliSync('inspect --output foo');
 
-  const outputs = await readDirContents(path.join(import.meta.dirname, 'dist/foo'));
+  const outputs = await readDirContents(path.join(distPath, 'foo'));
   const outputFiles = Object.keys(outputs);
 
   expect(outputFiles.find((item) => item.includes('rsbuild.config.mjs'))).toBeTruthy();

@@ -35,10 +35,6 @@ describe('normalizeCssLoaderOptions', () => {
 });
 
 describe('plugin-css', () => {
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should enable source map when output.sourceMap.css is true', async () => {
     const rsbuild = await createRsbuild({
       config: {

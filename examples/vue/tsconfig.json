@@ -1,14 +1,24 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["DOM", "ES2022"],
+    "lib": ["DOM", "ES2020"],
     "jsx": "preserve",
-    "jsxImportSource": "vue",
+    "target": "ES2020",
+    "noEmit": true,
     "skipLibCheck": true,
+    "types": ["@rsbuild/core/types", "node"],
+    "jsxImportSource": "vue",
+    "useDefineForClassFields": true,
+
+    /* modules */
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
-    "moduleResolution": "bundler",
-    "useDefineForClassFields": true
+    "allowImportingTsExtensions": true,
+
+    /* type checking */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
 }

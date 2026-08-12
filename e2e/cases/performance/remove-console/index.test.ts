@@ -1,5 +1,6 @@
 import type { BuildResult } from '@e2e/helper';
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 const expectConsoleType = async (
   rsbuild: Awaited<BuildResult>,

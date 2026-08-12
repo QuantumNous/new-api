@@ -1,4 +1,5 @@
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 
 test('should inject styles and not emit CSS files when output.injectStyles is true', async ({
   page,

@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 
 test('should generate a vendor chunk when preset is "single-vendor" and target is "node"', async ({
   build,

@@ -1,10 +1,6 @@
 import { matchRules } from '@scripts/test-helper';
 import { createRsbuild, type RsbuildPlugin } from '../src';
 
-afterEach(() => {
-  rs.unstubAllEnvs();
-});
-
 it('should apply default plugins correctly', async () => {
   rs.stubEnv('NODE_ENV', 'development');
   const rsbuild = await createRsbuild();

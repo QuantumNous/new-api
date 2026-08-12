@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
-import { expect, getRandomPort, gotoPage, test } from '@e2e/helper';
+import { expect, gotoPage, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 
 const listen = (server: Server, port: number) =>
   new Promise<void>((resolve, reject) => {

@@ -1,10 +1,6 @@
 import { createRsbuild } from '../src';
 
 describe('default bundler', () => {
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should use Rspack by default', async () => {
     rs.stubEnv('NODE_ENV', 'development');
     const rsbuild = await createRsbuild({

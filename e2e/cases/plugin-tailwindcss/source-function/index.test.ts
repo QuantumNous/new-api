@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 test('should generate Tailwind utilities from source() files', async ({ runBoth }) => {
   await runBoth(async ({ result }) => {

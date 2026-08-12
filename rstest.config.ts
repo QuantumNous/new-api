@@ -15,6 +15,7 @@ export default defineConfig({
   name: 'node',
   globals: true,
   restoreMocks: true,
+  unstubEnvs: true,
   include: ['packages/**/*.test.ts'],
   exclude: ['packages/create-rsbuild/template-rstest'],
   setupFiles: ['./scripts/test-helper/rstest.setup.ts'],

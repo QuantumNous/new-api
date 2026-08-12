@@ -3,10 +3,6 @@ import { matchRules } from '@scripts/test-helper';
 import { pluginSvelte } from '../src';
 
 describe('plugin-svelte', () => {
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should add svelte loader and resolve config properly', async () => {
     const rsbuild = await createRsbuild({
       cwd: __dirname,

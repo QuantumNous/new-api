@@ -1,5 +1,6 @@
 import { join, relative } from 'node:path';
-import { test, toPosixPath } from '@e2e/helper';
+import { test } from '@e2e/helper';
+import { toPosixPath } from '@rstackjs/test-utils';
 
 const EXPECTED_LOG = 'error   [browser] Uncaught Error: test (src/index.js:1:0)';
 

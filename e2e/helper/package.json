@@ -15,6 +15,7 @@
     }
   },
   "dependencies": {
-    "@jridgewell/trace-mapping": "catalog:"
+    "@jridgewell/trace-mapping": "catalog:",
+    "@rstackjs/test-utils": "catalog:"
   }
 }

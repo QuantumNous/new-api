@@ -1,4 +1,5 @@
-import { expect, getRandomPort, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 import { createConnectHandler } from '@e2e/helper/server';
 import { createAdaptorServer } from '@hono/node-server';
 import { createRsbuild } from '@rsbuild/core';

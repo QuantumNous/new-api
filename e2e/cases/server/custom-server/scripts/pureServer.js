@@ -1,5 +1,5 @@
 import { createConnectHandler } from '@e2e/helper/server';
-import { getRandomPort } from '@e2e/helper';
+import { getRandomPort } from '@rstackjs/test-utils';
 import { createAdaptorServer } from '@hono/node-server';
 import { createRsbuild } from '@rsbuild/core';
 import { Hono } from 'hono';

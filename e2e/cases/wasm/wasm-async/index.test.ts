@@ -1,4 +1,5 @@
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 
 test('should allow to dynamic import a Wasm file', async ({ build }) => {
   const rsbuild = await build();

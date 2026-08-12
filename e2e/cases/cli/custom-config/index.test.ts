@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expect, readDirContents, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { readDirContents } from '@rstackjs/test-utils';
 
 test('should use custom config when using --config option', async ({ execCliSync }) => {
   execCliSync('build --config ./custom.config.js');

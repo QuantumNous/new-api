@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 
 test('should generate module chunks when chunkSplit is "split-by-module"', async ({ build }) => {
   const rsbuild = await build({

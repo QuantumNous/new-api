@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 import { pluginReact } from '@rsbuild/plugin-react';
 
 test('should treat specified modules as externals', async ({ page, buildPreview }) => {

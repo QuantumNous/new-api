@@ -29,7 +29,7 @@ interface PreloadOptions {
 
 ## 启用 preload
 
-当设置 `performance.preload` 为 `true` 时，Rsbuild 将使用以下默认选项，对资源进行预获取，这表示 preload 当前页面的所有异步资源，包含异步 JS 及其关联的 CSS、image、font 等资源。
+当设置 `performance.preload` 为 `true` 时，Rsbuild 将使用以下默认选项，对资源进行预获取，这表示 preload 当前页面的所有异步资源，包含异步 JS 及其关联的 CSS、image、font 资源。
 
 ```js
 const defaultOptions = {
@@ -101,7 +101,7 @@ type ResourceHintsIncludeType = 'async-chunks' | 'initial' | 'all-assets' | 'all
 
 指定哪些类型的资源会被包含，目前支持的值如下：
 
-- `async-chunks`: 包含当前页面的所有异步资源，比如异步的 JS chunks，以及它关联的 CSS、image、font 等静态资源。
+- `async-chunks`: 包含当前页面的所有异步资源，比如异步的 JS chunks，以及它关联的 CSS、image、font 资源。
 - `initial`: 包含当前页面的所有非异步资源。
 - `all-chunks`: 包含当前页面的所有异步和非异步资源。
 - `all-assets`: 包含所有页面的所有资源。
@@ -214,7 +214,7 @@ type ResourceHintsFilter =
   | Array<string | RegExp | ((filename: string) => boolean)>;
 ```
 
-- **默认值：** `undefined`
+- **默认值：** `/\.(?:webmanifest|pdf|txt)$/i`
 
 一个额外的过滤器，用于指定哪些资源会被排除，用法与 `include` 类似。
 
@@ -239,6 +239,7 @@ export default {
 
 ## 版本历史
 
-| 版本    | 变更内容                                |
-| ------- | --------------------------------------- |
-| v2.0.12 | 支持将 `performance.preload` 设置为数组 |
+| 版本    | 变更内容                                       |
+| ------- | ---------------------------------------------- |
+| v2.1.5  | 默认排除 `.webmanifest`、`.pdf` 和 `.txt` 资源 |
+| v2.0.12 | 支持将 `performance.preload` 设置为数组        |

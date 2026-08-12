@@ -1,4 +1,5 @@
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 
 test('should allow to import a Wasm module with source phase import', async ({
   page,

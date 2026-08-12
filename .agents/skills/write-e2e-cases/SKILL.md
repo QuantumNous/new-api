@@ -11,7 +11,7 @@ description: Use when adding or updating Rsbuild end-to-end tests in `e2e/cases`
 
 2. Read `e2e/README.md` and follow its conventions.
 
-3. Prefer `@e2e/helper` methods (for example `dev`, `build`, `getDistFiles`, `findFile`, `getFileContent`, `expectFile`, and `expectFileWithContent`) to keep tests minimal, including file and file-content assertions.
+3. Use `@e2e/helper` for Rsbuild-specific fixtures and helpers, such as `test`, `dev`, and `build`. Import generic test utilities, such as `getDistFiles`, `findFile`, and `getFileContent`, directly from `@rstackjs/test-utils`.
 
 4. Add Playwright cases under `e2e/cases`, following existing directory patterns.
 

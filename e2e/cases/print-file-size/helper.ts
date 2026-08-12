@@ -1,4 +1,4 @@
-import { toPosixPath } from '@e2e/helper';
+import { toPosixPath } from '@rstackjs/test-utils';
 
 export function extractFileSizeLogs(logs: string[]) {
   const result: string[] = [];

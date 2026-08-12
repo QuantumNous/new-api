@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { join } from 'node:path';
-import { expect, findFile, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 
 test('should compile Node addons correctly for ESM output', async ({ build }) => {

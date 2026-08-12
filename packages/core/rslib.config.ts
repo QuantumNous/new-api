@@ -126,6 +126,13 @@ export default defineConfig({
   output: {
     externals,
   },
+  tools: {
+    rspack: {
+      experiments: {
+        nativeWatcher: true,
+      },
+    },
+  },
   lib: [
     // Build client modules and copy dependencies to compiled folder
     {
@@ -189,6 +196,7 @@ export default defineConfig({
           postcss: './compiled/postcss',
           chokidar: './compiled/chokidar',
           'connect-next': './compiled/connect-next',
+          '@rstackjs/load-config': './compiled/@rstackjs/load-config',
           'rspack-chain': './compiled/rspack-chain/types',
           'html-rspack-plugin': './compiled/html-rspack-plugin',
           'http-proxy-middleware': './compiled/http-proxy-middleware',

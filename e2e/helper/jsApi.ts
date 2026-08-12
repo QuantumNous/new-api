@@ -9,9 +9,10 @@ import {
   type RsbuildDevServer,
   type RsbuildInstance,
 } from '@rsbuild/core';
+import { getRandomPort, toPosixPath } from '@rstackjs/test-utils';
 import type { Page } from 'playwright';
 import type { LogHelper } from './logs.ts';
-import { getRandomPort, gotoPage, noop, toPosixPath } from './utils.ts';
+import { gotoPage, noop } from './utils.ts';
 
 const updateConfigForTest = async (originalConfig: RsbuildConfig, cwd: string = process.cwd()) => {
   const { loadConfig, mergeRsbuildConfig } = await import('@rsbuild/core');

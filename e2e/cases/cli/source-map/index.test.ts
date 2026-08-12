@@ -1,14 +1,8 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { expect, readDirContents, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { readDirContents } from '@rstackjs/test-utils';
 
-const distPath = path.join(import.meta.dirname, 'dist');
-
-test.beforeEach(() => {
-  fs.rmSync(distPath, { recursive: true, force: true });
-});
-
-test('should enable source map from CLI', async ({ execCliSync }) => {
+test('should enable source map from CLI', async ({ prepareDist, execCliSync }) => {
+  const distPath = await prepareDist();
   execCliSync('build --source-map');
 
   const outputs = await readDirContents(distPath);
@@ -17,7 +11,8 @@ test('should enable source map from CLI', async ({ execCliSync }) => {
   expect(outputFiles.some((file) => file.endsWith('.js.map'))).toBeTruthy();
 });
 
-test('should disable source map from CLI', async ({ execCliSync }) => {
+test('should disable source map from CLI', async ({ prepareDist, execCliSync }) => {
+  const distPath = await prepareDist();
   execCliSync('build --config source-map.config.ts --no-source-map');
 
   const outputs = await readDirContents(distPath);

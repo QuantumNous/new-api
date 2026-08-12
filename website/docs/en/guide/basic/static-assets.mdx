@@ -1,10 +1,10 @@
 ---
-description: 'Rsbuild supports importing static assets, including images, fonts, audio, and video.'
+description: 'Rsbuild supports importing static assets, including images, fonts, media, and other file types.'
 ---
 
 # Static assets
 
-Rsbuild supports importing static assets, including images, fonts, audio, and video.
+Rsbuild supports importing static assets, including images, fonts, media, and other file types.
 
 :::tip What are static assets
 Static assets are files that are part of a web application and don't change during use. Examples include images, fonts, media files, stylesheets, and JavaScript files. These assets are typically stored on a web server or CDN and delivered to the user's browser when they access the application. Because they don't change, static assets can be cached by the browser, improving application performance.
@@ -14,10 +14,11 @@ Static assets are files that are part of a web application and don't change duri
 
 Rsbuild supports these formats by default:
 
-- **Images**: png, jpg, jpeg, gif, svg, bmp, webp, ico, apng, avif, tif, tiff, jfif, pjpeg, pjp, cur.
+- **Images**: png, jpg, jpeg, gif, svg, bmp, webp, ico, apng, avif, tif, tiff, jfif, pjpeg, pjp, cur, jxl.
 - **Fonts**: woff, woff2, eot, ttf, otf, ttc.
 - **Audio**: mp3, wav, flac, aac, m4a, opus.
 - **Video**: mp4, webm, ogg, mov.
+- **Other**: webmanifest, pdf, txt, vtt.
 
 To import assets in other formats, refer to [Extend Asset Types](#extend-asset-types).
 
@@ -346,24 +347,24 @@ By using the [source.assetsInclude](/config/source/assets-include) config, you c
 ```ts title="rsbuild.config.ts"
 export default {
   source: {
-    assetsInclude: /\.pdf$/,
+    assetsInclude: /\.gltf$/,
   },
 };
 ```
 
-After adding the above configuration, you can import `*.pdf` files in your code, for example:
+After adding the above configuration, you can import `*.gltf` files in your code, for example:
 
 ```js
-import myFile from './static/myFile.pdf';
+import myFile from './static/model.gltf';
 
-console.log(myFile); // "/static/myFile.[hash].pdf"
+console.log(myFile); // "/static/model.[hash].gltf"
 ```
 
 ### Use `tools.rspack`
 
 You can modify the built-in Rspack configuration and add custom static assets handling rules via [tools.rspack](/config/tools/rspack).
 
-For example, to treat `*.pdf` files as assets and output them to the dist directory, you can add the following configuration:
+For example, to treat `*.gltf` files as assets and output them to the dist directory, you can add the following configuration:
 
 ```ts title="rsbuild.config.ts"
 export default {
@@ -371,7 +372,7 @@ export default {
     rspack(config, { addRules }) {
       addRules([
         {
-          test: /\.pdf$/,
+          test: /\.gltf$/,
           // converts asset to a separate file and exports the URL address.
           type: 'asset/resource',
         },

@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 const getClassName = (content: string, localName: string) => {
   const matched = content.match(new RegExp(`${localName}-[\\w-]{6}`));

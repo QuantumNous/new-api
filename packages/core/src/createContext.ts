@@ -50,7 +50,10 @@ export function getBrowserslistByEnvironment(
   const { target, overrideBrowserslist } = config.output;
 
   if (Array.isArray(overrideBrowserslist)) {
-    return overrideBrowserslist;
+    // CJS arrays returned by require() in a jiti-loaded config can be Proxies.
+    // Clone them before passing browserslist to native bindings.
+    // https://github.com/web-infra-dev/rsbuild/issues/8063
+    return [...overrideBrowserslist];
   }
 
   // Read project browserslist config when target is `web-like`

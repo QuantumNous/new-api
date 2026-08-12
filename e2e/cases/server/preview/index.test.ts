@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
-import { expect, findFile, getRandomPort, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { findFile, getRandomPort } from '@rstackjs/test-utils';
 import type { RsbuildPlugin } from '@rsbuild/core';
 
 test('should preview dist files correctly', async ({ page, buildPreview }) => {

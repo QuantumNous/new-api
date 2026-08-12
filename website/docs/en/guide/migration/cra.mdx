@@ -234,10 +234,10 @@ export default defineConfig({
 
 ## Import unknown assets
 
-In CRA, if you import an asset that the build tool cannot recognize, CRA will by default output the file to the `build/static/media` directory, for example, the `document.pdf` file:
+In CRA, if you import an asset that the build tool cannot recognize, CRA will by default output the file to the `build/static/media` directory, for example, the `model.gltf` file:
 
 ```js title="index.js"
-import document from './document.pdf';
+import model from './model.gltf';
 ```
 
 In Rsbuild, when you import unrecognized assets, Rsbuild will output error logs:

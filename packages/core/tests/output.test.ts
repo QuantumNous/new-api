@@ -2,10 +2,6 @@ import { matchPlugin } from '@scripts/test-helper';
 import { createRsbuild } from '../src';
 
 describe('plugin-output', () => {
-  afterEach(() => {
-    rs.unstubAllEnvs();
-  });
-
   it('should set output correctly', async () => {
     const rsbuild = await createRsbuild();
 

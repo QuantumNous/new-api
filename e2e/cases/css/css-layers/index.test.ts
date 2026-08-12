@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 test('should bundle CSS layers as expected', async ({ runBoth }) => {
   await runBoth(async ({ mode, result }) => {

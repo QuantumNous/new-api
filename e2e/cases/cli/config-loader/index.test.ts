@@ -1,5 +1,6 @@
 import path from 'node:path';
-import { expect, readDirContents, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { readDirContents } from '@rstackjs/test-utils';
 
 test('should use Node.js native loader to load config', async ({ execCliSync }) => {
   if (!process.features.typescript) {

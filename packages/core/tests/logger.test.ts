@@ -3,7 +3,6 @@ import { createLogger, createRsbuild, logger, type Logger, type RsbuildPlugin } 
 const initialGlobalLogLevel = logger.level;
 
 afterEach(() => {
-  rs.unstubAllEnvs();
   logger.level = initialGlobalLogLevel;
 });
 

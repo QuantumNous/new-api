@@ -1,13 +1,19 @@
 import {
   type ChildProcess,
-  type ExecOptions,
   type ExecSyncOptions,
   execSync,
-  exec as nodeExec,
+  type SpawnOptions,
+  spawn as nodeSpawn,
 } from 'node:child_process';
 import { constants as fsConstants, promises } from 'node:fs';
 import path from 'node:path';
 import base, { expect } from '@playwright/test';
+import {
+  copyNodeModules as baseCopyNodeModules,
+  editFile as baseEditFile,
+  type FileEditor,
+  prepareDist as basePrepareDist,
+} from '@rstackjs/test-utils';
 import fse from 'fs-extra';
 import { RSBUILD_BIN_PATH } from './constants.ts';
 import {
@@ -31,11 +37,11 @@ function makeBox(title: string) {
   };
 }
 
-type EditFile = (filename: string, replacer: (code: string) => string) => Promise<void>;
+type EditFile = (filename: string, editor: FileEditor) => Promise<void>;
 
 type Exec = (
   command: string,
-  options?: ExecOptions,
+  options?: SpawnOptions,
 ) => {
   childProcess: ChildProcess;
 };
@@ -58,6 +64,8 @@ type RunBoth = (
 ) => Promise<void>;
 
 type CopyNodeModules = () => Promise<string>;
+
+type PrepareDist = (distFolderName?: string) => Promise<string>;
 
 type RsbuildFixture = {
   /**
@@ -89,6 +97,15 @@ type RsbuildFixture = {
    * The fixture auto-closes after the test.
    */
   buildPreview: Build;
+  /**
+   * Prepare a dist folder by removing it from the test file's cwd.
+   * @param distFolderName The dist folder name. Defaults to `dist`.
+   * @returns The absolute path of the removed dist folder.
+   * @example
+   * const distPath = await prepareDist();
+   * const distWebPath = await prepareDist('dist-web');
+   */
+  prepareDist: PrepareDist;
   /**
    * Copies the source directory to a temporary directory for testing purposes.
    */
@@ -125,7 +142,7 @@ type RsbuildFixture = {
    * Edit a file in the test file's cwd.
    * @param filename The filename. If it is not absolute, it will be resolved
    * relative to the test file's cwd.
-   * @param replacer The replacer function.
+   * @param editor The editor function, which may be sync or async.
    * @example
    * await editFile('src/index.ts', (code) =>
    *   code.replace('Hello', 'Hi'),
@@ -166,7 +183,7 @@ type RsbuildFixture = {
 
 type Close = DevResult['close'];
 
-const setupExecOptions = <T extends ExecOptions | ExecSyncOptions>(options: T, cwd: string): T => {
+const setupExecOptions = <T extends SpawnOptions | ExecSyncOptions>(options: T, cwd: string): T => {
   // inherit process.env from current process
   const { NODE_ENV: _, ...restEnv } = process.env;
   options.env ||= {};
@@ -234,6 +251,12 @@ export const test = base.extend<RsbuildFixture>({
     }
   },
 
+  prepareDist: async ({ cwd }, use) => {
+    const prepareDist: PrepareDist = (distFolderName = 'dist') =>
+      basePrepareDist(path.join(cwd, distFolderName));
+    await use(prepareDist);
+  },
+
   dev: async ({ cwd, page, logHelper }, use) => {
     const closes: Close[] = [];
     const dev: typeof baseDev = async (options) => {
@@ -287,19 +310,18 @@ export const test = base.extend<RsbuildFixture>({
   },
 
   editFile: async ({ cwd }, use) => {
-    const editFile: EditFile = async (filename, replacer) => {
+    const editFile: EditFile = (filename, editor) => {
       const resolvedFilename = path.isAbsolute(filename) ? filename : path.resolve(cwd, filename);
-      const code = await promises.readFile(resolvedFilename, 'utf-8');
-      return promises.writeFile(resolvedFilename, replacer(code));
+      return baseEditFile(resolvedFilename, editor);
     };
     await use(editFile);
   },
 
   exec: async ({ cwd, logHelper }, use) => {
-    let close: (() => void) | undefined;
+    const closes: Array<() => void> = [];
 
     const exec: Exec = (command, options = {}) => {
-      const childProcess = nodeExec(command, setupExecOptions(options, cwd));
+      const childProcess = nodeSpawn(command, setupExecOptions({ shell: true, ...options }, cwd));
 
       const onData = (data: Buffer) => {
         logHelper.addLog(data.toString());
@@ -308,22 +330,27 @@ export const test = base.extend<RsbuildFixture>({
       childProcess.stdout?.on('data', onData);
       childProcess.stderr?.on('data', onData);
 
-      close = () => {
+      closes.push(() => {
         childProcess.stdout?.off('data', onData);
         childProcess.stderr?.off('data', onData);
         childProcess.kill();
-      };
+      });
 
       return { childProcess };
     };
 
-    await use(exec);
-    close?.();
+    try {
+      await use(exec);
+    } finally {
+      for (const close of closes) {
+        close();
+      }
+    }
   },
 
   execCli: async ({ exec }, use) => {
     const execCli: Exec = (command, options = {}) => {
-      return exec(`node ${RSBUILD_BIN_PATH} ${command}`, options);
+      return exec(`node "${RSBUILD_BIN_PATH}" ${command}`, options);
     };
     await use(execCli);
   },
@@ -352,14 +379,7 @@ export const test = base.extend<RsbuildFixture>({
   },
 
   copyNodeModules: async ({ cwd }, use) => {
-    const copyNodeModules: CopyNodeModules = async () => {
-      const targetDir = path.join(cwd, 'node_modules');
-      await fse.remove(targetDir);
-      await fse.copy(path.join(cwd, '_node_modules'), targetDir);
-      return targetDir;
-    };
-
-    await use(copyNodeModules);
+    await use(() => baseCopyNodeModules(cwd));
   },
 });
 

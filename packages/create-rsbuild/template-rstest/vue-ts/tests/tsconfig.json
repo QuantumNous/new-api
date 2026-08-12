@@ -1,7 +1,7 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["@testing-library/jest-dom"]
+    "types": ["@rsbuild/core/types", "node", "@testing-library/jest-dom"]
   },
   "include": ["./"]
 }

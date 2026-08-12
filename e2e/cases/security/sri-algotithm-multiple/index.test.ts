@@ -1,4 +1,5 @@
-import { expect, getFileContent, test } from '@e2e/helper';
+import { expect, test } from '@e2e/helper';
+import { getFileContent } from '@rstackjs/test-utils';
 
 test('generate integrity using multiple algorithms', async ({ page, buildPreview }) => {
   const rsbuild = await buildPreview();

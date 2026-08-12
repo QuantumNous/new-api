@@ -13,13 +13,13 @@ browserslistrc
 bundleless
 cachable
 caniuse
+chenjiahan
 chunkhash
 Chunktmp
 classname
 codegen
 codesandbox
 codeva
-chenjiahan
 compat
 consolas
 contentful
@@ -43,9 +43,10 @@ flexbox
 flexbugs
 fnames
 frontends
-giget
 fullhash
 fullhref
+giget
+gltf
 gzipped
 httpxy
 icss
@@ -53,8 +54,8 @@ idents
 iife
 imagex
 inlines
-Jiahan
 jfif
+Jiahan
 jiti
 jridgewell
 jscpuprofile
@@ -155,8 +156,8 @@ tsgo
 twoslash
 TYPELESS
 uncompiled
-unminified
 unjs
+unminified
 unocss
 unpatch
 unplugin

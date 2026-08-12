@@ -1,4 +1,4 @@
-import { findFile } from '@e2e/helper';
+import { findFile } from '@rstackjs/test-utils';
 
 export const getPolyfillContent = (files: Record<string, string>) => {
   let polyfillFileName: string | undefined;
