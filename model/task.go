@@ -100,8 +100,12 @@ type TaskPrivateData struct {
 	Key            string `json:"key,omitempty"`
 	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
 	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
-	RequestBody    string `json:"request_body,omitempty"`     // upstream create JSON for async resubmit
-	RetryCount     int    `json:"retry_count,omitempty"`      // async failure count (0..3)
+	RequestBody    string `json:"request_body,omitempty"`     // current-channel upstream create JSON (same-channel resubmit only)
+	ClientRequestBody string `json:"client_request_body,omitempty"` // original client body for cross-channel recreate
+	RetryCount     int    `json:"retry_count,omitempty"`      // same-channel failure/resubmit count for current channel
+	TriedChannelIDs       []int `json:"tried_channel_ids,omitempty"`        // channels already attempted
+	FailoverChannelIDs    []int `json:"failover_channel_ids,omitempty"`     // ordered candidates snapshotted at create
+	SameChannelMaxRetries int   `json:"same_channel_max_retries,omitempty"` // per-channel same-channel resubmit cap snapshotted at create
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
@@ -153,10 +157,26 @@ func (p *TaskPrivateData) Scan(val interface{}) error {
 }
 
 func (p TaskPrivateData) Value() (driver.Value, error) {
-	if (p == TaskPrivateData{}) {
+	if p.isEmpty() {
 		return nil, nil
 	}
 	return common.Marshal(p)
+}
+
+func (p TaskPrivateData) isEmpty() bool {
+	return p.Key == "" &&
+		p.UpstreamTaskID == "" &&
+		p.ResultURL == "" &&
+		p.RequestBody == "" &&
+		p.ClientRequestBody == "" &&
+		p.RetryCount == 0 &&
+		len(p.TriedChannelIDs) == 0 &&
+		len(p.FailoverChannelIDs) == 0 &&
+		p.SameChannelMaxRetries == 0 &&
+		p.BillingSource == "" &&
+		p.SubscriptionId == 0 &&
+		p.TokenId == 0 &&
+		p.BillingContext == nil
 }
 
 // SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
