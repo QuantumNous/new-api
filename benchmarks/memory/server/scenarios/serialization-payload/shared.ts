@@ -9,7 +9,7 @@ export type { StartRequestHandler }
 type Framework = 'react' | 'solid' | 'vue'
 
 const benchmarkSeed = 0x51eaa11
-const serializationPayloadIterations = 20
+const serializationPayloadIterations = 12
 const payloadPageMarker = 'data-bench="serialization-payload"'
 
 const requestInit = {
@@ -61,13 +61,15 @@ export function createWorkloadGroup(
       iterations: serializationPayloadIterations,
       buildRequest: buildPayloadRequest,
       validateResponse: validatePayloadResponse,
+      pinGcBetweenIterations: true,
+      verifyGcFloor: true,
     })
 
   return {
     sanity: () => assertSerializationPayloadSanity(handler),
     workloads: [
       {
-        name: `mem serialization-payload (${framework})`,
+        name: `mem server serialization-payload (${framework})`,
         run,
       },
     ],

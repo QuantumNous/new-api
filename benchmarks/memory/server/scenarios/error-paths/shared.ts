@@ -9,7 +9,9 @@ export type { StartRequestHandler }
 
 type Framework = 'react' | 'solid' | 'vue'
 
-const errorPathsIterations = 50
+// Sized to sit just above the 2s measured-run floor on CI (per-iteration
+// cost with the pinned collection is ~0.13-0.19s across frameworks).
+const errorPathsIterations = 18
 const redirectSeed = 0xdecafbad
 const notFoundSeed = 0xdecafb0d
 const errorSeed = 0xdecafbed
@@ -142,6 +144,7 @@ export function createWorkloadGroup(
       iterations: errorPathsIterations,
       buildRequest: buildRedirectRequest,
       validateResponse: validateRedirectResponse,
+      pinGcBetweenIterations: true,
     })
 
   const runNotFound = () =>
@@ -150,6 +153,7 @@ export function createWorkloadGroup(
       iterations: errorPathsIterations,
       buildRequest: buildNotFoundRequest,
       validateResponse: validateNotFoundResponse,
+      pinGcBetweenIterations: true,
     })
 
   const runError = () =>
@@ -158,6 +162,7 @@ export function createWorkloadGroup(
       iterations: errorPathsIterations,
       buildRequest: buildErrorRequest,
       validateResponse: validateErrorResponse,
+      pinGcBetweenIterations: true,
     })
 
   const runUnmatched = () =>
@@ -166,25 +171,26 @@ export function createWorkloadGroup(
       iterations: errorPathsIterations,
       buildRequest: buildUnmatchedRequest,
       validateResponse: validateNotFoundResponse,
+      pinGcBetweenIterations: true,
     })
 
   return {
     sanity: () => assertErrorPathsSanity(handler),
     workloads: [
       {
-        name: `mem error-paths redirect (${framework})`,
+        name: `mem server error-paths redirect (${framework})`,
         run: runRedirect,
       },
       {
-        name: `mem error-paths not-found (${framework})`,
+        name: `mem server error-paths not-found (${framework})`,
         run: runNotFound,
       },
       {
-        name: `mem error-paths error (${framework})`,
+        name: `mem server error-paths error (${framework})`,
         run: runError,
       },
       {
-        name: `mem error-paths unmatched (${framework})`,
+        name: `mem server error-paths unmatched (${framework})`,
         run: runUnmatched,
       },
     ],

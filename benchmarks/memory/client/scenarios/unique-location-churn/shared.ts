@@ -123,7 +123,7 @@ export function createWorkload(
   }
 
   return {
-    name: `mem unique-location-churn (${framework})`,
+    name: `mem client unique-location-churn (${framework})`,
     before,
     navigate: (location: ItemLocation) => navigateTo(location),
     async run() {

@@ -5,7 +5,7 @@ import {
   type DeferredSectionPayload,
 } from '../../../deferred-section-data'
 
-const fallbackFlushDelayMs = 1
+const fallbackFlushTicks = 4
 
 export const Route = createFileRoute('/stream/$id')({
   loader: ({ params }) => ({
@@ -23,13 +23,28 @@ export const Route = createFileRoute('/stream/$id')({
 // router load (sections resolve before the Suspense boundaries are even
 // reached) and setImmediate chains registered at loader time win the race
 // against React's flush — either way no fallback ever streams and the bench
-// stops exercising multi-flush streaming. Timer-phase callbacks reliably lose
-// that race, so this is the documented exception to the no-timers convention:
-// the few ms of wall-clock are irrelevant to memory metrics, and distinct
-// delays keep section ordering deterministic.
+// stops exercising multi-flush streaming. Timers-phase callbacks reliably
+// lose that race, but a millisecond delay makes the loss margin wall-clock
+// dependent, so this chains 0ms hops instead: each hop yields one full
+// event-loop turn (immediates and microtasks included), making the flush
+// ordering a function of turn count, not runner speed. Distinct hop counts
+// keep section ordering deterministic.
 function afterFallbackFlush(sectionIndex: number) {
   return new Promise<void>((resolve) => {
-    setTimeout(resolve, fallbackFlushDelayMs + sectionIndex)
+    let remaining = fallbackFlushTicks + sectionIndex
+
+    const step = () => {
+      remaining -= 1
+
+      if (remaining <= 0) {
+        resolve()
+        return
+      }
+
+      setTimeout(step, 0)
+    }
+
+    setTimeout(step, 0)
   })
 }
 

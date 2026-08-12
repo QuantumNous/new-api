@@ -7,7 +7,7 @@
     "build": "webpack build && tsc --noEmit"
   },
   "dependencies": {
-    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router": "^1.170.18",
     "@tanstack/solid-router-devtools": "^1.167.0",
     "solid-js": "^1.9.10",
     "tailwindcss": "^4.2.2"
@@ -15,7 +15,7 @@
   "devDependencies": {
     "@babel/core": "^7.28.5",
     "@babel/preset-typescript": "^7.27.1",
-    "@tanstack/router-plugin": "^1.168.19",
+    "@tanstack/router-plugin": "^1.168.20",
     "babel-loader": "^10.0.0",
     "babel-preset-solid": "^1.9.10",
     "css-loader": "^7.1.2",

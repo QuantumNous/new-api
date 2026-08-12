@@ -1,8 +1,13 @@
 import * as React from 'react'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
+import { z } from 'zod'
 import { sleep } from '~/utils/posts'
 
 export const Route = createFileRoute('/(tests)/hash-scroll-repro')({
+  validateSearch: z.object({
+    scrollKey: z.string().optional(),
+    invalidateOnMount: z.boolean().optional(),
+  }),
   loader: async () => {
     await sleep(50)
     return null
@@ -14,7 +19,20 @@ const sectionIds = ['one', 'two', 'three', 'four', 'five'] as const
 
 function Component() {
   const router = useRouter()
+  const { invalidateOnMount } = Route.useSearch()
   const [invalidateCount, setInvalidateCount] = React.useState(0)
+  const invalidatedOnMount = React.useRef(false)
+
+  React.useLayoutEffect(() => {
+    if (!invalidateOnMount || invalidatedOnMount.current) {
+      return
+    }
+
+    invalidatedOnMount.current = true
+    void router.invalidate().then(() => {
+      setInvalidateCount((count) => count + 1)
+    })
+  }, [invalidateOnMount, router])
 
   return (
     <div className="p-2">
@@ -61,6 +79,24 @@ function Component() {
           >
             #four no reset
           </Link>
+          <Link
+            to="/hash-scroll-repro"
+            search={{ scrollKey: 'destination' }}
+            hash="one"
+            className="rounded border px-3 py-2"
+            data-testid="hash-scroll-different-key-link"
+          >
+            #one different key
+          </Link>
+          <Link
+            to="/hash-scroll-repro"
+            search={{ invalidateOnMount: true }}
+            hash="one"
+            className="rounded border px-3 py-2"
+            data-testid="hash-scroll-layout-invalidate-link"
+          >
+            #one and invalidate in layout effect
+          </Link>
         </div>
       </div>
 
@@ -71,6 +107,16 @@ function Component() {
       >
         {Array.from({ length: 20 }).map((_, i) => (
           <div key={i}>Nested scroll row {i}</div>
+        ))}
+      </div>
+
+      <div
+        id="hash-scroll-reset-target"
+        data-testid="hash-scroll-reset-target"
+        className="mt-4 h-24 overflow-auto rounded border p-2"
+      >
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i}>Hash reset target row {i}</div>
         ))}
       </div>
 

@@ -54,13 +54,15 @@ export function createWorkloadGroup(
       iterations: peakLargePageIterations,
       buildRequest: buildPeakLargePageRequest,
       validateResponse: validatePeakLargePageResponse,
+      pinGcBetweenIterations: true,
+      verifyGcFloor: true,
     })
 
   return {
     sanity: () => assertPeakLargePageSanity(handler),
     workloads: [
       {
-        name: `mem peak-large-page (${framework})`,
+        name: `mem server peak-large-page (${framework})`,
         run,
       },
     ],

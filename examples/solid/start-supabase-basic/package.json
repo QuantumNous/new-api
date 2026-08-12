@@ -14,9 +14,9 @@
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.48.1",
-    "@tanstack/solid-router": "^1.170.17",
+    "@tanstack/solid-router": "^1.170.18",
     "@tanstack/solid-router-devtools": "^1.167.0",
-    "@tanstack/solid-start": "^1.168.27",
+    "@tanstack/solid-start": "^1.168.28",
     "solid-js": "^1.9.9",
     "redaxios": "^0.5.1"
   },

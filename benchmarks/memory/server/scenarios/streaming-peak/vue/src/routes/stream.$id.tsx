@@ -5,7 +5,7 @@ import {
   type DeferredSectionPayload,
 } from '../../../deferred-section-data'
 
-const fallbackFlushDelayMs = 1
+const fallbackFlushTicks = 20
 
 export const Route = createFileRoute('/stream/$id')({
   loader: ({ params }) => ({
@@ -20,9 +20,25 @@ export const Route = createFileRoute('/stream/$id')({
 
 // Deferred sections must settle strictly AFTER Vue's shell has a chance to
 // flush, so fallbacks are emitted before deferred section content.
+// Chained 0ms timers-phase hops give the renderer a deterministic number of
+// full event-loop turns to flush, instead of a wall-clock delay whose margin
+// varies with runner load; distinct hop counts keep section ordering stable.
 function afterFallbackFlush(sectionIndex: number) {
   return new Promise<void>((resolve) => {
-    setTimeout(resolve, fallbackFlushDelayMs + sectionIndex)
+    let remaining = fallbackFlushTicks + sectionIndex
+
+    const step = () => {
+      remaining -= 1
+
+      if (remaining <= 0) {
+        resolve()
+        return
+      }
+
+      setTimeout(step, 0)
+    }
+
+    setTimeout(step, 0)
   })
 }
 

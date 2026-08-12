@@ -180,7 +180,7 @@ export function createWorkload(
   }
 
   return {
-    name: `mem preload-churn (${framework})`,
+    name: `mem client preload-churn (${framework})`,
     before,
     preload: (id: string) => preloadItem(id),
     evictPreloads,

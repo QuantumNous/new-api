@@ -38,7 +38,9 @@ type SerovalNode =
 const benchmarkSeed = 0xdecafbad
 const payloadSeed = 0x51f0cafe
 const fixtureCount = 16
-const serverFnChurnIterations = 150
+// Sized to sit just above the 2s measured-run floor on CI (per-iteration
+// cost with the pinned collection is ~0.08-0.11s across frameworks).
+const serverFnChurnIterations = 30
 const origin = 'http://localhost'
 const tssContentTypeFramed = 'application/x-tss-framed'
 const acceptHeader = `${tssContentTypeFramed}, application/x-ndjson, application/json`
@@ -206,6 +208,7 @@ export async function createWorkloadGroup(
     runSequentialRequestLoop(handler, {
       seed: benchmarkSeed,
       iterations: serverFnChurnIterations,
+      pinGcBetweenIterations: true,
       buildRequest: (_random, index) => {
         const fixtureIndex = Math.floor(index / 2) % fixtureCount
 
@@ -224,7 +227,7 @@ export async function createWorkloadGroup(
     sanity: () => assertServerFnChurnSanity(handler, urls),
     workloads: [
       {
-        name: `mem server-fn-churn (${framework})`,
+        name: `mem server server-fn-churn (${framework})`,
         run,
       },
     ],

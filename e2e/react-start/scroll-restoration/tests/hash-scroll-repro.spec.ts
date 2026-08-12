@@ -103,43 +103,59 @@ test('hash navigation wins over stale same-tab scroll restoration entries', asyn
   expect(scrollYAfterHashNavigation).toBeLessThan(staleScrollY)
 })
 
-test('hash navigation still runs when only nested scroll entries restore', async ({
+test('hash navigation wins when the destination invalidates in a layout effect', async ({
   page,
 }) => {
   await goToRepro(page)
-
-  const nestedScrollTop = await page.evaluate(() => {
-    const nested = document.querySelector('[data-testid="hash-scroll-nested"]')
-    if (!(nested instanceof HTMLElement)) {
-      throw new Error('Missing nested scroller')
-    }
-
-    nested.scrollTop = 80
-    window.dispatchEvent(new PageTransitionEvent('pagehide'))
-    return nested.scrollTop
-  })
-
-  expect(nestedScrollTop).toBeGreaterThan(0)
+  const staleScrollY = await scrollUpFromHashTarget(page)
 
   await page.reload()
   await page.waitForLoadState('networkidle')
   await expect(
     page.getByTestId('hash-scroll-repro-invalidate-count'),
+  ).toHaveText('Invalidate count: 0')
+
+  await page.getByTestId('hash-scroll-layout-invalidate-link').click()
+  await expect(page).toHaveURL(/invalidateOnMount=true#one$/)
+  await expect(
+    page.getByTestId('hash-scroll-repro-invalidate-count'),
+  ).toHaveText('Invalidate count: 1')
+
+  await expect(page.getByTestId('hash-scroll-section-one')).toBeInViewport()
+  await expect(
+    page.getByTestId('hash-scroll-section-five'),
+  ).not.toBeInViewport()
+
+  const scrollYAfterHashNavigation = await page.evaluate(() => window.scrollY)
+  expect(scrollYAfterHashNavigation).toBeLessThan(staleScrollY)
+})
+
+test('hash navigation still runs when a configured nested target restores', async ({
+  page,
+}) => {
+  await goToRepro(page)
+
+  const nested = page.getByTestId('hash-scroll-nested')
+  const cachedScrollTop = await nested.evaluate(async (element) => {
+    element.scrollTop = 80
+    element.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    return element.scrollTop
+  })
+
+  expect(cachedScrollTop).toBeGreaterThan(0)
+
+  await page.getByTestId('hash-scroll-about-link').click()
+  await expect(
+    page.getByRole('heading', { name: 'hash-scroll-about' }),
   ).toBeVisible()
 
-  await page.getByTestId('hash-scroll-section-one-link').click()
+  await page.getByTestId('hash-scroll-restore-link').click()
   await expect(page.getByTestId('hash-scroll-section-one')).toBeInViewport()
 
   await expect
-    .poll(async () => {
-      return page.evaluate(() => {
-        const nested = document.querySelector(
-          '[data-testid="hash-scroll-nested"]',
-        )
-        return nested instanceof HTMLElement ? nested.scrollTop : 0
-      })
-    })
-    .toBe(nestedScrollTop)
+    .poll(async () => nested.evaluate((element) => element.scrollTop))
+    .toBe(cachedScrollTop)
 })
 
 test('hash navigation scrolls when resetScroll is false', async ({ page }) => {
@@ -156,4 +172,61 @@ test('hash navigation scrolls when resetScroll is false', async ({ page }) => {
   await expect
     .poll(async () => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(scrollYBeforeHashNavigation)
+})
+
+test('hash navigation does not reset configured nested targets', async ({
+  page,
+}) => {
+  await goToRepro(page)
+
+  const resetTarget = page.getByTestId('hash-scroll-reset-target')
+  const scrollTop = await resetTarget.evaluate((element) => {
+    element.scrollTop = 80
+    return element.scrollTop
+  })
+  expect(scrollTop).toBeGreaterThan(0)
+
+  await page.getByTestId('hash-scroll-section-one-link').click()
+  await expect(page).toHaveURL(/#one$/)
+  await expect(page.getByTestId('hash-scroll-section-one')).toBeInViewport()
+  await expect
+    .poll(async () => resetTarget.evaluate((el) => el.scrollTop))
+    .toBe(scrollTop)
+})
+
+test('hash navigation does not carry configured targets into a different key', async ({
+  page,
+}) => {
+  await goToRepro(page)
+
+  const resetTarget = page.getByTestId('hash-scroll-reset-target')
+  const sourceScrollTop = await resetTarget.evaluate(async (element) => {
+    element.scrollTop = 80
+    element.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    return element.scrollTop
+  })
+  expect(sourceScrollTop).toBeGreaterThan(0)
+
+  await page.getByTestId('hash-scroll-different-key-link').click()
+  await expect(page).toHaveURL(/scrollKey=destination#one$/)
+  await expect(page.getByTestId('hash-scroll-section-one')).toBeInViewport()
+  await expect
+    .poll(async () => resetTarget.evaluate((element) => element.scrollTop))
+    .toBe(sourceScrollTop)
+
+  await page.getByTestId('hash-scroll-about-link').click()
+  await expect(
+    page.getByRole('heading', { name: 'hash-scroll-about' }),
+  ).toBeVisible()
+
+  await page.getByTestId('hash-scroll-destination-link').click()
+  await expect(page).toHaveURL(/scrollKey=destination$/)
+  await expect
+    .poll(async () =>
+      page
+        .getByTestId('hash-scroll-reset-target')
+        .evaluate((element) => element.scrollTop),
+    )
+    .toBe(0)
 })
