@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -60,10 +61,69 @@ type TaskAdaptor struct {
 	taskcommon.BaseBilling
 	apiKey  string
 	baseURL string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
 }
 
 var _ channel.TaskAdaptor = (*TaskAdaptor)(nil)
 var _ channel.OpenAIVideoConverter = (*TaskAdaptor)(nil)
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// hailuoResolutionLabels maps the two tiers MiniMax H3 renders onto price-table
+// vocabulary. Neither belongs to the shared taskcommon.NormalizeResolution set:
+// no other channel serves a 768-line tier, and "2K" is MiniMax's own label for
+// a tier below the shared 4k/2160p one, so folding it into that vocabulary
+// would price it against another channel's tier. The mapping is therefore
+// channel-local and exact — mirroring isSupportedResolution, which is what the
+// inbound validator accepts — so an unrecognised value refuses rather than
+// guessing a tier.
+var hailuoResolutionLabels = map[string]string{
+	"768P": "768p",
+	"2K":   "2k",
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := hailuoResolutionLabels[resolution]
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
+}
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
@@ -517,6 +577,47 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 			hasReferenceVideo = true
 		}
 	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// The configured table is keyed on info.OriginModelName — the client-facing
+	// name the administrator also prices with ModelPrice, which is the
+	// denominator in ComputeSecondBilling. The legacy path below keys nothing on
+	// a model name at all (it only ever serves the single upstream MiniMax-H3),
+	// so the two are deliberately independent.
+	//
+	// The captured length is the REQUESTED OUTPUT length, deliberately without
+	// the maxReferenceInputSeconds pad the legacy reservation adds below. Input
+	// media length is not knowable at submit time, and the price table has its
+	// own answer for that: a total_duration rule substitutes its bounded
+	// FallbackSeconds. Adding the pad here would double-count against such a
+	// rule and overprice an output_duration one.
+	//
+	// req.Duration is validated into [minVideoDuration, maxVideoDuration] before
+	// this runs, so the length is always determinable; an unrecognised
+	// resolution is the only way capture is skipped, and that leaves the request
+	// on the legacy path.
+	if dims, ok := resolveDimensions(req.Resolution, hasReferenceVideo); ok {
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = seconds
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy hardcoded ratios from also applying. It also
+	// drops the extraImagePriceUSD surcharge: under configured pricing the
+	// administrator's per-second rate is the whole price, and a surcharge the
+	// table cannot express would be an invisible addition to it. An
+	// administrator who wants to charge more for image-heavy requests adds a
+	// dimension to the rule instead.
+	if billing_setting.IsVideoModelConfigured(rules, info.OriginModelName) {
+		return nil
+	}
+
 	if hasReferenceVideo {
 		seconds += maxReferenceInputSeconds
 	}
@@ -552,6 +653,18 @@ func calculateCompletedQuota(task *model.Task) int {
 		return keepReservedQuota(task, "billing snapshot is missing")
 	}
 	billing := task.PrivateData.BillingContext
+	// A reservation priced from the configured per-second table is already the
+	// final price: the administrator's rate times the length the customer asked
+	// for, frozen into the snapshot at submit time. There is nothing to
+	// recompute here — this settlement rescales the legacy reservation using
+	// the legacy formula, whose inputs (billableUnits, the region and
+	// resolution markers, extraImagePriceUSD) a per-second reservation never
+	// wrote. Returning 0 keeps the frozen reservation, which is the intended
+	// outcome, so it must not travel through keepReservedQuota: that logs an
+	// error and would fire on every completed per-second task.
+	if perSecondReservation(billing.OtherRatios) {
+		return 0
+	}
 	if billing.ModelPrice <= 0 || !isFinite(billing.ModelPrice) || task.Quota <= 0 {
 		return keepReservedQuota(task, "billing snapshot price or reserved quota is invalid")
 	}
@@ -605,6 +718,16 @@ func billingResolution(resolution string) (float64, string, bool) {
 	default:
 		return 0, "", false
 	}
+}
+
+// perSecondReservation reports whether a persisted billing snapshot was priced
+// from the configured per-second table. The two reservation shapes are disjoint
+// by construction — EstimateBilling returns nil for a configured model, so the
+// legacy keys are never written alongside the per-second one — which is what
+// makes a single key a sufficient discriminator.
+func perSecondReservation(ratios map[string]float64) bool {
+	_, ok := ratios[taskcommon.BillingUnitsKey]
+	return ok
 }
 
 func resolutionFromBillingMarkers(ratios map[string]float64) (string, float64, bool) {
