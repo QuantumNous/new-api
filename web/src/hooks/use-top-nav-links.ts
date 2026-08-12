@@ -63,8 +63,10 @@ export function useTopNavLinks(): TopNavLink[] {
   const links: TopNavLink[] = []
 
   // Home
-  if (modules?.home !== false) {
-    links.push({ title: t('Home'), href: '/' })
+  const home = modules?.home
+  if (home && typeof home === 'object' && home.enabled) {
+    const requiresAuth = home.requireAuth && !isAuthed
+    links.push({ title: t('Home'), href: '/', requiresAuth })
   }
 
   // Console -> /dashboard (new console path)
