@@ -3,6 +3,7 @@ import type { Channel } from '../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   channelFormSchema,
+  hasAdvancedSettingsValues,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
@@ -114,5 +115,31 @@ describe('Codex OAuth service tier settings', () => {
     expect(JSON.parse(payload.settings || '{}')).toMatchObject({
       allow_service_tier: true,
     })
+  })
+})
+
+describe('ModelAPI Seedance proxy guard', () => {
+  test('clears proxy from type 111 create and update payloads', () => {
+    const formValues = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      type: 111,
+      proxy: 'socks5://127.0.0.1:1080',
+    }
+
+    const createPayload = transformFormDataToCreatePayload(formValues)
+    expect(JSON.parse(createPayload.channel.setting || '{}').proxy).toBe('')
+
+    const updatePayload = transformFormDataToUpdatePayload(formValues, 111)
+    expect(JSON.parse(updatePayload.setting || '{}').proxy).toBe('')
+  })
+
+  test('ignores legacy type 111 proxy values when deciding advanced defaults', () => {
+    expect(
+      hasAdvancedSettingsValues({
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        type: 111,
+        proxy: 'socks5://127.0.0.1:1080',
+      })
+    ).toBe(false)
   })
 })

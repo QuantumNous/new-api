@@ -1,8 +1,9 @@
 package dto
 
 import (
-	"encoding/json"
 	"testing"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 func TestSeedanceVideoRequest_JSONTags(t *testing.T) {
@@ -17,7 +18,7 @@ func TestSeedanceVideoRequest_JSONTags(t *testing.T) {
 		"return_last_frame":true,"callback_url":"https://cb"
 	}`
 	var r SeedanceVideoRequest
-	if err := json.Unmarshal([]byte(raw), &r); err != nil {
+	if err := common.Unmarshal([]byte(raw), &r); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if r.Model != "kuaizi-lizhen-pro" || len(r.Content) != 2 {
@@ -83,6 +84,11 @@ func TestSeedanceVideoRequest_Validate(t *testing.T) {
 		{
 			name:    "image only ok",
 			req:     SeedanceVideoRequest{Content: []SeedanceContentItem{{Type: SeedanceContentImage, ImageURL: &SeedanceURLObject{URL: "https://a/i.jpg"}}}},
+			wantErr: false,
+		},
+		{
+			name:    "audio only ok",
+			req:     SeedanceVideoRequest{Content: []SeedanceContentItem{{Type: SeedanceContentAudio, AudioURL: &SeedanceURLObject{URL: "https://a/a.mp3"}}}},
 			wantErr: false,
 		},
 		{

@@ -6542,6 +6542,8 @@
     "activity_smtp_send_failed": "Envío SMTP de actividad fallido",
     "Unknown message state": "Estado de mensaje desconocido",
     "Unknown lifecycle event": "Evento de ciclo de vida desconocido",
-    "Unknown lifecycle outcome": "Resultado de ciclo de vida desconocido"
+    "Unknown lifecycle outcome": "Resultado de ciclo de vida desconocido",
+    "Hidden models": "Modelos ocultos",
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Nombres de modelos separados por comas que se ocultarán en las páginas de precios. Admite comodines * (prefijo, sufijo o contiene). Los modelos ocultos siguen siendo totalmente accesibles a través de la API."
   }
 }

@@ -28,6 +28,7 @@ var whitelabelChannels = map[int]struct{}{
 	constant.ChannelTypeJimengZhizinan:   {},
 	constant.ChannelTypeTechMobiVideo:    {},
 	constant.ChannelTypeBytePlus:         {},
+	constant.ChannelTypeModelAPISeedance: {},
 	constant.ChannelTypeXaiGrokVideo:     {},
 	constant.ChannelTypeSonilo:           {},
 }
@@ -65,6 +66,7 @@ var brandKeywords = []string{
 	"jimeng", "jianying", "dreamina", "seedance",
 	"techmobi", "chatgpttech",
 	"byteplus",
+	"modelapi", "api.modelapi.co",
 	"xai", "grok", "x.ai", "vidgen.x.ai",
 	"sonilo", "api.sonilo.com",
 }

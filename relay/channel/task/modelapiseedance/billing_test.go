@@ -1,0 +1,240 @@
+package modelapiseedance
+
+import (
+	"io"
+	"math"
+	"net/http"
+	"strings"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
+)
+
+func modelAPIBillingInfo(modelPrice float64) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		OriginModelName: "client-seedance",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: UpstreamModel,
+		},
+		PriceData: types.PriceData{
+			UsePrice:   true,
+			ModelPrice: modelPrice,
+		},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"},
+	}
+}
+
+func assertModelAPIBillableUnits(t *testing.T, got map[string]float64, want float64) {
+	t.Helper()
+	if len(got) != 1 {
+		t.Fatalf("EstimateBilling() = %#v, want only billable_units", got)
+	}
+	if math.Abs(got[modelAPIBillingUnitsKey]-want) > 1e-9 {
+		t.Fatalf("billable_units = %.12f, want %.12f", got[modelAPIBillingUnitsKey], want)
+	}
+}
+
+func TestEstimateBillingUsesSeedanceDefaultsAndResolutionPricing(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantUSD float64
+	}{
+		{
+			name:    "defaults to 5s 720p without video",
+			body:    `{"model":"client","content":[{"type":"text","text":"make it cinematic"}]}`,
+			wantUSD: 0.314 * 5,
+		},
+		{
+			name:    "explicit 480p without video",
+			body:    `{"model":"client","duration":4,"resolution":"480p","content":[{"type":"text","text":"make it cinematic"}]}`,
+			wantUSD: 0.140 * 4,
+		},
+		{
+			name:    "explicit 720p without video",
+			body:    `{"model":"client","duration":10,"resolution":"720p","content":[{"type":"text","text":"make it cinematic"}]}`,
+			wantUSD: 0.314 * 10,
+		},
+		{
+			name:    "explicit 480p with video uses 30s fallback",
+			body:    `{"model":"client","duration":4,"resolution":"480p","content":[{"type":"video_url","video_url":{"url":"https://example.com/ref.mp4"}}]}`,
+			wantUSD: 0.084 * 30,
+		},
+		{
+			name:    "explicit 720p with video uses 30s fallback",
+			body:    `{"model":"client","duration":4,"resolution":"720p","content":[{"type":"video_url","video_url":{"url":"https://example.com/ref.mp4"}}]}`,
+			wantUSD: 0.188 * 30,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, _ := newModelAPITestContext(test.body)
+			got := (&TaskAdaptor{}).EstimateBilling(c, modelAPIBillingInfo(modelAPIBaseModelPrice))
+			assertModelAPIBillableUnits(t, got, test.wantUSD/modelAPIBaseModelPrice)
+		})
+	}
+}
+
+func TestValidateTaskPriceDataRequiresFiniteFixedModelPrice(t *testing.T) {
+	tests := []struct {
+		name string
+		info *relaycommon.RelayInfo
+	}{
+		{name: "nil info", info: nil},
+		{name: "not fixed price", info: func() *relaycommon.RelayInfo {
+			info := modelAPIBillingInfo(modelAPIBaseModelPrice)
+			info.PriceData.UsePrice = false
+			return info
+		}()},
+		{name: "zero model price", info: modelAPIBillingInfo(0)},
+		{name: "negative model price", info: modelAPIBillingInfo(-0.14)},
+		{name: "nan model price", info: modelAPIBillingInfo(math.NaN())},
+		{name: "infinite model price", info: modelAPIBillingInfo(math.Inf(1))},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			taskErr := (&TaskAdaptor{}).ValidateTaskPriceData(test.info)
+			if taskErr == nil {
+				t.Fatal("ValidateTaskPriceData() = nil, want local model_price_error")
+			}
+			if taskErr.Code != "model_price_error" || taskErr.StatusCode != http.StatusBadRequest || !taskErr.LocalError {
+				t.Fatalf("TaskError = %+v, want local model_price_error/400", taskErr)
+			}
+		})
+	}
+
+	if taskErr := (&TaskAdaptor{}).ValidateTaskPriceData(modelAPIBillingInfo(modelAPIBaseModelPrice)); taskErr != nil {
+		t.Fatalf("valid fixed price rejected: %+v", taskErr)
+	}
+}
+
+func TestEstimateBillingReturnsNilForInvalidFixedPriceData(t *testing.T) {
+	c, _ := newModelAPITestContext(`{"model":"client","content":[{"type":"text","text":"make it cinematic"}]}`)
+	tests := []*relaycommon.RelayInfo{
+		nil,
+		func() *relaycommon.RelayInfo {
+			info := modelAPIBillingInfo(modelAPIBaseModelPrice)
+			info.PriceData.UsePrice = false
+			return info
+		}(),
+		modelAPIBillingInfo(0),
+		modelAPIBillingInfo(-0.14),
+		modelAPIBillingInfo(math.NaN()),
+		modelAPIBillingInfo(math.Inf(1)),
+	}
+	for i, info := range tests {
+		if got := (&TaskAdaptor{}).EstimateBilling(c, info); len(got) != 0 {
+			t.Fatalf("case %d EstimateBilling() = %#v, want nil", i, got)
+		}
+	}
+}
+
+func TestDoResponsePersistsPrivateEstimateAndAdjustsSubmitBilling(t *testing.T) {
+	a := &TaskAdaptor{}
+	info := modelAPIBillingInfo(modelAPIBaseModelPrice)
+	c, w := newModelAPITestContext(`{}`)
+	resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{
+		"task_id":"upstream-secret",
+		"status":"pending",
+		"usage":{"estimated_usd":1.57},
+		"result":{"assets":[{"type":"video","url":"https://cdn.modelapi.co/private.mp4"}]}
+	}`))}
+
+	taskID, taskData, taskErr := a.DoResponse(c, resp, info)
+	if taskErr != nil {
+		t.Fatalf("DoResponse error: %+v", taskErr)
+	}
+	if taskID != "upstream-secret" {
+		t.Fatalf("taskID = %q, want upstream id returned only internally", taskID)
+	}
+	var snapshot struct {
+		Status       string   `json:"status"`
+		EstimatedUSD *float64 `json:"estimated_usd,omitempty"`
+	}
+	if err := common.Unmarshal(taskData, &snapshot); err != nil {
+		t.Fatalf("taskData is invalid JSON: %v", err)
+	}
+	if snapshot.Status != "pending" || snapshot.EstimatedUSD == nil || *snapshot.EstimatedUSD != 1.57 {
+		t.Fatalf("taskData snapshot = %s, want private status and estimated_usd", taskData)
+	}
+	public := w.Body.String()
+	for _, leaked := range []string{"estimated_usd", "upstream-secret", "cdn.modelapi.co", "private.mp4"} {
+		if strings.Contains(public, leaked) {
+			t.Fatalf("public response leaked %q: %s", leaked, public)
+		}
+	}
+
+	adjusted := a.AdjustBillingOnSubmit(info, taskData)
+	assertModelAPIBillableUnits(t, adjusted, 1.57/modelAPIBaseModelPrice)
+}
+
+func TestDoResponseKeepsFallbackReservationWhenEstimateIsInvalidOrAbsent(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "missing usage", body: `{"task_id":"upstream","status":"pending"}`},
+		{name: "usage null", body: `{"task_id":"upstream","status":"pending","usage":null}`},
+		{name: "estimate null", body: `{"task_id":"upstream","status":"pending","usage":{"estimated_usd":null}}`},
+		{name: "estimate zero", body: `{"task_id":"upstream","status":"pending","usage":{"estimated_usd":0}}`},
+		{name: "estimate negative", body: `{"task_id":"upstream","status":"pending","usage":{"estimated_usd":-1}}`},
+		{name: "estimate string nan", body: `{"task_id":"upstream","status":"pending","usage":{"estimated_usd":"NaN"}}`},
+		{name: "estimate overflow", body: `{"task_id":"upstream","status":"pending","usage":{"estimated_usd":1e999}}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, w := newModelAPITestContext(`{}`)
+			resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(test.body))}
+			taskID, taskData, taskErr := (&TaskAdaptor{}).DoResponse(c, resp, modelAPIBillingInfo(modelAPIBaseModelPrice))
+			if taskErr != nil {
+				t.Fatalf("DoResponse error: %+v", taskErr)
+			}
+			if taskID != "upstream" {
+				t.Fatalf("taskID = %q, want upstream", taskID)
+			}
+			if strings.Contains(string(taskData), "estimated_usd") {
+				t.Fatalf("invalid estimate persisted in taskData: %s", taskData)
+			}
+			if got := (&TaskAdaptor{}).AdjustBillingOnSubmit(modelAPIBillingInfo(modelAPIBaseModelPrice), taskData); len(got) != 0 {
+				t.Fatalf("AdjustBillingOnSubmit() = %#v, want nil fallback", got)
+			}
+			if strings.Contains(w.Body.String(), "estimated_usd") {
+				t.Fatalf("public response exposed invalid estimate: %s", w.Body.String())
+			}
+		})
+	}
+}
+
+func TestAdjustBillingOnSubmitKeepsReservationForInvalidSnapshotOrPrice(t *testing.T) {
+	validData := []byte(`{"status":"pending","estimated_usd":1.57}`)
+	tests := []struct {
+		name string
+		info *relaycommon.RelayInfo
+		data []byte
+	}{
+		{name: "malformed taskData", info: modelAPIBillingInfo(modelAPIBaseModelPrice), data: []byte(`{"status":`)},
+		{name: "missing estimate", info: modelAPIBillingInfo(modelAPIBaseModelPrice), data: []byte(`{"status":"pending"}`)},
+		{name: "estimate zero", info: modelAPIBillingInfo(modelAPIBaseModelPrice), data: []byte(`{"status":"pending","estimated_usd":0}`)},
+		{name: "estimate negative", info: modelAPIBillingInfo(modelAPIBaseModelPrice), data: []byte(`{"status":"pending","estimated_usd":-1}`)},
+		{name: "nil info", info: nil, data: validData},
+		{name: "non fixed price", info: func() *relaycommon.RelayInfo {
+			info := modelAPIBillingInfo(modelAPIBaseModelPrice)
+			info.PriceData.UsePrice = false
+			return info
+		}(), data: validData},
+		{name: "invalid model price", info: modelAPIBillingInfo(math.Inf(1)), data: validData},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := (&TaskAdaptor{}).AdjustBillingOnSubmit(test.info, test.data); len(got) != 0 {
+				t.Fatalf("AdjustBillingOnSubmit() = %#v, want nil fallback", got)
+			}
+		})
+	}
+}

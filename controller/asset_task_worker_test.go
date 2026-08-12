@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -240,6 +241,133 @@ func TestNonAssetRelayTaskSubmitsSynchronously(t *testing.T) {
 	require.Equal(t, "upstream-sync", submitted.PrivateData.UpstreamTaskID)
 }
 
+func TestModelAPISeedanceSubmitEstimatedUSDSettlesAndPersistsAdjustedBilling(t *testing.T) {
+	const (
+		userID       = 57
+		tokenID      = 58
+		channelID    = 159
+		subID        = 60
+		planID       = 61
+		modelPrice   = 0.14
+		estimatedUSD = 1.25
+	)
+	expectedUnits := estimatedUSD / modelPrice
+	// Shared fixed-price task billing recalculates from integer quota units and
+	// intentionally preserves truncation at the submit-time adjustment boundary.
+	expectedQuota := 624999
+
+	tests := []struct {
+		name          string
+		userQuota     int
+		userSetting   dto.UserSetting
+		seedSub       bool
+		wantSource    string
+		wantUserQuota int
+		wantSubUsed   int64
+	}{
+		{
+			name:          "wallet",
+			userQuota:     2000000,
+			userSetting:   dto.UserSetting{BillingPreference: "wallet_only"},
+			wantSource:    service.BillingSourceWallet,
+			wantUserQuota: 2000000 - expectedQuota,
+		},
+		{
+			name:          "subscription",
+			userQuota:     0,
+			userSetting:   dto.UserSetting{},
+			seedSub:       true,
+			wantSource:    service.BillingSourceSubscription,
+			wantUserQuota: 0,
+			wantSubUsed:   int64(expectedQuota),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			restoreDB := useControllerAssetTaskDBForTest(t)
+			defer restoreDB()
+			restorePricing := useControllerAssetTaskPricingForTest(t)
+			defer restorePricing()
+			require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"seedance-2.0":0.14}`))
+			service.InitHttpClient()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodPost, r.Method)
+				require.Equal(t, "/v1/tasks", r.URL.Path)
+				require.Equal(t, "Bearer sk-modelapi-provider", r.Header.Get("Authorization"))
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"task_id":"upstream-modelapi-` + tt.name + `","status":"pending","usage":{"estimated_usd":1.25}}`))
+			}))
+			defer server.Close()
+
+			seedControllerRelayUserToken(t, userID, tokenID, tt.userQuota, 2000000)
+			seedControllerModelAPISeedanceChannel(t, channelID, server.URL)
+			if tt.seedSub {
+				require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
+					Id:               planID,
+					Title:            "ModelAPI Seedance submit billing plan",
+					DurationUnit:     "month",
+					DurationValue:    1,
+					TotalAmount:      2000000,
+					Window5hAmount:   2000000,
+					WindowWeekAmount: 2000000,
+				}).Error)
+				require.NoError(t, model.DB.Create(&model.UserSubscription{
+					Id:          subID,
+					UserId:      userID,
+					PlanId:      planID,
+					AmountTotal: 2000000,
+					AmountUsed:  0,
+					Status:      "active",
+					StartTime:   time.Now().Add(-time.Hour).Unix(),
+					EndTime:     time.Now().Add(time.Hour).Unix(),
+				}).Error)
+			}
+			model.InitChannelCache()
+
+			c, recorder := newControllerRelayTaskContext(`{"model":"seedance-2.0","content":[{"type":"text","text":"cinematic tea ad"}]}`)
+			common.SetContextKey(c, constant.ContextKeyUserId, userID)
+			common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyTokenId, tokenID)
+			common.SetContextKey(c, constant.ContextKeyTokenKey, "sk-task-token-58")
+			common.SetContextKey(c, constant.ContextKeyTokenGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+			common.SetContextKey(c, constant.ContextKeyUserSetting, tt.userSetting)
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "seedance-2.0")
+			common.SetContextKey(c, constant.ContextKeyChannelId, channelID)
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeModelAPISeedance)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "sk-modelapi-provider")
+			c.Set("platform", strconv.Itoa(constant.ChannelTypeModelAPISeedance))
+			c.Set("token_name", "task-token")
+			c.Set("token_quota", 2000000)
+
+			RelayTask(c)
+
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+			var response dto.OpenAIVideo
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+			require.NotEmpty(t, response.TaskID)
+
+			var task model.Task
+			require.NoError(t, model.DB.Where("task_id = ?", response.TaskID).First(&task).Error)
+			require.Equal(t, "upstream-modelapi-"+tt.name, task.PrivateData.UpstreamTaskID)
+			require.Equal(t, expectedQuota, task.Quota)
+			require.Equal(t, tt.wantSource, task.PrivateData.BillingSource)
+			require.NotNil(t, task.PrivateData.BillingContext)
+			require.True(t, task.PrivateData.BillingContext.PerCallBilling)
+			require.InDelta(t, expectedUnits, task.PrivateData.BillingContext.OtherRatios["billable_units"], 1e-9)
+
+			require.Equal(t, tt.wantUserQuota, getControllerUserQuota(t, userID))
+			require.Equal(t, 2000000-expectedQuota, getControllerTokenRemain(t, tokenID))
+			if tt.seedSub {
+				require.Equal(t, tt.wantSubUsed, getControllerSubscriptionUsed(t, subID))
+			}
+		})
+	}
+}
+
 func TestAssetTaskWorkerFallbackBeforeAcceptancePinsWinningChannel(t *testing.T) {
 	restoreDB := useControllerAssetTaskDBForTest(t)
 	defer restoreDB()
@@ -344,6 +472,52 @@ func TestTechMobiAssetTaskWorkerPersistsSelectedKeyAfterAcceptance(t *testing.T)
 	require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
 	require.Equal(t, 106, stored.ChannelId)
 	require.Equal(t, "techmobi-key-b", stored.PrivateData.Key)
+}
+
+func TestModelAPISeedanceAssetTaskWorkerPersistsSelectedKeyAfterAcceptance(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "modelapi-upstream-task"}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeModelAPISeedance)), adaptor)
+	defer restoreAdaptor()
+
+	publicID := "ast_8234567890abcdefABCDEF1234567890"
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerModelAPISeedanceMultiKeyChannel(t, 49)
+	seedControllerAsset(t, 7, publicID, time.Now().Add(time.Hour).Unix())
+	var asset model.Asset
+	require.NoError(t, model.DB.Where("public_id = ?", publicID).First(&asset).Error)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       49,
+		BindingScope:    "",
+		Status:          model.AssetStatusActive,
+		UpstreamAssetId: "modelapi-bound-" + publicID,
+	}).Error)
+	task := seedControllerQueuedAssetTask(t, "task_modelapi_selected_key", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.ChannelId = 0
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
+	require.Equal(t, 49, stored.ChannelId)
+	require.Equal(t, "modelapi-key-b", stored.PrivateData.Key)
 }
 
 func TestTechMobiAssetTaskWorkerRequeuesProcessingBindingThenSubmitsWhenActive(t *testing.T) {
@@ -550,6 +724,52 @@ func TestTechMobiAssetTaskWorkerPersistsSelectedKeyForUnknownSubmission(t *testi
 	require.EqualValues(t, model.TaskStatusUnknown, stored.Status)
 	require.Equal(t, model.TaskPreparationStatusUnknownOutcome, stored.PreparationStatus)
 	require.Equal(t, "techmobi-key-b", stored.PrivateData.Key)
+}
+
+func TestModelAPISeedanceAssetTaskWorkerPersistsSelectedKeyForUnknownSubmission(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	adaptor := &controllerFakeTaskAdaptor{failByChannel: map[int]error{49: assertErr("connection reset after request write")}}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeModelAPISeedance)), adaptor)
+	defer restoreAdaptor()
+
+	publicID := "ast_9334567890abcdefABCDEF1234567890"
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerModelAPISeedanceMultiKeyChannel(t, 49)
+	seedControllerAsset(t, 7, publicID, time.Now().Add(time.Hour).Unix())
+	var asset model.Asset
+	require.NoError(t, model.DB.Where("public_id = ?", publicID).First(&asset).Error)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       49,
+		BindingScope:    "",
+		Status:          model.AssetStatusActive,
+		UpstreamAssetId: "modelapi-bound-" + publicID,
+	}).Error)
+	task := seedControllerQueuedAssetTask(t, "task_modelapi_unknown_key", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.ChannelId = 0
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusUnknown, stored.Status)
+	require.Equal(t, model.TaskPreparationStatusUnknownOutcome, stored.PreparationStatus)
+	require.Equal(t, "modelapi-key-b", stored.PrivateData.Key)
 }
 
 func TestAssetTaskWorkerCrossTypeFallbackUsesSelectedAdaptorAndPricing(t *testing.T) {
@@ -2468,6 +2688,47 @@ func seedControllerTaskChannelTypeWithPriority(t *testing.T, id int, channelType
 		Priority:  &priority,
 		Weight:    weight,
 	}).Error)
+}
+
+func seedControllerModelAPISeedanceChannel(t *testing.T, id int, baseURL string) {
+	t.Helper()
+	priority := int64(100)
+	weight := uint(1)
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:       id,
+		Type:     constant.ChannelTypeModelAPISeedance,
+		Key:      "sk-modelapi-provider",
+		Status:   common.ChannelStatusEnabled,
+		Name:     fmt.Sprintf("modelapi-seedance-%d", id),
+		Group:    "default",
+		Models:   "seedance-2.0",
+		BaseURL:  common.GetPointer(baseURL),
+		Priority: &priority,
+		Weight:   &weight,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "default",
+		Model:     "seedance-2.0",
+		ChannelId: id,
+		Enabled:   true,
+		Priority:  &priority,
+		Weight:    weight,
+	}).Error)
+}
+
+func seedControllerModelAPISeedanceMultiKeyChannel(t *testing.T, id int) {
+	t.Helper()
+	seedControllerTaskChannelTypeWithPriority(t, id, constant.ChannelTypeModelAPISeedance, "modelapi-key-a\nmodelapi-key-b", 100, 1)
+	channelInfo := model.ChannelInfo{
+		IsMultiKey:           true,
+		MultiKeySize:         2,
+		MultiKeyMode:         constant.MultiKeyModePolling,
+		MultiKeyPollingIndex: 1,
+		MultiKeyStatusList: map[int]int{
+			0: common.ChannelStatusManuallyDisabled,
+		},
+	}
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", id).Update("channel_info", channelInfo).Error)
 }
 
 func seedControllerTechMobiTaskChannel(t *testing.T, id int) {

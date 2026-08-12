@@ -304,7 +304,7 @@ func ListDueRecallLifecycleEvents(ctx context.Context, now int64, limit int) ([]
 	err = DB.WithContext(ctx).
 		Model(&RecallLifecycleEvent{}).
 		Select("recall_lifecycle_events.*").
-		Joins("JOIN recall_continuous_trigger_slots ON recall_continuous_trigger_slots.trigger = recall_lifecycle_events.event_type").
+		Joins("JOIN recall_continuous_trigger_slots ON recall_continuous_trigger_slots.`trigger` = recall_lifecycle_events.event_type").
 		Joins("JOIN recall_campaigns ON recall_campaigns.id = recall_continuous_trigger_slots.campaign_id").
 		Where("recall_campaigns.execution_mode = ? AND recall_campaigns.status = ?", "continuous", RecallCampaignRunning).
 		Where("recall_campaigns.lifecycle_trigger = recall_lifecycle_events.event_type").
@@ -612,7 +612,7 @@ func GetRecallLifecycleEventCollectionStartedAtWithContext(ctx context.Context) 
 		return 0, fmt.Errorf("context is nil")
 	}
 	var option Option
-	if err := DB.WithContext(ctx).First(&option, "key = ?", OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
+	if err := DB.WithContext(ctx).First(&option, "`key` = ?", OptionKeyRecallLifecycleEventCollectionStartedAt).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, fmt.Errorf("recall lifecycle event collection marker is missing")
 		}
@@ -682,7 +682,7 @@ func EnsureRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string) error {
 		return err
 	}
 	return tx.Model(&RecallContinuousTriggerSlot{}).
-		Where("trigger = ?", slot.Trigger).
+		Where("`trigger` = ?", slot.Trigger).
 		Updates(map[string]any{
 			"delivery_policy": slot.DeliveryPolicy,
 			"delay_seconds":   slot.DelaySeconds,
@@ -740,17 +740,17 @@ func ReleaseRecallContinuousTriggerSlotTx(tx *gorm.DB, trigger string, campaignI
 
 func recallContinuousTriggerSlotSelectQuery(tx *gorm.DB, trigger string) *gorm.DB {
 	return tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("trigger = ?", strings.TrimSpace(trigger))
+		Where("`trigger` = ?", strings.TrimSpace(trigger))
 }
 
 func claimRecallContinuousTriggerSlotUpdateQuery(tx *gorm.DB, trigger string, campaignID int64) *gorm.DB {
 	return tx.Model(&RecallContinuousTriggerSlot{}).
-		Where("trigger = ? AND campaign_id = 0", strings.TrimSpace(trigger)).
+		Where("`trigger` = ? AND campaign_id = 0", strings.TrimSpace(trigger)).
 		Update("campaign_id", campaignID)
 }
 
 func releaseRecallContinuousTriggerSlotUpdateQuery(tx *gorm.DB, trigger string, campaignID int64) *gorm.DB {
 	return tx.Model(&RecallContinuousTriggerSlot{}).
-		Where("trigger = ? AND campaign_id = ?", strings.TrimSpace(trigger), campaignID).
+		Where("`trigger` = ? AND campaign_id = ?", strings.TrimSpace(trigger), campaignID).
 		Update("campaign_id", int64(0))
 }

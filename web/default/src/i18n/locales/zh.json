@@ -6542,6 +6542,8 @@
     "activity_smtp_send_failed": "活动 SMTP 发送失败",
     "Unknown message state": "未知消息状态",
     "Unknown lifecycle event": "未知生命周期事件",
-    "Unknown lifecycle outcome": "未知生命周期结果"
+    "Unknown lifecycle outcome": "未知生命周期结果",
+    "Hidden models": "隐藏模型",
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "以逗号分隔的模型名，这些模型不会出现在定价页面。支持 * 通配符（前缀、后缀或包含）。被隐藏的模型仍可通过 API 正常调用。"
   }
 }

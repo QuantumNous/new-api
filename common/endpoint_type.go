@@ -40,6 +40,8 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		fallthrough
 	case constant.ChannelTypeXaiGrokVideo:
 		fallthrough
+	case constant.ChannelTypeModelAPISeedance:
+		fallthrough
 	case constant.ChannelTypeMiniMaxH3:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	case constant.ChannelTypeSonilo:

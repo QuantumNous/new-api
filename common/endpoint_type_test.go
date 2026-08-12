@@ -55,3 +55,10 @@ func TestGetEndpointTypesByChannelType_Sonilo(t *testing.T) {
 		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeVideoToMusic, got)
 	}
 }
+
+func TestGetEndpointTypesByChannelType_ModelAPISeedance(t *testing.T) {
+	got := GetEndpointTypesByChannelType(constant.ChannelTypeModelAPISeedance, "doubao-seedance-2-5-260628")
+	if !containsEndpointType(got, constant.EndpointTypeOpenAIVideo) {
+		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAIVideo, got)
+	}
+}

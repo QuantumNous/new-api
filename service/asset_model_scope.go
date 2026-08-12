@@ -148,7 +148,10 @@ func assetModelHasReusableAssetCapability(modelName string) bool {
 			suffix := strings.TrimLeft(normalized[index+len("seedance"):], "-_./ ")
 			return strings.HasPrefix(suffix, "2.0") ||
 				strings.HasPrefix(suffix, "2-0") ||
-				strings.HasPrefix(suffix, "2_0")
+				strings.HasPrefix(suffix, "2_0") ||
+				strings.HasPrefix(suffix, "2.5") ||
+				strings.HasPrefix(suffix, "2-5") ||
+				strings.HasPrefix(suffix, "2_5")
 		}
 		offset = index + len("seedance")
 	}

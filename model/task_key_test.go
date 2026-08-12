@@ -21,6 +21,18 @@ func TestInitTaskPersistsTechMobiSelectedKeyForPolling(t *testing.T) {
 	require.Equal(t, "techmobi-selected-key", task.PrivateData.Key)
 }
 
+func TestInitTaskPersistsModelAPISeedanceSelectedKeyForPolling(t *testing.T) {
+	task := InitTask(constant.TaskPlatform("49"), &relaycommon.RelayInfo{
+		UserId: 7,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeModelAPISeedance,
+			ApiKey:      "modelapi-selected-key",
+		},
+	})
+
+	require.Equal(t, "modelapi-selected-key", task.PrivateData.Key)
+}
+
 func TestTechMobiSubmittingFencePreservesSelectedKeyAfterExpiry(t *testing.T) {
 	truncateTables(t)
 

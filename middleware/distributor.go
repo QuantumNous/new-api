@@ -460,6 +460,38 @@ func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Cha
 		return nil
 	}
 	originModel := strings.TrimSpace(c.GetString("original_model"))
+	ctx := context.Background()
+	if c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	if service.AssetModelChannelUsesSourceURL(channel.Type) {
+		modelInfo := &relaycommon.RelayInfo{
+			OriginModelName: originModel,
+			ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: originModel},
+		}
+		if err := relayhelper.ModelMappedHelper(c, modelInfo, nil); err != nil {
+			clearAssetRewriteMap(c)
+			return bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+		}
+		rewriteMap, err := service.ResolveAssetSourceURLRewriteMap(
+			ctx,
+			common.GetContextKeyInt(c, constant.ContextKeyUserId),
+			references,
+			channel,
+			originModel,
+		)
+		if err != nil {
+			clearAssetRewriteMap(c)
+			return service.AssetBindingAPIError(err)
+		}
+		if len(rewriteMap) == 0 {
+			clearAssetRewriteMap(c)
+			return nil
+		}
+		common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, rewriteMap)
+		common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, rewriteMap)
+		return nil
+	}
 	if !common.GetContextKeyBool(c, constant.ContextKeyAssetMaterializeEnabled) {
 		rewriteMap := references.RewriteMapForSelectedChannel(
 			channel,
@@ -473,10 +505,6 @@ func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Cha
 		common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, rewriteMap)
 		common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, rewriteMap)
 		return nil
-	}
-	ctx := context.Background()
-	if c.Request != nil {
-		ctx = c.Request.Context()
 	}
 	modelInfo := &relaycommon.RelayInfo{
 		OriginModelName: originModel,

@@ -257,6 +257,15 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 	if !eligible {
 		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
+	if AssetModelChannelUsesSourceURL(channel.Type) && target.BindingScope == assetModelSourceURLBindingScopeModelAPI {
+		if channel.Status != common.ChannelStatusEnabled || !assetModelTargetMatchesCurrentChannel(*target, channel) {
+			return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
+		}
+		if !assetModelSourceRecoverable(asset) {
+			return finishAssetModelReadinessFailed(row, owner, nowUnix, "source_unavailable")
+		}
+		return finishAssetModelReadinessActive(row, owner, nowUnix)
+	}
 	options, _, err := ResolveAssetModelTargetOptions(*target, channel)
 	if err != nil {
 		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
