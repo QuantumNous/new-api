@@ -13,6 +13,10 @@ import (
 
 const expectedNetworkSolana = "solana"
 
+func isSolanaNetwork(network string) bool {
+	return network == expectedNetworkSolana || strings.HasPrefix(network, expectedNetworkSolana+":")
+}
+
 // SignSolanaX402Payment signs only an unambiguous exact-scheme Solana USDC
 // option. It is intentionally separate from the shared Base signer so existing
 // Type 100 Base and Type 102 callers cannot enter the Solana payment path.
@@ -55,7 +59,7 @@ func selectSolanaPaymentOption(accepts []blockrunSDK.PaymentOption) (*blockrunSD
 	var selected *blockrunSDK.PaymentOption
 	for i := range accepts {
 		candidate := &accepts[i]
-		if candidate.Scheme != "exact" || candidate.Network != expectedNetworkSolana || candidate.Asset != blockrunSDK.USDCSolanaMainnet {
+		if candidate.Scheme != "exact" || !isSolanaNetwork(candidate.Network) || candidate.Asset != blockrunSDK.USDCSolanaMainnet {
 			continue
 		}
 		if selected == nil {

@@ -95,6 +95,34 @@ func TestSelectSolanaPaymentOptionRejectsMissingAndAmbiguousOptions(t *testing.T
 	if selected.Amount != valid.Amount {
 		t.Fatalf("selected option = %#v", selected)
 	}
+
+	caip, err := selectSolanaPaymentOption([]blockrunSDK.PaymentOption{withSolanaOption(valid, func(o *blockrunSDK.PaymentOption) {
+		o.Network = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+	})})
+	if err != nil {
+		t.Fatalf("CAIP-2 Solana network should be accepted: %v", err)
+	}
+	if caip.Network != "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp" {
+		t.Fatalf("selected CAIP network = %#v", caip)
+	}
+}
+
+func TestIsSolanaNetwork(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		network string
+		want    bool
+	}{
+		{network: "solana", want: true},
+		{network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp", want: true},
+		{network: "solana-devnet", want: false},
+		{network: "base", want: false},
+	} {
+		if got := isSolanaNetwork(tc.network); got != tc.want {
+			t.Fatalf("isSolanaNetwork(%q) = %v, want %v", tc.network, got, tc.want)
+		}
+	}
 }
 
 func TestSignSolanaX402PaymentRejectsInvalidTrustBoundaryInputs(t *testing.T) {
