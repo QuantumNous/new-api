@@ -216,3 +216,82 @@ build<Channel>CreateRequest()    ← 【渠道私有】纯函数：seedance → 
 | `relay/channel/task/blockrunseedance/adaptor.go` | **x402 + 202-gate 参考实现**（`DoRequest` 两程签名、`normalizeAcceptedStatus`、poll 阶段 x402 重签、`real_face_asset_id` 扩展字段） |
 | `service/task_polling.go` / `relay/relay_task.go` | usage 落库（`PrivateData`）+ 两套查询回传 |
 | `docs/api/seedance-video-api.html` | 对客户（白标）API 文档模板 |
+
+---
+
+## 视频按秒计费：价格表与新增计费维度
+
+价格不再写死在各渠道 Go 代码里，改由管理员配置。三个落点：
+
+| 文件 | 职责 |
+| --- | --- |
+| `setting/billing_setting/video_price.go` | 规则类型、加载期校验、管理员输入归一化、规则匹配 |
+| `relay/channel/task/taskcommon/second_billing.go` | `ComputeSecondBilling`（维度 → 计费倍率）、`NormalizeResolution` |
+| 各渠道 `adaptor.go` | `resolveDimensions` + `SecondBillingRatios`，只解析「请求是什么」，不碰价格 |
+
+### 白名单严格模式
+
+模型**在**价格表里 → 走按秒计费；此时维度匹配不上任何规则就是**硬失败**，请求在提交上游前被拒（用户不扣费、上游不产生成本）。模型**不在**表里 → 保持该渠道原有计费逻辑，逐字节不变。
+
+这就是为什么可以一次性给所有渠道接上代码、再慢慢补价格：没配的模型不受任何影响。
+
+### 规则形状
+
+```json
+{
+  "model": "doubao-seedance-2-5-260628",
+  "match": { "resolution": "720p", "has_video": "true" },
+  "price_per_second": 0.188,
+  "basis": "total_duration",
+  "fallback_seconds": 30
+}
+```
+
+`match` 是**开放维度 map**：只有写进去的键才被约束，没写的自动通配。命中多条时**约束多的胜出**；约束数相同且可能同时命中的两条规则会在加载时被拒绝（歧义在计费表里是定时炸弹）。
+
+`basis` 必填：`output_duration` 乘输出时长；`total_duration` 乘「输入+输出」总时长，用于带参考视频的请求 —— 此时本地无法探测远端媒体时长（探测会引入 SSRF/延迟风险，已否决），所以改用 `fallback_seconds` 顶格预扣。
+
+### 改值域 → 纯配置，不用发版
+
+给 1080p 单独定价？加一条规则即可，`resolution` 维度 adaptor 已经在吐了。
+
+### 加新维度 → 每个需要的渠道改一行
+
+比如要按 `fps` 定价：
+
+```go
+func (a *TaskAdaptor) resolveDimensions(...) (map[string]string, bool) {
+    return map[string]string{
+        "resolution": label,
+        "has_video":  has,
+        "fps":        strconv.Itoa(fps),   // 新增
+    }, true
+}
+```
+
+配置层和匹配器**都不用动**，存量规则也不受影响 —— 它们没有 `fps` 约束，继续匹配任意 fps。只改真正需要该维度的渠道。
+
+**checklist**
+
+1. 在需要支持的每个 adaptor 里 emit 这个 key
+2. 值归一化到封闭词表；若该维度有固定取值，同步加进 `setting/billing_setting/video_price.go` 的 `canonicalDimensions`，否则管理员的大小写差异会导致规则永不命中
+3. 加带新约束的规则；约束多的自动胜出
+4. 确认没有引入歧义（同模型下约束数相同且可能同时命中的两条会被拒绝）
+
+> ⚠️ 配置了一个**没有任何 adaptor emit** 的维度，该规则永远不会命中；对已在价格表中的模型，这会表现为硬失败。这是刻意设计 —— 让「忘了改 adaptor」在配置时就暴露，而不是静默按错价收费。
+
+### 新增渠道时的两个坑（都真实踩过）
+
+**① 嵌入陷阱。** 如果你的 `TaskAdaptor` 嵌入了别的渠道的 `TaskAdaptor`（`byteplus` 嵌了 `doubao`），你会**自动继承** `SecondBillingRatios` —— 编译期断言直接通过，看起来一切正常。但只要你覆写了 `EstimateBilling`，被继承的那些字段永远不会被填充，该方法会永远返回 `(nil, nil)`，**每个请求都静默走回老计费路径**。嵌入别的渠道时必须写自己的字段和自己的覆写。
+
+**② 编译期断言证明不了接线正确。** 加完 `var _ interface{ SecondBillingRatios() ... } = (*TaskAdaptor)(nil)` 之后，务必做一次变异测试：把捕获块删掉（或把方法体改成 `return nil, nil`，保留签名让断言仍然编译），跑测试，确认**至少有一个失败**。一个都不失败说明你的测试根本没测到接线。
+
+### 时长拿不到就别捕获
+
+`duration: -1`（由模型决定）、只传了 `frames`（真实时长 = 帧数 ÷ 模型帧率，网关不掌握帧率）、字符串时长解析失败 —— 这些情况下**不要捕获**，让该模型落回原有计费路径，而不是按猜的时长收钱。`taskcommon.SeedanceBillableSeconds` 已经处理了 seedance 系的这几种情况。
+
+### 快照冻结（改动结算逻辑前必读）
+
+预扣时把「价格 × 秒数 ÷ ModelPrice」折算成**一个** `video_billing_units` 倍率写进 `OtherRatios`，随 `TaskBillingContext` 落库。结算阶段读这个冻结值，**绝不重新读价格表** —— 否则管理员在任务执行期间改价，结算价就会 ≠ 下单价（涨价方向会超额补扣用户）。
+
+用单一合并倍率而不是 `seconds` × `resolution` 两个，是因为 `applyTaskOtherRatios` 每乘一次就 `int()` 截断一次，分开会累积误差。
