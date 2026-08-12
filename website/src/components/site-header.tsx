@@ -116,6 +116,19 @@ export function SiteHeader(props: Props) {
     ? { show: "min-[1024px]:flex", hide: "min-[1024px]:hidden" }
     : { show: "min-[1180px]:flex", hide: "min-[1180px]:hidden" };
 
+  useEffect(() => {
+    if (!props.expandNavigationAtTablet) return;
+
+    const media = window.matchMedia("(min-width: 1024px)");
+    const closeMobileMenuAtDesktop = () => {
+      if (media.matches) setMobileOpen(false);
+    };
+
+    closeMobileMenuAtDesktop();
+    media.addEventListener("change", closeMobileMenuAtDesktop);
+    return () => media.removeEventListener("change", closeMobileMenuAtDesktop);
+  }, [props.expandNavigationAtTablet]);
+
   const productItems = useMemo<NavItem[]>(
     () => [
       { href: "/models", label: copy.nav.modelPricing, publicPath: true },

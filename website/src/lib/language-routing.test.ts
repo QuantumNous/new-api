@@ -67,9 +67,6 @@ describe("language routing", () => {
       "/gpt-api-alternative",
       "/chinese-ai",
       "/chinese-ai-models-api",
-      "/deepseek-api",
-      "/kimi-api",
-      "/qwen-api",
       "/openai-compatible",
       "/gateway",
       "/apify-alternative",
@@ -79,6 +76,19 @@ describe("language routing", () => {
       "/lp/tools-ads/claude/web-scraping-api",
     ]) {
       expect(getLanguageRedirectPath({ pathname, method: "GET", cookieLocale: "zh", acceptLanguage: "zh-CN" })).toBeNull();
+    }
+  });
+
+  test("localizes paid-search pages that have Portuguese variants", () => {
+    for (const pathname of ["/deepseek-api", "/kimi-api", "/qwen-api"]) {
+      expect(
+        getLanguageRedirectPath({
+          pathname,
+          method: "GET",
+          cookieLocale: "pt",
+          acceptLanguage: "en-US,en;q=0.9",
+        })
+      ).toBe(`/pt${pathname}`);
     }
   });
 
