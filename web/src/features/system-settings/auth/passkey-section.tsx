@@ -225,7 +225,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                 <FormLabel>{t('Relying Party Display Name')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder={t('e.g. Ren2Hub Console')}
+                    placeholder={t('e.g. New API Console')}
                     value={field.value ?? ''}
                     onChange={(event) => field.onChange(event.target.value)}
                     name={field.name}

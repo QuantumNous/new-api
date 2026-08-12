@@ -3,6 +3,8 @@ import { computed, getCurrentScope, onScopeDispose, ref, type Ref } from 'vue'
 import { publicApi, type HomeRequestMetrics } from '@/api/public'
 import type { HomeRuntime } from '@/types/homeShowcase'
 
+const METRICS_REFRESH_INTERVAL_MS = 60_000
+
 export function calculateRuntime(
   now: number,
   launchedAt?: string | number
@@ -39,8 +41,9 @@ export function useHomeShowcase(
   const requestMetrics = ref<HomeRequestMetrics | null>(null)
   const metricsError = ref<unknown>(null)
   let intervalId: number | null = null
-  let metricsIntervalId: number | null = null
+  let metricsTimerId: number | null = null
   let metricsAbortController: AbortController | null = null
+  let metricsRequestGeneration = 0
   let disposed = false
   const loadMetrics = options.loadMetrics === true
   const metricsLoader = options.metricsLoader ?? publicApi.homeMetrics
@@ -55,26 +58,65 @@ export function useHomeShowcase(
   }
 
   function stopMetrics() {
-    if (metricsIntervalId !== null) window.clearInterval(metricsIntervalId)
-    metricsIntervalId = null
+    if (metricsTimerId !== null) window.clearTimeout(metricsTimerId)
+    metricsTimerId = null
+    metricsRequestGeneration += 1
     metricsAbortController?.abort()
     metricsAbortController = null
   }
 
+  function canRefreshMetrics() {
+    return (
+      loadMetrics &&
+      !disposed &&
+      sectionVisible.value &&
+      typeof document !== 'undefined' &&
+      document.visibilityState !== 'hidden'
+    )
+  }
+
+  function scheduleMetricsRefresh() {
+    if (!canRefreshMetrics() || metricsAbortController !== null) return
+    if (metricsTimerId !== null) window.clearTimeout(metricsTimerId)
+    metricsTimerId = window.setTimeout(() => {
+      metricsTimerId = null
+      void refreshMetrics()
+    }, METRICS_REFRESH_INTERVAL_MS)
+  }
+
   async function refreshMetrics() {
-    if (!loadMetrics || disposed || !sectionVisible.value) return
-    metricsAbortController?.abort()
+    if (!canRefreshMetrics() || metricsAbortController !== null) return
     const controller = new AbortController()
+    const requestGeneration = ++metricsRequestGeneration
     metricsAbortController = controller
     metricsError.value = null
     try {
-      requestMetrics.value = await metricsLoader(controller.signal)
+      const metrics = await metricsLoader(controller.signal)
+      if (
+        requestGeneration === metricsRequestGeneration &&
+        metricsAbortController === controller &&
+        !controller.signal.aborted &&
+        canRefreshMetrics()
+      ) {
+        requestMetrics.value = metrics
+      }
     } catch (error: unknown) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        metricsError.value = error
+      if (
+        requestGeneration === metricsRequestGeneration &&
+        metricsAbortController === controller &&
+        !controller.signal.aborted &&
+        canRefreshMetrics()
+      ) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          requestMetrics.value = null
+          metricsError.value = error
+        }
       }
     } finally {
-      if (metricsAbortController === controller) metricsAbortController = null
+      if (metricsAbortController === controller) {
+        metricsAbortController = null
+        scheduleMetricsRefresh()
+      }
     }
   }
 
@@ -98,15 +140,11 @@ export function useHomeShowcase(
         now.value = Date.now()
       }, 1_000)
     }
-    if (loadMetrics) {
-      void refreshMetrics()
-      metricsIntervalId = window.setInterval(() => {
-        void refreshMetrics()
-      }, 60_000)
-    }
+    if (loadMetrics) void refreshMetrics()
   }
 
   function setSectionVisible(next: boolean) {
+    if (sectionVisible.value === next) return
     sectionVisible.value = next
     syncClock()
   }

@@ -444,6 +444,62 @@ test('home showcase remains intact at narrow mobile width', async ({
   expect(trendOverflow).toBeLessThanOrEqual(1)
 })
 
+const requestTotalViewports = [
+  { name: 'narrow-phone', width: 320, height: 720 },
+  { name: 'small-desktop', width: 1024, height: 768 },
+] as const
+
+for (const theme of ['light', 'dark'] as VisualTheme[]) {
+  for (const viewport of requestTotalViewports) {
+    test(`${theme} ${viewport.name} long home request total stays contained`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport)
+      await configureStablePage(page, { theme, authenticated: true })
+      const requests24h = Number.MAX_SAFE_INTEGER
+      await page.route('**/api/home/metrics', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            message: '',
+            data: {
+              available: true,
+              requests_24h: requests24h,
+              hourly_requests: [requests24h, ...Array(23).fill(0)],
+              generated_at: 1_785_103_200,
+            },
+          }),
+        })
+      )
+      await page.goto('/', { waitUntil: 'domcontentloaded' })
+      await waitForStablePage(page)
+      await page.locator('#home-runtime').scrollIntoViewIfNeeded()
+
+      const total = page.locator('[data-home-request-total]')
+      await expect(total).toHaveText('9,007,199,254,740,991')
+      const geometry = await total.evaluate((element) => {
+        const totalBounds = element.getBoundingClientRect()
+        const panelBounds = element
+          .closest<HTMLElement>('.runtime-ledger-panel--requests')!
+          .getBoundingClientRect()
+        return {
+          totalLeft: totalBounds.left,
+          totalRight: totalBounds.right,
+          panelLeft: panelBounds.left,
+          panelRight: panelBounds.right,
+          overflow: element.scrollWidth - element.clientWidth,
+        }
+      })
+      expect(geometry.totalLeft).toBeGreaterThanOrEqual(geometry.panelLeft - 1)
+      expect(geometry.totalRight).toBeLessThanOrEqual(geometry.panelRight + 1)
+      expect(geometry.overflow).toBeLessThanOrEqual(1)
+      await assertNoHorizontalOverflow(page)
+    })
+  }
+}
+
 test('home progress dots navigate and track page position', async ({
   page,
 }) => {

@@ -521,14 +521,41 @@ html.light .landing-shell > #hero-immersive-stage {
 
 .runtime-request-total {
   display: block;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 1rem;
   color: var(--text-primary);
   font-family: var(--home-font-display);
   font-size: 5rem;
   font-weight: 400;
   line-height: 1;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
+}
+
+.runtime-request-total--long {
+  font-size: 3.5rem;
+}
+
+.runtime-request-total--extra-long {
+  font-size: 1.8rem;
+  letter-spacing: -0.035em;
+}
+
+.runtime-ledger-panel--wide-total > .runtime-request-total {
+  grid-column: 1 / -1;
+}
+
+.runtime-ledger-panel--wide-total > .runtime-request-caption {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.runtime-ledger-panel--wide-total > .runtime-trend {
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
 }
 
 .runtime-request-caption {
@@ -548,6 +575,17 @@ html.light .landing-shell > #hero-immersive-stage {
   width: 100%;
   height: 3rem;
   overflow: visible;
+}
+
+.runtime-trend > .runtime-trend-placeholder {
+  display: grid;
+  height: 3rem;
+  margin-top: 0;
+  place-items: center;
+  border-bottom: 1px dashed var(--showcase-rule);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
 }
 
 .runtime-trend polyline {
@@ -1154,9 +1192,21 @@ html.dark .runtime-flap::after {
     font-size: 3.25rem;
   }
 
+  .runtime-request-total--long {
+    font-size: 2.45rem;
+  }
+
+  .runtime-request-total--extra-long {
+    font-size: 1.45rem;
+  }
+
   .runtime-ledger-panel--requests {
     grid-template-columns: minmax(0, 1fr) minmax(7.5rem, 0.82fr);
     column-gap: 0.75rem;
+  }
+
+  .runtime-ledger-panel--wide-total > .runtime-trend {
+    max-width: 100%;
   }
 }
 @media (max-width: 360px) {
@@ -1182,6 +1232,14 @@ html.dark .runtime-flap::after {
   .runtime-ledger-panel--requests {
     grid-template-columns: minmax(0, 1fr) minmax(7rem, 0.75fr);
     column-gap: 0.5rem;
+  }
+
+  .runtime-request-total--long {
+    font-size: 2.1rem;
+  }
+
+  .runtime-request-total--extra-long {
+    font-size: 1.3rem;
   }
 }
 

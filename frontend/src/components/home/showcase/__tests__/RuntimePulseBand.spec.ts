@@ -10,7 +10,7 @@ afterEach(() => {
   window.matchMedia = originalMatchMedia
 })
 
-function mountBand(available: boolean) {
+function mountBand(available: boolean, requests24h = 300) {
   window.matchMedia = vi.fn().mockReturnValue({
     matches: true,
     addEventListener: vi.fn(),
@@ -25,8 +25,11 @@ function mountBand(available: boolean) {
       requestMetrics: available
         ? {
             available: true,
-            requests_24h: 300,
-            hourly_requests: hourlyRequests,
+            requests_24h: requests24h,
+            hourly_requests:
+              requests24h === 300
+                ? hourlyRequests
+                : [requests24h, ...Array(23).fill(0)],
             generated_at: 1_700_000_000,
           }
         : {
@@ -57,7 +60,34 @@ describe('RuntimePulseBand', () => {
 
     expect(wrapper.get('[data-home-request-total]').text()).toBe('--')
     expect(wrapper.find('.runtime-trend polyline').exists()).toBe(false)
+    expect(wrapper.find('.runtime-trend svg').exists()).toBe(false)
     expect(wrapper.text()).toContain(
+      i18n.global.t('showcase.runtime.metricsUnavailable')
+    )
+    wrapper.unmount()
+  })
+
+  it('uses a stable compact layout class for long real totals', () => {
+    const wrapper = mountBand(true, 1_234_567_890_123)
+
+    expect(wrapper.get('[data-home-request-total]').text()).toBe(
+      '1,234,567,890,123'
+    )
+    expect(wrapper.get('[data-home-request-total]').classes()).toContain(
+      'runtime-request-total--long'
+    )
+    expect(wrapper.get('.runtime-ledger-panel--requests').classes()).toContain(
+      'runtime-ledger-panel--wide-total'
+    )
+    wrapper.unmount()
+  })
+
+  it('distinguishes a real zero-hour trend from unavailable metrics', () => {
+    const wrapper = mountBand(true, 0)
+
+    expect(wrapper.get('[data-home-request-total]').text()).toBe('0')
+    expect(wrapper.get('.runtime-trend-placeholder').text()).toBe('0')
+    expect(wrapper.text()).not.toContain(
       i18n.global.t('showcase.runtime.metricsUnavailable')
     )
     wrapper.unmount()

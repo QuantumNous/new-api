@@ -84,5 +84,31 @@ describe('public API response boundaries', () => {
     expect(() =>
       parseHomeRequestMetrics({ ...valid, available: false })
     ).toThrow()
+    expect(() =>
+      parseHomeRequestMetrics({
+        ...valid,
+        available: false,
+        requests_24h: null,
+      })
+    ).toThrow()
+    expect(() =>
+      parseHomeRequestMetrics({
+        ...valid,
+        requests_24h: Number.MAX_SAFE_INTEGER + 1,
+      })
+    ).toThrow()
+    expect(() =>
+      parseHomeRequestMetrics({
+        ...valid,
+        hourly_requests: [Number.MAX_SAFE_INTEGER + 1, ...Array(23).fill(0)],
+        requests_24h: Number.MAX_SAFE_INTEGER,
+      })
+    ).toThrow()
+    expect(() =>
+      parseHomeRequestMetrics({
+        ...valid,
+        generated_at: Number.MAX_SAFE_INTEGER + 1,
+      })
+    ).toThrow()
   })
 })

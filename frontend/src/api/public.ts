@@ -220,17 +220,18 @@ export function parseUptimeGroups(value: unknown): UptimeGroup[] {
 }
 
 export function parseHomeRequestMetrics(value: unknown): HomeRequestMetrics {
+  const isNonNegativeSafeInteger = (input: unknown): input is number =>
+    typeof input === 'number' && Number.isSafeInteger(input) && input >= 0
+
   if (
     !isRecord(value) ||
     typeof value.available !== 'boolean' ||
-    !Number.isInteger(value.generated_at) ||
+    !isNonNegativeSafeInteger(value.generated_at) ||
     !Array.isArray(value.hourly_requests) ||
     value.hourly_requests.length !== 24 ||
-    value.hourly_requests.some(
-      (count) => !Number.isInteger(count) || Number(count) < 0
-    ) ||
+    value.hourly_requests.some((count) => !isNonNegativeSafeInteger(count)) ||
     (value.requests_24h !== null &&
-      (!Number.isInteger(value.requests_24h) || Number(value.requests_24h) < 0))
+      !isNonNegativeSafeInteger(value.requests_24h))
   ) {
     invalidResponse('/api/home/metrics')
   }
@@ -241,10 +242,16 @@ export function parseHomeRequestMetrics(value: unknown): HomeRequestMetrics {
   const hourlyRequests = value.hourly_requests.map(Number)
   const requests24h =
     value.requests_24h === null ? null : Number(value.requests_24h)
-  if (
-    requests24h !== null &&
-    hourlyRequests.reduce((sum, count) => sum + count, 0) !== requests24h
-  ) {
+  let hourlyTotal = 0
+  for (const count of hourlyRequests) {
+    if (!Number.isSafeInteger(hourlyTotal + count)) {
+      invalidResponse('/api/home/metrics')
+    }
+    hourlyTotal += count
+  }
+  if (requests24h === null) {
+    if (hourlyTotal !== 0) invalidResponse('/api/home/metrics')
+  } else if (hourlyTotal !== requests24h) {
     invalidResponse('/api/home/metrics')
   }
 

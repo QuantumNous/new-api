@@ -26,7 +26,7 @@ import {
 
 const defaultSiteSettings: SiteSettings = {
   Notice: '',
-  SystemName: 'Ren2Hub',
+  SystemName: 'New API',
   Logo: '',
   Footer: '',
   About: '',

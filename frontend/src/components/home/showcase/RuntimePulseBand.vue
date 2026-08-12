@@ -12,7 +12,7 @@ const props = defineProps<{
   requestMetrics: HomeRequestMetrics | null
 }>()
 
-const { t } = useI18n()
+const { locale, t } = useI18n()
 
 // ===== Split-flap: 记录每个 digit 的前一值，触发翻牌动画 =====
 const prevDigits = ref<Record<string, string>>({})
@@ -84,9 +84,35 @@ const requestValue = computed(() => {
     : null
 })
 
+const formattedRequestTarget = computed(() =>
+  requestValue.value === null
+    ? '--'
+    : requestValue.value.toLocaleString(locale.value)
+)
+const formattedDisplayRequests = computed(() =>
+  displayRequests.value.toLocaleString(locale.value)
+)
+const requestTotalClasses = computed(() => {
+  const length = formattedRequestTarget.value.length
+  return {
+    'runtime-request-total--long': requestValue.value !== null && length >= 9,
+    'runtime-request-total--extra-long':
+      requestValue.value !== null && length >= 14,
+  }
+})
+const usesWideRequestLayout = computed(
+  () => requestValue.value !== null && formattedRequestTarget.value.length >= 9
+)
+
 const trendPoints = computed(() => {
   const values = props.requestMetrics?.hourly_requests ?? []
-  if (!values.length || requestValue.value === null) return ''
+  if (
+    values.length !== 24 ||
+    requestValue.value === null ||
+    !values.some((value) => value > 0)
+  ) {
+    return ''
+  }
   const max = Math.max(...values, 1)
   return values
     .map((value, index) => {
@@ -239,7 +265,12 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="runtime-ledger-panel runtime-ledger-panel--requests">
+      <div
+        class="runtime-ledger-panel runtime-ledger-panel--requests"
+        :class="{
+          'runtime-ledger-panel--wide-total': usesWideRequestLayout,
+        }"
+      >
         <header class="runtime-ledger-heading">
           <Zap :size="19" aria-hidden="true" />
           <strong>{{ t('showcase.runtime.stableCalls') }}</strong>
@@ -247,12 +278,12 @@ onBeforeUnmount(() => {
           <em>{{ t('showcase.runtime.servedTag') }}</em>
         </header>
 
-        <strong class="runtime-request-total" data-home-request-total>
-          {{
-            requestValue === null
-              ? '--'
-              : displayRequests.toLocaleString('en-US')
-          }}
+        <strong
+          class="runtime-request-total"
+          :class="requestTotalClasses"
+          data-home-request-total
+        >
+          {{ requestValue === null ? '--' : formattedDisplayRequests }}
         </strong>
         <p class="runtime-request-caption">
           {{
@@ -264,12 +295,16 @@ onBeforeUnmount(() => {
 
         <div class="runtime-trend">
           <svg
+            v-if="trendPoints"
             viewBox="0 0 240 54"
             role="img"
             :aria-label="t('showcase.runtime.trend24h')"
           >
-            <polyline v-if="trendPoints" :points="trendPoints" />
+            <polyline :points="trendPoints" />
           </svg>
+          <span v-else class="runtime-trend-placeholder" aria-hidden="true">{{
+            requestValue === null ? '--' : '0'
+          }}</span>
           <span>{{ t('showcase.runtime.trend24h') }}</span>
         </div>
       </div>

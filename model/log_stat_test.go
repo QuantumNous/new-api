@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -79,13 +80,15 @@ func TestGetHomeRequestMetricsUsesRollingWindowAndConsumeLogsOnly(t *testing.T) 
 	})
 
 	now := time.Date(2026, time.August, 7, 15, 30, 0, 0, time.UTC)
-	start := now.Add(-24*time.Hour + time.Second)
+	windowStart := now.Add(-24 * time.Hour)
+	currentHour := now.Truncate(time.Hour)
 	logs := []Log{
-		{Type: LogTypeConsume, CreatedAt: start.Add(-time.Second).Unix()},
-		{Type: LogTypeConsume, CreatedAt: start.Unix()},
-		{Type: LogTypeConsume, CreatedAt: start.Add(59 * time.Minute).Unix()},
-		{Type: LogTypeSystem, CreatedAt: start.Add(2 * time.Hour).Unix()},
-		{Type: LogTypeConsume, CreatedAt: start.Add(2 * time.Hour).Unix()},
+		{Type: LogTypeConsume, CreatedAt: windowStart.Unix()},
+		{Type: LogTypeConsume, CreatedAt: windowStart.Add(time.Second).Unix()},
+		{Type: LogTypeConsume, CreatedAt: currentHour.Add(-23 * time.Hour).Unix()},
+		{Type: LogTypeConsume, CreatedAt: currentHour.Add(-22 * time.Hour).Unix()},
+		{Type: LogTypeSystem, CreatedAt: currentHour.Add(-22 * time.Hour).Unix()},
+		{Type: LogTypeConsume, CreatedAt: currentHour.Unix()},
 		{Type: LogTypeConsume, CreatedAt: now.Unix()},
 	}
 	require.NoError(t, db.Create(&logs).Error)
@@ -94,16 +97,16 @@ func TestGetHomeRequestMetricsUsesRollingWindowAndConsumeLogsOnly(t *testing.T) 
 	require.NoError(t, err)
 	require.True(t, metrics.Available)
 	require.NotNil(t, metrics.Requests24h)
-	assert.Equal(t, int64(4), *metrics.Requests24h)
+	assert.Equal(t, int64(5), *metrics.Requests24h)
 	assert.Len(t, metrics.HourlyRequests, 24)
 	assert.Equal(t, int64(2), metrics.HourlyRequests[0])
-	assert.Equal(t, int64(1), metrics.HourlyRequests[2])
-	assert.Equal(t, int64(1), metrics.HourlyRequests[23])
+	assert.Equal(t, int64(1), metrics.HourlyRequests[1])
+	assert.Equal(t, int64(2), metrics.HourlyRequests[23])
 	total := int64(0)
 	for _, count := range metrics.HourlyRequests {
 		total += count
 	}
-	assert.Equal(t, int64(4), total)
+	assert.Equal(t, int64(5), total)
 	assert.Equal(t, now.Unix(), metrics.GeneratedAt)
 }
 
@@ -135,4 +138,27 @@ func TestGetHomeRequestMetricsReturnsDatabaseErrors(t *testing.T) {
 	assert.True(t, metrics.Available)
 	assert.Nil(t, metrics.Requests24h)
 	assert.Equal(t, make([]int64, 24), metrics.HourlyRequests)
+}
+
+func TestGetHomeRequestMetricsHonorsCanceledContext(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Log{}))
+
+	previousLogDB := LOG_DB
+	previousLogType := common.LogDatabaseType()
+	previousEnabled := common.LogConsumeEnabled
+	LOG_DB = db
+	common.SetLogDatabaseType(common.DatabaseTypeSQLite)
+	common.LogConsumeEnabled = true
+	t.Cleanup(func() {
+		LOG_DB = previousLogDB
+		common.SetLogDatabaseType(previousLogType)
+		common.LogConsumeEnabled = previousEnabled
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = GetHomeRequestMetricsWithContext(ctx, time.Unix(1234, 0))
+	require.ErrorIs(t, err, context.Canceled)
 }

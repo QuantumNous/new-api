@@ -7,6 +7,16 @@ import {
   useHomeShowcase,
 } from '@/composables/useHomeShowcase'
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 afterEach(() => {
   vi.useRealTimers()
 })
@@ -104,14 +114,19 @@ describe('home runtime calculations', () => {
     expect(metricsLoader).toHaveBeenCalledTimes(1)
     await Promise.resolve()
     expect(state.requestMetrics.value).toEqual(snapshot)
-    vi.advanceTimersByTime(59_999)
-    expect(metricsLoader).toHaveBeenCalledTimes(1)
-    vi.advanceTimersByTime(1)
+    state.setSectionVisible(false)
+    vi.advanceTimersByTime(10_000)
+    state.setSectionVisible(true)
     expect(metricsLoader).toHaveBeenCalledTimes(2)
+    await Promise.resolve()
+    vi.advanceTimersByTime(59_999)
+    expect(metricsLoader).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(1)
+    expect(metricsLoader).toHaveBeenCalledTimes(3)
     state.dispose()
   })
 
-  it('pauses refresh while hidden and isolates failed refreshes', async () => {
+  it('pauses refresh while hidden and exposes failed refreshes as unavailable', async () => {
     vi.useFakeTimers()
     const snapshot = {
       available: true,
@@ -138,7 +153,7 @@ describe('home runtime calculations', () => {
     state.setSectionVisible(true)
     await Promise.resolve()
     expect(metricsLoader).toHaveBeenCalledTimes(2)
-    expect(state.requestMetrics.value).toEqual(snapshot)
+    expect(state.requestMetrics.value).toBeNull()
     expect(state.metricsError.value).toBeInstanceOf(Error)
     state.dispose()
   })
@@ -161,5 +176,64 @@ describe('home runtime calculations', () => {
     expect(metricsLoader).toHaveBeenCalledOnce()
     state.dispose()
     expect(abortSpy).toHaveBeenCalledOnce()
+  })
+
+  it('ignores an obsolete request that resolves after a newer snapshot', async () => {
+    vi.useFakeTimers()
+    const first = deferred<HomeRequestMetrics>()
+    const second = deferred<HomeRequestMetrics>()
+    const firstSnapshot = {
+      available: true,
+      requests_24h: 24,
+      hourly_requests: Array(24).fill(1),
+      generated_at: 1_700_000_000,
+    }
+    const secondSnapshot = {
+      available: true,
+      requests_24h: 48,
+      hourly_requests: Array(24).fill(2),
+      generated_at: 1_700_000_060,
+    }
+    const metricsLoader = vi
+      .fn<(_: AbortSignal | undefined) => Promise<HomeRequestMetrics>>()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    const state = useHomeShowcase(undefined, {
+      loadMetrics: true,
+      metricsLoader,
+    })
+
+    state.setSectionVisible(false)
+    state.setSectionVisible(true)
+    expect(metricsLoader).toHaveBeenCalledTimes(2)
+
+    second.resolve(secondSnapshot)
+    await Promise.resolve()
+    expect(state.requestMetrics.value).toEqual(secondSnapshot)
+
+    first.resolve(firstSnapshot)
+    await Promise.resolve()
+    expect(state.requestMetrics.value).toEqual(secondSnapshot)
+    state.dispose()
+  })
+
+  it('does not write state when an aborted loader ignores disposal', async () => {
+    const pending = deferred<HomeRequestMetrics>()
+    const state = useHomeShowcase(undefined, {
+      loadMetrics: true,
+      metricsLoader: () => pending.promise,
+    })
+
+    state.dispose()
+    pending.resolve({
+      available: true,
+      requests_24h: 24,
+      hourly_requests: Array(24).fill(1),
+      generated_at: 1_700_000_000,
+    })
+    await Promise.resolve()
+
+    expect(state.requestMetrics.value).toBeNull()
+    expect(state.metricsError.value).toBeNull()
   })
 })
