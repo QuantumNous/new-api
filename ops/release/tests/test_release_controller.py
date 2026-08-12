@@ -214,6 +214,47 @@ class ReleaseControllerTests(unittest.TestCase):
         self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep me\n")
         self.assertEqual([path.name for path in output.iterdir()], ["sentinel.txt"])
 
+    def test_registry_stage_is_portable_and_never_overwrites(self) -> None:
+        package = self.package("registry-source")
+        manifest = package / "release-manifest.json"
+        registry = self.root / "drive-registry"
+        result = self.run_cli(
+            "registry",
+            "stage",
+            "--repo",
+            str(self.repo_path),
+            "--manifest",
+            str(manifest),
+            "--registry",
+            str(registry),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("REGISTRY STAGE PASS", result.stdout)
+        staged_manifest = next(registry.glob("*/release-manifest.json"))
+        self.assertEqual(
+            sorted(path.name for path in staged_manifest.parent.iterdir()),
+            ["registry-receipt.json", "release-manifest.json", "source.bundle", "source.tar.gz"],
+        )
+        portable = self.run_cli("registry", "verify", "--manifest", str(staged_manifest))
+        self.assertEqual(portable.returncode, 0, portable.stderr)
+        self.assertIn("REGISTRY VERIFY PASS", portable.stdout)
+        (staged_manifest.parent / "registry-receipt.json").unlink()
+        incomplete = self.run_cli("registry", "verify", "--manifest", str(staged_manifest))
+        self.assertNotEqual(incomplete.returncode, 0)
+        self.assertIn("registry receipt", incomplete.stderr)
+        repeated = self.run_cli(
+            "registry",
+            "stage",
+            "--repo",
+            str(self.repo_path),
+            "--manifest",
+            str(manifest),
+            "--registry",
+            str(registry),
+        )
+        self.assertNotEqual(repeated.returncode, 0)
+        self.assertIn("refusing to overwrite", repeated.stderr)
+
     def test_second_parallel_lock_is_rejected(self) -> None:
         lock = self.root / "deploy.lock"
         ready = self.root / "ready"

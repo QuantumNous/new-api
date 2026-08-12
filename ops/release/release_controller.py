@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -29,6 +30,8 @@ SCHEMA_VERSION = 1
 MANIFEST_NAME = "release-manifest.json"
 SOURCE_ARCHIVE_NAME = "source.tar.gz"
 BUNDLE_NAME = "source.bundle"
+REGISTRY_RECEIPT_NAME = "registry-receipt.json"
+REGISTRY_SCHEMA_VERSION = 1
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 LOCK_SCHEMA_VERSION = 1
@@ -464,6 +467,131 @@ def validate_manifest(manifest_path: Path, repo: Path) -> dict[str, Any]:
     return manifest
 
 
+def _registry_destination(registry: Path, manifest: dict[str, Any]) -> Path:
+    release_id = manifest["release_id"]
+    if not isinstance(release_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,119}", release_id):
+        raise ReleaseError("release_id is not safe for a registry directory name")
+    destination = registry.expanduser().resolve() / release_id
+    if os.path.lexists(destination):
+        raise ReleaseError(f"candidate already exists in registry; refusing to overwrite: {destination}")
+    return destination
+
+
+def _copy_file_new(source: Path, destination: Path) -> None:
+    try:
+        with source.open("rb") as input_stream, destination.open("xb") as output_stream:
+            shutil.copyfileobj(input_stream, output_stream, length=1024 * 1024)
+    except BaseException:
+        try:
+            destination.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def stage_candidate(manifest_path: Path, repo: Path, registry: Path) -> Path:
+    """Copy a fully validated package into an immutable cross-device registry."""
+
+    manifest_path = manifest_path.expanduser().resolve()
+    manifest = validate_manifest(manifest_path, repo)
+    package_dir = manifest_path.parent
+    archive_record = manifest["artifacts"]["source_archive"]
+    bundle_record = manifest["artifacts"]["git_bundle"]
+    archive = _safe_artifact_path(package_dir, archive_record["path"], "artifact source_archive")
+    bundle = _safe_artifact_path(package_dir, bundle_record["path"], "artifact git_bundle")
+    registry = registry.expanduser().resolve()
+    registry.mkdir(parents=True, exist_ok=True)
+    destination = _registry_destination(registry, manifest)
+    try:
+        destination.mkdir()
+    except FileExistsError as exc:
+        raise ReleaseError(f"candidate was registered concurrently; refusing to overwrite: {destination}") from exc
+    try:
+        staged_manifest = destination / MANIFEST_NAME
+        _copy_file_new(manifest_path, staged_manifest)
+        _copy_file_new(archive, destination / SOURCE_ARCHIVE_NAME)
+        _copy_file_new(bundle, destination / BUNDLE_NAME)
+        staged_archive = _check_artifact_hash(archive_record, destination, "source_archive")
+        staged_bundle = _check_artifact_hash(bundle_record, destination, "git_bundle")
+        manifest_hash, manifest_size = _sha256(staged_manifest)
+        receipt = {
+            "schema_version": REGISTRY_SCHEMA_VERSION,
+            "staged_at_utc": _timestamp(),
+            "release_id": manifest["release_id"],
+            "candidate_commit": manifest["candidate_commit"],
+            "candidate_tree": manifest["candidate_tree"],
+            "manifest": {"path": MANIFEST_NAME, "sha256": manifest_hash, "size": manifest_size},
+            "artifacts": {
+                "source_archive": _artifact_record(staged_archive, SOURCE_ARCHIVE_NAME),
+                "git_bundle": _artifact_record(staged_bundle, BUNDLE_NAME),
+            },
+        }
+        _write_json_new(destination / REGISTRY_RECEIPT_NAME, receipt)
+    except BaseException:
+        # This directory was created by this invocation. A partial package must
+        # never remain where another machine could mistake it for a candidate.
+        shutil.rmtree(destination)
+        raise
+    return destination
+
+
+def _validate_registry_receipt(package_dir: Path, manifest: dict[str, Any]) -> None:
+    receipt_path = package_dir / REGISTRY_RECEIPT_NAME
+    receipt = _load_json(receipt_path, "registry receipt")
+    if not isinstance(receipt, dict) or receipt.get("schema_version") != REGISTRY_SCHEMA_VERSION:
+        raise ReleaseError("registry receipt is missing or has an unsupported schema_version")
+    _parse_timestamp(_required(receipt, "staged_at_utc", "registry receipt"), "registry receipt staged_at_utc")
+    for field in ("release_id", "candidate_commit", "candidate_tree"):
+        if _required(receipt, field, "registry receipt") != manifest[field]:
+            raise ReleaseError(f"registry receipt {field} does not match the release manifest")
+    receipt_manifest = _required(receipt, "manifest", "registry receipt")
+    receipt_artifacts = _required(receipt, "artifacts", "registry receipt")
+    if not isinstance(receipt_manifest, dict) or not isinstance(receipt_artifacts, dict):
+        raise ReleaseError("registry receipt manifest and artifacts must be objects")
+    receipt_manifest_path = _safe_artifact_path(package_dir, _required(receipt_manifest, "path", "registry receipt manifest"), "registry receipt manifest")
+    expected_manifest_hash = _required(receipt_manifest, "sha256", "registry receipt manifest")
+    expected_manifest_size = _required(receipt_manifest, "size", "registry receipt manifest")
+    actual_manifest_hash, actual_manifest_size = _sha256(receipt_manifest_path)
+    if (expected_manifest_hash, expected_manifest_size) != (actual_manifest_hash, actual_manifest_size):
+        raise ReleaseError("registry receipt manifest hash/size mismatch")
+    for name in ("source_archive", "git_bundle"):
+        record = _required(receipt_artifacts, name, "registry receipt artifacts")
+        if not isinstance(record, dict):
+            raise ReleaseError(f"registry receipt {name} must be an object")
+        _check_artifact_hash(record, package_dir, f"registry receipt {name}")
+
+
+def verify_registry_candidate(manifest_path: Path) -> dict[str, Any]:
+    """Verify a staged package on a machine that has no source checkout yet."""
+
+    manifest_path = manifest_path.expanduser().resolve()
+    package_dir = manifest_path.parent
+    manifest = _load_json(manifest_path, "release manifest")
+    if not isinstance(manifest, dict):
+        raise ReleaseError("release manifest must be a JSON object")
+    _validate_registry_receipt(package_dir, manifest)
+    candidate = _require_hex40(_required(manifest, "candidate_commit"), "candidate_commit")
+    artifacts = _required(manifest, "artifacts")
+    if not isinstance(artifacts, dict):
+        raise ReleaseError("artifacts must be a JSON object")
+    bundle_record = _required(artifacts, "git_bundle", "artifacts")
+    if not isinstance(bundle_record, dict):
+        raise ReleaseError("git_bundle artifact record must be an object")
+    bundle = _safe_artifact_path(package_dir, _required(bundle_record, "path", "artifact git_bundle"), "artifact git_bundle")
+    if not bundle.is_file():
+        raise ReleaseError("registry candidate is missing its git bundle")
+    with tempfile.TemporaryDirectory(prefix="aibuff-registry-verify-") as temporary:
+        clone = Path(temporary) / "clone"
+        result = _run(["git", "clone", "--quiet", "--no-checkout", str(bundle), str(clone)], check=False)
+        if result.returncode != 0:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            raise ReleaseError(f"registry git bundle could not be cloned: {detail}")
+        resolved = _resolve_commit(clone, candidate, "registry candidate")
+        if resolved != candidate:
+            raise ReleaseError("registry clone resolved a different candidate commit")
+        return validate_manifest(manifest_path, clone)
+
+
 def preflight(manifest_path: Path, repo: Path, production_state_path: Path) -> None:
     manifest = validate_manifest(manifest_path, repo)
     state = _load_json(production_state_path.expanduser().resolve(), "redacted production state")
@@ -606,6 +734,18 @@ def _cmd_preflight(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_registry_stage(args: argparse.Namespace) -> int:
+    destination = stage_candidate(Path(args.manifest), _repo_path(args.repo), Path(args.registry))
+    print(f"REGISTRY STAGE PASS: {destination}")
+    return 0
+
+
+def _cmd_registry_verify(args: argparse.Namespace) -> int:
+    manifest = verify_registry_candidate(Path(args.manifest))
+    print(f"REGISTRY VERIFY PASS: {manifest['candidate_commit']} is recoverable from the registry package")
+    return 0
+
+
 def _cmd_lock_acquire(args: argparse.Namespace) -> int:
     owner_id = args.owner_id or f"pid-{os.getpid()}-{uuid.uuid4().hex}"
     if args.hold_seconds < 0:
@@ -649,6 +789,17 @@ def _build_parser() -> argparse.ArgumentParser:
     preflight_parser.add_argument("--manifest", required=True)
     preflight_parser.add_argument("--production-state", required=True)
     preflight_parser.set_defaults(handler=_cmd_preflight)
+
+    registry_parser = commands.add_parser("registry", help="stage and verify immutable cross-device candidate packages")
+    registry_commands = registry_parser.add_subparsers(dest="registry_command", required=True)
+    registry_stage_parser = registry_commands.add_parser("stage", help="validate then copy a package into a new registry directory")
+    registry_stage_parser.add_argument("--repo", default=".")
+    registry_stage_parser.add_argument("--manifest", required=True)
+    registry_stage_parser.add_argument("--registry", required=True)
+    registry_stage_parser.set_defaults(handler=_cmd_registry_stage)
+    registry_verify_parser = registry_commands.add_parser("verify", help="verify a staged package without a pre-existing checkout")
+    registry_verify_parser.add_argument("--manifest", required=True)
+    registry_verify_parser.set_defaults(handler=_cmd_registry_verify)
 
     lock_parser = commands.add_parser("lock", help="acquire or release the single deployment lock")
     lock_commands = lock_parser.add_subparsers(dest="lock_command", required=True)

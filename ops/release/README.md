@@ -12,6 +12,26 @@
 
 输出目录已经存在时会直接停止，绝不覆盖。目录创建后出现错误时，该目录只能视为失败的临时产物，必须换一个新目录重做。
 
+## 跨设备候选库
+
+不要把正在开发的 `.git` 目录直接放进 Google Drive 同步：两台机器同时写对象库会造成冲突。正确做法是把已验包的候选作为不可变制品登记到共享候选库。
+
+每个候选有两个入口：GitHub 候选分支用于审阅和协作；Drive 同步目录用于保存不可变的 `source.bundle`、`source.tar.gz`、manifest 和登记回执。任何机器只需下载该目录，就能从 bundle 恢复临时 checkout 并验证制品。
+
+```bash
+# 先 prepare + validate，再登记到配置好的 Drive 同步目录。
+python3 ops/release/release_controller.py registry stage \
+  --repo . \
+  --manifest /tmp/aibuff-release-<new-directory>/release-manifest.json \
+  --registry <drive-synced-release-candidate-registry>
+
+# 在另一台机器上；无需事先拥有该候选的 Git worktree。
+python3 ops/release/release_controller.py registry verify \
+  --manifest <drive-synced-release-candidate-registry>/<release-id>/release-manifest.json
+```
+
+`registry stage` 会先执行完整 `validate`，目标候选目录必须是新目录；同一个 release ID 再次登记会 `HARD STOP`，绝不覆盖。`registry verify` 会从 bundle 创建临时 clone 后重新验证 commit/tree/parents、源码归档和 bundle。该机制只保存代码制品与哈希，不保存生产地址、凭据或真实部署命令。
+
 ## 普通发布
 
 普通发布的意思是：在基线之上完成已审查的变更，然后交给发布负责人。典型流程如下：
