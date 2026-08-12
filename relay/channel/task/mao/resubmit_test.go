@@ -120,10 +120,11 @@ func TestTryResubmitOnFailure_SuccessUpdatesUpstreamTaskID(t *testing.T) {
 		FailReason: "timeout",
 		FinishTime: 123,
 		PrivateData: model.TaskPrivateData{
-			Key:            "task-key",
-			RequestBody:    `{"model":"guanzhuan-seedance2.0"}`,
-			UpstreamTaskID: "old-id",
-			RetryCount:     0,
+			Key:                   "task-key",
+			RequestBody:           `{"model":"guanzhuan-seedance2.0"}`,
+			UpstreamTaskID:        "old-id",
+			RetryCount:            0,
+			SameChannelMaxRetries: 3,
 		},
 	}
 
@@ -134,7 +135,7 @@ func TestTryResubmitOnFailure_SuccessUpdatesUpstreamTaskID(t *testing.T) {
 	if !ok {
 		t.Fatal("expected resubmitted")
 	}
-	if prog != "retrying 2/3" {
+	if prog != "retrying 1/3" {
 		t.Fatalf("progress=%q", prog)
 	}
 	if task.PrivateData.UpstreamTaskID != "new1" {

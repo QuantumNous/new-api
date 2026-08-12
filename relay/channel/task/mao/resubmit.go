@@ -18,7 +18,7 @@ func (a *TaskAdaptor) TryResubmitOnFailure(ctx context.Context, ch *model.Channe
 	if task == nil || ch == nil {
 		return false, "", nil
 	}
-	if !shouldAttemptResubmit(task.PrivateData.RequestBody, task.PrivateData.RetryCount, failReason) {
+	if !shouldAttemptResubmit(task.PrivateData.RequestBody, task.PrivateData.RetryCount, resolveSameChannelMaxRetries(task), failReason) {
 		return false, "", nil
 	}
 
@@ -67,5 +67,6 @@ func (a *TaskAdaptor) TryResubmitOnFailure(ctx context.Context, ch *model.Channe
 	task.Status = model.TaskStatusQueued
 	task.FailReason = ""
 	task.FinishTime = 0
-	return true, retryProgressLabel(task.PrivateData.RetryCount), nil
+	maxRetries := resolveSameChannelMaxRetries(task)
+	return true, retryProgressLabel(task.PrivateData.RetryCount, maxRetries), nil
 }
