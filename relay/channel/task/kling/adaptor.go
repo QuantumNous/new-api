@@ -25,6 +25,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 )
 
 // ============================
@@ -116,6 +117,123 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// klingModes is the set of upstream quality tiers, which is the dimension the
+// price table keys on for this channel.
+//
+// Kling has no output-resolution parameter at all: the inbound `size` selects
+// an aspect_ratio (see getAspectRatio), which changes the frame's shape but not
+// its pixel tier, so a resolution key would be a fiction. `mode` is the request's
+// one quality lever and the upstream's own price axis. No resolution key is
+// reported: FindVideoPriceRule treats a dimension the adapter did not resolve
+// as unmatchable rather than as a wildcard, so a resolution rule mistakenly
+// written for this channel fails loudly instead of silently pricing every
+// aspect ratio alike.
+//
+// The set is exact rather than open-ended — an unrecognised mode refuses rather
+// than guessing a tier, which on a configured model becomes a rejected request.
+var klingModes = map[string]string{
+	"std": "std",
+	"pro": "pro",
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those. mode is the
+// value actually sent upstream, so case and padding are folded first: the
+// upstream accepts a padded/upper-case mode, and dropping such a request off
+// the per-second path would silently price it per call.
+func resolveDimensions(mode string, hasVideo bool) (map[string]string, bool) {
+	label, ok := klingModes[strings.ToLower(strings.TrimSpace(mode))]
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"mode":      label,
+		"has_video": has,
+	}, true
+}
+
+// EstimateBilling captures the per-second billing inputs. Kling has no legacy
+// per-second estimate to preserve — it bills purely per call today — so this
+// always returns nil and all per-second pricing flows through
+// SecondBillingRatios. A model absent from the price table is left exactly as
+// it is today.
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	if info == nil {
+		return nil
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	// Price the body the upstream will actually receive: convertToRequestPayload
+	// applies the 5s / "std" defaults and then lets metadata override both, so
+	// deriving the dimensions any other way could bill a length or tier the
+	// upstream never renders.
+	payload, err := a.convertToRequestPayload(&req, info)
+	if err != nil {
+		return nil
+	}
+	// Upstream duration is a string. A value that will not parse, or one that
+	// is not positive, means the length is not determinable — capture nothing
+	// rather than price off a guess, which leaves the request on the per-call
+	// path exactly as today.
+	seconds, convErr := strconv.Atoi(strings.TrimSpace(payload.Duration))
+	if convErr != nil || seconds <= 0 {
+		return nil
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// Keyed on info.OriginModelName — the client-facing name the administrator
+	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
+	// Not the upstream name: model mapping would otherwise divide one model's
+	// per-second rate by another model's price.
+	if dims, ok := resolveDimensions(payload.Mode, false); ok {
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(seconds)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
