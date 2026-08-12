@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "profiles": {
+    "staging": {
+      "writable": [
+        "staging-website.flatkey.ai",
+        "staging-console.flatkey.ai"
+      ],
+      "read_only": [
+        "docs.flatkey.ai"
+      ]
+    },
+    "production": {
+      "writable": [
+        "flatkey.ai",
+        "console.flatkey.ai"
+      ],
+      "read_only": [
+        "docs.flatkey.ai"
+      ]
+    }
+  }
+}
