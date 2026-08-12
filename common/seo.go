@@ -34,7 +34,7 @@ func BuildSEOTitle(systemName, lang string) string {
 		name = SystemName
 	}
 	if name == "" {
-		name = "DaoXE"
+		name = "New API"
 	}
 	suffix := strings.TrimSpace(SEOTitleSuffix)
 	if suffix == "" {
@@ -57,7 +57,7 @@ func DefaultSEODescription(lang string) string {
 // DefaultSEOKeywords returns a language-aware fallback keywords string.
 func DefaultSEOKeywords(lang string) string {
 	if strings.HasPrefix(strings.ToLower(lang), "zh") {
-		return "AI API,大模型API,LLM网关,OpenAI兼容接口,Claude API,Gemini API,API聚合分发,模型管理,DaoXE"
+		return "AI API,大模型API,LLM网关,OpenAI兼容接口,Claude API,Gemini API,API聚合分发,模型管理"
 	}
-	return "AI API, LLM API Gateway, OpenAI Compatible API, Claude API, Gemini API, model aggregation, API distribution, DaoXE"
+	return "AI API, LLM API Gateway, OpenAI Compatible API, Claude API, Gemini API, model aggregation, API distribution"
 }

@@ -16,7 +16,7 @@ export function useHomeSeo() {
   useEffect(() => {
     const status = readCachedStatus()
 
-    const name = systemName || String(status?.system_name || '') || 'DaoXE'
+    const name = systemName || String(status?.system_name || '') || 'New API'
     const siteUrl = String(
       status?.seo_site_url || status?.server_address || ''
     ).replace(/\/$/, '')
@@ -63,7 +63,7 @@ export function useHomeSeo() {
           lang: i18n.language,
         })
       } catch {
-        document.title = systemName || 'DaoXE'
+        document.title = systemName || 'New API'
       }
     }
   }, [systemName, logo, i18n.language])

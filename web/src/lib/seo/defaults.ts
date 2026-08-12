@@ -9,9 +9,9 @@ export function defaultSeoDescription(lang?: string): string {
 export function defaultSeoKeywords(lang?: string): string {
   const l = (lang || '').toLowerCase()
   if (l.startsWith('zh')) {
-    return 'AI API,大模型API,LLM网关,OpenAI兼容接口,Claude API,Gemini API,API聚合分发,模型管理,DaoXE'
+    return 'AI API,大模型API,LLM网关,OpenAI兼容接口,Claude API,Gemini API,API聚合分发,模型管理'
   }
-  return 'AI API, LLM API Gateway, OpenAI Compatible API, Claude API, Gemini API, model aggregation, API distribution, DaoXE'
+  return 'AI API, LLM API Gateway, OpenAI Compatible API, Claude API, Gemini API, model aggregation, API distribution'
 }
 
 export function defaultSeoTitleSuffix(lang?: string): string {
@@ -37,7 +37,7 @@ export function buildDocumentTitle(input: {
 }): string {
   const full = (input.fullTitle || '').trim()
   if (full) return full
-  const name = (input.title || '').trim() || 'DaoXE'
+  const name = (input.title || '').trim() || 'New API'
   let suffix = (input.titleSuffix || '').trim()
   if (!suffix && input.allowDefaultSuffix) {
     suffix = defaultSeoTitleSuffix(input.lang)

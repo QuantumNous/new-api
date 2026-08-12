@@ -82,14 +82,14 @@ export function applyDocumentSeo(input: SeoInput): void {
   upsertMetaByName('keywords', keywords)
   upsertMetaByName('robots', robotsIndex ? 'index,follow' : 'noindex,nofollow')
 
-  const ogTitle = title || document.title || 'DaoXE'
+  const ogTitle = title || document.title || 'New API'
   upsertMetaByProperty('og:type', 'website')
   upsertMetaByProperty('og:title', ogTitle)
   upsertMetaByProperty('og:description', description)
   if (pageUrl) upsertMetaByProperty('og:url', pageUrl)
   if (ogImage) upsertMetaByProperty('og:image', ogImage)
   // og:site_name should always be the short brand name, never the long-tail title
-  const siteName = (input.title || '').trim() || 'DaoXE'
+  const siteName = (input.title || '').trim() || 'New API'
   upsertMetaByProperty('og:site_name', siteName)
 
   upsertMetaByName('twitter:card', ogImage ? 'summary_large_image' : 'summary')
@@ -142,7 +142,7 @@ export function applySeoFromStatus(
   const baseRobots = s.seo_robots_index !== false
 
   const input: SeoInput = {
-    title: s.system_name || 'DaoXE',
+    title: s.system_name || 'New API',
     description: s.seo_description,
     keywords: s.seo_keywords,
     siteUrl: s.seo_site_url || s.server_address,
