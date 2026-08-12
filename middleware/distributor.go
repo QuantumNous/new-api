@@ -12,13 +12,14 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -108,7 +109,7 @@ func Distribute() func(c *gin.Context) {
 						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) {
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
+							autoGroups := service.GetRequestAutoGroups(c, userGroup)
 							for _, g := range autoGroups {
 								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
 									selectGroup = g
@@ -261,7 +262,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			relayMode == relayconstant.RelayModeMidjourneyTaskImageSeed {
 			shouldSelectChannel = false
 		} else {
-			midjourneyRequest := dto.MidjourneyRequest{}
+			midjourneyRequest := taskdto.MidjourneyRequest{}
 			err = common.UnmarshalBodyReusable(c, &midjourneyRequest)
 			if err != nil {
 				return nil, false, errors.New(i18n.T(c, i18n.MsgDistributorInvalidMidjourney, map[string]any{"Error": err.Error()}))
@@ -409,9 +410,6 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
 
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
-		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
-	}
 	return &modelRequest, shouldSelectChannel, nil
 }
 

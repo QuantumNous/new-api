@@ -72,6 +72,7 @@ const oauthSchema = z.object({
   }),
   oidc: z.object({
     enabled: z.boolean(),
+    display_name: z.string(),
     client_id: z.string(),
     client_secret: z.string(),
     well_known: z.string(),
@@ -102,6 +103,7 @@ type FlatOAuthDefaults = {
   'discord.client_id': string
   'discord.client_secret': string
   'oidc.enabled': boolean
+  'oidc.display_name': string
   'oidc.client_id': string
   'oidc.client_secret': string
   'oidc.well_known': string
@@ -184,6 +186,7 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
   },
   oidc: {
     enabled: defaults['oidc.enabled'],
+    display_name: defaults['oidc.display_name'] ?? '',
     client_id: defaults['oidc.client_id'] ?? '',
     client_secret: defaults['oidc.client_secret'] ?? '',
     well_known: defaults['oidc.well_known'] ?? '',
@@ -212,6 +215,7 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   'discord.client_id': values.discord.client_id,
   'discord.client_secret': values.discord.client_secret,
   'oidc.enabled': values.oidc.enabled,
+  'oidc.display_name': values.oidc.display_name,
   'oidc.client_id': values.oidc.client_id,
   'oidc.client_secret': values.oidc.client_secret,
   'oidc.well_known': values.oidc.well_known,
@@ -614,6 +618,33 @@ export function OAuthSection(props: OAuthSectionProps) {
                         />
                       </FormControl>
                     </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='oidc.display_name'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('OIDC Display Name')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('e.g. Company SSO')}
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Defaults to "OIDC" if left blank')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
                   )}
                 />
 

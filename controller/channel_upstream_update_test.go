@@ -10,9 +10,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -382,6 +383,29 @@ func TestFetchModelsUsesSharedChannelFetchBehavior(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.JSONEq(t, `{"success":true,"message":"","data":["claude-sonnet"]}`, recorder.Body.String())
+}
+
+func TestFetchNewAPIModelsUsesOpenAIContract(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/v1/models", r.URL.Path)
+		assert.Equal(t, "Bearer new-api-key", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{"data":[{"id":"gpt-5"},{"id":" gpt-5-mini "}]}`))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeNewAPI,
+		Key:     "new-api-key",
+		BaseURL: &baseURL,
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"gpt-5", "gpt-5-mini"}, models)
 }
 
 func TestNormalizeModelNames(t *testing.T) {

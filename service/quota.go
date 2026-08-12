@@ -9,12 +9,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -391,19 +391,17 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if relayInfo.IsPlayground {
 		return nil
 	}
-	//if relayInfo.TokenUnlimited {
-	//	return nil
-	//}
-	token, err := model.GetTokenByKey(relayInfo.TokenKey, false)
+	// 原子预扣：检查与扣减在同一操作中完成，并发请求不可能同时通过检查后超扣。
+	reserved, err := model.TryReserveTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota, relayInfo.TokenUnlimited)
 	if err != nil {
 		return err
 	}
-	if !relayInfo.TokenUnlimited && token.RemainQuota < quota {
-		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
-	}
-	err = model.DecreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, quota)
-	if err != nil {
-		return err
+	if !reserved {
+		remainQuota := 0
+		if token, tokenErr := model.GetTokenByKey(relayInfo.TokenKey, false); tokenErr == nil && token != nil {
+			remainQuota = token.RemainQuota
+		}
+		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(remainQuota), logger.FormatQuota(quota))
 	}
 	return nil
 }

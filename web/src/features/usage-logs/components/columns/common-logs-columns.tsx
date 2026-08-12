@@ -58,6 +58,7 @@ import {
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
+import { LogCostDisplay } from '../log-cost-display'
 import { ModelBadge } from '../model-badge'
 import { TimingMetricsCell, StreamTpsCell } from '../timing-metrics-cell'
 import { useUsageLogsContext } from '../usage-logs-provider'
@@ -91,12 +92,6 @@ function getGroupRatio(other: LogOtherData | null): number | null {
   }
 
   return null
-}
-
-function splitQuotaDisplay(value: string): { prefix: string; amount: string } {
-  const match = value.match(/^([^0-9+\-.,\s]+)(.+)$/)
-  if (!match) return { prefix: '', amount: value }
-  return { prefix: match[1], amount: match[2] }
 }
 
 function buildDetailSegments(
@@ -703,46 +698,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
 
         const quota = row.getValue('quota') as number
         const other = parseLogOther(log.other)
-        const isSubscription = other?.billing_source === 'subscription'
-
-        if (isSubscription) {
-          return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <StatusBadge
-                      label={t('Subscription')}
-                      variant='success'
-                      size='sm'
-                      copyable={false}
-                      className='cursor-help'
-                    />
-                  }
-                />
-                <TooltipContent>
-                  <span>
-                    {t('Deducted by subscription')}: {formatLogQuota(quota)}
-                  </span>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )
-        }
-
-        const quotaStr = formatLogQuota(quota)
-        const quotaDisplay = splitQuotaDisplay(quotaStr)
-
-        return (
-          <div className='flex flex-col gap-0.5'>
-            <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
-              {quotaDisplay.prefix && (
-                <span className='mr-1'>{quotaDisplay.prefix}</span>
-              )}
-              <span>{quotaDisplay.amount}</span>
-            </span>
-          </div>
-        )
+        return <LogCostDisplay quota={quota} other={other} />
       },
     },
 

@@ -5,7 +5,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relay"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +25,7 @@ func SetRelayRouter(router *gin.Engine) {
 			case c.GetHeader("x-api-key") != "" && c.GetHeader("anthropic-version") != "":
 				controller.ListModels(c, constant.ChannelTypeAnthropic)
 			case c.GetHeader("x-goog-api-key") != "" || c.Query("key") != "": // 单独的适配
-				controller.RetrieveModel(c, constant.ChannelTypeGemini)
+				controller.ListModels(c, constant.ChannelTypeGemini)
 			default:
 				controller.ListModels(c, constant.ChannelTypeOpenAI)
 			}
@@ -103,6 +103,11 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 		httpRouter.POST("/responses/compact", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
+		})
+
+		// alpha search related routes (Codex standalone web search)
+		httpRouter.POST("/alpha/search", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIAlphaSearch)
 		})
 
 		// image related routes

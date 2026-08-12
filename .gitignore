@@ -48,3 +48,7 @@ service/openaicompat/chat_responses_live_local_test.go
 
 # Plans
 注册码注册功能_task-ac3.md
+
+# Upstream: Go workspace files
+go.work
+go.work.sum

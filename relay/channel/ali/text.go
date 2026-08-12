@@ -1,7 +1,7 @@
 package ali
 
 import (
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/samber/lo"
 )
 
@@ -9,12 +9,28 @@ import (
 
 const EnableSearchModelSuffix = "-internet"
 
-func requestOpenAI2Ali(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIRequest {
-	topP := lo.FromPtrOr(request.TopP, 0)
-	if topP >= 1 {
-		request.TopP = lo.ToPtr(0.999)
-	} else if topP <= 0 {
-		request.TopP = lo.ToPtr(0.001)
+func requestOpenAI2Ali(request dto.GeneralOpenAIRequest, upstreamModelName string) *dto.GeneralOpenAIRequest {
+	modelName := upstreamModelName
+	if modelName == "" {
+		modelName = request.Model
+	}
+	if !dto.IsQwenThinkingBudgetModel(modelName) {
+		request.ThinkingBudget = nil
+	}
+
+	// DashScope rejects top_p at the 0 and 1 boundaries, so an explicit value is
+	// clamped into the open interval. The clamp stays at two decimals because
+	// some models on the platform reject a third decimal with
+	// "top_p参数非法：限制小数点[2]位".
+	//
+	// A request that omits top_p is left untouched: injecting a value would
+	// silently replace the model's own default with near-greedy decoding.
+	if request.TopP != nil {
+		if *request.TopP >= 1 {
+			request.TopP = lo.ToPtr(0.99)
+		} else if *request.TopP <= 0 {
+			request.TopP = lo.ToPtr(0.01)
+		}
 	}
 	return &request
 }

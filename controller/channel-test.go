@@ -16,7 +16,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -24,10 +23,11 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/types"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
@@ -41,13 +41,10 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
-func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
+func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
 		return normalized
-	}
-	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
-		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
@@ -110,7 +107,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
-	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
+	endpointType = normalizeChannelTestEndpoint(channel, endpointType)
 
 	requestPath := "/v1/chat/completions"
 
@@ -145,15 +142,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = "/v1/responses"
 		}
 
-		// responses compaction models (must use /v1/responses/compact)
-		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
-			requestPath = "/v1/responses/compact"
-		}
 	}
-	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
-		testModel = ratio_setting.WithCompactModelSuffix(testModel)
+	// Gemini 原生流式通过 URL action（:streamGenerateContent）表达而非请求体字段，
+	// GeminiChatRequest.IsStream 依据请求 URL 判定，合成请求路径需与生产入口保持一致
+	if isStream && constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
+		requestPath = strings.Replace(requestPath, ":generateContent", ":streamGenerateContent", 1)
 	}
-
 	c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, requestPath, nil)
 
 	cache, err := model.GetUserCache(testUserID)
@@ -271,11 +265,10 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 
 	apiType, _ := common.ChannelType2APIType(channel.Type)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
-		apiType != constant.APITypeOpenAI &&
-		apiType != constant.APITypeCodex {
+		!common.SupportsResponsesCompact(channel.Type, apiType) {
 		return testResult{
 			context:     c,
-			localErr:    fmt.Errorf("responses compaction test only supports openai/codex channels, got api type %d", apiType),
+			localErr:    fmt.Errorf("responses compaction test is not supported for api type %d", apiType),
 			newAPIError: types.NewError(fmt.Errorf("unsupported api type: %d", apiType), types.ErrorCodeInvalidApiType),
 		}
 	}
@@ -371,14 +364,18 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			}
 		}
 	default:
-		// Chat/Completion 等其他请求类型
-		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
-			convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, generalReq)
-		} else {
+		switch req := request.(type) {
+		case *dto.GeneralOpenAIRequest:
+			convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, req)
+		case *dto.ClaudeRequest:
+			convertedRequest, err = adaptor.ConvertClaudeRequest(c, info, req)
+		case *dto.GeminiChatRequest:
+			convertedRequest, err = adaptor.ConvertGeminiRequest(c, info, req)
+		default:
 			return testResult{
 				context:     c,
-				localErr:    errors.New("invalid general request type"),
-				newAPIError: types.NewError(errors.New("invalid general request type"), types.ErrorCodeConvertRequestFailed),
+				localErr:    errors.New("invalid chat request type"),
+				newAPIError: types.NewError(errors.New("invalid chat request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	}
@@ -531,7 +528,7 @@ func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Requ
 	return nil
 }
 
-func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage) (int, *billingexpr.TieredResult) {
+func settleTestQuota(info *relaycommon.RelayInfo, priceData hosttypes.PriceData, usage *dto.Usage) (int, *billingexpr.TieredResult) {
 	if usage != nil && info != nil && info.TieredBillingSnapshot != nil {
 		isClaudeUsageSemantic := usage.UsageSemantic == "anthropic" || info.GetFinalRequestRelayFormat() == types.RelayFormatClaude
 		usedVars := billingexpr.UsedVars(info.TieredBillingSnapshot.ExprString)
@@ -553,7 +550,7 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 	return int(priceData.ModelPrice * common.QuotaPerUnit), nil
 }
 
-func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
+func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData hosttypes.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
@@ -733,12 +730,31 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Model: model,
 				Input: testResponsesInput,
 			}
-		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
-			// 返回 GeneralOpenAIRequest
-			maxTokens := uint(16)
-			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
-				maxTokens = 3000
+		case constant.EndpointTypeAnthropic:
+			return &dto.ClaudeRequest{
+				Model:     model,
+				Stream:    lo.ToPtr(isStream),
+				MaxTokens: lo.ToPtr(uint(16)),
+				Messages: []dto.ClaudeMessage{
+					{
+						Role:    "user",
+						Content: "hi",
+					},
+				},
 			}
+		case constant.EndpointTypeGemini:
+			return &dto.GeminiChatRequest{
+				Contents: []dto.GeminiChatContent{
+					{
+						Role:  "user",
+						Parts: []dto.GeminiPart{{Text: "hi"}},
+					},
+				},
+				GenerationConfig: dto.GeminiChatGenerationConfig{
+					MaxOutputTokens: lo.ToPtr(uint(3000)),
+				},
+			}
+		case constant.EndpointTypeOpenAI:
 			req := &dto.GeneralOpenAIRequest{
 				Model:  model,
 				Stream: lo.ToPtr(isStream),
@@ -748,7 +764,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 						Content: "hi",
 					},
 				},
-				MaxTokens: lo.ToPtr(maxTokens),
+				MaxTokens: lo.ToPtr(uint(16)),
 			}
 			if isStream {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
@@ -775,14 +791,6 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
-		}
-	}
-
-	// Responses compaction models (must use /v1/responses/compact)
-	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
-		return &dto.OpenAIResponsesCompactionRequest{
-			Model: model,
-			Input: testResponsesInput,
 		}
 	}
 
@@ -1019,6 +1027,9 @@ func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*m
 	selected := make([]*model.Channel, 0, len(channels))
 	for _, channel := range channels {
 		if channel.Status == common.ChannelStatusManuallyDisabled {
+			continue
+		}
+		if mode == operation_setting.ChannelTestModeAutoBanOnly && !channel.GetAutoBan() {
 			continue
 		}
 		if mode == operation_setting.ChannelTestModePassiveRecovery && channel.Status != common.ChannelStatusAutoDisabled {

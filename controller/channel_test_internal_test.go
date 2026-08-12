@@ -9,10 +9,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -54,6 +54,82 @@ func TestValidateChannelProxy(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestValidateChannelRequiresNewAPIBaseURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL *string
+		wantErr bool
+	}{
+		{name: "missing", wantErr: true},
+		{name: "blank", baseURL: common.GetPointer("  "), wantErr: true},
+		{name: "configured", baseURL: common.GetPointer("https://new-api.example")},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			channel := &model.Channel{
+				Type:    constant.ChannelTypeNewAPI,
+				BaseURL: test.baseURL,
+			}
+
+			err := validateChannel(channel, false)
+
+			if test.wantErr {
+				require.ErrorContains(t, err, "New API channel base URL cannot be empty")
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestNewAPIChannelRegistration(t *testing.T) {
+	apiType, ok := common.ChannelType2APIType(constant.ChannelTypeNewAPI)
+
+	require.True(t, ok)
+	assert.Equal(t, constant.APITypeNewAPI, apiType)
+	assert.Equal(t, "New API", constant.GetChannelTypeName(constant.ChannelTypeNewAPI))
+	require.Greater(t, len(constant.ChannelBaseURLs), constant.ChannelTypeNewAPI)
+	assert.Empty(t, constant.ChannelBaseURLs[constant.ChannelTypeNewAPI])
+}
+
+func TestResponsesCompactChannelSupport(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		apiType     int
+		want        bool
+	}{
+		{name: "OpenAI", channelType: constant.ChannelTypeOpenAI, apiType: constant.APITypeOpenAI, want: true},
+		{name: "Azure", channelType: constant.ChannelTypeAzure, apiType: constant.APITypeOpenAI, want: true},
+		{name: "Codex", channelType: constant.ChannelTypeCodex, apiType: constant.APITypeCodex, want: true},
+		{name: "Advanced Custom", channelType: constant.ChannelTypeAdvancedCustom, apiType: constant.APITypeAdvancedCustom, want: true},
+		{name: "Sub2API", channelType: constant.ChannelTypeSub2API, apiType: constant.APITypeSub2API, want: true},
+		{name: "New API", channelType: constant.ChannelTypeNewAPI, apiType: constant.APITypeNewAPI, want: true},
+		{name: "Anthropic", channelType: constant.ChannelTypeAnthropic, apiType: constant.APITypeAnthropic, want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, common.SupportsResponsesCompact(test.channelType, test.apiType))
+		})
+	}
+}
+
+func TestMultiprotocolGatewayEndpointTypes(t *testing.T) {
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeOpenAIResponseCompact,
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeGemini,
+		constant.EndpointTypeOpenAIAlphaSearch,
+	}
+
+	assert.Equal(t, want, common.GetEndpointTypesByChannelType(constant.ChannelTypeNewAPI, "gpt-5"))
+	assert.Equal(t, want, common.GetEndpointTypesByChannelType(constant.ChannelTypeSub2API, "gpt-5"))
 }
 
 func TestCopyChannelRejectsInvalidLegacyProxySettings(t *testing.T) {
@@ -191,12 +267,19 @@ func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
 		},
 	}
 
+	requestRules := []billingexpr.RequestRuleTrace{{
+		Cond:       `param("service_tier") == "fast"`,
+		Multiplier: 2,
+		Matched:    true,
+	}}
 	other := buildTestLogOther(ctx, info, priceData, usage, &billingexpr.TieredResult{
-		MatchedTier: "base",
+		MatchedTier:  "base",
+		RequestRules: requestRules,
 	})
 
 	require.Equal(t, "tiered_expr", other["billing_mode"])
 	require.Equal(t, "base", other["matched_tier"])
+	require.Equal(t, requestRules, other["request_rules"])
 	require.NotEmpty(t, other["expr_b64"])
 }
 
@@ -236,6 +319,24 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 	require.Len(t, selected, 2)
 	require.Equal(t, 1, selected[0].Id)
 	require.Equal(t, 2, selected[1].Id)
+}
+
+func TestSelectChannelsForAutomaticTestAutoBanOnlyUsesEligibleChannels(t *testing.T) {
+	autoBanEnabled := 1
+	autoBanDisabled := 0
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled, AutoBan: &autoBanEnabled},
+		{Id: 2, Status: common.ChannelStatusEnabled, AutoBan: &autoBanDisabled},
+		{Id: 3, Status: common.ChannelStatusAutoDisabled, AutoBan: &autoBanEnabled},
+		{Id: 4, Status: common.ChannelStatusManuallyDisabled, AutoBan: &autoBanEnabled},
+		{Id: 5, Status: common.ChannelStatusEnabled},
+	}
+
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeAutoBanOnly)
+
+	require.Len(t, selected, 2)
+	require.Equal(t, 1, selected[0].Id)
+	require.Equal(t, 3, selected[1].Id)
 }
 
 func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,19 +27,38 @@ func setupUserUpdateTestState(t *testing.T) {
 	})
 }
 
-func TestUserUpdateDoesNotOverwriteAccountingFields(t *testing.T) {
+func createUserBindTestUser(t *testing.T) User {
+	t.Helper()
+	user := User{
+		Username:    "bind-test-user",
+		Password:    "unused-password-hash",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AuthVersion: 1,
+		AffCode:     "bind-test-aff-code",
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	return user
+}
+
+func TestUserUpdateDoesNotOverwriteConcurrentAccountingOrTokenChanges(t *testing.T) {
 	setupUserUpdateTestState(t)
 
 	user := User{
-		Id:           1,
-		Username:     "quota-race-user",
-		Password:     "password",
-		DisplayName:  "before",
-		Status:       common.UserStatusEnabled,
-		Quota:        1000,
-		UsedQuota:    20,
-		RequestCount: 3,
+		Id:              1,
+		Username:        "quota-race-user",
+		Password:        "password",
+		DisplayName:     "before",
+		Status:          common.UserStatusEnabled,
+		Quota:           1000,
+		UsedQuota:       20,
+		RequestCount:    3,
+		AffCount:        2,
+		AffQuota:        800,
+		AffHistoryQuota: 1200,
 	}
+	user.SetAccessToken("old-token")
 	require.NoError(t, DB.Create(&user).Error)
 
 	staleUser, err := GetUserById(user.Id, true)
@@ -49,6 +68,10 @@ func TestUserUpdateDoesNotOverwriteAccountingFields(t *testing.T) {
 		"quota":         gorm.Expr("quota - ?", 400),
 		"used_quota":    gorm.Expr("used_quota + ?", 400),
 		"request_count": gorm.Expr("request_count + ?", 1),
+		"aff_count":     gorm.Expr("aff_count + ?", 1),
+		"aff_quota":     gorm.Expr("aff_quota - ?", 500),
+		"aff_history":   gorm.Expr("aff_history + ?", 500),
+		"access_token":  "rotated-token",
 	}).Error)
 
 	staleUser.DisplayName = "after"
@@ -60,6 +83,63 @@ func TestUserUpdateDoesNotOverwriteAccountingFields(t *testing.T) {
 	assert.Equal(t, 600, got.Quota)
 	assert.Equal(t, 420, got.UsedQuota)
 	assert.Equal(t, 4, got.RequestCount)
+	assert.Equal(t, 3, got.AffCount)
+	assert.Equal(t, 300, got.AffQuota)
+	assert.Equal(t, 1700, got.AffHistoryQuota)
+	assert.Equal(t, "rotated-token", got.GetAccessToken())
+}
+
+func TestUpdateUserAccessTokenOnlyUpdatesAccessToken(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := User{
+		Id:              2,
+		Username:        "token-rotation-user",
+		Password:        "password",
+		DisplayName:     "before",
+		Status:          common.UserStatusEnabled,
+		Quota:           1000,
+		AffQuota:        800,
+		AffHistoryQuota: 1200,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Updates(map[string]interface{}{
+		"quota":        gorm.Expr("quota + ?", 500),
+		"aff_quota":    gorm.Expr("aff_quota - ?", 500),
+		"display_name": "concurrent-update",
+	}).Error)
+
+	require.NoError(t, UpdateUserAccessToken(user.Id, "rotated-token"))
+
+	var got User
+	require.NoError(t, DB.First(&got, user.Id).Error)
+	assert.Equal(t, "rotated-token", got.GetAccessToken())
+	assert.Equal(t, "concurrent-update", got.DisplayName)
+	assert.Equal(t, 1500, got.Quota)
+	assert.Equal(t, 300, got.AffQuota)
+	assert.Equal(t, 1200, got.AffHistoryQuota)
+}
+
+func TestUpdateUserAccessTokenRejectsSoftDeletedUser(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := User{
+		Id:       3,
+		Username: "deleted-token-rotation-user",
+		Password: "password",
+		Status:   common.UserStatusEnabled,
+	}
+	user.SetAccessToken("old-token")
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, DB.Delete(&user).Error)
+
+	err := UpdateUserAccessToken(user.Id, "orphaned-token")
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	var got User
+	require.NoError(t, DB.Unscoped().First(&got, user.Id).Error)
+	assert.Equal(t, "old-token", got.GetAccessToken())
 }
 
 func TestUpdateUserSettingOnlyUpdatesSetting(t *testing.T) {
@@ -151,6 +231,51 @@ func TestInsertKeepsBlankPasswordForPasswordlessUser(t *testing.T) {
 	var stored User
 	require.NoError(t, DB.Where("username = ?", user.Username).First(&stored).Error)
 	assert.Empty(t, stored.Password)
+}
+
+func TestUpdateUserBindColumnOnlyTouchesTheBindingColumn(t *testing.T) {
+	truncateTables(t)
+
+	user := createUserBindTestUser(t)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Updates(map[string]interface{}{
+		"role":   common.RoleAdminUser,
+		"status": common.UserStatusEnabled,
+		"group":  "vip",
+	}).Error)
+
+	require.NoError(t, UpdateUserBindColumn(user.Id, "github_id", "gh-12345"))
+
+	reloaded, err := GetUserById(user.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "gh-12345", reloaded.GitHubId)
+	assert.Equal(t, common.RoleAdminUser, reloaded.Role)
+	assert.Equal(t, common.UserStatusEnabled, reloaded.Status)
+	assert.Equal(t, "vip", reloaded.Group)
+}
+
+func TestUpdateUserBindColumnPreservesRestrictiveChange(t *testing.T) {
+	truncateTables(t)
+
+	user := createUserBindTestUser(t)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
+		Update("status", common.UserStatusDisabled).Error)
+	require.NoError(t, UpdateUserBindColumn(user.Id, "wechat_id", "wx-open-id"))
+
+	reloaded, err := GetUserById(user.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "wx-open-id", reloaded.WeChatId)
+	assert.Equal(t, common.UserStatusDisabled, reloaded.Status)
+}
+
+func TestUpdateUserBindColumnRejectsNonWhitelistedColumns(t *testing.T) {
+	truncateTables(t)
+
+	user := createUserBindTestUser(t)
+	for _, column := range []string{"role", "status", "group", "quota", "username", "password", "id"} {
+		assert.Error(t, UpdateUserBindColumn(user.Id, column, "1"), "column %s must be rejected", column)
+	}
+	assert.Error(t, UpdateUserBindColumn(user.Id, "github_id; DROP TABLE users", "x"))
+	assert.Error(t, UpdateUserBindColumn(0, "github_id", "x"))
 }
 
 func TestValidateAndFillRejectsPasswordlessUser(t *testing.T) {

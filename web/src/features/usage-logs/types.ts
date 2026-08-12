@@ -19,8 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Type definitions for usage logs
  */
-import type { UsageLog } from './data/schema'
+import type { RequestRuleTrace } from '@/features/pricing/lib/billing-expr'
 
+import type { UsageLog } from './data/schema'
 // ============================================================================
 // Log Category Types
 // ============================================================================
@@ -106,6 +107,12 @@ export const USAGE_BILLING_PATH = {
 export type UsageBillingPath =
   (typeof USAGE_BILLING_PATH)[keyof typeof USAGE_BILLING_PATH]
 
+export interface ToolSurchargeItem {
+  name: string
+  count: number
+  price: number
+}
+
 export interface LogOtherData {
   admin_info?: {
     is_multi_key?: boolean
@@ -183,10 +190,12 @@ export interface LogOtherData {
   frt?: number
   // Tiered (expression-based) billing fields, set by backend when
   // billing_mode === 'tiered_expr'. expr_b64 is the base64-encoded billing
-  // expression and matched_tier is the label of the tier that fired.
+  // expression; the matched tier and request-rule traces come from the actual
+  // settlement run.
   billing_mode?: string
   expr_b64?: string
   matched_tier?: string
+  request_rules?: RequestRuleTrace[]
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number
@@ -197,11 +206,13 @@ export interface LogOtherData {
   file_search?: boolean
   file_search_call_count?: number
   file_search_price?: number
+  tool_surcharges?: ToolSurchargeItem[]
   audio_input_seperate_price?: boolean
   audio_input_token_count?: number
   audio_input_price?: number
   image_generation_call?: boolean
   image_generation_call_price?: number
+  image_generation_call_count?: number
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string

@@ -13,11 +13,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
@@ -36,11 +37,6 @@ type TaskPollingAdaptor interface {
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
-
-const (
-	refundReconciliationLimit       = 100
-	refundReconciliationGracePeriod = 30 * time.Second
-)
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
@@ -69,7 +65,8 @@ func sweepTimedOutTasks(ctx context.Context) {
 		task.FinishTime = now
 		if isLegacy {
 			task.FailReason = legacyReason
-			// 旧系统任务明确不退款，随终态 CAS 一并清掉 quota，避免被后续对账误判。
+			// 旧系统任务明确不退款，随终态 CAS 一并清掉 quota，
+			// 避免留下可再次退款的计费状态。
 			task.Quota = 0
 		} else {
 			task.FailReason = reason
@@ -92,43 +89,6 @@ func sweepTimedOutTasks(ctx context.Context) {
 
 	if timedOutCount > 0 {
 		logger.LogInfo(ctx, fmt.Sprintf("sweepTimedOutTasks: timed out %d tasks", timedOutCount))
-	}
-}
-
-// sweepUnrefundedFailedTasks 重试已落 FAILURE 终态但仍保留 quota 的欠退款任务。
-// 先等待一个短暂宽限期，让终态 CAS 的胜出者完成主路径即时退款，避免正常
-// 轮询与对账同时处理刚失败的任务。
-func sweepUnrefundedFailedTasks(ctx context.Context) {
-	updatedBefore := time.Now().Add(-refundReconciliationGracePeriod).Unix()
-	tasks := model.GetUnrefundedFailedTasks(updatedBefore, refundReconciliationLimit)
-	for _, task := range tasks {
-		if ctx.Err() != nil {
-			return
-		}
-
-		quota := task.Quota
-		claimed, err := model.ClaimQuotaForRefund(task.ID, quota)
-		if err != nil {
-			logger.LogError(ctx, fmt.Sprintf("sweepUnrefundedFailedTasks claim error for task %s: %v", task.TaskID, err))
-			continue
-		}
-		if !claimed {
-			logger.LogDebug(ctx, "sweepUnrefundedFailedTasks: task %s claim lost, skip refund", task.TaskID)
-			continue
-		}
-
-		// 对账先清 marker 再退款，确保并发 sweep 只有一个实际退款者。若进程在
-		// claim 后、退款前崩溃，会偏向漏退而不是双退，需由人工账务对账兜底。
-		if RefundTaskQuota(ctx, task, task.FailReason) {
-			continue
-		}
-
-		restored, restoreErr := model.RestoreQuotaAfterFailedRefund(task.ID, quota)
-		if restoreErr != nil {
-			logger.LogError(ctx, fmt.Sprintf("sweepUnrefundedFailedTasks restore quota error for task %s: %v", task.TaskID, restoreErr))
-		} else if !restored {
-			logger.LogError(ctx, fmt.Sprintf("sweepUnrefundedFailedTasks could not restore quota marker for task %s", task.TaskID))
-		}
 	}
 }
 
@@ -156,7 +116,6 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 
 	common.SysLog("任务进度轮询开始")
 	sweepTimedOutTasks(ctx)
-	sweepUnrefundedFailedTasks(ctx)
 	allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
 	summary.UnfinishedTasks = len(allTasks)
 	platformTask := make(map[constant.TaskPlatform][]*model.Task)
@@ -297,7 +256,7 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 		common.SysLog(fmt.Sprintf("Get Suno Task parse body error: %v", err))
 		return err
 	}
-	var responseItems dto.TaskResponse[[]dto.SunoDataResponse]
+	var responseItems taskdto.TaskResponse[[]taskdto.SunoDataResponse]
 	err = common.Unmarshal(responseBody, &responseItems)
 	if err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Get Suno Task parse body error2: %v, body: %s", err, string(responseBody)))
@@ -352,7 +311,7 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 }
 
 // taskNeedsUpdate 检查 Suno 任务是否需要更新
-func taskNeedsUpdate(oldTask *model.Task, newTask dto.SunoDataResponse) bool {
+func taskNeedsUpdate(oldTask *model.Task, newTask taskdto.SunoDataResponse) bool {
 	if oldTask.SubmitTime != newTask.SubmitTime {
 		return true
 	}
@@ -519,7 +478,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	taskResult := &relaycommon.TaskInfo{}
 	// try parse as New API response format
-	var responseItems dto.TaskResponse[model.Task]
+	var responseItems taskdto.TaskResponse[model.Task]
 	if err = common.Unmarshal(responseBody, &responseItems); err == nil && responseItems.IsSuccess() {
 		logger.LogDebug(ctx, "updateVideoSingleTask parsed as new api response format: %+v", responseItems)
 		t := responseItems.Data

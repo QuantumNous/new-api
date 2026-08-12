@@ -3,7 +3,7 @@ package service
 import (
 	"strings"
 
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 const (
@@ -25,36 +25,32 @@ func effectiveBillingUsage(usage *dto.Usage) *dto.Usage {
 }
 
 func usageBillingPathForLog(isLocalCountTokens bool, usage *dto.Usage) string {
-	if isLocalCountTokens {
-		return usageBillingPathLocal
-	}
-	if usage == nil || usage.BillingUsage == nil {
+	effectiveUsage, ok := usageFromBillingUsage(usage)
+	if !ok {
+		if isLocalCountTokens {
+			return usageBillingPathLocal
+		}
 		return usageBillingPathUpstream
 	}
-	source := strings.TrimSpace(usage.BillingUsage.Source)
-	semantic := strings.TrimSpace(usage.BillingUsage.Semantic)
-	if strings.EqualFold(source, dto.BillingUsageSourceOAIChat) ||
-		strings.EqualFold(source, dto.BillingUsageSourceOAIResponses) ||
-		strings.EqualFold(semantic, dto.BillingUsageSemanticOpenAI) {
+
+	switch effectiveUsage.UsageSemantic {
+	case dto.BillingUsageSemanticOpenAI:
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathOpenAIEstimated
 		}
 		return usageBillingPathOpenAI
-	}
-	if strings.EqualFold(source, dto.BillingUsageSourceClaudeMessages) ||
-		strings.EqualFold(semantic, dto.BillingUsageSemanticAnthropic) {
+	case dto.BillingUsageSemanticAnthropic:
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathAnthropicEstimated
 		}
 		return usageBillingPathAnthropic
-	}
-	if strings.EqualFold(source, dto.BillingUsageSourceGeminiChat) ||
-		strings.EqualFold(semantic, dto.BillingUsageSemanticGemini) {
+	case dto.BillingUsageSemanticGemini:
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathGeminiEstimated
 		}
 		return usageBillingPathGemini
 	}
+
 	return usageBillingPathUpstream
 }
 
