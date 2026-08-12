@@ -1,0 +1,23 @@
+{
+  "name": "tanstack-react-virtual-example-scroll-padding",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview --port 3001",
+    "start": "vite"
+  },
+  "dependencies": {
+    "@react-hookz/web": "^25.1.1",
+    "@tanstack/react-virtual": "^3.14.5",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.2",
+    "vite": "^6.4.2"
+  }
+}

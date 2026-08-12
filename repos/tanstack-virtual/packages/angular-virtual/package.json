@@ -1,0 +1,70 @@
+{
+  "name": "@tanstack/angular-virtual",
+  "version": "5.0.7",
+  "description": "Headless UI for virtualizing scrollable elements in Angular",
+  "author": "Garrett Darnell",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/virtual.git",
+    "directory": "packages/angular-virtual"
+  },
+  "homepage": "https://tanstack.com/virtual",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "angular",
+    "virtual",
+    "virtual-core"
+  ],
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "clean": "premove ./dist ./build ./coverage",
+    "test:eslint": "eslint ./src",
+    "test:build": "publint --strict",
+    "test:types": "tsc",
+    "build": "vite build",
+    "test:e2e": "../../node_modules/.bin/playwright test"
+  },
+  "dependencies": {
+    "@tanstack/virtual-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^19.0.0",
+    "@angular/cli": "^19.0.0",
+    "@angular/common": "^19.0.0",
+    "@angular/compiler-cli": "^19.0.0",
+    "@angular/core": "^19.0.0",
+    "@angular/platform-browser": "^19.0.0",
+    "@angular/router": "^19.0.0",
+    "tslib": "^2.8.1",
+    "typescript": "5.6.3",
+    "zone.js": "0.15.1"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=19.0.0"
+  },
+  "sideEffects": false
+}

@@ -1,0 +1,14 @@
+html,
+body {
+  margin: 0;
+  font-family: sans-serif;
+}
+
+body {
+  padding: 16px;
+}
+
+button {
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
