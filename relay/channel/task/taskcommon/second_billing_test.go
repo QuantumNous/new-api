@@ -237,10 +237,38 @@ func TestNormalizeResolution_ChannelEmittedDimensions(t *testing.T) {
 	}
 }
 
-// The admin-facing normalizer in billing_setting duplicates this vocabulary,
-// because taskcommon imports billing_setting and the dependency cannot run the
-// other way. If the two drift, a rule an administrator saves successfully can
-// become permanently unmatchable. This pins the pairing from this side.
+// Every resolution an administrator can save must be reachable by some
+// adapter, or the rule is unmatchable and a configured model rejects every
+// request. Channels normalize either through NormalizeResolution here or
+// through their own label map (hailuo_v2 and techmobi emit 768p and 2k, which
+// this package's pixel-tier vocabulary does not cover), so a value is
+// acceptable if EITHER source can produce it.
+//
+// This reads the admin vocabulary rather than restating it: a hardcoded list
+// silently stops testing anything the moment someone adds a value.
+func TestAdminResolutionVocabularyIsReachable(t *testing.T) {
+	// Labels emitted by channels that own their normalization instead of using
+	// NormalizeResolution. Keep in step with those adapters' label maps.
+	channelOwnedLabels := map[string]bool{"768p": true, "2k": true}
+
+	for _, canonical := range billing_setting.CanonicalResolutionValues() {
+		t.Run(canonical, func(t *testing.T) {
+			if channelOwnedLabels[canonical] {
+				return
+			}
+			got, ok := NormalizeResolution(canonical)
+			if !ok {
+				t.Fatalf("%q is saveable by an administrator but no adapter here can emit it, "+
+					"so any rule using it would never match", canonical)
+			}
+			if got != canonical {
+				t.Fatalf("%q normalizes to %q: the admin vocabulary stores a non-canonical value",
+					canonical, got)
+			}
+		})
+	}
+}
+
 func TestNormalizeResolution_MatchesAdminVocabulary(t *testing.T) {
 	adminAccepts := []string{"480p", "720p", "1080p", "4k", "2160p"}
 	for _, in := range adminAccepts {

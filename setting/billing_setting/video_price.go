@@ -3,6 +3,7 @@ package billing_setting
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 
@@ -154,9 +155,13 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 // this side.
 var (
 	canonicalResolutions = map[string]string{
-		"480p":  "480p",
-		"720p":  "720p",
+		"480p": "480p",
+		"720p": "720p",
+		// hailuo_v2 owns its own label map and emits these two; without them an
+		// administrator cannot save a rule for a tier that channel really uses.
+		"768p":  "768p",
 		"1080p": "1080p",
+		"2k":    "2k",
 		"4k":    "4k",
 		"2160p": "4k",
 	}
@@ -173,6 +178,24 @@ var (
 		"has_video":  canonicalHasVideo,
 	}
 )
+
+// CanonicalResolutionValues lists every canonical resolution a rule may be
+// saved with. Exported so adapters can test that each one is actually reachable
+// -- a value nobody emits makes a rule unmatchable, which for a configured
+// model rejects every request.
+func CanonicalResolutionValues() []string {
+	seen := make(map[string]bool, len(canonicalResolutions))
+	values := make([]string, 0, len(canonicalResolutions))
+	for _, canonical := range canonicalResolutions {
+		if seen[canonical] {
+			continue
+		}
+		seen[canonical] = true
+		values = append(values, canonical)
+	}
+	sort.Strings(values)
+	return values
+}
 
 // NormalizeVideoPriceRules folds hand-written Match values to the canonical
 // forms adapters emit, and rejects values outside a known vocabulary.
