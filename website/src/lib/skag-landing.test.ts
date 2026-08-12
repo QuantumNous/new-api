@@ -21,9 +21,9 @@ describe("SKAG landing configuration", () => {
     expect(h1("gpt-api-alternative")).toBe("ChatGPT API Alternative");
     expect(h1("chinese-ai")).toBe("Chinese AI Models, One API");
     expect(h1("chinese-ai-models-api")).toBe("Chinese AI Models API");
-    expect(h1("deepseek-api")).toBe("DeepSeek API");
-    expect(h1("kimi-api")).toBe("Kimi API");
-    expect(h1("qwen-api")).toBe("Qwen API");
+    expect(h1("deepseek-api")).toBe("Stable DeepSeek API");
+    expect(h1("kimi-api")).toBe("Kimi K3 API");
+    expect(h1("qwen-api")).toBe("Use Qwen without GPU setup");
     expect(h1("openai-compatible")).toBe("OpenAI-Compatible API");
     expect(h1("gateway")).toBe("LLM API Gateway");
   });
@@ -108,7 +108,7 @@ describe("SKAG landing configuration", () => {
     const config = getSkagLandingConfig("deepseek-api", "pt");
 
     expect(config.keyword).toBe("deepseek api");
-    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("API DeepSeek para equipes no Brasil");
+    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("API DeepSeek estável para código");
     expect(config.ctaLabel).toBe("Obter chave da API DeepSeek");
     expect(config.hideSecondaryCta).toBe(true);
     expect(config.compactHero).toBe(true);
@@ -122,21 +122,22 @@ describe("SKAG landing configuration", () => {
     expect(input.pathname).toBe("/deepseek-api");
     expect(input.locale).toBe("pt");
     expect(input.locales).toEqual(["en", "pt"]);
-    expect(input.title).toContain("API DeepSeek no Brasil");
+    expect(input.title).toContain("API DeepSeek estável no Brasil");
   });
 
   test("exposes Portuguese Kimi and Qwen paid-search copy", () => {
     const kimi = getSkagLandingConfig("kimi-api", "pt");
     const qwen = getSkagLandingConfig("qwen-api", "pt");
 
-    expect(`${kimi.h1Lead} ${kimi.h1Accent}`).toBe("API Kimi para equipes no Brasil");
-    expect(kimi.ctaLabel).toBe("Obter chave da API Kimi");
+    expect(kimi.keyword).toBe("api kimi k3");
+    expect(`${kimi.h1Lead} ${kimi.h1Accent}`).toBe("API Kimi K3 para começar");
+    expect(kimi.ctaLabel).toBe("Obter chave da API Kimi K3");
     expect(kimi.hideSecondaryCta).toBe(true);
     expect(kimi.compactHero).toBe(true);
     expect(kimi.hideCodeWindow).toBe(true);
     expect(kimi.exampleModel).toBe("kimi-k2.5");
 
-    expect(`${qwen.h1Lead} ${qwen.h1Accent}`).toBe("API Qwen para equipes no Brasil");
+    expect(`${qwen.h1Lead} ${qwen.h1Accent}`).toBe("Use Qwen sem configurar GPU");
     expect(qwen.ctaLabel).toBe("Obter chave da API Qwen");
     expect(qwen.hideSecondaryCta).toBe(true);
     expect(qwen.compactHero).toBe(true);
