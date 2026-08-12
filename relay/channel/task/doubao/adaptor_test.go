@@ -2,6 +2,7 @@ package doubao
 
 import (
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,7 +10,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -500,5 +503,120 @@ func TestVideosDetection(t *testing.T) {
 	noVideo := dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentText, Text: "hi"}}}
 	if len(noVideo.Videos()) != 0 {
 		t.Fatalf("Videos() = %d, want 0", len(noVideo.Videos()))
+	}
+}
+
+func TestDoubaoResolveDimensions(t *testing.T) {
+	tests := []struct {
+		name       string
+		resolution string
+		hasVideo   bool
+		wantRes    string
+		wantVideo  string
+	}{
+		{"1080p no video", "1080p", false, "1080p", "false"},
+		{"4k with video", "4k", true, "4k", "true"},
+		{"uppercase 4K", "4K", false, "4k", "false"},
+		{"720p default tier", "720p", false, "720p", "false"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := resolveDimensions(tc.resolution, tc.hasVideo)
+			if !ok {
+				t.Fatal("expected dimensions to resolve")
+			}
+			if got["resolution"] != tc.wantRes {
+				t.Fatalf("resolution = %q, want %q", got["resolution"], tc.wantRes)
+			}
+			if got["has_video"] != tc.wantVideo {
+				t.Fatalf("has_video = %q, want %q", got["has_video"], tc.wantVideo)
+			}
+		})
+	}
+}
+
+func TestDoubaoResolveDimensions_RejectsUnknown(t *testing.T) {
+	if _, ok := resolveDimensions("banana", false); ok {
+		t.Fatal("unknown resolution must not resolve")
+	}
+}
+
+func TestDoubaoSecondBillingRatios_UsesConfiguredPrice(t *testing.T) {
+	a := &TaskAdaptor{}
+	a.secondBillingModel = "m1"
+	a.secondBillingDims = map[string]string{"resolution": "1080p", "has_video": "false"}
+	a.secondBillingSeconds = 5
+	a.secondBillingModelPrice = 0.14
+	a.secondBillingRules = []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: map[string]string{"resolution": "1080p"},
+			PricePerSecond: 0.374, Basis: billing_setting.BasisOutputDuration},
+	}
+
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := 0.374 * 5 / 0.14
+	if math.Abs(got[taskcommon.BillingUnitsKey]-want) > 1e-9 {
+		t.Fatalf("units = %v, want %v", got[taskcommon.BillingUnitsKey], want)
+	}
+}
+
+func TestDoubaoSecondBillingRatios_NotCapturedIsNoOp(t *testing.T) {
+	a := &TaskAdaptor{}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil ratios, got %v", got)
+	}
+}
+
+func TestDoubaoSecondBillingRatios_ConfiguredButUnmatchedErrors(t *testing.T) {
+	a := &TaskAdaptor{}
+	a.secondBillingModel = "m1"
+	a.secondBillingDims = map[string]string{"resolution": "4k", "has_video": "false"}
+	a.secondBillingSeconds = 5
+	a.secondBillingModelPrice = 0.14
+	a.secondBillingRules = []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.314, Basis: billing_setting.BasisOutputDuration},
+	}
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured model with no matching rule must fail loudly")
+	}
+}
+
+// Doubao's duration is optional, may be -1 ("let the model decide"), and has a
+// sibling `frames` field the upstream may honour instead. Only a length the
+// gateway can actually know may be billed; every other shape must report false
+// so EstimateBilling skips capture rather than pricing a guessed length.
+func TestDoubaoBillableSeconds(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration *int
+		frames   *int
+		want     float64
+		wantOK   bool
+	}{
+		{name: "absent defaults to 5s", want: 5, wantOK: true},
+		{name: "explicit 10s", duration: ptrInt(10), want: 10, wantOK: true},
+		{name: "auto length -1 is unknowable", duration: ptrInt(-1)},
+		{name: "zero is unknowable", duration: ptrInt(0)},
+		{name: "frames alone is unknowable", frames: ptrInt(121)},
+		{name: "frames alongside duration is unknowable", duration: ptrInt(5), frames: ptrInt(121)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := dto.SeedanceVideoRequest{Duration: tt.duration, Frames: tt.frames}
+			got, ok := billableSeconds(&req)
+			if ok != tt.wantOK {
+				t.Fatalf("billableSeconds ok = %v, want %v", ok, tt.wantOK)
+			}
+			if ok && got != tt.want {
+				t.Fatalf("billableSeconds = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

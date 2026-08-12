@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -104,6 +106,35 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -154,11 +185,95 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if modelName == "" {
 		modelName = info.OriginModelName
 	}
-	ratio, ok := GetVideoInputRatio(modelName, seedReq.Resolution, len(seedReq.Videos()) > 0)
+	hasVideo := len(seedReq.Videos()) > 0
+	// Ark defaults an omitted resolution to the 720p tier. Naming it here rather
+	// than leaving it empty is behaviour-preserving for GetVideoInputRatio —
+	// which buckets "" and "720p" into the same base-tier key — and lets the
+	// configured price table match a rule on the tier actually rendered.
+	resolution := seedReq.Resolution
+	if strings.TrimSpace(resolution) == "" {
+		resolution = "720p"
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// The configured table is keyed on info.OriginModelName — the client-facing
+	// name the administrator also prices with ModelPrice, which is the
+	// denominator in ComputeSecondBilling. The legacy videoPriceTable is keyed
+	// on the upstream name instead because it ships real upstream model names;
+	// the two keys are deliberately different and must not be "unified".
+	//
+	// Capture only when the length is actually knowable: a wrong duration would
+	// misprice the request silently, whereas skipping capture leaves it on the
+	// legacy path, which is the documented pre-existing behaviour.
+	if seconds, ok := billableSeconds(seedReq); ok {
+		if dims, ok := resolveDimensions(resolution, hasVideo); ok {
+			a.secondBillingModel = info.OriginModelName
+			a.secondBillingDims = dims
+			a.secondBillingSeconds = seconds
+			a.secondBillingModelPrice = info.PriceData.ModelPrice
+			a.secondBillingRules = rules
+		}
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy hardcoded estimate from also applying.
+	if billing_setting.IsVideoModelConfigured(rules, info.OriginModelName) {
+		return nil
+	}
+
+	ratio, ok := GetVideoInputRatio(modelName, resolution, hasVideo)
 	if ok && ratio != 1.0 {
 		return map[string]float64{"video_input": ratio}
 	}
 	return nil
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
+}
+
+// billableSeconds reports the output length this request will be charged for.
+//
+// Ark renders 5 seconds when neither duration nor frames is given, which is the
+// seedance family default the sibling adaptors already rely on. Two shapes are
+// unknowable at submit time and must not be guessed:
+//
+//   - frames, which sets the length in frames at a per-model fps the gateway
+//     does not know. It is checked first because the upstream documents frames
+//     and duration as "取其一" — when both are present the model decides which
+//     one wins, so duration is not authoritative either.
+//   - duration -1 (and any other non-positive value), which explicitly hands
+//     the length to the model.
+//
+// Both report false so the caller skips capture and the request keeps its
+// previous billing rather than being priced off a fabricated length.
+func billableSeconds(seedReq *dto.SeedanceVideoRequest) (float64, bool) {
+	if seedReq.Frames != nil {
+		return 0, false
+	}
+	if seedReq.Duration != nil {
+		if *seedReq.Duration <= 0 {
+			return 0, false
+		}
+		return float64(*seedReq.Duration), true
+	}
+	return 5, true
 }
 
 // doubaoExtensions are optional fields beyond the official seedance schema that
