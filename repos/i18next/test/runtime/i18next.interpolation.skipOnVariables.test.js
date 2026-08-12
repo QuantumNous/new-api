@@ -76,6 +76,10 @@ describe('i18next.interpolation.nesting', () => {
         args: ['cur', { CURRENCY: '$', AMOUNT: 23 }],
         expected: 'Save $23',
       },
+      {
+        args: ['key', { a: '&&&{{b}}', b: 'leaked' }],
+        expected: 'value &amp;&amp;&amp;{{b}}',
+      },
     ];
 
     tests.forEach((test) => {

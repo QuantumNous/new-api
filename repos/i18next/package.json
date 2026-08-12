@@ -1,6 +1,6 @@
 {
   "name": "i18next",
-  "version": "26.3.4",
+  "version": "26.3.6",
   "description": "i18next internationalization framework",
   "main": "./dist/cjs/i18next.js",
   "module": "./dist/esm/i18next.js",
@@ -49,7 +49,7 @@
     }
   ],
   "peerDependencies": {
-    "typescript": "^5 || ^6"
+    "typescript": "^5 || ^6 || ^7"
   },
   "peerDependenciesMeta": {
     "typescript": {

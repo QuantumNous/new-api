@@ -189,12 +189,12 @@ class Interpolator {
       {
         // unescape if has unescapePrefix/Suffix
         regex: this.regexpUnescape,
-        safeValue: (val) => regexSafe(val),
+        safeValue: (val) => val,
       },
       {
         // regular escape on demand
         regex: this.regexp,
-        safeValue: (val) => (this.escapeValue ? regexSafe(this.escape(val)) : regexSafe(val)),
+        safeValue: (val) => (this.escapeValue ? this.escape(val) : val),
       },
     ];
     todos.forEach((todo) => {
@@ -219,9 +219,9 @@ class Interpolator {
           value = makeString(value);
         }
         const safeValue = todo.safeValue(value);
-        str = str.replace(match[0], safeValue);
+        str = str.replace(match[0], regexSafe(safeValue));
         if (skipOnVariables) {
-          todo.regex.lastIndex += value.length;
+          todo.regex.lastIndex += safeValue.length;
           todo.regex.lastIndex -= match[0].length;
         } else {
           todo.regex.lastIndex = 0;
@@ -298,7 +298,7 @@ class Interpolator {
        *
        * Since v25.3.0 also this is possible: https://github.com/i18next/i18next/pull/2325
        */
-      const keyEndIndex = /{.*}/.test(match[1])
+      const keyEndIndex = /{.*}/s.test(match[1])
         ? match[1].lastIndexOf('}') + 1
         : match[1].indexOf(this.formatSeparator);
       if (keyEndIndex !== -1) {

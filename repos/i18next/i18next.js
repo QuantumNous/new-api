@@ -887,7 +887,10 @@
       const useOptionsReplaceForData = options.replace && !isString(options.replace);
       let data = useOptionsReplaceForData ? options.replace : options;
       if (useOptionsReplaceForData && typeof options.count !== 'undefined') {
-        data.count = options.count;
+        data = {
+          ...data,
+          count: options.count
+        };
       }
       if (this.options.interpolation.defaultVariables) {
         data = {
@@ -1200,10 +1203,10 @@
       const skipOnVariables = options?.interpolation?.skipOnVariables !== undefined ? options.interpolation.skipOnVariables : this.options.interpolation.skipOnVariables;
       const todos = [{
         regex: this.regexpUnescape,
-        safeValue: val => regexSafe(val)
+        safeValue: val => val
       }, {
         regex: this.regexp,
-        safeValue: val => this.escapeValue ? regexSafe(this.escape(val)) : regexSafe(val)
+        safeValue: val => this.escapeValue ? this.escape(val) : val
       }];
       todos.forEach(todo => {
         replaces = 0;
@@ -1227,9 +1230,9 @@
             value = makeString(value);
           }
           const safeValue = todo.safeValue(value);
-          str = str.replace(match[0], safeValue);
+          str = str.replace(match[0], regexSafe(safeValue));
           if (skipOnVariables) {
-            todo.regex.lastIndex += value.length;
+            todo.regex.lastIndex += safeValue.length;
             todo.regex.lastIndex -= match[0].length;
           } else {
             todo.regex.lastIndex = 0;
@@ -1279,7 +1282,7 @@
         clonedOptions = clonedOptions.replace && !isString(clonedOptions.replace) ? clonedOptions.replace : clonedOptions;
         clonedOptions.applyPostProcessor = false;
         delete clonedOptions.defaultValue;
-        const keyEndIndex = /{.*}/.test(match[1]) ? match[1].lastIndexOf('}') + 1 : match[1].indexOf(this.formatSeparator);
+        const keyEndIndex = /{.*}/s.test(match[1]) ? match[1].lastIndexOf('}') + 1 : match[1].indexOf(this.formatSeparator);
         if (keyEndIndex !== -1) {
           formatters = match[1].slice(keyEndIndex).split(this.formatSeparator).map(elem => elem.trim()).filter(Boolean);
           match[1] = match[1].slice(0, keyEndIndex);
