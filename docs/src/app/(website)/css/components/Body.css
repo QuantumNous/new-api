@@ -1,0 +1,8 @@
+@layer components {
+  .Body {
+    box-sizing: border-box;
+    margin: 0;
+    color: var(--gray-t2);
+    background-color: var(--gray-s1);
+  }
+}

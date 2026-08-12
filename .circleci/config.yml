@@ -1,0 +1,361 @@
+version: 2.1
+
+orbs:
+  code-infra: https://raw.githubusercontent.com/mui/mui-public/00cd0db0b3f3e2bc38ac8fb6af4edbfb2d5f88f6/.circleci/orbs/code-infra.yml
+
+parameters:
+  browserstack-force:
+    description: Whether to force browserstack usage. We have limited resources on browserstack so the pipeline might decide to skip browserstack if this parameter isn't set to true.
+    type: boolean
+    default: false
+  react-version:
+    description: The version of react to be used
+    type: string
+    default: stable
+  workflow:
+    description: The name of the workflow to run
+    type: string
+    default: pipeline
+
+default-job: &default-job
+  parameters:
+    react-version:
+      description: The version of react to be used
+      type: string
+      default: << pipeline.parameters.react-version >>
+  resource_class: medium
+  environment:
+    &default-environment # expose it globally otherwise we have to thread it from each job to the install command
+    BROWSERSTACK_FORCE: << pipeline.parameters.browserstack-force >>
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+  working_directory: /tmp/base-ui
+  executor: code-infra/mui-node
+
+default-context: &default-context
+  context:
+    - org-global
+
+# CircleCI has disabled the cache across forks for security reasons.
+# Following their official statement, it was a quick solution, they
+# are working on providing this feature back with appropriate security measures.
+# https://discuss.circleci.com/t/saving-cache-stopped-working-warning-skipping-this-step-disabled-in-configuration/24423/21
+#
+# restore_repo: &restore_repo
+#   restore_cache:
+#     key: v1-repo-{{ .Branch }}-{{ .Revision }}
+
+commands:
+  build-with-compiler:
+    description: 'Build packages with React Compiler'
+    steps:
+      - run:
+          name: Add compiler package
+          command: pnpm -F "./packages/*" add react-compiler-runtime
+      - run:
+          name: Build with compiler
+          command: pnpm release:build --enableReactCompiler
+          environment:
+            MUI_REACT_COMPILER_MODE: 'infer'
+
+jobs:
+  test_unit:
+    <<: *default-job
+    resource_class: large
+    steps:
+      - checkout
+      - code-infra/install-deps:
+          package-overrides: react@<< parameters.react-version >>
+      - run:
+          name: Run tests on JSDOM
+          command: pnpm test:jsdom
+      - store_test_results:
+          path: test-results
+  docs_validate:
+    <<: *default-job
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - run:
+          name: Validate the documentation files
+          command: pnpm docs:validate
+  test_lint:
+    <<: *default-job
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - code-infra/eslint
+      - code-infra/stylelint
+      - code-infra/valelint
+  test_static:
+    <<: *default-job
+    environment:
+      <<: *default-environment
+      NODE_OPTIONS: --max-old-space-size=3584
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - code-infra/check-static-changes
+      - run:
+          name: '`pnpm extract-error-codes` changes committed?'
+          command: |
+            pnpm extract-error-codes
+            git add -A && git diff --exit-code --staged
+      - run:
+          name: '`pnpm inline-scripts` changes committed?'
+          command: |
+            pnpm inline-scripts
+            git add -A && git diff --exit-code --staged
+  test_types:
+    <<: *default-job
+    resource_class: medium+
+    steps:
+      - checkout
+      - code-infra/install-deps:
+          package-overrides: react@<< parameters.react-version >>
+      - run:
+          name: Tests TypeScript definitions
+          command: pnpm typescript
+          environment:
+            NODE_OPTIONS: --max-old-space-size=3072
+      - run:
+          name: Any defect declaration files?
+          command: pnpm code-infra validate-built-types
+      - save_cache:
+          name: Save generated declaration files
+          key: typescript-declaration-files-{{ .Branch }}-{{ .Revision }}
+          paths:
+            # packages with generated declaration files
+            - packages/react/build
+  test_types_next:
+    <<: *default-job
+    resource_class: medium+
+    steps:
+      - checkout
+      - code-infra/install-deps:
+          package-overrides: typescript@next
+      - run:
+          name: Tests TypeScript definitions
+          command: pnpm typescript
+      - restore_cache:
+          name: Restore generated declaration files
+          keys:
+            # We assume that the target branch is `master` and that declaration files are persisted in commit order.
+            # "If there are multiple matches, the most recently generated cache will be used."
+            - typescript-declaration-files-master
+      - run:
+          name: Log defect declaration files
+          command: |
+            # ignore build failures
+            # Fixing these takes some effort that isn't viable to merge in a single PR.
+            # We'll simply monitor them for now.
+            set +e
+            pnpm code-infra validate-built-types
+            exit 0
+  test_browser:
+    <<: *default-job
+    resource_class: large
+    executor:
+      name: code-infra/mui-node-browser
+      playwright-img-version: v1.59.1-noble
+    steps:
+      - checkout
+      - code-infra/install-deps:
+          package-overrides: react@<< parameters.react-version >>
+      - run:
+          name: Run tests on headless Chromium
+          command: pnpm test:chromium
+      - store_test_results:
+          path: test-results
+  test_regressions:
+    <<: *default-job
+    resource_class: medium+
+    executor:
+      name: code-infra/mui-node-browser
+      playwright-img-version: v1.59.1-noble
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - run:
+          name: Run visual regression tests
+          command: xvfb-run pnpm test:regressions
+      - store_test_results:
+          path: test-results
+      - run:
+          name: Upload screenshots to Argos CI
+          command: pnpm test:argos
+  test_e2e:
+    <<: *default-job
+    executor:
+      name: code-infra/mui-node-browser
+      playwright-img-version: v1.59.1-noble
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - run:
+          name: pnpm test:e2e
+          command: pnpm test:e2e
+      - store_test_results:
+          path: test-results
+
+  test_package:
+    <<: *default-job
+    resource_class: medium+
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - run:
+          name: Build packages
+          command: pnpm release:build
+      - run:
+          name: Validate type declarations
+          command: pnpm code-infra validate-built-types
+      - run:
+          name: Check public types
+          command: pnpm -r run release:test
+      - run:
+          name: Test Node.js module resolution
+          command: pnpm -F @base-ui/test-node-resolution test
+      - run:
+          name: Verify built packages
+          command: pnpm -r test:package
+      - code-infra/upload-size-snapshot
+
+  test_unit_compiler:
+    <<: *default-job
+    resource_class: large
+    environment:
+      <<: *default-environment
+      NODE_OPTIONS: --max-old-space-size=3584
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - build-with-compiler
+      - run:
+          name: Run tests on JSDOM
+          command: pnpm test:jsdom
+          environment:
+            MUI_DISABLE_WORKSPACE_ALIASES: 1
+      - store_test_results:
+          path: test-results
+
+  test_browser_compiler:
+    <<: *default-job
+    resource_class: large
+    executor:
+      name: code-infra/mui-node-browser
+      playwright-img-version: v1.59.1-noble
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - build-with-compiler
+      - run:
+          name: Run tests on headless Chromium
+          command: pnpm test:chromium
+          environment:
+            MUI_DISABLE_WORKSPACE_ALIASES: 1
+      - store_test_results:
+          path: test-results
+
+  test_benchmark:
+    <<: *default-job
+    executor:
+      name: code-infra/mui-node-browser
+      playwright-img-version: v1.59.1-noble
+    steps:
+      - checkout
+      - code-infra/install-deps
+      - run:
+          name: Build packages
+          command: pnpm release:build
+      - run:
+          name: Run baseline benchmarks at merge-base
+          command: |
+            set -e
+            if [ "$CIRCLE_BRANCH" = "master" ]; then
+              echo "On master branch; no baseline to compare against. Skipping baseline."
+              exit 0
+            fi
+            git fetch --no-tags origin master:refs/remotes/origin/master
+            BASE_SHA=$(git merge-base HEAD origin/master)
+            echo "Baseline commit: $BASE_SHA"
+            git worktree add /tmp/base-worktree "$BASE_SHA"
+            cd /tmp/base-worktree
+            pnpm install --frozen-lockfile
+            pnpm release:build
+            BENCHMARK_BRANCH=master pnpm test:benchmark
+            echo 'export BENCHMARK_BASELINE_PATH=/tmp/base-worktree/test/performance/benchmarks/results.json' >> "$BASH_ENV"
+      - run:
+          name: Run head benchmarks
+          environment:
+            BENCHMARK_UPLOAD: 'true'
+          command: pnpm test:benchmark
+
+workflows:
+  pipeline:
+    when:
+      equal: [pipeline, << pipeline.parameters.workflow >>]
+    jobs:
+      - test_unit:
+          <<: *default-context
+          name: 'JSDOM tests'
+      - test_lint:
+          <<: *default-context
+          name: 'Linting'
+      - test_static:
+          <<: *default-context
+          name: 'Generated files verification'
+      - test_types:
+          <<: *default-context
+          name: 'Typechecking'
+      - test_browser:
+          <<: *default-context
+          name: 'Browser tests'
+      - test_regressions:
+          <<: *default-context
+          name: 'Regression tests'
+      - test_e2e:
+          <<: *default-context
+          name: 'E2E tests'
+      - test_package:
+          <<: *default-context
+          name: 'Package verification'
+      - docs_validate:
+          <<: *default-context
+          name: 'Validating Docs'
+      - test_benchmark:
+          <<: *default-context
+          name: 'Benchmark tests'
+      - test_unit_compiler:
+          <<: *default-context
+          name: 'JSDOM tests (React Compiler)'
+      - test_browser_compiler:
+          <<: *default-context
+          name: 'Browser tests (React Compiler)'
+  react-18:
+    when:
+      equal: [pipeline, << pipeline.parameters.workflow >>]
+    jobs:
+      - test_unit:
+          <<: *default-context
+          name: 'JSDOM tests (React 18)'
+          react-version: '^18'
+      - test_browser:
+          <<: *default-context
+          name: 'Browser tests (React 18)'
+          react-version: '^18'
+      - test_types:
+          <<: *default-context
+          name: 'Typechecking (React 18)'
+          react-version: '^18'
+  typescript-next:
+    triggers:
+      - schedule:
+          cron: '0 0 * * *'
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - test_types_next:
+          <<: *default-context
+          name: 'Typechecking (typescript@next)'

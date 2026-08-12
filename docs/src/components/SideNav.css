@@ -1,0 +1,204 @@
+@import 'docs/src/css/custom-media.css';
+
+@layer components {
+  .SideNavRoot {
+    --side-nav-item-height: 1.75rem;
+    --side-nav-item-line-height: 1.375rem;
+    --side-nav-item-padding-y: calc(
+      var(--side-nav-item-height) / 2 - var(--side-nav-item-line-height) / 2
+    );
+    --side-nav-link-padding-x: 0.5rem;
+
+    --side-nav-scrollbar-thumb-width: 0.25rem;
+    --side-nav-scrollbar-width: 1.5rem;
+    --side-nav-scrollbar-gap-left: 1rem;
+    --side-nav-scrollbar-gap-right: 2.5rem;
+    /* Pull the sidebar's right edge in to leave a gap before the main content */
+    --side-nav-gap-right: calc(
+      var(--side-nav-scrollbar-gap-right) - var(--side-nav-scrollbar-width) / 2 +
+        var(--side-nav-scrollbar-thumb-width) / 2
+    );
+
+    font-size: var(--font-size-14);
+    line-height: 1.375rem;
+
+    display: none;
+
+    @media (--show-side-nav) {
+      display: block;
+      position: fixed;
+      top: var(--header-height);
+      /* Extend left by the link padding so the hover/active pill can bleed past
+         the text (logo) alignment line without being clipped by the viewport. */
+      left: calc(
+        max(
+            var(--root-layout-padding-x),
+            calc(50% - var(--breakpoint-max-layout-width) / 2 + var(--root-layout-padding-x))
+          ) -
+          var(--side-nav-link-padding-x)
+      );
+      width: calc(
+        var(--sidebar-width) - var(--side-nav-gap-right) + var(--side-nav-link-padding-x)
+      );
+    }
+  }
+
+  .SideNavViewport {
+    max-height: calc(100dvh - var(--header-height));
+    padding: 0
+      calc(
+        var(--side-nav-scrollbar-gap-left) + var(--side-nav-scrollbar-width) / 2 +
+          var(--side-nav-scrollbar-thumb-width) / 2
+      )
+      0.75rem var(--side-nav-link-padding-x);
+
+    /* Scroll containers are focusable */
+    outline: 0;
+
+    /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+    .SideNavRoot:has(&:focus-visible)::before {
+      content: '';
+      inset: 0;
+      pointer-events: none;
+      position: absolute;
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -2px;
+      /* Don't inset the outline on the right */
+      right: -2px;
+    }
+  }
+
+  .SideNavScrollbar {
+    display: flex;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+
+    /* Click target width */
+    width: var(--side-nav-scrollbar-width);
+
+    opacity: 0;
+    transition: opacity 200ms 500ms;
+
+    &:active,
+    &[data-scrolling],
+    .SideNavViewport:focus-visible + & {
+      transition-duration: 0ms;
+      transition-delay: 0ms;
+      opacity: 1;
+    }
+  }
+
+  .SideNavScrollbarThumb {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+
+    &::before {
+      content: '';
+      display: block;
+      height: 100%;
+      /* Visible thumb width */
+      width: var(--side-nav-scrollbar-thumb-width);
+      border-radius: var(--radius-4);
+      background-color: var(--gray-p2);
+    }
+  }
+
+  .SideNavSection:not(:last-child) {
+    margin-bottom: 1rem;
+  }
+
+  .SideNavHeading {
+    display: inline-flex;
+    padding-block: var(--side-nav-item-padding-y);
+    font-weight: var(--font-weight-400);
+    color: var(--gray-t1);
+  }
+
+  .SideNavSeparator {
+    margin-block: 1rem;
+    border: none;
+    border-top: 1px solid var(--color-border);
+    width: var(--space-32);
+  }
+
+  .SideNavItem {
+    display: flex;
+  }
+
+  .SideNavLink {
+    display: block;
+    flex-grow: 1;
+    padding-block: calc(var(--side-nav-item-padding-y) - 1px);
+    padding-inline: var(--side-nav-link-padding-x);
+    /* Negative offset by the left padding so link text aligns with the heading
+       and logo while the pill keeps its padding (bleeding into the viewport). */
+    margin-inline-start: calc(-1 * var(--side-nav-link-padding-x));
+    border-block: 1px solid transparent; /* Maintain a 1px gap between active an inactive item */
+    background-clip: padding-box;
+    border-radius: var(--radius-6);
+    -webkit-user-select: none;
+    user-select: none;
+
+    @media (hover: hover) {
+      &:not([data-active]):hover {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        text-decoration-thickness: 1px;
+        text-decoration-color: var(--gray-t2);
+      }
+    }
+
+    &[data-active] {
+      border: none;
+      padding-block: var(--side-nav-item-padding-y);
+      padding-inline: var(--side-nav-link-padding-x);
+      background-color: var(--gray-s2);
+      outline: 1px solid var(--gray-c2);
+      outline-offset: -1px;
+      font-weight: var(--font-weight-400);
+      word-spacing: -0.005em;
+      cursor: default;
+    }
+
+    &:focus-visible {
+      z-index: 1;
+      outline: 2px solid var(--gray-t2);
+      /* Fully inset (>= outline width) so the ring isn't clipped by the
+         scroll viewport's overflow where the pill bleeds to its edge */
+      outline-offset: -2px;
+    }
+  }
+
+  .SideNavBadge {
+    /* inline-block makes the badge an atomic inline so it doesn't inherit the
+       link's hover underline */
+    display: inline-block;
+    vertical-align: middle;
+    margin-inline-start: 4px;
+    color: var(--poppy-t1);
+    line-height: inherit;
+    -webkit-user-select: none;
+    user-select: none;
+    text-transform: uppercase;
+    font-size: 0.625rem;
+    font-weight: var(--font-weight-700);
+    letter-spacing: 0.035em;
+    padding-inline: 2px;
+    translate: 0 -2px;
+    word-break: keep-all;
+  }
+
+  .SideNavLinkIconContainer {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+  }
+
+  .SideNavVersion {
+    /* inline-block keeps the version out of the link's hover underline */
+    display: inline-block;
+    margin-inline-start: 0.375rem;
+    color: var(--gray-t1);
+  }
+}

@@ -1,0 +1,91 @@
+# Form
+
+<Subtitle>A native form element with consolidated error handling.</Subtitle>
+
+<Meta
+  name="description"
+  content="A high-quality, unstyled React form component with consolidated error handling."
+/>
+
+import { DemoFormHero } from './demos/hero';
+
+<DemoFormHero />
+
+## Anatomy
+
+Form is composed together with [Field](/react/components/field). Import the components and place them together:
+
+```jsx title="Anatomy"
+import { Field } from '@base-ui/react/field';
+import { Form } from '@base-ui/react/form';
+
+<Form>
+  <Field.Root>
+    <Field.Label />
+    <Field.Control />
+    <Field.Error />
+  </Field.Root>
+</Form>;
+```
+
+## Examples
+
+### Submit with a Server Function
+
+Forms using `useActionState` can be submitted with a [Server Function](https://react.dev/reference/react-dom/components/form#handle-form-submission-with-a-server-function) instead of `onSubmit`.
+
+import { DemoFormAction } from './demos/form-action';
+
+<DemoFormAction />
+
+### Submit form values as a JavaScript object
+
+You can use `onFormSubmit` instead of the native `onSubmit` to access form values as a JavaScript object. This is useful when you need to transform the values before submission, or integrate with 3rd party APIs.
+
+```tsx title="Submission using onFormSubmit"
+<Form
+  onFormSubmit={async (formValues: { id: string; quantity: number }) => {
+    const payload = {
+      product_id: formValues.id,
+      order_quantity: formValues.quantity,
+    };
+
+    const response = await fetch('https://api.example.com', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  }}
+/>
+```
+
+When used, `preventDefault` is called on the native submit event.
+
+### Using with Zod
+
+When parsing the schema using `schema.safeParse()`, the `z.flattenError(result.error).fieldErrors` data can be used to map the errors to each field's `name`.
+
+import { DemoFormZod } from './demos/zod';
+
+<DemoFormZod />
+
+## API reference
+
+import { TypesForm } from './types';
+
+<TypesForm />
+
+export const metadata = {
+  keywords: [
+    'React Form Component',
+    'Form Submission Handler',
+    'Form Validation',
+    'Form State',
+    'Server Function Form',
+    'JavaScript Form Values',
+    'Accessible Form',
+    'Headless React Components',
+    'Form Error Handling',
+    'Base UI',
+  ],
+};

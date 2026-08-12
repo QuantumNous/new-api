@@ -1,0 +1,70 @@
+# Progress
+
+<Subtitle>Displays the status of a task that takes a long time.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React progress bar component that displays the status of a task that takes a long time."
+/>
+
+import { DemoProgressHero } from './demos/hero';
+
+<DemoProgressHero />
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Progress } from '@base-ui/react/progress';
+
+<Progress.Root>
+  <Progress.Label />
+  <Progress.Track>
+    <Progress.Indicator />
+  </Progress.Track>
+  <Progress.Value />
+</Progress.Root>;
+```
+
+## API reference
+
+import { TypesProgress } from './types';
+
+### Root
+
+<TypesProgress.Root />
+
+### Track
+
+<TypesProgress.Track />
+
+### Indicator
+
+<TypesProgress.Indicator />
+
+### Value
+
+<TypesProgress.Value />
+
+### Label
+
+<TypesProgress.Label />
+
+export const metadata = {
+  keywords: [
+    'React Progress Bar',
+    'Progress Component',
+    'Progress Indicator',
+    'Loader',
+    'Loading Bar',
+    'Upload Progress',
+    'Download Progress',
+    'Task Status Indicator',
+    'Determinate Progress',
+    'Indeterminate Progress',
+    'Accessible Progress',
+    'Headless React Components',
+    'Loading Indicator',
+    'Base UI',
+  ],
+};

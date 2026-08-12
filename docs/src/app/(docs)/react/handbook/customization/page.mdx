@@ -1,0 +1,144 @@
+# Customization
+
+<Subtitle>A guide to customizing the behavior of Base UI components.</Subtitle>
+<Meta name="description" content="A guide to customizing the behavior of Base UI components." />
+
+## Base UI events
+
+Change events such as `onOpenChange`, `onValueChange`, and `onPressedChange` are custom to Base UI.
+They can be emitted by various different DOM events, effects, or even during rendering.
+
+```js title="Base UI event signatures"
+onOpenChange: (open, eventDetails) => void
+onValueChange: (value, eventDetails) => void
+onPressedChange: (pressed, eventDetails) => void
+```
+
+The `eventDetails` property is passed as a second argument to Base UI event handlers.
+This enables the event to be customized, and also allows you to conditionally run side effects based on the reason or DOM event that caused the change.
+
+```tsx title="eventDetails object"
+interface BaseUIChangeEventDetails {
+  reason: string;
+  event: Event;
+  cancel: () => void;
+  allowPropagation: () => void;
+  isCanceled: boolean;
+  isPropagationAllowed: boolean;
+}
+```
+
+- `reason` is used to determine why the change event occurred, which can be useful to conditionally run certain side effects.
+  Most IDEs show the possible string values after typing `reason === '`.
+- `event` is the native DOM event that caused the change.
+- `cancel` stops the component from changing its internal state.
+- `allowPropagation` allows the DOM event to propagate in cases where Base UI stops the propagation.
+- `isCanceled` indicates whether the change event has been canceled.
+- `isPropagationAllowed` indicates whether the DOM event is allowed to propagate.
+
+### Canceling a Base UI event
+
+An event can be canceled with the `cancel()` method on `eventDetails`:
+
+```tsx title="Prevent a tooltip from closing when pressing the trigger"
+<Tooltip.Root
+  onOpenChange={(open, eventDetails) => {
+    if (eventDetails.reason === 'trigger-press') {
+      // Stop the open change (false) from happening.
+      eventDetails.cancel(); // @highlight-text "cancel"
+    }
+  }}
+>
+  ...
+</Tooltip.Root>
+```
+
+This lets you leave the component uncontrolled as its internal state is prevented from updating.
+This is an alternative to controlling the component with external state and guarding the state updates conditionally.
+
+### Allowing propagation of the DOM event
+
+In most components, pressing the <kbd>Esc</kbd> key stops the propagation of the event so parent popups don't close simultaneously.
+This can also be customized with the `allowPropagation()` method:
+
+```tsx title="Allowing propagation of the event"
+<Tooltip.Root
+  onOpenChange={(open, eventDetails) => {
+    if (eventDetails.reason === 'escape-key') {
+      // Allow the DOM event to propagate.
+      eventDetails.allowPropagation(); // @highlight-text "allowPropagation"
+    }
+  }}
+>
+  ...
+</Tooltip.Root>
+```
+
+## Preventing Base UI from handling a React event
+
+To prevent Base UI from handling a React event like `onClick`, you can use the `preventBaseUIHandler()` method on the event object:
+
+```tsx title="Prevent Base UI's default behavior"
+<NumberField.Input
+  onPaste={(event) => {
+    event.preventBaseUIHandler();
+  }}
+/>
+```
+
+This should be used as an escape hatch in cases where there isn't a prop yet to customize the behavior.
+In various cases, native events are used instead of React events, so this method has no effect.
+
+## Controlling components with state
+
+Change event handlers enable a component to be controlled with your own external state.
+
+Components are uncontrolled by default, meaning that they manage their own state internally.
+
+```tsx title="Uncontrolled dialog"
+<Dialog.Root>
+  <Dialog.Trigger /> {/* Opens the dialog when clicked. */}
+</Dialog.Root>
+```
+
+A component can be made controlled by passing external state to a prop, such as `open` or `value`, and the state's setter to its corresponding change handler, such as `onOpenChange` or `onValueChange`.
+
+For instance, you can open [Dialog](/react/components/dialog) after a timeout, without a trigger:
+
+```tsx title="Controlled dialog"
+const [open, setOpen] = React.useState(false);
+
+React.useEffect(() => {
+  const timeout = setTimeout(() => {
+    setOpen(true);
+  }, 1000);
+  return () => clearTimeout(timeout);
+}, []);
+
+return (
+  <Dialog.Root open={open} onOpenChange={setOpen}>
+    No trigger is needed in this case.
+  </Dialog.Root>
+);
+```
+
+This also allows you to read the state of the component outside of the root component.
+
+export const metadata = {
+  keywords: [
+    'Base UI Customization',
+    'React eventDetails',
+    'Control Base UI State',
+    'Cancel Base UI Events',
+    'Allow Propagation Tooltip',
+    'Customization Handbook',
+    'Event Handlers',
+    'Controlled Components',
+    'Uncontrolled Components',
+    'Component Behavior',
+    'Event Callbacks',
+    'State Management',
+    'Component Props',
+    'Override Behavior',
+  ],
+};

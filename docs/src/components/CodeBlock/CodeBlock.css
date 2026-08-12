@@ -1,0 +1,139 @@
+@layer components {
+  .CodeBlockRoot {
+    align-self: stretch;
+    background-color: var(--color-content);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-12);
+
+    & code .frame {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+
+    & code .frame[data-lined] {
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    & code .frame[data-lined] .line {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+  }
+
+  .CodeBlockPanel {
+    font-size: var(--font-size-14);
+    line-height: 1;
+    background-color: var(--gray-s2);
+    background-clip: padding-box;
+    color: var(--gray-t2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    white-space: nowrap;
+    padding-inline-start: 0.75rem;
+    padding-inline-end: 0.25rem;
+    height: 2.25rem;
+    gap: 1rem;
+    border-top-left-radius: calc(var(--radius-12) - 1px);
+    border-top-right-radius: calc(var(--radius-12) - 1px);
+    border-bottom: 1px solid var(--color-border);
+
+    /* Scroll */
+    overflow: auto hidden;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Scroll containers may be focusable */
+    &:focus-visible {
+      position: relative;
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -1px;
+      z-index: 1;
+    }
+  }
+
+  .CodeBlockPanelTitle {
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    color: var(--gray-t2);
+    font-weight: var(--font-weight-400);
+  }
+
+  .CodeBlockCopyIcon {
+    display: flex;
+    width: 1rem;
+    height: 1rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .CodeBlockViewport {
+    outline: 0;
+    border-bottom-right-radius: calc(var(--radius-12) - 1px);
+    border-bottom-left-radius: calc(var(--radius-12) - 1px);
+
+    &[data-has-overflow-x] {
+      /* Prevent Chrome/Safari page navigation gestures when scrolling horizontally */
+      overscroll-behavior-x: contain;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--gray-t2);
+      outline-offset: 0;
+    }
+  }
+
+  .CodeBlockPreInline {
+    font-size: 0.8125rem; /* 13px */
+    line-height: 1.25rem; /* 20px */
+    cursor: text;
+    color: var(--color-foreground);
+    outline: 0;
+
+    display: flex;
+
+    & code {
+      /* Different fonts may introduce vertical align issues */
+      display: block;
+      /* Make sure selection highlight spans full container width in Safari */
+      flex-grow: 1;
+    }
+
+    & code .frame {
+      display: block;
+    }
+
+    & code .frame[data-lined] {
+      white-space: normal;
+    }
+
+    & code .frame[data-lined] .line {
+      display: block;
+      white-space: pre;
+    }
+
+    & .line:empty {
+      height: 1lh;
+    }
+
+    /* Hide JSDoc comment frames */
+    &:not(.CodeBlockPre) [data-frame-type='comment'] {
+      display: none !important;
+    }
+  }
+
+  .CodeBlockPre,
+  .CodeBlockRoot .CodeBlockPreInline {
+    padding: 0.5rem 0;
+    border-radius: calc(var(--radius-12) - 1px);
+  }
+
+  .CodeBlockPreContainer {
+    width: 100%;
+    outline: 0;
+  }
+}
