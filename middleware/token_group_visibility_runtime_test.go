@@ -20,6 +20,7 @@ import (
 
 func setupRuntimeVisibilityTestDB(t *testing.T) {
 	t.Helper()
+	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "enforce")
 	previousDB := model.DB
 	previousRedis := common.RedisEnabled
 	previousSQLite := common.UsingSQLite
@@ -48,7 +49,8 @@ func setupRuntimeVisibilityTestDB(t *testing.T) {
 	require.NoError(t, err)
 	model.DB = db
 	require.NoError(t, db.AutoMigrate(
-		&model.User{}, &model.Token{}, &model.TokenGroupVisibility{}, &model.TokenGroupVisibilityTarget{},
+		&model.User{}, &model.Token{}, &model.Channel{}, &model.Ability{}, &model.TokenGroupVisibility{}, &model.TokenGroupVisibilityTarget{},
+		&model.TokenGroupVisibilityRevision{},
 		&model.EntitlementPackage{}, &model.UserEntitlement{}, &model.TokenEntitlement{}, &model.EntitlementDailyUsage{},
 	))
 	t.Cleanup(func() {

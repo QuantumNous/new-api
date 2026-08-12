@@ -47,6 +47,7 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, db.AutoMigrate(
 		&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{},
 		&model.TokenGroupVisibility{}, &model.TokenGroupVisibilityTarget{},
+		&model.TokenGroupVisibilityRevision{},
 	))
 
 	t.Cleanup(func() {
@@ -247,6 +248,7 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 
 func TestModelListsHonorTargetedGroupVisibility(t *testing.T) {
 	withSelfUseModeDisabled(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_MODE", "enforce")
 	withTieredBillingConfig(t, map[string]string{"zz-targeted-only-model": "tiered_expr"}, map[string]string{
 		"zz-targeted-only-model": `tier("base", p * 1 + c * 2)`,
 	})

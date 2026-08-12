@@ -66,36 +66,21 @@ func GetUserGroups(c *gin.Context) {
 }
 
 func GetTokenGroupVisibilityPolicies(c *gin.Context) {
-	if !model.TokenGroupVisibilityEnabled() {
-		// Flag-off is a safe compatibility mode. It must not touch the optional
-		// P2 tables, because schema-first rollout intentionally creates them later.
-		common.ApiSuccess(c, gin.H{"enabled": false, "policies": []model.TokenGroupVisibilityPolicy{}})
-		return
-	}
-	policies, err := model.GetTokenGroupVisibilityPolicies()
+	state, err := model.GetTokenGroupVisibilityState()
 	if err != nil {
-		common.ApiError(c, err)
+		// Keep the canonical degraded state in the response even when the
+		// database read failed.  Administrators must see that this is a
+		// database_error/degraded snapshot, never an indistinguishable empty
+		// policy list; callers still receive success=false and authorization
+		// remains fail-closed.
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error(), "data": state})
 		return
 	}
-	common.ApiSuccess(c, gin.H{"enabled": model.TokenGroupVisibilityEnabled(), "policies": policies})
+	common.ApiSuccess(c, state)
 }
 
 func SaveTokenGroupVisibilityPolicy(c *gin.Context) {
-	if !model.TokenGroupVisibilityEnabled() {
-		common.ApiError(c, errors.New("令牌分组可见性功能未启用；请先完成 schema-first 部署"))
-		return
-	}
-	var policy model.TokenGroupVisibilityPolicy
-	if err := c.ShouldBindJSON(&policy); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := model.SaveTokenGroupVisibilityPolicy(policy); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	model.RecordLog(c.GetInt("id"), model.LogTypeSystem, "管理员更新令牌分组可见性策略："+policy.Group)
-	common.ApiSuccess(c, policy)
+	common.ApiError(c, errors.New("单策略写入已停用，请使用带 expected_digest 的批量策略接口"))
 }
 
 func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
@@ -104,13 +89,39 @@ func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
 		return
 	}
 	var request struct {
-		Policies []model.TokenGroupVisibilityPolicy `json:"policies"`
+		Policies       []model.TokenGroupVisibilityPolicy `json:"policies"`
+		ExpectedDigest string                             `json:"expected_digest"`
+		AllowEmpty     bool                               `json:"allow_empty"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if err := model.ReplaceTokenGroupVisibilityPolicies(request.Policies); err != nil {
+	state, stateErr := model.GetTokenGroupVisibilityState()
+	if stateErr != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": stateErr.Error(), "data": state})
+		return
+	}
+	if state.Degraded || state.Mode == model.TokenGroupVisibilityModeInvalid {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "令牌分组可见性状态降级或运行模式无效，已拒绝写入",
+			"data":    state,
+		})
+		return
+	}
+	if len(request.Policies) == 0 && !request.AllowEmpty {
+		if len(state.Policies) > 0 {
+			common.ApiError(c, errors.New("策略列表为空；如需清空全部策略，请显式确认 allow_empty"))
+			return
+		}
+	}
+	resultingDigest, err := model.ReplaceTokenGroupVisibilityPoliciesCAS(request.Policies, request.ExpectedDigest)
+	if err != nil {
+		if errors.Is(err, model.ErrTokenGroupVisibilityConflict) {
+			c.JSON(http.StatusConflict, gin.H{"success": false, "message": err.Error()})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
@@ -120,18 +131,20 @@ func ReplaceTokenGroupVisibilityPolicies(c *gin.Context) {
 	}
 	model.RecordLog(c.GetInt("id"), model.LogTypeSystem,
 		"管理员批量替换令牌分组可见性策略："+strings.Join(auditItems, ","))
-	common.ApiSuccess(c, request.Policies)
+	state, err = model.GetTokenGroupVisibilityState()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error(), "data": state})
+		return
+	}
+	// Keep a defensive check in the response path: a successful transaction
+	// must be immediately readable and its digest must match the CAS result.
+	if resultingDigest != state.Digest {
+		common.ApiError(c, errors.New("策略写入后回读摘要不一致"))
+		return
+	}
+	common.ApiSuccess(c, state)
 }
 
 func DeleteTokenGroupVisibilityPolicy(c *gin.Context) {
-	if !model.TokenGroupVisibilityEnabled() {
-		common.ApiError(c, errors.New("令牌分组可见性功能未启用；请先完成 schema-first 部署"))
-		return
-	}
-	if err := model.DeleteTokenGroupVisibilityPolicy(c.Param("group")); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	model.RecordLog(c.GetInt("id"), model.LogTypeSystem, "管理员删除令牌分组可见性策略："+c.Param("group"))
-	common.ApiSuccess(c, nil)
+	common.ApiError(c, errors.New("单策略删除已停用，请使用带 expected_digest 的批量策略接口"))
 }

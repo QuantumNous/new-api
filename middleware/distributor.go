@@ -254,8 +254,12 @@ func Distribute() func(c *gin.Context) {
 							return
 						}
 						userId := c.GetInt("id")
-						if err := service.ValidateUserSelectableTokenGroup(userId, playgroundGroup); err != nil ||
-							(!service.GroupInUserUsableGroups(usingGroup, playgroundGroup) && playgroundGroup != usingGroup) {
+						// The visibility resolver is authoritative here.  Do not apply the
+						// legacy global UserUsableGroups check a second time: targeted
+						// grants are intentionally additive and may not be present in that
+						// global map.  Entitlement-package scope was checked above and is
+						// still enforced independently.
+						if err := service.ValidateUserSelectableTokenGroup(userId, playgroundGroup); err != nil {
 							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 							return
 						}

@@ -306,7 +306,6 @@ func UpdateToken(c *gin.Context) {
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
-		previousGroup := cleanToken.Group
 		// If you add more fields, please also update token.Update()
 		cleanToken.Name = token.Name
 		cleanToken.ExpiredTime = token.ExpiredTime
@@ -317,11 +316,19 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
-		if cleanToken.Group != previousGroup {
-			if err := service.ValidateUserSelectableTokenGroup(userId, cleanToken.Group); err != nil {
-				common.ApiError(c, err)
-				return
-			}
+		// Re-evaluate the effective group on every mutable update. Otherwise a
+		// non-target user could keep an existing targeted token and edit its
+		// name/quota/model limits after the policy changed. Group changes and
+		// unchanged-group edits share the same request-time authorization.
+		if err := service.ValidateUserSelectableTokenGroup(userId, cleanToken.Group); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	if statusOnly != "" && token.Status == common.TokenStatusEnabled {
+		if err := service.ValidateUserSelectableTokenGroup(userId, cleanToken.Group); err != nil {
+			common.ApiError(c, err)
+			return
 		}
 	}
 	var entitlementPackageIds *[]int

@@ -22,3 +22,11 @@ CREATE TABLE IF NOT EXISTS `token_group_visibility_targets` (
   KEY `idx_token_group_visibility_targets_user_id` (`user_id`),
   UNIQUE KEY `idx_visibility_user` (`visibility_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `token_group_visibility_revisions` (
+  `id` bigint NOT NULL,
+  `digest` varchar(64) NOT NULL DEFAULT '',
+  `updated_at` datetime NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO `token_group_visibility_revisions` (`id`, `digest`, `updated_at`) VALUES (1, '', CURRENT_TIMESTAMP);

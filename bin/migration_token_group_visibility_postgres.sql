@@ -27,3 +27,10 @@ CREATE INDEX IF NOT EXISTS "idx_token_group_visibility_targets_user_id"
   ON "token_group_visibility_targets" ("user_id");
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_visibility_user"
   ON "token_group_visibility_targets" ("visibility_id", "user_id");
+
+CREATE TABLE IF NOT EXISTS "token_group_visibility_revisions" (
+  "id" bigint PRIMARY KEY,
+  "digest" varchar(64) NOT NULL DEFAULT '',
+  "updated_at" timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO "token_group_visibility_revisions" ("id", "digest") VALUES (1, '') ON CONFLICT ("id") DO NOTHING;

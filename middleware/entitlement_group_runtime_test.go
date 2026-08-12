@@ -116,3 +116,34 @@ func TestPlaygroundWithoutEntitlementKeepsGroupOverride(t *testing.T) {
 	require.Equal(t, http.StatusServiceUnavailable, recorder.Code,
 		"without a grant, the established playground group override must retain its legacy path")
 }
+
+func TestPlaygroundTargetedDirectGrantBypassesLegacyGlobalGroupCheck(t *testing.T) {
+	setupRuntimeVisibilityTestDB(t)
+	t.Setenv("TOKEN_GROUP_VISIBILITY_ENABLED", "true")
+	oldEntitlementFeatureEnabled := common.EntitlementFeatureEnabled
+	common.EntitlementFeatureEnabled = false
+	t.Cleanup(func() { common.EntitlementFeatureEnabled = oldEntitlementFeatureEnabled })
+	require.NoError(t, i18n.Init())
+	target := &model.User{
+		Id: 3, Username: "playground-target", Password: "password", Group: "default",
+		AffCode: "playground-target-aff", Status: common.UserStatusEnabled,
+	}
+	nonTarget := &model.User{
+		Id: 4, Username: "playground-non-target", Password: "password", Group: "default",
+		AffCode: "playground-non-target-aff", Status: common.UserStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create([]*model.User{target, nonTarget}).Error)
+	require.NoError(t, model.DB.Create(&model.Token{Id: 3, UserId: target.Id, Key: "playground-target-token", Status: common.TokenStatusEnabled, UnlimitedQuota: true, ExpiredTime: -1, Group: "default"}).Error)
+	require.NoError(t, model.DB.Create(&model.Token{Id: 4, UserId: nonTarget.Id, Key: "playground-non-target-token", Status: common.TokenStatusEnabled, UnlimitedQuota: true, ExpiredTime: -1, Group: "default"}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{Group: "svip", Model: "playground-targeted-model", ChannelId: 1, Enabled: true}).Error)
+	require.NoError(t, model.SaveTokenGroupVisibilityPolicy(model.TokenGroupVisibilityPolicy{
+		Group: "svip", Visibility: model.TokenGroupVisibilityTargeted, UserIds: []int{target.Id},
+	}))
+
+	targetRecorder := runPlaygroundGroupRequest(t, &model.Token{Id: 3, UserId: target.Id}, "svip")
+	require.Equal(t, http.StatusServiceUnavailable, targetRecorder.Code,
+		"a direct targeted grant must reach channel selection instead of the legacy global-group rejection")
+	nonTargetRecorder := runPlaygroundGroupRequest(t, &model.Token{Id: 4, UserId: nonTarget.Id}, "svip")
+	require.Equal(t, http.StatusForbidden, nonTargetRecorder.Code,
+		"a non-target user must still be denied before channel selection")
+}

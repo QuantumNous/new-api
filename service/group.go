@@ -92,6 +92,22 @@ func FilterModelsByUserGroups(userId int, modelNames []string) ([]string, error)
 	}
 	managedModels := make(map[string]struct{})
 	authorizedModels := make(map[string]struct{})
+	// A targeted group may be deliberately absent from the global selectable
+	// map. Include only groups with an explicit policy in the protected-model
+	// index; with no policy this preserves the exact legacy behavior.
+	if model.TokenGroupVisibilityEnforced() {
+		policies, policyErr := model.GetTokenGroupVisibilityPolicies()
+		if policyErr != nil {
+			return nil, policyErr
+		}
+		for _, policy := range policies {
+			if ratio_setting.ContainsGroupRatio(policy.Group) {
+				if _, base := allGroups[policy.Group]; !base {
+					allGroups[policy.Group] = policy.Group
+				}
+			}
+		}
+	}
 	for group := range allGroups {
 		for _, modelName := range model.GetGroupEnabledModels(group) {
 			managedModels[modelName] = struct{}{}
