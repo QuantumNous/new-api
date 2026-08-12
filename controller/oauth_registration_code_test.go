@@ -46,6 +46,9 @@ func (p *fakeOAuthProvider) SetProviderUserID(user *model.User, providerUserID s
 	user.GitHubId = providerUserID
 }
 func (p *fakeOAuthProvider) GetProviderPrefix() string { return "fake_" }
+func (p *fakeOAuthProvider) ProviderUserIDColumn() string {
+	return "github_id"
+}
 
 func setupOAuthRegistrationTest(t *testing.T) *gorm.DB {
 	t.Helper()
