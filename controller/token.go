@@ -119,14 +119,27 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
-	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	// Root 可不传 user_id 看全部，也可传 ?user_id=X 筛选
+	if c.GetInt("role") == common.RoleRootUser {
+		filterUserId, _ := strconv.Atoi(c.Query("user_id"))
+		tokens, err := model.GetAllTokensAdmin(filterUserId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		total, _ := model.CountTokensAdmin(filterUserId)
+		pageInfo.SetTotal(int(total))
+		pageInfo.SetItems(buildMaskedTokenResponses(tokens))
+	} else {
+		tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		total, _ := model.CountUserTokens(userId)
+		pageInfo.SetTotal(int(total))
+		pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	}
-	total, _ := model.CountUserTokens(userId)
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, pageInfo)
 }
 
@@ -137,13 +150,25 @@ func SearchTokens(c *gin.Context) {
 
 	pageInfo := common.GetPageQuery(c)
 
-	tokens, total, err := model.SearchUserTokens(userId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
-	if err != nil {
-		common.ApiError(c, err)
-		return
+	// Root 可不传 user_id 搜全部，也可传 ?user_id=X 筛选
+	if c.GetInt("role") == common.RoleRootUser {
+		filterUserId, _ := strconv.Atoi(c.Query("user_id"))
+		tokens, total, err := model.SearchTokensAdmin(filterUserId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		pageInfo.SetTotal(int(total))
+		pageInfo.SetItems(buildMaskedTokenResponses(tokens))
+	} else {
+		tokens, total, err := model.SearchUserTokens(userId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		pageInfo.SetTotal(int(total))
+		pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	}
-	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, pageInfo)
 }
 
@@ -154,7 +179,18 @@ func GetToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	token, err := model.GetTokenByIds(id, userId)
+	// Root 可查看任意用户的令牌，非 Root 仅限自己的
+	var token *model.Token
+	if c.GetInt("role") == common.RoleRootUser {
+		token, err = model.GetTokenById(id)
+		if err == nil {
+			if user, uErr := model.GetUserCache(token.UserId); uErr == nil {
+				token.Username = user.Username
+			}
+		}
+	} else {
+		token, err = model.GetTokenByIds(id, userId)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -181,7 +217,13 @@ func GetTokenKey(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	token, err := model.GetTokenByIds(id, userId)
+	// Root 可查看任意令牌的 Key，非 Root 仅限自己的
+	var token *model.Token
+	if c.GetInt("role") == common.RoleRootUser {
+		token, err = model.GetTokenById(id)
+	} else {
+		token, err = model.GetTokenByIds(id, userId)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -269,6 +311,18 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	token := request.Token
+
+	// Root 可通过 user_id 为其他用户创建令牌
+	isAdminCreate := c.GetInt("role") == common.RoleRootUser && token.UserId > 0 && token.UserId != c.GetInt("id")
+	if isAdminCreate {
+		if _, err := model.GetUserCache(token.UserId); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+	} else {
+		token.UserId = c.GetInt("id")
+	}
+
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
@@ -287,7 +341,7 @@ func AddToken(c *gin.Context) {
 	}
 	// 检查用户令牌数量是否已达上限
 	maxTokens := operation_setting.GetMaxUserTokens()
-	count, err := model.CountUserTokens(c.GetInt("id"))
+	count, err := model.CountUserTokens(token.UserId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -314,7 +368,7 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	cleanToken := model.Token{
-		UserId:             c.GetInt("id"),
+		UserId:             token.UserId,
 		Name:               token.Name,
 		Key:                key,
 		CreatedTime:        common.GetTimestamp(),
@@ -334,6 +388,13 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if isAdminCreate {
+		recordManageAuditFor(c, token.UserId, "token.admin_create", map[string]interface{}{
+			"target_user_id":  token.UserId,
+			"target_username": cleanToken.Username,
+			"token_name":      cleanToken.Name,
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -343,7 +404,29 @@ func AddToken(c *gin.Context) {
 func DeleteToken(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
-	err := model.DeleteTokenById(id, userId)
+	// Root 可删除任意用户的令牌，非 Root 仅限自己的
+	var err error
+	if c.GetInt("role") == common.RoleRootUser {
+		token, tErr := model.GetTokenById(id)
+		if tErr != nil {
+			common.ApiError(c, tErr)
+			return
+		}
+		if token.UserId != userId {
+			targetUser, _ := model.GetUserCache(token.UserId)
+			if targetUser != nil {
+				recordManageAuditFor(c, token.UserId, "token.admin_delete", map[string]interface{}{
+					"target_user_id":  token.UserId,
+					"target_username": targetUser.Username,
+					"token_id":        token.Id,
+					"token_name":      token.Name,
+				})
+			}
+		}
+		err = token.Delete()
+	} else {
+		err = model.DeleteTokenById(id, userId)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -379,7 +462,13 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
-	cleanToken, err := model.GetTokenByIds(token.Id, userId)
+	// Root 可更新任意用户的令牌，非 Root 仅限自己的
+	var cleanToken *model.Token
+	if c.GetInt("role") == common.RoleRootUser {
+		cleanToken, err = model.GetTokenById(token.Id)
+	} else {
+		cleanToken, err = model.GetTokenByIds(token.Id, userId)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -421,6 +510,17 @@ func UpdateToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if cleanToken.UserId != userId {
+		targetUser, _ := model.GetUserCache(cleanToken.UserId)
+		if targetUser != nil {
+			recordManageAuditFor(c, cleanToken.UserId, "token.admin_update", map[string]interface{}{
+				"target_user_id":  cleanToken.UserId,
+				"target_username": targetUser.Username,
+				"token_id":        cleanToken.Id,
+				"token_name":      cleanToken.Name,
+			})
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -440,6 +540,21 @@ func DeleteTokenBatch(c *gin.Context) {
 	}
 	userId := c.GetInt("id")
 	count, err := model.BatchDeleteTokens(tokenBatch.Ids, userId)
+	// Root 可批量删除任意用户的令牌
+	if err != nil && c.GetInt("role") == common.RoleRootUser {
+		for _, id := range tokenBatch.Ids {
+			_, tErr := model.GetTokenById(id)
+			if tErr != nil {
+				common.ApiError(c, tErr)
+				return
+			}
+		}
+		count, err = model.BatchDeleteTokensAdmin(tokenBatch.Ids)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -463,6 +578,10 @@ func GetTokenKeysBatch(c *gin.Context) {
 	}
 	userId := c.GetInt("id")
 	tokens, err := model.GetTokenKeysByIds(tokenBatch.Ids, userId)
+	// Root 可批量获取任意令牌的 Key
+	if err != nil && c.GetInt("role") == common.RoleRootUser {
+		tokens, err = model.GetTokenKeysByIdsAdmin(tokenBatch.Ids)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

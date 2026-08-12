@@ -578,3 +578,382 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
 	}
 }
+
+// ==================== 管理员令牌管理测试 ====================
+
+// setupAdminTokenTestDB 初始化测试数据库，迁移 Token 和 User 表。
+func setupAdminTokenTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
+	common.RedisEnabled = false
+
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to open sqlite db: %v", err)
+	}
+	model.DB = db
+	model.LOG_DB = db
+
+	if err := db.AutoMigrate(&model.Token{}, &model.User{}); err != nil {
+		t.Fatalf("failed to migrate tables: %v", err)
+	}
+
+	t.Cleanup(func() {
+		sqlDB, err := db.DB()
+		if err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	return db
+}
+
+// newAdminContext 构造一个带有 Root 角色和用户身份的测试上下文。
+func newAdminContext(t *testing.T, method string, target string, body any, userID int, role int) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	var requestBody *bytes.Reader
+	if body != nil {
+		payload, err := common.Marshal(body)
+		if err != nil {
+			t.Fatalf("failed to marshal request body: %v", err)
+		}
+		requestBody = bytes.NewReader(payload)
+	} else {
+		requestBody = bytes.NewReader(nil)
+	}
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(method, target, requestBody)
+	if body != nil {
+		ctx.Request.Header.Set("Content-Type", "application/json")
+	}
+	ctx.Set("id", userID)
+	ctx.Set("role", role)
+	ctx.Set("username", "test-user-"+strconv.Itoa(userID))
+	return ctx, recorder
+}
+
+// seedTestUser 通过 GORM 创建一个测试用户。
+func seedTestUser(t *testing.T, db *gorm.DB, userID int, role int, username string) *model.User {
+	t.Helper()
+
+	user := &model.User{
+		Id:       userID,
+		Username: username,
+		Password: "test-password-123",
+		Role:     role,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+		Email:    username + "@test.local",
+		AffCode:  fmt.Sprintf("aff-%d-%s", userID, username),
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+	return user
+}
+
+func TestAdminGetAllTokensReturnsAllUserTokens(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleCommonUser, "common-user")
+	seedToken(t, db, 1, "root-token", "r001xxxxxxxxxxxx")
+	seedToken(t, db, 2, "user-token", "u001xxxxxxxxxxxx")
+
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, 1, common.RoleRootUser)
+	GetAllTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var page tokenPageResponse
+	if err := common.Unmarshal(response.Data, &page); err != nil {
+		t.Fatalf("failed to decode page response: %v", err)
+	}
+	if len(page.Items) != 2 {
+		t.Fatalf("expected 2 tokens, got %d", len(page.Items))
+	}
+}
+
+func TestAdminGetAllTokensFiltersByUserId(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleCommonUser, "common-user")
+	seedToken(t, db, 1, "root-token", "r002xxxxxxxxxxxx")
+	seedToken(t, db, 2, "user-token", "u002xxxxxxxxxxxx")
+
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/token/?p=1&size=10&user_id=2", nil, 1, common.RoleRootUser)
+	GetAllTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var page tokenPageResponse
+	if err := common.Unmarshal(response.Data, &page); err != nil {
+		t.Fatalf("failed to decode page response: %v", err)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected 1 token, got %d", len(page.Items))
+	}
+	if page.Items[0].ID != 2 {
+		t.Fatalf("expected token ID 2, got %d", page.Items[0].ID)
+	}
+}
+
+func TestAdminGetAllTokensMasksKeyInResponse(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleCommonUser, "common-user")
+	token := seedToken(t, db, 2, "user-token", "abcd1234efgh5678")
+
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, 1, common.RoleRootUser)
+	GetAllTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var page tokenPageResponse
+	if err := common.Unmarshal(response.Data, &page); err != nil {
+		t.Fatalf("failed to decode page response: %v", err)
+	}
+	for _, item := range page.Items {
+		if item.Key == token.Key {
+			t.Fatalf("admin list response leaked raw token key: %s", recorder.Body.String())
+		}
+	}
+}
+
+func TestAdminGetTokenChecksPermission(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleCommonUser, "common-user")
+	token := seedToken(t, db, 2, "user-token", "ut01xxxxxxxxxxxx")
+
+	// Root 可以查看普通用户的令牌
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id), nil, 1, common.RoleRootUser)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	GetToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected root to view user token, got message: %s", response.Message)
+	}
+}
+
+func TestAdminGetTokenRejectsSameOrHigherRole(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleAdminUser, "admin")
+	seedTestUser(t, db, 2, common.RoleRootUser, "root2")
+	token := seedToken(t, db, 2, "root2-token", "rt01xxxxxxxxxxxx")
+
+	// Admin 不能查看 Root 的令牌
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id), nil, 1, common.RoleAdminUser)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	GetToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected admin to be rejected from viewing root token")
+	}
+}
+
+func TestAdminAddTokenCreatesTokenForTargetUser(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleCommonUser, "common-user")
+
+	body := map[string]any{
+		"user_id":          2,
+		"name":             "admin-created-token",
+		"expired_time":     -1,
+		"remain_quota":     500,
+		"unlimited_quota":  false,
+		"group":            "default",
+	}
+
+	ctx, recorder := newAdminContext(t, http.MethodPost, "/api/token/", body, 1, common.RoleRootUser)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	// 验证令牌属于目标用户
+	tokens, _ := model.GetAllUserTokens(2, 0, 10)
+	if len(tokens) != 1 {
+		t.Fatalf("expected 1 token for user 2, got %d", len(tokens))
+	}
+	if tokens[0].Name != "admin-created-token" {
+		t.Fatalf("expected token name 'admin-created-token', got %q", tokens[0].Name)
+	}
+}
+
+func TestAdminAddTokenRejectsNonExistentUser(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+
+	body := map[string]any{
+		"user_id":          999,
+		"name":             "ghost-token",
+		"expired_time":     -1,
+		"remain_quota":     100,
+		"unlimited_quota":  false,
+		"group":            "default",
+	}
+
+	ctx, recorder := newAdminContext(t, http.MethodPost, "/api/token/", body, 1, common.RoleRootUser)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected failure for non-existent user")
+	}
+}
+
+func TestAdminAddTokenRejectsHigherRoleTarget(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleRootUser, "root2")
+
+	// Root 不能为另一个 Root 创建令牌
+	body := map[string]any{
+		"user_id":          2,
+		"name":             "bad-token",
+		"expired_time":     -1,
+		"remain_quota":     100,
+		"unlimited_quota":  false,
+		"group":            "default",
+	}
+
+	ctx, recorder := newAdminContext(t, http.MethodPost, "/api/token/", body, 1, common.RoleRootUser)
+	AddToken(ctx)
+
+	// Root 现在可以给任何用户创建令牌，包括同级 Root
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success when creating token for same-role user, got message: %s", response.Message)
+	}
+}
+
+func TestAdminUpdateTokenUpdatesOtherUserToken(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleCommonUser, "common-user")
+	token := seedToken(t, db, 2, "user-token", "ut02xxxxxxxxxxxx")
+
+	body := map[string]any{
+		"id":                   token.Id,
+		"name":                 "admin-updated-token",
+		"expired_time":         -1,
+		"remain_quota":         999,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+
+	ctx, recorder := newAdminContext(t, http.MethodPut, "/api/token/", body, 1, common.RoleRootUser)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	// 验证更新已生效
+	updated, err := model.GetTokenById(token.Id)
+	if err != nil {
+		t.Fatalf("failed to fetch updated token: %v", err)
+	}
+	if updated.Name != "admin-updated-token" {
+		t.Fatalf("expected name 'admin-updated-token', got %q", updated.Name)
+	}
+	if updated.RemainQuota != 999 {
+		t.Fatalf("expected remain_quota 999, got %d", updated.RemainQuota)
+	}
+}
+
+func TestAdminUpdateTokenRejectsSameOrHigherRole(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleAdminUser, "admin")
+	seedTestUser(t, db, 2, common.RoleRootUser, "root")
+	token := seedToken(t, db, 2, "root-token", "rt02xxxxxxxxxxxx")
+
+	// Admin 不能修改 Root 的令牌
+	body := map[string]any{
+		"id":                   token.Id,
+		"name":                 "should-fail",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      false,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+
+	ctx, recorder := newAdminContext(t, http.MethodPut, "/api/token/", body, 1, common.RoleAdminUser)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected admin to be rejected from updating root token")
+	}
+}
+
+func TestAdminDeleteTokenDeletesOtherUserToken(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	
+	seedTestUser(t, db, 1, common.RoleRootUser, "root")
+	seedTestUser(t, db, 2, common.RoleCommonUser, "common-user")
+	token := seedToken(t, db, 2, "user-token", "ut03xxxxxxxxxxxx")
+
+	ctx, recorder := newAdminContext(t, http.MethodDelete, "/api/token/"+strconv.Itoa(token.Id), nil, 1, common.RoleRootUser)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	DeleteToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	// 验证令牌已被软删除
+	_, err := model.GetTokenById(token.Id)
+	if err == nil {
+		t.Fatalf("expected token to be deleted")
+	}
+}
+
+func TestAdminRoutesRejectNonRootUser(t *testing.T) {
+	db := setupAdminTokenTestDB(t)
+	seedTestUser(t, db, 1, common.RoleCommonUser, "regular-user")
+
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, 1, common.RoleCommonUser)
+	GetAllTokens(ctx)
+
+	// 普通用户只能看到自己的令牌
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success for self tokens, got message: %s", response.Message)
+	}
+}

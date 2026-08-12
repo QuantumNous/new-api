@@ -45,6 +45,9 @@ import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { getUsers } from '@/features/users/api'
+import type { User } from '@/features/users/types'
+
 import { getApiKeys, searchApiKeys } from '../api'
 import {
   API_KEY_STATUS,
@@ -188,9 +191,25 @@ function ApiKeysMobileList({
 
 export function ApiKeysTable() {
   const { t } = useTranslation()
-  const { refreshTrigger } = useApiKeys()
+  const { refreshTrigger, isAdmin } = useApiKeys()
   const [now, setNow] = useState(() => Date.now())
-  const columns = useApiKeysColumns(now)
+
+  // Fetch users list for admin user filter options
+  const { data: usersData } = useQuery({
+    queryKey: ['admin-users-list'],
+    queryFn: async () => {
+      const result = await getUsers({ p: 1, page_size: 1000, sort_by: 'username', sort_order: 'asc' })
+      if (result.success && result.data?.items) {
+        return result.data.items as User[]
+      }
+      return []
+    },
+    enabled: isAdmin,
+    staleTime: 60_000,
+  })
+  const users = usersData || []
+
+  const columns = useApiKeysColumns(now, isAdmin)
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -216,6 +235,9 @@ export function ApiKeysTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: '_tokenSearch', searchKey: 'token', type: 'string' },
+      ...(isAdmin
+        ? [{ columnId: 'user_id', searchKey: 'user_id', type: 'string' as const }]
+        : []),
     ],
   })
 
@@ -240,18 +262,28 @@ export function ApiKeysTable() {
       globalFilter,
       tokenFilter,
       refreshTrigger,
+      isAdmin,
+      columnFilters,
     ],
     queryFn: async () => {
+      const userFilter = columnFilters.find((f) => f.id === 'user_id')
+      const userFilterVal = (userFilter?.value as string[] | undefined)?.[0]
+      const adminUserId =
+        isAdmin && userFilterVal && userFilterVal !== 'all'
+          ? Number(userFilterVal)
+          : undefined
       const result = shouldSearch
         ? await searchApiKeys({
             keyword: globalFilter,
             token: tokenFilter,
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
+            user_id: adminUserId,
           })
         : await getApiKeys({
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
+            user_id: adminUserId,
           })
 
       if (!result.success) {
@@ -323,6 +355,22 @@ export function ApiKeysTable() {
             options: API_KEY_STATUS_OPTIONS,
             singleSelect: true,
           },
+          ...(isAdmin
+            ? [
+                {
+                  columnId: 'user_id',
+                  title: t('Username'),
+                  options: [
+                    { label: t('All users'), value: 'all', count: users.length },
+                    ...users.map((user) => ({
+                      label: user.username,
+                      value: String(user.id),
+                    })),
+                  ],
+                  singleSelect: true,
+                },
+              ]
+            : []),
         ],
       }}
       mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}
