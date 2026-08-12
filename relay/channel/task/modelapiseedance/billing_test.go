@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -236,5 +238,89 @@ func TestAdjustBillingOnSubmitKeepsReservationForInvalidSnapshotOrPrice(t *testi
 				t.Fatalf("AdjustBillingOnSubmit() = %#v, want nil fallback", got)
 			}
 		})
+	}
+}
+
+func TestResolveBillingDimensions(t *testing.T) {
+	tests := []struct {
+		name       string
+		resolution string
+		hasVideo   bool
+		want       map[string]string
+	}{
+		{"720p no video", "720p", false,
+			map[string]string{"resolution": "720p", "has_video": "false"}},
+		{"480p with video", "480p", true,
+			map[string]string{"resolution": "480p", "has_video": "true"}},
+		{"uppercase folds", "720P", false,
+			map[string]string{"resolution": "720p", "has_video": "false"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := resolveDimensions(tc.resolution, tc.hasVideo)
+			if !ok {
+				t.Fatal("expected dimensions to resolve")
+			}
+			for k, want := range tc.want {
+				if got[k] != want {
+					t.Fatalf("dims[%q] = %q, want %q", k, got[k], want)
+				}
+			}
+		})
+	}
+}
+
+func TestResolveBillingDimensions_RejectsUnknownResolution(t *testing.T) {
+	if _, ok := resolveDimensions("banana", false); ok {
+		t.Fatal("unknown resolution must not resolve")
+	}
+}
+
+func TestSecondBillingRatios_UsesConfiguredPrice(t *testing.T) {
+	a := &TaskAdaptor{}
+	a.secondBillingModel = "m1"
+	a.secondBillingDims = map[string]string{"resolution": "720p", "has_video": "false"}
+	a.secondBillingSeconds = 5
+	a.secondBillingModelPrice = 0.14
+	a.secondBillingRules = []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.314, Basis: billing_setting.BasisOutputDuration},
+	}
+
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := 0.314 * 5 / 0.14
+	if math.Abs(got[taskcommon.BillingUnitsKey]-want) > 1e-9 {
+		t.Fatalf("units = %v, want %v", got[taskcommon.BillingUnitsKey], want)
+	}
+}
+
+func TestSecondBillingRatios_NotCapturedIsNoOp(t *testing.T) {
+	// EstimateBilling never ran, or the model is unconfigured.
+	a := &TaskAdaptor{}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil ratios, got %v", got)
+	}
+}
+
+func TestSecondBillingRatios_ConfiguredButUnmatchedErrors(t *testing.T) {
+	a := &TaskAdaptor{}
+	a.secondBillingModel = "m1"
+	a.secondBillingDims = map[string]string{"resolution": "4k", "has_video": "false"}
+	a.secondBillingSeconds = 5
+	a.secondBillingModelPrice = 0.14
+	a.secondBillingRules = []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.314, Basis: billing_setting.BasisOutputDuration},
+	}
+
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured model with no matching rule must fail loudly")
 	}
 }

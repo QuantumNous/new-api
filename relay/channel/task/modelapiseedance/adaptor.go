@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +30,35 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -119,6 +149,24 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	resolution := seedReq.Resolution
 	if resolution == "" {
 		resolution = "720p"
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	if dims, ok := resolveDimensions(resolution, len(seedReq.Videos()) > 0); ok {
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(duration)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy hardcoded estimate from also applying.
+	if billing_setting.IsVideoModelConfigured(rules, info.OriginModelName) {
+		return nil
 	}
 
 	estimatedUSD, ok := modelAPIEstimatedUSD(resolution, duration, len(seedReq.Videos()) > 0)
@@ -525,6 +573,23 @@ func validModelAPIPriceData(info *relaycommon.RelayInfo) bool {
 
 func validPositiveFinite(value float64) bool {
 	return value > 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
 }
 
 func modelAPIEstimatedUSD(resolution string, duration int, hasVideo bool) (float64, bool) {
