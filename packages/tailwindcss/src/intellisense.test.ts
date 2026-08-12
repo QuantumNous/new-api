@@ -1,0 +1,788 @@
+import { expect, test } from 'vitest'
+import { __unstable__loadDesignSystem } from '.'
+import { decl, rule } from './ast'
+import plugin from './plugin'
+import { ThemeOptions } from './theme'
+
+const css = String.raw
+
+function loadDesignSystem() {
+  return __unstable__loadDesignSystem(`
+    @theme {
+      --spacing: 0.25rem;
+      --colors-red-500: red;
+      --colors-blue-500: blue;
+      --breakpoint-sm: 640px;
+      --aspect-video: 16 / 9;
+      --font-sans: sans-serif;
+      --font-weight-superbold: 900;
+      --text-xs: 0.75rem;
+      --text-xs--line-height: 1rem;
+      --perspective-dramatic: 100px;
+      --perspective-normal: 500px;
+      --opacity-background: 0.3;
+      --drop-shadow-sm: 0 1px 1px rgb(0 0 0 / 0.05);
+      --inset-shadow-sm: inset 0 1px 1px rgb(0 0 0 / 0.05);
+      --font-weight-bold: 700;
+      --container-md: 768px;
+      --container-lg: 1024px;
+    }
+  `)
+}
+
+test('getClassList', async () => {
+  let design = await loadDesignSystem()
+  let classList = design.getClassList()
+  let classNames = classList.flatMap(([name, meta]) => [
+    name,
+    ...meta.modifiers.map((m) => `${name}/${m}`),
+  ])
+
+  expect(classNames).toMatchSnapshot()
+})
+
+test('Spacing utilities do not suggest bare values when not using the multiplier-based spacing scale', async () => {
+  let design = await loadDesignSystem()
+
+  // Remove spacing scale
+  design.theme.clearNamespace('--spacing', ThemeOptions.NONE)
+
+  let classList = design.getClassList()
+  let classNames = classList.flatMap(([name, meta]) => [
+    name,
+    ...meta.modifiers.map((m) => `${name}/${m}`),
+  ])
+
+  expect(classNames).not.toContain('p-0')
+  expect(classNames).not.toContain('p-1')
+  expect(classNames).not.toContain('p-2')
+  expect(classNames).not.toContain('p-3')
+  expect(classNames).not.toContain('p-4')
+})
+
+test('Theme values with underscores are converted back to decimal points', async () => {
+  let design = await loadDesignSystem()
+  let classes = design.getClassList()
+
+  expect(classes).toContainEqual(['inset-0.5', { modifiers: [] }])
+})
+
+test('getVariants', async () => {
+  let design = await loadDesignSystem()
+  let variants = design.getVariants()
+
+  expect(variants).toMatchSnapshot()
+})
+
+test('getVariants compound', async () => {
+  let design = await loadDesignSystem()
+  let variants = design.getVariants()
+  let group = variants.find((v) => v.name === 'group')!
+
+  let list = [
+    // A selector-based variant
+    group.selectors({ value: 'hover' }),
+
+    // A selector-based variant with a modifier
+    group.selectors({ value: 'hover', modifier: 'sidebar' }),
+
+    // A nested, compound, selector-based variant
+    group.selectors({ value: 'group-hover' }),
+
+    // This variant produced an at rule
+    group.selectors({ value: 'sm' }),
+
+    // This variant does not exist
+    group.selectors({ value: 'md' }),
+  ]
+
+  expect(list).toEqual([
+    ['@media (hover: hover) { &:is(:where(.group):hover *) }'],
+    ['@media (hover: hover) { &:is(:where(.group\\/sidebar):hover *) }'],
+    ['@media (hover: hover) { &:is(:where(.group):is(:where(.group):hover *) *) }'],
+    [],
+    [],
+  ])
+})
+
+test('variant selectors are in the correct order', async () => {
+  let input = css`
+    @custom-variant overactive {
+      &:hover {
+        @media (hover: hover) {
+          &:focus {
+            &:active {
+              @slot;
+            }
+          }
+        }
+      }
+    }
+  `
+
+  let design = await __unstable__loadDesignSystem(input)
+  let variants = design.getVariants()
+  let overactive = variants.find((v) => v.name === 'overactive')!
+
+  expect(overactive).toBeTruthy()
+  expect(overactive.selectors({})).toMatchInlineSnapshot(`
+    [
+      "@media (hover: hover) { &:hover { &:focus { &:active } } }",
+    ]
+  `)
+})
+
+test('The variant `has-force` does not crash', async () => {
+  let design = await loadDesignSystem()
+  let variants = design.getVariants()
+  let has = variants.find((v) => v.name === 'has')!
+
+  expect(has.selectors({ value: 'force' })).toMatchInlineSnapshot(`[]`)
+})
+
+test('Can produce CSS per candidate using `candidatesToCss`', async () => {
+  let design = await loadDesignSystem()
+  design.invalidCandidates = new Set(['bg-[#fff]'])
+
+  expect(design.candidatesToCss(['underline', 'i-dont-exist', 'bg-[#fff]', 'bg-[#000]', 'text-xs']))
+    .toMatchInlineSnapshot(`
+      [
+        ".underline {
+        text-decoration-line: underline;
+      }
+      ",
+        null,
+        null,
+        ".bg-\\[\\#000\\] {
+        background-color: #000;
+      }
+      ",
+        ".text-xs {
+        font-size: var(--text-xs);
+        line-height: var(--tw-leading, var(--text-xs--line-height));
+      }
+      ",
+      ]
+    `)
+})
+
+test('Can produce AST per candidate using `candidatesToAst`', async () => {
+  let design = await loadDesignSystem()
+  design.invalidCandidates = new Set(['bg-[#fff]'])
+
+  expect(
+    design.candidatesToAst(['underline', 'i-dont-exist', 'bg-[#fff]', 'bg-[#000]', 'text-xs']),
+  ).toEqual([
+    [rule('.underline', [decl('text-decoration-line', 'underline')])],
+    [],
+    [],
+    [rule('.bg-\\[\\#000\\]', [decl('background-color', '#000')])],
+    [
+      rule('.text-xs', [
+        decl('font-size', 'var(--text-xs)'),
+        decl('line-height', 'var(--tw-leading, var(--text-xs--line-height))'),
+      ]),
+    ],
+  ])
+})
+
+test('Utilities do not show wrapping selector in intellisense', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+    @config './config.js';
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+    loadModule: async () => ({
+      path: '',
+      base: '',
+      module: {
+        important: '#app',
+      },
+    }),
+  })
+
+  expect(design.candidatesToCss(['underline', 'hover:line-through'])).toMatchInlineSnapshot(`
+    [
+      ".underline {
+      text-decoration-line: underline;
+    }
+    ",
+      ".hover\\:line-through {
+      &:hover {
+        @media (hover: hover) {
+          text-decoration-line: line-through;
+        }
+      }
+    }
+    ",
+    ]
+  `)
+})
+
+test('Utilities, when marked as important, show as important in intellisense', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities' important;
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+  })
+
+  expect(design.candidatesToCss(['underline', 'hover:line-through'])).toMatchInlineSnapshot(`
+    [
+      ".underline {
+      text-decoration-line: underline !important;
+    }
+    ",
+      ".hover\\:line-through {
+      &:hover {
+        @media (hover: hover) {
+          text-decoration-line: line-through !important;
+        }
+      }
+    }
+    ",
+    ]
+  `)
+})
+
+test('Static utilities from plugins are listed in hovers and completions', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+    @plugin "./plugin.js";
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+    loadModule: async () => ({
+      path: '',
+      base: '',
+      module: plugin(({ addUtilities }) => {
+        addUtilities({
+          '.custom-utility': {
+            color: 'red',
+          },
+        })
+      }),
+    }),
+  })
+
+  expect(design.candidatesToCss(['custom-utility'])).toMatchInlineSnapshot(`
+    [
+      ".custom-utility {
+      color: red;
+    }
+    ",
+    ]
+  `)
+
+  expect(design.getClassList().map((entry) => entry[0])).toContain('custom-utility')
+})
+
+test('Functional utilities from plugins are listed in hovers and completions', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+    @plugin "./plugin.js";
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+    loadModule: async () => ({
+      path: '',
+      base: '',
+      module: plugin(({ matchUtilities }) => {
+        matchUtilities(
+          {
+            'custom-1': (value) => ({
+              color: value,
+            }),
+          },
+          {
+            values: {
+              red: '#ff0000',
+              green: '#ff0000',
+            },
+          },
+        )
+
+        matchUtilities(
+          {
+            'custom-2': (value, { modifier }) => ({
+              color: `${value} / ${modifier ?? '0%'}`,
+            }),
+          },
+          {
+            values: {
+              red: '#ff0000',
+              green: '#ff0000',
+            },
+            modifiers: {
+              '50': '50%',
+              '75': '75%',
+            },
+          },
+        )
+
+        matchUtilities(
+          {
+            'custom-3': (value, { modifier }) => ({
+              color: `${value} / ${modifier ?? '0%'}`,
+            }),
+          },
+          {
+            values: {
+              red: '#ff0000',
+              green: '#ff0000',
+            },
+            modifiers: 'any',
+          },
+        )
+      }),
+    }),
+  })
+
+  expect(design.candidatesToCss(['custom-1-red', 'custom-1-green', 'custom-1-unknown']))
+    .toMatchInlineSnapshot(`
+    [
+      ".custom-1-red {
+      color: #ff0000;
+    }
+    ",
+      ".custom-1-green {
+      color: #ff0000;
+    }
+    ",
+      null,
+    ]
+  `)
+
+  expect(design.candidatesToCss(['custom-2-red', 'custom-2-green', 'custom-2-unknown']))
+    .toMatchInlineSnapshot(`
+    [
+      ".custom-2-red {
+      color: #ff0000 / 0%;
+    }
+    ",
+      ".custom-2-green {
+      color: #ff0000 / 0%;
+    }
+    ",
+      null,
+    ]
+  `)
+
+  expect(design.candidatesToCss(['custom-2-red/50', 'custom-2-red/75', 'custom-2-red/unknown']))
+    .toMatchInlineSnapshot(`
+    [
+      ".custom-2-red\\/50 {
+      color: #ff0000 / 50%;
+    }
+    ",
+      ".custom-2-red\\/75 {
+      color: #ff0000 / 75%;
+    }
+    ",
+      null,
+    ]
+  `)
+
+  let classMap = new Map(design.getClassList())
+  let classNames = Array.from(classMap.keys())
+
+  // matchUtilities without modifiers
+  expect(classNames).toContain('custom-1-red')
+  expect(classMap.get('custom-1-red')?.modifiers).toEqual([])
+
+  expect(classNames).toContain('custom-1-green')
+  expect(classMap.get('custom-1-green')?.modifiers).toEqual([])
+
+  expect(classNames).not.toContain('custom-1-unknown')
+
+  // matchUtilities with a set list of modifiers
+  expect(classNames).toContain('custom-2-red')
+  expect(classMap.get('custom-2-red')?.modifiers).toEqual(['50', '75'])
+
+  expect(classNames).toContain('custom-2-green')
+  expect(classMap.get('custom-2-green')?.modifiers).toEqual(['50', '75'])
+
+  expect(classNames).not.toContain('custom-2-unknown')
+
+  // matchUtilities with any modifiers
+  expect(classNames).toContain('custom-3-red')
+  expect(classMap.get('custom-3-red')?.modifiers).toEqual([])
+
+  expect(classNames).toContain('custom-3-green')
+  expect(classMap.get('custom-3-green')?.modifiers).toEqual([])
+
+  expect(classNames).not.toContain('custom-3-unknown')
+})
+
+test('Custom at-rule variants do not show up as a value under `group`', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+    @custom-variant variant-1 (@media foo);
+    @custom-variant variant-2 {
+      @media bar {
+        @slot;
+      }
+    }
+    @plugin "./plugin.js";
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+    loadModule: async () => ({
+      path: '',
+      base: '',
+      module: plugin(({ addVariant }) => {
+        addVariant('variant-3', '@media baz')
+        addVariant('variant-4', ['@media qux', '@media cat'])
+      }),
+    }),
+  })
+
+  let variants = design.getVariants()
+  let v1 = variants.find((v) => v.name === 'variant-1')!
+  let v2 = variants.find((v) => v.name === 'variant-2')!
+  let v3 = variants.find((v) => v.name === 'variant-3')!
+  let v4 = variants.find((v) => v.name === 'variant-4')!
+  let group = variants.find((v) => v.name === 'group')!
+  let not = variants.find((v) => v.name === 'not')!
+
+  // All the variants should exist
+  expect(v1).not.toBeUndefined()
+  expect(v2).not.toBeUndefined()
+  expect(v3).not.toBeUndefined()
+  expect(v4).not.toBeUndefined()
+  expect(group).not.toBeUndefined()
+  expect(not).not.toBeUndefined()
+
+  // Group should not have variant-1, variant-2, or variant-3
+  expect(group.values).not.toContain('variant-1')
+  expect(group.values).not.toContain('variant-2')
+  expect(group.values).not.toContain('variant-3')
+  expect(group.values).not.toContain('variant-4')
+
+  // Not should have variant-1, variant-2, or variant-3
+  expect(not.values).toContain('variant-1')
+  expect(not.values).toContain('variant-2')
+  expect(not.values).toContain('variant-3')
+  expect(not.values).toContain('variant-4')
+})
+
+test('Custom functional @utility', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+
+    @theme reference {
+      --text-xs: 0.75rem;
+      --text-xs--line-height: calc(1 / 0.75);
+
+      --leading-foo: 1.5;
+      --leading-bar: 2;
+
+      --spacing: 0.25rem;
+      --spacing-custom: 123px;
+
+      --negative-1: 1;
+      --negative-2: 2;
+      --negative-4: 4;
+      --negative-a: 8;
+    }
+
+    @utility example-* {
+      font-size: --value(--text);
+      line-height: --value(--text-* --line-height);
+      line-height: --modifier(--leading, 'normal');
+    }
+
+    @utility with-custom-spacing-* {
+      size: --value(--spacing);
+    }
+
+    @utility with-integer-spacing-* {
+      size: --spacing(--value(integer));
+    }
+
+    @utility with-number-spacing-* {
+      size: --spacing(--value(number));
+    }
+
+    @utility -negative-* {
+      margin: --value(--negative-*);
+    }
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+  })
+
+  let classMap = new Map(design.getClassList())
+  let classNames = Array.from(classMap.keys())
+
+  expect(classNames).toContain('with-custom-spacing-custom')
+  expect(classNames).not.toContain('with-custom-spacing-0')
+  expect(classNames).not.toContain('with-custom-spacing-0.5')
+  expect(classNames).not.toContain('with-custom-spacing-1')
+  expect(classNames).not.toContain('with-custom-spacing-1.5')
+
+  expect(classNames).not.toContain('with-integer-spacing-custom')
+  expect(classNames).toContain('with-integer-spacing-0')
+  expect(classNames).not.toContain('with-integer-spacing-0.5')
+  expect(classNames).toContain('with-integer-spacing-1')
+  expect(classNames).not.toContain('with-integer-spacing-1.5')
+
+  expect(classNames).not.toContain('with-number-spacing-custom')
+  expect(classNames).toContain('with-number-spacing-0')
+  expect(classNames).toContain('with-number-spacing-0.5')
+  expect(classNames).toContain('with-number-spacing-1')
+  expect(classNames).toContain('with-number-spacing-1.5')
+
+  expect(classNames).toContain('-negative-1')
+  expect(classNames).toContain('-negative-2')
+  expect(classNames).toContain('-negative-4')
+  expect(classNames).toContain('-negative-a')
+
+  expect(classNames).not.toContain('--negative-1')
+  expect(classNames).not.toContain('--negative-2')
+  expect(classNames).not.toContain('--negative-4')
+  expect(classNames).not.toContain('--negative-a')
+
+  expect(classNames).toContain('example-xs')
+  expect(classMap.get('example-xs')?.modifiers).toEqual(['normal', 'foo', 'bar'])
+})
+
+test('Custom utilities sharing a root with built-in utilities should merge suggestions', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+    @theme {
+      --font-sans: sans-serif;
+    }
+
+    @theme {
+      --font-weight-custom: 1234;
+      --font-weight-bold: bold; /* Overlap with existing utility */
+    }
+
+    @utility font-* {
+      --my-font-weight: --value(--font-weight-*);
+    }
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+  })
+
+  let classMap = new Map(design.getClassList())
+  let classNames = Array.from(classMap.keys())
+
+  expect(classNames).toContain('font-sans') // Existing font-family utility
+  expect(classNames).toContain('font-bold') // Existing font-family utility & custom font-weight utility
+  expect(classNames).toContain('font-custom') // Custom font-weight utility
+})
+
+test('Theme keys with underscores are suggested with underscores', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+
+    @theme {
+      /* Disable the spacing scale */
+      --spacing: initial;
+
+      /* This will get suggested with a dot because its surrounded by numbers */
+      --spacing-1_5: 1.5rem;
+
+      /* This will get suggested with a dot  */
+      --spacing-2\.5: 1.5rem;
+
+      /* This will get suggested with an underscore */
+      --spacing-logo_margin: 0.875rem;
+    }
+
+    @utility ex-* {
+      width: --value(--spacing-*);
+    }
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+  })
+
+  let entries = design
+    .getClassList()
+    .filter(([name]) => name.startsWith('p-') || name.startsWith('ex-'))
+
+  expect(entries).toContainEqual(['p-1.5', { modifiers: [] }])
+  expect(entries).toContainEqual(['p-2.5', { modifiers: [] }])
+  expect(entries).toContainEqual(['p-logo_margin', { modifiers: [] }])
+
+  expect(entries).toContainEqual(['ex-1.5', { modifiers: [] }])
+  expect(entries).toContainEqual(['ex-2.5', { modifiers: [] }])
+  expect(entries).toContainEqual(['ex-logo_margin', { modifiers: [] }])
+
+  expect(entries).not.toContainEqual(['p-1_5', { modifiers: [] }])
+  expect(entries).not.toContainEqual(['p-2_5', { modifiers: [] }])
+  expect(entries).not.toContainEqual(['p-logo.margin', { modifiers: [] }])
+
+  expect(entries).not.toContainEqual(['ex-1_5', { modifiers: [] }])
+  expect(entries).not.toContainEqual(['ex-2_5', { modifiers: [] }])
+  expect(entries).not.toContainEqual(['ex-logo.margin', { modifiers: [] }])
+})
+
+test('shadow utility default suggestions', async () => {
+  let input = css`
+    @theme {
+      /* nothing */
+    }
+  `
+
+  let design = await __unstable__loadDesignSystem(input)
+  let classNames = design.getClassList().map(([name]) => name)
+
+  expect(classNames).not.toContain('shadow')
+  expect(classNames).not.toContain('inset-shadow')
+  expect(classNames).not.toContain('text-shadow')
+
+  input = css`
+    @theme {
+      --shadow: 0 0 0 solid black;
+      --text-shadow: 0 0 0 solid black;
+      --inset-shadow: 0 0 0 solid black;
+    }
+  `
+
+  design = await __unstable__loadDesignSystem(input)
+  classNames = design.getClassList().map(([name]) => name)
+
+  expect(classNames).toContain('shadow')
+  expect(classNames).toContain('inset-shadow')
+  expect(classNames).toContain('text-shadow')
+})
+
+test('Custom @utility and existing utility with names matching theme keys dont give duplicate results', async () => {
+  let input = css`
+    @theme reference {
+      --leading-sm: 0.25rem;
+      --text-header: 1.5rem;
+    }
+
+    @utility text-header {
+      text-transform: uppercase;
+    }
+  `
+
+  let design = await __unstable__loadDesignSystem(input)
+
+  let classList = design.getClassList()
+  let classMap = new Map(classList)
+  let matches = classList.filter(([className]) => className === 'text-header')
+
+  expect(matches).toHaveLength(1)
+  expect(classMap.get('text-header')?.modifiers).toEqual(['sm'])
+})
+
+test('matchVariant', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+    @plugin "./plugin.js";
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+    loadModule: async () => ({
+      path: '',
+      base: '',
+      module: plugin(({ matchVariant }) => {
+        matchVariant('foo', (val) => `&:is(${val})`, {
+          values: {
+            DEFAULT: '1',
+            a: 'a',
+            b: 'b',
+          },
+        })
+      }),
+    }),
+  })
+
+  let variants = design.getVariants()
+  let v1 = variants.find((v) => v.name === 'foo')!
+  expect(v1).not.toBeUndefined()
+
+  expect(v1.hasDash).toEqual(true)
+  expect(v1.isArbitrary).toEqual(true)
+  expect(v1.name).toEqual('foo')
+  expect(v1.values).toEqual(['a', 'b'])
+})
+
+test('matchUtilities discards internal only helpers from suggestions when using the theme function', async () => {
+  let input = css`
+    @import 'tailwindcss/utilities';
+    @plugin "./plugin.js";
+
+    @theme {
+      --color-red: red;
+    }
+  `
+
+  let design = await __unstable__loadDesignSystem(input, {
+    loadStylesheet: async (_, base) => ({
+      path: '',
+      base,
+      content: '@tailwind utilities;',
+    }),
+    loadModule: async () => ({
+      path: '',
+      base: '',
+      module: plugin(({ matchUtilities, theme }) => {
+        matchUtilities({ foo: (val) => ({ color: val }) }, { values: theme('colors') })
+        matchUtilities({ bar: (val) => ({ color: val }) }, { values: theme('transitionDuration') })
+      }),
+    }),
+  })
+
+  let classNames = design.getClassList().map((e) => e[0])
+
+  expect(classNames).not.toContain('foo-__BARE_VALUE__')
+  expect(classNames).not.toContain('bar-__BARE_VALUE__')
+
+  expect(classNames).not.toContain('foo-__CSS_VALUES__')
+  expect(classNames).not.toContain('bar-__CSS_VALUES__')
+})
