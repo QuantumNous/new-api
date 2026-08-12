@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -23,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DateTimePicker } from '@/components/datetime-picker'
 import {
   getLatestRecallEmailTranslationTask,
   getRecallEmailTranslationTask,
@@ -35,9 +37,9 @@ import {
 } from '../audience-inputs'
 import { audienceTemplateDescriptionKeys } from '../copy'
 import {
-  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
-  RECALL_EMAIL_STARTER_HTML,
   formatRecallMinorAmount,
+  getRecallEmailStarterHtml,
+  normalizeRecallBodyInputToHtml,
   normalizeRecallCouponSource,
   normalizeRecallDiscountType,
   parseRecallMajorAmount,
@@ -55,12 +57,16 @@ import {
 import {
   isRecallTranslationTaskActive,
   isRecallTranslationTaskTerminal,
+  type RecallAudienceTemplate,
   type RecallCampaignDraft,
   type RecallCampaignStatus,
+  type RecallCouponSource,
+  type RecallDeliveryPolicy,
   type RecallDiscountConfig,
   type RecallEmailLocalizationBlocker,
   type RecallEmailTemplate,
   type RecallFixedCurrency,
+  type RecallLifecycleTrigger,
   type RecallTranslationTask,
 } from '../types'
 import { CampaignGroupSelector } from './campaign-group-selector'
@@ -84,20 +90,112 @@ const LazyCampaignSpecifiedUsersSelector = lazy(async () => {
 })
 
 type RecallFixedAmountInputs = Record<RecallFixedCurrency, string>
-type RecallScheduleMode = 'manual' | 'once' | 'daily' | 'weekly'
+type RecallScheduleMode = 'manual' | 'once' | 'recurring' | 'continuous'
+type RecallProcessingStartMode = 'from_now' | 'custom'
 
 const DEFAULT_RECALL_TIMEZONE = 'Asia/Shanghai'
+const recallLifecycleTriggers: RecallLifecycleTrigger[] = [
+  'user_registered',
+  'registration_unused',
+  'quota_low',
+  'quota_exhausted_unpaid',
+  'payment_failed',
+  'payment_pending',
+  'payment_succeeded',
+]
+const recallLifecycleDeliveryPolicyByTrigger: Record<
+  RecallLifecycleTrigger,
+  RecallDeliveryPolicy
+> = {
+  user_registered: 'service',
+  registration_unused: 'engagement',
+  quota_low: 'service',
+  quota_exhausted_unpaid: 'service',
+  payment_failed: 'service',
+  payment_pending: 'engagement',
+  payment_succeeded: 'service',
+}
+const recallLifecycleVariablesByTrigger: Record<
+  RecallLifecycleTrigger,
+  string[]
+> = {
+  user_registered: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'registration_time',
+  ],
+  registration_unused: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'registration_time',
+  ],
+  quota_low: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'quota_scope',
+    'balance_snapshot',
+    'effective_threshold',
+    'top_up_url',
+  ],
+  quota_exhausted_unpaid: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'quota_scope',
+    'balance_snapshot',
+    'effective_threshold',
+    'top_up_url',
+  ],
+  payment_failed: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'purchase_kind',
+    'trade_no',
+    'amount',
+    'currency',
+    'payment_url',
+  ],
+  payment_pending: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'purchase_kind',
+    'trade_no',
+    'amount',
+    'currency',
+    'payment_url',
+  ],
+  payment_succeeded: [
+    'site_name',
+    'user_display_name',
+    'console_url',
+    'purchase_kind',
+    'trade_no',
+    'amount',
+    'currency',
+    'completed_at',
+  ],
+}
 
 function getRecallScheduleMode(draft: RecallCampaignDraft): RecallScheduleMode {
   if (draft.execution_mode === 'scheduled_once') return 'once'
-  if (draft.execution_mode === 'recurring') {
-    return draft.schedule.frequency === 'weekly' ? 'weekly' : 'daily'
-  }
+  if (draft.execution_mode === 'recurring') return 'recurring'
+  if (draft.execution_mode === 'continuous') return 'continuous'
   return 'manual'
 }
 
 function getDefaultFutureStartSeconds(): number {
   return Math.floor(Date.now() / 1000) + 86_400
+}
+
+function cloneRecallCampaignDraft(
+  draft: RecallCampaignDraft
+): RecallCampaignDraft {
+  return structuredClone(draft)
 }
 
 function normalizeRecallScheduleForMode(
@@ -117,6 +215,10 @@ function normalizeRecallScheduleForMode(
     return {
       ...draft,
       execution_mode: 'manual',
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
       schedule: {
         scheduled_at: 0,
         timezone: '',
@@ -135,6 +237,10 @@ function normalizeRecallScheduleForMode(
     return {
       ...draft,
       execution_mode: 'scheduled_once',
+      delivery_policy: 'engagement',
+      lifecycle_trigger: '',
+      lifecycle_trigger_config: {},
+      processing_start_at: 0,
       schedule: {
         ...schedule,
         scheduled_at: scheduledAt,
@@ -143,32 +249,172 @@ function normalizeRecallScheduleForMode(
       },
     }
   }
+  if (mode === 'continuous') {
+    const trigger = recallLifecycleTriggers.includes(
+      draft.lifecycle_trigger as RecallLifecycleTrigger
+    )
+      ? (draft.lifecycle_trigger as RecallLifecycleTrigger)
+      : 'user_registered'
+    const deliveryPolicy =
+      draft.execution_mode === 'continuous' && draft.delivery_policy
+        ? draft.delivery_policy
+        : recallLifecycleDeliveryPolicyByTrigger[trigger]
+    const firstEmailStage = draft.email_sequence[0]
+    return {
+      ...draft,
+      campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {
+        registration_age_days: 0,
+        min_request_count: 0,
+        max_quota: 0,
+        min_paid_amount: 0,
+        last_api_call_age_days: 0,
+        last_payment_age_days: 0,
+        subscription_expired_days: 0,
+        min_subscription_amount: 0,
+        min_subscription_count: 0,
+        payment_providers: [],
+        groups: [],
+        group_mode: '',
+        require_verified_email: false,
+        registration_start_at: 0,
+        registration_end_at: 0,
+        specified_user_ids: [],
+        specified_emails: [],
+      },
+      execution_mode: 'continuous',
+      delivery_policy: deliveryPolicy,
+      lifecycle_trigger: trigger,
+      lifecycle_trigger_config: {},
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      discount_config: {
+        type: 'percent',
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+      email_sequence: [
+        {
+          ...firstEmailStage,
+          stage_no: 1,
+          delay_seconds: 0,
+          templates: normalizeRecallEmailTemplatesForMode(
+            firstEmailStage?.templates,
+            'content_only',
+            deliveryPolicy
+          ),
+        },
+      ],
+    }
+  }
   return {
     ...draft,
     execution_mode: 'recurring',
+    delivery_policy: 'engagement',
+    lifecycle_trigger: '',
+    lifecycle_trigger_config: {},
+    processing_start_at: 0,
     schedule: {
       ...schedule,
       scheduled_at: scheduledAt,
-      frequency: mode,
-      weekday: mode === 'weekly' ? schedule.weekday : 1,
+      frequency: schedule.frequency === 'weekly' ? 'weekly' : 'daily',
+      weekday: schedule.frequency === 'weekly' ? schedule.weekday : 1,
     },
   }
 }
 
+function getRecallLifecycleDeliveryPolicy(
+  trigger: RecallLifecycleTrigger | ''
+): RecallDeliveryPolicy {
+  return trigger
+    ? recallLifecycleDeliveryPolicyByTrigger[trigger]
+    : 'engagement'
+}
+
 function createRecallEmailTemplates(
   templates: Record<string, RecallEmailTemplate> = {},
-  campaignType: RecallCampaignDraft['campaign_type'] = 'promotion'
+  campaignType: RecallCampaignDraft['campaign_type'] = 'promotion',
+  deliveryPolicy: RecallDeliveryPolicy = 'engagement'
 ): Record<string, RecallEmailTemplate> {
-  const starterHtml =
-    campaignType === 'content_only'
-      ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-      : RECALL_EMAIL_STARTER_HTML
+  const starterHtml = getRecallEmailStarterHtml(campaignType, deliveryPolicy)
   const englishTemplate = templates.en ?? {
     subject: '',
     body_text: '',
     body_html: starterHtml,
   }
   return { ...templates, en: { ...englishTemplate } }
+}
+
+function getRecallEmailStarterTemplateSet(): Set<string> {
+  return new Set([
+    getRecallEmailStarterHtml('promotion'),
+    getRecallEmailStarterHtml('content_only', 'engagement'),
+    getRecallEmailStarterHtml('content_only', 'service'),
+  ])
+}
+
+function normalizeRecallEmailTemplatesForMode(
+  templates: Record<string, RecallEmailTemplate> = {},
+  campaignType: RecallCampaignDraft['campaign_type'],
+  deliveryPolicy: RecallDeliveryPolicy
+): Record<string, RecallEmailTemplate> {
+  const starterTemplates = getRecallEmailStarterTemplateSet()
+  const nextStarter = getRecallEmailStarterHtml(campaignType, deliveryPolicy)
+
+  return Object.fromEntries(
+    Object.entries(templates).map(([locale, template]) => {
+      const bodyHtml = template.body_html ?? ''
+      const bodyText = template.body_text ?? ''
+      let nextBodyHtml = bodyHtml
+      let nextBodyText = bodyText
+
+      if (starterTemplates.has(bodyHtml)) {
+        nextBodyHtml = nextStarter
+      } else if (bodyHtml.trim()) {
+        nextBodyHtml = normalizeRecallBodyInputToHtml(
+          bodyHtml,
+          campaignType,
+          deliveryPolicy
+        )
+      } else if (bodyText.trim()) {
+        nextBodyHtml = normalizeRecallBodyInputToHtml(
+          bodyText,
+          campaignType,
+          deliveryPolicy
+        )
+        nextBodyText = ''
+      }
+
+      return [
+        locale,
+        {
+          ...template,
+          body_text: nextBodyText,
+          body_html: nextBodyHtml,
+        },
+      ]
+    })
+  )
 }
 
 const recallFixedAmountPaths: Record<
@@ -208,28 +454,41 @@ export function createRecallCampaignFormDraft(
   draft: RecallCampaignDraft
 ): RecallCampaignDraft {
   const normalizedDraft =
-    draft.coupon_source === 'automatic' &&
-    draft.discount_config.type === 'fixed'
-      ? normalizeRecallDiscountType(draft, 'fixed')
-      : draft
+    draft.execution_mode === 'continuous'
+      ? normalizeRecallScheduleForMode(draft, 'continuous')
+      : draft.coupon_source === 'automatic' &&
+          draft.discount_config.type === 'fixed'
+        ? normalizeRecallDiscountType(draft, 'fixed')
+        : draft
   const preparedDraft = prepareRecallCampaignSubmitDraft(normalizedDraft)
+  const effectiveDeliveryPolicy =
+    preparedDraft.delivery_policy ??
+    getRecallLifecycleDeliveryPolicy(preparedDraft.lifecycle_trigger ?? '')
   return {
     ...preparedDraft,
-    promotion_expiry_mode: preparedDraft.promotion_expiry_mode || 'relative',
+    promotion_expiry_mode:
+      preparedDraft.execution_mode === 'continuous'
+        ? ''
+        : preparedDraft.promotion_expiry_mode || 'relative',
     promotion_expires_at: preparedDraft.promotion_expires_at ?? 0,
+    delivery_policy: effectiveDeliveryPolicy,
+    lifecycle_trigger: preparedDraft.lifecycle_trigger ?? '',
+    lifecycle_trigger_config: preparedDraft.lifecycle_trigger_config ?? {},
+    processing_start_at: preparedDraft.processing_start_at ?? 0,
     defer_localization: true,
     email_sequence: preparedDraft.email_sequence.map((stage) => ({
       ...stage,
       templates: createRecallEmailTemplates(
         stage.templates,
-        preparedDraft.campaign_type
+        preparedDraft.campaign_type,
+        effectiveDeliveryPolicy
       ),
     })),
   }
 }
 
 const audienceFields: Record<
-  RecallCampaignDraft['audience_template'],
+  RecallAudienceTemplate,
   { name: FieldPath<RecallCampaignDraft>; label: string; step?: string }[]
 > = {
   first_purchase: [
@@ -312,6 +571,10 @@ function createRecallCampaignDefaults(): RecallCampaignDraft {
       specified_emails: [],
     },
     execution_mode: 'manual',
+    delivery_policy: 'engagement',
+    lifecycle_trigger: '',
+    lifecycle_trigger_config: {},
+    processing_start_at: 0,
     schedule: {
       scheduled_at: 0,
       timezone: DEFAULT_RECALL_TIMEZONE,
@@ -382,6 +645,8 @@ export function CampaignEditor(props: CampaignEditorProps) {
     props.configRevision ?? 0
   )
   const [activeTranslationTaskID, setActiveTranslationTaskID] = useState(0)
+  const [activeTranslationTaskCampaignID, setActiveTranslationTaskCampaignID] =
+    useState(0)
   const [translationTask, setTranslationTask] =
     useState<RecallTranslationTask>()
   const [pendingServerDraft, setPendingServerDraft] =
@@ -392,6 +657,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
   )
   const previousInitialDraftCampaignID = useRef(props.campaignId ?? 0)
   const previousCampaignID = useRef(props.campaignId ?? 0)
+  const nonContinuousDraftSnapshotRef = useRef<RecallCampaignDraft | null>(null)
   const [fixedAmountInputs, setFixedAmountInputs] =
     useState<RecallFixedAmountInputs>(() =>
       createRecallFixedAmountInputs(defaultValues.discount_config)
@@ -402,6 +668,11 @@ export function CampaignEditor(props: CampaignEditorProps) {
   const discountType = form.watch('discount_config.type')
   const executionMode = form.watch('execution_mode')
   const scheduleMode = getRecallScheduleMode(form.watch())
+  const lifecycleTrigger = form.watch('lifecycle_trigger') || 'user_registered'
+  const deliveryPolicy = getRecallLifecycleDeliveryPolicy(lifecycleTrigger)
+  const processingStartAt = form.watch('processing_start_at') ?? 0
+  const processingStartMode: RecallProcessingStartMode =
+    processingStartAt > 0 ? 'custom' : 'from_now'
   const scheduleTimezone = form.watch('schedule.timezone')
   const groups = form.watch('audience_config.groups')
   const groupMode = form.watch('audience_config.group_mode')
@@ -416,17 +687,20 @@ export function CampaignEditor(props: CampaignEditorProps) {
     couponSource === 'automatic' && discountType === 'fixed'
   const terminal = props.status === 'cancelled' || props.status === 'completed'
   const isPromotionCampaign = campaignType === 'promotion'
+  const isContinuous = executionMode === 'continuous'
+  const activeAudienceTemplate: RecallAudienceTemplate =
+    audienceTemplate || 'first_purchase'
   const isSaving = mutations.create.isPending || mutations.update.isPending
   const SpecifiedUsersSelector =
     props.specifiedUsersSelector ?? LazyCampaignSpecifiedUsersSelector
   const usesRegistrationRange =
-    audienceTemplate === 'registered_only' ||
-    audienceTemplate === 'registration_time_range'
-  const showGroupFilter = audienceTemplate !== 'specified_users'
+    activeAudienceTemplate === 'registered_only' ||
+    activeAudienceTemplate === 'registration_time_range'
+  const showGroupFilter = activeAudienceTemplate !== 'specified_users'
   const showGroupSelector = showGroupFilter && groupMode !== ''
   const showPaymentProviders =
-    audienceTemplate === 'lapsed_payer' ||
-    audienceTemplate === 'expired_subscription'
+    activeAudienceTemplate === 'lapsed_payer' ||
+    activeAudienceTemplate === 'expired_subscription'
   const registrationStartError = form.getFieldState(
     'audience_config.registration_start_at',
     form.formState
@@ -477,6 +751,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
       form.reset(draft)
       setPendingServerDraft(null)
       setFixedAmountInputs(createRecallFixedAmountInputs(draft.discount_config))
+      nonContinuousDraftSnapshotRef.current = null
     }
   }, [form, props.campaignId, props.initialDraft])
 
@@ -484,29 +759,35 @@ export function CampaignEditor(props: CampaignEditorProps) {
     queryKey: persistedCampaignID
       ? recallCampaignKeys.latestTranslationTask(persistedCampaignID)
       : recallCampaignKeys.latestTranslationTask(0),
-    queryFn: () => getLatestRecallEmailTranslationTask(persistedCampaignID),
+    queryFn: ({ queryKey: [, campaignID] }) =>
+      getLatestRecallEmailTranslationTask(campaignID),
     enabled: persistedCampaignID > 0 && activeTranslationTaskID === 0,
     retry: false,
   })
 
+  const activeTranslationTaskOwnedByCampaign =
+    persistedCampaignID > 0 &&
+    activeTranslationTaskID > 0 &&
+    activeTranslationTaskCampaignID === persistedCampaignID
   const activeTranslationTaskQuery = useQuery({
-    queryKey:
-      persistedCampaignID && activeTranslationTaskID
-        ? recallCampaignKeys.translationTask(
-            persistedCampaignID,
-            activeTranslationTaskID
-          )
-        : recallCampaignKeys.translationTask(0, 0),
-    queryFn: () =>
-      getRecallEmailTranslationTask(
-        persistedCampaignID,
-        activeTranslationTaskID
-      ),
-    enabled: persistedCampaignID > 0 && activeTranslationTaskID > 0,
+    queryKey: activeTranslationTaskOwnedByCampaign
+      ? recallCampaignKeys.translationTask(
+          persistedCampaignID,
+          activeTranslationTaskID
+        )
+      : recallCampaignKeys.translationTask(0, 0),
+    queryFn: ({ queryKey: [, campaignID, , , taskID] }) =>
+      getRecallEmailTranslationTask(campaignID, taskID),
+    enabled: activeTranslationTaskOwnedByCampaign,
     retry: false,
     refetchInterval: (query) => {
       const task = query.state.data?.data
-      return task && isRecallTranslationTaskActive(task.status) ? 2_000 : false
+      return task &&
+        task.id === activeTranslationTaskID &&
+        task.campaign_id === persistedCampaignID &&
+        isRecallTranslationTaskActive(task.status)
+        ? 2_000
+        : false
     },
     refetchIntervalInBackground: true,
   })
@@ -514,17 +795,34 @@ export function CampaignEditor(props: CampaignEditorProps) {
   useEffect(() => {
     const task = latestTranslationTaskQuery.data?.data
     if (!task || activeTranslationTaskID !== 0) return
+    if (task.campaign_id !== persistedCampaignID) return
     setTranslationTask(task)
     if (isRecallTranslationTaskActive(task.status)) {
+      setActiveTranslationTaskCampaignID(task.campaign_id)
       setActiveTranslationTaskID(task.id)
     }
-  }, [activeTranslationTaskID, latestTranslationTaskQuery.data])
+  }, [
+    activeTranslationTaskID,
+    latestTranslationTaskQuery.data,
+    persistedCampaignID,
+  ])
 
   useEffect(() => {
     const task = activeTranslationTaskQuery.data?.data
     if (!task) return
+    if (
+      task.id !== activeTranslationTaskID ||
+      task.campaign_id !== persistedCampaignID
+    ) {
+      setTranslationTask(undefined)
+      return
+    }
     setTranslationTask(task)
-  }, [activeTranslationTaskQuery.data])
+  }, [
+    activeTranslationTaskID,
+    activeTranslationTaskQuery.data,
+    persistedCampaignID,
+  ])
 
   useEffect(() => {
     if (
@@ -556,6 +854,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
       !parentReceivedNewDraftID
     ) {
       setActiveTranslationTaskID(0)
+      setActiveTranslationTaskCampaignID(0)
       setTranslationTask(undefined)
       setPendingServerDraft(null)
       invalidatedTranslationTasks.current.clear()
@@ -593,6 +892,41 @@ export function CampaignEditor(props: CampaignEditorProps) {
     void setRecallCampaignGroups(form, value).catch(() => {
       toast.error(t('Something went wrong!'))
     })
+  }
+
+  const setLifecycleTrigger = (trigger: RecallLifecycleTrigger) => {
+    form.setValue('lifecycle_trigger', trigger, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue(
+      'delivery_policy',
+      recallLifecycleDeliveryPolicyByTrigger[trigger],
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      }
+    )
+  }
+
+  const setProcessingStartMode = (mode: RecallProcessingStartMode) => {
+    if (mode === 'from_now') {
+      form.setValue('processing_start_at', 0, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      return
+    }
+    form.setValue(
+      'processing_start_at',
+      processingStartAt > 0
+        ? processingStartAt
+        : getDefaultFutureStartSeconds(),
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      }
+    )
   }
 
   const persistDraft = async (
@@ -664,13 +998,43 @@ export function CampaignEditor(props: CampaignEditorProps) {
     if (!response.success || !response.data) {
       throw new Error('Translation generation failed')
     }
+    if (persistedCampaignIDRef.current !== campaignID) return
+    if (response.data.campaign_id !== campaignID) {
+      throw new Error('Translation generation returned an invalid campaign')
+    }
     setTranslationTask(response.data)
+    setActiveTranslationTaskCampaignID(response.data.campaign_id)
     setActiveTranslationTaskID(response.data.id)
     setPersistedConfigRevision(response.data.requested_config_revision)
   }
 
   const setScheduleMode = (mode: RecallScheduleMode) => {
-    const normalized = normalizeRecallScheduleForMode(form.getValues(), mode)
+    const currentDraft = form.getValues()
+    if (
+      mode === 'continuous' &&
+      currentDraft.execution_mode !== 'continuous' &&
+      nonContinuousDraftSnapshotRef.current === null
+    ) {
+      nonContinuousDraftSnapshotRef.current =
+        cloneRecallCampaignDraft(currentDraft)
+    }
+    const baseDraft =
+      mode !== 'continuous' && currentDraft.execution_mode === 'continuous'
+        ? (nonContinuousDraftSnapshotRef.current ?? {
+            ...createRecallCampaignDefaults(),
+            name: currentDraft.name,
+            enrollment_limit: currentDraft.enrollment_limit,
+            worker_concurrency: currentDraft.worker_concurrency,
+            defer_localization: currentDraft.defer_localization,
+            email_sequence: currentDraft.email_sequence.length
+              ? currentDraft.email_sequence
+              : createRecallCampaignDefaults().email_sequence,
+          })
+        : currentDraft
+    const normalized = normalizeRecallScheduleForMode(baseDraft, mode)
+    if (mode !== 'continuous') {
+      nonContinuousDraftSnapshotRef.current = null
+    }
     form.setValue('execution_mode', normalized.execution_mode, {
       shouldDirty: true,
       shouldValidate: true,
@@ -679,9 +1043,99 @@ export function CampaignEditor(props: CampaignEditorProps) {
       shouldDirty: true,
       shouldValidate: true,
     })
+    form.setValue('campaign_type', normalized.campaign_type, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('audience_template', normalized.audience_template, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('audience_config', normalized.audience_config, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('coupon_source', normalized.coupon_source, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('existing_coupon_id', normalized.existing_coupon_id, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('discount_config', normalized.discount_config, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('product_scope', normalized.product_scope, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('promotion_expiry_mode', normalized.promotion_expiry_mode, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('promotion_expires_at', normalized.promotion_expires_at, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue(
+      'promotion_valid_seconds',
+      normalized.promotion_valid_seconds,
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      }
+    )
+    form.setValue('delivery_policy', normalized.delivery_policy, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('lifecycle_trigger', normalized.lifecycle_trigger, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue(
+      'lifecycle_trigger_config',
+      normalized.lifecycle_trigger_config,
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      }
+    )
+    form.setValue('processing_start_at', normalized.processing_start_at ?? 0, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    form.setValue('email_sequence', normalized.email_sequence, {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+    normalized.email_sequence.forEach((stage, stageIndex) => {
+      Object.entries(stage.templates).forEach(([locale, template]) => {
+        form.setValue(
+          `email_sequence.${stageIndex}.templates.${locale}.subject` as FieldPath<RecallCampaignDraft>,
+          template.subject,
+          { shouldDirty: true, shouldValidate: true }
+        )
+        form.setValue(
+          `email_sequence.${stageIndex}.templates.${locale}.body_text` as FieldPath<RecallCampaignDraft>,
+          template.body_text ?? '',
+          { shouldDirty: true, shouldValidate: true }
+        )
+        form.setValue(
+          `email_sequence.${stageIndex}.templates.${locale}.body_html` as FieldPath<RecallCampaignDraft>,
+          template.body_html ?? '',
+          { shouldDirty: true, shouldValidate: true }
+        )
+      })
+    })
+    setFixedAmountInputs(
+      createRecallFixedAmountInputs(normalized.discount_config)
+    )
   }
 
-  const setCouponSource = (value: RecallCampaignDraft['coupon_source']) => {
+  const setCouponSource = (value: RecallCouponSource) => {
     const normalized = normalizeRecallCouponSource(form.getValues(), value)
     form.setValue('coupon_source', normalized.coupon_source, {
       shouldDirty: true,
@@ -728,19 +1182,16 @@ export function CampaignEditor(props: CampaignEditorProps) {
       shouldDirty: true,
       shouldValidate: true,
     })
-    const nextStarter =
-      value === 'content_only'
-        ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-        : RECALL_EMAIL_STARTER_HTML
+    const nextDeliveryPolicy =
+      executionMode === 'continuous' ? deliveryPolicy : 'engagement'
+    const nextStarter = getRecallEmailStarterHtml(value, nextDeliveryPolicy)
+    const starterTemplates = getRecallEmailStarterTemplateSet()
     current.email_sequence.forEach((stage, index) => {
       Object.keys(stage.templates).forEach((locale) => {
         const path =
           `email_sequence.${index}.templates.${locale}.body_html` as FieldPath<RecallCampaignDraft>
         const currentBody = stage.templates[locale]?.body_html ?? ''
-        if (
-          currentBody === RECALL_EMAIL_STARTER_HTML ||
-          currentBody === RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-        ) {
+        if (starterTemplates.has(currentBody)) {
           form.setValue(path, nextStarter, {
             shouldDirty: true,
             shouldValidate: true,
@@ -752,7 +1203,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
 
   return (
     <form
-      className='space-y-4'
+      className='w-full min-w-0 space-y-4'
       noValidate
       onSubmit={form.handleSubmit(onSubmit)}
     >
@@ -796,306 +1247,320 @@ export function CampaignEditor(props: CampaignEditorProps) {
               </SelectContent>
             </Select>
           </div>
-          <div className='space-y-2'>
-            <Label>{t('Audience template')}</Label>
-            <Select
-              disabled={immutable}
-              value={audienceTemplate}
-              onValueChange={(value) =>
-                value &&
-                form.setValue(
-                  'audience_template',
-                  value as RecallCampaignDraft['audience_template'],
-                  { shouldDirty: true, shouldValidate: true }
-                )
-              }
-              items={[
-                { value: 'first_purchase', label: t('First purchase') },
-                { value: 'lapsed_payer', label: t('Lapsed payer') },
-                {
-                  value: 'expired_subscription',
-                  label: t('Expired subscription'),
-                },
-                { value: 'registered_only', label: t('Registered only') },
-                {
-                  value: 'registration_time_range',
-                  label: t('Registration time range'),
-                },
-                { value: 'specified_users', label: t('Specified users') },
-              ]}
-            >
-              <SelectTrigger
-                aria-describedby='recall-audience-help'
-                className='w-full'
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value='first_purchase'>
-                    {t('First purchase')}
-                  </SelectItem>
-                  <SelectItem value='lapsed_payer'>
-                    {t('Lapsed payer')}
-                  </SelectItem>
-                  <SelectItem value='expired_subscription'>
-                    {t('Expired subscription')}
-                  </SelectItem>
-                  <SelectItem value='registered_only'>
-                    {t('Registered only')}
-                  </SelectItem>
-                  <SelectItem value='registration_time_range'>
-                    {t('Registration time range')}
-                  </SelectItem>
-                  <SelectItem value='specified_users'>
-                    {t('Specified users')}
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <div
-            id='recall-audience-help'
-            className='bg-muted/50 text-muted-foreground space-y-1 rounded-md p-3 text-sm md:col-span-2'
-          >
-            <p>
-              {t(
-                'Audience templates define the base audience. The rules shown below narrow it further, and built-in eligibility filters also apply. Preview the audience before activation.'
-              )}
-            </p>
-            <p aria-live='polite' className='text-foreground'>
-              {t(audienceTemplateDescriptionKeys[audienceTemplate])}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('2. Audience rules')}</CardTitle>
-        </CardHeader>
-        <CardContent className='grid gap-4 md:grid-cols-3'>
-          {audienceFields[audienceTemplate].map((field) => (
-            <div className='space-y-2' key={field.name}>
-              <Label>{t(field.label)}</Label>
-              <Input
-                type='number'
-                min={0}
-                step={field.step ?? '1'}
-                disabled={immutable}
-                {...form.register(field.name, { valueAsNumber: true })}
-              />
-            </div>
-          ))}
-          {usesRegistrationRange ? (
-            <fieldset
-              aria-labelledby='recall-registration-range-label'
-              className='rounded-lg border p-3 md:col-span-3'
-            >
-              <legend
-                id='recall-registration-range-label'
-                className='px-1 text-sm font-medium'
-              >
-                {t('Registration time range')}
-              </legend>
-              <div className='grid gap-4 md:grid-cols-2'>
-                <Controller
-                  control={form.control}
-                  name='audience_config.registration_start_at'
-                  render={({ field }) => (
-                    <div className='space-y-2'>
-                      <Label htmlFor='recall-registration-start-at'>
-                        {t('Registration start')}
-                      </Label>
-                      <Input
-                        {...field}
-                        id='recall-registration-start-at'
-                        type='datetime-local'
-                        required
-                        disabled={immutable}
-                        aria-invalid={Boolean(registrationStartError)}
-                        aria-describedby={
-                          registrationStartError
-                            ? 'recall-registration-start-at-error'
-                            : undefined
-                        }
-                        value={recallUnixToLocalDateTime(field.value)}
-                        onChange={(event) =>
-                          field.onChange(
-                            recallLocalDateTimeToUnix(event.target.value)
-                          )
-                        }
-                      />
-                      {registrationStartError ? (
-                        <p
-                          id='recall-registration-start-at-error'
-                          role='alert'
-                          className='text-destructive text-sm'
-                        >
-                          {t(String(registrationStartError.message))}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                />
-                <Controller
-                  control={form.control}
-                  name='audience_config.registration_end_at'
-                  render={({ field }) => (
-                    <div className='space-y-2'>
-                      <Label htmlFor='recall-registration-end-at'>
-                        {t('Registration end')}
-                      </Label>
-                      <Input
-                        {...field}
-                        id='recall-registration-end-at'
-                        type='datetime-local'
-                        required
-                        disabled={immutable}
-                        aria-invalid={Boolean(registrationEndError)}
-                        aria-describedby={
-                          registrationEndError
-                            ? 'recall-registration-end-at-error'
-                            : undefined
-                        }
-                        value={recallUnixToLocalDateTime(field.value)}
-                        onChange={(event) =>
-                          field.onChange(
-                            recallLocalDateTimeToUnix(event.target.value)
-                          )
-                        }
-                      />
-                      {registrationEndError ? (
-                        <p
-                          id='recall-registration-end-at-error'
-                          role='alert'
-                          className='text-destructive text-sm'
-                        >
-                          {t(String(registrationEndError.message))}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                />
-              </div>
-            </fieldset>
-          ) : null}
-          {audienceTemplate === 'specified_users' ? (
-            <div className='space-y-3 md:col-span-3'>
-              <Suspense
-                fallback={
-                  <p
-                    role='status'
-                    aria-live='polite'
-                    className='text-muted-foreground text-sm'
-                  >
-                    {t('Loading...')}
-                  </p>
-                }
-              >
-                <SpecifiedUsersSelector
-                  userIDs={specifiedUserIDs}
-                  emails={specifiedEmails}
-                  onUserIDsChange={(value) =>
-                    form.setValue('audience_config.specified_user_ids', value, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    })
-                  }
-                  onEmailsChange={(value) =>
-                    form.setValue('audience_config.specified_emails', value, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    })
-                  }
-                  immutable={immutable}
-                />
-              </Suspense>
-              {specifiedUserIDsError ? (
-                <p role='alert' className='text-destructive text-sm'>
-                  {t(String(specifiedUserIDsError.message))}
-                </p>
-              ) : null}
-              {specifiedEmailsError ? (
-                <p role='alert' className='text-destructive text-sm'>
-                  {t(String(specifiedEmailsError.message))}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-          {showGroupFilter ? (
-            <>
-              {showGroupSelector ? (
-                <CampaignGroupSelector
-                  groups={groups}
-                  groupMode={groupMode}
-                  onChange={setGroups}
-                  immutable={immutable}
-                />
-              ) : null}
-              <div className='space-y-2'>
-                <Label>{t('Group mode')}</Label>
-                <Select
-                  disabled={immutable}
-                  value={groupMode}
-                  onValueChange={(value) =>
-                    setGroupMode(
-                      (value ??
-                        '') as RecallCampaignDraft['audience_config']['group_mode']
-                    )
-                  }
-                  items={[
-                    { value: '', label: t('No group filter') },
-                    { value: 'allow', label: t('Allow groups') },
-                    { value: 'block', label: t('Block groups') },
-                  ]}
-                >
-                  <SelectTrigger className='w-full'>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value=''>{t('No group filter')}</SelectItem>
-                      <SelectItem value='allow'>{t('Allow groups')}</SelectItem>
-                      <SelectItem value='block'>{t('Block groups')}</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <p className='text-muted-foreground text-sm md:col-span-3'>
-                {t(
-                  'Choose Allow or Block, then select the user groups to include or exclude. With no group filter, eligible users from every group are included.'
-                )}
-              </p>
-            </>
-          ) : null}
-          {showPaymentProviders && (
+          {!isContinuous ? (
             <div className='space-y-2'>
-              <Label>{t('Payment providers (comma separated)')}</Label>
-              <Input
+              <Label>{t('Audience template')}</Label>
+              <Select
                 disabled={immutable}
-                value={providers.join(', ')}
-                onChange={(event) =>
-                  setCsv(
-                    'audience_config.payment_providers',
-                    event.target.value
+                value={audienceTemplate}
+                onValueChange={(value) =>
+                  value &&
+                  form.setValue(
+                    'audience_template',
+                    value as RecallCampaignDraft['audience_template'],
+                    { shouldDirty: true, shouldValidate: true }
                   )
                 }
-              />
+                items={[
+                  { value: 'first_purchase', label: t('First purchase') },
+                  { value: 'lapsed_payer', label: t('Lapsed payer') },
+                  {
+                    value: 'expired_subscription',
+                    label: t('Expired subscription'),
+                  },
+                  { value: 'registered_only', label: t('Registered only') },
+                  {
+                    value: 'registration_time_range',
+                    label: t('Registration time range'),
+                  },
+                  { value: 'specified_users', label: t('Specified users') },
+                ]}
+              >
+                <SelectTrigger
+                  aria-describedby='recall-audience-help'
+                  className='w-full'
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value='first_purchase'>
+                      {t('First purchase')}
+                    </SelectItem>
+                    <SelectItem value='lapsed_payer'>
+                      {t('Lapsed payer')}
+                    </SelectItem>
+                    <SelectItem value='expired_subscription'>
+                      {t('Expired subscription')}
+                    </SelectItem>
+                    <SelectItem value='registered_only'>
+                      {t('Registered only')}
+                    </SelectItem>
+                    <SelectItem value='registration_time_range'>
+                      {t('Registration time range')}
+                    </SelectItem>
+                    <SelectItem value='specified_users'>
+                      {t('Specified users')}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-          <label className='flex items-center gap-2 md:col-span-3'>
-            <input
-              type='checkbox'
-              disabled={immutable}
-              {...form.register('audience_config.require_verified_email')}
-            />
-            {t('Require verified email')}
-          </label>
+          ) : null}
+          {!isContinuous ? (
+            <div
+              id='recall-audience-help'
+              className='bg-muted/50 text-muted-foreground space-y-1 rounded-md p-3 text-sm md:col-span-2'
+            >
+              <p>
+                {t(
+                  'Audience templates define the base audience. The rules shown below narrow it further, and built-in eligibility filters also apply. Preview the audience before activation.'
+                )}
+              </p>
+              <p aria-live='polite' className='text-foreground'>
+                {t(audienceTemplateDescriptionKeys[activeAudienceTemplate])}
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
-      {isPromotionCampaign ? (
+      {!isContinuous ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('2. Audience rules')}</CardTitle>
+          </CardHeader>
+          <CardContent className='grid gap-4 md:grid-cols-3'>
+            {audienceFields[activeAudienceTemplate].map((field) => (
+              <div className='space-y-2' key={field.name}>
+                <Label>{t(field.label)}</Label>
+                <Input
+                  type='number'
+                  min={0}
+                  step={field.step ?? '1'}
+                  disabled={immutable}
+                  {...form.register(field.name, { valueAsNumber: true })}
+                />
+              </div>
+            ))}
+            {usesRegistrationRange ? (
+              <fieldset
+                aria-labelledby='recall-registration-range-label'
+                className='rounded-lg border p-3 md:col-span-3'
+              >
+                <legend
+                  id='recall-registration-range-label'
+                  className='px-1 text-sm font-medium'
+                >
+                  {t('Registration time range')}
+                </legend>
+                <div className='grid gap-4 md:grid-cols-2'>
+                  <Controller
+                    control={form.control}
+                    name='audience_config.registration_start_at'
+                    render={({ field }) => (
+                      <div className='space-y-2'>
+                        <Label htmlFor='recall-registration-start-at'>
+                          {t('Registration start')}
+                        </Label>
+                        <Input
+                          {...field}
+                          id='recall-registration-start-at'
+                          type='datetime-local'
+                          required
+                          disabled={immutable}
+                          aria-invalid={Boolean(registrationStartError)}
+                          aria-describedby={
+                            registrationStartError
+                              ? 'recall-registration-start-at-error'
+                              : undefined
+                          }
+                          value={recallUnixToLocalDateTime(field.value)}
+                          onChange={(event) =>
+                            field.onChange(
+                              recallLocalDateTimeToUnix(event.target.value)
+                            )
+                          }
+                        />
+                        {registrationStartError ? (
+                          <p
+                            id='recall-registration-start-at-error'
+                            role='alert'
+                            className='text-destructive text-sm'
+                          >
+                            {t(String(registrationStartError.message))}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                  />
+                  <Controller
+                    control={form.control}
+                    name='audience_config.registration_end_at'
+                    render={({ field }) => (
+                      <div className='space-y-2'>
+                        <Label htmlFor='recall-registration-end-at'>
+                          {t('Registration end')}
+                        </Label>
+                        <Input
+                          {...field}
+                          id='recall-registration-end-at'
+                          type='datetime-local'
+                          required
+                          disabled={immutable}
+                          aria-invalid={Boolean(registrationEndError)}
+                          aria-describedby={
+                            registrationEndError
+                              ? 'recall-registration-end-at-error'
+                              : undefined
+                          }
+                          value={recallUnixToLocalDateTime(field.value)}
+                          onChange={(event) =>
+                            field.onChange(
+                              recallLocalDateTimeToUnix(event.target.value)
+                            )
+                          }
+                        />
+                        {registrationEndError ? (
+                          <p
+                            id='recall-registration-end-at-error'
+                            role='alert'
+                            className='text-destructive text-sm'
+                          >
+                            {t(String(registrationEndError.message))}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+                  />
+                </div>
+              </fieldset>
+            ) : null}
+            {audienceTemplate === 'specified_users' ? (
+              <div className='space-y-3 md:col-span-3'>
+                <Suspense
+                  fallback={
+                    <p
+                      role='status'
+                      aria-live='polite'
+                      className='text-muted-foreground text-sm'
+                    >
+                      {t('Loading...')}
+                    </p>
+                  }
+                >
+                  <SpecifiedUsersSelector
+                    userIDs={specifiedUserIDs}
+                    emails={specifiedEmails}
+                    onUserIDsChange={(value) =>
+                      form.setValue(
+                        'audience_config.specified_user_ids',
+                        value,
+                        {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        }
+                      )
+                    }
+                    onEmailsChange={(value) =>
+                      form.setValue('audience_config.specified_emails', value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                    immutable={immutable}
+                  />
+                </Suspense>
+                {specifiedUserIDsError ? (
+                  <p role='alert' className='text-destructive text-sm'>
+                    {t(String(specifiedUserIDsError.message))}
+                  </p>
+                ) : null}
+                {specifiedEmailsError ? (
+                  <p role='alert' className='text-destructive text-sm'>
+                    {t(String(specifiedEmailsError.message))}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {showGroupFilter ? (
+              <>
+                {showGroupSelector ? (
+                  <CampaignGroupSelector
+                    groups={groups}
+                    groupMode={groupMode}
+                    onChange={setGroups}
+                    immutable={immutable}
+                  />
+                ) : null}
+                <div className='space-y-2'>
+                  <Label>{t('Group mode')}</Label>
+                  <Select
+                    disabled={immutable}
+                    value={groupMode}
+                    onValueChange={(value) =>
+                      setGroupMode(
+                        (value ??
+                          '') as RecallCampaignDraft['audience_config']['group_mode']
+                      )
+                    }
+                    items={[
+                      { value: '', label: t('No group filter') },
+                      { value: 'allow', label: t('Allow groups') },
+                      { value: 'block', label: t('Block groups') },
+                    ]}
+                  >
+                    <SelectTrigger className='w-full'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value=''>{t('No group filter')}</SelectItem>
+                        <SelectItem value='allow'>
+                          {t('Allow groups')}
+                        </SelectItem>
+                        <SelectItem value='block'>
+                          {t('Block groups')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className='text-muted-foreground text-sm md:col-span-3'>
+                  {t(
+                    'Choose Allow or Block, then select the user groups to include or exclude. With no group filter, eligible users from every group are included.'
+                  )}
+                </p>
+              </>
+            ) : null}
+            {showPaymentProviders && (
+              <div className='space-y-2'>
+                <Label>{t('Payment providers (comma separated)')}</Label>
+                <Input
+                  disabled={immutable}
+                  value={providers.join(', ')}
+                  onChange={(event) =>
+                    setCsv(
+                      'audience_config.payment_providers',
+                      event.target.value
+                    )
+                  }
+                />
+              </div>
+            )}
+            <label className='flex items-center gap-2 md:col-span-3'>
+              <input
+                type='checkbox'
+                disabled={immutable}
+                {...form.register('audience_config.require_verified_email')}
+              />
+              {t('Require verified email')}
+            </label>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isPromotionCampaign && !isContinuous ? (
         <Card>
           <CardHeader>
             <CardTitle>{t('3. Stripe Coupon')}</CardTitle>
@@ -1107,8 +1572,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
                 disabled={immutable}
                 value={couponSource}
                 onValueChange={(value) =>
-                  value &&
-                  setCouponSource(value as RecallCampaignDraft['coupon_source'])
+                  value && setCouponSource(value as RecallCouponSource)
                 }
                 items={[
                   { value: 'automatic', label: t('Automatic Coupon') },
@@ -1236,7 +1700,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
           <CardTitle>{t('4. Activity delivery')}</CardTitle>
         </CardHeader>
         <CardContent className='grid gap-4 md:grid-cols-2'>
-          {isPromotionCampaign ? (
+          {isPromotionCampaign && !isContinuous ? (
             <>
               <CampaignProductSelector
                 topUpPriceIDs={topUpPrices}
@@ -1257,7 +1721,7 @@ export function CampaignEditor(props: CampaignEditorProps) {
               />
               <CampaignOfferValidityFields form={form} immutable={immutable} />
             </>
-          ) : (
+          ) : isContinuous ? null : (
             <div className='space-y-2'>
               <Label>{t('Activity delivery validity seconds')}</Label>
               <Input
@@ -1311,8 +1775,8 @@ export function CampaignEditor(props: CampaignEditorProps) {
               items={[
                 { value: 'manual', label: t('Manual') },
                 { value: 'once', label: t('Once') },
-                { value: 'daily', label: t('Daily') },
-                { value: 'weekly', label: t('Weekly') },
+                { value: 'recurring', label: t('Recurring') },
+                { value: 'continuous', label: t('Continuous') },
               ]}
             >
               <SelectTrigger className='w-full'>
@@ -1322,13 +1786,125 @@ export function CampaignEditor(props: CampaignEditorProps) {
                 <SelectGroup>
                   <SelectItem value='manual'>{t('Manual')}</SelectItem>
                   <SelectItem value='once'>{t('Once')}</SelectItem>
-                  <SelectItem value='daily'>{t('Daily')}</SelectItem>
-                  <SelectItem value='weekly'>{t('Weekly')}</SelectItem>
+                  <SelectItem value='recurring'>{t('Recurring')}</SelectItem>
+                  <SelectItem value='continuous'>{t('Continuous')}</SelectItem>
                 </SelectGroup>
               </SelectContent>
             </Select>
           </div>
-          {executionMode !== 'manual' ? (
+          {isContinuous ? (
+            <>
+              <div className='space-y-2'>
+                <Label>{t('Lifecycle Trigger')}</Label>
+                <Select
+                  disabled={immutable}
+                  value={lifecycleTrigger}
+                  onValueChange={(value) =>
+                    value &&
+                    setLifecycleTrigger(value as RecallLifecycleTrigger)
+                  }
+                  items={recallLifecycleTriggers.map((trigger) => ({
+                    value: trigger,
+                    label: t(trigger),
+                  }))}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {recallLifecycleTriggers.map((trigger) => (
+                        <SelectItem key={trigger} value={trigger}>
+                          {t(trigger)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='space-y-2'>
+                <Label>{t('Delivery Policy')}</Label>
+                <div>
+                  <Badge variant='secondary'>
+                    {deliveryPolicy === 'service'
+                      ? t('Service')
+                      : t('Engagement')}
+                  </Badge>
+                </div>
+              </div>
+              <p className='text-muted-foreground text-sm md:col-span-3'>
+                {deliveryPolicy === 'service'
+                  ? t(
+                      'Operational service mail ignores marketing opt-out and does not include unsubscribe controls.'
+                    )
+                  : t(
+                      'Engagement mail keeps marketing opt-out and unsubscribe controls.'
+                    )}
+              </p>
+              <div className='space-y-2'>
+                <Label>{t('Processing start')}</Label>
+                <Select
+                  disabled={immutable}
+                  value={processingStartMode}
+                  onValueChange={(value) =>
+                    value &&
+                    setProcessingStartMode(value as RecallProcessingStartMode)
+                  }
+                  items={[
+                    { value: 'from_now', label: t('From now') },
+                    { value: 'custom', label: t('Custom date and time') },
+                  ]}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value='from_now'>{t('From now')}</SelectItem>
+                      <SelectItem value='custom'>
+                        {t('Custom date and time')}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              {processingStartMode === 'custom' ? (
+                <div className='space-y-2'>
+                  <Label htmlFor='recall-processing-start-at'>
+                    {t('Custom date and time')}
+                  </Label>
+                  <DateTimePicker
+                    id='recall-processing-start-at'
+                    disabled={immutable}
+                    value={
+                      processingStartAt > 0
+                        ? new Date(processingStartAt * 1000)
+                        : undefined
+                    }
+                    onChange={(date) =>
+                      form.setValue(
+                        'processing_start_at',
+                        date ? Math.floor(date.getTime() / 1000) : 0,
+                        { shouldDirty: true, shouldValidate: true }
+                      )
+                    }
+                  />
+                </div>
+              ) : null}
+              <div className='space-y-2 md:col-span-3'>
+                <Label>{t('Trigger variables')}</Label>
+                <div className='flex flex-wrap gap-2'>
+                  {recallLifecycleVariablesByTrigger[lifecycleTrigger].map(
+                    (variable) => (
+                      <Badge key={variable} variant='outline'>
+                        {`{{.${variable}}}`}
+                      </Badge>
+                    )
+                  )}
+                </div>
+              </div>
+            </>
+          ) : executionMode !== 'manual' ? (
             <>
               <div className='space-y-2'>
                 <Label htmlFor='recall-schedule-start-at'>
@@ -1425,6 +2001,37 @@ export function CampaignEditor(props: CampaignEditorProps) {
           ) : null}
           {executionMode === 'recurring' ? (
             <>
+              <div className='space-y-2'>
+                <Label>{t('Frequency')}</Label>
+                <Select
+                  disabled={immutable}
+                  value={
+                    form.watch('schedule.frequency') === 'weekly'
+                      ? 'weekly'
+                      : 'daily'
+                  }
+                  onValueChange={(value) =>
+                    form.setValue('schedule.frequency', value || 'daily', {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                  items={[
+                    { value: 'daily', label: t('Daily') },
+                    { value: 'weekly', label: t('Weekly') },
+                  ]}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value='daily'>{t('Daily')}</SelectItem>
+                      <SelectItem value='weekly'>{t('Weekly')}</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
               {form.watch('schedule.frequency') === 'weekly' ? (
                 <div className='space-y-2'>
                   <Label htmlFor='recall-schedule-weekday'>

@@ -156,6 +156,13 @@ func TestTokenAllowsModelUsesCanonicalMatching(t *testing.T) {
 	require.False(t, TokenAllowsModel(map[string]bool{"gpt-4-gizmo-*": true}, " gpt-4-gizmo-customer"))
 }
 
+func TestTokenBlocksModelUsesCanonicalMatching(t *testing.T) {
+	require.True(t, TokenBlocksModel(map[string]bool{"gpt-4-gizmo-*": true}, "gpt-4-gizmo-customer"))
+	require.True(t, TokenBlocksModel(map[string]bool{"gemini-2.5-pro-thinking-*": true}, "gemini-2.5-pro-thinking-8192"))
+	require.False(t, TokenBlocksModel(map[string]bool{"gpt-4-gizmo-*": false}, "gpt-4-gizmo-customer"))
+	require.False(t, TokenBlocksModel(nil, "gpt-5.5"))
+}
+
 func TestUserAcceptsUnpricedModelsHonorsUserOptIn(t *testing.T) {
 	original := operation_setting.SelfUseModeEnabled
 	operation_setting.SelfUseModeEnabled = false
@@ -203,6 +210,24 @@ func TestResolveTokenModelAccessOrdinaryAutoPLGAndAllowlist(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Empty(t, empty.ModelIDs)
+}
+
+func TestResolveTokenModelAccessAppliesBlacklistAfterAllowlist(t *testing.T) {
+	db, _ := setupServiceModelAccessDB(t)
+	seedModelAccessScope(t, db, 201, "default", constant.ChannelTypeOpenAI, "shared", "blocked")
+	setModelAccessBilling(t, map[string]float64{"shared": 1, "blocked": 1}, nil, nil)
+
+	access, err := ResolveTokenModelAccess(TokenModelAccessInput{
+		IdentityGroup:         "default",
+		TokenGroup:            "default",
+		ModelLimitsEnabled:    true,
+		ModelLimits:           map[string]bool{"shared": true, "blocked": true},
+		ModelBlacklistEnabled: true,
+		ModelBlacklist:        map[string]bool{"blocked": true},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"shared"}, access.ModelIDs)
 }
 
 func TestResolveStrictModelAccessBillingVisibilityVendorAndStableDedup(t *testing.T) {

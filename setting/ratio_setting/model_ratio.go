@@ -103,6 +103,11 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5.6-sol":                      2.5,  // $5 / 1M tokens
 	"gpt-5.6-terra":                    1.25, // $2.5 / 1M tokens
 	"gpt-5.6-luna":                     0.5,  // $1 / 1M tokens
+	"seedance-2.0":                     3.5,  // $7 / 1M tokens
+	"seedance2.0-pro":                  3.5,  // $7 / 1M tokens
+	"Seedance2.0-pro":                  3.5,  // $7 / 1M tokens; legacy alias
+	"seedance-2.0-fast":                2.8,  // $5.6 / 1M tokens
+	"seedance-2.0-mini":                1.75, // $3.5 / 1M tokens
 	//"gpt-3.5-turbo-0301":           0.75, //deprecated
 	"gpt-3.5-turbo":          0.25,
 	"gpt-3.5-turbo-0613":     0.75,
@@ -319,6 +324,9 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	// ModelAPI Seedance 2.5 calculation base; the adaptor converts each
+	// request/task snapshot into a complete billable_units multiplier.
+	"doubao-seedance-2-5-260628": 0.14,
 	// MiniMax H3 international 768P base rate ($0.08/s).
 	// The task adaptor applies the 1.625 multiplier for 2K output.
 	"MiniMax-H3": 0.08,

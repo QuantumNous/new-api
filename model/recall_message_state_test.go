@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -521,6 +522,62 @@ func TestRecallMessageBaselineReconcilesVersionedRowsWithoutStateEvents(t *testi
 	require.NoError(t, err)
 	require.Zero(t, reconciled)
 	requireRecallMessageStateEventCount(t, 1)
+}
+
+func TestRecallMessageBaselineReconcilesLegacyNullStateVersionRows(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageAccepted, 0)
+	campaignID := firstCampaignIDForMessageState(t, message.Id)
+
+	require.NoError(t, DB.Exec("UPDATE recall_messages SET state_version = NULL WHERE id = ?", message.Id).Error)
+
+	var storedVersion sql.NullInt64
+	require.NoError(t, DB.Raw("SELECT state_version FROM recall_messages WHERE id = ?", message.Id).Scan(&storedVersion).Error)
+	require.False(t, storedVersion.Valid)
+
+	count, err := CountUnbaselinedRecallMessagesForCampaign(context.Background(), campaignID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+
+	reconciled, err := ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, reconciled)
+
+	require.NoError(t, DB.Raw("SELECT state_version FROM recall_messages WHERE id = ?", message.Id).Scan(&storedVersion).Error)
+	require.True(t, storedVersion.Valid)
+	require.Equal(t, int64(1), storedVersion.Int64)
+	requireRecallMessageStateEvent(t, message.Id, 1, "", RecallMessageAccepted)
+
+	count, err = CountUnbaselinedRecallMessagesForCampaign(context.Background(), campaignID)
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
+func TestRecallMessageBaselinePrefetchesCandidateIDsBeforeLockingRows(t *testing.T) {
+	setupRecallRepositoryTestDB(t)
+
+	message := seedRecallMessage(t, RecallMessageAccepted, 0)
+	queries := captureRecallMessageStateNormalizedQueries(t)
+
+	reconciled, err := ReconcileRecallMessageStateEventBaseline(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, reconciled)
+
+	candidateSelects := 0
+	lockedSelects := 0
+	for _, query := range *queries {
+		if strings.Contains(query, "from recall_messages") && strings.Contains(query, "select recall_messages.id") && strings.Contains(query, "limit") {
+			candidateSelects++
+			require.NotContains(t, query, "for update")
+		}
+		if strings.Contains(query, "from recall_messages") && strings.Contains(query, "select recall_messages.*, recall_recipients.campaign_id") && strings.Contains(query, "where recall_messages.id in") {
+			lockedSelects++
+		}
+	}
+	require.Equal(t, 1, candidateSelects)
+	require.Equal(t, 1, lockedSelects)
+	requireRecallMessageStateEvent(t, message.Id, 1, "", RecallMessageAccepted)
 }
 
 func TestRecallMessageBaselineConcurrentExactEventDoesNotCountReconciled(t *testing.T) {

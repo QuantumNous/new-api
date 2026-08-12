@@ -165,7 +165,7 @@ const en: OnlineCopy = {
     sub: "20 minutes, your stack, a concrete quote. English / 中文 both fine.",
     why: [
       { num: "01", title: "Corporate payment · invoices in 48h", body: "Bank transfer, Alipay corporate, or card. VAT fapiao within 48 hours, every month, automatically." },
-      { num: "02", title: "Volume pricing below self-serve", body: "Committed-use discounts price below the self-serve tier. We quote against your current invoice." },
+      { num: "02", title: "Volume pricing for teams", body: "Committed-use discounts, custom routing, and a quote against your current invoice." },
       { num: "03", title: "Token governance for teams", body: "Tree-structured sub-keys with budgets, model allowlists, and a spend API — so finance and platform teams both sleep." },
       { num: "04", title: "SLA 99.5% · SOC 2 · ISO 27001", body: "Public availability target, GDPR-compliant infrastructure, zero retention of request content — plus the model-authenticity probes you see on the board." },
     ],
@@ -209,19 +209,19 @@ const en: OnlineCopy = {
     eyebrow: "DEEPSEEK · KIMI · GLM · CODEX · CLAUDE CODE",
     heroTitle: (
       <>
-        DeepSeek, Kimi, GLM.
+        One key.
         <br />
         <span className="price">
-          Codex.
-          <span className="toolLine"> Claude Code.</span>
-          <span className="costLine">One balance.</span>
+          More models.
+          <span className="toolLine"> More tools.</span>
+          <span className="costLine">Lower cost.</span>
         </span>
       </>
     ),
     invoice: "Every model. Every tool. One invoice.",
     pay: "Pay per successful call.",
     savings: ["Model subscriptions", "Data tool subscriptions", "Automation subscriptions"],
-    sub: "Start with the models and coding agents developers ask for first: DeepSeek, Kimi, GLM, Codex, and Claude Code. One key, prepaid balance, pay per successful call.",
+    sub: "One balance covers 300+ official models and 1,000+ pay-per-call tools. No idle seats, duplicate subscriptions, or API keys scattered across providers.",
     terminal: {
       billed: "✓ $0.83 billed · failed calls $0.00",
       contacts: "✓ 489 contacts waterfall enriched across 5 providers",
@@ -273,13 +273,13 @@ const en: OnlineCopy = {
   },
   pricing: {
     enterpriseAudience: "Committed volume & procurement",
-    enterpriseBody: <>Custom pricing <b>below the self-serve tiers</b> — committed-volume discounts, custom routing, invoicing and procurement.</>,
+    enterpriseBody: <>Custom pricing with committed-volume discounts, custom routing, invoicing and procurement.</>,
     enterpriseCta: "Contact sales →",
     enterpriseLabel: "Enterprise",
     imageVideoLabel: "Image · video models",
     local: <>Stripe Checkout · Adaptive Pricing (BRL/INR/CNY/EUR) · bank transfer & invoicing via <u>Enterprise billing</u> · cancel anytime — new users start with $1 free credit</>,
     mostPopular: "MOST POPULAR",
-    payAsYouGo: "Pay as you go",
+    payAsYouGo: "Starter top-up",
     payCta: "Subscribe Go $10/mo → sign in",
     payWith: "Pay with",
     plans: {
@@ -308,11 +308,11 @@ const en: OnlineCopy = {
         window: "Short-term caps: $60 / 5h · $150 / 7d",
       },
     },
-    subscriptionNotRequired: "No subscription required",
+    subscriptionNotRequired: "Credit package",
     sub: (
       <>
-        Pay as you go with no monthly commitment, or subscribe to Go, Pro or Max for more model usage. All 328+ models are included — GPT, Claude,
-        Gemini, DeepSeek, Kimi, GLM, plus Seedance image & video. <b>Enterprise interfaces price below self-serve</b>.
+        Subscribe to Go, Pro or Max for more model usage. All 328+ models are included — GPT, Claude,
+        Gemini, DeepSeek, Kimi, GLM, plus Seedance image & video. <b>Enterprise contracts add committed-volume discounts</b>.
       </>
     ),
     textModelsLabel: "Text models",
@@ -361,7 +361,7 @@ const zh: OnlineCopy = {
     sub: "20 分钟，聊你的技术栈，给出具体报价。中文 / English 均可。",
     why: [
       { num: "01", title: "对公付款 · 发票 48 小时", body: "对公转账、企业支付宝或银行卡。增值税专用发票每月 48 小时内自动开出。" },
-      { num: "02", title: "企业价低于自助档", body: "承诺用量折扣定价低于自助档，我们按你现在的账单出报价。" },
+      { num: "02", title: "企业团队折扣", body: "承诺用量折扣、定制路由，并按你现在的账单出报价。" },
       { num: "03", title: "团队 Token 治理", body: "树状子 key 带预算与模型白名单，外加费用 API，财务和平台团队都能睡好。" },
       { num: "04", title: "SLA 99.5% · SOC 2 · ISO 27001", body: "公开可用性目标、GDPR 合规基础设施、请求内容零留存，外加首页那套公开的模型真实性探针。" },
     ],
@@ -407,19 +407,19 @@ const zh: OnlineCopy = {
     eyebrow: "DEEPSEEK · KIMI · GLM · CODEX · CLAUDE CODE",
     heroTitle: (
       <>
-        DeepSeek、Kimi、GLM。
+        一个key。
         <br />
         <span className="price">
-          Codex。
-          <span className="toolLine">Claude Code。</span>
-          <span className="costLine">一份余额。</span>
+          更多模型。
+          <span className="toolLine">更多工具。</span>
+          <span className="costLine">更低成本。</span>
         </span>
       </>
     ),
     invoice: "每个模型、每个工具，只需一张账单。",
     pay: "仅成功调用才付费。",
     savings: ["模型订阅", "数据工具订阅", "自动化工具订阅"],
-    sub: "先抓住开发者最关心的模型和编码 Agent：DeepSeek、Kimi、GLM、Codex、Claude Code。一把 key，一份预付余额，按成功调用付费。",
+    sub: "一个余额覆盖 300+个官方模型和1,000+个按调用付费工具。无需闲置席位、重复订阅，也无需管理散落在各供应商的 API Key。",
     terminal: {
       billed: "✓ 计费 $0.83 · 失败调用 $0.00",
       contacts: "✓ 通过 5 个供应商瀑布式补全 489 位联系人",
@@ -472,13 +472,13 @@ const zh: OnlineCopy = {
   pricing: {
     ...en.pricing,
     enterpriseAudience: "承诺用量与企业采购",
-    enterpriseBody: <>价格 <b>低于自助档</b>，承诺用量折扣、定制路由、发票与采购支持。</>,
+    enterpriseBody: <>承诺用量折扣、定制路由、发票与采购支持。</>,
     enterpriseCta: "联系销售 →",
     enterpriseLabel: "企业版",
     imageVideoLabel: "图像 · 视频模型",
     local: <>Stripe Checkout · 自适应定价 (BRL/INR/CNY/EUR) · 企业账单支持银行转账与发票 · 随时取消，新用户送 $1 免费额度</>,
     mostPopular: "最受欢迎",
-    payAsYouGo: "按量付费",
+    payAsYouGo: "起始充值",
     payCta: "订阅 Go $10/月 → 登录",
     payWith: "支付方式",
     plans: {
@@ -507,10 +507,10 @@ const zh: OnlineCopy = {
         window: "短期上限：每 5 小时 $60 · 每 7 天 $150",
       },
     },
-    subscriptionNotRequired: "无需订阅",
+    subscriptionNotRequired: "额度包",
     sub: (
       <>
-        可选择无月费承诺的按量付费，也可订阅 Go、Pro 或 Max 获得更多模型用量。全部 328+ 模型均可使用，GPT、Claude、Gemini、DeepSeek、Kimi、GLM，以及 Seedance 生图和生视频。<b>企业级接口价格低于自助档</b>。
+        订阅 Go、Pro 或 Max 获得更多模型用量。全部 328+ 模型均可使用，GPT、Claude、Gemini、DeepSeek、Kimi、GLM，以及 Seedance 生图和生视频。<b>企业级合同提供承诺用量折扣</b>。
       </>
     ),
     textModelsLabel: "文本模型",

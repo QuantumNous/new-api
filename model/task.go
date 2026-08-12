@@ -2,8 +2,10 @@ package model
 
 import (
 	"bytes"
+	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -85,13 +87,15 @@ type Task struct {
 	Properties Properties            `json:"properties" gorm:"type:json"`
 	Username   string                `json:"username,omitempty" gorm:"-"`
 	// 禁止返回给用户，内部可能包含key等隐私信息
-	PrivateData               TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
-	Data                      json.RawMessage `json:"data" gorm:"type:json"`
-	PreparationStatus         string          `json:"-" gorm:"type:varchar(24);index"`
-	NormalizedRequestPayload  json.RawMessage `json:"-" gorm:"type:json"`
-	PreparationLeaseOwner     string          `json:"-" gorm:"type:varchar(64);index"`
-	PreparationLeaseExpiresAt int64           `json:"-" gorm:"index"`
-	PreparationAttemptCount   int             `json:"-"`
+	PrivateData                      TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
+	Data                             json.RawMessage `json:"data" gorm:"type:json"`
+	PreparationStatus                string          `json:"-" gorm:"type:varchar(24);index"`
+	NormalizedRequestPayload         json.RawMessage `json:"-" gorm:"type:json"`
+	PreparationLeaseOwner            string          `json:"-" gorm:"type:varchar(64);index"`
+	PreparationLeaseExpiresAt        int64           `json:"-" gorm:"index"`
+	PreparationAttemptCount          int             `json:"-"`
+	VideoResultArchiveLeaseOwner     string          `json:"-" gorm:"type:varchar(64);index"`
+	VideoResultArchiveLeaseExpiresAt int64           `json:"-" gorm:"index;default:0"`
 
 	AcceptedAccountingStatus         string `json:"-" gorm:"type:varchar(24);index"`
 	AcceptedAccountingLeaseOwner     string `json:"-" gorm:"type:varchar(64);index"`
@@ -151,17 +155,29 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	Key            string       `json:"key,omitempty"`
+	UpstreamTaskID string       `json:"upstream_task_id,omitempty"` // 上游真实 task ID
+	ResultURL      string       `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	VideoResult    *VideoResult `json:"video_result,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
-	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
-	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
-	TokenId        int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
-	BillingContext *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
+	BillingSource     string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
+	SubscriptionId    int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
+	TokenId           int                 `json:"token_id,omitempty"`        // 令牌 ID，用于令牌额度退款
+	SpecificChannelId int                 `json:"specific_channel_id,omitempty"`
+	BillingContext    *TaskBillingContext `json:"billing_context,omitempty"` // 计费参数快照（用于轮询阶段重新计算）
 	// 上游返回的 token 用量（轮询成功时落库），供两套查询接口统一回传 usage。
 	CompletionTokens int `json:"completion_tokens,omitempty"`
 	TotalTokens      int `json:"total_tokens,omitempty"`
+}
+
+type VideoResult struct {
+	Bucket      string `json:"bucket"`
+	Object      string `json:"object"`
+	Generation  int64  `json:"generation"`
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
+	StoredAt    int64  `json:"stored_at"`
+	ExpiresAt   int64  `json:"expires_at"`
 }
 
 // TaskBillingContext 记录任务提交时的计费参数，以便轮询阶段可以重新计算额度。
@@ -264,7 +280,9 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	privateData := TaskPrivateData{}
 	if relayInfo != nil && relayInfo.ChannelMeta != nil {
 		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
-			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi {
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeTechMobiVideo ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeModelAPISeedance {
 			privateData.Key = relayInfo.ChannelMeta.ApiKey
 		}
 		if relayInfo.UpstreamModelName != "" {
@@ -419,8 +437,8 @@ func GetQueuedAssetPreparationTasks(now int64, limit int) ([]*Task, error) {
 		limit = 10
 	}
 	var tasks []*Task
-	err := DB.Where("status = ? AND ((preparation_status = ?) OR (preparation_status = ? AND preparation_lease_expires_at <= ?))",
-		TaskStatusQueued, TaskPreparationStatusPreparingAssets, TaskPreparationStatusPreparing, now).
+	err := DB.Where("status = ? AND preparation_status IN ? AND preparation_lease_expires_at <= ?",
+		TaskStatusQueued, []string{TaskPreparationStatusPreparingAssets, TaskPreparationStatusPreparing}, now).
 		Order("id ASC").
 		Limit(limit).
 		Find(&tasks).Error
@@ -512,6 +530,7 @@ type taskSnapshot struct {
 	FinishTime       int64
 	FailReason       string
 	ResultURL        string
+	VideoResult      *VideoResult
 	CompletionTokens int
 	TotalTokens      int
 	Data             json.RawMessage
@@ -524,9 +543,25 @@ func (s taskSnapshot) Equal(other taskSnapshot) bool {
 		s.FinishTime == other.FinishTime &&
 		s.FailReason == other.FailReason &&
 		s.ResultURL == other.ResultURL &&
+		taskVideoResultEqual(s.VideoResult, other.VideoResult) &&
 		s.CompletionTokens == other.CompletionTokens &&
 		s.TotalTokens == other.TotalTokens &&
 		bytes.Equal(s.Data, other.Data)
+}
+
+func taskVideoResultEqual(a, b *VideoResult) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func cloneVideoResult(result *VideoResult) *VideoResult {
+	if result == nil {
+		return nil
+	}
+	clone := *result
+	return &clone
 }
 
 func (t *Task) Snapshot() taskSnapshot {
@@ -537,6 +572,7 @@ func (t *Task) Snapshot() taskSnapshot {
 		FinishTime:       t.FinishTime,
 		FailReason:       t.FailReason,
 		ResultURL:        t.PrivateData.ResultURL,
+		VideoResult:      cloneVideoResult(t.PrivateData.VideoResult),
 		CompletionTokens: t.PrivateData.CompletionTokens,
 		TotalTokens:      t.PrivateData.TotalTokens,
 		Data:             t.Data,
@@ -564,6 +600,73 @@ func (t *Task) UpdateWithStatus(fromStatus TaskStatus) (bool, error) {
 	return result.RowsAffected > 0, nil
 }
 
+func ClaimTaskVideoResultArchiveLease(taskID string, fromStatus TaskStatus, owner string, now int64, leaseExpiresAt int64) (bool, error) {
+	result := DB.Model(&Task{}).
+		Where("task_id = ? AND status = ?", taskID, fromStatus).
+		Where("(video_result_archive_lease_expires_at IS NULL OR video_result_archive_lease_expires_at <= ?)", now).
+		Updates(map[string]any{
+			"video_result_archive_lease_owner":      owner,
+			"video_result_archive_lease_expires_at": leaseExpiresAt,
+			"updated_at":                            now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func ReleaseTaskVideoResultArchiveLease(taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	return releaseTaskVideoResultArchiveLease(DB, taskID, fromStatus, owner, expectedLeaseExpiresAt, now)
+}
+
+func ReleaseTaskVideoResultArchiveLeaseWithContext(ctx context.Context, taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	return releaseTaskVideoResultArchiveLease(DB.WithContext(ctx), taskID, fromStatus, owner, expectedLeaseExpiresAt, now)
+}
+
+func RenewTaskVideoResultArchiveLease(taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64, leaseExpiresAt int64) (bool, error) {
+	result := DB.Model(&Task{}).
+		Where("task_id = ? AND status = ?", taskID, fromStatus).
+		Where("video_result_archive_lease_owner = ? AND video_result_archive_lease_expires_at = ? AND video_result_archive_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
+		Updates(map[string]any{
+			"video_result_archive_lease_expires_at": leaseExpiresAt,
+			"updated_at":                            now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func releaseTaskVideoResultArchiveLease(db *gorm.DB, taskID string, fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	result := db.Model(&Task{}).
+		Where("task_id = ? AND status = ?", taskID, fromStatus).
+		Where("video_result_archive_lease_owner = ? AND video_result_archive_lease_expires_at = ?", owner, expectedLeaseExpiresAt).
+		Updates(map[string]any{
+			"video_result_archive_lease_owner":      "",
+			"video_result_archive_lease_expires_at": 0,
+			"updated_at":                            now,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func (t *Task) UpdateWithStatusAndVideoResultArchiveLease(fromStatus TaskStatus, owner string, expectedLeaseExpiresAt int64, now int64) (bool, error) {
+	t.VideoResultArchiveLeaseOwner = ""
+	t.VideoResultArchiveLeaseExpiresAt = 0
+	result := DB.Model(t).
+		Where("task_id = ?", t.TaskID).
+		Where("status = ?", fromStatus).
+		Where("video_result_archive_lease_owner = ? AND video_result_archive_lease_expires_at = ? AND video_result_archive_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
+		Select("*").
+		Updates(t)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 func ClaimTaskPreparationLease(taskID string, owner string, expectedAttemptCount int, now int64, leaseExpiresAt int64) (bool, error) {
 	result := DB.Model(&Task{}).
 		Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
@@ -582,22 +685,66 @@ func ClaimTaskPreparationLease(taskID string, owner string, expectedAttemptCount
 	return result.RowsAffected == 1, nil
 }
 
-func MarkQueuedTaskSubmitting(taskID string, owner string, expectedAttemptCount int, now int64, channelID int, platform constant.TaskPlatform, quota int) (bool, error) {
+func RequeueQueuedTaskForAssetPreparation(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, retryAt int64) (bool, error) {
 	result := DB.Model(&Task{}).
-		Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
-		Where("preparation_status IN ?", []string{TaskPreparationStatusPreparing, TaskPreparationStatusSubmitting}).
-		Where("preparation_lease_owner = ? AND preparation_attempt_count = ? AND preparation_lease_expires_at > ?", owner, expectedAttemptCount, now).
+		Where("task_id = ? AND status = ? AND preparation_status = ?", taskID, TaskStatusQueued, TaskPreparationStatusPreparing).
+		Where("preparation_lease_owner = ? AND preparation_lease_expires_at = ? AND preparation_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
 		Updates(map[string]any{
-			"preparation_status":               TaskPreparationStatusSubmitting,
-			"channel_id":                       channelID,
-			"platform":                         platform,
-			"accepted_accounting_actual_quota": quota,
-			"updated_at":                       now,
+			"preparation_status":           TaskPreparationStatusPreparingAssets,
+			"preparation_lease_owner":      "",
+			"preparation_lease_expires_at": retryAt,
+			"updated_at":                   now,
 		})
 	if result.Error != nil {
 		return false, result.Error
 	}
 	return result.RowsAffected == 1, nil
+}
+
+func MarkQueuedTaskSubmitting(taskID string, owner string, expectedAttemptCount int, now int64, channelID int, platform constant.TaskPlatform, quota int) (bool, error) {
+	return MarkQueuedTaskSubmittingWithPollingKey(taskID, owner, expectedAttemptCount, now, channelID, platform, quota, "")
+}
+
+func MarkQueuedTaskSubmittingWithPollingKey(taskID string, owner string, expectedAttemptCount int, now int64, channelID int, platform constant.TaskPlatform, quota int, pollingKey string) (bool, error) {
+	updates := map[string]any{
+		"preparation_status":               TaskPreparationStatusSubmitting,
+		"channel_id":                       channelID,
+		"platform":                         platform,
+		"accepted_accounting_actual_quota": quota,
+		"updated_at":                       now,
+	}
+	if strings.TrimSpace(pollingKey) == "" {
+		result := DB.Model(&Task{}).
+			Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
+			Where("preparation_status IN ?", []string{TaskPreparationStatusPreparing, TaskPreparationStatusSubmitting}).
+			Where("preparation_lease_owner = ? AND preparation_attempt_count = ? AND preparation_lease_expires_at > ?", owner, expectedAttemptCount, now).
+			Updates(updates)
+		if result.Error != nil {
+			return false, result.Error
+		}
+		return result.RowsAffected == 1, nil
+	}
+
+	fenced := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var current Task
+		if err := tx.Select("private_data").Where("task_id = ?", taskID).First(&current).Error; err != nil {
+			return err
+		}
+		current.PrivateData.Key = strings.TrimSpace(pollingKey)
+		updates["private_data"] = current.PrivateData
+		result := tx.Model(&Task{}).
+			Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
+			Where("preparation_status IN ?", []string{TaskPreparationStatusPreparing, TaskPreparationStatusSubmitting}).
+			Where("preparation_lease_owner = ? AND preparation_attempt_count = ? AND preparation_lease_expires_at > ?", owner, expectedAttemptCount, now).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		fenced = result.RowsAffected == 1
+		return nil
+	})
+	return fenced, err
 }
 
 func RenewTaskPreparationLease(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, leaseExpiresAt int64) (bool, error) {
@@ -633,12 +780,19 @@ func MarkQueuedTaskSubmitted(taskID string, owner string, expectedLeaseExpiresAt
 }
 
 func MarkQueuedTaskAccepted(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
+	return MarkQueuedTaskAcceptedWithPollingKey(taskID, owner, expectedLeaseExpiresAt, now, submitTime, channelID, platform, quota, upstreamTaskID, taskData, "", publicIDs, lastUsedAt, retentionUntil)
+}
+
+func MarkQueuedTaskAcceptedWithPollingKey(taskID string, owner string, expectedLeaseExpiresAt int64, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, pollingKey string, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
 	accepted := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		privateDataExpr := gorm.Expr("private_data")
 		var current Task
 		if err := tx.Select("private_data", "user_id", "quota").Where("task_id = ?", taskID).First(&current).Error; err == nil {
 			current.PrivateData.UpstreamTaskID = upstreamTaskID
+			if trimmedPollingKey := strings.TrimSpace(pollingKey); trimmedPollingKey != "" {
+				current.PrivateData.Key = trimmedPollingKey
+			}
 			privateDataExpr = gorm.Expr("?", current.PrivateData)
 		} else {
 			return err
@@ -680,6 +834,10 @@ func MarkQueuedTaskAccepted(taskID string, owner string, expectedLeaseExpiresAt 
 }
 
 func MarkQueuedTaskSubmissionUnknown(taskID string, expectedAttemptCount int, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
+	return MarkQueuedTaskSubmissionUnknownWithPollingKey(taskID, expectedAttemptCount, now, submitTime, channelID, platform, quota, upstreamTaskID, taskData, "", publicIDs, lastUsedAt, retentionUntil)
+}
+
+func MarkQueuedTaskSubmissionUnknownWithPollingKey(taskID string, expectedAttemptCount int, now int64, submitTime int64, channelID int, platform constant.TaskPlatform, quota int, upstreamTaskID string, taskData []byte, pollingKey string, publicIDs []string, lastUsedAt int64, retentionUntil int64) (bool, error) {
 	quarantined := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var current Task
@@ -688,6 +846,9 @@ func MarkQueuedTaskSubmissionUnknown(taskID string, expectedAttemptCount int, no
 		}
 		if upstreamTaskID != "" {
 			current.PrivateData.UpstreamTaskID = upstreamTaskID
+		}
+		if trimmedPollingKey := strings.TrimSpace(pollingKey); trimmedPollingKey != "" {
+			current.PrivateData.Key = trimmedPollingKey
 		}
 		updates := map[string]any{
 			"status":                             TaskStatusUnknown,

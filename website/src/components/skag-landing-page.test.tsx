@@ -57,4 +57,35 @@ describe("SkagLandingPage", () => {
       expect(html).toContain(text);
     }
   });
+
+  test("uses the shared site shell so paid-search pages retain the homepage navigation", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api", "pt")} />);
+
+    for (const text of ["Produtos", "Desenvolvedores", "Recursos", "Português", "Começar grátis"]) {
+      expect(html).toContain(text);
+    }
+  });
+
+  test("keeps the DeepSeek primary CTA above the fold without a secondary pricing action", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api", "pt")} />);
+
+    expect(html).toContain("Obter chave da API DeepSeek");
+    expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).toContain("max-w-6xl");
+  });
+
+  test("keeps Kimi and Qwen Portuguese pages compact with only their primary CTA", () => {
+    for (const [slug, ctaLabel, priceLabel] of [
+      ["kimi-api", "Obter chave da API Kimi K2.5", "Kimi K2.5 / 1M tokens"],
+      ["qwen-api", "Obter chave da API Qwen", "Qwen 3.7 Plus / 1M tokens"],
+    ] as const) {
+      const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig(slug, "pt")} />);
+      expect(html).toContain(ctaLabel);
+      expect(html).toContain(priceLabel);
+      expect(html).not.toContain("Ver preços ao vivo");
+      expect(html).not.toContain("from openai import OpenAI");
+      expect(html).toContain("max-w-6xl");
+    }
+  });
 });

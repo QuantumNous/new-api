@@ -16,7 +16,9 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -82,23 +84,10 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 				return
 			}
-			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
-			if modelLimitEnable {
-				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-				if !ok {
-					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
-					return
-				}
-				var tokenModelLimit map[string]bool
-				tokenModelLimit, ok = s.(map[string]bool)
-				if !ok {
-					tokenModelLimit = map[string]bool{}
-				}
-				if !service.TokenAllowsModel(tokenModelLimit, modelRequest.Model) {
-					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
-					return
-				}
-			}
+		}
+		enforceModelLimits := !shouldSelectChannel || !ok || hasAssetRefs
+		if modelRequest.Model != "" && !enforceTokenModelAccess(c, modelRequest.Model, enforceModelLimits) {
+			return
 		}
 		assetResolution, assetErr := resolveAssetReferenceSet(c, shouldSelectChannel)
 		legacyAssetResolution, legacyAssetErr := resolveLegacyBytePlusAssetResolution(c, shouldSelectChannel)
@@ -134,7 +123,7 @@ func Distribute() func(c *gin.Context) {
 		}
 		if legacyPinnedChannel != nil {
 			if hasAssetRefs {
-				if _, eligible := assetResolution.ReadinessForChannel(legacyPinnedChannel); !eligible {
+				if _, eligible := assetResolution.ReadinessForChannel(legacyPinnedChannel, modelRequest.Model); !eligible {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
 					return
 				}
@@ -159,7 +148,7 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 			if hasAssetRefs {
-				if _, eligible := assetResolution.ReadinessForChannel(channel); !eligible {
+				if _, eligible := assetResolution.ReadinessForChannel(channel, modelRequest.Model); !eligible {
 					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
 					return
 				}
@@ -263,9 +252,13 @@ func Distribute() func(c *gin.Context) {
 						ModelName:     modelRequest.Model,
 						TokenGroup:    usingGroup,
 						Retry:         common.GetPointer(0),
-						ChannelRanker: assetResolution.ChannelRanker(),
+						ChannelRanker: assetResolution.ChannelRanker(modelRequest.Model),
 					})
 					if err != nil {
+						if hasAssetRefs && !errors.Is(err, service.ErrChannelConcurrencyLimit) {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
+							return
+						}
 						statusCode := http.StatusServiceUnavailable
 						errorCode := types.ErrorCodeModelNotFound
 						if errors.Is(err, service.ErrChannelConcurrencyLimit) {
@@ -286,6 +279,10 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if channel == nil {
+						if hasAssetRefs {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, bytePlusAssetPublicMessage(types.ErrorCodeAssetChannelUnavailable), types.ErrorCodeAssetChannelUnavailable)
+							return
+						}
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
 					}
@@ -324,6 +321,35 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func enforceTokenModelAccess(c *gin.Context, requestedModel string, enforceModelLimits bool) bool {
+	if common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled) {
+		if blacklistValue, exists := common.GetContextKey(c, constant.ContextKeyTokenModelBlacklist); exists {
+			if blacklist, valid := blacklistValue.(map[string]bool); valid && service.TokenBlocksModel(blacklist, requestedModel) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": requestedModel}))
+				return false
+			}
+		}
+	}
+	if !enforceModelLimits || !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+		return true
+	}
+
+	limitsValue, exists := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
+	if !exists {
+		abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
+		return false
+	}
+	tokenModelLimit, valid := limitsValue.(map[string]bool)
+	if !valid {
+		tokenModelLimit = map[string]bool{}
+	}
+	if !service.TokenAllowsModel(tokenModelLimit, requestedModel) {
+		abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": requestedModel}))
+		return false
+	}
+	return true
 }
 
 func abortBytePlusAssetSpecificChannelConflict(c *gin.Context, channelId any, hasSpecificChannel bool, pinnedChannelID int) bool {
@@ -433,8 +459,31 @@ func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Cha
 	if !ok || !references.HasReferences() {
 		return nil
 	}
-	if !common.GetContextKeyBool(c, constant.ContextKeyAssetMaterializeEnabled) {
-		rewriteMap := references.RewriteMapForChannel(channel.Id)
+	originModel := strings.TrimSpace(c.GetString("original_model"))
+	ctx := context.Background()
+	if c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	if service.AssetModelChannelUsesSourceURL(channel.Type) {
+		modelInfo := &relaycommon.RelayInfo{
+			OriginModelName: originModel,
+			ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: originModel},
+		}
+		if err := relayhelper.ModelMappedHelper(c, modelInfo, nil); err != nil {
+			clearAssetRewriteMap(c)
+			return bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+		}
+		rewriteMap, err := service.ResolveAssetSourceURLRewriteMap(
+			ctx,
+			common.GetContextKeyInt(c, constant.ContextKeyUserId),
+			references,
+			channel,
+			originModel,
+		)
+		if err != nil {
+			clearAssetRewriteMap(c)
+			return service.AssetBindingAPIError(err)
+		}
 		if len(rewriteMap) == 0 {
 			clearAssetRewriteMap(c)
 			return nil
@@ -443,11 +492,53 @@ func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Cha
 		common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, rewriteMap)
 		return nil
 	}
-	ctx := context.Background()
-	if c.Request != nil {
-		ctx = c.Request.Context()
+	if !common.GetContextKeyBool(c, constant.ContextKeyAssetMaterializeEnabled) {
+		rewriteMap := references.RewriteMapForSelectedChannel(
+			channel,
+			originModel,
+			common.GetContextKeyString(c, constant.ContextKeyChannelKey),
+		)
+		if len(rewriteMap) == 0 {
+			clearAssetRewriteMap(c)
+			return nil
+		}
+		common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, rewriteMap)
+		common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, rewriteMap)
+		return nil
 	}
-	rewriteMap, err := service.MaterializeAssetBindingsForChannel(ctx, common.GetContextKeyInt(c, constant.ContextKeyUserId), references, channel)
+	modelInfo := &relaycommon.RelayInfo{
+		OriginModelName: originModel,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: originModel},
+	}
+	if err := relayhelper.ModelMappedHelper(c, modelInfo, nil); err != nil {
+		clearAssetRewriteMap(c)
+		return bytePlusAssetDistributionError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest)
+	}
+	materializeOptions, keyIndex, err := service.ResolveAssetMaterializeOptions(
+		references,
+		channel,
+		service.AssetMaterializeOptions{
+			Model:  strings.TrimSpace(modelInfo.UpstreamModelName),
+			APIKey: common.GetContextKeyString(c, constant.ContextKeyChannelKey),
+		},
+	)
+	if err != nil {
+		clearAssetRewriteMap(c)
+		return service.AssetBindingAPIError(err)
+	}
+	if keyIndex >= 0 && materializeOptions.APIKey != common.GetContextKeyString(c, constant.ContextKeyChannelKey) {
+		common.SetContextKey(c, constant.ContextKeyChannelKey, materializeOptions.APIKey)
+		if channel.ChannelInfo.IsMultiKey {
+			common.SetContextKey(c, constant.ContextKeyChannelMultiKeyIndex, keyIndex)
+		}
+	}
+	rewriteMap, err := service.MaterializeAssetBindingsForChannel(
+		ctx,
+		common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		references,
+		channel,
+		materializeOptions,
+	)
 	if err != nil {
 		clearAssetRewriteMap(c)
 		return service.AssetBindingAPIError(err)
@@ -826,7 +917,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 // modelRequest.Model 为空而误报 "This token has no access to model"。
 // 从已存储的任务记录中回填 OriginModelName 即可让校验走在正确的模型上。
 func getTaskOriginModelName(c *gin.Context) string {
-	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) &&
+		!common.GetContextKeyBool(c, constant.ContextKeyTokenModelBlacklistEnabled) {
 		return ""
 	}
 

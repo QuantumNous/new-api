@@ -32,6 +32,8 @@ var (
 	ErrRecallEmailLeaseLost                 = errors.New("recall email message lease was lost")
 	errRecallEmailProductScopeInvalid       = errors.New("recall email product scope is invalid")
 	errRecallEmailProductSummaryUnavailable = errors.New("recall email product summary is unavailable")
+	errRecallLifecycleEventLookupFailed     = errors.New("recall lifecycle event lookup failed")
+	errRecallLifecycleEventInvalid          = errors.New("recall lifecycle event is invalid")
 )
 
 type RecallEmailQuotaWaitError struct {
@@ -40,6 +42,15 @@ type RecallEmailQuotaWaitError struct {
 
 func (e *RecallEmailQuotaWaitError) Error() string {
 	return fmt.Sprintf("recall email hourly quota is exhausted until %d", e.ResetsAt)
+}
+
+type RecallEmailPacingWaitError struct {
+	NextAllowedAtMillis int64
+	IntervalMillis      int64
+}
+
+func (e *RecallEmailPacingWaitError) Error() string {
+	return fmt.Sprintf("recall email pacing slot is unavailable until %d", e.NextAllowedAtMillis)
 }
 
 type RecallEmailSender func(config common.SMTPConfig, subject, receiver, content, messageID string, options common.EmailOptions) error
@@ -61,6 +72,9 @@ type recallEmailProductSummaryCacheEntry struct {
 
 type RecallEmailRenderInput struct {
 	CampaignType        string
+	DeliveryPolicy      string
+	LifecycleTrigger    string
+	LifecycleVariables  map[string]string
 	Language            string
 	Template            RecallEmailTemplate
 	RecipientName       string
@@ -69,15 +83,7 @@ type RecallEmailRenderInput struct {
 	ProductSummary      string
 	ClaimURL            string
 	UnsubscribeURL      string
-}
-
-type recallEmailHTMLRenderData struct {
-	RecipientName       string
-	PromotionCodeMasked string
-	ProductSummary      string
-	ExpiresAt           string
-	ClaimURL            string
-	UnsubscribeURL      string
+	IncludeUnsubscribe  bool
 }
 
 type recallEmailCopy struct {
@@ -176,6 +182,9 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 	if err != nil {
 		return 0, err
 	}
+	if quotaStatus.Exhausted {
+		return 0, &RecallEmailQuotaWaitError{ResetsAt: quotaStatus.ResetsAt}
+	}
 	candidateLimit := limit
 	if quotaStatus.Remaining < candidateLimit {
 		candidateLimit = quotaStatus.Remaining
@@ -185,8 +194,17 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 	if err != nil {
 		return 0, err
 	}
-	if quotaStatus.Exhausted {
-		return 0, &RecallEmailQuotaWaitError{ResetsAt: quotaStatus.ResetsAt}
+	if len(candidates) > 0 {
+		pacingStatus, err := model.GetRecallEmailPacingStatusWithContext(ctx, campaignSetting.EmailHourlyLimit)
+		if err != nil {
+			return 0, err
+		}
+		if !pacingStatus.Allowed {
+			return 0, &RecallEmailPacingWaitError{
+				NextAllowedAtMillis: pacingStatus.NextAllowedAtMillis,
+				IntervalMillis:      pacingStatus.IntervalMillis,
+			}
+		}
 	}
 	type leasedEmail struct {
 		item      *model.RecallEmailWorkItem
@@ -231,17 +249,33 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 			})
 		}
 	}
-	releaseRemaining := func(releaseCtx context.Context, start int) error {
+	releaseRemaining := func(releaseCtx context.Context, start int, retryAt int64, retryStepSeconds int64, forceRetry bool) error {
 		var firstReleaseErr error
 		for index := start; index < len(leased); index++ {
 			entry := leased[index]
-			released, releaseErr := model.ReleaseRecallMessageLeaseWithContext(
-				releaseCtx,
-				entry.item.Message.Id,
-				w.owner,
-				entry.item.Message.LeaseExpiresAt,
-				entry.candidate,
-			)
+			var released bool
+			var releaseErr error
+			if forceRetry {
+				// Spread deferred messages one pacing slot apart so a single
+				// slot wakes one message instead of the whole remainder.
+				messageRetryAt := retryAt + int64(index-start)*retryStepSeconds
+				released, releaseErr = model.ReleaseRecallMessageLeaseForRetryWithContext(
+					releaseCtx,
+					entry.item.Message.Id,
+					w.owner,
+					entry.item.Message.LeaseExpiresAt,
+					entry.candidate,
+					messageRetryAt,
+				)
+			} else {
+				released, releaseErr = model.ReleaseRecallMessageLeaseWithContext(
+					releaseCtx,
+					entry.item.Message.Id,
+					w.owner,
+					entry.item.Message.LeaseExpiresAt,
+					entry.candidate,
+				)
+			}
 			if releaseErr != nil && firstReleaseErr == nil {
 				firstReleaseErr = releaseErr
 				continue
@@ -255,7 +289,12 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 	releaseRemainingSafely := func(start int) error {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		return releaseRemaining(cleanupCtx, start)
+		return releaseRemaining(cleanupCtx, start, 0, 0, false)
+	}
+	staggerRemainingSafely := func(start int, retryAt int64, stepSeconds int64) error {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		return releaseRemaining(cleanupCtx, start, retryAt, stepSeconds, true)
 	}
 	activeMessageIDs, activityErr := model.FindRecallMessageIDsWithAPIActivityAfterWithContext(ctx, activityChecks, w.audience.LogBatchSize)
 	if activityErr != nil {
@@ -290,6 +329,17 @@ func (w *RecallEmailWorker) RunBatch(ctx context.Context, limit int) (int, error
 			var waitErr *RecallEmailQuotaWaitError
 			if errors.As(processErr, &waitErr) {
 				if releaseErr := releaseRemainingSafely(index + 1); releaseErr != nil {
+					return processed, fmt.Errorf("%w; release remaining recall email leases: %v", processErr, releaseErr)
+				}
+				return processed, processErr
+			}
+			var pacingWaitErr *RecallEmailPacingWaitError
+			if errors.As(processErr, &pacingWaitErr) {
+				retryAt := recallEmailPacingRetryAtSeconds(pacingWaitErr.NextAllowedAtMillis)
+				stepSeconds := recallEmailPacingStepSeconds(pacingWaitErr.IntervalMillis)
+				// processLeasedItem already deferred this message to retryAt, so
+				// the remainder starts one slot later to keep one message per slot.
+				if releaseErr := staggerRemainingSafely(index+1, retryAt+stepSeconds, stepSeconds); releaseErr != nil {
 					return processed, fmt.Errorf("%w; release remaining recall email leases: %v", processErr, releaseErr)
 				}
 				return processed, processErr
@@ -345,6 +395,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if err != nil {
 		return w.finishPreAcceptError(ctx, item, "campaign_type_invalid", false)
 	}
+	deliveryPolicy := recallEmailDeliveryPolicy(item.Campaign)
 	stopReason, err := w.recallEmailStopReason(ctx, item, recentlyActive, now)
 	if err != nil {
 		return err
@@ -396,23 +447,27 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 			return w.finishPreAcceptError(ctx, item, "product_summary_lookup_failed", true)
 		}
 	}
-	unsubscribeToken, err := w.createUnsubscribeToken(item)
-	if err != nil {
-		return w.finishPreAcceptError(ctx, item, "unsubscribe_token_failed", true)
-	}
 	template, resolvedLanguage, err := recallEmailTemplateForLanguage(item.Message.TemplateSnapshot, item.Recipient.LanguageSnapshot)
 	if err != nil {
 		return w.finishPreAcceptError(ctx, item, "template_invalid", false)
 	}
 	baseOrigin := strings.TrimRight(strings.TrimSpace(topUpBaseOrigin()), "/")
-	unsubscribeURL := baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
-	// Gmail and Outlook read one-click unsubscribe from the List-Unsubscribe
-	// header, not from the body link, and downrank bulk mail that omits it.
+	unsubscribeURL := ""
+	recallCampaignSetting := operation_setting.GetRecallCampaignSetting()
 	emailOptions := common.EmailOptions{
-		ListUnsubscribeURL:    unsubscribeURL,
-		ListUnsubscribeMailto: strings.TrimSpace(operation_setting.GetRecallCampaignSetting().UnsubscribeMailto),
-		ReplyTo:               strings.TrimSpace(operation_setting.GetRecallCampaignSetting().ReplyTo),
-		Multipart:             true,
+		ReplyTo:   strings.TrimSpace(recallCampaignSetting.ReplyTo),
+		Multipart: true,
+	}
+	if deliveryPolicy != model.RecallDeliveryPolicyService {
+		unsubscribeToken, err := w.createUnsubscribeToken(item)
+		if err != nil {
+			return w.finishPreAcceptError(ctx, item, "unsubscribe_token_failed", true)
+		}
+		unsubscribeURL = baseOrigin + "/api/recall/unsubscribe?token=" + url.QueryEscape(unsubscribeToken)
+		// Gmail and Outlook read one-click unsubscribe from the List-Unsubscribe
+		// header, not from the body link, and downrank bulk mail that omits it.
+		emailOptions.ListUnsubscribeURL = unsubscribeURL
+		emailOptions.ListUnsubscribeMailto = strings.TrimSpace(recallCampaignSetting.UnsubscribeMailto)
 	}
 	if campaignType == model.RecallCampaignTypePromotion && resolvedLanguage != item.Recipient.LanguageSnapshot {
 		productSummary, err = w.recallEmailProductSummary(ctx, item.Campaign.ProductScope, resolvedLanguage)
@@ -430,8 +485,21 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if recipientName == "" {
 		recipientName = strings.TrimSpace(item.User.Username)
 	}
+	lifecycleVariables, err := w.recallLifecycleEmailVariables(ctx, item, baseOrigin, recipientName)
+	if err != nil {
+		if errors.Is(err, errRecallLifecycleEventLookupFailed) {
+			return w.finishPreAcceptError(ctx, item, "lifecycle_event_lookup_failed", true)
+		}
+		if errors.Is(err, errRecallLifecycleEventInvalid) {
+			return w.finishPreAcceptError(ctx, item, "invalid_lifecycle_event", false)
+		}
+		return w.finishPreAcceptError(ctx, item, "lifecycle_event_lookup_failed", true)
+	}
 	subject, htmlBody, err := RenderRecallEmail(RecallEmailRenderInput{
 		CampaignType:        campaignType,
+		DeliveryPolicy:      deliveryPolicy,
+		LifecycleTrigger:    item.Campaign.LifecycleTrigger,
+		LifecycleVariables:  lifecycleVariables,
 		Language:            resolvedLanguage,
 		Template:            template,
 		RecipientName:       recipientName,
@@ -440,6 +508,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 		ProductSummary:      productSummary,
 		ClaimURL:            claimURL,
 		UnsubscribeURL:      unsubscribeURL,
+		IncludeUnsubscribe:  deliveryPolicy != model.RecallDeliveryPolicyService,
 	})
 	if err != nil {
 		return w.finishPreAcceptError(ctx, item, "render_invalid", false)
@@ -517,12 +586,24 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if err := common.ValidateEmailMessageID(providerMessageID); err != nil {
 		return w.finishPreAcceptError(ctx, item, "message_id_invalid", false)
 	}
-	attempt, err := model.BeginRecallEmailSMTPAttemptWithContext(
+	var lifecycleGate *model.RecallLifecycleSMTPGateResult
+	if item.Recipient.LifecycleEventId != nil {
+		gate, err := recallLifecycleSMTPGate(model.DB.WithContext(ctx), model.RecallLifecycleSMTPGateInput{
+			Message:   item.Message,
+			Recipient: item.Recipient,
+		})
+		if err != nil {
+			return err
+		}
+		lifecycleGate = &gate
+	}
+	attempt, err := model.BeginRecallEmailSMTPAttemptWithLifecycleGateWithContext(
 		ctx,
 		item.Message.Id,
 		w.owner,
 		expectedLeaseUntil,
 		operation_setting.GetRecallCampaignSetting().EmailHourlyLimit,
+		lifecycleGate,
 	)
 	if err != nil {
 		return err
@@ -533,8 +614,21 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	if attempt.Suppressed {
 		return nil
 	}
+	if attempt.Email != "" {
+		item.Recipient.EmailSnapshot = attempt.Email
+	}
 	if !attempt.Reserved {
-		waitErr := &RecallEmailQuotaWaitError{ResetsAt: attempt.Quota.ResetsAt}
+		var waitErr error
+		retryAt := attempt.Quota.ResetsAt
+		if !attempt.Pacing.Allowed && attempt.Pacing.NextAllowedAtMillis > 0 {
+			waitErr = &RecallEmailPacingWaitError{
+				NextAllowedAtMillis: attempt.Pacing.NextAllowedAtMillis,
+				IntervalMillis:      attempt.Pacing.IntervalMillis,
+			}
+			retryAt = recallEmailPacingRetryAtSeconds(attempt.Pacing.NextAllowedAtMillis)
+		} else {
+			waitErr = &RecallEmailQuotaWaitError{ResetsAt: attempt.Quota.ResetsAt}
+		}
 		if candidate != nil {
 			released, releaseErr := model.ReleaseRecallMessageLeaseForRetryWithContext(
 				ctx,
@@ -542,7 +636,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 				w.owner,
 				expectedLeaseUntil,
 				*candidate,
-				attempt.Quota.ResetsAt,
+				retryAt,
 			)
 			if releaseErr != nil {
 				return fmt.Errorf("%w; release remaining recall email leases: %v", waitErr, releaseErr)
@@ -556,7 +650,7 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 				item.Message.Id,
 				w.owner,
 				expectedLeaseUntil,
-				attempt.Quota.ResetsAt,
+				retryAt,
 			)
 			if deferErr != nil {
 				return fmt.Errorf("%w; release remaining recall email leases: %v", waitErr, deferErr)
@@ -614,6 +708,27 @@ func (w *RecallEmailWorker) processLeasedItem(ctx context.Context, item *model.R
 	return nil
 }
 
+func recallEmailPacingRetryAtSeconds(nextAllowedAtMillis int64) int64 {
+	if nextAllowedAtMillis <= 0 {
+		return 0
+	}
+	return (nextAllowedAtMillis + 999) / 1000
+}
+
+// recallEmailPacingStepSeconds converts the pacing interval into the per-message
+// retry spacing used when deferring a batch remainder. Sub-second intervals fall
+// back to one second because next_attempt_at has second granularity.
+func recallEmailPacingStepSeconds(intervalMillis int64) int64 {
+	if intervalMillis <= 0 {
+		return 1
+	}
+	stepSeconds := intervalMillis / 1000
+	if stepSeconds < 1 {
+		return 1
+	}
+	return stepSeconds
+}
+
 func (w *RecallEmailWorker) createUnsubscribeToken(item *model.RecallEmailWorkItem) (string, error) {
 	expiresAt := time.Unix(item.Recipient.PromotionExpiresAt, 0)
 	return w.claims.CreateRecipientUnsubscribeToken(item.Recipient.Id, expiresAt)
@@ -652,9 +767,14 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 	} else if item.Recipient.PromotionExpiresAt <= now {
 		return "activity_expired", nil
 	}
-	snapshotEmail, snapshotOK := recallAudienceEmail(item.Recipient.EmailSnapshot)
-	if !snapshotOK || snapshotEmail == "" {
-		return "email_unavailable", nil
+	isLifecycle := item.Recipient.LifecycleEventId != nil
+	snapshotEmail := ""
+	if !isLifecycle {
+		var snapshotOK bool
+		snapshotEmail, snapshotOK = recallAudienceEmail(item.Recipient.EmailSnapshot)
+		if !snapshotOK || snapshotEmail == "" {
+			return "email_unavailable", nil
+		}
 	}
 	if item.Recipient.UserId == 0 {
 		return "", nil
@@ -663,11 +783,20 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 		return "user_disabled", nil
 	}
 	currentEmail, currentOK := recallAudienceEmail(item.User.Email)
-	if !currentOK || !strings.EqualFold(snapshotEmail, currentEmail) {
-		return "email_unavailable", nil
+	if !isLifecycle {
+		if !currentOK || !strings.EqualFold(snapshotEmail, currentEmail) {
+			return "email_unavailable", nil
+		}
 	}
-	if item.User.GetSetting().RecallMarketingOptOut {
+	deliveryPolicy := recallEmailDeliveryPolicy(item.Campaign)
+	if item.User.GetSetting().RecallMarketingOptOut && deliveryPolicy != model.RecallDeliveryPolicyService {
+		if isLifecycle {
+			return "engagement_opted_out", nil
+		}
 		return "user_opted_out", nil
+	}
+	if isLifecycle {
+		return "", nil
 	}
 	paid, err := model.HasRecallPaymentAfterWithContext(ctx, item.Recipient.UserId, item.Recipient.CreatedAt)
 	if err != nil {
@@ -680,6 +809,13 @@ func (w *RecallEmailWorker) recallEmailStopReason(ctx context.Context, item *mod
 		return "api_activity_after_enrollment", nil
 	}
 	return "", nil
+}
+
+func recallEmailDeliveryPolicy(campaign model.RecallCampaign) string {
+	if strings.TrimSpace(campaign.DeliveryPolicy) == model.RecallDeliveryPolicyService {
+		return model.RecallDeliveryPolicyService
+	}
+	return model.RecallDeliveryPolicyEngagement
 }
 
 func (w *RecallEmailWorker) finishPreAcceptError(ctx context.Context, item *model.RecallEmailWorkItem, errorCode string, retryable bool) error {
@@ -980,7 +1116,18 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 	if strings.ContainsAny(input.Template.Subject, "\r\n") {
 		return "", "", fmt.Errorf("recall email subject must not contain CR or LF")
 	}
+	isServiceDelivery := input.DeliveryPolicy == model.RecallDeliveryPolicyService
+	includeUnsubscribe := !isServiceDelivery && (input.IncludeUnsubscribe || strings.TrimSpace(input.UnsubscribeURL) != "")
 	if strings.TrimSpace(input.Template.BodyHTML) != "" {
+		if isServiceDelivery {
+			usesUnsubscribe, useErr := recallEmailHTMLTemplateUsesField(input.Template.BodyHTML, "UnsubscribeURL")
+			if useErr != nil {
+				return "", "", useErr
+			}
+			if usesUnsubscribe {
+				return "", "", fmt.Errorf("service recall email html must not render UnsubscribeURL")
+			}
+		}
 		body, renderErr := renderRecallEmailHTML(input.Template.BodyHTML, input)
 		if renderErr != nil {
 			return "", "", renderErr
@@ -1000,9 +1147,11 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 	if input.CampaignType == model.RecallCampaignTypeContentOnly {
 		htmlBody = "<!doctype html><html><body>" +
 			"<p>" + copy.GreetingPrefix + html.EscapeString(input.RecipientName) + copy.GreetingSuffix + "</p>" +
-			strings.Join(paragraphs, "") +
-			"<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>" +
-			"</body></html>"
+			strings.Join(paragraphs, "")
+		if includeUnsubscribe {
+			htmlBody += "<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>"
+		}
+		htmlBody += "</body></html>"
 		return input.Template.Subject, htmlBody, nil
 	}
 	expires := time.Unix(input.ExpiresAt, 0).UTC().Format("2006-01-02 15:04 UTC")
@@ -1012,27 +1161,43 @@ func RenderRecallEmail(input RecallEmailRenderInput) (subject string, htmlBody s
 		"<p>" + copy.OfferCodeLabel + copy.ValueSeparator + "<code>" + html.EscapeString(input.PromotionCodeMasked) + "</code></p>" +
 		"<p>" + copy.ValidForLabel + copy.ValueSeparator + html.EscapeString(input.ProductSummary) + "</p>" +
 		"<p>" + copy.ExpiresLabel + copy.ValueSeparator + html.EscapeString(expires) + "</p>" +
-		"<p><a href=\"" + html.EscapeString(input.ClaimURL) + "\">" + copy.ClaimLabel + "</a></p>" +
-		"<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>" +
-		"</body></html>"
+		"<p><a href=\"" + html.EscapeString(input.ClaimURL) + "\">" + copy.ClaimLabel + "</a></p>"
+	if includeUnsubscribe {
+		htmlBody += "<p><a href=\"" + html.EscapeString(input.UnsubscribeURL) + "\">" + copy.UnsubscribeLabel + "</a></p>"
+	}
+	htmlBody += "</body></html>"
 	return input.Template.Subject, htmlBody, nil
 }
 
+func recallEmailHTMLTemplateUsesField(source string, fieldName string) (bool, error) {
+	compiled, err := htmltemplate.New("recall_email_html_field_check").Option("missingkey=error").Parse(source)
+	if err != nil {
+		return false, fmt.Errorf("parse recall email html template: %w", err)
+	}
+	if compiled.Tree == nil || compiled.Tree.Root == nil {
+		return false, nil
+	}
+	return recallEmailHTMLTemplateContainsField(compiled.Tree.Root, fieldName), nil
+}
+
 func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string, error) {
-	if _, err := parseRecallEmailHTMLForCampaign(input.CampaignType, source); err != nil {
+	if _, err := parseRecallEmailHTMLForLifecycleTrigger(input.CampaignType, input.DeliveryPolicy, input.LifecycleTrigger, source); err != nil {
 		return "", fmt.Errorf("recall email html: %w", err)
 	}
 	compiled, err := htmltemplate.New("recall_email_html").Option("missingkey=error").Parse(source)
 	if err != nil {
 		return "", fmt.Errorf("parse recall email html template: %w", err)
 	}
-	data := recallEmailHTMLRenderData{
-		RecipientName:       input.RecipientName,
-		PromotionCodeMasked: input.PromotionCodeMasked,
-		ProductSummary:      input.ProductSummary,
-		ExpiresAt:           time.Unix(input.ExpiresAt, 0).UTC().Format("2006-01-02 15:04 UTC"),
-		ClaimURL:            input.ClaimURL,
-		UnsubscribeURL:      input.UnsubscribeURL,
+	data := map[string]string{
+		"RecipientName":       input.RecipientName,
+		"PromotionCodeMasked": input.PromotionCodeMasked,
+		"ProductSummary":      input.ProductSummary,
+		"ExpiresAt":           time.Unix(input.ExpiresAt, 0).UTC().Format("2006-01-02 15:04 UTC"),
+		"ClaimURL":            input.ClaimURL,
+		"UnsubscribeURL":      input.UnsubscribeURL,
+	}
+	for key, value := range input.LifecycleVariables {
+		data[key] = value
 	}
 	var rendered bytes.Buffer
 	if err := compiled.Execute(&rendered, data); err != nil {
@@ -1042,4 +1207,109 @@ func renderRecallEmailHTML(source string, input RecallEmailRenderInput) (string,
 		return "", fmt.Errorf("recall email html must contain at most %d bytes", recallEmailHTMLMaxBytes)
 	}
 	return rendered.String(), nil
+}
+
+func (w *RecallEmailWorker) recallLifecycleEmailVariables(ctx context.Context, item *model.RecallEmailWorkItem, baseOrigin string, recipientName string) (map[string]string, error) {
+	if item == nil || item.Recipient.LifecycleEventId == nil {
+		return nil, nil
+	}
+	trigger := strings.TrimSpace(item.Campaign.LifecycleTrigger)
+	if trigger == "" {
+		return nil, nil
+	}
+	variables := recallLifecycleEmailEmptyVariables(trigger)
+	if len(variables) == 0 {
+		return nil, nil
+	}
+	event := model.RecallLifecycleEvent{}
+	if err := model.DB.WithContext(ctx).First(&event, "id = ?", *item.Recipient.LifecycleEventId).Error; err != nil {
+		return nil, fmt.Errorf("%w: %v", errRecallLifecycleEventLookupFailed, err)
+	}
+	if strings.TrimSpace(event.EventType) != trigger {
+		return nil, fmt.Errorf("%w: event type %q does not match trigger %q", errRecallLifecycleEventInvalid, event.EventType, trigger)
+	}
+	snapshot, err := decodeRecallLifecycleEventData(event.EventData)
+	if err != nil {
+		return nil, fmt.Errorf("%w: malformed event data: %v", errRecallLifecycleEventInvalid, err)
+	}
+	baseOrigin = strings.TrimRight(strings.TrimSpace(baseOrigin), "/")
+	variables["site_name"] = common.SystemName
+	variables["user_display_name"] = recipientName
+	variables["console_url"] = baseOrigin + "/console"
+	if item.User.CreatedAt > 0 {
+		variables["registration_time"] = recallEmailTemplateTime(item.User.CreatedAt)
+	}
+	switch trigger {
+	case model.RecallLifecycleTriggerQuotaLow, model.RecallLifecycleTriggerQuotaExhaustedUnpaid:
+		scopeType := recallLifecycleSnapshotString(snapshot, "scope_type")
+		scopeID := recallLifecycleSnapshotString(snapshot, "scope_id")
+		if scopeType != "" && scopeID != "" {
+			variables["quota_scope"] = scopeType + ":" + scopeID
+		}
+		variables["balance_snapshot"] = recallLifecycleSnapshotString(snapshot, "current_balance")
+		variables["effective_threshold"] = recallLifecycleSnapshotString(snapshot, "threshold")
+		variables["top_up_url"] = baseOrigin + "/console/topup"
+	case model.RecallLifecycleTriggerPaymentFailed, model.RecallLifecycleTriggerPaymentPending, model.RecallLifecycleTriggerPaymentSucceeded:
+		variables["purchase_kind"] = recallLifecycleSnapshotString(snapshot, "purchase_kind")
+		variables["trade_no"] = recallLifecycleSnapshotString(snapshot, "trade_no")
+		amount := recallLifecycleSnapshotString(snapshot, "amount")
+		if amount == "" {
+			amount = recallLifecycleSnapshotString(snapshot, "money")
+		}
+		variables["amount"] = amount
+		variables["currency"] = recallLifecycleSnapshotString(snapshot, "currency")
+		if paymentURL := recallLifecycleSnapshotString(snapshot, "payment_url"); paymentURL != "" {
+			variables["payment_url"] = paymentURL
+		} else if tradeNo := variables["trade_no"]; tradeNo != "" {
+			variables["payment_url"] = baseOrigin + "/console/topup?trade_no=" + url.QueryEscape(tradeNo)
+		} else {
+			variables["payment_url"] = baseOrigin + "/console/topup"
+		}
+		if event.OccurredAt > 0 {
+			variables["completed_at"] = recallEmailTemplateTime(event.OccurredAt)
+		} else if trigger == model.RecallLifecycleTriggerPaymentSucceeded {
+			return nil, fmt.Errorf("%w: payment_succeeded event missing occurred_at", errRecallLifecycleEventInvalid)
+		}
+	}
+	return variables, nil
+}
+
+func recallLifecycleEmailEmptyVariables(trigger string) map[string]string {
+	fields, ok := recallLifecycleEmailFieldsByTrigger[strings.TrimSpace(trigger)]
+	if !ok {
+		return nil
+	}
+	variables := make(map[string]string, len(fields))
+	for _, field := range fields {
+		variables[field] = ""
+	}
+	return variables
+}
+
+func recallLifecycleSnapshotString(snapshot map[string]any, key string) string {
+	value, ok := snapshot[key]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	case int:
+		return strconv.Itoa(typed)
+	case int64:
+		return strconv.FormatInt(typed, 10)
+	case float64:
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+func recallEmailTemplateTime(unixSeconds int64) string {
+	if unixSeconds <= 0 {
+		return ""
+	}
+	return time.Unix(unixSeconds, 0).UTC().Format("2006-01-02 15:04 UTC")
 }

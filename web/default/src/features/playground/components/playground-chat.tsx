@@ -51,7 +51,10 @@ import {
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
 import { getMessageContentStyles } from '../lib/message-styles'
-import { parseThinkTags } from '../lib/message-utils'
+import {
+  parseThinkTags,
+  splitGeneratedImageMarkdown,
+} from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
@@ -181,6 +184,13 @@ export function PlaygroundChat({
                               const displayContent = isAssistant
                                 ? parseThinkTags(version.content).visibleContent
                                 : version.content
+                              const generatedImageContent = isAssistant
+                                ? splitGeneratedImageMarkdown(displayContent)
+                                : {
+                                    text: displayContent,
+                                    images: [],
+                                    hasPendingImage: false,
+                                  }
 
                               const actions = (
                                 <MessageActions
@@ -192,6 +202,12 @@ export function PlaygroundChat({
                                   isGenerating={isGenerating}
                                   alwaysVisible={isLastAssistantMessage}
                                   className='mt-1'
+                                  downloads={generatedImageContent.images.map(
+                                    (image) => ({
+                                      href: image.src,
+                                      fileName: image.downloadName,
+                                    })
+                                  )}
                                 />
                               )
 
@@ -217,7 +233,7 @@ export function PlaygroundChat({
                                       <video
                                         src={message.videoUrl}
                                         controls
-                                        className='rounded-lg max-w-full'
+                                        className='max-w-full rounded-lg'
                                       />
                                       {actions}
                                     </>
@@ -300,7 +316,41 @@ export function PlaygroundChat({
                                             getMessageContentStyles()
                                           )}
                                         >
-                                          <Response>{displayContent}</Response>
+                                          <div className='space-y-3'>
+                                            {generatedImageContent.text && (
+                                              <Response>
+                                                {generatedImageContent.text}
+                                              </Response>
+                                            )}
+                                            {generatedImageContent.images.map(
+                                              (image, imageIndex) => (
+                                                <div
+                                                  key={`${message.key}-${version.id}-generated-image-${imageIndex}`}
+                                                >
+                                                  <img
+                                                    alt={
+                                                      image.alt ||
+                                                      t('Generated image')
+                                                    }
+                                                    className='h-auto max-w-full rounded-lg'
+                                                    decoding='async'
+                                                    src={image.src}
+                                                  />
+                                                </div>
+                                              )
+                                            )}
+                                            {generatedImageContent.hasPendingImage && (
+                                              <div className='flex items-center gap-2 py-2'>
+                                                <Loader />
+                                                <Shimmer
+                                                  className='text-sm'
+                                                  duration={1}
+                                                >
+                                                  {t('Responding...')}
+                                                </Shimmer>
+                                              </div>
+                                            )}
+                                          </div>
                                         </MessageContent>
                                         {actions}
                                       </>

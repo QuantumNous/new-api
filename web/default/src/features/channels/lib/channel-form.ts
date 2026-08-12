@@ -647,13 +647,36 @@ function buildSettingJSON(formData: ChannelFormValues): string {
   const settingObj = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
-    proxy: formData.proxy || '',
+    proxy: formData.type === 111 ? '' : formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     image_carrier_model: formData.image_carrier_model || '',
   }
   return JSON.stringify(settingObj)
+}
+
+export function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
+  return Boolean(
+    values.param_override?.trim() ||
+    values.header_override?.trim() ||
+    values.status_code_mapping?.trim() ||
+    values.tag?.trim() ||
+    values.remark?.trim() ||
+    values.priority ||
+    values.weight ||
+    values.max_concurrency ||
+    (values.type !== 111 && values.proxy?.trim()) ||
+    values.system_prompt?.trim() ||
+    values.force_format ||
+    values.thinking_to_content ||
+    values.pass_through_body_enabled ||
+    values.system_prompt_override ||
+    values.claude_beta_query ||
+    values.upstream_model_update_check_enabled ||
+    values.upstream_model_update_auto_sync_enabled ||
+    values.upstream_model_update_ignored_models?.trim()
+  )
 }
 
 /**

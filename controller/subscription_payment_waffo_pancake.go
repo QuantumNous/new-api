@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
+	"gorm.io/gorm"
 )
 
 type SubscriptionWaffoPancakePayRequest struct {
@@ -116,8 +117,23 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅结账会话创建失败 user_id=%d plan_id=%d trade_no=%s error=%q", userId, plan.Id, tradeNo, err.Error()))
-		order.Status = common.TopUpStatusFailed
-		_ = order.Update()
+		transitionErr := model.DB.Transaction(func(tx *gorm.DB) error {
+			_, transitionErr := model.PersistSubscriptionPurchaseLifecycleTransitionWithWinner(tx, model.PurchaseLifecycleTransition{
+				SourceID:   int64(order.Id),
+				TradeNo:    order.TradeNo,
+				UserID:     order.UserId,
+				FromStatus: []string{common.TopUpStatusPending},
+				ToStatus:   common.TopUpStatusFailed,
+				OccurredAt: common.GetTimestamp(),
+				SourceRef:  "waffo_pancake.checkout_session_failed",
+			}, nil)
+			return transitionErr
+		})
+		if transitionErr != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅结账失败状态迁移失败 user_id=%d plan_id=%d trade_no=%s error=%q", userId, plan.Id, tradeNo, transitionErr.Error()))
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "订单状态更新失败"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}

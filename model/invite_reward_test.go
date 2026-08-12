@@ -49,7 +49,7 @@ func setupInviteRewardModelTest(t *testing.T) {
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
-	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}, &SubscriptionDiscountAccount{}, &SubscriptionDiscountEntry{}))
+	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}, &SubscriptionDiscountAccount{}, &SubscriptionDiscountEntry{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
@@ -859,7 +859,7 @@ func runInviteRewardExternalDBSmoke(t *testing.T, dialect string, dsn string) {
 	common.UsingMySQL = dialect == "mysql"
 	common.UsingPostgreSQL = dialect == "postgres"
 	common.RedisEnabled = false
-	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}))
+	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 
 	t.Cleanup(func() {
 		_ = db.Migrator().DropTable(&InviteRewardEvent{}, &Token{}, &Log{}, &User{})

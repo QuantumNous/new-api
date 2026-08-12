@@ -9,6 +9,41 @@ import (
 	"gorm.io/gorm"
 )
 
+type legacyAssetBindingSchema struct {
+	Id        int64 `gorm:"primaryKey"`
+	AssetId   int64 `gorm:"uniqueIndex:idx_asset_binding_asset_channel"`
+	ChannelId int   `gorm:"uniqueIndex:idx_asset_binding_asset_channel"`
+}
+
+type recordingAssetBindingIndexMigrator struct {
+	indexes   map[string]bool
+	createErr error
+	calls     []string
+}
+
+func (m *recordingAssetBindingIndexMigrator) HasIndex(_ any, name string) bool {
+	return m.indexes[name]
+}
+
+func (m *recordingAssetBindingIndexMigrator) CreateIndex(_ any, name string) error {
+	m.calls = append(m.calls, "create:"+name)
+	if m.createErr != nil {
+		return m.createErr
+	}
+	m.indexes[name] = true
+	return nil
+}
+
+func (m *recordingAssetBindingIndexMigrator) DropIndex(_ any, name string) error {
+	m.calls = append(m.calls, "drop:"+name)
+	delete(m.indexes, name)
+	return nil
+}
+
+func (legacyAssetBindingSchema) TableName() string {
+	return "asset_bindings"
+}
+
 func TestAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	db := newAssetTestDB(t, &Asset{}, &AssetBinding{}, &AssetUpload{})
 
@@ -37,6 +72,7 @@ func TestAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	binding := AssetBinding{
 		AssetId:         asset.Id,
 		ChannelId:       131,
+		BindingScope:    "scope-a",
 		UpstreamGroupId: "group-a",
 		UpstreamAssetId: "upstream-a",
 		Status:          AssetBindingStatusLeased,
@@ -48,7 +84,51 @@ func TestAssetModelsAutoMigrateAndUniqueness(t *testing.T) {
 	duplicateBinding := binding
 	duplicateBinding.Id = 0
 	duplicateBinding.UpstreamAssetId = "upstream-b"
-	require.Error(t, db.Create(&duplicateBinding).Error, "asset/channel binding must be unique")
+	require.Error(t, db.Create(&duplicateBinding).Error, "asset/channel/scope binding must be unique")
+
+	differentScope := binding
+	differentScope.Id = 0
+	differentScope.BindingScope = "scope-b"
+	differentScope.UpstreamAssetId = "upstream-b"
+	require.NoError(t, db.Create(&differentScope).Error, "different credential/model scopes need independent bindings")
+}
+
+func TestMigrateAssetBindingScopeIndexReplacesLegacyUniqueness(t *testing.T) {
+	db := newAssetTestDB(t, &Asset{}, &legacyAssetBindingSchema{})
+	require.True(t, db.Migrator().HasIndex(&legacyAssetBindingSchema{}, legacyAssetBindingUniqueIndex))
+	require.NoError(t, db.Create(&legacyAssetBindingSchema{AssetId: 9001, ChannelId: 131}).Error)
+	require.NoError(t, db.AutoMigrate(&AssetBinding{}))
+	if !db.Migrator().HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex) {
+		require.NoError(t, db.Migrator().CreateIndex(&legacyAssetBindingSchema{}, legacyAssetBindingUniqueIndex))
+	}
+	require.True(t, db.Migrator().HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex))
+
+	require.NoError(t, migrateAssetBindingScopeIndex())
+	require.False(t, db.Migrator().HasIndex(&AssetBinding{}, legacyAssetBindingUniqueIndex))
+	require.True(t, db.Migrator().HasIndex(&AssetBinding{}, assetBindingScopeUniqueIndex))
+	legacyBinding, err := GetAssetBindingForScope(9001, 131, "")
+	require.NoError(t, err)
+	require.Empty(t, legacyBinding.BindingScope)
+
+	asset := insertAssetForAssetTest(t, "asset_binding_scope_migration")
+	require.NoError(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-a"}).Error)
+	require.NoError(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-b"}).Error)
+	require.Error(t, db.Create(&AssetBinding{AssetId: asset.Id, ChannelId: 106, BindingScope: "scope-a"}).Error)
+}
+
+func TestMigrateAssetBindingScopeIndexesKeepsLegacyIndexWhenCreateFails(t *testing.T) {
+	migrator := &recordingAssetBindingIndexMigrator{
+		indexes: map[string]bool{
+			legacyAssetBindingUniqueIndex: true,
+		},
+		createErr: errors.New("create index failed"),
+	}
+
+	err := migrateAssetBindingScopeIndexes(migrator)
+
+	require.ErrorContains(t, err, "failed to create scoped asset binding index")
+	require.True(t, migrator.indexes[legacyAssetBindingUniqueIndex])
+	require.Equal(t, []string{"create:" + assetBindingScopeUniqueIndex}, migrator.calls)
 }
 
 func TestAssetBindingCreateDoesNothingOnDuplicate(t *testing.T) {
@@ -204,6 +284,97 @@ func TestAssetBindingLeaseClaimScopesExpiredLeasePredicateToTargetRow(t *testing
 		require.Equal(t, rows[i].UpstreamAssetId, stored[i].UpstreamAssetId)
 		require.Equal(t, rows[i].ErrorCode, stored[i].ErrorCode)
 	}
+}
+
+func TestReleaseAssetBindingForRetryCASReleasesExactLeaseOnly(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_retry_release")
+	require.NoError(t, DB.Create(&AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       131,
+		BindingScope:    "scope-a",
+		Status:          AssetBindingStatusLeased,
+		LeaseOwner:      "node-a",
+		LeaseExpiresAt:  200,
+		UpstreamAssetId: "upstream-private",
+		ErrorCode:       "old",
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}).Error)
+
+	released, err := ReleaseAssetBindingForRetryCAS(asset.Id, 131, "scope-a", "node-b", "throttled: raw upstream body req-123", 150)
+	require.NoError(t, err)
+	require.False(t, released)
+
+	released, err = ReleaseAssetBindingForRetryCAS(asset.Id, 131, "scope-a", "node-a", "throttled: raw upstream body req-123", 160)
+	require.NoError(t, err)
+	require.True(t, released)
+
+	var stored AssetBinding
+	require.NoError(t, DB.First(&stored, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").Error)
+	require.Equal(t, AssetBindingStatusPending, stored.Status)
+	require.Empty(t, stored.LeaseOwner)
+	require.Zero(t, stored.LeaseExpiresAt)
+	require.Empty(t, stored.UpstreamGroupId)
+	require.Empty(t, stored.UpstreamAssetId)
+	require.Equal(t, "throttled", stored.ErrorCode)
+	require.NotContains(t, stored.ErrorCode, "raw upstream body")
+	require.NotContains(t, stored.ErrorCode, "req-123")
+	require.EqualValues(t, 160, stored.UpdatedAt)
+}
+
+func TestReleaseAssetBindingForRetryCASDoesNotReleaseStaleStatus(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_retry_stale")
+	require.NoError(t, DB.Create(&AssetBinding{
+		AssetId:        asset.Id,
+		ChannelId:      131,
+		BindingScope:   "scope-a",
+		Status:         AssetStatusFailed,
+		LeaseOwner:     "node-a",
+		LeaseExpiresAt: 200,
+		ErrorCode:      "definitive",
+		CreatedAt:      100,
+		UpdatedAt:      100,
+	}).Error)
+
+	released, err := ReleaseAssetBindingForRetryCAS(asset.Id, 131, "scope-a", "node-a", "throttled", 160)
+
+	require.NoError(t, err)
+	require.False(t, released)
+	var stored AssetBinding
+	require.NoError(t, DB.First(&stored, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").Error)
+	require.Equal(t, AssetStatusFailed, stored.Status)
+	require.Equal(t, "definitive", stored.ErrorCode)
+	require.Equal(t, "node-a", stored.LeaseOwner)
+	require.EqualValues(t, 100, stored.UpdatedAt)
+}
+
+func TestReleaseAssetBindingForRetryCASRejectsEmptyLeaseOwner(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_retry_empty_owner")
+	require.NoError(t, DB.Create(&AssetBinding{
+		AssetId:        asset.Id,
+		ChannelId:      131,
+		BindingScope:   "scope-a",
+		Status:         AssetBindingStatusLeased,
+		LeaseOwner:     "node-a",
+		LeaseExpiresAt: 200,
+		ErrorCode:      "old",
+		CreatedAt:      100,
+		UpdatedAt:      100,
+	}).Error)
+
+	released, err := ReleaseAssetBindingForRetryCAS(asset.Id, 131, "scope-a", "", "throttled", 160)
+
+	require.NoError(t, err)
+	require.False(t, released)
+	var stored AssetBinding
+	require.NoError(t, DB.First(&stored, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").Error)
+	require.Equal(t, AssetBindingStatusLeased, stored.Status)
+	require.Equal(t, "node-a", stored.LeaseOwner)
+	require.Equal(t, "old", stored.ErrorCode)
+	require.EqualValues(t, 100, stored.UpdatedAt)
 }
 
 func TestMigrateLegacyBytePlusAssetsPreservesPublicIDsAndBindingsIdempotently(t *testing.T) {
@@ -669,6 +840,175 @@ func TestAssetUploadFailureMarksUploadAndAssetTerminalOnce(t *testing.T) {
 	require.Zero(t, stored.ObjectGeneration)
 }
 
+func TestActivateAssetBindingWithAssetCASDoesNotPromoteSourceLifecycle(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_preserve_lifecycle")
+	require.NoError(t, DB.Model(&Asset{}).Where("id = ?", asset.Id).Updates(map[string]any{
+		"status":        AssetStatusProcessing,
+		"source_status": AssetSourceStatusAvailable,
+	}).Error)
+	binding := AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       131,
+		BindingScope:    "scope-a",
+		UpstreamAssetId: "upstream-a",
+		Status:          AssetBindingStatusLeased,
+		LeaseOwner:      "node-a",
+		LeaseExpiresAt:  200,
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}
+	require.NoError(t, DB.Create(&binding).Error)
+
+	activated, err := ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		BindingScope:           "scope-a",
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 200,
+		UpstreamGroupID:        "group-a",
+		UpstreamAssetID:        "upstream-a",
+		Status:                 AssetStatusActive,
+		Now:                    160,
+	})
+	require.NoError(t, err)
+	require.True(t, activated)
+
+	var storedBinding AssetBinding
+	require.NoError(t, DB.First(&storedBinding, binding.Id).Error)
+	require.Equal(t, AssetStatusActive, storedBinding.Status)
+	require.Equal(t, "group-a", storedBinding.UpstreamGroupId)
+	require.Equal(t, "upstream-a", storedBinding.UpstreamAssetId)
+
+	var storedAsset Asset
+	require.NoError(t, DB.First(&storedAsset, asset.Id).Error)
+	require.Equal(t, AssetStatusProcessing, storedAsset.Status)
+	require.Equal(t, AssetSourceStatusAvailable, storedAsset.SourceStatus)
+}
+
+func TestActivateAssetBindingWithAssetCASFencesExpectedLeaseExpiry(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_activation_lease_fence")
+	require.NoError(t, DB.Create(&AssetBinding{
+		AssetId:        asset.Id,
+		ChannelId:      131,
+		BindingScope:   "scope-a",
+		Status:         AssetBindingStatusLeased,
+		LeaseOwner:     "node-a",
+		LeaseExpiresAt: 200,
+		CreatedAt:      100,
+		UpdatedAt:      100,
+	}).Error)
+
+	activated, err := ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		BindingScope:           "scope-a",
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 201,
+		UpstreamAssetID:        "upstream-stale",
+		Status:                 AssetStatusActive,
+		Now:                    160,
+	})
+	require.NoError(t, err)
+	require.False(t, activated)
+
+	activated, err = ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		BindingScope:           "scope-a",
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 200,
+		UpstreamAssetID:        "upstream-current",
+		Status:                 AssetStatusActive,
+		Now:                    160,
+	})
+	require.NoError(t, err)
+	require.True(t, activated)
+
+	var stored AssetBinding
+	require.NoError(t, DB.Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").First(&stored).Error)
+	require.Equal(t, "upstream-current", stored.UpstreamAssetId)
+}
+
+func TestActivateAssetBindingWithAssetCASRejectsLeaseOwnerWithoutExpectedLeaseExpiry(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_activation_requires_expiry")
+	require.NoError(t, DB.Create(&AssetBinding{
+		AssetId:        asset.Id,
+		ChannelId:      131,
+		BindingScope:   "scope-a",
+		Status:         AssetBindingStatusLeased,
+		LeaseOwner:     "node-a",
+		LeaseExpiresAt: 200,
+		CreatedAt:      100,
+		UpdatedAt:      100,
+	}).Error)
+
+	activated, err := ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:         asset.Id,
+		ChannelID:       131,
+		BindingScope:    "scope-a",
+		LeaseOwner:      "node-a",
+		UpstreamAssetID: "upstream-without-expiry",
+		Status:          AssetStatusActive,
+		Now:             160,
+	})
+
+	require.NoError(t, err)
+	require.False(t, activated)
+	var stored AssetBinding
+	require.NoError(t, DB.Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").First(&stored).Error)
+	require.Equal(t, AssetBindingStatusLeased, stored.Status)
+	require.Empty(t, stored.UpstreamAssetId)
+	require.Equal(t, "node-a", stored.LeaseOwner)
+	require.EqualValues(t, 200, stored.LeaseExpiresAt)
+}
+
+func TestActivateAssetBindingWithAssetCASStaleExpectedLeaseExpiryCannotActivateAfterTakeover(t *testing.T) {
+	newAssetTestDB(t, &Asset{}, &AssetBinding{})
+	asset := insertAssetForAssetTest(t, "asset_binding_activation_takeover_expiry")
+	_, created, err := CreateAssetBindingForScopeIfAbsent(asset.Id, 131, "scope-a", 100)
+	require.NoError(t, err)
+	require.True(t, created)
+	claimed, err := ClaimAssetBindingForScopeLease(asset.Id, 131, "scope-a", "node-a", 100, 160)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	claimed, err = ClaimAssetBindingForScopeLease(asset.Id, 131, "scope-a", "node-a", 120, 190)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	activated, err := ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		BindingScope:           "scope-a",
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 160,
+		UpstreamAssetID:        "upstream-stale-expiry",
+		Status:                 AssetStatusActive,
+		Now:                    130,
+	})
+	require.NoError(t, err)
+	require.False(t, activated)
+
+	activated, err = ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		BindingScope:           "scope-a",
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 190,
+		UpstreamAssetID:        "upstream-current-expiry",
+		Status:                 AssetStatusActive,
+		Now:                    130,
+	})
+	require.NoError(t, err)
+	require.True(t, activated)
+
+	var stored AssetBinding
+	require.NoError(t, DB.Where("asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, 131, "scope-a").First(&stored).Error)
+	require.Equal(t, "upstream-current-expiry", stored.UpstreamAssetId)
+}
+
 func TestAssetBindingActivationLocksAssetAndDoesNotLoseActivation(t *testing.T) {
 	newAssetTestDB(t, &Asset{}, &AssetBinding{})
 	asset := insertAssetForAssetTest(t, "asset_binding_activate")
@@ -693,12 +1033,13 @@ func TestAssetBindingActivationLocksAssetAndDoesNotLoseActivation(t *testing.T) 
 	}).Error)
 
 	activated, err := ActivateAssetBindingWithAssetCAS(AssetBindingActivation{
-		AssetID:         asset.Id,
-		ChannelID:       131,
-		LeaseOwner:      "node-a",
-		UpstreamGroupID: "group-a",
-		UpstreamAssetID: "upstream-a",
-		Now:             160,
+		AssetID:                asset.Id,
+		ChannelID:              131,
+		LeaseOwner:             "node-a",
+		ExpectedLeaseExpiresAt: 200,
+		UpstreamGroupID:        "group-a",
+		UpstreamAssetID:        "upstream-a",
+		Now:                    160,
 	})
 	require.NoError(t, err)
 	require.True(t, activated)

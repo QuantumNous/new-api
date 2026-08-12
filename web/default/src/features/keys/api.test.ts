@@ -47,6 +47,8 @@ describe('batchEditApiKeys', () => {
       remain_quota: 0,
       model_limits_enabled: true,
       model_limits: 'gpt-4o,gpt-4.1',
+      model_blacklist_enabled: true,
+      model_blacklist: 'gpt-4o-mini,o3-mini',
     })
 
     expect(request?.method).toBe('put')
@@ -57,6 +59,8 @@ describe('batchEditApiKeys', () => {
       remain_quota: 0,
       model_limits_enabled: true,
       model_limits: 'gpt-4o,gpt-4.1',
+      model_blacklist_enabled: true,
+      model_blacklist: 'gpt-4o-mini,o3-mini',
     })
     expect(result).toEqual({ success: true, data: 2 })
   })

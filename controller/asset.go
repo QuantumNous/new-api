@@ -10,7 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -19,11 +19,13 @@ import (
 const assetMultipartEnvelopeMaxBytes = int64(1 << 20)
 
 var (
-	createAssetFromURL       = service.CreateAssetFromURL
-	uploadAsset              = service.UploadAsset
-	createAssetUploadSession = service.CreateAssetUploadSession
-	completeAssetUpload      = service.CompleteAssetUpload
-	getAsset                 = service.GetAsset
+	createAssetFromURL               = service.CreateAssetFromURL
+	uploadAsset                      = service.UploadAsset
+	createAssetUploadSession         = service.CreateAssetUploadSession
+	completeAssetUpload              = service.CompleteAssetUpload
+	getAsset                         = service.GetAsset
+	reconcileAssetForScope           = service.ReconcileAssetForScope
+	resolveAssetModelScopeForContext = service.ResolveAssetModelScopeForContext
 )
 
 func CreateAsset(c *gin.Context) {
@@ -32,16 +34,18 @@ func CreateAsset(c *gin.Context) {
 		writeAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
 		return
 	}
-	if !assetTokenAllowsModel(c, request.Model) {
-		writeAssetModelForbidden(c, request.Model)
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	scope, scopeErr := resolveAssetModelScopeForContext(c, userID)
+	if scopeErr != nil {
+		writeAssetServiceError(c, scopeErr)
 		return
 	}
 	result, err := createAssetFromURL(c.Request.Context(), service.AssetFromURLRequest{
-		UserID:    common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		UserID:    userID,
 		AssetType: strings.TrimSpace(request.AssetType),
 		URL:       strings.TrimSpace(request.URL),
 	})
-	writeAssetResult(c, result, err)
+	writeReconciledAssetResultForScope(c, userID, scope, result, err)
 }
 
 func UploadAsset(c *gin.Context) {
@@ -58,11 +62,6 @@ func UploadAsset(c *gin.Context) {
 	}
 	defer file.Close()
 
-	modelName := strings.TrimSpace(c.Request.FormValue("model"))
-	if !assetTokenAllowsModel(c, modelName) {
-		writeAssetModelForbidden(c, modelName)
-		return
-	}
 	assetType := strings.TrimSpace(c.Request.FormValue("asset_type"))
 	if assetType == "" {
 		assetType = assetTypeFromContentType(header.Header.Get("Content-Type"))
@@ -72,23 +71,25 @@ func UploadAsset(c *gin.Context) {
 		return
 	}
 
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	scope, scopeErr := resolveAssetModelScopeForContext(c, userID)
+	if scopeErr != nil {
+		writeAssetServiceError(c, scopeErr)
+		return
+	}
 	result, uploadErr := uploadAsset(c.Request.Context(), service.AssetUploadRequest{
-		UserID:    common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		UserID:    userID,
 		AssetType: assetType,
 		Filename:  header.Filename,
 		Body:      file,
 	})
-	writeAssetResult(c, result, uploadErr)
+	writeReconciledAssetResultForScope(c, userID, scope, result, uploadErr)
 }
 
 func CreateAssetUploadSession(c *gin.Context) {
 	var request dto.AssetUploadSessionRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAssetError(c, types.InitOpenAIError(types.ErrorCodeInvalidAssetRequest, http.StatusBadRequest))
-		return
-	}
-	if !assetTokenAllowsModel(c, request.Model) {
-		writeAssetModelForbidden(c, request.Model)
 		return
 	}
 	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
@@ -129,7 +130,7 @@ func CompleteAssetUpload(c *gin.Context) {
 		UploadID: uploadID,
 		Owner:    assetUploadOwner(userID),
 	})
-	writeAssetResult(c, result, err)
+	writeReconciledAssetResult(c, result, err)
 }
 
 func GetAsset(c *gin.Context) {
@@ -139,7 +140,53 @@ func GetAsset(c *gin.Context) {
 		return
 	}
 	result, err := getAsset(c.Request.Context(), common.GetContextKeyInt(c, constant.ContextKeyUserId), assetID)
-	writeAssetResult(c, result, err)
+	writeReconciledAssetResult(c, result, err)
+}
+
+func writeReconciledAssetResult(c *gin.Context, result *service.AssetResult, err error) {
+	if err != nil || result == nil {
+		writeAssetResult(c, result, err)
+		return
+	}
+	userID := common.GetContextKeyInt(c, constant.ContextKeyUserId)
+	scope, scopeErr := resolveAssetModelScopeForContext(c, userID)
+	if scopeErr != nil {
+		if isInternalAssetServiceError(scopeErr) {
+			writeAssetResult(c, fallbackAssetResultAfterReconcileError(result), nil)
+			return
+		}
+		writeAssetServiceError(c, scopeErr)
+		return
+	}
+	writeReconciledAssetResultForScope(c, userID, scope, result, nil)
+}
+
+func writeReconciledAssetResultForScope(c *gin.Context, userID int, scope service.AssetModelScope, result *service.AssetResult, err error) {
+	if err != nil || result == nil {
+		writeAssetResult(c, result, err)
+		return
+	}
+	reconciled, reconcileErr := reconcileAssetForScope(c.Request.Context(), userID, result.PublicID, scope)
+	if reconcileErr != nil {
+		if isInternalAssetServiceError(reconcileErr) {
+			writeAssetResult(c, fallbackAssetResultAfterReconcileError(result), nil)
+			return
+		}
+		writeAssetServiceError(c, reconcileErr)
+		return
+	}
+	writeAssetResult(c, reconciled, nil)
+}
+
+func fallbackAssetResultAfterReconcileError(result *service.AssetResult) *service.AssetResult {
+	fallback := *result
+	fallback.AvailableModels = []string{}
+	switch fallback.Status {
+	case model.AssetStatusCreating, model.AssetStatusProcessing, model.AssetStatusFailed, model.AssetStatusExpired:
+	default:
+		fallback.Status = model.AssetStatusProcessing
+	}
+	return &fallback
 }
 
 func writeAssetResult(c *gin.Context, result *service.AssetResult, err error) {
@@ -155,47 +202,41 @@ func writeAssetResult(c *gin.Context, result *service.AssetResult, err error) {
 }
 
 func assetResponseFromResult(result *service.AssetResult) dto.AssetResponse {
+	availableModels := result.AvailableModels
+	if availableModels == nil {
+		availableModels = []string{}
+	}
 	return dto.AssetResponse{
 		ID:              result.PublicID,
 		Object:          "asset",
 		AssetType:       result.AssetType,
 		Status:          result.Status,
+		AvailableModels: availableModels,
 		AssetURL:        "asset://" + result.PublicID,
 		CreatedAt:       result.CreatedAt,
 		SourceExpiresAt: result.SourceExpiresAt,
 	}
 }
 
-func assetTokenAllowsModel(c *gin.Context, modelName string) bool {
-	modelName = strings.TrimSpace(modelName)
-	if modelName == "" || !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
-		return true
-	}
-	value, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-	if !ok {
-		return false
-	}
-	allowlist, ok := value.(map[string]bool)
-	return ok && service.TokenAllowsModel(allowlist, modelName)
-}
-
-func writeAssetModelForbidden(c *gin.Context, modelName string) {
-	c.JSON(http.StatusForbidden, gin.H{"error": types.OpenAIError{
-		Message: common.TranslateMessage(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": strings.TrimSpace(modelName)}),
-		Type:    string(types.ErrorCodeAccessDenied),
-		Code:    string(types.ErrorCodeAccessDenied),
-		Param:   "",
-	}})
-}
-
 func writeAssetServiceError(c *gin.Context, err error) {
+	status, code := assetServiceErrorStatusAndCode(err)
+	writeAssetError(c, types.InitOpenAIError(code, status))
+}
+
+func isInternalAssetServiceError(err error) bool {
+	status, _ := assetServiceErrorStatusAndCode(err)
+	return status == http.StatusInternalServerError
+}
+
+func assetServiceErrorStatusAndCode(err error) (int, types.ErrorCode) {
 	status := http.StatusInternalServerError
 	code := types.ErrorCodeAssetStorageError
 	switch {
 	case errors.Is(err, service.ErrAssetInvalidSourceURL),
 		errors.Is(err, service.ErrAssetUnsupportedMediaType),
 		errors.Is(err, service.ErrAssetFileRequired),
-		errors.Is(err, service.ErrAssetUploadValidation):
+		errors.Is(err, service.ErrAssetUploadValidation),
+		errors.Is(err, service.ErrAssetInvalidSpecificChannel):
 		status = http.StatusBadRequest
 		code = types.ErrorCodeInvalidAssetRequest
 	case errors.Is(err, service.ErrAssetTooLarge):
@@ -214,7 +255,7 @@ func writeAssetServiceError(c *gin.Context, err error) {
 		status = http.StatusInternalServerError
 		code = types.ErrorCodeAssetStorageError
 	}
-	writeAssetError(c, types.InitOpenAIError(code, status))
+	return status, code
 }
 
 func writeAssetError(c *gin.Context, apiErr *types.NewAPIError) {

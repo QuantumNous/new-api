@@ -63,6 +63,8 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 		&model.RegistrationDomainState{},
 		&model.RegistrationDomainBlock{},
 		&model.RegistrationDomainBlockUser{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 		&model.Channel{},
 		&model.Ability{},
 		&model.Model{},
@@ -321,6 +323,38 @@ func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	require.NotContains(t, ids, "zz-token-unpriced-model")
 }
 
+func TestListModelsExcludesTokenBlacklistedModels(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	withTieredBillingConfig(t, map[string]string{
+		"zz-token-visible-model": "tiered_expr",
+		"zz-token-blocked-model": "tiered_expr",
+	}, map[string]string{
+		"zz-token-visible-model": `tier("base", p * 1 + c * 2)`,
+		"zz-token-blocked-model": `tier("base", p * 1 + c * 2)`,
+	})
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
+		"zz-token-visible-model": true,
+		"zz-token-blocked-model": true,
+	})
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklistEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklist, map[string]bool{
+		"zz-token-blocked-model": true,
+	})
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "zz-token-visible-model")
+	require.NotContains(t, ids, "zz-token-blocked-model")
+}
+
 func TestAvailableModelsFiltersTokenLimitsByUsableGroupChannels(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)
@@ -497,11 +531,12 @@ func TestListModelsKeepsOpenAIResponseShape(t *testing.T) {
 	require.IsType(t, "", payload["object"])
 	data := payload["data"].([]any)
 	modelData := data[0].(map[string]any)
-	requireExactJSONKeys(t, modelData, "id", "object", "created", "owned_by", "supported_endpoint_types")
+	requireExactJSONKeys(t, modelData, "id", "object", "created", "owned_by", "type", "supported_endpoint_types")
 	require.IsType(t, "", modelData["id"])
 	require.IsType(t, "", modelData["object"])
 	require.IsType(t, float64(0), modelData["created"])
 	require.IsType(t, "", modelData["owned_by"])
+	require.IsType(t, "", modelData["type"])
 	require.IsType(t, []any{}, modelData["supported_endpoint_types"])
 }
 
@@ -518,6 +553,33 @@ func TestListModelsKeepsAnthropicResponseShape(t *testing.T) {
 	require.IsType(t, "", modelData["created_at"])
 	require.IsType(t, "", modelData["display_name"])
 	require.IsType(t, "", modelData["type"])
+}
+
+func TestListModelsReturnsEmptyAnthropicPageWhenBlacklistRemovesAllModels(t *testing.T) {
+	originalSelfUseMode := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() { operation_setting.SelfUseModeEnabled = originalSelfUseMode })
+	setupModelListControllerTestDB(t)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{"contract-only-model": true})
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklistEnabled, true)
+	common.SetContextKey(ctx, constant.ContextKeyTokenModelBlacklist, map[string]bool{"contract-only-model": true})
+
+	require.NotPanics(t, func() {
+		ListModels(ctx, constant.ChannelTypeAnthropic)
+	})
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Equal(t, []any{}, payload["data"])
+	require.Equal(t, "", payload["first_id"])
+	require.False(t, payload["has_more"].(bool))
+	require.Equal(t, "", payload["last_id"])
 }
 
 func TestListModelsKeepsGeminiResponseShape(t *testing.T) {
@@ -603,12 +665,42 @@ func TestAvailableModelsClassifiesVideoEndpointModels(t *testing.T) {
 
 func TestAvailableModelTypeInference(t *testing.T) {
 	require.Equal(t, "video", availableModelType("plain-name", []constant.EndpointType{constant.EndpointTypeOpenAIVideo}))
+	require.Equal(t, "video", availableModelType("MiniMax-H3", []constant.EndpointType{constant.EndpointTypeVideo}))
 	require.Equal(t, "image", availableModelType("gpt-image-2", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("gemini-2.5-flash-tts", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("eleven_multilingual_v2", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("eleven_sound_v1", []constant.EndpointType{constant.EndpointTypeOpenAI}))
 	require.Equal(t, "audio", availableModelType("sonilo-video-to-music", []constant.EndpointType{constant.EndpointTypeVideoToMusic}))
 	require.Equal(t, "text", availableModelType("gpt-5.5", []constant.EndpointType{constant.EndpointTypeOpenAI}))
+}
+
+func TestListModelsClassifiesCustomVideoEndpoint(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	createAvailableModelFixture(t, db, 92013, common.ChannelStatusEnabled, map[string][]string{
+		"default": {"MiniMax-H3"},
+	})
+	require.NoError(t, db.Create(&model.Model{
+		ModelName: "MiniMax-H3",
+		Endpoints: `{"video":{"path":"/v1/videos","method":"POST"}}`,
+		Status:    1,
+	}).Error)
+	model.RefreshPricing()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+	common.SetContextKey(ctx, constant.ContextKeyTokenGroup, "default")
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var payload listModelsResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "MiniMax-H3", payload.Data[0].Id)
+	require.Equal(t, "video", payload.Data[0].Type)
+	require.Equal(t, []constant.EndpointType{constant.EndpointTypeVideo}, payload.Data[0].SupportedEndpointTypes)
 }
 
 func TestAvailableModelsIncludesSoniloWithoutModelMeta(t *testing.T) {

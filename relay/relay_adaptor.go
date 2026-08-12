@@ -46,6 +46,7 @@ import (
 	taskjimengzhizinan "github.com/QuantumNous/new-api/relay/channel/task/jimengzhizinan"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
 	taskkuaizi "github.com/QuantumNous/new-api/relay/channel/task/kuaizi"
+	taskmodelapiseedance "github.com/QuantumNous/new-api/relay/channel/task/modelapiseedance"
 	tasksonilo "github.com/QuantumNous/new-api/relay/channel/task/sonilo"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
@@ -223,6 +224,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &tasktechmobi.TaskAdaptor{}
 		case constant.ChannelTypeBytePlus:
 			return &taskbyteplus.TaskAdaptor{}
+		case constant.ChannelTypeModelAPISeedance:
+			return &taskmodelapiseedance.TaskAdaptor{}
 		case constant.ChannelTypeXaiGrokVideo:
 			return &taskxaigrok.TaskAdaptor{}
 		case constant.ChannelTypeSonilo:

@@ -255,7 +255,7 @@ func isBulkOptionUpdateKey(key string) bool {
 		return true
 	}
 	switch key {
-	case "SidebarModulesAdmin", model.OptionKeyPlaygroundDefaultModel:
+	case "SidebarModulesAdmin", "LogConsumeEnabled", model.OptionKeyCompanyLogRoutingEnabled, model.OptionKeyPlaygroundDefaultModel:
 		return true
 	default:
 		return false

@@ -117,6 +117,8 @@ export async function batchEditApiKeys(
       remain_quota: payload.remain_quota,
       model_limits_enabled: payload.model_limits_enabled,
       model_limits: payload.model_limits,
+      model_blacklist_enabled: payload.model_blacklist_enabled,
+      model_blacklist: payload.model_blacklist,
     })
   )
   return res.data

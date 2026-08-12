@@ -174,6 +174,110 @@ const recallActivitySMTPCopyKeys = [
   'Activity SMTP is not configured. Configure it before sending.',
   'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
   'Delivery status is uncertain. Check the mailbox provider before retrying.',
+  'Unknown delivery error',
+] as const
+
+const lifecycleVisibleCopyKeys = [
+  'Continuous',
+  'continuous',
+  'Lifecycle Trigger',
+  'user_registered',
+  'registration_unused',
+  'quota_low',
+  'quota_exhausted_unpaid',
+  'payment_failed',
+  'payment_pending',
+  'payment_succeeded',
+  'pending',
+  'leased',
+  'enrolled',
+  'skipped',
+  'processed',
+  'suppressed',
+  'failed',
+  'invalid_email',
+  'no_account_email',
+  'lease_recovered',
+  'malformed_event_data',
+  'missing_user',
+  'invalid_email_sequence',
+  'missing_stage_one',
+  'lifecycle_recipient_inconsistent',
+  'lifecycle_message_inconsistent',
+  'lifecycle_enrollment_failed',
+  'lifecycle_enrollment_retry',
+  'lifecycle_retry',
+  'lifecycle_skipped',
+  'persistent_exclusion',
+  'quota_recovered',
+  'quota_cycle_changed',
+  'engagement_opted_out',
+  'registration_used',
+  'order_state_changed',
+  'smtp_uncertain',
+  'activity_smtp_not_configured',
+  'activity_smtp_send_failed',
+  'scheduled',
+  'sending',
+  'accepted',
+  'retry_wait',
+  'uncertain',
+  'cancelled',
+  'Unknown message state',
+  'Unknown lifecycle event',
+  'Unknown lifecycle outcome',
+  'Delivery Policy',
+  'Service',
+  'Engagement',
+  'Operational service mail ignores marketing opt-out and does not include unsubscribe controls.',
+  'Engagement mail keeps marketing opt-out and unsubscribe controls.',
+  'Processing start',
+  'From now',
+  'Custom date and time',
+  'Trigger variables',
+  'Delivery policy does not match lifecycle trigger',
+  'Lifecycle trigger is required',
+  'Lifecycle trigger config must be empty',
+  'Continuous activities must be content only',
+  'Continuous audience fields must be empty',
+  'Continuous schedule fields must be empty',
+  'Continuous promotion fields must be empty',
+  'Continuous product fields must be empty',
+  'Continuous activities allow exactly one email stage',
+  'Lifecycle event boundary',
+  'Collection start',
+  'Earliest available',
+  'Estimated events',
+  'Due now',
+  'Send-time rechecks can reduce the final recipient count.',
+  'Masked event sample',
+  'Event type',
+  'Scope',
+  'Business key',
+  'Disposition',
+  'Occurred at',
+  'Available at',
+  'Last error',
+  'Lifecycle events',
+  'Pending not due',
+  'Leased events',
+  'Enrolled events',
+  'Skipped events',
+  'Failed events',
+  'Queued messages',
+  'SMTP accepted',
+  'Uncertain messages',
+  'Failed messages',
+  'Cancelled messages',
+  'Lease recoveries',
+  'Retries',
+  'Processing latency',
+  'Skip breakdown',
+  'Send blocked breakdown',
+  'Safe error-code breakdown',
+  'Pausing freezes new lifecycle enrollment and SMTP delivery while events continue to accumulate.',
+  'Resuming processes lifecycle backlog from the immutable processing start.',
+  'Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.',
 ] as const
 
 const recallHelpKeys = [
@@ -198,6 +302,7 @@ const recallHelpKeys = [
   ...recallEmailPlaceholderHelpKeys,
   ...activityEmailLocalizationAndQuotaKeys,
   ...recallActivitySMTPCopyKeys,
+  ...lifecycleVisibleCopyKeys,
   ...translatedAudienceTemplateDescriptionKeys,
 ] as const
 
@@ -368,6 +473,28 @@ describe('recall campaign copy', () => {
             `${locale} should not use placeholder punctuation for ${key}`
           ).not.toContain('?')
         }
+      }
+    })
+
+    test(`${locale} contains localized Continuous lifecycle copy`, () => {
+      for (const key of lifecycleVisibleCopyKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing lifecycle key ${key}`
+        ).toBe(true)
+        expect(
+          translations[key],
+          `${locale} has an empty lifecycle value for ${key}`
+        ).toBeTruthy()
+
+        if (locale === 'en') {
+          continue
+        }
+
+        expect(
+          translations[key],
+          `${locale} should localize lifecycle key ${key}`
+        ).not.toBe(en.translation[key])
       }
     })
 

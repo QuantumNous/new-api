@@ -81,6 +81,8 @@ func migrateSubscriptionRecurringTestDB(t *testing.T) {
 		&InviteSubscriptionReward{},
 		&SubscriptionDiscountAccount{},
 		&SubscriptionDiscountEntry{},
+		&RecallLifecycleEvent{},
+		&QuotaLifecycleState{},
 	))
 }
 
@@ -179,6 +181,69 @@ func TestCompleteSubscriptionOrderWithProviderBindingIsIdempotentForSameOrder(t 
 	var subCount int64
 	require.NoError(t, DB.Model(&UserSubscription{}).Where("provider_binding_id = ?", binding.Id).Count(&subCount).Error)
 	require.EqualValues(t, 1, subCount)
+}
+
+func TestCompleteSubscriptionOrderWithProviderBindingCASLoserDoesNotCreateProviderBinding(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 502)
+	insertPlanForSubscriptionRecurringTest(t, 602, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-cas-loser-binding", 502, 602)
+
+	var order SubscriptionOrder
+	require.NoError(t, DB.First(&order, "trade_no = ?", "recurring-order-cas-loser-binding").Error)
+
+	callbackName := "test:force_provider_binding_subscription_cas_loss"
+	fired := false
+	var callbackErr error
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement == nil || tx.Statement.Table != "subscription_orders" {
+			return
+		}
+		fired = true
+		callbackErr = tx.Exec("UPDATE subscription_orders SET status = ?, complete_time = ? WHERE id = ?", common.TopUpStatusSuccess, int64(1_700_203_550), order.Id).Error
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	binding, err := CompleteSubscriptionOrderWithProviderBinding("recurring-order-cas-loser-binding", "{}", PaymentProviderStripe, PaymentMethodStripe, stripeSnapshotForSubscriptionRecurringTest("sub_cas_loser_binding"))
+
+	require.NoError(t, err)
+	require.NoError(t, callbackErr)
+	require.True(t, fired)
+	require.Nil(t, binding)
+
+	var bindingCount int64
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Count(&bindingCount).Error)
+	require.Zero(t, bindingCount)
+	requireSubscriptionLifecycleEventCount(t, order.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+}
+
+func TestCompleteSubscriptionOrderWithProviderBindingRepairsMissingBindingForOwnedCompletedOrder(t *testing.T) {
+	setupSubscriptionRecurringTestDB(t)
+	migrateSubscriptionRecurringTestDB(t)
+	insertUserForSubscriptionRecurringTest(t, 503)
+	insertPlanForSubscriptionRecurringTest(t, 603, "price_recurring")
+	insertOrderForSubscriptionRecurringTest(t, "recurring-order-repair-binding", 503, 603)
+	require.NoError(t, DB.Model(&SubscriptionOrder{}).
+		Where("trade_no = ?", "recurring-order-repair-binding").
+		Updates(map[string]any{"status": common.TopUpStatusSuccess, "complete_time": int64(1_700_204_000)}).Error)
+
+	snapshot := stripeSnapshotForSubscriptionRecurringTest("sub_repair_missing_binding")
+	binding, err := CompleteSubscriptionOrderWithProviderBinding("recurring-order-repair-binding", "{}", PaymentProviderStripe, PaymentMethodStripe, snapshot)
+	require.NoError(t, err)
+	require.NotNil(t, binding)
+	require.NotZero(t, binding.Id)
+	require.Equal(t, "sub_repair_missing_binding", binding.ProviderSubscriptionId)
+
+	replayed, err := CompleteSubscriptionOrderWithProviderBinding("recurring-order-repair-binding", "{}", PaymentProviderStripe, PaymentMethodStripe, snapshot)
+	require.NoError(t, err)
+	require.Equal(t, binding.Id, replayed.Id)
+
+	var bindingCount int64
+	require.NoError(t, DB.Model(&SubscriptionProviderBinding{}).Where("provider_subscription_id = ?", "sub_repair_missing_binding").Count(&bindingCount).Error)
+	require.EqualValues(t, 1, bindingCount)
 }
 
 func TestCompleteSubscriptionOrderWithProviderBindingGrantsInviteSubscriptionReward(t *testing.T) {

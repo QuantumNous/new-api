@@ -67,6 +67,8 @@ func TestMain(m *testing.M) {
 		&UserSubscription{},
 		&PerfMetric{},
 		&QuotaDataToken{},
+		&RecallLifecycleEvent{},
+		&QuotaLifecycleState{},
 		&Asset{},
 		&AssetBinding{},
 		&AssetUpload{},
@@ -111,6 +113,8 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM perf_metrics")
 		DB.Exec("DELETE FROM quota_data_tokens")
+		DB.Exec("DELETE FROM recall_lifecycle_events")
+		DB.Exec("DELETE FROM quota_lifecycle_states")
 		DB.Exec("DELETE FROM asset_uploads")
 		DB.Exec("DELETE FROM asset_bindings")
 		DB.Exec("DELETE FROM assets")
@@ -186,6 +190,127 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	assert.Equal(t, task.FailReason, snap.FailReason)
 	assert.Equal(t, task.PrivateData.ResultURL, snap.ResultURL)
 	assert.JSONEq(t, string(task.Data), string(snap.Data))
+}
+
+func TestTaskPrivateDataVideoResultJSONRoundtrip(t *testing.T) {
+	privateData := TaskPrivateData{
+		ResultURL:         "https://example.com/result.mp4",
+		SpecificChannelId: 120,
+		VideoResult: &VideoResult{
+			Bucket:      "video-results",
+			Object:      "tasks/task_1/result.mp4",
+			Generation:  123456789,
+			ContentType: "video/mp4",
+			Size:        42 << 20,
+			StoredAt:    1_700_000_000,
+			ExpiresAt:   1_700_086_400,
+		},
+	}
+
+	value, err := privateData.Value()
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"result_url":"https://example.com/result.mp4",
+		"specific_channel_id":120,
+		"video_result":{
+			"bucket":"video-results",
+			"object":"tasks/task_1/result.mp4",
+			"generation":123456789,
+			"content_type":"video/mp4",
+			"size":44040192,
+			"stored_at":1700000000,
+			"expires_at":1700086400
+		}
+	}`, string(value.([]byte)))
+
+	var roundtripped TaskPrivateData
+	require.NoError(t, roundtripped.Scan(value))
+	require.Equal(t, privateData, roundtripped)
+}
+
+func TestTaskPrivateDataVideoResultZeroValueSerializesStableShape(t *testing.T) {
+	privateData := TaskPrivateData{
+		VideoResult: &VideoResult{},
+	}
+
+	value, err := privateData.Value()
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"video_result":{
+			"bucket":"",
+			"object":"",
+			"generation":0,
+			"content_type":"",
+			"size":0,
+			"stored_at":0,
+			"expires_at":0
+		}
+	}`, string(value.([]byte)))
+}
+
+func TestTaskPrivateDataVideoResultSnapshotAndCASPreserveMetadata(t *testing.T) {
+	truncateTables(t)
+
+	metadata := &VideoResult{
+		Bucket:      "video-results",
+		Object:      "tasks/task_cas_video_result/result.mp4",
+		Generation:  987654321,
+		ContentType: "video/mp4",
+		Size:        1234,
+		StoredAt:    1_700_000_001,
+		ExpiresAt:   1_700_086_401,
+	}
+	task := &Task{
+		TaskID:   "task_cas_video_result",
+		Status:   TaskStatusInProgress,
+		Progress: "50%",
+		PrivateData: TaskPrivateData{
+			ResultURL:   "https://example.com/original.mp4",
+			VideoResult: metadata,
+		},
+		Data: json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	snap := task.Snapshot()
+	require.Equal(t, metadata, snap.VideoResult)
+	require.NotSame(t, metadata, snap.VideoResult)
+
+	task.Status = TaskStatusSuccess
+	task.Progress = "100%"
+	won, err := task.UpdateWithStatus(TaskStatusInProgress)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	require.Equal(t, metadata, reloaded.PrivateData.VideoResult)
+	require.True(t, task.Snapshot().Equal(reloaded.Snapshot()))
+}
+
+func TestTaskPrivateDataVideoResultSnapshotDetectsMetadataMutationAfterSnapshot(t *testing.T) {
+	task := &Task{
+		Status:   TaskStatusInProgress,
+		Progress: "50%",
+		PrivateData: TaskPrivateData{
+			VideoResult: &VideoResult{
+				Bucket:      "video-results",
+				Object:      "tasks/task_snapshot_mutation/result.mp4",
+				Generation:  1,
+				ContentType: "video/mp4",
+				Size:        100,
+				StoredAt:    200,
+				ExpiresAt:   300,
+			},
+		},
+		Data: json.RawMessage(`{}`),
+	}
+
+	before := task.Snapshot()
+	task.PrivateData.VideoResult.Generation = 2
+	after := task.Snapshot()
+
+	require.False(t, before.Equal(after))
 }
 
 // ---------------------------------------------------------------------------
@@ -445,6 +570,67 @@ func TestTaskPreparationLeaseTakeover(t *testing.T) {
 	require.Equal(t, constant.TaskPlatform("107"), stored.Platform)
 	require.Equal(t, 246, stored.AcceptedAccountingActualQuota)
 	require.JSONEq(t, `{"model":"seedance"}`, string(stored.NormalizedRequestPayload))
+}
+
+func TestGetQueuedAssetPreparationTasksHonorsRetrySchedule(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:                    "task_prepare_retry_schedule",
+		Status:                    TaskStatusQueued,
+		PreparationStatus:         TaskPreparationStatusPreparingAssets,
+		PreparationLeaseExpiresAt: 121,
+		NormalizedRequestPayload:  json.RawMessage(`{"model":"seedance"}`),
+		Data:                      json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	tasks, err := GetQueuedAssetPreparationTasks(120, 10)
+	require.NoError(t, err)
+	require.Empty(t, tasks, "a task scheduled for a later asset check must not be claimed early")
+
+	tasks, err = GetQueuedAssetPreparationTasks(121, 10)
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	require.Equal(t, task.TaskID, tasks[0].TaskID)
+}
+
+func TestRequeueQueuedTaskForAssetPreparationUsesLeaseFence(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:                    "task_prepare_requeue",
+		Status:                    TaskStatusQueued,
+		PreparationStatus:         TaskPreparationStatusPreparing,
+		PreparationLeaseOwner:     "node-a",
+		PreparationLeaseExpiresAt: 160,
+		NormalizedRequestPayload:  json.RawMessage(`{"model":"seedance"}`),
+		Data:                      json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	updated, err := RequeueQueuedTaskForAssetPreparation(task.TaskID, "node-b", 160, 120, 121)
+	require.NoError(t, err)
+	require.False(t, updated, "a non-owner must not reschedule asset preparation")
+
+	updated, err = RequeueQueuedTaskForAssetPreparation(task.TaskID, "node-a", 160, 120, 121)
+	require.NoError(t, err)
+	require.True(t, updated)
+
+	var stored Task
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, TaskStatusQueued, stored.Status)
+	require.Equal(t, TaskPreparationStatusPreparingAssets, stored.PreparationStatus)
+	require.Empty(t, stored.PreparationLeaseOwner)
+	require.EqualValues(t, 121, stored.PreparationLeaseExpiresAt)
+
+	claimed, err := ClaimTaskPreparationLease(task.TaskID, "node-b", stored.PreparationAttemptCount, 120, 180)
+	require.NoError(t, err)
+	require.False(t, claimed, "the task must not be claimed before its next asset check")
+
+	claimed, err = ClaimTaskPreparationLease(task.TaskID, "node-b", stored.PreparationAttemptCount, 121, 180)
+	require.NoError(t, err)
+	require.True(t, claimed, "the task becomes claimable when the next asset check is due")
 }
 
 func TestTaskQueuedTransitionCAS(t *testing.T) {

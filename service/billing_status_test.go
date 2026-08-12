@@ -2,8 +2,10 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	_ "unsafe"
 
@@ -274,6 +276,36 @@ func TestBillingSessionPreConsumeReturnsForbiddenForQuotaErrors(t *testing.T) {
 		require.Equal(t, -50, token.RemainQuota)
 		require.Equal(t, 10, token.UsedQuota)
 	})
+}
+
+func TestBillingSessionPreConsumeReturnsUpdateErrorWhenTokenRollbackFails(t *testing.T) {
+	const (
+		userID   = 10119
+		tokenID  = 10219
+		tokenKey = "billing-status-token-rollback-fails"
+	)
+	resetBillingStatusTables(t)
+	seedUser(t, userID, 1000)
+	seedToken(t, tokenID, userID, tokenKey, 1000)
+	blockTokenCreditForTest(t, tokenID, "billing_session_token_rollback_blocked")
+
+	c := newTestGinContext()
+	relayInfo := newQuotaStatusRelayInfo(userID, tokenID, tokenKey)
+	relayInfo.RequestId = "req-billing-rollback-fails"
+	session := &BillingSession{
+		relayInfo: relayInfo,
+		funding:   &billingStatusTestFunding{source: BillingSourceWallet, preConsumeErr: ErrInsufficientWalletQuota},
+	}
+
+	apiErr := session.preConsume(c, 80)
+
+	require.NotNil(t, apiErr)
+	require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
+	require.Equal(t, types.ErrorCodeUpdateDataError, apiErr.GetErrorCode())
+	require.Contains(t, apiErr.Error(), "billing_session_token_rollback_blocked")
+	require.Equal(t, 80, session.tokenConsumed, "failed rollback must keep token debt visible for compensation")
+	require.Equal(t, 920, getTokenRemainQuota(t, tokenID))
+	require.Equal(t, 80, getTokenUsedQuota(t, tokenID))
 }
 
 func TestPostConsumeQuotaTracksUnlimitedTokenQuota(t *testing.T) {
@@ -580,6 +612,61 @@ func TestPreConsumeQuotaWalletErrorsIncludeTopUpHint(t *testing.T) {
 	})
 }
 
+func TestPreConsumeQuotaReturnsUpdateErrorWhenTokenRollbackFails(t *testing.T) {
+	const (
+		userID   = 10120
+		tokenID  = 10220
+		tokenKey = "billing-status-legacy-token-rollback-fails"
+	)
+	resetBillingStatusTables(t)
+	seedUser(t, userID, 100)
+	seedToken(t, tokenID, userID, tokenKey, 200)
+	drainWalletAfterTokenDebitForTest(t, userID, tokenID)
+	blockTokenCreditForTest(t, tokenID, "legacy_token_rollback_blocked")
+
+	c := newTestGinContext()
+	c.Set("token_quota", 200)
+	relayInfo := newQuotaStatusRelayInfo(userID, tokenID, tokenKey)
+	relayInfo.RequestId = "req-legacy-rollback-fails"
+	relayInfo.ForcePreConsume = true
+
+	apiErr := PreConsumeQuota(c, 80, relayInfo)
+
+	require.NotNil(t, apiErr)
+	require.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
+	require.Equal(t, types.ErrorCodeUpdateDataError, apiErr.GetErrorCode())
+	require.Contains(t, apiErr.Error(), "legacy_token_rollback_blocked")
+	require.Zero(t, relayInfo.FinalPreConsumedQuota)
+	require.Equal(t, 120, getTokenRemainQuota(t, tokenID))
+	require.Equal(t, 80, getTokenUsedQuota(t, tokenID))
+}
+
+func TestPreConsumeQuotaPlaygroundWalletReserveFailureDoesNotCreditToken(t *testing.T) {
+	const (
+		userID   = 10121
+		tokenID  = 10221
+		tokenKey = "billing-status-playground-wallet-fails"
+	)
+	resetBillingStatusTables(t)
+	seedUser(t, userID, 100)
+	seedToken(t, tokenID, userID, tokenKey, 200)
+	blockWalletDebitForTest(t, userID, "playground_wallet_reserve_blocked")
+
+	c := newTestGinContext()
+	c.Set("token_quota", 200)
+	relayInfo := newQuotaStatusRelayInfo(userID, tokenID, tokenKey)
+	relayInfo.IsPlayground = true
+	relayInfo.ForcePreConsume = true
+
+	apiErr := PreConsumeQuota(c, 80, relayInfo)
+
+	require.NotNil(t, apiErr)
+	require.Equal(t, types.ErrorCodeUpdateDataError, apiErr.GetErrorCode())
+	require.Contains(t, apiErr.Error(), "playground_wallet_reserve_blocked")
+	require.Equal(t, 200, getTokenRemainQuota(t, tokenID))
+	require.Equal(t, 0, getTokenUsedQuota(t, tokenID))
+}
+
 func TestBillingSessionReserveMethodsReturnForbiddenForQuotaErrors(t *testing.T) {
 	t.Run("reserve token quota exhausted", func(t *testing.T) {
 		const (
@@ -619,5 +706,50 @@ func TestBillingSessionReserveMethodsReturnForbiddenForQuotaErrors(t *testing.T)
 		err := session.reserveFunding(2)
 
 		requireAPIStatusCode(t, err, http.StatusForbidden)
+	})
+}
+
+func blockTokenCreditForTest(t *testing.T, tokenID int, message string) {
+	t.Helper()
+	triggerName := "test_block_token_credit_" + strings.ReplaceAll(message, "-", "_")
+	require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+	require.NoError(t, model.DB.Exec(fmt.Sprintf(
+		"CREATE TRIGGER %s BEFORE UPDATE OF remain_quota ON tokens "+
+			"WHEN OLD.id = %d AND NEW.remain_quota > OLD.remain_quota "+
+			"BEGIN SELECT RAISE(ABORT, '%s'); END",
+		triggerName, tokenID, message,
+	)).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+	})
+}
+
+func drainWalletAfterTokenDebitForTest(t *testing.T, userID int, tokenID int) {
+	t.Helper()
+	const triggerName = "test_drain_wallet_after_token_debit"
+	require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+	require.NoError(t, model.DB.Exec(fmt.Sprintf(
+		"CREATE TRIGGER %s AFTER UPDATE OF remain_quota ON tokens "+
+			"WHEN OLD.id = %d AND NEW.remain_quota < OLD.remain_quota "+
+			"BEGIN UPDATE users SET quota = 0 WHERE id = %d; END",
+		triggerName, tokenID, userID,
+	)).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+	})
+}
+
+func blockWalletDebitForTest(t *testing.T, userID int, message string) {
+	t.Helper()
+	triggerName := "test_block_wallet_debit_" + strings.ReplaceAll(message, "-", "_")
+	require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
+	require.NoError(t, model.DB.Exec(fmt.Sprintf(
+		"CREATE TRIGGER %s BEFORE UPDATE OF quota ON users "+
+			"WHEN OLD.id = %d AND NEW.quota < OLD.quota "+
+			"BEGIN SELECT RAISE(ABORT, '%s'); END",
+		triggerName, userID, message,
+	)).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Exec("DROP TRIGGER IF EXISTS "+triggerName).Error)
 	})
 }

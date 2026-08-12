@@ -59,6 +59,16 @@ func performSubscriptionSelfPurchaseRequest(body string, handler gin.HandlerFunc
 	return recorder
 }
 
+func migrateSubscriptionControllerRecallLifecycle(t *testing.T) {
+	t.Helper()
+	require.NoError(t, model.DB.AutoMigrate(&model.RecallLifecycleEvent{}))
+}
+
+func migrateSubscriptionControllerQuotaLifecycle(t *testing.T) {
+	t.Helper()
+	require.NoError(t, model.DB.AutoMigrate(&model.QuotaLifecycleState{}))
+}
+
 func grantSubscriptionSelfPurchaseInvitationDiscount(t *testing.T, userID int, amountUSDMinor int64, key string) {
 	t.Helper()
 	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
@@ -619,6 +629,7 @@ func TestSubscriptionSelfPurchaseRejectsTamperedQuotePayload(t *testing.T) {
 func TestSubscriptionSelfPurchaseCreatesOneTimeStripeCheckoutAndReplaysURL(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerRecallLifecycle(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "controller-subscription-quote-secret"
@@ -684,6 +695,7 @@ func TestSubscriptionSelfPurchaseCreatesOneTimeStripeCheckoutAndReplaysURL(t *te
 func TestSubscriptionSelfPurchaseReplaysExistingOneTimeWhenCurrentQuoteUnavailable(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerRecallLifecycle(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "controller-subscription-replay-before-quote-secret"
@@ -728,6 +740,8 @@ func TestSubscriptionSelfPurchaseReplaysExistingOneTimeWhenCurrentQuoteUnavailab
 func TestSubscriptionSelfPurchaseOneTimeZeroTotalInvitationCompletesLocally(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerRecallLifecycle(t)
+	migrateSubscriptionControllerQuotaLifecycle(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "controller-subscription-zero-invitation-secret"
@@ -790,6 +804,7 @@ func TestSubscriptionSelfPurchaseStripeRecurringRecallFailsClosedBeforeCheckout(
 		&model.RecallRecipient{},
 		&model.RecallMessage{},
 		&model.RecallEvent{},
+		&model.RecallLifecycleEvent{},
 	))
 	setRecallControllerEnabled(t, true)
 	insertSubscriptionControllerUser(t, 9117)
@@ -884,6 +899,7 @@ func TestSubscriptionSelfPurchaseStripeRecurringRecallFailsClosedBeforeCheckout(
 func TestSubscriptionSelfPurchaseStripeRecurringNoDiscountCreatesCheckout(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerRecallLifecycle(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "controller-subscription-recurring-no-discount-secret"
@@ -1423,6 +1439,7 @@ func TestSubscriptionSelfOneTimeReplayRejectsSessionWithoutURLOrClientSecret(t *
 func TestSubscriptionSelfPurchaseReplacesPendingOneTimeStripeCheckoutForNewRequest(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerRecallLifecycle(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "controller-subscription-replace-secret"
@@ -1849,6 +1866,7 @@ func TestSubscriptionSelfPurchaseAcceptsLegacyNoDiscountQuoteAfterNormalization(
 func TestSubscriptionSelfPurchaseRecurringInvitationQuoteCreatesReservedCheckout(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerRecallLifecycle(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.TopUp{}))
 	originalSecret := common.CryptoSecret
 	common.CryptoSecret = "controller-subscription-recurring-invitation-secret"

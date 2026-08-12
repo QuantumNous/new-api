@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -52,8 +53,12 @@ func TestMain(m *testing.M) {
 		&model.Log{},
 		&model.Channel{},
 		&model.TopUp{},
+		&model.SubscriptionPlan{},
 		&model.UserSubscription{},
 		&model.UserSubscriptionContract{},
+		&model.SubscriptionPreConsumeRecord{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -69,7 +74,7 @@ func TestAcceptedTaskSubscriptionFundingConcurrentDeltasDoNotLoseUpdate(t *testi
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.TaskAcceptedAccountingLedger{}, &model.UserSubscription{}))
+	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.TaskAcceptedAccountingLedger{}, &model.User{}, &model.UserSubscription{}, &model.RecallLifecycleEvent{}, &model.QuotaLifecycleState{}))
 	model.DB = db
 	model.LOG_DB = db
 	defer func() {
@@ -78,6 +83,12 @@ func TestAcceptedTaskSubscriptionFundingConcurrentDeltasDoNotLoseUpdate(t *testi
 		_ = sqlDB.Close()
 	}()
 
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       7,
+		Username: "accepted_subscription_concurrent",
+		Status:   common.UserStatusEnabled,
+		AffCode:  "accepted_subscription_concurrent",
+	}).Error)
 	require.NoError(t, model.DB.Create(&model.UserSubscription{
 		Id:          7001,
 		UserId:      7,
@@ -149,6 +160,9 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscription_contracts")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		model.DB.Exec("DELETE FROM subscription_pre_consume_records")
+		model.DB.Exec("DELETE FROM recall_lifecycle_events")
+		model.DB.Exec("DELETE FROM quota_lifecycle_states")
 	})
 }
 
@@ -174,9 +188,18 @@ func seedToken(t *testing.T, id int, userId int, key string, remainQuota int) {
 
 func seedSubscription(t *testing.T, id int, userId int, amountTotal int64, amountUsed int64) {
 	t.Helper()
+	plan := &model.SubscriptionPlan{
+		Title:         "test plan " + strconv.Itoa(id),
+		DurationValue: 1,
+		DurationUnit:  model.SubscriptionDurationMonth,
+		TotalAmount:   amountTotal,
+		Enabled:       true,
+	}
+	require.NoError(t, model.DB.Create(plan).Error)
 	sub := &model.UserSubscription{
 		Id:          id,
 		UserId:      userId,
+		PlanId:      plan.Id,
 		AmountTotal: amountTotal,
 		AmountUsed:  amountUsed,
 		Status:      "active",
@@ -195,13 +218,27 @@ func seedChannel(t *testing.T, id int) {
 func restoreRatioSettings(t *testing.T) {
 	t.Helper()
 
+	originalModelPrice := ratio_setting.ModelPrice2JSONString()
 	originalModelRatio := ratio_setting.ModelRatio2JSONString()
+	originalCompletionRatio := ratio_setting.CompletionRatio2JSONString()
+	originalCacheRatio := ratio_setting.CacheRatio2JSONString()
+	originalCreateCacheRatio := ratio_setting.CreateCacheRatio2JSONString()
+	originalImageRatio := ratio_setting.ImageRatio2JSONString()
+	originalAudioRatio := ratio_setting.AudioRatio2JSONString()
+	originalAudioCompletionRatio := ratio_setting.AudioCompletionRatio2JSONString()
 	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
 	originalGroupGroupRatio := ratio_setting.GroupGroupRatio2JSONString()
 	originalGroupModelRatio := ratio_setting.GroupModelRatio2JSONString()
 
 	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(originalModelPrice))
 		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(originalModelRatio))
+		require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(originalCompletionRatio))
+		require.NoError(t, ratio_setting.UpdateCacheRatioByJSONString(originalCacheRatio))
+		require.NoError(t, ratio_setting.UpdateCreateCacheRatioByJSONString(originalCreateCacheRatio))
+		require.NoError(t, ratio_setting.UpdateImageRatioByJSONString(originalImageRatio))
+		require.NoError(t, ratio_setting.UpdateAudioRatioByJSONString(originalAudioRatio))
+		require.NoError(t, ratio_setting.UpdateAudioCompletionRatioByJSONString(originalAudioCompletionRatio))
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
 		require.NoError(t, ratio_setting.UpdateGroupGroupRatioByJSONString(originalGroupGroupRatio))
 		require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(originalGroupModelRatio))
@@ -334,34 +371,46 @@ func TestLogTaskConsumptionIncludesGroupModelRatioSource(t *testing.T) {
 // ===========================================================================
 
 func TestRefundTaskQuota_Wallet(t *testing.T) {
-	truncate(t)
-	ctx := context.Background()
+	for _, tc := range []struct {
+		name     string
+		platform constant.TaskPlatform
+	}{
+		{name: "task_video", platform: constant.TaskPlatformSuno},
+		{name: "midjourney", platform: constant.TaskPlatformMidjourney},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncate(t)
+			ctx := context.Background()
 
-	const userID, tokenID, channelID = 1, 1, 1
-	const initQuota, preConsumed = 10000, 3000
-	const tokenRemain = 5000
+			const initQuota, preConsumed = 10000, 3000
+			const tokenRemain = 5000
+			userID := 100 + len(tc.name)
+			tokenID := 200 + len(tc.name)
+			channelID := 300 + len(tc.name)
 
-	seedUser(t, userID, initQuota)
-	seedToken(t, tokenID, userID, "sk-test-key", tokenRemain)
-	seedChannel(t, channelID)
+			seedUser(t, userID, initQuota)
+			seedToken(t, tokenID, userID, "sk-test-key-"+tc.name, tokenRemain)
+			seedChannel(t, channelID)
 
-	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+			task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+			task.Platform = tc.platform
 
-	RefundTaskQuota(ctx, task, "task failed: upstream error")
+			RefundTaskQuota(ctx, task, "task failed: upstream error")
 
-	// User quota should increase by preConsumed
-	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+			assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+			requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), initQuota+preConsumed)
+			assert.Equal(t, int64(0), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
 
-	// Token remain_quota should increase, used_quota should decrease
-	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
-	assert.Equal(t, -preConsumed, getTokenUsedQuota(t, tokenID))
+			assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
+			assert.Equal(t, -preConsumed, getTokenUsedQuota(t, tokenID))
 
-	// A refund log should be created
-	log := getLastLog(t)
-	require.NotNil(t, log)
-	assert.Equal(t, model.LogTypeRefund, log.Type)
-	assert.Equal(t, preConsumed, log.Quota)
-	assert.Equal(t, "test-model", log.ModelName)
+			log := getLastLog(t)
+			require.NotNil(t, log)
+			assert.Equal(t, model.LogTypeRefund, log.Type)
+			assert.Equal(t, preConsumed, log.Quota)
+			assert.Equal(t, "test-model", log.ModelName)
+		})
+	}
 }
 
 func TestRefundTaskQuota_Subscription(t *testing.T) {
@@ -767,6 +816,8 @@ func TestCASGuardedRefund_Win(t *testing.T) {
 
 	// Refund should have happened
 	assert.Equal(t, initQuota+preConsumed, getUserQuota(t, userID))
+	requireLifecycleStateForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID), initQuota+preConsumed)
+	assert.Equal(t, int64(0), countLifecycleEventsForServiceTest(t, userID, model.QuotaLifecycleScopeWallet, strconv.Itoa(userID)))
 	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
 
 	log := getLastLog(t)
@@ -988,15 +1039,18 @@ func TestSettle_NonPerCallSeedance_UsesTotalTokensAndScenarioRatio(t *testing.T)
 	seedToken(t, tokenID, userID, "sk-seedance-token-settle", tokenRemain)
 	seedChannel(t, channelID)
 
-	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"seedance-2.0":0.391}`))
+	ratio_setting.InitRatioSettings()
+	modelRatio, ok, _ := ratio_setting.GetModelRatio("seedance-2.0")
+	require.True(t, ok, "seedance-2.0 default model ratio must be registered")
+	require.Equal(t, 3.5, modelRatio)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
 	task.Properties.OriginModelName = "seedance-2.0"
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
 		ModelPrice:      -1,
-		ModelRatio:      0.391,
+		ModelRatio:      modelRatio,
 		GroupRatio:      1,
-		OtherRatios:     map[string]float64{"video_input": 28.0 / 46.0},
+		OtherRatios:     map[string]float64{"video_input": 43.0 / 70.0},
 		OriginModelName: "seedance-2.0",
 		PerCallBilling:  false,
 	}
@@ -1009,7 +1063,7 @@ func TestSettle_NonPerCallSeedance_UsesTotalTokensAndScenarioRatio(t *testing.T)
 
 	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
 
-	const actualQuota = 238
+	const actualQuota = 2150
 	const quotaDelta = actualQuota - preConsumed
 	assert.Equal(t, actualQuota, task.Quota)
 	assert.Equal(t, initQuota-quotaDelta, getUserQuota(t, userID))

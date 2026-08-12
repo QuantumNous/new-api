@@ -254,6 +254,19 @@ describe('API key model access state', () => {
     })
   })
 
+  test('applies the blacklist after the allowlist', () => {
+    const state = getApiKeyModelAccessState(
+      buildAccess(),
+      'ordinary',
+      true,
+      ['scope-family'],
+      true,
+      ['scope-family']
+    )
+
+    expect(state.effectiveModels).toEqual([])
+  })
+
   test('keeps auto ratio context empty instead of falling back to identity', () => {
     const state = getApiKeyModelAccessState(buildAccess(), 'auto', false, [])
 

@@ -39,7 +39,12 @@ export type ApiKeyModelAccessDirtyFields = Partial<
 
 export type ApiKeyModelAccessValues = Pick<
   ApiKeyFormValues,
-  'group' | 'model_limits_enabled' | 'model_limits' | 'cross_group_retry'
+  | 'group'
+  | 'model_limits_enabled'
+  | 'model_limits'
+  | 'model_blacklist_enabled'
+  | 'model_blacklist'
+  | 'cross_group_retry'
 >
 
 export function getApiKeyModelPreviewPlacement(
@@ -79,6 +84,8 @@ export function requiresModelAccessForApiKeyMutation(
     dirtyFields.group ||
     dirtyFields.model_limits_enabled ||
     dirtyFields.model_limits ||
+    dirtyFields.model_blacklist_enabled ||
+    dirtyFields.model_blacklist ||
     dirtyFields.cross_group_retry
   )
   if (isUpdate) return hasModelAccessChanges
@@ -88,6 +95,8 @@ export function requiresModelAccessForApiKeyMutation(
     values.group ||
     values.model_limits_enabled ||
     values.model_limits.length > 0 ||
+    values.model_blacklist_enabled ||
+    values.model_blacklist.length > 0 ||
     values.cross_group_retry
   )
 }

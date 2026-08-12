@@ -75,8 +75,17 @@ func setupSubscriptionControllerTestDB(t *testing.T) {
 		&model.WalletLedgerEntry{},
 		&model.SubscriptionDiscountAccount{},
 		&model.SubscriptionDiscountEntry{},
+		&model.RecallLifecycleEvent{},
+		&model.QuotaLifecycleState{},
 		&model.TopUp{},
 	))
+}
+
+func TestSubscriptionControllerFixtureMigratesLifecycleTables(t *testing.T) {
+	setupSubscriptionControllerTestDB(t)
+
+	require.True(t, model.DB.Migrator().HasTable(&model.RecallLifecycleEvent{}))
+	require.True(t, model.DB.Migrator().HasTable(&model.QuotaLifecycleState{}))
 }
 
 func insertSubscriptionControllerUser(t *testing.T, id int) {

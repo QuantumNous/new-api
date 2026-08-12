@@ -96,6 +96,27 @@ func TestModelAvailabilityProbeConfigMarksMediaModelsUntestable(t *testing.T) {
 
 	_, _, bytePlusTestable := modelAvailabilityProbeConfig("some-model", constant.ChannelTypeBytePlus)
 	require.False(t, bytePlusTestable)
+
+	// HappyHorse is served through Ali's general-purpose channel type, but its
+	// models use the async video task API and must never receive a chat probe.
+	for _, modelName := range []string{
+		"happyhorse-1.1-t2v",
+		"happyhorse-1.1-i2v",
+		"happyhorse-1.1-r2v",
+		"happyhorse-1.0-video-edit",
+	} {
+		_, _, happyHorseTestable := modelAvailabilityProbeConfig(modelName, constant.ChannelTypeAli)
+		require.False(t, happyHorseTestable, modelName)
+	}
+
+	// Other Ali models still use their normal synchronous availability probe.
+	_, _, aliTextTestable := modelAvailabilityProbeConfig("qwen-plus", constant.ChannelTypeAli)
+	require.True(t, aliTextTestable)
+
+	// MiniMax-H3 also uses an asynchronous endpoint and cannot be verified by
+	// the synchronous chat availability probe.
+	_, _, minimaxH3Testable := modelAvailabilityProbeConfig("MiniMax-H3", constant.ChannelTypeOpenAI)
+	require.False(t, minimaxH3Testable)
 }
 
 func TestModelAvailabilityProbeConfigUsesEmbeddingEndpointForEmbeddingModels(t *testing.T) {

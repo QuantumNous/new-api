@@ -164,7 +164,7 @@ type SubscriptionPlan struct {
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
 
 	// Display money amount (follow existing code style: float64 for money)
-	PriceAmount float64  `json:"price_amount" gorm:"type:decimal(10,6);not null;default:0"`
+	PriceAmount float64  `json:"price_amount" gorm:"type:decimal(10,6);not null;default:0.000000"`
 	Currency    string   `json:"currency" gorm:"type:varchar(8);not null;default:'USD'"`
 	PixPriceBRL *float64 `json:"pix_price_brl" gorm:"type:decimal(10,6)"`
 	UpiPriceINR *float64 `json:"upi_price_inr" gorm:"type:decimal(10,6)"`
@@ -580,7 +580,7 @@ type SubscriptionOrder struct {
 	CompleteTime    int64  `json:"complete_time"`
 
 	PurchaseMonths     int     `json:"purchase_months" gorm:"type:int;not null;default:0"`
-	UnitPrice          float64 `json:"unit_price" gorm:"type:decimal(10,6);not null;default:0"`
+	UnitPrice          float64 `json:"unit_price" gorm:"type:decimal(10,6);not null;default:0.000000"`
 	PaymentCurrency    string  `json:"payment_currency" gorm:"type:varchar(8);not null;default:'USD';index"`
 	PaymentAmountMinor int64   `json:"payment_amount_minor" gorm:"type:bigint;not null;default:0"`
 	PlanSnapshot       string  `json:"plan_snapshot" gorm:"type:text"`
@@ -615,7 +615,24 @@ func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
 	}
-	return DB.Create(o).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(o).Error; err != nil {
+			return err
+		}
+		if normalizePurchaseLifecycleStatus(o.Status) != common.TopUpStatusPending {
+			return nil
+		}
+		_, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(o.Id),
+			TradeNo:    o.TradeNo,
+			UserID:     o.UserId,
+			ToStatus:   common.TopUpStatusPending,
+			OccurredAt: o.CreateTime,
+			SourceRef:  "subscription_order.insert",
+		})
+		return err
+	})
 }
 
 func (o *SubscriptionOrder) Update() error {
@@ -964,6 +981,10 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 }
 
 func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, providerBindingId int64) (*UserSubscription, error) {
+	return createUserSubscriptionFromPlanWithCycleTx(tx, userId, plan, source, providerBindingId, "")
+}
+
+func createUserSubscriptionFromPlanWithCycleTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, providerBindingId int64, cycleKey string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -984,7 +1005,7 @@ func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -1037,6 +1058,27 @@ func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
 	}
+	mutation := LifecycleQuotaMutation{
+		UserID:     userId,
+		ScopeType:  QuotaLifecycleScopeSubscription,
+		ScopeID:    int64(sub.Id),
+		Cause:      "subscription_adjustment",
+		SourceRef:  source,
+		OccurredAt: nowUnix,
+	}
+	if source != "admin" {
+		mutation.Cause = "subscription_purchase"
+		if strings.TrimSpace(cycleKey) != "" {
+			mutation.NextCycleKey = strings.TrimSpace(cycleKey)
+			mutation.NextCycleSource = strings.TrimSpace(cycleKey)
+		} else {
+			mutation.NextCycleKey = fmt.Sprintf("subscription:%d:%d", sub.Id, sub.StartTime)
+			mutation.NextCycleSource = source
+		}
+	}
+	if _, err := ApplyLifecycleQuotaMutation(tx, mutation); err != nil {
+		return nil, err
+	}
 	return sub, nil
 }
 
@@ -1073,10 +1115,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			analyticsPlanTitle = "Subscription"
 			return nil
 		}
-		if order.Status != common.TopUpStatusPending {
+		if !purchaseLifecycleStatusAllowed(normalizePurchaseLifecycleStatus(order.Status), subscriptionSuccessFromStatuses()) {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -1084,12 +1126,40 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		applied, err := persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: subscriptionSuccessFromStatuses(),
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: common.GetTimestamp(),
+			SourceRef:  "subscription_order.complete",
+		}, func(tx *gorm.DB, locked *SubscriptionOrder, transition *PurchaseLifecycleTransition) error {
+			if providerPayload != "" {
+				locked.ProviderPayload = providerPayload
+			}
+			if actualPaymentMethod != "" && locked.PaymentMethod != actualPaymentMethod {
+				locked.PaymentMethod = actualPaymentMethod
+			}
+			sub, err := createUserSubscriptionFromPlanWithCycleTx(tx, locked.UserId, plan, "order", 0, subscriptionOrderLifecycleCycleKey(locked.Id, locked.TradeNo))
+			if err != nil {
+				return err
+			}
+			transition.SubscriptionScopeID = int64(sub.Id)
+			if err := upsertSubscriptionTopUpTx(tx, locked); err != nil {
+				return err
+			}
+			return tx.Model(&SubscriptionOrder{}).Where("id = ?", locked.Id).Updates(map[string]any{
+				"provider_payload": locked.ProviderPayload,
+				"payment_method":   locked.PaymentMethod,
+			}).Error
+		})
 		if err != nil {
 			return err
 		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
-			return err
+		if !applied {
+			return nil
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
@@ -1098,9 +1168,6 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
 			order.PaymentMethod = actualPaymentMethod
-		}
-		if err := tx.Save(&order).Error; err != nil {
-			return err
 		}
 		logUserId = order.UserId
 		logPlanTitle = plan.Title
@@ -1278,12 +1345,20 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
-		if order.Status != common.TopUpStatusPending {
+		_, err := PersistPurchaseLifecycleTransition(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusExpired,
+			OccurredAt: common.GetTimestamp(),
+			SourceRef:  "subscription_order.expire",
+		})
+		if errors.Is(err, ErrSubscriptionOrderStatusInvalid) {
 			return nil
 		}
-		order.Status = common.TopUpStatusExpired
-		order.CompleteTime = common.GetTimestamp()
-		return tx.Save(&order).Error
+		return err
 	})
 }
 
@@ -1364,22 +1439,22 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			return err
 		}
 
-		var user User
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("id = ?", userId).First(&user).Error; err != nil {
-			return err
-		}
-		if requiredQuota > 0 && user.Quota < requiredQuota {
-			return errors.New("余额不足")
-		}
 		if requiredQuota > 0 {
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("quota", gorm.Expr("quota - ?", requiredQuota)).Error; err != nil {
+			result, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+				UserID:         userId,
+				ScopeType:      QuotaLifecycleScopeWallet,
+				ScopeID:        int64(userId),
+				Delta:          -int64(requiredQuota),
+				RequireAtLeast: int64(requiredQuota),
+				Cause:          "subscription_balance_debit",
+				SourceRef:      "PurchaseSubscriptionWithBalance",
+			})
+			if err != nil {
 				return err
 			}
-		}
-
-		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance); err != nil {
-			return err
+			if !result.Applied {
+				return errors.New("余额不足")
+			}
 		}
 
 		now := common.GetTimestamp()
@@ -1392,9 +1467,8 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			TradeNo:         tradeNo,
 			PaymentMethod:   PaymentMethodBalance,
 			PaymentProvider: PaymentProviderBalance,
-			Status:          common.TopUpStatusSuccess,
+			Status:          common.TopUpStatusPending,
 			CreateTime:      now,
-			CompleteTime:    now,
 			ProviderPayload: fmt.Sprintf("charged_quota=%d", requiredQuota),
 		}
 		if err := tx.Create(order).Error; err != nil {
@@ -1403,9 +1477,31 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 
 		// 让余额购买的订阅也进入计费历史（与网关支付订阅一致，见 CompleteSubscriptionOrder）。
 		// 记录为一笔 method=balance 的成功付款，Money=套餐价，Amount=0（不加钱包余额）。
-		if err := upsertSubscriptionTopUpTx(tx, order); err != nil {
+		applied, err := persistPurchaseLifecycleSubscriptionTransitionWithWinner(tx, PurchaseLifecycleTransition{
+			Kind:       PurchaseLifecycleKindSubscription,
+			SourceID:   int64(order.Id),
+			TradeNo:    order.TradeNo,
+			UserID:     order.UserId,
+			FromStatus: []string{common.TopUpStatusPending},
+			ToStatus:   common.TopUpStatusSuccess,
+			OccurredAt: now,
+			SourceRef:  "subscription_order.balance_purchase",
+		}, func(tx *gorm.DB, locked *SubscriptionOrder, transition *PurchaseLifecycleTransition) error {
+			sub, err := createUserSubscriptionFromPlanWithCycleTx(tx, locked.UserId, plan, PaymentMethodBalance, 0, subscriptionOrderLifecycleCycleKey(locked.Id, locked.TradeNo))
+			if err != nil {
+				return err
+			}
+			transition.SubscriptionScopeID = int64(sub.Id)
+			return upsertSubscriptionTopUpTx(tx, locked)
+		})
+		if err != nil {
 			return err
 		}
+		if !applied {
+			return ErrSubscriptionOrderStatusInvalid
+		}
+		order.Status = common.TopUpStatusSuccess
+		order.CompleteTime = now
 
 		logPlanTitle = plan.Title
 		logMoney = chargedPrice
@@ -1921,11 +2017,28 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		}
 		return nil
 	}
+	if _, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+		UserID:          sub.UserId,
+		ScopeType:       QuotaLifecycleScopeSubscription,
+		ScopeID:         int64(sub.Id),
+		Delta:           sub.AmountUsed,
+		Cause:           "subscription_renewal",
+		SourceRef:       "ResetDueSubscriptions",
+		NextCycleKey:    fmt.Sprintf("subscription:%d:%d", sub.Id, base.Unix()),
+		NextCycleSource: "reset",
+		OccurredAt:      now,
+	}); err != nil {
+		return err
+	}
 	sub.AmountUsed = 0
 	sub.MediaCreditsUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
-	return tx.Save(sub).Error
+	return tx.Model(&UserSubscription{}).Where("id = ?", sub.Id).Updates(map[string]interface{}{
+		"media_credits_used": 0,
+		"last_reset_time":    sub.LastResetTime,
+		"next_reset_time":    sub.NextResetTime,
+	}).Error
 }
 
 // PreConsumeUserSubscription pre-consumes quota from the user's current contract entitlement,
@@ -2000,15 +2113,34 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				}
 				return err
 			}
-			sub.AmountUsed += amount
-			if err := tx.Save(&sub).Error; err != nil {
+			applied, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+				UserID:         userId,
+				ScopeType:      QuotaLifecycleScopeSubscription,
+				ScopeID:        int64(sub.Id),
+				Delta:          -amount,
+				RequireAtLeast: amount,
+				Cause:          "subscription_pre_consume",
+				SourceRef:      requestId,
+			})
+			if err != nil {
 				return err
+			}
+			if !applied.Applied {
+				return insufficientSubscriptionQuotaError(amount)
 			}
 			returnValue.UserSubscriptionId = sub.Id
 			returnValue.PreConsumed = amount
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
-			returnValue.AmountUsedAfter = sub.AmountUsed
+			if sub.AmountTotal == 0 {
+				usedAfter, err := checkedLifecycleQuotaAdd(usedBefore, amount)
+				if err != nil {
+					return err
+				}
+				returnValue.AmountUsedAfter = usedAfter
+			} else {
+				returnValue.AmountUsedAfter = sub.AmountTotal - applied.CurrentBalance
+			}
 			return nil
 		}
 		return insufficientSubscriptionQuotaError(amount)
@@ -2042,8 +2174,7 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("request_id = ?", requestId).First(&record).Error; err != nil {
+		if err := lockQuery(tx).Where("request_id = ?", requestId).First(&record).Error; err != nil {
 			return err
 		}
 		if record.Status == "refunded" {
@@ -2053,7 +2184,7 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		if err := postConsumeUserSubscriptionDeltaTx(tx, record.UserSubscriptionId, -record.PreConsumed, "subscription_refund", "RefundSubscriptionPreConsume"); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -2086,7 +2217,7 @@ func ResetDueSubscriptions(limit int) (int, error) {
 		}
 		err = DB.Transaction(func(tx *gorm.DB) error {
 			var locked UserSubscription
-			if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			if err := lockQuery(tx).
 				Where("id = ? AND next_reset_time > 0 AND next_reset_time <= ?", subCopy.Id, now).
 				First(&locked).Error; err != nil {
 				return nil
@@ -2159,20 +2290,28 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var sub UserSubscription
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("id = ?", userSubscriptionId).
-			First(&sub).Error; err != nil {
-			return err
-		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
-			newUsed = 0
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta, "subscription_adjustment", "PostConsumeUserSubscriptionDelta")
 	})
+}
+
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64, cause string, sourceRef string) error {
+	var sub UserSubscription
+	if err := lockQuery(tx).
+		Where("id = ?", userSubscriptionId).
+		First(&sub).Error; err != nil {
+		return err
+	}
+	mutationDelta, err := checkedLifecycleQuotaNeg(delta)
+	if err != nil {
+		return err
+	}
+	_, err = ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+		UserID:    sub.UserId,
+		ScopeType: QuotaLifecycleScopeSubscription,
+		ScopeID:   int64(userSubscriptionId),
+		Delta:     mutationDelta,
+		Cause:     cause,
+		SourceRef: sourceRef,
+	})
+	return err
 }

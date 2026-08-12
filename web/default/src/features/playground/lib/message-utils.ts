@@ -226,6 +226,44 @@ export function parseThinkTags(content: string): {
   }
 }
 
+export interface GeneratedImageMarkdown {
+  alt: string
+  src: string
+  downloadName: string
+}
+
+/**
+ * Separate base64 image markdown from the surrounding assistant text so the
+ * Playground can render generated images without passing multi-megabyte data
+ * URLs through the streaming Markdown parser.
+ */
+export function splitGeneratedImageMarkdown(content: string): {
+  text: string
+  images: GeneratedImageMarkdown[]
+  hasPendingImage: boolean
+} {
+  const images: GeneratedImageMarkdown[] = []
+  const imagePattern =
+    /!\[([^\]\r\n]*)\]\((data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\r\n]+)\)/gi
+  const pendingImagePattern =
+    /!\[[^\]\r\n]*\]\(data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\r\n]*$/i
+
+  let hasPendingImage = false
+  const text = content
+    .replace(imagePattern, (_match, alt: string, src: string, type: string) => {
+      const extension = type.toLowerCase().replace('jpeg', 'jpg')
+      const downloadName = `generated-image-${images.length + 1}.${extension}`
+      images.push({ alt, src, downloadName })
+      return ''
+    })
+    .replace(pendingImagePattern, () => {
+      hasPendingImage = true
+      return ''
+    })
+
+  return { text: text.trim(), images, hasPendingImage }
+}
+
 /**
  * Update the last assistant message with an error
  * @param messages - Current messages array

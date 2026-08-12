@@ -341,6 +341,7 @@ describe('available models browser filters', () => {
     expect(getModelEndpointLabel('openai-response', t)).toBe(
       'OpenAI Compatible'
     )
+    expect(getModelEndpointLabel('openai-video', t)).toBe('Video')
     expect(getModelEndpointLabel('anthropic', t)).toBe('Anthropic Compatible')
     expect(getModelEndpointLabel('gemini', t)).toBe('Gemini Compatible')
     expect(getModelEndpointLabel('jina-rerank', t)).toBe('jina-rerank')

@@ -28,7 +28,7 @@ const translate = (key: string) => {
 }
 
 describe('top navigation links', () => {
-  test('keeps Home and Blog before the official website navigation', () => {
+  test('omits Home, Rankings, and Playground from console navigation', () => {
     const links = buildTopNavLinks({
       translate,
       language: 'en',
@@ -42,33 +42,38 @@ describe('top navigation links', () => {
     assert.deepEqual(
       links.map((link) => [link.title, link.href]),
       [
-        ['Home', '/'],
         ['Blog', '/blog'],
         ['Models', '/models'],
         ['Docs', 'https://docs.flatkey.ai/'],
-        ['Playground', '/playground'],
-        ['Rankings', '/models#leaderboard'],
         ['Pricing', '/pricing'],
         ['Compute', '/compute'],
         ['Use cases', '/usecases'],
       ]
     )
-  })
-
-  test('preserves pricing and rankings access controls', () => {
-    const links = buildTopNavLinks({
-      translate,
-      modules: parseHeaderNavModules({
-        pricing: { enabled: true, requireAuth: true },
-        rankings: { enabled: false, requireAuth: false },
-      }),
-      isAuthed: false,
-    })
-
+    assert.equal(
+      links.some((link) => link.title === 'Home'),
+      false
+    )
     assert.equal(
       links.some((link) => link.title === 'Rankings'),
       false
     )
+    assert.equal(
+      links.some((link) => link.title === 'Playground'),
+      false
+    )
+  })
+
+  test('preserves pricing access control', () => {
+    const links = buildTopNavLinks({
+      translate,
+      modules: parseHeaderNavModules({
+        pricing: { enabled: true, requireAuth: true },
+        rankings: { enabled: true, requireAuth: false },
+      }),
+      isAuthed: false,
+    })
+
     assert.equal(
       links.find((link) => link.title === 'Pricing')?.requiresAuth,
       true

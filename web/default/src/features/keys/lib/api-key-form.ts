@@ -35,6 +35,8 @@ export function getApiKeyFormSchema(t: TFunction) {
       unlimited_quota: z.boolean(),
       model_limits_enabled: z.boolean(),
       model_limits: z.array(z.string()),
+      model_blacklist_enabled: z.boolean(),
+      model_blacklist: z.array(z.string()),
       allow_ips: z.string().optional(),
       group: z.string().optional(),
       cross_group_retry: z.boolean().optional(),
@@ -71,6 +73,8 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   unlimited_quota: true,
   model_limits_enabled: false,
   model_limits: [],
+  model_blacklist_enabled: false,
+  model_blacklist: [],
   allow_ips: '',
   group: DEFAULT_GROUP,
   cross_group_retry: true,
@@ -121,6 +125,8 @@ export function transformFormDataToPayload(
     unlimited_quota: data.unlimited_quota,
     model_limits_enabled: data.model_limits_enabled,
     model_limits: data.model_limits.join(','),
+    model_blacklist_enabled: data.model_blacklist_enabled,
+    model_blacklist: data.model_blacklist.join(','),
     allow_ips: data.allow_ips || '',
     group,
     cross_group_retry: group === 'auto' ? !!data.cross_group_retry : false,
@@ -146,6 +152,10 @@ export function transformApiKeyToFormDefaults(
     model_limits_enabled: apiKey.model_limits_enabled,
     model_limits: apiKey.model_limits
       ? apiKey.model_limits.split(',').filter(Boolean)
+      : [],
+    model_blacklist_enabled: apiKey.model_blacklist_enabled,
+    model_blacklist: apiKey.model_blacklist
+      ? apiKey.model_blacklist.split(',').filter(Boolean)
       : [],
     allow_ips: apiKey.allow_ips || '',
     group: apiKey.group ?? '',

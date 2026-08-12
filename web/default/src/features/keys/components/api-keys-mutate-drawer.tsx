@@ -349,8 +349,11 @@ export function ApiKeysMutateDrawer({
   const selectedGroup = form.watch('group')
   const modelLimitsEnabled = form.watch('model_limits_enabled')
   const modelLimits = form.watch('model_limits')
+  const modelBlacklistEnabled = form.watch('model_blacklist_enabled')
+  const modelBlacklist = form.watch('model_blacklist')
   const crossGroupRetry = form.watch('cross_group_retry')
   const allowlistEnabled = isUpdate && modelLimitsEnabled
+  const blacklistEnabled = isUpdate && modelBlacklistEnabled
   const modelAccessState = useMemo(
     () =>
       modelAccess
@@ -358,10 +361,19 @@ export function ApiKeysMutateDrawer({
             modelAccess,
             selectedGroup,
             allowlistEnabled,
-            modelLimits
+            modelLimits,
+            blacklistEnabled,
+            modelBlacklist
           )
         : null,
-    [allowlistEnabled, modelAccess, modelLimits, selectedGroup]
+    [
+      allowlistEnabled,
+      blacklistEnabled,
+      modelAccess,
+      modelBlacklist,
+      modelLimits,
+      selectedGroup,
+    ]
   )
   const allowlistOptions = useMemo(
     () => getApiKeyModelAllowlistOptions(modelAccessState?.scopeModels ?? []),
@@ -369,6 +381,8 @@ export function ApiKeysMutateDrawer({
   )
   const invalidAllowlistCount =
     modelAccessState?.invalidAllowlistItems.length ?? 0
+  const invalidBlacklistCount =
+    modelAccessState?.invalidBlacklistItems.length ?? 0
   const unlimitedQuota = form.watch('unlimited_quota')
   // Create-mode credit-limit input value: blank when unlimited, otherwise the
   // dollar amount currently held in `remain_quota_dollars`.
@@ -404,6 +418,8 @@ export function ApiKeysMutateDrawer({
       group: selectedGroup,
       model_limits_enabled: modelLimitsEnabled,
       model_limits: modelLimits,
+      model_blacklist_enabled: modelBlacklistEnabled,
+      model_blacklist: modelBlacklist,
       cross_group_retry: crossGroupRetry,
     }
   )
@@ -792,6 +808,79 @@ export function ApiKeysMutateDrawer({
                       <AlertDescription>
                         {t(
                           'They are preserved for compatibility but do not grant access. Remove them explicitly if they are no longer needed.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <FormField
+                    control={form.control}
+                    name='model_blacklist_enabled'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-3 rounded-md border p-3'>
+                        <div className='flex flex-col gap-0.5'>
+                          <FormLabel htmlFor='model-blacklist-enabled'>
+                            {t('Enable model blacklist')}
+                          </FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Blocked models cannot be called even when they are also in the allowlist.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            id='model-blacklist-enabled'
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  {blacklistEnabled && (
+                    <FormField
+                      control={form.control}
+                      name='model_blacklist'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Blocked models')}</FormLabel>
+                          <FormControl>
+                            <MultiSelect
+                              options={allowlistOptions}
+                              selected={field.value}
+                              onChange={field.onChange}
+                              placeholder={t('Select blocked models')}
+                              maxVisibleChips={4}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Selected models are denied for this API key. An empty blacklist blocks nothing.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {blacklistEnabled && invalidBlacklistCount > 0 && (
+                    <Alert>
+                      <HugeiconsIcon
+                        icon={Alert02Icon}
+                        strokeWidth={2}
+                        aria-hidden='true'
+                      />
+                      <AlertTitle>
+                        {t('{{count}} blocked models are outside this scope', {
+                          count: invalidBlacklistCount,
+                        })}
+                      </AlertTitle>
+                      <AlertDescription>
+                        {t(
+                          'They remain saved and will be blocked if they become available in this scope again.'
                         )}
                       </AlertDescription>
                     </Alert>

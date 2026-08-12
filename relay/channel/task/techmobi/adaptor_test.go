@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -155,6 +156,50 @@ func TestBuildRequestBody_UnmappedModelSetsUpstreamModelName(t *testing.T) {
 	if info.UpstreamModelName != "doubao/doubao-seedance-2-0-260128" {
 		t.Fatalf("UpstreamModelName = %q", info.UpstreamModelName)
 	}
+}
+
+func TestBuildRequestBody_RewritesFlatkeyAssetURI(t *testing.T) {
+	a := &TaskAdaptor{}
+	c, _ := newJSONCtx(`{
+		"model":"seedance2.0-pro",
+		"content":[
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}
+		]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://asset-opaque-123",
+	})
+	info := newRelayInfo()
+	info.IsModelMapped = true
+	info.UpstreamModelName = "doubao/doubao-seedance-2-0-260128"
+
+	body, err := a.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	data, err := io.ReadAll(body)
+	require.NoError(t, err)
+
+	var payload dto.SeedanceVideoRequest
+	require.NoError(t, common.Unmarshal(data, &payload))
+	require.Equal(t, "asset://asset-opaque-123", payload.Content[0].ImageURL.URL)
+}
+
+func TestBuildRequestBody_RejectsUnresolvedFlatkeyAssetURI(t *testing.T) {
+	a := &TaskAdaptor{}
+	c, _ := newJSONCtx(`{
+		"model":"seedance2.0-pro",
+		"content":[
+			{"type":"video_url","video_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_video"}
+		]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{})
+	info := newRelayInfo()
+	info.IsModelMapped = true
+	info.UpstreamModelName = "doubao/doubao-seedance-2-0-260128"
+
+	_, err := a.BuildRequestBody(c, info)
+	require.Error(t, err)
+	require.Equal(t, "invalid asset reference", err.Error())
+	require.NotContains(t, err.Error(), "ast_1234567890abcdefABCDEF1234567890")
 }
 
 func TestEstimateBilling_UsesResolutionAndVideoInputRatio(t *testing.T) {

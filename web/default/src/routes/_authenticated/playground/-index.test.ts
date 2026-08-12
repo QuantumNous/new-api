@@ -31,4 +31,10 @@ describe('validatePlaygroundSearch', () => {
     expect(validatePlaygroundSearch({ first: '0' })).toEqual({})
     expect(validatePlaygroundSearch({ first: false })).toEqual({})
   })
+
+  test('accepts bounded model generator draft payloads only', () => {
+    const draft = JSON.stringify({ model: 'gpt-image-2' })
+    expect(validatePlaygroundSearch({ draft })).toEqual({ draft })
+    expect(validatePlaygroundSearch({ draft: 'x'.repeat(12001) })).toEqual({})
+  })
 })

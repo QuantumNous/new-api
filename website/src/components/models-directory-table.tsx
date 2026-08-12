@@ -25,7 +25,7 @@ type Props = {
 };
 
 // /models directory: every priced model as one row — official price struck
-// through vs the after-bonus price (the hero number), TTFT latency, and a
+// through vs the group-ratio price (the hero number), TTFT latency, and a
 // 30-day health bar wall. Health series load lazily as rows scroll into view
 // so 40+ rows do not fan out 40+ upfront requests.
 export function ModelsDirectoryTable(props: Props) {

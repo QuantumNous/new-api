@@ -2,11 +2,32 @@ package model
 
 import (
 	"errors"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/require"
 )
+
+func TestNormalizeBatchTokenModelRulesTrimsDropsEmptyAndDeduplicates(t *testing.T) {
+	normalized, err := normalizeBatchTokenModelRules(" gpt-4o, ,gpt-4.1,gpt-4o,, claude-3-5-sonnet ")
+
+	require.NoError(t, err)
+	require.Equal(t, "gpt-4o,gpt-4.1,claude-3-5-sonnet", normalized)
+}
+
+func TestNormalizeBatchTokenModelRulesRejectsExcessiveCountAndLength(t *testing.T) {
+	tooMany := make([]string, maxBatchTokenModelRuleItems+1)
+	for index := range tooMany {
+		tooMany[index] = "model-" + strconv.Itoa(index)
+	}
+	_, err := normalizeBatchTokenModelRules(strings.Join(tooMany, ","))
+	require.ErrorIs(t, err, ErrTokenBatchInvalid)
+
+	_, err = normalizeBatchTokenModelRules(strings.Repeat("x", maxBatchTokenModelRulesLength+1))
+	require.ErrorIs(t, err, ErrTokenBatchInvalid)
+}
 
 func insertTokenForValidationTest(t *testing.T, token *Token) {
 	t.Helper()

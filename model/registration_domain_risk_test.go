@@ -28,7 +28,15 @@ func setupRegistrationDomainRiskTest(t *testing.T) {
 	DB = db
 	LOG_DB = db
 	common.RedisEnabled = false
-	require.NoError(t, db.AutoMigrate(&User{}, &Option{}, &RegistrationDomainState{}, &RegistrationDomainBlock{}, &RegistrationDomainBlockUser{}))
+	require.NoError(t, db.AutoMigrate(
+		&User{},
+		&Option{},
+		&RegistrationDomainState{},
+		&RegistrationDomainBlock{},
+		&RegistrationDomainBlockUser{},
+		&RecallLifecycleEvent{},
+		&QuotaLifecycleState{},
+	))
 	t.Cleanup(func() {
 		sqlDB, _ := db.DB()
 		_ = sqlDB.Close()

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	_ "unsafe"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -17,6 +18,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -24,9 +26,14 @@ import (
 	"gorm.io/gorm"
 )
 
+//go:linkname middlewareModelCommonGroupCol github.com/QuantumNous/new-api/model.commonGroupCol
+var middlewareModelCommonGroupCol string
+
 type middlewareAssetMaterializer struct {
 	createErr error
 	calls     *int
+	input     *service.AssetMaterializeInput
+	inputs    *[]service.AssetMaterializeInput
 }
 
 func (m middlewareAssetMaterializer) CreateAsset(ctx context.Context, input service.AssetMaterializeInput) (service.AssetMaterializeResult, error) {
@@ -35,6 +42,12 @@ func (m middlewareAssetMaterializer) CreateAsset(ctx context.Context, input serv
 	}
 	if m.createErr != nil {
 		return service.AssetMaterializeResult{}, m.createErr
+	}
+	if m.input != nil {
+		*m.input = input
+	}
+	if m.inputs != nil {
+		*m.inputs = append(*m.inputs, input)
 	}
 	return service.AssetMaterializeResult{
 		UpstreamGroupID: "group-" + fmt.Sprint(input.Channel.Id),
@@ -48,6 +61,395 @@ func (m middlewareAssetMaterializer) GetAsset(ctx context.Context, input service
 		*m.calls = *m.calls + 1
 	}
 	return service.AssetMaterializeResult{UpstreamAssetID: upstreamAssetID, Status: model.AssetStatusActive}, nil
+}
+
+func TestTechMobiAssetMaterializationUsesMappedModelAndSelectedKey(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/doubao-seedance-2-0-260128"}`
+	channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = "techmobi-selected-key"
+	channel.Models = "seedance2.0-pro"
+	channel.ModelMapping = &mapping
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, 106, "default", "seedance2.0-pro", true, priority, weight)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+
+	var captured service.AssetMaterializeInput
+	restoreMaterializer := service.RegisterAssetMaterializer(
+		constant.ChannelTypeTechMobiVideo,
+		middlewareAssetMaterializer{input: &captured},
+	)
+	defer restoreMaterializer()
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, "doubao/doubao-seedance-2-0-260128", captured.Model)
+		require.Equal(t, "techmobi-selected-key", captured.APIKey)
+		rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		require.True(t, ok)
+		require.Equal(t, "asset://upstream-"+publicID, rewriteMap["asset://"+publicID])
+		c.Status(http.StatusOK)
+	})
+
+	recorder := performBytePlusAssetDistributorRequestWithMaterialize(router, "", `{
+		"model":"seedance2.0-pro",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
+func TestTechMobiAssetBindingReusesOriginalEnabledKeyScope(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/doubao-seedance-2-0-260128"}`
+	channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = "techmobi-key-a\ntechmobi-key-b"
+	channel.Models = "seedance2.0-pro"
+	channel.ModelMapping = &mapping
+	channel.ChannelInfo = model.ChannelInfo{
+		IsMultiKey:           true,
+		MultiKeySize:         2,
+		MultiKeyMode:         constant.MultiKeyModePolling,
+		MultiKeyPollingIndex: 0,
+	}
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, 106, "default", "seedance2.0-pro", true, priority, weight)
+	publicID := "ast_abcdefabcdefabcdefabcdefabcdefab"
+	insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+
+	createCalls := 0
+	inputs := make([]service.AssetMaterializeInput, 0, 2)
+	restoreMaterializer := service.RegisterAssetMaterializer(
+		constant.ChannelTypeTechMobiVideo,
+		middlewareAssetMaterializer{calls: &createCalls, inputs: &inputs},
+	)
+	defer restoreMaterializer()
+	model.InitChannelCache()
+
+	selectedKeys := make([]string, 0, 2)
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		selectedKeys = append(selectedKeys, common.GetContextKeyString(c, constant.ContextKeyChannelKey))
+		c.Status(http.StatusOK)
+	})
+	body := `{
+		"model":"seedance2.0-pro",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_abcdefabcdefabcdefabcdefabcdefab"},"role":"reference_image"}]
+	}`
+
+	first := performBytePlusAssetDistributorRequestWithMaterialize(router, "", body)
+	second := performBytePlusAssetDistributorRequestWithMaterialize(router, "", body)
+
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	require.Equal(t, []string{"techmobi-key-a", "techmobi-key-a"}, selectedKeys)
+	require.Equal(t, 1, createCalls, "the active binding must be reused instead of uploaded under another account")
+	require.Len(t, inputs, 1)
+	require.Equal(t, "techmobi-key-a", inputs[0].APIKey)
+}
+
+func TestTechMobiAssetBindingCreatesIndependentMappedModelScope(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/seedance-pro","seedance2.0-lite":"doubao/seedance-lite"}`
+	channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = "techmobi-key"
+	channel.Models = "seedance2.0-pro,seedance2.0-lite"
+	channel.ModelMapping = &mapping
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, 106, "default", "seedance2.0-pro", true, priority, weight)
+	insertMiddlewareAbility(t, 106, "default", "seedance2.0-lite", true, priority, weight)
+	publicID := "ast_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	asset := insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+
+	inputs := make([]service.AssetMaterializeInput, 0, 2)
+	restoreMaterializer := service.RegisterAssetMaterializer(
+		constant.ChannelTypeTechMobiVideo,
+		middlewareAssetMaterializer{inputs: &inputs},
+	)
+	defer restoreMaterializer()
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) { c.Status(http.StatusOK) })
+	requestForModel := func(modelName string) *httptest.ResponseRecorder {
+		return performBytePlusAssetDistributorRequestWithMaterialize(router, "", fmt.Sprintf(`{
+			"model":%q,
+			"content":[{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}]
+		}`, modelName, publicID))
+	}
+
+	first := requestForModel("seedance2.0-pro")
+	second := requestForModel("seedance2.0-lite")
+
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	require.Len(t, inputs, 2)
+	require.Equal(t, "doubao/seedance-pro", inputs[0].Model)
+	require.Equal(t, "doubao/seedance-lite", inputs[1].Model)
+	var bindingCount int64
+	require.NoError(t, model.DB.Model(&model.AssetBinding{}).Where("asset_id = ? AND channel_id = ?", asset.Id, channel.Id).Count(&bindingCount).Error)
+	require.EqualValues(t, 2, bindingCount)
+}
+
+func TestTechMobiAssetBindingRematerializesWhenBoundKeyIsDisabled(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/doubao-seedance-2-0-260128"}`
+	channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = "techmobi-key-a\ntechmobi-key-b"
+	channel.Models = "seedance2.0-pro"
+	channel.ModelMapping = &mapping
+	channel.ChannelInfo = model.ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling}
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, 106, "default", "seedance2.0-pro", true, priority, weight)
+	publicID := "ast_cccccccccccccccccccccccccccccccc"
+	asset := insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+
+	inputs := make([]service.AssetMaterializeInput, 0, 2)
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, middlewareAssetMaterializer{inputs: &inputs})
+	defer restoreMaterializer()
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) { c.Status(http.StatusOK) })
+	body := `{
+		"model":"seedance2.0-pro",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_cccccccccccccccccccccccccccccccc"},"role":"reference_image"}]
+	}`
+	first := performBytePlusAssetDistributorRequestWithMaterialize(router, "", body)
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+
+	channel.ChannelInfo.MultiKeyStatusList = map[int]int{0: common.ChannelStatusManuallyDisabled}
+	channel.ChannelInfo.MultiKeyPollingIndex = 1
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("channel_info", channel.ChannelInfo).Error)
+	model.InitChannelCache()
+	second := performBytePlusAssetDistributorRequestWithMaterialize(router, "", body)
+
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	require.Len(t, inputs, 2)
+	require.Equal(t, "techmobi-key-a", inputs[0].APIKey)
+	require.Equal(t, "techmobi-key-b", inputs[1].APIKey)
+	var bindingCount int64
+	require.NoError(t, model.DB.Model(&model.AssetBinding{}).Where("asset_id = ? AND channel_id = ?", asset.Id, channel.Id).Count(&bindingCount).Error)
+	require.EqualValues(t, 2, bindingCount)
+}
+
+func TestTechMobiAssetBindingRejectsUnrecoverableMixedScopes(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/doubao-seedance-2-0-260128"}`
+	channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = "techmobi-key-a\ntechmobi-key-b"
+	channel.Models = "seedance2.0-pro"
+	channel.ModelMapping = &mapping
+	channel.ChannelInfo = model.ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling}
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, 106, "default", "seedance2.0-pro", true, priority, weight)
+	firstID := "ast_dddddddddddddddddddddddddddddddd"
+	secondID := "ast_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	insertMiddlewareGeneralizedAsset(t, 7, firstID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	insertMiddlewareGeneralizedAsset(t, 7, secondID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+
+	createCalls := 0
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, middlewareAssetMaterializer{calls: &createCalls})
+	defer restoreMaterializer()
+	model.InitChannelCache()
+
+	handlerCalls := 0
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		handlerCalls++
+		c.Status(http.StatusOK)
+	})
+	singleAssetBody := func(publicID string) string {
+		return fmt.Sprintf(`{
+			"model":"seedance2.0-pro",
+			"content":[{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}]
+		}`, publicID)
+	}
+	require.Equal(t, http.StatusOK, performBytePlusAssetDistributorRequestWithMaterialize(router, "", singleAssetBody(firstID)).Code)
+	require.Equal(t, http.StatusOK, performBytePlusAssetDistributorRequestWithMaterialize(router, "", singleAssetBody(secondID)).Code)
+	require.Equal(t, 2, createCalls)
+
+	require.NoError(t, model.DB.Model(&model.Asset{}).
+		Where("public_id IN ?", []string{firstID, secondID}).
+		Updates(map[string]any{"source_status": model.AssetSourceStatusExpired, "source_expires_at": time.Now().Add(-time.Hour).Unix()}).Error)
+	mixed := performBytePlusAssetDistributorRequestWithMaterialize(router, "", fmt.Sprintf(`{
+		"model":"seedance2.0-pro",
+		"content":[
+			{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"},
+			{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}
+		]
+	}`, firstID, secondID))
+
+	require.Equal(t, http.StatusServiceUnavailable, mixed.Code, mixed.Body.String())
+	require.Contains(t, mixed.Body.String(), "asset_channel_unavailable")
+	require.Equal(t, 2, handlerCalls, "mixed scopes must be rejected before the relay handler")
+	require.Equal(t, 2, createCalls, "unrecoverable sources must not be re-uploaded")
+}
+
+func TestTechMobiAssetScopeMismatchRoutesToCompatibleBytePlusBinding(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	techMobiPriority := int64(100)
+	bytePlusPriority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/seedance-pro","seedance2.0-lite":"doubao/seedance-lite"}`
+	techMobiChannel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, techMobiPriority, weight)
+	techMobiChannel.Key = "techmobi-key"
+	techMobiChannel.Models = "seedance2.0-pro,seedance2.0-lite"
+	techMobiChannel.ModelMapping = &mapping
+	require.NoError(t, model.DB.Create(&techMobiChannel).Error)
+	insertMiddlewareAbility(t, techMobiChannel.Id, "default", "seedance2.0-pro", true, techMobiPriority, weight)
+	insertMiddlewareAbility(t, techMobiChannel.Id, "default", "seedance2.0-lite", true, techMobiPriority, weight)
+
+	publicID := "ast_ffffffffffffffffffffffffffffffff"
+	asset := insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	restoreTechMobiMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, middlewareAssetMaterializer{})
+	defer restoreTechMobiMaterializer()
+	model.InitChannelCache()
+
+	selectedChannels := make([]int, 0, 2)
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		selectedChannels = append(selectedChannels, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		c.Status(http.StatusOK)
+	})
+	requestForModel := func(modelName string) *httptest.ResponseRecorder {
+		return performBytePlusAssetDistributorRequestWithMaterialize(router, "", fmt.Sprintf(`{
+			"model":%q,
+			"content":[{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}]
+		}`, modelName, publicID))
+	}
+
+	first := requestForModel("seedance2.0-pro")
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+
+	bytePlusChannel := middlewareBytePlusAssetChannel(131, constant.ChannelTypeBytePlus, "default", common.ChannelStatusEnabled, bytePlusPriority, weight)
+	bytePlusChannel.Models = "seedance2.0-lite"
+	require.NoError(t, model.DB.Create(&bytePlusChannel).Error)
+	insertMiddlewareAbility(t, bytePlusChannel.Id, "default", "seedance2.0-lite", true, bytePlusPriority, weight)
+	insertMiddlewareGeneralizedAssetBinding(t, asset.Id, bytePlusChannel.Id, "byteplus-upstream", model.AssetStatusActive)
+	require.NoError(t, model.DB.Model(&model.Asset{}).Where("id = ?", asset.Id).Updates(map[string]any{
+		"source_status":     model.AssetSourceStatusExpired,
+		"source_expires_at": time.Now().Add(-time.Hour).Unix(),
+	}).Error)
+	model.InitChannelCache()
+
+	second := requestForModel("seedance2.0-lite")
+
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	require.Equal(t, []int{techMobiChannel.Id, bytePlusChannel.Id}, selectedChannels)
+}
+
+func TestTechMobiSpecificChannelRejectsExpiredAssetBoundToDifferentModelScope(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/seedance-pro","seedance2.0-lite":"doubao/seedance-lite"}`
+	channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = "techmobi-key"
+	channel.Models = "seedance2.0-pro,seedance2.0-lite"
+	channel.ModelMapping = &mapping
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, channel.Id, "default", "seedance2.0-pro", true, priority, weight)
+	insertMiddlewareAbility(t, channel.Id, "default", "seedance2.0-lite", true, priority, weight)
+
+	publicID := "ast_12121212121212121212121212121212"
+	asset := insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, middlewareAssetMaterializer{})
+	defer restoreMaterializer()
+	model.InitChannelCache()
+
+	handlerCalls := 0
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		handlerCalls++
+		c.Status(http.StatusOK)
+	})
+	requestBody := func(modelName string) string {
+		return fmt.Sprintf(`{
+			"model":%q,
+			"content":[{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}]
+		}`, modelName, publicID)
+	}
+
+	first := performBytePlusAssetDistributorRequestWithMaterialize(router, "106", requestBody("seedance2.0-pro"))
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	require.NoError(t, model.DB.Model(&model.Asset{}).Where("id = ?", asset.Id).Updates(map[string]any{
+		"source_status":     model.AssetSourceStatusExpired,
+		"source_expires_at": time.Now().Add(-time.Hour).Unix(),
+	}).Error)
+
+	second := performBytePlusAssetDistributorRequest(router, "106", requestBody("seedance2.0-lite"))
+
+	require.Equal(t, http.StatusServiceUnavailable, second.Code, second.Body.String())
+	require.Contains(t, second.Body.String(), "asset_channel_unavailable")
+	require.Equal(t, 1, handlerCalls)
+}
+
+func TestTechMobiMaterializeDisabledDoesNotRewriteFromDifferentKeyScope(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	mapping := `{"seedance2.0-pro":"doubao/seedance-pro"}`
+	channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeTechMobiVideo, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = "techmobi-key-a\ntechmobi-key-b"
+	channel.Models = "seedance2.0-pro"
+	channel.ModelMapping = &mapping
+	channel.ChannelInfo = model.ChannelInfo{IsMultiKey: true, MultiKeySize: 2, MultiKeyMode: constant.MultiKeyModePolling}
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, channel.Id, "default", "seedance2.0-pro", true, priority, weight)
+
+	publicID := "ast_13131313131313131313131313131313"
+	insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeTechMobiVideo, middlewareAssetMaterializer{})
+	defer restoreMaterializer()
+	model.InitChannelCache()
+
+	handlerCalls := 0
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		handlerCalls++
+		if handlerCalls == 2 {
+			require.Equal(t, "techmobi-key-b", common.GetContextKeyString(c, constant.ContextKeyChannelKey))
+			rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+			require.NotContains(t, rewriteMap, "asset://"+publicID)
+		}
+		c.Status(http.StatusOK)
+	})
+	body := fmt.Sprintf(`{
+		"model":"seedance2.0-pro",
+		"content":[{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}]
+	}`, publicID)
+
+	first := performBytePlusAssetDistributorRequestWithMaterialize(router, "", body)
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	channel.ChannelInfo.MultiKeyStatusList = map[int]int{0: common.ChannelStatusManuallyDisabled}
+	channel.ChannelInfo.MultiKeyPollingIndex = 1
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("channel_info", channel.ChannelInfo).Error)
+	model.InitChannelCache()
+
+	second := performBytePlusAssetDistributorRequest(router, "", body)
+
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	require.Equal(t, 2, handlerCalls)
 }
 
 func TestBytePlusAssetPinnedChannelOverridesRandomSelectionAndStoresRewrite(t *testing.T) {
@@ -572,6 +974,56 @@ func TestAssetReferenceExternalRequestDefersMaterializationUntilWorkerFlag(t *te
 	require.Equal(t, 0, calls)
 }
 
+func TestAssetReferenceStrictInitializingTargetKeepsRequestEligibleForQueue(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	originalStrict := service.AssetModelCoverageStrictEnabled
+	service.AssetModelCoverageStrictEnabled = true
+	defer func() { service.AssetModelCoverageStrictEnabled = originalStrict }()
+	originalSelfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	defer func() { operation_setting.SelfUseModeEnabled = originalSelfUse }()
+
+	calls := 0
+	restoreMaterializer := service.RegisterAssetMaterializer(constant.ChannelTypeBytePlus, middlewareAssetMaterializer{calls: &calls})
+	defer restoreMaterializer()
+	insertMiddlewareBytePlusAssetChannel(t, 131, "default", common.ChannelStatusEnabled, 1, 1)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+	model.InitChannelCache()
+
+	scope, err := service.ResolveAssetModelScope(service.AssetModelScopeInput{IdentityGroup: "default", AcceptUnpriced: true})
+	require.NoError(t, err)
+	require.Contains(t, scope.ModelNames, "seedance-2.0")
+	now := model.GetDBTimestamp()
+	require.NoError(t, model.DB.Create(&model.AssetModelCoverageTarget{
+		ScopeKey:        scope.ScopeKey,
+		ModelName:       "seedance-2.0",
+		Status:          model.AssetModelTargetStatusSelecting,
+		Generation:      0,
+		CandidateIndex:  -1,
+		CredentialIndex: -1,
+		LeaseOwner:      "other-node",
+		LeaseExpiresAt:  now + 60,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}).Error)
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, 131, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		_, hasRewrite := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		require.False(t, hasRewrite, "initializing target may select a queueing candidate but must not rewrite or submit")
+		c.Status(http.StatusOK)
+	})
+	recorder := performBytePlusAssetDistributorRequest(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}]
+	}`)
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.Equal(t, 0, calls)
+}
+
 func TestAssetReferenceMaterializationFailuresAbortBeforeHandler(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -790,10 +1242,11 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 	prevUsingSQLite := common.UsingSQLite
 	prevUsingMySQL := common.UsingMySQL
 	prevUsingPostgreSQL := common.UsingPostgreSQL
+	prevCommonGroupCol := middlewareModelCommonGroupCol
 
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}, &model.Asset{}, &model.AssetBinding{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}, &model.ModelAvailabilityState{}, &model.BytePlusRealPersonProfile{}, &model.BytePlusAsset{}, &model.Asset{}, &model.AssetBinding{}, &model.AssetModelCoverageTarget{}, &model.AssetModelReadiness{}))
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	model.DB = db
@@ -801,6 +1254,7 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 	common.UsingSQLite = true
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
+	middlewareModelCommonGroupCol = "`group`"
 
 	return func() {
 		model.DB = prevDB
@@ -808,6 +1262,7 @@ func useMiddlewareBytePlusAssetDBForTest(t *testing.T) func() {
 		common.UsingSQLite = prevUsingSQLite
 		common.UsingMySQL = prevUsingMySQL
 		common.UsingPostgreSQL = prevUsingPostgreSQL
+		middlewareModelCommonGroupCol = prevCommonGroupCol
 		model.InitChannelCache()
 		_ = sqlDB.Close()
 	}

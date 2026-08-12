@@ -17,18 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import {
-  useQuery,
-  useQueryClient,
-  useIsFetching,
-} from '@tanstack/react-query'
+import { useQuery, useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useIsAdmin, useIsRoot } from '@/hooks/use-admin'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { Combobox } from '@/components/ui/combobox'
 import {
   Select,
@@ -38,13 +33,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { getGroups } from '../api'
+import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
@@ -119,6 +115,7 @@ export function CommonLogsFilterBar<TData>(
       requestId: searchParams.requestId || undefined,
       upstreamRequestId: searchParams.upstreamRequestId || undefined,
       nonAdmin: searchParams.nonAdmin || undefined,
+      company: isRoot ? searchParams.company || undefined : undefined,
     })
 
     const typeArr = searchParams.type
@@ -140,13 +137,26 @@ export function CommonLogsFilterBar<TData>(
     searchParams.requestId,
     searchParams.upstreamRequestId,
     searchParams.nonAdmin,
+    searchParams.company,
     searchParams.type,
     isAdmin,
+    isRoot,
   ])
 
   const handleChange = useCallback(
-    (field: keyof CommonLogFilters, value: Date | string | boolean | undefined) => {
-      setFilters((prev) => ({ ...prev, [field]: value }))
+    (
+      field: keyof CommonLogFilters,
+      value: Date | string | boolean | undefined
+    ) => {
+      setFilters((prev) => {
+        if (field === 'company' && value === true) {
+          return { ...prev, company: true, nonAdmin: undefined }
+        }
+        if (field === 'nonAdmin' && value === true) {
+          return { ...prev, nonAdmin: true, company: undefined }
+        }
+        return { ...prev, [field]: value }
+      })
     },
     []
   )
@@ -199,7 +209,8 @@ export function CommonLogsFilterBar<TData>(
     !!filters.channel ||
     !!filters.requestId ||
     !!filters.upstreamRequestId ||
-    !!filters.nonAdmin
+    !!filters.nonAdmin ||
+    !!filters.company
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   // PLG (non-enterprise) users don't see the group concept, so the group
@@ -217,6 +228,7 @@ export function CommonLogsFilterBar<TData>(
     filters.requestId,
     filters.upstreamRequestId,
     isRoot ? filters.nonAdmin : undefined,
+    isRoot ? filters.company : undefined,
   ].filter(Boolean).length
   const sensitiveType = sensitiveVisible ? 'text' : 'password'
   const logTypeItems = useMemo(
@@ -373,10 +385,21 @@ export function CommonLogsFilterBar<TData>(
         <LogsFilterField>
           <label className='flex h-full cursor-pointer items-center gap-2 px-1 text-sm whitespace-nowrap select-none'>
             <Switch
+              checked={!!filters.company}
+              onCheckedChange={(checked) => handleChange('company', checked)}
+            />
+            <span className='text-muted-foreground'>{t('Company Logs')}</span>
+          </label>
+        </LogsFilterField>
+      )}
+      {isRoot && (
+        <LogsFilterField>
+          <label className='flex h-full cursor-pointer items-center gap-2 px-1 text-sm whitespace-nowrap select-none'>
+            <Switch
               checked={!!filters.nonAdmin}
               onCheckedChange={(checked) => handleChange('nonAdmin', checked)}
             />
-            <span className='text-muted-foreground'>plg user</span>
+            <span className='text-muted-foreground'>{t('PLG Users')}</span>
           </label>
         </LogsFilterField>
       )}

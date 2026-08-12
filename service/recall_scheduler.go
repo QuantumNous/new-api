@@ -16,6 +16,7 @@ import (
 type RecallRuntime struct {
 	Campaigns    *RecallCampaignService
 	Claims       *RecallClaimService
+	Lifecycle    *RecallLifecycleWorker
 	Revocations  *RecallPromotionRevocationWorker
 	Recipients   *RecallRecipientWorker
 	Emails       *RecallEmailWorker
@@ -24,10 +25,15 @@ type RecallRuntime struct {
 }
 
 var (
-	recallRuntimeOnce   sync.Once
-	recallRuntime       *RecallRuntime
-	recallSchedulerOnce sync.Once
+	recallRuntimeOnce     sync.Once
+	recallRuntime         *RecallRuntime
+	recallSchedulerOnce   sync.Once
+	recallSchedulerWakeCh = make(chan struct{}, 1)
 )
+
+func init() {
+	model.RegisterOptionReloadHook(NotifyRecallSchedulerConfigChanged)
+}
 
 func GetRecallRuntime() *RecallRuntime {
 	recallRuntimeOnce.Do(func() {
@@ -43,6 +49,7 @@ func GetRecallRuntime() *RecallRuntime {
 				NewRecallEmailTranslatorFromMonitorSettings(RecallEmailTranslatorOptions{}),
 			),
 			Claims:      claims,
+			Lifecycle:   NewRecallLifecycleWorker(owner),
 			Revocations: NewRecallPromotionRevocationWorker(stripeService, owner),
 			Recipients:  NewRecallRecipientWorker(stripeService, claims, owner),
 			Emails:      NewRecallEmailWorker(common.SendEmailWithSMTPConfigAndOptions, audience, claims, owner),
@@ -62,15 +69,40 @@ func StartRecallCampaignTasks() {
 			return
 		}
 		gopool.Go(func() {
-			setting := operation_setting.GetRecallCampaignSetting()
-			ticker := time.NewTicker(time.Duration(setting.TickSeconds) * time.Second)
-			defer ticker.Stop()
+			drainRecallSchedulerWake()
 			RunRecallMaintenanceTick(context.Background())
-			for range ticker.C {
+			for {
+				setting := operation_setting.GetRecallCampaignSetting()
+				delay := recallMaintenanceDelay(setting.TickSeconds, 0, time.Now().UnixMilli())
+				if operation_setting.IsRecallCampaignEnabled() {
+					if pacingStatus, err := model.GetRecallEmailPacingStatusWithContext(context.Background(), setting.EmailHourlyLimit); err == nil && !pacingStatus.Allowed {
+						delay = recallMaintenanceDelayFromPacingStatus(setting.TickSeconds, pacingStatus, time.Now().UnixMilli())
+					}
+				}
+				if !recallWaitForNextMaintenance(context.Background(), delay, recallSchedulerWakeCh) {
+					return
+				}
 				RunRecallMaintenanceTick(context.Background())
 			}
 		})
 	})
+}
+
+func NotifyRecallSchedulerConfigChanged() {
+	select {
+	case recallSchedulerWakeCh <- struct{}{}:
+	default:
+	}
+}
+
+func drainRecallSchedulerWake() {
+	for {
+		select {
+		case <-recallSchedulerWakeCh:
+		default:
+			return
+		}
+	}
 }
 
 func RunRecallMaintenanceTick(ctx context.Context) {
@@ -89,6 +121,11 @@ func RunRecallMaintenanceTick(ctx context.Context) {
 	}
 	if _, err := runtime.Campaigns.RunDueCampaigns(ctx, time.Now(), setting.BatchSize); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("recall campaign maintenance failed: %v", err))
+	}
+	if runtime.Lifecycle != nil {
+		if _, err := runtime.Lifecycle.RunBatch(ctx, setting.BatchSize); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("recall lifecycle enrollment maintenance failed: %v", err))
+		}
 	}
 	if runtime.Revocations != nil {
 		if _, err := runtime.Revocations.RunBatch(ctx, setting.BatchSize); err != nil {
@@ -123,6 +160,54 @@ func RunRecallMaintenanceTick(ctx context.Context) {
 }
 
 func isPureRecallEmailQuotaWait(err error) bool {
-	_, ok := err.(*RecallEmailQuotaWaitError)
+	if _, ok := err.(*RecallEmailQuotaWaitError); ok {
+		return true
+	}
+	_, ok := err.(*RecallEmailPacingWaitError)
 	return ok
+}
+
+func recallMaintenanceDelay(tickSeconds int, pacingAtMillis int64, nowMillis int64) time.Duration {
+	tickDelay := time.Duration(tickSeconds) * time.Second
+	if tickDelay <= 0 {
+		tickDelay = time.Second
+	}
+	if pacingAtMillis > 0 && pacingAtMillis <= nowMillis {
+		return 0
+	}
+	if pacingAtMillis == 0 {
+		return tickDelay
+	}
+	pacingDelay := time.Duration(pacingAtMillis-nowMillis) * time.Millisecond
+	if pacingDelay < tickDelay {
+		return pacingDelay
+	}
+	return tickDelay
+}
+
+func recallMaintenanceDelayFromPacingStatus(tickSeconds int, pacingStatus model.RecallEmailPacingStatus, localNowMillis int64) time.Duration {
+	if pacingStatus.Allowed || pacingStatus.NextAllowedAtMillis <= 0 {
+		return recallMaintenanceDelay(tickSeconds, 0, localNowMillis)
+	}
+	return recallMaintenanceDelay(tickSeconds, pacingStatus.NextAllowedAtMillis, pacingStatus.CheckedAtMillis)
+}
+
+func recallWaitForNextMaintenance(ctx context.Context, delay time.Duration, wake <-chan struct{}) bool {
+	timer := time.NewTimer(delay)
+	defer func() {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+	}()
+	select {
+	case <-timer.C:
+		return true
+	case <-wake:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }

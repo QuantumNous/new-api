@@ -15,6 +15,7 @@ import (
 func TestSubscriptionEpayUsesUnifiedHandlerWhenSingleContractGateDisabled(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
+	migrateSubscriptionControllerRecallLifecycle(t)
 	insertSubscriptionControllerUser(t, 906)
 	insertSubscriptionControllerPlan(t, 9906)
 	configureLegacySubscriptionPaymentSettingsForBlockTest(t)

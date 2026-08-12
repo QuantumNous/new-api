@@ -1,18 +1,18 @@
 import type { UseFormReturn } from 'react-hook-form'
 import {
-  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
-  RECALL_EMAIL_STARTER_HTML,
-  convertRecallBodyTextToHtml,
+  getRecallEmailStarterHtml,
   normalizeRecallBodyInputToHtml,
 } from './email-html'
 import type {
   RecallCampaignDraft,
   RecallCampaignType,
   RecallCouponSource,
+  RecallDeliveryPolicy,
   RecallDiscountType,
   RecallEmailStage,
   RecallEmailLocaleStatus,
   RecallFixedCurrency,
+  RecallLifecycleTrigger,
   RecallMinimumSpendConfig,
   RecallMinimumSpendCurrency,
   RecallRecipient,
@@ -26,11 +26,34 @@ export {
   RECALL_EMAIL_ACTIONS,
   RECALL_EMAIL_STARTER_HTML,
   convertRecallBodyTextToHtml,
+  getRecallEmailActions,
+  getRecallEmailStarterHtml,
   insertRecallEmailAction,
   normalizeRecallBodyInputToHtml,
 } from './email-html'
 
 export const recallFixedCurrencies = ['USD', 'INR', 'BRL', 'JPY'] as const
+
+const recallLifecycleDeliveryPolicyByTrigger: Record<
+  RecallLifecycleTrigger,
+  RecallDeliveryPolicy
+> = {
+  user_registered: 'service',
+  registration_unused: 'engagement',
+  quota_low: 'service',
+  quota_exhausted_unpaid: 'service',
+  payment_failed: 'service',
+  payment_pending: 'engagement',
+  payment_succeeded: 'service',
+}
+
+function getRecallLifecycleDeliveryPolicy(
+  trigger?: RecallLifecycleTrigger | ''
+): RecallDeliveryPolicy {
+  return trigger
+    ? recallLifecycleDeliveryPolicyByTrigger[trigger]
+    : 'engagement'
+}
 
 const legacyMinimumSpendCurrencyMap: Record<
   RecallFixedCurrency,
@@ -262,6 +285,57 @@ export function setRecallCampaignGroups(
   return form.trigger('audience_config')
 }
 
+function isContinuousEmptyField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length === 0
+  if (typeof value === 'boolean') return value === false
+  if (typeof value === 'number') return value === 0
+  if (typeof value === 'string') return value.trim() === ''
+  if (value && typeof value === 'object') return Object.keys(value).length === 0
+  return value === undefined || value === null
+}
+
+function assertContinuousDraftFieldsEmpty(draft: RecallCampaignDraft): void {
+  const invalidPaths: string[] = []
+  if (draft.audience_template !== '') invalidPaths.push('audience_template')
+  if (draft.coupon_source !== '') invalidPaths.push('coupon_source')
+  if (draft.existing_coupon_id.trim() !== '') {
+    invalidPaths.push('existing_coupon_id')
+  }
+  if (draft.promotion_expiry_mode !== '') {
+    invalidPaths.push('promotion_expiry_mode')
+  }
+  if (draft.promotion_expires_at !== 0) {
+    invalidPaths.push('promotion_expires_at')
+  }
+  if (draft.promotion_valid_seconds !== 0) {
+    invalidPaths.push('promotion_valid_seconds')
+  }
+  for (const [field, value] of Object.entries(draft.audience_config)) {
+    if (!isContinuousEmptyField(value)) {
+      invalidPaths.push(`audience_config.${field}`)
+    }
+  }
+  for (const [field, value] of Object.entries(draft.schedule)) {
+    if (!isContinuousEmptyField(value)) invalidPaths.push(`schedule.${field}`)
+  }
+  for (const [field, value] of Object.entries(draft.product_scope)) {
+    if (!isContinuousEmptyField(value)) {
+      invalidPaths.push(`product_scope.${field}`)
+    }
+  }
+  for (const [field, value] of Object.entries(draft.discount_config)) {
+    if (field === 'type' && value === 'percent') continue
+    if (!isContinuousEmptyField(value)) {
+      invalidPaths.push(`discount_config.${field}`)
+    }
+  }
+  if (invalidPaths.length > 0) {
+    throw new Error(
+      `Continuous drafts must clear audience, schedule, coupon, discount, product, and promotion fields before submit: ${invalidPaths.join(', ')}`
+    )
+  }
+}
+
 export function prepareRecallCampaignSubmitDraft(
   draft: RecallCampaignDraft
 ): RecallCampaignDraft {
@@ -269,36 +343,101 @@ export function prepareRecallCampaignSubmitDraft(
     draft.discount_config as RecallCampaignDraft['discount_config'] & {
       coupon_redeem_by?: number
     }
-  const starterHtml =
-    draft.campaign_type === 'content_only'
-      ? RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
-      : RECALL_EMAIL_STARTER_HTML
-
+  const continuous = draft.execution_mode === 'continuous'
+  if (continuous && !draft.email_sequence[0]?.templates?.en) {
+    throw new Error('English template is required')
+  }
+  if (continuous) {
+    assertContinuousDraftFieldsEmpty(draft)
+  }
+  const effectiveCampaignType = continuous
+    ? 'content_only'
+    : draft.campaign_type
+  const effectiveDeliveryPolicy = continuous
+    ? (draft.delivery_policy ??
+      getRecallLifecycleDeliveryPolicy(draft.lifecycle_trigger ?? ''))
+    : 'engagement'
+  const starterHtml = getRecallEmailStarterHtml(
+    effectiveCampaignType,
+    effectiveDeliveryPolicy
+  )
+  const normalizedDiscountConfig = continuous
+    ? {
+        type: 'percent' as const,
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      }
+    : {
+        ...discountConfig,
+        ...normalizeRecallMinimumSpendForSubmit(discountConfig),
+      }
   return {
     ...draft,
+    campaign_type: effectiveCampaignType,
+    audience_template: continuous ? '' : draft.audience_template,
     schedule:
-      draft.execution_mode === 'manual'
+      draft.execution_mode === 'manual' || continuous
         ? {
             scheduled_at: 0,
             timezone: '',
-            frequency: 'daily',
-            weekday: 1,
+            frequency: continuous ? '' : 'daily',
+            weekday: continuous ? 0 : 1,
             hour: 0,
             minute: 0,
           }
         : draft.schedule,
-    discount_config: {
-      ...discountConfig,
-      ...normalizeRecallMinimumSpendForSubmit(discountConfig),
-    },
+    discount_config: normalizedDiscountConfig,
     audience_config: {
-      ...draft.audience_config,
-      groups: normalizeRecallGroupsForMode(
-        draft.audience_config.groups,
-        draft.audience_config.group_mode
-      ),
+      ...(continuous
+        ? {
+            registration_age_days: 0,
+            min_request_count: 0,
+            max_quota: 0,
+            min_paid_amount: 0,
+            last_api_call_age_days: 0,
+            last_payment_age_days: 0,
+            subscription_expired_days: 0,
+            min_subscription_amount: 0,
+            min_subscription_count: 0,
+            payment_providers: [],
+            groups: [],
+            group_mode: '',
+            require_verified_email: false,
+            registration_start_at: 0,
+            registration_end_at: 0,
+            specified_user_ids: [],
+            specified_emails: [],
+          }
+        : {
+            ...draft.audience_config,
+            groups: normalizeRecallGroupsForMode(
+              draft.audience_config.groups,
+              draft.audience_config.group_mode
+            ),
+          }),
     },
-    email_sequence: draft.email_sequence.map((stage) => {
+    coupon_source: continuous ? '' : draft.coupon_source,
+    existing_coupon_id: continuous ? '' : draft.existing_coupon_id,
+    product_scope: continuous
+      ? { topup_price_ids: [], subscription_price_ids: [] }
+      : draft.product_scope,
+    promotion_expiry_mode: continuous ? '' : draft.promotion_expiry_mode,
+    promotion_expires_at: continuous ? 0 : draft.promotion_expires_at,
+    promotion_valid_seconds: continuous ? 0 : draft.promotion_valid_seconds,
+    email_sequence: (continuous
+      ? [
+          {
+            ...draft.email_sequence[0],
+            stage_no: 1,
+            delay_seconds: 0,
+          },
+        ]
+      : draft.email_sequence
+    ).map((stage) => {
       const templates = Object.fromEntries(
         Object.entries(stage.templates ?? {})
           .filter(
@@ -321,7 +460,8 @@ export function prepareRecallCampaignSubmitDraft(
                   body_text: '',
                   body_html: normalizeRecallBodyInputToHtml(
                     template.body_html ?? '',
-                    draft.campaign_type
+                    effectiveCampaignType,
+                    effectiveDeliveryPolicy
                   ),
                 },
               ]
@@ -329,9 +469,10 @@ export function prepareRecallCampaignSubmitDraft(
             const bodyText = template.body_text?.trim()
             let normalizedBodyHTML = ''
             if (bodyText) {
-              normalizedBodyHTML = convertRecallBodyTextToHtml(
+              normalizedBodyHTML = normalizeRecallBodyInputToHtml(
                 template.body_text ?? '',
-                draft.campaign_type
+                effectiveCampaignType,
+                effectiveDeliveryPolicy
               )
             } else if (locale === 'en') {
               normalizedBodyHTML = starterHtml

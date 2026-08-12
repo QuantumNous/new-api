@@ -10,6 +10,7 @@ import type {
   RecallCampaignMetrics,
   RecallCampaignType,
   RecallEmailStage,
+  RecallEvent,
   RecallMetricCard,
   RecallMetricKey,
   RecallRecipient,
@@ -45,6 +46,8 @@ mock.module('@tanstack/react-router', () => ({
 
 mock.module('./campaign-preview-dialog', () => ({
   CampaignPreviewDialog: () => null,
+  RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION:
+    'Review eligibility, exclusions, and delivery validation before activation.',
 }))
 
 mock.module('./campaign-action-dialog', () => ({
@@ -64,7 +67,22 @@ beforeAll(async () => {
   await testI18n.use(initReactI18next).init({
     lng: 'en',
     fallbackLng: 'en',
-    resources: { en: { translation: {} } },
+    resources: {
+      en: {
+        translation: {
+          no_account_email: 'No account email address',
+          engagement_opted_out: 'Engagement opt-out',
+          invalid_email: 'Invalid lifecycle email',
+          quota_recovered: 'Quota recovered before send',
+          'SMTP accepted': 'SMTP accepted',
+          sending: 'Sending via SMTP',
+          'Unknown delivery error': 'Unknown delivery error',
+          'Unknown message state': 'Unknown message state',
+          'Unknown lifecycle event': 'Unknown lifecycle event',
+          'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
+        },
+      },
+    },
     interpolation: { escapeValue: false },
   })
 })
@@ -134,6 +152,43 @@ function makeMetrics(): RecallCampaignMetrics {
       },
     },
   }
+}
+
+function makeContinuousMetrics(): RecallCampaignMetrics {
+  return {
+    ...makeMetrics(),
+    lifecycle: {
+      collection_start_at: 1_899_900_000,
+      processing_start_at: 1_900_000_000,
+      event_total: 19,
+      pending_not_due_count: 11,
+      due_backlog_count: 7,
+      leased_count: 3,
+      enrolled_count: 5,
+      skipped_count: 2,
+      failed_count: 1,
+      messages_queued_count: 4,
+      messages_smtp_accepted_count: 6,
+      messages_uncertain_count: 1,
+      messages_failed_count: 2,
+      messages_cancelled_count: 1,
+      skip_reason_counts: {
+        invalid_email: 2,
+        unknown_future_reason: 1,
+      },
+      send_blocked_reason_counts: {
+        no_account_email: 1,
+        engagement_opted_out: 1,
+      },
+      error_code_counts: {
+        quota_recovered: 2,
+      },
+      retried_event_count: 3,
+      lease_recovery_count: 2,
+      last_processed_at: 1_900_000_500,
+      max_processing_latency_seconds: 90,
+    },
+  } as RecallCampaignMetrics
 }
 
 function makeMetricCard(
@@ -235,6 +290,33 @@ function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
   }
 }
 
+function makeContinuousDetail(): RecallCampaignDetail {
+  const detail = makeDetail('content_only') as RecallCampaignDetail & {
+    delivery_policy: string
+    lifecycle_trigger: string
+    processing_start_at: number
+    draft: RecallCampaignDetail['draft'] & {
+      delivery_policy: string
+      lifecycle_trigger: string
+      lifecycle_trigger_config: Record<string, never>
+      processing_start_at: number
+    }
+  }
+  detail.status = 'running'
+  detail.execution_mode = 'continuous'
+  detail.audience_template = 'first_purchase'
+  detail.delivery_policy = 'service'
+  detail.lifecycle_trigger = 'quota_low'
+  detail.processing_start_at = 1_900_000_000
+  detail.draft.execution_mode = 'continuous'
+  detail.draft.delivery_policy = 'service'
+  detail.draft.lifecycle_trigger = 'quota_low'
+  detail.draft.lifecycle_trigger_config = {}
+  detail.draft.processing_start_at = 1_900_000_000
+  detail.draft.promotion_valid_seconds = 0
+  return detail
+}
+
 function renderCampaignDetail(
   campaignType: RecallCampaignType,
   metrics: RecallCampaignMetrics = makeMetrics(),
@@ -269,6 +351,45 @@ function renderCampaignDetail(
   queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
     success: true,
     data: { items: [], total: 0, page: 1, page_size: 100 },
+  })
+
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>
+      <I18nextProvider i18n={testI18n}>
+        <CampaignDetail campaignId={campaignId} />
+      </I18nextProvider>
+    </QueryClientProvider>
+  )
+}
+
+function renderContinuousCampaignDetail(
+  metrics: RecallCampaignMetrics = makeContinuousMetrics(),
+  events: RecallEvent[] = []
+): string {
+  const campaignId = 42
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        enabled: false,
+        retry: false,
+      },
+    },
+  })
+  queryClient.setQueryData(recallCampaignKeys.detail(campaignId), {
+    success: true,
+    data: makeContinuousDetail(),
+  })
+  queryClient.setQueryData(recallCampaignKeys.metrics(campaignId), {
+    success: true,
+    data: metrics,
+  })
+  queryClient.setQueryData(recallCampaignKeys.recipients(campaignId, 1), {
+    success: true,
+    data: { items: [], total: 0, page: 1, page_size: 100 },
+  })
+  queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
+    success: true,
+    data: { items: events, total: events.length, page: 1, page_size: 100 },
   })
 
   return renderToStaticMarkup(
@@ -401,12 +522,14 @@ describe('Recall campaign delivery errors', () => {
     ).toBe('Translated uncertain SMTP delivery')
   })
 
-  test('uses backend message only as an unknown error fallback', () => {
+  test('uses safe generic copy for unknown delivery errors', () => {
     const t = (key: string) =>
       key ===
       'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
         ? 'Translated Activity SMTP failure'
-        : `translated:${key}`
+        : key === 'Unknown delivery error'
+          ? 'Translated unknown delivery error'
+          : `translated:${key}`
 
     expect(
       formatRecallDeliveryErrorMessage(
@@ -414,16 +537,76 @@ describe('Recall campaign delivery errors', () => {
         'Raw backend detail',
         t
       )
-    ).toBe('Raw backend detail')
+    ).toBe('Translated unknown delivery error')
 
+    expect(
+      formatRecallDeliveryErrorMessage('unknown_backend_code', '', t)
+    ).toBe('Translated unknown delivery error')
     expect(formatRecallDeliveryErrorMessage('', 'Raw backend detail', t)).toBe(
-      'Raw backend detail'
+      'Translated unknown delivery error'
     )
     expect(formatRecallDeliveryErrorMessage('', '', t)).toBe('')
   })
 })
 
 describe('CampaignDetail metric rendering', () => {
+  test('renders continuous lifecycle identity and operational metric cards', () => {
+    const html = renderContinuousCampaignDetail()
+    const metricsHtml = campaignMetricsMarkup(html)
+
+    expect(html).toContain('continuous')
+    expect(html).toContain('quota_low')
+    expect(metricsHtml).toContain('Pending not due')
+    expect(metricsHtml).toContain('>11</div>')
+    expect(metricsHtml).toContain('Due now')
+    expect(metricsHtml).toContain('>7</div>')
+    expect(metricsHtml).toContain('Lifecycle events')
+    expect(metricsHtml).toContain('>19</div>')
+    expect(metricsHtml).toContain('Enrolled events')
+    expect(metricsHtml).toContain('Queued messages')
+    expect(metricsHtml).toContain('SMTP accepted')
+    expect(metricsHtml).toContain('Uncertain messages')
+    expect(metricsHtml).toContain('Send blocked breakdown')
+    expect(metricsHtml).toContain('No account email address')
+    expect(metricsHtml).toContain('Engagement opt-out')
+    expect(metricsHtml).not.toContain('no_account_email')
+    expect(metricsHtml).not.toContain('engagement_opted_out')
+    expect(metricsHtml).toContain('Skip breakdown')
+    expect(metricsHtml).toContain('Invalid lifecycle email')
+    expect(metricsHtml).toContain('Unknown lifecycle outcome')
+    expect(metricsHtml).not.toContain('unknown_future_reason')
+    expect(metricsHtml).toContain('Processing latency')
+    expect(metricsHtml).toContain('Quota recovered before send')
+    expect(metricsHtml).not.toContain('quota_recovered')
+    expect(metricsHtml).not.toContain('Accepted messages')
+  })
+
+  test('hides unknown lifecycle event identifiers in the audit timeline', () => {
+    const html = renderContinuousCampaignDetail(makeContinuousMetrics(), [
+      {
+        id: 1,
+        campaign_id: 42,
+        recipient_id: 0,
+        event_type: 'unknown_future_event',
+        source: 'activity',
+        source_event_id: 'evt_123',
+        event_data: '',
+        created_at: 1_900_000_000,
+      },
+    ])
+
+    expect(html).toContain('Unknown lifecycle event')
+    expect(html).not.toContain('unknown_future_event')
+  })
+
+  test('offers pause and cancel while running continuous activities, without complete', () => {
+    const html = renderContinuousCampaignDetail()
+
+    expect(html).toContain('pause')
+    expect(html).toContain('cancel')
+    expect(html).not.toContain('complete')
+  })
+
   test('renders opened users beside observed clicks from authoritative metric cards', () => {
     const metricsHtml = campaignMetricsMarkup(
       renderCampaignDetail('content_only')
@@ -520,5 +703,98 @@ describe('CampaignDetail recipient rendering', () => {
 
     expect(recipientHtml).toContain('$16.00')
     expect(recipientHtml).not.toContain('USD 1600')
+  })
+
+  test('renders email message states with SMTP context and safe fallback', () => {
+    const recipient: RecallRecipient = {
+      id: 2,
+      campaign_id: 42,
+      user_id: 7825,
+      language_snapshot: 'en',
+      state: 'queued',
+      stripe_customer_id: '',
+      promotion_code_masked: '',
+      promotion_expires_at: 0,
+      first_sent_at: 0,
+      last_sent_at: 0,
+      clicked_at: 0,
+      converted_at: 0,
+      conversion_kind: '',
+      conversion_trade_no: '',
+      conversion_currency: '',
+      conversion_amount: 0,
+      discount_amount: 0,
+      last_error_code: '',
+      last_error_message: '',
+      created_at: 0,
+      updated_at: 0,
+      messages: [
+        {
+          id: 101,
+          recipient_id: 2,
+          stage_no: 1,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'accepted',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 1_900_000_000,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: 102,
+          recipient_id: 2,
+          stage_no: 2,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'sending',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 0,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: 103,
+          recipient_id: 2,
+          stage_no: 3,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'unknown_future_state',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 0,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    }
+
+    const recipientHtml = campaignRecipientsMarkup(
+      renderCampaignDetail('content_only', makeMetrics(), [recipient])
+    )
+
+    expect(recipientHtml).toContain('SMTP accepted')
+    expect(recipientHtml).toContain('Sending via SMTP')
+    expect(recipientHtml).toContain('Unknown message state')
+    expect(recipientHtml).not.toContain('Stage 1 · accepted')
+    expect(recipientHtml).not.toContain('Stage 2 · sending')
+    expect(recipientHtml).not.toContain('unknown_future_state')
   })
 })

@@ -59,11 +59,13 @@ type UserModelAccess struct {
 }
 
 type TokenModelAccessInput struct {
-	IdentityGroup      string
-	TokenGroup         string
-	AcceptUnpriced     bool
-	ModelLimitsEnabled bool
-	ModelLimits        map[string]bool
+	IdentityGroup         string
+	TokenGroup            string
+	AcceptUnpriced        bool
+	ModelLimitsEnabled    bool
+	ModelLimits           map[string]bool
+	ModelBlacklistEnabled bool
+	ModelBlacklist        map[string]bool
 }
 
 type ResolvedTokenModelAccess struct {
@@ -86,12 +88,21 @@ func TokenAllowsModel(allowlist map[string]bool, modelName string) bool {
 	return allowlist[AllowlistMatchKey(modelName)]
 }
 
+// TokenBlocksModel applies the same canonical matching contract as the
+// allowlist. A missing, empty, or false-valued entry does not block access.
+func TokenBlocksModel(blacklist map[string]bool, modelName string) bool {
+	if len(blacklist) == 0 {
+		return false
+	}
+	return blacklist[AllowlistMatchKey(modelName)]
+}
+
 func UserAcceptsUnpricedModels(user *model.UserBase) bool {
 	return operation_setting.SelfUseModeEnabled || (user != nil && user.GetSetting().AcceptUnsetRatioModel)
 }
 
 func ResolveTokenModelAccess(input TokenModelAccessInput) (*ResolvedTokenModelAccess, error) {
-	groups := resolveTokenAccessGroups(input.IdentityGroup, input.TokenGroup)
+	groups := ResolveTokenAccessGroups(input.IdentityGroup, input.TokenGroup)
 	access, err := resolveStrictModelAccess(groups, input.AcceptUnpriced)
 	if err != nil {
 		return nil, err
@@ -99,6 +110,11 @@ func ResolveTokenModelAccess(input TokenModelAccessInput) (*ResolvedTokenModelAc
 	if input.ModelLimitsEnabled {
 		access = filterResolvedModelAccess(access, func(modelName string) bool {
 			return TokenAllowsModel(input.ModelLimits, modelName)
+		})
+	}
+	if input.ModelBlacklistEnabled {
+		access = filterResolvedModelAccess(access, func(modelName string) bool {
+			return !TokenBlocksModel(input.ModelBlacklist, modelName)
 		})
 	}
 	return &ResolvedTokenModelAccess{ModelIDs: access.modelIDs, Models: access.models}, nil
@@ -298,7 +314,7 @@ func explicitGroupModelRatios(group string, modelIDs []string) map[string]float6
 	return ratios
 }
 
-func resolveTokenAccessGroups(identityGroup, tokenGroup string) []string {
+func ResolveTokenAccessGroups(identityGroup, tokenGroup string) []string {
 	identityGroup = strings.TrimSpace(identityGroup)
 	tokenGroup = strings.TrimSpace(tokenGroup)
 	if identityGroup == "" {

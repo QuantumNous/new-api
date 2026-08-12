@@ -34,8 +34,10 @@ import {
 import type {
   RecallCampaignAction,
   RecallCampaignStatus,
+  RecallExecutionMode,
   RecallEmailLocalizationBlocker,
   RecallEmailStage,
+  RecallLifecycleMetrics,
   RecallRecipient,
 } from '../types'
 import { CampaignActionDialog } from './campaign-action-dialog'
@@ -43,6 +45,11 @@ import { CampaignEditor } from './campaign-editor'
 import { CampaignExclusionDialog } from './campaign-exclusion-dialog'
 import { CampaignMetricCardSection } from './campaign-metric-drawer'
 import { CampaignPreviewDialog } from './campaign-preview-dialog'
+import {
+  formatRecallLifecycleEventType,
+  formatRecallLifecycleOutcomeCode,
+  formatRecallMessageState,
+} from './campaign-preview-dialog-content'
 
 const DETAIL_PAGE_SIZE = 100
 const activationLocales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']
@@ -94,9 +101,8 @@ export function formatRecallDeliveryErrorMessage(
 ): string {
   const copyKey = getRecallDeliveryErrorCopyKey(code)
   if (copyKey) return t(copyKey)
-  if (message) return message
-  if (code) return code
-  return message
+  if (!code && !message) return ''
+  return t('Unknown delivery error')
 }
 
 function formatTimestamp(value: number): string {
@@ -104,13 +110,74 @@ function formatTimestamp(value: number): string {
 }
 
 function actionsForStatus(
-  status: RecallCampaignStatus
+  status: RecallCampaignStatus,
+  executionMode: RecallExecutionMode = 'manual'
 ): RecallCampaignAction[] {
   if (status === 'draft') return ['activate', 'cancel']
   if (status === 'scheduled') return ['pause', 'cancel']
+  if (executionMode === 'continuous') {
+    if (status === 'running') return ['pause', 'cancel']
+    if (status === 'paused') return ['resume', 'cancel']
+  }
   if (status === 'running') return ['pause', 'complete', 'cancel']
   if (status === 'paused') return ['resume', 'complete', 'cancel']
   return []
+}
+
+function LifecycleMetricCards(props: {
+  metrics: RecallLifecycleMetrics
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const cards = [
+    ['Lifecycle events', props.metrics.event_total],
+    ['Pending not due', props.metrics.pending_not_due_count],
+    ['Due now', props.metrics.due_backlog_count],
+    ['Leased events', props.metrics.leased_count],
+    ['Enrolled events', props.metrics.enrolled_count],
+    ['Skipped events', props.metrics.skipped_count],
+    ['Failed events', props.metrics.failed_count],
+    ['Queued messages', props.metrics.messages_queued_count],
+    ['SMTP accepted', props.metrics.messages_smtp_accepted_count],
+    ['Uncertain messages', props.metrics.messages_uncertain_count],
+    ['Failed messages', props.metrics.messages_failed_count],
+    ['Cancelled messages', props.metrics.messages_cancelled_count],
+    ['Lease recoveries', props.metrics.lease_recovery_count],
+    ['Retries', props.metrics.retried_event_count],
+    ['Processing latency', props.metrics.max_processing_latency_seconds],
+  ] as const
+  const breakdowns = [
+    ['Skip breakdown', props.metrics.skip_reason_counts],
+    ['Send blocked breakdown', props.metrics.send_blocked_reason_counts],
+    ['Safe error-code breakdown', props.metrics.error_code_counts],
+  ] as const
+
+  return (
+    <div className='space-y-3'>
+      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+        {cards.map(([label, value]) => (
+          <div className='rounded-lg border p-3' key={label}>
+            <div className='text-muted-foreground text-xs'>{t(label)}</div>
+            <div className='text-xl font-semibold'>{value}</div>
+          </div>
+        ))}
+      </div>
+      {breakdowns.map(([label, counts]) =>
+        Object.keys(counts).length > 0 ? (
+          <div className='rounded-lg border p-3 text-sm' key={label}>
+            <div className='font-medium'>{t(label)}</div>
+            <dl className='mt-2 space-y-1'>
+              {Object.entries(counts).map(([code, count]) => (
+                <div className='flex justify-between gap-4' key={code}>
+                  <dt>{formatRecallLifecycleOutcomeCode(code, t)}</dt>
+                  <dd>{count}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null
+      )}
+    </div>
+  )
 }
 
 interface CampaignDetailProps {
@@ -208,6 +275,10 @@ export function CampaignDetail(props: CampaignDetailProps) {
           {t(formatRecallCampaignType(detail.campaign_type))}
         </Badge>
         <Badge variant='secondary'>{t(detail.status)}</Badge>
+        <Badge variant='outline'>{t(detail.execution_mode)}</Badge>
+        {detail.lifecycle_trigger ? (
+          <Badge variant='outline'>{t(detail.lifecycle_trigger)}</Badge>
+        ) : null}
         <Button variant='outline' onClick={() => setPreviewOpen(true)}>
           {t('Preview')}
         </Button>
@@ -217,16 +288,18 @@ export function CampaignDetail(props: CampaignDetailProps) {
         <Button variant='outline' onClick={downloadExport}>
           {t('Export CSV')}
         </Button>
-        {actionsForStatus(detail.status).map((action) => (
-          <Button
-            key={action}
-            variant={action === 'cancel' ? 'destructive' : 'default'}
-            disabled={action === 'activate' && !activationReadiness.ready}
-            onClick={() => setDialog({ action })}
-          >
-            {t(action)}
-          </Button>
-        ))}
+        {actionsForStatus(detail.status, detail.execution_mode).map(
+          (action) => (
+            <Button
+              key={action}
+              variant={action === 'cancel' ? 'destructive' : 'default'}
+              disabled={action === 'activate' && !activationReadiness.ready}
+              onClick={() => setDialog({ action })}
+            >
+              {t(action)}
+            </Button>
+          )
+        )}
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='space-y-4'>
@@ -253,6 +326,11 @@ export function CampaignDetail(props: CampaignDetailProps) {
             <CardContent>
               {metrics ? (
                 <>
+                  {metrics.lifecycle ? (
+                    <div className='mb-4'>
+                      <LifecycleMetricCards metrics={metrics.lifecycle} />
+                    </div>
+                  ) : null}
                   <CampaignMetricCardSection
                     campaignId={props.campaignId}
                     metricCards={metrics.metric_cards}
@@ -349,7 +427,8 @@ export function CampaignDetail(props: CampaignDetailProps) {
                                 {t('Stage {{stage}}', {
                                   stage: message.stage_no,
                                 })}{' '}
-                                · {t(message.state)} · {t('TemplateVersion')}{' '}
+                                · {formatRecallMessageState(message.state, t)} ·{' '}
+                                {t('TemplateVersion')}{' '}
                                 {message.template_version}
                               </div>
                               <div>
@@ -429,7 +508,9 @@ export function CampaignDetail(props: CampaignDetailProps) {
                 {events.map((event) => (
                   <li className='rounded-lg border p-3' key={event.id}>
                     <div className='flex justify-between gap-3'>
-                      <strong>{t(event.event_type)}</strong>
+                      <strong>
+                        {formatRecallLifecycleEventType(event.event_type, t)}
+                      </strong>
                       <span className='text-muted-foreground text-xs'>
                         {formatTimestamp(event.created_at)}
                       </span>
@@ -491,6 +572,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
           <CampaignActionDialog
             campaignId={props.campaignId}
             action={dialog.action}
+            executionMode={detail.execution_mode}
             recipientId={dialog.recipientId}
             uncertain={dialog.uncertain}
             open

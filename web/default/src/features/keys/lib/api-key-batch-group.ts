@@ -28,6 +28,8 @@ export type BatchEditApiKeysPayload = {
   remain_quota?: number
   model_limits_enabled?: boolean
   model_limits?: string
+  model_blacklist_enabled?: boolean
+  model_blacklist?: string
 }
 
 export type BatchEditApiKeysSuccessEffects = {
@@ -62,10 +64,14 @@ export function buildBatchEditApiKeysPayload(
   }
   const modelLimitsProvided =
     edits.model_limits_enabled !== undefined || edits.model_limits !== undefined
+  const modelBlacklistProvided =
+    edits.model_blacklist_enabled !== undefined ||
+    edits.model_blacklist !== undefined
   if (
     edits.group === undefined &&
     edits.remain_quota === undefined &&
-    !modelLimitsProvided
+    !modelLimitsProvided &&
+    !modelBlacklistProvided
   ) {
     throw new Error('At least one batch edit is required')
   }
@@ -74,6 +80,12 @@ export function buildBatchEditApiKeysPayload(
     (edits.model_limits === undefined)
   ) {
     throw new Error('Model allowlist fields must be provided together')
+  }
+  if (
+    (edits.model_blacklist_enabled === undefined) !==
+    (edits.model_blacklist === undefined)
+  ) {
+    throw new Error('Model blacklist fields must be provided together')
   }
   if (edits.group !== undefined && edits.group.length === 0) {
     throw new Error('The selected group cannot be empty')
@@ -94,6 +106,12 @@ export function buildBatchEditApiKeysPayload(
     payload.model_limits_enabled = edits.model_limits_enabled
     payload.model_limits = edits.model_limits_enabled
       ? (edits.model_limits ?? '')
+      : ''
+  }
+  if (edits.model_blacklist_enabled !== undefined) {
+    payload.model_blacklist_enabled = edits.model_blacklist_enabled
+    payload.model_blacklist = edits.model_blacklist_enabled
+      ? (edits.model_blacklist ?? '')
       : ''
   }
   return payload
@@ -127,6 +145,14 @@ export function isBatchEditApiKeysAvailable(featureEnabled: boolean): boolean {
   return featureEnabled
 }
 
+export function canSubmitBatchModelAccessEdits(
+  modelAccessReady: boolean,
+  updateModelLimits: boolean,
+  updateModelBlacklist: boolean
+): boolean {
+  return modelAccessReady || (!updateModelLimits && !updateModelBlacklist)
+}
+
 export function isBatchQuotaInputValid(
   rawValue: string,
   tokensOnly: boolean
@@ -149,6 +175,8 @@ export async function coordinateBatchEditApiKeys(
     remain_quota: params.payload.remain_quota,
     model_limits_enabled: params.payload.model_limits_enabled,
     model_limits: params.payload.model_limits,
+    model_blacklist_enabled: params.payload.model_blacklist_enabled,
+    model_blacklist: params.payload.model_blacklist,
   })
   const response = await params.request(payload)
 

@@ -3,9 +3,12 @@ import {
   DEEPSEEK_CONFIG,
   GEMINI_CONFIG,
   GLM_API_CONFIG,
+  GPT_IMAGE_2_CONFIG,
+  MINIMAX_H3_CONFIG,
   QWEN_CONFIG,
   getModelLandingConfig,
   getModelLandingConfigForModel,
+  getModelLandingConfigForPricingModel,
   getModelLandingPathnames,
   resolveModelLandingModels,
 } from "./model-landing";
@@ -34,6 +37,10 @@ describe("model landing configuration", () => {
 
   test("resolves configured landing pages by slug", () => {
     expect(getModelLandingConfig("gpt-api")?.displayName).toBe("GPT-5");
+    expect(getModelLandingConfig("gpt-image-2")).toBe(GPT_IMAGE_2_CONFIG);
+    expect(getModelLandingConfig("minimax-h3")).toBe(MINIMAX_H3_CONFIG);
+    expect(getModelLandingConfigForModel("gpt-image-2")?.generator?.kind).toBe("image");
+    expect(getModelLandingConfigForModel("MiniMax-H3")?.generator?.kind).toBe("video");
     expect(getModelLandingConfig("missing-model")).toBeNull();
   });
 
@@ -42,8 +49,10 @@ describe("model landing configuration", () => {
       "/models/claude-api",
       "/models/deepseek-api",
       "/models/gemini-api",
+      "/models/gpt-image-2",
       "/models/glm-api",
       "/models/gpt-api",
+      "/models/minimax-h3",
       "/models/qwen-api",
       "/models/seedance-api",
     ]);
@@ -82,8 +91,29 @@ describe("model landing configuration", () => {
 
   test("finds landing page config from a live pricing model name", () => {
     expect(getModelLandingConfigForModel("gpt-5-mini")?.slug).toBe("gpt-api");
+    expect(getModelLandingConfigForModel("gpt-5.5-fk-cx")?.slug).toBe("gpt-api");
     expect(getModelLandingConfigForModel("gpt-5-2026-06-01")?.slug).toBe("gpt-api");
+    expect(getModelLandingConfigForModel("MiniMax-H3")?.slug).toBe("minimax-h3");
     expect(getModelLandingConfigForModel("seedance-2.0-pro")?.slug).toBe("seedance-api");
     expect(getModelLandingConfigForModel("unknown-model")).toBeNull();
+  });
+
+  test("builds media landing configs from live pricing endpoint types", () => {
+    const sonilo: PricingModel = {
+      model_name: "sonilo-video-to-music",
+      vendor_name: "Sonilo",
+      quota_type: 1,
+      model_ratio: 0,
+      model_price: 0.009,
+      completion_ratio: 0,
+      supported_endpoint_types: ["video-to-music"],
+    };
+
+    const config = getModelLandingConfigForPricingModel(sonilo);
+
+    expect(config?.slug).toBe("sonilo-video-to-music");
+    expect(config?.generator?.kind).toBe("audio");
+    expect(config?.generator?.endpoint).toBe("/v1/video-to-music");
+    expect(config?.generator?.storageKey).toBe("flatkey:model-generator-draft:sonilo-video-to-music");
   });
 });

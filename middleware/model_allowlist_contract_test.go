@@ -104,3 +104,29 @@ func TestDistributorEnforcesCanonicalTokenAllowlistOnRealRequestPath(t *testing.
 		})
 	}
 }
+
+func TestDistributorRejectsBlacklistedOriginModelOnTaskFetch(t *testing.T) {
+	setupDistributorAllowlistContractTest(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Task{}))
+	require.NoError(t, model.DB.Create(&model.Task{
+		TaskID:     "task-blacklisted-model",
+		UserId:     77,
+		Status:     model.TaskStatusSubmitted,
+		Properties: model.Properties{OriginModelName: "gpt-5.5"},
+	}).Error)
+
+	router := gin.New()
+	router.GET("/v1/generation/tasks/:task_id", func(c *gin.Context) {
+		c.Set("id", 77)
+		common.SetContextKey(c, constant.ContextKeyTokenModelBlacklistEnabled, true)
+		common.SetContextKey(c, constant.ContextKeyTokenModelBlacklist, map[string]bool{"gpt-5.5": true})
+	}, Distribute(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodGet, "/v1/generation/tasks/task-blacklisted-model", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, recorder.Body.String())
+}

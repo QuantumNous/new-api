@@ -62,6 +62,7 @@ interface PlaygroundInputProps {
   modelValue: string
   onModelChange: (value: string) => void
   isModelLoading?: boolean
+  modelLocked?: boolean
   groups: GroupOption[]
   groupValue: string
   onGroupChange: (value: string) => void
@@ -88,6 +89,7 @@ export function PlaygroundInput({
   modelValue,
   onModelChange,
   isModelLoading = false,
+  modelLocked = false,
   groups,
   groupValue,
   onGroupChange,
@@ -103,7 +105,7 @@ export function PlaygroundInput({
     setText((currentText) => currentText || trimmedInitialText)
   }, [initialText])
 
-  const isModelSelectDisabled = disabled || isModelLoading
+  const isModelSelectDisabled = disabled || isModelLoading || modelLocked
   const isGroupSelectDisabled = disabled || groups.length === 0
   const isSubmitDisabled = disabled || submitDisabled || !modelValue
 

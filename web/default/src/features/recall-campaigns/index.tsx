@@ -39,8 +39,8 @@ export function RecallCampaigns() {
           <CampaignTable />
         </div>
         <Dialog open={creating} onOpenChange={setCreating}>
-          <DialogContent className='max-h-[92vh] overflow-y-auto sm:max-w-5xl'>
-            <DialogHeader>
+          <DialogContent className='max-h-[92vh] w-full min-w-0 overflow-x-hidden overflow-y-auto sm:max-w-5xl'>
+            <DialogHeader className='w-full min-w-0'>
               <DialogTitle>{t('Create activity configuration')}</DialogTitle>
               <DialogDescription>
                 {t(

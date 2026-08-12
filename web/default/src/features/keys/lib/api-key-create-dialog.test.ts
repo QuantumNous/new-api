@@ -123,6 +123,8 @@ describe('create dialog deep-link model access contract', () => {
       group: '',
       model_limits_enabled: false,
       model_limits: [],
+      model_blacklist_enabled: false,
+      model_blacklist: [],
       cross_group_retry: false,
     }
     expect(

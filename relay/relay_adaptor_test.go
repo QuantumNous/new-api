@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/byteplus"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
+	"github.com/QuantumNous/new-api/relay/channel/task/modelapiseedance"
 	"github.com/QuantumNous/new-api/relay/channel/task/sonilo"
 )
 
@@ -101,5 +102,18 @@ func TestGetTaskAdaptor_MiniMaxVersions(t *testing.T) {
 			}
 			tt.assertType(t, adaptor)
 		})
+	}
+}
+
+func TestGetTaskAdaptor_ModelAPISeedance(t *testing.T) {
+	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeModelAPISeedance)))
+	if adaptor == nil {
+		t.Fatal("expected ModelAPISeedance task adaptor")
+	}
+	if _, ok := adaptor.(*modelapiseedance.TaskAdaptor); !ok {
+		t.Fatalf("adaptor type = %T, want *modelapiseedance.TaskAdaptor", adaptor)
+	}
+	if got := adaptor.GetChannelName(); got != "modelapi-seedance" {
+		t.Fatalf("channel name = %q, want modelapi-seedance", got)
 	}
 }

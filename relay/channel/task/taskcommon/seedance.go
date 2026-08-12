@@ -60,8 +60,18 @@ func BindSeedanceRequest(c *gin.Context, info *relaycommon.RelayInfo, action str
 	}
 
 	relaycommon.StoreTaskRequest(c, info, action, taskReq)
-	c.Set(seedanceRequestContextKey, &req)
+	SetSeedanceRequest(c, &req)
 	return &req, nil
+}
+
+// SetSeedanceRequest updates the parsed seedance request cache for adaptors
+// that need to derive an immutable post-processed copy after BindSeedanceRequest
+// has already synthesized the public task_request.
+func SetSeedanceRequest(c *gin.Context, req *dto.SeedanceVideoRequest) {
+	if c == nil || req == nil {
+		return
+	}
+	c.Set(seedanceRequestContextKey, req)
 }
 
 // GetSeedanceRequest returns the seedance request parsed by BindSeedanceRequest

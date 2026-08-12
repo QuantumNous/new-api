@@ -26,6 +26,10 @@ type Option struct {
 
 const OptionKeyPlaygroundDefaultModel = "PlaygroundDefaultModel"
 
+// OptionKeyCompanyLogRoutingEnabled persists the default-off write-routing gate
+// for root-account Codex token logs.
+const OptionKeyCompanyLogRoutingEnabled = "CompanyLogRoutingEnabled"
+
 const recallCampaignEmailFromOptionKey = "recall_campaign_setting.email_from"
 const recallCampaignReplyToOptionKey = "recall_campaign_setting.reply_to"
 const recallCampaignUnsubscribeMailtoOptionKey = "recall_campaign_setting.unsubscribe_mailto"
@@ -116,6 +120,7 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap[OptionKeyCompanyLogRoutingEnabled] = strconv.FormatBool(companyLogRoutingEnabled.Load())
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -929,6 +934,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
+		case OptionKeyCompanyLogRoutingEnabled:
+			companyLogRoutingEnabled.Store(boolValue)
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
 			// true -> USD, false -> TOKENS
@@ -1338,6 +1345,8 @@ func handleConfigUpdate(key, value string) (bool, error) {
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
+	} else if configName == "pricing_visibility_setting" {
+		operation_setting.NotifyPricingVisibilityChanged()
 	} else if configName == "theme" {
 		system_setting.UpdateAndSyncTheme()
 	}
@@ -1438,7 +1447,7 @@ func syncRenamedGroupsToGroupModelRatio(renames map[string]string) error {
 		for _, key := range []string{"GroupModelRatio", "group_ratio_setting.group_model_ratio"} {
 			if key == "group_ratio_setting.group_model_ratio" {
 				var count int64
-				if err := tx.Model(&Option{}).Where("key = ?", key).Count(&count).Error; err != nil {
+				if err := tx.Model(&Option{}).Where("`key` = ?", key).Count(&count).Error; err != nil {
 					return err
 				}
 				if count == 0 {

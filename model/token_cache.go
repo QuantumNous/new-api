@@ -13,10 +13,13 @@ import (
 )
 
 const (
-	tokenCacheFillFenceKey          = "token:cache:fill-fence"
-	tokenCacheCompleteField         = "__complete"
-	tokenCacheMutationFenceMismatch = -1
-	tokenCacheMutationNotPatched    = 0
+	tokenCacheFillFenceKey                   = "token:cache:fill-fence"
+	tokenPermissionUpdateMarkerPrefix        = "token:cache:permission-update:"
+	tokenPermissionUpdateMarkerSafetySeconds = 60
+	tokenCacheCompleteField                  = "__complete"
+	tokenCacheMutationFenceMismatch          = -1
+	tokenCacheMutationNotPatched             = 0
+	tokenCachePermissionUpdatePending        = -2
 )
 
 var captureTokenCacheFillFenceScript = redis.NewScript(`
@@ -35,12 +38,37 @@ end
 if redis.call('EXISTS', KEYS[2]) ~= 0 then
   return 0
 end
-redis.call('HSET', KEYS[2], unpack(ARGV, 3))
+if redis.call('EXISTS', KEYS[3]) ~= 0 then
+  return 0
+end
+redis.call('HSET', KEYS[3], unpack(ARGV, 3))
 local ttl = tonumber(ARGV[2])
 if ttl and ttl > 0 then
-  redis.call('EXPIRE', KEYS[2], ttl)
+  redis.call('EXPIRE', KEYS[3], ttl)
 end
 return 1
+`)
+
+var beginTokenPermissionUpdateScript = redis.NewScript(`
+redis.call('SET', KEYS[1], ARGV[1])
+for index = 2, #KEYS, 2 do
+  redis.call('SET', KEYS[index], ARGV[2], 'EX', ARGV[3])
+  redis.call('DEL', KEYS[index + 1])
+end
+return (#KEYS - 1) / 2
+`)
+
+var finishTokenPermissionUpdateScript = redis.NewScript(`
+redis.call('SET', KEYS[1], ARGV[1])
+local cleared = 0
+for index = 2, #KEYS, 2 do
+  redis.call('DEL', KEYS[index + 1])
+  if redis.call('GET', KEYS[index]) == ARGV[2] then
+    redis.call('DEL', KEYS[index])
+    cleared = cleared + 1
+  end
+end
+return cleared
 `)
 
 var invalidateTokenCacheScript = redis.NewScript(`
@@ -52,11 +80,14 @@ return 0
 `)
 
 var validateTokenCacheScript = redis.NewScript(`
-if redis.call('EXISTS', KEYS[1]) == 0 then
+if redis.call('EXISTS', KEYS[1]) ~= 0 then
+  return -2
+end
+if redis.call('EXISTS', KEYS[2]) == 0 then
   return 0
 end
-if redis.call('HGET', KEYS[1], ARGV[1]) ~= ARGV[2] then
-  redis.call('DEL', KEYS[1])
+if redis.call('HGET', KEYS[2], ARGV[1]) ~= ARGV[2] then
+  redis.call('DEL', KEYS[2])
   return -1
 end
 return 1
@@ -133,6 +164,63 @@ func redisTokenCacheKey(key string) string {
 	return fmt.Sprintf("token:%s", common.GenerateHMAC(key))
 }
 
+func tokenPermissionUpdateMarkerKey(key string) string {
+	return tokenPermissionUpdateMarkerPrefix + common.GenerateHMAC(key)
+}
+
+func tokenPermissionUpdateRedisKeys(keys []string) []string {
+	redisKeys := make([]string, 1, len(keys)*2+1)
+	redisKeys[0] = tokenCacheFillFenceKey
+	for _, key := range keys {
+		redisKeys = append(redisKeys, tokenPermissionUpdateMarkerKey(key), redisTokenCacheKey(key))
+	}
+	return redisKeys
+}
+
+func beginTokenPermissionUpdate(keys []string) (string, error) {
+	if len(keys) == 0 || !common.RedisEnabled {
+		return "", nil
+	}
+	if common.RDB == nil {
+		return "", errors.New("cannot prepare token permission update: Redis client is nil")
+	}
+	guard := uuid.NewString()
+	markerTTL := common.RedisKeyCacheSeconds() + tokenPermissionUpdateMarkerSafetySeconds
+	if markerTTL <= tokenPermissionUpdateMarkerSafetySeconds {
+		markerTTL = tokenPermissionUpdateMarkerSafetySeconds * 2
+	}
+	if err := beginTokenPermissionUpdateScript.Run(
+		context.Background(),
+		common.RDB,
+		tokenPermissionUpdateRedisKeys(keys),
+		uuid.NewString(),
+		guard,
+		markerTTL,
+	).Err(); err != nil {
+		return "", fmt.Errorf("failed to prepare token permission update: %w", err)
+	}
+	return guard, nil
+}
+
+func finishTokenPermissionUpdate(keys []string, guard string) error {
+	if len(keys) == 0 || !common.RedisEnabled || guard == "" {
+		return nil
+	}
+	if common.RDB == nil {
+		return errors.New("cannot finish token permission update: Redis client is nil")
+	}
+	if err := finishTokenPermissionUpdateScript.Run(
+		context.Background(),
+		common.RDB,
+		tokenPermissionUpdateRedisKeys(keys),
+		uuid.NewString(),
+		guard,
+	).Err(); err != nil {
+		return fmt.Errorf("failed to finish token permission update: %w", err)
+	}
+	return nil
+}
+
 func captureTokenCacheFillFence() (string, error) {
 	if !common.RedisEnabled || common.RDB == nil {
 		return "", errors.New("redis is not enabled")
@@ -163,6 +251,8 @@ func tokenCacheFields(token Token) []interface{} {
 		"UnlimitedQuota", strconv.FormatBool(token.UnlimitedQuota),
 		"ModelLimitsEnabled", strconv.FormatBool(token.ModelLimitsEnabled),
 		"ModelLimits", token.ModelLimits,
+		"ModelBlacklistEnabled", strconv.FormatBool(token.ModelBlacklistEnabled),
+		"ModelBlacklist", token.ModelBlacklist,
 		"AllowIps", tokenCacheAllowIps(token),
 		"UsedQuota", token.UsedQuota,
 		"Group", token.Group,
@@ -192,6 +282,8 @@ func tokenUpdateCacheFields(token Token) []interface{} {
 		"UnlimitedQuota", strconv.FormatBool(token.UnlimitedQuota),
 		"ModelLimitsEnabled", strconv.FormatBool(token.ModelLimitsEnabled),
 		"ModelLimits", token.ModelLimits,
+		"ModelBlacklistEnabled", strconv.FormatBool(token.ModelBlacklistEnabled),
+		"ModelBlacklist", token.ModelBlacklist,
 		"AllowIps", tokenCacheAllowIps(token),
 		"Group", token.Group,
 		"CrossGroupRetry", strconv.FormatBool(token.CrossGroupRetry),
@@ -219,7 +311,7 @@ func cacheSetToken(token Token, fillFence string) error {
 	if err := fillTokenCacheScript.Run(
 		context.Background(),
 		common.RDB,
-		[]string{tokenCacheFillFenceKey, redisTokenCacheKey(token.Key)},
+		[]string{tokenCacheFillFenceKey, tokenPermissionUpdateMarkerKey(token.Key), redisTokenCacheKey(token.Key)},
 		args...,
 	).Err(); err != nil {
 		return fmt.Errorf("failed to fill token cache: %w", err)
@@ -366,12 +458,15 @@ func cacheGetTokenByKey(key string) (*Token, error) {
 	valid, err := validateTokenCacheScript.Run(
 		context.Background(),
 		common.RDB,
-		[]string{redisKey},
+		[]string{tokenPermissionUpdateMarkerKey(key), redisKey},
 		tokenCacheCompleteField,
 		"1",
 	).Int()
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate token cache: %w", err)
+	}
+	if valid == tokenCachePermissionUpdatePending {
+		return nil, ErrTokenPermissionUpdatePending
 	}
 	if valid != 1 {
 		return nil, fmt.Errorf("key %s is missing a complete token cache entry", redisKey)
