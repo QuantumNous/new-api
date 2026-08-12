@@ -26,22 +26,30 @@ import { Button } from '@/components/ui/button'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { getErrorCategoryConfig } from '../constants'
-import { displayValue, parseErrorLogOther } from '../lib/utils'
+import {
+  displayValue,
+  formatErrorLogPayload,
+  parseErrorLogOther,
+} from '../lib/utils'
 import type { ErrorLog } from '../types'
 
-function ContentSummaryCell(props: { content: string }) {
+function ContentSummaryCell(props: { content: string; other: string }) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const content = props.content?.trim()
+  const other = parseErrorLogOther(props.other)
+  const requestBody = formatErrorLogPayload(other?.request_body)
+  const upstreamBody = formatErrorLogPayload(other?.upstream_request_body)
+  const hasPayload = Boolean(requestBody || upstreamBody)
 
-  if (!content) {
+  if (!content && !hasPayload) {
     return <span className='text-muted-foreground/40 text-xs'>-</span>
   }
 
-  const isLong = content.length > 80
+  const isLong = (content?.length || 0) > 80 || hasPayload
 
   return (
-    <div className='max-w-[280px]'>
+    <div className='max-w-[320px]'>
       <div className='flex items-start gap-1'>
         {isLong && (
           <Button
@@ -59,15 +67,39 @@ function ContentSummaryCell(props: { content: string }) {
             )}
           </Button>
         )}
-        <p
-          className={cn(
-            'text-muted-foreground text-xs leading-snug break-words',
-            !expanded && isLong && 'line-clamp-2'
-          )}
-          title={content}
-        >
-          {content}
-        </p>
+        <div className='min-w-0 flex-1 space-y-2'>
+          {content ? (
+            <p
+              className={cn(
+                'text-muted-foreground text-xs leading-snug break-words',
+                !expanded && isLong && 'line-clamp-2'
+              )}
+              title={content}
+            >
+              {content}
+            </p>
+          ) : null}
+          {expanded && requestBody ? (
+            <div className='space-y-1'>
+              <p className='text-foreground/80 text-[11px] font-medium'>
+                {t('Request Body')}
+              </p>
+              <pre className='bg-muted/40 text-muted-foreground max-h-48 overflow-auto rounded-md p-2 font-mono text-[11px] leading-snug break-all whitespace-pre-wrap'>
+                {requestBody}
+              </pre>
+            </div>
+          ) : null}
+          {expanded && upstreamBody ? (
+            <div className='space-y-1'>
+              <p className='text-foreground/80 text-[11px] font-medium'>
+                {t('Upstream Request Body')}
+              </p>
+              <pre className='bg-muted/40 text-muted-foreground max-h-48 overflow-auto rounded-md p-2 font-mono text-[11px] leading-snug break-all whitespace-pre-wrap'>
+                {upstreamBody}
+              </pre>
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -246,7 +278,12 @@ export function useErrorLogsColumns(): ColumnDef<ErrorLog>[] {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Content')} />
       ),
-      cell: ({ row }) => <ContentSummaryCell content={row.original.content} />,
+      cell: ({ row }) => (
+        <ContentSummaryCell
+          content={row.original.content}
+          other={row.original.other}
+        />
+      ),
       meta: { label: t('Content') },
     },
     {

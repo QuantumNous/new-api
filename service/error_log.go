@@ -35,6 +35,7 @@ func BuildErrorLogOther(c *gin.Context, category string, extra map[string]interf
 			other["request_path"] = c.Request.URL.Path
 		}
 	}
+	AttachErrorLogRequestPayloads(c, other)
 	return other
 }
 

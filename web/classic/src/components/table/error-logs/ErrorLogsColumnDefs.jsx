@@ -256,16 +256,35 @@ export const getErrorLogsColumns = ({
       title: t('详情'),
       dataIndex: 'content',
       fixed: 'right',
-      render: (text) => {
-        if (!text) {
+      render: (text, record) => {
+        if (!text && !(record?._other || getLogOther(record?.other))) {
           return '-';
+        }
+        if (!text) {
+          text = '-';
         }
         return (
           <Typography.Text
             ellipsis={{ showTooltip: true }}
             style={{ width: 160, cursor: 'pointer' }}
             onClick={() => {
-              openContentModal(text);
+              const other = record._other || getLogOther(record.other) || {};
+              const parts = [text !== '-' ? text : ''];
+              if (other.request_body) {
+                const body =
+                  typeof other.request_body === 'string'
+                    ? other.request_body
+                    : JSON.stringify(other.request_body, null, 2);
+                parts.push(`${t('请求体')}\n${body}`);
+              }
+              if (other.upstream_request_body) {
+                const body =
+                  typeof other.upstream_request_body === 'string'
+                    ? other.upstream_request_body
+                    : JSON.stringify(other.upstream_request_body, null, 2);
+                parts.push(`${t('上游请求体')}\n${body}`);
+              }
+              openContentModal(parts.filter(Boolean).join('\n\n'));
             }}
           >
             {text}

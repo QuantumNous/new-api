@@ -35,6 +35,16 @@ export function parseErrorLogOther(other: string): ErrorLogOtherData | null {
   }
 }
 
+export function formatErrorLogPayload(value: unknown): string {
+  if (value == null || value === '') return ''
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
 export function displayValue(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === '') return '-'
   return String(value)

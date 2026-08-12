@@ -3307,6 +3307,8 @@
     "Request Header Override": "Remplacement des en-têtes de requête",
     "Request Header Overrides": "Remplacements d'en-têtes de requête",
     "Request ID": "ID de requête",
+    "Request Body": "Corps de la requête",
+    "Upstream Request Body": "Corps de la requête amont",
     "Request Limits": "Limites de requêtes",
     "Request Model": "Modèle demandé",
     "Request Model:": "Modèle demandé :",

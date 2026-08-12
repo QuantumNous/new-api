@@ -35,6 +35,21 @@ func TestNormalizeTier_Default720p(t *testing.T) {
 	}
 }
 
+func TestResolveClientTier_MetadataFallback(t *testing.T) {
+	if got := resolveClientTier("", "1080p", ""); got != "1080p" {
+		t.Fatalf("got=%q", got)
+	}
+	if got := resolveClientTier("720p", "1080p", ""); got != "720p" {
+		t.Fatalf("top-level must win, got=%q", got)
+	}
+	if got := resolveClientTier("", "", "1920x1080"); got != "1080p" {
+		t.Fatalf("size fallback got=%q", got)
+	}
+	if got := resolveClientTier("", "480p", "1920x1080"); got != "480p" {
+		t.Fatalf("metadata before size, got=%q", got)
+	}
+}
+
 func TestNormalizeTier_ResolutionWxHOverSizeLabel(t *testing.T) {
 	if got := normalizeTier("1920x1080", "720p"); got != "1080p" {
 		t.Fatalf("got=%q want 1080p", got)

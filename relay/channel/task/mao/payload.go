@@ -8,16 +8,22 @@ import (
 )
 
 // buildUpstreamPayload clones body, maps logic model + resolution to upstream model ID,
-// strips resolution/size, applies metadata rules, and defaults response_format to url.
+// strips top-level resolution/size, syncs metadata.resolution to the resolved tier,
+// applies metadata rules, and defaults response_format to url.
 func buildUpstreamPayload(body map[string]interface{}, logicModel string) (map[string]interface{}, error) {
 	cloned, err := cloneBodyMap(body)
 	if err != nil {
 		return nil, err
 	}
 
-	resolution := asString(cloned["resolution"])
+	md := cloneMetadata(cloned["metadata"])
+	topResolution := asString(cloned["resolution"])
+	metaResolution := ""
+	if md != nil {
+		metaResolution = asString(md["resolution"])
+	}
 	size := asString(cloned["size"])
-	tier := normalizeTier(resolution, size)
+	tier := resolveClientTier(topResolution, metaResolution, size)
 
 	upstreamModel, err := resolveUpstreamModel(logicModel, tier)
 	if err != nil {
@@ -54,7 +60,6 @@ func buildUpstreamPayload(body map[string]interface{}, logicModel string) (map[s
 		out["response_format"] = "url"
 	}
 
-	md := cloneMetadata(cloned["metadata"])
 	if v, ok := cloned["generate_audio"]; ok {
 		if md == nil {
 			md = make(map[string]interface{})
@@ -76,13 +81,18 @@ func buildUpstreamPayload(body map[string]interface{}, logicModel string) (map[s
 
 	applyReferenceMedia(cloned, out, &md)
 
-	if md != nil {
-		if !supportsCameraFixed(logicModel) {
-			delete(md, "camera_fixed")
-		}
-		if len(md) > 0 {
-			out["metadata"] = md
-		}
+	// Always align metadata.resolution with the model tier so catertx/Doubao
+	// never see e.g. model sd-2-0-720p + metadata.resolution=1080p.
+	if md == nil {
+		md = make(map[string]interface{})
+	}
+	md["resolution"] = tier
+
+	if !supportsCameraFixed(logicModel) {
+		delete(md, "camera_fixed")
+	}
+	if len(md) > 0 {
+		out["metadata"] = md
 	}
 
 	if dur, ok := out["duration"]; ok {

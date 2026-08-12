@@ -3307,6 +3307,8 @@
     "Request Header Override": "Request Header Override",
     "Request Header Overrides": "Request Header Overrides",
     "Request ID": "Request ID",
+    "Request Body": "Request Body",
+    "Upstream Request Body": "Upstream Request Body",
     "Request Limits": "Request Limits",
     "Request Model": "Request Model",
     "Request Model:": "Request Model:",

@@ -712,7 +712,7 @@ export function ChannelMutateDrawer({
       if (!currentModels || currentModels.trim() === '') {
         form.setValue(
           'models',
-          'zzdh-Minimax-h3-480p,zzdh-Minimax-h3-720p,zzdh-Minimax-h3-1080p,zzdh-Minimax-h3-2k'
+          'zzdh-Minimax-h3'
         )
       }
       const currentBaseUrlValue = form.getValues('base_url')

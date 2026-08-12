@@ -62,6 +62,36 @@ func TestNormalizeCreateBodyStripsMismatchedResolution(t *testing.T) {
 	if _, has := body["size"]; has {
 		t.Fatalf("size should be omitted, got %#v", body["size"])
 	}
+	if body["model"] != "zzdh-Minimax-h3-720p" {
+		t.Fatalf("legacy model passthrough = %#v", body["model"])
+	}
+}
+
+func TestNormalizeCreateBodyAdaptiveResolution(t *testing.T) {
+	body := map[string]interface{}{
+		"prompt":     "x",
+		"resolution": "2k",
+		"duration":   10,
+	}
+	if err := normalizeCreateBody(body, "zzdh-Minimax-h3"); err != nil {
+		t.Fatal(err)
+	}
+	if body["model"] != "zzdh-Minimax-h3-2k" {
+		t.Fatalf("model = %#v, want zzdh-Minimax-h3-2k", body["model"])
+	}
+	if _, has := body["resolution"]; has {
+		t.Fatalf("resolution should be omitted after resolve, got %#v", body["resolution"])
+	}
+}
+
+func TestNormalizeCreateBodyAdaptiveDefault720p(t *testing.T) {
+	body := map[string]interface{}{"prompt": "x"}
+	if err := normalizeCreateBody(body, "zzdh-Minimax-h3"); err != nil {
+		t.Fatal(err)
+	}
+	if body["model"] != "zzdh-Minimax-h3-720p" {
+		t.Fatalf("model = %#v, want default 720p", body["model"])
+	}
 }
 
 func TestNormalizeCreateBodyOmitsMatchingResolution(t *testing.T) {
@@ -72,6 +102,9 @@ func TestNormalizeCreateBodyOmitsMatchingResolution(t *testing.T) {
 	}
 	if err := normalizeCreateBody(body, "zzdh-Minimax-h3-2k"); err != nil {
 		t.Fatal(err)
+	}
+	if body["model"] != "zzdh-Minimax-h3-2k" {
+		t.Fatalf("model = %#v", body["model"])
 	}
 	if _, has := body["resolution"]; has {
 		t.Fatalf("resolution should be omitted (locked by model), got %#v", body["resolution"])
@@ -129,19 +162,8 @@ func TestParseTaskResultCompleted(t *testing.T) {
 func TestGetModelList(t *testing.T) {
 	a := &TaskAdaptor{}
 	list := a.GetModelList()
-	want := map[string]bool{
-		"zzdh-Minimax-h3-480p":  true,
-		"zzdh-Minimax-h3-720p":  true,
-		"zzdh-Minimax-h3-1080p": true,
-		"zzdh-Minimax-h3-2k":    true,
-	}
-	if len(list) != len(want) {
-		t.Fatalf("list=%v", list)
-	}
-	for _, m := range list {
-		if !want[m] {
-			t.Fatalf("unexpected model %q", m)
-		}
+	if len(list) != 1 || list[0] != "zzdh-Minimax-h3" {
+		t.Fatalf("list=%v, want [zzdh-Minimax-h3]", list)
 	}
 }
 

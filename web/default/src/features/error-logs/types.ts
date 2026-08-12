@@ -31,6 +31,8 @@ export interface ErrorLogOtherData {
   error_code?: string | number
   status_code?: number
   request_path?: string
+  request_body?: unknown
+  upstream_request_body?: unknown
   admin_info?: {
     use_channel?: number[]
     is_multi_key?: boolean

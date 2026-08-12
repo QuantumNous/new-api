@@ -29,9 +29,10 @@ func trimSuffixFold(s, suf string) string {
 }
 
 // normalizeCreateBody maps aliases and validates ZZDH MiniMax-H3 create JSON.
-// Returns an error for invalid fps / duration / aspect_ratio.
-// Resolution is always stripped — delivery tier is locked by model name.
-func normalizeCreateBody(body map[string]interface{}, upstreamModel string) error {
+// Returns an error for invalid fps / duration / aspect_ratio / unsupported resolution.
+// Logic model zzdh-Minimax-h3 + resolution/size selects upstream *-480p/*-720p/*-1080p/*-2k;
+// legacy resolution-locked model names pass through. Resolution is always stripped upstream.
+func normalizeCreateBody(body map[string]interface{}, logicOrUpstreamModel string) error {
 	if body == nil {
 		return fmt.Errorf("empty request body")
 	}
@@ -44,17 +45,25 @@ func normalizeCreateBody(body map[string]interface{}, upstreamModel string) erro
 	}
 	delete(body, "image_with_roles")
 
+	// Capture resolution hints before stripping (quality / bare size as fallbacks).
+	topResolution := firstNonEmptyString(body, "resolution")
+	if topResolution == "" {
+		topResolution = firstNonEmptyString(body, "quality")
+	}
+	sizeHint := firstNonEmptyString(body, "size")
+
 	// ratio / size(with :) → aspect_ratio
 	if ar := firstNonEmptyString(body, "aspect_ratio"); ar == "" {
 		if ratio := firstNonEmptyString(body, "ratio"); ratio != "" && strings.Contains(ratio, ":") {
 			body["aspect_ratio"] = ratio
-		} else if size := firstNonEmptyString(body, "size"); size != "" && strings.Contains(size, ":") {
-			body["aspect_ratio"] = size
+		} else if sizeHint != "" && strings.Contains(sizeHint, ":") {
+			body["aspect_ratio"] = sizeHint
 		}
 	}
 	delete(body, "ratio")
-	if size := firstNonEmptyString(body, "size"); size != "" && strings.Contains(size, ":") {
+	if sizeHint != "" && strings.Contains(sizeHint, ":") {
 		delete(body, "size")
+		sizeHint = ""
 	}
 
 	// seconds → duration
@@ -94,9 +103,14 @@ func normalizeCreateBody(body map[string]interface{}, upstreamModel string) erro
 		}
 	}
 
-	// Delivery resolution is locked by model name (480p/720p/1080p/2k).
-	// Always omit resolution/quality and resolution-like size so clients
-	// carrying ApiMart values (e.g. 768P) do not get rejected upstream.
+	tier := resolveClientTier(topResolution, sizeHint)
+	upstreamModel, err := resolveUpstreamModel(logicOrUpstreamModel, tier)
+	if err != nil {
+		return err
+	}
+
+	// Upstream locks delivery by model name — omit resolution/quality/bare size
+	// so clients carrying ApiMart values (e.g. 768P) are not rejected.
 	delete(body, "resolution")
 	delete(body, "quality")
 	if size := firstNonEmptyString(body, "size"); size != "" && !strings.Contains(size, ":") {
@@ -106,7 +120,7 @@ func normalizeCreateBody(body map[string]interface{}, upstreamModel string) erro
 	// unsupported
 	delete(body, "negative_prompt")
 
-	body["model"] = strings.TrimSpace(upstreamModel)
+	body["model"] = upstreamModel
 	return nil
 }
 

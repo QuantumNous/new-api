@@ -3307,6 +3307,8 @@
     "Request Header Override": "Ghi đè header yêu cầu",
     "Request Header Overrides": "Ghi đè Tiêu đề Yêu cầu",
     "Request ID": "ID yêu cầu",
+    "Request Body": "Nội dung yêu cầu",
+    "Upstream Request Body": "Nội dung yêu cầu upstream",
     "Request Limits": "Hạn mức yêu cầu",
     "Request Model": "Mô hình yêu cầu",
     "Request Model:": "Mô hình yêu cầu:",

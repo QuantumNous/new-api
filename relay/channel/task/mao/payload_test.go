@@ -21,10 +21,14 @@ func TestBuildUpstreamPayload_RewritesModelAndDropsResolution(t *testing.T) {
 		t.Fatalf("model=%v", out["model"])
 	}
 	if _, ok := out["resolution"]; ok {
-		t.Fatal("resolution must not be sent upstream")
+		t.Fatal("resolution must not be sent upstream at top level")
 	}
 	if _, ok := out["size"]; ok {
 		t.Fatal("size must not be sent upstream")
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	if md["resolution"] != "1080p" {
+		t.Fatalf("metadata.resolution=%v, want 1080p", md["resolution"])
 	}
 }
 
@@ -36,6 +40,10 @@ func TestBuildUpstreamPayload_DefaultTier720p(t *testing.T) {
 	}
 	if out["model"] != "sd-2-5-720p" {
 		t.Fatalf("model=%v", out["model"])
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	if md["resolution"] != "720p" {
+		t.Fatalf("metadata.resolution=%v, want 720p", md["resolution"])
 	}
 }
 
@@ -161,6 +169,9 @@ func TestBuildUpstreamPayload_AfterVolcNormalize(t *testing.T) {
 	if md["watermark"] != false {
 		t.Fatalf("metadata.watermark=%v, want false", md["watermark"])
 	}
+	if md["resolution"] != "1080p" {
+		t.Fatalf("metadata.resolution=%v, want 1080p", md["resolution"])
+	}
 }
 
 func TestBuildUpstreamPayload_MapsImagesAliasToReferenceImages(t *testing.T) {
@@ -248,5 +259,54 @@ func TestBuildUpstreamPayload_KeepsExplicitImageAndAddsRefs(t *testing.T) {
 	refs := asStringSlice(md["reference_images"])
 	if len(refs) != 1 || refs[0] != "https://cdn.example.com/ref.png" {
 		t.Fatalf("reference_images=%v", refs)
+	}
+}
+
+func TestBuildUpstreamPayload_MetadataResolutionFallback(t *testing.T) {
+	in := map[string]interface{}{
+		"model":  "guanzhuan-seedance2.0",
+		"prompt": "x",
+		"metadata": map[string]interface{}{
+			"resolution":     "1080p",
+			"ratio":          "16:9",
+			"generate_audio": false,
+			"watermark":      false,
+		},
+	}
+	out, err := buildUpstreamPayload(in, "guanzhuan-seedance2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["model"] != "sd-2-0-1080p" {
+		t.Fatalf("model=%v, want sd-2-0-1080p", out["model"])
+	}
+	if _, ok := out["resolution"]; ok {
+		t.Fatal("top-level resolution must not be sent")
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	if md["resolution"] != "1080p" {
+		t.Fatalf("metadata.resolution=%v", md["resolution"])
+	}
+}
+
+func TestBuildUpstreamPayload_TopLevelResolutionWinsOverMetadata(t *testing.T) {
+	in := map[string]interface{}{
+		"model":      "guanzhuan-seedance2.0",
+		"prompt":     "x",
+		"resolution": "720p",
+		"metadata": map[string]interface{}{
+			"resolution": "1080p",
+		},
+	}
+	out, err := buildUpstreamPayload(in, "guanzhuan-seedance2.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out["model"] != "sd-2-0-720p" {
+		t.Fatalf("model=%v, want sd-2-0-720p", out["model"])
+	}
+	md, _ := out["metadata"].(map[string]interface{})
+	if md["resolution"] != "720p" {
+		t.Fatalf("metadata.resolution=%v, want synced 720p", md["resolution"])
 	}
 }

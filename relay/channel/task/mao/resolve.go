@@ -28,17 +28,19 @@ var upstreamPrefix = map[string]string{
 // Resolution is fully attempted first (label then WxH); size is used only if resolution
 // is empty or unparseable.
 func normalizeTier(resolution, size string) string {
-	if tier := parseTierLabel(resolution); tier != "" {
-		return tier
-	}
-	if tier := parseTierFromWxH(resolution); tier != "" {
-		return tier
-	}
-	if tier := parseTierLabel(size); tier != "" {
-		return tier
-	}
-	if tier := parseTierFromWxH(size); tier != "" {
-		return tier
+	return resolveClientTier(resolution, "", size)
+}
+
+// resolveClientTier picks delivery tier with priority:
+// top-level resolution → metadata.resolution → size → default 720p.
+func resolveClientTier(topResolution, metadataResolution, size string) string {
+	for _, candidate := range []string{topResolution, metadataResolution, size} {
+		if tier := parseTierLabel(candidate); tier != "" {
+			return tier
+		}
+		if tier := parseTierFromWxH(candidate); tier != "" {
+			return tier
+		}
 	}
 	return "720p"
 }

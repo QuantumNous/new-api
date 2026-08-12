@@ -3307,6 +3307,8 @@
     "Request Header Override": "リクエストヘッダー上書き",
     "Request Header Overrides": "リクエストヘッダーの上書き",
     "Request ID": "リクエストID",
+    "Request Body": "リクエストボディ",
+    "Upstream Request Body": "上流リクエストボディ",
     "Request Limits": "リクエスト制限",
     "Request Model": "リクエストモデル",
     "Request Model:": "リクエストモデル：",

@@ -78,7 +78,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	modelName := strings.TrimSpace(info.UpstreamModelName)
 	if modelName == "" {
-		return nil, fmt.Errorf("upstream model is empty; configure model mapping on the channel")
+		modelName = strings.TrimSpace(info.OriginModelName)
+	}
+	if modelName == "" {
+		return nil, fmt.Errorf("model is empty; use %s (resolution selects upstream tier)", logicMinimaxH3)
 	}
 	if err := normalizeCreateBody(bodyMap, modelName); err != nil {
 		return nil, err

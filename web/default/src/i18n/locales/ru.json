@@ -3307,6 +3307,8 @@
     "Request Header Override": "Переопределение заголовков запроса",
     "Request Header Overrides": "Переопределения заголовков запроса",
     "Request ID": "ID запроса",
+    "Request Body": "Тело запроса",
+    "Upstream Request Body": "Тело Upstream-запроса",
     "Request Limits": "Лимиты запросов",
     "Request Model": "Запрошенная модель",
     "Request Model:": "Модель запроса:",

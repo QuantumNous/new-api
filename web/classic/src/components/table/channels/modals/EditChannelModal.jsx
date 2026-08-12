@@ -780,12 +780,7 @@ const EditChannelModal = (props) => {
           }));
           break;
         case 67: // zz
-          localModels = [
-            'zzdh-Minimax-h3-480p',
-            'zzdh-Minimax-h3-720p',
-            'zzdh-Minimax-h3-1080p',
-            'zzdh-Minimax-h3-2k',
-          ];
+          localModels = ['zzdh-Minimax-h3'];
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://www.zizidonghua.com',
