@@ -1,12 +1,76 @@
 package controller
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/idtoken"
 )
+
+func TestGoogleOneTapSuccessStartsFreshSameOriginNavigation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/oauth/google/one-tap?return_to=%2Fdashboard",
+		nil,
+	)
+
+	respondGoogleOneTapSuccess(context, gin.H{"id": 42, "username": "one-tap-user"})
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Empty(t, recorder.Header().Get("Location"))
+	require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+	require.Contains(t, recorder.Body.String(), "localStorage.setItem('user'")
+	require.Contains(t, recorder.Body.String(), "localStorage.setItem('uid'")
+	require.Contains(t, recorder.Body.String(), "eyJpZCI6NDIsInVzZXJuYW1lIjoib25lLXRhcC11c2VyIn0=")
+	require.Contains(t, recorder.Body.String(), "L2Rhc2hib2FyZA==")
+}
+
+func TestGoogleOneTapAlreadyLoggedInPreservesStoredUser(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/oauth/google/one-tap?return_to=%2Fdashboard",
+		nil,
+	)
+
+	respondGoogleOneTapAlreadyLoggedIn(context)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "no-store", recorder.Header().Get("Cache-Control"))
+	require.NotContains(t, recorder.Body.String(), "localStorage.setItem('user'")
+	require.NotContains(t, recorder.Body.String(), "localStorage.setItem('uid'")
+	require.NotContains(t, recorder.Body.String(), "already_logged_in")
+	require.Contains(t, recorder.Body.String(), "location.replace")
+	require.Contains(t, recorder.Body.String(), "L2Rhc2hib2FyZA==")
+}
+
+func TestGoogleOneTapSuccessEscapesReturnPath(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/oauth/google/one-tap?return_to=%2Fdashboard%3Fa%3D1%26next%3D%2522%253E%253Cscript%253E",
+		nil,
+	)
+
+	respondGoogleOneTapSuccess(context, gin.H{
+		"id":       42,
+		"username": "</script><script>alert(1)</script>",
+	})
+
+	require.False(t, strings.Contains(recorder.Body.String(), "alert(1)"))
+	require.Equal(t, 1, strings.Count(recorder.Body.String(), "<script>"))
+	require.Contains(t, recorder.Body.String(), "&amp;")
+}
 
 func TestGoogleOneTapOAuthUser(t *testing.T) {
 	payload := &idtoken.Payload{

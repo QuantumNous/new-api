@@ -14,6 +14,9 @@ import (
 
 func Playground(c *gin.Context) {
 	var newAPIError *types.NewAPIError
+	defer func() {
+		sendActivationEventOnSuccess(c, "playground_used", map[string]any{"surface": "playground"})
+	}()
 
 	defer func() {
 		if newAPIError != nil {

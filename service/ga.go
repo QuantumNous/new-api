@@ -167,18 +167,32 @@ func parseGASessionIDFromCookie(value string) string {
 }
 
 func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
+	return sendGAEventsWithConfig(cfg, []GAEvent{event})
+}
+
+// SendGAEventsWithConfig sends a batch of GA4 events in one Measurement
+// Protocol request. Callers can use this to keep related conversion events
+// consistent across retries.
+func sendGAEventsWithConfig(cfg GAConfig, events []GAEvent) error {
 	cfg.MeasurementID = strings.TrimSpace(cfg.MeasurementID)
 	cfg.APISecret = strings.TrimSpace(cfg.APISecret)
 	cfg.Endpoint = strings.TrimSpace(cfg.Endpoint)
-	event.Name = strings.TrimSpace(event.Name)
-	event.ClientID = strings.TrimSpace(event.ClientID)
-	event.SessionID = strings.TrimSpace(event.SessionID)
+	if len(events) == 0 {
+		return nil
+	}
+	for i := range events {
+		events[i].Name = strings.TrimSpace(events[i].Name)
+		events[i].ClientID = strings.TrimSpace(events[i].ClientID)
+		events[i].SessionID = strings.TrimSpace(events[i].SessionID)
+	}
 
 	if cfg.MeasurementID == "" || cfg.APISecret == "" {
 		return nil
 	}
-	if event.Name == "" || event.ClientID == "" || event.SessionID == "" {
-		return nil
+	for _, event := range events {
+		if event.Name == "" || event.ClientID == "" || event.SessionID == "" {
+			return nil
+		}
 	}
 	if cfg.Endpoint == "" {
 		cfg.Endpoint = defaultGAEndpoint
@@ -196,25 +210,26 @@ func SendGAEventWithConfig(cfg GAConfig, event GAEvent) error {
 	query.Set("api_secret", cfg.APISecret)
 	collectURL.RawQuery = query.Encode()
 
-	params := map[string]any{
-		"session_id":           event.SessionID,
-		"engagement_time_msec": 1,
-	}
-	for key, value := range event.Params {
-		key = strings.TrimSpace(key)
-		if key == "" || value == nil {
-			continue
+	gaEvents := make([]gaMeasurementEvent, 0, len(events))
+	for _, event := range events {
+		params := map[string]any{
+			"session_id":           event.SessionID,
+			"engagement_time_msec": 1,
 		}
-		params[key] = value
+		for key, value := range event.Params {
+			key = strings.TrimSpace(key)
+			if key == "" || value == nil {
+				continue
+			}
+			params[key] = value
+		}
+		gaEvents = append(gaEvents, gaMeasurementEvent{Name: event.Name, Params: params})
 	}
 
 	payload := gaMeasurementPayload{
-		ClientID:        event.ClientID,
-		TimestampMicros: event.TimestampMicros,
-		Events: []gaMeasurementEvent{{
-			Name:   event.Name,
-			Params: params,
-		}},
+		ClientID:        events[0].ClientID,
+		TimestampMicros: events[0].TimestampMicros,
+		Events:          gaEvents,
 	}
 	body, err := common.Marshal(payload)
 	if err != nil {
