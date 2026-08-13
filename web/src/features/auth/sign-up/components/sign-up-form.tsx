@@ -17,16 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useSearch } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 
+import { CopyButton } from '@/components/copy-button'
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -41,7 +44,10 @@ import { Label } from '@/components/ui/label'
 import { register, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
-import { registerFormSchema } from '@/features/auth/constants'
+import {
+  registerFormSchema,
+  registerKeyOnlyFormSchema,
+} from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
@@ -54,17 +60,23 @@ import { isAuthBundle } from '@/lib/api'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
+type RegisterFormValues =
+  | z.infer<typeof registerFormSchema>
+  | z.infer<typeof registerKeyOnlyFormSchema>
+
 export function SignUpForm({
   className,
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
   const { t } = useTranslation()
+  const { invite_token: inviteToken } = useSearch({ from: '/(auth)/sign-up' })
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [initialKey, setInitialKey] = useState<string | null>(null)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
@@ -87,8 +99,27 @@ export function SignUpForm({
     validateTurnstile,
   })
 
-  const form = useForm<z.infer<typeof registerFormSchema>>({
-    resolver: zodResolver(registerFormSchema),
+  const singlePrimaryKeyMode = Boolean(
+    status?.single_primary_api_key_enabled ??
+    status?.data?.single_primary_api_key_enabled
+  )
+  const hasInviteToken = Boolean(inviteToken)
+  // An invitation link must render the key-only form immediately; the backend
+  // remains the final authority and rejects it when the complete mode is off.
+  const keyOnlyRegistration = singlePrimaryKeyMode || hasInviteToken
+  const singlePrimaryKeyModeRef = useRef(keyOnlyRegistration)
+  singlePrimaryKeyModeRef.current = keyOnlyRegistration
+  const form = useForm<RegisterFormValues>({
+    // Status is loaded asynchronously. Keep one resolver instance, but read
+    // the current mode so the initial legacy schema cannot block invitations.
+    resolver: ((values, context, options) =>
+      zodResolver(
+        singlePrimaryKeyModeRef.current
+          ? registerKeyOnlyFormSchema
+          : registerFormSchema
+      )(values, context, options)) as Resolver<
+      RegisterFormValues
+    >,
     defaultValues: {
       username: '',
       email: '',
@@ -98,7 +129,9 @@ export function SignUpForm({
   })
 
   const emailValue = form.watch('email')
-  const emailVerificationRequired = !!status?.email_verification
+  const emailVerificationRequired = Boolean(
+    status?.email_verification && !keyOnlyRegistration
+  )
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
@@ -138,7 +171,15 @@ export function SignUpForm({
     }
   }, [])
 
-  async function onSubmit(data: z.infer<typeof registerFormSchema>) {
+  async function onSubmit(data: RegisterFormValues) {
+    if (singlePrimaryKeyMode && !hasInviteToken) {
+      toast.error(
+        t(
+          'Registration is invitation-only; please use a valid administrator invitation link'
+        )
+      )
+      return
+    }
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
       return
@@ -161,17 +202,38 @@ export function SignUpForm({
     setIsLoading(true)
     try {
       const res = await register({
-        username: data.username,
-        password: data.password,
+        ...(keyOnlyRegistration
+          ? {}
+          : { username: data.username, password: data.password }),
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
+        invite_token: inviteToken,
       })
 
       if (res?.success) {
-        toast.success(t('Account created! Please sign in'))
-        redirectToLogin()
+        const initialKey =
+          keyOnlyRegistration &&
+          typeof res.data === 'object' &&
+          res.data !== null &&
+          'full_key' in res.data &&
+          typeof res.data.full_key === 'string'
+            ? res.data.full_key
+            : null
+        if (keyOnlyRegistration && !initialKey) {
+          toast.error(t('API Key was not returned'))
+          return
+        }
+        if (initialKey) {
+          toast.success(
+            t('Account created! Save your API Key before continuing.')
+          )
+          setInitialKey(initialKey)
+        } else {
+          toast.success(t('Account created! Please sign in'))
+        }
+        if (!initialKey) redirectToLogin()
       } else {
         toast.error(res?.message || t('Failed to create account'))
       }
@@ -247,53 +309,81 @@ export function SignUpForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
-        {/* Username Field */}
-        <FormField
-          control={form.control}
-          name='username'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('Username')}</FormLabel>
-              <FormControl>
-                <Input placeholder={t('Enter your username')} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {singlePrimaryKeyMode && !hasInviteToken && (
+          <Alert variant='destructive'>
+            <AlertDescription>
+              {t(
+                'Registration is invitation-only; please use a valid administrator invitation link'
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {keyOnlyRegistration && hasInviteToken && (
+          <Alert>
+            <AlertDescription>
+              {t(
+                'You are registering with an administrator invitation. Your verified email and API Key will be created from this invitation.'
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!keyOnlyRegistration && (
+          <FormField
+            control={form.control}
+            name='username'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Username')}</FormLabel>
+                <FormControl>
+                  <Input placeholder={t('Enter your username')} {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Password Field */}
-        <FormField
-          control={form.control}
-          name='password'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('Password')}</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  placeholder={t('Enter password (8-20 characters)')}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {!keyOnlyRegistration && (
+          <FormField
+            control={form.control}
+            name='password'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Password')}</FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    placeholder={t('Enter password (8-20 characters)')}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Confirm Password Field */}
-        <FormField
-          control={form.control}
-          name='confirmPassword'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t('Confirm password')}</FormLabel>
-              <FormControl>
-                <PasswordInput placeholder={t('Confirm password')} {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {!keyOnlyRegistration && (
+          <FormField
+            control={form.control}
+            name='confirmPassword'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Confirm password')}</FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    placeholder={t('Confirm password')}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         {/* Email Verification Section */}
         {emailVerificationRequired && (
@@ -370,6 +460,7 @@ export function SignUpForm({
           className='mt-2 w-full justify-center gap-2'
           disabled={
             isLoading ||
+            (singlePrimaryKeyMode && !hasInviteToken) ||
             (requiresLegalConsent && !agreedToLegal) ||
             !turnstileReady
           }
@@ -378,7 +469,7 @@ export function SignUpForm({
           {t('Create account')}
         </Button>
 
-        {oauthRegisterEnabled && (
+        {oauthRegisterEnabled && !singlePrimaryKeyMode && (
           <OAuthProviders
             status={status}
             disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
@@ -454,6 +545,44 @@ export function SignUpForm({
           </div>
         </Dialog>
       )}
+
+      <Dialog
+        open={initialKey !== null}
+        onOpenChange={() => undefined}
+        title={t('Save your API Key')}
+        description={t(
+          'This is the only time the full API Key will be shown. Save it before continuing.'
+        )}
+        showCloseButton={false}
+        footer={
+          <Button
+            type='button'
+            className='w-full'
+            onClick={() => {
+              setInitialKey(null)
+              redirectToLogin()
+            }}
+          >
+            {t('I saved it — go to sign in')}
+          </Button>
+        }
+      >
+        <div className='flex items-center gap-2'>
+          <Label htmlFor='initial-api-key' className='sr-only'>
+            {t('New API Key')}
+          </Label>
+          <Input
+            id='initial-api-key'
+            value={initialKey ?? ''}
+            readOnly
+            autoFocus
+            className='font-mono text-xs'
+          />
+          {initialKey && (
+            <CopyButton value={initialKey} tooltip={t('Copy API key')} />
+          )}
+        </div>
+      </Dialog>
     </Form>
   )
 }

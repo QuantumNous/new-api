@@ -96,6 +96,18 @@ func TestGenerateOAuthCodeCarriesAffiliateInLoginFlow(t *testing.T) {
 	assert.Empty(t, flow.SessionId)
 }
 
+func TestOAuthRegistrationRequiresInvitationInSinglePrimaryMode(t *testing.T) {
+	provider := setupAuthFlowControllerTest(t)
+	previous := common.SinglePrimaryAPIKeyEnabled
+	common.SinglePrimaryAPIKeyEnabled = true
+	t.Cleanup(func() { common.SinglePrimaryAPIKeyEnabled = previous })
+
+	user, err := findOrCreateOAuthUser(nil, provider, &oauth.OAuthUser{ProviderUserID: "new-oauth-user"}, "")
+	assert.Nil(t, user)
+	var invitationErr *OAuthInvitationRequiredError
+	assert.ErrorAs(t, err, &invitationErr)
+}
+
 func TestGenerateOAuthCodeBindsFlowToAuthenticatedSession(t *testing.T) {
 	setupAuthFlowControllerTest(t)
 	recorder := httptest.NewRecorder()

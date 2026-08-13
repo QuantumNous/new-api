@@ -145,18 +145,31 @@ export function EmailSettingsSection({
       updates.push({ key: 'SMTPToken', value: sanitized.SMTPToken })
     }
 
-    if (sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled) {
-      updates.push({
-        key: 'SMTPSSLEnabled',
-        value: sanitized.SMTPSSLEnabled,
-      })
+    // The backend rejects a transient state with both transport modes enabled.
+    // Disable the old mode before enabling the selected replacement.
+    if (
+      sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled &&
+      !sanitized.SMTPSSLEnabled
+    ) {
+      updates.push({ key: 'SMTPSSLEnabled', value: false })
     }
-
-    if (sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled) {
-      updates.push({
-        key: 'SMTPStartTLSEnabled',
-        value: sanitized.SMTPStartTLSEnabled,
-      })
+    if (
+      sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled &&
+      !sanitized.SMTPStartTLSEnabled
+    ) {
+      updates.push({ key: 'SMTPStartTLSEnabled', value: false })
+    }
+    if (
+      sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled &&
+      sanitized.SMTPSSLEnabled
+    ) {
+      updates.push({ key: 'SMTPSSLEnabled', value: true })
+    }
+    if (
+      sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled &&
+      sanitized.SMTPStartTLSEnabled
+    ) {
+      updates.push({ key: 'SMTPStartTLSEnabled', value: true })
     }
 
     if (sanitized.SMTPInsecureSkipVerify !== initial.SMTPInsecureSkipVerify) {

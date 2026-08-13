@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
@@ -88,6 +89,12 @@ func WeChatAuth(c *gin.Context) {
 			return
 		}
 	} else {
+		if common.SinglePrimaryAPIKeyEnabled {
+			// WeChat cannot redeem the administrator invitation or atomically
+			// provision the primary key, so it must not create a new account.
+			common.ApiErrorI18n(c, i18n.MsgUserInviteRequired)
+			return
+		}
 		if common.RegisterEnabled {
 			user.Username = "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
 			user.DisplayName = "WeChat User"

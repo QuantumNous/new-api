@@ -11,12 +11,26 @@ import (
 )
 
 func generateMessageID() (string, error) {
-	split := strings.Split(SMTPFrom, "@")
-	if len(split) < 2 {
+	from := effectiveSMTPFrom()
+	split := strings.Split(from, "@")
+	if !validSMTPFrom(from) {
 		return "", fmt.Errorf("invalid SMTP account")
 	}
-	domain := strings.Split(SMTPFrom, "@")[1]
+	domain := split[1]
 	return fmt.Sprintf("<%d.%s@%s>", time.Now().UnixNano(), GetRandomString(12), domain), nil
+}
+
+func effectiveSMTPFrom() string {
+	from := strings.TrimSpace(SMTPFrom)
+	if from == "" {
+		from = strings.TrimSpace(SMTPAccount)
+	}
+	return from
+}
+
+func validSMTPFrom(from string) bool {
+	parts := strings.Split(from, "@")
+	return len(parts) == 2 && strings.TrimSpace(parts[0]) != "" && strings.TrimSpace(parts[1]) != "" && !strings.ContainsAny(from, " \t\r\n")
 }
 
 func shouldUseSMTPLoginAuth() bool {
@@ -32,6 +46,18 @@ func getSMTPAuth() smtp.Auth {
 
 func shouldAuthenticateSMTP() bool {
 	return SMTPAccount != "" && SMTPToken != ""
+}
+
+// SMTPConfigured reports whether the minimum static SMTP configuration needed
+// by email-dependent authentication flows is present. It deliberately does
+// not perform network I/O; runtime delivery still reports provider failures.
+func SMTPConfigured() bool {
+	return strings.TrimSpace(SMTPServer) != "" &&
+		SMTPPort > 0 && SMTPPort <= 65535 &&
+		strings.TrimSpace(SMTPAccount) != "" &&
+		strings.TrimSpace(SMTPToken) != "" &&
+		validSMTPFrom(effectiveSMTPFrom()) &&
+		!(SMTPSSLEnabled && SMTPStartTLSEnabled)
 }
 
 func smtpTLSConfig() *tls.Config {
@@ -76,9 +102,7 @@ func newSMTPClient(addr string) (*smtp.Client, error) {
 }
 
 func SendEmail(subject string, receiver string, content string) error {
-	if SMTPFrom == "" { // for compatibility
-		SMTPFrom = SMTPAccount
-	}
+	from := effectiveSMTPFrom()
 	id, err2 := generateMessageID()
 	if err2 != nil {
 		return err2
@@ -93,7 +117,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		"Date: %s\r\n"+
 		"Message-ID: %s\r\n"+ // 添加 Message-ID 头
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
-		receiver, SystemName, SMTPFrom, encodedSubject, time.Now().Format(time.RFC1123Z), id, content))
+		receiver, SystemName, from, encodedSubject, time.Now().Format(time.RFC1123Z), id, content))
 	auth := getSMTPAuth()
 	addr := fmt.Sprintf("%s:%d", SMTPServer, SMTPPort)
 	to := strings.Split(receiver, ";")
@@ -108,7 +132,7 @@ func SendEmail(subject string, receiver string, content string) error {
 			return err
 		}
 	}
-	if err = client.Mail(SMTPFrom); err != nil {
+	if err = client.Mail(from); err != nil {
 		return err
 	}
 	for _, receiver := range to {

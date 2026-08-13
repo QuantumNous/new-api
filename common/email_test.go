@@ -32,6 +32,35 @@ type fakeSMTPServer struct {
 	startTLSCommands  chan string
 }
 
+func TestSMTPConfiguredRequiresEffectiveFromAddress(t *testing.T) {
+	originalServer, originalPort := SMTPServer, SMTPPort
+	originalAccount, originalToken, originalFrom := SMTPAccount, SMTPToken, SMTPFrom
+	t.Cleanup(func() {
+		SMTPServer, SMTPPort = originalServer, originalPort
+		SMTPAccount, SMTPToken, SMTPFrom = originalAccount, originalToken, originalFrom
+	})
+	SMTPServer, SMTPPort = "smtp.example.com", 587
+	SMTPAccount, SMTPToken, SMTPFrom = "sender@example.com", "test-token", ""
+	require.True(t, SMTPConfigured(), "SMTPConfigured should accept SMTP account as fallback sender")
+	SMTPFrom = "invalid-from"
+	require.False(t, SMTPConfigured(), "SMTPConfigured should reject an invalid effective sender")
+}
+
+func TestSMTPConfiguredRejectsConflictingTransportModes(t *testing.T) {
+	originalServer, originalPort := SMTPServer, SMTPPort
+	originalAccount, originalToken, originalFrom := SMTPAccount, SMTPToken, SMTPFrom
+	originalSSL, originalStartTLS := SMTPSSLEnabled, SMTPStartTLSEnabled
+	t.Cleanup(func() {
+		SMTPServer, SMTPPort = originalServer, originalPort
+		SMTPAccount, SMTPToken, SMTPFrom = originalAccount, originalToken, originalFrom
+		SMTPSSLEnabled, SMTPStartTLSEnabled = originalSSL, originalStartTLS
+	})
+	SMTPServer, SMTPPort = "smtp.example.com", 587
+	SMTPAccount, SMTPToken, SMTPFrom = "sender@example.com", "test-token", ""
+	SMTPSSLEnabled, SMTPStartTLSEnabled = true, true
+	require.False(t, SMTPConfigured(), "SSL/TLS and STARTTLS must be mutually exclusive")
+}
+
 func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
 	return newFakeSMTPServerWithSTARTTLSAdvertisement(t, true)
 }

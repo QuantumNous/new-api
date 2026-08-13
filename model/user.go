@@ -715,6 +715,57 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	})
 }
 
+// RegisterUserWithPrimaryToken atomically creates a new user and its ordinary
+// user's primary API key. The caller may perform email delivery only after the
+// transaction succeeds; no account is left behind when key creation fails.
+func RegisterUserWithPrimaryToken(user *User, inviterId int, group string) (*Token, error) {
+	if user == nil {
+		return nil, errors.New("invalid user")
+	}
+	var token *Token
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		token, err = RegisterUserWithPrimaryTokenTx(tx, user, inviterId, group)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// RegisterUserWithPrimaryTokenTx is the transaction-participating variant
+// used by one-time invitation redemption.
+func RegisterUserWithPrimaryTokenTx(tx *gorm.DB, user *User, inviterId int, group string) (*Token, error) {
+	if tx == nil || user == nil {
+		return nil, errors.New("invalid user")
+	}
+	if err := user.InsertWithTx(tx, inviterId); err != nil {
+		return nil, err
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	token := &Token{
+		UserId:             user.Id,
+		Name:               user.Username + "的主 API Key",
+		Key:                key,
+		Status:             common.TokenStatusEnabled,
+		CreatedTime:        common.GetTimestamp(),
+		AccessedTime:       common.GetTimestamp(),
+		ExpiredTime:        -1,
+		RemainQuota:        500000,
+		UnlimitedQuota:     true,
+		ModelLimitsEnabled: false,
+		Group:              group,
+	}
+	if err := tx.Create(token).Error; err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
 // FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
 // This should be called after the transaction commits successfully.
 func (user *User) FinalizeOAuthUserCreation(inviterId int) {

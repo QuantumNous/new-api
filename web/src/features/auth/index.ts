@@ -22,10 +22,12 @@ For commercial licensing, please contact support@quantumnous.com
 
 export {
   login,
+  loginWithAPIKey,
   login2fa,
   logout,
   register,
   sendPasswordResetEmail,
+  sendAPIKeyResetEmail,
   sendEmailVerification,
   bindEmail,
   createOAuthFlow,
@@ -40,11 +42,13 @@ export {
 
 export type {
   LoginPayload,
+  APIKeyLoginPayload,
   LoginResponse,
   Login2FAResponse,
   TwoFAPayload,
   RegisterPayload,
   PasswordResetPayload,
+  APIKeyResetPayload,
   EmailVerificationPayload,
   BindEmailPayload,
   ApiResponse,
@@ -60,6 +64,7 @@ export type {
 export {
   loginFormSchema,
   registerFormSchema,
+  registerKeyOnlyFormSchema,
   forgotPasswordFormSchema,
   otpFormSchema,
   PASSWORD_MIN_LENGTH,

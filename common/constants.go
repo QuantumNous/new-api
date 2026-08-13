@@ -61,6 +61,12 @@ var MaxRecentItems = 1000
 
 var PasswordLoginEnabled = true
 var PasswordRegisterEnabled = true
+var APIKeyLoginEnabled = false
+var EmailDefaultTokenEnabled = false
+
+// SinglePrimaryAPIKeyEnabled enables the complete ordinary-user single-key flow.
+// It is intentionally independent from the two legacy transition switches.
+var SinglePrimaryAPIKeyEnabled = false
 var EmailVerificationEnabled = false
 var GitHubOAuthEnabled = false
 var LinuxDOOAuthEnabled = false

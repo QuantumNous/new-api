@@ -1,12 +1,15 @@
 package common
 
 import (
+	"errors"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrVerificationCodeInvalid = errors.New("verification code is invalid")
 
 type verificationValue struct {
 	code string
@@ -53,6 +56,43 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 		return false
 	}
 	return code == value.code
+}
+
+// ConsumeVerificationCodeWithKey validates and consumes a verification code
+// in one critical section. Call it only after the protected operation commits;
+// callers that need rollback semantics should keep the operation idempotent.
+func ConsumeVerificationCodeWithKey(key string, code string, purpose string) bool {
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+	value, okay := verificationMap[purpose+key]
+	now := time.Now()
+	if !okay || int(now.Sub(value.time).Seconds()) >= VerificationValidMinutes*60 || value.code != code {
+		return false
+	}
+	delete(verificationMap, purpose+key)
+	return true
+}
+
+// ConsumeVerificationCodeWithAction keeps verification and the protected
+// operation in one critical section. If action fails, the code remains usable
+// so a transient database error does not strand a registration.
+func ConsumeVerificationCodeWithAction(key string, code string, purpose string, action func() error) error {
+	// ponytail: process-wide mutex keeps the legacy in-memory store atomic;
+	// move verification state to Redis for multi-instance throughput.
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+	value, okay := verificationMap[purpose+key]
+	now := time.Now()
+	if !okay || int(now.Sub(value.time).Seconds()) >= VerificationValidMinutes*60 || value.code != code {
+		return ErrVerificationCodeInvalid
+	}
+	if action != nil {
+		if err := action(); err != nil {
+			return err
+		}
+	}
+	delete(verificationMap, purpose+key)
+	return nil
 }
 
 func DeleteKey(key string, purpose string) {

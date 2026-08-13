@@ -28,23 +28,34 @@ export interface LoginPayload {
   turnstile?: string
 }
 
+export interface APIKeyLoginPayload {
+  api_key: string
+  turnstile?: string
+}
+
 export interface TwoFAPayload {
   code: string
   flow_token: string
 }
 
 export interface RegisterPayload {
-  username: string
-  password: string
+  username?: string
+  password?: string
   email?: string
   verification_code?: string
   aff_code?: string
   turnstile?: string
+  invite_token?: string
 }
 
 export interface PasswordResetPayload {
   email: string
   turnstile?: string
+}
+
+export interface APIKeyResetPayload {
+  email: string
+  token: string
 }
 
 export interface EmailVerificationPayload {
@@ -134,6 +145,9 @@ export interface SystemStatus {
     register_enabled?: boolean
     password_login_enabled?: boolean
     password_register_enabled?: boolean
+    api_key_login_enabled?: boolean
+    email_default_token_enabled?: boolean
+    single_primary_api_key_enabled?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     [key: string]: unknown
   }
@@ -179,6 +193,9 @@ export interface SystemStatus {
   register_enabled?: boolean
   password_login_enabled?: boolean
   password_register_enabled?: boolean
+  api_key_login_enabled?: boolean
+  email_default_token_enabled?: boolean
+  single_primary_api_key_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   [key: string]: unknown
 }

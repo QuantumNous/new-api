@@ -301,9 +301,210 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 }
 
 func (token *Token) Insert() error {
-	var err error
-	err = DB.Create(token).Error
-	return err
+	if token == nil || token.UserId <= 0 {
+		return errors.New("invalid token")
+	}
+	if common.SinglePrimaryAPIKeyEnabled {
+		var user User
+		return DB.Transaction(func(tx *gorm.DB) error {
+			if err := lockForUpdate(tx).Select("id", "role").Where("id = ?", token.UserId).First(&user).Error; err != nil {
+				return err
+			}
+			if user.Role == common.RoleCommonUser {
+				var count int64
+				if err := tx.Model(&Token{}).Where("user_id = ?", token.UserId).Count(&count).Error; err != nil {
+					return err
+				}
+				if count >= 1 {
+					return errors.New("ordinary user can only have one API key")
+				}
+			}
+			return tx.Create(token).Error
+		})
+	}
+	return DB.Create(token).Error
+}
+
+// ValidateUserTokenForLogin validates a token as a dashboard credential. API
+// quota is intentionally not checked here: an exhausted token must still be
+// able to sign in and reach billing/security settings.
+func ValidateUserTokenForLogin(key string) (*Token, error) {
+	key = strings.TrimPrefix(strings.TrimSpace(key), "sk-")
+	if key == "" {
+		return nil, ErrTokenInvalid
+	}
+	token, err := GetTokenByKey(key, false)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTokenInvalid
+		}
+		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
+	if token.Status != common.TokenStatusEnabled && token.Status != common.TokenStatusExhausted {
+		return token, ErrTokenInvalid
+	}
+	if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
+		return token, ErrTokenInvalid
+	}
+	return token, nil
+}
+
+// ValidatePrimaryUserTokenForLogin enforces the ordinary-user single-key
+// boundary. Privileged roles retain the existing multi-key login behavior;
+// guest and unknown lower roles cannot use an API key as a dashboard login.
+func ValidatePrimaryUserTokenForLogin(key string) (*Token, error) {
+	token, err := ValidateUserTokenForLogin(key)
+	if err != nil {
+		return token, err
+	}
+	var user User
+	if err := DB.Select("id", "role").Where("id = ?", token.UserId).First(&user).Error; err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
+	if user.Role >= common.RoleAdminUser {
+		return token, nil
+	}
+	if user.Role != common.RoleCommonUser {
+		return nil, ErrTokenInvalid
+	}
+	count, err := CountUserTokens(user.Id)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
+	if count != 1 {
+		return nil, ErrTokenInvalid
+	}
+	return token, nil
+}
+
+// RotatePrimaryTokenByUserIDTx rotates the sole ordinary-user API key while
+// holding the user row lock. The caller owns the transaction and must publish
+// the auth cache/revoke sessions after commit.
+func RotatePrimaryTokenByUserIDTx(tx *gorm.DB, userID int) (*Token, error) {
+	if tx == nil || userID <= 0 {
+		return nil, errors.New("invalid primary token rotation")
+	}
+	var user User
+	if err := lockForUpdate(tx).Where("id = ?", userID).First(&user).Error; err != nil {
+		return nil, err
+	}
+	if user.Role != common.RoleCommonUser {
+		return nil, errors.New("primary API key rotation is limited to ordinary users")
+	}
+	var tokens []Token
+	query := tx.Where("user_id = ?", userID).Order("id asc")
+	if err := lockForUpdate(query).Find(&tokens).Error; err != nil {
+		return nil, err
+	}
+	if len(tokens) > 1 {
+		return nil, errors.New("ordinary user has multiple API keys")
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		return nil, err
+	}
+	now := common.GetTimestamp()
+	if len(tokens) == 1 {
+		token := &tokens[0]
+		oldKey := token.Key
+		if err := invalidateTokenCacheForMutation(oldKey); err != nil {
+			return nil, err
+		}
+		if err := tx.Model(&Token{}).Where("id = ? AND user_id = ?", token.Id, userID).Updates(map[string]interface{}{
+			"key":           key,
+			"status":        common.TokenStatusEnabled,
+			"expired_time":  int64(-1),
+			"accessed_time": now,
+		}).Error; err != nil {
+			return nil, err
+		}
+		token.Key = key
+		token.Status = common.TokenStatusEnabled
+		token.ExpiredTime = -1
+		token.AccessedTime = now
+		return token, nil
+	}
+	token := &Token{
+		UserId:         userID,
+		Name:           user.Username + "的主 API Key",
+		Key:            key,
+		Status:         common.TokenStatusEnabled,
+		CreatedTime:    now,
+		AccessedTime:   now,
+		ExpiredTime:    -1,
+		UnlimitedQuota: true,
+	}
+	if err := tx.Create(token).Error; err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+// RotatePrimaryTokenByUserID rotates the key and revokes all existing login
+// sessions after the transaction commits.
+func RotatePrimaryTokenByUserID(userID int) (*Token, error) {
+	var token *Token
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		token, err = RotatePrimaryTokenByUserIDTx(tx, userID)
+		if err != nil {
+			return err
+		}
+		_, err = IncrementUserAuthVersionWithTx(tx, userID)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	if err := FinalizePrimaryTokenRotation(userID, token, "primary_token_rotated"); err != nil {
+		return token, err
+	}
+	return token, nil
+}
+
+// PrimaryTokenRotationDeliveryError means the database rotation committed,
+// but one of the post-commit cache/session synchronization steps failed. The
+// new key remains available through FullKey so callers can safely deliver it
+// once; auth-version fencing still invalidates old dashboard credentials.
+type PrimaryTokenRotationDeliveryError struct {
+	token      *Token
+	cacheErr   error
+	sessionErr error
+}
+
+func (e *PrimaryTokenRotationDeliveryError) Error() string {
+	return "primary API key rotation committed but security synchronization is pending"
+}
+
+func (e *PrimaryTokenRotationDeliveryError) FullKey() string {
+	if e == nil || e.token == nil {
+		return ""
+	}
+	return e.token.GetFullKey()
+}
+
+func (e *PrimaryTokenRotationDeliveryError) Warning() string {
+	return "API Key 已生成，但安全同步尚未完成；请保存此 Key 并重新登录。如无法登录，请使用邮箱找回。"
+}
+
+// primaryTokenRotationDeliveryHooks are replaceable only for deterministic
+// model tests; production uses the real cache/session implementations.
+var (
+	primaryTokenRotationPublishAuthCache = PublishUserAuthCache
+	primaryTokenRotationRevokeSessions   = RevokeAllUserSessions
+)
+
+// FinalizePrimaryTokenRotation performs the non-transactional steps after a
+// committed key rotation. It never rolls back or hides the new key.
+func FinalizePrimaryTokenRotation(userID int, token *Token, reason string) error {
+	if token == nil || token.GetFullKey() == "" {
+		return errors.New("invalid primary token rotation result")
+	}
+	cacheErr := primaryTokenRotationPublishAuthCache(userID)
+	_, sessionErr := primaryTokenRotationRevokeSessions(userID, reason)
+	if cacheErr != nil || sessionErr != nil {
+		return &PrimaryTokenRotationDeliveryError{token: token, cacheErr: cacheErr, sessionErr: sessionErr}
+	}
+	return nil
 }
 
 // Update Make sure your token's fields is completed, because this will update non-zero values

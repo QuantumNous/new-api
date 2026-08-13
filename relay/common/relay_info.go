@@ -259,7 +259,7 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "RelayMode: %d, ", info.RelayMode)
 	fmt.Fprintf(b, "IsStream: %t, ", info.IsStream)
 	fmt.Fprintf(b, "IsPlayground: %t, ", info.IsPlayground)
-	fmt.Fprintf(b, "RequestURLPath: %q, ", info.RequestURLPath)
+	fmt.Fprintf(b, "RequestURLPath: %q, ", SanitizeURLForLog(info.RequestURLPath))
 	fmt.Fprintf(b, "OriginModelName: %q, ", info.OriginModelName)
 	fmt.Fprintf(b, "EstimatePromptTokens: %d, ", info.estimatePromptTokens)
 	fmt.Fprintf(b, "ShouldIncludeUsage: %t, ", info.ShouldIncludeUsage)
@@ -564,6 +564,9 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 	}
 	headers := make(map[string]string, len(c.Request.Header))
 	for key := range c.Request.Header {
+		if isSensitiveRequestHeader(key) {
+			continue
+		}
 		value := strings.TrimSpace(c.Request.Header.Get(key))
 		if value == "" {
 			continue
@@ -574,6 +577,26 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 		return nil
 	}
 	return headers
+}
+
+// isSensitiveRequestHeader prevents client credentials from entering the
+// parameter-override context. Explicit {client_header:<name>} placeholders
+// still read the original request header through the request context.
+func isSensitiveRequestHeader(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if name == "" {
+		return true
+	}
+	switch name {
+	case "authorization", "proxy-authorization", "cookie", "set-cookie",
+		"x-api-key", "x-goog-api-key", "api-key", "x-auth-token",
+		"x-access-token", "access-token", "refresh-token", "id-token":
+		return true
+	}
+	return strings.Contains(name, "token") ||
+		strings.Contains(name, "secret") ||
+		strings.Contains(name, "password") ||
+		strings.Contains(name, "credential")
 }
 
 func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request, ws *websocket.Conn) (*RelayInfo, error) {
