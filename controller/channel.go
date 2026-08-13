@@ -512,6 +512,11 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		if channel.UpstreamRatio == 0 {
 			channel.UpstreamRatio = model.DefaultChannelRatio
 		}
+		// 空分组必须归一化：GORM 的列默认值只写入数据库，不回填内存结构体，
+		// 否则 AddAbilities 会以空分组建立路由记录，导致渠道无法被路由。
+		if strings.TrimSpace(channel.Group) == "" {
+			channel.Group = "default"
+		}
 
 		// 检查模型名称长度是否超过 255
 		for _, m := range channel.GetModels() {

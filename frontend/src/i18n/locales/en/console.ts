@@ -724,16 +724,13 @@ export default {
     sectionBasicDesc: 'Name, supplier type and availability.',
     sectionCredentials: 'Credentials',
     sectionCredentialsDesc: 'Authentication',
-    sectionModels: 'Models & groups',
-    sectionModelsDesc: 'Published models, groups and model remapping rules.',
+    sectionModels: 'Models',
+    sectionModelsDesc: 'Published models and model remapping rules.',
     sectionAdvanced: 'Advanced settings',
     sectionAdvancedDesc: 'Routing priority, weight and capacity ratios.',
     // Basic section
     enabledLabel: 'Enabled',
     enabledDesc: 'Enable or disable this channel',
-    openaiOrg: 'OpenAI organization',
-    openaiOrgPlaceholder: 'org-...',
-    openaiOrgDesc: 'OpenAI organization ID (optional)',
     // Credentials section
     apiAddress: 'API address',
     apiAddressPlaceholder: 'Leave blank for default',
@@ -766,9 +763,6 @@ export default {
     modelMappingEmpty:
       'No model mapping configured. Click "Add mapping" to get started.',
     addMapping: '+ Add mapping',
-    groupLabel: 'Group',
-    groupDesc: 'User groups that can access this channel.',
-    groupSearchPlaceholder: 'Search or select group',
     // Advanced section
     channelRatioHint: 'Channel billing ratio. 1.0 = normal, 0.5 = half price.',
     capacityTotalHint: 'Maximum concurrent request capacity for this channel.',

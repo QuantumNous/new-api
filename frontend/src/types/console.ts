@@ -59,9 +59,7 @@ export interface AdminChannel extends Record<string, unknown> {
   test_time: number
   base_url: string
   models: string
-  group: string
   model_mapping: string
-  openai_organization: string
 }
 
 export interface AdminChannelCreateInput {
@@ -71,12 +69,10 @@ export interface AdminChannelCreateInput {
   // Credentials
   key: string
   base_url: string
-  /** Sensitive field: updates must include it only when actually changed. */
-  openai_organization?: string
-  // Models & groups
+  // Models (no group: creation uses the backend default routing group,
+  // edits preserve the stored value verbatim)
   models: string
   model_mapping: string
-  group: string
   // Routing
   priority: number
   weight: number

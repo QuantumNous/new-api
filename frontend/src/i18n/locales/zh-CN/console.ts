@@ -718,16 +718,13 @@ export default {
     sectionBasicDesc: '名称、供应商类型和可用状态。',
     sectionCredentials: '凭证',
     sectionCredentialsDesc: '身份验证',
-    sectionModels: '模型与分组',
-    sectionModelsDesc: '已发布的模型、分组和模型重映射规则。',
+    sectionModels: '模型',
+    sectionModelsDesc: '已发布的模型和模型重映射规则。',
     sectionAdvanced: '高级设置',
     sectionAdvancedDesc: '路由优先级、权重和容量倍率。',
     // Basic section
     enabledLabel: '已启用',
     enabledDesc: '启用或禁用此渠道',
-    openaiOrg: 'OpenAI 组织',
-    openaiOrgPlaceholder: 'org-...',
-    openaiOrgDesc: 'OpenAI 组织 ID（可选）',
     // Credentials section
     apiAddress: 'API 地址',
     apiAddressPlaceholder: '留空使用默认',
@@ -757,9 +754,6 @@ export default {
     modelMappingFillTemplate: '填入模板',
     modelMappingEmpty: '未配置模型映射，点击"添加映射"即可开始使用。',
     addMapping: '+ 添加映射',
-    groupLabel: '分组',
-    groupDesc: '可以访问此渠道的用户组。',
-    groupSearchPlaceholder: '搜索或选择分组',
     // Advanced section
     channelRatioHint: '渠道计费倍率，1.0 = 正常计费，0.5 = 半价。',
     capacityTotalHint: '渠道最大并发请求容量。',

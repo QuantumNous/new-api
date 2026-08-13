@@ -136,6 +136,43 @@ func TestValidateChannelCapacityRatioBounds(t *testing.T) {
 	}
 }
 
+func TestValidateChannelNormalizesEmptyGroupOnAdd(t *testing.T) {
+	base := func() *model.Channel {
+		return &model.Channel{
+			Name:   "group-test",
+			Type:   constant.ChannelTypeOpenAI,
+			Key:    "sk-test",
+			Models: "gpt-4o",
+		}
+	}
+
+	t.Run("empty group defaults on add", func(t *testing.T) {
+		channel := base()
+		require.NoError(t, validateChannel(channel, true))
+		assert.Equal(t, "default", channel.Group)
+	})
+
+	t.Run("blank group defaults on add", func(t *testing.T) {
+		channel := base()
+		channel.Group = "  "
+		require.NoError(t, validateChannel(channel, true))
+		assert.Equal(t, "default", channel.Group)
+	})
+
+	t.Run("custom group preserved on add", func(t *testing.T) {
+		channel := base()
+		channel.Group = "vip"
+		require.NoError(t, validateChannel(channel, true))
+		assert.Equal(t, "vip", channel.Group)
+	})
+
+	t.Run("update keeps empty group as unset", func(t *testing.T) {
+		channel := base()
+		require.NoError(t, validateChannel(channel, false))
+		assert.Empty(t, channel.Group)
+	})
+}
+
 func TestNewAPIChannelRegistration(t *testing.T) {
 	apiType, ok := common.ChannelType2APIType(constant.ChannelTypeNewAPI)
 

@@ -80,15 +80,13 @@ const form = reactive({
   name: '',
   type: 1,
   enabled: true,
-  openaiOrg: '',
   // Credentials
   key: '',
   addMode: 'single' as 'single' | 'multi',
   baseUrl: '',
-  // Models & groups
+  // Models
   models: '',
   modelMapping: '',
-  group: 'default',
   // Advanced
   priority: 0,
   weight: 0,
@@ -184,47 +182,6 @@ function onModelInputKeydown(e: KeyboardEvent) {
   }
 }
 
-// ── Group tags ─────────────────────────────────────────────────────────────
-const groupTags = computed(() =>
-  form.group
-    .split(',')
-    .map((g) => g.trim())
-    .filter(Boolean)
-)
-const groupInput = ref('')
-
-function addGroupTag(value: string) {
-  const tags = value
-    .split(',')
-    .map((g) => g.trim())
-    .filter(Boolean)
-  const existing = new Set(groupTags.value)
-  form.group = [
-    ...groupTags.value,
-    ...tags.filter((t) => !existing.has(t)),
-  ].join(',')
-  groupInput.value = ''
-}
-
-function removeGroupTag(tag: string) {
-  const next = groupTags.value.filter((g) => g !== tag).join(',')
-  form.group = next || 'default'
-}
-
-function onGroupInputKeydown(e: KeyboardEvent) {
-  const val = groupInput.value.trim()
-  if ((e.key === 'Enter' || e.key === ',') && val) {
-    e.preventDefault()
-    addGroupTag(val)
-  } else if (
-    e.key === 'Backspace' &&
-    !groupInput.value &&
-    groupTags.value.length > 1
-  ) {
-    removeGroupTag(groupTags.value[groupTags.value.length - 1]!)
-  }
-}
-
 // ── Quick actions ──────────────────────────────────────────────────────────
 const fetchingUpstream = ref(false)
 const canFetchUpstream = computed(
@@ -269,7 +226,6 @@ async function copyAllModels() {
 
 // ── Computed helpers ───────────────────────────────────────────────────────
 const selectedTypeMeta = computed(() => adminChannelTypeMeta(form.type))
-const isOpenAI = computed(() => form.type === 1)
 const minimumCapacity = computed(() =>
   Math.max(1, props.editing?.capacity_used ?? 1)
 )
@@ -304,18 +260,12 @@ watch(
     form.name = ch?.name ?? ''
     form.type = ch?.type ?? 1
     form.enabled = ch ? ch.status === 1 : true
-    form.openaiOrg =
-      (typeof ch?.openai_organization === 'string'
-        ? ch.openai_organization
-        : '') ?? ''
     form.key = ''
     form.addMode = 'single'
     form.baseUrl = ch?.base_url ?? ''
     form.models = ch?.models ?? ''
     form.modelMapping =
       typeof ch?.model_mapping === 'string' ? (ch.model_mapping ?? '') : ''
-    form.group =
-      typeof ch?.group === 'string' && ch.group ? ch.group : 'default'
     form.priority = ch?.priority ?? 0
     form.weight = ch?.weight ?? 0
     form.capacityTotal = ch?.capacity_total ?? 20
@@ -336,7 +286,6 @@ watch(
     typeDropdownOpen.value = false
     advancedOpen.value = false
     modelInput.value = ''
-    groupInput.value = ''
   },
   { immediate: true }
 )
@@ -351,14 +300,14 @@ async function submit() {
   saving.value = true
   try {
     if (modelMappingTab.value === 'visual') syncJsonFromRows()
-    const openaiOrg = isOpenAI.value ? form.openaiOrg.trim() : ''
+    // Group is deliberately absent: creation falls back to the backend
+    // default group, edits preserve the stored value untouched.
     const base: AdminChannelUpdateInput = {
       name: form.name.trim(),
       type: form.type,
       base_url: form.baseUrl.trim(),
       models: form.models.trim(),
       model_mapping: form.modelMapping.trim(),
-      group: form.group.trim() || 'default',
       priority: Number(form.priority),
       weight: Number(form.weight),
       capacity_total: Number(form.capacityTotal),
@@ -370,7 +319,6 @@ async function submit() {
         ...base,
         key: form.key.trim(),
         status: form.enabled ? 1 : 2,
-        openai_organization: openaiOrg,
       }
       const created = await props.save(input, {
         batchKeys: form.addMode === 'multi',
@@ -379,14 +327,10 @@ async function submit() {
       return
     }
 
-    // Sensitive fields (key, OpenAI org) ride along only when actually
-    // changed, so admins without ChannelSensitiveWrite can still save
-    // routing-level edits.
+    // The key rides along only when actually replaced, so admins without
+    // ChannelSensitiveWrite can still save routing-level edits.
     const replacementKey = form.key.trim()
     if (replacementKey) base.key = replacementKey
-    if (openaiOrg !== props.editing.openai_organization) {
-      base.openai_organization = openaiOrg
-    }
     if (await props.save(base)) emit('close')
   } finally {
     saving.value = false
@@ -535,20 +479,6 @@ async function submit() {
             />
           </button>
         </div>
-
-        <!-- OpenAI Organization (conditional) -->
-        <FormField
-          v-if="isOpenAI"
-          :label="t('channels.openaiOrg')"
-          :hint="t('channels.openaiOrgDesc')"
-        >
-          <TextInput
-            v-model="form.openaiOrg"
-            name="admin-channel-openai-org"
-            :placeholder="t('channels.openaiOrgPlaceholder')"
-            autocomplete="off"
-          />
-        </FormField>
       </section>
 
       <!-- ══ Section: 凭证 ══════════════════════════════════════════════ -->
@@ -842,45 +772,6 @@ async function submit() {
               @blur="syncRowsFromJson"
             />
           </template>
-        </div>
-
-        <!-- Group tag input -->
-        <div>
-          <p class="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">
-            {{ t('channels.groupLabel') }}
-            <span class="text-[var(--status-danger)]">*</span>
-          </p>
-          <p class="mb-2 text-xs text-[var(--text-tertiary)]">
-            {{ t('channels.groupDesc') }}
-          </p>
-          <div
-            class="min-h-10 flex flex-wrap gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 py-2 focus-within:border-[var(--border-strong)]"
-          >
-            <span
-              v-for="tag in groupTags"
-              :key="tag"
-              class="inline-flex items-center gap-1 rounded-md bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--text-secondary)]"
-            >
-              {{ tag }}
-              <button
-                v-if="groupTags.length > 1"
-                type="button"
-                :aria-label="`Remove ${tag}`"
-                class="ml-0.5 rounded-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                @click="removeGroupTag(tag)"
-              >
-                <X :size="11" />
-              </button>
-            </span>
-            <input
-              v-model="groupInput"
-              type="text"
-              class="min-w-[100px] flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--text-tertiary)]"
-              :placeholder="t('channels.groupSearchPlaceholder')"
-              @keydown="onGroupInputKeydown"
-              @blur="groupInput.trim() && addGroupTag(groupInput)"
-            />
-          </div>
         </div>
       </section>
 
