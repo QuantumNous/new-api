@@ -97,6 +97,7 @@ type outboundConfigFields struct {
 	Server           string `json:"server"`
 	ServerPort       int    `json:"server_port"`
 	UUID             string `json:"uuid,omitempty"`
+	Username         string `json:"username,omitempty"`
 	Password         string `json:"password,omitempty"`
 	Flow             string `json:"flow,omitempty"`
 	Encryption       string `json:"encryption,omitempty"`
@@ -181,13 +182,20 @@ func buildOptionsJSON(outboundJSON json.RawMessage) ([]byte, error) {
 		outbound["password"] = cfg.Password
 	case "socks5", "socks":
 		outbound["type"] = "socks"
+		if cfg.Username != "" {
+			outbound["username"] = cfg.Username
+		}
 		if cfg.Password != "" {
 			outbound["password"] = cfg.Password
 		}
 	case "http":
+		if cfg.Username != "" {
+			outbound["username"] = cfg.Username
+		}
 		if cfg.Password != "" {
 			outbound["password"] = cfg.Password
 		}
+		setTLS(outbound, cfg.TLSEnabled, cfg.TLSServerName)
 	case "ssh":
 		if cfg.Password != "" {
 			outbound["private_key"] = cfg.Password

@@ -6,6 +6,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -62,9 +65,9 @@ type logConfig struct {
 }
 
 type inboundConfig struct {
-	Type string       `json:"type"`
-	Tag  string       `json:"tag"`
-	ListenOptions     `json:",inline"`
+	Type          string `json:"type"`
+	Tag           string `json:"tag"`
+	ListenOptions `json:",inline"`
 }
 
 type ListenOptions struct {
@@ -73,9 +76,9 @@ type ListenOptions struct {
 }
 
 type outboundCfg struct {
-	Type string      `json:"type"`
-	Tag  string      `json:"tag"`
-	Options          `json:",inline,omitempty"`
+	Type    string `json:"type"`
+	Tag     string `json:"tag"`
+	Options `json:",inline,omitempty"`
 }
 
 type Options struct {
@@ -367,4 +370,358 @@ func ReloadProxy(c *gin.Context) {
 		"success": true,
 		"message": "热加载成功",
 	})
+}
+
+type proxyNodeRequest struct {
+	Name       string `json:"name"`
+	Enabled    bool   `json:"enabled"`
+	Proxy      string `json:"proxy"`
+	ScopeType  string `json:"scope_type"`
+	ScopeValue string `json:"scope_value"`
+}
+
+type proxyNodeUpdateRequest struct {
+	Name       string  `json:"name"`
+	Enabled    bool    `json:"enabled"`
+	Proxy      *string `json:"proxy"`
+	ScopeType  string  `json:"scope_type"`
+	ScopeValue string  `json:"scope_value"`
+}
+
+type proxyNodeBatchRequest struct {
+	NamePrefix string   `json:"name_prefix"`
+	Enabled    bool     `json:"enabled"`
+	ProxyText  string   `json:"proxy_text"`
+	ProxyURLs  []string `json:"proxy_urls"`
+	ScopeType  string   `json:"scope_type"`
+	ScopeValue string   `json:"scope_value"`
+}
+
+type proxyNodeBatchEnabledRequest struct {
+	IDs     []uint `json:"ids"`
+	Enabled bool   `json:"enabled"`
+}
+
+type proxyNodeBatchClearErrorsRequest struct {
+	IDs []uint `json:"ids"`
+}
+
+func ListProxyNodes(c *gin.Context) {
+	var nodes []model.ProxyNode
+	query := model.DB
+	if scopeType := c.Query("scope_type"); scopeType != "" {
+		query = query.Where("scope_type = ?", scopeType)
+	}
+	if scopeValue := c.Query("scope_value"); scopeValue != "" {
+		query = query.Where("scope_value = ?", scopeValue)
+	}
+	if protocol := c.Query("protocol"); protocol != "" {
+		query = query.Where("protocol = ?", protocol)
+	}
+	order := proxyNodeOrder(c.Query("sort_by"), c.Query("sort_order"))
+	if err := query.Order(order).Find(&nodes).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	channelNames := make(map[int]string)
+	channelIDs := make([]int, 0)
+	for _, node := range nodes {
+		if node.ScopeType == model.ProxyNodeScopeChannel {
+			if id, parseErr := strconv.Atoi(node.ScopeValue); parseErr == nil {
+				channelIDs = append(channelIDs, id)
+			}
+		}
+	}
+	if len(channelIDs) > 0 {
+		var channels []model.Channel
+		if err := model.DB.Select("id, name").Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		for _, channel := range channels {
+			channelNames[channel.Id] = channel.Name
+		}
+	}
+	items := make([]model.ProxyNodePublic, 0, len(nodes))
+	for _, node := range nodes {
+		public := node.Public()
+		if node.ScopeType == model.ProxyNodeScopeChannel {
+			if id, parseErr := strconv.Atoi(node.ScopeValue); parseErr == nil {
+				public.ScopeName = channelNames[id]
+			}
+		}
+		probeStats := service.GetProxyNodeProbeStatsFor(node.ID)
+		public.ProbeTotal = probeStats.Total
+		public.ProbeSuccess = probeStats.Success
+		items = append(items, public)
+	}
+	field := c.Query("sort_by")
+	if field == "probe_success_rate" || field == "probe_failure_rate" || field == "probe_count" {
+		descending := strings.EqualFold(c.Query("sort_order"), "desc")
+		sort.SliceStable(items, func(i, j int) bool {
+			left, right := items[i], items[j]
+			var leftValue, rightValue float64
+			switch field {
+			case "probe_count":
+				leftValue, rightValue = float64(left.ProbeTotal), float64(right.ProbeTotal)
+			case "probe_success_rate":
+				leftValue, rightValue = probeRate(left.ProbeSuccess, left.ProbeTotal), probeRate(right.ProbeSuccess, right.ProbeTotal)
+			default:
+				leftValue, rightValue = probeRate(left.ProbeTotal-left.ProbeSuccess, left.ProbeTotal), probeRate(right.ProbeTotal-right.ProbeSuccess, right.ProbeTotal)
+			}
+			if leftValue == rightValue {
+				if descending {
+					return left.ID > right.ID
+				}
+				return left.ID < right.ID
+			}
+			if descending {
+				return leftValue > rightValue
+			}
+			return leftValue < rightValue
+		})
+	}
+	common.ApiSuccess(c, items)
+}
+
+func BatchCreateProxyNodes(c *gin.Context) {
+	var req proxyNodeBatchRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+	result, err := service.CreateProxyNodesBatch(service.ProxyNodeInput{
+		Enabled: req.Enabled, ScopeType: req.ScopeType, ScopeValue: req.ScopeValue,
+	}, req.NamePrefix, req.ProxyText, req.ProxyURLs)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
+func BatchSetProxyNodesEnabled(c *gin.Context) {
+	var req proxyNodeBatchEnabledRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+	updated, err := service.SetProxyNodesEnabled(req.IDs, req.Enabled)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"updated": updated})
+}
+
+func BatchClearProxyNodeErrors(c *gin.Context) {
+	var req proxyNodeBatchClearErrorsRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+	cleared, err := service.ClearProxyNodeErrors(req.IDs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"cleared": cleared})
+}
+
+func GetProxyNodeReport(c *gin.Context) {
+	var total, enabled, healthy int64
+	base := model.DB.Model(&model.ProxyNode{})
+	if err := base.Count(&total).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Each metric runs on its own fresh query. Reusing one query would
+	// accumulate predicates (enabled leaking into the healthy count), same
+	// class of bug as GetProxyNodesForChannel — see proxy_node_test.go.
+	if err := model.DB.Model(&model.ProxyNode{}).Where("enabled = ?", true).Count(&enabled).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.DB.Model(&model.ProxyNode{}).Where("health >= ?", service.ProxyNodeHealthyThreshold).Count(&healthy).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	stats := service.GetProxyNodeProbeStats()
+	failed := stats.Total - stats.Success
+	common.ApiSuccess(c, gin.H{
+		"total":         total,
+		"enabled":       enabled,
+		"healthy":       healthy,
+		"probe_total":   stats.Total,
+		"probe_success": stats.Success,
+		"probe_failed":  max(int64(0), failed),
+		"probe_active":  stats.Active,
+		"success_rate":  ratioPercent(stats.Success, stats.Total),
+		"failure_rate":  ratioPercent(failed, stats.Total),
+	})
+}
+
+func GetProxyNode(c *gin.Context) {
+	id, err := parseProxyNodeID(c)
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid proxy node id")
+		return
+	}
+	var node model.ProxyNode
+	if err := model.DB.First(&node, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	parsed, err := service.DecryptProxyNodeConfig(&node)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"node":  node.Public(),
+		"proxy": parsed.CanonicalInput,
+	})
+}
+func CreateProxyNode(c *gin.Context) {
+	var req proxyNodeRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+	node, err := service.CreateProxyNode(service.ProxyNodeInput{
+		Name: req.Name, Enabled: req.Enabled, Proxy: req.Proxy, ScopeType: req.ScopeType, ScopeValue: req.ScopeValue,
+	})
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	common.ApiSuccess(c, node.Public())
+}
+
+func UpdateProxyNode(c *gin.Context) {
+	id, err := parseProxyNodeID(c)
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid proxy node id")
+		return
+	}
+	var req proxyNodeUpdateRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid request body")
+		return
+	}
+	var node model.ProxyNode
+	if err := model.DB.First(&node, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	scopeType, scopeValue, err := model.NormalizeProxyNodeScope(req.ScopeType, req.ScopeValue)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	node.Name, node.Enabled, node.ScopeType, node.ScopeValue = strings.TrimSpace(req.Name), req.Enabled, scopeType, scopeValue
+	if req.Proxy != nil && strings.TrimSpace(*req.Proxy) != "" {
+		parsed, parseErr := service.ParseProxyNodeShareLink(*req.Proxy)
+		if parseErr != nil {
+			common.ApiErrorMsg(c, parseErr.Error())
+			return
+		}
+		encrypted, encryptErr := service.EncryptProxyNodeConfigForUpdate(parsed.CanonicalInput)
+		if encryptErr != nil {
+			common.ApiErrorMsg(c, encryptErr.Error())
+			return
+		}
+		node.Protocol = parsed.Protocol
+		node.EncryptedProxyConfig = encrypted
+	}
+	if node.Name == "" {
+		common.ApiErrorMsg(c, "proxy node name must not be empty")
+		return
+	}
+	if err := model.DB.Save(&node).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, node.Public())
+}
+
+func DeleteProxyNode(c *gin.Context) {
+	id, err := parseProxyNodeID(c)
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid proxy node id")
+		return
+	}
+	if err := model.DB.Delete(&model.ProxyNode{}, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+func TestProxyNode(c *gin.Context) {
+	id, err := parseProxyNodeID(c)
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid proxy node id")
+		return
+	}
+	var node model.ProxyNode
+	if err := model.DB.First(&node, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	result, probeErr := service.ProbeProxyNode(c.Request.Context(), &node)
+	if probeErr != nil {
+		common.ApiError(c, probeErr)
+		return
+	}
+	common.ApiSuccess(c, result)
+}
+
+func TestAllProxyNodes(c *gin.Context) {
+	var nodes []model.ProxyNode
+	if err := model.DB.Where("enabled = ?", true).Find(&nodes).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	passed := 0
+	for index := range nodes {
+		result, err := service.ProbeProxyNode(c.Request.Context(), &nodes[index])
+		if err == nil && result.Success {
+			passed++
+		}
+	}
+	common.ApiSuccess(c, gin.H{"passed": passed, "failed": len(nodes) - passed, "total": len(nodes)})
+}
+
+func parseProxyNodeID(c *gin.Context) (uint, error) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	return uint(id), err
+}
+
+func proxyNodeOrder(field, direction string) string {
+	columns := map[string]string{
+		"name": "name", "scope": "scope_type", "protocol": "protocol", "health": "health",
+	}
+	column, ok := columns[field]
+	if !ok {
+		column = "id"
+	}
+	if strings.EqualFold(direction, "desc") {
+		return column + " DESC, id DESC"
+	}
+	return column + " ASC, id ASC"
+}
+
+func probeRate(value, total int64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return float64(value) / float64(total)
+}
+
+func ratioPercent(value, total int64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return float64(value) / float64(total) * 100
 }

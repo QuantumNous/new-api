@@ -20,6 +20,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, Download, RefreshCw, Save } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ProxyNodeView } from './proxy-node-view'
 
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { toast } from '@/hooks/use-toast'
@@ -260,6 +262,7 @@ export function ProxyPage() {
   const queryClient = useQueryClient()
   const { copyToClipboard } = useCopyToClipboard()
   const [form, setForm] = useState<ProxyConfig>(DEFAULT_CONFIG)
+  const [activeTab, setActiveTab] = useState('nodes')
 
   const configQuery = useQuery({
     queryKey: ['proxy', 'config'],
@@ -347,8 +350,17 @@ export function ProxyPage() {
         <span className='truncate'>{t('Proxy Config')}</span>
       </SectionPageLayout.Title>
       <SectionPageLayout.Content>
-        <div className='space-y-4'>
-          <Card>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value='nodes'>{t('Proxy Nodes')}</TabsTrigger>
+            <TabsTrigger value='config'>{t('sing-box Config')}</TabsTrigger>
+          </TabsList>
+          <TabsContent value='nodes'>
+            <ProxyNodeView />
+          </TabsContent>
+          <TabsContent value='config'>
+            <div className='space-y-4'>
+              <Card>
             <CardHeader>
               <CardTitle className='text-base'>
                 {t('Outbound Configuration')}
@@ -867,7 +879,9 @@ export function ProxyPage() {
               )}
             </CardContent>
           </Card>
-        </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )
