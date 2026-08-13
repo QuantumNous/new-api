@@ -37,6 +37,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 10-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -48,6 +56,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -113,13 +124,6 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	// Duration is a *int upstream: metadata can null it out or set it
-	// non-positive, either of which means the length is not determinable.
-	// Capture nothing rather than price off a guess, which leaves the request on
-	// the per-call path exactly as today.
-	if payload.Duration == nil || *payload.Duration <= 0 {
-		return nil
-	}
 
 	// One snapshot per request: a second fetch could straddle a config reload
 	// and judge the model "configured" against one table while pricing it
@@ -130,7 +134,26 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
 	// Not the upstream name: the model configs carry different default tiers, so
 	// keying on the mapped name would divide one model's rate by another's price.
-	if dims, ok := resolveDimensions(payload.Resolution, false); ok {
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length and tier are actually knowable: a wrong
+	// duration or tier would misprice the request silently. Duration is a *int
+	// upstream, so metadata can null it out or set it non-positive, either of
+	// which means the length is not determinable. For an UNCONFIGURED model that
+	// leaves the request on the per-call path, which is the documented
+	// pre-existing behaviour. For a configured one there is no per-call price
+	// left to fall back to — this channel contributes no legacy ratios at all —
+	// so the request must be refused instead.
+	secondsOK := payload.Duration != nil && *payload.Duration > 0
+	dims, dimsOK := resolveDimensions(payload.Resolution, false)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName, unknowableLengthReason(payload.Duration))
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", payload.Resolution)
+	case secondsOK && dimsOK:
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
 		a.secondBillingSeconds = float64(*payload.Duration)
@@ -138,6 +161,19 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		a.secondBillingRules = rules
 	}
 	return nil
+}
+
+// unknowableLengthReason explains why the upstream duration could not be used,
+// in terms the caller can act on. The two shapes need different fixes — send a
+// duration at all, versus send a positive one — so a single generic message
+// would leave the caller guessing.
+func unknowableLengthReason(duration *int) string {
+	if duration == nil {
+		return "metadata 将 duration 置空，未指定时长；" +
+			"metadata cleared duration, so no length was requested"
+	}
+	return "duration 非正数表示由模型自行决定长度；" +
+		"a non-positive duration hands the length to the model"
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {

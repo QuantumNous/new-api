@@ -350,31 +350,67 @@ func TestHailuoEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.
 	}
 }
 
-// A length or tier that cannot be determined must never be guessed: capture is
-// skipped and the request keeps its per-call price. The upstream duration is a
-// *int, so metadata can null it out as well as push it non-positive.
-func TestHailuoEstimateBillingUndeterminableRequestIsNotCaptured(t *testing.T) {
+// unpriceableRequests are the request shapes this channel cannot price. The
+// upstream duration is a *int, so metadata can null it out as well as push it
+// non-positive; a resolution the channel-local label map does not know is
+// equally unpriceable.
+//
+// What happens to them depends entirely on whether the model is configured for
+// per-second billing, which is why the two tests below share this list.
+var unpriceableRequests = []struct {
+	name string
+	body string
+}{
+	{"null metadata duration", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","metadata":{"duration":null}}`},
+	{"zero metadata duration", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","metadata":{"duration":0}}`},
+	{"negative metadata duration", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","metadata":{"duration":-1}}`},
+	// A resolution the adapter cannot classify is equally unpriceable.
+	{"unknown metadata resolution", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","duration":6,"metadata":{"resolution":"4K"}}`},
+	{"empty metadata resolution", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","duration":6,"metadata":{"resolution":""}}`},
+}
+
+// A configured model returns nil from EstimateBilling — this channel has no
+// legacy ratios at all — so per-second is the whole price. When the request
+// cannot be priced, returning no ratios therefore bills the bare ModelPrice with
+// no seconds multiplier, charging a 10-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing.
+func TestHailuoEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	installHailuoVideoPriceRules(t, `[
 		{"model":"MiniMax-Hailuo-02","match":{"resolution":"768p"},"price_per_second":0.2,"basis":"output_duration"}
 	]`)
 
-	for _, tc := range []struct {
-		name string
-		body string
-	}{
-		{"null metadata duration", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","metadata":{"duration":null}}`},
-		{"zero metadata duration", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","metadata":{"duration":0}}`},
-		{"negative metadata duration", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","metadata":{"duration":-1}}`},
-		// A resolution the adapter cannot classify is equally unpriceable.
-		{"unknown metadata resolution", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","duration":6,"metadata":{"resolution":"4K"}}`},
-		{"empty metadata resolution", `{"model":"MiniMax-Hailuo-02","prompt":"a cat","duration":6,"metadata":{"resolution":""}}`},
-	} {
+	for _, tc := range unpriceableRequests {
 		t.Run(tc.name, func(t *testing.T) {
 			a, c, info := newHailuoBillingRequest(t, tc.body, "MiniMax-Hailuo-02", 0.5)
-			a.EstimateBilling(c, info)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("hailuo has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model is untouched by all of this. It has no
+// per-second price to fail to compute, so the same shapes must stay silently on
+// the per-call path exactly as they do today — failing them would reject requests
+// this gateway has always accepted.
+func TestHailuoEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installHailuoVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"768p"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range unpriceableRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newHailuoBillingRequest(t, tc.body, "MiniMax-Hailuo-02", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("hailuo has no legacy ratios; got %v", ratios)
+			}
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("an undeterminable request must stay on the per-call path, got error: %v", err)
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("priced off an undeterminable request: %v", got)
