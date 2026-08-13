@@ -38,3 +38,20 @@ func TestFingerprintHeadersAndBodyShareIDs(t *testing.T) {
 	metadata := body["client_metadata"].(map[string]any)
 	require.Equal(t, ids.turnID, metadata["turn_id"])
 }
+
+func TestFingerprintBodyPreservesNonObjectMetadata(t *testing.T) {
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
+	ids := resolveFingerprintIDs(info, "client")
+	body := map[string]any{"client_metadata": "opaque"}
+	require.False(t, applyFingerprintBody(body, ids))
+	require.Equal(t, "opaque", body["client_metadata"])
+}
+
+func TestFingerprintDeviceRewritesTurnMetadata(t *testing.T) {
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
+	ids := resolveFingerprintIDs(info, "client")
+	body := map[string]any{"client_metadata": map[string]any{"x-codex-turn-metadata": `{"installation_id":"old"}`}}
+	require.True(t, applyFingerprintBody(body, ids))
+	metadata := body["client_metadata"].(map[string]any)
+	require.Contains(t, metadata["x-codex-turn-metadata"], ids.installationID)
+}

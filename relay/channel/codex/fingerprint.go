@@ -82,7 +82,7 @@ func resolveFingerprintIDs(info *relaycommon.RelayInfo, clientSession string) *c
 	if mode == fingerprintOff {
 		return nil
 	}
-	accountSeed := fmt.Sprintf("new-api:codex-fingerprint:v1:%d", info.ChannelId)
+	accountSeed := fmt.Sprintf("new-api:codex-fingerprint:v2:%d:user:%d:token:%d", info.ChannelId, info.UserId, info.TokenId)
 	ids := &codexFingerprintIDs{mode: mode, installationID: stableFingerprintID(accountSeed + ":device")}
 	if mode == fingerprintDevice {
 		return ids
@@ -149,7 +149,10 @@ func applyFingerprintBody(body map[string]any, ids *codexFingerprintIDs) bool {
 	if body == nil || ids == nil {
 		return false
 	}
-	metadata, _ := body["client_metadata"].(map[string]any)
+	metadata, ok := body["client_metadata"].(map[string]any)
+	if body["client_metadata"] != nil && !ok {
+		return false
+	}
 	if metadata == nil {
 		metadata = map[string]any{}
 	}
@@ -159,9 +162,9 @@ func applyFingerprintBody(body map[string]any, ids *codexFingerprintIDs) bool {
 		metadata["thread_id"] = ids.threadID
 		metadata["turn_id"] = ids.turnID
 		metadata["x-codex-window-id"] = ids.windowID
-		if raw, ok := metadata["x-codex-turn-metadata"].(string); ok {
-			metadata["x-codex-turn-metadata"] = rewriteTurnMetadata(raw, ids)
-		}
+	}
+	if raw, ok := metadata["x-codex-turn-metadata"].(string); ok {
+		metadata["x-codex-turn-metadata"] = rewriteTurnMetadata(raw, ids)
 	}
 	body["client_metadata"] = metadata
 	return true
