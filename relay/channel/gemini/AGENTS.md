@@ -43,7 +43,7 @@ Google Gemini 原生 API 适配器，实现 `channel.Adaptor` 接口。这是功
   - 其余流式 / 非流式 → `GeminiChatStreamHandler` / `GeminiChatHandler`（转 OpenAI 格式）
 - **thinking budget clamp 常量**：`pro25MinBudget=128` / `pro25MaxBudget=32768` / `flash25MaxBudget=24576` / `flash25LiteMinBudget=512` / `flash25LiteMaxBudget=24576`。`clampThinkingBudgetByEffort` 按 effort (high 80% / medium 50% / low 20% / minimal 5%) 缩放。
 - **thought signature bypass**：常量 `thoughtSignatureBypassValue = "context_engineering_is_the_way_to_go"`，用于绕过 function call thought signature 校验（仅在 `FunctionCallThoughtSignatureEnabled` + Gemini/VertexAI 渠道启用）。
-- **`buildUsageFromGeminiMetadata`**：prompt = `PromptTokenCount + ToolUsePromptTokenCount`（≤0 时回退 estimate）；completion = `CandidatesTokenCount + ThoughtsTokenCount`；细分 `PromptTokensDetails.{Cached,Text,Audio}` 与 `CompletionTokenDetails.{Reasoning,Image,Audio,Text}`。当 `TotalTokens>0` 且 `CompletionTokens≤0` 时按差值补全。
+- **`buildUsageFromGeminiMetadata`**：prompt = `PromptTokenCount + ToolUsePromptTokenCount`（≤0 时回退 estimate）；completion = `CandidatesTokenCount + ThoughtsTokenCount`；细分 `PromptTokensDetails.{Cached,Text,Audio,Image}` 与 `CompletionTokenDetails.{Reasoning,Image,Audio,Text}`。当 `TotalTokens>0` 且 `CompletionTokens≤0` 时按差值补全。流式图片缺失 metadata 时不得按图片数量合成 token，只记录诊断并跳过合成结算。
 - **`responseGeminiChat2OpenAI`**：媒体部分按 mime 区分 `![image](data:...)` vs `[media](data:...)`；`strings.Builder` 预分配 `inlineGrow` 容量以减少大 base64 的堆分配（性能注释明确写了）。
 - **finishReason 映射**：`STOP`→stop、`MAX_TOKENS`→length、`SAFETY`/`RECITATION`/`BLOCKLIST`/`PROHIBITED_CONTENT`/`SPII`/`OTHER`→content_filter。
 - **工具调用清理**：`cleanFunctionParametersWithDepth`、`normalizeGeminiSchemaTypeAndNullable`、`removeAdditionalPropertiesWithDepth`（递归到 5 层）等处理 JSON schema 兼容性问题。

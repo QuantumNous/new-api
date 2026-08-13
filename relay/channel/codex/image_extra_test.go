@@ -146,6 +146,26 @@ func TestRelayImageOverCodex_FullUsageHonored(t *testing.T) {
 	}
 }
 
+func TestRelayImageOverCodex_MapsImageTokenDetails(t *testing.T) {
+	sse := strings.Join([]string{
+		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","result":"QUJD"}}`,
+		`data: {"type":"response.completed","response":{"created_at":1700000000,"tool_usage":{"image_gen":{"input_tokens":141,"output_tokens":196,"total_tokens":337,"input_tokens_details":{"text_tokens":21,"image_tokens":120},"output_tokens_details":{"text_tokens":0,"image_tokens":196}}}}}`,
+		"data: [DONE]",
+		"",
+	}, "\n\n")
+	usage := runCodexImageSSE(t, sse)
+
+	if usage.PromptTokens != 141 || usage.CompletionTokens != 196 || usage.TotalTokens != 337 {
+		t.Fatalf("totals = %+v", usage)
+	}
+	if usage.PromptTokensDetails.TextTokens != 21 || usage.PromptTokensDetails.ImageTokens != 120 {
+		t.Fatalf("input details = %+v", usage.PromptTokensDetails)
+	}
+	if usage.CompletionTokenDetails.ImageTokens != 196 {
+		t.Fatalf("output image tokens = %+v", usage.CompletionTokenDetails)
+	}
+}
+
 // F8：上游 SSE 超过读取上限且未产出图像时，返回可区分的 "response exceeded size limit"，
 // 而不是误报 "no image returned"。
 func TestRelayImageOverCodex_OversizedStreamReturnsDistinctError(t *testing.T) {
