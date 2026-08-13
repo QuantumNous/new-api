@@ -190,10 +190,6 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	seconds, ok := billableSeconds(payload.Frames)
-	if !ok {
-		return nil
-	}
 
 	// One snapshot per request: a second fetch could straddle a config reload
 	// and judge the model "configured" against one table while pricing it
@@ -205,12 +201,47 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// Not the upstream req_key: convertToRequestPayload rewrites it per request
 	// shape (t2v / i2v / first-tail / 3.0-pro), so keying on it would divide one
 	// model's per-second rate by another model's price.
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length is actually knowable: a wrong duration would
+	// misprice the request silently. For an UNCONFIGURED model that leaves the
+	// request on the per-call path, which is the documented pre-existing
+	// behaviour. For a configured one there is no per-call price left to fall
+	// back to — this channel contributes no legacy ratios at all — so the
+	// request must be refused instead.
+	//
+	// There is no dimension failure mode to mirror this one: resolveDimensions
+	// reports only has_video, which is always resolvable.
+	seconds, ok := billableSeconds(payload.Frames)
+	if !ok {
+		if configured {
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, unknowableLengthReason(payload.Frames))
+		}
+		return nil
+	}
+
 	a.secondBillingModel = info.OriginModelName
 	a.secondBillingDims = resolveDimensions()
 	a.secondBillingSeconds = seconds
 	a.secondBillingModelPrice = info.PriceData.ModelPrice
 	a.secondBillingRules = rules
 	return nil
+}
+
+// unknowableLengthReason explains why billableSeconds refused, in terms the
+// caller can act on. It is only meaningful when that function returned false.
+//
+// The frame count is always a metadata override when it lands here: every value
+// convertToRequestPayload produces on its own is one of the two documented
+// counts, so the fix is always to drop the override or use a documented count.
+func unknowableLengthReason(frames int) string {
+	return fmt.Sprintf(
+		"metadata 指定的 frames=%d 无对应的官方帧率，网关无法换算为秒（仅 %d=5s / %d=10s 有记载）；"+
+			"metadata set frames=%d, which has no documented fps behind it "+
+			"(only %d=5s and %d=10s are documented), so it cannot be converted to seconds",
+		frames, framesFor5Seconds, framesFor10Seconds,
+		frames, framesFor5Seconds, framesFor10Seconds)
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {

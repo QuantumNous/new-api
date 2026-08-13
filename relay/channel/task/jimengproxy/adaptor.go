@@ -63,6 +63,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -74,6 +82,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -126,13 +137,6 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 	payload := a.convertToSubmitPayload(&req)
-	// convertToSubmitPayload forwards duration only when positive and applies no
-	// default of its own, so a non-positive value means the upstream picks the
-	// length — unknowable here. Capture nothing rather than price off a guess,
-	// which leaves the request on the per-call path exactly as today.
-	if payload.Duration <= 0 {
-		return nil
-	}
 
 	// One snapshot per request: a second fetch could straddle a config reload
 	// and judge the model "configured" against one table while pricing it
@@ -143,7 +147,28 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
 	// Not the upstream name: model mapping would otherwise divide one model's
 	// per-second rate by another model's price.
-	if dims, ok := resolveDimensions(payload.Resolution, false); ok {
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length and tier are actually knowable: a wrong
+	// duration or tier would misprice the request silently. convertToSubmitPayload
+	// forwards duration only when positive and applies no default of its own, so
+	// a non-positive value means the upstream picks the length — unknowable here.
+	// For an UNCONFIGURED model that leaves the request on the per-call path,
+	// which is the documented pre-existing behaviour. For a configured one there
+	// is no per-call price left to fall back to — this channel contributes no
+	// legacy ratios at all — so the request must be refused instead.
+	secondsOK := payload.Duration > 0
+	dims, dimsOK := resolveDimensions(payload.Resolution, false)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName,
+			"未提供正数 duration，上游将自行决定长度；"+
+				"no positive duration was given, so the upstream picks the length")
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", payload.Resolution)
+	case secondsOK && dimsOK:
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
 		a.secondBillingSeconds = float64(payload.Duration)
