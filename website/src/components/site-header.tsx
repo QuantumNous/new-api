@@ -2,35 +2,13 @@
 
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
 import { LANGUAGE_PREFERENCE_COOKIE } from "@/lib/language-routing";
-import { CLI_LANDING_PATH, cliLandingCopy } from "@/lib/cli-landing";
 import { getCopy } from "@/lib/copy";
 import { LOCALE_LABELS, LOCALES, type Locale, localeLanguageTag, localizePath, stripLocale, withIdFallback } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
-import { TOOLS_LANDING_PATH, toolsLandingCopy } from "@/lib/tools-landing";
 import { cn } from "@/lib/utils";
-
-const legacyNavLabelByLocale: Record<
-  Locale,
-  {
-    compute: string;
-    playground: string;
-    status: string;
-    usecases: string;
-  }
-> = withIdFallback({
-  en: { compute: "Compute", playground: "Playground", status: "Status", usecases: "Use cases" },
-  zh: { compute: "算力", playground: "Playground", status: "服务状态", usecases: "使用场景" },
-  es: { compute: "Compute", playground: "Playground", status: "Estado", usecases: "Casos de uso" },
-  fr: { compute: "Compute", playground: "Playground", status: "Statut", usecases: "Cas d'usage" },
-  pt: { compute: "Compute", playground: "Playground", status: "Status", usecases: "Casos de uso" },
-  ru: { compute: "Compute", playground: "Playground", status: "Статус", usecases: "Сценарии" },
-  ja: { compute: "Compute", playground: "Playground", status: "ステータス", usecases: "ユースケース" },
-  vi: { compute: "Compute", playground: "Playground", status: "Trạng thái", usecases: "Use cases" },
-  de: { compute: "Compute", playground: "Playground", status: "Status", usecases: "Anwendungsfälle" },
-});
 
 const startFreeLabelByLocale: Record<Locale, string> = withIdFallback({
   en: "Start free",
@@ -42,18 +20,6 @@ const startFreeLabelByLocale: Record<Locale, string> = withIdFallback({
   ja: "無料で開始",
   vi: "Bắt đầu miễn phí",
   de: "Kostenlos starten",
-});
-
-const navGroupLabelByLocale: Record<Locale, { careers: string; developers: string; products: string; resources: string }> = withIdFallback({
-  en: { products: "Products", developers: "Developers", resources: "Resources", careers: "Careers" },
-  zh: { products: "产品", developers: "开发者", resources: "资源", careers: "加入我们" },
-  es: { products: "Productos", developers: "Desarrolladores", resources: "Recursos", careers: "Carreras" },
-  fr: { products: "Produits", developers: "Développeurs", resources: "Ressources", careers: "Carrières" },
-  pt: { products: "Produtos", developers: "Desenvolvedores", resources: "Recursos", careers: "Carreiras" },
-  ru: { products: "Продукты", developers: "Разработчикам", resources: "Ресурсы", careers: "Вакансии" },
-  ja: { products: "プロダクト", developers: "開発者向け", resources: "リソース", careers: "採用情報" },
-  vi: { products: "Sản phẩm", developers: "Nhà phát triển", resources: "Tài nguyên", careers: "Tuyển dụng" },
-  de: { products: "Produkte", developers: "Entwickler", resources: "Ressourcen", careers: "Karriere" },
 });
 
 type Props = {
@@ -102,10 +68,6 @@ function StaticLanguageSelect(props: { cookieDomain?: string; locale: Locale; pa
 
 export function SiteHeader(props: Props) {
   const copy = getCopy(props.locale);
-  const cliCopy = cliLandingCopy[props.locale] ?? cliLandingCopy.en;
-  const toolsCopy = toolsLandingCopy[props.locale];
-  const legacyLabels = legacyNavLabelByLocale[props.locale] ?? legacyNavLabelByLocale.en;
-  const groupLabels = navGroupLabelByLocale[props.locale] ?? navGroupLabelByLocale.en;
   const startFreeLabel = startFreeLabelByLocale[props.locale] ?? startFreeLabelByLocale.en;
   const [mobileOpen, setMobileOpen] = useState(false);
   const currentPath = stripLocale(props.pathname);
@@ -134,38 +96,7 @@ export function SiteHeader(props: Props) {
     return () => media.removeListener(closeMobileMenuAtDesktop);
   }, [props.expandNavigationAtTablet]);
 
-  const productItems = useMemo<NavItem[]>(
-    () => [
-      { href: "/models", label: copy.nav.modelPricing, publicPath: true },
-      { href: TOOLS_LANDING_PATH, label: toolsCopy.navLabel, publicPath: true },
-      { href: "/playground", label: legacyLabels.playground, publicPath: true },
-      { href: "/rankings", label: copy.nav.rankings, publicPath: true },
-      { href: "/compute", label: legacyLabels.compute, publicPath: true },
-      { href: "/usecases", label: legacyLabels.usecases, publicPath: true },
-    ],
-    [copy.nav.modelPricing, copy.nav.rankings, legacyLabels, toolsCopy.navLabel]
-  );
-  const developerItems = useMemo<NavItem[]>(
-    () => [
-      { href: "/docs", label: copy.nav.docs, publicPath: true },
-      { href: "/status", label: legacyLabels.status, publicPath: true },
-    ],
-    [copy.nav.docs, legacyLabels.status]
-  );
-  const resourceItems = useMemo<NavItem[]>(
-    () => [
-      { href: "/blog", label: copy.nav.blog, publicPath: true },
-      { href: "/about", label: copy.nav.about, publicPath: true },
-      { href: "/careers", label: groupLabels.careers, publicPath: true },
-      { href: "/contact", label: copy.nav.contact, publicPath: true },
-    ],
-    [copy.nav.about, copy.nav.blog, copy.nav.contact, groupLabels.careers]
-  );
-  const topLevelItems = [
-    { href: CLI_LANDING_PATH, label: cliCopy.navLabel, publicPath: true },
-    { href: "/pricing", label: copy.nav.pricing, publicPath: true },
-  ];
-  const mobileItems = [...productItems, ...topLevelItems, ...developerItems, ...resourceItems];
+  const docsItem: NavItem = { href: "/docs", label: copy.nav.docs, publicPath: true };
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -200,26 +131,6 @@ export function SiteHeader(props: Props) {
     );
   };
 
-  const renderNavGroup = (label: string, items: NavItem[]) => (
-    <div className="group/nav relative">
-      <button
-        type="button"
-        className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg px-2 text-[13px] font-semibold text-[#43434C] hover:text-[#0B0B0F]"
-        aria-haspopup="menu"
-      >
-        <span className="size-1.5 rounded-full bg-[#aaa7b0]" aria-hidden="true" />
-        {label}
-      </button>
-      <div className="pointer-events-none absolute top-full left-0 z-50 pt-3 opacity-0 transition-opacity group-hover/nav:pointer-events-auto group-hover/nav:opacity-100 group-focus-within/nav:pointer-events-auto group-focus-within/nav:opacity-100">
-        <div className="min-w-52 rounded-xl border border-[#0B0B0F14] bg-white p-2 shadow-[0_22px_70px_-45px_rgba(11,11,15,.48)]">
-          {items.map((item) => (
-            <div key={item.href}>{renderNavLink(item, true)}</div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <header className="sticky top-0 z-50 border-b border-[#0B0B0F14] bg-white/95 backdrop-blur-md">
       <nav className="flex h-[76px] items-center gap-4 px-5 text-[#0B0B0F] min-[1180px]:gap-3 min-[1320px]:px-8">
@@ -229,10 +140,7 @@ export function SiteHeader(props: Props) {
         </Link>
 
         <div className={cn("hidden min-w-0 flex-1 items-center gap-1", desktopNavigation.show)}>
-          {renderNavGroup(groupLabels.products, productItems)}
-          {renderNavGroup(groupLabels.developers, developerItems)}
-          {renderNavGroup(groupLabels.resources, resourceItems)}
-          {topLevelItems.map((item) => renderNavLink(item, false, true))}
+          {renderNavLink(docsItem)}
         </div>
 
         <div className={cn("ml-auto hidden shrink-0 items-center gap-2", desktopNavigation.show)}>
@@ -280,7 +188,7 @@ export function SiteHeader(props: Props) {
           mobileOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-3 opacity-0"
         )}
       >
-        <div className="grid gap-1">{mobileItems.map((item) => renderNavLink(item, true))}</div>
+        <div className="grid gap-1">{renderNavLink(docsItem, true)}</div>
         <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[#0B0B0F14] pt-4">
           <a className="inline-flex h-10 items-center px-3 text-sm font-semibold" href={signInHref}>
             {copy.nav.signIn}
