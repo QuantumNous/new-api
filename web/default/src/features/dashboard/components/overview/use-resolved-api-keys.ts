@@ -37,13 +37,18 @@ export function useResolvedApiKeys(
 ): Record<number, string> {
   const { t } = useTranslation()
   const userId = useAuthStore((state) => state.auth.user?.id)
-  const [resolvedKeys, setResolvedKeys] = useState<Record<number, string>>({})
+  const [resolvedState, setResolvedState] = useState<{
+    userId: number | undefined
+    keys: Record<number, string>
+  }>({ userId, keys: {} })
 
   // A different account must never see key material resolved for the
-  // previous one, even if a token id happens to repeat across accounts.
-  useEffect(() => {
-    setResolvedKeys({})
-  }, [userId])
+  // previous one, even for a single frame. Resetting during render (instead
+  // of in an effect) keeps the stale map out of the committed tree entirely:
+  // React re-renders with the empty map before anything reaches the DOM.
+  if (resolvedState.userId !== userId) {
+    setResolvedState({ userId, keys: {} })
+  }
 
   const keyId =
     typeof selectedKeyId === 'number' && Number.isFinite(selectedKeyId)
@@ -72,10 +77,10 @@ export function useResolvedApiKeys(
   const resolved = keyQuery.data
   useEffect(() => {
     if (!resolved) return
-    setResolvedKeys((prev) =>
-      prev[resolved.id] === resolved.key
+    setResolvedState((prev) =>
+      prev.keys[resolved.id] === resolved.key
         ? prev
-        : { ...prev, [resolved.id]: resolved.key }
+        : { ...prev, keys: { ...prev.keys, [resolved.id]: resolved.key } }
     )
   }, [resolved])
 
@@ -86,5 +91,5 @@ export function useResolvedApiKeys(
     if (resolveFailed) toast.error(t(ERROR_MESSAGES.UNEXPECTED))
   }, [resolveFailed, t])
 
-  return resolvedKeys
+  return resolvedState.userId === userId ? resolvedState.keys : {}
 }
