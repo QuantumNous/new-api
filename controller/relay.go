@@ -718,9 +718,13 @@ func RelayTask(c *gin.Context) {
 		// 创建已成功落库时不要停留在 NOT_START，否则 /v1/videos/{id} 会映射成 status=unknown
 		task.Status = model.TaskStatusQueued
 		task.Progress = "10%"
-		service.LogTaskConsumption(c, relayInfo, task.TaskID)
 		if insertErr := task.Insert(); insertErr != nil {
+			// Response may already have been written by DoResponse; still refund so users
+			// are not charged for an unpollable orphan public task id.
 			common.SysError("insert task error: " + insertErr.Error())
+			service.RefundTaskQuota(c, task, "insert_task_failed: "+insertErr.Error())
+		} else {
+			service.LogTaskConsumption(c, relayInfo, task.TaskID)
 		}
 	}
 

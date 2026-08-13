@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
@@ -112,19 +113,7 @@ func tryCrossChannelFailover(ctx context.Context, task *model.Task, current *mod
 			continue
 		}
 
-		task.ChannelId = next.Id
-		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
-		if result.UpstreamBody != "" {
-			task.PrivateData.RequestBody = result.UpstreamBody
-		}
-		if len(result.TaskData) > 0 {
-			task.Data = result.TaskData
-		}
-		task.PrivateData.RetryCount = 0
-		task.PrivateData.TriedChannelIDs = append(tried, next.Id)
-		task.Status = model.TaskStatusQueued
-		task.FailReason = ""
-		task.FinishTime = 0
+		applyCrossChannelFailoverResult(task, next, result, append(tried, next.Id))
 
 		idx := ChannelIndexInOrder(ordered, next.Id)
 		total := len(ordered)
@@ -137,6 +126,27 @@ func tryCrossChannelFailover(ctx context.Context, task *model.Task, current *mod
 		prog := fmt.Sprintf("switching %d/%d", idx, total)
 		return true, prog, nil
 	}
+}
+
+func applyCrossChannelFailoverResult(task *model.Task, next *model.Channel, result *TaskFailoverRecreateResult, tried []int) {
+	task.ChannelId = next.Id
+	if p := strings.TrimSpace(result.Platform); p != "" {
+		task.Platform = constant.TaskPlatform(p)
+	} else {
+		task.Platform = constant.TaskPlatform(fmt.Sprintf("%d", next.Type))
+	}
+	task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+	if result.UpstreamBody != "" {
+		task.PrivateData.RequestBody = result.UpstreamBody
+	}
+	if len(result.TaskData) > 0 {
+		task.Data = result.TaskData
+	}
+	task.PrivateData.RetryCount = 0
+	task.PrivateData.TriedChannelIDs = tried
+	task.Status = model.TaskStatusQueued
+	task.FailReason = ""
+	task.FinishTime = 0
 }
 
 func containsInt(ids []int, id int) bool {

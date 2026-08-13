@@ -59,3 +59,41 @@ func TestHandleAsyncTaskFailure_BalanceNeedsRecreateWired(t *testing.T) {
 		t.Fatalf("without recreate func expect not handled, got handled=%v err=%v", handled, err)
 	}
 }
+
+func TestApplyCrossChannelFailoverResult_UpdatesPlatform(t *testing.T) {
+	task := &model.Task{
+		TaskID:    "t_platform",
+		ChannelId: 12,
+		Platform:  "1",
+		Status:    model.TaskStatusFailure,
+		PrivateData: model.TaskPrivateData{
+			TriedChannelIDs: []int{12},
+		},
+	}
+	next := &model.Channel{Id: 26, Type: 69}
+	result := &TaskFailoverRecreateResult{
+		UpstreamTaskID: "mcp_new",
+		UpstreamBody:   `{"model":"videos_933_c1"}`,
+		TaskData:       []byte(`{"id":"mcp_new","status":"queued"}`),
+		Platform:       "69",
+	}
+	applyCrossChannelFailoverResult(task, next, result, []int{12, 26})
+	if task.ChannelId != 26 {
+		t.Fatalf("channel=%d", task.ChannelId)
+	}
+	if string(task.Platform) != "69" {
+		t.Fatalf("platform=%q want 69", task.Platform)
+	}
+	if task.Status != model.TaskStatusQueued {
+		t.Fatalf("status=%v", task.Status)
+	}
+	if task.PrivateData.UpstreamTaskID != "mcp_new" {
+		t.Fatalf("upstream=%q", task.PrivateData.UpstreamTaskID)
+	}
+
+	task2 := &model.Task{Platform: "1"}
+	applyCrossChannelFailoverResult(task2, next, &TaskFailoverRecreateResult{UpstreamTaskID: "x"}, []int{26})
+	if string(task2.Platform) != "69" {
+		t.Fatalf("fallback platform=%q want 69 from channel type", task2.Platform)
+	}
+}

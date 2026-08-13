@@ -204,6 +204,12 @@ func isUpstreamError(raw string) bool {
 			return true
 		}
 	}
+	// Framework-style errors, e.g. {"msg":"Request method 'GET' not supported","code":500,"data":null}
+	if code := gjson.Get(raw, "code"); code.Exists() && code.Type == gjson.Number && code.Int() >= 400 {
+		if extractErrorMessage(raw) != "" {
+			return true
+		}
+	}
 	return false
 }
 

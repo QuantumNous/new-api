@@ -176,6 +176,21 @@ func TestParseTaskResult_Failed(t *testing.T) {
 	}
 }
 
+func TestParseTaskResult_FrameworkMethodNotSupported(t *testing.T) {
+	a := &TaskAdaptor{}
+	raw := []byte(`{"msg":"Request method 'GET' not supported","code":500,"data":null}`)
+	info, err := a.ParseTaskResult(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Status != model.TaskStatusFailure {
+		t.Fatalf("status=%v want failure", info.Status)
+	}
+	if info.Reason == "" {
+		t.Fatal("expected non-empty reason")
+	}
+}
+
 func TestParseTaskResult_Progress(t *testing.T) {
 	a := &TaskAdaptor{}
 	raw := []byte(`{"id":"mcp_1","status":"processing","progress":42}`)
