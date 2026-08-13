@@ -413,6 +413,18 @@ export const channelFormSchema = z
     }
 
     if (
+      data.type === 112 &&
+      data.multi_key_mode &&
+      data.multi_key_mode !== 'single'
+    ) {
+      addRequiredIssue(
+        ctx,
+        'multi_key_mode',
+        'GitHub Copilot channels support one credential only'
+      )
+    }
+
+    if (
       data.type === 41 &&
       data.vertex_key_type === 'json' &&
       data.key?.trim() &&

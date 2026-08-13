@@ -120,6 +120,36 @@ describe('Codex OAuth service tier settings', () => {
   })
 })
 
+describe('GitHub Copilot credential mode', () => {
+  test('allows one credential only', () => {
+    const single = channelFormSchema.safeParse({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'copilot',
+      models: 'gpt-4o',
+      type: 112,
+      multi_key_mode: 'single',
+    })
+    const batch = channelFormSchema.safeParse({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'copilot',
+      models: 'gpt-4o',
+      type: 112,
+      multi_key_mode: 'batch',
+    })
+    const multiToSingle = channelFormSchema.safeParse({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'copilot',
+      models: 'gpt-4o',
+      type: 112,
+      multi_key_mode: 'multi_to_single',
+    })
+
+    expect(single.success).toBe(true)
+    expect(batch.success).toBe(false)
+    expect(multiToSingle.success).toBe(false)
+  })
+})
+
 describe('BlockRun payment chain form mapping', () => {
   test('forces the Solana URL on create but preserves Base and edit URLs', () => {
     expect(

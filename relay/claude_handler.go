@@ -93,6 +93,9 @@ func applyClaudeChannelSystemPrompt(c *gin.Context, info *relaycommon.RelayInfo,
 func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 
 	info.InitChannelMeta(c)
+	if err := rejectCopilotNonChatFormat(info, "/v1/messages"); err != nil {
+		return err
+	}
 
 	claudeReq, ok := info.Request.(*dto.ClaudeRequest)
 

@@ -88,6 +88,26 @@ export type CodexCredentialRefreshResponse = {
   }
 }
 
+export type CopilotDeviceStartResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    verification_uri?: string
+    user_code?: string
+    expires_in?: number
+    interval?: number
+  }
+}
+
+export type CopilotDevicePollResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    status?: 'pending' | 'authorized' | 'expired' | 'denied'
+    message?: string
+  }
+}
+
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
@@ -312,6 +332,28 @@ export async function completeCodexOAuth(
   const res = await api.post(
     '/api/channel/codex/oauth/complete',
     { input },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function startCopilotDeviceFlow(
+  channelId: number
+): Promise<CopilotDeviceStartResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/copilot/device/start`,
+    {},
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function pollCopilotDeviceFlow(
+  channelId: number
+): Promise<CopilotDevicePollResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/copilot/device/poll`,
+    {},
     channelActionConfig()
   )
   return res.data

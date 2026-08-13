@@ -367,6 +367,8 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/codex/oauth/complete", controller.CompleteCodexOAuth)
 			channelRoute.POST("/:id/codex/oauth/start", controller.StartCodexOAuthForChannel)
 			channelRoute.POST("/:id/codex/oauth/complete", controller.CompleteCodexOAuthForChannel)
+			channelRoute.POST("/:id/copilot/device/start", controller.StartCopilotDeviceFlow)
+			channelRoute.POST("/:id/copilot/device/poll", controller.PollCopilotDeviceFlow)
 			channelRoute.POST("/:id/codex/refresh", controller.RefreshCodexChannelCredential)
 			channelRoute.GET("/:id/codex/usage", controller.GetCodexChannelUsage)
 			channelRoute.POST("/:id/codex/reset-credit", middleware.CriticalRateLimit(), controller.ConsumeCodexResetCredit)

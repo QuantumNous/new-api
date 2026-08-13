@@ -6571,6 +6571,27 @@
     "Device + Session (recommended)": "Thiết bị + phiên (khuyến nghị)",
     "Full convergence": "Hợp nhất đầy đủ",
     "Converge Codex device and session identifiers for shared OAuth accounts": "Hợp nhất mã nhận diện Codex cho tài khoản OAuth dùng chung",
-    "Applies only to selected Codex channels": "Chỉ áp dụng cho các kênh Codex đã chọn"
+    "Applies only to selected Codex channels": "Chỉ áp dụng cho các kênh Codex đã chọn",
+    "GitHub Copilot": "GitHub Copilot",
+    "GitHub token with Copilot access": "Mã thông báo GitHub có quyền truy cập Copilot",
+    "Default: https://api.githubcopilot.com": "Mặc định: https://api.githubcopilot.com",
+    "Save the channel first to authorize with GitHub Device Flow instead of entering a token.": "Hãy lưu kênh trước để dùng luồng thiết bị GitHub thay vì nhập mã thông báo.",
+    "GitHub Copilot Authorization": "Ủy quyền GitHub Copilot",
+    "Authorize the saved channel with GitHub Device Flow.": "Ủy quyền kênh đã lưu bằng luồng thiết bị GitHub.",
+    "Open GitHub, enter the one-time code, and approve access. This dialog detects completion automatically.": "Mở GitHub, nhập mã dùng một lần và phê duyệt quyền truy cập. Hộp thoại này tự động phát hiện khi hoàn tất.",
+    "Start GitHub authorization": "Bắt đầu ủy quyền GitHub",
+    "One-time code": "Mã dùng một lần",
+    "Copy one-time code": "Sao chép mã dùng một lần",
+    "Open GitHub verification page": "Mở trang xác minh GitHub",
+    "Waiting for GitHub authorization...": "Đang chờ ủy quyền GitHub…",
+    "Authorization expired": "Ủy quyền đã hết hạn",
+    "Authorization denied": "Ủy quyền bị từ chối",
+    "Authorization failed": "Ủy quyền thất bại",
+    "Authorization response is incomplete": "Phản hồi ủy quyền không đầy đủ",
+    "GitHub authorization completed": "Đã hoàn tất ủy quyền GitHub",
+    "Authorize this saved channel with GitHub Device Flow.": "Ủy quyền kênh đã lưu này bằng luồng thiết bị GitHub.",
+    "Enter a GitHub token now, or save the channel first to use GitHub Device Flow.": "Nhập mã thông báo GitHub ngay hoặc lưu kênh trước để dùng luồng thiết bị GitHub.",
+    "Authorize with GitHub": "Ủy quyền bằng GitHub",
+    "GitHub Copilot channels support one credential only": "Kênh GitHub Copilot chỉ hỗ trợ một thông tin xác thực"
   }
 }

@@ -466,6 +466,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel.MaxConcurrency < 0 {
 		return fmt.Errorf("channel max concurrency cannot be negative")
 	}
+	if channel.Type == constant.ChannelTypeCopilot && channel.ChannelInfo.IsMultiKey {
+		return fmt.Errorf("Copilot channel does not support multi-key mode")
+	}
 
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
@@ -659,6 +662,10 @@ func AddChannel(c *gin.Context) {
 		})
 		return
 	}
+	if addChannelRequest.Channel.Type == constant.ChannelTypeCopilot && addChannelRequest.Mode != "" && addChannelRequest.Mode != "single" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Copilot channels support one credential only"})
+		return
+	}
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
 	keys := make([]string, 0)
@@ -745,11 +752,21 @@ func AddChannel(c *gin.Context) {
 
 func DeleteChannel(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	channel := model.Channel{Id: id}
-	err := channel.Delete()
+	existing, err := model.GetChannelById(id, false)
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	channel := model.Channel{Id: id}
+	err = channel.Delete()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if existing != nil && existing.Type == constant.ChannelTypeCopilot {
+		if err := service.InvalidateCopilotTokenCache(id); err != nil {
+			common.SysError("copilot token cache invalidation failed after channel deletion: " + err.Error())
+		}
 	}
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
@@ -760,11 +777,17 @@ func DeleteChannel(c *gin.Context) {
 }
 
 func DeleteDisabledChannel(c *gin.Context) {
+	copilotChannelIDs, err := getCopilotChannelIDsForDeletion(nil, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	rows, err := model.DeleteDisabledChannel()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	invalidateDeletedCopilotChannels(copilotChannelIDs)
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -909,11 +932,17 @@ func DeleteChannelBatch(c *gin.Context) {
 		})
 		return
 	}
+	copilotChannelIDs, err := getCopilotChannelIDsForDeletion(channelBatch.Ids, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	err = model.BatchDeleteChannels(channelBatch.Ids)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	invalidateDeletedCopilotChannels(copilotChannelIDs)
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -921,6 +950,28 @@ func DeleteChannelBatch(c *gin.Context) {
 		"data":    len(channelBatch.Ids),
 	})
 	return
+}
+
+func getCopilotChannelIDsForDeletion(ids []int, disabledOnly bool) ([]int, error) {
+	query := model.DB.Model(&model.Channel{}).Where("type = ?", constant.ChannelTypeCopilot)
+	if disabledOnly {
+		query = query.Where("status = ? OR status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled)
+	} else {
+		query = query.Where("id IN ?", ids)
+	}
+	var channelIDs []int
+	if err := query.Pluck("id", &channelIDs).Error; err != nil {
+		return nil, err
+	}
+	return channelIDs, nil
+}
+
+func invalidateDeletedCopilotChannels(channelIDs []int) {
+	for _, channelID := range channelIDs {
+		if err := service.InvalidateCopilotTokenCache(channelID); err != nil {
+			common.SysError(fmt.Sprintf("copilot token cache invalidation failed after channel deletion: channel_id=%d", channelID))
+		}
+	}
 }
 
 type PatchChannel struct {
@@ -981,6 +1032,15 @@ func UpdateChannel(c *gin.Context) {
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
+	}
+	finalValidationChannel := validationChannel
+	finalValidationChannel.ChannelInfo = channel.ChannelInfo
+	if err := validateChannel(&finalValidationChannel, false); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑
@@ -1067,6 +1127,12 @@ func UpdateChannel(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if originChannel.Type == constant.ChannelTypeCopilot &&
+		(channel.Type != constant.ChannelTypeCopilot || channel.Key != originChannel.Key) {
+		if err := service.InvalidateCopilotTokenCache(channel.Id); err != nil {
+			common.SysError("copilot token cache invalidation failed after channel update: " + err.Error())
+		}
 	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()

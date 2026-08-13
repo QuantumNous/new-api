@@ -157,6 +157,7 @@ import {
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
+import { CopilotDeviceFlowDialog } from '../dialogs/copilot-device-flow-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import {
   MissingModelsConfirmationDialog,
@@ -268,6 +269,7 @@ export function ChannelMutateDrawer({
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [codexOAuthDialogOpen, setCodexOAuthDialogOpen] = useState(false)
+  const [copilotDeviceFlowOpen, setCopilotDeviceFlowOpen] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
   const initialModelsRef = useRef<string[]>([])
@@ -598,6 +600,10 @@ export function ChannelMutateDrawer({
   useEffect(() => {
     if (isEditing) return // Don't auto-set defaults when editing
 
+    if (currentType === 112 && multiKeyMode !== 'single') {
+      form.setValue('multi_key_mode', 'single')
+    }
+
     // Type 45 (VolcEngine) - set default base_url
     if (currentType === 45) {
       const currentBaseUrlValue = form.getValues('base_url')
@@ -619,6 +625,13 @@ export function ChannelMutateDrawer({
       }
     }
 
+    if (currentType === 112) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue) {
+        form.setValue('base_url', 'https://api.githubcopilot.com')
+      }
+    }
+
     // Type 18 (Xunfei) - set default other (version)
     if (currentType === 18) {
       const currentOther = form.getValues('other')
@@ -626,7 +639,7 @@ export function ChannelMutateDrawer({
         form.setValue('other', 'v2.1')
       }
     }
-  }, [blockRunPaymentChain, currentType, isEditing, form])
+  }, [blockRunPaymentChain, currentType, isEditing, form, multiKeyMode])
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
@@ -1929,7 +1942,7 @@ export function ChannelMutateDrawer({
                     )}
 
                     <ChannelAuthSection>
-                      {!isEditing && (
+                      {!isEditing && currentType !== 112 && (
                         <FormField
                           control={form.control}
                           name='multi_key_mode'
@@ -2057,7 +2070,7 @@ export function ChannelMutateDrawer({
                                           {t(
                                             'Enter new key to update, or leave empty to keep current key'
                                           )}
-                                          {isMultiKeyChannel && (
+                                          {isMultiKeyChannel && currentType !== 112 && (
                                             <span className='text-warning mt-1 block'>
                                               {t(
                                                 'Multi-key channel: Keys will be'
@@ -2206,6 +2219,38 @@ export function ChannelMutateDrawer({
                         </div>
                       )}
 
+                      {currentType === 112 && (
+                        <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='flex flex-col gap-0.5'>
+                              <div className='text-sm font-semibold'>
+                                {t('GitHub Copilot Authorization')}
+                              </div>
+                              <div className='text-muted-foreground text-xs'>
+                                {isEditing
+                                  ? t(
+                                      'Authorize this saved channel with GitHub Device Flow.'
+                                    )
+                                  : t(
+                                      'Enter a GitHub token now, or save the channel first to use GitHub Device Flow.'
+                                    )}
+                              </div>
+                            </div>
+                            {isEditing && channelId && (
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setCopilotDeviceFlowOpen(true)}
+                              >
+                                <Link2 className='mr-2 h-4 w-4' />
+                                {t('Authorize with GitHub')}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {currentType === 57 && (
                         <FormField
                           control={form.control}
@@ -2241,7 +2286,20 @@ export function ChannelMutateDrawer({
                         }}
                       />
 
-                      {isEditing && isMultiKeyChannel && (
+                      {channelId && (
+                        <CopilotDeviceFlowDialog
+                          channelId={channelId}
+                          open={copilotDeviceFlowOpen}
+                          onOpenChange={setCopilotDeviceFlowOpen}
+                          onAuthorized={() => {
+                            void queryClient.invalidateQueries({
+                              queryKey: channelsQueryKeys.detail(channelId),
+                            })
+                          }}
+                        />
+                      )}
+
+                      {isEditing && isMultiKeyChannel && currentType !== 112 && (
                         <FormField
                           control={form.control}
                           name='key_mode'
@@ -2293,7 +2351,9 @@ export function ChannelMutateDrawer({
                         />
                       )}
 
-                      {!isEditing && multiKeyMode === 'multi_to_single' && (
+                      {!isEditing &&
+                        currentType !== 112 &&
+                        multiKeyMode === 'multi_to_single' && (
                         <FormField
                           control={form.control}
                           name='multi_key_type'

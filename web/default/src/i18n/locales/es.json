@@ -6571,6 +6571,27 @@
     "Device + Session (recommended)": "Dispositivo + sesión (recomendado)",
     "Full convergence": "Convergencia completa",
     "Converge Codex device and session identifiers for shared OAuth accounts": "Converge los identificadores de Codex para cuentas OAuth compartidas",
-    "Applies only to selected Codex channels": "Solo se aplica a los canales Codex seleccionados"
+    "Applies only to selected Codex channels": "Solo se aplica a los canales Codex seleccionados",
+    "GitHub Copilot": "GitHub Copilot",
+    "GitHub token with Copilot access": "Token de GitHub con acceso a Copilot",
+    "Default: https://api.githubcopilot.com": "Predeterminado: https://api.githubcopilot.com",
+    "Save the channel first to authorize with GitHub Device Flow instead of entering a token.": "Guarda primero el canal para usar el flujo de dispositivo de GitHub en lugar de introducir un token.",
+    "GitHub Copilot Authorization": "Autorización de GitHub Copilot",
+    "Authorize the saved channel with GitHub Device Flow.": "Autoriza el canal guardado con el flujo de dispositivo de GitHub.",
+    "Open GitHub, enter the one-time code, and approve access. This dialog detects completion automatically.": "Abre GitHub, introduce el código de un solo uso y aprueba el acceso. Este diálogo detecta automáticamente cuando finaliza.",
+    "Start GitHub authorization": "Iniciar autorización de GitHub",
+    "One-time code": "Código de un solo uso",
+    "Copy one-time code": "Copiar código de un solo uso",
+    "Open GitHub verification page": "Abrir la página de verificación de GitHub",
+    "Waiting for GitHub authorization...": "Esperando la autorización de GitHub…",
+    "Authorization expired": "La autorización ha caducado",
+    "Authorization denied": "Autorización denegada",
+    "Authorization failed": "Error de autorización",
+    "Authorization response is incomplete": "La respuesta de autorización está incompleta",
+    "GitHub authorization completed": "Autorización de GitHub completada",
+    "Authorize this saved channel with GitHub Device Flow.": "Autoriza este canal guardado con el flujo de dispositivo de GitHub.",
+    "Enter a GitHub token now, or save the channel first to use GitHub Device Flow.": "Introduce ahora un token de GitHub o guarda primero el canal para usar el flujo de dispositivo de GitHub.",
+    "Authorize with GitHub": "Autorizar con GitHub",
+    "GitHub Copilot channels support one credential only": "Los canales de GitHub Copilot solo admiten una credencial"
   }
 }

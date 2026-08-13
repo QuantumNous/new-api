@@ -20,7 +20,38 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
+
+func shouldPassThroughTextRequest(info *relaycommon.RelayInfo, globalEnabled bool) bool {
+	if info != nil && info.ChannelType == constant.ChannelTypeCopilot {
+		return false
+	}
+	return globalEnabled || (info != nil && info.ChannelSetting.PassThroughBodyEnabled)
+}
+
+func allowsChatCompletionsViaResponses(info *relaycommon.RelayInfo) bool {
+	return info == nil || info.ChannelType != constant.ChannelTypeCopilot
+}
+
+func rejectCopilotNonChatFormat(info *relaycommon.RelayInfo, endpoint string) *types.NewAPIError {
+	if info == nil || info.ChannelType != constant.ChannelTypeCopilot {
+		return nil
+	}
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("copilot channel: %s endpoint not supported; use /v1/chat/completions", endpoint),
+		types.ErrorCodeInvalidRequest,
+		http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func sanitizeTextRequestForChannel(jsonData []byte, info *relaycommon.RelayInfo) ([]byte, error) {
+	if info == nil || info.ChannelType != constant.ChannelTypeCopilot {
+		return jsonData, nil
+	}
+	return sjson.DeleteBytes(jsonData, "stream_options")
+}
 
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -72,6 +103,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
+		allowsChatCompletionsViaResponses(info) &&
 		!passThroughGlobal &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
@@ -94,7 +126,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	var requestBody io.Reader
 
-	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
+	if shouldPassThroughTextRequest(info, passThroughGlobal) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -171,6 +203,13 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			if err != nil {
 				return newAPIErrorFromParamOverride(err)
 			}
+		}
+
+		// Copilot does not support stream_options. This must run after parameter
+		// overrides so an administrator override cannot reintroduce the field.
+		jsonData, err = sanitizeTextRequestForChannel(jsonData, info)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 
 		logger.LogDebug(c, "text request body: %s", jsonData)

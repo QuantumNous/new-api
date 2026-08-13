@@ -218,6 +218,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'doubao-seedance-2-5-260628',
     },
   },
+  112: {
+    id: 112,
+    name: CHANNEL_TYPES[112],
+    icon: 'github',
+    defaultBaseUrl: 'https://api.githubcopilot.com',
+    hints: {
+      baseUrl: 'Default: https://api.githubcopilot.com',
+      key: 'GitHub token with Copilot access',
+      other:
+        'Save the channel first to authorize with GitHub Device Flow instead of entering a token.',
+    },
+  },
 }
 
 /**
