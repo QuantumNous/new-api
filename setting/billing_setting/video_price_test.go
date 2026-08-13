@@ -684,3 +684,55 @@ func TestNormalizeVideoPriceRules_RejectsUnknownMode(t *testing.T) {
 		t.Fatal("an unrecognized mode must be rejected at save time")
 	}
 }
+
+// A reload must not mutate a Match map that a request already captured.
+// GetVideoPriceRules hands out a shallow copy whose Match maps alias the live
+// table, and normalizeRuleMatch writes into Match in place -- so the safety of
+// that aliasing rests entirely on WHICH maps get normalized.
+//
+// updateRegisteredConfig (setting/config/config.go:179-194) JSON round-trips the
+// config into a fresh value, normalizes THAT, and only publishes on success. So
+// the maps normalizeRuleMatch touches are freshly unmarshalled and unreachable
+// by any in-flight request. This pins that property: if a future change ever
+// normalizes the published maps in place, a captured rule would change value
+// mid-request and this fails.
+func TestReloadDoesNotMutateCapturedMatchMaps(t *testing.T) {
+	manager := config.NewConfigManager()
+	setting := &VideoPriceSetting{}
+	manager.Register("billing_setting_video", setting)
+
+	published := []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.3, Basis: BasisOutputDuration},
+	}
+	if err := manager.LoadFromDB(map[string]string{
+		"billing_setting_video.video_price_rules": marshalRules(t, published),
+	}); err != nil {
+		t.Fatalf("LoadFromDB: %v", err)
+	}
+
+	// A request captures the live snapshot, exactly as an adaptor does.
+	captured := setting.VideoPriceRules
+	capturedMatch := captured[0].Match
+	if capturedMatch["resolution"] != "720p" {
+		t.Fatalf("setup: captured %v", capturedMatch)
+	}
+
+	// A reload arrives mid-request, carrying a value that needs folding.
+	reloaded := []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "4K"},
+			PricePerSecond: 0.9, Basis: BasisOutputDuration},
+	}
+	if err := manager.LoadFromDB(map[string]string{
+		"billing_setting_video.video_price_rules": marshalRules(t, reloaded),
+	}); err != nil {
+		t.Fatalf("LoadFromDB: %v", err)
+	}
+
+	if got := capturedMatch["resolution"]; got != "720p" {
+		t.Fatalf("the reload mutated a map an in-flight request had captured: %q", got)
+	}
+	if got := setting.VideoPriceRules[0].Match["resolution"]; got != "4k" {
+		t.Fatalf("reload should have folded 4K to 4k, got %q", got)
+	}
+}
