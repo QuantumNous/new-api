@@ -60,15 +60,22 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  forceOverlay = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /**
+   * Render a backdrop even when this dialog is nested inside another one.
+   * Base UI suppresses nested backdrops by default, which leaves a child
+   * dialog sitting flat on its parent with nothing separating the layers.
+   */
+  forceOverlay?: boolean
 }) {
   const { t } = useTranslation()
 
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay forceRender={forceOverlay} />
       <DialogPrimitive.Popup
         data-slot='dialog-content'
         className={cn(

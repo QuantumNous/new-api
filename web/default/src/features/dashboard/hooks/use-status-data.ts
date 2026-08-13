@@ -17,20 +17,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useStatus } from '@/hooks/use-status'
-import type { AnnouncementItem, ApiInfoItem, FAQItem } from '../types'
+import type { ApiInfoItem } from '../types'
 
 /**
  * Get specific list from status data
  */
-export function useStatusData<T = unknown>(
+function useStatusData<T = unknown>(
   enabledKey: string,
   dataKey: string
-): { items: T[]; loading: boolean } {
+): {
+  items: T[]
+  loading: boolean
+  status: ReturnType<typeof useStatus>['status']
+} {
   const { status, loading } = useStatus()
   const enabled = status ? status[enabledKey] !== false : false
   const items = (enabled ? status?.[dataKey] || [] : []) as T[]
 
-  return { items, loading }
+  return { items, loading, status }
 }
 
 /**
@@ -38,36 +42,4 @@ export function useStatusData<T = unknown>(
  */
 export function useApiInfo() {
   return useStatusData<ApiInfoItem>('api_info_enabled', 'api_info')
-}
-
-/**
- * Get announcements list
- */
-export function useAnnouncements() {
-  return useStatusData<AnnouncementItem>(
-    'announcements_enabled',
-    'announcements'
-  )
-}
-
-/**
- * Get FAQ list
- */
-export function useFAQ() {
-  return useStatusData<FAQItem>('faq_enabled', 'faq')
-}
-
-/**
- * Get dashboard content panel visibility
- */
-export function useDashboardContentVisibility() {
-  const { status } = useStatus()
-  const hasStatus = Boolean(status)
-
-  return {
-    apiInfo: hasStatus && status?.api_info_enabled !== false,
-    announcements: hasStatus && status?.announcements_enabled !== false,
-    faq: hasStatus && status?.faq_enabled !== false,
-    uptimeKuma: hasStatus && status?.uptime_kuma_enabled !== false,
-  }
 }

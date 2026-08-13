@@ -21,7 +21,6 @@ import type {
   CodexLimitReport,
   QuotaDataItem,
   TokenQuotaDataItem,
-  UptimeGroupResult,
 } from './types'
 
 // ============================================================================
@@ -97,17 +96,6 @@ export async function getCodexLimitReport(params?: {
     success: boolean
     message?: string
     data: CodexLimitReport
-  }>(
-    '/api/data/codex/limits',
-    { params }
-  )
-  return res.data
-}
-
-// Get uptime monitoring status for all services
-export async function getUptimeStatus() {
-  const res = await api.get<{ success: boolean; data: UptimeGroupResult[] }>(
-    '/api/uptime/status'
-  )
+  }>('/api/data/codex/limits', { params })
   return res.data
 }
