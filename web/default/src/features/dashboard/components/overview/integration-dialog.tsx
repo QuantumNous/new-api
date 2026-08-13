@@ -90,6 +90,15 @@ function StepLabel(props: { children: string }) {
   return <div className='text-sm font-semibold'>{props.children}</div>
 }
 
+/** One-line lead-in under a step label, styled like the card descriptions. */
+function StepHint(props: { children: string }) {
+  return (
+    <p className='text-muted-foreground text-sm leading-relaxed'>
+      {props.children}
+    </p>
+  )
+}
+
 function ModelSelect(props: {
   models: string[]
   value: string
@@ -307,17 +316,25 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
           <div className='flex flex-col gap-4'>
             <div className='flex flex-col gap-2'>
               <StepLabel>{t('Step 1 · Install the CLI')}</StepLabel>
+              <StepHint>
+                {t('Copy the command below and paste it into your terminal.')}
+              </StepHint>
               {renderCode(CLI_INSTALL_COMMAND)}
             </div>
             <div className='flex flex-col gap-2'>
               <StepLabel>{t('Step 2 · Sign in')}</StepLabel>
+              <StepHint>
+                {t(
+                  'Run this command in your terminal to connect your account.'
+                )}
+              </StepHint>
               {renderCode(CLI_LOGIN_COMMAND)}
             </div>
             <div className='flex flex-col gap-2'>
               <StepLabel>{t('Step 3 · Start creating')}</StepLabel>
-              <p className='text-muted-foreground text-sm'>
+              <StepHint>
                 {t('Tell your AI assistant what you want to make.')}
-              </p>
+              </StepHint>
               {renderCode(
                 t('Use Flatkey CLI to generate a "beautiful sunrise" picture.')
               )}
@@ -332,11 +349,11 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
               <StepLabel>
                 {t('Step 2 · Install Flatkey for your system')}
               </StepLabel>
-              <p className='text-muted-foreground text-sm leading-relaxed'>
+              <StepHint>
                 {t(
                   'Paste the next line into your terminal to integrate Flatkey in seconds.'
                 )}
-              </p>
+              </StepHint>
               <Tabs
                 value={agentPlatform}
                 onValueChange={(value) =>

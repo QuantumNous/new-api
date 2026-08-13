@@ -6577,6 +6577,8 @@
     "Step 2 · Copy the async video generation flow": "Etapa 2 · Copie o fluxo assíncrono de geração de vídeo",
     "Step 2 · Copy a ready-to-run image request": "Etapa 2 · Copie uma requisição de imagem pronta para executar",
     "Step 2 · Copy the image generation setup": "Etapa 2 · Copie a configuração de geração de imagens",
-    "Paste the next line into your terminal to integrate Flatkey in seconds.": "Cole a linha a seguir no seu terminal para integrar o Flatkey em segundos."
+    "Paste the next line into your terminal to integrate Flatkey in seconds.": "Cole a linha a seguir no seu terminal para integrar o Flatkey em segundos.",
+    "Copy the command below and paste it into your terminal.": "Copie o comando abaixo e cole no seu terminal.",
+    "Run this command in your terminal to connect your account.": "Execute este comando no seu terminal para conectar sua conta."
   }
 }

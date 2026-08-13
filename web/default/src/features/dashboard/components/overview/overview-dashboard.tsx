@@ -52,10 +52,15 @@ const PREFERRED_EXAMPLE_MODELS = [
 // carries only ['gemini','openai']); untagged models stay in as chat.
 // The separator class includes `/` so vendor-prefixed ids are matched too
 // (bytedance/seedance-2.0, not just seedance-2.0).
-const EXCLUDED_ENDPOINT_TYPES = ['embeddings', 'jina-rerank']
+const EXCLUDED_ENDPOINT_TYPES = ['embeddings', 'jina-rerank', 'video-to-music']
 const EXCLUDED_NAME_PATTERN = /(^|[-_./])(embedding|tts)/i
 const IMAGE_NAME_PATTERN = /(^|[-_./])(image|banana)/i
-const VIDEO_NAME_PATTERN = /(^|[-_./])(video|seedance|sora|veo|kling)/i
+// The async video sample only fits /v1/generation/tasks, so a model must be
+// tagged openai-video or come from a known video-generation provider. A bare
+// "video" in the id is not enough — sonilo-video-to-music would otherwise be
+// demoed against an endpoint it does not serve.
+const VIDEO_NAME_PATTERN = /(^|[-_./])(seedance|sora|veo|kling)/i
+const GENERIC_VIDEO_NAME_PATTERN = /(^|[-_./])video/i
 const VIDEO_ENDPOINT_TYPES = ['openai-video']
 const CHAT_ENDPOINT_TYPES = [
   'openai',

@@ -6577,6 +6577,8 @@
     "Step 2 · Copy the async video generation flow": "Bước 2 · Sao chép luồng tạo video bất đồng bộ",
     "Step 2 · Copy a ready-to-run image request": "Bước 2 · Sao chép yêu cầu tạo ảnh chạy được ngay",
     "Step 2 · Copy the image generation setup": "Bước 2 · Sao chép thiết lập tạo ảnh",
-    "Paste the next line into your terminal to integrate Flatkey in seconds.": "Dán dòng lệnh bên dưới vào terminal để tích hợp Flatkey trong vài giây."
+    "Paste the next line into your terminal to integrate Flatkey in seconds.": "Dán dòng lệnh bên dưới vào terminal để tích hợp Flatkey trong vài giây.",
+    "Copy the command below and paste it into your terminal.": "Sao chép lệnh bên dưới và dán vào terminal của bạn.",
+    "Run this command in your terminal to connect your account.": "Chạy lệnh này trong terminal để kết nối tài khoản của bạn."
   }
 }

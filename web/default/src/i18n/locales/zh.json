@@ -6577,6 +6577,8 @@
     "Step 2 · Copy the async video generation flow": "第 2 步 · 复制异步视频生成流程",
     "Step 2 · Copy a ready-to-run image request": "第 2 步 · 复制可直接运行的图像生成请求",
     "Step 2 · Copy the image generation setup": "第 2 步 · 复制图像生成的接入代码",
-    "Paste the next line into your terminal to integrate Flatkey in seconds.": "把下面这行粘贴到终端，几秒钟即可接入 Flatkey。"
+    "Paste the next line into your terminal to integrate Flatkey in seconds.": "把下面这行粘贴到终端，几秒钟即可接入 Flatkey。",
+    "Copy the command below and paste it into your terminal.": "复制下面的命令，粘贴到终端里执行。",
+    "Run this command in your terminal to connect your account.": "在终端里运行这条命令，连接你的账号。"
   }
 }
