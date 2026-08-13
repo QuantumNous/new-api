@@ -80,15 +80,25 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'video') return 'Video per-second'
   return 'Per-token'
 }
 
 export const getModeVariant = (
   mode?: string
-): 'warning' | 'info' | 'success' => {
+): 'warning' | 'info' | 'success' | 'purple' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
+  if (mode === 'video') return 'purple'
   return 'success'
+}
+
+const getVideoSummary = (
+  row: ModelPricingSnapshot,
+  t: (key: string, options?: Record<string, unknown>) => string
+) => {
+  const count = parseAllRules(row.videoRules).length
+  return t('{{count}} per-second rules', { count })
 }
 
 const getExpressionSummary = (
@@ -104,10 +114,13 @@ const getExpressionSummary = (
 
 export const getPriceSummary = (
   row: ModelPricingSnapshot,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
+  }
+  if (row.billingMode === 'video') {
+    return getVideoSummary(row, t)
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
@@ -138,6 +151,15 @@ export const getPriceDetail = (
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
+  }
+  // ModelPrice is deliberately not reported: it exists for a video model but is
+  // the divisor the per-second chain cancels out, so it is not a price.
+  if (row.billingMode === 'video') {
+    const bases = new Set(parseAllRules(row.videoRules).map((r) => r.basis))
+    if (bases.size === 1) {
+      return t([...bases][0])
+    }
+    return t('Per-second video billing')
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
