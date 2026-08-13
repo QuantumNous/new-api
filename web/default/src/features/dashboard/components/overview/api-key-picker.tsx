@@ -16,22 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CopyButton } from '@/components/copy-button'
-import { createApiKey } from '@/features/keys/api'
-import { buildDefaultApiKeyPayload } from '@/features/keys/lib/auto-create-api-key'
 import type { ApiKey } from '@/features/keys/types'
-
-function formatKeyDate(createdTime?: number): string {
-  if (!createdTime) return ''
-  return new Date(createdTime * 1000).toLocaleDateString()
-}
+import { CreateApiKeyDialog } from './create-api-key-dialog'
 
 export function ApiKeyPicker(props: {
   keys: ApiKey[]
@@ -42,30 +37,14 @@ export function ApiKeyPicker(props: {
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [createOpen, setCreateOpen] = useState(false)
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const result = await createApiKey(
-        buildDefaultApiKeyPayload({ name: 'default' })
-      )
-      if (!result.success) {
-        throw new Error(result.message || t('Failed to create API key'))
-      }
-      return result.data
-    },
-    onSuccess: async (created) => {
-      await queryClient.invalidateQueries({
-        queryKey: ['dashboard', 'overview', 'api-keys'],
-      })
-      if (created?.id) {
-        props.onSelect(created.id)
-      }
-      toast.success(t('API key created'))
-    },
-    onError: (error: Error) => {
-      toast.error(error.message)
-    },
-  })
+  const handleCreated = async (keyId: number) => {
+    await queryClient.invalidateQueries({
+      queryKey: ['dashboard', 'overview', 'api-keys'],
+    })
+    if (keyId) props.onSelect(keyId)
+  }
 
   return (
     <div className='bg-muted/30 flex flex-col gap-3 rounded-xl border p-4'>
@@ -81,13 +60,18 @@ export function ApiKeyPicker(props: {
         <Button
           size='sm'
           className='shrink-0'
-          disabled={createMutation.isPending}
-          onClick={() => createMutation.mutate()}
+          onClick={() => setCreateOpen(true)}
         >
           <Plus data-icon='inline-start' />
           {t('Create API key')}
         </Button>
       </div>
+
+      <CreateApiKeyDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={handleCreated}
+      />
 
       {props.loading ? (
         <div className='flex flex-col gap-2'>
@@ -125,7 +109,7 @@ export function ApiKeyPicker(props: {
                     {key.name}
                   </span>
                   <span className='text-muted-foreground hidden shrink-0 text-xs md:block'>
-                    {formatKeyDate(key.created_time)}
+                    {formatTimestampToDate(key.created_time)}
                   </span>
                 </button>
                 {fullKey ? (
