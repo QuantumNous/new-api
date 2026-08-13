@@ -488,6 +488,7 @@ module "monitoring" {
   project_id               = var.project_id
   region                   = var.region
   uptime_host              = local.uptime_host
+  certificate_hosts        = toset(var.lb_domains)
   alert_email              = var.alert_email
   alert_emails             = var.alert_emails
   router_service_name      = var.router_service_name
