@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
 	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
@@ -125,4 +126,34 @@ func TestConvertOpenAIRequestPreservesExplicitZeroForMappedQwenModel(t *testing.
 	value := gjson.GetBytes(encoded, "thinking_budget")
 	assert.True(t, value.Exists())
 	assert.Equal(t, int64(0), value.Int())
+}
+
+func TestQwenImage3ModelsAreAvailable(t *testing.T) {
+	models := (&Adaptor{}).GetModelList()
+	assert.Contains(t, models, "qwen-image-3.0")
+	assert.Contains(t, models, "qwen-image-3.0-pro")
+}
+
+func TestMappedQwenImage3UsesSynchronousEndpoint(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayMode:       constant.RelayModeImagesGenerations,
+		OriginModelName: "customer-image-model",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "https://dashscope.aliyuncs.com",
+			UpstreamModelName: "qwen-image-3.0-pro",
+		},
+	}
+
+	adaptor := &Adaptor{}
+	url, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", url)
+
+	converted, err := adaptor.ConvertImageRequest(nil, info, dto.ImageRequest{
+		Model:  info.UpstreamModelName,
+		Prompt: "poster",
+	})
+	require.NoError(t, err)
+	assert.True(t, adaptor.IsSyncImageModel)
+	assert.IsType(t, &AliImageRequest{}, converted)
 }
