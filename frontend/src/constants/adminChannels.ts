@@ -21,12 +21,15 @@ export const ADMIN_CHANNEL_DEFAULT_VISIBLE_FIELDS: AdminChannelOptionalField[] =
   ADMIN_CHANNEL_OPTIONAL_FIELDS.filter(
     (field) =>
       field !== 'id' &&
-      field !== 'rowUpstreamAction' &&
-      field !== 'rowResponseAction'
+      field !== 'priority' &&
+      field !== 'weight' &&
+      field !== 'rowUpstreamAction'
   )
 
+// v2: defaults changed (priority/weight hidden, row test action shown), so a
+// new key lets the new defaults take effect on browsers with stored settings.
 export const ADMIN_CHANNEL_VISIBLE_FIELDS_STORAGE_KEY =
-  'ren2hub_admin_channel_visible_fields'
+  'ren2hub_admin_channel_visible_fields_v2'
 
 export function sanitizeAdminChannelVisibleFields(
   fields: readonly string[]
@@ -111,3 +114,31 @@ export function adminChannelResponseText(
   if (responseTime < 1_000) return `${responseTime}ms`
   return `${(responseTime / 1_000).toFixed(2)}s`
 }
+
+/**
+ * Endpoint overrides accepted by GET /api/next/admin/channels/test/:id via
+ * ?endpoint_type=. Values mirror relaykit/types/endpoint_type.go; an empty
+ * value means auto-detection (no query parameter).
+ */
+export const CHANNEL_TEST_ENDPOINT_OPTIONS: ReadonlyArray<{
+  value: string
+  label: string
+}> = [
+  { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
+  { value: 'openai-response', label: 'OpenAI Responses (/v1/responses)' },
+  {
+    value: 'openai-response-compact',
+    label: 'OpenAI Response Compaction (/v1/responses/compact)',
+  },
+  { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
+  {
+    value: 'gemini',
+    label: 'Gemini (/v1beta/models/{model}:generateContent)',
+  },
+  { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
+  {
+    value: 'image-generation',
+    label: 'Image Generation (/v1/images/generations)',
+  },
+  { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+]

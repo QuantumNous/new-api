@@ -16,20 +16,30 @@ import type {
   AdminChannelUpdateInput,
 } from '@/types/console'
 
-type ChannelAction = 'priority' | 'weight' | 'status' | 'balance' | 'test'
-type ChannelBatchAction = Extract<ChannelAction, 'balance' | 'test'>
+type ChannelAction = 'priority' | 'weight' | 'status' | 'balance'
 type ChannelCrudAction = 'create' | 'edit' | 'delete'
 type ChannelBatchScope = 'page' | 'supplier'
 type ChannelBulkAction = 'delete' | 'enable' | 'disable' | 'reset'
 
+/** Batch runs are balance-only; model testing lives in the test modal. */
 interface ChannelBatchProgress {
-  action: ChannelBatchAction
   scope: ChannelBatchScope
   supplier?: string
   total: number
   processed: number
   succeeded: number
   failed: number
+}
+
+export interface ChannelModelTestOptions {
+  endpointType?: string
+  stream?: boolean
+}
+
+export interface ChannelModelTestResult {
+  ok: boolean
+  timeMs?: number
+  message?: string
 }
 
 const CHANNEL_BATCH_SIZE = 5
@@ -111,13 +121,10 @@ export function useAdminChannels() {
     busy.value = next
   }
 
-  function setBatchRowsBusy(
-    channels: AdminChannel[],
-    action: ChannelBatchAction | null
-  ) {
+  function setBatchRowsBusy(channels: AdminChannel[], busyNow: boolean) {
     const next = new Map(busy.value)
     channels.forEach((channel) => {
-      if (action) next.set(channel.id, action)
+      if (busyNow) next.set(channel.id, 'balance')
       else next.delete(channel.id)
     })
     busy.value = next
@@ -238,13 +245,69 @@ export function useAdminChannels() {
     )
   }
 
-  function testChannel(channel: AdminChannel): Promise<boolean> {
-    return runChannelAction(
-      channel.id,
-      'test',
-      () => api.get<unknown>(`/api/next/admin/channels/test/${channel.id}`),
-      'channels.testCompleted'
-    )
+  /**
+   * Test one model on a channel, optionally overriding the endpoint and
+   * stream mode. Failures come back as a result (not a throw) so the test
+   * modal can render per-model outcomes; only aborts reject.
+   */
+  async function testChannelModel(
+    channel: AdminChannel,
+    model: string,
+    options: ChannelModelTestOptions = {},
+    signal?: AbortSignal
+  ): Promise<ChannelModelTestResult> {
+    try {
+      const data = await api.get<{ time?: number }>(
+        `/api/next/admin/channels/test/${channel.id}`,
+        {
+          model,
+          ...(options.endpointType
+            ? { endpoint_type: options.endpointType }
+            : {}),
+          ...(options.stream ? { stream: 'true' } : {}),
+        },
+        { signal }
+      )
+      const seconds = typeof data?.time === 'number' ? data.time : 0
+      return { ok: true, timeMs: Math.round(seconds * 1000) }
+    } catch (error) {
+      if (signal?.aborted) throw error
+      return {
+        ok: false,
+        message: error instanceof ApiError ? error.message : String(error),
+      }
+    }
+  }
+
+  /**
+   * Strip the given models from a channel's published list (used by the test
+   * modal's "remove failed models"). Refuses to empty the list because the
+   * backend treats an empty models update as "unchanged".
+   */
+  function removeChannelModels(
+    channel: AdminChannel,
+    modelsToRemove: string[]
+  ): Promise<boolean> {
+    const removal = new Set(modelsToRemove)
+    const remaining = channel.models
+      .split(',')
+      .map((model) => model.trim())
+      .filter((model) => model.length > 0 && !removal.has(model))
+    if (remaining.length === 0) {
+      toast.error(t('channels.removeFailedBlocked'))
+      return Promise.resolve(false)
+    }
+    return runCrudAction('edit', channel.id, async (signal) => {
+      await api.put<unknown>(
+        '/api/next/admin/channels',
+        { id: channel.id, models: remaining.join(',') },
+        { signal }
+      )
+      toast.success(
+        t('channels.modelsRemoved', { count: modelsToRemove.length })
+      )
+      await load({ background: true })
+    })
   }
 
   async function runCrudAction(
@@ -434,26 +497,7 @@ export function useAdminChannels() {
     })
   }
 
-  function batchRequest(
-    action: ChannelBatchAction,
-    channel: AdminChannel,
-    signal: AbortSignal
-  ): Promise<unknown> {
-    const endpoint =
-      action === 'balance'
-        ? `/api/next/admin/channels/balance/${channel.id}`
-        : `/api/next/admin/channels/test/${channel.id}`
-    return api.get<unknown>(endpoint, undefined, { signal })
-  }
-
-  function batchActionLabelKey(action: ChannelBatchAction): string {
-    return action === 'balance'
-      ? 'channels.batchBalanceAction'
-      : 'channels.batchTestAction'
-  }
-
-  async function runBatch(
-    action: ChannelBatchAction,
+  async function runBalanceBatch(
     scope: ChannelBatchScope,
     channels: AdminChannel[],
     supplier?: string
@@ -464,7 +508,6 @@ export function useAdminChannels() {
     const controller = new AbortController()
     batchController = controller
     batchProgress.value = {
-      action,
       scope,
       supplier,
       total: targets.length,
@@ -480,11 +523,17 @@ export function useAdminChannels() {
       for (let start = 0; start < targets.length; start += CHANNEL_BATCH_SIZE) {
         if (controller.signal.aborted) return
         const batch = targets.slice(start, start + CHANNEL_BATCH_SIZE)
-        setBatchRowsBusy(batch, action)
+        setBatchRowsBusy(batch, true)
 
         const results = await Promise.allSettled(
           batch.map((channel) =>
-            batchRequest(action, channel, controller.signal)
+            api.get<unknown>(
+              `/api/next/admin/channels/balance/${channel.id}`,
+              undefined,
+              {
+                signal: controller.signal,
+              }
+            )
           )
         )
         if (controller.signal.aborted) return
@@ -496,9 +545,8 @@ export function useAdminChannels() {
             failed++
           }
         })
-        setBatchRowsBusy(batch, null)
+        setBatchRowsBusy(batch, false)
         batchProgress.value = {
-          action,
           scope,
           supplier,
           total: targets.length,
@@ -508,7 +556,7 @@ export function useAdminChannels() {
         }
       }
 
-      const actionLabel = t(batchActionLabelKey(action))
+      const actionLabel = t('channels.batchBalanceAction')
       if (failed === 0) {
         toast.success(
           t('channels.batchCompleted', {
@@ -535,22 +583,21 @@ export function useAdminChannels() {
       }
       await load({ background: true })
     } finally {
-      setBatchRowsBusy(targets, null)
+      setBatchRowsBusy(targets, false)
       if (batchController === controller) batchController = null
       batchProgress.value = null
     }
   }
 
-  function runVisibleBatch(action: ChannelBatchAction): Promise<void> {
-    return runBatch(action, 'page', rows.value)
+  function runVisibleBalance(): Promise<void> {
+    return runBalanceBatch('page', rows.value)
   }
 
-  function runSupplierBatch(
-    action: ChannelBatchAction,
+  function runSupplierBalance(
     supplier: string,
     channels: AdminChannel[]
   ): Promise<void> {
-    return runBatch(action, 'supplier', channels, supplier)
+    return runBalanceBatch('supplier', channels, supplier)
   }
 
   onMounted(() => void load())
@@ -589,7 +636,8 @@ export function useAdminChannels() {
     updateNumber,
     toggleStatus,
     refreshBalance,
-    testChannel,
+    testChannelModel,
+    removeChannelModels,
     createChannel,
     updateChannelDetails,
     deleteChannel,
@@ -597,7 +645,7 @@ export function useAdminChannels() {
     fetchUpstreamModels,
     updateChannelsStatus,
     deleteSelectedChannels,
-    runVisibleBatch,
-    runSupplierBatch,
+    runVisibleBalance,
+    runSupplierBalance,
   }
 }

@@ -28,11 +28,10 @@ import { formatMoney, formatQuota, relativeTime } from '@/utils/format'
 
 import ChannelInlineNumber from './ChannelInlineNumber.vue'
 
-type ChannelAction = 'priority' | 'weight' | 'status' | 'balance' | 'test'
-type ChannelBatchAction = Extract<ChannelAction, 'balance' | 'test'>
+type ChannelAction = 'priority' | 'weight' | 'status' | 'balance'
 
+/** Batch runs are balance-only; testing opens the detailed test modal. */
 interface ChannelBatchProgress {
-  action: ChannelBatchAction
   scope: 'page' | 'supplier'
   supplier?: string
   total: number
@@ -55,11 +54,14 @@ defineProps<{
   canOperate: boolean
   canWrite: boolean
   canSensitiveWrite: boolean
-  runSupplierBatch: (
-    action: ChannelBatchAction,
+  runSupplierBalance: (
     supplier: string,
     channels: AdminChannel[]
   ) => Promise<void>
+  pickSupplierTest: (group: {
+    supplier: string
+    channels: AdminChannel[]
+  }) => void
   clearSupplier: (group: { supplier: string; channels: AdminChannel[] }) => void
   isBusy: (id: number, action: ChannelAction) => boolean
   isRowBusy: (id: number) => boolean
@@ -70,7 +72,7 @@ defineProps<{
   ) => Promise<boolean>
   toggleStatus: (channel: AdminChannel) => Promise<boolean>
   refreshBalance: (channel: AdminChannel) => Promise<boolean>
-  testChannel: (channel: AdminChannel) => Promise<boolean>
+  openTest: (channel: AdminChannel) => void
   editChannel: (channel: AdminChannel) => void
   deleteChannel: (channel: AdminChannel) => void
 }>()
@@ -152,14 +154,11 @@ const { t, locale } = useI18n()
               :label="t('channels.syncSupplier', { supplier: group.supplier })"
               :disabled="!canRunBatch"
               class="h-7 w-7"
-              @click="
-                runSupplierBatch('balance', group.supplier, group.channels)
-              "
+              @click="runSupplierBalance(group.supplier, group.channels)"
             >
               <LoaderCircle
                 v-if="
                   batchProgress?.scope === 'supplier' &&
-                  batchProgress.action === 'balance' &&
                   batchProgress.supplier === group.supplier
                 "
                 :size="14"
@@ -170,20 +169,10 @@ const { t, locale } = useI18n()
             <IconButton
               v-if="canOperate"
               :label="t('channels.testSupplier', { supplier: group.supplier })"
-              :disabled="!canRunBatch"
               class="h-7 w-7"
-              @click="runSupplierBatch('test', group.supplier, group.channels)"
+              @click="pickSupplierTest(group)"
             >
-              <LoaderCircle
-                v-if="
-                  batchProgress?.scope === 'supplier' &&
-                  batchProgress.action === 'test' &&
-                  batchProgress.supplier === group.supplier
-                "
-                :size="14"
-                class="animate-spin"
-              />
-              <Activity v-else :size="14" />
+              <Activity :size="14" />
             </IconButton>
             <IconButton
               v-if="canSensitiveWrite"
@@ -376,16 +365,10 @@ const { t, locale } = useI18n()
                       canOperate && visibleFields.includes('rowResponseAction')
                     "
                     :label="t('channels.testChannel')"
-                    :disabled="isRowBusy(channel.id)"
                     class="h-7 w-7 shrink-0"
-                    @click="testChannel(channel)"
+                    @click="openTest(channel)"
                   >
-                    <LoaderCircle
-                      v-if="isBusy(channel.id, 'test')"
-                      :size="14"
-                      class="animate-spin"
-                    />
-                    <Activity v-else :size="14" />
+                    <Activity :size="14" />
                   </IconButton>
                 </dd>
               </div>

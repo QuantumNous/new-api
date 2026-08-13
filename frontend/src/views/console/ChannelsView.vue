@@ -37,6 +37,8 @@ import Breadcrumb from '@/components/console/Breadcrumb.vue'
 import ChannelFormModal from '@/components/console/channels/ChannelFormModal.vue'
 import ChannelInlineNumber from '@/components/console/channels/ChannelInlineNumber.vue'
 import ChannelMobileList from '@/components/console/channels/ChannelMobileList.vue'
+import ChannelTestModal from '@/components/console/channels/ChannelTestModal.vue'
+import ChannelTestPickerDialog from '@/components/console/channels/ChannelTestPickerDialog.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
 import { useAdminChannels } from '@/composables/useAdminChannels'
 import { useAuthStore } from '@/stores/auth'
@@ -123,7 +125,8 @@ const {
   updateNumber,
   toggleStatus,
   refreshBalance,
-  testChannel,
+  testChannelModel,
+  removeChannelModels,
   createChannel,
   updateChannelDetails,
   deleteChannel,
@@ -131,13 +134,15 @@ const {
   fetchUpstreamModels,
   updateChannelsStatus,
   deleteSelectedChannels,
-  runVisibleBatch,
-  runSupplierBatch,
+  runVisibleBalance,
+  runSupplierBalance,
 } = useAdminChannels()
 
 const formOpen = ref(false)
 const editing = ref<AdminChannel | null>(null)
 const deleting = ref<DeleteTarget | null>(null)
+const testing = ref<AdminChannel | null>(null)
+const pickingGroup = ref<SupplierGroup | null>(null)
 const selectedIds = ref<number[]>([])
 const collapsedSuppliers = ref<string[]>([])
 const storedVisibleFields = useStorage<string[]>(
@@ -405,42 +410,24 @@ function toggleSupplier(supplier: string) {
     : [...collapsedSuppliers.value, supplier]
 }
 
-function batchButtonLabel(action: 'balance' | 'test'): string {
-  if (
-    batchProgress.value?.scope === 'page' &&
-    batchProgress.value.action === action
-  ) {
+function balanceButtonLabel(): string {
+  if (batchProgress.value?.scope === 'page') {
     return t('channels.batchProgressLabel', {
-      action:
-        action === 'balance'
-          ? t('channels.batchBalanceAction')
-          : t('channels.batchTestAction'),
+      action: t('channels.batchBalanceAction'),
       processed: batchProgress.value.processed,
       total: batchProgress.value.total,
     })
   }
-  return t(
-    action === 'balance'
-      ? 'channels.batchBalanceLabel'
-      : 'channels.batchTestLabel',
-    { count: rows.value.length }
-  )
+  return t('channels.batchBalanceLabel', { count: rows.value.length })
 }
 
-function isPageBatch(action: 'balance' | 'test'): boolean {
-  return (
-    batchProgress.value?.scope === 'page' &&
-    batchProgress.value.action === action
-  )
+function isPageBalance(): boolean {
+  return batchProgress.value?.scope === 'page'
 }
 
-function isSupplierBatch(
-  action: 'balance' | 'test',
-  supplier: string
-): boolean {
+function isSupplierBalance(supplier: string): boolean {
   return (
     batchProgress.value?.scope === 'supplier' &&
-    batchProgress.value.action === action &&
     batchProgress.value.supplier === supplier
   )
 }
@@ -451,24 +438,30 @@ function batchProgressText(): string {
   return `${progress.processed}/${progress.total}`
 }
 
-function supplierBatchLabel(
-  action: 'balance' | 'test',
-  supplier: string
-): string {
-  if (isSupplierBatch(action, supplier) && batchProgress.value) {
+function supplierBalanceLabel(supplier: string): string {
+  if (isSupplierBalance(supplier) && batchProgress.value) {
     return t('channels.batchProgressLabel', {
-      action:
-        action === 'balance'
-          ? t('channels.batchBalanceAction')
-          : t('channels.batchTestAction'),
+      action: t('channels.batchBalanceAction'),
       processed: batchProgress.value.processed,
       total: batchProgress.value.total,
     })
   }
-  return t(
-    action === 'balance' ? 'channels.syncSupplier' : 'channels.testSupplier',
-    { supplier }
-  )
+  return t('channels.syncSupplier', { supplier })
+}
+
+function openTest(channel: AdminChannel) {
+  if (!canOperate.value) return
+  testing.value = channel
+}
+
+function openSupplierTest(group: SupplierGroup) {
+  if (!canOperate.value) return
+  pickingGroup.value = group
+}
+
+function onPickerConfirm(channel: AdminChannel) {
+  pickingGroup.value = null
+  testing.value = channel
 }
 
 function openCreate() {
@@ -684,48 +677,26 @@ async function runBulkStatus(
             />
           </div>
         </div>
-        <div v-if="canOperate" class="grid grid-cols-2 gap-2 md:hidden">
+        <div v-if="canOperate" class="md:hidden">
           <ConsoleButton
             variant="secondary"
             size="sm"
             block
             :disabled="!canRunBatch"
-            :aria-label="batchButtonLabel('balance')"
-            @click="runVisibleBatch('balance')"
+            :aria-label="balanceButtonLabel()"
+            @click="runVisibleBalance()"
           >
             <LoaderCircle
-              v-if="isPageBatch('balance')"
+              v-if="isPageBalance()"
               :size="14"
               class="animate-spin"
             />
             <RefreshCw v-else :size="14" />
             <span class="min-w-0 truncate">
               {{
-                isPageBatch('balance')
+                isPageBalance()
                   ? batchProgressText()
                   : t('channels.batchBalancePage')
-              }}
-            </span>
-          </ConsoleButton>
-          <ConsoleButton
-            variant="secondary"
-            size="sm"
-            block
-            :disabled="!canRunBatch"
-            :aria-label="batchButtonLabel('test')"
-            @click="runVisibleBatch('test')"
-          >
-            <LoaderCircle
-              v-if="isPageBatch('test')"
-              :size="14"
-              class="animate-spin"
-            />
-            <Activity v-else :size="14" />
-            <span class="min-w-0 truncate">
-              {{
-                isPageBatch('test')
-                  ? batchProgressText()
-                  : t('channels.batchTestPage')
               }}
             </span>
           </ConsoleButton>
@@ -909,28 +880,19 @@ async function runBulkStatus(
                 <IconButton
                   v-if="canOperate"
                   :label="
-                    supplierBatchLabel(
-                      'balance',
-                      (row as SupplierTableRow).supplier
-                    )
+                    supplierBalanceLabel((row as SupplierTableRow).supplier)
                   "
                   :disabled="!canRunBatch"
                   class="h-7 w-7"
                   @click="
-                    runSupplierBatch(
-                      'balance',
+                    runSupplierBalance(
                       (row as SupplierTableRow).supplier,
                       (row as SupplierTableRow).channels
                     )
                   "
                 >
                   <LoaderCircle
-                    v-if="
-                      isSupplierBatch(
-                        'balance',
-                        (row as SupplierTableRow).supplier
-                      )
-                    "
+                    v-if="isSupplierBalance((row as SupplierTableRow).supplier)"
                     :size="14"
                     class="animate-spin"
                   />
@@ -939,32 +901,19 @@ async function runBulkStatus(
                 <IconButton
                   v-if="canOperate"
                   :label="
-                    supplierBatchLabel(
-                      'test',
-                      (row as SupplierTableRow).supplier
-                    )
+                    t('channels.testSupplier', {
+                      supplier: (row as SupplierTableRow).supplier,
+                    })
                   "
-                  :disabled="!canRunBatch"
                   class="h-7 w-7"
                   @click="
-                    runSupplierBatch(
-                      'test',
-                      (row as SupplierTableRow).supplier,
-                      (row as SupplierTableRow).channels
-                    )
+                    openSupplierTest({
+                      supplier: (row as SupplierTableRow).supplier,
+                      channels: (row as SupplierTableRow).channels,
+                    })
                   "
                 >
-                  <LoaderCircle
-                    v-if="
-                      isSupplierBatch(
-                        'test',
-                        (row as SupplierTableRow).supplier
-                      )
-                    "
-                    :size="14"
-                    class="animate-spin"
-                  />
-                  <Activity v-else :size="14" />
+                  <Activity :size="14" />
                 </IconButton>
                 <IconButton
                   v-if="canSensitiveWrite"
@@ -994,51 +943,24 @@ async function runBulkStatus(
               <span aria-hidden="true">{{ column.label }}</span>
               <span class="flex shrink-0 items-center gap-0.5">
                 <span
-                  v-if="isPageBatch('balance')"
+                  v-if="isPageBalance()"
                   class="font-mono text-[9px] tabular-nums text-[var(--text-tertiary)]"
                 >
                   {{ batchProgressText() }}
                 </span>
                 <IconButton
                   v-if="canOperate"
-                  :label="batchButtonLabel('balance')"
+                  :label="balanceButtonLabel()"
                   :disabled="!canRunBatch"
                   class="h-6 w-6 rounded-md"
-                  @click="runVisibleBatch('balance')"
+                  @click="runVisibleBalance()"
                 >
                   <LoaderCircle
-                    v-if="isPageBatch('balance')"
+                    v-if="isPageBalance()"
                     :size="13"
                     class="animate-spin"
                   />
                   <RefreshCw v-else :size="13" />
-                </IconButton>
-              </span>
-            </div>
-          </template>
-          <template #header-response="{ column }">
-            <div class="flex items-center justify-between gap-1">
-              <span aria-hidden="true">{{ column.label }}</span>
-              <span class="flex shrink-0 items-center gap-0.5">
-                <span
-                  v-if="isPageBatch('test')"
-                  class="font-mono text-[9px] tabular-nums text-[var(--text-tertiary)]"
-                >
-                  {{ batchProgressText() }}
-                </span>
-                <IconButton
-                  v-if="canOperate"
-                  :label="batchButtonLabel('test')"
-                  :disabled="!canRunBatch"
-                  class="h-6 w-6 rounded-md"
-                  @click="runVisibleBatch('test')"
-                >
-                  <LoaderCircle
-                    v-if="isPageBatch('test')"
-                    :size="13"
-                    class="animate-spin"
-                  />
-                  <Activity v-else :size="13" />
                 </IconButton>
               </span>
             </div>
@@ -1251,25 +1173,10 @@ async function runBulkStatus(
               <IconButton
                 v-if="canOperate && isFieldVisible('rowResponseAction')"
                 :label="t('channels.testChannel')"
-                :disabled="
-                  isRowBusy(channelFromRow(row as AdminChannelTableRow).id)
-                "
                 class="h-7 w-7 shrink-0"
-                @click="
-                  testChannel(channelFromRow(row as AdminChannelTableRow))
-                "
+                @click="openTest(channelFromRow(row as AdminChannelTableRow))"
               >
-                <LoaderCircle
-                  v-if="
-                    isBusy(
-                      channelFromRow(row as AdminChannelTableRow).id,
-                      'test'
-                    )
-                  "
-                  :size="14"
-                  class="animate-spin"
-                />
-                <Activity v-else :size="14" />
+                <Activity :size="14" />
               </IconButton>
             </div>
           </template>
@@ -1400,14 +1307,15 @@ async function runBulkStatus(
             :can-operate="canOperate"
             :can-write="canWrite"
             :can-sensitive-write="canSensitiveWrite"
-            :run-supplier-batch="runSupplierBatch"
+            :run-supplier-balance="runSupplierBalance"
+            :pick-supplier-test="openSupplierTest"
             :clear-supplier="requestClearSupplier"
             :is-busy="isBusy"
             :is-row-busy="isRowBusy"
             :update-number="updateNumber"
             :toggle-status="toggleStatus"
             :refresh-balance="refreshBalance"
-            :test-channel="testChannel"
+            :open-test="openTest"
             :edit-channel="openEdit"
             :delete-channel="requestDelete"
           />
@@ -1428,6 +1336,23 @@ async function runBulkStatus(
       :save="saveForm"
       :fetch-models="fetchUpstreamModels"
       @close="closeForm"
+    />
+
+    <ChannelTestModal
+      :open="testing !== null"
+      :channel="testing"
+      :can-write="canWrite"
+      :test-model="testChannelModel"
+      :remove-models="removeChannelModels"
+      @close="testing = null"
+    />
+
+    <ChannelTestPickerDialog
+      :open="pickingGroup !== null"
+      :supplier="pickingGroup?.supplier ?? ''"
+      :channels="pickingGroup?.channels ?? []"
+      @close="pickingGroup = null"
+      @confirm="onPickerConfirm"
     />
 
     <ConfirmDialog
