@@ -482,11 +482,16 @@ func WaffoPancakeWebhook(c *gin.Context) {
 	if isSubscription {
 		tradeNo, err := service.ResolveWaffoPancakeSubscriptionTradeNo(event)
 		if err != nil {
+			// Could not map the event to a local order, so we cannot credit a
+			// paid subscription. Return 5xx (not 200) so Waffo retries and the
+			// failure surfaces, instead of silently accepting a payment the
+			// buyer never gets. Email-form buyer identities are resolved in
+			// ResolveWaffoPancakeSubscriptionTradeNo.
 			logger.LogError(c.Request.Context(), fmt.Sprintf(
 				"Waffo Pancake webhook 订阅订单解析失败 event_id=%s order_id=%s buyer_identity=%q client_ip=%s error=%q",
 				event.ID, event.Data.OrderID, event.Data.MerchantProvidedBuyerIdentity, c.ClientIP(), err.Error(),
 			))
-			c.String(http.StatusOK, "OK")
+			c.String(http.StatusInternalServerError, "retry")
 			return
 		}
 		LockOrder(tradeNo)
@@ -503,14 +508,16 @@ func WaffoPancakeWebhook(c *gin.Context) {
 
 	tradeNo, err := service.ResolveWaffoPancakeTradeNo(event)
 	if err != nil {
-		// LogError (not LogWarn): covers order-not-found and buyer-identity
-		// mismatch — both warrant human attention. 200 OK so Waffo doesn't
-		// retry a permanently-unresolvable webhook.
+		// Could not map the event to a local order, so we cannot credit a paid
+		// top-up. Return 5xx (not 200) so Waffo retries and the failure
+		// surfaces, instead of silently accepting a payment the buyer never
+		// gets credited for. Email-form buyer identities are resolved in
+		// ResolveWaffoPancakeTradeNo.
 		logger.LogError(c.Request.Context(), fmt.Sprintf(
 			"Waffo Pancake webhook 订单解析失败 event_id=%s order_id=%s buyer_identity=%q client_ip=%s error=%q",
 			event.ID, event.Data.OrderID, event.Data.MerchantProvidedBuyerIdentity, c.ClientIP(), err.Error(),
 		))
-		c.String(http.StatusOK, "OK")
+		c.String(http.StatusInternalServerError, "retry")
 		return
 	}
 
