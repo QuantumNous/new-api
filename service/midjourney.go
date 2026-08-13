@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/hmac"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -15,9 +16,32 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+// BuildMjImageForwardURL returns the self-hosted URL that proxies a task's
+// upstream image through this server (used when MjForwardUrlEnabled is on).
+// The sig query is an HMAC over the task id, so the URL is a per-task capability:
+// it still loads in a browser as a plain <img> src with no auth header, but it
+// cannot be guessed or reused to read another user's image. See issue #6610.
+func BuildMjImageForwardURL(mjId string) string {
+	return system_setting.ServerAddress + "/mj/image/" + mjId + "?sig=" + mjImageSignature(mjId)
+}
+
+// VerifyMjImageSignature reports whether sig is the signature this server mints
+// for mjId. A missing, tampered or cross-task signature fails.
+func VerifyMjImageSignature(mjId, sig string) bool {
+	if sig == "" {
+		return false
+	}
+	return hmac.Equal([]byte(sig), []byte(mjImageSignature(mjId)))
+}
+
+func mjImageSignature(mjId string) string {
+	return common.GenerateHMAC("mj-image:" + mjId)
+}
 
 func CovertMjpActionToModelName(mjAction string) string {
 	modelName := "mj_" + strings.ToLower(mjAction)
