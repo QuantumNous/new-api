@@ -289,6 +289,9 @@ func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float
 		if math.IsNaN(balance) || math.IsInf(balance, 0) {
 			return 0, errors.New("USD balance must be finite")
 		}
+		if balance < 0 {
+			return 0, errors.New("USD balance must be non-negative")
+		}
 		return balance, nil
 	}
 	if cnyBalance == nil {
@@ -308,7 +311,17 @@ func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float
 	if math.IsNaN(balanceCNY) || math.IsInf(balanceCNY, 0) {
 		return 0, errors.New("CNY balance must be finite")
 	}
-	return decimal.NewFromFloat(balanceCNY).Div(decimal.NewFromFloat(usdExchangeRate)).InexactFloat64(), nil
+	if balanceCNY < 0 {
+		return 0, errors.New("CNY balance must be non-negative")
+	}
+	balanceUSD := decimal.NewFromFloat(balanceCNY).Div(decimal.NewFromFloat(usdExchangeRate)).InexactFloat64()
+	if math.IsNaN(balanceUSD) || math.IsInf(balanceUSD, 0) {
+		return 0, errors.New("converted USD balance must be finite")
+	}
+	if balanceUSD < 0 {
+		return 0, errors.New("converted USD balance must be non-negative")
+	}
+	return balanceUSD, nil
 }
 
 func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
