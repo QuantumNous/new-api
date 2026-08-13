@@ -39,10 +39,48 @@ export type PricingModel = {
   billing_expr?: string;
   pricing_version?: string;
   featured_order?: number;
+  display_pricing?: ModelDisplayPricing;
   availability_status?: string;
   availability_reason?: string;
   availability_detected_at?: number;
   availability_checked_at?: number;
+};
+
+export type DisplayPricingUnit = "per_second" | "request" | "token" | "tiered_expr";
+export type DisplayPricingDimension =
+  | "second"
+  | "request"
+  | "input"
+  | "output"
+  | "cache"
+  | "create_cache"
+  | "image"
+  | "audio_input"
+  | "audio_output";
+export type DisplayPricingVariant = "configured" | "plg";
+
+export type DisplayPricePair = {
+  configured?: number;
+  plg?: number;
+  from?: boolean;
+};
+
+export type ModelDisplayPricing = {
+  billing_kind: DisplayPricingUnit;
+  prices: Partial<Record<DisplayPricingDimension, DisplayPricePair>>;
+};
+
+export type ResolvedModelDisplayPrice = {
+  text: string;
+  value: number;
+  variant: DisplayPricingVariant;
+  dimension: DisplayPricingDimension;
+  configuredValue?: number;
+  configured?: number;
+  plg?: number;
+  unit: string;
+  from: boolean;
+  source: "display" | "legacy";
 };
 
 type PricingApiResponse = {
@@ -55,6 +93,7 @@ type PricingApiResponse = {
   usable_group?: Record<string, string>;
   supported_endpoint?: Record<string, string>;
   auto_groups?: string[];
+  display_pricing?: Record<string, unknown>;
 };
 
 export type GroupModelRatio = Record<string, Record<string, number>>;
@@ -101,8 +140,9 @@ export async function getPricingData(group?: string): Promise<PricingData> {
     if (!response.ok) return emptyPricingData();
     const payload = (await response.json()) as PricingApiResponse;
     if (!payload.success) return emptyPricingData();
+    const displayPricing = parseDisplayPricingMap(payload.display_pricing);
     return {
-      models: payload.data ?? [],
+      models: (payload.data ?? []).map((model) => attachDisplayPricing(model, displayPricing)),
       vendors: payload.vendors ?? [],
       groupRatio: payload.group_ratio ?? {},
       groupModelRatio: payload.group_model_ratio ?? {},
@@ -336,6 +376,31 @@ export function formatGroupRequestPrice(model: PricingModel, group: string, grou
   return formatUsd(Number(model.model_price ?? 0) * ratio);
 }
 
+export function resolveModelDisplayPrice(
+  model: PricingModel,
+  dimension?: DisplayPricingDimension,
+  variant: DisplayPricingVariant = "plg",
+  fallbackGroupRatio: Record<string, number> = {}
+): ResolvedModelDisplayPrice | null {
+  const resolvedDimension = dimension ?? defaultDisplayDimension(model);
+  const displayPrice = resolveParsedDisplayPrice(model, resolvedDimension, variant);
+  if (displayPrice) return displayPrice;
+  const legacyPrice = resolveLegacyDisplayPrice(model, resolvedDimension, variant, fallbackGroupRatio);
+  if (legacyPrice || dimension != null) return legacyPrice;
+
+  // A malformed display contract must not change the legacy billing dimension
+  // selected for a model. Retry the legacy dimension when the display kind's
+  // pair is absent or invalid (for example, a request model with a bad
+  // per-second entry).
+  const fallbackDimension = legacyDisplayDimension(model);
+  if (fallbackDimension === resolvedDimension) return null;
+  return resolveLegacyDisplayPrice(model, fallbackDimension, variant, fallbackGroupRatio);
+}
+
+export function formatResolvedModelDisplayPrice(price: ResolvedModelDisplayPrice): string {
+  return `${price.from ? "from " : ""}${price.text} ${price.unit}`;
+}
+
 export function formatRatio(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(Number(value))) return "-";
   return new Intl.NumberFormat("en-US", {
@@ -367,6 +432,170 @@ function getGroupRatio(model: PricingModel, group: string, fallbackGroupRatio: R
   const fallbackRatio = fallbackGroupRatio[group];
   if (typeof fallbackRatio === "number" && Number.isFinite(fallbackRatio)) return fallbackRatio;
   return 1;
+}
+
+function attachDisplayPricing(model: PricingModel, displayPricing: Record<string, ModelDisplayPricing>): PricingModel {
+  const parsed = displayPricing[model.model_name];
+  return parsed ? { ...model, display_pricing: parsed } : model;
+}
+
+function parseDisplayPricingMap(value: unknown): Record<string, ModelDisplayPricing> {
+  if (!isRecord(value)) return {};
+  const parsed: Record<string, ModelDisplayPricing> = {};
+  for (const [modelName, entry] of Object.entries(value)) {
+    const pricing = parseModelDisplayPricing(entry);
+    if (pricing) parsed[modelName] = pricing;
+  }
+  return parsed;
+}
+
+function parseModelDisplayPricing(value: unknown): ModelDisplayPricing | null {
+  if (!isRecord(value)) return null;
+  const billingKind = value.billing_kind;
+  if (!isDisplayPricingUnit(billingKind)) return null;
+  if (!isRecord(value.prices)) return { billing_kind: billingKind, prices: {} };
+
+  const prices: ModelDisplayPricing["prices"] = {};
+  for (const [dimension, pair] of Object.entries(value.prices)) {
+    if (!isDisplayPricingDimension(dimension) || !isRecord(pair)) continue;
+    const configured = parseDisplayPriceValue(pair.configured);
+    const plg = parseDisplayPriceValue(pair.plg);
+    if (configured == null && plg == null) continue;
+    prices[dimension] = {
+      ...(configured == null ? {} : { configured }),
+      ...(plg == null ? {} : { plg }),
+      from: pair.from === true,
+    };
+  }
+
+  return { billing_kind: billingKind, prices };
+}
+
+function parseDisplayPriceValue(value: unknown): number | null {
+  const parsed = typeof value === "string" && value.trim() !== "" ? Number(value) : typeof value === "number" ? value : Number.NaN;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function resolveParsedDisplayPrice(
+  model: PricingModel,
+  dimension: DisplayPricingDimension,
+  variant: DisplayPricingVariant
+): ResolvedModelDisplayPrice | null {
+  const pair = model.display_pricing?.prices[dimension];
+  if (!pair) return null;
+  const value = variant === "plg" ? pair.plg : pair.configured;
+  if (!isValidDisplayNumber(value)) return null;
+  return {
+    text: formatUsd(value),
+    value,
+    variant,
+    dimension,
+    configuredValue: pair.configured,
+    configured: pair.configured,
+    plg: pair.plg,
+    unit: unitForDisplayDimension(dimension),
+    from: pair.from === true,
+    source: "display",
+  };
+}
+
+function resolveLegacyDisplayPrice(
+  model: PricingModel,
+  dimension: DisplayPricingDimension,
+  variant: DisplayPricingVariant,
+  fallbackGroupRatio: Record<string, number>
+): ResolvedModelDisplayPrice | null {
+  const configured = calculateLegacyDisplayPrice(model, dimension, "configured", fallbackGroupRatio);
+  const plg = calculateLegacyDisplayPrice(model, dimension, "plg", fallbackGroupRatio);
+  const value = variant === "plg" ? plg : configured;
+  if (!isValidDisplayNumber(value)) return null;
+  return {
+    text: formatUsd(value),
+    value,
+    variant,
+    dimension,
+    configuredValue: configured,
+    configured,
+    plg,
+    unit: unitForDisplayDimension(dimension),
+    from: false,
+    source: "legacy",
+  };
+}
+
+function calculateLegacyDisplayPrice(
+  model: PricingModel,
+  dimension: DisplayPricingDimension,
+  variant: DisplayPricingVariant,
+  fallbackGroupRatio: Record<string, number>
+): number {
+  const ratio = variant === "plg" ? getGroupRatio(model, WEBSITE_PUBLIC_PRICING_GROUP, fallbackGroupRatio) : 1;
+  if (dimension === "request") {
+    if (isTokenBasedModel(model)) return Number.NaN;
+    return Number(model.model_price ?? 0) * ratio;
+  }
+  if (dimension === "second") return Number.NaN;
+  if (!isTokenBasedModel(model)) return Number.NaN;
+  const base = Number(model.model_ratio ?? 0) * 2 * ratio;
+  return calculateTokenPrice(model, base, dimension);
+}
+
+function defaultDisplayDimension(model: PricingModel): DisplayPricingDimension {
+  if (model.display_pricing?.billing_kind === "per_second") return "second";
+  if (model.display_pricing?.billing_kind === "request") return "request";
+  if (!isTokenBasedModel(model)) return "request";
+  return "input";
+}
+
+function legacyDisplayDimension(model: PricingModel): DisplayPricingDimension {
+  return isTokenBasedModel(model) ? "input" : "request";
+}
+
+function unitForDisplayDimension(dimension: DisplayPricingDimension): string {
+  switch (dimension) {
+    case "second":
+      return "/ second";
+    case "request":
+      return "/ request";
+    // Image and audio ratios multiply token counts in the billing pipeline
+    // (see service/text_quota.go), so every remaining dimension is priced per
+    // 1M tokens. Keep the switch exhaustive so a new dimension must pick a
+    // unit explicitly.
+    case "input":
+    case "output":
+    case "cache":
+    case "create_cache":
+    case "image":
+    case "audio_input":
+    case "audio_output":
+      return "/ 1M tokens";
+  }
+}
+
+function isDisplayPricingUnit(value: unknown): value is DisplayPricingUnit {
+  return value === "per_second" || value === "request" || value === "token" || value === "tiered_expr";
+}
+
+function isDisplayPricingDimension(value: string): value is DisplayPricingDimension {
+  return (
+    value === "second" ||
+    value === "request" ||
+    value === "input" ||
+    value === "output" ||
+    value === "cache" ||
+    value === "create_cache" ||
+    value === "image" ||
+    value === "audio_input" ||
+    value === "audio_output"
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isValidDisplayNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function isVisibleGroup(group: string): boolean {

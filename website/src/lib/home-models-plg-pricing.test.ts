@@ -44,7 +44,7 @@ describe("buildRowsForModels on the plg payload", () => {
     expect(row.discounted).toBe("$0.4");
   });
 
-  test("keeps the per-request suffix for request-billed models", () => {
+  test("keeps request-billed prices pure for row-specific unit rendering", () => {
     const requestModel: PricingModel = {
       model_name: "some-video-model",
       vendor_id: 7,
@@ -57,7 +57,79 @@ describe("buildRowsForModels on the plg payload", () => {
 
     const [row] = buildRowsForModels([requestModel], VENDORS, PLG_GROUP_RATIO);
 
-    expect(row.official).toBe("$1 /req");
-    expect(row.discounted).toBe("$0.9 /req");
+    expect(row.official).toBe("$1");
+    expect(row.discounted).toBe("$0.9");
+  });
+
+  test("describes token rows with per-1M token unit metadata", () => {
+    const [row] = buildRowsForModels([PLG_MODEL], VENDORS, PLG_GROUP_RATIO);
+
+    expect(row.priceUnit).toBe("per 1M tokens");
+    expect(row.pricePrefix).toBeUndefined();
+  });
+
+  test("describes request rows with per-request unit metadata", () => {
+    const requestModel: PricingModel = {
+      model_name: "some-video-model",
+      vendor_id: 7,
+      quota_type: 1,
+      model_ratio: 0,
+      completion_ratio: 0,
+      model_price: 1,
+      enable_groups: ["plg"],
+    };
+
+    const [row] = buildRowsForModels([requestModel], VENDORS, PLG_GROUP_RATIO);
+
+    expect(row.priceUnit).toBe("per request");
+    expect(row.pricePrefix).toBeUndefined();
+  });
+
+  test("describes display-priced per-second rows as from pricing", () => {
+    const secondModel: PricingModel = {
+      model_name: "some-video-model",
+      vendor_id: 7,
+      quota_type: 1,
+      model_ratio: 0,
+      completion_ratio: 0,
+      model_price: 0.08,
+      enable_groups: ["plg"],
+      display_pricing: {
+        billing_kind: "per_second",
+        prices: {
+          second: { configured: 0.08, plg: 0.072, from: true },
+        },
+      },
+    };
+
+    const [row] = buildRowsForModels([secondModel], VENDORS, PLG_GROUP_RATIO);
+
+    expect(row.official).toBe("$0.08");
+    expect(row.discounted).toBe("$0.072");
+    expect(row.priceUnit).toBe("per second");
+    expect(row.pricePrefix).toBe("from");
+  });
+
+  test("keeps display-priced video models even when legacy model_price is zero", () => {
+    const secondModel: PricingModel = {
+      model_name: "display-only-video-model",
+      vendor_id: 7,
+      quota_type: 1,
+      model_ratio: 0,
+      completion_ratio: 0,
+      model_price: 0,
+      enable_groups: ["plg"],
+      display_pricing: {
+        billing_kind: "per_second",
+        prices: {
+          second: { configured: 0.08, plg: 0.072 },
+        },
+      },
+    };
+
+    const rows = buildRowsForModels([secondModel], VENDORS, PLG_GROUP_RATIO);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.discounted).toBe("$0.072");
   });
 });

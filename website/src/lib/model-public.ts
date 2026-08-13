@@ -3,6 +3,7 @@ import { withIdFallback } from "@/lib/locales";
 import type { Locale } from "@/lib/locales";
 import {
   discountedPriceUsd,
+  type DisplayPricingDimension,
   formatUsdPrice,
   getBestGroupRatio,
   getModelFamilyKey,
@@ -10,6 +11,7 @@ import {
   getVendorName,
   isTokenBasedModel,
   parseTags,
+  resolveModelDisplayPrice,
   type PricingData,
   type PricingModel,
 } from "@/lib/pricing";
@@ -128,6 +130,8 @@ export type ModelPublicPriceRow = {
   labelKey: ModelPriceLabelKey;
   list: string;
   discounted: string;
+  unit: string;
+  from: boolean;
 };
 
 export const MODEL_PUBLIC_COPY: Record<Locale, ModelPublicCopy> = withIdFallback({
@@ -434,31 +438,7 @@ export function buildModelPublicView(model: PricingModel, data: PricingData) {
     .slice(0, 6)
     .map(toPeer);
 
-  // Same derivation as the /models directory rows: strike-through = official
-  // vendor price, hero = official × best group ratio × top-up bonus (2/3).
-  const row = (labelKey: ModelPriceLabelKey, official: number): ModelPublicPriceRow => ({
-    labelKey,
-    list: formatUsdPrice(official),
-    discounted: formatUsdPrice(discountedPriceUsd(official * ratio)),
-  });
-
-  const priceRows: ModelPublicPriceRow[] = [
-    row("input", officialInput),
-    row("output", officialOutput),
-  ];
-  // Cache / image / audio prices derive off the input base × their ratio, and
-  // only exist for token-billed models (request-billed models have no ratios).
-  if (isTokenBasedModel(model)) {
-    if (model.cache_ratio != null) priceRows.push(row("cacheRead", officialInput * Number(model.cache_ratio)));
-    if (model.create_cache_ratio != null)
-      priceRows.push(row("cacheWrite", officialInput * Number(model.create_cache_ratio)));
-    if (model.image_ratio != null) priceRows.push(row("imagePrice", officialInput * Number(model.image_ratio)));
-    if (model.audio_ratio != null) priceRows.push(row("audioInput", officialInput * Number(model.audio_ratio)));
-    if (model.audio_ratio != null && model.audio_completion_ratio != null)
-      priceRows.push(
-        row("audioOutput", officialInput * Number(model.audio_ratio) * Number(model.audio_completion_ratio))
-      );
-  }
+  const priceRows = buildModelPublicPriceRows(model, data.groupRatio);
 
   return {
     modelName: model.model_name,
@@ -480,6 +460,52 @@ export function buildModelPublicView(model: PricingModel, data: PricingData) {
     comparison,
     related,
   };
+}
+
+function buildModelPublicPriceRows(model: PricingModel, fallbackGroupRatio: Record<string, number>): ModelPublicPriceRow[] {
+  const effectiveModel = {
+    ...model,
+    group_ratio: { ...fallbackGroupRatio, ...(model.group_ratio ?? {}) },
+  };
+  const displayKind = hasUsableDisplayKind(effectiveModel, fallbackGroupRatio) ? model.display_pricing?.billing_kind : undefined;
+  const dimensions: Array<[ModelPriceLabelKey, DisplayPricingDimension]> = displayKind === "per_second"
+    ? [["input", "second"]]
+    : displayKind === "request"
+      ? [["input", "request"]]
+      : isTokenBasedModel(model)
+    ? [
+        ["input", "input"],
+        ["output", "output"],
+        ["cacheRead", "cache"],
+        ["cacheWrite", "create_cache"],
+        ["imagePrice", "image"],
+        ["audioInput", "audio_input"],
+        ["audioOutput", "audio_output"],
+      ]
+    : [["input", "request"]];
+
+  return dimensions.flatMap(([labelKey, dimension]) => {
+    const price = resolveModelDisplayPrice(effectiveModel, dimension, "plg", fallbackGroupRatio);
+    if (!price) return [];
+    return [{
+      labelKey,
+      list: formatUsdPrice(price.configured ?? price.value),
+      discounted: price.text,
+      unit: price.unit,
+      from: price.from,
+    }];
+  });
+}
+
+function hasUsableDisplayKind(model: PricingModel, fallbackGroupRatio: Record<string, number>): boolean {
+  const kind = model.display_pricing?.billing_kind;
+  if (kind === "per_second") {
+    return resolveModelDisplayPrice(model, "second", "plg", fallbackGroupRatio)?.source === "display";
+  }
+  if (kind === "request") {
+    return resolveModelDisplayPrice(model, "request", "plg", fallbackGroupRatio)?.source === "display";
+  }
+  return kind === "token" || kind === "tiered_expr";
 }
 
 // POSIX single-quote escaping: close the quote, emit an escaped quote,

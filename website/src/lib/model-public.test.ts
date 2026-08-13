@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildModelPublicView,
   buildModelExampleCurl,
   classifyModelHealthStatus,
   classifyPublicModel,
@@ -7,7 +8,7 @@ import {
   normalizeModelKey,
   resolvePublicModel,
 } from "./model-public";
-import type { PricingModel } from "./pricing";
+import type { PricingData, PricingModel } from "./pricing";
 
 function model(overrides: Partial<PricingModel>): PricingModel {
   return {
@@ -87,6 +88,98 @@ describe("model health status", () => {
     expect(classifyModelHealthStatus(94.99)).toBe("degraded");
     expect(classifyModelHealthStatus(56.4)).toBe("degraded");
     expect(classifyModelHealthStatus(undefined)).toBeNull();
+  });
+});
+
+describe("model public pricing rows", () => {
+  const pricingData = (models: PricingModel[] = []): PricingData => ({
+    models,
+    vendors: [],
+    groupRatio: { plg: 0.5 },
+    groupModelRatio: {},
+    usableGroup: {},
+    supportedEndpoint: {},
+    autoGroups: [],
+  });
+
+  test("keeps legacy token rows per 1M tokens without from pricing", () => {
+    const view = buildModelPublicView(
+      model({
+        model_name: "token-model",
+        quota_type: 0,
+        model_ratio: 2,
+        completion_ratio: 3,
+        cache_ratio: 0.25,
+        enable_groups: ["plg"],
+        group_ratio: { plg: 0.5 },
+      }),
+      pricingData()
+    );
+
+    expect(view.priceRows).toEqual([
+      { labelKey: "input", list: "$4", discounted: "$2", unit: "/ 1M tokens", from: false },
+      { labelKey: "output", list: "$12", discounted: "$6", unit: "/ 1M tokens", from: false },
+      { labelKey: "cacheRead", list: "$1", discounted: "$0.5", unit: "/ 1M tokens", from: false },
+    ]);
+  });
+
+  test("uses request units for request-billed model prices", () => {
+    const view = buildModelPublicView(
+      model({
+        model_name: "request-model",
+        quota_type: 1,
+        model_price: 0.12,
+        enable_groups: ["plg"],
+        group_ratio: { plg: 0.5 },
+      }),
+      pricingData()
+    );
+
+    expect(view.priceRows).toEqual([
+      { labelKey: "input", list: "$0.12", discounted: "$0.06", unit: "/ request", from: false },
+    ]);
+  });
+
+  test("uses display pricing units and from semantics when provided", () => {
+    const view = buildModelPublicView(
+      model({
+        model_name: "realtime-model",
+        quota_type: 1,
+        model_price: 0.03,
+        display_pricing: {
+          billing_kind: "per_second",
+          prices: {
+            second: { configured: 0.03, plg: 0.015, from: true },
+          },
+        },
+      }),
+      pricingData()
+    );
+
+    expect(view.priceRows).toEqual([
+      { labelKey: "input", list: "$0.03", discounted: "$0.015", unit: "/ second", from: true },
+    ]);
+  });
+
+  test("falls back to legacy request pricing when a per-second display entry is unusable", () => {
+    const view = buildModelPublicView(
+      model({
+        model_name: "malformed-video-model",
+        quota_type: 1,
+        model_price: 0.12,
+        enable_groups: ["plg"],
+        group_ratio: { plg: 0.5 },
+        display_pricing: {
+          billing_kind: "per_second",
+          prices: {},
+        },
+      }),
+      pricingData()
+    );
+
+    expect(view.priceRows).toEqual([
+      { labelKey: "input", list: "$0.12", discounted: "$0.06", unit: "/ request", from: false },
+    ]);
   });
 });
 

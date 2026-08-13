@@ -5,6 +5,7 @@ import {
   getOfficialPriceUsd,
   getVendorName,
   isTokenBasedModel,
+  resolveModelDisplayPrice,
   sortPricingModelsBySeries,
   type PricingData,
   type PricingModel,
@@ -17,6 +18,8 @@ export type HomePricedModel = {
   discounted: string;
   officialUsd: number;
   discountedUsd: number;
+  priceUnit?: string;
+  pricePrefix?: string;
   // Lobehub static-svg icon key rendered by ModelLogo; derived from the model
   // name because the pricing payload's icon fields are empty in production.
   iconKey: string;
@@ -95,27 +98,33 @@ export function buildHomeModelRows(data: PricingData): HomePricedModel[] {
 }
 
 // Rows for an externally filtered/sorted model list (the /models directory).
-// Includes per-request models; their prices carry a "/req" suffix since the
-// table header is phrased per 1M tokens.
+// Includes per-request and display-priced models; rows carry unit metadata so
+// the table can mix token, request, and second billing without a global suffix.
 export function buildRowsForModels(
   models: PricingModel[],
   vendors: PricingData["vendors"],
   groupRatio: Record<string, number>
 ): HomePricedModel[] {
   return models
-    .filter((model) => getOfficialPriceUsd(model) > 0)
+    .filter((model) => getOfficialPriceUsd(model) > 0 || resolveModelDisplayPrice(model, undefined, "plg", groupRatio) != null)
     .map((model) => {
       const official = getOfficialPriceUsd(model);
       const listed = official * getBestGroupRatio(model, groupRatio);
       const vendor = model.vendor_name ?? getVendorName(model, vendors);
-      const suffix = isTokenBasedModel(model) ? "" : " /req";
+      const displayPrice = resolveModelDisplayPrice(model, undefined, "plg", groupRatio);
+      const officialDisplayPrice = displayPrice
+        ? resolveModelDisplayPrice(model, displayPrice.dimension, "configured", groupRatio)
+        : null;
+      const usesParsedDisplayPrice = displayPrice?.source === "display";
       return {
         name: model.model_name,
         vendor,
-        official: `${formatUsdPrice(official)}${suffix}`,
-        discounted: `${formatUsdPrice(discountedPriceUsd(listed))}${suffix}`,
-        officialUsd: official,
-        discountedUsd: discountedPriceUsd(listed),
+        official: usesParsedDisplayPrice && officialDisplayPrice ? officialDisplayPrice.text : formatUsdPrice(official),
+        discounted: usesParsedDisplayPrice ? displayPrice.text : formatUsdPrice(discountedPriceUsd(listed)),
+        officialUsd: usesParsedDisplayPrice && officialDisplayPrice ? officialDisplayPrice.value : official,
+        discountedUsd: usesParsedDisplayPrice ? displayPrice.value : discountedPriceUsd(listed),
+        priceUnit: displayPrice ? normalizeDisplayUnit(displayPrice.unit) : isTokenBasedModel(model) ? "per 1M tokens" : "per request",
+        pricePrefix: displayPrice?.from ? "from" : undefined,
         iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
       };
     });
@@ -146,4 +155,8 @@ function toHomeRow(model: PricingModel, data: PricingData): HomePricedModel {
     discountedUsd: discountedPriceUsd(listed),
     iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
   };
+}
+
+function normalizeDisplayUnit(unit: string): string {
+  return unit.replace(/^\s*\/\s*/, "per ");
 }
