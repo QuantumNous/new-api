@@ -1,6 +1,7 @@
 package billing_setting
 
 import (
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -440,6 +441,111 @@ func TestGetVideoPriceRulesCallerCannotMutateSharedRules(t *testing.T) {
 
 	if again := GetVideoPriceRules(); again[0].PricePerSecond != 0.314 {
 		t.Fatalf("price = %v, want 0.314: a caller mutated the shared rule table", again[0].PricePerSecond)
+	}
+}
+
+// GetVideoPriceRules hands out a shallow copy, so each rule's Match map is
+// shared with the live table. The worry that follows from that is whether a
+// reload can write into a Match map a request is already holding -- which would
+// be a data race on the billing path, since normalizeRuleMatch folds values with
+// an in-place `r.Match[key] = canonical`.
+//
+// It cannot, and two independent layers in setting/config/config.go each
+// prevent it on their own. Verified by mutation: removing either one alone
+// leaves this test passing, removing both makes it fail.
+//
+//  1. updateConfigFromMap's reflect.Slice branch unmarshals into a freshly
+//     allocated slice rather than decoding over the existing one, so every rule
+//     element -- and therefore every Match map -- is minted by the decoder.
+//     This is the primary guard: without it, encoding/json reuses the existing
+//     elements and folds values into maps already handed out.
+//  2. updateRegisteredConfig JSON-round-trips the whole setting into a fresh
+//     `next` before normalizing, so normalization cannot touch published memory
+//     even if (1) regressed. (Its own reason for existing is atomicity: a rule
+//     set rejected by NormalizeAndValidate must not partially mutate the live
+//     config.)
+//
+// The property pinned here is the one the billing path actually depends on,
+// stated without reference to either mechanism: a Match map handed out before a
+// reload is neither mutated by that reload nor aliased to the table it
+// publishes. A refactor that removes both layers -- or replaces them with a
+// single one that has neither effect -- fails here instead of shipping a silent
+// race that surfaces only as a mispriced request under concurrent load.
+func TestReloadNeverWritesIntoMatchMapsAlreadyHandedOut(t *testing.T) {
+	original := GetVideoPriceRules()
+	t.Cleanup(func() {
+		videoPriceSettingMu.Lock()
+		defer videoPriceSettingMu.Unlock()
+		videoPriceSetting.VideoPriceRules = original
+	})
+
+	manager := config.NewConfigManager()
+	manager.Register("billing_setting_video", &videoPriceSetting)
+
+	// Uncanonical spellings, so normalization has real in-place work to do.
+	if err := manager.LoadFromDB(map[string]string{
+		"billing_setting_video.video_price_rules": marshalRules(t, []VideoPriceRule{
+			{Model: "m", Match: map[string]string{"resolution": "4K"},
+				PricePerSecond: 0.314, Basis: BasisOutputDuration},
+		}),
+	}); err != nil {
+		t.Fatalf("first LoadFromDB failed: %v", err)
+	}
+
+	// Stand in for a request that has captured its snapshot and is still using
+	// it while an administrator saves new rules.
+	held := GetVideoPriceRules()
+	if len(held) != 1 {
+		t.Fatalf("held = %+v, want one rule", held)
+	}
+	heldMatch := held[0].Match
+	if heldMatch["resolution"] != "4k" {
+		t.Fatalf("resolution = %q, want the folded %q", heldMatch["resolution"], "4k")
+	}
+
+	if err := manager.LoadFromDB(map[string]string{
+		"billing_setting_video.video_price_rules": marshalRules(t, []VideoPriceRule{
+			{Model: "m", Match: map[string]string{"resolution": "720P"},
+				PricePerSecond: 0.140, Basis: BasisOutputDuration},
+		}),
+	}); err != nil {
+		t.Fatalf("second LoadFromDB failed: %v", err)
+	}
+
+	if len(heldMatch) != 1 || heldMatch["resolution"] != "4k" {
+		t.Fatalf("the reload wrote into a Match map an in-flight request was holding: %v", heldMatch)
+	}
+
+	published := GetVideoPriceRules()
+	if len(published) != 1 || published[0].Match["resolution"] != "720p" {
+		t.Fatalf("published = %+v, want the reloaded 720p rule", published)
+	}
+	if reflect.ValueOf(heldMatch).Pointer() == reflect.ValueOf(published[0].Match).Pointer() {
+		t.Fatal("the reload published the same Match map the previous snapshot handed out: normalization is no longer working on a fresh clone")
+	}
+}
+
+// The other half of the same property, at the level of the function that
+// actually writes. normalizeRuleMatch folds values in place, so its safety is
+// entirely a caller obligation: it is sound only because every caller passes
+// maps it owns. Pinning the in-place behaviour here documents that obligation
+// where it can fail -- if this ever starts copying, the callers' ownership
+// requirement has silently changed, and the comment on GetVideoPriceRules
+// promising Match is shared-and-read-only no longer describes the code.
+func TestNormalizeAndValidateFoldsInPlaceSoCallersMustOwnTheirMaps(t *testing.T) {
+	shared := map[string]string{"resolution": "4K"}
+	s := &VideoPriceSetting{VideoPriceRules: []VideoPriceRule{
+		{Model: "m", Match: shared, PricePerSecond: 0.314, Basis: BasisOutputDuration},
+	}}
+
+	if err := s.NormalizeAndValidate(); err != nil {
+		t.Fatalf("NormalizeAndValidate failed: %v", err)
+	}
+
+	// Visible through the caller's own reference: no defensive copy is made.
+	// This is why updateRegisteredConfig must hand it memory nobody else holds.
+	if shared["resolution"] != "4k" {
+		t.Fatalf("resolution = %q, want %q folded in place", shared["resolution"], "4k")
 	}
 }
 
