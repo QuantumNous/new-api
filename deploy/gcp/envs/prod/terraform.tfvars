@@ -77,7 +77,7 @@ console_domains      = ["console.flatkey.ai"]
 // including Cloudflare-proxied console and website hosts, so Full (strict) and
 // emergency DNS-only access both validate the origin certificate.
 console_domains_require_managed_cert = true
-cloud_sql_disk_size_gb = 216
+cloud_sql_disk_size_gb               = 216
 
 // Router keeps the current production capacity profile for long-lived model
 // calls. Console starts smaller because it handles authenticated UI/API traffic
