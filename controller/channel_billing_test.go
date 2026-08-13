@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -47,10 +48,34 @@ func TestGetDeepSeekBalanceUSD(t *testing.T) {
 			wantErrContains: "invalid syntax",
 		},
 		{
+			name:            "rejects NaN USD balance",
+			responseJSON:    `{"balance_infos":[{"currency":"USD","total_balance":"NaN"}]}`,
+			usdExchangeRate: 7.3,
+			wantErrContains: "USD balance must be finite",
+		},
+		{
+			name:            "rejects positive infinity CNY balance",
+			responseJSON:    `{"balance_infos":[{"currency":"CNY","total_balance":"+Inf"}]}`,
+			usdExchangeRate: 7.3,
+			wantErrContains: "CNY balance must be finite",
+		},
+		{
 			name:            "returns error for non-positive CNY exchange rate",
 			responseJSON:    `{"balance_infos":[{"currency":"CNY","total_balance":"73.00"}]}`,
 			usdExchangeRate: 0,
 			wantErrContains: "USD exchange rate must be greater than zero",
+		},
+		{
+			name:            "rejects NaN CNY exchange rate",
+			responseJSON:    `{"balance_infos":[{"currency":"CNY","total_balance":"73.00"}]}`,
+			usdExchangeRate: math.NaN(),
+			wantErrContains: "USD exchange rate must be finite",
+		},
+		{
+			name:            "rejects positive infinity CNY exchange rate",
+			responseJSON:    `{"balance_infos":[{"currency":"CNY","total_balance":"73.00"}]}`,
+			usdExchangeRate: math.Inf(1),
+			wantErrContains: "USD exchange rate must be finite",
 		},
 	}
 
