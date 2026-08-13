@@ -30,6 +30,9 @@ x-new-api-environment: &new-api-environment
   S3_USE_PATH_STYLE: "true"
   BATCH_UPDATE_ENABLED: "false"
   ERROR_LOG_ENABLED: "true"
+  CRITICAL_RATE_LIMIT_ENABLE: "true"
+  CRITICAL_RATE_LIMIT: 1000
+  CRITICAL_RATE_LIMIT_DURATION: 1200
   TZ: Asia/Shanghai
 
 services:

@@ -86,6 +86,11 @@ func main() {
 	} else if processed > 0 {
 		common.SysLog(fmt.Sprintf("reconciled %d async billing records", processed))
 	}
+	if processed, err := service.ReconcileAsyncUpstreamCosts(context.Background(), 100); err != nil {
+		common.SysError("async upstream cost startup reconciliation failed: " + err.Error())
+	} else if processed > 0 {
+		common.SysLog(fmt.Sprintf("reconciled %d async upstream cost records", processed))
+	}
 
 	if common.RedisEnabled {
 		// for compatibility with old versions

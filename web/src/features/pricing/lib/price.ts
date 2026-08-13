@@ -138,6 +138,46 @@ function applyRechargeRate(
   return (price * priceRate) / usdExchangeRate
 }
 
+function getRequestPriceMultiplierRange(model: PricingModel): [number, number] {
+  const multipliers = Object.values(
+    model.image_generation?.resolution_price_multipliers ?? {}
+  ).filter((multiplier) => Number.isFinite(multiplier) && multiplier > 0)
+
+  if (multipliers.length === 0) return [1, 1]
+  return [Math.min(...multipliers), Math.max(...multipliers)]
+}
+
+function formatRequestPriceRange(
+  basePriceInUSD: number,
+  model: PricingModel,
+  showWithRecharge: boolean,
+  priceRate: number,
+  usdExchangeRate: number
+): string {
+  const [minimumMultiplier, maximumMultiplier] =
+    getRequestPriceMultiplierRange(model)
+  const format = (multiplier: number) =>
+    formatCurrencyFromUSD(
+      applyRechargeRate(
+        basePriceInUSD * multiplier,
+        showWithRecharge,
+        priceRate,
+        usdExchangeRate
+      ),
+      {
+        digitsLarge: 4,
+        digitsSmall: 4,
+        abbreviate: false,
+      }
+    )
+
+  const minimumPrice = format(minimumMultiplier)
+  const maximumPrice = format(maximumMultiplier)
+  return minimumPrice === maximumPrice
+    ? minimumPrice
+    : `${minimumPrice} ~ ${maximumPrice}`
+}
+
 /**
  * Format token-based price for display
  */
@@ -223,20 +263,15 @@ export function formatFixedPrice(
   }
 
   const ratio = getConfiguredGroupRatio(groupRatio, group)
-  let priceInUSD = (model.model_price || 0) * ratio
+  const priceInUSD = (model.model_price || 0) * ratio
 
-  priceInUSD = applyRechargeRate(
+  return formatRequestPriceRange(
     priceInUSD,
+    model,
     showWithRecharge,
     priceRate,
     usdExchangeRate
   )
-
-  return formatCurrencyFromUSD(priceInUSD, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
 }
 
 /**
@@ -255,18 +290,13 @@ export function formatRequestPrice(
 
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
 
-  let priceInUSD = (model.model_price || 0) * displayGroupRatio
+  const priceInUSD = (model.model_price || 0) * displayGroupRatio
 
-  priceInUSD = applyRechargeRate(
+  return formatRequestPriceRange(
     priceInUSD,
+    model,
     showWithRecharge,
     priceRate,
     usdExchangeRate
   )
-
-  return formatCurrencyFromUSD(priceInUSD, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    abbreviate: false,
-  })
 }

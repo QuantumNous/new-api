@@ -180,6 +180,16 @@ func ValidateAsyncImageProviderRequest(request *dto.ImageRequest, provider commo
 	if provider == common.AsyncImageProviderGRSAI && request.N != nil && *request.N != 1 {
 		return errors.New("GRS AI synchronous image generation supports exactly one image per task")
 	}
+	if provider == common.AsyncImageProviderGRSAI && strings.EqualFold(strings.TrimSpace(request.Model), "gpt-image-2-vip") {
+		capabilities := model_setting.GetImageGenerationCapabilities(request.Model)
+		size := strings.TrimSpace(request.Size)
+		if size != "" && (capabilities == nil || !common.StringsContains(capabilities.Sizes, size)) {
+			return errors.New("unsupported gpt-image-2-vip size; use one of the documented 1K, 2K or 4K presets")
+		}
+		if strings.TrimSpace(request.Quality) != "" {
+			return errors.New("gpt-image-2-vip does not support the quality parameter; select resolution with size")
+		}
+	}
 	return nil
 }
 

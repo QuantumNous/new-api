@@ -80,6 +80,8 @@ export const THEME_PRESETS = [
 ] as const
 
 export type ThemePreset = (typeof THEME_PRESETS)[number]['value']
+export const THEME_MODES = ['dark', 'light', 'system'] as const
+export type ThemeMode = (typeof THEME_MODES)[number]
 export type ThemeRadius = 'default' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
 export type ThemeScale = 'default' | 'sm' | 'lg' | 'xl'
 export type ContentLayout = 'full' | 'centered'
@@ -115,10 +117,12 @@ export type ThemeCustomization = {
   contentLayout: ContentLayout
 }
 
+export const DEFAULT_THEME_MODE = 'dark' satisfies ThemeMode
+
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  preset: 'default',
-  font: 'default',
-  radius: 'default',
+  preset: 'ocean-breeze',
+  font: 'sans',
+  radius: 'xl',
   scale: 'default',
   contentLayout: 'full',
 }

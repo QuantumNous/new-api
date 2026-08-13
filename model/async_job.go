@@ -272,6 +272,38 @@ func ListQueuedAsyncJobs(ctx context.Context, limit int) ([]AsyncJob, error) {
 	return jobs, err
 }
 
+// ListSettledAsyncJobsMissingUpstreamCost returns settled async attempts whose
+// canonical cost ledger entry has not been persisted yet. Joining channels
+// excludes historical tasks whose deleted channel can no longer provide an
+// auditable conversion profile.
+func ListSettledAsyncJobsMissingUpstreamCost(ctx context.Context, limit int) ([]AsyncJob, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var jobs []AsyncJob
+	err := DB.WithContext(ctx).
+		Table("async_jobs").
+		Select("async_jobs.*").
+		Joins("JOIN tasks ON tasks.id = async_jobs.task_id").
+		Joins("JOIN channels ON channels.id = async_jobs.channel_id").
+		Joins("LEFT JOIN upstream_cost_records ON upstream_cost_records.request_id = async_jobs.billing_request_id").
+		Where("async_jobs.billing_status = ?", AsyncBillingSettled).
+		Where("async_jobs.billing_request_id <> ?", "").
+		Where("upstream_cost_records.id IS NULL").
+		Order("async_jobs.id ASC").
+		Limit(limit).
+		Find(&jobs).Error
+	if err != nil {
+		return nil, err
+	}
+	for i := range jobs {
+		if err := loadAsyncJobTask(DB.WithContext(ctx), &jobs[i]); err != nil {
+			return nil, err
+		}
+	}
+	return jobs, nil
+}
+
 func loadAsyncJobTask(db *gorm.DB, job *AsyncJob) error {
 	if job == nil || job.TaskID == 0 {
 		return nil

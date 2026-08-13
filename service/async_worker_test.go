@@ -56,6 +56,8 @@ func TestAsyncWorkerCompletesDisconnectedClientTask(t *testing.T) {
 	model.DB.Exec("DELETE FROM artifacts")
 	model.DB.Exec("DELETE FROM async_jobs")
 	model.DB.Exec("DELETE FROM tasks")
+	model.DB.Exec("DELETE FROM upstream_cost_records")
+	model.DB.Exec("DELETE FROM logs")
 	model.DB.Exec("DELETE FROM tokens")
 	model.DB.Exec("DELETE FROM users")
 	model.DB.Exec("DELETE FROM channels")
@@ -66,6 +68,13 @@ func TestAsyncWorkerCompletesDisconnectedClientTask(t *testing.T) {
 	archive := true
 	channel := &model.Channel{Id: 303, Name: "yunwu-worker", Key: "upstream-placeholder", BaseURL: &baseURL, Status: common.ChannelStatusEnabled, Models: "image-model", Group: "default"}
 	channel.SetSetting(dto.ChannelSettings{AsyncImageEnabled: true, AsyncImageModels: []string{"image-model"}, AsyncMaxConcurrency: 1, AsyncAutoArchive: &archive})
+	rate := 0.495
+	channel.SetOtherSettings(dto.ChannelOtherSettings{
+		UpstreamCostMode:         dto.UpstreamCostModeBillingUnits,
+		UpstreamCostUnit:         "CREDIT",
+		UpstreamCostRateCNY:      &rate,
+		UpstreamCostPriceVersion: "yunwu-test",
+	})
 	require.NoError(t, model.DB.Create(user).Error)
 	require.NoError(t, model.DB.Create(token).Error)
 	require.NoError(t, model.DB.Create(channel).Error)
@@ -73,7 +82,7 @@ func TestAsyncWorkerCompletesDisconnectedClientTask(t *testing.T) {
 	payload, err := EncryptAsyncPayload([]byte(`{"model":"image-model","prompt":"kept after disconnect"}`))
 	require.NoError(t, err)
 	task := &model.Task{TaskID: "task_worker_disconnected", Platform: constant.TaskPlatformAsyncImage, UserId: user.Id, ChannelId: channel.Id, Quota: 100, Status: model.TaskStatusQueued, Progress: "0%", Properties: model.Properties{OriginModelName: "image-model"}, PrivateData: model.TaskPrivateData{BillingSource: BillingSourceWallet, TokenId: token.Id}, Data: json.RawMessage(`{}`)}
-	job := &model.AsyncJob{TokenID: token.Id, ChannelID: channel.Id, EndpointType: model.AsyncEndpointImageGeneration, RequestPayload: payload, RequestHash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", IdempotencyKey: "worker-disconnected", ExecutionStatus: model.AsyncStatusQueued, BillingStatus: model.AsyncBillingReserved}
+	job := &model.AsyncJob{TokenID: token.Id, ChannelID: channel.Id, EndpointType: model.AsyncEndpointImageGeneration, RequestPayload: payload, RequestHash: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", IdempotencyKey: "worker-disconnected", ExecutionStatus: model.AsyncStatusQueued, BillingStatus: model.AsyncBillingReserved, BillingRequestID: "async-cost-request"}
 	require.NoError(t, model.CreateAsyncTask(task, job))
 	claimed, won, err := model.ClaimAsyncJob(context.Background(), job.ID, "test-worker", time.Now().Add(time.Minute).Unix())
 	require.NoError(t, err)
@@ -94,6 +103,25 @@ func TestAsyncWorkerCompletesDisconnectedClientTask(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 	assert.Len(t, store.objects, 1)
+	var cost model.UpstreamCostRecord
+	require.NoError(t, model.DB.Where("request_id = ?", job.BillingRequestID).First(&cost).Error)
+	assert.Equal(t, channel.Id, cost.ChannelId)
+	assert.Equal(t, "image-model", cost.ModelName)
+	assert.Equal(t, "CREDIT", cost.NativeUnit)
+	assert.Equal(t, "0.0002", cost.NativeAmount)
+	assert.Equal(t, "0.495", cost.RateCNYPerUnit)
+	assert.EqualValues(t, 99, cost.AmountCNYMicros)
+	assert.True(t, cost.Estimated)
+
+	require.NoError(t, model.DB.Where("request_id = ?", job.BillingRequestID).Delete(&model.UpstreamCostRecord{}).Error)
+	require.NoError(t, model.LOG_DB.Where("request_id = ?", job.BillingRequestID).Delete(&model.Log{}).Error)
+	processed, err := ReconcileAsyncUpstreamCosts(context.Background(), 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, processed)
+	require.NoError(t, model.DB.Where("request_id = ?", job.BillingRequestID).First(&cost).Error)
+	processed, err = ReconcileAsyncUpstreamCosts(context.Background(), 10)
+	require.NoError(t, err)
+	assert.Equal(t, 0, processed)
 }
 
 func TestAsyncChannelAndModelSemaphoreKeepsExcessQueued(t *testing.T) {

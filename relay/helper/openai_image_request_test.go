@@ -159,17 +159,24 @@ func TestGetAndValidOpenAIImageRequestNBounds(t *testing.T) {
 	})
 }
 
-func TestGeminiAsyncImageQualityPriceRatio(t *testing.T) {
+func TestAsyncImageResolutionPriceRatio(t *testing.T) {
 	tests := []struct {
-		model string
-		want  float64
+		name    string
+		model   string
+		quality string
+		size    string
+		want    float64
 	}{
-		{model: "gemini-3.1-flash-image-preview", want: 0.7093 / 0.3972},
-		{model: "gemini-3-pro-image-preview", want: 1.418 / 0.7920},
+		{name: "flash 1K", model: "gemini-3.1-flash-image-preview", quality: "1K", want: 1},
+		{name: "flash 4K", model: "gemini-3.1-flash-image-preview", quality: "4K", want: 2},
+		{name: "pro 4K", model: "gemini-3-pro-image-preview", quality: "4K", want: 1},
+		{name: "gpt 2K", model: "gpt-image-2-vip", size: "2048x2048", want: 1},
+		{name: "gpt 4K", model: "gpt-image-2-vip", size: "3840x2160", want: 2},
+		{name: "nano 4K", model: "nano-banana-pro", quality: "4K", want: 1},
 	}
 	for _, test := range tests {
-		t.Run(test.model, func(t *testing.T) {
-			request := dto.ImageRequest{Model: test.model, Prompt: "a cat", Quality: "4K"}
+		t.Run(test.name, func(t *testing.T) {
+			request := dto.ImageRequest{Model: test.model, Prompt: "a cat", Quality: test.quality, Size: test.size}
 			require.InDelta(t, test.want, request.GetTokenCountMeta().ImagePriceRatio, 0.000001)
 		})
 	}

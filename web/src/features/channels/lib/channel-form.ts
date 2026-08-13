@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from 'i18next'
 import { z } from 'zod'
 
 import {
@@ -266,6 +267,12 @@ export const channelFormSchema = z
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
     disable_task_polling_sleep: z.boolean().optional(),
+    upstream_cost_mode: z
+      .enum(['auto', 'response_cost', 'billing_units'])
+      .optional(),
+    upstream_cost_unit: z.string().max(32).optional(),
+    upstream_cost_rate_cny: z.number().optional(),
+    upstream_cost_price_version: z.string().max(64).optional(),
     // Upstream model update settings (stored in settings JSON)
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
@@ -373,6 +380,36 @@ export const channelFormSchema = z
         'Vertex AI API Key mode does not support batch creation'
       )
     }
+
+    if (
+      data.upstream_cost_rate_cny != null &&
+      data.upstream_cost_rate_cny <= 0
+    ) {
+      addRequiredIssue(
+        ctx,
+        'upstream_cost_rate_cny',
+        i18next.t('Cost rate must be greater than 0')
+      )
+    } else if (
+      data.upstream_cost_rate_cny != null &&
+      data.upstream_cost_rate_cny > 1_000_000
+    ) {
+      addRequiredIssue(
+        ctx,
+        'upstream_cost_rate_cny',
+        i18next.t('Cost rate must not exceed 1000000')
+      )
+    }
+    if (
+      data.upstream_cost_rate_cny != null &&
+      !data.upstream_cost_unit?.trim()
+    ) {
+      addRequiredIssue(
+        ctx,
+        'upstream_cost_unit',
+        i18next.t('Upstream billing unit is required')
+      )
+    }
   })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -434,6 +471,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_speed: false,
   claude_beta_query: false,
   disable_task_polling_sleep: false,
+  upstream_cost_mode: 'billing_units',
+  upstream_cost_unit: 'UNIT',
+  upstream_cost_rate_cny: undefined,
+  upstream_cost_price_version: 'manual',
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
@@ -510,6 +551,11 @@ export function transformChannelToFormDefaults(
   let allowSpeed = false
   let claudeBetaQuery = false
   let disableTaskPollingSleep = false
+  let upstreamCostMode: 'auto' | 'response_cost' | 'billing_units' =
+    'billing_units'
+  let upstreamCostUnit = 'UNIT'
+  let upstreamCostRateCNY: number | undefined
+  let upstreamCostPriceVersion = 'manual'
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
@@ -530,6 +576,28 @@ export function transformChannelToFormDefaults(
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
+      if (
+        parsed.upstream_cost_mode === 'auto' ||
+        parsed.upstream_cost_mode === 'response_cost' ||
+        parsed.upstream_cost_mode === 'billing_units'
+      ) {
+        upstreamCostMode = parsed.upstream_cost_mode
+      }
+      upstreamCostUnit =
+        typeof parsed.upstream_cost_unit === 'string' &&
+        parsed.upstream_cost_unit.trim()
+          ? parsed.upstream_cost_unit.trim()
+          : 'UNIT'
+      upstreamCostRateCNY =
+        typeof parsed.upstream_cost_rate_cny === 'number' &&
+        parsed.upstream_cost_rate_cny > 0
+          ? parsed.upstream_cost_rate_cny
+          : undefined
+      upstreamCostPriceVersion =
+        typeof parsed.upstream_cost_price_version === 'string' &&
+        parsed.upstream_cost_price_version.trim()
+          ? parsed.upstream_cost_price_version.trim()
+          : 'manual'
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
       upstreamModelUpdateAutoSyncEnabled =
@@ -588,6 +656,10 @@ export function transformChannelToFormDefaults(
     allow_speed: allowSpeed,
     claude_beta_query: claudeBetaQuery,
     disable_task_polling_sleep: disableTaskPollingSleep,
+    upstream_cost_mode: upstreamCostMode,
+    upstream_cost_unit: upstreamCostUnit,
+    upstream_cost_rate_cny: upstreamCostRateCNY,
+    upstream_cost_price_version: upstreamCostPriceVersion,
     allow_safety_identifier: allowSafetyIdentifier,
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
@@ -718,6 +790,25 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
 
   settingsObj.disable_task_polling_sleep =
     formData.disable_task_polling_sleep === true
+
+  if (
+    formData.upstream_cost_rate_cny != null &&
+    Number.isFinite(formData.upstream_cost_rate_cny) &&
+    formData.upstream_cost_rate_cny > 0
+  ) {
+    settingsObj.upstream_cost_mode =
+      formData.upstream_cost_mode || 'billing_units'
+    settingsObj.upstream_cost_unit =
+      formData.upstream_cost_unit?.trim().toUpperCase() || 'UNIT'
+    settingsObj.upstream_cost_rate_cny = formData.upstream_cost_rate_cny
+    settingsObj.upstream_cost_price_version =
+      formData.upstream_cost_price_version?.trim() || 'manual'
+  } else {
+    delete settingsObj.upstream_cost_mode
+    delete settingsObj.upstream_cost_unit
+    delete settingsObj.upstream_cost_rate_cny
+    delete settingsObj.upstream_cost_price_version
+  }
 
   // Upstream model update settings (for model-fetchable channel types)
   if (MODEL_FETCHABLE_TYPES.has(formData.type)) {

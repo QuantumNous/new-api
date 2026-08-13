@@ -32,6 +32,7 @@ type GeneralOpenAIRequest struct {
 	Prompt              any               `json:"prompt,omitempty"`
 	Prefix              any               `json:"prefix,omitempty"`
 	Suffix              any               `json:"suffix,omitempty"`
+	IncludeBilling      *bool             `json:"include_billing,omitempty"`
 	Stream              *bool             `json:"stream,omitempty"`
 	StreamOptions       *StreamOptions    `json:"stream_options,omitempty"`
 	MaxTokens           *uint             `json:"max_tokens,omitempty"`
@@ -838,9 +839,10 @@ type WebSearchOptions struct {
 
 // https://platform.openai.com/docs/api-reference/responses/create
 type OpenAIResponsesRequest struct {
-	Model   string          `json:"model"`
-	Input   json.RawMessage `json:"input,omitempty"`
-	Include json.RawMessage `json:"include,omitempty"`
+	Model          string          `json:"model"`
+	Input          json.RawMessage `json:"input,omitempty"`
+	Include        json.RawMessage `json:"include,omitempty"`
+	IncludeBilling *bool           `json:"include_billing,omitempty"`
 	// 在后台运行推理，暂时还不支持依赖的接口
 	// Background         json.RawMessage `json:"background,omitempty"`
 	Conversation       json.RawMessage `json:"conversation,omitempty"`

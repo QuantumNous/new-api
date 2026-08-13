@@ -137,6 +137,23 @@ export interface LogOtherData {
       original: number
       clamped: number
     }
+    upstream_cost?: {
+      status?: 'settled' | 'unpriced'
+      mode?: 'auto' | 'response_cost' | 'billing_units'
+      source?: 'response_cost' | 'billing_units'
+      reason?: string
+      native_unit?: string
+      native_amount?: number
+      native_amount_decimal?: string
+      units?: number
+      rate_cny_per_unit?: number
+      rate_cny_per_unit_decimal?: string
+      amount_cny?: number
+      amount_cny_micros?: number
+      estimated?: boolean
+      price_version?: string
+      settlement_currency?: 'CNY' | string
+    }
   }
   // Language-independent operation descriptor (audit/login logs).
   // Frontend renders localized content from action + params via i18n templates.
@@ -244,6 +261,13 @@ export interface LogStatistics {
   quota: number
   rpm: number
   tpm: number
+}
+
+export interface UpstreamCostStatistics {
+  settled_requests: number
+  unpriced_requests: number
+  estimated_requests: number
+  amount_cny_micros: number
 }
 
 // ============================================================================
@@ -386,6 +410,12 @@ export interface GetLogStatsResponse {
   success: boolean
   message?: string
   data?: LogStatistics
+}
+
+export interface GetUpstreamCostStatsResponse {
+  success: boolean
+  message?: string
+  data?: UpstreamCostStatistics
 }
 
 // ============================================================================

@@ -40,9 +40,6 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		c.Set("image_generation_call_size", responsesResponse.GetSize())
 	}
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
-
 	// compute usage
 	usage := dto.Usage{}
 	if responsesResponse.Usage != nil {
@@ -54,18 +51,27 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			usage.PromptTokensDetails.CacheWriteTokens = responsesResponse.Usage.InputTokensDetails.CacheWriteTokens
 		}
 	}
-	if info == nil || info.ResponsesUsageInfo == nil || info.ResponsesUsageInfo.BuiltInTools == nil {
-		return &usage, nil
-	}
-	// 解析 Tools 用量
-	for _, tool := range responsesResponse.Tools {
-		buildToolinfo, ok := info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])]
-		if !ok || buildToolinfo == nil {
-			logger.LogError(c, fmt.Sprintf("BuiltInTools not found for tool type: %v", tool["type"]))
-			continue
+	if info != nil && info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools != nil {
+		// 解析 Tools 用量
+		for _, tool := range responsesResponse.Tools {
+			buildToolinfo, ok := info.ResponsesUsageInfo.BuiltInTools[common.Interface2String(tool["type"])]
+			if !ok || buildToolinfo == nil {
+				logger.LogError(c, fmt.Sprintf("BuiltInTools not found for tool type: %v", tool["type"]))
+				continue
+			}
+			buildToolinfo.CallCount++
 		}
-		buildToolinfo.CallCount++
 	}
+
+	service.AttachResponseBilling(c, info, &usage)
+	if usage.Billing != nil {
+		responseBody, err = addBillingToUsageJSON(responseBody, usage.Billing)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+	}
+
+	service.IOCopyBytesGracefully(c, resp, responseBody)
 	return &usage, nil
 }
 
@@ -89,7 +95,6 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
 		case "response.completed":
 			if streamResponse.Response != nil {
@@ -114,6 +119,26 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					c.Set("image_generation_call_size", streamResponse.Response.GetSize())
 				}
 			}
+			if usage.CompletionTokens == 0 {
+				text := responseTextBuilder.String()
+				if text != "" {
+					usage.CompletionTokens = service.CountTextToken(text, info.UpstreamModelName)
+				}
+			}
+			if usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
+				usage.PromptTokens = info.GetEstimatePromptTokens()
+			}
+			usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+			service.AttachResponseBilling(c, info, usage)
+			if usage.Billing != nil {
+				enrichedData, err := addBillingToResponsesEventJSON(common.StringToByteSlice(data), usage.Billing)
+				if err != nil {
+					logger.LogError(c, "failed to add billing to responses stream: "+err.Error())
+					sr.Error(err)
+					return
+				}
+				data = string(enrichedData)
+			}
 		case "response.output_text.delta":
 			// 处理输出文本
 			responseTextBuilder.WriteString(streamResponse.Delta)
@@ -130,6 +155,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				}
 			}
 		}
+		sendResponsesStreamData(c, streamResponse, data)
 	})
 
 	if usage.CompletionTokens == 0 {
@@ -147,6 +173,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	}
 
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	service.AttachResponseBilling(c, info, usage)
 
 	return usage, nil
 }

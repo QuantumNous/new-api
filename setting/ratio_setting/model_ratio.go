@@ -515,7 +515,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				if strings.HasPrefix(name, "gpt-5.4-nano") {
 					return 6.25, true
 				}
-				return 6, true
+				return 6, false
 			}
 			// gpt-5.5 and later models are unlocked
 			return 6, false

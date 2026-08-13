@@ -99,3 +99,23 @@ func TestValidateGRSAISynchronousImageRequest(t *testing.T) {
 	count = 2
 	require.ErrorContains(t, ValidateAsyncImageProviderRequest(request, common.AsyncImageProviderGRSAI), "exactly one")
 }
+
+func TestValidateGRSAIGPTImageVIPResolution(t *testing.T) {
+	count := uint(1)
+	request := &dto.ImageRequest{
+		Model:  "gpt-image-2-vip",
+		Prompt: "draw",
+		N:      &count,
+		Size:   "3840x2160",
+	}
+	require.NoError(t, ValidateAsyncImageProviderRequest(request, common.AsyncImageProviderGRSAI))
+	request.Size = ""
+	require.NoError(t, ValidateAsyncImageProviderRequest(request, common.AsyncImageProviderGRSAI))
+
+	request.Size = "1024x1024"
+	require.ErrorContains(t, ValidateAsyncImageProviderRequest(request, common.AsyncImageProviderGRSAI), "1K, 2K or 4K presets")
+
+	request.Size = "2048x2048"
+	request.Quality = "high"
+	require.ErrorContains(t, ValidateAsyncImageProviderRequest(request, common.AsyncImageProviderGRSAI), "does not support the quality parameter")
+}

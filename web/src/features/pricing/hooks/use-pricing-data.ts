@@ -27,7 +27,10 @@ export function usePricingData() {
   const { status } = useStatus()
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['pricing'],
+    queryKey: [
+      'pricing',
+      'c93f4990684023eef6ec35670795311442418348207af6cd284468468f812f69',
+    ],
     queryFn: getPricing,
     staleTime: 5 * 60 * 1000,
   })

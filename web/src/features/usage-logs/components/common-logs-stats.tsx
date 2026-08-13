@@ -21,10 +21,11 @@ import { getRouteApi } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatCNYAmount } from '@/lib/currency'
 import { formatLogQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { getLogStats, getUserLogStats } from '../api'
+import { getLogStats, getUpstreamCostStats, getUserLogStats } from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
 import { buildApiParams } from '../lib/utils'
 import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
@@ -74,13 +75,31 @@ export function CommonLogsStats() {
     },
     placeholderData: (previousData) => previousData,
   })
+  const { data: upstreamCostStats, isLoading: isUpstreamCostLoading } =
+    useQuery({
+      queryKey: ['usage-logs-upstream-cost-stats', searchParams],
+      queryFn: async () => {
+        const params = buildApiParams({
+          page: 1,
+          pageSize: 1,
+          searchParams,
+          columnFilters: [],
+          isAdmin: true,
+        })
+        const result = await getUpstreamCostStats(params)
+        return result.success ? result.data : undefined
+      },
+      enabled: isAdmin,
+      placeholderData: (previousData) => previousData,
+    })
 
-  if (isLoading) {
+  if (isLoading || (isAdmin && isUpstreamCostLoading)) {
     return (
       <div className='flex items-center gap-2'>
         <Skeleton className='h-7 w-[150px] rounded-md' />
         <Skeleton className='h-7 w-[100px] rounded-md' />
         <Skeleton className='h-7 w-[120px] rounded-md' />
+        {isAdmin && <Skeleton className='h-7 w-[160px] rounded-md' />}
       </div>
     )
   }
@@ -102,6 +121,35 @@ export function CommonLogsStats() {
         value={stats?.tpm || 0}
         accent='bg-slate-400/70'
       />
+      {isAdmin && (
+        <>
+          <StatBadge
+            label={t('Upstream Cost')}
+            value={
+              sensitiveVisible
+                ? formatCNYAmount(
+                    (upstreamCostStats?.amount_cny_micros || 0) / 1_000_000,
+                    {
+                      digitsLarge: 4,
+                      digitsSmall: 6,
+                      abbreviate: false,
+                    }
+                  )
+                : '••••'
+            }
+            accent='bg-emerald-500/70'
+          />
+          <StatBadge
+            label={t('Unpriced')}
+            value={`${upstreamCostStats?.unpriced_requests || 0}/${(upstreamCostStats?.settled_requests || 0) + (upstreamCostStats?.unpriced_requests || 0)}`}
+            accent={
+              upstreamCostStats?.unpriced_requests
+                ? 'bg-amber-500/80'
+                : 'bg-slate-300/70'
+            }
+          />
+        </>
+      )}
     </div>
   )
 }

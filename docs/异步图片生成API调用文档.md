@@ -7,7 +7,7 @@
 - API Base URL：`https://async-api.nexaapp.cn/v1`
 - 当前结果保留时间：任务生成成功后约 60 分钟
 - 单次下载链接有效期：约 15 分钟，可在结果保留期内重新请求结果接口获取新链接
-- 更新时间：2026-07-18
+- 更新时间：2026-08-13
 
 本文档面向需要把图片生成接入桌面软件、后端服务或自动化工作流的开发人员。
 
@@ -92,12 +92,9 @@ flowpic-20260718-550e8400-e29b-41d4-a716-446655440000
 | --- | --- | --- | --- |
 | `gemini-3.1-flash-image-preview` | `1:1`、`16:9`、`9:16` | `1K`、`2K`、`4K` | 必须为 `1` |
 | `gemini-3-pro-image-preview` | `1:1`、`16:9`、`9:16` | `1K`、`2K`、`4K` | 必须为 `1` |
-| `gpt-image-2` | `1024x1024`、`1536x1024`、`1024x1536` | `low`、`medium`、`high` | 推荐 `1` |
-| `gpt-image-2-vip` | `1024x1024` | `standard` | 必须为 `1` |
+| `gpt-image-2-vip` | 30 个上游尺寸预设：1K（如 `1280x1280`）、2K（如 `2048x2048`）、4K（如 `2880x2880`） | 不要传 | 必须为 `1` |
 | `nano-banana-pro` | `1:1`、`16:9`、`9:16`、`4:3`、`3:4` | `1K`、`2K`、`4K` | 必须为 `1` |
-| `nano-banana-2-lite` | `1:1`、`16:9`、`9:16`、`4:3`、`3:4` | `auto` | 必须为 `1` |
 | `nano-banana-2` | `1:1`、`16:9`、`9:16`、`4:3`、`3:4` | `1K`、`2K`、`4K` | 必须为 `1` |
-| `nano-banana-fast` | `1:1`、`16:9`、`9:16`、`4:3`、`3:4` | `auto` | 必须为 `1` |
 
 为获得跨模型一致性，建议客户端默认始终发送：
 
@@ -147,11 +144,11 @@ curl --request POST \
   --header 'Content-Type: application/json' \
   --header 'Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000' \
   --data '{
-    "model": "nano-banana-2-lite",
+    "model": "nano-banana-2",
     "prompt": "一只戴着蓝色围巾的橘猫坐在窗边，柔和晨光，简洁背景",
     "n": 1,
     "size": "1:1",
-    "quality": "auto",
+    "quality": "2K",
     "response_format": "url"
   }'
 ```
@@ -418,11 +415,11 @@ session = requests.Session()
 session.headers.update({"Authorization": f"Bearer {API_TOKEN}"})
 
 payload = {
-    "model": "nano-banana-2-lite",
+    "model": "nano-banana-2",
     "prompt": "一只戴着蓝色围巾的橘猫坐在窗边，柔和晨光",
     "n": 1,
     "size": "1:1",
-    "quality": "auto",
+    "quality": "2K",
     "response_format": "url",
 }
 
@@ -500,11 +497,11 @@ const submitResponse = await fetch(`${baseUrl}/async/images/generations`, {
     'Idempotency-Key': randomUUID(),
   },
   body: JSON.stringify({
-    model: 'nano-banana-2-lite',
+    model: 'nano-banana-2',
     prompt: '一只戴着蓝色围巾的橘猫坐在窗边，柔和晨光',
     n: 1,
     size: '1:1',
-    quality: 'auto',
+    quality: '2K',
     response_format: 'url',
   }),
 })

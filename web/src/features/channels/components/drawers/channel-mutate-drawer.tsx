@@ -299,6 +299,10 @@ const SENSITIVE_FORM_FIELDS = [
   'allow_speed',
   'claude_beta_query',
   'disable_task_polling_sleep',
+  'upstream_cost_mode',
+  'upstream_cost_unit',
+  'upstream_cost_rate_cny',
+  'upstream_cost_price_version',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
@@ -344,6 +348,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
+    values.upstream_cost_rate_cny != null ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -748,6 +753,20 @@ export function ChannelMutateDrawer({
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
+  const currentUpstreamCostMode = form.watch('upstream_cost_mode')
+  const currentUpstreamCostRateCNY = form.watch('upstream_cost_rate_cny')
+  let upstreamCostModeDescription = t(
+    'Automatic mode uses an upstream-reported cost when available and otherwise records an estimate from gateway billing units.'
+  )
+  if (currentUpstreamCostMode === 'response_cost') {
+    upstreamCostModeDescription = t(
+      'Response-only mode marks requests as unpriced when the upstream does not return a cost.'
+    )
+  } else if (currentUpstreamCostMode === 'billing_units') {
+    upstreamCostModeDescription = t(
+      'Billing-unit mode estimates cost from the gateway price before the customer group multiplier.'
+    )
+  }
   const currentAsyncImageEnabled = form.watch('async_image_enabled')
   const currentProxy = form.watch('proxy')
   const currentSystemPrompt = form.watch('system_prompt')
@@ -1017,6 +1036,7 @@ export function ChannelMutateDrawer({
     currentThinkingToContent ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
+    currentUpstreamCostRateCNY != null ||
     currentAsyncImageEnabled ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
@@ -4079,6 +4099,162 @@ export function ChannelMutateDrawer({
                             disabled={sensitiveLocked}
                             className='space-y-4 disabled:opacity-60'
                           >
+                            <div className='grid gap-4 md:grid-cols-2'>
+                              <FormField
+                                control={form.control}
+                                name='upstream_cost_mode'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Upstream Cost Source')}
+                                    </FormLabel>
+                                    <Select
+                                      items={[
+                                        {
+                                          value: 'auto',
+                                          label: t(
+                                            'Automatic (prefer upstream response)'
+                                          ),
+                                        },
+                                        {
+                                          value: 'response_cost',
+                                          label: t(
+                                            'Upstream response cost only'
+                                          ),
+                                        },
+                                        {
+                                          value: 'billing_units',
+                                          label: t('Gateway billing units'),
+                                        },
+                                      ]}
+                                      value={field.value}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent
+                                        alignItemWithTrigger={false}
+                                      >
+                                        <SelectGroup>
+                                          <SelectItem value='auto'>
+                                            {t(
+                                              'Automatic (prefer upstream response)'
+                                            )}
+                                          </SelectItem>
+                                          <SelectItem value='response_cost'>
+                                            {t('Upstream response cost only')}
+                                          </SelectItem>
+                                          <SelectItem value='billing_units'>
+                                            {t('Gateway billing units')}
+                                          </SelectItem>
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                      {upstreamCostModeDescription}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='upstream_cost_unit'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Native Upstream Unit')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        maxLength={32}
+                                        placeholder='CREDIT'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Use the unit returned or sold by the upstream, such as USD, CNY, or CREDIT.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='upstream_cost_rate_cny'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('CNY Cost per Upstream Unit')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type='number'
+                                        min='0.000001'
+                                        max='1000000'
+                                        step='0.000001'
+                                        placeholder='0.495'
+                                        value={field.value ?? ''}
+                                        onBlur={field.onBlur}
+                                        onChange={(event) => {
+                                          const value =
+                                            event.currentTarget.valueAsNumber
+                                          field.onChange(
+                                            Number.isFinite(value)
+                                              ? value
+                                              : undefined
+                                          )
+                                        }}
+                                        name={field.name}
+                                        ref={field.ref}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        "Converts this channel's upstream cost to an admin-only CNY cost. It does not change user billing."
+                                      )}
+                                    </FormDescription>
+                                    <FormDescription>
+                                      {t(
+                                        'Example: enter 0.495 when 100 upstream units cost ¥49.5.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='upstream_cost_price_version'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('Price Version')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        maxLength={64}
+                                        placeholder='yunwu-2026-07'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Saved with each immutable cost snapshot for later reconciliation.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+
                             <div className='divide-border space-y-0 divide-y border-y'>
                               {currentType === 1 && (
                                 <FormField

@@ -100,6 +100,10 @@ export interface ChannelOtherSettings {
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
   openrouter_enterprise?: boolean
+  upstream_cost_mode?: 'auto' | 'response_cost' | 'billing_units'
+  upstream_cost_unit?: string
+  upstream_cost_rate_cny?: number
+  upstream_cost_price_version?: string
   aws_key_type?: 'ak_sk' | 'api_key'
   allow_service_tier?: boolean
   disable_store?: boolean

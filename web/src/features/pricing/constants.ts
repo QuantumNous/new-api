@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 import type { TokenUnit } from './types'
 
@@ -44,73 +44,33 @@ export function getSortLabels(t: TFunction): Record<SortOption, string> {
 /** Filter values */
 export const FILTER_ALL = 'all'
 
-/** Quota type options */
-export const QUOTA_TYPES = {
+/** User-facing model function categories */
+export const FUNCTION_TYPES = {
   ALL: 'all',
-  TOKEN: 'token',
-  REQUEST: 'request',
-} as const
-
-export type QuotaTypeOption = (typeof QUOTA_TYPES)[keyof typeof QUOTA_TYPES]
-
-/** Quota type labels */
-export function getQuotaTypeLabels(
-  t: TFunction
-): Record<QuotaTypeOption, string> {
-  return {
-    [QUOTA_TYPES.ALL]: t('All Models'),
-    [QUOTA_TYPES.TOKEN]: t('Token-based'),
-    [QUOTA_TYPES.REQUEST]: t('Per Request'),
-  }
-}
-
-/** Endpoint type options */
-export const ENDPOINT_TYPES = {
-  ALL: 'all',
-  OPENAI: 'openai',
-  OPENAI_RESPONSE: 'openai-response',
-  ANTHROPIC: 'anthropic',
-  GEMINI: 'gemini',
-  JINA_RERANK: 'jina-rerank',
-  IMAGE_GENERATION: 'image-generation',
+  CHAT: 'chat',
+  IMAGE_GENERATION: 'image_generation',
+  VIDEO_GENERATION: 'video_generation',
   EMBEDDINGS: 'embeddings',
-  OPENAI_VIDEO: 'openai-video',
+  RERANKING: 'reranking',
 } as const
 
-export type EndpointTypeOption =
-  (typeof ENDPOINT_TYPES)[keyof typeof ENDPOINT_TYPES]
+export type FunctionType = (typeof FUNCTION_TYPES)[keyof typeof FUNCTION_TYPES]
 
-/** Endpoint type labels */
-export function getEndpointTypeLabels(
+export function getFunctionTypeLabels(
   t: TFunction
-): Record<EndpointTypeOption, string> {
+): Record<FunctionType, string> {
   return {
-    [ENDPOINT_TYPES.ALL]: t('All Types'),
-    [ENDPOINT_TYPES.OPENAI]: 'Chat',
-    [ENDPOINT_TYPES.OPENAI_RESPONSE]: 'Response',
-    [ENDPOINT_TYPES.ANTHROPIC]: 'Anthropic',
-    [ENDPOINT_TYPES.GEMINI]: 'Gemini',
-    [ENDPOINT_TYPES.JINA_RERANK]: 'Rerank',
-    [ENDPOINT_TYPES.IMAGE_GENERATION]: t('Image'),
-    [ENDPOINT_TYPES.EMBEDDINGS]: t('Embeddings'),
-    [ENDPOINT_TYPES.OPENAI_VIDEO]: t('Video'),
+    [FUNCTION_TYPES.ALL]: t('All Functions'),
+    [FUNCTION_TYPES.CHAT]: t('Chat'),
+    [FUNCTION_TYPES.IMAGE_GENERATION]: t('Image Generation'),
+    [FUNCTION_TYPES.VIDEO_GENERATION]: t('Video Generation'),
+    [FUNCTION_TYPES.EMBEDDINGS]: t('Text Embeddings'),
+    [FUNCTION_TYPES.RERANKING]: t('Reranking'),
   }
 }
-
-/** Filter section keys */
-export const FILTER_SECTIONS = {
-  PRICING_TYPE: 'pricingType',
-  ENDPOINT_TYPE: 'endpointType',
-  VENDOR: 'vendor',
-  GROUP: 'group',
-  TAG: 'tag',
-} as const
 
 /** Maximum number of tags to display in model row */
 export const MAX_TAGS_DISPLAY = 5
-
-/** Maximum number of filter items to display before showing "More..." */
-export const MAX_FILTER_ITEMS = 5
 
 /** Sidebar width */
 export const SIDEBAR_WIDTH = 'w-64'

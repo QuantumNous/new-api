@@ -169,18 +169,26 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
 	}
 
-	if info.RelayFormat == types.RelayFormatOpenAI {
-		if shouldSendLastResp {
-			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
-		}
-	}
-
 	if !containStreamUsage {
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
 	}
 
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
+	service.AttachResponseBilling(c, info, usage)
+
+	if info.RelayFormat == types.RelayFormatOpenAI && shouldSendLastResp {
+		if containStreamUsage && usage.Billing != nil {
+			enrichedData, err := addBillingToUsageJSON(common.StringToByteSlice(lastStreamData), usage.Billing)
+			if err != nil {
+				logger.LogError(c, "failed to add billing to stream usage: "+err.Error())
+				containStreamUsage = false
+			} else {
+				lastStreamData = string(enrichedData)
+			}
+		}
+		_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+	}
 
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
@@ -251,6 +259,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
+	service.AttachResponseBilling(c, info, &simpleResponse.Usage)
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
@@ -262,6 +271,11 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			}
 			bodyMap["usage"] = simpleResponse.Usage
 			responseBody, _ = common.Marshal(bodyMap)
+		} else if simpleResponse.Usage.Billing != nil {
+			responseBody, err = addBillingToUsageJSON(responseBody, simpleResponse.Usage.Billing)
+			if err != nil {
+				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			}
 		}
 		if forceFormat {
 			responseBody, err = common.Marshal(simpleResponse)

@@ -122,6 +122,43 @@ func GetLogsStat(c *gin.Context) {
 	return
 }
 
+func GetUpstreamCostStat(c *gin.Context) {
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	modelName := c.Query("model_name")
+	username := c.Query("username")
+	tokenName := c.Query("token_name")
+	group := c.Query("group")
+	requestId := c.Query("request_id")
+	upstreamRequestId := c.Query("upstream_request_id")
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	var stat model.UpstreamCostStat
+	if logType == model.LogTypeUnknown || logType == model.LogTypeConsume {
+		var err error
+		stat, err = model.GetUpstreamCostStat(
+			startTimestamp,
+			endTimestamp,
+			modelName,
+			username,
+			tokenName,
+			group,
+			requestId,
+			upstreamRequestId,
+			channel,
+		)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    stat,
+	})
+}
+
 func GetLogsSelfStat(c *gin.Context) {
 	username := c.GetString("username")
 	logType, _ := strconv.Atoi(c.Query("type"))

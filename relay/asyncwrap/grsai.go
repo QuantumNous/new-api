@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 )
 
 const grsaiSynchronousImagePath = "/v1/api/generate"
@@ -71,9 +72,8 @@ func (e *GRSAIExecutor) prepareRequest(request dto.ImageRequest, _ []byte) (sync
 		ReplyType:   "json",
 	}
 	normalizedModel := strings.ToLower(strings.TrimSpace(request.Model))
-	if strings.HasPrefix(normalizedModel, "nano-banana") &&
-		normalizedModel != "nano-banana-2-lite" &&
-		normalizedModel != "nano-banana-fast" {
+	capabilities := model_setting.GetImageGenerationCapabilities(normalizedModel)
+	if capabilities != nil && capabilities.ResolutionParameter == model_setting.ImageResolutionParameterQuality {
 		payload.ImageSize, err = grsaiImageSize(request.Quality)
 		if err != nil {
 			return synchronousImageRequest{}, err

@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronDown, RotateCcw } from 'lucide-react'
+import { ArrowDown01Icon, Refresh01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,21 +31,18 @@ import {
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
+import { FILTER_ALL, FUNCTION_TYPES, getFunctionTypeLabels } from '../constants'
 import {
-  ENDPOINT_TYPES,
-  FILTER_ALL,
-  QUOTA_TYPES,
-  getEndpointTypeLabels,
-  getQuotaTypeLabels,
-} from '../constants'
-import { parseTags } from '../lib/filters'
+  filterByFunction,
+  filterByVendor,
+  modelSupportsFunction,
+} from '../lib/filters'
 import type { PricingModel, PricingVendor } from '../types'
 
 type FilterOption = {
   value: string
   label: string
   count?: number
-  suffix?: string
   icon?: ReactNode
 }
 
@@ -52,24 +50,15 @@ type FilterSectionProps = {
   title: string
   value: string
   options: FilterOption[]
-  onChange: (value: string) => void
+  onChange?: (value: string) => void
 }
 
 export interface PricingSidebarProps {
-  quotaTypeFilter: string
-  endpointTypeFilter: string
   vendorFilter: string
-  groupFilter: string
-  tagFilter: string
-  onQuotaTypeChange: (value: string) => void
-  onEndpointTypeChange: (value: string) => void
+  functionFilter: string
   onVendorChange: (value: string) => void
-  onGroupChange: (value: string) => void
-  onTagChange: (value: string) => void
+  onFunctionChange: (value: string) => void
   vendors: PricingVendor[]
-  groups: string[]
-  groupRatios?: Record<string, number>
-  tags: string[]
   models: PricingModel[]
   hasActiveFilters: boolean
   onClearFilters: () => void
@@ -83,23 +72,17 @@ function countBy(
   return models.reduce((count, model) => count + (predicate(model) ? 1 : 0), 0)
 }
 
-function formatGroupRatio(ratio: number | undefined): string | undefined {
-  if (ratio == null) return undefined
-  const formatted = Number.isInteger(ratio)
-    ? ratio.toString()
-    : ratio.toFixed(3).replace(/0+$/, '').replace(/\.$/, '')
-  return `x${formatted}`
-}
-
 function FilterChip(props: {
   option: FilterOption
   active: boolean
-  onClick: () => void
+  onClick?: () => void
 }) {
   return (
     <button
       type='button'
       onClick={props.onClick}
+      disabled={!props.onClick}
+      aria-pressed={props.active}
       className={cn(
         'group inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-all',
         props.active
@@ -112,17 +95,18 @@ function FilterChip(props: {
         <span className='shrink-0'>{props.option.icon}</span>
       )}
       <span className='truncate'>{props.option.label}</span>
-      {(props.option.suffix || props.option.count != null) && (
-        <span
+      {props.option.count != null && (
+        <Badge
+          variant='secondary'
           className={cn(
-            'rounded-md px-1.5 py-0.5 text-[12px]',
+            'h-5 min-w-5 justify-center rounded-md px-1.5 text-[12px]',
             props.active
               ? 'bg-background text-foreground'
               : 'bg-muted text-muted-foreground'
           )}
         >
-          {props.option.suffix ?? props.option.count}
-        </span>
+          {props.option.count}
+        </Badge>
       )}
     </button>
   )
@@ -138,7 +122,12 @@ function FilterSection(props: FilterSectionProps) {
         <span className='text-foreground text-sm font-semibold'>
           {props.title}
         </span>
-        <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180' />
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180'
+          strokeWidth={2}
+          aria-hidden
+        />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className='flex flex-wrap gap-1.5'>
@@ -147,7 +136,11 @@ function FilterSection(props: FilterSectionProps) {
               key={option.value}
               option={option}
               active={props.value === option.value}
-              onClick={() => props.onChange(option.value)}
+              onClick={
+                props.onChange
+                  ? () => props.onChange?.(option.value)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -158,91 +151,64 @@ function FilterSection(props: FilterSectionProps) {
 
 export function PricingSidebar(props: PricingSidebarProps) {
   const { t } = useTranslation()
-  const quotaTypeLabels = getQuotaTypeLabels(t)
-  const endpointTypeLabels = getEndpointTypeLabels(t)
+  const functionTypeLabels = getFunctionTypeLabels(t)
+  const modelsMatchingFunction = filterByFunction(
+    props.models,
+    props.functionFilter
+  )
+  const modelsMatchingVendor = filterByVendor(props.models, props.vendorFilter)
+  const matchingModels = filterByFunction(
+    modelsMatchingVendor,
+    props.functionFilter
+  )
 
   const vendorOptions: FilterOption[] = [
     {
       value: FILTER_ALL,
-      label: t('All Vendors'),
-      count: props.models.length,
+      label: t('All Model Vendors'),
+      count: modelsMatchingFunction.length,
     },
     ...props.vendors
       .map((vendor) => ({
         value: vendor.name,
         label: vendor.name,
         count: countBy(
-          props.models,
+          modelsMatchingFunction,
           (model) => model.vendor_name === vendor.name
         ),
         icon: vendor.icon ? getLobeIcon(vendor.icon, 14) : undefined,
       }))
-      .filter((vendor) => vendor.count > 0),
+      .filter(
+        (vendor) => vendor.count > 0 || vendor.value === props.vendorFilter
+      ),
   ]
 
   const groupOptions: FilterOption[] = [
     {
       value: FILTER_ALL,
-      label: t('All Groups'),
-    },
-    ...props.groups.map((group) => ({
-      value: group,
-      label: group,
-      suffix: formatGroupRatio(props.groupRatios?.[group]),
-    })),
-  ]
-
-  const quotaOptions: FilterOption[] = [
-    {
-      value: QUOTA_TYPES.ALL,
-      label: quotaTypeLabels[QUOTA_TYPES.ALL],
-      count: props.models.length,
-    },
-    {
-      value: QUOTA_TYPES.TOKEN,
-      label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
-      count: countBy(props.models, (model) => model.quota_type === 0),
-    },
-    {
-      value: QUOTA_TYPES.REQUEST,
-      label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
-      count: countBy(props.models, (model) => model.quota_type === 1),
+      label: t('Default Group'),
+      count: matchingModels.length,
     },
   ]
 
-  const tagOptions: FilterOption[] = [
+  const functionOptions: FilterOption[] = [
     {
-      value: FILTER_ALL,
-      label: t('All Tags'),
-      count: props.models.length,
+      value: FUNCTION_TYPES.ALL,
+      label: functionTypeLabels[FUNCTION_TYPES.ALL],
+      count: modelsMatchingVendor.length,
     },
-    ...props.tags.map((tag) => ({
-      value: tag,
-      label: tag,
-      count: countBy(props.models, (model) =>
-        parseTags(model.tags)
-          .map((item) => item.toLowerCase())
-          .includes(tag.toLowerCase())
-      ),
-    })),
-  ]
-
-  const endpointOptions: FilterOption[] = [
-    {
-      value: ENDPOINT_TYPES.ALL,
-      label: endpointTypeLabels[ENDPOINT_TYPES.ALL],
-      count: props.models.length,
-    },
-    ...Object.entries(endpointTypeLabels)
-      .filter(([value]) => value !== ENDPOINT_TYPES.ALL)
+    ...Object.entries(functionTypeLabels)
+      .filter(([value]) => value !== FUNCTION_TYPES.ALL)
       .map(([value, label]) => ({
         value,
         label,
-        count: countBy(
-          props.models,
-          (model) => model.supported_endpoint_types?.includes(value) ?? false
+        count: countBy(modelsMatchingVendor, (model) =>
+          modelSupportsFunction(model, value)
         ),
-      })),
+      }))
+      .filter(
+        (option) => option.count > 0 || option.value === props.functionFilter
+      ),
   ]
 
   return (
@@ -251,7 +217,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
         <div>
           <h2 className='text-foreground text-sm font-bold'>{t('Filter')}</h2>
           <p className='text-muted-foreground mt-1 text-xs'>
-            {t('Refine models by provider, group, type, and tags.')}
+            {t('Filter models by model vendor and function category.')}
           </p>
         </div>
         <Button
@@ -262,7 +228,12 @@ export function PricingSidebar(props: PricingSidebarProps) {
           disabled={!props.hasActiveFilters}
           className='h-7 gap-1.5 px-2 text-xs'
         >
-          <RotateCcw className='size-3.5' />
+          <HugeiconsIcon
+            icon={Refresh01Icon}
+            data-icon='inline-start'
+            strokeWidth={2}
+            aria-hidden
+          />
           {t('Reset')}
         </Button>
       </div>
@@ -276,33 +247,20 @@ export function PricingSidebar(props: PricingSidebarProps) {
       <div className='space-y-1'>
         <FilterSection
           title={t('Groups')}
-          value={props.groupFilter}
+          value={FILTER_ALL}
           options={groupOptions}
-          onChange={props.onGroupChange}
         />
         <FilterSection
-          title={t('All Vendors')}
+          title={t('Model Vendors')}
           value={props.vendorFilter}
           options={vendorOptions}
           onChange={props.onVendorChange}
         />
         <FilterSection
-          title={t('Model Tags')}
-          value={props.tagFilter}
-          options={tagOptions}
-          onChange={props.onTagChange}
-        />
-        <FilterSection
-          title={t('Pricing Type')}
-          value={props.quotaTypeFilter}
-          options={quotaOptions}
-          onChange={props.onQuotaTypeChange}
-        />
-        <FilterSection
-          title={t('Endpoint Type')}
-          value={props.endpointTypeFilter}
-          options={endpointOptions}
-          onChange={props.onEndpointTypeChange}
+          title={t('Function Categories')}
+          value={props.functionFilter}
+          options={functionOptions}
+          onChange={props.onFunctionChange}
         />
       </div>
     </aside>

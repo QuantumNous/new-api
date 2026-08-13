@@ -106,6 +106,9 @@ func (w *AsyncWorker) Run(ctx context.Context) error {
 	if _, err := model.ReconcileAsyncBilling(ctx, w.Concurrency*4); err != nil {
 		common.SysError("initial async billing reconciliation failed: " + err.Error())
 	}
+	if _, err := ReconcileAsyncUpstreamCosts(ctx, w.Concurrency*4); err != nil {
+		common.SysError("initial async upstream cost reconciliation failed: " + err.Error())
+	}
 	if _, err := CleanupExpiredAsyncArtifacts(ctx, w.Store, 100); err != nil {
 		common.SysError("initial async artifact cleanup failed: " + err.Error())
 	}
@@ -121,6 +124,9 @@ func (w *AsyncWorker) Run(ctx context.Context) error {
 			}
 			if _, err := model.ReconcileAsyncBilling(ctx, w.Concurrency*4); err != nil && !errors.Is(err, context.Canceled) {
 				common.SysError("async billing reconciliation failed: " + err.Error())
+			}
+			if _, err := ReconcileAsyncUpstreamCosts(ctx, w.Concurrency*4); err != nil && !errors.Is(err, context.Canceled) {
+				common.SysError("async upstream cost reconciliation failed: " + err.Error())
 			}
 		case <-cleanupTicker.C:
 			if _, err := CleanupExpiredAsyncArtifacts(ctx, w.Store, 100); err != nil && !errors.Is(err, context.Canceled) {
@@ -224,7 +230,7 @@ func (w *AsyncWorker) process(parent context.Context, job *model.AsyncJob) {
 		if refundable {
 			_, err = model.RefundAsyncJobBilling(context.Background(), job.ID)
 		} else {
-			_, err = model.SettleAsyncJobBilling(context.Background(), job.ID)
+			err = settleAsyncJobBilling(context.Background(), job)
 		}
 		if err != nil {
 			common.SysError(fmt.Sprintf("finalize async billing for job %d: %v", job.ID, err))
@@ -299,7 +305,7 @@ func (w *AsyncWorker) process(parent context.Context, job *model.AsyncJob) {
 			return
 		}
 		if changed {
-			if _, err := model.SettleAsyncJobBilling(context.Background(), job.ID); err != nil {
+			if err := settleAsyncJobBilling(context.Background(), job); err != nil {
 				common.SysError(fmt.Sprintf("settle async job %d: %v", job.ID, err))
 			}
 		}
@@ -310,7 +316,7 @@ func (w *AsyncWorker) process(parent context.Context, job *model.AsyncJob) {
 			return
 		}
 		if changed {
-			if _, err := model.SettleAsyncJobBilling(context.Background(), job.ID); err != nil {
+			if err := settleAsyncJobBilling(context.Background(), job); err != nil {
 				common.SysError(fmt.Sprintf("settle uncertain async job %d: %v", job.ID, err))
 			}
 		}
@@ -319,6 +325,25 @@ func (w *AsyncWorker) process(parent context.Context, job *model.AsyncJob) {
 	default:
 		fail("executor", "invalid_executor_outcome", "synchronous image executor returned an invalid state", false)
 	}
+}
+
+func settleAsyncJobBilling(ctx context.Context, job *model.AsyncJob) error {
+	if job == nil {
+		return errors.New("async job is required")
+	}
+	settled, err := model.SettleAsyncJobBilling(ctx, job.ID)
+	if err != nil || !settled {
+		return err
+	}
+	channel, err := model.GetChannelById(job.ChannelID, false)
+	if err != nil {
+		return err
+	}
+	if channel == nil {
+		return fmt.Errorf("async channel %d not found after settlement", job.ChannelID)
+	}
+	LogAsyncTaskSettlement(job, channel)
+	return nil
 }
 
 func (w *AsyncWorker) renewLease(ctx context.Context, cancel context.CancelFunc, jobID int64, done <-chan struct{}) {

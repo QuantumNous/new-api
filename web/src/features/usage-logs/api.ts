@@ -24,6 +24,7 @@ import type {
   GetLogsResponse,
   GetLogStatsParams,
   GetLogStatsResponse,
+  GetUpstreamCostStatsResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   AsyncTaskDetail,
@@ -84,6 +85,16 @@ export const getLogStats = (params: GetLogStatsParams = {}) =>
 export const getUserLogStats = (
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
 ) => fetchLogStats('/api/log', params, false)
+
+export async function getUpstreamCostStats(
+  params: GetLogStatsParams = {}
+): Promise<GetUpstreamCostStatsResponse> {
+  const queryParams = buildQueryParams(
+    params as unknown as Record<string, unknown>
+  )
+  const res = await api.get(`/api/log/upstream-cost/stat?${queryParams}`)
+  return res.data
+}
 
 export async function getUserInfo(
   userId: number

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -1047,6 +1049,30 @@ func (channel *Channel) ValidateSettings() error {
 		if err := channelOtherSettings.AdvancedCustom.Validate(); err != nil {
 			return err
 		}
+	}
+	if rate := channelOtherSettings.UpstreamCostRateCNY; rate != nil {
+		if *rate <= 0 ||
+			math.IsNaN(*rate) ||
+			math.IsInf(*rate, 0) ||
+			*rate > dto.MaxUpstreamCostRateCNY {
+			return fmt.Errorf("upstream_cost_rate_cny must be greater than 0 and no more than %d", dto.MaxUpstreamCostRateCNY)
+		}
+	}
+	switch channelOtherSettings.UpstreamCostMode {
+	case "", dto.UpstreamCostModeAuto, dto.UpstreamCostModeResponseCost, dto.UpstreamCostModeBillingUnits:
+	default:
+		return fmt.Errorf("unsupported upstream_cost_mode: %s", channelOtherSettings.UpstreamCostMode)
+	}
+	if channelOtherSettings.UpstreamCostMode != "" && channelOtherSettings.UpstreamCostRateCNY == nil {
+		return fmt.Errorf("upstream_cost_rate_cny is required when upstream cost tracking is enabled")
+	}
+	unit := strings.TrimSpace(channelOtherSettings.UpstreamCostUnit)
+	if len(unit) > dto.MaxUpstreamCostUnitLength || strings.IndexFunc(unit, unicode.IsControl) >= 0 {
+		return fmt.Errorf("upstream_cost_unit must not exceed %d characters or contain control characters", dto.MaxUpstreamCostUnitLength)
+	}
+	priceVersion := strings.TrimSpace(channelOtherSettings.UpstreamCostPriceVersion)
+	if len(priceVersion) > dto.MaxUpstreamPriceVersionSize || strings.IndexFunc(priceVersion, unicode.IsControl) >= 0 {
+		return fmt.Errorf("upstream_cost_price_version must not exceed %d characters or contain control characters", dto.MaxUpstreamPriceVersionSize)
 	}
 	if channel.Type == constant.ChannelTypeAdvancedCustom && channelOtherSettings.UpstreamModelUpdateCheckEnabled {
 		if _, ok := channelOtherSettings.AdvancedCustom.ModelListRoute(); !ok {

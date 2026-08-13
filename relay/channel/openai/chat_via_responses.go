@@ -59,6 +59,8 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		chatResp.Usage = *usage
 	}
+	service.AttachResponseBilling(c, info, usage)
+	chatResp.Usage.Billing = usage.Billing
 
 	responseValue := any(chatResp)
 	if info.RelayFormat != types.RelayFormatOpenAI {
@@ -167,6 +169,8 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 		usage = service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
 		chatResp.Usage = *usage
 	}
+	service.AttachResponseBilling(c, info, usage)
+	chatResp.Usage.Billing = usage.Billing
 
 	responseValue := any(chatResp)
 	if info.RelayFormat != types.RelayFormatOpenAI {
@@ -316,6 +320,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		usage = service.ResponseText2Usage(c, state.UsageText(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		state.SetUsage(usage)
 	}
+	service.AttachResponseBilling(c, info, usage)
 
 	if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil {
 		info.ClaudeConvertInfo.Usage = usage

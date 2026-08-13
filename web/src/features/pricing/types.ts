@@ -27,6 +27,20 @@ export type PricingVendor = {
   description?: string
 }
 
+export type PricingEndpoint = {
+  path?: string
+  method?: string
+}
+
+export type ImageGenerationCapabilities = {
+  resolutions: string[]
+  resolution_parameter: 'quality' | 'size'
+  sizes: string[]
+  default_resolution: string
+  default_size: string
+  resolution_price_multipliers: Record<string, number>
+}
+
 export type PricingModel = {
   id: number
   model_name: string
@@ -56,6 +70,8 @@ export type PricingModel = {
   billing_expr?: string
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
+  /** Upstream-backed image output presets exposed by the public async API. */
+  image_generation?: ImageGenerationCapabilities
   /**
    * Optional model metadata fields reserved for backend-provided catalog data.
    * Keep them data-driven; do not synthesize display values on the client.
@@ -95,7 +111,7 @@ export type PricingData = {
   vendors: PricingVendor[]
   group_ratio: Record<string, number>
   usable_group: Record<string, { desc: string; ratio: number }>
-  supported_endpoint: Record<string, string>
+  supported_endpoint: Record<string, PricingEndpoint>
   auto_groups: string[]
 }
 

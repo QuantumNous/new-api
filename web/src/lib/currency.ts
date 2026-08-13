@@ -615,3 +615,22 @@ export function formatLocalCurrencyAmount(
 
   return formatCurrencyValue(amount, merged, meta)
 }
+
+/**
+ * Format an amount that is already denominated in Chinese yuan.
+ */
+export function formatCNYAmount(
+  amount: number | null | undefined,
+  options?: CurrencyFormatOptions
+): string {
+  if (amount == null || Number.isNaN(amount)) return '-'
+
+  const merged = mergeOptions(options)
+  const meta: DisplayMeta = {
+    kind: 'currency',
+    symbol: '¥',
+    currencyCode: 'CNY',
+    exchangeRate: 1,
+  }
+  return formatCurrencyValue(amount, merged, meta)
+}

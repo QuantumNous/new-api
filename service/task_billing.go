@@ -51,6 +51,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = info.UpstreamModelName
 	}
+	AttachUpstreamCost(info, info.PriceData.Quota, other)
 	attachQuotaSaturation(c, info, other)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
@@ -150,6 +151,62 @@ func taskBillingContextPriceData(bc *model.TaskBillingContext) *types.PriceData 
 		return nil
 	}
 	return priceData
+}
+
+// LogAsyncTaskSettlement writes the consume log and immutable upstream-cost
+// snapshot for an async attempt whose reserved quota was committed.
+func LogAsyncTaskSettlement(job *model.AsyncJob, channel *model.Channel) {
+	if job == nil || channel == nil || job.Task.ID == 0 {
+		return
+	}
+	task := &job.Task
+	other := taskBillingOther(task)
+	other["task_id"] = task.TaskID
+	other["is_async"] = true
+	other["async_execution_status"] = job.ExecutionStatus
+	relayInfo := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:            channel.Id,
+			ChannelType:          channel.Type,
+			ChannelOtherSettings: channel.GetOtherSettings(),
+		},
+	}
+	AttachUpstreamCost(relayInfo, task.Quota, other)
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:    task.UserId,
+		LogType:   model.LogTypeConsume,
+		Content:   "异步任务结算",
+		ChannelId: task.ChannelId,
+		ModelName: taskModelName(task),
+		Quota:     task.Quota,
+		TokenId:   task.PrivateData.TokenId,
+		Group:     task.Group,
+		RequestId: job.BillingRequestID,
+		Other:     other,
+		NodeName:  task.PrivateData.NodeName,
+	})
+}
+
+// ReconcileAsyncUpstreamCosts backfills the cost ledger if a process stopped
+// after committing async billing but before recording its consume log.
+func ReconcileAsyncUpstreamCosts(ctx context.Context, limit int) (int, error) {
+	jobs, err := model.ListSettledAsyncJobsMissingUpstreamCost(ctx, limit)
+	if err != nil {
+		return 0, err
+	}
+	processed := 0
+	for i := range jobs {
+		channel, err := model.GetChannelById(jobs[i].ChannelID, false)
+		if err != nil {
+			return processed, err
+		}
+		if channel == nil {
+			continue
+		}
+		LogAsyncTaskSettlement(&jobs[i], channel)
+		processed++
+	}
+	return processed, nil
 }
 
 // taskModelName 从 BillingContext 或 Properties 中获取模型名称。

@@ -59,7 +59,7 @@ import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Label } from '@/components/ui/label'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { formatBillingCurrencyFromUSD, formatCNYAmount } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -391,6 +391,78 @@ function BillingBreakdown(props: {
     label: t('Total Cost'),
     value: formatLogQuota(log.quota),
   })
+  const upstreamCost = isAdmin ? other.admin_info?.upstream_cost : undefined
+  if (upstreamCost) {
+    if (upstreamCost.status === 'unpriced') {
+      rows.push({
+        label: t('Upstream Cost'),
+        value: t('Unpriced'),
+      })
+      if (upstreamCost.reason) {
+        rows.push({
+          label: t('Unpriced Reason'),
+          value: upstreamCost.reason,
+        })
+      }
+    } else {
+      const amountCNY = Number.isFinite(upstreamCost.amount_cny_micros)
+        ? Number(upstreamCost.amount_cny_micros) / 1_000_000
+        : upstreamCost.amount_cny
+      if (Number.isFinite(amountCNY)) {
+        rows.push({
+          label: t('Upstream Cost'),
+          value: formatCNYAmount(amountCNY, priceOpts),
+        })
+      }
+    }
+
+    let nativeAmount = upstreamCost.native_amount_decimal || ''
+    if (!nativeAmount && Number.isFinite(upstreamCost.native_amount)) {
+      nativeAmount = String(upstreamCost.native_amount)
+    } else if (!nativeAmount && Number.isFinite(upstreamCost.units)) {
+      nativeAmount = String(upstreamCost.units)
+    }
+    if (nativeAmount) {
+      rows.push({
+        label: t('Native Upstream Cost'),
+        value: `${nativeAmount} ${upstreamCost.native_unit || 'UNIT'}`,
+      })
+    }
+
+    const rate =
+      upstreamCost.rate_cny_per_unit_decimal ||
+      (Number.isFinite(upstreamCost.rate_cny_per_unit)
+        ? String(upstreamCost.rate_cny_per_unit)
+        : '')
+    if (rate) {
+      rows.push({
+        label: t('CNY Cost per Upstream Unit'),
+        value: `${formatCNYAmount(Number(rate), priceOpts)} / ${upstreamCost.native_unit || 'UNIT'}`,
+      })
+    }
+
+    if (upstreamCost.source) {
+      rows.push({
+        label: t('Upstream Cost Source'),
+        value:
+          upstreamCost.source === 'response_cost'
+            ? t('Upstream response cost')
+            : t('Gateway billing units'),
+      })
+    }
+    if (upstreamCost.status !== 'unpriced') {
+      rows.push({
+        label: t('Cost Quality'),
+        value: upstreamCost.estimated ? t('Estimated') : t('Authoritative'),
+      })
+    }
+    if (upstreamCost.price_version) {
+      rows.push({
+        label: t('Price Version'),
+        value: upstreamCost.price_version,
+      })
+    }
+  }
 
   if (rows.length === 0) return null
 

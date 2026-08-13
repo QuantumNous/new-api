@@ -94,6 +94,26 @@ func TestGRSAILiteModelUsesProviderDefaultResolution(t *testing.T) {
 	assert.Equal(t, model.AsyncStatusSuccess, outcome.Status)
 }
 
+func TestGRSAIGPTImageVIPForwardsExplicitSizeWithoutQuality(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		body, err := io.ReadAll(request.Body)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{
+			"model":"gpt-image-2-vip",
+			"prompt":"draw",
+			"aspectRatio":"3840x2160",
+			"replyType":"json"
+		}`, string(body))
+		_, _ = writer.Write([]byte(`{"status":"succeeded","results":[{"url":"https://example.com/result.png"}]}`))
+	}))
+	defer server.Close()
+
+	executor, err := NewGRSAIExecutor(server.URL, "test-placeholder-key", time.Second)
+	require.NoError(t, err)
+	outcome := executor.Execute(context.Background(), []byte(`{"model":"gpt-image-2-vip","prompt":"draw","size":"3840x2160","n":1}`), func() error { return nil })
+	assert.Equal(t, model.AsyncStatusSuccess, outcome.Status)
+}
+
 func TestGRSAISynchronousImageEndpointRejectsUnapprovedPaths(t *testing.T) {
 	endpoint, err := grsaiSynchronousImageEndpoint("https://grsaiapi.com/v1")
 	require.NoError(t, err)
