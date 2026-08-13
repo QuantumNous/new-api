@@ -7,14 +7,15 @@ on:
 
 permissions:
   contents: read
-  id-token: write
-  pull-requests: write
 
 defaults:
   run:
     working-directory: deploy/gcp/envs/prod
 
 jobs:
+  # Keep the job id `plan` so existing branch-protection checks remain stable.
+  # Production plan/apply require local Owner ADC and are intentionally not
+  # available from GitHub Actions.
   plan:
     runs-on: ubuntu-latest
     steps:
@@ -25,68 +26,16 @@ jobs:
           terraform_version: "1.9.8"
           terraform_wrapper: false
 
-      - name: Auth to GCP via WIF
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-
       - name: Terraform fmt
         run: terraform fmt -check -recursive ../..
 
-      - name: Terraform init
-        run: terraform init -input=false
+      - name: Terraform init (no production backend)
+        run: terraform init -backend=false -input=false
 
       - name: Terraform validate
         run: terraform validate
 
-      - name: Terraform plan
-        id: plan
+      - name: Record local-only execution policy
         run: |
-          set -o pipefail
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "Pull-request plan uses -refresh=false because the CI deployer service account cannot refresh all production GCP resources." | tee plan.txt
-            terraform plan -refresh=false -input=false -no-color -out=tfplan | tee -a plan.txt
-          else
-            terraform plan -input=false -no-color -out=tfplan | tee plan.txt
-          fi
-
-      - name: Comment plan on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('deploy/gcp/envs/prod/plan.txt', 'utf8');
-            const truncated = plan.length > 60000 ? plan.slice(0, 60000) + '\n... (truncated)' : plan;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: '### Terraform plan\n```\n' + truncated + '\n```',
-            });
-
-  apply:
-    if: github.event_name == 'workflow_dispatch'
-    needs: plan
-    runs-on: ubuntu-latest
-    environment: production    # manual approval before infra changes hit prod
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.9.8"
-          terraform_wrapper: false
-
-      - name: Auth to GCP via WIF
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
-          service_account: ${{ vars.GCP_DEPLOYER_SA }}
-
-      - name: Terraform init
-        run: terraform init -input=false
-
-      - name: Terraform apply
-        run: terraform apply -input=false -auto-approve
+          echo "GitHub Actions performs static Terraform validation only."
+          echo "Run refreshing production plan/apply locally with Owner ADC and review OPERATIONS.md first."

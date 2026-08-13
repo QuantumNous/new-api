@@ -121,7 +121,23 @@ First-time setup runbook: `DEPLOYMENT.md` → "用量对账 token（`BLOCKRUN_US
 
 ---
 
-## `gcp-infra.yml` apply currently does not work (IAM gap)
+## Terraform production plan/apply is local-only
+
+GitHub Actions intentionally performs static Terraform validation only:
+
+- `terraform fmt -check`
+- `terraform init -backend=false`
+- `terraform validate`
+
+It does not authenticate to GCP, read production state, run `terraform plan`,
+or expose a production `terraform apply` job. Production plan/apply must run
+locally with Owner ADC after reading this guide. Always run a refreshing plan;
+never treat GitHub validation as evidence that live drift is safe to apply.
+
+The workflow job id remains `plan` only to preserve existing branch-protection
+check names.
+
+### Historical CI IAM gap
 
 **Symptom**: `workflow_dispatch` on `gcp-infra.yml` fails at the very first `terraform apply` step with errors like:
 
