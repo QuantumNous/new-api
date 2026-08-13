@@ -35,6 +35,11 @@ func (i *IntValue) UnmarshalJSON(b []byte) error {
 		*i = IntValue(n)
 		return nil
 	}
+	var f float64
+	if err := json.Unmarshal(b, &f); err == nil {
+		*i = IntValue(int(f))
+		return nil
+	}
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
 		return err
