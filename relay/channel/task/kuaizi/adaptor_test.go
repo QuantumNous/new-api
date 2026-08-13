@@ -763,34 +763,69 @@ func TestKuaiziEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.
 	}
 }
 
-// A length or tier that cannot be determined must never be guessed: capture is
-// skipped and the request keeps its per-call price.
+// unpriceableRequests are the request shapes this channel cannot price. Duration
+// -1 explicitly hands the length to the model, and an omitted duration or
+// resolution has no documented upstream default for this channel — so both are
+// unknowable rather than defaultable. frames is unknowable too: it sets the
+// length in frames at a per-model fps the gateway does not know, and this channel
+// does not even forward it.
 //
-// Duration -1 explicitly hands the length to the model, and an omitted duration
-// or resolution has no documented upstream default for this channel — so both
-// are unknowable rather than defaultable. frames is unknowable too: it sets the
-// length in frames at a per-model fps the gateway does not know.
-func TestKuaiziEstimateBillingUndeterminableRequestIsNotCaptured(t *testing.T) {
+// What happens to them depends entirely on whether the model is configured for
+// per-second billing, which is why the two tests below share this list.
+var unpriceableRequests = []struct {
+	name string
+	body string
+}{
+	{"duration omitted", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p"}`},
+	{"duration -1 is model-chosen", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p","duration":-1}`},
+	{"duration 0", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p","duration":0}`},
+	{"frames instead of duration", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p","frames":120}`},
+	{"frames alongside duration", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p","duration":5,"frames":120}`},
+	{"resolution omitted", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"duration":5}`},
+}
+
+// A configured model returns nil from EstimateBilling — this channel has no
+// legacy ratios at all — so per-second is the whole price. When the request
+// cannot be priced, returning no ratios therefore bills the bare ModelPrice with
+// no seconds multiplier, charging a 30-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing.
+func TestKuaiziEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	installKuaiziVideoPriceRules(t, `[
 		{"model":"kuaizi-lizhen-fast","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
 	]`)
 
-	for _, tc := range []struct {
-		name string
-		body string
-	}{
-		{"duration omitted", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p"}`},
-		{"duration -1 is model-chosen", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p","duration":-1}`},
-		{"duration 0", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p","duration":0}`},
-		{"frames instead of duration", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"resolution":"720p","frames":120}`},
-		{"resolution omitted", `{"model":"kuaizi-lizhen-fast","content":[{"type":"text","text":"猫"}],"duration":5}`},
-	} {
+	for _, tc := range unpriceableRequests {
 		t.Run(tc.name, func(t *testing.T) {
 			a, c, info := newKuaiziBillingRequest(t, tc.body, "kuaizi-lizhen-fast", 0.5)
-			a.EstimateBilling(c, info)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("kuaizi has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model is untouched by all of this. It has no
+// per-second price to fail to compute, so the same shapes must stay silently on
+// the per-call path exactly as they do today — failing them would reject requests
+// this gateway has always accepted.
+func TestKuaiziEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installKuaiziVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range unpriceableRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newKuaiziBillingRequest(t, tc.body, "kuaizi-lizhen-fast", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("kuaizi has no legacy ratios; got %v", ratios)
+			}
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("an undeterminable request must stay on the per-call path, got error: %v", err)
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("priced off an undeterminable request: %v", got)

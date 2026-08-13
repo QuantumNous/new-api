@@ -132,6 +132,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -143,6 +151,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -184,6 +195,32 @@ func resolveDimensions(resolution string, hasVideo bool) (map[string]string, boo
 	}, true
 }
 
+// billableSeconds reports the output length this channel will be charged for. It
+// layers one channel-specific refusal on top of taskcommon.SeedanceBillableSeconds:
+// an omitted duration. That helper defaults an absent duration to 5s, which is
+// the Ark seedance family's documented default — this upstream documents a 4–15
+// range and no default at all, so adopting another vendor's number would price
+// the request off a guess.
+//
+// The helper's own two refusals carry over: frames (a per-model fps the gateway
+// cannot know) and a non-positive duration (-1 hands the length to the model).
+func billableSeconds(seedReq *dto.SeedanceVideoRequest) (float64, bool) {
+	if seedReq == nil || seedReq.Duration == nil {
+		return 0, false
+	}
+	return taskcommon.SeedanceBillableSeconds(seedReq)
+}
+
+// unknowableLengthReason explains why billableSeconds refused, in terms the
+// caller can act on. It is only meaningful when that function returned false.
+func unknowableLengthReason(seedReq *dto.SeedanceVideoRequest) string {
+	if seedReq != nil && seedReq.Duration == nil && seedReq.Frames == nil {
+		return "请求未指定 duration，该上游未记载省略时的默认时长；" +
+			"the request omits duration and this upstream documents no default length"
+	}
+	return taskcommon.SeedanceUnknowableLengthReason(seedReq)
+}
+
 // EstimateBilling captures the per-second billing inputs. Kuaizi has no legacy
 // per-second estimate to preserve — it bills purely per call today — so this
 // always returns nil and all per-second pricing flows through
@@ -209,21 +246,24 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
 	// Not the upstream name: this channel has no upstream model field at all,
 	// only a mode flag, so the client-facing pseudo-model is the only price key.
-	//
-	// Capture only when the length is actually knowable. SeedanceBillableSeconds
-	// refuses frames (a per-model fps the gateway does not know) and a
-	// non-positive duration (-1 hands the length to the model). Its
-	// omitted-duration default of 5s is the Ark seedance family's, which this
-	// upstream does not document, so an omitted duration is treated as
-	// undeterminable here too rather than priced off another vendor's default.
-	if seedReq.Duration == nil {
-		return nil
-	}
-	seconds, ok := taskcommon.SeedanceBillableSeconds(seedReq)
-	if !ok {
-		return nil
-	}
-	if dims, ok := resolveDimensions(seedReq.Resolution, len(seedReq.Videos()) > 0); ok {
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length and tier are actually knowable: a wrong
+	// duration or tier would misprice the request silently. For an UNCONFIGURED
+	// model that leaves the request on the per-call path, which is the documented
+	// pre-existing behaviour. For a configured one there is no per-call price
+	// left to fall back to — this channel contributes no legacy ratios at all —
+	// so the request must be refused instead.
+	seconds, secondsOK := billableSeconds(seedReq)
+	dims, dimsOK := resolveDimensions(seedReq.Resolution, len(seedReq.Videos()) > 0)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName, unknowableLengthReason(seedReq))
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", seedReq.Resolution)
+	case secondsOK && dimsOK:
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
 		a.secondBillingSeconds = seconds
