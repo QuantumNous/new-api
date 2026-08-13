@@ -796,12 +796,13 @@ func TestNormalizeVideoPriceRules_RejectsUnknownMode(t *testing.T) {
 // table, and normalizeRuleMatch writes into Match in place -- so the safety of
 // that aliasing rests entirely on WHICH maps get normalized.
 //
-// updateRegisteredConfig (setting/config/config.go:179-194) JSON round-trips the
-// config into a fresh value, normalizes THAT, and only publishes on success. So
-// the maps normalizeRuleMatch touches are freshly unmarshalled and unreachable
-// by any in-flight request. This pins that property: if a future change ever
-// normalizes the published maps in place, a captured rule would change value
-// mid-request and this fails.
+// This is the same property as
+// TestReloadNeverWritesIntoMatchMapsAlreadyHandedOut above, approached from the
+// registered-setting side rather than through GetVideoPriceRules. See that
+// test's comment for which layer actually carries it: mutation testing shows
+// the fresh-slice allocation in updateConfigFromMap is the primary guard, and
+// the JSON clone in updateRegisteredConfig is a redundant second one -- removing
+// either alone leaves both tests green.
 func TestReloadDoesNotMutateCapturedMatchMaps(t *testing.T) {
 	manager := config.NewConfigManager()
 	setting := &VideoPriceSetting{}
