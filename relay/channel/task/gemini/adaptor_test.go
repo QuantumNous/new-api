@@ -337,3 +337,28 @@ func TestGeminiEstimateBillingKeysTableOnOriginModelNameNotUpstream(t *testing.T
 		t.Fatalf("priced per-second off the upstream model: %v", got)
 	}
 }
+
+// A configured model returns nil from EstimateBilling, so its legacy
+// seconds/resolution ratios never apply -- per-second is the whole price. When
+// the request cannot be priced, returning no ratios therefore bills the bare
+// ModelPrice with no seconds multiplier, charging a 30-second render as a
+// single unit. It has to fail instead, so relay_task rejects before submitting
+// upstream and the request costs nothing.
+//
+// ResolveVeoDuration always returns a positive length (8s default), so an
+// unclassifiable caller-supplied resolution is the only unpriceable shape.
+func TestGeminiEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installGeminiVideoPriceRules(t, `[
+		{"model":"veo-configured","match":{"resolution":"720p"},"price_per_second":0.4,"basis":"output_duration"}
+	]`)
+
+	a, c, info := newGeminiBillingRequest(t,
+		`{"model":"veo-3.1-generate-preview","prompt":"a cat","duration":6,"metadata":{"resolution":"banana"}}`,
+		"veo-configured", "veo-3.1-generate-preview", 0.4)
+	if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+		t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+	}
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured but unpriceable request must return an error")
+	}
+}

@@ -75,6 +75,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -86,6 +94,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -176,19 +187,32 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	rules := billing_setting.GetVideoPriceRules()
 	// Keyed on info.OriginModelName — the client-facing name the administrator
 	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
-	// seconds is always positive here (defaulted to 4 just above), so there is
-	// no unknowable-length case to skip; an unrecognised size is the only way
-	// capture is skipped, and that leaves the request on the legacy path.
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// seconds is always positive here (defaulted to 4 just above), so an
+	// unrecognised size is the only way a request goes unpriced. For an
+	// UNCONFIGURED model that leaves it on the legacy path, which prices every
+	// size (the multiplier is a literal comparison; anything else bills at 1).
+	// For a configured one there is no legacy path to fall back to — the early
+	// return below skips it — so the request must be refused instead.
+	//
+	// ValidateMultipartDirect whitelists size only for models literally named
+	// "sora-2"/"sora-2-pro", so a channel mapping an alias onto Sora reaches
+	// here with arbitrary caller text — and the price table is keyed on exactly
+	// that alias.
 	if dims, ok := resolveDimensions(size, false); ok {
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
 		a.secondBillingSeconds = float64(seconds)
 		a.secondBillingModelPrice = info.PriceData.ModelPrice
 		a.secondBillingRules = rules
+	} else if configured {
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "size", size)
 	}
 	// A model in the price table is priced by SecondBillingRatios; returning
 	// nil here keeps the legacy hardcoded ratios from also applying.
-	if billing_setting.IsVideoModelConfigured(rules, info.OriginModelName) {
+	if configured {
 		return nil
 	}
 

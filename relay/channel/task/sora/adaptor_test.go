@@ -336,3 +336,61 @@ func TestSoraEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.T)
 		t.Fatalf("priced per-second off the body model: %v", got)
 	}
 }
+
+// A configured model returns nil from EstimateBilling, so its legacy
+// seconds/size ratios never apply -- per-second is the whole price. When the
+// request cannot be priced, returning no ratios therefore bills the bare
+// ModelPrice with no seconds multiplier, charging a 12-second render as a
+// single unit. It has to fail instead, so relay_task rejects before submitting
+// upstream and the request costs nothing.
+//
+// seconds is defaulted to 4 when absent or non-positive, so an unclassifiable
+// size is the only unpriceable shape. It is reachable in production because
+// ValidateMultipartDirect's size whitelist is keyed on the literal client-facing
+// names "sora-2"/"sora-2-pro": a channel that maps an alias onto Sora skips the
+// whitelist entirely, and the per-second table is keyed on exactly that alias.
+func TestSoraEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installSoraVideoPriceRules(t, `[
+		{"model":"sora-alias","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		{"unclassifiable size", `{"model":"sora-alias","prompt":"a cat","seconds":"8","size":"banana"}`},
+		// A well-formed WxH the shared vocabulary refuses to tier.
+		{"unknown pixel tier", `{"model":"sora-alias","prompt":"a cat","seconds":"8","size":"999x999"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newSoraBillingRequest(t, tc.body, "sora-alias", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must still reach its legacy path.
+// Sora's legacy ratios do not consult the resolution vocabulary at all -- the
+// size multiplier is a literal string comparison and every other size bills at
+// 1 -- so a size the per-second path refuses is still fully priced today.
+func TestSoraEstimateBillingUnconfiguredModelKeepsLegacyRatiosWhenUnpriceable(t *testing.T) {
+	installSoraVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	a, c, info := newSoraBillingRequest(t,
+		`{"model":"sora-alias","prompt":"a cat","seconds":"8","size":"banana"}`, "sora-alias", 0.5)
+	ratios := a.EstimateBilling(c, info)
+	if ratios["seconds"] != 8 || ratios["size"] != 1 {
+		t.Fatalf("unconfigured model lost its legacy ratios: %v", ratios)
+	}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("unconfigured model produced per-second units: %v", got)
+	}
+}
