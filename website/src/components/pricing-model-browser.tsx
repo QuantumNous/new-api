@@ -764,8 +764,11 @@ function GroupPricingSection(props: {
                 const hasModelSpecificRatio = typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio);
                 const ratio = resolveGroupPriceRatio(modelSpecificRatio, effectiveGroupRatio[group] ?? props.groupRatio[group]);
                 // Every price branch must bill with the same ratio the Ratio
-                // column displays, including the model-specific override.
+                // column displays. getGroupRatio() prefers model.group_ratio
+                // over the fallback map, so the resolved ratio is injected
+                // into both to make the override stick either way.
                 const rowGroupRatio = { ...effectiveGroupRatio, [group]: ratio };
+                const rowModel = { ...props.model, group_ratio: { ...(props.model.group_ratio ?? {}), [group]: ratio } };
                 return (
                   <tr
                     key={group}
@@ -792,10 +795,10 @@ function GroupPricingSection(props: {
                     ) : tokenBased ? (
                       <>
                         <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                          {formatGroupTokenPrice(props.model, group, rowGroupRatio, "input")}
+                          {formatGroupTokenPrice(rowModel, group, rowGroupRatio, "input")}
                         </td>
                         <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                          {formatGroupTokenPrice(props.model, group, rowGroupRatio, "output")}
+                          {formatGroupTokenPrice(rowModel, group, rowGroupRatio, "output")}
                         </td>
                         {extraPriceTypes.map(([type]) => (
                           <td
@@ -803,13 +806,13 @@ function GroupPricingSection(props: {
                             data-slot="table-cell"
                             className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono"
                           >
-                            {formatGroupTokenPrice(props.model, group, rowGroupRatio, type)}
+                            {formatGroupTokenPrice(rowModel, group, rowGroupRatio, type)}
                           </td>
                         ))}
                       </>
                     ) : (
                       <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                        {formatGroupRequestPrice(props.model, group, rowGroupRatio)}
+                        {formatGroupRequestPrice(rowModel, group, rowGroupRatio)}
                       </td>
                     )}
                   </tr>
