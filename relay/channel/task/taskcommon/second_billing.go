@@ -118,6 +118,24 @@ func SeedanceBillableSeconds(seedReq *dto.SeedanceVideoRequest) (float64, bool) 
 	return 5, true
 }
 
+// SeedanceUnknowableLengthReason explains, in terms the caller can act on, why
+// SeedanceBillableSeconds refused a request. It is only meaningful when that
+// function returned false, and pairs with UnpriceableDurationError.
+//
+// The two shapes need different fixes — drop `frames` and send `duration`,
+// versus send a positive `duration` — so a single generic message would leave
+// the caller guessing. It mirrors SeedanceBillableSeconds' own precedence:
+// frames is checked first because the upstream documents frames and duration as
+// mutually exclusive, so duration is not authoritative when both are present.
+func SeedanceUnknowableLengthReason(seedReq *dto.SeedanceVideoRequest) string {
+	if seedReq != nil && seedReq.Frames != nil {
+		return "请求使用 frames 指定长度，其帧率由模型决定，网关无法换算为秒；" +
+			"the request sets its length with frames, whose fps the gateway cannot know"
+	}
+	return "duration 非正数表示由模型自行决定长度；" +
+		"a non-positive duration hands the length to the model"
+}
+
 // Canonical resolution vocabulary for price rule Match keys.
 const (
 	Resolution480p  = "480p"

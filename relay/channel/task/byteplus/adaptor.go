@@ -53,6 +53,16 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	//
+	// Like the fields above, this shadows Doubao's deliberately.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -66,6 +76,9 @@ var _ interface {
 // It must be defined here rather than inherited: the promoted Doubao method
 // closes over Doubao's fields, which this adaptor's EstimateBilling never sets.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -146,24 +159,34 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// against another. The snapshot is shallow, so each rule's Match map is
 	// shared with the live table and must stay read-only.
 	rules := billing_setting.GetVideoPriceRules()
+	configured := billing_setting.IsVideoModelConfigured(rules, priceModelName)
 	// Task model mapping rewrites info.UpstreamModelName to a private ep-*
 	// endpoint, which must never reach pricing.
 	//
 	// Capture only when the length is actually knowable: a wrong duration would
-	// misprice the request silently, whereas skipping capture leaves it on the
-	// legacy token-settled path, which is the documented previous behaviour.
-	if seconds, ok := taskcommon.SeedanceBillableSeconds(seedReq); ok {
-		if dims, ok := resolveDimensions(resolution, hasVideo); ok {
-			a.secondBillingModel = priceModelName
-			a.secondBillingDims = dims
-			a.secondBillingSeconds = seconds
-			a.secondBillingModelPrice = info.PriceData.ModelPrice
-			a.secondBillingRules = rules
-		}
+	// misprice the request silently. For an UNCONFIGURED model that leaves it
+	// on the legacy token-settled path, which is the documented previous
+	// behaviour. For a configured one there is no legacy path to fall back to —
+	// the early return below skips it — so the request must be refused instead.
+	seconds, secondsOK := taskcommon.SeedanceBillableSeconds(seedReq)
+	dims, dimsOK := resolveDimensions(resolution, hasVideo)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			priceModelName, taskcommon.SeedanceUnknowableLengthReason(seedReq))
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			priceModelName, "resolution", resolution)
+	case secondsOK && dimsOK:
+		a.secondBillingModel = priceModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = seconds
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
 	}
 	// A model in the price table is priced by SecondBillingRatios; returning
 	// nil here keeps the legacy video_input ratio from also applying.
-	if billing_setting.IsVideoModelConfigured(rules, priceModelName) {
+	if configured {
 		return nil
 	}
 

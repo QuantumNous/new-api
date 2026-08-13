@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -585,5 +586,111 @@ func TestDoubaoSecondBillingRatios_ConfiguredButUnmatchedErrors(t *testing.T) {
 	}
 	if _, err := a.SecondBillingRatios(); err == nil {
 		t.Fatal("a configured model with no matching rule must fail loudly")
+	}
+}
+
+// installDoubaoVideoPriceRules loads a rule set into the live config and
+// restores the previous configuration afterwards. It exercises the real
+// GetVideoPriceRules path rather than hand-setting adapter fields, so a test
+// using it proves EstimateBilling actually consults the configured table.
+func installDoubaoVideoPriceRules(t *testing.T, rulesJSON string) {
+	t.Helper()
+	saved := map[string]string{}
+	if err := config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}); err != nil {
+		t.Fatalf("snapshot config: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := config.GlobalConfig.LoadFromDB(saved); err != nil {
+			t.Fatalf("restore config: %v", err)
+		}
+	})
+	if err := config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting_video.video_price_rules": rulesJSON,
+	}); err != nil {
+		t.Fatalf("install video price rules: %v", err)
+	}
+	if len(billing_setting.GetVideoPriceRules()) == 0 {
+		t.Fatal("video price rules did not load; the config module name or key is wrong")
+	}
+}
+
+func newDoubaoBillingRequest(t *testing.T, body, originModel string, modelPrice float64) (*TaskAdaptor, *gin.Context, *relaycommon.RelayInfo) {
+	t.Helper()
+	c := newJSONCtx(body)
+	info := newRelayInfo()
+	info.OriginModelName = originModel
+	info.UpstreamModelName = "doubao-seedance-2-0-260128"
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = modelPrice
+	a := &TaskAdaptor{}
+	if taskErr := a.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction error: %+v", taskErr)
+	}
+	return a, c, info
+}
+
+// A configured model returns nil from EstimateBilling, so its legacy video_input
+// ratio never applies -- per-second is the whole price. When the request cannot
+// be priced, returning no ratios therefore bills the bare ModelPrice with no
+// seconds multiplier, charging a 30-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing.
+func TestDoubaoEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installDoubaoVideoPriceRules(t, `[
+		{"model":"public-seedance","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		// frames sets the length at a per-model fps the gateway does not know.
+		{"frames", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","frames":121,"content":[{"type":"text","text":"hi"}]}`},
+		// duration -1 explicitly hands the length to the model.
+		{"model-chosen duration", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","duration":-1,"content":[{"type":"text","text":"hi"}]}`},
+		// A tier NormalizeResolution refuses to classify.
+		{"unclassifiable resolution", `{"model":"doubao-seedance-2-0-260128","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"}]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newDoubaoBillingRequest(t, tc.body, "public-seedance", 0.14)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must still reach its legacy path when
+// the same request shapes appear. GetVideoInputRatio buckets an unrecognised
+// resolution into the base tier and ignores the length entirely, so it really
+// does still price these -- returning nil for them would be a silent regression.
+func TestDoubaoEstimateBillingUnconfiguredModelKeepsLegacyRatioWhenUnpriceable(t *testing.T) {
+	installDoubaoVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	video := `{"type":"video_url","video_url":{"url":"https://x/v.mp4"},"role":"reference_video"}`
+	for _, tc := range []struct{ name, body string }{
+		{"frames", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","frames":121,"content":[{"type":"text","text":"hi"},` + video + `]}`},
+		{"model-chosen duration", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","duration":-1,"content":[{"type":"text","text":"hi"},` + video + `]}`},
+		{"unclassifiable resolution", `{"model":"doubao-seedance-2-0-260128","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"},` + video + `]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newDoubaoBillingRequest(t, tc.body, "doubao-unconfigured", 0.14)
+			ratios := a.EstimateBilling(c, info)
+			if ratios["video_input"] != 28.0/46.0 {
+				t.Fatalf("unconfigured model lost its legacy video_input ratio: %v", ratios)
+			}
+			got, err := a.SecondBillingRatios()
+			if err != nil {
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+			}
+			if len(got) != 0 {
+				t.Fatalf("unconfigured model produced per-second units: %v", got)
+			}
+		})
 	}
 }

@@ -371,3 +371,28 @@ func TestUnpriceableDurationError(t *testing.T) {
 		}
 	}
 }
+
+// SeedanceBillableSeconds refuses two distinct shapes, and the fix differs:
+// drop `frames` and send `duration`, versus send a positive duration. The
+// rejection message has to say which, since it is what the caller sees.
+func TestSeedanceUnknowableLengthReason(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *dto.SeedanceVideoRequest
+		want string
+	}{
+		{"frames alone", &dto.SeedanceVideoRequest{Frames: ptrInt(121)}, "frames"},
+		{"frames wins over duration", &dto.SeedanceVideoRequest{Duration: ptrInt(5), Frames: ptrInt(121)}, "frames"},
+		{"auto length -1", &dto.SeedanceVideoRequest{Duration: ptrInt(-1)}, "duration"},
+		{"zero duration", &dto.SeedanceVideoRequest{Duration: ptrInt(0)}, "duration"},
+		{"nil request", nil, "duration"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SeedanceUnknowableLengthReason(tt.req)
+			if !strings.Contains(got, tt.want) {
+				t.Fatalf("reason %q must name the offending field %q", got, tt.want)
+			}
+		})
+	}
+}

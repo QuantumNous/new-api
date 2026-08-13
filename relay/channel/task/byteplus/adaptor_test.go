@@ -913,9 +913,12 @@ func TestBytePlusEstimateBillingUnconfiguredModelKeepsLegacyRatio(t *testing.T) 
 	}
 }
 
-// duration -1 and frames both make the rendered length unknowable. Capturing
-// either would price the request off a fabricated length, so the adapter must
-// leave it on the legacy path instead of guessing.
+// duration -1 and frames both make the rendered length unknowable. For a model
+// absent from the price table, capturing either would price the request off a
+// fabricated length, so the adapter leaves it on the legacy path and must not
+// fail. (A CONFIGURED model has no legacy path left to fall back to, so the
+// same shapes are refused instead — see
+// TestBytePlusEstimateBillingConfiguredButUnpriceableErrors.)
 func TestBytePlusEstimateBillingSkipsCaptureWhenLengthIsUnknowable(t *testing.T) {
 	installBytePlusVideoPriceRules(t, `[
 		{"model":"seedance-2.0","match":{"resolution":"720p"},"price_per_second":0.1512,"basis":"output_duration"}
@@ -927,11 +930,11 @@ func TestBytePlusEstimateBillingSkipsCaptureWhenLengthIsUnknowable(t *testing.T)
 		{"frames alongside duration", `{"model":"seedance-2.0","resolution":"720p","duration":5,"frames":121,"content":[{"type":"text","text":"hello"}]}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, c, info := newBytePlusSecondBillingContext(t, tc.body, "seedance-2.0")
+			a, c, info := newBytePlusSecondBillingContext(t, tc.body, "byteplus-unconfigured")
 			a.EstimateBilling(c, info)
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("unknowable length must not fail the request: %v", err)
+				t.Fatalf("unknowable length must not fail an unconfigured model: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("unknowable length was priced anyway: %v", got)
@@ -1086,5 +1089,77 @@ func TestBytePlusEstimateBillingDoesNotFallBackToBodyModelForPerSecondCapture(t 
 	}
 	if len(got) != 0 {
 		t.Fatalf("captured per-second billing the price guard never validated: %v", got)
+	}
+}
+
+// A configured model returns nil from EstimateBilling, so its legacy
+// video_input ratio never applies -- per-second is the whole price. When the
+// request cannot be priced, returning no ratios therefore bills the bare
+// ModelPrice with no seconds multiplier, charging a 30-second render as a
+// single unit. It has to fail instead, so relay_task rejects before submitting
+// upstream and the request costs nothing.
+//
+// This adaptor embeds doubao.TaskAdaptor, so the error field must be its OWN:
+// setting doubao's would compile, be written by nothing this adaptor reads, and
+// leave the promoted SecondBillingRatios silently returning (nil, nil).
+func TestBytePlusEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installBytePlusVideoPriceRules(t, `[
+		{"model":"seedance-2.0","match":{"resolution":"720p"},"price_per_second":0.1512,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		{"frames", `{"model":"seedance-2.0","resolution":"720p","frames":121,"content":[{"type":"text","text":"hello"}]}`},
+		{"model-chosen duration", `{"model":"seedance-2.0","resolution":"720p","duration":-1,"content":[{"type":"text","text":"hello"}]}`},
+		{"unclassifiable resolution", `{"model":"seedance-2.0","resolution":"banana","duration":5,"content":[{"type":"text","text":"hello"}]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newBytePlusSecondBillingContext(t, tc.body, "seedance-2.0")
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must still reach its legacy path.
+// getVideoInputRatio ignores the length entirely and buckets an unrecognised
+// resolution into the base tier, so it really does still price every shape the
+// per-second path refuses -- returning nil for them would silently drop these
+// requests to per-call billing. The model here is absent from the rule table
+// but present in the legacy one, which is exactly the unconfigured case.
+func TestBytePlusEstimateBillingUnconfiguredModelKeepsLegacyRatioWhenUnpriceable(t *testing.T) {
+	installBytePlusVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.1512,"basis":"output_duration"}
+	]`)
+
+	video := `{"type":"video_url","video_url":{"url":"https://x/v.mp4"},"role":"reference_video"}`
+	for _, tc := range []struct {
+		name, body, resolution string
+	}{
+		{"frames", `{"model":"seedance-2.0","resolution":"1080p","frames":121,"content":[{"type":"text","text":"hi"},` + video + `]}`, "1080p"},
+		{"model-chosen duration", `{"model":"seedance-2.0","resolution":"1080p","duration":-1,"content":[{"type":"text","text":"hi"},` + video + `]}`, "1080p"},
+		{"unclassifiable resolution", `{"model":"seedance-2.0","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"},` + video + `]}`, "banana"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newBytePlusSecondBillingContext(t, tc.body, "seedance-2.0")
+			ratios := a.EstimateBilling(c, info)
+			want, ok := getVideoInputRatio("seedance-2.0", tc.resolution, true)
+			if !ok || want == 1.0 {
+				t.Fatal("test premise: the legacy table must price this shape at a non-unit ratio")
+			}
+			if ratios["video_input"] != want {
+				t.Fatalf("unconfigured model lost its legacy video_input ratio: %v, want %v", ratios, want)
+			}
+			got, err := a.SecondBillingRatios()
+			if err != nil {
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+			}
+			if len(got) != 0 {
+				t.Fatalf("unconfigured model produced per-second units: %v", got)
+			}
+		})
 	}
 }
