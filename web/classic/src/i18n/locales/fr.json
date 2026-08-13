@@ -2806,6 +2806,7 @@
     "未知身份": "Identité inconnue",
     "未知状态": "Statut inconnu",
     "文档": "Documentation",
+    "工作台": "Espace de travail",
     "文档地址": "Lien du document",
     "文件上传": "Téléchargement de fichier",
     "文件搜索：{{count}} / 1K * 单价 {{price}} * {{ratioType}} {{ratio}} = {{amount}}": "Recherche de fichier : {{count}} / 1K * prix unitaire {{price}} * {{ratioType}} {{ratio}} = {{amount}}",

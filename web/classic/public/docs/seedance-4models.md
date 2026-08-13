@@ -1,12 +1,13 @@
 # Seedance 视频生成 API — 多模型统一说明
 
-面向持有本站 API Key（`sk-` 令牌）的调用方。本文档覆盖现网对外提供的 Seedance / 视频相关模型。
+面向持有本站 API Key（`sk-` 令牌）的调用方。本文档覆盖**模型大厅现网对外提供**的 Seedance / 视频相关模型。
 
 | 项目 | 说明 |
 |------|------|
 | Base URL | `https://你的域名`（示例：`https://996k.cn`） |
 | 认证 | `Authorization: Bearer sk-xxxxxxxx` |
 | 调试页 | 部署后访问 `/seedance-debug.html` |
+| 模型目录 | 以站点「模型大厅 / 定价」为准；价格与分组可能随时调整 |
 
 ```bash
 export BASE="https://996k.cn"
@@ -17,31 +18,32 @@ export TOKEN="sk-你的令牌"
 
 ## 1. 模型一览
 
-| 模型 ID | 说明 | 创建路径 | 素材方式 |
-|---------|------|----------|----------|
-| `videos-standard` | MegaByAI 标准（按次） | `POST /v1/videos` | 文生；可选公网图/视频/音频 URL |
-| `videos-fast` | MegaByAI 快速（按次） | 同上 | 同上 |
-| `doubao-seedance-2.0` | 豆包 Seedance 2.0（多模态） | `POST /v1/video/generations` | `content` 图/视频/音频 URL |
-| `mingiz-sd2` | 星河 2.0 | `POST /v1/videos` | multipart 上传文件，或 JSON 公网 URL |
-| `sd2-431` | th12345ai 满血（→ `videos_stable`） | `POST /v1/video/generations` | 公网图/视频/音频 URL |
-| `sd2-fast-431` | th12345ai Fast（→ `videos_stable_fast`） | 同上 | 同上 |
+| 模型 ID | 说明 | 创建路径 | 计费（大厅示意） | 素材方式 |
+|---------|------|----------|------------------|----------|
+| `guanzhuan-seedance2.0` | 官方接口 · Seedance 2.0 满血 | `POST /v1/video/generations` | 按秒 + 分辨率 | 公网 URL；支持火山 `content[]` |
+| `guanzhuan-seedance2.0-mini` | 官方接口 · 2.0 Mini（快速验证） | 同上 | 按秒 + 分辨率 | 同上 |
+| `guanzhuan-seedance2.5` | 官方接口 · Seedance 2.5 满血 | 同上 | 按秒 + 分辨率 | 同上 |
+| `seedance2.0` | 漫剧专线 · 满血 720P Pro | `POST /v1/videos` | 按次 | 公网图 URL（约最多 9 张；**不支持人脸**） |
+| `seedance-2-mini-720p` | Mini 720p · 低价测试 | 同上 | 按秒 | 公网 URL |
+| `mingiz-sd2` | 星河 2.0 · 满血 720P | `POST /v1/videos` | 按次 | multipart 或公网 URL |
+| `mingiz-sd2-fast` | 星河 Fast · 快速 720P | 同上 | 按次 | 同上 |
+| `seedance2.0-yk-special` | KYY special · 多分辨率 | `POST /v1/video/generations` | 按秒 + 分辨率 | 公网 URL（网关强制入素材库） |
+| `h3-zz` | MiniMax H3 · 按秒 | `POST /v1/videos` | 按秒 + 分辨率 | 公网 URL |
 
 > 本地文件可先上传到图床拿到公网 URL，再填入请求。默认图床：`POST https://imageproxy.zhongzhuan.chat/api/upload`（`Authorization: Bearer <图床token>`，表单字段 `file`）。成功返回 `{ "url": "https://...", "created": ... }`。
 
-> `sd2-431` / `sd2-fast-431` 为对外模型名；渠道侧建议配置模型重定向：`sd2-431`→`videos_stable`，`sd2-fast-431`→`videos_stable_fast`。
-
-> `videos-standard` / `videos-fast` 走 **megabyai** 渠道（类型 65）。含真人脸的参考图可能被上游拦截；渠道可开启「过人脸」：参考图先压缩再经 face.83zi.com 处理后提交。
+> 价格以模型大厅为准；下文章节中的单价仅作调用示例对照，不构成报价承诺。
 
 ---
 
 ## 2. 通用流程
 
 ```text
-创建任务 → 得到 task_id
+创建任务 → 得到 task_id / id
     ↓
 轮询查询（建议 10～15 秒）
     ↓
-成功 → 用返回的视频 URL 下载 / 预览
+成功 → 用返回的视频 URL 或本站 /content 代理下载 / 预览
 ```
 
 创建阶段超时建议 **≥ 120 秒**。生成通常 **1～5 分钟**。
@@ -65,147 +67,50 @@ curl -X POST "https://imageproxy.zhongzhuan.chat/api/upload" \
 }
 ```
 
-将返回的 `url` 用于下方各模型的参考图字段。
+将返回的 `url` 用于下方各模型的参考图 / 参考视频 / 参考音频字段。
 
 ---
 
-## 4. `videos-standard` / `videos-fast`（MegaByAI）
+## 4. `guanzhuan-seedance2.0` / `-mini` / `2.5`（官方线）
 
-渠道类型：`megabyai`（65）。OpenAI Videos 风格异步接口，按次计费。
+创建：`POST /v1/video/generations`  
+查询：`GET /v1/video/generations/{task_id}`
 
-| 对外模型 | 说明 | 时长 |
-|----------|------|------|
-| `videos-standard` | 标准画质 | 4～15 秒（默认 5） |
-| `videos-fast` | 快速出片 | 同上 |
+按请求 `resolution`（默认 `720p`）自动选择上游分辨率模型；**不支持的档位会直接报错**（不做静默降级）。
 
-### 创建
+| 对外模型 | 支持分辨率 | 时长 | 备注 |
+|----------|------------|------|------|
+| `guanzhuan-seedance2.0` | 480p / 720p / 1080p / 4k | 按上游；常见 4～15s | 支持 `camera_fixed` |
+| `guanzhuan-seedance2.0-mini` | 480p / 720p | **4～15s** | **不支持** `camera_fixed`（传入会被丢弃） |
+| `guanzhuan-seedance2.5` | 480p / 720p | **最长 30s** | 支持 `camera_fixed` |
 
-`POST /v1/videos`
-
-文生示例：
+### 文生示例
 
 ```bash
-curl -s -X POST "$BASE/v1/videos" \
+curl -s -X POST "$BASE/v1/video/generations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "videos-fast",
-    "prompt": "海边日落，镜头缓慢向前推进",
-    "duration": 5,
-    "ratio": "16:9",
-    "resolution": "720p"
-  }'
-```
-
-带参考图（推荐用公网 URL；也可用 OpenAI 风格 `seconds` + `size`，网关会映射）：
-
-```bash
-curl -s -X POST "$BASE/v1/videos" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "videos-standard",
-    "prompt": "按照参考图让两人牵手走过街道",
-    "duration": 8,
+    "model": "guanzhuan-seedance2.0",
+    "prompt": "一只橘猫在窗边打哈欠，镜头缓慢推进",
     "ratio": "16:9",
     "resolution": "720p",
-    "images": [
-      "https://imageproxy.zhongzhuan.chat/api/proxy/image/xxxx.png"
-    ]
+    "duration": 5,
+    "generate_audio": true,
+    "watermark": false
   }'
 ```
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `model` | 是 | `videos-standard` 或 `videos-fast` |
-| `prompt` | 是 | 画面提示词 |
-| `duration` | 否 | 时长（秒），4～15，默认 5；也可用 `seconds`（字符串或数字），网关映射为 `duration` |
-| `ratio` / `aspect_ratio` | 否 | `16:9` / `9:16` / `1:1`，默认 `16:9` |
-| `resolution` | 否 | `720p` / `480p`，默认 `720p` |
-| `size` | 否 | 如 `1280x720`；未显式写 `ratio`/`resolution` 时自动解析 |
-| `images` / `image` / `input_reference` | 否 | 参考图公网 URL（→ 上游 `referenceImages`，最多约 9 张） |
-| `videos` | 否 | 参考视频公网 URL（→ `referenceVideos`） |
-| `audios` | 否 | 参考音频公网 URL（→ `referenceAudios`） |
-| `referenceImages` / `referenceVideos` / `referenceAudios` | 否 | 上游字段名，可直接传 |
+### 首尾帧 / 多模态参考
 
-**不支持** `first_image` / `last_image`（含 metadata），传入会直接报错。
-
-画幅对照（也可用 `size`）：
-
-| 比例 | 示例 size | ratio |
-|------|-----------|-------|
-| 16:9 | `1280x720` | `16:9` |
-| 9:16 | `720x1280` | `9:16` |
-| 1:1 | `720x720` | `1:1` |
-
-创建成功示例字段：`id` / `task_id`、`status`（多为 `queued`）、`progress`、`model`。
-
-### 查询
-
-`GET /v1/videos/{task_id}`
-
-```bash
-curl -s "$BASE/v1/videos/$TASK_ID" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-| status | 含义 |
-|--------|------|
-| `queued` | 排队中 |
-| `in_progress` | 生成中 |
-| `completed` | 已完成 |
-| `failed` | 失败（见 `error.message`） |
-
-### 下载成片
-
-`GET /v1/videos/{task_id}/content`（需带同一 Bearer；也可使用查询响应里改写后的代理 URL）
-
-```bash
-curl -L -o out.mp4 "$BASE/v1/videos/$TASK_ID/content" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### 使用帮助
-
-- **选哪个**：要速度优先用 `videos-fast`；要更稳画质用 `videos-standard`。
-- **参考图**：必须公网可访问的 `http(s)`；真人照片易被上游拒（报错类似 *real person's face*）。可在渠道开启「过人脸」，并按需关闭「单眼遮挡」、增大「遮挡尺寸」（如 10）。
-- **字段别名**：客户端可继续发 `seconds`、`aspect_ratio`、`images`；发往上游前会规范为 `duration` / `ratio` / `referenceImages`，多余 OpenAI 别名会被去掉。
-- **计费**：按次；创建成功即按模型单价扣费（与任务最终成败无关的预扣/结算以控制台日志为准）。
-
----
-
-## 5. `doubao-seedance-2.0`
-
-### 文生视频
-
-`POST /v1/video/generations`
+支持扁平字段，也支持火山官方 `content[]`：
 
 ```bash
 curl -s -X POST "$BASE/v1/video/generations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "doubao-seedance-2.0",
-    "prompt": "一只橘猫在窗边打哈欠",
-    "metadata": {
-      "ratio": "16:9",
-      "resolution": "720p",
-      "duration": 5,
-      "watermark": false
-    }
-  }'
-```
-
-也可把 `ratio` / `resolution` / `duration` / `watermark` / `generate_audio` 写在顶层。
-
-### 多模态参考（`content`）
-
-```bash
-curl -s -X POST "$BASE/v1/video/generations" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "doubao-seedance-2.0",
+    "model": "guanzhuan-seedance2.0",
     "content": [
       {
         "type": "text",
@@ -225,36 +130,115 @@ curl -s -X POST "$BASE/v1/video/generations" \
   }'
 ```
 
-| `content[].type` | 子字段 | `role` |
-|------------------|--------|--------|
-| `text` | `text` | — |
-| `image_url` | `image_url.url` | `reference_image` |
-| `video_url` | `video_url.url` | `reference_video` |
-| `audio_url` | `audio_url.url` | `reference_audio` |
-
 | 参数 | 说明 |
 |------|------|
-| `ratio` | `16:9` / `9:16` / `1:1` |
-| `resolution` | `480p` / `720p` / `1080p`（推荐 `720p`） |
-| `duration` | 常见 5～15 秒 |
-| `generate_audio` | 是否配音 |
-| `watermark` | 是否水印 |
+| `prompt` | 提示词（无 `content` 文本项时必填） |
+| `duration` / `seconds` | 时长（秒） |
+| `ratio` / `aspect_ratio` | 如 `16:9` / `9:16` / `1:1` |
+| `resolution` / `size` | **仅用于选档**，不原样上游；也可用 `1280x720` 等 |
+| `image` / `first_image` / `first_frame` | 首帧公网 URL |
+| `last_image` / `last_frame` | 尾帧公网 URL |
+| `images` / `reference_images` / `input_reference` | 多模态参考图 |
+| `videos` / `audios` | 参考视频 / 音频公网 URL（不可 base64 视频） |
+| `generate_audio` / `watermark` / `camera_fixed` | 写入 metadata（mini 丢弃 `camera_fixed`） |
 
 ### 查询
 
-`GET /v1/video/generations/{task_id}`
+```bash
+curl -s "$BASE/v1/video/generations/$TASK_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
 
-成功时常见字段：`data.status`（`QUEUED` / `IN_PROGRESS` / `SUCCESS` / `FAILURE`）、`data.result_url`、`data.fail_reason`。
+成功后视频地址通常在 `metadata.url` / `result_url` 等字段；也可尝试本站 `GET /v1/videos/{task_id}/content`。
 
-可选代下：`GET /v1/videos/{task_id}/content`。
+计费：按秒 + 分辨率（大厅示意 2.0：480p≈0.3 / 720p≈0.6 / 1080p≈1 / 4k≈1.5）。
 
 ---
 
-## 6. `mingiz-sd2`（星河 2.0）
+## 5. `seedance2.0` / `seedance-2-mini-720p`（OpenAI Videos）
+
+创建：`POST /v1/videos`  
+查询：`GET /v1/videos/{task_id}`  
+成片：优先 `GET /v1/videos/{task_id}/content`（需同一 Bearer）
+
+| 对外模型 | 说明 | 计费 |
+|----------|------|------|
+| `seedance2.0` | 漫剧专线 · 满血 720P Pro；大厅说明：**约最多 9 图，不支持人脸** | 按次 |
+| `seedance-2-mini-720p` | Mini 720p，适合快速验证 | 按秒 |
+
+### 文生示例
+
+```bash
+curl -s -X POST "$BASE/v1/videos" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance2.0",
+    "prompt": "海边日落，镜头缓慢向前推进",
+    "seconds": 8,
+    "size": "1280x720"
+  }'
+```
+
+### 带参考图
+
+```bash
+curl -s -X POST "$BASE/v1/videos" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "seedance-2-mini-720p",
+    "prompt": "按照参考图让角色走过街道",
+    "duration": 5,
+    "aspect_ratio": "16:9",
+    "resolution": "720p",
+    "images": [
+      "https://imageproxy.zhongzhuan.chat/api/proxy/image/xxxx.png"
+    ]
+  }'
+```
+
+| 参数 | 说明 |
+|------|------|
+| `model` | `seedance2.0` 或 `seedance-2-mini-720p` |
+| `prompt` | 画面提示词 |
+| `seconds` / `duration` | 时长（秒）；常见 5 / 8 / 10 / 12 / 15 |
+| `size` / `aspect_ratio` / `ratio` / `resolution` | 画幅与清晰度；可用 `1280x720` |
+| `images` / `input_reference` | 参考图公网 URL |
+| `content` | 部分渠道支持火山官方 `content[]`，网关会规范化 |
+
+### 查询与下载
+
+```bash
+curl -s "$BASE/v1/videos/$TASK_ID" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -L -o out.mp4 "$BASE/v1/videos/$TASK_ID/content" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+| status | 含义 |
+|--------|------|
+| `queued` | 排队中 |
+| `in_progress` | 生成中 |
+| `completed` | 已完成 |
+| `failed` | 失败（见 `error.message`） |
+
+---
+
+## 6. `mingiz-sd2` / `mingiz-sd2-fast`（星河）
+
+创建：`POST /v1/videos`  
+查询：`GET /v1/videos/{task_id}`
+
+| 对外模型 | 说明 | 计费（大厅示意） |
+|----------|------|------------------|
+| `mingiz-sd2` | 满血 720P；文生 / 全能参考 / **首尾帧** | 按次 |
+| `mingiz-sd2-fast` | Fast 720P；文生 / 全能参考 | 按次 |
+
+大厅能力摘要：画幅 `16:9` / `9:16` / `4:3` / `3:4` / `1:1` / `21:9`；时长约 **4～15 秒**；最多约 **9 图 / 3 视频 / 3 音频**；支持真人脸（通过率高）。
 
 ### 创建（JSON + 公网图）
-
-`POST /v1/videos`
 
 ```bash
 curl -X POST "$BASE/v1/videos" \
@@ -277,7 +261,7 @@ curl -X POST "$BASE/v1/videos" \
 curl -X POST "$BASE/v1/videos" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Accept: application/json" \
-  -F "model=mingiz-sd2" \
+  -F "model=mingiz-sd2-fast" \
   -F "prompt=一只橘猫在窗台上晒太阳，镜头缓慢推进" \
   -F "duration=10" \
   -F "aspect_ratio=16:9" \
@@ -287,114 +271,162 @@ curl -X POST "$BASE/v1/videos" \
 
 | 参数 | 必填 | 说明 |
 |------|------|------|
-| `model` | 是 | `mingiz-sd2` |
+| `model` | 是 | `mingiz-sd2` 或 `mingiz-sd2-fast` |
 | `prompt` | 是 | 提示词 |
 | `duration` | 否 | 时长（秒） |
-| `aspect_ratio` / `ratio` | 否 | 如 `16:9` / `9:16` |
+| `aspect_ratio` / `ratio` | 否 | 画幅 |
 | `resolution` | 否 | 如 `720p` |
-| `reference_images` | 否 | multipart 参考图文件 |
+| `reference_images` / `files` | 否 | multipart 参考图文件 |
 | `images` | 否 | 公网 URL 数组（JSON） |
-
-### 查询
-
-`GET /v1/videos/{task_id}`
-
-| status | 含义 |
-|--------|------|
-| `queued` | 排队中 |
-| `in_progress` | 生成中 |
-| `completed` | 已完成 |
-| `failed` | 失败 |
+| `videos` / `audios` | 否 | 参考视频 / 音频公网 URL |
+| `generate_audio` | 否 | 缺省多为 true |
+| `watermark` | 否 | 缺省多为 false |
 
 完成后视频地址通常在 **`metadata.url`**。
 
 ---
 
-## 7. `sd2-431` / `sd2-fast-431`（th12345ai）
+## 7. `seedance2.0-yk-special`（KYY special）
 
-渠道类型：`th12345ai`（64）。对外模型名见下表，渠道内建议配置模型重定向。
+创建：`POST /v1/video/generations`  
+查询：`GET /v1/video/generations/{task_id}`
 
-| 对外模型 | 上游模型 | 计费 | 时长 |
-|----------|----------|------|------|
-| `sd2-431` | `videos_stable` | 按次 | 4～15 秒 |
-| `sd2-fast-431` | `videos_stable_fast` | 按次 | 10 / 15 秒 |
+| 项 | 说明 |
+|----|------|
+| 上游逻辑 | `sd_2.0_special` |
+| 分辨率 | **720p / 1080p / 2k / 4k**（无 480p） |
+| 时长 | 4～15 秒（默认 5） |
+| 计费 | 按秒 + 分辨率（大厅示意 720p≈0.5） |
+| 素材 | **强制素材库**：请求中的图 / 视 / 音公网 URL 会先入库，再改写为 `assetId://` |
 
-### 创建
+可选预调素材代理：`POST /api/yk-sd/assets/upload`、`POST /api/yk-sd/assets/detail`。
 
-`POST /v1/video/generations`
+### 创建示例
 
 ```bash
 curl -s -X POST "$BASE/v1/video/generations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "sd2-431",
-    "prompt": "A cinematic 9:16 short video, soft natural light, slow camera push in",
+    "model": "seedance2.0-yk-special",
+    "prompt": "A cinematic short video, soft natural light, slow camera push in",
     "ratio": "9:16",
     "resolution": "720p",
     "duration": 5,
-    "images": ["https://example.com/image1.png"],
-    "videos": ["https://example.com/reference.mp4"],
-    "audios": ["https://example.com/reference.mp3"]
+    "generate_audio": true,
+    "images": ["https://example.com/image1.png"]
   }'
 ```
 
-| 参数 | 必填 | 说明 |
-|------|------|------|
-| `model` | 是 | `sd2-431` 或 `sd2-fast-431` |
-| `prompt` | 是 | 提示词 |
-| `duration` | 否 | 时长（秒）；fast 仅 10/15 |
-| `ratio` / `aspect_ratio` | 否 | `9:16` / `16:9` / `1:1` |
-| `resolution` | 否 | 如 `720p` |
-| `images` | 否 | 参考图公网 URL 数组（→ 上游 `referenceImages`） |
-| `videos` | 否 | 参考视频公网 URL 数组（→ 上游 `referenceVideos`） |
-| `audios` | 否 | 参考音频公网 URL 数组（→ 上游 `referenceAudios`） |
+| 参数 | 说明 |
+|------|------|
+| `prompt` | 必填 |
+| `duration` / `seconds` | 4～15，默认 5 |
+| `aspect_ratio` / `ratio` | 画幅 |
+| `resolution` | `720p` / `1080p` / `2k` / `4k` |
+| `images` / `reference_images` | 参考图（0～9） |
+| `videos` / `reference_videos` | 参考视频（0～3） |
+| `audios` / `reference_audios` | 参考音频（0～3） |
+| `first_image` / `last_image` | 首 / 尾帧 |
+| `generate_audio` / `watermark` / `seed` | 可选 |
+| `content` | 支持火山 `content[]`（先规范化再强制入素材库） |
 
-### 查询
+**约束：** 首帧 / 首尾帧 / 多模态参考互斥；音频不可单独输入。
 
-`GET /v1/video/generations/{task_id}`
-
-完成后视频地址通常在 **`metadata.url`**。
+完成后视频地址通常在查询响应的 `video_url` / `result_url` / `metadata.url`。
 
 ---
 
-## 8. 场景推荐
+## 8. `h3-zz`（MiniMax H3）
+
+创建：`POST /v1/videos`  
+查询：`GET /v1/videos/{task_id}`  
+成片：**必须**使用 `GET /v1/videos/{task_id}/content`（查询成功时 URL 可能为空，走本站鉴权代理）
+
+| 项 | 说明 |
+|----|------|
+| 时长 | **5～15 秒**（默认 5） |
+| 分辨率 | 480p / 720p / 1080p / 2k（默认 720p；按请求选档） |
+| 画幅 | `21:9` / `16:9` / `4:3` / `1:1` / `3:4` / `9:16` |
+| 计费 | 按秒 + 分辨率（大厅示意 720p≈0.18） |
+| 素材 | 公网 URL（JSON）；支持首帧 / 尾帧 / 参考图等别名 |
+
+### 创建示例
+
+```bash
+curl -s -X POST "$BASE/v1/videos" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "h3-zz",
+    "prompt": "城市夜景延时，霓虹灯闪烁，镜头平稳横移",
+    "duration": 5,
+    "aspect_ratio": "16:9",
+    "resolution": "720p",
+    "images": ["https://example.com/ref.png"]
+  }'
+```
+
+| 参数 | 说明 |
+|------|------|
+| `prompt` | 必填 |
+| `duration` / `seconds` | 5～15 |
+| `aspect_ratio` / `ratio` | 画幅 |
+| `resolution` / `size` / `quality` | 选档后由网关映射上游模型名 |
+| `images` / `image_urls` / `input_reference` | → `reference_images` |
+| `first_image` / `first_frame` | 首帧 |
+| `last_image` / `last_frame` | 尾帧 |
+
+### 下载成片
+
+```bash
+curl -L -o out.mp4 "$BASE/v1/videos/$TASK_ID/content" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## 9. 场景推荐
 
 | 场景 | 推荐模型 |
 |------|----------|
-| 快速出片（MegaByAI） | `videos-fast` |
-| 标准画质（MegaByAI） | `videos-standard` |
-| 多模态参考（图/视频/音频） | `doubao-seedance-2.0` 或 `sd2-431` |
-| 本地文件直传 / 星河画质 | `mingiz-sd2` |
-| th12345ai 满血 / Fast | `sd2-431` / `sd2-fast-431` |
+| 官方能力 / 多分辨率（含 1080p、4k） | `guanzhuan-seedance2.0` |
+| 官方快速试跑 / 省钱测试 | `guanzhuan-seedance2.0-mini` 或 `seedance-2-mini-720p` |
+| 更长时长（≤30s） | `guanzhuan-seedance2.5` |
+| 漫剧专线满血（按次） | `seedance2.0` |
+| 本地文件直传 / 星河画质 | `mingiz-sd2`；要速度用 `mingiz-sd2-fast` |
+| 需强制素材库 + 高分辨率 special | `seedance2.0-yk-special` |
+| 按秒低价 MiniMax H3 | `h3-zz` |
 
 ---
 
-## 9. 常见问题
+## 10. 常见问题
 
 **401**：检查 `Authorization: Bearer sk-...` 是否正确。
 
-**余额不足**：联系服务方充值。
+**余额不足**：联系服务方充值，或在控制台查看余额与分组倍率。
 
-**参考图怎么传**：优先公网 `https://`；可用本文图床接口；`mingiz-sd2` 也支持 multipart 直传。
+**参考图怎么传**：优先公网 `https://`；可用本文图床接口；`mingiz-sd2` / `mingiz-sd2-fast` 也支持 multipart 直传。
 
-**MegaByAI 报真人脸**：换非真人参考图，或让管理员在 megabyai 渠道开启「过人脸」并加大遮挡（关单眼 + size=10）。
+**分辨率报错**：`guanzhuan-*` 与 `seedance2.0-yk-special`、`h3-zz` 对不支持档位会直接 400，请改用该模型白名单内的 `resolution`。
+
+**`seedance2.0` 人脸失败**：该线路大厅说明不支持人脸；请换非真人参考图，或改用星河 / 官方线等支持人脸的模型。
 
 **任务失败**：查看响应中的 `fail_reason` / `error` / `message`。
 
+**价格不一致**：以模型大厅与令牌所属分组为准；文档示意价仅供对照。
+
 ---
 
-## 10. 调试页
+## 11. 调试页
 
 浏览器打开：`{Base URL}/seedance-debug.html`
 
-- 选择模型后自动切换接口路径与参数表单  
-- 本地图片可上传到可配置图床，再 `@` 引用进提示词  
-- `mingiz-sd2` 可选「multipart 直传」或「经图床 URL」  
-- `videos-standard` / `videos-fast` 走 `/v1/videos`，支持 `images` 公网 URL  
-- `sd2-431` / `sd2-fast-431` 走 `/v1/video/generations`，支持图/视频/音频公网 URL  
+- 模型列表会尝试从本站 `/api/pricing`（模型大厅）拉取  
+- 本地图片可上传到可配置图床，再引用进提示词  
+- `mingiz-sd2` / `mingiz-sd2-fast` 可选 multipart 直传或经图床 URL  
 - API Key / 图床配置保存在本机浏览器  
 
 ---
 
-*文档版本：2026-07-21 · 含 MegaByAI（videos-standard / videos-fast）与 th12345ai（sd2-431 / sd2-fast-431）*
+*文档版本：2026-08-13 · 对齐模型大厅现网 9 模型（不含 `seedance2.0-431`）*

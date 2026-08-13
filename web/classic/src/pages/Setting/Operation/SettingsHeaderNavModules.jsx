@@ -180,7 +180,7 @@ export default function SettingsHeaderNavModules(props) {
     },
     {
       key: 'docs',
-      title: t('文档'),
+      title: t('工作台'),
       description: t('系统文档和帮助信息'),
     },
     {
