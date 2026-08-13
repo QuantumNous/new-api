@@ -80,6 +80,12 @@ variable "certificate_manager_certificate_name" {
   default     = ""
 }
 
+variable "certificate_dns_authorization_names" {
+  type        = list(string)
+  description = "Certificate Manager DNS authorization names used by the production certificate."
+  default     = []
+}
+
 variable "lb_default_backend" {
   type        = string
   description = "Default LB backend for hosts that do not match an explicit host_rule."

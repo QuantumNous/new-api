@@ -25,6 +25,13 @@ lb_domains = [
 ]
 certificate_map_name                 = "flatkey-prod-map"
 certificate_manager_certificate_name = "flatkey-prod-cert"
+certificate_dns_authorization_names = [
+  "flatkey-apex",
+  "flatkey-www",
+  "flatkey-one",
+  "flatkey-router",
+  "flatkey-console",
+]
 
 // Keep Cloud Run open during initial bring-up so health probes against *.run.app still work.
 // After LB is healthy and CI/CD probes via the LB hostname, lock this down to

@@ -194,29 +194,35 @@ resource "google_compute_managed_ssl_certificate" "main" {
   }
 }
 
-data "google_certificate_manager_certificate" "managed" {
+resource "google_certificate_manager_certificate" "managed" {
   count    = var.certificate_map_name != "" ? 1 : 0
   project  = var.project_id
   location = "global"
   name     = var.certificate_manager_certificate_name
+
+  managed {
+    domains = var.domains
+    dns_authorizations = [
+      for name in var.certificate_dns_authorization_names :
+      "projects/${var.project_id}/locations/global/dnsAuthorizations/${name}"
+    ]
+  }
 }
 
 resource "google_certificate_manager_certificate_map" "managed" {
-  count    = var.certificate_map_name != "" ? 1 : 0
-  project  = var.project_id
-  location = "global"
-  name     = var.certificate_map_name
+  count   = var.certificate_map_name != "" ? 1 : 0
+  project = var.project_id
+  name    = var.certificate_map_name
 }
 
 resource "google_certificate_manager_certificate_map_entry" "managed" {
   for_each = var.certificate_map_name != "" ? toset(var.domains) : toset([])
   project  = var.project_id
-  location = "global"
   name     = replace(each.value, ".", "-")
   map      = google_certificate_manager_certificate_map.managed[0].name
   hostname = each.value
   certificates = [
-    data.google_certificate_manager_certificate.managed[0].name,
+    google_certificate_manager_certificate.managed[0].id,
   ]
 }
 

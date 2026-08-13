@@ -53,6 +53,12 @@ variable "certificate_manager_certificate_name" {
   default     = ""
 }
 
+variable "certificate_dns_authorization_names" {
+  type        = list(string)
+  description = "Certificate Manager DNS authorization names used to issue and renew the managed certificate."
+  default     = []
+}
+
 variable "website_cloud_run_service_name" {
   type        = string
   description = "Name of the Next.js website Cloud Run service. When empty, no website backend/host_rule is created and the LB stays single-backend (original behavior)."
