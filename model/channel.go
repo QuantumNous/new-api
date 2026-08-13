@@ -20,6 +20,17 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// Defaults and bounds for the channel capacity/ratio fields. A stored zero
+// means "unset" and is normalized to the default when the channel is created
+// or rendered; the max bounds keep admin input sane before these fields ever
+// reach routing or billing logic.
+const (
+	DefaultChannelCapacityTotal = 20
+	DefaultChannelRatio         = float64(1)
+	MaxChannelCapacityTotal     = 1_000_000
+	MaxChannelRatio             = float64(1000)
+)
+
 type Channel struct {
 	Id                 int     `json:"id"`
 	Type               int     `json:"type" gorm:"default:0"`
@@ -50,6 +61,12 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	// Capacity and ratio fields (added for Vue frontend channel management)
+	ChannelRatio  float64 `json:"channel_ratio" gorm:"default:1"`
+	CapacityTotal int     `json:"capacity_total" gorm:"default:20"`
+	CapacityUsed  int     `json:"capacity_used" gorm:"default:0"`
+	UpstreamRatio float64 `json:"upstream_ratio" gorm:"default:1"`
+
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 

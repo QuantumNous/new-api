@@ -48,31 +48,54 @@ export interface AdminChannel extends Record<string, unknown> {
   status: AdminChannelStatus
   priority: number
   weight: number
+  // Capacity & ratio fields (Phase A backend fields)
+  capacity_used: number
+  capacity_total: number
+  channel_ratio: number
+  upstream_ratio: number
   used_quota: number
   balance: number
   response_time: number
   test_time: number
   base_url: string
   models: string
+  group: string
+  model_mapping: string
+  openai_organization: string
 }
 
 export interface AdminChannelCreateInput {
   name: string
   type: number
   status: Extract<AdminChannelStatus, 1 | 2>
+  // Credentials
   key: string
   base_url: string
+  /** Sensitive field: updates must include it only when actually changed. */
+  openai_organization?: string
+  // Models & groups
   models: string
+  model_mapping: string
+  group: string
+  // Routing
   priority: number
   weight: number
+  // Capacity & ratio
+  capacity_total: number
+  channel_ratio: number
 }
 
 export type AdminChannelUpdateInput = Omit<
   AdminChannelCreateInput,
   'status' | 'key'
 > & {
+  /** Sensitive field: include only when replacing the stored key. */
   key?: string
 }
+
+/** Params for discovering a channel's model list from its upstream. */
+export type AdminChannelFetchModelsParams =
+  { channelId: number } | { type: number; key: string; baseUrl: string }
 
 export interface AdminChannelPage {
   items: AdminChannel[]

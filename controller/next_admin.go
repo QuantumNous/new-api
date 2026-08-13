@@ -376,19 +376,26 @@ func writeManagedUserError(c *gin.Context, err error) {
 }
 
 type nextAdminChannelDTO struct {
-	ID           int     `json:"id"`
-	Name         string  `json:"name"`
-	Type         int     `json:"type"`
-	Supplier     string  `json:"supplier"`
-	Status       int     `json:"status"`
-	Priority     int64   `json:"priority"`
-	Weight       uint    `json:"weight"`
-	UsedQuota    int64   `json:"used_quota"`
-	Balance      float64 `json:"balance"`
-	ResponseTime int     `json:"response_time"`
-	TestTime     int64   `json:"test_time"`
-	BaseURL      string  `json:"base_url"`
-	Models       string  `json:"models"`
+	ID                 int     `json:"id"`
+	Name               string  `json:"name"`
+	Type               int     `json:"type"`
+	Supplier           string  `json:"supplier"`
+	Status             int     `json:"status"`
+	Priority           int64   `json:"priority"`
+	Weight             uint    `json:"weight"`
+	UsedQuota          int64   `json:"used_quota"`
+	ChannelRatio       float64 `json:"channel_ratio"`
+	Balance            float64 `json:"balance"`
+	UpstreamRatio      float64 `json:"upstream_ratio"`
+	CapacityTotal      int     `json:"capacity_total"`
+	CapacityUsed       int     `json:"capacity_used"`
+	ResponseTime       int     `json:"response_time"`
+	TestTime           int64   `json:"test_time"`
+	BaseURL            string  `json:"base_url"`
+	Models             string  `json:"models"`
+	Group              string  `json:"group"`
+	ModelMapping       string  `json:"model_mapping"`
+	OpenAIOrganization string  `json:"openai_organization"`
 }
 
 func buildNextAdminChannelDTO(channel *model.Channel) nextAdminChannelDTO {
@@ -400,12 +407,34 @@ func buildNextAdminChannelDTO(channel *model.Channel) nextAdminChannelDTO {
 	if channel.Weight != nil {
 		weight = *channel.Weight
 	}
+	channelRatio := channel.ChannelRatio
+	if channelRatio == 0 {
+		channelRatio = model.DefaultChannelRatio
+	}
+	upstreamRatio := channel.UpstreamRatio
+	if upstreamRatio == 0 {
+		upstreamRatio = model.DefaultChannelRatio
+	}
+	capacityTotal := channel.CapacityTotal
+	if capacityTotal == 0 {
+		capacityTotal = model.DefaultChannelCapacityTotal
+	}
+	modelMapping := ""
+	if channel.ModelMapping != nil {
+		modelMapping = *channel.ModelMapping
+	}
+	openAIOrganization := ""
+	if channel.OpenAIOrganization != nil {
+		openAIOrganization = *channel.OpenAIOrganization
+	}
 	return nextAdminChannelDTO{
 		ID: channel.Id, Name: channel.Name, Type: channel.Type, Supplier: constant.GetChannelTypeName(channel.Type),
 		Status: channel.Status, Priority: priority, Weight: weight,
-		UsedQuota: channel.UsedQuota, Balance: channel.Balance,
+		UsedQuota: channel.UsedQuota, ChannelRatio: channelRatio, Balance: channel.Balance,
+		UpstreamRatio: upstreamRatio, CapacityTotal: capacityTotal, CapacityUsed: channel.CapacityUsed,
 		ResponseTime: channel.ResponseTime, TestTime: channel.TestTime,
 		BaseURL: channel.GetBaseURL(), Models: channel.Models,
+		Group: channel.Group, ModelMapping: modelMapping, OpenAIOrganization: openAIOrganization,
 	}
 }
 

@@ -54,5 +54,6 @@ export default {
     selectRow: 'Select row {index}',
     selectColumn: 'Select',
     to: 'to',
+    noResults: 'No results',
   },
 }

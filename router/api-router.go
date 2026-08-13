@@ -220,6 +220,8 @@ func SetApiRouter(router *gin.Engine) {
 				adminChannelRoute.PUT("", middleware.RequirePermission(authz.ChannelWrite), controller.UpdateChannel)
 				adminChannelRoute.GET("/test/:id", middleware.RequirePermission(authz.ChannelOperate), controller.TestChannel)
 				adminChannelRoute.GET("/balance/:id", middleware.RequirePermission(authz.ChannelOperate), controller.UpdateChannelBalance)
+				adminChannelRoute.GET("/fetch_models/:id", middleware.RequirePermission(authz.ChannelOperate), controller.FetchUpstreamModels)
+				adminChannelRoute.POST("/fetch_models", middleware.RequirePermission(authz.ChannelSensitiveWrite), controller.FetchModels)
 				adminChannelRoute.POST("/status/batch", middleware.RequirePermission(authz.ChannelOperate), controller.BatchUpdateChannelStatus)
 				adminChannelRoute.POST("/:id/status", middleware.RequirePermission(authz.ChannelOperate), controller.UpdateChannelStatus)
 			}

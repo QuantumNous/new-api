@@ -9,6 +9,7 @@ import { useToast } from '@/composables/useToast'
 import type {
   AdminChannel,
   AdminChannelCreateInput,
+  AdminChannelFetchModelsParams,
   AdminChannelPage,
   AdminChannelSortBy,
   AdminChannelSortOrder,
@@ -269,11 +270,14 @@ export function useAdminChannels() {
     }
   }
 
-  function createChannel(input: AdminChannelCreateInput): Promise<boolean> {
+  function createChannel(
+    input: AdminChannelCreateInput,
+    options?: { batchKeys?: boolean }
+  ): Promise<boolean> {
     return runCrudAction('create', null, async (signal) => {
       await api.post<AdminChannel>(
         '/api/next/admin/channels',
-        { mode: 'single', channel: input },
+        { mode: options?.batchKeys ? 'batch' : 'single', channel: input },
         { signal }
       )
       toast.success(t('channels.created'))
@@ -325,6 +329,27 @@ export function useAdminChannels() {
       if (rows.value.length === ids.length && page.value > 1) page.value -= 1
       else await load({ background: true })
     })
+  }
+
+  /**
+   * Discover the upstream model list, either for a saved channel (by id) or
+   * from in-form credentials before the channel exists. Used by the
+   * "从上游获取" quick action in the channel form. Throws ApiError on failure.
+   */
+  async function fetchUpstreamModels(
+    params: AdminChannelFetchModelsParams
+  ): Promise<string[]> {
+    const models =
+      'channelId' in params
+        ? await api.get<string[]>(
+            `/api/next/admin/channels/fetch_models/${params.channelId}`
+          )
+        : await api.post<string[]>('/api/next/admin/channels/fetch_models', {
+            type: params.type,
+            key: params.key,
+            base_url: params.baseUrl,
+          })
+    return Array.isArray(models) ? models.filter(Boolean) : []
   }
 
   async function runBulkAction(
@@ -569,6 +594,7 @@ export function useAdminChannels() {
     updateChannelDetails,
     deleteChannel,
     deleteSupplierChannels,
+    fetchUpstreamModels,
     updateChannelsStatus,
     deleteSelectedChannels,
     runVisibleBatch,

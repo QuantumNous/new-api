@@ -485,10 +485,32 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		return fmt.Errorf("New API channel base URL cannot be empty")
 	}
 
+	// Capacity/ratio bounds apply to both add and update. Zero means "unset":
+	// adds normalize it to the default below, updates keep the stored value
+	// because GORM struct updates skip zero-value fields.
+	if channel.CapacityTotal < 0 || channel.CapacityTotal > model.MaxChannelCapacityTotal {
+		return fmt.Errorf("渠道容量必须在 0 到 %d 之间", model.MaxChannelCapacityTotal)
+	}
+	if channel.ChannelRatio < 0 || channel.ChannelRatio > model.MaxChannelRatio {
+		return fmt.Errorf("渠道倍率必须在 0 到 %g 之间", model.MaxChannelRatio)
+	}
+	if channel.UpstreamRatio < 0 || channel.UpstreamRatio > model.MaxChannelRatio {
+		return fmt.Errorf("上游倍率必须在 0 到 %g 之间", model.MaxChannelRatio)
+	}
+
 	// 如果是添加操作，检查 channel 和 key 是否为空
 	if isAdd {
 		if channel.Key == "" {
 			return fmt.Errorf("channel cannot be empty")
+		}
+		if channel.CapacityTotal == 0 {
+			channel.CapacityTotal = model.DefaultChannelCapacityTotal
+		}
+		if channel.ChannelRatio == 0 {
+			channel.ChannelRatio = model.DefaultChannelRatio
+		}
+		if channel.UpstreamRatio == 0 {
+			channel.UpstreamRatio = model.DefaultChannelRatio
 		}
 
 		// 检查模型名称长度是否超过 255

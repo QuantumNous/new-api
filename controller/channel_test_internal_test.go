@@ -85,6 +85,57 @@ func TestValidateChannelRequiresNewAPIBaseURL(t *testing.T) {
 	}
 }
 
+func TestValidateChannelCapacityRatioBounds(t *testing.T) {
+	base := func() *model.Channel {
+		return &model.Channel{
+			Name:   "bounds-test",
+			Type:   constant.ChannelTypeOpenAI,
+			Key:    "sk-test",
+			Models: "gpt-4o",
+		}
+	}
+
+	t.Run("add applies defaults for unset fields", func(t *testing.T) {
+		channel := base()
+		require.NoError(t, validateChannel(channel, true))
+		assert.Equal(t, model.DefaultChannelCapacityTotal, channel.CapacityTotal)
+		assert.Equal(t, model.DefaultChannelRatio, channel.ChannelRatio)
+		assert.Equal(t, model.DefaultChannelRatio, channel.UpstreamRatio)
+	})
+
+	t.Run("update keeps zero as unset", func(t *testing.T) {
+		channel := base()
+		require.NoError(t, validateChannel(channel, false))
+		assert.Zero(t, channel.CapacityTotal)
+		assert.Zero(t, channel.ChannelRatio)
+		assert.Zero(t, channel.UpstreamRatio)
+	})
+
+	outOfRange := []struct {
+		name   string
+		mutate func(*model.Channel)
+	}{
+		{name: "negative capacity", mutate: func(c *model.Channel) { c.CapacityTotal = -1 }},
+		{name: "capacity above max", mutate: func(c *model.Channel) { c.CapacityTotal = model.MaxChannelCapacityTotal + 1 }},
+		{name: "negative channel ratio", mutate: func(c *model.Channel) { c.ChannelRatio = -0.5 }},
+		{name: "channel ratio above max", mutate: func(c *model.Channel) { c.ChannelRatio = model.MaxChannelRatio + 1 }},
+		{name: "negative upstream ratio", mutate: func(c *model.Channel) { c.UpstreamRatio = -1 }},
+		{name: "upstream ratio above max", mutate: func(c *model.Channel) { c.UpstreamRatio = model.MaxChannelRatio + 1 }},
+	}
+	for _, test := range outOfRange {
+		t.Run(test.name+" rejected on add", func(t *testing.T) {
+			channel := base()
+			test.mutate(channel)
+			assert.Error(t, validateChannel(channel, true))
+		})
+		t.Run(test.name+" rejected on update", func(t *testing.T) {
+			channel := base()
+			test.mutate(channel)
+			assert.Error(t, validateChannel(channel, false))
+		})
+	}
+}
+
 func TestNewAPIChannelRegistration(t *testing.T) {
 	apiType, ok := common.ChannelType2APIType(constant.ChannelTypeNewAPI)
 

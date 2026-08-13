@@ -88,6 +88,8 @@ var channelReadOnlyFields = map[string]struct{}{
 	"balance":              {},
 	"balance_updated_time": {},
 	"used_quota":           {},
+	"capacity_used":        {},
+	"upstream_ratio":       {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
@@ -108,6 +110,12 @@ func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]an
 	}
 	if _, ok := requestData["used_quota"]; ok {
 		channel.UsedQuota = 0
+	}
+	if _, ok := requestData["capacity_used"]; ok {
+		channel.CapacityUsed = 0
+	}
+	if _, ok := requestData["upstream_ratio"]; ok {
+		channel.UpstreamRatio = 0
 	}
 }
 
@@ -133,4 +141,6 @@ var channelNonSensitiveFields = map[string]struct{}{
 	"remark":              {},
 	"channel_info":        {},
 	"multi_key_mode":      {},
+	"capacity_total":      {},
+	"channel_ratio":       {},
 }
