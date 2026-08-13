@@ -180,6 +180,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 
 	// 3. 回退已用额度（撤销消费记录，使总额度恢复为充值金额）
 	model.UpdateUserUsedQuota(task.UserId, -quota)
+	model.UpdateChannelUsedQuota(task.ChannelId, -quota)
 
 	// 4. 记录日志
 	other := taskBillingOther(task)

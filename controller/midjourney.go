@@ -218,6 +218,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 					logger.LogError(ctx, "fail to increase user quota: "+err.Error())
 				}
 				model.UpdateUserUsedQuota(task.UserId, -task.Quota)
+				model.UpdateChannelUsedQuota(task.ChannelId, -task.Quota)
 				model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 					UserId:    task.UserId,
 					LogType:   model.LogTypeRefund,
