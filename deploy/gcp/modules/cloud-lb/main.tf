@@ -361,6 +361,15 @@ resource "google_compute_target_https_proxy" "https" {
   // handshake on the ~185ms-RTT path to the LB; QUIC collapses it to 1-RTT (0-RTT
   // on resumption) and tolerates jitter on the China Telecom 163 egress better.
   quic_override = "ENABLE"
+
+  lifecycle {
+    // Compute returns the Certificate Manager map as a v1 URL while the
+    // provider normalizes configuration to a project resource name. It also
+    // keeps legacy sslCertificates visible after a certificate map is bound.
+    // Both are API representation artifacts; certificate cutovers are handled
+    // explicitly with gcloud and then verified before state reconciliation.
+    ignore_changes = [certificate_map, ssl_certificates]
+  }
 }
 
 resource "google_compute_global_forwarding_rule" "https" {
