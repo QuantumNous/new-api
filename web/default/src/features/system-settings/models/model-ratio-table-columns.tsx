@@ -41,7 +41,7 @@ const filterBySelectedValues = (
 type BuildModelRatioColumnsOptions = {
   onDelete: (name: string) => void
   onEdit: (model: ModelRow) => void
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 }
 
 export function buildModelRatioColumns({
@@ -83,6 +83,13 @@ export function buildModelRatioColumns({
           {row.getValue('name')}
           {row.original.billingMode === 'tiered_expr' && (
             <StatusBadge label={t('Tiered')} variant='info' copyable={false} />
+          )}
+          {row.original.billingMode === 'video' && (
+            <StatusBadge
+              label={t('Per-second')}
+              variant='purple'
+              copyable={false}
+            />
           )}
           {row.original.hasConflict && (
             <StatusBadge

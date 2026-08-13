@@ -974,3 +974,35 @@ func TestUpdateVideoPriceSettingFromMapRejectsBadRulesOutright(t *testing.T) {
 		})
 	}
 }
+
+// The console dropdown offers a hardcoded copy of this vocabulary, because the
+// browser cannot import Go. That copy is the third: taskcommon already carries
+// one, duplicated because the import direction forbids sharing, and those two
+// drifted until a test pinned them.
+//
+// This pins the TypeScript. If a resolution is added here without adding it to
+// the console, the dropdown silently omits a tier an administrator can no
+// longer configure -- and its own test would keep passing, because it asserts
+// against its own literal.
+func TestCanonicalResolutionsMatchConsoleVocabulary(t *testing.T) {
+	// web/default/src/features/system-settings/models/video-pricing-types.ts
+	// RESOLUTION_VALUES. Keep both sides in step.
+	console := []string{"480p", "512p", "720p", "768p", "1080p", "2k", "4k"}
+
+	backend := CanonicalResolutionValues()
+	if len(backend) != len(console) {
+		t.Fatalf("backend offers %d resolutions %v, console offers %d %v",
+			len(backend), backend, len(console), console)
+	}
+	inConsole := make(map[string]bool, len(console))
+	for _, v := range console {
+		inConsole[v] = true
+	}
+	for _, v := range backend {
+		if !inConsole[v] {
+			t.Fatalf("backend resolution %q is missing from the console dropdown "+
+				"(RESOLUTION_VALUES in video-pricing-types.ts): an administrator "+
+				"cannot configure that tier", v)
+		}
+	}
+}

@@ -6572,5 +6572,22 @@
     "Full convergence": "完全收敛",
     "Converge Codex device and session identifiers for shared OAuth accounts": "为共享 OAuth 账号收敛 Codex 设备和会话标识",
     "Applies only to selected Codex channels": "仅应用于选中的 Codex 渠道"
-  }
+  },
+  "resolution": "分辨率",
+  "mode": "生成模式",
+  "has_video": "参考视频",
+  "Add rule": "添加规则",
+  "Delete rule": "删除规则",
+  "Match dimensions": "匹配维度",
+  "Billing basis": "计费基准",
+  "Fallback seconds": "兜底秒数",
+  "Price per second ($)": "每秒单价（$）",
+  "output_duration": "输出时长",
+  "total_duration": "输入 + 输出总时长",
+  "Video per-second": "视频按秒",
+  "Per-second": "按秒",
+  "Per-second video billing": "视频按秒计费",
+  "{{count}} per-second rules": "{{count}} 条按秒规则",
+  "Price per second must be greater than zero": "每秒单价必须大于 0",
+  "Total duration billing requires a fallback in seconds": "按总时长计费时必须填写兜底秒数"
 }

@@ -6572,5 +6572,22 @@
     "Full convergence": "Hợp nhất đầy đủ",
     "Converge Codex device and session identifiers for shared OAuth accounts": "Hợp nhất mã nhận diện Codex cho tài khoản OAuth dùng chung",
     "Applies only to selected Codex channels": "Chỉ áp dụng cho các kênh Codex đã chọn"
-  }
+  },
+  "resolution": "Độ phân giải",
+  "mode": "Chế độ",
+  "has_video": "Video tham chiếu",
+  "Add rule": "Thêm quy tắc",
+  "Delete rule": "Xóa quy tắc",
+  "Match dimensions": "Chiều khớp lệnh",
+  "Billing basis": "Cơ sở tính phí",
+  "Fallback seconds": "Số giây dự phòng",
+  "Price per second ($)": "Giá mỗi giây ($)",
+  "output_duration": "Thời lượng đầu ra",
+  "total_duration": "Thời lượng đầu vào + đầu ra",
+  "Video per-second": "Video theo giây",
+  "Per-second": "Theo giây",
+  "Per-second video billing": "Tính phí video theo giây",
+  "{{count}} per-second rules": "{{count}} quy tắc theo giây",
+  "Price per second must be greater than zero": "Giá mỗi giây phải lớn hơn 0",
+  "Total duration billing requires a fallback in seconds": "Tính phí theo tổng thời lượng cần có số giây dự phòng"
 }

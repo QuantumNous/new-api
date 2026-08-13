@@ -6572,5 +6572,22 @@
     "Full convergence": "Convergencia completa",
     "Converge Codex device and session identifiers for shared OAuth accounts": "Converge los identificadores de Codex para cuentas OAuth compartidas",
     "Applies only to selected Codex channels": "Solo se aplica a los canales Codex seleccionados"
-  }
+  },
+  "resolution": "Resolución",
+  "mode": "Modo",
+  "has_video": "Vídeo de referencia",
+  "Add rule": "Añadir regla",
+  "Delete rule": "Eliminar regla",
+  "Match dimensions": "Dimensiones de coincidencia",
+  "Billing basis": "Base de facturación",
+  "Fallback seconds": "Segundos de reserva",
+  "Price per second ($)": "Precio por segundo ($)",
+  "output_duration": "Duración de salida",
+  "total_duration": "Duración de entrada + salida",
+  "Video per-second": "Vídeo por segundo",
+  "Per-second": "Por segundo",
+  "Per-second video billing": "Facturación de vídeo por segundo",
+  "{{count}} per-second rules": "{{count}} reglas por segundo",
+  "Price per second must be greater than zero": "El precio por segundo debe ser mayor que cero",
+  "Total duration billing requires a fallback in seconds": "La facturación por duración total requiere segundos de reserva"
 }

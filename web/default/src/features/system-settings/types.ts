@@ -249,6 +249,7 @@ export type BillingSettings = {
   'pricing_visibility_setting.hidden_models': string
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
+  'billing_setting_video.video_price_rules': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
