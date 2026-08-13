@@ -75,7 +75,9 @@ function CodeBlock(props: { code: string; copyValue?: string }) {
           aria-label={t('Copy code')}
         />
       )}
-      <pre className='bg-foreground/[0.04] overflow-x-auto rounded-xl border p-4 font-mono text-xs leading-relaxed'>
+      {/* Wrap instead of scrolling horizontally: the whole command should be
+          readable in place, and long curl lines otherwise hide their tail. */}
+      <pre className='bg-foreground/[0.04] rounded-xl border p-4 pr-11 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap'>
         {props.code}
       </pre>
     </div>
