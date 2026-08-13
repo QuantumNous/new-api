@@ -6542,6 +6542,12 @@
     "activity_smtp_send_failed": "アクティビティ SMTP 送信失敗",
     "Unknown message state": "不明なメッセージ状態",
     "Unknown lifecycle event": "不明なライフサイクルイベント",
-    "Unknown lifecycle outcome": "不明なライフサイクル結果"
+    "Unknown lifecycle outcome": "不明なライフサイクル結果",
+    "Codex Fingerprint Convergence": "Codex フィンガープリント統合",
+    "Off (passthrough)": "オフ（そのまま転送）",
+    "Device only": "デバイスのみ",
+    "Device + Session (recommended)": "デバイス＋セッション（推奨）",
+    "Full convergence": "完全統合",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "共有 OAuth アカウントの Codex デバイス・セッション識別子を統合"
   }
 }

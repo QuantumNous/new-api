@@ -6542,6 +6542,12 @@
     "activity_smtp_send_failed": "Ошибка отправки SMTP активности",
     "Unknown message state": "Неизвестное состояние сообщения",
     "Unknown lifecycle event": "Неизвестное событие жизненного цикла",
-    "Unknown lifecycle outcome": "Неизвестный результат жизненного цикла"
+    "Unknown lifecycle outcome": "Неизвестный результат жизненного цикла",
+    "Codex Fingerprint Convergence": "Сведение отпечатка Codex",
+    "Off (passthrough)": "Выкл. (передавать как есть)",
+    "Device only": "Только устройство",
+    "Device + Session (recommended)": "Устройство + сессия (рекомендуется)",
+    "Full convergence": "Полное сведение",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "Связывать идентификаторы устройства и сессии Codex для общих OAuth-аккаунтов"
   }
 }

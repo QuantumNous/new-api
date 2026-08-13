@@ -6542,6 +6542,12 @@
     "activity_smtp_send_failed": "活动 SMTP 发送失败",
     "Unknown message state": "未知消息状态",
     "Unknown lifecycle event": "未知生命周期事件",
-    "Unknown lifecycle outcome": "未知生命周期结果"
+    "Unknown lifecycle outcome": "未知生命周期结果",
+    "Codex Fingerprint Convergence": "Codex 指纹收敛",
+    "Off (passthrough)": "关闭（透传）",
+    "Device only": "仅设备",
+    "Device + Session (recommended)": "设备+会话（推荐）",
+    "Full convergence": "完全收敛",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "为共享 OAuth 账号收敛 Codex 设备和会话标识"
   }
 }

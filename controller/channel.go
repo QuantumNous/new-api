@@ -839,12 +839,13 @@ type ChannelBatch struct {
 }
 
 type ChannelBatchEdit struct {
-	Ids          []int   `json:"ids"`
-	Models       *string `json:"models"`
-	ModelMapping *string `json:"model_mapping"`
-	Groups       *string `json:"groups"`
-	Priority     *int64  `json:"priority"`
-	Weight       *uint   `json:"weight"`
+	Ids                  []int   `json:"ids"`
+	Models               *string `json:"models"`
+	ModelMapping         *string `json:"model_mapping"`
+	Groups               *string `json:"groups"`
+	Priority             *int64  `json:"priority"`
+	Weight               *uint   `json:"weight"`
+	CodexFingerprintMode *string `json:"codex_fingerprint_mode"`
 }
 
 func DeleteChannelBatch(c *gin.Context) {
@@ -1199,6 +1200,17 @@ func EditChannelBatch(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if batchEdit.CodexFingerprintMode != nil {
+		mode := strings.ToLower(strings.TrimSpace(*batchEdit.CodexFingerprintMode))
+		if mode != "off" && mode != "device" && mode != "session" && mode != "full" {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, "common.invalid_params")})
+			return
+		}
+		if err := model.UpdateCodexFingerprintModeByIds(batchEdit.Ids, mode); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{

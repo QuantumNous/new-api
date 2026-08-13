@@ -6542,6 +6542,12 @@
     "activity_smtp_send_failed": "Envío SMTP de actividad fallido",
     "Unknown message state": "Estado de mensaje desconocido",
     "Unknown lifecycle event": "Evento de ciclo de vida desconocido",
-    "Unknown lifecycle outcome": "Resultado de ciclo de vida desconocido"
+    "Unknown lifecycle outcome": "Resultado de ciclo de vida desconocido",
+    "Codex Fingerprint Convergence": "Convergencia de huella de Codex",
+    "Off (passthrough)": "Desactivado (pasar sin cambios)",
+    "Device only": "Solo dispositivo",
+    "Device + Session (recommended)": "Dispositivo + sesión (recomendado)",
+    "Full convergence": "Convergencia completa",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "Converge los identificadores de dispositivo y sesión de Codex para cuentas OAuth compartidas"
   }
 }

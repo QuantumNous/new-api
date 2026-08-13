@@ -488,6 +488,7 @@ export async function handleBatchEdit(
     groups?: string
     priority?: number
     weight?: number
+    codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
   },
   queryClient?: QueryClient,
   onSuccess?: () => void
@@ -504,6 +505,7 @@ export async function handleBatchEdit(
   if (payload.groups) data.groups = payload.groups
   if (payload.priority !== undefined) data.priority = payload.priority
   if (payload.weight !== undefined) data.weight = payload.weight
+  if (payload.codex_fingerprint_mode) data.codex_fingerprint_mode = payload.codex_fingerprint_mode
 
   if (Object.keys(data).length === 1) {
     toast.warning(i18next.t('No changes made'))

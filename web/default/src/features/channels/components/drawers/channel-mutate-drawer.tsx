@@ -2043,6 +2043,33 @@ export function ChannelMutateDrawer({
                         </div>
                       )}
 
+                      {currentType === 57 && (
+                        <FormField
+                          control={form.control}
+                          name='codex_fingerprint_mode'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Codex Fingerprint Convergence')}</FormLabel>
+                              <Select items={[
+                                { label: t('Off (passthrough)'), value: 'off' },
+                                { label: t('Device only'), value: 'device' },
+                                { label: t('Device + Session (recommended)'), value: 'session' },
+                                { label: t('Full convergence'), value: 'full' },
+                              ]} value={field.value || 'session'} onValueChange={field.onChange}>
+                                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                  <SelectItem value='off'>{t('Off (passthrough)')}</SelectItem>
+                                  <SelectItem value='device'>{t('Device only')}</SelectItem>
+                                  <SelectItem value='session'>{t('Device + Session (recommended)')}</SelectItem>
+                                  <SelectItem value='full'>{t('Full convergence')}</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>{t('Converge Codex device and session identifiers for shared OAuth accounts')}</FormDescription>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
                       <CodexOAuthDialog
                         open={codexOAuthDialogOpen}
                         onOpenChange={setCodexOAuthDialogOpen}

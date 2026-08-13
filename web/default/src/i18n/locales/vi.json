@@ -6542,6 +6542,12 @@
     "activity_smtp_send_failed": "Gửi SMTP hoạt động thất bại",
     "Unknown message state": "Trạng thái tin nhắn không xác định",
     "Unknown lifecycle event": "Sự kiện vòng đời không xác định",
-    "Unknown lifecycle outcome": "Kết quả vòng đời không xác định"
+    "Unknown lifecycle outcome": "Kết quả vòng đời không xác định",
+    "Codex Fingerprint Convergence": "Hợp nhất dấu vân tay Codex",
+    "Off (passthrough)": "Tắt (chuyển tiếp nguyên trạng)",
+    "Device only": "Chỉ thiết bị",
+    "Device + Session (recommended)": "Thiết bị + phiên (khuyến nghị)",
+    "Full convergence": "Hợp nhất đầy đủ",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "Hợp nhất mã nhận diện thiết bị và phiên Codex cho tài khoản OAuth dùng chung"
   }
 }

@@ -82,7 +82,16 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, fmt.Errorf("codex chat→responses: %w", err)
 	}
 	applyCodexConstraints(compatResp, info)
-	return ensureInstructionsField(compatResp)
+	body, err := ensureInstructionsField(compatResp)
+	if err != nil {
+		return nil, err
+	}
+	ids := resolveFingerprintIDs(info, clientSessionID(c))
+	if ids != nil {
+		applyFingerprintBody(body, ids)
+		setFingerprintIDs(c, ids)
+	}
+	return body, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -115,6 +124,13 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 
 	// 按真实 Codex 后端约束过滤字段；compact 还会移除其端点不接受的 tool-limit 字段。
 	applyCodexConstraintsToMap(body, info, isCompact)
+	if !isCompact {
+		ids := resolveFingerprintIDs(info, clientSessionID(c))
+		if ids != nil {
+			applyFingerprintBody(body, ids)
+			setFingerprintIDs(c, ids)
+		}
+	}
 
 	if isCompact {
 		// compact 模式上游不接受 store/stream 字段
@@ -272,6 +288,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
 	}
+	applyFingerprintHeaders(*req, fingerprintIDs(c, info))
 
 	// chatgpt.com/backend-api/codex/responses is strict about Content-Type.
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,

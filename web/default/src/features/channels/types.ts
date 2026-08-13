@@ -88,6 +88,7 @@ export interface ChannelSettings {
   system_prompt?: string
   system_prompt_override?: boolean
   image_carrier_model?: string
+  codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
 }
 
 export interface ChannelOtherSettings {
@@ -291,6 +292,7 @@ export interface BatchEditChannelsParams {
   groups?: string // 逗号分隔
   priority?: number
   weight?: number
+  codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
 }
 
 export interface TagOperationParams {

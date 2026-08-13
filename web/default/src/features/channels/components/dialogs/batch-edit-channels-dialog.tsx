@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog } from '@/components/dialog'
 import { MultiSelect } from '@/components/multi-select'
 import { getGroups } from '../../api'
@@ -53,6 +54,7 @@ export function BatchEditChannelsDialog({
   const [groups, setGroups] = useState<string[]>([])
   const [priority, setPriority] = useState('')
   const [weight, setWeight] = useState('')
+  const [codexFingerprintMode, setCodexFingerprintMode] = useState<'off' | 'device' | 'session' | 'full' | ''>('')
 
   const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
     queryKey: ['groups'],
@@ -81,6 +83,7 @@ export function BatchEditChannelsDialog({
       groups?: string
       priority?: number
       weight?: number
+      codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
     } = {}
 
     if (models.trim()) payload.models = models.trim()
@@ -102,6 +105,7 @@ export function BatchEditChannelsDialog({
       }
       payload.weight = n
     }
+    if (codexFingerprintMode) payload.codex_fingerprint_mode = codexFingerprintMode
 
     setIsSaving(true)
     try {
@@ -119,6 +123,7 @@ export function BatchEditChannelsDialog({
     setGroups([])
     setPriority('')
     setWeight('')
+    setCodexFingerprintMode('')
     onOpenChange(false)
   }
 
@@ -219,6 +224,20 @@ export function BatchEditChannelsDialog({
               disabled={isSaving}
             />
           </div>
+        </div>
+
+        <div className='space-y-2'>
+          <Label>{t('Codex Fingerprint Convergence')}</Label>
+          <Select value={codexFingerprintMode} onValueChange={(value) => setCodexFingerprintMode(value as typeof codexFingerprintMode)}>
+            <SelectTrigger><SelectValue placeholder={t('Leave empty to keep current')} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value='off'>{t('Off (passthrough)')}</SelectItem>
+              <SelectItem value='device'>{t('Device only')}</SelectItem>
+              <SelectItem value='session'>{t('Device + Session (recommended)')}</SelectItem>
+              <SelectItem value='full'>{t('Full convergence')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className='text-muted-foreground text-xs'>{t('Applies only to selected Codex channels')}</p>
         </div>
       </div>
     </Dialog>
