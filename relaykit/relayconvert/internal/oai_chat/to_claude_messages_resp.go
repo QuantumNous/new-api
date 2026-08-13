@@ -35,7 +35,7 @@ func stopOpenBlocks(state *convmeta.ClaudeConvertInfo) []*dto.ClaudeResponse {
 	}
 }
 
-func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
+func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage, info convmeta.Meta) *dto.ClaudeUsage {
 	if oaiUsage == nil {
 		return nil
 	}
@@ -57,14 +57,26 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 		oaiUsage.ClaudeCacheCreation5mTokens,
 		oaiUsage.ClaudeCacheCreation1hTokens,
 	)
-	cacheCreationTokens := oaiUsage.PromptTokensDetails.CacheCreationTokensTotal()
+	cacheRead := oaiUsage.PromptTokensDetails.CachedTokens
+	cacheCreate := oaiUsage.PromptTokensDetails.CacheCreationTokensTotal()
 	inputTokens := oaiUsage.PromptTokens
-	if oaiUsage.PromptTokensDetails.CacheWriteTokens > 0 {
-		// OpenAI native cache-write usage counts cached and cache-write tokens
-		// inside prompt_tokens, while Claude semantics reports input_tokens
-		// excluding both. Both counts are unadjusted prefixes and may overlap,
-		// so clamp a negative remainder at zero.
-		inputTokens = oaiUsage.PromptTokens - oaiUsage.PromptTokensDetails.CachedTokens - cacheCreationTokens
+	excludeCache := oaiUsage.PromptTokensDetails.CacheWriteTokens > 0 ||
+		convmeta.OptionsOf(info).Claude.OpenAIPromptIncludesCache
+	if excludeCache {
+		if cacheRead > 0 {
+			if inputTokens < cacheRead {
+				inputTokens = 0
+			} else {
+				inputTokens -= cacheRead
+			}
+		}
+		if cacheCreate > 0 {
+			if inputTokens < cacheCreate {
+				inputTokens = 0
+			} else {
+				inputTokens -= cacheCreate
+			}
+		}
 		if inputTokens < 0 {
 			inputTokens = 0
 		}
@@ -72,8 +84,8 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	usage := &dto.ClaudeUsage{
 		InputTokens:              inputTokens,
 		OutputTokens:             oaiUsage.CompletionTokens,
-		CacheCreationInputTokens: cacheCreationTokens,
-		CacheReadInputTokens:     oaiUsage.PromptTokensDetails.CachedTokens,
+		CacheCreationInputTokens: cacheCreate,
+		CacheReadInputTokens:     cacheRead,
 		BillingUsage:             billingUsage,
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
@@ -257,7 +269,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			appendStopOpenBlocks()
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 				Type:  "message_delta",
-				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage, info),
 				Delta: &dto.ClaudeMediaMessage{
 					StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
 				},
@@ -284,7 +296,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			}
 			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 				Type:  "message_delta",
-				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+				Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage, info),
 				Delta: &dto.ClaudeMediaMessage{
 					StopReason: kitutil.GetPointer[string](stopReason),
 				},
@@ -422,7 +434,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			if oaiUsage != nil {
 				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 					Type:  "message_delta",
-					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage),
+					Usage: buildClaudeUsageFromOpenAIUsage(oaiUsage, info),
 					Delta: &dto.ClaudeMediaMessage{
 						StopReason: kitutil.GetPointer[string](stopReasonOpenAI2Claude(state.FinishReason)),
 					},
@@ -456,7 +468,7 @@ func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeRespon
 	responses = append(responses,
 		&dto.ClaudeResponse{
 			Type:  "message_delta",
-			Usage: buildClaudeUsageFromOpenAIUsage(state.Usage),
+			Usage: buildClaudeUsageFromOpenAIUsage(state.Usage, info),
 			Delta: &dto.ClaudeMediaMessage{
 				StopReason: kitutil.GetPointer[string](stopReason),
 			},
@@ -504,7 +516,7 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 	}
 	claudeResponse.Content = contents
 	claudeResponse.StopReason = stopReason
-	claudeResponse.Usage = buildClaudeUsageFromOpenAIUsage(&openAIResponse.Usage)
+	claudeResponse.Usage = buildClaudeUsageFromOpenAIUsage(&openAIResponse.Usage, info)
 
 	return claudeResponse
 }
