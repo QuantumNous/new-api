@@ -345,9 +345,9 @@ async function submit() {
     size="lg"
     @close="close"
   >
-    <div class="space-y-0 text-left">
+    <div class="space-y-4 text-left">
       <!-- ══ Section: 基本信息 ══════════════════════════════════════════ -->
-      <section class="channel-form-section">
+      <section class="channel-form-section channel-form-section--basic">
         <div class="channel-form-section-header">
           <div class="channel-form-section-icon">
             <Shapes :size="16" />
@@ -362,127 +362,131 @@ async function submit() {
           </div>
         </div>
 
-        <!-- Type searchable dropdown + Name -->
-        <div class="grid gap-4 sm:grid-cols-2">
-          <div>
-            <p class="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">
-              {{ t('channels.type') }}
-              <span class="text-[var(--status-danger)]">*</span>
-            </p>
-            <!-- Custom searchable type selector -->
-            <div class="relative" @keydown.esc="closeTypeDropdown">
-              <button
-                type="button"
-                class="flex h-10 w-full items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 text-left text-sm focus-ring"
-                :aria-expanded="typeDropdownOpen"
-                @click="typeDropdownOpen = !typeDropdownOpen"
+        <div class="channel-form-section-body">
+          <!-- Type searchable dropdown + Name -->
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p
+                class="mb-1.5 text-sm font-medium text-[var(--text-secondary)]"
               >
-                <VendorLogo :vendor="selectedTypeMeta.supplier" :size="20" />
-                <span
-                  class="min-w-0 flex-1 truncate font-medium text-[var(--text-primary)]"
+                {{ t('channels.type') }}
+                <span class="text-[var(--status-danger)]">*</span>
+              </p>
+              <!-- Custom searchable type selector -->
+              <div class="relative" @keydown.esc="closeTypeDropdown">
+                <button
+                  type="button"
+                  class="flex h-10 w-full items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 text-left text-sm focus-ring"
+                  :aria-expanded="typeDropdownOpen"
+                  @click="typeDropdownOpen = !typeDropdownOpen"
                 >
-                  {{ selectedTypeMeta.label }}
-                </span>
-                <ChevronDown
-                  :size="15"
-                  class="shrink-0 text-[var(--text-tertiary)]"
-                />
-              </button>
-
-              <div
-                v-if="typeDropdownOpen"
-                class="absolute left-0 top-[calc(100%+4px)] z-20 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-lg"
-              >
-                <div class="p-2">
-                  <input
-                    v-model="typeSearch"
-                    type="text"
-                    class="h-9 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 text-sm focus-ring outline-none placeholder:text-[var(--text-tertiary)]"
-                    :placeholder="t('channels.typeFilter') + '...'"
-                    autofocus
-                    @click.stop
+                  <VendorLogo :vendor="selectedTypeMeta.supplier" :size="20" />
+                  <span
+                    class="min-w-0 flex-1 truncate font-medium text-[var(--text-primary)]"
+                  >
+                    {{ selectedTypeMeta.label }}
+                  </span>
+                  <ChevronDown
+                    :size="15"
+                    class="shrink-0 text-[var(--text-tertiary)]"
                   />
-                </div>
-                <ul
-                  class="subtle-scroll max-h-52 overflow-y-auto pb-2"
-                  role="listbox"
-                  :aria-label="t('channels.type')"
+                </button>
+
+                <div
+                  v-if="typeDropdownOpen"
+                  class="absolute left-0 top-[calc(100%+4px)] z-20 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-lg"
                 >
-                  <li
-                    v-for="opt in filteredTypeOptions"
-                    :key="opt.value"
-                    role="option"
-                    :aria-selected="form.type === opt.value"
-                    class="mx-2 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-[var(--surface-muted)]"
-                    :class="
-                      form.type === opt.value
-                        ? 'font-semibold text-[var(--accent)]'
-                        : 'text-[var(--text-primary)]'
-                    "
-                    @click="selectType(opt.value)"
-                  >
-                    <VendorLogo
-                      :vendor="adminChannelTypeMeta(opt.value).supplier"
-                      :size="20"
+                  <div class="p-2">
+                    <input
+                      v-model="typeSearch"
+                      type="text"
+                      class="h-9 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 text-sm focus-ring outline-none placeholder:text-[var(--text-tertiary)]"
+                      :placeholder="t('channels.typeFilter') + '...'"
+                      autofocus
+                      @click.stop
                     />
-                    {{ opt.label }}
-                  </li>
-                  <li
-                    v-if="filteredTypeOptions.length === 0"
-                    class="px-4 py-3 text-sm text-[var(--text-tertiary)]"
+                  </div>
+                  <ul
+                    class="subtle-scroll max-h-52 overflow-y-auto pb-2"
+                    role="listbox"
+                    :aria-label="t('channels.type')"
                   >
-                    {{ t('common.noResults') }}
-                  </li>
-                </ul>
+                    <li
+                      v-for="opt in filteredTypeOptions"
+                      :key="opt.value"
+                      role="option"
+                      :aria-selected="form.type === opt.value"
+                      class="mx-2 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-[var(--surface-muted)]"
+                      :class="
+                        form.type === opt.value
+                          ? 'font-semibold text-[var(--accent)]'
+                          : 'text-[var(--text-primary)]'
+                      "
+                      @click="selectType(opt.value)"
+                    >
+                      <VendorLogo
+                        :vendor="adminChannelTypeMeta(opt.value).supplier"
+                        :size="20"
+                      />
+                      {{ opt.label }}
+                    </li>
+                    <li
+                      v-if="filteredTypeOptions.length === 0"
+                      class="px-4 py-3 text-sm text-[var(--text-tertiary)]"
+                    >
+                      {{ t('common.noResults') }}
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
+
+            <FormField :label="t('channels.channelName') + ' *'">
+              <TextInput
+                v-model="form.name"
+                name="admin-channel-name"
+                :placeholder="t('channels.channelNamePlaceholder')"
+                autocomplete="off"
+              />
+            </FormField>
           </div>
 
-          <FormField :label="t('channels.channelName') + ' *'">
-            <TextInput
-              v-model="form.name"
-              name="admin-channel-name"
-              :placeholder="t('channels.channelNamePlaceholder')"
-              autocomplete="off"
-            />
-          </FormField>
-        </div>
-
-        <!-- Enabled toggle (create only; existing channels toggle status from the table) -->
-        <div
-          v-if="editing === null"
-          class="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
-        >
-          <div>
-            <p class="text-sm font-medium text-[var(--text-primary)]">
-              {{ t('channels.enabledLabel') }}
-            </p>
-            <p class="text-xs text-[var(--text-tertiary)]">
-              {{ t('channels.enabledDesc') }}
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            :aria-checked="form.enabled"
-            class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-ring"
-            :class="
-              form.enabled
-                ? 'bg-[var(--accent)]'
-                : 'bg-[var(--surface-muted)] border border-[var(--border-subtle)]'
-            "
-            @click="form.enabled = !form.enabled"
+          <!-- Enabled toggle (create only; existing channels toggle status from the table) -->
+          <div
+            v-if="editing === null"
+            class="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
           >
-            <span
-              class="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
-              :class="form.enabled ? 'translate-x-6' : 'translate-x-1'"
-            />
-          </button>
+            <div>
+              <p class="text-sm font-medium text-[var(--text-primary)]">
+                {{ t('channels.enabledLabel') }}
+              </p>
+              <p class="text-xs text-[var(--text-tertiary)]">
+                {{ t('channels.enabledDesc') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              :aria-checked="form.enabled"
+              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-ring"
+              :class="
+                form.enabled
+                  ? 'bg-[var(--accent)]'
+                  : 'bg-[var(--surface-muted)] border border-[var(--border-subtle)]'
+              "
+              @click="form.enabled = !form.enabled"
+            >
+              <span
+                class="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+                :class="form.enabled ? 'translate-x-6' : 'translate-x-1'"
+              />
+            </button>
+          </div>
         </div>
       </section>
 
       <!-- ══ Section: 凭证 ══════════════════════════════════════════════ -->
-      <section class="channel-form-section">
+      <section class="channel-form-section channel-form-section--credentials">
         <div class="channel-form-section-header">
           <div class="channel-form-section-icon">
             <KeyRound :size="16" />
@@ -497,89 +501,93 @@ async function submit() {
           </div>
         </div>
 
-        <!-- API address -->
-        <FormField
-          :label="t('channels.apiAddress')"
-          :hint="t('channels.apiAddressDesc')"
-        >
-          <TextInput
-            v-model="form.baseUrl"
-            name="admin-channel-base-url"
-            :placeholder="t('channels.apiAddressPlaceholder')"
-            autocomplete="url"
-          />
-        </FormField>
-
-        <!-- Add mode selector (batch keys apply to creation only) -->
-        <div>
-          <div
-            v-if="editing === null"
-            class="mb-1.5 flex items-center justify-between"
-          >
-            <p class="text-sm font-medium text-[var(--text-secondary)]">
-              {{ t('channels.addMode') }}
-            </p>
-            <div
-              class="flex gap-1 rounded-lg bg-[var(--surface-muted)] p-0.5"
-              role="radiogroup"
-              :aria-label="t('channels.addMode')"
-            >
-              <button
-                v-for="mode in [
-                  { value: 'single', label: t('channels.addModeSingle') },
-                  { value: 'multi', label: t('channels.addModeMulti') },
-                ]"
-                :key="mode.value"
-                type="button"
-                role="radio"
-                :aria-checked="form.addMode === mode.value"
-                class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
-                :class="
-                  form.addMode === mode.value
-                    ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
-                    : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-                "
-                @click="form.addMode = mode.value as 'single' | 'multi'"
-              >
-                {{ mode.label }}
-              </button>
-            </div>
-          </div>
-
-          <!-- API key input -->
+        <div class="channel-form-section-body">
+          <!-- API address -->
           <FormField
-            :label="t('channels.apiKeyLabel') + (editing === null ? ' *' : '')"
-            :hint="
-              form.addMode === 'multi'
-                ? t('channels.apiKeyMultiHint')
-                : t('channels.apiKeyHint')
-            "
+            :label="t('channels.apiAddress')"
+            :hint="t('channels.apiAddressDesc')"
           >
-            <template v-if="form.addMode === 'single'">
-              <TextInput
-                v-model="form.key"
-                type="password"
-                name="admin-channel-key"
-                :placeholder="t('channels.apiKeyPlaceholder')"
-                autocomplete="off"
-              />
-            </template>
-            <template v-else>
-              <textarea
-                v-model="form.key"
-                name="admin-channel-key-multi"
-                rows="4"
-                class="channel-form-textarea focus-ring"
-                :placeholder="t('channels.apiKeyPlaceholder')"
-                autocomplete="off"
-              />
-            </template>
+            <TextInput
+              v-model="form.baseUrl"
+              name="admin-channel-base-url"
+              :placeholder="t('channels.apiAddressPlaceholder')"
+              autocomplete="url"
+            />
           </FormField>
+
+          <!-- Add mode selector (batch keys apply to creation only) -->
+          <div>
+            <div
+              v-if="editing === null"
+              class="mb-1.5 flex items-center justify-between"
+            >
+              <p class="text-sm font-medium text-[var(--text-secondary)]">
+                {{ t('channels.addMode') }}
+              </p>
+              <div
+                class="flex gap-1 rounded-lg bg-[var(--surface-hover)] p-0.5"
+                role="radiogroup"
+                :aria-label="t('channels.addMode')"
+              >
+                <button
+                  v-for="mode in [
+                    { value: 'single', label: t('channels.addModeSingle') },
+                    { value: 'multi', label: t('channels.addModeMulti') },
+                  ]"
+                  :key="mode.value"
+                  type="button"
+                  role="radio"
+                  :aria-checked="form.addMode === mode.value"
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-colors"
+                  :class="
+                    form.addMode === mode.value
+                      ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
+                      : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                  "
+                  @click="form.addMode = mode.value as 'single' | 'multi'"
+                >
+                  {{ mode.label }}
+                </button>
+              </div>
+            </div>
+
+            <!-- API key input -->
+            <FormField
+              :label="
+                t('channels.apiKeyLabel') + (editing === null ? ' *' : '')
+              "
+              :hint="
+                form.addMode === 'multi'
+                  ? t('channels.apiKeyMultiHint')
+                  : t('channels.apiKeyHint')
+              "
+            >
+              <template v-if="form.addMode === 'single'">
+                <TextInput
+                  v-model="form.key"
+                  type="password"
+                  name="admin-channel-key"
+                  :placeholder="t('channels.apiKeyPlaceholder')"
+                  autocomplete="off"
+                />
+              </template>
+              <template v-else>
+                <textarea
+                  v-model="form.key"
+                  name="admin-channel-key-multi"
+                  rows="4"
+                  class="channel-form-textarea focus-ring"
+                  :placeholder="t('channels.apiKeyPlaceholder')"
+                  autocomplete="off"
+                />
+              </template>
+            </FormField>
+          </div>
         </div>
       </section>
 
-      <!-- ══ Section: 模型与分组 ══════════════════════════════════════ -->
-      <section class="channel-form-section">
+      <!-- ══ Section: 模型 ══════════════════════════════════════════════ -->
+      <section class="channel-form-section channel-form-section--models">
         <div class="channel-form-section-header">
           <div class="channel-form-section-icon">
             <BookOpen :size="16" />
@@ -594,189 +602,193 @@ async function submit() {
           </div>
         </div>
 
-        <!-- Models tag input -->
-        <div>
-          <div class="mb-1.5 flex items-center justify-between">
-            <p class="text-sm font-medium text-[var(--text-secondary)]">
-              {{ t('channels.modelsLabel') }}
-            </p>
-            <span class="text-xs text-[var(--text-tertiary)]">
-              {{
-                t('channels.modelsSelectedCount', { count: modelTags.length })
-              }}
-            </span>
-          </div>
-          <div
-            class="min-h-10 flex flex-wrap gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 py-2 focus-within:border-[var(--border-strong)]"
-          >
-            <span
-              v-for="tag in modelTags"
-              :key="tag"
-              class="inline-flex items-center gap-1 rounded-md bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--text-secondary)]"
-            >
-              {{ tag }}
-              <button
-                type="button"
-                :aria-label="`Remove ${tag}`"
-                class="ml-0.5 rounded-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-                @click="removeModelTag(tag)"
-              >
-                <X :size="11" />
-              </button>
-            </span>
-            <input
-              v-model="modelInput"
-              type="text"
-              class="min-w-[140px] flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--text-tertiary)]"
-              :placeholder="
-                modelTags.length ? '' : t('channels.modelsSearchPlaceholder')
-              "
-              @keydown="onModelInputKeydown"
-              @blur="modelInput.trim() && addModelTag(modelInput)"
-            />
-          </div>
-
-          <!-- Quick actions -->
-          <div class="mt-2">
-            <p class="mb-1.5 text-xs text-[var(--text-tertiary)]">
-              {{ t('channels.quickActionsDesc') }}
-            </p>
-            <div class="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                class="channel-form-quick-action"
-                :disabled="fetchingUpstream || !canFetchUpstream"
-                @click="fetchUpstream"
-              >
-                {{
-                  fetchingUpstream
-                    ? t('common.loading')
-                    : t('channels.quickFetchUpstream')
-                }}
-              </button>
-              <button
-                type="button"
-                class="channel-form-quick-action"
-                :disabled="modelTags.length === 0"
-                @click="copyAllModels"
-              >
-                {{ t('channels.quickCopyAll') }}
-              </button>
-              <button
-                type="button"
-                class="channel-form-quick-action"
-                :disabled="modelTags.length === 0"
-                @click="form.models = ''"
-              >
-                {{ t('channels.quickClearAll') }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Model mapping -->
-        <div>
-          <div class="mb-2 flex items-center justify-between">
-            <div>
+        <div class="channel-form-section-body">
+          <!-- Models tag input -->
+          <div>
+            <div class="mb-1.5 flex items-center justify-between">
               <p class="text-sm font-medium text-[var(--text-secondary)]">
-                {{ t('channels.modelMapping') }}
+                {{ t('channels.modelsLabel') }}
               </p>
-              <p class="text-xs text-[var(--text-tertiary)]">
-                {{ t('channels.modelMappingDesc') }}
-              </p>
+              <span class="text-xs text-[var(--text-tertiary)]">
+                {{
+                  t('channels.modelsSelectedCount', { count: modelTags.length })
+                }}
+              </span>
             </div>
-            <div class="flex gap-1 rounded-lg bg-[var(--surface-muted)] p-0.5">
-              <button
-                type="button"
-                class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-                :class="
-                  modelMappingTab === 'visual'
-                    ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
-                    : 'text-[var(--text-tertiary)]'
-                "
-                @click="onSwitchToVisual"
-              >
-                {{ t('channels.modelMappingVisual') }}
-              </button>
-              <button
-                type="button"
-                class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-                :class="
-                  modelMappingTab === 'json'
-                    ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
-                    : 'text-[var(--text-tertiary)]'
-                "
-                @click="onSwitchToJson"
-              >
-                {{ t('channels.modelMappingJson') }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Visual mapping editor -->
-          <template v-if="modelMappingTab === 'visual'">
             <div
-              v-if="mappingRows.length === 0"
-              class="rounded-xl border border-dashed border-[var(--border-subtle)] px-4 py-5 text-center text-sm text-[var(--text-tertiary)]"
+              class="min-h-10 flex flex-wrap gap-1.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-3 py-2 focus-within:border-[var(--border-strong)]"
             >
-              {{ t('channels.modelMappingEmpty') }}
-            </div>
-            <div v-else class="space-y-2">
-              <div
-                v-for="(row, index) in mappingRows"
-                :key="index"
-                class="flex items-center gap-2"
+              <span
+                v-for="tag in modelTags"
+                :key="tag"
+                class="inline-flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--text-secondary)]"
               >
-                <input
-                  v-model="row.from"
-                  type="text"
-                  class="channel-form-input flex-1"
-                  placeholder="gpt-4"
-                  @change="syncJsonFromRows"
-                />
-                <span class="shrink-0 text-xs text-[var(--text-tertiary)]"
-                  >→</span
-                >
-                <input
-                  v-model="row.to"
-                  type="text"
-                  class="channel-form-input flex-1"
-                  placeholder="gpt-4-turbo"
-                  @change="syncJsonFromRows"
-                />
+                {{ tag }}
                 <button
                   type="button"
-                  class="shrink-0 rounded-lg p-1.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-muted)] hover:text-[var(--status-danger)]"
-                  @click="removeMappingRow(index)"
+                  :aria-label="`Remove ${tag}`"
+                  class="ml-0.5 rounded-sm text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                  @click="removeModelTag(tag)"
                 >
-                  <X :size="13" />
+                  <X :size="11" />
+                </button>
+              </span>
+              <input
+                v-model="modelInput"
+                type="text"
+                class="min-w-[140px] flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--text-tertiary)]"
+                :placeholder="
+                  modelTags.length ? '' : t('channels.modelsSearchPlaceholder')
+                "
+                @keydown="onModelInputKeydown"
+                @blur="modelInput.trim() && addModelTag(modelInput)"
+              />
+            </div>
+
+            <!-- Quick actions -->
+            <div class="mt-2">
+              <p class="mb-1.5 text-xs text-[var(--text-tertiary)]">
+                {{ t('channels.quickActionsDesc') }}
+              </p>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  class="channel-form-quick-action"
+                  :disabled="fetchingUpstream || !canFetchUpstream"
+                  @click="fetchUpstream"
+                >
+                  {{
+                    fetchingUpstream
+                      ? t('common.loading')
+                      : t('channels.quickFetchUpstream')
+                  }}
+                </button>
+                <button
+                  type="button"
+                  class="channel-form-quick-action"
+                  :disabled="modelTags.length === 0"
+                  @click="copyAllModels"
+                >
+                  {{ t('channels.quickCopyAll') }}
+                </button>
+                <button
+                  type="button"
+                  class="channel-form-quick-action"
+                  :disabled="modelTags.length === 0"
+                  @click="form.models = ''"
+                >
+                  {{ t('channels.quickClearAll') }}
                 </button>
               </div>
             </div>
-            <button
-              type="button"
-              class="mt-2 w-full rounded-xl border border-dashed border-[var(--border-subtle)] py-2 text-sm text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:text-[var(--text-secondary)] transition-colors"
-              @click="addMappingRow"
-            >
-              {{ t('channels.addMapping') }}
-            </button>
-          </template>
+          </div>
 
-          <!-- JSON mapping editor -->
-          <template v-else>
-            <textarea
-              v-model="modelMappingJson"
-              rows="5"
-              class="channel-form-textarea focus-ring font-mono text-xs"
-              placeholder='{"gpt-4": "gpt-4-turbo"}'
-              @blur="syncRowsFromJson"
-            />
-          </template>
+          <!-- Model mapping -->
+          <div>
+            <div class="mb-2 flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-[var(--text-secondary)]">
+                  {{ t('channels.modelMapping') }}
+                </p>
+                <p class="text-xs text-[var(--text-tertiary)]">
+                  {{ t('channels.modelMappingDesc') }}
+                </p>
+              </div>
+              <div
+                class="flex gap-1 rounded-lg bg-[var(--surface-hover)] p-0.5"
+              >
+                <button
+                  type="button"
+                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+                  :class="
+                    modelMappingTab === 'visual'
+                      ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
+                      : 'text-[var(--text-tertiary)]'
+                  "
+                  @click="onSwitchToVisual"
+                >
+                  {{ t('channels.modelMappingVisual') }}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+                  :class="
+                    modelMappingTab === 'json'
+                      ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
+                      : 'text-[var(--text-tertiary)]'
+                  "
+                  @click="onSwitchToJson"
+                >
+                  {{ t('channels.modelMappingJson') }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Visual mapping editor -->
+            <template v-if="modelMappingTab === 'visual'">
+              <div
+                v-if="mappingRows.length === 0"
+                class="rounded-xl border border-dashed border-[var(--border-subtle)] px-4 py-5 text-center text-sm text-[var(--text-tertiary)]"
+              >
+                {{ t('channels.modelMappingEmpty') }}
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="(row, index) in mappingRows"
+                  :key="index"
+                  class="flex items-center gap-2"
+                >
+                  <input
+                    v-model="row.from"
+                    type="text"
+                    class="channel-form-input flex-1"
+                    placeholder="gpt-4"
+                    @change="syncJsonFromRows"
+                  />
+                  <span class="shrink-0 text-xs text-[var(--text-tertiary)]"
+                    >→</span
+                  >
+                  <input
+                    v-model="row.to"
+                    type="text"
+                    class="channel-form-input flex-1"
+                    placeholder="gpt-4-turbo"
+                    @change="syncJsonFromRows"
+                  />
+                  <button
+                    type="button"
+                    class="shrink-0 rounded-lg p-1.5 text-[var(--text-tertiary)] hover:bg-[var(--surface-muted)] hover:text-[var(--status-danger)]"
+                    @click="removeMappingRow(index)"
+                  >
+                    <X :size="13" />
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                class="mt-2 w-full rounded-xl border border-dashed border-[var(--border-subtle)] py-2 text-sm text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:text-[var(--text-secondary)] transition-colors"
+                @click="addMappingRow"
+              >
+                {{ t('channels.addMapping') }}
+              </button>
+            </template>
+
+            <!-- JSON mapping editor -->
+            <template v-else>
+              <textarea
+                v-model="modelMappingJson"
+                rows="5"
+                class="channel-form-textarea focus-ring font-mono text-xs"
+                placeholder='{"gpt-4": "gpt-4-turbo"}'
+                @blur="syncRowsFromJson"
+              />
+            </template>
+          </div>
         </div>
       </section>
 
       <!-- ══ Section: 高级设置 (折叠) ═══════════════════════════════════ -->
-      <section class="channel-form-section">
+      <section class="channel-form-section channel-form-section--advanced">
         <button
           type="button"
           class="channel-form-section-header w-full text-left"
@@ -806,7 +818,7 @@ async function submit() {
           />
         </button>
 
-        <div v-show="advancedOpen" class="mt-4 space-y-4">
+        <div v-show="advancedOpen" class="channel-form-section-body">
           <div class="grid gap-4 sm:grid-cols-2">
             <FormField :label="t('channels.priority')">
               <input
@@ -899,19 +911,24 @@ async function submit() {
 
 <style scoped>
 /* ── Section layout ──────────────────────────────────────────────────────── */
+/* Each functional block is a soft card so day/night themes both separate
+   sections by surface tint instead of a bare divider line. */
 .channel-form-section {
-  padding: 1.25rem 0;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.channel-form-section:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+  padding: 1rem 1.125rem 1.125rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+  background: var(--surface-muted);
 }
 .channel-form-section-header {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  margin-bottom: 1.25rem;
+}
+.channel-form-section-body {
+  margin-top: 1rem;
+}
+.channel-form-section-body > * + * {
+  margin-top: 1rem;
 }
 .channel-form-section-icon {
   display: flex;
@@ -920,11 +937,33 @@ async function submit() {
   width: 2rem;
   height: 2rem;
   border-radius: 0.5rem;
-  background: var(--surface-muted);
+  background: var(--surface-solid);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
   flex-shrink: 0;
   margin-top: 0.1rem;
+}
+/* Per-section accent tints reuse semantic status tokens so both the Desert
+   Ledger (day) and One Night (dark) palettes stay coherent automatically. */
+.channel-form-section--basic .channel-form-section-icon {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-text);
+}
+.channel-form-section--credentials .channel-form-section-icon {
+  background: var(--status-warning-soft);
+  border-color: transparent;
+  color: var(--status-warning-text);
+}
+.channel-form-section--models .channel-form-section-icon {
+  background: var(--status-success-soft);
+  border-color: transparent;
+  color: var(--status-success-text);
+}
+.channel-form-section--advanced .channel-form-section-icon {
+  background: var(--status-info-soft);
+  border-color: transparent;
+  color: var(--status-info-text);
 }
 .channel-form-section-title {
   font-size: 0.875rem;
@@ -955,7 +994,7 @@ async function submit() {
 .channel-form-quick-action {
   border: 1px solid var(--border-subtle);
   border-radius: 0.5rem;
-  background: var(--surface-muted);
+  background: var(--surface-solid);
   padding: 0.25rem 0.625rem;
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -964,7 +1003,7 @@ async function submit() {
     color 0.15s;
 }
 .channel-form-quick-action:hover:not(:disabled) {
-  background: var(--surface-solid);
+  background: var(--surface-hover);
   color: var(--text-primary);
 }
 .channel-form-quick-action:disabled {

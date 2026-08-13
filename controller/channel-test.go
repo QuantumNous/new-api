@@ -883,10 +883,13 @@ func TestChannel(c *gin.Context) {
 		})
 		return
 	}
+	// Keep top-level time for the legacy web UI; the next frontend requires
+	// a data key on every success envelope.
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"time":    consumedTime,
+		"data":    gin.H{"time": consumedTime},
 	})
 }
 

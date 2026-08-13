@@ -733,9 +733,11 @@ func AddChannel(c *gin.Context) {
 		"type":  addChannelRequest.Channel.Type,
 		"count": len(channels),
 	})
+	// The next frontend rejects success envelopes without a data key.
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    len(channels),
 	})
 	return
 }
@@ -770,6 +772,7 @@ func DeleteChannel(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    gin.H{"id": id},
 	})
 	return
 }

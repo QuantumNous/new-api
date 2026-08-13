@@ -173,6 +173,39 @@ func TestValidateChannelNormalizesEmptyGroupOnAdd(t *testing.T) {
 	})
 }
 
+// The next frontend rejects success envelopes without a data key, so channel
+// creation must echo the created count as data.
+func TestAddChannelSuccessEnvelopeIncludesData(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+
+	requestBody, err := common.Marshal(AddChannelRequest{
+		Mode: "single",
+		Channel: &model.Channel{
+			Name:   "envelope-test",
+			Type:   constant.ChannelTypeOpenAI,
+			Key:    "sk-test",
+			Models: "gpt-4o",
+		},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/next/admin/channels", bytes.NewReader(requestBody))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	AddChannel(ctx)
+
+	var response struct {
+		Success bool `json:"success"`
+		Data    *int `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.True(t, response.Success)
+	require.NotNil(t, response.Data, "success envelope must include data")
+	assert.Equal(t, 1, *response.Data)
+}
+
 func TestNewAPIChannelRegistration(t *testing.T) {
 	apiType, ok := common.ChannelType2APIType(constant.ChannelTypeNewAPI)
 
@@ -266,6 +299,7 @@ func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
 	DeleteChannel(ctx)
 
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Contains(t, recorder.Body.String(), `"data":{"id":999999}`)
 	afterDelete, err := service.GetHttpClientWithProxy(proxyURL)
 	require.NoError(t, err)
 	assert.NotSame(t, beforeDelete, afterDelete)

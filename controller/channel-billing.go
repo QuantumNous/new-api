@@ -444,10 +444,13 @@ func UpdateChannelBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// Keep top-level balance for the legacy web UI; the next frontend
+	// requires a data key on every success envelope.
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"balance": balance,
+		"data":    gin.H{"balance": balance},
 	})
 }
 
