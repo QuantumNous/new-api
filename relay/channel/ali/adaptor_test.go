@@ -2,6 +2,7 @@ package ali
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -128,13 +129,10 @@ func TestConvertOpenAIRequestPreservesExplicitZeroForMappedQwenModel(t *testing.
 	assert.Equal(t, int64(0), value.Int())
 }
 
-func TestQwenImage3ModelsAreAvailable(t *testing.T) {
-	models := (&Adaptor{}).GetModelList()
-	assert.Contains(t, models, "qwen-image-3.0")
-	assert.Contains(t, models, "qwen-image-3.0-pro")
-}
+func TestMappedAliImageModelUsesUpstreamProtocol(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 
-func TestMappedQwenImage3UsesSynchronousEndpoint(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode:       constant.RelayModeImagesGenerations,
 		OriginModelName: "customer-image-model",
@@ -149,7 +147,11 @@ func TestMappedQwenImage3UsesSynchronousEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", url)
 
-	converted, err := adaptor.ConvertImageRequest(nil, info, dto.ImageRequest{
+	header := http.Header{}
+	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
+	assert.Empty(t, header.Get("X-DashScope-Async"))
+
+	converted, err := adaptor.ConvertImageRequest(c, info, dto.ImageRequest{
 		Model:  info.UpstreamModelName,
 		Prompt: "poster",
 	})

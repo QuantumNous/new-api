@@ -7,8 +7,6 @@ var ModelList = []string{
 	"qwen-max-longcontext",
 	"qwq-32b",
 	"qwen3-235b-a22b",
-	"qwen-image-3.0",
-	"qwen-image-3.0-pro",
 	"text-embedding-v1",
 	"gte-rerank-v2",
 }
