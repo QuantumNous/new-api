@@ -843,3 +843,69 @@ func TestReloadDoesNotMutateCapturedMatchMaps(t *testing.T) {
 		t.Fatalf("reload should have folded 4K to 4k, got %q", got)
 	}
 }
+
+// The production write path must quarantine bad rules, not just LoadFromDB.
+//
+// LoadFromDB has no non-test callers: an administrator save goes
+// LoadOptionsFromDatabase -> applyOptionMapValue -> handleConfigUpdate
+// (model/option.go) -> config.UpdateConfigFromMap. If that entry point skips
+// NormalizeAndValidate, an ambiguous rule set reaches the matcher and
+// FindVideoPriceRule's tie-break decides the price by JSON array order --
+// exactly the silent defect the validation exists to prevent.
+func TestUpdateConfigFromMapQuarantinesAmbiguousRules(t *testing.T) {
+	restore := swapVideoPriceSetting(t)
+	defer restore()
+	ambiguous := []VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 9, Basis: BasisOutputDuration},
+		{Model: "m", Match: map[string]string{"has_video": "true"},
+			PricePerSecond: 99, Basis: BasisOutputDuration},
+		{Model: "keep", Match: map[string]string{"resolution": "480p"},
+			PricePerSecond: 0.1, Basis: BasisOutputDuration},
+	}
+	if err := UpdateVideoPriceSettingFromMap(map[string]string{
+		"video_price_rules": marshalRules(t, ambiguous),
+	}); err != nil {
+		t.Fatalf("UpdateVideoPriceSettingFromMap: %v", err)
+	}
+
+	live := GetVideoPriceRules()
+	if IsVideoModelConfigured(live, "m") {
+		t.Fatalf("the ambiguous model reached the matcher unquarantined: %+v", live)
+	}
+	if !IsVideoModelConfigured(live, "keep") {
+		t.Fatalf("the well-formed model was lost as collateral: %+v", live)
+	}
+}
+
+// The same path must also fold hand-written values, or a rule saved as "4K"
+// never matches the "4k" adapters emit and every request for that model is
+// rejected as unpriceable.
+func TestUpdateConfigFromMapFoldsMatchValues(t *testing.T) {
+	restore := swapVideoPriceSetting(t)
+	defer restore()
+	if err := UpdateVideoPriceSettingFromMap(map[string]string{
+		"video_price_rules": marshalRules(t, []VideoPriceRule{
+			{Model: "m", Match: map[string]string{"resolution": "4K"},
+				PricePerSecond: 1, Basis: BasisOutputDuration},
+		}),
+	}); err != nil {
+		t.Fatalf("UpdateVideoPriceSettingFromMap: %v", err)
+	}
+	if got := GetVideoPriceRules()[0].Match["resolution"]; got != "4k" {
+		t.Fatalf("resolution = %q, want 4k folded", got)
+	}
+}
+
+// swapVideoPriceSetting isolates a test that writes the package-level table.
+func swapVideoPriceSetting(t *testing.T) func() {
+	t.Helper()
+	videoPriceSettingMu.Lock()
+	prev := videoPriceSetting
+	videoPriceSettingMu.Unlock()
+	return func() {
+		videoPriceSettingMu.Lock()
+		videoPriceSetting = prev
+		videoPriceSettingMu.Unlock()
+	}
+}

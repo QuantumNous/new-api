@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
@@ -1318,6 +1319,14 @@ func handleConfigUpdate(key, value string) (bool, error) {
 
 	if configName == "registration_security" {
 		return true, system_setting.UpdateRegistrationSecuritySettingsFromMap(map[string]string{configKey: value})
+	}
+
+	// The generic path below calls config.UpdateConfigFromMap, a raw setter that
+	// runs neither NormalizeAndValidate nor the module lock. The video price
+	// table needs both: unvalidated rules let FindVideoPriceRule decide prices by
+	// JSON array order, and an unfolded "4K" never matches the "4k" adapters emit.
+	if configName == "billing_setting_video" {
+		return true, billing_setting.UpdateVideoPriceSettingFromMap(map[string]string{configKey: value})
 	}
 
 	// 获取配置对象

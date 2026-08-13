@@ -397,3 +397,31 @@ func GetVideoPriceRules() []VideoPriceRule {
 	defer videoPriceSettingMu.RUnlock()
 	return append([]VideoPriceRule(nil), videoPriceSetting.VideoPriceRules...)
 }
+
+// UpdateVideoPriceSettingFromMap applies an administrator save to the live rule
+// table, holding the module write lock and running the same normalization and
+// quarantine that a database load performs.
+//
+// The generic path cannot do this. An administrator save reaches
+// model/option.go's handleConfigUpdate, which calls config.UpdateConfigFromMap
+// -- a raw setter that skips both NormalizeAndValidate and the module lock.
+// Without this entry point an ambiguous rule set reaches the matcher, and
+// FindVideoPriceRule's tie-break then decides prices by JSON array order; a
+// hand-written "4K" also stays unfolded and never matches the "4k" adapters
+// emit. Mirrors system_setting.UpdateRegistrationSecuritySettingsFromMap.
+func UpdateVideoPriceSettingFromMap(values map[string]string) error {
+	videoPriceSettingMu.Lock()
+	defer videoPriceSettingMu.Unlock()
+
+	next := VideoPriceSetting{
+		VideoPriceRules: append([]VideoPriceRule(nil), videoPriceSetting.VideoPriceRules...),
+	}
+	if err := config.UpdateConfigFromMap(&next, values); err != nil {
+		return err
+	}
+	if err := next.NormalizeAndValidate(); err != nil {
+		return err
+	}
+	videoPriceSetting = next
+	return nil
+}
