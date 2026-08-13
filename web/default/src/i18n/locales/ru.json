@@ -6544,6 +6544,26 @@
     "Unknown lifecycle event": "Неизвестное событие жизненного цикла",
     "Unknown lifecycle outcome": "Неизвестный результат жизненного цикла",
     "Hidden models": "Скрытые модели",
-    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Имена моделей через запятую, которые будут скрыты на страницах с ценами. Поддерживаются подстановочные знаки * (префикс, суффикс или вхождение). Скрытые модели по-прежнему полностью доступны через API."
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Имена моделей через запятую, которые будут скрыты на страницах с ценами. Поддерживаются подстановочные знаки * (префикс, суффикс или вхождение). Скрытые модели по-прежнему полностью доступны через API.",
+    "Website Featured": "Избранные модели сайта",
+    "Loading featured models": "Загрузка избранных моделей",
+    "Unable to load featured models": "Не удалось загрузить избранные модели",
+    "Please retry later or check your administrator permissions.": "Повторите попытку позже или проверьте права администратора.",
+    "Choose one or more models and arrange their order. Featured models appear first on the public model directory.": "Выберите одну или несколько моделей и задайте порядок. Избранные модели отображаются первыми в публичном каталоге.",
+    "Featured model order": "Порядок избранных моделей",
+    "Models not listed here keep the normal automatic ordering.": "Для моделей, которых нет в списке, сохраняется обычная автоматическая сортировка.",
+    "Save order": "Сохранить порядок",
+    "Featured models saved successfully": "Избранные модели сохранены",
+    "Failed to save featured models": "Не удалось сохранить избранные модели",
+    "No longer available": "Больше недоступна",
+    "Move featured model up": "Переместить модель вверх",
+    "Move featured model down": "Переместить модель вниз",
+    "Remove featured model": "Удалить из избранного",
+    "No featured models configured. Add models from the list below.": "Избранные модели не настроены. Добавьте их из списка ниже.",
+    "Available public models": "Доступные публичные модели",
+    "Only models currently shown on the public model directory can be selected.": "Можно выбрать только модели, которые сейчас отображаются в публичном каталоге.",
+    "Search public models": "Поиск публичных моделей",
+    "Feature": "Добавить в избранное",
+    "No additional public models found": "Другие публичные модели не найдены"
   }
 }

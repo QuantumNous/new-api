@@ -6544,6 +6544,26 @@
     "Unknown lifecycle event": "Unknown lifecycle event",
     "Unknown lifecycle outcome": "Unknown lifecycle outcome",
     "Hidden models": "Hidden models",
-    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API."
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.",
+    "Website Featured": "Website Featured",
+    "Loading featured models": "Loading featured models",
+    "Unable to load featured models": "Unable to load featured models",
+    "Please retry later or check your administrator permissions.": "Please retry later or check your administrator permissions.",
+    "Choose one or more models and arrange their order. Featured models appear first on the public model directory.": "Choose one or more models and arrange their order. Featured models appear first on the public model directory.",
+    "Featured model order": "Featured model order",
+    "Models not listed here keep the normal automatic ordering.": "Models not listed here keep the normal automatic ordering.",
+    "Save order": "Save order",
+    "Featured models saved successfully": "Featured models saved successfully",
+    "Failed to save featured models": "Failed to save featured models",
+    "No longer available": "No longer available",
+    "Move featured model up": "Move featured model up",
+    "Move featured model down": "Move featured model down",
+    "Remove featured model": "Remove featured model",
+    "No featured models configured. Add models from the list below.": "No featured models configured. Add models from the list below.",
+    "Available public models": "Available public models",
+    "Only models currently shown on the public model directory can be selected.": "Only models currently shown on the public model directory can be selected.",
+    "Search public models": "Search public models",
+    "Feature": "Feature",
+    "No additional public models found": "No additional public models found"
   }
 }

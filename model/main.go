@@ -360,6 +360,7 @@ func orderedMigrationModels() []migrationModel {
 		{&AssetModelReadiness{}, "AssetModelReadiness"},
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
+		{&WebsiteFeaturedModel{}, "WebsiteFeaturedModel"},
 		{&PrefillGroup{}, "PrefillGroup"},
 		{&Setup{}, "Setup"},
 		{&TwoFA{}, "TwoFA"},
