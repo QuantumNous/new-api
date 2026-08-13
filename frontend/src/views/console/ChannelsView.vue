@@ -459,11 +459,6 @@ function openSupplierTest(group: SupplierGroup) {
   pickingGroup.value = group
 }
 
-function onPickerConfirm(channel: AdminChannel) {
-  pickingGroup.value = null
-  testing.value = channel
-}
-
 function openCreate() {
   if (!canMutate.value || !canSensitiveWrite.value) return
   editing.value = null
@@ -1351,8 +1346,9 @@ async function runBulkStatus(
       :open="pickingGroup !== null"
       :supplier="pickingGroup?.supplier ?? ''"
       :channels="pickingGroup?.channels ?? []"
+      :test-model="testChannelModel"
       @close="pickingGroup = null"
-      @confirm="onPickerConfirm"
+      @tested="load({ background: true })"
     />
 
     <ConfirmDialog
