@@ -320,3 +320,65 @@ func TestSoniloCompletionKeepsPerSecondReservation(t *testing.T) {
 		t.Fatalf("AdjustPerCallBillingOnComplete = %d, want 0 (keep the frozen per-second reservation)", got)
 	}
 }
+
+// Sonilo has no unpriceable dimension and no unpriceable length:
+// resolveDimensions reports only has_video (always "true", since a video input
+// is mandatory), and the inbound validator rejects a non-positive, NaN or
+// infinite duration_seconds before billing runs. The only way a request goes
+// unpriced is that there is no validated request in the context to read -- and
+// then the legacy seconds/variants ratios are skipped too, so a configured
+// model would bill the bare ModelPrice with no seconds multiplier.
+//
+// That has to fail rather than silently underbill: relay_task rejects before
+// submitting upstream and the request costs nothing.
+func TestSoniloEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installSoniloVideoPriceRules(t, `[
+		{"model":"sonilo-music","match":{"has_video":"true"},"price_per_second":0.02,"basis":"output_duration"}
+	]`)
+
+	// A context that never went through ValidateRequestAndSetAction.
+	ctx, _ := multipartContext(t, validFields(), true)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "sonilo-music",
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{},
+	}
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = 0.5
+
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(ctx, info); len(ratios) != 0 {
+		t.Fatalf("no validated request means no legacy ratios either; got %v", ratios)
+	}
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured but unpriceable request must return an error")
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must not start failing. Without a
+// validated request it was already getting no ratios, and a request the gateway
+// never priced per second has nothing to reject.
+func TestSoniloEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installSoniloVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"has_video":"true"},"price_per_second":0.02,"basis":"output_duration"}
+	]`)
+
+	ctx, _ := multipartContext(t, validFields(), true)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "sonilo-unconfigured",
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{},
+	}
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = 0.5
+
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(ctx, info); len(ratios) != 0 {
+		t.Fatalf("no validated request means no legacy ratios; got %v", ratios)
+	}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("unconfigured model produced per-second units: %v", got)
+	}
+}

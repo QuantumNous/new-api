@@ -287,3 +287,71 @@ func TestXaiEstimateBillingConfiguredModelWithNoMatchingRuleFails(t *testing.T) 
 		t.Fatal("a configured model with no matching rule must fail loudly")
 	}
 }
+
+// Grok Imagine has no unpriceable dimension and no unpriceable length:
+// resolveDimensions reports only has_video (always "false"), and seconds is
+// defaulted to defaultBillingSeconds when the request carries none. The only
+// way a request goes unpriced is that there is no stored task_request to read
+// at all -- and then the legacy `seconds` ratio is skipped too, so a configured
+// model would bill the bare ModelPrice with no seconds multiplier.
+//
+// That has to fail rather than silently underbill: relay_task rejects before
+// submitting upstream and the request costs nothing.
+func TestXaiEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installXaiVideoPriceRules(t, `[
+		{"model":"grok-video","match":{"has_video":"false"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", strings.NewReader(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "grok-video",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: ModelGrokImagineVideo15},
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{},
+	}
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = 0.5
+
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+		t.Fatalf("no stored request means no legacy ratios either; got %v", ratios)
+	}
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured but unpriceable request must return an error")
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must not start failing. Without a
+// stored request it was already getting no ratios, and a request the gateway
+// never priced per second has nothing to reject.
+func TestXaiEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installXaiVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"has_video":"false"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", strings.NewReader(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "grok-unconfigured",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: ModelGrokImagineVideo15},
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{},
+	}
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = 0.5
+
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+		t.Fatalf("no stored request means no legacy ratios; got %v", ratios)
+	}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("unconfigured model produced per-second units: %v", got)
+	}
+}

@@ -117,6 +117,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -128,6 +136,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -370,6 +381,15 @@ func (a *TaskAdaptor) GetChannelName() string { return ChannelName }
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
+		// There is no request to price at all, so the legacy `seconds` ratio is
+		// skipped too. An UNCONFIGURED model simply gets no ratios, exactly as
+		// today. A configured one would otherwise bill the bare ModelPrice with
+		// no seconds multiplier, so it must be refused instead.
+		if info != nil && billing_setting.IsVideoModelConfigured(
+			billing_setting.GetVideoPriceRules(), info.OriginModelName) {
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, "请求未能读取，无法得知时长；the task request could not be read, so no length is known")
+		}
 		return nil
 	}
 	seconds := resolveDuration(req)

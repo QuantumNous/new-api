@@ -91,6 +91,14 @@ type TaskAdaptor struct {
 	secondBillingVariants   float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -108,6 +116,9 @@ var _ interface {
 // in favour of its own FallbackSeconds, so a count folded into them would be
 // silently dropped for exactly the rules that bound input length.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -253,6 +264,15 @@ func requestFromContext(c *gin.Context) (submitRequest, error) {
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
 	req, err := requestFromContext(c)
 	if err != nil {
+		// There is no validated request to price, so the legacy seconds/variants
+		// ratios are skipped too. An UNCONFIGURED model simply gets no ratios,
+		// exactly as today. A configured one would otherwise bill the bare
+		// ModelPrice with no seconds multiplier, so it must be refused instead.
+		if info != nil && billing_setting.IsVideoModelConfigured(
+			billing_setting.GetVideoPriceRules(), info.OriginModelName) {
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, "请求未通过校验存入上下文，无法得知时长；the validated request was not in the context, so no length is known")
+		}
 		return nil
 	}
 	seconds := math.Max(req.DurationSeconds, minBillableSeconds)
