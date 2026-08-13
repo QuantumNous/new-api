@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -29,6 +30,13 @@ const (
 var (
 	copilotDeviceStartEndpoint = "https://github.com/login/device/code"
 	copilotDeviceTokenEndpoint = "https://github.com/login/oauth/access_token"
+	// Redis is required for multi-node coordination. This store lets single-instance
+	// development and staging environments complete a Device Flow without Redis.
+	copilotDeviceMemoryStore = struct {
+		sync.Mutex
+		sessions map[string]copilotDeviceSession
+		claims   map[string]time.Time
+	}{sessions: make(map[string]copilotDeviceSession), claims: make(map[string]time.Time)}
 )
 
 type CopilotDeviceStart struct {
@@ -77,9 +85,6 @@ func StartCopilotDeviceFlow(ctx context.Context, adminID int, channelID int, pro
 	if clientID == "" {
 		return nil, errors.New("Copilot Device Flow is not configured; configure the Copilot Client ID")
 	}
-	if !copilotDeviceRedisAvailable() {
-		return nil, errors.New("Copilot Device Flow requires Redis")
-	}
 	client, err := copilotHTTPClient(proxyURL, copilotDeviceTimeout)
 	if err != nil {
 		return nil, errors.New("copilot device authorization client is unavailable")
@@ -119,20 +124,13 @@ func StartCopilotDeviceFlow(ctx context.Context, adminID int, channelID int, pro
 		DeviceCode: payload.DeviceCode, ClientID: clientID, AdminID: adminID, ChannelID: channelID,
 		ExpiresAt: time.Now().Add(time.Duration(payload.ExpiresIn) * time.Second).Unix(), Interval: payload.Interval,
 	}
-	encoded, err := common.Marshal(session)
-	if err != nil {
-		return nil, errors.New("copilot device authorization session could not be encoded")
-	}
-	if err := common.RDB.Set(ctx, copilotDeviceSessionKey(flowID), string(encoded), time.Duration(payload.ExpiresIn)*time.Second).Err(); err != nil {
-		return nil, errors.New("copilot device authorization session could not be saved")
+	if err := saveCopilotDeviceSession(flowID, session); err != nil {
+		return nil, err
 	}
 	return &CopilotDeviceStart{FlowID: flowID, VerificationURI: payload.VerificationURI, UserCode: payload.UserCode, ExpiresIn: payload.ExpiresIn, Interval: payload.Interval}, nil
 }
 
 func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, channelID int, proxyURL string) (*CopilotDevicePoll, error) {
-	if !copilotDeviceRedisAvailable() {
-		return nil, errors.New("Copilot Device Flow requires Redis")
-	}
 	session, found, err := loadCopilotDeviceSession(ctx, flowID)
 	if err != nil {
 		return nil, errors.New("copilot device authorization session is unavailable")
@@ -278,7 +276,18 @@ func claimCopilotDeviceFlow(ctx context.Context, flowID string) (release func(),
 		}
 		return release, ok, nil
 	}
-	return nil, false, errors.New("Copilot Device Flow requires Redis")
+	copilotDeviceMemoryStore.Lock()
+	defer copilotDeviceMemoryStore.Unlock()
+	now := time.Now()
+	if expiresAt, exists := copilotDeviceMemoryStore.claims[flowID]; exists && expiresAt.After(now) {
+		return func() {}, false, nil
+	}
+	copilotDeviceMemoryStore.claims[flowID] = now.Add(copilotDeviceClaimTTL)
+	return func() {
+		copilotDeviceMemoryStore.Lock()
+		delete(copilotDeviceMemoryStore.claims, flowID)
+		copilotDeviceMemoryStore.Unlock()
+	}, true, nil
 }
 
 func saveCopilotDeviceSession(flowID string, session copilotDeviceSession) error {
@@ -291,30 +300,47 @@ func saveCopilotDeviceSession(flowID string, session copilotDeviceSession) error
 		_ = deleteCopilotDeviceFlow(context.Background(), flowID)
 		return nil
 	}
-	if !copilotDeviceRedisAvailable() {
-		return errors.New("Copilot Device Flow requires Redis")
+	if copilotDeviceRedisAvailable() {
+		if err := common.RDB.Set(context.Background(), copilotDeviceSessionKey(flowID), string(encoded), ttl).Err(); err != nil {
+			return errors.New("copilot device authorization session could not be saved")
+		}
+		return nil
 	}
-	if err := common.RDB.Set(context.Background(), copilotDeviceSessionKey(flowID), string(encoded), ttl).Err(); err != nil {
-		return errors.New("copilot device authorization session could not be saved")
-	}
+	copilotDeviceMemoryStore.Lock()
+	copilotDeviceMemoryStore.sessions[flowID] = session
+	copilotDeviceMemoryStore.Unlock()
 	return nil
 }
 
 func deleteCopilotDeviceFlow(ctx context.Context, flowID string) error {
-	if !copilotDeviceRedisAvailable() {
-		return errors.New("Copilot Device Flow requires Redis")
+	if copilotDeviceRedisAvailable() {
+		return common.RDB.Del(ctx, copilotDeviceSessionKey(flowID)).Err()
 	}
-	return common.RDB.Del(ctx, copilotDeviceSessionKey(flowID)).Err()
+	copilotDeviceMemoryStore.Lock()
+	delete(copilotDeviceMemoryStore.sessions, flowID)
+	delete(copilotDeviceMemoryStore.claims, flowID)
+	copilotDeviceMemoryStore.Unlock()
+	return nil
 }
 
 func consumeCopilotDeviceFlow(ctx context.Context, flowID string) error {
-	deleted, err := common.RDB.Del(ctx, copilotDeviceSessionKey(flowID)).Result()
-	if err != nil {
-		return err
+	if copilotDeviceRedisAvailable() {
+		deleted, err := common.RDB.Del(ctx, copilotDeviceSessionKey(flowID)).Result()
+		if err != nil {
+			return err
+		}
+		if deleted != 1 {
+			return errors.New("copilot device authorization session was already consumed")
+		}
+		return nil
 	}
-	if deleted != 1 {
+	copilotDeviceMemoryStore.Lock()
+	defer copilotDeviceMemoryStore.Unlock()
+	if _, found := copilotDeviceMemoryStore.sessions[flowID]; !found {
 		return errors.New("copilot device authorization session was already consumed")
 	}
+	delete(copilotDeviceMemoryStore.sessions, flowID)
+	delete(copilotDeviceMemoryStore.claims, flowID)
 	return nil
 }
 
@@ -332,17 +358,28 @@ func validateCopilotDeviceSession(session copilotDeviceSession, adminID int, cha
 
 func loadCopilotDeviceSession(ctx context.Context, flowID string) (copilotDeviceSession, bool, error) {
 	var session copilotDeviceSession
-	raw, err := common.RDB.Get(ctx, copilotDeviceSessionKey(strings.TrimSpace(flowID))).Result()
-	if errors.Is(err, redis.Nil) {
-		return session, false, nil
+	flowID = strings.TrimSpace(flowID)
+	if copilotDeviceRedisAvailable() {
+		raw, err := common.RDB.Get(ctx, copilotDeviceSessionKey(flowID)).Result()
+		if errors.Is(err, redis.Nil) {
+			return session, false, nil
+		}
+		if err != nil {
+			return session, false, err
+		}
+		if err := common.Unmarshal([]byte(raw), &session); err != nil {
+			return session, false, errors.New("copilot device authorization session is invalid")
+		}
+		return session, true, nil
 	}
-	if err != nil {
-		return session, false, err
+	copilotDeviceMemoryStore.Lock()
+	session, found := copilotDeviceMemoryStore.sessions[flowID]
+	if found && session.ExpiresAt <= time.Now().Unix() {
+		delete(copilotDeviceMemoryStore.sessions, flowID)
+		found = false
 	}
-	if err := common.Unmarshal([]byte(raw), &session); err != nil {
-		return session, false, errors.New("copilot device authorization session is invalid")
-	}
-	return session, true, nil
+	copilotDeviceMemoryStore.Unlock()
+	return session, found, nil
 }
 
 func copilotDeviceRedisAvailable() bool { return common.RedisEnabled && common.RDB != nil }

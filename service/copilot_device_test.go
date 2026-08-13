@@ -30,6 +30,10 @@ func resetCopilotDeviceTestState(t *testing.T) {
 	mini := miniredis.RunT(t)
 	common.RedisEnabled = true
 	common.RDB = redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	copilotDeviceMemoryStore.Lock()
+	copilotDeviceMemoryStore.sessions = make(map[string]copilotDeviceSession)
+	copilotDeviceMemoryStore.claims = make(map[string]time.Time)
+	copilotDeviceMemoryStore.Unlock()
 	InitHttpClient()
 	t.Cleanup(func() {
 		copilotDeviceStartEndpoint = oldStart
@@ -229,12 +233,20 @@ func TestCopilotDeviceFlowRequiresConfiguredClientID(t *testing.T) {
 	require.EqualError(t, err, "Copilot Device Flow is not configured; configure the Copilot Client ID")
 }
 
-func TestCopilotDeviceFlowFailsClosedWithoutRedis(t *testing.T) {
+func TestCopilotDeviceFlowFallsBackToProcessLocalSessionWithoutRedis(t *testing.T) {
 	resetCopilotDeviceTestState(t)
 	common.RedisEnabled = false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"device_code":"device","user_code":"CODE","verification_uri":"https://github.com/login/device","expires_in":600,"interval":1}`))
+	}))
+	defer server.Close()
+	copilotDeviceStartEndpoint = server.URL
 
-	_, err := StartCopilotDeviceFlow(context.Background(), 7, 112, "")
-	require.EqualError(t, err, "Copilot Device Flow requires Redis")
+	flow, err := StartCopilotDeviceFlow(context.Background(), 7, 112, "")
+	require.NoError(t, err)
+	_, found, err := loadCopilotDeviceSession(context.Background(), flow.FlowID)
+	require.NoError(t, err)
+	require.True(t, found)
 }
 
 func TestCopilotDeviceFlowKeepsCredentialWhenSessionCleanupFails(t *testing.T) {

@@ -651,6 +651,12 @@ func UpdateChannelKeyForType(id int, channelType int, key string) error {
 	if result.Error != nil {
 		return result.Error
 	}
+	if result.RowsAffected == 0 {
+		var channel Channel
+		if err := DB.Select("id").Where("id = ? AND type = ?", id, channelType).First(&channel).Error; err != nil {
+			return err
+		}
+	}
 	publishChannelsChanged()
 	return nil
 }

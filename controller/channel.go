@@ -724,7 +724,7 @@ func AddChannel(c *gin.Context) {
 
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
-		if key == "" {
+		if key == "" && addChannelRequest.Channel.Type != constant.ChannelTypeCopilot {
 			continue
 		}
 		localChannel := addChannelRequest.Channel
