@@ -175,3 +175,30 @@ func TestCompletedQuotaKeepsReservationWhenUnusable(t *testing.T) {
 var _ interface {
 	AdjustPerCallBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int
 } = (*TaskAdaptor)(nil)
+
+// xAI's published worst-case rates. The reservation must not fall below these,
+// or a customer could start a 1080P render they cannot pay for.
+func TestWorstCaseRatePerSecond(t *testing.T) {
+	tests := map[string]float64{
+		"grok-imagine-video":     0.07, // 720P, the highest tier this model has
+		"grok-imagine-video-1.5": 0.25, // 1080P
+	}
+	for name, want := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, ok := worstCaseRatePerSecond(name)
+			if !ok {
+				t.Fatalf("no worst-case rate for %s", name)
+			}
+			if got != want {
+				t.Fatalf("rate = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestWorstCaseRateUnknownModel(t *testing.T) {
+	// An unknown model must not silently reserve at zero.
+	if _, ok := worstCaseRatePerSecond("some-future-model"); ok {
+		t.Fatal("an unknown model must not resolve a rate")
+	}
+}

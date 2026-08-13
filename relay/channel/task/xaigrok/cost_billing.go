@@ -113,3 +113,22 @@ func keepReservedQuota(task *model.Task, reason string) int {
 		"Grok video task %s keeps its pre-consumed quota: %s", taskID, reason))
 	return 0
 }
+
+// worstCaseRatePerSecond is xAI's highest published rate for each model.
+//
+// The reservation uses this because the request cannot specify a resolution and
+// the model chooses the tier. Reserving at the cheapest tier would let a
+// customer start a render they cannot pay for, and the shortfall would surface
+// only at settlement. Over-reserving is self-correcting: completion refunds the
+// difference.
+//
+// Source: https://docs.x.ai/docs/models resolutionPricing.
+var worstCaseRates = map[string]float64{
+	"grok-imagine-video":     0.07, // 720P
+	"grok-imagine-video-1.5": 0.25, // 1080P
+}
+
+func worstCaseRatePerSecond(model string) (float64, bool) {
+	rate, ok := worstCaseRates[model]
+	return rate, ok
+}

@@ -215,25 +215,29 @@ func TestXaiEstimateBillingImageToVideoPricesTheSame(t *testing.T) {
 	}
 }
 
-// A model absent from the table keeps today's behaviour byte for byte: the
-// seconds ratio still applies and no per-second units appear.
+// A model absent from the table keeps today's behaviour: the seconds ratio
+// still applies and no per-second units appear. The ratio is now scaled by
+// worst/configured so the reservation covers the most expensive tier the model
+// can produce — 0.25 (1080P) against a configured 0.11 here. Settlement refunds
+// down to the cost the upstream reports, so the customer never pays this.
 func TestXaiEstimateBillingUnconfiguredModelKeepsLegacyRatios(t *testing.T) {
 	installXaiVideoPriceRules(t, `[
 		{"model":"some-other-model","match":{"has_video":"false"},"price_per_second":0.2,"basis":"output_duration"}
 	]`)
 
+	const worstTierScale = 0.25 / 0.11
 	for _, tc := range []struct {
 		name     string
 		body     string
 		wantSecs float64
 	}{
-		{"explicit duration", `{"model":"grok-imagine-video-1.5","prompt":"a cat","duration":8}`, 8},
-		{"omitted length", `{"model":"grok-imagine-video-1.5","prompt":"a cat"}`, defaultBillingSeconds},
+		{"explicit duration", `{"model":"grok-imagine-video-1.5","prompt":"a cat","duration":8}`, 8 * worstTierScale},
+		{"omitted length", `{"model":"grok-imagine-video-1.5","prompt":"a cat"}`, defaultBillingSeconds * worstTierScale},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, c, info := newXaiBillingRequest(t, tc.body, "grok-imagine-video-1.5", 0.11)
 			ratios := a.EstimateBilling(c, info)
-			if ratios["seconds"] != tc.wantSecs {
+			if math.Abs(ratios["seconds"]-tc.wantSecs) > 1e-9 {
 				t.Fatalf("seconds ratio = %v, want %v", ratios["seconds"], tc.wantSecs)
 			}
 			got, err := a.SecondBillingRatios()
