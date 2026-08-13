@@ -48,9 +48,11 @@ const PREFERRED_EXAMPLE_MODELS = [
 // Endpoint tags come from channel config, so this is an exclusion list plus
 // a name heuristic (metadata is not always tagged — gemini-embedding-001
 // carries only ['gemini','openai']); untagged models stay in as chat.
+// The separator class includes `/` so vendor-prefixed ids are matched too
+// (bytedance/seedance-2.0, not just seedance-2.0).
 const EXCLUDED_ENDPOINT_TYPES = ['openai-video', 'embeddings', 'jina-rerank']
-const EXCLUDED_NAME_PATTERN = /(^|[-_.])(embedding|tts|video|seedance)/i
-const IMAGE_NAME_PATTERN = /(^|[-_.])(image|banana)/i
+const EXCLUDED_NAME_PATTERN = /(^|[-_./])(embedding|tts|video|seedance)/i
+const IMAGE_NAME_PATTERN = /(^|[-_./])(image|banana)/i
 const CHAT_ENDPOINT_TYPES = [
   'openai',
   'openai-response',
@@ -205,7 +207,7 @@ export function OverviewDashboard() {
   )
 
   return (
-    <div className='mx-auto flex w-full max-w-5xl flex-col gap-10'>
+    <div className='flex flex-col gap-8'>
       <OverviewHero />
       <UsageMetrics />
       <IntegrationCards onSelect={setOpenIntegration} />

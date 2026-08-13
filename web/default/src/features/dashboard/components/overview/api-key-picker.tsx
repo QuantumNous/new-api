@@ -70,7 +70,7 @@ export function ApiKeyPicker(props: {
   return (
     <div className='bg-muted/30 flex flex-col gap-3 rounded-xl border p-4'>
       <div className='flex flex-wrap items-start justify-between gap-2'>
-        <div className='flex flex-col gap-0.5'>
+        <div className='flex min-w-0 flex-col gap-0.5'>
           <span className='text-sm font-semibold'>{t('API keys')}</span>
           <span className='text-muted-foreground text-xs'>
             {t(
@@ -80,6 +80,7 @@ export function ApiKeyPicker(props: {
         </div>
         <Button
           size='sm'
+          className='shrink-0'
           disabled={createMutation.isPending}
           onClick={() => createMutation.mutate()}
         >

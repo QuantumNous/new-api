@@ -94,8 +94,8 @@ function ModelSelect(props: {
   const { t } = useTranslation()
 
   return (
-    <div className='flex items-center gap-2'>
-      <span className='text-muted-foreground text-xs font-medium'>
+    <div className='flex min-w-0 items-center gap-2'>
+      <span className='text-muted-foreground shrink-0 text-xs font-medium'>
         {t('Model')}
       </span>
       <Select
@@ -106,15 +106,20 @@ function ModelSelect(props: {
       >
         <SelectTrigger
           size='sm'
-          className='max-w-56 text-xs'
+          className='max-w-64 min-w-0 text-xs'
           disabled={props.models.length === 0}
           aria-label={t('Model')}
         >
-          <SelectValue>
+          <SelectValue className='truncate'>
             {props.models.length === 0 ? t('Loading') : props.value}
           </SelectValue>
         </SelectTrigger>
-        <SelectContent alignItemWithTrigger={false}>
+        {/* Size to the longest model id instead of the trigger, so vendor-
+            prefixed names are not clipped under the check indicator. */}
+        <SelectContent
+          alignItemWithTrigger={false}
+          className='w-auto max-w-[min(28rem,calc(100vw-3rem))] min-w-(--anchor-width)'
+        >
           <SelectGroup>
             {props.models.map((model) => (
               <SelectItem key={model} value={model}>
@@ -198,7 +203,9 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
       open={props.integrationId !== null}
       onOpenChange={props.onOpenChange}
     >
-      <DialogContent className='max-h-[90vh] gap-5 overflow-y-auto sm:max-w-3xl'>
+      {/* DialogContent is a grid; without min-w-0 the code block's intrinsic
+          width would push content past the popup's rounded edge. */}
+      <DialogContent className='max-h-[90vh] gap-5 overflow-y-auto sm:max-w-3xl [&>*]:min-w-0'>
         <DialogHeader>
           <DialogTitle>{card?.title ?? ''}</DialogTitle>
           <DialogDescription>{card?.description ?? ''}</DialogDescription>
