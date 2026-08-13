@@ -48,6 +48,19 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			usage.PromptTokensDetails.CacheWriteTokens = responsesResponse.Usage.InputTokensDetails.CacheWriteTokens
 		}
 	}
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		// F-56: fall back to the estimate when the upstream omits usage so
+		// non-stream Responses requests are not billed as zero.
+		var outText strings.Builder
+		for _, out := range responsesResponse.Output {
+			for _, c := range out.Content {
+				if c.Text != "" {
+					outText.WriteString(c.Text)
+				}
+			}
+		}
+		usage = *service.ResponseText2Usage(c, outText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	// Count actual tool invocations from Output (not tool declarations).
 	for _, output := range responsesResponse.Output {
 		switch output.Type {

@@ -284,5 +284,21 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	if handleErr != nil {
 		return nil, handleErr
 	}
+	if claudeInfo.Usage.TotalTokens == 0 &&
+		claudeInfo.Usage.PromptTokens == 0 &&
+		claudeInfo.Usage.CompletionTokens == 0 {
+		// F-57: fall back to the estimate when the upstream omits usage so
+		// non-stream Claude requests are not billed as zero.
+		var textBuilder strings.Builder
+		var parsed dto.ClaudeResponse
+		if err := common.Unmarshal(responseBody, &parsed); err == nil {
+			for _, block := range parsed.Content {
+				if block.Text != nil && *block.Text != "" {
+					textBuilder.WriteString(*block.Text)
+				}
+			}
+		}
+		claudeInfo.Usage = service.ResponseText2Usage(c, textBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	return claudeInfo.Usage, nil
 }

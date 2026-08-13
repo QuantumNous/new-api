@@ -129,6 +129,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		usage.(*dto.Usage).PromptTokens = 1
 	}
 
+	// F-52: ensure per-image count ratio is set for UsePrice-priced image
+	// channels whose adaptor does not report it (e.g. Replicate), so n>1
+	// requests are billed per generated image instead of once.
+	if imageN > 0 && info.PriceData.UsePrice && !info.PriceData.HasOtherRatio("n") {
+		info.PriceData.AddOtherRatio("n", float64(imageN))
+	}
+
 	quality := request.Quality
 	if quality == "" {
 		quality = "standard"

@@ -157,10 +157,14 @@ func streamMetaResponseZhipu2OpenAI(zhipuResponse *ZhipuStreamMetaResponse) (*dt
 
 func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	var usage *dto.Usage
+	var responseText strings.Builder
 	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
-	dataChan := make(chan string)
-	metaChan := make(chan string)
+	// F-29 family: buffer the channels and let the reader exit on client
+	// disconnect; otherwise a mid-stream disconnect strands the goroutine
+	// forever on an unbuffered send (goroutine + connection leak per request).
+	dataChan := make(chan string, 64)
+	metaChan := make(chan string, 16)
 	stopChan := make(chan bool)
 	go func() {
 		for scanner.Scan() {
@@ -171,25 +175,43 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 					continue
 				}
 				if line[:5] == "data:" {
-					dataChan <- line[5:]
+					select {
+					case dataChan <- line[5:]:
+					case <-c.Request.Context().Done():
+						return
+					}
 					if i != len(lines)-1 {
-						dataChan <- "\n"
+						select {
+						case dataChan <- "\n":
+						case <-c.Request.Context().Done():
+							return
+						}
 					}
 				} else if line[:5] == "meta:" {
-					metaChan <- line[5:]
+					select {
+					case metaChan <- line[5:]:
+					case <-c.Request.Context().Done():
+						return
+					}
 				}
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			common.SysLog("error reading stream: " + err.Error())
 		}
-		stopChan <- true
+		select {
+		case stopChan <- true:
+		default:
+		}
 	}()
 	helper.SetEventStreamHeaders(c)
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-dataChan:
 			response := streamResponseZhipu2OpenAI(data)
+			if len(response.Choices) > 0 {
+				responseText.WriteString(response.Choices[0].Delta.GetContentString())
+			}
 			jsonResponse, err := json.Marshal(response)
 			if err != nil {
 				common.SysLog("error marshalling stream response: " + err.Error())
@@ -219,6 +241,11 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		}
 	})
 	service.CloseResponseBodyGracefully(resp)
+	if usage == nil || (usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0) {
+		// F-55: zhipu streams may omit the usage meta event entirely; fall
+		// back to the estimate so chat is not billed as zero.
+		usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	return usage, nil
 }
 
@@ -240,6 +267,15 @@ func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 		}, resp.StatusCode)
 	}
 	fullTextResponse := responseZhipu2OpenAI(&zhipuResponse)
+	if fullTextResponse.Usage.TotalTokens == 0 &&
+		fullTextResponse.Usage.PromptTokens == 0 &&
+		fullTextResponse.Usage.CompletionTokens == 0 {
+		// F-55: fall back to the estimate when the upstream omits usage.
+		fullTextResponse.Usage = dto.Usage{
+			PromptTokens: info.GetEstimatePromptTokens(),
+			TotalTokens:  info.GetEstimatePromptTokens(),
+		}
+	}
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)

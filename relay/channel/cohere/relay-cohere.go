@@ -98,17 +98,30 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 		return 0, nil, nil
 	})
-	dataChan := make(chan string)
+	// F-29: the reader goroutine must not block forever on an unbuffered
+	// channel when the client disconnects mid-stream (gin's c.Stream returns,
+	// leaving no receiver -> goroutine + upstream connection leak per request).
+	// A small buffer plus a done-select lets the reader exit promptly on
+	// client disconnect; stopChan send is non-blocking so EOF also cannot
+	// strand the goroutine.
+	dataChan := make(chan string, 64)
 	stopChan := make(chan bool)
 	go func() {
 		for scanner.Scan() {
 			data := scanner.Text()
-			dataChan <- data
+			select {
+			case dataChan <- data:
+			case <-c.Request.Context().Done():
+				return
+			}
 		}
 		if err := scanner.Err(); err != nil {
 			common.SysLog("error reading stream: " + err.Error())
 		}
-		stopChan <- true
+		select {
+		case stopChan <- true:
+		default:
+		}
 	}()
 	helper.SetEventStreamHeaders(c)
 	isFirst := true
@@ -190,6 +203,11 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	usage.PromptTokens = cohereResp.Meta.BilledUnits.InputTokens
 	usage.CompletionTokens = cohereResp.Meta.BilledUnits.OutputTokens
 	usage.TotalTokens = cohereResp.Meta.BilledUnits.InputTokens + cohereResp.Meta.BilledUnits.OutputTokens
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		// F-55: fall back to the estimate when the upstream omits usage.
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.TotalTokens = usage.PromptTokens
+	}
 
 	var openaiResp dto.TextResponse
 	openaiResp.Id = cohereResp.ResponseId

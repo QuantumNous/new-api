@@ -254,6 +254,22 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types
 	if handlerErr != nil {
 		return handlerErr, nil
 	}
+	if claudeInfo.Usage.TotalTokens == 0 &&
+		claudeInfo.Usage.PromptTokens == 0 &&
+		claudeInfo.Usage.CompletionTokens == 0 {
+		// F-63: fall back to the estimate when the upstream omits usage so
+		// Bedrock native (non-Claude-format) requests are not billed as zero.
+		var textBuilder strings.Builder
+		var parsed dto.ClaudeResponse
+		if err := common.Unmarshal(awsResp.Body, &parsed); err == nil {
+			for _, block := range parsed.Content {
+				if block.Text != nil && *block.Text != "" {
+					textBuilder.WriteString(*block.Text)
+				}
+			}
+		}
+		claudeInfo.Usage = service.ResponseText2Usage(c, textBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	return nil, claudeInfo.Usage
 }
 
@@ -346,6 +362,20 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 	}
 
 	// 构造OpenAI格式响应
+	usage := dto.Usage{
+		PromptTokens:     novaResp.Usage.InputTokens,
+		CompletionTokens: novaResp.Usage.OutputTokens,
+		TotalTokens:      novaResp.Usage.TotalTokens,
+	}
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		// F-60: fall back to the estimate when the upstream omits usage so
+		// Nova requests are not billed as zero.
+		var text string
+		if len(novaResp.Output.Message.Content) > 0 {
+			text = novaResp.Output.Message.Content[0].Text
+		}
+		usage = *service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	response := dto.OpenAITextResponse{
 		Id:      helper.GetResponseID(c),
 		Object:  "chat.completion",
@@ -359,13 +389,9 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 			},
 			FinishReason: "stop",
 		}},
-		Usage: dto.Usage{
-			PromptTokens:     novaResp.Usage.InputTokens,
-			CompletionTokens: novaResp.Usage.OutputTokens,
-			TotalTokens:      novaResp.Usage.TotalTokens,
-		},
+		Usage: usage,
 	}
 
 	c.JSON(http.StatusOK, response)
-	return nil, &response.Usage
+	return nil, &usage
 }

@@ -1498,7 +1498,11 @@ func UpdateUserSetting(c *gin.Context) {
 		NotifyType:                       req.QuotaWarningType,
 		QuotaWarningThreshold:            req.QuotaWarningThreshold,
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
-		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
+		// F-27: only admins may enable accept-unset-ratio. Self-service by a
+		// regular user bypasses the "model price not configured" gate, letting
+		// them use deliberately unpriced models at the default ratio (37.5x),
+		// which is both an availability-control and pricing-control bypass.
+		AcceptUnsetRatioModel: user.Role >= common.RoleAdminUser && req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
 	}
 

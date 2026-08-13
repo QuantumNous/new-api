@@ -29,6 +29,12 @@ func siliconflowRerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		CompletionTokens: siliconflowResp.Meta.Tokens.OutputTokens,
 		TotalTokens:      siliconflowResp.Meta.Tokens.InputTokens + siliconflowResp.Meta.Tokens.OutputTokens,
 	}
+	// F-53: fallback to the prompt estimate when the upstream omits usage so
+	// rerank requests are not billed as zero (F-26 residual for siliconflow).
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.TotalTokens = usage.PromptTokens
+	}
 	rerankResp := &dto.RerankResponse{
 		Results: siliconflowResp.Results,
 		Usage:   *usage,
