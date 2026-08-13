@@ -22,12 +22,14 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Turnstile } from '@/components/turnstile'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import { useCountdown } from '@/hooks/use-countdown'
-import { api } from '@/lib/api'
+import { api, clearAuthentication } from '@/lib/api'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 import { AuthLayout } from '../auth-layout'
@@ -35,6 +37,7 @@ import { AuthLayout } from '../auth-layout'
 export type ResetPasswordSearchParams = {
   email?: string
   token?: string
+  mode?: 'api-key' | 'password'
 }
 
 type ResetPasswordConfirmProps = ResetPasswordSearchParams
@@ -42,67 +45,138 @@ type ResetPasswordConfirmProps = ResetPasswordSearchParams
 export function ResetPasswordConfirm({
   email,
   token,
+  mode = 'password',
 }: ResetPasswordConfirmProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [newPassword, setNewPassword] = useState('')
+  const [newCredential, setNewCredential] = useState('')
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
   const {
     secondsLeft,
     isActive,
     start: startCountdown,
   } = useCountdown({ initialSeconds: 30 })
+  const {
+    isTurnstileEnabled,
+    turnstileSiteKey,
+    turnstileToken,
+    setTurnstileToken,
+    validateTurnstile,
+  } = useTurnstile()
 
   const isValidResetLink = Boolean(email && token)
 
   async function handleSubmit() {
     if (!isValidResetLink || !email || !token) {
-      toast.error(t('Invalid reset link, please request a new password reset'))
+      toast.error(
+        t(
+          mode === 'api-key'
+            ? 'Invalid reset link, please request a new API Key reset'
+            : 'Invalid reset link, please request a new password reset'
+        )
+      )
       return
     }
+
+    if (mode === 'api-key' && !validateTurnstile()) return
 
     startCountdown()
     setLoading(true)
     try {
-      const res = await api.post('/api/user/reset', { email, token }, {
-        skipBusinessError: true,
-      } as Record<string, unknown>)
+      const isAPIKeyReset = mode === 'api-key'
+      const res = await api.post(
+        isAPIKeyReset ? '/api/user/reset-api-key' : '/api/user/reset',
+        { email, token, turnstile: isAPIKeyReset ? turnstileToken : undefined },
+        {
+          skipBusinessError: true,
+        }
+      )
 
       if (res?.data?.success) {
-        const password = res.data.data
-        setNewPassword(password)
-        const copySuccess = await copyToClipboard(password)
+        const credential = res.data.data?.full_key ?? res.data.data
+        if (typeof credential !== 'string' || credential.length === 0) {
+          throw new Error(t('API Key was not returned'))
+        }
+        setNewCredential(credential)
+        if (mode === 'api-key') {
+          // Key recovery increments the server auth version and revokes every
+          // session; clear this tab as well before returning to sign-in.
+          clearAuthentication()
+          setTurnstileToken('')
+          setTurnstileWidgetKey((current) => current + 1)
+        }
+        const copySuccess = await copyToClipboard(credential)
+        setCopied(copySuccess)
         if (copySuccess) {
+          setTimeout(() => setCopied(false), 2000)
           toast.success(
-            t('Password reset and copied to clipboard: {{password}}', {
-              password,
-            })
+            t(
+              mode === 'api-key'
+                ? 'API Key copied to clipboard'
+                : 'Password copied to clipboard'
+            )
           )
         } else {
-          toast.success(t('Password reset: {{password}}', { password }))
+          toast.success(
+            t(
+              mode === 'api-key'
+                ? 'API Key reset successfully. Save it before continuing.'
+                : 'Password reset successfully'
+            )
+          )
         }
+      } else {
+        toast.error(res?.data?.message || t('Failed to reset password'))
       }
     } catch {
       // Errors handled by global interceptor
     } finally {
+      if (mode === 'api-key' && isTurnstileEnabled) {
+        setTurnstileToken('')
+        setTurnstileWidgetKey((current) => current + 1)
+      }
       setLoading(false)
     }
   }
 
   async function handleCopy() {
-    if (!newPassword) return
+    if (!newCredential) return
 
-    const copySuccess = await copyToClipboard(newPassword)
+    const copySuccess = await copyToClipboard(newCredential)
     if (copySuccess) {
       setCopied(true)
       toast.success(
-        t('Password copied to clipboard: {{password}}', {
-          password: newPassword,
-        })
+        t(
+          mode === 'api-key'
+            ? 'API Key copied to clipboard'
+            : 'Password copied to clipboard'
+        )
       )
       setTimeout(() => setCopied(false), 2000)
     }
+  }
+
+  const actionLabel = isActive
+    ? t('auth.resetPasswordConfirm.retry', { seconds: secondsLeft })
+    : t('auth.resetPasswordConfirm.confirm')
+  let submitLabel = actionLabel
+  if (newCredential) {
+    submitLabel = t(
+      mode === 'api-key'
+        ? 'Back to API Key login'
+        : 'auth.resetPasswordConfirm.backToLogin'
+    )
+  }
+  let credentialNotice = 'Password reset successfully'
+  if (copied) {
+    credentialNotice =
+      mode === 'api-key'
+        ? 'API Key has been copied to clipboard'
+        : 'Password has been copied to clipboard'
+  } else if (mode === 'api-key') {
+    credentialNotice = 'API Key reset successfully. Save it before continuing.'
   }
 
   return (
@@ -110,11 +184,15 @@ export function ResetPasswordConfirm({
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Reset password')}
+            {t(mode === 'api-key' ? 'Reset API Key' : 'Reset password')}
           </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
-            {newPassword
-              ? t('auth.resetPasswordConfirm.success')
+            {newCredential
+              ? t(
+                  mode === 'api-key'
+                    ? 'API Key reset successfully. Save it before continuing.'
+                    : 'auth.resetPasswordConfirm.success'
+                )
               : t('auth.resetPasswordConfirm.description')}
           </p>
         </div>
@@ -123,7 +201,11 @@ export function ResetPasswordConfirm({
           {!isValidResetLink && (
             <Alert variant='destructive'>
               <AlertDescription>
-                {t('Invalid reset link, please request a new password reset.')}
+                {t(
+                  mode === 'api-key'
+                    ? 'Invalid reset link, please request a new API Key reset.'
+                    : 'Invalid reset link, please request a new password reset.'
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -139,13 +221,24 @@ export function ResetPasswordConfirm({
             />
           </div>
 
-          {newPassword && (
+          {mode === 'api-key' && isTurnstileEnabled && !newCredential && (
+            <Turnstile
+              key={turnstileWidgetKey}
+              siteKey={turnstileSiteKey}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken('')}
+            />
+          )}
+
+          {newCredential && (
             <div className='space-y-2'>
-              <Label htmlFor='password'>{t('New password')}</Label>
+              <Label htmlFor='new-credential'>
+                {t(mode === 'api-key' ? 'New API Key' : 'New password')}
+              </Label>
               <div className='flex gap-2'>
                 <Input
-                  id='password'
-                  value={newPassword}
+                  id='new-credential'
+                  value={newCredential}
                   disabled
                   className='font-mono'
                 />
@@ -163,7 +256,7 @@ export function ResetPasswordConfirm({
                 </Button>
               </div>
               <p className='text-muted-foreground text-xs'>
-                {t('Password has been copied to clipboard')}
+                {t(credentialNotice)}
               </p>
             </div>
           )}
@@ -171,24 +264,18 @@ export function ResetPasswordConfirm({
           <Button
             className='w-full'
             onClick={
-              newPassword
+              newCredential
                 ? () => navigate({ to: '/sign-in', replace: true })
                 : handleSubmit
             }
             disabled={
-              newPassword ? false : loading || isActive || !isValidResetLink
+              newCredential ? false : loading || isActive || !isValidResetLink
             }
           >
-            {newPassword
-              ? t('auth.resetPasswordConfirm.backToLogin')
-              : isActive
-                ? t('auth.resetPasswordConfirm.retry', {
-                    seconds: secondsLeft,
-                  })
-                : t('auth.resetPasswordConfirm.confirm')}
+            {submitLabel}
           </Button>
 
-          {!newPassword && (
+          {!newCredential && (
             <Button
               variant='link'
               className='w-full'

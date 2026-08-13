@@ -19,23 +19,33 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { useStatus } from '@/hooks/use-status'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { ApiKeysDialogs } from './components/api-keys-dialogs'
 import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
 import { ApiKeysProvider } from './components/api-keys-provider'
 import { ApiKeysTable } from './components/api-keys-table'
+import { PrimaryApiKeyCard } from './components/primary-api-key-card'
 
 export function ApiKeys() {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const role = useAuthStore((state) => state.auth.user?.role ?? ROLE.GUEST)
+  const singleMode =
+    status?.single_primary_api_key_enabled === true && role === ROLE.USER
   return (
     <ApiKeysProvider>
       <SectionPageLayout fixedContent>
-        <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>
+        <SectionPageLayout.Title>
+          {singleMode ? t('My API Key') : t('API Keys')}
+        </SectionPageLayout.Title>
         <SectionPageLayout.Actions>
-          <ApiKeysPrimaryButtons />
+          {!singleMode && <ApiKeysPrimaryButtons />}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <ApiKeysTable />
+          {singleMode ? <PrimaryApiKeyCard /> : <ApiKeysTable />}
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

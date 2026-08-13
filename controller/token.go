@@ -186,6 +186,10 @@ func GetTokenKey(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if c.GetInt("role") == common.RoleCommonUser && common.SinglePrimaryAPIKeyEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "单主 API Key 仅在创建或重置后显示一次"})
+		return
+	}
 	common.ApiSuccess(c, gin.H{
 		"key": token.GetFullKey(),
 	})
@@ -292,6 +296,10 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if c.GetInt("role") == common.RoleCommonUser && common.SinglePrimaryAPIKeyEnabled && count >= 1 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "普通用户只能保留一条 API Key，请使用重置功能"})
+		return
+	}
 	if int(count) >= maxTokens {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -343,6 +351,10 @@ func AddToken(c *gin.Context) {
 func DeleteToken(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
+	if c.GetInt("role") == common.RoleCommonUser && common.SinglePrimaryAPIKeyEnabled {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "普通用户不能删除主 API Key，请使用重置功能"})
+		return
+	}
 	err := model.DeleteTokenById(id, userId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -382,6 +394,14 @@ func UpdateToken(c *gin.Context) {
 	cleanToken, err := model.GetTokenByIds(token.Id, userId)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if c.GetInt("role") == common.RoleCommonUser && common.SinglePrimaryAPIKeyEnabled && token.Status != 0 && token.Status != common.TokenStatusEnabled {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "普通用户不能禁用主 API Key，请使用重置功能"})
+		return
+	}
+	if c.GetInt("role") == common.RoleCommonUser && common.SinglePrimaryAPIKeyEnabled && statusOnly == "" && token.ExpiredTime != -1 && token.ExpiredTime <= common.GetTimestamp() {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "普通用户不能使主 API Key 过期，请使用重置功能"})
 		return
 	}
 	if token.Status == common.TokenStatusEnabled {
@@ -439,6 +459,10 @@ func DeleteTokenBatch(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
+	if c.GetInt("role") == common.RoleCommonUser && common.SinglePrimaryAPIKeyEnabled {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "普通用户不能删除主 API Key，请使用重置功能"})
+		return
+	}
 	count, err := model.BatchDeleteTokens(tokenBatch.Ids, userId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -462,6 +486,10 @@ func GetTokenKeysBatch(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
+	if c.GetInt("role") == common.RoleCommonUser && common.SinglePrimaryAPIKeyEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "单主 API Key 仅在创建或重置后显示一次"})
+		return
+	}
 	tokens, err := model.GetTokenKeysByIds(tokenBatch.Ids, userId)
 	if err != nil {
 		common.ApiError(c, err)

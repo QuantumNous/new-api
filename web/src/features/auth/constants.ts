@@ -43,6 +43,19 @@ export const registerFormSchema = z
     path: ['confirmPassword'],
   })
 
+export const registerKeyOnlyFormSchema = z.object({
+  username: z.string().optional(),
+  // Invitation flows carry the verified recipient email in the single-use
+  // invite token; the form must not require the user to enter it again.
+  email: z
+    .string()
+    .email('Please enter a valid email address')
+    .or(z.literal(''))
+    .optional(),
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
+})
+
 export const forgotPasswordFormSchema = z.object({
   email: z.string().email({
     message: 'Please enter a valid email address',

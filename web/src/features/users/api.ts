@@ -99,6 +99,16 @@ export async function createUser(
   return res.data
 }
 
+/** Send a one-time single-primary-key registration invitation. */
+export async function sendUserInvite(data: {
+  email: string
+  username: string
+  role?: number
+}): Promise<ApiResponse> {
+  const res = await api.post('/api/user/invite', data)
+  return res.data
+}
+
 /**
  * Update an existing user
  */

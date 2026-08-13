@@ -19,6 +19,7 @@ import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authResetRouteImport } from './routes/(auth)/reset'
+import { Route as authResetApiKeyRouteImport } from './routes/(auth)/reset-api-key'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
 import { Route as authSignUpRouteImport } from './routes/(auth)/sign-up'
 import { Route as errors401RouteImport } from './routes/(errors)/401'
@@ -114,6 +115,11 @@ const authRegisterRoute = authRegisterRouteImport.update({
 const authResetRoute = authResetRouteImport.update({
   id: '/reset',
   path: '/reset',
+  getParentRoute: () => authRouteRoute,
+} as any)
+const authResetApiKeyRoute = authResetApiKeyRouteImport.update({
+  id: '/reset-api-key',
+  path: '/reset-api-key',
   getParentRoute: () => authRouteRoute,
 } as any)
 const authSignInRoute = authSignInRouteImport.update({
@@ -397,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/otp': typeof authOtpRoute
   '/register': typeof authRegisterRoute
   '/reset': typeof authResetRoute
+  '/reset-api-key': typeof authResetApiKeyRoute
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/401': typeof errors401Route
@@ -454,6 +461,7 @@ export interface FileRoutesByTo {
   '/otp': typeof authOtpRoute
   '/register': typeof authRegisterRoute
   '/reset': typeof authResetRoute
+  '/reset-api-key': typeof authResetApiKeyRoute
   '/sign-in': typeof authSignInRoute
   '/sign-up': typeof authSignUpRoute
   '/401': typeof errors401Route
@@ -515,6 +523,7 @@ export interface FileRoutesById {
   '/(auth)/otp': typeof authOtpRoute
   '/(auth)/register': typeof authRegisterRoute
   '/(auth)/reset': typeof authResetRoute
+  '/(auth)/reset-api-key': typeof authResetApiKeyRoute
   '/(auth)/sign-in': typeof authSignInRoute
   '/(auth)/sign-up': typeof authSignUpRoute
   '/(errors)/401': typeof errors401Route
@@ -575,6 +584,7 @@ export interface FileRouteTypes {
     | '/otp'
     | '/register'
     | '/reset'
+    | '/reset-api-key'
     | '/sign-in'
     | '/sign-up'
     | '/401'
@@ -632,6 +642,7 @@ export interface FileRouteTypes {
     | '/otp'
     | '/register'
     | '/reset'
+    | '/reset-api-key'
     | '/sign-in'
     | '/sign-up'
     | '/401'
@@ -692,6 +703,7 @@ export interface FileRouteTypes {
     | '/(auth)/otp'
     | '/(auth)/register'
     | '/(auth)/reset'
+    | '/(auth)/reset-api-key'
     | '/(auth)/sign-in'
     | '/(auth)/sign-up'
     | '/(errors)/401'
@@ -830,6 +842,13 @@ declare module '@tanstack/react-router' {
       path: '/reset'
       fullPath: '/reset'
       preLoaderRoute: typeof authResetRouteImport
+      parentRoute: typeof authRouteRoute
+    }
+    '/(auth)/reset-api-key': {
+      id: '/(auth)/reset-api-key'
+      path: '/reset-api-key'
+      fullPath: '/reset-api-key'
+      preLoaderRoute: typeof authResetApiKeyRouteImport
       parentRoute: typeof authRouteRoute
     }
     '/(auth)/sign-in': {
@@ -1177,6 +1196,7 @@ interface authRouteRouteChildren {
   authOtpRoute: typeof authOtpRoute
   authRegisterRoute: typeof authRegisterRoute
   authResetRoute: typeof authResetRoute
+  authResetApiKeyRoute: typeof authResetApiKeyRoute
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
   authUserResetRoute: typeof authUserResetRoute
@@ -1188,6 +1208,7 @@ const authRouteRouteChildren: authRouteRouteChildren = {
   authOtpRoute: authOtpRoute,
   authRegisterRoute: authRegisterRoute,
   authResetRoute: authResetRoute,
+  authResetApiKeyRoute: authResetApiKeyRoute,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
   authUserResetRoute: authUserResetRoute,

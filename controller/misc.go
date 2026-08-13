@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -20,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func TestStatus(c *gin.Context) {
@@ -75,24 +78,28 @@ func GetStatus(c *gin.Context) {
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
-		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
-		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
-		"custom_currency_symbol":        operation_setting.GetGeneralSetting().CustomCurrencySymbol,
-		"custom_currency_exchange_rate": operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
-		"enable_batch_update":           common.BatchUpdateEnabled,
-		"enable_drawing":                common.DrawingEnabled,
-		"enable_task":                   common.TaskEnabled,
-		"enable_data_export":            common.DataExportEnabled,
-		"data_export_default_time":      common.DataExportDefaultTime,
-		"default_collapse_sidebar":      common.DefaultCollapseSidebar,
-		"mj_notify_enabled":             setting.MjNotifyEnabled,
-		"chats":                         setting.Chats,
-		"demo_site_enabled":             operation_setting.DemoSiteEnabled,
-		"self_use_mode_enabled":         operation_setting.SelfUseModeEnabled,
-		"register_enabled":              common.RegisterEnabled,
-		"password_login_enabled":        common.PasswordLoginEnabled,
-		"password_register_enabled":     common.PasswordRegisterEnabled,
-		"default_use_auto_group":        setting.DefaultUseAutoGroup,
+		"display_in_currency":            operation_setting.IsCurrencyDisplay(),
+		"quota_display_type":             operation_setting.GetQuotaDisplayType(),
+		"custom_currency_symbol":         operation_setting.GetGeneralSetting().CustomCurrencySymbol,
+		"custom_currency_exchange_rate":  operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
+		"enable_batch_update":            common.BatchUpdateEnabled,
+		"enable_drawing":                 common.DrawingEnabled,
+		"enable_task":                    common.TaskEnabled,
+		"enable_data_export":             common.DataExportEnabled,
+		"data_export_default_time":       common.DataExportDefaultTime,
+		"default_collapse_sidebar":       common.DefaultCollapseSidebar,
+		"mj_notify_enabled":              setting.MjNotifyEnabled,
+		"chats":                          setting.Chats,
+		"demo_site_enabled":              operation_setting.DemoSiteEnabled,
+		"self_use_mode_enabled":          operation_setting.SelfUseModeEnabled,
+		"register_enabled":               common.RegisterEnabled,
+		"password_login_enabled":         common.PasswordLoginEnabled,
+		"password_register_enabled":      common.PasswordRegisterEnabled,
+		"api_key_login_enabled":          common.APIKeyLoginEnabled || common.SinglePrimaryAPIKeyEnabled,
+		"email_default_token_enabled":    common.EmailDefaultTokenEnabled,
+		"single_primary_api_key_enabled": common.SinglePrimaryAPIKeyEnabled,
+		"single_primary_api_key_ready":   !common.SinglePrimaryAPIKeyEnabled || (common.SMTPConfigured() && !common.EmailDefaultTokenEnabled),
+		"default_use_auto_group":         setting.DefaultUseAutoGroup,
 
 		"usd_exchange_rate": operation_setting.USDExchangeRate,
 		"price":             operation_setting.Price,
@@ -289,6 +296,8 @@ func SendEmailVerification(c *gin.Context) {
 		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
 	err := common.SendEmail(subject, email, content)
 	if err != nil {
+		// Do not leave a usable verification code behind when delivery failed.
+		common.DeleteKey(email, common.EmailVerificationPurpose)
 		common.ApiError(c, err)
 		return
 	}
@@ -299,8 +308,24 @@ func SendEmailVerification(c *gin.Context) {
 	return
 }
 
+type ResetEmailRequest struct {
+	Email string `json:"email"`
+}
+
+func decodeResetEmail(c *gin.Context) (string, error) {
+	var req ResetEmailRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		return "", err
+	}
+	return model.NormalizeEmail(req.Email), nil
+}
+
 func SendPasswordResetEmail(c *gin.Context) {
-	email := model.NormalizeEmail(c.Query("email"))
+	email, err := decodeResetEmail(c)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	if err := common.Validate.Var(email, "required,email"); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -316,6 +341,8 @@ func SendPasswordResetEmail(c *gin.Context) {
 			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
 		err := common.SendEmail(subject, email, content)
 		if err != nil {
+			// A failed delivery must not leave a password-reset token usable.
+			common.DeleteKey(email, common.PasswordResetPurpose)
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
 		}
 	} else if err != nil && !errors.Is(err, model.ErrEmailNotFound) {
@@ -365,4 +392,139 @@ func ResetPassword(c *gin.Context) {
 		"data":    password,
 	})
 	return
+}
+
+// SendAPIKeyResetEmail starts a short-lived, single-use API key recovery flow.
+// The response is intentionally identical for known and unknown addresses.
+func SendAPIKeyResetEmail(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
+	c.Header("Pragma", "no-cache")
+	started := time.Now()
+	defer func() {
+		// Keep the negative path from being trivially distinguishable from the
+		// database lookup path. SMTP latency can still exceed this floor.
+		const responseFloor = 50 * time.Millisecond
+		if elapsed := time.Since(started); elapsed < responseFloor {
+			time.Sleep(responseFloor - elapsed)
+		}
+	}()
+	email, err := decodeResetEmail(c)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+		return
+	}
+	if err := common.Validate.Var(email, "required,email"); err == nil && common.SinglePrimaryAPIKeyEnabled {
+		if user, err := model.GetUniqueUserByEmail(email); err == nil && user.Status == common.UserStatusEnabled && user.Role == common.RoleCommonUser {
+			token, flow, allowed, flowErr := model.CreateAPIKeyResetFlow(user.Id, time.Now().Add(time.Duration(common.VerificationValidMinutes)*time.Minute))
+			if flowErr == nil && allowed {
+				link := fmt.Sprintf("%s/reset-api-key?email=%s&token=%s", strings.TrimRight(system_setting.ServerAddress, "/"), url.QueryEscape(email), url.QueryEscape(token))
+				content := fmt.Sprintf("<p>您好，您正在重置 %s API Key。</p><p>点击 <a href='%s'>此处</a> 完成重置。</p><p>如果链接无法点击，请复制以下地址：<br>%s</p><p>链接 %d 分钟内有效；完成后旧 Key 将立即失效。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
+				if err := common.SendEmail(fmt.Sprintf("%s API Key 重置", common.SystemName), email, content); err != nil {
+					_ = model.InvalidateAuthFlow(flow.Id)
+					logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to send API key reset email: %v", err))
+					model.RecordOperationAuditLog(user.Id, "API key recovery email delivery failed", c.ClientIP(), "user.api_key_recovery_delivery_failed", map[string]interface{}{"user_id": user.Id}, nil, nil)
+				}
+			}
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+}
+
+type APIKeyResetRequest struct {
+	Email string `json:"email"`
+	Token string `json:"token"`
+}
+
+// RotatePrimaryAPIKey rotates an authenticated ordinary user's sole API key.
+// A live dashboard session alone is insufficient: callers must first present a
+// short-lived 2FA/Passkey security proof bound to that session.
+func RotatePrimaryAPIKey(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
+	if !common.SinglePrimaryAPIKeyEnabled || c.GetInt("role") != common.RoleCommonUser {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "当前账户不支持主 API Key 轮换"})
+		return
+	}
+	if !middleware.RequireSecurityProof(c, securityProofScopePrimaryKeyRotate, []string{secureVerificationMethod2FA, secureVerificationMethodPasskey}) {
+		return
+	}
+	userID := c.GetInt("id")
+	token, err := model.RotatePrimaryTokenByUserID(userID)
+	if err != nil {
+		var deliveryErr *model.PrimaryTokenRotationDeliveryError
+		if errors.As(err, &deliveryErr) && deliveryErr.FullKey() != "" {
+			model.RecordOperationAuditLog(userID, "Primary API key rotation committed with delivery warning", c.ClientIP(), "user.primary_api_key_rotation_delivery_warning", map[string]interface{}{"user_id": userID}, nil, nil)
+			c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{
+				"full_key": primaryAPIKeyForUser(deliveryErr.FullKey()),
+				"warning":  deliveryErr.Warning(),
+			}})
+			return
+		}
+		if token != nil && token.GetFullKey() != "" {
+			model.RecordOperationAuditLog(userID, "Primary API key rotation committed with unknown delivery warning", c.ClientIP(), "user.primary_api_key_rotation_delivery_warning", map[string]interface{}{"user_id": userID}, nil, nil)
+			c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{
+				"full_key": primaryAPIKeyForUser(token.GetFullKey()),
+				"warning":  "API Key 已生成，但安全同步尚未完成；请保存此 Key 并重新登录。如无法登录，请使用邮箱找回。",
+			}})
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{"full_key": primaryAPIKeyForUser(token.GetFullKey())}})
+}
+
+// ResetAPIKey consumes a recovery flow and rotates the user's primary key.
+// The full key is returned only in this one response and never sent by email.
+func ResetAPIKey(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
+	c.Header("Pragma", "no-cache")
+	var req APIKeyResetRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req.Email = model.NormalizeEmail(req.Email)
+	if req.Email == "" || req.Token == "" || !common.SinglePrimaryAPIKeyEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordResetLinkInvalid)
+		return
+	}
+	var rotated *model.Token
+	var err error
+	flow, err := model.ConsumeAuthFlowWithAction(req.Token, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeAPIKeyReset}, func(tx *gorm.DB, flow *model.AuthFlow) error {
+		var user model.User
+		if err := tx.Where("id = ? AND LOWER(email) = ?", flow.UserId, req.Email).First(&user).Error; err != nil || user.Status != common.UserStatusEnabled || user.Role != common.RoleCommonUser {
+			return model.ErrAuthFlowInvalid
+		}
+		rotated, err = model.RotatePrimaryTokenByUserIDTx(tx, user.Id)
+		if err != nil {
+			return err
+		}
+		_, err = model.IncrementUserAuthVersionWithTx(tx, user.Id)
+		return err
+	})
+	if err != nil || flow == nil || rotated == nil {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordResetLinkInvalid)
+		return
+	}
+	deliveryWarning := ""
+	if err := model.FinalizePrimaryTokenRotation(flow.UserId, rotated, "api_key_reset"); err != nil {
+		var deliveryErr *model.PrimaryTokenRotationDeliveryError
+		if errors.As(err, &deliveryErr) && deliveryErr.FullKey() != "" {
+			deliveryWarning = deliveryErr.Warning()
+		} else {
+			deliveryWarning = "API Key 已生成，但安全同步尚未完成；请保存此 Key 并重新登录。如无法登录，请使用邮箱找回。"
+		}
+		model.RecordOperationAuditLog(flow.UserId, "API key reset committed with delivery warning", c.ClientIP(), "user.api_key_reset_delivery_warning", map[string]interface{}{"user_id": flow.UserId}, nil, nil)
+	}
+	model.RecordOperationAuditLog(flow.UserId, "Reset primary API key", c.ClientIP(), "user.api_key_reset", map[string]interface{}{"user_id": flow.UserId}, nil, nil)
+	if user, err := model.GetUserById(flow.UserId, false); err == nil && user.Email != "" {
+		if err := common.SendEmail(fmt.Sprintf("%s API Key 已重置", common.SystemName), user.Email, "<p>您的 API Key 已重置，旧 Key 已立即失效。如非本人操作，请立即联系管理员。</p>"); err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to send API key reset notification: %v", err))
+		}
+	}
+	data := gin.H{"full_key": primaryAPIKeyForUser(rotated.GetFullKey())}
+	if deliveryWarning != "" {
+		data["warning"] = deliveryWarning
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": data})
 }

@@ -45,6 +45,15 @@ import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
+function isValidSmtpFrom(value: string) {
+  const trimmed = value.trim()
+  if (!trimmed) return true
+  return (
+    /^[^<>\r\n]+<[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+>$/.test(trimmed) ||
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+  )
+}
+
 const createEmailSchema = (t: (key: string) => string) =>
   z.object({
     SMTPServer: z.string(),
@@ -54,11 +63,9 @@ const createEmailSchema = (t: (key: string) => string) =>
       return /^\d+$/.test(trimmed)
     }, t('Port must be a positive integer')),
     SMTPAccount: z.string(),
-    SMTPFrom: z.string().refine((value) => {
-      const trimmed = value.trim()
-      if (!trimmed) return true
-      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
-    }, t('Enter a valid email or leave blank')),
+    SMTPFrom: z
+      .string()
+      .refine((value) => isValidSmtpFrom(value), t('Enter a valid email or leave blank')),
     SMTPToken: z.string(),
     SMTPSSLEnabled: z.boolean(),
     SMTPStartTLSEnabled: z.boolean(),
@@ -145,18 +152,31 @@ export function EmailSettingsSection({
       updates.push({ key: 'SMTPToken', value: sanitized.SMTPToken })
     }
 
-    if (sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled) {
-      updates.push({
-        key: 'SMTPSSLEnabled',
-        value: sanitized.SMTPSSLEnabled,
-      })
+    // The backend rejects a transient state with both transport modes enabled.
+    // Disable the old mode before enabling the selected replacement.
+    if (
+      sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled &&
+      !sanitized.SMTPSSLEnabled
+    ) {
+      updates.push({ key: 'SMTPSSLEnabled', value: false })
     }
-
-    if (sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled) {
-      updates.push({
-        key: 'SMTPStartTLSEnabled',
-        value: sanitized.SMTPStartTLSEnabled,
-      })
+    if (
+      sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled &&
+      !sanitized.SMTPStartTLSEnabled
+    ) {
+      updates.push({ key: 'SMTPStartTLSEnabled', value: false })
+    }
+    if (
+      sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled &&
+      sanitized.SMTPSSLEnabled
+    ) {
+      updates.push({ key: 'SMTPSSLEnabled', value: true })
+    }
+    if (
+      sanitized.SMTPStartTLSEnabled !== initial.SMTPStartTLSEnabled &&
+      sanitized.SMTPStartTLSEnabled
+    ) {
+      updates.push({ key: 'SMTPStartTLSEnabled', value: true })
     }
 
     if (sanitized.SMTPInsecureSkipVerify !== initial.SMTPInsecureSkipVerify) {

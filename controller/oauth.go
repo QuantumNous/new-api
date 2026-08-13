@@ -204,6 +204,8 @@ func HandleOAuth(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
 		case *OAuthRegistrationDisabledError:
 			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+		case *OAuthInvitationRequiredError:
+			common.ApiErrorI18n(c, i18n.MsgUserInviteRequired)
 		case *OAuthEmailAlreadyTakenError:
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 		default:
@@ -329,6 +331,12 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	if !common.RegisterEnabled {
 		return nil, &OAuthRegistrationDisabledError{}
 	}
+	if common.SinglePrimaryAPIKeyEnabled {
+		// Single-primary onboarding is invitation-only. OAuth cannot create an
+		// account here because the invitation flow also atomically provisions
+		// the primary key.
+		return nil, &OAuthInvitationRequiredError{}
+	}
 
 	// Set up new user
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
@@ -439,6 +447,12 @@ type OAuthRegistrationDisabledError struct{}
 
 func (e *OAuthRegistrationDisabledError) Error() string {
 	return "registration is disabled"
+}
+
+type OAuthInvitationRequiredError struct{}
+
+func (e *OAuthInvitationRequiredError) Error() string {
+	return "an administrator invitation is required"
 }
 
 type OAuthEmailAlreadyTakenError struct{}

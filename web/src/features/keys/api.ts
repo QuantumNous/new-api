@@ -108,6 +108,16 @@ export async function updateApiKeyStatus(
   return res.data
 }
 
+/** Rotate the ordinary user's single primary API key. */
+export async function rotatePrimaryApiKey(
+  proofToken: string
+): Promise<ApiResponse<{ key?: string; full_key?: string }>> {
+  const res = await api.post('/api/user/rotate-api-key', undefined, {
+    headers: { 'X-Security-Proof': proofToken },
+  })
+  return res.data
+}
+
 // Fetch the real (unmasked) key for a token by ID
 export async function fetchTokenKey(
   id: number

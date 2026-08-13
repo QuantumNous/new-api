@@ -2,13 +2,50 @@ package model
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestConsumeAuthFlowConcurrentUseSucceedsExactlyOnce(t *testing.T) {
+	truncateTables(t)
+
+	token, _, err := CreateAuthFlow(AuthFlowCreate{
+		Purpose:   AuthFlowPurposeAPIKeyReset,
+		UserId:    42,
+		ExpiresAt: time.Now().Add(time.Minute),
+	})
+	require.NoError(t, err)
+
+	const attempts = 8
+	errs := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, consumeErr := ConsumeAuthFlow(token, AuthFlowMatch{Purpose: AuthFlowPurposeAPIKeyReset, UserId: 42})
+			errs <- consumeErr
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	for consumeErr := range errs {
+		if consumeErr == nil {
+			successes++
+			continue
+		}
+		assert.ErrorIs(t, consumeErr, ErrAuthFlowConsumed)
+	}
+	assert.Equal(t, 1, successes)
+}
 
 func TestAuthFlowIsBoundAndConsumedOnce(t *testing.T) {
 	truncateTables(t)
@@ -106,4 +143,29 @@ func TestConsumeAuthFlowWithActionRollsBackTogether(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, flow.ConsumedAt)
 	require.NoError(t, ClaimExternalAuthAssertion(AuthFlowPurposeTelegramAssertion, "assertion-a", time.Now().Add(time.Minute)))
+}
+
+func TestConsumeVerificationCodeWithActionConsumesOnce(t *testing.T) {
+	codeKey := "invite@example.com"
+	common.RegisterVerificationCodeWithKey(codeKey, "123456", common.EmailVerificationPurpose)
+	require.NoError(t, common.ConsumeVerificationCodeWithAction(codeKey, "123456", common.EmailVerificationPurpose, nil))
+}
+
+func TestConsumeVerificationCodeWithActionRejectsReplay(t *testing.T) {
+	codeKey := "invite@example.com"
+	common.RegisterVerificationCodeWithKey(codeKey, "123456", common.EmailVerificationPurpose)
+	require.NoError(t, common.ConsumeVerificationCodeWithAction(codeKey, "123456", common.EmailVerificationPurpose, nil))
+	assert.ErrorIs(t, common.ConsumeVerificationCodeWithAction(codeKey, "123456", common.EmailVerificationPurpose, nil), common.ErrVerificationCodeInvalid)
+}
+
+func TestConsumeVerificationCodeWithActionRestoresOnFailure(t *testing.T) {
+	codeKey := "invite@example.com"
+	common.RegisterVerificationCodeWithKey(codeKey, "123456", common.EmailVerificationPurpose)
+
+	actionErr := errors.New("boom")
+	require.ErrorIs(t, common.ConsumeVerificationCodeWithAction(codeKey, "123456", common.EmailVerificationPurpose, func() error {
+		return actionErr
+	}), actionErr)
+	assert.True(t, common.VerifyCodeWithKey(codeKey, "123456", common.EmailVerificationPurpose))
+	require.NoError(t, common.ConsumeVerificationCodeWithAction(codeKey, "123456", common.EmailVerificationPurpose, nil))
 }

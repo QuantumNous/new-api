@@ -29,7 +29,54 @@ type fakeSMTPServer struct {
 	authMechanisms    []string
 	messages          chan string
 	authCommands      chan string
+	mailFromCommands  chan string
 	startTLSCommands  chan string
+}
+
+func TestSMTPConfiguredUsesSMTPAccountAsFallbackSender(t *testing.T) {
+	originalServer, originalPort := SMTPServer, SMTPPort
+	originalAccount, originalToken, originalFrom := SMTPAccount, SMTPToken, SMTPFrom
+	t.Cleanup(func() {
+		SMTPServer, SMTPPort = originalServer, originalPort
+		SMTPAccount, SMTPToken, SMTPFrom = originalAccount, originalToken, originalFrom
+	})
+	SMTPServer, SMTPPort = "smtp.example.com", 587
+	SMTPAccount, SMTPToken, SMTPFrom = "sender@example.com", "test-token", ""
+	require.True(t, SMTPConfigured(), "SMTPConfigured should accept SMTP account as fallback sender")
+}
+
+func TestSMTPConfiguredRejectsInvalidEffectiveSender(t *testing.T) {
+	originalServer, originalPort := SMTPServer, SMTPPort
+	originalAccount, originalToken, originalFrom := SMTPAccount, SMTPToken, SMTPFrom
+	t.Cleanup(func() {
+		SMTPServer, SMTPPort = originalServer, originalPort
+		SMTPAccount, SMTPToken, SMTPFrom = originalAccount, originalToken, originalFrom
+	})
+	SMTPServer, SMTPPort = "smtp.example.com", 587
+	SMTPAccount, SMTPToken, SMTPFrom = "sender@example.com", "test-token", "invalid-from"
+	require.False(t, SMTPConfigured(), "SMTPConfigured should reject an invalid effective sender")
+}
+
+func TestSMTPConfiguredRejectsConflictingTransportModes(t *testing.T) {
+	originalServer, originalPort := SMTPServer, SMTPPort
+	originalAccount, originalToken, originalFrom := SMTPAccount, SMTPToken, SMTPFrom
+	originalSSL, originalStartTLS := SMTPSSLEnabled, SMTPStartTLSEnabled
+	t.Cleanup(func() {
+		SMTPServer, SMTPPort = originalServer, originalPort
+		SMTPAccount, SMTPToken, SMTPFrom = originalAccount, originalToken, originalFrom
+		SMTPSSLEnabled, SMTPStartTLSEnabled = originalSSL, originalStartTLS
+	})
+	SMTPServer, SMTPPort = "smtp.example.com", 587
+	SMTPAccount, SMTPToken, SMTPFrom = "sender@example.com", "test-token", ""
+	SMTPSSLEnabled, SMTPStartTLSEnabled = true, true
+	require.False(t, SMTPConfigured(), "SSL/TLS and STARTTLS must be mutually exclusive")
+}
+
+func TestParseSMTPFromAddressSupportsDisplayNameFormat(t *testing.T) {
+	address, err := ParseSMTPFromAddress("New API <noreply@example.com>")
+	require.NoError(t, err)
+	require.Equal(t, "noreply@example.com", address.Address)
+	require.Equal(t, "New API", address.Name)
 }
 
 func newFakeSMTPServer(t *testing.T) *fakeSMTPServer {
@@ -59,6 +106,7 @@ func newFakeSMTPServerWithSTARTTLSAdvertisement(t *testing.T, advertiseSTARTTLS 
 		authMechanisms:    []string{"PLAIN", "LOGIN"},
 		messages:          make(chan string, 1),
 		authCommands:      make(chan string, 1),
+		mailFromCommands:  make(chan string, 1),
 		startTLSCommands:  make(chan string, 1),
 	}
 	go server.serve()
@@ -88,6 +136,7 @@ func newFakeImplicitTLSSMTPServer(t *testing.T) *fakeSMTPServer {
 		authMechanisms:    []string{"PLAIN", "LOGIN"},
 		messages:          make(chan string, 1),
 		authCommands:      make(chan string, 1),
+		mailFromCommands:  make(chan string, 1),
 		startTLSCommands:  make(chan string, 1),
 	}
 	go server.serve()
@@ -167,6 +216,10 @@ func (s *fakeSMTPServer) serve() {
 				return
 			}
 		case strings.HasPrefix(upperCommand, "MAIL FROM:"):
+			select {
+			case s.mailFromCommands <- command:
+			default:
+			}
 			if err := writeSMTPLine(rw, "250 2.1.0 Sender OK"); err != nil {
 				return
 			}
@@ -292,6 +345,60 @@ func TestSendEmailUsesExplicitStartTLSWithInsecureCertificate(t *testing.T) {
 		require.Contains(t, message, "<p>123456</p>")
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for SMTP DATA")
+	}
+}
+
+func TestSendEmailUsesDisplayNameFromAddressHeader(t *testing.T) {
+	server := newFakeSMTPServer(t)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = true
+	SMTPInsecureSkipVerify = true
+	SMTPForceAuthLogin = false
+	SMTPAccount = "sender@example.com"
+	SMTPFrom = "New API <sender@example.com>"
+	SMTPToken = "secret"
+	SystemName = "New API"
+
+	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
+	require.NoError(t, err)
+
+	select {
+	case message := <-server.messages:
+		require.Contains(t, message, "From: \"New API\" <sender@example.com>")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SMTP DATA")
+	}
+}
+
+func TestSendEmailUsesBareAddressForSMTPEnvelope(t *testing.T) {
+	server := newFakeSMTPServer(t)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = true
+	SMTPInsecureSkipVerify = true
+	SMTPForceAuthLogin = false
+	SMTPAccount = "sender@example.com"
+	SMTPFrom = "New API <sender@example.com>"
+	SMTPToken = "secret"
+	SystemName = "New API"
+
+	err := SendEmail("Verification", "receiver@example.com", "<p>123456</p>")
+	require.NoError(t, err)
+
+	select {
+	case command := <-server.mailFromCommands:
+		require.Contains(t, command, "MAIL FROM:<sender@example.com>")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SMTP MAIL FROM")
 	}
 }
 

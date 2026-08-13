@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-const FRONTEND_CACHE_VERSION = 'default-v1'
+import { getBuildRevision } from '@/lib/build-metadata'
+
 const FRONTEND_CACHE_VERSION_KEY = 'newapi:default:cache-version'
 const PRESERVED_LOCAL_STORAGE_KEYS = new Set([
   FRONTEND_CACHE_VERSION_KEY,
@@ -30,16 +31,21 @@ export function initializeFrontendCache(): void {
   if (typeof window === 'undefined') return
 
   try {
+    const entryScript = document.querySelector<HTMLScriptElement>(
+      'script[src*="/static/js/index."]'
+    )
+    const frontendCacheVersion = `ui:${entryScript?.src || getBuildRevision()}`
     const currentVersion = window.localStorage.getItem(
       FRONTEND_CACHE_VERSION_KEY
     )
-    if (currentVersion === FRONTEND_CACHE_VERSION) return
+    if (currentVersion === frontendCacheVersion) return
 
     clearLocalUiCache()
     window.localStorage.setItem(
       FRONTEND_CACHE_VERSION_KEY,
-      FRONTEND_CACHE_VERSION
+      frontendCacheVersion
     )
+    window.location.reload()
   } catch {
     // Storage can be unavailable in private mode; the app should still boot.
   }

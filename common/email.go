@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
+	"net/mail"
 	"net/smtp"
 	"slices"
 	"strings"
@@ -11,12 +12,63 @@ import (
 )
 
 func generateMessageID() (string, error) {
-	split := strings.Split(SMTPFrom, "@")
-	if len(split) < 2 {
+	address, err := effectiveSMTPFromAddress()
+	if err != nil {
 		return "", fmt.Errorf("invalid SMTP account")
 	}
-	domain := strings.Split(SMTPFrom, "@")[1]
+	split := strings.Split(address, "@")
+	if len(split) != 2 {
+		return "", fmt.Errorf("invalid SMTP account")
+	}
+	domain := split[1]
 	return fmt.Sprintf("<%d.%s@%s>", time.Now().UnixNano(), GetRandomString(12), domain), nil
+}
+
+func effectiveSMTPFrom() string {
+	from := strings.TrimSpace(SMTPFrom)
+	if from == "" {
+		from = strings.TrimSpace(SMTPAccount)
+	}
+	return from
+}
+
+func effectiveSMTPFromAddress() (string, error) {
+	address, err := ParseSMTPFromAddress(effectiveSMTPFrom())
+	if err != nil {
+		return "", err
+	}
+	return address.Address, nil
+}
+
+func ParseSMTPFromAddress(from string) (*mail.Address, error) {
+	from = strings.TrimSpace(from)
+	if from == "" {
+		return nil, fmt.Errorf("invalid SMTP account")
+	}
+	address, err := mail.ParseAddress(from)
+	if err != nil {
+		return nil, err
+	}
+	return address, nil
+}
+
+func formattedSMTPFrom() (string, error) {
+	address, err := ParseSMTPFromAddress(effectiveSMTPFrom())
+	if err != nil {
+		return "", err
+	}
+	if address.Name != "" {
+		return address.String(), nil
+	}
+	return (&mail.Address{
+		Name:    SystemName,
+		Address: address.Address,
+	}).String(), nil
+}
+
+func validSMTPFrom(from string) bool {
+	_, err := ParseSMTPFromAddress(from)
+	return err == nil
 }
 
 func shouldUseSMTPLoginAuth() bool {
@@ -32,6 +84,18 @@ func getSMTPAuth() smtp.Auth {
 
 func shouldAuthenticateSMTP() bool {
 	return SMTPAccount != "" && SMTPToken != ""
+}
+
+// SMTPConfigured reports whether the minimum static SMTP configuration needed
+// by email-dependent authentication flows is present. It deliberately does
+// not perform network I/O; runtime delivery still reports provider failures.
+func SMTPConfigured() bool {
+	return strings.TrimSpace(SMTPServer) != "" &&
+		SMTPPort > 0 && SMTPPort <= 65535 &&
+		strings.TrimSpace(SMTPAccount) != "" &&
+		strings.TrimSpace(SMTPToken) != "" &&
+		validSMTPFrom(effectiveSMTPFrom()) &&
+		!(SMTPSSLEnabled && SMTPStartTLSEnabled)
 }
 
 func smtpTLSConfig() *tls.Config {
@@ -76,28 +140,32 @@ func newSMTPClient(addr string) (*smtp.Client, error) {
 }
 
 func SendEmail(subject string, receiver string, content string) error {
-	if SMTPFrom == "" { // for compatibility
-		SMTPFrom = SMTPAccount
+	fromHeader, err := formattedSMTPFrom()
+	if err != nil {
+		return err
 	}
-	id, err2 := generateMessageID()
-	if err2 != nil {
-		return err2
+	fromAddress, err := effectiveSMTPFromAddress()
+	if err != nil {
+		return err
+	}
+	id, err := generateMessageID()
+	if err != nil {
+		return err
 	}
 	if SMTPServer == "" && SMTPAccount == "" {
 		return fmt.Errorf("SMTP 服务器未配置")
 	}
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
 	mail := []byte(fmt.Sprintf("To: %s\r\n"+
-		"From: %s <%s>\r\n"+
+		"From: %s\r\n"+
 		"Subject: %s\r\n"+
 		"Date: %s\r\n"+
 		"Message-ID: %s\r\n"+ // 添加 Message-ID 头
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
-		receiver, SystemName, SMTPFrom, encodedSubject, time.Now().Format(time.RFC1123Z), id, content))
+		receiver, fromHeader, encodedSubject, time.Now().Format(time.RFC1123Z), id, content))
 	auth := getSMTPAuth()
 	addr := fmt.Sprintf("%s:%d", SMTPServer, SMTPPort)
 	to := strings.Split(receiver, ";")
-	var err error
 	client, err := newSMTPClient(addr)
 	if err != nil {
 		return err
@@ -108,7 +176,7 @@ func SendEmail(subject string, receiver string, content string) error {
 			return err
 		}
 	}
-	if err = client.Mail(SMTPFrom); err != nil {
+	if err = client.Mail(fromAddress); err != nil {
 		return err
 	}
 	for _, receiver := range to {

@@ -77,6 +77,7 @@ const (
 // User related messages
 const (
 	MsgUserPasswordLoginDisabled     = "user.password_login_disabled"
+	MsgUserAPIKeyLoginDisabled       = "user.api_key_login_disabled"
 	MsgUserRegisterDisabled          = "user.register_disabled"
 	MsgUserPasswordRegisterDisabled  = "user.password_register_disabled"
 	MsgUserUsernameOrPasswordEmpty   = "user.username_or_password_empty"
@@ -87,6 +88,8 @@ const (
 	MsgUserDisabled                  = "user.disabled"
 	MsgUserSessionSaveFailed         = "user.session_save_failed"
 	MsgUserRequire2FA                = "user.require_2fa"
+	MsgUserInviteRequired            = "user.invite_required"
+	MsgUserInviteInvalid             = "user.invite_invalid"
 	MsgUserEmailVerificationRequired = "user.email_verification_required"
 	MsgUserVerificationCodeError     = "user.verification_code_error"
 	MsgUserEmailAlreadyTaken         = "user.email_already_taken"
@@ -110,6 +113,7 @@ const (
 	MsgUserTopUpProcessing           = "user.topup_processing"
 	MsgUserRegisterFailed            = "user.register_failed"
 	MsgUserDefaultTokenFailed        = "user.default_token_failed"
+	MsgUserDefaultTokenEmailFailed   = "user.default_token_email_failed"
 	MsgUserAffCodeEmpty              = "user.aff_code_empty"
 	MsgUserEmailEmpty                = "user.email_empty"
 	MsgUserGitHubIdEmpty             = "user.github_id_empty"

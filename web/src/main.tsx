@@ -47,8 +47,8 @@ import './styles/index.css'
 
 // Ensure VChart theme is initialized before any chart mounts (prevents white default theme flash)
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
-initializeFrontendCache()
 installBuildMetadata()
+initializeFrontendCache()
 
 const queryClient = new QueryClient({
   defaultOptions: {

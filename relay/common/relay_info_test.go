@@ -157,6 +157,28 @@ func TestGenRelayInfoCapturesRequestReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestCloneRequestHeadersOmitsCredentialHeaders(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	ctx.Request.Header.Set("Authorization", "Bearer synthetic-secret")
+	ctx.Request.Header.Set("X-Api-Key", "synthetic-api-key")
+	ctx.Request.Header.Set("Cookie", "session=synthetic-cookie")
+	ctx.Request.Header.Set("X-Client-Feature", "enabled")
+
+	headers := cloneRequestHeaders(ctx)
+	require.Equal(t, "enabled", headers["X-Client-Feature"])
+	assert.NotContains(t, headers, "Authorization")
+	assert.NotContains(t, headers, "X-Api-Key")
+	assert.NotContains(t, headers, "Cookie")
+}
+
+func TestRelayInfoToStringMasksSensitiveQuery(t *testing.T) {
+	info := &RelayInfo{RequestURLPath: "/v1/models?key=synthetic-secret&model=gpt-test"}
+	text := info.ToString()
+	assert.NotContains(t, text, "synthetic-secret")
+	assert.Contains(t, text, "***masked***")
+}
+
 func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

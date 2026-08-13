@@ -98,8 +98,15 @@ func InitEnv() {
 			}
 		}
 	}
-	SMTPStartTLSEnabled = GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLE", GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLED", false))
-	SMTPInsecureSkipVerify = GetEnvOrDefaultBool("SMTP_INSECURE_SKIP_VERIFY", GetEnvOrDefaultBool("SMTP_TLS_INSECURE_SKIP_VERIFY", false))
+	SMTPServer = GetEnvOrDefaultString("SMTP_SERVER", SMTPServer)
+	SMTPPort = GetEnvOrDefault("SMTP_PORT", SMTPPort)
+	SMTPSSLEnabled = GetEnvOrDefaultBool("SMTP_SSL_ENABLED", SMTPSSLEnabled)
+	SMTPStartTLSEnabled = GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLE", GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLED", SMTPStartTLSEnabled))
+	SMTPInsecureSkipVerify = GetEnvOrDefaultBool("SMTP_INSECURE_SKIP_VERIFY", GetEnvOrDefaultBool("SMTP_TLS_INSECURE_SKIP_VERIFY", SMTPInsecureSkipVerify))
+	SMTPForceAuthLogin = GetEnvOrDefaultBool("SMTP_FORCE_AUTH_LOGIN", SMTPForceAuthLogin)
+	SMTPAccount = GetEnvOrDefaultString("SMTP_ACCOUNT", SMTPAccount)
+	SMTPFrom = GetEnvOrDefaultString("SMTP_FROM", SMTPFrom)
+	SMTPToken = GetEnvOrDefaultString("SMTP_TOKEN", SMTPToken)
 
 	// Parse requestInterval and set RequestInterval
 	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))

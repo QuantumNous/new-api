@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
@@ -20,8 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-
-	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -30,6 +31,34 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type APIKeyLoginRequest struct {
+	APIKey string `json:"api_key"`
+}
+
+type UserInviteRequest struct {
+	Email    string `json:"email" validate:"required,email,max=50"`
+	Username string `json:"username" validate:"required,max=20"`
+	Role     int    `json:"role"`
+}
+
+type InviteRegisterRequest struct {
+	InviteToken string `json:"invite_token"`
+}
+
+type registerRequest struct {
+	model.User
+	InviteToken string `json:"invite_token"`
+}
+
+// primaryAPIKeyForUser keeps the database representation raw while exposing
+// the canonical sk- form in the one-time user-facing delivery responses.
+func primaryAPIKeyForUser(key string) string {
+	if strings.HasPrefix(key, "sk-") {
+		return key
+	}
+	return "sk-" + key
 }
 
 var (
@@ -80,43 +109,102 @@ func Login(c *gin.Context) {
 		return
 	}
 	if twoFAEnabled {
-		expiresAt := time.Now().Add(5 * time.Minute)
-		payload, err := common.Marshal(twoFALoginFlowPayload{AuthVersion: user.AuthVersion})
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		flowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
-			Purpose:   model.AuthFlowPurposeTwoFALogin,
-			UserId:    user.Id,
-			Payload:   string(payload),
-			ExpiresAt: expiresAt,
-		})
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": i18n.T(c, i18n.MsgUserRequire2FA),
-			"success": true,
-			"data": map[string]interface{}{
-				"require_2fa": true,
-				"flow_token":  flowToken,
-				"expires_at":  expiresAt.Unix(),
-			},
-		})
+		createTwoFALoginFlow(&user, c)
 		return
 	}
 
 	setupLogin(&user, c)
 }
 
+func APIKeyLogin(c *gin.Context) {
+	if !common.APIKeyLoginEnabled && !common.SinglePrimaryAPIKeyEnabled {
+		common.ApiErrorI18n(c, i18n.MsgUserAPIKeyLoginDisabled)
+		return
+	}
+	var request APIKeyLoginRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	key := strings.TrimPrefix(strings.TrimSpace(request.APIKey), "sk-")
+	if key == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	// The strict primary-user boundary applies only to ordinary users in the
+	// complete single-primary mode. Privileged roles retain multi-key login
+	// compatibility.
+	var token *model.Token
+	var err error
+	if common.SinglePrimaryAPIKeyEnabled {
+		token, err = model.ValidatePrimaryUserTokenForLogin(key)
+	} else {
+		token, err = model.ValidateUserTokenForLogin(key)
+	}
+	if err != nil {
+		if errors.Is(err, model.ErrDatabase) {
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
+		return
+	}
+	user, err := model.GetUserById(token.UserId, false)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+	twoFAEnabled, err := model.IsTwoFAEnabled(user.Id)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+	if twoFAEnabled {
+		createTwoFALoginFlow(user, c)
+		return
+	}
+	setupLogin(user, c)
+}
+
+func createTwoFALoginFlow(user *model.User, c *gin.Context) {
+	expiresAt := time.Now().Add(5 * time.Minute)
+	payload, err := common.Marshal(twoFALoginFlowPayload{AuthVersion: user.AuthVersion})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	flowToken, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   model.AuthFlowPurposeTwoFALogin,
+		UserId:    user.Id,
+		Payload:   string(payload),
+		ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": i18n.T(c, i18n.MsgUserRequire2FA),
+		"success": true,
+		"data": map[string]interface{}{
+			"require_2fa": true,
+			"flow_token":  flowToken,
+			"expires_at":  expiresAt.Unix(),
+		},
+	})
+}
+
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
 func loginMethodFromContext(c *gin.Context) string {
-	switch c.FullPath() {
+	path := c.FullPath()
+	if path == "" && c.Request != nil && c.Request.URL != nil {
+		path = c.Request.URL.Path
+	}
+	switch path {
 	case "/api/user/login":
 		return "password"
+	case "/api/user/login/api-key":
+		return "api_key"
 	case "/api/user/login/2fa":
 		return "2fa"
 	case "/api/user/passkey/login/finish":
@@ -208,32 +296,80 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
 		return
 	}
-	if !common.PasswordRegisterEnabled {
+	if !common.PasswordRegisterEnabled && !common.SinglePrimaryAPIKeyEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := common.DecodeJson(c.Request.Body, &user)
+	var request registerRequest
+	err := common.DecodeJson(c.Request.Body, &request)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	user := request.User
 	user.Username = strings.TrimSpace(user.Username)
 	user.Email = model.NormalizeEmail(user.Email)
-	if user.Username == "" {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+	singlePrimary := common.SinglePrimaryAPIKeyEnabled
+	var inviteFlow *model.AuthFlow
+	inviteToken := strings.TrimSpace(c.GetHeader("X-Invite-Token"))
+	if inviteToken == "" {
+		inviteToken = strings.TrimSpace(request.InviteToken)
+	}
+	if singlePrimary && inviteToken == "" {
+		// 单主 Key 模式是邀请制；此处阻断旧的公开 OTP 注册路径。
+		common.ApiErrorI18n(c, i18n.MsgUserInviteRequired)
 		return
 	}
-	if err := common.Validate.Struct(&user); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
-		return
+	if singlePrimary && inviteToken != "" {
+		var flowErr error
+		inviteFlow, flowErr = model.GetAuthFlow(inviteToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeUserInvite})
+		if flowErr != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserInviteInvalid)
+			return
+		}
+		var inviteData struct {
+			Email    string `json:"email"`
+			Username string `json:"username"`
+			Role     int    `json:"role"`
+		}
+		if inviteFlow.Payload == "" || common.Unmarshal([]byte(inviteFlow.Payload), &inviteData) != nil || model.NormalizeEmail(inviteData.Email) == "" || strings.TrimSpace(inviteData.Username) == "" {
+			common.ApiErrorI18n(c, i18n.MsgUserInviteInvalid)
+			return
+		}
+		if inviteData.Role == 0 {
+			inviteData.Role = common.RoleCommonUser
+		}
+		if inviteData.Role != common.RoleCommonUser && inviteData.Role != common.RoleAdminUser {
+			common.ApiErrorI18n(c, i18n.MsgUserInviteInvalid)
+			return
+		}
+		user.Email = model.NormalizeEmail(inviteData.Email)
+		user.Username = strings.TrimSpace(inviteData.Username)
+		user.Role = inviteData.Role
+		user.VerificationCode = "invite"
 	}
-	if common.EmailVerificationEnabled {
+	if singlePrimary {
 		if user.Email == "" || user.VerificationCode == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+	} else if user.Username == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if !singlePrimary {
+		if err := common.Validate.Struct(&user); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+			return
+		}
+	}
+	requireEmailVerification := common.EmailVerificationEnabled || common.EmailDefaultTokenEnabled || singlePrimary
+	if requireEmailVerification && (user.Email == "" || user.VerificationCode == "") {
+		common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
+		return
+	}
+	if requireEmailVerification {
+		if !singlePrimary && !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
@@ -246,31 +382,92 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
+	if singlePrimary {
+		// Invitation payload owns the username; the client cannot override it.
+		user.Password = ""
+	}
 	emailForExistCheck := ""
-	if common.EmailVerificationEnabled {
+	if requireEmailVerification {
 		emailForExistCheck = user.Email
 	}
-	exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck)
-	if err != nil {
+	if exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
 		return
-	}
-	if exist {
+	} else if exist {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
+	affCode := user.AffCode
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.Username,
 		InviterId:   inviterId,
-		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
+		Role:        common.RoleCommonUser,
+		Email:       user.Email,
 	}
-	if common.EmailVerificationEnabled {
-		cleanUser.Email = user.Email
+	if singlePrimary {
+		cleanUser.Role = user.Role
+	}
+	if singlePrimary {
+		var primaryToken *model.Token
+		registerAction := func() error {
+			group := ""
+			if setting.DefaultUseAutoGroup {
+				group = "auto"
+			}
+			var err error
+			if inviteFlow != nil {
+				_, err = model.ConsumeAuthFlowWithAction(inviteToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeUserInvite}, func(tx *gorm.DB, _ *model.AuthFlow) error {
+					var createErr error
+					primaryToken, createErr = model.RegisterUserWithPrimaryTokenTx(tx, &cleanUser, inviterId, group)
+					return createErr
+				})
+				return err
+			}
+			primaryToken, err = model.RegisterUserWithPrimaryToken(&cleanUser, inviterId, group)
+			return err
+		}
+		var err error
+		if inviteFlow != nil {
+			err = registerAction()
+		} else {
+			err = common.ConsumeVerificationCodeWithAction(user.Email, user.VerificationCode, common.EmailVerificationPurpose, registerAction)
+		}
+		if err != nil {
+			if errors.Is(err, common.ErrVerificationCodeInvalid) {
+				common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+				return
+			}
+			if errors.Is(err, model.ErrEmailAlreadyTaken) {
+				common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+				return
+			}
+			common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
+			return
+		}
+		cleanUser.FinalizeOAuthUserCreation(inviterId)
+		data := gin.H{"full_key": primaryAPIKeyForUser(primaryToken.GetFullKey())}
+		if inviteFlow != nil && cleanUser.Email != "" {
+			subject := fmt.Sprintf("%s API Key", common.SystemName)
+			content := fmt.Sprintf("<p>您好，%s：</p><p>您的 %s 账户已创建。</p><p>这是您的 API Key，请妥善保存：</p><p><strong>%s</strong></p><p>该 Key 可用于 API 调用和登录后台。如果不是您本人注册，请立即联系管理员。</p>", html.EscapeString(cleanUser.Username), html.EscapeString(common.SystemName), primaryAPIKeyForUser(primaryToken.GetFullKey()))
+			if err := common.SendEmail(subject, cleanUser.Email, content); err != nil {
+				logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to send invited user's API key email: %v", err))
+				model.RecordOperationAuditLog(cleanUser.Id, "Invited user API key email delivery failed", c.ClientIP(), "user.invite_api_key_delivery_failed", map[string]interface{}{"user_id": cleanUser.Id}, nil, nil)
+				data["warning"] = "账户已创建，API Key 已在当前页面显示，但邮件发送失败；请先保存页面中的 Key。"
+			}
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    data,
+		})
+		return
+	}
+	if !requireEmailVerification {
+		cleanUser.Email = ""
 	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
@@ -281,32 +478,19 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// 获取插入后的用户ID
+	// Legacy password registration keeps its existing default-token behavior.
 	var insertedUser model.User
-	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
+	if err := model.DB.Where("id = ?", cleanUser.Id).First(&insertedUser).Error; err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
-	// 生成默认令牌
-	if constant.GenerateDefaultToken {
+	if constant.GenerateDefaultToken || common.EmailDefaultTokenEnabled {
 		key, err := common.GenerateKey()
 		if err != nil {
 			common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
-			common.SysLog("failed to generate token key: " + err.Error())
 			return
 		}
-		// 生成默认令牌
-		token := model.Token{
-			UserId:             insertedUser.Id, // 使用插入后的用户ID
-			Name:               cleanUser.Username + "的初始令牌",
-			Key:                key,
-			CreatedTime:        common.GetTimestamp(),
-			AccessedTime:       common.GetTimestamp(),
-			ExpiredTime:        -1,     // 永不过期
-			RemainQuota:        500000, // 示例额度
-			UnlimitedQuota:     true,
-			ModelLimitsEnabled: false,
-		}
+		token := model.Token{UserId: insertedUser.Id, Name: cleanUser.Username + "的初始令牌", Key: key, CreatedTime: common.GetTimestamp(), AccessedTime: common.GetTimestamp(), ExpiredTime: -1, RemainQuota: 500000, UnlimitedQuota: true}
 		if setting.DefaultUseAutoGroup {
 			token.Group = "auto"
 		}
@@ -314,6 +498,17 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 			return
 		}
+		if common.EmailDefaultTokenEnabled && cleanUser.Email != "" && !common.SinglePrimaryAPIKeyEnabled {
+			subject := fmt.Sprintf("%s API Key", common.SystemName)
+			content := fmt.Sprintf("<p>您好，您的 %s 账户已创建。</p><p>这是您的 API Key（仅发送一次，请立即妥善保存）：</p><p><strong>%s</strong></p><p>如果不是您本人注册，请忽略此邮件。</p>", common.SystemName, token.GetFullKey())
+			if err := common.SendEmail(subject, cleanUser.Email, content); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenEmailFailed)
+				return
+			}
+		}
+	}
+	if requireEmailVerification {
+		common.DeleteKey(user.Email, common.EmailVerificationPurpose)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -321,6 +516,77 @@ func Register(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// SendUserInvite creates a one-time invitation without creating an account.
+// The invitation token is consumed together with user and primary-key
+// creation by Register; a failed email delivery removes the pending flow.
+func SendUserInvite(c *gin.Context) {
+	if !common.SinglePrimaryAPIKeyEnabled {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	var req UserInviteRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	req.Email = model.NormalizeEmail(req.Email)
+	req.Username = strings.TrimSpace(req.Username)
+	if err := common.Validate.Struct(&req); err != nil || req.Username == "" {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if req.Role == 0 {
+		req.Role = common.RoleCommonUser
+	}
+	if req.Role != common.RoleCommonUser && req.Role != common.RoleAdminUser {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	callerRole := c.GetInt("role")
+	if callerRole < common.RoleAdminUser || req.Role >= callerRole {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+		return
+	}
+	if err := model.EnsureEmailAvailable(req.Email, 0); err != nil {
+		if errors.Is(err, model.ErrEmailAlreadyTaken) {
+			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+			return
+		}
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+	if exists, err := model.CheckUserExistOrDeleted(req.Username, ""); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	} else if exists {
+		common.ApiErrorI18n(c, i18n.MsgUserExists)
+		return
+	}
+	payload, err := common.Marshal(map[string]interface{}{"email": req.Email, "username": req.Username, "role": req.Role})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	flowToken, flow, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose:   model.AuthFlowPurposeUserInvite,
+		Payload:   string(payload),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	link := fmt.Sprintf("%s/sign-up?invite_token=%s", strings.TrimRight(system_setting.ServerAddress, "/"), url.QueryEscape(flowToken))
+	content := fmt.Sprintf("<p>您好，%s：</p><p>您受邀注册 %s，用户名为 <strong>%s</strong>。</p><p>点击 <a href='%s'>此处完成注册</a>。</p><p>邀请链接 24 小时内有效且只能使用一次。</p>", html.EscapeString(req.Username), html.EscapeString(common.SystemName), html.EscapeString(req.Username), html.EscapeString(link))
+	if err := common.SendEmail(fmt.Sprintf("%s 注册邀请", common.SystemName), req.Email, content); err != nil {
+		_ = model.InvalidateAuthFlow(flow.Id)
+		logger.LogWarn(c.Request.Context(), fmt.Sprintf("failed to send user invite: %v", err))
+		common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenEmailFailed)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
 func GetAllUsers(c *gin.Context) {
@@ -1018,6 +1284,12 @@ func CreateUser(c *gin.Context) {
 	myRole := c.GetInt("role")
 	if user.Role >= myRole {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
+		return
+	}
+	if common.SinglePrimaryAPIKeyEnabled && user.Role == common.RoleCommonUser {
+		// Strict invite mode must not have an administrator-created password
+		// registration bypass. Use the one-time email invitation flow instead.
+		common.ApiErrorI18n(c, i18n.MsgUserInviteRequired)
 		return
 	}
 	// Even for admin users, we cannot fully trust them!

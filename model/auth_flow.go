@@ -22,6 +22,8 @@ const (
 	AuthFlowPurposePasskeyStepUp     = "passkey_step_up"
 	AuthFlowPurposeTelegramBind      = "telegram_bind"
 	AuthFlowPurposeTelegramAssertion = "telegram_assertion"
+	AuthFlowPurposeAPIKeyReset       = "api_key_reset"
+	AuthFlowPurposeUserInvite        = "user_invite"
 	AuthFlowIntentLogin              = "login"
 	AuthFlowIntentBind               = "bind"
 	AuthFlowTokenBytes               = 32
@@ -97,6 +99,13 @@ func CreateAuthFlow(input AuthFlowCreate) (string, *AuthFlow, error) {
 	if strings.TrimSpace(input.Purpose) == "" || input.ExpiresAt.IsZero() || !input.ExpiresAt.After(time.Now()) {
 		return "", nil, ErrAuthFlowInvalid
 	}
+	return createAuthFlow(DB, input)
+}
+
+func createAuthFlow(tx *gorm.DB, input AuthFlowCreate) (string, *AuthFlow, error) {
+	if tx == nil || strings.TrimSpace(input.Purpose) == "" || input.ExpiresAt.IsZero() || !input.ExpiresAt.After(time.Now()) {
+		return "", nil, ErrAuthFlowInvalid
+	}
 	random := make([]byte, AuthFlowTokenBytes)
 	if _, err := rand.Read(random); err != nil {
 		return "", nil, fmt.Errorf("generate auth flow token: %w", err)
@@ -112,10 +121,62 @@ func CreateAuthFlow(input AuthFlowCreate) (string, *AuthFlow, error) {
 		Payload:   input.Payload,
 		ExpiresAt: input.ExpiresAt,
 	}
-	if err := DB.Create(flow).Error; err != nil {
+	if err := tx.Create(flow).Error; err != nil {
 		return "", nil, err
 	}
 	return token, flow, nil
+}
+
+// CreateAPIKeyResetFlow serializes recovery requests per account and limits
+// each account to one active flow and three flows per ten-minute window.
+func CreateAPIKeyResetFlow(userID int, expiresAt time.Time) (token string, flow *AuthFlow, allowed bool, err error) {
+	if userID <= 0 || expiresAt.IsZero() || !expiresAt.After(time.Now()) {
+		return "", nil, false, ErrAuthFlowInvalid
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		now := time.Now()
+		var active, recent int64
+		if err := tx.Model(&AuthFlow{}).Where("user_id = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > ?", userID, AuthFlowPurposeAPIKeyReset, now).Count(&active).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&AuthFlow{}).Where("user_id = ? AND purpose = ? AND created_at > ?", userID, AuthFlowPurposeAPIKeyReset, now.Add(-10*time.Minute)).Count(&recent).Error; err != nil {
+			return err
+		}
+		if active > 0 || recent >= 3 {
+			return nil
+		}
+		var createErr error
+		token, flow, createErr = createAuthFlow(tx, AuthFlowCreate{Purpose: AuthFlowPurposeAPIKeyReset, UserId: userID, ExpiresAt: expiresAt})
+		if createErr != nil {
+			return createErr
+		}
+		allowed = true
+		return nil
+	})
+	if err != nil {
+		return "", nil, false, err
+	}
+	return token, flow, allowed, nil
+}
+
+// InvalidateAuthFlow marks an undelivered flow as consumed without retaining
+// or exposing its raw token.
+func InvalidateAuthFlow(id int64) error {
+	if id <= 0 {
+		return ErrAuthFlowInvalid
+	}
+	result := DB.Model(&AuthFlow{}).Where("id = ? AND consumed_at IS NULL", id).Update("consumed_at", time.Now())
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrAuthFlowConsumed
+	}
+	return nil
 }
 
 // ClaimExternalAuthAssertion records a signed provider assertion as consumed.

@@ -17,12 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { z } from 'zod'
 
 import { SignUp } from '@/features/auth/sign-up'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/(auth)/sign-up')({
   component: SignUp,
+  validateSearch: z.object({ invite_token: z.string().optional() }),
   beforeLoad: async () => {
     const { auth } = useAuthStore.getState()
 

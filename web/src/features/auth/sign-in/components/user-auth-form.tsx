@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { login, wechatLoginByCode } from '@/features/auth/api'
+import { login, loginWithAPIKey, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
@@ -66,6 +66,8 @@ export function UserAuthForm({
 }: AuthFormProps) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [isAPIKeyLoading, setIsAPIKeyLoading] = useState(false)
+  const [apiKey, setAPIKey] = useState('')
   const [wechatCode, setWeChatCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
@@ -84,6 +86,11 @@ export function UserAuthForm({
     (status?.password_login_enabled ??
       status?.data?.password_login_enabled ??
       true) !== false
+  const apiKeyLoginEnabled = Boolean(
+    (status?.api_key_login_enabled ?? status?.data?.api_key_login_enabled) ||
+    (status?.single_primary_api_key_enabled ??
+      status?.data?.single_primary_api_key_enabled)
+  )
   const {
     isTurnstileEnabled,
     turnstileSiteKey,
@@ -194,6 +201,50 @@ export function UserAuthForm({
       toast.error(error instanceof Error ? error.message : loginFailedMessage)
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  async function handleAPIKeyLogin() {
+    if (requiresLegalConsent && !agreedToLegal) {
+      toast.error(legalConsentErrorMessage)
+      return
+    }
+    if (!apiKey.trim()) {
+      toast.error(t('API key is required'))
+      return
+    }
+    if (!validateTurnstile()) return
+
+    const submittedTurnstileToken = turnstileToken
+    if (isTurnstileEnabled) {
+      setTurnstileToken('')
+      setTurnstileWidgetKey((current) => current + 1)
+    }
+
+    setIsAPIKeyLoading(true)
+    try {
+      const res = await loginWithAPIKey({
+        api_key: apiKey.trim(),
+        turnstile: submittedTurnstileToken,
+      })
+      if (res.success) {
+        if (res.data && 'require_2fa' in res.data && res.data.require_2fa) {
+          if (!res.data.flow_token) {
+            throw new Error(t('Login flow expired. Please sign in again.'))
+          }
+          setPending2FAFlowToken(res.data.flow_token)
+          redirectTo2FA()
+          return
+        }
+        if (!isAuthBundle(res.data)) throw new Error(t('Login failed'))
+        await handleLoginSuccess(res.data, redirectTo)
+        toast.success(t('Welcome back!'))
+      }
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error)) return
+      toast.error(error instanceof Error ? error.message : loginFailedMessage)
+    } finally {
+      setIsAPIKeyLoading(false)
     }
   }
 
@@ -412,7 +463,7 @@ export function UserAuthForm({
             </Button>
 
             {/* Turnstile */}
-            {isTurnstileEnabled && (
+            {isTurnstileEnabled && passwordLoginEnabled && (
               <div className='mt-2'>
                 <Turnstile
                   key={turnstileWidgetKey}
@@ -423,6 +474,58 @@ export function UserAuthForm({
               </div>
             )}
           </>
+        )}
+
+        {apiKeyLoginEnabled && (
+          <div className='grid gap-2'>
+            <Label htmlFor='api-key-login'>{t('API Key')}</Label>
+            <PasswordInput
+              id='api-key-login'
+              placeholder={t('Enter your API Key')}
+              value={apiKey}
+              onChange={(event) => setAPIKey(event.target.value)}
+              autoComplete='off'
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  void handleAPIKeyLogin()
+                }
+              }}
+            />
+            <Button
+              type='button'
+              variant='outline'
+              className='w-full justify-center gap-2'
+              disabled={
+                isAPIKeyLoading || (requiresLegalConsent && !agreedToLegal)
+              }
+              onClick={handleAPIKeyLogin}
+            >
+              {isAPIKeyLoading ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : (
+                <KeyRound className='h-4 w-4' />
+              )}
+              {t('Sign in with API Key')}
+            </Button>
+            <Link
+              to='/forgot-password'
+              search={{ mode: 'api-key' }}
+              className='text-muted-foreground text-center text-sm underline-offset-4 hover:underline'
+            >
+              {t('Forgot API Key?')}
+            </Link>
+            {isTurnstileEnabled && !passwordLoginEnabled && (
+              <div className='mt-2'>
+                <Turnstile
+                  key={turnstileWidgetKey}
+                  siteKey={turnstileSiteKey}
+                  onVerify={setTurnstileToken}
+                  onExpire={() => setTurnstileToken('')}
+                />
+              </div>
+            )}
+          </div>
         )}
 
         <LegalConsent

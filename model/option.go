@@ -1,6 +1,8 @@
 package model
 
 import (
+	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +40,9 @@ func InitOptionMap() {
 	common.OptionMap["ImageDownloadPermission"] = strconv.Itoa(common.ImageDownloadPermission)
 	common.OptionMap["PasswordLoginEnabled"] = strconv.FormatBool(common.PasswordLoginEnabled)
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
+	common.OptionMap["APIKeyLoginEnabled"] = strconv.FormatBool(common.APIKeyLoginEnabled)
+	common.OptionMap["EmailDefaultTokenEnabled"] = strconv.FormatBool(common.EmailDefaultTokenEnabled)
+	common.OptionMap["SinglePrimaryAPIKeyEnabled"] = strconv.FormatBool(common.SinglePrimaryAPIKeyEnabled)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
@@ -189,11 +194,30 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	// Apply SMTP prerequisites before the complete authentication mode so a
+	// persisted mode can never become active before its mail dependency is
+	// available. The database query itself is intentionally unordered.
+	sort.SliceStable(options, func(i, j int) bool {
+		return optionLoadPriority(options[i].Key) < optionLoadPriority(options[j].Key)
+	})
 	for _, option := range options {
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
+	}
+}
+
+func optionLoadPriority(key string) int {
+	switch key {
+	case "SMTPServer", "SMTPPort", "SMTPAccount", "SMTPFrom", "SMTPToken", "SMTPSSLEnabled", "SMTPStartTLSEnabled":
+		return 10
+	case "EmailDefaultTokenEnabled":
+		return 20
+	case "SinglePrimaryAPIKeyEnabled":
+		return 30
+	default:
+		return 0
 	}
 }
 
@@ -206,6 +230,23 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if key == "SinglePrimaryAPIKeyEnabled" && value == "true" {
+		if common.EmailDefaultTokenEnabled {
+			return errors.New("无法启用单主 API Key 模式：请先关闭会通过邮件发送完整 Key 的旧配置")
+		}
+		if !common.SMTPConfigured() {
+			return errors.New("无法启用单主 API Key 模式：请先完整配置 SMTP_SERVER、SMTP_ACCOUNT、SMTP_TOKEN、有效发件地址和互斥的 TLS 方式")
+		}
+	}
+	if key == "EmailDefaultTokenEnabled" && value == "true" && common.SinglePrimaryAPIKeyEnabled {
+		return errors.New("单主 API Key 模式禁止启用通过邮件发送完整 Key 的旧配置")
+	}
+	if key == "APIKeyLoginEnabled" && value == "false" && common.SinglePrimaryAPIKeyEnabled {
+		return errors.New("单主 API Key 模式必须保持 API Key 登录启用")
+	}
+	if common.SinglePrimaryAPIKeyEnabled && isSMTPOptionKey(key) && !smtpConfigurationAfterUpdate(key, value) {
+		return errors.New("单主 API Key 模式依赖 SMTP，不能保存不完整的邮件配置")
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
@@ -213,6 +254,48 @@ func validateOptionValue(key string, value string) error {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
 	return nil
+}
+
+func isSMTPOptionKey(key string) bool {
+	switch key {
+	case "SMTPServer", "SMTPPort", "SMTPAccount", "SMTPFrom", "SMTPToken", "SMTPSSLEnabled", "SMTPStartTLSEnabled":
+		return true
+	default:
+		return false
+	}
+}
+
+func smtpConfigurationAfterUpdate(key, value string) bool {
+	server, account, from, token := common.SMTPServer, common.SMTPAccount, common.SMTPFrom, common.SMTPToken
+	ssl, startTLS := common.SMTPSSLEnabled, common.SMTPStartTLSEnabled
+	port := common.SMTPPort
+	switch key {
+	case "SMTPServer":
+		server = value
+	case "SMTPPort":
+		parsed, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return false
+		}
+		port = parsed
+	case "SMTPAccount":
+		account = value
+	case "SMTPFrom":
+		from = value
+	case "SMTPToken":
+		token = value
+	case "SMTPSSLEnabled":
+		ssl = value == "true"
+	case "SMTPStartTLSEnabled":
+		startTLS = value == "true"
+	}
+	if strings.TrimSpace(from) == "" {
+		from = account
+	}
+	_, err := common.ParseSMTPFromAddress(from)
+	validFrom := err == nil
+	return strings.TrimSpace(server) != "" && port > 0 && port <= 65535 &&
+		strings.TrimSpace(account) != "" && strings.TrimSpace(token) != "" && validFrom && !(ssl && startTLS)
 }
 
 func UpdateOption(key string, value string) error {
@@ -273,6 +356,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if err := validateOptionValue(key, value); err != nil {
+		return err
+	}
 	if key == retiredThemeOptionKey {
 		common.OptionMapRWMutex.Lock()
 		delete(common.OptionMap, key)
@@ -309,6 +395,18 @@ func updateOptionMap(key string, value string) (err error) {
 			common.PasswordRegisterEnabled = boolValue
 		case "PasswordLoginEnabled":
 			common.PasswordLoginEnabled = boolValue
+		case "APIKeyLoginEnabled":
+			common.APIKeyLoginEnabled = boolValue
+		case "EmailDefaultTokenEnabled":
+			common.EmailDefaultTokenEnabled = boolValue
+		case "SinglePrimaryAPIKeyEnabled":
+			common.SinglePrimaryAPIKeyEnabled = boolValue
+			if boolValue {
+				// The complete mode always includes API-key login. Keep the
+				// legacy switch and its public option view aligned with runtime.
+				common.APIKeyLoginEnabled = true
+				common.OptionMap["APIKeyLoginEnabled"] = "true"
+			}
 		case "EmailVerificationEnabled":
 			common.EmailVerificationEnabled = boolValue
 		case "GitHubOAuthEnabled":

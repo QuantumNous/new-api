@@ -116,6 +116,11 @@ export const STATIC_I18N_KEYS = [
   'Failed to update user',
   'Failed to delete user',
   'No user selected',
+  'Invite User',
+  'Send Invitation',
+  'Invitation email sent',
+  'Failed to send invitation email',
+  'Send a one-time registration link. The user will create their account and receive a single API Key after confirmation.',
 
   // Redemption codes
   'Unused',

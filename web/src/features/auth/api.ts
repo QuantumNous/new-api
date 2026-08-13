@@ -25,6 +25,7 @@ import { getAffiliateCode } from './lib/storage'
 import type { TelegramAuthorization } from './lib/telegram-login'
 import type {
   LoginPayload,
+  APIKeyLoginPayload,
   LoginResponse,
   Login2FAResponse,
   TwoFAPayload,
@@ -41,14 +42,25 @@ import type {
 // ----------------------------------------------------------------------------
 
 // User login with username and password
-export async function login(payload: LoginPayload) {
-  const turnstile = payload.turnstile ?? ''
+export async function login(payload: LoginPayload): Promise<LoginResponse> {
   const res = await api.post<LoginResponse>(
-    `/api/user/login?turnstile=${turnstile}`,
+    '/api/user/login',
     {
       username: payload.username,
       password: payload.password,
+      turnstile: payload.turnstile ?? '',
     },
+    { skipAuthRefresh: true }
+  )
+  return res.data
+}
+
+export async function loginWithAPIKey(
+  payload: APIKeyLoginPayload
+): Promise<LoginResponse> {
+  const res = await api.post<LoginResponse>(
+    '/api/user/login/api-key',
+    { api_key: payload.api_key, turnstile: payload.turnstile ?? '' },
     { skipAuthRefresh: true }
   )
   return res.data
@@ -121,9 +133,15 @@ export async function sendPasswordResetEmail(
   email: string,
   turnstile?: string
 ): Promise<ApiResponse> {
-  const res = await api.get('/api/reset_password', {
-    params: { email, turnstile },
-  })
+  const res = await api.post('/api/reset_password', { email, turnstile })
+  return res.data
+}
+
+export async function sendAPIKeyResetEmail(
+  email: string,
+  turnstile?: string
+): Promise<ApiResponse> {
+  const res = await api.post('/api/reset_api_key', { email, turnstile })
   return res.data
 }
 
@@ -183,7 +201,9 @@ export async function telegramLogin(
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
   const res = await api.post(`/api/user/register`, payload, {
-    params: { turnstile: payload.turnstile ?? '' },
+    headers: payload.invite_token
+      ? { 'X-Invite-Token': payload.invite_token }
+      : undefined,
   })
   return res.data
 }

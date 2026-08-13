@@ -324,6 +324,10 @@ docker run --name new-api -d --restart always \
 | `USER_SESSION_REVOKED_RETENTION_DAYS` | revoked Session 用于审计和签发计数的保留天数 | `7` |
 | `USER_SESSION_HOURLY_ALERT_THRESHOLD` | 全局每小时 Session 签发告警阈值；只告警，不拒绝登录 | `5000` |
 | `CRYPTO_SECRET` | 缓存键 HMAC 密钥；共享 Redis 的节点必须使用相同有效值 | 默认跟随 `SESSION_SECRET` |
+| `SMTP_SERVER` / `SMTP_PORT` | 邮件服务器地址与端口；Gmail 通常使用 `smtp.gmail.com:587` | - / `587` |
+| `SMTP_ACCOUNT` / `SMTP_FROM` | SMTP 登录账户与发件地址；`SMTP_FROM` 留空时回退到 `SMTP_ACCOUNT` | - |
+| `SMTP_TOKEN` | SMTP 应用专用密码或访问令牌；仅通过部署环境密钥管理注入，禁止提交到仓库 | - |
+| `SMTP_STARTTLS_ENABLE` / `SMTP_SSL_ENABLED` | SMTP 传输安全方式；587 使用 STARTTLS，465 使用隐式 SSL/TLS，二选一 | `false` / `false` |
 | `SQL_DSN` | 数据库连接字符串                                                     | - |
 | `REDIS_CONN_STRING` | Redis 连接字符串                                                  | - |
 | `STREAMING_TIMEOUT` | 流式超时时间（秒）                                                    | `300` |
@@ -340,6 +344,8 @@ docker run --name new-api -d --restart always \
 | `HOSTNAME` | Pyroscope 标签里的主机名                                          | `new-api` |
 
 📖 **完整配置：** [环境变量文档](https://docs.newapi.pro/zh/docs/installation/config-maintenance/environment-variables)
+
+启用后台「基础认证 → 单主 API Key 模式」前，必须先完成 SMTP 配置并在隔离环境验证投递。该模式开关保存在数据库/后台设置中，不是环境变量。默认完整 API Key 只在 HTTPS 页面一次性展示；本次 L1 生产部署按产品方明确要求，也通过邮件发送注册后的完整 Key，该行为属于风险接受例外，扩大范围前需重新评审。
 
 </details>
 

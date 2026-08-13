@@ -35,7 +35,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { sendPasswordResetEmail } from '@/features/auth/api'
+import {
+  sendAPIKeyResetEmail,
+  sendPasswordResetEmail,
+} from '@/features/auth/api'
 import {
   forgotPasswordFormSchema,
   PASSWORD_RESET_COUNTDOWN,
@@ -46,10 +49,13 @@ import { cn } from '@/lib/utils'
 
 export function ForgotPasswordForm({
   className,
+  mode = 'password',
   ...props
-}: React.HTMLAttributes<HTMLFormElement>) {
+}: React.HTMLAttributes<HTMLFormElement> & { mode?: 'password' | 'api-key' }) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const isAPIKeyMode = mode === 'api-key'
 
   const {
     isTurnstileEnabled,
@@ -75,7 +81,9 @@ export function ForgotPasswordForm({
 
     setIsLoading(true)
     try {
-      const res = await sendPasswordResetEmail(data.email, turnstileToken)
+      const res = isAPIKeyMode
+        ? await sendAPIKeyResetEmail(data.email, turnstileToken)
+        : await sendPasswordResetEmail(data.email, turnstileToken)
       if (res?.success) {
         form.reset()
         startCountdown()
@@ -83,9 +91,13 @@ export function ForgotPasswordForm({
       } else {
         toast.error(res?.message || t('Failed to send reset email'))
       }
-    } catch (_error) {
+    } catch {
       // Errors are handled by global interceptor
     } finally {
+      if (isTurnstileEnabled) {
+        setTurnstileToken('')
+        setTurnstileWidgetKey((current) => current + 1)
+      }
       setIsLoading(false)
     }
   }
@@ -125,8 +137,10 @@ export function ForgotPasswordForm({
         {isTurnstileEnabled && (
           <div className='mt-2'>
             <Turnstile
+              key={turnstileWidgetKey}
               siteKey={turnstileSiteKey}
               onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken('')}
             />
           </div>
         )}
