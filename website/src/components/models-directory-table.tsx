@@ -61,14 +61,8 @@ export function ModelsDirectoryTable(props: Props) {
         <thead>
           <tr className="text-muted-foreground/80 border-b border-violet-500/12 text-left text-[11px] font-bold tracking-[0.1em] uppercase">
             <th className="px-5 py-3.5 font-bold">{props.copy.colModel}</th>
-            <th className="px-3 py-3.5 text-right font-bold">
-              {props.copy.colOfficial}
-              <span className="text-muted-foreground/50 block text-[9px] font-medium normal-case">{props.copy.perMillion}</span>
-            </th>
-            <th className="px-3 py-3.5 text-right font-bold text-violet-700 dark:text-violet-300">
-              {props.copy.colFlatkey}
-              <span className="text-muted-foreground/50 block text-[9px] font-medium normal-case">{props.copy.perMillion}</span>
-            </th>
+            <th className="px-3 py-3.5 text-right font-bold">{props.copy.colOfficial}</th>
+            <th className="px-3 py-3.5 text-right font-bold text-violet-700 dark:text-violet-300">{props.copy.colFlatkey}</th>
             <th className="px-3 py-3.5 text-right font-bold">{props.copy.colLatency}</th>
             <th className="w-[220px] px-5 py-3.5 text-left font-bold">{props.copy.colHealth}</th>
           </tr>
@@ -156,8 +150,12 @@ function DirectoryRow(props: {
           </div>
         )}
       </td>
-      <td className="text-muted-foreground px-3 py-3 text-right font-mono text-[13px] line-through">{row.official}</td>
-      <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">{row.discounted}</td>
+      <td className="text-muted-foreground px-3 py-3 text-right font-mono text-[13px]">
+        <PriceCell price={row.official} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} struck />
+      </td>
+      <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
+        <PriceCell price={row.discounted} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} />
+      </td>
       <td className="px-3 py-3 text-right font-mono text-[13px]">{formatLatencyMs(latencyMs)}</td>
       <td className="px-5 py-3">
         <div className="flex items-center gap-3">
@@ -173,6 +171,27 @@ function DirectoryRow(props: {
       </td>
     </tr>
   );
+}
+
+function PriceCell(props: { price: string; unit?: string; prefix?: string; struck?: boolean }) {
+  const price = props.struck ? <span className="line-through">{props.price}</span> : props.price;
+  return (
+    <span className="inline-flex flex-col items-end gap-0.5">
+      <span>
+        {props.prefix ? <span className="mr-1 font-sans text-[11px] font-semibold">{props.prefix}</span> : null}
+        {price}
+      </span>
+      {props.unit ? <span className="text-muted-foreground/50 font-sans text-[9px] font-medium normal-case">{props.unit}</span> : null}
+    </span>
+  );
+}
+
+function localizePriceUnit(unit: string | undefined, locale: Locale | undefined): string | undefined {
+  if (!unit || locale !== "zh") return unit;
+  if (unit === "per second") return "/ 秒";
+  if (unit === "per request") return "/ 次";
+  if (unit === "per 1M tokens") return "/ 1M tokens";
+  return unit;
 }
 
 

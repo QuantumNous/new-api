@@ -25,6 +25,10 @@ var (
 		expiresAt time.Time
 	}{}
 	buildWebsitePricingPayload = buildWebsitePricingPayloadDefault
+	buildWebsiteDisplayPricing = service.BuildWebsiteDisplayPricing
+	getPricingModels           = model.GetPricing
+	getPricingVendors          = model.GetVendors
+	getSupportedEndpointMap    = model.GetSupportedEndpointMap
 )
 
 func init() {
@@ -203,9 +207,9 @@ func GetWebsitePricing(c *gin.Context) {
 		}
 
 		body, err := common.Marshal(buildWebsitePublicGroupPricingPayload(
-			model.GetPricing(),
-			model.GetVendors(),
-			model.GetSupportedEndpointMap(),
+			getPricingModels(),
+			getPricingVendors(),
+			getSupportedEndpointMap(),
 			service.GetUserAutoGroup(""),
 			websitePublicGroup,
 			ratio,
@@ -267,7 +271,7 @@ func getCachedWebsitePricingJSON() ([]byte, error) {
 }
 
 func buildWebsitePricingPayloadDefault() gin.H {
-	pricing := model.GetPricing()
+	pricing := getPricingModels()
 	usableGroup := service.GetUserUsableGroups("")
 	filteredPricing := filterHiddenPricingModels(filterPricingByUsableGroups(pricing, usableGroup))
 	filteredPricing = applyWebsiteFeaturedOrder(filteredPricing, getWebsiteFeaturedModelNames())
@@ -281,14 +285,24 @@ func buildWebsitePricingPayloadDefault() gin.H {
 	return gin.H{
 		"success":            true,
 		"data":               filteredPricing,
-		"vendors":            model.GetVendors(),
+		"vendors":            getPricingVendors(),
 		"group_ratio":        groupRatio,
 		"group_model_ratio":  filterGroupModelRatioByUsableGroupsAndModels(ratio_setting.GetGroupModelRatioCopy(), usableGroup, filteredPricing),
 		"usable_group":       usableGroup,
-		"supported_endpoint": model.GetSupportedEndpointMap(),
+		"supported_endpoint": getSupportedEndpointMap(),
 		"auto_groups":        service.GetUserAutoGroup(""),
+		"display_pricing":    buildWebsiteDisplayPricingOrEmpty(filteredPricing, websitePublicGroup),
 		"pricing_version":    "website-public-v2",
 	}
+}
+
+func buildWebsiteDisplayPricingOrEmpty(pricing []model.Pricing, group string) map[string]service.WebsiteDisplayPricing {
+	displayPricing, err := buildWebsiteDisplayPricing(pricing, group)
+	if err != nil {
+		common.SysError("failed to build website display pricing: " + err.Error())
+		return map[string]service.WebsiteDisplayPricing{}
+	}
+	return displayPricing
 }
 
 func buildWebsitePublicGroupPricingPayload(
@@ -320,6 +334,7 @@ func buildWebsitePublicGroupPricingPayload(
 		"usable_group":       usableGroup,
 		"supported_endpoint": supportedEndpoint,
 		"auto_groups":        autoGroups,
+		"display_pricing":    buildWebsiteDisplayPricingOrEmpty(visiblePricing, group),
 		"pricing_version":    "website-public-plg-v2",
 	}
 }

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
@@ -231,6 +234,10 @@ func TestBuildWebsitePublicGroupPricingPayloadIncludesHiddenPLGOnly(t *testing.T
 		"usable_group": {"plg": "plg"},
 		"supported_endpoint": null,
 		"auto_groups": null,
+		"display_pricing": {
+			"plg-model": {"billing_kind":"token","prices":{"input":{"configured":"0","plg":"0"},"output":{"configured":"0","plg":"0"}}},
+			"all-model": {"billing_kind":"token","prices":{"input":{"configured":"0","plg":"0"},"output":{"configured":"0","plg":"0"}}}
+		},
 		"pricing_version": "website-public-plg-v2"
 	}`, string(body))
 }
@@ -289,6 +296,15 @@ func withGroupModelRatio(t *testing.T, value string) {
 	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(value))
 }
 
+func withGroupRatio(t *testing.T, value string) {
+	t.Helper()
+	previous := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previous))
+	})
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(value))
+}
+
 // The public PLG payload must expose per-model group ratios. Without them the
 // website falls back to the flat plg ratio and quotes a price the user does
 // not actually pay when a model is configured cheaper for plg.
@@ -323,4 +339,130 @@ func TestBuildWebsitePublicGroupPricingPayloadOmitsHiddenModelRatios(t *testing.
 	require.Equal(t, map[string]map[string]float64{
 		"plg": {"glm-5": 0.6},
 	}, payload["group_model_ratio"])
+}
+
+func withWebsiteDisplayPricingBuilder(
+	t *testing.T,
+	builder func([]model.Pricing, string) (map[string]service.WebsiteDisplayPricing, error),
+) {
+	t.Helper()
+	previous := buildWebsiteDisplayPricing
+	t.Cleanup(func() {
+		buildWebsiteDisplayPricing = previous
+	})
+	buildWebsiteDisplayPricing = builder
+}
+
+func withWebsitePricingModelSources(t *testing.T, pricing []model.Pricing) {
+	t.Helper()
+	previousPricingModels := getPricingModels
+	previousPricingVendors := getPricingVendors
+	previousSupportedEndpointMap := getSupportedEndpointMap
+	t.Cleanup(func() {
+		getPricingModels = previousPricingModels
+		getPricingVendors = previousPricingVendors
+		getSupportedEndpointMap = previousSupportedEndpointMap
+	})
+	getPricingModels = func() []model.Pricing {
+		return append([]model.Pricing(nil), pricing...)
+	}
+	getPricingVendors = func() []model.PricingVendor {
+		return []model.PricingVendor{{ID: 7, Name: "Vendor"}}
+	}
+	getSupportedEndpointMap = func() map[string]common.EndpointInfo {
+		return map[string]common.EndpointInfo{"chat": {Path: "/v1/chat/completions", Method: http.MethodPost}}
+	}
+}
+
+func withUserUsableGroups(t *testing.T, value string) {
+	t.Helper()
+	previous := setting.UserUsableGroups2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(previous))
+	})
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(value))
+}
+
+func TestBuildWebsitePublicGroupPricingPayloadIncludesDisplayPricingForVisibleModels(t *testing.T) {
+	withHiddenPricingModels(t, "hidden-model")
+
+	pricing := []model.Pricing{
+		{ModelName: "visible-model", EnableGroup: []string{"plg"}},
+		{ModelName: "hidden-model", EnableGroup: []string{"plg"}},
+		{ModelName: "other-group-model", EnableGroup: []string{"vip"}},
+	}
+	expectedDisplayPricing := map[string]service.WebsiteDisplayPricing{
+		"visible-model": {BillingKind: "request"},
+	}
+	var capturedPricing []model.Pricing
+	var capturedGroup string
+	withWebsiteDisplayPricingBuilder(t, func(pricing []model.Pricing, group string) (map[string]service.WebsiteDisplayPricing, error) {
+		capturedPricing = append([]model.Pricing(nil), pricing...)
+		capturedGroup = group
+		return expectedDisplayPricing, nil
+	})
+
+	payload := buildWebsitePublicGroupPricingPayload(pricing, nil, nil, nil, "plg", 0.9)
+
+	require.Equal(t, "plg", capturedGroup)
+	require.Equal(t, []model.Pricing{{ModelName: "visible-model", EnableGroup: []string{"plg"}}}, capturedPricing)
+	require.Equal(t, expectedDisplayPricing, payload["display_pricing"])
+	require.Contains(t, payload, "data")
+	require.Contains(t, payload, "group_ratio")
+	require.Contains(t, payload, "group_model_ratio")
+	require.Contains(t, payload, "pricing_version")
+}
+
+func TestBuildWebsitePricingPayloadDefaultIncludesDisplayPricingForVisibleModels(t *testing.T) {
+	withGroupRatio(t, `{"default":1,"plg":0.9}`)
+	withUserUsableGroups(t, `{"default":"Default","plg":"PLG"}`)
+	withHiddenPricingModels(t, "hidden-model")
+	withWebsitePricingModelSources(t, []model.Pricing{
+		{ModelName: "captured-model", EnableGroup: []string{"plg", "vip"}},
+		{ModelName: "all-model", EnableGroup: []string{"all"}},
+		{ModelName: "hidden-model", EnableGroup: []string{"plg"}},
+		{ModelName: "other-group-model", EnableGroup: []string{"vip"}},
+	})
+
+	expectedDisplayPricing := map[string]service.WebsiteDisplayPricing{
+		"captured-model": {BillingKind: "token"},
+	}
+	var capturedPricing []model.Pricing
+	var capturedGroup string
+	withWebsiteDisplayPricingBuilder(t, func(pricing []model.Pricing, group string) (map[string]service.WebsiteDisplayPricing, error) {
+		capturedPricing = append([]model.Pricing(nil), pricing...)
+		capturedGroup = group
+		return expectedDisplayPricing, nil
+	})
+
+	payload := buildWebsitePricingPayloadDefault()
+
+	require.Equal(t, websitePublicGroup, capturedGroup)
+	require.Equal(t, payload["data"], capturedPricing)
+	require.Equal(t, []model.Pricing{
+		{ModelName: "captured-model", EnableGroup: []string{"plg"}},
+		{ModelName: "all-model", EnableGroup: []string{"default", "plg"}},
+	}, capturedPricing)
+	require.Equal(t, expectedDisplayPricing, payload["display_pricing"])
+	require.Contains(t, payload, "data")
+	require.Contains(t, payload, "group_ratio")
+	require.Contains(t, payload, "group_model_ratio")
+	require.Contains(t, payload, "pricing_version")
+}
+
+func TestBuildWebsitePublicGroupPricingPayloadKeepsLegacyFieldsWhenDisplayPricingFails(t *testing.T) {
+	pricing := []model.Pricing{
+		{ModelName: "visible-model", EnableGroup: []string{"plg"}},
+	}
+	withWebsiteDisplayPricingBuilder(t, func([]model.Pricing, string) (map[string]service.WebsiteDisplayPricing, error) {
+		return nil, errors.New("display builder failed")
+	})
+
+	payload := buildWebsitePublicGroupPricingPayload(pricing, nil, nil, nil, "plg", 0.9)
+
+	require.Equal(t, map[string]service.WebsiteDisplayPricing{}, payload["display_pricing"])
+	require.Contains(t, payload, "data")
+	require.Contains(t, payload, "group_ratio")
+	require.Contains(t, payload, "group_model_ratio")
+	require.Contains(t, payload, "pricing_version")
 }

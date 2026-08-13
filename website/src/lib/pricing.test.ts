@@ -6,6 +6,7 @@ import {
   getAvailableGroups,
   getPricingData,
   publicPricingUrl,
+  resolveModelDisplayPrice,
   sortPricingModelsBySeries,
   type PricingModel,
 } from "./pricing";
@@ -39,6 +40,67 @@ describe("publicPricingUrl", () => {
       expect(String(fetchInput)).toBe("https://console.flatkey.ai/api/website/pricing?group=plg");
       expect(fetchInit?.cache).toBe("no-store");
       expect((fetchInit?.headers as Record<string, string>)?.accept).toBe("application/json");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("attaches top-level display pricing to matching models", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (() => {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: true,
+              data: [
+                {
+                  model_name: "seedance-2.0",
+                  quota_type: 1,
+                  model_ratio: 0,
+                  completion_ratio: 1,
+                  model_price: 0.2,
+                },
+              ],
+              display_pricing: {
+                "seedance-2.0": {
+                  billing_kind: "per_second",
+                  prices: {
+                    second: {
+                      configured: "0.1512",
+                      plg: "0.13608",
+                      from: true,
+                    },
+                    create_cache: {
+                      configured: "0.25",
+                      plg: "0.2",
+                    },
+                  },
+                },
+              },
+            }),
+            { status: 200 }
+          )
+        );
+      }) as typeof fetch;
+
+      const data = await getPricingData("plg");
+
+      expect(data.models[0]?.display_pricing).toEqual({
+        billing_kind: "per_second",
+        prices: {
+          second: {
+            configured: 0.1512,
+            plg: 0.13608,
+            from: true,
+          },
+          create_cache: {
+            configured: 0.25,
+            plg: 0.2,
+            from: false,
+          },
+        },
+      });
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -158,5 +220,172 @@ describe("group model ratio", () => {
     expect(buildEffectiveGroupRatio(model, { plg: 0.9 }, { plg: { "gemini-2.5-pro-thinking-*": 0.5 } })).toEqual({
       plg: 0.5,
     });
+  });
+});
+
+describe("resolveDisplayPrice", () => {
+  const tokenModel: PricingModel = {
+    model_name: "gpt-image-1",
+    quota_type: 0,
+    model_ratio: 2.5,
+    completion_ratio: 8,
+    image_ratio: 2,
+    cache_ratio: 0.25,
+    group_ratio: { plg: 0.9 },
+  };
+
+  test("prefers valid token display pricing over legacy formulas", () => {
+    const resolved = resolveModelDisplayPrice(
+      {
+        ...tokenModel,
+        display_pricing: {
+          billing_kind: "token",
+          prices: {
+            input: { configured: 5, plg: 4.5 },
+            output: { configured: 40, plg: 36 },
+            image: { configured: 10, plg: 9 },
+          },
+        },
+      },
+      "output",
+      "plg"
+    );
+
+    expect(resolved).toEqual({
+      text: "$36",
+      value: 36,
+      variant: "plg",
+      dimension: "output",
+      configuredValue: 40,
+      configured: 40,
+      plg: 36,
+      unit: "/ 1M tokens",
+      from: false,
+      source: "display",
+    });
+  });
+
+  test("resolves per-second display pricing with from flag", () => {
+    const resolved = resolveModelDisplayPrice(
+      {
+        model_name: "seedance-2.0",
+        quota_type: 1,
+        model_ratio: 0,
+        completion_ratio: 1,
+        model_price: 0.2,
+        display_pricing: {
+          billing_kind: "per_second",
+          prices: {
+            second: { configured: 0.1512, plg: 0.13608, from: true },
+          },
+        },
+      },
+      "second",
+      "plg"
+    );
+
+    expect(resolved).toEqual({
+      text: "$0.13608",
+      value: 0.13608,
+      variant: "plg",
+      dimension: "second",
+      configuredValue: 0.1512,
+      configured: 0.1512,
+      plg: 0.13608,
+      unit: "/ second",
+      from: true,
+      source: "display",
+    });
+  });
+
+  test("resolves request display pricing", () => {
+    const resolved = resolveModelDisplayPrice(
+      {
+        model_name: "dall-e-3",
+        quota_type: 1,
+        model_ratio: 0,
+        completion_ratio: 1,
+        model_price: 0.04,
+        display_pricing: {
+          billing_kind: "request",
+          prices: {
+            request: { configured: 0.04, plg: 0.036 },
+          },
+        },
+      },
+      "request",
+      "plg"
+    );
+
+    expect(resolved?.unit).toBe("/ request");
+    expect(resolved?.text).toBe("$0.036");
+    expect(resolved?.value).toBe(0.036);
+  });
+
+  test("ignores malformed display values and falls back to legacy token formulas", () => {
+    const resolved = resolveModelDisplayPrice(
+      {
+        ...tokenModel,
+        display_pricing: {
+          billing_kind: "token",
+          prices: {
+            input: { configured: Number.POSITIVE_INFINITY, plg: -1 },
+          },
+        },
+      },
+      "input",
+      "plg"
+    );
+
+    expect(resolved).toEqual({
+      text: "$4.5",
+      value: 4.5,
+      variant: "plg",
+      dimension: "input",
+      configuredValue: 5,
+      configured: 5,
+      plg: 4.5,
+      unit: "/ 1M tokens",
+      from: false,
+      source: "legacy",
+    });
+  });
+
+  test("uses the payload group ratio when legacy model rows omit per-model ratios", () => {
+    const resolved = resolveModelDisplayPrice(
+      {
+        model_name: "legacy-model",
+        quota_type: 0,
+        model_ratio: 2,
+        completion_ratio: 1,
+        enable_groups: ["plg"],
+      },
+      "input",
+      "plg",
+      { plg: 0.5 }
+    );
+
+    expect(resolved?.value).toBe(2);
+    expect(resolved?.configuredValue).toBe(4);
+  });
+
+  test("resolves create-cache display pricing as a token unit", () => {
+    const resolved = resolveModelDisplayPrice(
+      {
+        ...tokenModel,
+        display_pricing: {
+          billing_kind: "token",
+          prices: {
+            create_cache: { configured: 1.25, plg: 1 },
+          },
+        },
+      },
+      "create_cache",
+      "plg"
+    );
+
+    expect(resolved?.value).toBe(1);
+    expect(resolved?.unit).toBe("/ 1M tokens");
+    expect(resolved?.source).toBe("display");
   });
 });

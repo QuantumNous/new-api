@@ -153,6 +153,12 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
         : buildModelExampleCurl({ apiBaseUrl: props.apiBaseUrl, modelName: props.modelName, kind: props.kind });
 
   const about = props.description || props.vendorDescription;
+  const priceUnit = (unit: string) => {
+    if (props.locale !== "zh") return unit;
+    if (unit === "/ second") return "/ 秒";
+    if (unit === "/ request") return "/ 次";
+    return unit;
+  };
 
   return (
     <main className="model-square-page relative min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_32%,#ffffff_62%,#f4f1ff_100%)] px-4 pt-28 pb-16 text-[#0B0B0F] sm:px-6 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)] dark:text-white">
@@ -298,8 +304,9 @@ export function ModelPublicPage(props: ModelPublicPageProps) {
                 {copy.listPrice} <span className="line-through">{row.list}</span>
               </div>
               <div className="mt-0.5 font-mono text-2xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
+                {row.from ? "from " : ""}
                 {row.discounted}
-                <span className="ml-1 text-sm font-normal text-[#6B6475]/70 dark:text-slate-300/58">{copy.perMTokens}</span>
+                <span className="ml-1 text-sm font-normal text-[#6B6475]/70 dark:text-slate-300/58">{priceUnit(row.unit)}</span>
               </div>
             </div>
           ))}
