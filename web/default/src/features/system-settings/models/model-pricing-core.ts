@@ -37,11 +37,7 @@ export type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-export type PricingMode =
-  | 'per-token'
-  | 'per-request'
-  | 'tiered_expr'
-  | 'video'
+export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr' | 'video'
 
 export type LaneKey =
   | 'completion'
@@ -216,6 +212,7 @@ export function buildPreviewRows(
   mode: PricingMode,
   billingExpr: string,
   requestRuleExpr: string,
+  videoRuleCount: number,
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
@@ -230,6 +227,23 @@ export function buildPreviewRows(
         label: t('Expression'),
         value: effectiveExpr || t('Empty'),
         multiline: true,
+      },
+    ]
+  }
+
+  // ModelPrice is deliberately absent here. It exists for a video model -- it is
+  // what switches the model onto per-second billing -- but it is the divisor the
+  // per-second chain multiplies back in, so it cancels and cannot change what a
+  // customer pays. Showing it beside real prices would invite misreading.
+  if (mode === 'video') {
+    return [
+      { key: 'mode', label: 'BillingMode', value: 'video' },
+      {
+        key: 'videoRules',
+        label: t('Video per-second'),
+        value: videoRuleCount
+          ? `${videoRuleCount} ${t('per-second rules')}`
+          : t('Empty'),
       },
     ]
   }
