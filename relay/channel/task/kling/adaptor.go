@@ -125,6 +125,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -136,6 +144,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -206,14 +217,13 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// upstream never renders.
 	payload, err := a.convertToRequestPayload(&req, info)
 	if err != nil {
-		return nil
-	}
-	// Upstream duration is a string. A value that will not parse, or one that
-	// is not positive, means the length is not determinable — capture nothing
-	// rather than price off a guess, which leaves the request on the per-call
-	// path exactly as today.
-	seconds, convErr := strconv.Atoi(strings.TrimSpace(payload.Duration))
-	if convErr != nil || seconds <= 0 {
+		// Nothing about the request is knowable if it will not convert. This
+		// channel contributes no legacy ratios, so an unconfigured model simply
+		// stays per-call; a configured one has no price at all and must refuse.
+		if billing_setting.IsVideoModelConfigured(billing_setting.GetVideoPriceRules(), info.OriginModelName) {
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, "请求无法转换为上游格式；the request could not be converted to the upstream body")
+		}
 		return nil
 	}
 
@@ -226,7 +236,31 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
 	// Not the upstream name: model mapping would otherwise divide one model's
 	// per-second rate by another model's price.
-	if dims, ok := resolveDimensions(payload.Mode, false); ok {
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Upstream duration is a string. A value that will not parse, or one that
+	// is not positive, means the length is not determinable — and metadata can
+	// set either after convertToRequestPayload's 5s default, so both are
+	// caller-reachable. Pricing off a guess is worse than refusing.
+	//
+	// For an UNCONFIGURED model this leaves the request on the per-call path
+	// exactly as today. For a configured one there is no per-call price left to
+	// fall back to — this channel contributes no legacy ratios at all — so the
+	// request must be refused instead.
+	seconds, convErr := strconv.Atoi(strings.TrimSpace(payload.Duration))
+	dims, dimsOK := resolveDimensions(payload.Mode, false)
+	switch {
+	case (convErr != nil || seconds <= 0) && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName,
+			fmt.Sprintf("duration %q 不是正整数秒数；duration %q is not a positive whole number of seconds",
+				payload.Duration, payload.Duration))
+	case convErr != nil || seconds <= 0:
+		// Unconfigured: keep today's per-call behaviour.
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "mode", payload.Mode)
+	case dimsOK:
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
 		a.secondBillingSeconds = float64(seconds)

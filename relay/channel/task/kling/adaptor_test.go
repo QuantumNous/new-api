@@ -292,9 +292,12 @@ func TestKlingEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.T
 	}
 }
 
-// A length that cannot be determined must never be guessed: capture is skipped
-// and the request keeps its per-call price. The upstream duration field is a
-// string, so metadata can make it unparseable as well as non-positive.
+// A length that cannot be determined must never be guessed. For a model absent
+// from the price table capture is skipped and the request keeps its per-call
+// price. The upstream duration field is a string, so metadata can make it
+// unparseable as well as non-positive. (A CONFIGURED model has no per-call
+// price left to fall back to, so the same shapes are refused instead — see
+// TestKlingEstimateBillingConfiguredButUnpriceableErrors.)
 func TestKlingEstimateBillingUndeterminableDurationIsNotCaptured(t *testing.T) {
 	installKlingVideoPriceRules(t, `[
 		{"model":"kling-v1-6","match":{"mode":"std"},"price_per_second":0.2,"basis":"output_duration"}
@@ -312,7 +315,7 @@ func TestKlingEstimateBillingUndeterminableDurationIsNotCaptured(t *testing.T) {
 		{"unknown mode", `{"model":"kling-v1-6","prompt":"a cat","duration":10,"metadata":{"mode":"ultra"}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, c, info := newKlingBillingRequest(t, tc.body, "kling-v1-6", 0.5)
+			a, c, info := newKlingBillingRequest(t, tc.body, "kling-unconfigured", 0.5)
 			a.EstimateBilling(c, info)
 			got, err := a.SecondBillingRatios()
 			if err != nil {
@@ -344,5 +347,69 @@ func TestKlingEstimateBillingWithoutTaskRequestCapturesNothing(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("captured without a request: %v", got)
+	}
+}
+
+// Kling contributes no legacy ratios at all -- EstimateBilling always returns
+// nil -- so a configured model is priced by SecondBillingRatios or not at all.
+// When the request cannot be priced, returning no ratios bills the bare
+// ModelPrice with no seconds multiplier, charging a 10-second render as a
+// single unit. It has to fail instead, so relay_task rejects before submitting
+// upstream and the request costs nothing.
+//
+// Both failure modes are caller-reachable: metadata overrides duration and mode
+// after convertToRequestPayload applies its 5s / "std" defaults, and the
+// upstream duration is a string, so a value that will not parse gets here.
+func TestKlingEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installKlingVideoPriceRules(t, `[
+		{"model":"kling-v2-master","match":{"mode":"pro"},"price_per_second":0.5,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		// metadata sets a duration string the upstream parse refuses.
+		{"unparseable duration", `{"model":"kling-v2-master","prompt":"a cat","mode":"pro","metadata":{"duration":"banana"}}`},
+		// metadata sets a non-positive duration.
+		{"non-positive duration", `{"model":"kling-v2-master","prompt":"a cat","mode":"pro","metadata":{"duration":"0"}}`},
+		// A mode outside the std/pro pair the upstream prices on.
+		{"unknown mode", `{"model":"kling-v2-master","prompt":"a cat","duration":10,"metadata":{"mode":"ultra"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newKlingBillingRequest(t, tc.body, "kling-v2-master", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("kling has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model keeps today's behaviour exactly.
+// Kling has no legacy ratios, so there is nothing to preserve except the
+// absence of an error -- a request the gateway never priced per second has
+// nothing to reject, and failing it would break submissions that work today.
+func TestKlingEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installKlingVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"mode":"std"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		{"unparseable duration", `{"model":"kling-v2-master","prompt":"a cat","mode":"pro","metadata":{"duration":"banana"}}`},
+		{"unknown mode", `{"model":"kling-v2-master","prompt":"a cat","duration":10,"metadata":{"mode":"ultra"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newKlingBillingRequest(t, tc.body, "kling-unconfigured", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("kling has no legacy ratios; got %v", ratios)
+			}
+			got, err := a.SecondBillingRatios()
+			if err != nil {
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+			}
+			if len(got) != 0 {
+				t.Fatalf("unconfigured model produced per-second units: %v", got)
+			}
+		})
 	}
 }
