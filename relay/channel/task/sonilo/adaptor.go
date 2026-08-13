@@ -262,6 +262,9 @@ func requestFromContext(c *gin.Context) (submitRequest, error) {
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// Clear the previous request's capture: a stale Err would reject this
+	// request even when it is perfectly priceable. See SecondBillingState.Reset.
+	a.resetSecondBilling()
 	req, err := requestFromContext(c)
 	if err != nil {
 		// There is no validated request to price, so the legacy seconds/variants
@@ -562,4 +565,15 @@ func ExtractUpstreamAudioURL(taskData []byte, variant int) string {
 
 func localTaskError(message, code string) *dto.TaskError {
 	return service.TaskErrorWrapperLocal(fmt.Errorf("%s", message), code, http.StatusBadRequest)
+}
+
+// resetSecondBilling clears the per-request capture. The adaptor instance can
+// outlive a request when injected for tests, so the fields must not carry over.
+func (a *TaskAdaptor) resetSecondBilling() {
+	a.secondBillingModel = ""
+	a.secondBillingDims = nil
+	a.secondBillingSeconds = 0
+	a.secondBillingModelPrice = 0
+	a.secondBillingRules = nil
+	a.secondBillingErr = nil
 }

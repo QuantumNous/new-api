@@ -394,3 +394,18 @@ func TestSoraEstimateBillingUnconfiguredModelKeepsLegacyRatiosWhenUnpriceable(t 
 		t.Fatalf("unconfigured model produced per-second units: %v", got)
 	}
 }
+
+// A stale error from a prior request must not reject the next one. The adaptor
+// is a fresh instance per request in production, but registerTaskAdaptorForTest
+// hands out a shared singleton, so the fields can outlive a request.
+func TestSoraEstimateBillingClearsStaleErrorFromPriorRequest(t *testing.T) {
+	a, c, info := newSoraBillingRequest(t, `{"model":"sora-2","prompt":"a cat","seconds":"5","size":"1280x720"}`, "sora-2", 0.3)
+	a.secondBillingErr = taskcommon.UnpriceableDimensionError("sora-2", "size", "banana")
+
+	// A perfectly priceable request arrives next on the same instance.
+	a.EstimateBilling(c, info)
+
+	if _, err := a.SecondBillingRatios(); err != nil {
+		t.Fatalf("a valid request inherited the previous request's error: %v", err)
+	}
+}

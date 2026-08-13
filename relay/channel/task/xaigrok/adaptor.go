@@ -379,6 +379,9 @@ func (a *TaskAdaptor) GetChannelName() string { return ChannelName }
 // multiplied by the requested duration. Without this override a 15s clip would
 // be billed as a single flat unit and sold well below cost. Mirrors sora.
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// Clear the previous request's capture: a stale Err would reject this
+	// request even when it is perfectly priceable. See SecondBillingState.Reset.
+	a.resetSecondBilling()
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		// There is no request to price at all, so the legacy `seconds` ratio is
@@ -516,4 +519,15 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	return common.Marshal(ov)
+}
+
+// resetSecondBilling clears the per-request capture. The adaptor instance can
+// outlive a request when injected for tests, so the fields must not carry over.
+func (a *TaskAdaptor) resetSecondBilling() {
+	a.secondBillingModel = ""
+	a.secondBillingDims = nil
+	a.secondBillingSeconds = 0
+	a.secondBillingModelPrice = 0
+	a.secondBillingRules = nil
+	a.secondBillingErr = nil
 }
