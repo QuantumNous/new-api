@@ -459,9 +459,15 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
+	// 轮询按上游（映射后）模型名选择查询端点；旧任务缺少上游模型名时回退到原始模型名。
+	modelName := task.Properties.UpstreamModelName
+	if modelName == "" {
+		modelName = task.Properties.OriginModelName
+	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  task.Action,
+		"model":   modelName,
 	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
