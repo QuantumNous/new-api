@@ -16,10 +16,7 @@ resource "google_cloud_run_v2_service" "main" {
   deletion_protection = var.deletion_protection
 
   template {
-    service_account = var.runtime_sa_email
-    annotations = var.prometheus_sidecar_enabled ? {
-      "run.googleapis.com/container-dependencies" = "{\"collector\":[\"app\"]}"
-    } : null
+    service_account       = var.runtime_sa_email
     execution_environment = var.prometheus_sidecar_enabled ? "EXECUTION_ENVIRONMENT_GEN2" : null
 
     scaling {
@@ -38,13 +35,6 @@ resource "google_cloud_run_v2_service" "main" {
       egress = "PRIVATE_RANGES_ONLY"
     }
 
-    volumes {
-      name = "cloudsql"
-      cloud_sql_instance {
-        instances = [var.cloudsql_connection_name]
-      }
-    }
-
     dynamic "volumes" {
       for_each = var.prometheus_sidecar_enabled ? [1] : []
       content {
@@ -59,8 +49,15 @@ resource "google_cloud_run_v2_service" "main" {
       }
     }
 
+    volumes {
+      name = "cloudsql"
+      cloud_sql_instance {
+        instances = [var.cloudsql_connection_name]
+      }
+    }
+
     containers {
-      name  = "app"
+      name  = var.prometheus_sidecar_enabled ? "app" : null
       image = var.image_uri
 
       resources {
@@ -260,7 +257,7 @@ resource "google_cloud_run_v2_service" "main" {
             memory = var.prometheus_sidecar_memory
           }
           cpu_idle          = false
-          startup_cpu_boost = false
+          startup_cpu_boost = true
         }
 
         volume_mounts {
