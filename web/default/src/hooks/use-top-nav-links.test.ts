@@ -18,37 +18,64 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { buildTopNavLinks } from './use-top-nav-links'
+import { parseHeaderNavModules } from '@/lib/nav-modules'
+import { buildConsoleTopNavLinks, buildTopNavLinks } from './use-top-nav-links'
 
-const translate = (key: string) => key
+const translate = (key: string) => {
+  if (key === 'Playground (website navigation)') return 'Playground'
+  if (key === 'Pricing (website navigation)') return 'Pricing'
+  return key
+}
 
-describe('top navigation links', () => {
+describe('public top navigation links', () => {
+  test('keeps the full website navigation for public pages', () => {
+    const links = buildTopNavLinks({
+      translate,
+      language: 'en',
+      modules: parseHeaderNavModules({
+        pricing: { enabled: true, requireAuth: false },
+        rankings: { enabled: true, requireAuth: false },
+      }),
+      isAuthed: false,
+    })
+
+    assert.deepEqual(
+      links.map((link) => [link.title, link.href]),
+      [
+        ['Blog', '/blog'],
+        ['Models', '/models'],
+        ['Docs', 'https://docs.flatkey.ai/'],
+        ['Pricing', '/pricing'],
+        ['Compute', '/compute'],
+        ['Use cases', '/usecases'],
+      ]
+    )
+  })
+
+  test('preserves pricing access control', () => {
+    const links = buildTopNavLinks({
+      translate,
+      modules: parseHeaderNavModules({
+        pricing: { enabled: true, requireAuth: true },
+        rankings: { enabled: true, requireAuth: false },
+      }),
+      isAuthed: false,
+    })
+
+    assert.equal(
+      links.find((link) => link.title === 'Pricing')?.requiresAuth,
+      true
+    )
+  })
+})
+
+describe('console top navigation links', () => {
   test('shows only the Docs link in the console header', () => {
-    const links = buildTopNavLinks({ translate })
+    const links = buildConsoleTopNavLinks(translate)
 
     assert.deepEqual(
       links.map((link) => [link.title, link.href, link.external]),
       [['Docs', 'https://docs.flatkey.ai/', true]]
     )
-  })
-
-  test('never emits website navigation entries', () => {
-    const links = buildTopNavLinks({ translate })
-
-    for (const removed of [
-      'Home',
-      'Blog',
-      'Models',
-      'Pricing (website navigation)',
-      'Compute',
-      'Use cases',
-      'Rankings',
-      'Playground (website navigation)',
-    ]) {
-      assert.equal(
-        links.some((link) => link.title === removed),
-        false
-      )
-    }
   })
 })
