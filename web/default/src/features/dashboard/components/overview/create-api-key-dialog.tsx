@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -53,6 +53,9 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
   const [name, setName] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // State re-renders lag the event that set them, so re-entry is blocked with
+  // a ref the moment the first call gets through.
+  const submitLockRef = useRef(false)
 
   const trimmedName = name.trim()
   const nameMissing = trimmedName === ''
@@ -68,11 +71,13 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
 
   const handleSubmit = async () => {
     // Synchronous re-entry guard: Enter plus a fast double-click can fire
-    // before the pending state re-renders the disabled controls.
-    if (isSubmitting) return
+    // before the pending state re-renders the disabled controls, and the
+    // state value itself is stale inside the same event turn.
+    if (submitLockRef.current) return
     setSubmitted(true)
     if (nameMissing) return
 
+    submitLockRef.current = true
     setIsSubmitting(true)
     try {
       const result = await createApiKey(
@@ -105,6 +110,7 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
     } catch {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
+      submitLockRef.current = false
       setIsSubmitting(false)
     }
   }

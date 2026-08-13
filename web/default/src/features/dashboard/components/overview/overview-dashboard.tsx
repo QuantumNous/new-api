@@ -215,9 +215,12 @@ export function OverviewDashboard() {
 
   const availableModels = useMemo(() => {
     const models = modelsQuery.data ?? []
-    const filtered = models.filter((model) => classifyModel(model) !== null)
-    // Never filter down to an empty dropdown on odd channel metadata.
-    return filtered.length > 0 ? filtered : models
+    // No fallback to the raw list: untagged models already classify as chat,
+    // so an empty result means every model is genuinely non-demoable
+    // (video-to-music and the like). The picker goes empty and the sample
+    // falls back to the safe default model instead of demoing a real model
+    // against the wrong endpoint.
+    return models.filter((model) => classifyModel(model) !== null)
   }, [classifyModel, modelsQuery.data])
 
   const exampleModel = useMemo(() => {
