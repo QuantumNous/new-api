@@ -630,6 +630,8 @@ export function ChannelMutateDrawer({
       if (!currentBaseUrlValue) {
         form.setValue('base_url', 'https://api.githubcopilot.com')
       }
+    } else if (form.getValues('base_url') === 'https://api.githubcopilot.com') {
+      form.setValue('base_url', '')
     }
 
     // Type 18 (Xunfei) - set default other (version)
@@ -939,7 +941,7 @@ export function ChannelMutateDrawer({
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
       // Validate key is required when creating
-      if (!isEditing && currentType !== 112 && !data.key?.trim()) {
+      if (!isEditing && data.type !== 112 && !data.key?.trim()) {
         form.setError('key', {
           type: 'manual',
           message: ERROR_MESSAGES.REQUIRED_KEY,

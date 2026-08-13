@@ -46,6 +46,7 @@ type CopilotDevicePoll struct {
 
 type copilotDeviceSession struct {
 	DeviceCode string `json:"device_code"`
+	ClientID   string `json:"client_id"`
 	AdminID    int    `json:"admin_id"`
 	ChannelID  int    `json:"channel_id"`
 	ExpiresAt  int64  `json:"expires_at"`
@@ -115,7 +116,7 @@ func StartCopilotDeviceFlow(ctx context.Context, adminID int, channelID int, pro
 		return nil, errors.New("copilot device authorization session could not be created")
 	}
 	session := copilotDeviceSession{
-		DeviceCode: payload.DeviceCode, AdminID: adminID, ChannelID: channelID,
+		DeviceCode: payload.DeviceCode, ClientID: clientID, AdminID: adminID, ChannelID: channelID,
 		ExpiresAt: time.Now().Add(time.Duration(payload.ExpiresIn) * time.Second).Unix(), Interval: payload.Interval,
 	}
 	encoded, err := common.Marshal(session)
@@ -129,10 +130,6 @@ func StartCopilotDeviceFlow(ctx context.Context, adminID int, channelID int, pro
 }
 
 func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, channelID int, proxyURL string) (*CopilotDevicePoll, error) {
-	clientID := copilotDeviceClientID()
-	if clientID == "" {
-		return nil, errors.New("Copilot Device Flow is not configured; configure the Copilot Client ID")
-	}
 	if !copilotDeviceRedisAvailable() {
 		return nil, errors.New("Copilot Device Flow requires Redis")
 	}
@@ -142,6 +139,9 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 	}
 	if !found {
 		return &CopilotDevicePoll{Status: "expired", Message: "authorization session expired"}, nil
+	}
+	if session.ClientID == "" {
+		return nil, errors.New("copilot device authorization session is invalid")
 	}
 	now := time.Now()
 	if err := validateCopilotDeviceSession(session, adminID, channelID, now); err != nil {
@@ -173,6 +173,9 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 	if !stillPresent {
 		return &CopilotDevicePoll{Status: "expired", Message: "authorization session expired"}, nil
 	}
+	if session.ClientID == "" {
+		return nil, errors.New("copilot device authorization session is invalid")
+	}
 	now = time.Now()
 	if err := validateCopilotDeviceSession(session, adminID, channelID, now); err != nil {
 		if errors.Is(err, errCopilotDeviceExpired) {
@@ -190,7 +193,7 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 		return nil, errors.New("copilot device authorization client is unavailable")
 	}
 	form := url.Values{
-		"client_id":   {clientID},
+		"client_id":   {session.ClientID},
 		"device_code": {session.DeviceCode},
 		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 	}
@@ -217,11 +220,11 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 		if !strings.HasPrefix(token, "gho_") {
 			return nil, errors.New("copilot device authorization returned an unsupported credential")
 		}
-		if err := consumeCopilotDeviceFlow(ctx, flowID); err != nil {
-			return nil, errors.New("copilot device authorization session could not be consumed")
-		}
 		if err := modelUpdateCopilotCredential(channelID, token); err != nil {
 			return nil, err
+		}
+		if err := consumeCopilotDeviceFlow(ctx, flowID); err != nil {
+			common.SysError("copilot device authorization session cleanup failed: " + err.Error())
 		}
 		return &CopilotDevicePoll{Status: "authorized", Message: "authorization completed"}, nil
 	}

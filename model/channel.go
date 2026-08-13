@@ -651,9 +651,6 @@ func UpdateChannelKeyForType(id int, channelType int, key string) error {
 	if result.Error != nil {
 		return result.Error
 	}
-	if result.RowsAffected != 1 {
-		return gorm.ErrRecordNotFound
-	}
 	publishChannelsChanged()
 	return nil
 }

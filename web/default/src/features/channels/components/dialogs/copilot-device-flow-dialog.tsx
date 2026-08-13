@@ -39,6 +39,7 @@ export function CopilotDeviceFlowDialog(props: CopilotDeviceFlowDialogProps) {
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flowActiveRef = useRef(false)
+  const startRequestIdRef = useRef(0)
   const [state, setState] = useState({
     verificationUri: '',
     userCode: '',
@@ -66,6 +67,7 @@ export function CopilotDeviceFlowDialog(props: CopilotDeviceFlowDialogProps) {
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
+      startRequestIdRef.current += 1
       flowActiveRef.current = false
       clearPollTimer()
       setState({
@@ -120,17 +122,21 @@ export function CopilotDeviceFlowDialog(props: CopilotDeviceFlowDialogProps) {
       }))
       schedulePoll(intervalSeconds)
     } catch (error) {
-      stopPolling()
-      toast.error(
-        error instanceof Error ? error.message : t('Authorization failed')
-      )
+      if (!flowActiveRef.current) return
+      setState((current) => ({
+        ...current,
+        status: t('Polling temporarily failed, retrying...'),
+      }))
+      schedulePoll(intervalSeconds)
     }
   }
 
   const handleStart = async () => {
+    const requestId = ++startRequestIdRef.current
     setState((current) => ({ ...current, isStarting: true, status: '' }))
     try {
       const res = await startCopilotDeviceFlow(props.channelId)
+      if (requestId !== startRequestIdRef.current || !props.open) return
       if (!res.success)
         throw new Error(res.message || t('Authorization failed'))
 

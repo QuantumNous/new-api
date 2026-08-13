@@ -56,7 +56,7 @@ func TestCopilotDeviceFlowConcurrentPollWritesCredentialOnceAcrossRedisClaim(t *
 	copilotDeviceTokenEndpoint = server.URL
 
 	flowID := "concurrent-flow"
-	session := copilotDeviceSession{DeviceCode: "device", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
+	session := copilotDeviceSession{DeviceCode: "device", ClientID: "copilot-test-client-id", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
 	require.NoError(t, saveCopilotDeviceSession(flowID, session))
 
 	const pollers = 12
@@ -134,7 +134,7 @@ func TestCopilotDeviceFlowHandlesPendingSlowDownAndDenied(t *testing.T) {
 	copilotDeviceTokenEndpoint = server.URL
 
 	flowID := "pending-flow"
-	session := copilotDeviceSession{DeviceCode: "device", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
+	session := copilotDeviceSession{DeviceCode: "device", ClientID: "copilot-test-client-id", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
 	require.NoError(t, saveCopilotDeviceSession(flowID, session))
 	result, err := PollCopilotDeviceFlow(context.Background(), flowID, 7, 112, "")
 	require.NoError(t, err)
@@ -196,6 +196,31 @@ func TestCopilotDeviceFlowUsesSystemSettingClientID(t *testing.T) {
 	require.Equal(t, "configured-client-id", received.Get("client_id"))
 }
 
+func TestCopilotDeviceFlowKeepsStartingClientIDForPolling(t *testing.T) {
+	resetCopilotDeviceTestState(t)
+	var polledClientID string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/start":
+			_, _ = w.Write([]byte(`{"device_code":"device","user_code":"CODE","verification_uri":"https://github.com/login/device","expires_in":600,"interval":1}`))
+		case "/poll":
+			require.NoError(t, r.ParseForm())
+			polledClientID = r.Form.Get("client_id")
+			_, _ = w.Write([]byte(`{"error":"authorization_pending"}`))
+		}
+	}))
+	defer server.Close()
+	copilotDeviceStartEndpoint = server.URL + "/start"
+	copilotDeviceTokenEndpoint = server.URL + "/poll"
+
+	flow, err := StartCopilotDeviceFlow(context.Background(), 7, 112, "")
+	require.NoError(t, err)
+	system_setting.GetCopilotSettings().ClientID = "new-client-id"
+	_, err = PollCopilotDeviceFlow(context.Background(), flow.FlowID, 7, 112, "")
+	require.NoError(t, err)
+	require.Equal(t, "copilot-test-client-id", polledClientID)
+}
+
 func TestCopilotDeviceFlowRequiresConfiguredClientID(t *testing.T) {
 	resetCopilotDeviceTestState(t)
 	system_setting.GetCopilotSettings().ClientID = ""
@@ -212,7 +237,7 @@ func TestCopilotDeviceFlowFailsClosedWithoutRedis(t *testing.T) {
 	require.EqualError(t, err, "Copilot Device Flow requires Redis")
 }
 
-func TestCopilotDeviceFlowDoesNotWriteCredentialWhenConsumeFails(t *testing.T) {
+func TestCopilotDeviceFlowKeepsCredentialWhenSessionCleanupFails(t *testing.T) {
 	resetCopilotDeviceTestState(t)
 	var writes atomic.Int32
 	modelUpdateCopilotCredential = func(channelID int, credential string) error {
@@ -226,12 +251,13 @@ func TestCopilotDeviceFlowDoesNotWriteCredentialWhenConsumeFails(t *testing.T) {
 	defer server.Close()
 	copilotDeviceTokenEndpoint = server.URL
 	flowID := "consume-failure-flow"
-	session := copilotDeviceSession{DeviceCode: "device", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
+	session := copilotDeviceSession{DeviceCode: "device", ClientID: "copilot-test-client-id", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
 	require.NoError(t, saveCopilotDeviceSession(flowID, session))
 
-	_, err := PollCopilotDeviceFlow(context.Background(), flowID, 7, 112, "")
-	require.ErrorContains(t, err, "session could not be consumed")
-	require.Zero(t, writes.Load())
+	result, err := PollCopilotDeviceFlow(context.Background(), flowID, 7, 112, "")
+	require.NoError(t, err)
+	require.Equal(t, "authorized", result.Status)
+	require.Equal(t, int32(1), writes.Load())
 }
 
 func TestCopilotDeviceFlowRejectsNonOAuthAppCredential(t *testing.T) {
@@ -247,7 +273,7 @@ func TestCopilotDeviceFlowRejectsNonOAuthAppCredential(t *testing.T) {
 	defer server.Close()
 	copilotDeviceTokenEndpoint = server.URL
 	flowID := "unsupported-credential-flow"
-	session := copilotDeviceSession{DeviceCode: "device", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
+	session := copilotDeviceSession{DeviceCode: "device", ClientID: "copilot-test-client-id", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
 	require.NoError(t, saveCopilotDeviceSession(flowID, session))
 
 	_, err := PollCopilotDeviceFlow(context.Background(), flowID, 7, 112, "")

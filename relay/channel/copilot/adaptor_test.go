@@ -47,6 +47,7 @@ func TestGetRequestURLUsesOfficialChatEndpoint(t *testing.T) {
 func TestGetRequestURLUsesNativeClaudeMessagesEndpoint(t *testing.T) {
 	info := chatInfo()
 	info.RelayFormat = types.RelayFormatClaude
+	info.IsStream = true
 	got, err := (&Adaptor{}).GetRequestURL(info)
 	if err != nil {
 		t.Fatal(err)
@@ -88,6 +89,7 @@ func TestSetupRequestHeaderUsesDeviceFlowCredentialDirectly(t *testing.T) {
 func TestSetupRequestHeaderUsesClaudeCopilotHeaders(t *testing.T) {
 	info := chatInfo()
 	info.RelayFormat = types.RelayFormatClaude
+	info.IsStream = true
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("{}"))
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = req
@@ -96,6 +98,17 @@ func TestSetupRequestHeaderUsesClaudeCopilotHeaders(t *testing.T) {
 	require.Equal(t, "text/event-stream", header.Get("Accept"))
 	require.Equal(t, "2023-06-01", header.Get("anthropic-version"))
 	require.Equal(t, "Bearer gho_github-credential", header.Get("Authorization"))
+}
+
+func TestSetupRequestHeaderUsesJSONForNonStreamingClaude(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	info := chatInfo()
+	info.RelayFormat = types.RelayFormatClaude
+	info.IsStream = false
+	var header http.Header = make(http.Header)
+	require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
+	require.Equal(t, "application/json", header.Get("Accept"))
 }
 
 func TestConvertClaudeRequestUsesNativePassthrough(t *testing.T) {

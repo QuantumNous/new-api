@@ -69,7 +69,11 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	channel.SetupApiRequestHeader(info, c, header)
 	header.Set("Authorization", "Bearer "+credential)
 	if info.RelayFormat == types.RelayFormatClaude {
-		header.Set("Accept", "text/event-stream")
+		if info.IsStream {
+			header.Set("Accept", "text/event-stream")
+		} else {
+			header.Set("Accept", "application/json")
+		}
 		header.Set("anthropic-version", "2023-06-01")
 	} else {
 		header.Set("Accept", "application/json")
