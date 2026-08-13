@@ -50,3 +50,76 @@ describe('video pricing vocabularies', () => {
     expect(rule.price_per_second).toBe(0)
   })
 })
+
+import {
+  mergeModelRules,
+  parseAllRules,
+  rulesForModel,
+} from './video-pricing-types'
+
+describe('rule serialization', () => {
+  const allRules: VideoPriceRule[] = [
+    {
+      model: 'a',
+      match: { resolution: '720p' },
+      price_per_second: 0.314,
+      basis: 'output_duration',
+    },
+    {
+      model: 'b',
+      match: { has_video: 'true' },
+      price_per_second: 0.08,
+      basis: 'total_duration',
+      fallback_seconds: 30,
+    },
+  ]
+
+  test('parses a stored JSON string', () => {
+    expect(parseAllRules(JSON.stringify(allRules))).toEqual(allRules)
+  })
+
+  test('an empty or absent value parses to no rules', () => {
+    expect(parseAllRules('')).toEqual([])
+    expect(parseAllRules('[]')).toEqual([])
+    expect(parseAllRules(undefined)).toEqual([])
+  })
+
+  test('malformed JSON parses to no rules rather than throwing', () => {
+    // A save would overwrite the key anyway; throwing here would break the
+    // whole pricing sheet over one bad row.
+    expect(parseAllRules('{not json')).toEqual([])
+  })
+
+  test('selects only the requested model', () => {
+    expect(rulesForModel(allRules, 'a')).toEqual([allRules[0]])
+    expect(rulesForModel(allRules, 'missing')).toEqual([])
+  })
+
+  test('merging replaces one model and leaves the others untouched', () => {
+    const next = mergeModelRules(allRules, 'a', [
+      {
+        model: 'a',
+        match: { resolution: '1080p' },
+        price_per_second: 0.5,
+        basis: 'output_duration',
+      },
+    ])
+    expect(rulesForModel(next, 'b')).toEqual([allRules[1]])
+    expect(rulesForModel(next, 'a')[0].price_per_second).toBe(0.5)
+    expect(next).toHaveLength(2)
+  })
+
+  test('merging an empty list removes that model entirely', () => {
+    const next = mergeModelRules(allRules, 'a', [])
+    expect(rulesForModel(next, 'a')).toEqual([])
+    expect(rulesForModel(next, 'b')).toEqual([allRules[1]])
+  })
+
+  test('merging stamps the model name onto every rule', () => {
+    // The editor does not ask the administrator to retype the model per row.
+    const next = mergeModelRules([], 'c', [
+      { model: '', match: {}, price_per_second: 1, basis: 'output_duration' },
+    ])
+    expect(next[0].model).toBe('c')
+  })
+})

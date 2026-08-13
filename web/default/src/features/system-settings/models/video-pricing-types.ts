@@ -61,3 +61,38 @@ export function createEmptyRule(model = ''): VideoPriceRule {
     basis: 'output_duration',
   }
 }
+
+/**
+ * Reads the stored option value. Returns no rules for anything unreadable: a
+ * save replaces the key wholesale, so refusing to render the sheet over one
+ * malformed row would be a worse failure than starting from empty.
+ */
+export function parseAllRules(raw: string | undefined): VideoPriceRule[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as VideoPriceRule[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function rulesForModel(
+  all: VideoPriceRule[],
+  model: string,
+): VideoPriceRule[] {
+  return all.filter((rule) => rule.model === model)
+}
+
+/**
+ * Replaces one model's rules, preserving every other model's. The editor only
+ * ever sees one model, so a wholesale write would delete the rest of the table.
+ */
+export function mergeModelRules(
+  all: VideoPriceRule[],
+  model: string,
+  next: VideoPriceRule[],
+): VideoPriceRule[] {
+  const others = all.filter((rule) => rule.model !== model)
+  return [...others, ...next.map((rule) => ({ ...rule, model }))]
+}
