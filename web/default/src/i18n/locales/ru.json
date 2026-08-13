@@ -6571,6 +6571,11 @@
     "Per-second video billing": "Посекундная тарификация видео",
     "{{count}} per-second rules": "Правил посекундной тарификации: {{count}}",
     "Price per second must be greater than zero": "Цена за секунду должна быть больше нуля",
-    "Total duration billing requires a fallback in seconds": "Для тарификации по общей длительности нужны резервные секунды"
+    "Total duration billing requires a fallback in seconds": "Для тарификации по общей длительности нужны резервные секунды",
+    "Name the key — everything else uses the default settings.": "Назовите ключ — все остальные настройки останутся по умолчанию.",
+    "Step 2 · Submit a video task, then poll for the result": "Шаг 2 · Создайте задачу генерации видео и опрашивайте результат",
+    "Step 2 · Copy the async video generation flow": "Шаг 2 · Скопируйте асинхронный процесс генерации видео",
+    "Step 2 · Copy a ready-to-run image request": "Шаг 2 · Скопируйте готовый запрос на генерацию изображения",
+    "Step 2 · Copy the image generation setup": "Шаг 2 · Скопируйте настройку генерации изображений"
   }
 }

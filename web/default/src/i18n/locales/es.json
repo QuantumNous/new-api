@@ -1118,7 +1118,7 @@
     "Created": "Created",
     "Created At": "Created At",
     "Creates a Pancake product in the saved store using this plan’s title and price. Requires Waffo Pancake to be fully configured in Payment settings first.": "Creates a Pancake product in the saved store using this plan’s title and price. Requires Waffo Pancake to be fully configured in Payment settings first.",
-    "Creating...": "Creating...",
+    "Creating...": "Creando...",
     "Creation failed": "Creation failed",
     "Credential generated": "Credential generated",
     "Credential refreshed": "Credential refreshed",
@@ -1560,7 +1560,7 @@
     "Ensure the string has a specified prefix": "Ensure the string has a specified prefix",
     "Ensure the string has a specified suffix": "Ensure the string has a specified suffix",
     "Enter 6-digit code": "Enter 6-digit code",
-    "Enter a name": "Enter a name",
+    "Enter a name": "Introduce un nombre",
     "Enter a new API key, or leave blank to keep current": "Introduce una nueva clave de API o deja el campo vacío para conservar la actual",
     "Enter a new name": "Enter a new name",
     "Enter a new signing secret, or leave blank to keep current": "Introduce un nuevo secreto de firma o deja el campo vacío para conservar el actual",
@@ -3322,7 +3322,7 @@
     "Please copy it now and save it somewhere safe.": "Cópiala ahora y guárdala en un lugar seguro.",
     "Please enable io.net model deployment service and configure an API key in System Settings.": "Please enable io.net model deployment service and configure an API key in System Settings.",
     "Please enable Two-factor Authentication or Passkey before proceeding": "Please enable Two-factor Authentication or Passkey before proceeding",
-    "Please enter a name": "Please enter a name",
+    "Please enter a name": "Introduce un nombre",
     "Please enter a new password": "Please enter a new password",
     "Please enter a redemption code": "Please enter a redemption code",
     "Please enter a valid duration": "Please enter a valid duration",
@@ -6571,6 +6571,11 @@
     "Per-second video billing": "Facturación de vídeo por segundo",
     "{{count}} per-second rules": "{{count}} reglas por segundo",
     "Price per second must be greater than zero": "El precio por segundo debe ser mayor que cero",
-    "Total duration billing requires a fallback in seconds": "La facturación por duración total requiere segundos de reserva"
+    "Total duration billing requires a fallback in seconds": "La facturación por duración total requiere segundos de reserva",
+    "Name the key — everything else uses the default settings.": "Ponle un nombre a la clave: todo lo demás usa la configuración predeterminada.",
+    "Step 2 · Submit a video task, then poll for the result": "Paso 2 · Envía una tarea de vídeo y consulta el resultado",
+    "Step 2 · Copy the async video generation flow": "Paso 2 · Copia el flujo asíncrono de generación de vídeo",
+    "Step 2 · Copy a ready-to-run image request": "Paso 2 · Copia una solicitud de imagen lista para ejecutar",
+    "Step 2 · Copy the image generation setup": "Paso 2 · Copia la configuración de generación de imágenes"
   }
 }

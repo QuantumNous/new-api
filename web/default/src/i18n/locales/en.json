@@ -6571,6 +6571,11 @@
     "Per-second video billing": "Per-second video billing",
     "{{count}} per-second rules": "{{count}} per-second rules",
     "Price per second must be greater than zero": "Price per second must be greater than zero",
-    "Total duration billing requires a fallback in seconds": "Total duration billing requires a fallback in seconds"
+    "Total duration billing requires a fallback in seconds": "Total duration billing requires a fallback in seconds",
+    "Name the key — everything else uses the default settings.": "Name the key — everything else uses the default settings.",
+    "Step 2 · Submit a video task, then poll for the result": "Step 2 · Submit a video task, then poll for the result",
+    "Step 2 · Copy the async video generation flow": "Step 2 · Copy the async video generation flow",
+    "Step 2 · Copy a ready-to-run image request": "Step 2 · Copy a ready-to-run image request",
+    "Step 2 · Copy the image generation setup": "Step 2 · Copy the image generation setup"
   }
 }

@@ -45,16 +45,18 @@ const PREFERRED_EXAMPLE_MODELS = [
   'gpt-4o',
 ]
 
-// The example only knows how to demo chat and image generation, so models
-// whose only surfaces are embedding/TTS/video would produce a failing request.
+// The example only knows how to demo chat, image generation and async video, so
+// models whose only surfaces are embedding/TTS would produce a failing request.
 // Endpoint tags come from channel config, so this is an exclusion list plus
 // a name heuristic (metadata is not always tagged — gemini-embedding-001
 // carries only ['gemini','openai']); untagged models stay in as chat.
 // The separator class includes `/` so vendor-prefixed ids are matched too
 // (bytedance/seedance-2.0, not just seedance-2.0).
-const EXCLUDED_ENDPOINT_TYPES = ['openai-video', 'embeddings', 'jina-rerank']
-const EXCLUDED_NAME_PATTERN = /(^|[-_./])(embedding|tts|video|seedance)/i
+const EXCLUDED_ENDPOINT_TYPES = ['embeddings', 'jina-rerank']
+const EXCLUDED_NAME_PATTERN = /(^|[-_./])(embedding|tts)/i
 const IMAGE_NAME_PATTERN = /(^|[-_./])(image|banana)/i
+const VIDEO_NAME_PATTERN = /(^|[-_./])(video|seedance|sora|veo|kling)/i
+const VIDEO_ENDPOINT_TYPES = ['openai-video']
 const CHAT_ENDPOINT_TYPES = [
   'openai',
   'openai-response',
@@ -171,6 +173,12 @@ export function OverviewDashboard() {
       // embedding/TTS models as plain 'openai'.
       if (EXCLUDED_NAME_PATTERN.test(model)) {
         return null
+      }
+      if (
+        types.some((type) => VIDEO_ENDPOINT_TYPES.includes(type)) ||
+        VIDEO_NAME_PATTERN.test(model)
+      ) {
+        return 'video'
       }
       if (
         types.includes('image-generation') ||

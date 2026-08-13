@@ -22,7 +22,7 @@ export type ApiLanguage = 'curl' | 'node' | 'python'
 
 export type AgentPlatform = 'mac' | 'linux' | 'windows'
 
-export type SnippetKind = 'chat' | 'image'
+export type SnippetKind = 'chat' | 'image' | 'video'
 
 export const API_KEY_PLACEHOLDER = 'FLATKEY_API_KEY'
 
@@ -114,8 +114,18 @@ function toImagesEndpoint(chatEndpoint: string): string {
   return chatEndpoint.replace(/\/chat\/completions$/, '/images/generations')
 }
 
+/** Async video submit route; the result is polled from `${it}/{task_id}`. */
+function toVideoTasksEndpoint(chatEndpoint: string): string {
+  return chatEndpoint.replace(/\/chat\/completions$/, '/generation/tasks')
+}
+
 const CHAT_PROMPT = 'Say hello in one sentence.'
 const IMAGE_PROMPT = 'A cute cat'
+const VIDEO_PROMPT = 'A beautiful sunset over mountains'
+const VIDEO_RATIO = '16:9'
+const VIDEO_DURATION = 5
+/** Matches the upstream task cadence used by the reference integrations. */
+const VIDEO_POLL_INTERVAL_SECONDS = 5
 
 function toDoubleQuotedString(value: string): string {
   return JSON.stringify(value)
@@ -133,6 +143,8 @@ function toShellSingleQuoted(value: string): string {
 }
 
 function buildCurl(ctx: SnippetContext): string {
+  if (ctx.kind === 'video') return buildVideoCurl(ctx)
+
   const endpoint =
     ctx.kind === 'image' ? toImagesEndpoint(ctx.endpoint) : ctx.endpoint
   const body = JSON.stringify(
@@ -152,7 +164,36 @@ function buildCurl(ctx: SnippetContext): string {
   ].join('\n')
 }
 
+/**
+ * Video generation is asynchronous: one call submits a task, a second polls it
+ * until the URL is ready. Both steps are shown so the sample is runnable as-is
+ * instead of returning a task id the reader has to figure out what to do with.
+ */
+function buildVideoCurl(ctx: SnippetContext): string {
+  const tasksEndpoint = toVideoTasksEndpoint(ctx.endpoint)
+  const body = JSON.stringify({
+    model: ctx.model,
+    content: [{ type: 'text', text: VIDEO_PROMPT }],
+    ratio: VIDEO_RATIO,
+    duration: VIDEO_DURATION,
+  })
+
+  return [
+    '# Step 1: Create the video generation task',
+    `curl ${tasksEndpoint} \\`,
+    '  -H "Content-Type: application/json" \\',
+    `  -H "Authorization: Bearer ${ctx.apiKey}" \\`,
+    `  -d ${toShellSingleQuoted(body)}`,
+    '',
+    '# Step 2: Poll for the result (replace TASK_ID with the id from Step 1)',
+    `curl "${tasksEndpoint}/TASK_ID" \\`,
+    `  -H "Authorization: Bearer ${ctx.apiKey}"`,
+  ].join('\n')
+}
+
 function buildNode(ctx: SnippetContext): string {
+  if (ctx.kind === 'video') return buildVideoNode(ctx)
+
   const baseUrl = toBaseUrl(ctx.endpoint)
   const client = [
     "import OpenAI from 'openai'",
@@ -189,6 +230,8 @@ function buildNode(ctx: SnippetContext): string {
 }
 
 function buildPython(ctx: SnippetContext): string {
+  if (ctx.kind === 'video') return buildVideoPython(ctx)
+
   const baseUrl = toBaseUrl(ctx.endpoint)
   const client = [
     'from openai import OpenAI',
@@ -224,6 +267,96 @@ function buildPython(ctx: SnippetContext): string {
   ].join('\n')
 }
 
+function buildVideoNode(ctx: SnippetContext): string {
+  const tasksEndpoint = toVideoTasksEndpoint(ctx.endpoint)
+  const authHeader = toJavaScriptString(`Bearer ${ctx.apiKey}`)
+
+  return [
+    // The endpoint is bound once so the poll URL can interpolate the task id
+    // without embedding a raw URL inside a template literal.
+    `const tasksUrl = ${toJavaScriptString(tasksEndpoint)}`,
+    '',
+    '// Step 1: Create the video generation task',
+    'const createRes = await fetch(tasksUrl, {',
+    "  method: 'POST',",
+    '  headers: {',
+    `    Authorization: ${authHeader},`,
+    "    'Content-Type': 'application/json',",
+    '  },',
+    '  body: JSON.stringify({',
+    `    model: ${toJavaScriptString(ctx.model)},`,
+    `    content: [{ type: 'text', text: ${toJavaScriptString(VIDEO_PROMPT)} }],`,
+    `    ratio: ${toJavaScriptString(VIDEO_RATIO)},`,
+    `    duration: ${VIDEO_DURATION},`,
+    '  }),',
+    '})',
+    'const { id: taskId } = await createRes.json()',
+    '',
+    '// Step 2: Poll until the task succeeds',
+    'async function pollTask(id) {',
+    '  while (true) {',
+    '    const res = await fetch(`${tasksUrl}/${id}`, {',
+    `      headers: { Authorization: ${authHeader} },`,
+    '    })',
+    '    const data = await res.json()',
+    "    if (data.status === 'succeeded') return data",
+    "    if (data.status === 'failed') throw new Error('Generation failed')",
+    `    await new Promise((r) => setTimeout(r, ${VIDEO_POLL_INTERVAL_SECONDS * 1000}))`,
+    '  }',
+    '}',
+    '',
+    'const result = await pollTask(taskId)',
+    "const videoUrl = result.content?.find((c) => c.type === 'video_url')?.video_url?.url",
+    '',
+    "console.log('Video URL:', videoUrl)",
+  ].join('\n')
+}
+
+function buildVideoPython(ctx: SnippetContext): string {
+  const tasksEndpoint = toVideoTasksEndpoint(ctx.endpoint)
+  const authHeader = toDoubleQuotedString(`Bearer ${ctx.apiKey}`)
+
+  return [
+    'import time',
+    '',
+    'import requests',
+    '',
+    // Bound once so the poll f-string never has to nest a quoted URL, which
+    // is a syntax error before Python 3.12.
+    `TASKS_URL = ${toDoubleQuotedString(tasksEndpoint)}`,
+    '',
+    '# Step 1: Create the video generation task',
+    'response = requests.post(',
+    '    TASKS_URL,',
+    `    headers={"Authorization": ${authHeader}, "Content-Type": "application/json"},`,
+    '    json={',
+    `        "model": ${toDoubleQuotedString(ctx.model)},`,
+    `        "content": [{"type": "text", "text": ${toDoubleQuotedString(VIDEO_PROMPT)}}],`,
+    `        "ratio": ${toDoubleQuotedString(VIDEO_RATIO)},`,
+    `        "duration": ${VIDEO_DURATION},`,
+    '    },',
+    ')',
+    'task_id = response.json()["id"]',
+    '',
+    '# Step 2: Poll until the task succeeds',
+    'while True:',
+    '    poll = requests.get(',
+    '        f"{TASKS_URL}/{task_id}",',
+    `        headers={"Authorization": ${authHeader}},`,
+    '    )',
+    '    data = poll.json()',
+    '    if data["status"] == "succeeded":',
+    '        video_url = next(',
+    '            c["video_url"]["url"] for c in data["content"] if c["type"] == "video_url"',
+    '        )',
+    '        print("Video URL:", video_url)',
+    '        break',
+    '    if data["status"] == "failed":',
+    '        raise Exception("Generation failed")',
+    `    time.sleep(${VIDEO_POLL_INTERVAL_SECONDS})`,
+  ].join('\n')
+}
+
 export function buildApiSnippet(
   language: ApiLanguage,
   ctx: SnippetContext
@@ -236,16 +369,21 @@ export function buildApiSnippet(
 /**
  * The SDK card differs from the API card by shipping the dependency install
  * alongside the client setup, so the sample is runnable from an empty project.
+ * Video generation is async and not covered by the OpenAI SDK, so its samples
+ * install only what they actually import.
  */
 export function buildSdkSnippet(
   language: ApiLanguage,
   ctx: SnippetContext
 ): string {
   if (language === 'node') {
+    if (ctx.kind === 'video') return buildNode(ctx)
     return ['npm install openai', '', buildNode(ctx)].join('\n')
   }
   if (language === 'python') {
-    return ['pip install openai', '', buildPython(ctx)].join('\n')
+    const install =
+      ctx.kind === 'video' ? 'pip install requests' : 'pip install openai'
+    return [install, '', buildPython(ctx)].join('\n')
   }
   return buildCurl(ctx)
 }

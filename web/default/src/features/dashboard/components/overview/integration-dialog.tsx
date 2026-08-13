@@ -52,6 +52,7 @@ import {
   type ApiLanguage,
   type IntegrationId,
   type SnippetContext,
+  type SnippetKind,
 } from './integration-snippets'
 
 function CodeBlock(props: { code: string; copyValue?: string }) {
@@ -150,6 +151,32 @@ export interface IntegrationDialogProps {
   snippetContext: SnippetContext
 }
 
+/**
+ * The second step's label follows the selected model: a video model is an
+ * async two-call flow, not a single "ready-to-run request", and saying so
+ * up front is what makes the two numbered steps in the sample legible.
+ */
+function useSnippetStepLabels(kind: SnippetKind) {
+  const { t } = useTranslation()
+
+  if (kind === 'video') {
+    return {
+      api: t('Step 2 · Submit a video task, then poll for the result'),
+      sdk: t('Step 2 · Copy the async video generation flow'),
+    }
+  }
+  if (kind === 'image') {
+    return {
+      api: t('Step 2 · Copy a ready-to-run image request'),
+      sdk: t('Step 2 · Copy the image generation setup'),
+    }
+  }
+  return {
+    api: t('Step 2 · Copy a ready-to-run request'),
+    sdk: t('Step 2 · Copy the SDK setup'),
+  }
+}
+
 export function IntegrationDialog(props: IntegrationDialogProps) {
   const { t } = useTranslation()
   const cards = useIntegrationCards()
@@ -168,6 +195,7 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
     ...props.snippetContext,
     model: props.selectedModel,
   }
+  const stepLabels = useSnippetStepLabels(snippetContext.kind)
   const maskedKey = snippetContext.apiKey
   const realKey =
     props.selectedKeyId === null
@@ -221,7 +249,7 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
           <div className='flex flex-col gap-5'>
             {keyStep}
             <div className='flex flex-col gap-3'>
-              <StepLabel>{t('Step 2 · Copy a ready-to-run request')}</StepLabel>
+              <StepLabel>{stepLabels.api}</StepLabel>
               <div className='flex flex-wrap items-center justify-between gap-3'>
                 <Tabs
                   value={apiLanguage}
@@ -250,7 +278,7 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
           <div className='flex flex-col gap-5'>
             {keyStep}
             <div className='flex flex-col gap-3'>
-              <StepLabel>{t('Step 2 · Copy the SDK setup')}</StepLabel>
+              <StepLabel>{stepLabels.sdk}</StepLabel>
               <div className='flex flex-wrap items-center justify-between gap-3'>
                 <Tabs
                   value={sdkLanguage}

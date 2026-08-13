@@ -6571,6 +6571,11 @@
     "Per-second video billing": "Tính phí video theo giây",
     "{{count}} per-second rules": "{{count}} quy tắc theo giây",
     "Price per second must be greater than zero": "Giá mỗi giây phải lớn hơn 0",
-    "Total duration billing requires a fallback in seconds": "Tính phí theo tổng thời lượng cần có số giây dự phòng"
+    "Total duration billing requires a fallback in seconds": "Tính phí theo tổng thời lượng cần có số giây dự phòng",
+    "Name the key — everything else uses the default settings.": "Đặt tên cho khóa — mọi thiết lập khác đều dùng giá trị mặc định.",
+    "Step 2 · Submit a video task, then poll for the result": "Bước 2 · Gửi tác vụ video, sau đó thăm dò kết quả",
+    "Step 2 · Copy the async video generation flow": "Bước 2 · Sao chép luồng tạo video bất đồng bộ",
+    "Step 2 · Copy a ready-to-run image request": "Bước 2 · Sao chép yêu cầu tạo ảnh chạy được ngay",
+    "Step 2 · Copy the image generation setup": "Bước 2 · Sao chép thiết lập tạo ảnh"
   }
 }

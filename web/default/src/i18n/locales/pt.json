@@ -6571,6 +6571,11 @@
     "Per-second video billing": "Cobrança de vídeo por segundo",
     "{{count}} per-second rules": "{{count}} regras por segundo",
     "Price per second must be greater than zero": "O preço por segundo deve ser maior que zero",
-    "Total duration billing requires a fallback in seconds": "A cobrança por duração total exige segundos de reserva"
+    "Total duration billing requires a fallback in seconds": "A cobrança por duração total exige segundos de reserva",
+    "Name the key — everything else uses the default settings.": "Dê um nome à chave — todo o restante usa as configurações padrão.",
+    "Step 2 · Submit a video task, then poll for the result": "Etapa 2 · Envie uma tarefa de vídeo e consulte o resultado",
+    "Step 2 · Copy the async video generation flow": "Etapa 2 · Copie o fluxo assíncrono de geração de vídeo",
+    "Step 2 · Copy a ready-to-run image request": "Etapa 2 · Copie uma requisição de imagem pronta para executar",
+    "Step 2 · Copy the image generation setup": "Etapa 2 · Copie a configuração de geração de imagens"
   }
 }

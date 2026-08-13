@@ -37,6 +37,12 @@ const CHAT: SnippetContext = {
 
 const IMAGE: SnippetContext = { ...CHAT, model: 'gpt-image-2', kind: 'image' }
 
+const VIDEO: SnippetContext = {
+  ...CHAT,
+  model: 'doubao/doubao-seedance-2-5',
+  kind: 'video',
+}
+
 function extractBetween(source: string, start: string, end: string): string {
   const startIndex = source.indexOf(start)
   const endIndex = source.indexOf(end, startIndex + start.length)
@@ -177,6 +183,99 @@ print(completion.choices[0].message.content)`)
       expect(snippet).not.toContain('/v1/chat/completions')
       expect(snippet).toContain('sk-test')
     }
+  })
+})
+
+describe('video snippets', () => {
+  test('every language documents both async steps', () => {
+    for (const language of ['curl', 'node', 'python'] as const) {
+      const snippet = buildApiSnippet(language, VIDEO)
+
+      expect(snippet).toContain('Step 1')
+      expect(snippet).toContain('Step 2')
+      expect(snippet).toContain('/v1/generation/tasks')
+      expect(snippet).not.toContain('/chat/completions')
+      expect(snippet).not.toContain('/images/generations')
+      expect(snippet).toContain('doubao/doubao-seedance-2-5')
+      expect(snippet).toContain('sk-test')
+    }
+  })
+
+  test('curl submits the task and then polls it by id', () => {
+    const snippet = buildApiSnippet('curl', VIDEO)
+
+    expect(snippet).toBe(`# Step 1: Create the video generation task
+curl https://console.example.ai/v1/generation/tasks \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer sk-test" \\
+  -d '{"model":"doubao/doubao-seedance-2-5","content":[{"type":"text","text":"A beautiful sunset over mountains"}],"ratio":"16:9","duration":5}'
+
+# Step 2: Poll for the result (replace TASK_ID with the id from Step 1)
+curl "https://console.example.ai/v1/generation/tasks/TASK_ID" \\
+  -H "Authorization: Bearer sk-test"`)
+  })
+
+  test('node polls until the task reports a terminal status', () => {
+    const snippet = buildApiSnippet('node', VIDEO)
+
+    expect(snippet).toContain("if (data.status === 'succeeded') return data")
+    expect(snippet).toContain("data.status === 'failed'")
+    expect(snippet).toContain("c.type === 'video_url'")
+    // The poll URL interpolates the task id from the bound endpoint.
+    expect(snippet).toContain('fetch(`${tasksUrl}/${id}`')
+  })
+
+  test('python polls until the task reports a terminal status', () => {
+    const snippet = buildApiSnippet('python', VIDEO)
+
+    expect(snippet).toContain('import time')
+    expect(snippet).toContain('import requests')
+    expect(snippet).toContain('task_id = response.json()["id"]')
+    expect(snippet).toContain('f"{TASKS_URL}/{task_id}"')
+    expect(snippet).toContain('if data["status"] == "succeeded":')
+    expect(snippet).toContain('time.sleep(5)')
+  })
+
+  test('the sdk tab installs only what the video sample imports', () => {
+    expect(
+      buildSdkSnippet('python', VIDEO).startsWith('pip install requests')
+    ).toBe(true)
+    // The video flow uses fetch, so there is no OpenAI SDK to install.
+    expect(buildSdkSnippet('node', VIDEO)).toBe(buildApiSnippet('node', VIDEO))
+    expect(buildSdkSnippet('node', VIDEO)).not.toContain('npm install openai')
+  })
+
+  test('escapes untrusted model ids in every language', () => {
+    const hostile: SnippetContext = {
+      ...VIDEO,
+      model: `seedance"\n`,
+    }
+
+    const curlBody = extractBetween(
+      buildApiSnippet('curl', hostile),
+      "\n  -d '",
+      "'\n"
+    )
+    expect(() => JSON.parse(curlBody)).not.toThrow()
+
+    expect(buildApiSnippet('python', hostile)).toContain(
+      '"model": "seedance\\"\\n"'
+    )
+    // The generated literal must stay a single parseable JS string, not spill
+    // the raw newline into the source.
+    const nodeBody = extractBetween(
+      buildApiSnippet('node', hostile),
+      'body: JSON.stringify({',
+      '}),'
+    )
+    assertJavaScriptObjectLiteralIsParseable(nodeBody)
+    expect(nodeBody).not.toContain('seedance"\n')
+  })
+
+  test('quotes apostrophes in the curl body for a POSIX shell', () => {
+    const snippet = buildApiSnippet('curl', { ...VIDEO, model: "seed'ance" })
+
+    expect(snippet).toContain(`seed'"'"'ance`)
   })
 })
 
