@@ -6573,9 +6573,9 @@
     "Converge Codex device and session identifiers for shared OAuth accounts": "Converger les identifiants Codex pour les comptes OAuth partagés",
     "Applies only to selected Codex channels": "S’applique uniquement aux canaux Codex sélectionnés",
     "GitHub Copilot": "GitHub Copilot",
-    "GitHub token with Copilot access": "Jeton GitHub avec accès à Copilot",
+    "Copilot authorization is available after saving the channel": "L’autorisation Copilot est disponible après l’enregistrement du canal",
     "Default: https://api.githubcopilot.com": "Par défaut : https://api.githubcopilot.com",
-    "Save the channel first to authorize with GitHub Device Flow instead of entering a token.": "Enregistrez d’abord le canal pour utiliser le flux d’appareil GitHub au lieu de saisir un jeton.",
+    "Save the channel first, then authorize it with GitHub Device Flow.": "Enregistrez d’abord le canal, puis autorisez-le avec le flux d’appareil GitHub.",
     "GitHub Copilot Authorization": "Autorisation GitHub Copilot",
     "Authorize the saved channel with GitHub Device Flow.": "Autorisez le canal enregistré avec le flux d’appareil GitHub.",
     "Open GitHub, enter the one-time code, and approve access. This dialog detects completion automatically.": "Ouvrez GitHub, saisissez le code à usage unique et approuvez l’accès. Cette boîte de dialogue détecte automatiquement la fin.",
@@ -6590,7 +6590,9 @@
     "Authorization response is incomplete": "La réponse d’autorisation est incomplète",
     "GitHub authorization completed": "Autorisation GitHub terminée",
     "Authorize this saved channel with GitHub Device Flow.": "Autorisez ce canal enregistré avec le flux d’appareil GitHub.",
-    "Enter a GitHub token now, or save the channel first to use GitHub Device Flow.": "Saisissez un jeton GitHub maintenant ou enregistrez d’abord le canal pour utiliser le flux d’appareil GitHub.",
+    "GitHub Copilot Device Flow Client ID": "ID client du flux d’appareil GitHub Copilot",
+    "Your GitHub Copilot OAuth App Client ID": "ID client de votre application OAuth GitHub Copilot",
+    "Used only to start GitHub Copilot Device Flow. No client secret is required.": "Utilisé uniquement pour démarrer le flux d’appareil GitHub Copilot. Aucun secret client n’est requis.",
     "Authorize with GitHub": "Autoriser avec GitHub",
     "GitHub Copilot channels support one credential only": "Les canaux GitHub Copilot ne prennent en charge qu’un seul identifiant"
   }

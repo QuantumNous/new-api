@@ -6573,9 +6573,9 @@
     "Converge Codex device and session identifiers for shared OAuth accounts": "共有 OAuth アカウントの Codex 識別子を統合",
     "Applies only to selected Codex channels": "選択した Codex チャネルにのみ適用",
     "GitHub Copilot": "GitHub Copilot",
-    "GitHub token with Copilot access": "Copilot アクセス権を持つ GitHub トークン",
+    "Copilot authorization is available after saving the channel": "チャネル保存後に Copilot 認証を利用できます",
     "Default: https://api.githubcopilot.com": "デフォルト：https://api.githubcopilot.com",
-    "Save the channel first to authorize with GitHub Device Flow instead of entering a token.": "トークンを入力せず GitHub デバイスフローを使用するには、先にチャネルを保存してください。",
+    "Save the channel first, then authorize it with GitHub Device Flow.": "先にチャネルを保存してから、GitHub デバイスフローで認証してください。",
     "GitHub Copilot Authorization": "GitHub Copilot 認証",
     "Authorize the saved channel with GitHub Device Flow.": "保存済みチャネルを GitHub デバイスフローで認証します。",
     "Open GitHub, enter the one-time code, and approve access. This dialog detects completion automatically.": "GitHub を開き、ワンタイムコードを入力してアクセスを承認してください。このダイアログは完了を自動検出します。",
@@ -6590,7 +6590,9 @@
     "Authorization response is incomplete": "認証レスポンスが不完全です",
     "GitHub authorization completed": "GitHub 認証が完了しました",
     "Authorize this saved channel with GitHub Device Flow.": "この保存済みチャネルを GitHub デバイスフローで認証します。",
-    "Enter a GitHub token now, or save the channel first to use GitHub Device Flow.": "今すぐ GitHub トークンを入力するか、先にチャネルを保存して GitHub デバイスフローを使用してください。",
+    "GitHub Copilot Device Flow Client ID": "GitHub Copilot デバイスフロー Client ID",
+    "Your GitHub Copilot OAuth App Client ID": "GitHub Copilot OAuth App の Client ID",
+    "Used only to start GitHub Copilot Device Flow. No client secret is required.": "GitHub Copilot デバイスフローの開始にのみ使用します。Client Secret は不要です。",
     "Authorize with GitHub": "GitHub で認証",
     "GitHub Copilot channels support one credential only": "GitHub Copilot チャネルは 1 つの認証情報のみをサポートします"
   }

@@ -478,9 +478,10 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		return err
 	}
 
-	// 如果是添加操作，检查 channel 和 key 是否为空
+	// 如果是添加操作，检查 channel 是否为空。Copilot credentials are
+	// acquired only through its Device Flow after the channel has been saved.
 	if isAdd {
-		if channel == nil || channel.Key == "" {
+		if channel == nil || (channel.Key == "" && channel.Type != constant.ChannelTypeCopilot) {
 			return fmt.Errorf("channel cannot be empty")
 		}
 
@@ -752,21 +753,11 @@ func AddChannel(c *gin.Context) {
 
 func DeleteChannel(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	existing, err := model.GetChannelById(id, false)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
 	channel := model.Channel{Id: id}
-	err = channel.Delete()
+	err := channel.Delete()
 	if err != nil {
 		common.ApiError(c, err)
 		return
-	}
-	if existing != nil && existing.Type == constant.ChannelTypeCopilot {
-		if err := service.InvalidateCopilotTokenCache(id); err != nil {
-			common.SysError("copilot token cache invalidation failed after channel deletion: " + err.Error())
-		}
 	}
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
@@ -777,17 +768,11 @@ func DeleteChannel(c *gin.Context) {
 }
 
 func DeleteDisabledChannel(c *gin.Context) {
-	copilotChannelIDs, err := getCopilotChannelIDsForDeletion(nil, true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
 	rows, err := model.DeleteDisabledChannel()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	invalidateDeletedCopilotChannels(copilotChannelIDs)
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -932,17 +917,11 @@ func DeleteChannelBatch(c *gin.Context) {
 		})
 		return
 	}
-	copilotChannelIDs, err := getCopilotChannelIDsForDeletion(channelBatch.Ids, false)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
 	err = model.BatchDeleteChannels(channelBatch.Ids)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	invalidateDeletedCopilotChannels(copilotChannelIDs)
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -950,28 +929,6 @@ func DeleteChannelBatch(c *gin.Context) {
 		"data":    len(channelBatch.Ids),
 	})
 	return
-}
-
-func getCopilotChannelIDsForDeletion(ids []int, disabledOnly bool) ([]int, error) {
-	query := model.DB.Model(&model.Channel{}).Where("type = ?", constant.ChannelTypeCopilot)
-	if disabledOnly {
-		query = query.Where("status = ? OR status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled)
-	} else {
-		query = query.Where("id IN ?", ids)
-	}
-	var channelIDs []int
-	if err := query.Pluck("id", &channelIDs).Error; err != nil {
-		return nil, err
-	}
-	return channelIDs, nil
-}
-
-func invalidateDeletedCopilotChannels(channelIDs []int) {
-	for _, channelID := range channelIDs {
-		if err := service.InvalidateCopilotTokenCache(channelID); err != nil {
-			common.SysError(fmt.Sprintf("copilot token cache invalidation failed after channel deletion: channel_id=%d", channelID))
-		}
-	}
 }
 
 type PatchChannel struct {
@@ -1127,12 +1084,6 @@ func UpdateChannel(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
-	}
-	if originChannel.Type == constant.ChannelTypeCopilot &&
-		(channel.Type != constant.ChannelTypeCopilot || channel.Key != originChannel.Key) {
-		if err := service.InvalidateCopilotTokenCache(channel.Id); err != nil {
-			common.SysError("copilot token cache invalidation failed after channel update: " + err.Error())
-		}
 	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()

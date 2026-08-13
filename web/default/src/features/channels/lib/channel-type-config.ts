@@ -225,9 +225,8 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     defaultBaseUrl: 'https://api.githubcopilot.com',
     hints: {
       baseUrl: 'Default: https://api.githubcopilot.com',
-      key: 'GitHub token with Copilot access',
       other:
-        'Save the channel first to authorize with GitHub Device Flow instead of entering a token.',
+        'Save the channel first, then authorize it with GitHub Device Flow.',
     },
   },
 }

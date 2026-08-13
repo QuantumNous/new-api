@@ -6573,9 +6573,9 @@
     "Converge Codex device and session identifiers for shared OAuth accounts": "为共享 OAuth 账号收敛 Codex 设备和会话标识",
     "Applies only to selected Codex channels": "仅应用于选中的 Codex 渠道",
     "GitHub Copilot": "GitHub Copilot",
-    "GitHub token with Copilot access": "具有 Copilot 权限的 GitHub 令牌",
+    "Copilot authorization is available after saving the channel": "保存渠道后即可进行 Copilot 授权",
     "Default: https://api.githubcopilot.com": "默认：https://api.githubcopilot.com",
-    "Save the channel first to authorize with GitHub Device Flow instead of entering a token.": "先保存渠道，即可使用 GitHub 设备授权流程，无需输入令牌。",
+    "Save the channel first, then authorize it with GitHub Device Flow.": "先保存渠道，再通过 GitHub 设备授权流程进行授权。",
     "GitHub Copilot Authorization": "GitHub Copilot 授权",
     "Authorize the saved channel with GitHub Device Flow.": "使用 GitHub 设备授权流程授权已保存的渠道。",
     "Open GitHub, enter the one-time code, and approve access. This dialog detects completion automatically.": "打开 GitHub，输入一次性代码并批准访问。此对话框会自动检测授权完成。",
@@ -6590,7 +6590,9 @@
     "Authorization response is incomplete": "授权响应不完整",
     "GitHub authorization completed": "GitHub 授权已完成",
     "Authorize this saved channel with GitHub Device Flow.": "使用 GitHub 设备授权流程授权此已保存渠道。",
-    "Enter a GitHub token now, or save the channel first to use GitHub Device Flow.": "现在输入 GitHub 令牌，或先保存渠道再使用 GitHub 设备授权流程。",
+    "GitHub Copilot Device Flow Client ID": "GitHub Copilot 设备授权 Client ID",
+    "Your GitHub Copilot OAuth App Client ID": "你的 GitHub Copilot OAuth App Client ID",
+    "Used only to start GitHub Copilot Device Flow. No client secret is required.": "仅用于发起 GitHub Copilot 设备授权流程，无需 Client Secret。",
     "Authorize with GitHub": "使用 GitHub 授权",
     "GitHub Copilot channels support one credential only": "GitHub Copilot 渠道仅支持一个凭据"
   }

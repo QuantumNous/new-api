@@ -56,6 +56,9 @@ const oauthSchema = z.object({
   GitHubOAuthEnabled: z.boolean(),
   GitHubClientId: z.string(),
   GitHubClientSecret: z.string(),
+  copilot: z.object({
+    client_id: z.string(),
+  }),
   discord: z.object({
     enabled: z.boolean(),
     client_id: z.string(),
@@ -94,6 +97,7 @@ type FlatOAuthDefaults = {
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
+  'copilot.client_id': string
   'discord.enabled': boolean
   'discord.client_id': string
   'discord.client_secret': string
@@ -127,6 +131,9 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
   GitHubOAuthEnabled: defaults.GitHubOAuthEnabled,
   GitHubClientId: defaults.GitHubClientId ?? '',
   GitHubClientSecret: defaults.GitHubClientSecret ?? '',
+  copilot: {
+    client_id: defaults['copilot.client_id'] ?? '',
+  },
   discord: {
     enabled: defaults['discord.enabled'],
     client_id: defaults['discord.client_id'] ?? '',
@@ -163,6 +170,7 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   GitHubOAuthEnabled: values.GitHubOAuthEnabled,
   GitHubClientId: values.GitHubClientId,
   GitHubClientSecret: values.GitHubClientSecret,
+  'copilot.client_id': values.copilot.client_id,
   'discord.enabled': values.discord.enabled,
   'discord.client_id': values.discord.client_id,
   'discord.client_secret': values.discord.client_secret,
@@ -386,6 +394,39 @@ export function OAuthSection(props: OAuthSectionProps) {
                           ref={field.ref}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='copilot.client_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('GitHub Copilot Device Flow Client ID')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t(
+                            'Your GitHub Copilot OAuth App Client ID'
+                          )}
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Used only to start GitHub Copilot Device Flow. No client secret is required.'
+                        )}
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

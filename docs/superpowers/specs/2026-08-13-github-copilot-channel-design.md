@@ -11,12 +11,12 @@ Add a first-class **GitHub Copilot** channel. It is distinct from the existing
 ChatGPT subscription/Codex channel:
 
 - Codex uses ChatGPT OAuth and `chatgpt.com/backend-api/codex/...`.
-- Copilot uses a GitHub credential, exchanges it for a short-lived Copilot
-  token, then calls `https://api.githubcopilot.com`.
+- Copilot uses a GitHub OAuth App Device Flow credential and calls
+  `https://api.githubcopilot.com` directly.
 
-Version 1 supports only `/v1/chat/completions`, including stream/non-stream
-and tool calls after account-backed verification. It explicitly rejects
-Responses, Embeddings, Images, Claude, Gemini, and `stream_options` until each
+Version 1 supports `/chat/completions` and native Claude `/v1/messages`,
+including stream/non-stream after account-backed verification. It explicitly
+rejects Responses, Embeddings, Images, Gemini, and `stream_options` until each
 is independently proven against supported Copilot accounts.
 
 ## Channel identifier
@@ -33,17 +33,17 @@ always use the official host rather than a user-provided URL.
 
 ## Credential and OAuth flow
 
-### Credential modes
+### Credential mode
 
-1. **PAT**: an administrator stores a GitHub token belonging to an account
-   with Copilot entitlement.
-2. **GitHub Device Flow**: the console starts the device authorization flow,
+The console starts GitHub Device Flow,
    displays the verification URL and one-time user code, then polls GitHub.
    This is not a redirect callback like Codex PKCE OAuth.
 
 On successful Device Flow authorization, the server stores the GitHub access
 token directly in the target channel. It never returns the credential to the
-browser.
+browser. The OAuth App Client ID is configured in system settings and must be
+owned by, or approved for, the organization; never embed a third-party Client
+ID.
 
 ### Required safety properties
 
@@ -59,28 +59,14 @@ browser.
 - First release permits one credential per channel. Multi-key support is a
   later extension requiring transactional/CAS updates to `ChannelInfo`.
 
-## Short-lived Copilot token
+## Direct Copilot authorization
 
-For each request, service code exchanges the GitHub credential through:
-
-`GET https://api.github.com/copilot_internal/v2/token`
-
-The returned Copilot token authenticates the call to:
-
-`https://api.githubcopilot.com/chat/completions`
-
-Implement the exchange in `service/copilot_token.go`, using the project's
-proxy-aware shared HTTP client, request context, bounded timeout, and
-white-label error handling. The adapter must only consume an already-resolved
-short token.
-
-Use a `pkg/cachex.HybridCache` namespace backed by Redis when available. Cache
-keys must contain `channel ID`, `key index` (future multi-key), and an HMAC
-fingerprint of the credential; never use or log a raw GitHub token. Set TTL to
-the upstream expiry minus a refresh margin with jitter. Add per-key
-singleflight to prevent refresh stampedes, and delete the channel prefix on
-credential changes. Local cache fallback is acceptable only when Redis is
-disabled; it is not a multi-node coordination mechanism.
+The OAuth App access token returned by Device Flow is used directly as the
+Bearer credential. The channel does not call `/copilot_internal/v2/token` and
+does not maintain a short-lived-token cache. Relay requests include the
+Copilot-compatible `User-Agent`, `Openai-Intent`, `X-GitHub-Api-Version`,
+`X-Initiator`, and a per-request `X-Request-Id`; native Claude calls also send
+`Accept: text/event-stream` and `anthropic-version: 2023-06-01`.
 
 ## Relay implementation
 
@@ -98,7 +84,7 @@ the Codex adaptor or silently convert request types.
   override follows existing administrator-controlled whitelist/override rules.
 
 No automatic proxy mode is included. In particular, a non-official Base URL
-must not receive a GitHub PAT in `X-GitHub-Token`. A later proxy feature needs
+must not receive a GitHub OAuth credential in `X-GitHub-Token`. A later proxy feature needs
 an explicit mode, SSRF validation, security review, and separate credentials.
 
 ## Repository touch points
@@ -107,11 +93,11 @@ an explicit mode, SSRF validation, security review, and separate credentials.
 | --- | --- |
 | `constant/channel.go`, `constant/api_type.go`, `common/api_type.go` | Add type 112, default base URL/name, API mapping. |
 | `relay/relay_adaptor.go` | Register dedicated Copilot adaptor. |
-| `relay/channel/copilot/` | Chat-only adaptor, response handling, contract tests. |
-| `service/` | Device Flow, token exchange, cache/singleflight, credential invalidation. |
+| `relay/channel/copilot/` | Chat and native Claude adaptor, response handling, contract tests. |
+| `service/` | Device Flow and multi-node-safe credential write. |
 | `controller/`, `router/api-router.go` | Thin admin-only Device Flow start/poll endpoints; secure channel credential update. |
 | `model/channel.go` | Reuse channel write/invalidation flow; add no direct raw SQL. |
-| `web/default/src/features/channels/` | Type metadata, direct-mode configuration, PAT UX, Device Flow dialog/status. |
+| `web/default/src/features/channels/` | Type metadata, direct-mode configuration, Device Flow dialog/status. |
 | `web/default/src/i18n/locales/*.json` | Translate every new console key in all eight locales, then run `bun run i18n:sync`. |
 | `setting/ratio_setting/` | Add prices only for account-verified models; otherwise require administrator-managed pricing. |
 
@@ -128,7 +114,7 @@ and last changed in
 Its protocol endpoints and headers are useful research inputs only.
 
 Do not port its type ID, process-local raw-token map, global lock around I/O,
-direct database writes, unbound device-code polling, PAT-forwarding proxy mode,
+direct database writes, unbound device-code polling, third-party Client ID reuse,
 stale model list, list-page quota N+1 calls, SDK `ApproveAll`, or request
 rewrites to Responses. The code changed protocol strategy rapidly during April
 2026 and relies on an undocumented GitHub internal API.
@@ -136,7 +122,7 @@ rewrites to Responses. The code changed protocol strategy rapidly during April
 ## Test and release gates
 
 Tests must cover Device Flow session binding/expiry/one-time consumption;
-token cache hit/expiry/concurrent refresh/rotation/Redis invalidation; no secret
+direct OAuth Bearer forwarding and native Claude routing; no secret
 in errors or logs; direct chat stream/non-stream/tools; model mapping; upstream
 error sanitization; and rejection of unverified endpoints. Verify the flow with
 a dedicated entitled GitHub account before enabling production traffic.

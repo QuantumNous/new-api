@@ -6573,9 +6573,9 @@
     "Converge Codex device and session identifiers for shared OAuth accounts": "Hợp nhất mã nhận diện Codex cho tài khoản OAuth dùng chung",
     "Applies only to selected Codex channels": "Chỉ áp dụng cho các kênh Codex đã chọn",
     "GitHub Copilot": "GitHub Copilot",
-    "GitHub token with Copilot access": "Mã thông báo GitHub có quyền truy cập Copilot",
+    "Copilot authorization is available after saving the channel": "Có thể ủy quyền Copilot sau khi lưu kênh",
     "Default: https://api.githubcopilot.com": "Mặc định: https://api.githubcopilot.com",
-    "Save the channel first to authorize with GitHub Device Flow instead of entering a token.": "Hãy lưu kênh trước để dùng luồng thiết bị GitHub thay vì nhập mã thông báo.",
+    "Save the channel first, then authorize it with GitHub Device Flow.": "Lưu kênh trước, sau đó ủy quyền bằng luồng thiết bị GitHub.",
     "GitHub Copilot Authorization": "Ủy quyền GitHub Copilot",
     "Authorize the saved channel with GitHub Device Flow.": "Ủy quyền kênh đã lưu bằng luồng thiết bị GitHub.",
     "Open GitHub, enter the one-time code, and approve access. This dialog detects completion automatically.": "Mở GitHub, nhập mã dùng một lần và phê duyệt quyền truy cập. Hộp thoại này tự động phát hiện khi hoàn tất.",
@@ -6590,7 +6590,9 @@
     "Authorization response is incomplete": "Phản hồi ủy quyền không đầy đủ",
     "GitHub authorization completed": "Đã hoàn tất ủy quyền GitHub",
     "Authorize this saved channel with GitHub Device Flow.": "Ủy quyền kênh đã lưu này bằng luồng thiết bị GitHub.",
-    "Enter a GitHub token now, or save the channel first to use GitHub Device Flow.": "Nhập mã thông báo GitHub ngay hoặc lưu kênh trước để dùng luồng thiết bị GitHub.",
+    "GitHub Copilot Device Flow Client ID": "Client ID luồng thiết bị GitHub Copilot",
+    "Your GitHub Copilot OAuth App Client ID": "Client ID OAuth App GitHub Copilot của bạn",
+    "Used only to start GitHub Copilot Device Flow. No client secret is required.": "Chỉ dùng để bắt đầu luồng thiết bị GitHub Copilot. Không cần client secret.",
     "Authorize with GitHub": "Ủy quyền bằng GitHub",
     "GitHub Copilot channels support one credential only": "Kênh GitHub Copilot chỉ hỗ trợ một thông tin xác thực"
   }

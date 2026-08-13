@@ -939,7 +939,7 @@ export function ChannelMutateDrawer({
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
       // Validate key is required when creating
-      if (!isEditing && !data.key?.trim()) {
+      if (!isEditing && currentType !== 112 && !data.key?.trim()) {
         form.setError('key', {
           type: 'manual',
           message: ERROR_MESSAGES.REQUIRED_KEY,
@@ -1917,7 +1917,7 @@ export function ChannelMutateDrawer({
                     )}
 
                     {/* General base_url for other types */}
-                    {![3, 8, 22, 36, 45, 100].includes(currentType) && (
+                    {![3, 8, 22, 36, 45, 100, 112].includes(currentType) && (
                       <FormField
                         control={form.control}
                         name='base_url'
@@ -2232,7 +2232,7 @@ export function ChannelMutateDrawer({
                                       'Authorize this saved channel with GitHub Device Flow.'
                                     )
                                   : t(
-                                      'Enter a GitHub token now, or save the channel first to use GitHub Device Flow.'
+                                      'Save the channel first, then authorize it with GitHub Device Flow.'
                                     )}
                               </div>
                             </div>

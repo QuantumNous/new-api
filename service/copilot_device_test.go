@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/go-redis/redis/v8"
@@ -19,12 +20,13 @@ import (
 
 func resetCopilotDeviceTestState(t *testing.T) {
 	t.Helper()
-	t.Setenv("COPILOT_DEVICE_CLIENT_ID", "copilot-test-client-id")
 	oldStart := copilotDeviceStartEndpoint
 	oldToken := copilotDeviceTokenEndpoint
 	oldUpdater := modelUpdateCopilotCredential
 	oldRedisEnabled := common.RedisEnabled
 	oldRedis := common.RDB
+	oldClientID := system_setting.GetCopilotSettings().ClientID
+	system_setting.GetCopilotSettings().ClientID = "copilot-test-client-id"
 	mini := miniredis.RunT(t)
 	common.RedisEnabled = true
 	common.RDB = redis.NewClient(&redis.Options{Addr: mini.Addr()})
@@ -35,6 +37,7 @@ func resetCopilotDeviceTestState(t *testing.T) {
 		modelUpdateCopilotCredential = oldUpdater
 		common.RedisEnabled = oldRedisEnabled
 		common.RDB = oldRedis
+		system_setting.GetCopilotSettings().ClientID = oldClientID
 	})
 }
 
@@ -47,7 +50,7 @@ func TestCopilotDeviceFlowConcurrentPollWritesCredentialOnceAcrossRedisClaim(t *
 		return nil
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(`{"access_token":"github-access-token"}`))
+		_, _ = w.Write([]byte(`{"access_token":"gho_github-access-token"}`))
 	}))
 	defer server.Close()
 	copilotDeviceTokenEndpoint = server.URL
@@ -87,7 +90,7 @@ func TestCopilotDeviceFlowBindsOwnerAndConsumesAuthorizationOnce(t *testing.T) {
 		case "/poll":
 			require.NoError(t, r.ParseForm())
 			require.Equal(t, "server-only-device-code", r.Form.Get("device_code"))
-			_, _ = w.Write([]byte(`{"access_token":"github-access-token"}`))
+			_, _ = w.Write([]byte(`{"access_token":"gho_github-access-token"}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -108,7 +111,7 @@ func TestCopilotDeviceFlowBindsOwnerAndConsumesAuthorizationOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "authorized", result.Status)
 	require.Equal(t, 112, savedChannel)
-	require.Equal(t, "github-access-token", savedCredential)
+	require.Equal(t, "gho_github-access-token", savedCredential)
 
 	result, err = PollCopilotDeviceFlow(context.Background(), flow.FlowID, 7, 112, "")
 	require.NoError(t, err)
@@ -176,12 +179,29 @@ func TestCopilotDeviceStartNeverExposesDeviceCode(t *testing.T) {
 	require.NotContains(t, string(encoded), "secret-device")
 }
 
-func TestCopilotDeviceFlowRequiresConfiguredClientID(t *testing.T) {
+func TestCopilotDeviceFlowUsesSystemSettingClientID(t *testing.T) {
 	resetCopilotDeviceTestState(t)
-	t.Setenv("COPILOT_DEVICE_CLIENT_ID", "")
+	system_setting.GetCopilotSettings().ClientID = " configured-client-id "
+	var received url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		received = r.Form
+		_, _ = w.Write([]byte(`{"device_code":"secret-device","user_code":"CODE","verification_uri":"https://github.com/login/device","expires_in":600,"interval":5}`))
+	}))
+	defer server.Close()
+	copilotDeviceStartEndpoint = server.URL
 
 	_, err := StartCopilotDeviceFlow(context.Background(), 7, 112, "")
-	require.EqualError(t, err, "Copilot Device Flow is not configured; set COPILOT_DEVICE_CLIENT_ID or use a PAT")
+	require.NoError(t, err)
+	require.Equal(t, "configured-client-id", received.Get("client_id"))
+}
+
+func TestCopilotDeviceFlowRequiresConfiguredClientID(t *testing.T) {
+	resetCopilotDeviceTestState(t)
+	system_setting.GetCopilotSettings().ClientID = ""
+
+	_, err := StartCopilotDeviceFlow(context.Background(), 7, 112, "")
+	require.EqualError(t, err, "Copilot Device Flow is not configured; configure the Copilot Client ID")
 }
 
 func TestCopilotDeviceFlowFailsClosedWithoutRedis(t *testing.T) {
@@ -189,7 +209,7 @@ func TestCopilotDeviceFlowFailsClosedWithoutRedis(t *testing.T) {
 	common.RedisEnabled = false
 
 	_, err := StartCopilotDeviceFlow(context.Background(), 7, 112, "")
-	require.EqualError(t, err, "Copilot Device Flow requires Redis; use a PAT when Redis is unavailable")
+	require.EqualError(t, err, "Copilot Device Flow requires Redis")
 }
 
 func TestCopilotDeviceFlowDoesNotWriteCredentialWhenConsumeFails(t *testing.T) {
@@ -201,7 +221,7 @@ func TestCopilotDeviceFlowDoesNotWriteCredentialWhenConsumeFails(t *testing.T) {
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		common.RDB = redis.NewClient(&redis.Options{Addr: "127.0.0.1:0", DialTimeout: time.Millisecond})
-		_, _ = w.Write([]byte(`{"access_token":"github-access-token"}`))
+		_, _ = w.Write([]byte(`{"access_token":"gho_github-access-token"}`))
 	}))
 	defer server.Close()
 	copilotDeviceTokenEndpoint = server.URL
@@ -211,5 +231,26 @@ func TestCopilotDeviceFlowDoesNotWriteCredentialWhenConsumeFails(t *testing.T) {
 
 	_, err := PollCopilotDeviceFlow(context.Background(), flowID, 7, 112, "")
 	require.ErrorContains(t, err, "session could not be consumed")
+	require.Zero(t, writes.Load())
+}
+
+func TestCopilotDeviceFlowRejectsNonOAuthAppCredential(t *testing.T) {
+	resetCopilotDeviceTestState(t)
+	var writes atomic.Int32
+	modelUpdateCopilotCredential = func(channelID int, credential string) error {
+		writes.Add(1)
+		return nil
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"access_token":"ghu_legacy-credential"}`))
+	}))
+	defer server.Close()
+	copilotDeviceTokenEndpoint = server.URL
+	flowID := "unsupported-credential-flow"
+	session := copilotDeviceSession{DeviceCode: "device", AdminID: 7, ChannelID: 112, ExpiresAt: time.Now().Add(time.Minute).Unix(), Interval: 1}
+	require.NoError(t, saveCopilotDeviceSession(flowID, session))
+
+	_, err := PollCopilotDeviceFlow(context.Background(), flowID, 7, 112, "")
+	require.EqualError(t, err, "copilot device authorization returned an unsupported credential")
 	require.Zero(t, writes.Load())
 }

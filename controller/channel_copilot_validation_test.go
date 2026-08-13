@@ -28,6 +28,12 @@ func TestValidateChannelRejectsCopilotMultiKey(t *testing.T) {
 	require.EqualError(t, validateChannel(channel, true), "Copilot channel does not support multi-key mode")
 }
 
+func TestValidateChannelAllowsEmptyCopilotCredentialOnCreate(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeCopilot}
+
+	require.NoError(t, validateChannel(channel, true))
+}
+
 func TestUpdateChannelRejectsTransitionFromMultiKeyToCopilot(t *testing.T) {
 	oldDB := model.DB
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

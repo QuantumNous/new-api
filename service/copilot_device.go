@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/cachex"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -72,12 +72,12 @@ func StartCopilotDeviceFlow(ctx context.Context, adminID int, channelID int, pro
 	if adminID <= 0 || channelID <= 0 {
 		return nil, errors.New("invalid copilot device flow owner")
 	}
-	clientID := strings.TrimSpace(common.GetEnvOrDefaultString("COPILOT_DEVICE_CLIENT_ID", ""))
+	clientID := copilotDeviceClientID()
 	if clientID == "" {
-		return nil, errors.New("Copilot Device Flow is not configured; set COPILOT_DEVICE_CLIENT_ID or use a PAT")
+		return nil, errors.New("Copilot Device Flow is not configured; configure the Copilot Client ID")
 	}
 	if !copilotDeviceRedisAvailable() {
-		return nil, errors.New("Copilot Device Flow requires Redis; use a PAT when Redis is unavailable")
+		return nil, errors.New("Copilot Device Flow requires Redis")
 	}
 	client, err := copilotHTTPClient(proxyURL, copilotDeviceTimeout)
 	if err != nil {
@@ -129,12 +129,12 @@ func StartCopilotDeviceFlow(ctx context.Context, adminID int, channelID int, pro
 }
 
 func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, channelID int, proxyURL string) (*CopilotDevicePoll, error) {
-	clientID := strings.TrimSpace(common.GetEnvOrDefaultString("COPILOT_DEVICE_CLIENT_ID", ""))
+	clientID := copilotDeviceClientID()
 	if clientID == "" {
-		return nil, errors.New("Copilot Device Flow is not configured; set COPILOT_DEVICE_CLIENT_ID or use a PAT")
+		return nil, errors.New("Copilot Device Flow is not configured; configure the Copilot Client ID")
 	}
 	if !copilotDeviceRedisAvailable() {
-		return nil, errors.New("Copilot Device Flow requires Redis; use a PAT when Redis is unavailable")
+		return nil, errors.New("Copilot Device Flow requires Redis")
 	}
 	session, found, err := loadCopilotDeviceSession(ctx, flowID)
 	if err != nil {
@@ -214,6 +214,9 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 		return nil, errors.New("copilot device authorization poll returned an invalid response")
 	}
 	if token := strings.TrimSpace(payload.AccessToken); token != "" {
+		if !strings.HasPrefix(token, "gho_") {
+			return nil, errors.New("copilot device authorization returned an unsupported credential")
+		}
 		if err := consumeCopilotDeviceFlow(ctx, flowID); err != nil {
 			return nil, errors.New("copilot device authorization session could not be consumed")
 		}
@@ -251,6 +254,10 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 	}
 }
 
+func copilotDeviceClientID() string {
+	return strings.TrimSpace(system_setting.GetCopilotSettings().ClientID)
+}
+
 func claimCopilotDeviceFlow(ctx context.Context, flowID string) (release func(), claimed bool, err error) {
 	if copilotDeviceRedisAvailable() {
 		key := copilotDeviceClaimKey(flowID)
@@ -268,7 +275,7 @@ func claimCopilotDeviceFlow(ctx context.Context, flowID string) (release func(),
 		}
 		return release, ok, nil
 	}
-	return nil, false, errors.New("Copilot Device Flow requires Redis; use a PAT when Redis is unavailable")
+	return nil, false, errors.New("Copilot Device Flow requires Redis")
 }
 
 func saveCopilotDeviceSession(flowID string, session copilotDeviceSession) error {
@@ -282,7 +289,7 @@ func saveCopilotDeviceSession(flowID string, session copilotDeviceSession) error
 		return nil
 	}
 	if !copilotDeviceRedisAvailable() {
-		return errors.New("Copilot Device Flow requires Redis; use a PAT when Redis is unavailable")
+		return errors.New("Copilot Device Flow requires Redis")
 	}
 	if err := common.RDB.Set(context.Background(), copilotDeviceSessionKey(flowID), string(encoded), ttl).Err(); err != nil {
 		return errors.New("copilot device authorization session could not be saved")
@@ -292,7 +299,7 @@ func saveCopilotDeviceSession(flowID string, session copilotDeviceSession) error
 
 func deleteCopilotDeviceFlow(ctx context.Context, flowID string) error {
 	if !copilotDeviceRedisAvailable() {
-		return errors.New("Copilot Device Flow requires Redis; use a PAT when Redis is unavailable")
+		return errors.New("Copilot Device Flow requires Redis")
 	}
 	return common.RDB.Del(ctx, copilotDeviceSessionKey(flowID)).Err()
 }
@@ -336,6 +343,17 @@ func loadCopilotDeviceSession(ctx context.Context, flowID string) (copilotDevice
 }
 
 func copilotDeviceRedisAvailable() bool { return common.RedisEnabled && common.RDB != nil }
+
+func copilotHTTPClient(proxyURL string, timeout time.Duration) (*http.Client, error) {
+	base, err := GetHttpClientWithProxy(strings.TrimSpace(proxyURL))
+	if err != nil {
+		return nil, err
+	}
+	client := *base
+	client.Timeout = timeout
+	return &client, nil
+}
+
 func copilotDeviceSessionKey(flowID string) string {
 	return cachex.Namespace(copilotDeviceNamespace).FullKey("session:" + flowID)
 }
@@ -360,8 +378,5 @@ var modelUpdateCopilotCredential = func(channelID int, credential string) error 
 	// own Pub/Sub event. Refresh this replica now instead of waiting for the
 	// periodic channel-cache sync.
 	model.InitChannelCache()
-	if err := InvalidateCopilotTokenCache(channelID); err != nil {
-		common.SysError("copilot token cache invalidation failed for channel " + strconv.Itoa(channelID))
-	}
 	return nil
 }

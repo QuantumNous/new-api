@@ -40,6 +40,7 @@ const defaultAuthSettings: AuthSettings = {
   GitHubOAuthEnabled: false,
   GitHubClientId: '',
   GitHubClientSecret: '',
+  'copilot.client_id': '',
   'discord.enabled': false,
   'discord.client_id': '',
   'discord.client_secret': '',

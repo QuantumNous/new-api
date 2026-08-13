@@ -6573,9 +6573,9 @@
     "Converge Codex device and session identifiers for shared OAuth accounts": "Связывать идентификаторы Codex для общих OAuth-аккаунтов",
     "Applies only to selected Codex channels": "Только для выбранных каналов Codex",
     "GitHub Copilot": "GitHub Copilot",
-    "GitHub token with Copilot access": "Токен GitHub с доступом к Copilot",
+    "Copilot authorization is available after saving the channel": "Авторизация Copilot доступна после сохранения канала",
     "Default: https://api.githubcopilot.com": "По умолчанию: https://api.githubcopilot.com",
-    "Save the channel first to authorize with GitHub Device Flow instead of entering a token.": "Сначала сохраните канал, чтобы использовать поток авторизации устройства GitHub вместо ввода токена.",
+    "Save the channel first, then authorize it with GitHub Device Flow.": "Сначала сохраните канал, затем авторизуйте его через поток устройства GitHub.",
     "GitHub Copilot Authorization": "Авторизация GitHub Copilot",
     "Authorize the saved channel with GitHub Device Flow.": "Авторизуйте сохранённый канал через поток устройства GitHub.",
     "Open GitHub, enter the one-time code, and approve access. This dialog detects completion automatically.": "Откройте GitHub, введите одноразовый код и подтвердите доступ. Это окно автоматически определит завершение.",
@@ -6590,7 +6590,9 @@
     "Authorization response is incomplete": "Ответ авторизации неполный",
     "GitHub authorization completed": "Авторизация GitHub завершена",
     "Authorize this saved channel with GitHub Device Flow.": "Авторизуйте этот сохранённый канал через поток устройства GitHub.",
-    "Enter a GitHub token now, or save the channel first to use GitHub Device Flow.": "Введите токен GitHub сейчас или сначала сохраните канал, чтобы использовать поток устройства GitHub.",
+    "GitHub Copilot Device Flow Client ID": "Client ID потока устройства GitHub Copilot",
+    "Your GitHub Copilot OAuth App Client ID": "Client ID вашего OAuth-приложения GitHub Copilot",
+    "Used only to start GitHub Copilot Device Flow. No client secret is required.": "Используется только для запуска потока устройства GitHub Copilot. Секрет клиента не требуется.",
     "Authorize with GitHub": "Авторизовать через GitHub",
     "GitHub Copilot channels support one credential only": "Каналы GitHub Copilot поддерживают только одни учётные данные"
   }
