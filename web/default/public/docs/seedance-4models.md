@@ -20,9 +20,7 @@ export TOKEN="sk-你的令牌"
 
 | 模型 ID | 说明 | 创建路径 | 计费 | 素材方式 |
 |---------|------|----------|------|----------|
-| `guanzhuan-seedance2.0` | Seedance 2.0 满血 | `POST /v1/video/generations` | 按秒 + 分辨率 | 公网 URL；支持 `content[]` 多模态 |
-| `guanzhuan-seedance2.0-mini` | Seedance 2.0 Mini（适合试跑） | 同上 | 按秒 + 分辨率 | 同上 |
-| `guanzhuan-seedance2.5` | Seedance 2.5 满血 | 同上 | 按秒 + 分辨率 | 同上 |
+| `doubao-seedance-2.0` | 官方 Seedance 2.0 · 多模态 · 过人脸 | `POST /v1/video/generations` | 按秒 + 分辨率 | 公网 URL；支持 `content[]` |
 | `seedance2.0` | 漫剧专线 · 720P Pro | `POST /v1/videos` | 按次 | 公网图 URL（约最多 9 张；**不支持人脸**） |
 | `seedance-2-mini-720p` | Mini 720p · 低价测试 | 同上 | 按秒 | 公网 URL |
 | `mingiz-sd2` | 星河满血 720P | `POST /v1/videos` | 按次 | multipart 或公网 URL |
@@ -44,7 +42,7 @@ export TOKEN="sk-你的令牌"
 成功 → 用返回的视频 URL，或本站 /content 接口下载
 ```
 
-创建阶段超时建议 **≥ 120 秒**。生成通常 **1～5 分钟**。
+创建阶段超时建议 **≥ 120 秒**。生成通常 **1～5 分钟**（官方线常见约 5 分钟内出片）。
 
 ---
 
@@ -69,28 +67,33 @@ curl -X POST "https://imageproxy.zhongzhuan.chat/api/upload" \
 
 ---
 
-## 4. `guanzhuan-seedance2.0` / `-mini` / `2.5`
+## 4. `doubao-seedance-2.0`
 
 创建：`POST /v1/video/generations`  
 查询：`GET /v1/video/generations/{task_id}`
 
-请按下方白名单填写 `resolution`（默认 `720p`）；不支持的档位会返回错误。
+大厅说明：官方接口，出片较快，支持过人脸。计费为按秒 + 分辨率（单价见模型大厅）。
 
-| 模型 | 支持分辨率 | 时长 | 备注 |
-|------|------------|------|------|
-| `guanzhuan-seedance2.0` | 480p / 720p / 1080p / 4k | 常见 4～15s | 支持 `camera_fixed` |
-| `guanzhuan-seedance2.0-mini` | 480p / 720p | **4～15s** | 不支持 `camera_fixed` |
-| `guanzhuan-seedance2.5` | 480p / 720p | **最长 30s** | 支持 `camera_fixed` |
+| 参数 | 说明 |
+|------|------|
+| `ratio` | `16:9` / `9:16` / `1:1` 等 |
+| `resolution` | 常见 `480p` / `720p` / `1080p`（推荐 `720p`） |
+| `duration` | 常见 5～15 秒 |
+| `generate_audio` | 是否配音 |
+| `watermark` | 是否水印 |
+| `camera_fixed` | 是否固定镜头（可选） |
 
-### 文生示例
+也可把 `ratio` / `resolution` / `duration` / `watermark` / `generate_audio` 写在 `metadata` 里。
+
+### 文生视频
 
 ```bash
 curl -s -X POST "$BASE/v1/video/generations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "guanzhuan-seedance2.0",
-    "prompt": "一只橘猫在窗边打哈欠，镜头缓慢推进",
+    "model": "doubao-seedance-2.0",
+    "prompt": "一只橘猫在窗边打哈欠",
     "ratio": "16:9",
     "resolution": "720p",
     "duration": 5,
@@ -106,7 +109,7 @@ curl -s -X POST "$BASE/v1/video/generations" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "guanzhuan-seedance2.0",
+    "model": "doubao-seedance-2.0",
     "content": [
       {
         "type": "text",
@@ -126,17 +129,12 @@ curl -s -X POST "$BASE/v1/video/generations" \
   }'
 ```
 
-| 参数 | 说明 |
-|------|------|
-| `prompt` | 提示词（未使用 `content` 文本时必填） |
-| `duration` / `seconds` | 时长（秒） |
-| `ratio` / `aspect_ratio` | 如 `16:9` / `9:16` / `1:1` |
-| `resolution` / `size` | 清晰度档位；也可用 `1280x720` |
-| `image` / `first_image` / `first_frame` | 首帧公网 URL |
-| `last_image` / `last_frame` | 尾帧公网 URL |
-| `images` / `reference_images` / `input_reference` | 参考图 |
-| `videos` / `audios` | 参考视频 / 音频公网 URL |
-| `generate_audio` / `watermark` / `camera_fixed` | 配音 / 水印 / 固定镜头（mini 忽略 `camera_fixed`） |
+| `content[].type` | 子字段 | `role`（可选） |
+|------------------|--------|----------------|
+| `text` | `text` | — |
+| `image_url` | `image_url.url` | 如 `reference_image` / `first_frame` / `last_frame` |
+| `video_url` | `video_url.url` | `reference_video` |
+| `audio_url` | `audio_url.url` | `reference_audio` |
 
 ### 查询
 
@@ -145,9 +143,8 @@ curl -s "$BASE/v1/video/generations/$TASK_ID" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-成功后视频地址通常在 `metadata.url` 或 `result_url`；也可使用 `GET /v1/videos/{task_id}/content` 下载。
-
-计费方式：按秒 + 分辨率（具体单价见模型大厅）。
+成功时常见字段：`data.status`（如 `QUEUED` / `IN_PROGRESS` / `SUCCESS` / `FAILURE`）、`data.result_url` / `content.video_url`、`data.fail_reason`。  
+也可尝试：`GET /v1/videos/{task_id}/content`。
 
 ---
 
@@ -383,9 +380,8 @@ curl -L -o out.mp4 "$BASE/v1/videos/$TASK_ID/content" \
 
 | 场景 | 推荐模型 |
 |------|----------|
-| 多分辨率（含 1080p、4k） | `guanzhuan-seedance2.0` |
-| 快速试跑 / 省钱测试 | `guanzhuan-seedance2.0-mini` 或 `seedance-2-mini-720p` |
-| 更长时长（≤30s） | `guanzhuan-seedance2.5` |
+| 官方多模态 / 过人脸 / 较快出片 | `doubao-seedance-2.0` |
+| 快速试跑 / 省钱测试 | `seedance-2-mini-720p` |
 | 漫剧专线满血（按次） | `seedance2.0` |
 | 本地文件直传 / 星河画质 | `mingiz-sd2`；要速度用 `mingiz-sd2-fast` |
 | 高分辨率 special | `seedance2.0-yk-special` |
@@ -401,9 +397,9 @@ curl -L -o out.mp4 "$BASE/v1/videos/$TASK_ID/content" \
 
 **参考图怎么传**：优先公网 `https://`；可用本文图床；`mingiz-sd2` / `mingiz-sd2-fast` 也支持 multipart 直传本地文件。
 
-**分辨率报错**：请改用该模型支持的 `resolution`（见各章节白名单）。
+**分辨率报错**：请改用该模型支持的 `resolution`（见各章节说明）。
 
-**`seedance2.0` 人脸失败**：该模型不支持人脸参考图；请换非真人图片，或改用星河等支持人脸的模型。
+**`seedance2.0` 人脸失败**：该模型不支持人脸参考图；请换非真人图片，或改用 `doubao-seedance-2.0` / 星河等支持人脸的模型。
 
 **任务失败**：查看响应中的 `fail_reason` / `error` / `message`。
 
@@ -422,4 +418,4 @@ curl -L -o out.mp4 "$BASE/v1/videos/$TASK_ID/content" \
 
 ---
 
-*文档版本：2026-08-13*
+*文档版本：2026-08-13 · 对齐模型大厅（`doubao-seedance-2.0` 等）*

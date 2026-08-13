@@ -16,13 +16,14 @@
 | `seedance2.0-431` | **暂不写**（渠道归属未确认，且用户明确排除） |
 | 结构 | 按协议族分章 + 顶部一览表 |
 
-## 覆盖模型（9）
+## 覆盖模型（现网）
 
-1. `guanzhuan-seedance2.0` / `-mini` / `2.5` → `/v1/video/generations`
+1. `doubao-seedance-2.0` → `/v1/video/generations`（已替换原 `guanzhuan-*`）
 2. `seedance2.0` / `seedance-2-mini-720p` → `/v1/videos`
 3. `mingiz-sd2` / `mingiz-sd2-fast` → `/v1/videos`（含 multipart）
-4. `seedance2.0-yk-special` → `/v1/video/generations`（强制素材库）
+4. `seedance2.0-yk-special` → `/v1/video/generations`
 5. `h3-zz` → `/v1/videos`（成片 `/content`）
+6. `seedance2.0-431` 仍不写（渠道归属未确认）
 
 ## 交付路径
 
