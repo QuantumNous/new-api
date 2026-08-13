@@ -45,19 +45,38 @@ function toImagesEndpoint(chatEndpoint: string): string {
 const CHAT_PROMPT = 'Say hello in one sentence.'
 const IMAGE_PROMPT = 'A cute cat'
 
+function toDoubleQuotedString(value: string): string {
+  return JSON.stringify(value)
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029')
+}
+
+function toJavaScriptString(value: string): string {
+  const jsonContents = toDoubleQuotedString(value).slice(1, -1)
+  return `'${jsonContents.replaceAll("'", "\\'")}'`
+}
+
+function toShellSingleQuoted(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`
+}
+
 function buildCurl(ctx: SnippetContext): string {
   const endpoint =
     ctx.kind === 'image' ? toImagesEndpoint(ctx.endpoint) : ctx.endpoint
-  const body =
+  const body = JSON.stringify(
     ctx.kind === 'image'
-      ? `{"model":"${ctx.model}","prompt":"${IMAGE_PROMPT}","size":"1024x1024"}`
-      : `{"model":"${ctx.model}","messages":[{"role":"user","content":"${CHAT_PROMPT}"}]}`
+      ? { model: ctx.model, prompt: IMAGE_PROMPT, size: '1024x1024' }
+      : {
+          model: ctx.model,
+          messages: [{ role: 'user', content: CHAT_PROMPT }],
+        }
+  )
 
   return [
     `curl ${endpoint} \\`,
     '  -H "Content-Type: application/json" \\',
     `  -H "Authorization: Bearer ${ctx.apiKey}" \\`,
-    `  -d '${body}'`,
+    `  -d ${toShellSingleQuoted(body)}`,
   ].join('\n')
 }
 
@@ -67,8 +86,8 @@ function buildNode(ctx: SnippetContext): string {
     "import OpenAI from 'openai'",
     '',
     'const client = new OpenAI({',
-    `  apiKey: '${ctx.apiKey}',`,
-    `  baseURL: '${baseUrl}',`,
+    `  apiKey: ${toJavaScriptString(ctx.apiKey)},`,
+    `  baseURL: ${toJavaScriptString(baseUrl)},`,
     '})',
     '',
   ]
@@ -77,8 +96,8 @@ function buildNode(ctx: SnippetContext): string {
     return [
       ...client,
       'const image = await client.images.generate({',
-      `  model: '${ctx.model}',`,
-      `  prompt: '${IMAGE_PROMPT}',`,
+      `  model: ${toJavaScriptString(ctx.model)},`,
+      `  prompt: ${toJavaScriptString(IMAGE_PROMPT)},`,
       "  size: '1024x1024',",
       '})',
       '',
@@ -89,8 +108,8 @@ function buildNode(ctx: SnippetContext): string {
   return [
     ...client,
     'const completion = await client.chat.completions.create({',
-    `  model: '${ctx.model}',`,
-    `  messages: [{ role: 'user', content: '${CHAT_PROMPT}' }],`,
+    `  model: ${toJavaScriptString(ctx.model)},`,
+    `  messages: [{ role: 'user', content: ${toJavaScriptString(CHAT_PROMPT)} }],`,
     '})',
     '',
     'console.log(completion.choices[0].message.content)',
@@ -103,8 +122,8 @@ function buildPython(ctx: SnippetContext): string {
     'from openai import OpenAI',
     '',
     'client = OpenAI(',
-    `    api_key="${ctx.apiKey}",`,
-    `    base_url="${baseUrl}",`,
+    `    api_key=${toDoubleQuotedString(ctx.apiKey)},`,
+    `    base_url=${toDoubleQuotedString(baseUrl)},`,
     ')',
     '',
   ]
@@ -113,8 +132,8 @@ function buildPython(ctx: SnippetContext): string {
     return [
       ...client,
       'image = client.images.generate(',
-      `    model="${ctx.model}",`,
-      `    prompt="${IMAGE_PROMPT}",`,
+      `    model=${toDoubleQuotedString(ctx.model)},`,
+      `    prompt=${toDoubleQuotedString(IMAGE_PROMPT)},`,
       '    size="1024x1024",',
       ')',
       '',
@@ -125,8 +144,8 @@ function buildPython(ctx: SnippetContext): string {
   return [
     ...client,
     'completion = client.chat.completions.create(',
-    `    model="${ctx.model}",`,
-    `    messages=[{"role": "user", "content": "${CHAT_PROMPT}"}],`,
+    `    model=${toDoubleQuotedString(ctx.model)},`,
+    `    messages=[{"role": "user", "content": ${toDoubleQuotedString(CHAT_PROMPT)}}],`,
     ')',
     '',
     'print(completion.choices[0].message.content)',
@@ -157,6 +176,17 @@ export function buildSdkSnippet(
     return ['pip install openai', '', buildPython(ctx)].join('\n')
   }
   return buildCurl(ctx)
+}
+
+export function getSnippetCopyValue(
+  code: string,
+  displayedKey: string,
+  selectedKeyId: number | null,
+  resolvedKey?: string
+): string | undefined {
+  if (!displayedKey || !code.includes(displayedKey)) return code
+  if (selectedKeyId === null || !resolvedKey) return undefined
+  return code.replaceAll(displayedKey, () => resolvedKey)
 }
 
 export const CLI_INSTALL_COMMAND = 'npm i -g @flatkey-ai/cli'

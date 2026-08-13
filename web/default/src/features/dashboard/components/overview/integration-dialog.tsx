@@ -45,6 +45,7 @@ import {
   buildApiSnippet,
   buildSdkSnippet,
   detectAgentPlatform,
+  getSnippetCopyValue,
   CLI_INSTALL_COMMAND,
   CLI_LOGIN_COMMAND,
   type AgentPlatform,
@@ -171,18 +172,15 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
   // list behaves elsewhere in the console. Copying stays disabled until the real
   // key arrives, so nobody walks away with an unusable masked snippet.
   const renderCode = (code: string) => {
-    const needsKey = props.selectedKeyId !== null && code.includes(maskedKey)
-
     return (
       <CodeBlock
         code={code}
-        copyValue={
-          needsKey
-            ? realKey
-              ? code.replaceAll(maskedKey, realKey)
-              : undefined
-            : code
-        }
+        copyValue={getSnippetCopyValue(
+          code,
+          maskedKey,
+          props.selectedKeyId,
+          realKey
+        )}
       />
     )
   }
