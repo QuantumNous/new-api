@@ -23,6 +23,8 @@ import {
   buildSdkSnippet,
   detectAgentPlatform,
   getSnippetCopyValue,
+  resolveApiEndpoint,
+  resolveSnippetModel,
   type SnippetContext,
 } from './integration-snippets'
 
@@ -174,6 +176,66 @@ print(completion.choices[0].message.content)`)
       expect(snippet).toContain('https://console.example.ai/v1')
       expect(snippet).not.toContain('/v1/chat/completions')
       expect(snippet).toContain('sk-test')
+    }
+  })
+})
+
+describe('integration context resolution', () => {
+  test('uses the status router address for staging requests', () => {
+    expect(
+      resolveApiEndpoint(
+        'https://staging-router.flatkey.ai',
+        'https://staging-console.flatkey.ai'
+      )
+    ).toBe('https://staging-router.flatkey.ai/v1/chat/completions')
+  })
+
+  test('derives the production router address when status is unavailable', () => {
+    expect(resolveApiEndpoint(undefined, 'https://console.flatkey.ai')).toBe(
+      'https://router.flatkey.ai/v1/chat/completions'
+    )
+  })
+
+  test('does not publish a local preview origin as a runnable endpoint', () => {
+    expect(resolveApiEndpoint(undefined, 'http://localhost:3000')).toBe(
+      'https://router.flatkey.ai/v1/chat/completions'
+    )
+  })
+
+  test('does not publish malformed origins as runnable endpoints', () => {
+    expect(resolveApiEndpoint(undefined, 'not a valid absolute URL')).toBe(
+      'https://router.flatkey.ai/v1/chat/completions'
+    )
+  })
+
+  test('falls back from a stale model selection', () => {
+    const availableModels = ['gpt-4o-mini', 'gpt-5-mini']
+    const selectedModel = 'model-from-previous-key'
+    expect(
+      resolveSnippetModel(selectedModel, availableModels, availableModels[0])
+    ).toBe('gpt-4o-mini')
+  })
+
+  test('honors the model selected in the picker on every render', () => {
+    const selectedModel = resolveSnippetModel(
+      'vendor/selected-model',
+      ['vendor/selected-model', 'gpt-4o-mini'],
+      'gpt-4o-mini'
+    )
+    const selectedContext: SnippetContext = {
+      ...CHAT,
+      model: selectedModel,
+    }
+
+    expect(selectedModel).toBe('vendor/selected-model')
+    expect(resolveSnippetModel(null, [], 'gpt-4o-mini')).toBe('gpt-4o-mini')
+    for (const language of ['curl', 'node', 'python'] as const) {
+      expect(buildApiSnippet(language, selectedContext)).toContain(
+        selectedModel
+      )
+      expect(buildSdkSnippet(language, selectedContext)).toContain(
+        selectedModel
+      )
     }
   })
 })

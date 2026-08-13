@@ -162,7 +162,13 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
   )
 
   const card = cards.find((item) => item.id === props.integrationId)
-  const maskedKey = props.snippetContext.apiKey
+  // Keep the picker value authoritative even if the parent is rendering a
+  // previously memoized context while the model query settles.
+  const snippetContext = {
+    ...props.snippetContext,
+    model: props.selectedModel,
+  }
+  const maskedKey = snippetContext.apiKey
   const realKey =
     props.selectedKeyId === null
       ? undefined
@@ -235,7 +241,7 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
                   onChange={props.onSelectModel}
                 />
               </div>
-              {renderCode(buildApiSnippet(apiLanguage, props.snippetContext))}
+              {renderCode(buildApiSnippet(apiLanguage, snippetContext))}
             </div>
           </div>
         )}
@@ -264,7 +270,7 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
                   onChange={props.onSelectModel}
                 />
               </div>
-              {renderCode(buildSdkSnippet(sdkLanguage, props.snippetContext))}
+              {renderCode(buildSdkSnippet(sdkLanguage, snippetContext))}
             </div>
           </div>
         )}

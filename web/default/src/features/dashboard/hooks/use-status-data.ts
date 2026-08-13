@@ -25,12 +25,16 @@ import type { ApiInfoItem } from '../types'
 function useStatusData<T = unknown>(
   enabledKey: string,
   dataKey: string
-): { items: T[]; loading: boolean } {
+): {
+  items: T[]
+  loading: boolean
+  status: ReturnType<typeof useStatus>['status']
+} {
   const { status, loading } = useStatus()
   const enabled = status ? status[enabledKey] !== false : false
   const items = (enabled ? status?.[dataKey] || [] : []) as T[]
 
-  return { items, loading }
+  return { items, loading, status }
 }
 
 /**

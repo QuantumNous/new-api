@@ -34,6 +34,78 @@ export interface SnippetContext {
   apiKey: string
 }
 
+const DEFAULT_ROUTER_ORIGIN = 'https://router.flatkey.ai'
+
+function normalizeOrigin(source: string | undefined): string {
+  return source?.trim().replace(/\/+$/, '') ?? ''
+}
+
+function inferRouterOrigin(browserOrigin: string | undefined): string {
+  const origin = normalizeOrigin(browserOrigin)
+  if (!origin) return DEFAULT_ROUTER_ORIGIN
+
+  try {
+    const url = new URL(origin)
+    if (url.hostname.startsWith('staging-console.')) {
+      url.hostname = url.hostname.replace(
+        /^staging-console\./,
+        'staging-router.'
+      )
+    } else if (url.hostname.startsWith('console.')) {
+      url.hostname = url.hostname.replace(/^console\./, 'router.')
+    } else if (
+      !url.hostname.startsWith('staging-router.') &&
+      !url.hostname.startsWith('router.')
+    ) {
+      // A local preview or an unrelated proxy origin is not a public model
+      // gateway. Never publish a copyable command that points at it.
+      return DEFAULT_ROUTER_ORIGIN
+    }
+    url.pathname = ''
+    url.search = ''
+    url.hash = ''
+    return normalizeOrigin(url.toString())
+  } catch {
+    return DEFAULT_ROUTER_ORIGIN
+  }
+}
+
+function normalizeChatEndpoint(source: string | undefined): string {
+  const origin = normalizeOrigin(source)
+  if (!origin) return ''
+  if (origin.endsWith('/v1/chat/completions')) return origin
+  if (origin.endsWith('/v1')) return `${origin}/chat/completions`
+  return `${origin}/v1/chat/completions`
+}
+
+/**
+ * Resolve the public model-router endpoint used by copyable examples.
+ * `/api/status.server_address` is authoritative. If status is unavailable,
+ * known console origins are converted to their router hostnames; every other
+ * origin falls back to the public production router.
+ */
+export function resolveApiEndpoint(
+  serverAddress: string | undefined,
+  browserOrigin: string | undefined
+): string {
+  return (
+    normalizeChatEndpoint(serverAddress) ||
+    normalizeChatEndpoint(inferRouterOrigin(browserOrigin))
+  )
+}
+
+/** Keep the picker selection authoritative over the initial example default. */
+export function resolveSnippetModel(
+  selectedModel: string | null | undefined,
+  availableModels: string[],
+  fallbackModel: string
+): string {
+  const selected = selectedModel?.trim()
+  return selected && availableModels.includes(selected)
+    ? selected
+    : fallbackModel
+}
+
 function toBaseUrl(chatEndpoint: string): string {
   return chatEndpoint.replace(/\/chat\/completions$/, '')
 }

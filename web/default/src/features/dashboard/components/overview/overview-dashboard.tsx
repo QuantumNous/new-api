@@ -28,6 +28,8 @@ import { IntegrationCards } from './integration-cards'
 import { IntegrationDialog } from './integration-dialog'
 import {
   API_KEY_PLACEHOLDER,
+  resolveApiEndpoint,
+  resolveSnippetModel,
   type IntegrationId,
   type SnippetContext,
   type SnippetKind,
@@ -76,33 +78,32 @@ function pickDefaultModel(models: string[]): string {
   )
 }
 
-function normalizeEndpoint(sourceUrl?: string): string {
-  const fallback = `${getCurrentOrigin()}/v1/chat/completions`
-  const trimmed = sourceUrl?.trim()
-  if (!trimmed) return fallback
-
-  const withoutTrailingSlash = trimmed.replace(/\/+$/, '')
-  if (withoutTrailingSlash.endsWith('/v1/chat/completions')) {
-    return withoutTrailingSlash
-  }
-  if (withoutTrailingSlash.endsWith('/v1')) {
-    return `${withoutTrailingSlash}/chat/completions`
-  }
-  return `${withoutTrailingSlash}/v1/chat/completions`
-}
-
 function getPreferredKey(keys: ApiKey[]): ApiKey | null {
   return keys.find((item) => item.status === 1) ?? keys[0] ?? null
 }
 
 export function OverviewDashboard() {
   const user = useAuthStore((state) => state.auth.user)
-  const { items: apiInfoItems } = useApiInfo()
+  const { status } = useApiInfo()
   const [openIntegration, setOpenIntegration] = useState<IntegrationId | null>(
     null
   )
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
+
+  const serverAddress = useMemo(() => {
+    const statusRecord = status as Record<string, unknown> | null
+    const nestedData =
+      statusRecord?.data && typeof statusRecord.data === 'object'
+        ? (statusRecord.data as Record<string, unknown>)
+        : undefined
+    const value =
+      statusRecord?.server_address ??
+      statusRecord?.serverAddress ??
+      nestedData?.server_address ??
+      nestedData?.serverAddress
+    return typeof value === 'string' ? value : undefined
+  }, [status])
 
   const apiKeysQuery = useQuery({
     queryKey: ['dashboard', 'overview', 'api-keys'],
@@ -190,20 +191,18 @@ export function OverviewDashboard() {
   }, [classifyModel, modelsQuery.data])
 
   const exampleModel = useMemo(() => {
-    if (selectedModel && availableModels.includes(selectedModel)) {
-      return selectedModel
-    }
-    return pickDefaultModel(availableModels)
+    const fallbackModel = pickDefaultModel(availableModels)
+    return resolveSnippetModel(selectedModel, availableModels, fallbackModel)
   }, [availableModels, selectedModel])
 
   const snippetContext = useMemo<SnippetContext>(
     () => ({
-      endpoint: normalizeEndpoint(apiInfoItems[0]?.url),
+      endpoint: resolveApiEndpoint(serverAddress, getCurrentOrigin()),
       model: exampleModel,
       kind: classifyModel(exampleModel) ?? 'chat',
       apiKey: selectedKey ? `sk-${selectedKey.key}` : API_KEY_PLACEHOLDER,
     }),
-    [apiInfoItems, classifyModel, exampleModel, selectedKey]
+    [classifyModel, exampleModel, selectedKey, serverAddress]
   )
 
   return (
