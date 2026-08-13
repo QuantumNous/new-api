@@ -385,6 +385,10 @@ export async function handleUpdateChannelBalance(
       )
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       onSuccess?.(balance)
+    } else if (response.success && response.raw_response !== undefined) {
+      toast.info(
+        i18next.t('Open Query Balance to view the upstream JSON response')
+      )
     } else {
       toast.error(response.message || i18next.t('Failed to update balance'))
     }

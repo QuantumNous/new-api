@@ -22,7 +22,12 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import {
+  CodeBlock,
+  CodeBlockCopyButton,
+} from '@/components/ai-elements/code-block'
 import { Dialog } from '@/components/dialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { formatCurrencyFromUSD } from '@/lib/currency'
@@ -53,6 +58,7 @@ export function BalanceQueryDialog({
   const [balanceUpdatedTime, setBalanceUpdatedTime] = useState<number | null>(
     null
   )
+  const [rawResponse, setRawResponse] = useState<string | null>(null)
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
 
@@ -109,6 +115,9 @@ export function BalanceQueryDialog({
         await queryClient.invalidateQueries({
           queryKey: channelsQueryKeys.lists(),
         })
+        setRawResponse(null)
+      } else if (response.success && response.raw_response !== undefined) {
+        setRawResponse(response.raw_response)
       } else {
         toast.error(response.message || t('Failed to query balance'))
       }
@@ -124,6 +133,7 @@ export function BalanceQueryDialog({
   const handleClose = () => {
     setBalance(null)
     setBalanceUpdatedTime(null)
+    setRawResponse(null)
     setCodexUsageResponse(null)
     onOpenChange(false)
   }
@@ -176,24 +186,50 @@ export function BalanceQueryDialog({
       }
     >
       <div className='space-y-4 py-4'>
-        {/* Current Balance Display */}
-        <div className='bg-muted/50 rounded-lg border p-4'>
-          <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
-            <IconBadge tone='success' size='xs'>
-              <DollarSign />
-            </IconBadge>
-            <span>{t('Current Balance')}</span>
-          </div>
-          <div className='text-2xl font-bold'>
-            {balance !== null
-              ? formatBalance(balance)
-              : formatBalance(currentRow.balance)}
-          </div>
-          <div className='text-muted-foreground mt-2 text-xs'>
-            {t('Last updated:')}{' '}
-            {formatDate(balanceUpdatedTime ?? currentRow.balance_updated_time)}
-          </div>
-        </div>
+        {rawResponse !== null ? (
+          <>
+            <Alert>
+              <AlertTitle>{t('Balance response not recognized')}</AlertTitle>
+              <AlertDescription>
+                {t(
+                  'The upstream response is valid JSON, but it does not match the OpenAI credit_summary format. The channel balance was not updated.'
+                )}
+              </AlertDescription>
+            </Alert>
+            <CodeBlock
+              code={rawResponse}
+              language='json'
+              maxExpandedLines={24}
+              showLineNumbers
+              title={t('Upstream JSON response')}
+            >
+              <CodeBlockCopyButton />
+            </CodeBlock>
+          </>
+        ) : (
+          <>
+            {/* Current Balance Display */}
+            <div className='bg-muted/50 rounded-lg border p-4'>
+              <div className='text-muted-foreground mb-2 flex items-center gap-2 text-sm'>
+                <IconBadge tone='success' size='xs'>
+                  <DollarSign />
+                </IconBadge>
+                <span>{t('Current Balance')}</span>
+              </div>
+              <div className='text-2xl font-bold'>
+                {balance !== null
+                  ? formatBalance(balance)
+                  : formatBalance(currentRow.balance)}
+              </div>
+              <div className='text-muted-foreground mt-2 text-xs'>
+                {t('Last updated:')}{' '}
+                {formatDate(
+                  balanceUpdatedTime ?? currentRow.balance_updated_time
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Balance Update Button */}
         <Button
