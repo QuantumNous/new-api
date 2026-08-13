@@ -12,6 +12,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -536,6 +537,17 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+	// F-36: cap non-stream upstream response bodies. Handlers read them fully
+	// with io.ReadAll; an unbounded body from a misbehaving/malicious upstream
+	// (e.g. free proxies) would OOM the gateway. Streams are read
+	// incrementally and are not capped here.
+	if !info.IsStream && resp.Body != nil {
+		maxBytes := int64(rootconstant.MaxRelayResponseMB) << 20
+		if maxBytes <= 0 {
+			maxBytes = 64 << 20
+		}
+		resp.Body = io.NopCloser(io.LimitReader(resp.Body, maxBytes+1))
 	}
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)
