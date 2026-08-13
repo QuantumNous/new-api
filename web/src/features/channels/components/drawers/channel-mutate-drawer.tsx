@@ -283,7 +283,7 @@ const SENSITIVE_FORM_FIELDS = [
   'azure_responses_version',
   'force_format',
   'thinking_to_content',
-  'openai_prompt_includes_cache',
+  'anthropic_messages_exclude_cache',
   'proxy',
   'http_protocol',
   'http2_connection_shards',
@@ -340,7 +340,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.system_prompt?.trim() ||
     values.force_format ||
     values.thinking_to_content ||
-    values.openai_prompt_includes_cache ||
+    values.anthropic_messages_exclude_cache ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     (values.http_protocol && values.http_protocol !== 'auto') ||
@@ -747,8 +747,8 @@ export function ChannelMutateDrawer({
   const currentHeaderOverride = form.watch('header_override')
   const currentForceFormat = form.watch('force_format')
   const currentThinkingToContent = form.watch('thinking_to_content')
-  const currentOpenAIPromptIncludesCache = form.watch(
-    'openai_prompt_includes_cache'
+  const currentAnthropicMessagesExcludeCache = form.watch(
+    'anthropic_messages_exclude_cache'
   )
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
   const currentDisableTaskPollingSleep = form.watch(
@@ -1022,7 +1022,7 @@ export function ChannelMutateDrawer({
   const extraSettingsConfigured = Boolean(
     currentForceFormat ||
     currentThinkingToContent ||
-    currentOpenAIPromptIncludesCache ||
+    currentAnthropicMessagesExcludeCache ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
@@ -4127,7 +4127,7 @@ export function ChannelMutateDrawer({
 
                               <FormField
                                 control={form.control}
-                                name='openai_prompt_includes_cache'
+                                name='anthropic_messages_exclude_cache'
                                 render={({ field }) => (
                                   <FormItem className='flex items-center justify-between px-4 py-3'>
                                     <div className='space-y-0.5'>

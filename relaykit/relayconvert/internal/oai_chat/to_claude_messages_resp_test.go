@@ -83,12 +83,12 @@ func TestResponseOpenAI2ClaudeUsageCarriesOpenAIBillingUsage(t *testing.T) {
 func switchOnMeta() convmeta.Meta {
 	return &convmeta.Values{
 		Options: &convmeta.Options{
-			Claude: convmeta.ClaudeOptions{OpenAIPromptIncludesCache: true},
+			Claude: convmeta.ClaudeOptions{AnthropicMessagesExcludeCache: true},
 		},
 	}
 }
 
-func TestBuildClaudeUsageFromOpenAIPromptIncludesCache(t *testing.T) {
+func TestBuildClaudeUsageFromAnthropicMessagesExcludeCache(t *testing.T) {
 	anthropicUsage := &dto.ClaudeUsage{
 		InputTokens:          99,
 		OutputTokens:         912,
@@ -289,7 +289,7 @@ func TestStreamResponseOpenAI2ClaudeSubtractsCacheWhenSwitchOn(t *testing.T) {
 			Index:            0,
 		},
 		Options: &convmeta.Options{
-			Claude: convmeta.ClaudeOptions{OpenAIPromptIncludesCache: true},
+			Claude: convmeta.ClaudeOptions{AnthropicMessagesExcludeCache: true},
 		},
 	}
 
@@ -450,6 +450,61 @@ func TestStreamResponseOpenAI2ClaudeClosesTextThinkingAndToolBlocks(t *testing.T
 	assert.Equal(t, 7, finishResponses[1].Usage.BillingUsage.OpenAIUsage.PromptTokens)
 	assert.Equal(t, 3, finishResponses[1].Usage.BillingUsage.OpenAIUsage.CompletionTokens)
 	assert.Equal(t, "message_stop", finishResponses[2].Type)
+}
+
+func TestStreamResponseOpenAI2ClaudeMessageStartZerosInputWhenSwitchOn(t *testing.T) {
+	info := &convmeta.Values{
+		SendResponseCount:    1,
+		EstimatePromptTokens: 29829,
+		Options: &convmeta.Options{
+			Claude: convmeta.ClaudeOptions{AnthropicMessagesExcludeCache: true},
+		},
+	}
+
+	responses := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Content: ptr("hello"),
+				},
+			},
+		},
+	}, info)
+	require.NotEmpty(t, responses)
+	require.Equal(t, "message_start", responses[0].Type)
+	require.NotNil(t, responses[0].Message)
+	require.NotNil(t, responses[0].Message.Usage)
+	assert.Equal(t, 0, responses[0].Message.Usage.InputTokens)
+	assert.Equal(t, 0, responses[0].Message.Usage.OutputTokens)
+	assert.Equal(t, 0, responses[0].Message.Usage.CacheReadInputTokens)
+	assert.Equal(t, 0, responses[0].Message.Usage.CacheCreationInputTokens)
+}
+
+func TestStreamResponseOpenAI2ClaudeMessageStartKeepsEstimateWhenSwitchOff(t *testing.T) {
+	info := &convmeta.Values{
+		SendResponseCount:    1,
+		EstimatePromptTokens: 29829,
+	}
+
+	responses := StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Content: ptr("hello"),
+				},
+			},
+		},
+	}, info)
+	require.NotEmpty(t, responses)
+	require.Equal(t, "message_start", responses[0].Type)
+	require.NotNil(t, responses[0].Message)
+	require.NotNil(t, responses[0].Message.Usage)
+	assert.Equal(t, 29829, responses[0].Message.Usage.InputTokens)
+	assert.Equal(t, 0, responses[0].Message.Usage.OutputTokens)
 }
 
 func TestNormalizeCacheCreationSplit(t *testing.T) {

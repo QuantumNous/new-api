@@ -16,8 +16,8 @@
    - 用于标识是否将思考内容`reasoning_content`转换为`<think>`标签拼接到内容中返回
    - 类型为布尔值，设置为 true 时启用思考内容转换
 
-4. openai_prompt_includes_cache
-   - 转换为 Anthropic Messages 时，从 `input_tokens` 中减去 `cache_read_input_tokens` 与 `cache_creation_input_tokens`
+4. anthropic_messages_exclude_cache
+   - 转换为 Anthropic Messages 时，从 `input_tokens` 中减去 `cache_read_input_tokens` 与 `cache_creation_input_tokens`；流式 `message_start` 的 `input_tokens` 置 0，避免客户端把预估 prompt 和终态 usage 叠在一起
    - 类型为布尔值，默认 false / 省略。在 Claude Code 中使用此渠道时建议开启，避免客户端用量统计把缓存算进 `input_tokens`
    - 仅影响返回给 Anthropic Messages 客户端的 usage，不影响计费、Chat Completions 客户端，也不影响 New API 内日志显示的用量
 
@@ -31,7 +31,7 @@
 {
     "force_format": true,
     "thinking_to_content": true,
-    "openai_prompt_includes_cache": true,
+    "anthropic_messages_exclude_cache": true,
     "proxy": "socks5://proxy.example:1080"
 }
 ```

@@ -82,7 +82,7 @@ export type Channel = z.infer<typeof channelSchema>
 export interface ChannelSettings {
   force_format?: boolean
   thinking_to_content?: boolean
-  openai_prompt_includes_cache?: boolean
+  anthropic_messages_exclude_cache?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean
   system_prompt?: string

@@ -61,7 +61,7 @@ func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage, info convmeta.Meta) *d
 	cacheCreate := oaiUsage.PromptTokensDetails.CacheCreationTokensTotal()
 	inputTokens := oaiUsage.PromptTokens
 	excludeCache := oaiUsage.PromptTokensDetails.CacheWriteTokens > 0 ||
-		convmeta.OptionsOf(info).Claude.OpenAIPromptIncludesCache
+		convmeta.OptionsOf(info).Claude.AnthropicMessagesExcludeCache
 	if excludeCache {
 		if cacheRead > 0 {
 			if inputTokens < cacheRead {
@@ -143,13 +143,17 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		state.LastMessagesType = convmeta.LastMessageTypeNone
 	}
 	if info.GetSendResponseCount() == 1 {
+		startInputTokens := info.GetEstimatePromptTokens()
+		if convmeta.OptionsOf(info).Claude.AnthropicMessagesExcludeCache {
+			startInputTokens = 0
+		}
 		msg := &dto.ClaudeMediaMessage{
 			Id:    openAIResponse.Id,
 			Model: openAIResponse.Model,
 			Type:  "message",
 			Role:  "assistant",
 			Usage: &dto.ClaudeUsage{
-				InputTokens:  info.GetEstimatePromptTokens(),
+				InputTokens:  startInputTokens,
 				OutputTokens: 0,
 			},
 		}
