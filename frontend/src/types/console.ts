@@ -301,6 +301,49 @@ export interface LogItem {
 }
 
 /* ------------------------------------------------------------------ */
+/* relay task logs — drawing (Midjourney) and async platform tasks      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Task status strings shared by /api/mj/self and /api/task/self.
+ * The backend may introduce new states, so display mappings must keep a
+ * fallback instead of the contract rejecting unknown values.
+ */
+export type RelayTaskStatus = string
+
+/** One row from /api/mj/self. Timestamps are in milliseconds. */
+export interface DrawingLogItem {
+  id: number
+  mj_id: string
+  action: string
+  prompt: string
+  prompt_en: string
+  status: RelayTaskStatus
+  progress: string
+  fail_reason: string
+  image_url: string
+  video_url: string
+  quota: number
+  submit_time: number
+  finish_time: number
+}
+
+/** One row from /api/task/self. Timestamps are in seconds. */
+export interface RelayTaskLogItem {
+  id: number
+  task_id: string
+  platform: string
+  action: string
+  status: RelayTaskStatus
+  progress: string
+  fail_reason: string
+  result_url: string
+  quota: number
+  submit_time: number
+  finish_time: number
+}
+
+/* ------------------------------------------------------------------ */
 /* plan catalogue — traffic packs and subscription packs                 */
 /* ------------------------------------------------------------------ */
 

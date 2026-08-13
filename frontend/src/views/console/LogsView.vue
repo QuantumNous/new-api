@@ -29,6 +29,7 @@ import FilterSelect from '@/components/common/FilterSelect.vue'
 import FormField from '@/components/common/FormField.vue'
 import IconButton from '@/components/common/IconButton.vue'
 import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
+import LogsNavTabs from '@/components/console/log-ui/LogsNavTabs.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
@@ -459,9 +460,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div data-log-page class="mx-auto max-w-[1276px]">
-    <PageBreadcrumb
-      :crumbs="[t('logs.breadcrumb.0'), t('logs.breadcrumb.1')]"
-    />
+    <PageBreadcrumb :crumbs="[t('logs.breadcrumb.0'), t('logs.breadcrumb.1')]">
+      <template #action>
+        <LogsNavTabs active="consume" />
+      </template>
+    </PageBreadcrumb>
 
     <!-- stat strip -->
     <ConsoleCard class="mb-5" :padded="false">

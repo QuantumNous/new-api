@@ -1,17 +1,13 @@
 package controller
 
 import (
-	"fmt"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -221,84 +217,23 @@ func NextCreateEpayTopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if !isEpayTopUpEnabled() {
-		nextBusinessError(c, "epay is not configured", "PAYMENT_UNAVAILABLE")
-		return
-	}
-
+	// Order creation is single-sourced in createEpayTopUpOrder (topup.go),
+	// shared with the legacy POST /api/user/pay endpoint.
 	method := strings.TrimSpace(strings.TrimPrefix(req.PaymentMethod, "epay:"))
-	if method == "" || !operation_setting.ContainsPayMethod(method) {
-		nextBusinessError(c, "payment method unavailable", "PAYMENT_UNAVAILABLE")
-		return
-	}
-	if req.Amount < getMinTopup() {
-		nextBusinessError(c, fmt.Sprintf("minimum topup is %d", getMinTopup()), "VALIDATION_ERROR")
-		return
-	}
-
-	userID := c.GetInt("id")
-	group, err := model.GetUserGroup(userID, true)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	payMoney := getPayMoney(req.Amount, group)
-	if payMoney < 0.01 {
-		nextBusinessError(c, "topup amount is too low", "VALIDATION_ERROR")
-		return
-	}
-
-	client := GetEpayClient()
-	if client == nil {
-		nextBusinessError(c, "epay is not configured", "PAYMENT_UNAVAILABLE")
-		return
-	}
-	callbackAddress := service.GetCallbackAddress()
-	returnURL, _ := url.Parse(paymentReturnPath("/usage-logs"))
-	notifyURL, _ := url.Parse(callbackAddress + "/api/user/epay/notify")
-	tradeNo := fmt.Sprintf("USR%dNO%s%d", userID, common.GetRandomString(6), time.Now().Unix())
-	uri, params, err := client.Purchase(&epay.PurchaseArgs{
-		Type:           method,
-		ServiceTradeNo: tradeNo,
-		Name:           fmt.Sprintf("TUC%d", req.Amount),
-		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
-		Device:         epay.PC,
-		NotifyUrl:      notifyURL,
-		ReturnUrl:      returnURL,
-	})
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		amount = decimal.NewFromInt(amount).
-			Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
-	}
-	topUp := &model.TopUp{
-		UserId:          userID,
-		Amount:          amount,
-		Money:           payMoney,
-		TradeNo:         tradeNo,
-		PaymentMethod:   method,
-		PaymentProvider: model.PaymentProviderEpay,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
-	}
-	if err := topUp.Insert(); err != nil {
-		common.ApiError(c, err)
+	order, orderErr := createEpayTopUpOrder(c, c.GetInt("id"), req.Amount, method)
+	if orderErr != nil {
+		nextBusinessError(c, orderErr.Message, orderErr.Code)
 		return
 	}
 
 	common.ApiSuccess(c, gin.H{
-		"trade_no":       tradeNo,
+		"trade_no":       order.TradeNo,
 		"status":         "PENDING",
-		"amount":         amount,
-		"money":          payMoney,
-		"payment_method": method,
-		"url":            uri,
-		"data":           params,
+		"amount":         order.Amount,
+		"money":          order.PayMoney,
+		"payment_method": order.Method,
+		"url":            order.PayURL,
+		"data":           order.PayParams,
 	})
 }
 

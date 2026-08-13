@@ -163,6 +163,28 @@ const router = createRouter({
           meta: { wide: true, noPageScroll: true, feature: 'logs' },
         },
         {
+          path: 'logs/drawing',
+          name: 'logs-drawing',
+          component: () => import('@/views/console/DrawingLogsView.vue'),
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            feature: 'logs',
+            nav: 'logs',
+          },
+        },
+        {
+          path: 'logs/tasks',
+          name: 'logs-tasks',
+          component: () => import('@/views/console/TaskLogsView.vue'),
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            feature: 'logs',
+            nav: 'logs',
+          },
+        },
+        {
           path: 'channels',
           name: 'channels',
           component: () => import('@/views/console/ChannelsView.vue'),

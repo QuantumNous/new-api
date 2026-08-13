@@ -7,8 +7,16 @@ export interface ConsoleNavItem {
   name: string
   labelKey: string
   route?: string
+  /**
+   * Same-origin absolute path rendered as a plain full-page link. Used for
+   * explicit compatibility entries into the legacy React console, which the
+   * Go router serves for whitelisted paths (see router/web-router.go).
+   */
+  href?: string
   icon: string
   disabled?: boolean
+  /** Restrict the item to root users (role >= 100). */
+  rootOnly?: boolean
   permission?: { resource: string; action: string }
   feature?: string
 }
@@ -22,6 +30,7 @@ export interface ConsoleNavGroup {
 
 export interface ConsoleNavAccessContext {
   isAdmin: boolean
+  isRoot?: boolean
   hasPermission?: (resource: string, action: string) => boolean
   featureStatus?: (feature: string) => 'live' | 'disabled'
 }
@@ -150,6 +159,15 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         feature: 'orders',
         icon: 'M9 5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 3h6v4H9zM9 12h6M9 16h6',
       },
+      {
+        // Full-page compatibility entry into the legacy React console; the
+        // system settings surface (root-only /api/option) has no Vue page.
+        name: 'system-settings',
+        labelKey: 'nav.systemSettings',
+        href: '/system-settings',
+        rootOnly: true,
+        icon: 'M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+      },
     ],
   },
 ]
@@ -177,11 +195,12 @@ export function getAccessibleConsoleNavGroups(
     if (!canAccessConsoleNavGroup(group, context)) return []
     const items = group.items.filter(
       (item) =>
-        !item.permission ||
-        context.hasPermission?.(
-          item.permission.resource,
-          item.permission.action
-        ) === true
+        (!item.rootOnly || context.isRoot === true) &&
+        (!item.permission ||
+          context.hasPermission?.(
+            item.permission.resource,
+            item.permission.action
+          ) === true)
     )
     const resolvedItems = items.map((item) => ({
       ...item,

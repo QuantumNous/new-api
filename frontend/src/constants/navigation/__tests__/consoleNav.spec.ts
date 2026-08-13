@@ -18,6 +18,7 @@ describe('console navigation', () => {
       'redemption-management',
       'plan-management',
       'order-management',
+      'system-settings',
     ])
     expect(adminGroup?.items[0]).toEqual(
       expect.objectContaining({
@@ -46,11 +47,34 @@ describe('console navigation', () => {
       })
     )
 
-    // The real invariant: an item is live exactly when it has a route. Keying
-    // off positions instead would break every time a page ships.
+    // The real invariant: an item is live exactly when it has a route or an
+    // explicit legacy-console href. Keying off positions instead would break
+    // every time a page ships.
     adminGroup?.items.forEach((item) => {
-      if (item.route) expect(item.disabled).toBeUndefined()
+      if (item.route || item.href) expect(item.disabled).toBeUndefined()
       else expect(item.disabled).toBe(true)
+    })
+  })
+
+  it('shows the legacy system-settings entry only to root users', () => {
+    const adminItems = getAccessibleConsoleNavGroups({
+      isAdmin: true,
+      hasPermission: () => true,
+    }).flatMap((group) => group.items)
+    const rootItems = getAccessibleConsoleNavGroups({
+      isAdmin: true,
+      isRoot: true,
+      hasPermission: () => true,
+    }).flatMap((group) => group.items)
+
+    expect(adminItems.some((item) => item.name === 'system-settings')).toBe(
+      false
+    )
+    expect(
+      rootItems.find((item) => item.name === 'system-settings')
+    ).toMatchObject({
+      href: '/system-settings',
+      rootOnly: true,
     })
   })
 

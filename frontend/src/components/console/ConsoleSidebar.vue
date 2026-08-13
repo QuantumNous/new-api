@@ -19,6 +19,7 @@ const auth = useAuthStore()
 const visibleNavGroups = computed(() =>
   getAccessibleConsoleNavGroups({
     isAdmin: auth.isAdmin,
+    isRoot: auth.isRoot,
     hasPermission: auth.hasPermission,
     featureStatus: (feature) => app.featureStatus(feature),
   })
@@ -56,8 +57,14 @@ const activeName = computed(() => {
   return null
 })
 
-function navComponent(item: { route?: string; disabled?: boolean }) {
-  return !item.disabled && item.route ? RouterLink : 'button'
+function navComponent(item: {
+  route?: string
+  href?: string
+  disabled?: boolean
+}) {
+  if (item.disabled) return 'button'
+  if (item.href) return 'a'
+  return item.route ? RouterLink : 'button'
 }
 
 defineExpose({ collapsed })
@@ -127,9 +134,16 @@ defineExpose({ collapsed })
             <component
               :is="navComponent(item)"
               :to="
-                !item.disabled && item.route ? { name: item.route } : undefined
+                !item.disabled && item.route && !item.href
+                  ? { name: item.route }
+                  : undefined
               "
-              :type="item.disabled || !item.route ? 'button' : undefined"
+              :href="!item.disabled && item.href ? item.href : undefined"
+              :type="
+                item.disabled || (!item.route && !item.href)
+                  ? 'button'
+                  : undefined
+              "
               class="group relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all focus-ring"
               :class="[
                 item.disabled

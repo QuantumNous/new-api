@@ -1,4 +1,10 @@
-import type { LogItem, LogType, TokenSummary } from '@/types/console'
+import type {
+  DrawingLogItem,
+  LogItem,
+  LogType,
+  RelayTaskLogItem,
+  TokenSummary,
+} from '@/types/console'
 
 import {
   invalidResponse,
@@ -319,4 +325,52 @@ function parseLog(value: unknown, endpoint: string): LogItem {
 export function parseLogPage(value: unknown): PageResult<LogItem> {
   const endpoint = '/api/log/self'
   return parsePage(value, endpoint, parseLog)
+}
+
+function parseDrawingLog(value: unknown, endpoint: string): DrawingLogItem {
+  if (!isRecord(value)) invalidResponse(endpoint)
+  return {
+    id: requiredInteger(value.id, endpoint),
+    mj_id: requiredString(value.mj_id ?? '', endpoint),
+    action: requiredString(value.action ?? '', endpoint),
+    prompt: requiredString(value.prompt ?? '', endpoint),
+    prompt_en: requiredString(value.prompt_en ?? '', endpoint),
+    status: requiredString(value.status ?? '', endpoint),
+    progress: requiredString(value.progress ?? '', endpoint),
+    fail_reason: requiredString(value.fail_reason ?? '', endpoint),
+    image_url: requiredString(value.image_url ?? '', endpoint),
+    video_url: requiredString(value.video_url ?? '', endpoint),
+    quota: requiredInteger(value.quota ?? 0, endpoint),
+    submit_time: requiredInteger(value.submit_time ?? 0, endpoint),
+    finish_time: requiredInteger(value.finish_time ?? 0, endpoint),
+  }
+}
+
+export function parseDrawingLogPage(
+  value: unknown
+): PageResult<DrawingLogItem> {
+  const endpoint = '/api/mj/self'
+  return parsePage(value, endpoint, parseDrawingLog)
+}
+
+function parseRelayTaskLog(value: unknown, endpoint: string): RelayTaskLogItem {
+  if (!isRecord(value)) invalidResponse(endpoint)
+  return {
+    id: requiredInteger(value.id, endpoint),
+    task_id: requiredString(value.task_id ?? '', endpoint),
+    platform: requiredString(value.platform ?? '', endpoint),
+    action: requiredString(value.action ?? '', endpoint),
+    status: requiredString(value.status ?? '', endpoint),
+    progress: requiredString(value.progress ?? '', endpoint),
+    fail_reason: requiredString(value.fail_reason ?? '', endpoint),
+    result_url: requiredString(value.result_url ?? '', endpoint),
+    quota: requiredInteger(value.quota ?? 0, endpoint),
+    submit_time: requiredInteger(value.submit_time ?? 0, endpoint),
+    finish_time: requiredInteger(value.finish_time ?? 0, endpoint),
+  }
+}
+
+export function parseTaskLogPage(value: unknown): PageResult<RelayTaskLogItem> {
+  const endpoint = '/api/task/self'
+  return parsePage(value, endpoint, parseRelayTaskLog)
 }

@@ -167,17 +167,29 @@ func SetApiRouter(router *gin.Engine) {
 			inviteRoute := nextRoute.Group("/invite")
 			{
 				inviteRoute.GET("/self", controller.NextGetInvite)
+				// Dual endpoint with POST /api/user/aff_transfer; both delegate
+				// to user.TransferAffQuotaToQuota, so only the request/response
+				// shapes differ.
 				inviteRoute.POST("/transfer", controller.NextTransferInviteQuota)
 			}
 			activityRoute := nextRoute.Group("/activity")
 			{
 				activityRoute.GET("/self", controller.NextGetActivities)
+				// Dual endpoint with POST /api/user/checkin; both delegate to
+				// model.UserCheckin so the business logic stays single-sourced.
+				// Known gap: the legacy route carries TurnstileCheck while the
+				// Vue frontend has no Turnstile integration at all (login,
+				// register, check-in). Before enabling TurnstileCheckEnabled
+				// in production, add Turnstile support to frontend/ first.
 				activityRoute.POST("/checkin", middleware.CriticalRateLimit(), controller.NextCheckin)
 				activityRoute.POST("/claim", middleware.CriticalRateLimit(), controller.NextClaimActivity)
 			}
 			walletRoute := nextRoute.Group("/wallet")
 			{
 				walletRoute.GET("/config", controller.NextGetEpayTopUpConfig)
+				// Dual endpoint with POST /api/user/pay; both delegate to
+				// createEpayTopUpOrder (controller/topup.go) so validation,
+				// pricing, and order persistence cannot diverge.
 				walletRoute.POST("/topup", middleware.CriticalRateLimit(), controller.NextCreateEpayTopUp)
 				walletRoute.GET("/topups", controller.NextListUserOrders)
 				walletRoute.GET("/topups/:order_no", controller.NextGetUserOrder)

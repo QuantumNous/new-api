@@ -42,6 +42,27 @@ func isNextStaticRequest(requestPath string) bool {
 	return relative != requestPath && pathpkg.Ext(relative) != ""
 }
 
+// legacyConsolePathPrefixes are explicit compatibility entries into the
+// embedded React console while the Vue frontend is enabled. These pages
+// (root-only system settings, advanced channel management, and site-wide
+// drawing/task logs) have no Vue counterpart yet, so matching requests serve
+// the React SPA instead of redirecting to /next. Both frontends share the
+// same-origin refresh cookie, so the session carries over.
+var legacyConsolePathPrefixes = []string{
+	"/system-settings",
+	"/channels",
+	"/usage-logs",
+}
+
+func isLegacyConsoleRequest(requestPath string) bool {
+	for _, prefix := range legacyConsolePathPrefixes {
+		if requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
 	nextEnabled := nextFrontendEnabled()
@@ -87,6 +108,10 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 		}
 		if nextEnabled && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) {
 			c.Header("Cache-Control", "no-cache")
+			if isLegacyConsoleRequest(path) {
+				c.Data(http.StatusOK, "text/html; charset=utf-8", assets.IndexPage)
+				return
+			}
 			target := "/next" + c.Request.URL.RequestURI()
 			c.Redirect(http.StatusTemporaryRedirect, target)
 			return

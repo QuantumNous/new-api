@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  parseDrawingLogPage,
   parseLogPage,
   parseLogStat,
   parsePerfMetricsSummary,
   parsePricingModels,
   parseRedeemedQuota,
+  parseTaskLogPage,
   parseTokenPage,
   parseTopupInfo,
   parseUsageRows,
@@ -233,6 +235,117 @@ describe('live API contracts', () => {
         page_size: 20,
         total: 1,
         items: [{ id: 1, type: 2 }],
+      })
+    )
+  })
+
+  it('parses drawing logs, defaults optional fields, and keeps unknown statuses', () => {
+    const page = parseDrawingLogPage({
+      page: 1,
+      page_size: 20,
+      total: 1,
+      items: [
+        {
+          id: 3,
+          mj_id: '1719923456789',
+          action: 'IMAGINE',
+          prompt: 'a red fox',
+          prompt_en: 'a red fox',
+          status: 'SUCCESS',
+          progress: '100%',
+          fail_reason: '',
+          image_url: 'https://cdn.example.com/fox.png',
+          quota: 5000,
+          submit_time: 1_700_000_000_000,
+          finish_time: 1_700_000_060_000,
+        },
+      ],
+    })
+
+    expect(page.items[0]).toMatchObject({
+      mj_id: '1719923456789',
+      action: 'IMAGINE',
+      status: 'SUCCESS',
+      image_url: 'https://cdn.example.com/fox.png',
+      video_url: '',
+      submit_time: 1_700_000_000_000,
+    })
+
+    const futureStatus = parseDrawingLogPage({
+      page: 1,
+      page_size: 20,
+      total: 1,
+      items: [{ id: 4, status: 'BRAND_NEW_STATE' }],
+    })
+    expect(futureStatus.items[0]).toMatchObject({
+      status: 'BRAND_NEW_STATE',
+      quota: 0,
+      finish_time: 0,
+    })
+
+    expect(
+      parseDrawingLogPage({ page: 1, page_size: 20, total: 0, items: [] }).items
+    ).toEqual([])
+    expectInvalidResponse(() =>
+      parseDrawingLogPage({
+        page: 1,
+        page_size: 20,
+        total: 1,
+        items: [{ mj_id: 'no-id' }],
+      })
+    )
+  })
+
+  it('parses relay task logs including optional result URLs', () => {
+    const page = parseTaskLogPage({
+      page: 1,
+      page_size: 20,
+      total: 2,
+      items: [
+        {
+          id: 9,
+          task_id: 'suno-abc',
+          platform: 'suno',
+          action: 'MUSIC',
+          status: 'SUCCESS',
+          progress: '100%',
+          fail_reason: '',
+          result_url: 'https://cdn.example.com/song.mp3',
+          quota: 12_000,
+          submit_time: 1_700_000_000,
+          finish_time: 1_700_000_090,
+        },
+        {
+          id: 10,
+          task_id: 'kling-def',
+          platform: 'kling',
+          action: 'VIDEO',
+          status: 'FAILURE',
+          progress: '0%',
+          fail_reason: 'upstream timeout',
+          quota: 0,
+          submit_time: 1_700_000_100,
+          finish_time: 0,
+        },
+      ],
+    })
+
+    expect(page.items[0]).toMatchObject({
+      task_id: 'suno-abc',
+      platform: 'suno',
+      result_url: 'https://cdn.example.com/song.mp3',
+    })
+    expect(page.items[1]).toMatchObject({
+      status: 'FAILURE',
+      fail_reason: 'upstream timeout',
+      result_url: '',
+    })
+    expectInvalidResponse(() =>
+      parseTaskLogPage({
+        page: 1,
+        page_size: 20,
+        total: 1,
+        items: [{ task_id: 'missing-id' }],
       })
     )
   })

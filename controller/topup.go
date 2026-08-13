@@ -186,6 +186,100 @@ func getMinTopup() int64 {
 	return int64(minTopup)
 }
 
+// epayOrderError classifies a failed epay order creation so each HTTP
+// contract (legacy React endpoint and /next Vue contract) can shape its own
+// response while the order workflow stays single-sourced.
+type epayOrderError struct {
+	Code    string // PAYMENT_UNAVAILABLE / VALIDATION_ERROR / INTERNAL_ERROR
+	Message string
+}
+
+type epayOrderResult struct {
+	TradeNo   string
+	Amount    int64 // stored amount, adjusted for the quota display type
+	PayMoney  float64
+	Method    string
+	PayURL    string
+	PayParams map[string]string
+}
+
+// createEpayTopUpOrder is the single epay order workflow shared by the legacy
+// endpoint (POST /api/user/pay) and the Vue contract
+// (POST /api/next/wallet/topup). Validation, pricing, the upstream purchase
+// call, and order persistence must not diverge between the two entry points;
+// only request parsing and response shaping live in the callers.
+func createEpayTopUpOrder(c *gin.Context, userID int, amount int64, method string) (*epayOrderResult, *epayOrderError) {
+	if !isEpayTopUpEnabled() {
+		return nil, &epayOrderError{Code: "PAYMENT_UNAVAILABLE", Message: "当前管理员未配置支付信息"}
+	}
+	if method == "" || !operation_setting.ContainsPayMethod(method) {
+		return nil, &epayOrderError{Code: "PAYMENT_UNAVAILABLE", Message: "支付方式不存在"}
+	}
+	if amount < getMinTopup() {
+		return nil, &epayOrderError{Code: "VALIDATION_ERROR", Message: fmt.Sprintf("充值数量不能小于 %d", getMinTopup())}
+	}
+
+	group, err := model.GetUserGroup(userID, true)
+	if err != nil {
+		return nil, &epayOrderError{Code: "INTERNAL_ERROR", Message: "获取用户分组失败"}
+	}
+	payMoney := getPayMoney(amount, group)
+	if payMoney < 0.01 {
+		return nil, &epayOrderError{Code: "VALIDATION_ERROR", Message: "充值金额过低"}
+	}
+
+	client := GetEpayClient()
+	if client == nil {
+		return nil, &epayOrderError{Code: "PAYMENT_UNAVAILABLE", Message: "当前管理员未配置支付信息"}
+	}
+	returnUrl, _ := url.Parse(paymentReturnPath("/usage-logs"))
+	notifyUrl, _ := url.Parse(service.GetCallbackAddress() + "/api/user/epay/notify")
+	tradeNo := fmt.Sprintf("USR%dNO%s%d", userID, common.GetRandomString(6), time.Now().Unix())
+	uri, params, err := client.Purchase(&epay.PurchaseArgs{
+		Type:           method,
+		ServiceTradeNo: tradeNo,
+		Name:           fmt.Sprintf("TUC%d", amount),
+		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
+		Device:         epay.PC,
+		NotifyUrl:      notifyUrl,
+		ReturnUrl:      returnUrl,
+	})
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 拉起支付失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", userID, tradeNo, method, amount, err.Error()))
+		return nil, &epayOrderError{Code: "INTERNAL_ERROR", Message: "拉起支付失败"}
+	}
+
+	storedAmount := amount
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		dAmount := decimal.NewFromInt(amount)
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		storedAmount = dAmount.Div(dQuotaPerUnit).IntPart()
+	}
+	topUp := &model.TopUp{
+		UserId:          userID,
+		Amount:          storedAmount,
+		Money:           payMoney,
+		TradeNo:         tradeNo,
+		PaymentMethod:   method,
+		PaymentProvider: model.PaymentProviderEpay,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}
+	if err := topUp.Insert(); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建充值订单失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", userID, tradeNo, method, amount, err.Error()))
+		return nil, &epayOrderError{Code: "INTERNAL_ERROR", Message: "创建订单失败"}
+	}
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值订单创建成功 user_id=%d trade_no=%s payment_method=%s amount=%d money=%.2f uri=%q params=%q", userID, tradeNo, method, amount, payMoney, uri, common.GetJsonString(params)))
+	return &epayOrderResult{
+		TradeNo:   tradeNo,
+		Amount:    storedAmount,
+		PayMoney:  payMoney,
+		Method:    method,
+		PayURL:    uri,
+		PayParams: params,
+	}, nil
+}
+
 func RequestEpay(c *gin.Context) {
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
@@ -193,76 +287,12 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
-	if req.Amount < getMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+	order, orderErr := createEpayTopUpOrder(c, c.GetInt("id"), req.Amount, req.PaymentMethod)
+	if orderErr != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": orderErr.Message})
 		return
 	}
-
-	id := c.GetInt("id")
-	group, err := model.GetUserGroup(id, true)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
-		return
-	}
-	payMoney := getPayMoney(req.Amount, group)
-	if payMoney < 0.01 {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
-		return
-	}
-
-	if !operation_setting.ContainsPayMethod(req.PaymentMethod) {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
-		return
-	}
-
-	callBackAddress := service.GetCallbackAddress()
-	returnUrl, _ := url.Parse(paymentReturnPath("/usage-logs"))
-	notifyUrl, _ := url.Parse(callBackAddress + "/api/user/epay/notify")
-	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
-	tradeNo = fmt.Sprintf("USR%dNO%s", id, tradeNo)
-	client := GetEpayClient()
-	if client == nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "当前管理员未配置支付信息"})
-		return
-	}
-	uri, params, err := client.Purchase(&epay.PurchaseArgs{
-		Type:           req.PaymentMethod,
-		ServiceTradeNo: tradeNo,
-		Name:           fmt.Sprintf("TUC%d", req.Amount),
-		Money:          strconv.FormatFloat(payMoney, 'f', 2, 64),
-		Device:         epay.PC,
-		NotifyUrl:      notifyUrl,
-		ReturnUrl:      returnUrl,
-	})
-	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 拉起支付失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
-		return
-	}
-	amount := req.Amount
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		dAmount := decimal.NewFromInt(int64(amount))
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		amount = dAmount.Div(dQuotaPerUnit).IntPart()
-	}
-	topUp := &model.TopUp{
-		UserId:          id,
-		Amount:          amount,
-		Money:           payMoney,
-		TradeNo:         tradeNo,
-		PaymentMethod:   req.PaymentMethod,
-		PaymentProvider: model.PaymentProviderEpay,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
-	}
-	err = topUp.Insert()
-	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建充值订单失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", id, tradeNo, req.PaymentMethod, req.Amount, err.Error()))
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
-		return
-	}
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值订单创建成功 user_id=%d trade_no=%s payment_method=%s amount=%d money=%.2f uri=%q params=%q", id, tradeNo, req.PaymentMethod, req.Amount, payMoney, uri, common.GetJsonString(params)))
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": order.PayParams, "url": order.PayURL})
 }
 
 // tradeNo lock
