@@ -3,6 +3,7 @@ package helper
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -72,6 +73,152 @@ func ExtendWriteDeadline(c *gin.Context) {
 		return
 	}
 	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(streamWriteTimeout))
+}
+
+// MaskStreamErrorData masks sensitive values inside SSE error chunks before
+// they reach a downstream handler. Upstreams may echo the gateway's upstream
+// Authorization header (i.e. the channel API key) in streamed error messages;
+// the non-stream error path already masks, but streamed chunks used to be
+// relayed verbatim (F-13 layer A).
+//
+// F-20: also handles chunks that carry the key outside a top-level "error" key
+// (e.g. {"message":"invalid key: sk-..."}) and masks non-message fields inside
+// the error object (code/type/param), which the first F-13 masker skipped.
+func MaskStreamErrorData(data string) string {
+	if !json.Valid([]byte(data)) {
+		return data
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(data), &probe); err != nil {
+		return data
+	}
+	changed := false
+	maskField := func(raw json.RawMessage, masker func(string) string) (json.RawMessage, bool) {
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil || s == "" {
+			return raw, false
+		}
+		masked := masker(s)
+		if masked == s {
+			return raw, false
+		}
+		b, err := json.Marshal(masked)
+		if err != nil {
+			return raw, false
+		}
+		return b, true
+	}
+	// Top-level fields commonly used by error-ish chunks (F-20b: no "error" key).
+	for _, key := range []string{"message", "code", "type"} {
+		if raw, ok := probe[key]; ok {
+			masker := common.MaskSensitiveInfo
+			if key != "message" {
+				// Enum-like fields must not be URL/domain/IP-mangled.
+				masker = common.MaskSensitiveKeys
+			}
+			if b, ok2 := maskField(raw, masker); ok2 {
+				probe[key] = b
+				changed = true
+			}
+		}
+	}
+	// "error" key: object or string.
+	if raw, ok := probe["error"]; ok && len(raw) > 0 {
+		switch raw[0] {
+		case '{':
+			var errObj map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &errObj); err == nil {
+				for _, key := range []string{"message", "code", "type", "param"} {
+					if v, ok := errObj[key]; ok {
+						masker := common.MaskSensitiveInfo
+						if key != "message" {
+							masker = common.MaskSensitiveKeys
+						}
+						if b, ok2 := maskField(v, masker); ok2 {
+							errObj[key] = b
+							changed = true
+						}
+					}
+				}
+				if b, err := json.Marshal(errObj); err == nil {
+					probe["error"] = b
+				}
+			}
+		case '"':
+			if b, ok2 := maskField(raw, common.MaskSensitiveKeys); ok2 {
+				probe["error"] = b
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		// F-20 residual: upstreams may also echo the channel key inside
+		// non-error chunks (e.g. a mid-stream "usage" frame carrying unknown
+		// metadata). Recursively mask string values of the chunk, but only
+		// re-marshal when something actually changed so legitimate chunks
+		// keep their original byte layout (JSON key order preserved).
+		if strings.Contains(data, "usage") {
+			var walk func(raw json.RawMessage) (json.RawMessage, bool)
+			walk = func(raw json.RawMessage) (json.RawMessage, bool) {
+				var obj map[string]json.RawMessage
+				if err := json.Unmarshal(raw, &obj); err == nil {
+					objChanged := false
+					for k, v := range obj {
+						nv, ch := walk(v)
+						if ch {
+							obj[k] = nv
+							objChanged = true
+						}
+					}
+					if objChanged {
+						if b, err := json.Marshal(obj); err == nil {
+							return b, true
+						}
+					}
+					return raw, false
+				}
+				var arr []json.RawMessage
+				if err := json.Unmarshal(raw, &arr); err == nil {
+					arrChanged := false
+					for i, v := range arr {
+						nv, ch := walk(v)
+						if ch {
+							arr[i] = nv
+							arrChanged = true
+						}
+					}
+					if arrChanged {
+						if b, err := json.Marshal(arr); err == nil {
+							return b, true
+						}
+					}
+					return raw, false
+				}
+				if b, ok2 := maskField(raw, common.MaskSensitiveKeys); ok2 {
+					return b, true
+				}
+				return raw, false
+			}
+			anyChanged := false
+			for key, raw := range probe {
+				nv, ch := walk(raw)
+				if ch {
+					probe[key] = nv
+					anyChanged = true
+				}
+			}
+			if anyChanged {
+				if b, err := json.Marshal(probe); err == nil {
+					return string(b)
+				}
+			}
+		}
+		return data
+	}
+	if b, err := json.Marshal(probe); err == nil {
+		return string(b)
+	}
+	return data
 }
 
 func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
@@ -262,6 +409,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if data == "" {
 				continue
 			}
+			data = MaskStreamErrorData(data)
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++

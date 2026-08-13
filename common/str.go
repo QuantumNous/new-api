@@ -141,3 +141,9 @@ func MaskEmail(email string) string {
 func MaskSensitiveInfo(str string) string {
 	return kitutil.MaskSensitiveInfo(str)
 }
+
+// MaskSensitiveKeys masks only credential-shaped values (no URL/domain/IP
+// rewriting), for enum-like fields where full masking would mangle values.
+func MaskSensitiveKeys(str string) string {
+	return kitutil.MaskSensitiveKeys(str)
+}

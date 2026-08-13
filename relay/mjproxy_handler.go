@@ -77,7 +77,8 @@ func RelayMidjourneyImage(c *gin.Context) {
 	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
 		c.JSON(resp.StatusCode, gin.H{
-			"error": string(responseBody),
+			// F-42: mask upstream error body before echoing it to the client.
+			"error": common.MaskSensitiveInfo(string(responseBody)),
 		})
 		return
 	}
@@ -264,7 +265,9 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		MjId:        midjResponse.Result,
 		Prompt:      "InsightFace",
 		PromptEn:    "",
-		Description: midjResponse.Description,
+		// F-64: mask upstream-controlled text before persistence; task fetch
+		// replays these fields to the client verbatim.
+		Description: common.MaskSensitiveInfo(midjResponse.Description),
 		State:       "",
 		SubmitTime:  info.StartTime.UnixNano() / int64(time.Millisecond),
 		StartTime:   time.Now().UnixNano() / int64(time.Millisecond),
@@ -321,6 +324,9 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 	if err != nil {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "unmarshal_response_body_failed")
 	}
+	// F-64: the marshaled upstream response is copied to the client verbatim;
+	// apply the same key-masking used by the OpenAI/Claude error paths.
+	respBody = []byte(common.MaskSensitiveInfo(string(respBody)))
 	service.IOCopyBytesGracefully(c, nil, respBody)
 	return nil
 }
@@ -577,7 +583,8 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		MjId:        midjResponse.Result,
 		Prompt:      midjRequest.Prompt,
 		PromptEn:    "",
-		Description: midjResponse.Description,
+		// F-64: mask upstream-controlled text before persistence.
+		Description: common.MaskSensitiveInfo(midjResponse.Description),
 		State:       "",
 		SubmitTime:  time.Now().UnixNano() / int64(time.Millisecond),
 		StartTime:   0,
@@ -601,7 +608,9 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	}
 	if midjResponse.Code != 1 && midjResponse.Code != 21 && midjResponse.Code != 22 {
 		//非1-提交成功,21-任务已存在和22-排队中，则记录错误原因
-		midjourneyTask.FailReason = midjResponse.Description
+		// F-64: upstream error bodies may echo the channel key (mj-api-secret);
+		// mask before persistence so /task/:id/fetch cannot replay it.
+		midjourneyTask.FailReason = common.MaskSensitiveInfo(midjResponse.Description)
 		consumeQuota = false
 	}
 
@@ -646,6 +655,9 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		responseBody = []byte(newBody)
 	}
 	//resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
+	// F-64: raw upstream body is relayed verbatim; mask it before writing so an
+	// upstream that echoes mj-api-secret (or any channel key) cannot leak it.
+	responseBody = []byte(common.MaskSensitiveInfo(string(responseBody)))
 	bodyReader := io.NopCloser(bytes.NewBuffer(responseBody))
 
 	//for k, v := range resp.Header {

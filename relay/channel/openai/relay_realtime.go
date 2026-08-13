@@ -187,6 +187,9 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 					localUsage.OutputTokenDetails.AudioTokens += audioToken
 				}
 
+				// F-13 layer A: upstream realtime frames are relayed verbatim;
+				// mask error frames that may echo the channel key before forwarding.
+				message = []byte(helper.MaskStreamErrorData(string(message)))
 				err = helper.WssString(c, clientConn, string(message))
 				if err != nil {
 					errChan <- fmt.Errorf("error writing to client: %v", err)

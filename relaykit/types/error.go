@@ -202,7 +202,15 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 		}
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = kitutil.MaskSensitiveInfo(result.Message)
+		// F-20a: upstreams may echo the channel key in non-message fields
+		// (code/type/param/metadata). Mask the serialized error as a whole so
+		// every field is covered, not just Message.
+		if raw, err := json.Marshal(result); err == nil {
+			var masked OpenAIError
+			if err := json.Unmarshal([]byte(kitutil.MaskSensitiveInfo(string(raw))), &masked); err == nil {
+				result = masked
+			}
+		}
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)
@@ -231,7 +239,12 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 		}
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
-		result.Message = kitutil.MaskSensitiveInfo(result.Message)
+		if raw, err := json.Marshal(result); err == nil {
+			var masked ClaudeError
+			if err := json.Unmarshal([]byte(kitutil.MaskSensitiveInfo(string(raw))), &masked); err == nil {
+				result = masked
+			}
+		}
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)

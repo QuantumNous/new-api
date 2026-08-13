@@ -200,11 +200,13 @@ func TaskErrorWrapperLocal(err error, code string, statusCode int) *taskdto.Task
 func TaskErrorWrapper(err error, code string, statusCode int) *taskdto.TaskError {
 	text := err.Error()
 	lowerText := strings.ToLower(text)
+	// F-42: mask unconditionally. Task upstreams (suno/video/audio) may echo the
+	// channel API key in error bodies that do not contain "post"/"dial"/"http",
+	// which previously skipped masking entirely.
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
 		common.SysLog(fmt.Sprintf("error: %s", text))
-		//text = "请求上游地址失败"
-		text = common.MaskSensitiveInfo(text)
 	}
+	text = common.MaskSensitiveInfo(text)
 	//避免暴露内部错误
 	taskError := &taskdto.TaskError{
 		Code:       code,
@@ -223,7 +225,7 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *taskdto.TaskError {
 	}
 	return &taskdto.TaskError{
 		Code:       string(apiErr.GetErrorCode()),
-		Message:    apiErr.Err.Error(),
+		Message:    common.MaskSensitiveInfo(apiErr.Err.Error()),
 		StatusCode: apiErr.StatusCode,
 		Error:      apiErr.Err,
 	}
