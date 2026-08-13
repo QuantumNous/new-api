@@ -2,6 +2,7 @@ package taskcommon
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
@@ -340,5 +341,33 @@ func TestSecondBilling_EmitsExactlyOneRatioKey(t *testing.T) {
 	}
 	if _, ok := got[BillingUnitsKey]; !ok {
 		t.Fatalf("expected key %q, got %v", BillingUnitsKey, got)
+	}
+}
+
+// A configured model whose request cannot be priced must produce an error that
+// reaches the relay, not a silent (nil, nil). The two constructors below name
+// the two ways an adaptor can fail to price: an unresolvable billing dimension,
+// and a length the gateway cannot determine.
+func TestUnpriceableDimensionError(t *testing.T) {
+	err := UnpriceableDimensionError("m1", "resolution", "banana")
+	if err == nil {
+		t.Fatal("an unresolvable dimension must produce an error")
+	}
+	for _, want := range []string{"m1", "resolution", "banana"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q must name %q so the administrator can fix the rule", err, want)
+		}
+	}
+}
+
+func TestUnpriceableDurationError(t *testing.T) {
+	err := UnpriceableDurationError("m1", "frames sets the length at an unknown fps")
+	if err == nil {
+		t.Fatal("an undeterminable length must produce an error")
+	}
+	for _, want := range []string{"m1", "frames sets the length at an unknown fps"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q must name %q so the caller can fix the request", err, want)
+		}
 	}
 }

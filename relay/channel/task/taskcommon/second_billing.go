@@ -195,3 +195,38 @@ func parseDimensions(s string) (int, int, bool) {
 	}
 	return w, h, true
 }
+
+// UnpriceableDimensionError reports that a model configured for per-second
+// billing carries a billing dimension the adaptor could not classify.
+//
+// It exists so the two failure modes below never collapse into silence. When a
+// configured model reaches EstimateBilling and the request cannot be priced,
+// the adaptor has already decided to skip its legacy estimate — a configured
+// model is priced by SecondBillingRatios or not at all. Returning no ratios
+// there would bill the bare ModelPrice with no seconds multiplier, charging a
+// 30-second video as a single unit. relay_task.go rejects the request instead
+// when SecondBillingRatios returns an error, before anything is submitted
+// upstream, so the customer pays nothing and the administrator sees which
+// dimension needs a rule.
+func UnpriceableDimensionError(model, dimension, raw string) error {
+	return fmt.Errorf(
+		"模型 %s 已配置按秒计费，但请求的%s %q 无法识别，无法定价，请补充配置或修正请求；"+
+			"Model %s uses per-second billing but %s %q cannot be classified, so the request cannot be priced.",
+		model, dimension, raw, model, dimension, raw)
+}
+
+// UnpriceableDurationError reports that a model configured for per-second
+// billing carries a length the gateway cannot determine. reason states why in
+// the adaptor's own terms (frames at an unknown fps, a model-chosen duration, a
+// duration that will not parse), because the fix differs per channel.
+//
+// Guessing a length here would be worse than refusing: per-second billing
+// multiplies it, so a fabricated five seconds silently underbills a thirty
+// second render.
+func UnpriceableDurationError(model, reason string) error {
+	return fmt.Errorf(
+		"模型 %s 已配置按秒计费，但无法确定视频时长（%s），无法定价；"+
+			"Model %s uses per-second billing but its output length cannot be determined (%s), "+
+			"so the request cannot be priced.",
+		model, reason, model, reason)
+}
