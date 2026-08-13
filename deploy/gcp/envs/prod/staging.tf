@@ -105,6 +105,10 @@ resource "google_secret_manager_secret_version" "staging_sql_dsn" {
     module.cloud_sql.connection_name,
     local.staging_db_name,
   )
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
 }
 
 resource "google_secret_manager_secret" "staging_session_secret" {

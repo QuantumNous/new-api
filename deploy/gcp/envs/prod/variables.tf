@@ -147,6 +147,12 @@ variable "console_domains_require_managed_cert" {
   default     = true
 }
 
+variable "cloud_sql_disk_size_gb" {
+  type        = number
+  description = "Cloud SQL disk size; never lower than the live auto-resized disk."
+  default     = 100
+}
+
 variable "router_min_instances" {
   type        = number
   description = "Minimum Cloud Run instances for the router service."
