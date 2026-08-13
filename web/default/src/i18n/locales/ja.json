@@ -6572,5 +6572,22 @@
     "Full convergence": "完全統合",
     "Converge Codex device and session identifiers for shared OAuth accounts": "共有 OAuth アカウントの Codex 識別子を統合",
     "Applies only to selected Codex channels": "選択した Codex チャネルにのみ適用"
-  }
+  },
+  "resolution": "解像度",
+  "mode": "生成モード",
+  "has_video": "参照動画",
+  "Add rule": "ルールを追加",
+  "Delete rule": "ルールを削除",
+  "Match dimensions": "マッチ条件",
+  "Billing basis": "課金基準",
+  "Fallback seconds": "フォールバック秒数",
+  "Price per second ($)": "1秒あたりの単価（$）",
+  "output_duration": "出力時間",
+  "total_duration": "入力 + 出力の合計時間",
+  "Video per-second": "動画・秒単位",
+  "Per-second": "秒単位",
+  "Per-second video billing": "動画の秒単位課金",
+  "{{count}} per-second rules": "秒単位ルール {{count}} 件",
+  "Price per second must be greater than zero": "1秒あたりの単価は 0 より大きい必要があります",
+  "Total duration billing requires a fallback in seconds": "合計時間での課金にはフォールバック秒数が必要です"
 }

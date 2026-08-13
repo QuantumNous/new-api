@@ -6572,5 +6572,22 @@
     "Full convergence": "Полное сведение",
     "Converge Codex device and session identifiers for shared OAuth accounts": "Связывать идентификаторы Codex для общих OAuth-аккаунтов",
     "Applies only to selected Codex channels": "Только для выбранных каналов Codex"
-  }
+  },
+  "resolution": "Разрешение",
+  "mode": "Режим",
+  "has_video": "Референсное видео",
+  "Add rule": "Добавить правило",
+  "Delete rule": "Удалить правило",
+  "Match dimensions": "Измерения сопоставления",
+  "Billing basis": "База тарификации",
+  "Fallback seconds": "Резервные секунды",
+  "Price per second ($)": "Цена за секунду ($)",
+  "output_duration": "Длительность вывода",
+  "total_duration": "Длительность входа + вывода",
+  "Video per-second": "Видео посекундно",
+  "Per-second": "Посекундно",
+  "Per-second video billing": "Посекундная тарификация видео",
+  "{{count}} per-second rules": "Правил посекундной тарификации: {{count}}",
+  "Price per second must be greater than zero": "Цена за секунду должна быть больше нуля",
+  "Total duration billing requires a fallback in seconds": "Для тарификации по общей длительности нужны резервные секунды"
 }
