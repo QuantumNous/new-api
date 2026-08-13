@@ -728,11 +728,9 @@ export default {
     testStatusFailed: 'Failed',
     testResultMs: '{ms} ms',
     testModelAction: 'Test model {model}',
-    pickChannelTitle: 'Pick a model to test',
+    pickChannelTitle: 'Pick a channel to test',
     pickChannelDesc:
-      'Choose a model published in the {supplier} group to test every channel that serves it.',
-    pickChannelModelLabel: 'Test model',
-    pickChannelModelPlaceholder: 'Select a model',
+      'Choose one channel from the {supplier} group to run a connection test.',
     pickChannelModels: '{count} models',
     pickChannelStart: 'Start test',
     batchCompleted: '{action} completed for {count} channels',
