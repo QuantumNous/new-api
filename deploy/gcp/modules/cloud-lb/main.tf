@@ -178,6 +178,10 @@ resource "random_id" "cert_suffix" {
     domains  = join(",", var.domains)
     rotation = tostring(var.cert_rotation)
   }
+
+  lifecycle {
+    ignore_changes = [keepers]
+  }
 }
 
 resource "google_compute_managed_ssl_certificate" "main" {
