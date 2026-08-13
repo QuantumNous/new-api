@@ -98,10 +98,9 @@ export function ApiKeyPicker(props: {
               >
                 {/* The copy affordance sits directly against the key it
                     copies, so the key text is sized to its content rather
-                    than stretched; the name column takes the slack instead.
-                    Copy cannot live inside the select button — nesting
-                    buttons is invalid — so the row is split into two select
-                    targets with the copy control between them. */}
+                    than stretched; the name and date take the slack. Only
+                    the key itself selects the row — the metadata beside it
+                    is not an interactive target. */}
                 <button
                   type='button'
                   onClick={() => props.onSelect(key.id)}
@@ -131,20 +130,14 @@ export function ApiKeyPicker(props: {
                   // the ones that render a copy button.
                   <span className='size-6 shrink-0' aria-hidden='true' />
                 )}
-                <button
-                  type='button'
-                  onClick={() => props.onSelect(key.id)}
-                  className='ml-1 hidden min-w-0 flex-1 items-center gap-3 text-left sm:flex'
-                  aria-pressed={selected}
-                  tabIndex={-1}
-                >
+                <div className='ml-1 hidden min-w-0 flex-1 items-center gap-3 sm:flex'>
                   <span className='text-muted-foreground min-w-0 flex-1 truncate text-xs'>
                     {key.name}
                   </span>
                   <span className='text-muted-foreground hidden shrink-0 text-xs md:block'>
                     {formatTimestampToDate(key.created_time)}
                   </span>
-                </button>
+                </div>
               </div>
             )
           })}

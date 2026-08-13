@@ -111,13 +111,12 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={handleOpenChange}>
-      {/* This opens on top of the integration dialog. Base UI suppresses
-          nested backdrops by default, which left this popup sitting flat on
-          the one beneath it, so the backdrop is forced on and given a heavier
-          scrim than the page-level default. */}
+      {/* Base UI suppresses backdrops on nested dialogs, so this one has to
+          ask for it explicitly — without it the popup sits flat on the
+          integration dialog beneath. The backdrop itself keeps the shared
+          default, so creating a key looks the same here as on the keys page. */}
       <DialogContent
         className='sm:max-w-md'
-        overlayClassName='bg-black/50 supports-backdrop-filter:backdrop-blur-sm'
         forceOverlay
         showCloseButton={!isSubmitting}
       >

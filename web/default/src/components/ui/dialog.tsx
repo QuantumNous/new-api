@@ -60,17 +60,10 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
-  overlayClassName,
   forceOverlay = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
-  /**
-   * Extra backdrop classes. A dialog opened on top of another one needs a
-   * heavier scrim than the default, which is tuned for dimming plain page
-   * content and reads as almost nothing over an already-open popup.
-   */
-  overlayClassName?: string
   /**
    * Render a backdrop even when this dialog is nested inside another one.
    * Base UI suppresses nested backdrops by default, which leaves a child
@@ -82,7 +75,7 @@ function DialogContent({
 
   return (
     <DialogPortal>
-      <DialogOverlay className={overlayClassName} forceRender={forceOverlay} />
+      <DialogOverlay forceRender={forceOverlay} />
       <DialogPrimitive.Popup
         data-slot='dialog-content'
         className={cn(

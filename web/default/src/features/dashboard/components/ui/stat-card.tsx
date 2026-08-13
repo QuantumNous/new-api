@@ -217,8 +217,11 @@ export function StatCard(props: StatCardProps) {
   return (
     <div
       className={cn(
-        'group flex flex-col justify-between gap-3',
-        hasFooter && 'min-h-32'
+        'group flex flex-col',
+        // Without a footer the card is just title + value, so it hugs its
+        // content instead of stretching them apart to fill the tallest card
+        // in the row.
+        hasFooter ? 'min-h-32 justify-between gap-3' : 'gap-2'
       )}
     >
       <div className='flex items-start justify-between gap-1'>
@@ -257,13 +260,15 @@ export function StatCard(props: StatCardProps) {
         </div>
       )}
 
-      {props.details?.length ? (
-        <StatCardDetails details={props.details} />
-      ) : sparklineVariant === 'line' ? (
-        <LineSparkline values={props.sparkline} tone={tone} />
-      ) : (
-        <BarSparkline values={props.sparkline} tone={tone} />
-      )}
+      {hasDetails ? (
+        <StatCardDetails details={props.details ?? []} />
+      ) : hasSparkline ? (
+        sparklineVariant === 'line' ? (
+          <LineSparkline values={props.sparkline} tone={tone} />
+        ) : (
+          <BarSparkline values={props.sparkline} tone={tone} />
+        )
+      ) : null}
     </div>
   )
 }
