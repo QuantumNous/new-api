@@ -2,6 +2,7 @@ package doubao
 
 import (
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,7 +10,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -500,5 +504,193 @@ func TestVideosDetection(t *testing.T) {
 	noVideo := dto.SeedanceVideoRequest{Content: []dto.SeedanceContentItem{{Type: dto.SeedanceContentText, Text: "hi"}}}
 	if len(noVideo.Videos()) != 0 {
 		t.Fatalf("Videos() = %d, want 0", len(noVideo.Videos()))
+	}
+}
+
+func TestDoubaoResolveDimensions(t *testing.T) {
+	tests := []struct {
+		name       string
+		resolution string
+		hasVideo   bool
+		wantRes    string
+		wantVideo  string
+	}{
+		{"1080p no video", "1080p", false, "1080p", "false"},
+		{"4k with video", "4k", true, "4k", "true"},
+		{"uppercase 4K", "4K", false, "4k", "false"},
+		{"720p default tier", "720p", false, "720p", "false"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := resolveDimensions(tc.resolution, tc.hasVideo)
+			if !ok {
+				t.Fatal("expected dimensions to resolve")
+			}
+			if got["resolution"] != tc.wantRes {
+				t.Fatalf("resolution = %q, want %q", got["resolution"], tc.wantRes)
+			}
+			if got["has_video"] != tc.wantVideo {
+				t.Fatalf("has_video = %q, want %q", got["has_video"], tc.wantVideo)
+			}
+		})
+	}
+}
+
+func TestDoubaoResolveDimensions_RejectsUnknown(t *testing.T) {
+	if _, ok := resolveDimensions("banana", false); ok {
+		t.Fatal("unknown resolution must not resolve")
+	}
+}
+
+func TestDoubaoSecondBillingRatios_UsesConfiguredPrice(t *testing.T) {
+	a := &TaskAdaptor{}
+	a.secondBillingModel = "m1"
+	a.secondBillingDims = map[string]string{"resolution": "1080p", "has_video": "false"}
+	a.secondBillingSeconds = 5
+	a.secondBillingModelPrice = 0.14
+	a.secondBillingRules = []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: map[string]string{"resolution": "1080p"},
+			PricePerSecond: 0.374, Basis: billing_setting.BasisOutputDuration},
+	}
+
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := 0.374 * 5 / 0.14
+	if math.Abs(got[taskcommon.BillingUnitsKey]-want) > 1e-9 {
+		t.Fatalf("units = %v, want %v", got[taskcommon.BillingUnitsKey], want)
+	}
+}
+
+func TestDoubaoSecondBillingRatios_NotCapturedIsNoOp(t *testing.T) {
+	a := &TaskAdaptor{}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("expected nil ratios, got %v", got)
+	}
+}
+
+func TestDoubaoSecondBillingRatios_ConfiguredButUnmatchedErrors(t *testing.T) {
+	a := &TaskAdaptor{}
+	a.secondBillingModel = "m1"
+	a.secondBillingDims = map[string]string{"resolution": "4k", "has_video": "false"}
+	a.secondBillingSeconds = 5
+	a.secondBillingModelPrice = 0.14
+	a.secondBillingRules = []billing_setting.VideoPriceRule{
+		{Model: "m1", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.314, Basis: billing_setting.BasisOutputDuration},
+	}
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured model with no matching rule must fail loudly")
+	}
+}
+
+// installDoubaoVideoPriceRules loads a rule set into the live config and
+// restores the previous configuration afterwards. It exercises the real
+// GetVideoPriceRules path rather than hand-setting adapter fields, so a test
+// using it proves EstimateBilling actually consults the configured table.
+func installDoubaoVideoPriceRules(t *testing.T, rulesJSON string) {
+	t.Helper()
+	saved := map[string]string{}
+	if err := config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}); err != nil {
+		t.Fatalf("snapshot config: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := config.GlobalConfig.LoadFromDB(saved); err != nil {
+			t.Fatalf("restore config: %v", err)
+		}
+	})
+	if err := config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting_video.video_price_rules": rulesJSON,
+	}); err != nil {
+		t.Fatalf("install video price rules: %v", err)
+	}
+	if len(billing_setting.GetVideoPriceRules()) == 0 {
+		t.Fatal("video price rules did not load; the config module name or key is wrong")
+	}
+}
+
+func newDoubaoBillingRequest(t *testing.T, body, originModel string, modelPrice float64) (*TaskAdaptor, *gin.Context, *relaycommon.RelayInfo) {
+	t.Helper()
+	c := newJSONCtx(body)
+	info := newRelayInfo()
+	info.OriginModelName = originModel
+	info.UpstreamModelName = "doubao-seedance-2-0-260128"
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = modelPrice
+	a := &TaskAdaptor{}
+	if taskErr := a.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction error: %+v", taskErr)
+	}
+	return a, c, info
+}
+
+// A configured model returns nil from EstimateBilling, so its legacy video_input
+// ratio never applies -- per-second is the whole price. When the request cannot
+// be priced, returning no ratios therefore bills the bare ModelPrice with no
+// seconds multiplier, charging a 30-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing.
+func TestDoubaoEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installDoubaoVideoPriceRules(t, `[
+		{"model":"public-seedance","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		// frames sets the length at a per-model fps the gateway does not know.
+		{"frames", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","frames":121,"content":[{"type":"text","text":"hi"}]}`},
+		// duration -1 explicitly hands the length to the model.
+		{"model-chosen duration", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","duration":-1,"content":[{"type":"text","text":"hi"}]}`},
+		// A tier NormalizeResolution refuses to classify.
+		{"unclassifiable resolution", `{"model":"doubao-seedance-2-0-260128","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"}]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newDoubaoBillingRequest(t, tc.body, "public-seedance", 0.14)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must still reach its legacy path when
+// the same request shapes appear. GetVideoInputRatio buckets an unrecognised
+// resolution into the base tier and ignores the length entirely, so it really
+// does still price these -- returning nil for them would be a silent regression.
+func TestDoubaoEstimateBillingUnconfiguredModelKeepsLegacyRatioWhenUnpriceable(t *testing.T) {
+	installDoubaoVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	video := `{"type":"video_url","video_url":{"url":"https://x/v.mp4"},"role":"reference_video"}`
+	for _, tc := range []struct{ name, body string }{
+		{"frames", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","frames":121,"content":[{"type":"text","text":"hi"},` + video + `]}`},
+		{"model-chosen duration", `{"model":"doubao-seedance-2-0-260128","resolution":"720p","duration":-1,"content":[{"type":"text","text":"hi"},` + video + `]}`},
+		{"unclassifiable resolution", `{"model":"doubao-seedance-2-0-260128","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"},` + video + `]}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newDoubaoBillingRequest(t, tc.body, "doubao-unconfigured", 0.14)
+			ratios := a.EstimateBilling(c, info)
+			if ratios["video_input"] != 28.0/46.0 {
+				t.Fatalf("unconfigured model lost its legacy video_input ratio: %v", ratios)
+			}
+			got, err := a.SecondBillingRatios()
+			if err != nil {
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+			}
+			if len(got) != 0 {
+				t.Fatalf("unconfigured model produced per-second units: %v", got)
+			}
+		})
 	}
 }

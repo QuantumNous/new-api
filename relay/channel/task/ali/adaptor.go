@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -144,6 +145,66 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those. Ali
+// resolutions are upper-case "P"-suffixed labels ("720P") produced by
+// convertToAliRequest and sizeToResolution, which NormalizeResolution folds
+// into the shared lower-case vocabulary.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -270,6 +331,21 @@ func sizeToResolution(size string) (string, error) {
 	return "", fmt.Errorf("invalid size: %s", size)
 }
 
+// aliRequestResolution derives the resolution label the legacy ratio table is
+// keyed on: an explicit "W*H" size maps through sizeToResolution, otherwise the
+// "720P"-style parameter is upper-cased and given its "P" suffix. Shared with
+// the per-second capture so the two cannot drift onto different tiers.
+func aliRequestResolution(params *AliVideoParameters) (string, error) {
+	if params.Size != "" {
+		return sizeToResolution(params.Size)
+	}
+	resolution := strings.ToUpper(params.Resolution)
+	if !strings.HasSuffix(resolution, "P") {
+		resolution = resolution + "P"
+	}
+	return resolution, nil
+}
+
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
 	aliRatios := map[string]map[string]float64{
@@ -312,18 +388,11 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 	var resolution string
 
 	// size match
-	if aliReq.Parameters.Size != "" {
-		toResolution, err := sizeToResolution(aliReq.Parameters.Size)
-		if err != nil {
-			return nil, err
-		}
-		resolution = toResolution
-	} else {
-		resolution = strings.ToUpper(aliReq.Parameters.Resolution)
-		if !strings.HasSuffix(resolution, "P") {
-			resolution = resolution + "P"
-		}
+	toResolution, err := aliRequestResolution(aliReq.Parameters)
+	if err != nil {
+		return nil, err
 	}
+	resolution = toResolution
 	if otherRatio, ok := aliRatios[aliReq.Model]; ok {
 		if ratio, ok := otherRatio[resolution]; ok {
 			otherRatios[fmt.Sprintf("resolution-%s", resolution)] = ratio
@@ -528,13 +597,72 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 // EstimateBilling 根据用户请求参数计算 OtherRatios（时长、分辨率等）。
 // 在 ValidateRequestAndSetAction 之后、价格计算之前调用。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// Clear the previous request's capture: a stale Err would reject this
+	// request even when it is perfectly priceable. See SecondBillingState.Reset.
+	a.resetSecondBilling()
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only. Taken once here so
+	// both inbound shapes below use the same table.
+	rules := billing_setting.GetVideoPriceRules()
+	// The configured table is keyed on info.OriginModelName — the client-facing
+	// name the administrator also prices with ModelPrice, which is the
+	// denominator in ComputeSecondBilling. The legacy ratio tables key on the
+	// upstream wan/happyhorse model id instead; the two keys are deliberately
+	// different and must not be "unified".
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
 	if isHappyHorseModel(info.UpstreamModelName) {
 		req, err := GetHappyHorseRequest(c)
 		if err != nil {
+			// The request did not even bind, so nothing about it is knowable.
+			// The legacy path below returns nil for this too, so a configured
+			// model has no reservation to make either way.
+			if configured {
+				a.secondBillingErr = taskcommon.UnpriceableDurationError(
+					info.OriginModelName, "happyhorse 请求无法解析；the happyhorse request could not be parsed")
+			}
 			return nil
 		}
 		seconds, err := req.ReservationSeconds()
 		if err != nil {
+			// The length is not knowable, so pricing off a fabricated duration
+			// is worse than keeping the previous path. For an UNCONFIGURED
+			// model that path is the nil return below. For a configured one
+			// there is no path at all, so refuse.
+			if configured {
+				a.secondBillingErr = taskcommon.UnpriceableDurationError(info.OriginModelName, err.Error())
+			}
+			return nil
+		}
+		// The upstream renders 1080P when the optional parameter is omitted;
+		// naming it here lets a rule match the tier actually produced.
+		resolution := "1080P"
+		if req.Parameters.Resolution != nil {
+			resolution = *req.Parameters.Resolution
+		}
+		// Only video-edit takes a reference video, and it always requires one.
+		hasVideo := req.Model == "happyhorse-1.0-video-edit"
+		dims, dimsOK := resolveDimensions(resolution, hasVideo)
+		switch {
+		case dimsOK && seconds > 0:
+			a.secondBillingModel = info.OriginModelName
+			a.secondBillingDims = dims
+			a.secondBillingSeconds = float64(seconds)
+			a.secondBillingModelPrice = info.PriceData.ModelPrice
+			a.secondBillingRules = rules
+		case !dimsOK && configured:
+			a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+				info.OriginModelName, "resolution", resolution)
+		case configured:
+			// seconds <= 0 despite ReservationSeconds succeeding.
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, "预留时长非正数；the reserved length is not positive")
+		}
+		// A model in the price table is priced by SecondBillingRatios;
+		// returning nil here keeps the legacy reservation from also applying.
+		if configured {
 			return nil
 		}
 		return map[string]float64{"seconds": float64(seconds)}
@@ -542,11 +670,60 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 
 	taskReq, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
+		// No stored request at all; the legacy path below returns nil too.
+		if configured {
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, "请求未能读取；the task request could not be read")
+		}
 		return nil
 	}
 
 	aliReq, err := a.convertToAliRequest(info, taskReq)
 	if err != nil {
+		// Neither the length nor the resolution is knowable for a request that
+		// does not convert. For an UNCONFIGURED model the legacy path is this
+		// same nil return, so nothing is lost; a configured one must refuse.
+		if configured {
+			a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+				info.OriginModelName, "size", taskReq.Size)
+		}
+		return nil
+	}
+
+	// aliRequestResolution is the same derivation ProcessAliOtherRatios uses,
+	// so the configured tier can never disagree with the legacy one. An
+	// unmappable size returns an error.
+	//
+	// The legacy path below still prices an unclassifiable tier: it falls back
+	// to a bare seconds ratio when ProcessAliOtherRatios declines. So an
+	// UNCONFIGURED model must fall through to it, while a configured one — for
+	// which that path is unreachable — must refuse.
+	resolution, resErr := aliRequestResolution(aliReq.Parameters)
+	dims, dimsOK := resolveDimensions(resolution, false)
+	switch {
+	case resErr == nil && dimsOK && aliReq.Parameters.Duration > 0:
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(aliReq.Parameters.Duration)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	case configured && (resErr != nil || !dimsOK):
+		raw := resolution
+		if resErr != nil {
+			raw = aliReq.Parameters.Size
+		}
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", raw)
+	case configured:
+		// convertToAliRequest defaults a non-positive duration to 5, so this is
+		// unreachable today; it is kept so a future change to that default
+		// cannot silently reintroduce a request billed without a length.
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName, "duration 非正数；the duration is not positive")
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy hardcoded ratios from also applying.
+	if configured {
 		return nil
 	}
 
@@ -764,4 +941,15 @@ func convertAliStatus(aliStatus string) string {
 	default:
 		return dto.VideoStatusUnknown
 	}
+}
+
+// resetSecondBilling clears the per-request capture. The adaptor instance can
+// outlive a request when injected for tests, so the fields must not carry over.
+func (a *TaskAdaptor) resetSecondBilling() {
+	a.secondBillingModel = ""
+	a.secondBillingDims = nil
+	a.secondBillingSeconds = 0
+	a.secondBillingModelPrice = 0
+	a.secondBillingRules = nil
+	a.secondBillingErr = nil
 }

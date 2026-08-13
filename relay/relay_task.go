@@ -45,6 +45,46 @@ type taskPriceDataValidator interface {
 	ValidateTaskPriceData(info *relaycommon.RelayInfo) *dto.TaskError
 }
 
+// secondBillingAdaptor is implemented by task adaptors that price per second.
+// Adaptors resolve request dimensions and consult the configured price table;
+// an error means the model is configured for per-second billing but the request
+// cannot be priced, and must not be submitted upstream.
+type secondBillingAdaptor interface {
+	SecondBillingRatios() (map[string]float64, error)
+}
+
+// resolveSecondBillingRatios runs the optional per-second billing hook.
+// An adaptor that does not implement it keeps its previous billing path, so the
+// zero result (nil, nil) has to be indistinguishable from "model not configured".
+// shouldApplyOtherRatios reports whether the accumulated OtherRatios multipliers
+// should be applied to the base quota.
+//
+// TASK_PRICE_PATCH (constant.TaskPricePatches) is a temporary escape hatch that
+// forces a model to pure per-call billing by skipping every multiplier. A
+// configured per-second price outranks it: the multiplier is otherwise computed,
+// persisted into the billing snapshot, and then silently never applied, so a
+// 30-second video would bill at the base quota as if it were one unit.
+//
+// An administrator configuring a per-second rule is making a deliberate pricing
+// decision; the patch list is a legacy stopgap for models that have none.
+func shouldApplyOtherRatios(pricePatched bool, secondRatios map[string]float64) bool {
+	return !pricePatched || len(secondRatios) > 0
+}
+
+func resolveSecondBillingRatios(adaptor any) (map[string]float64, error) {
+	sba, ok := adaptor.(secondBillingAdaptor)
+	if !ok {
+		return nil, nil
+	}
+	ratios, err := sba.SecondBillingRatios()
+	if err != nil {
+		// Discard any ratios returned alongside the error. Pricing a request the
+		// adaptor just declared unpriceable is worse than rejecting it.
+		return nil, err
+	}
+	return ratios, nil
+}
+
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
 // 查找原始任务、从中提取模型名称、将渠道锁定到原始任务的渠道
 // （通过 info.LockedChannel，重试时复用同一渠道并轮换 key），
@@ -231,8 +271,21 @@ func prepareTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo, reserveBilli
 		}
 	}
 
+	// 5b. 按秒计费：已配置价格表的模型若无法定价，必须在提交上游前失败，
+	//     避免产生一个无法计费的上游调用。此处早失败可保证该请求完全免费。
+	//     用 Local 包装：定价失败源于本地价格表缺少规则，与渠道无关；
+	//     非 Local 的 TaskError 会被 controller 交给 processChannelError，
+	//     从而把配置问题记成渠道故障，甚至触发关键字自动禁用渠道。
+	secondRatios, secondErr := resolveSecondBillingRatios(adaptor)
+	if secondErr != nil {
+		return nil, service.TaskErrorWrapperLocal(secondErr, "video_price_not_configured", http.StatusBadRequest)
+	}
+	for k, v := range secondRatios {
+		info.PriceData.AddOtherRatio(k, v)
+	}
+
 	// 6. 将 OtherRatios 应用到基础额度
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
+	if shouldApplyOtherRatios(common.StringsContains(constant.TaskPricePatches, modelName), secondRatios) {
 		applyTaskOtherRatios(&info.PriceData)
 	}
 

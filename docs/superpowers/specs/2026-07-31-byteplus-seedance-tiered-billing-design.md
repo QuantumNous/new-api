@@ -1,5 +1,11 @@
 # BytePlus Seedance Token-Settled Tiered Billing Design
 
+> **Superseded for models configured in the video per-second price table.**
+> See `2026-08-12-video-per-second-billing-design.md`. Flatkey charges the
+> upstream's published per-second price; real metered consumption is reconciled
+> against supplier reports out of band. Token settlement below still applies to
+> Seedance models absent from that table.
+
 ## Decision
 
 BytePlus Seedance billing remains token-based. The upstream task result's

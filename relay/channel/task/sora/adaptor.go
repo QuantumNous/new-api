@@ -18,6 +18,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -66,6 +67,66 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those. Sora sends
+// pixel dimensions ("1792x1024") rather than tier labels, which
+// NormalizeResolution folds into the shared vocabulary by short side, so
+// portrait and landscape of one tier price identically.
+func resolveDimensions(size string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(size)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -96,6 +157,9 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // EstimateBilling 根据用户请求的 seconds 和 size 计算 OtherRatios。
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// Clear the previous request's capture: a stale Err would reject this
+	// request even when it is perfectly priceable. See SecondBillingState.Reset.
+	a.resetSecondBilling()
 	// remix 路径的 OtherRatios 已在 ResolveOriginTask 中设置
 	if info.Action == constant.TaskActionRemix {
 		return nil
@@ -117,6 +181,42 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	size := req.Size
 	if size == "" {
 		size = "720x1280"
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// Keyed on info.OriginModelName — the client-facing name the administrator
+	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// seconds is always positive here (defaulted to 4 just above), so an
+	// unrecognised size is the only way a request goes unpriced. For an
+	// UNCONFIGURED model that leaves it on the legacy path, which prices every
+	// size (the multiplier is a literal comparison; anything else bills at 1).
+	// For a configured one there is no legacy path to fall back to — the early
+	// return below skips it — so the request must be refused instead.
+	//
+	// ValidateMultipartDirect whitelists size only for models literally named
+	// "sora-2"/"sora-2-pro", so a channel mapping an alias onto Sora reaches
+	// here with arbitrary caller text — and the price table is keyed on exactly
+	// that alias.
+	if dims, ok := resolveDimensions(size, false); ok {
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(seconds)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	} else if configured {
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "size", size)
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy hardcoded ratios from also applying.
+	if configured {
+		return nil
 	}
 
 	ratios := map[string]float64{
@@ -328,4 +428,15 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		return nil, errors.Wrap(err, "set id failed")
 	}
 	return data, nil
+}
+
+// resetSecondBilling clears the per-request capture. The adaptor instance can
+// outlive a request when injected for tests, so the fields must not carry over.
+func (a *TaskAdaptor) resetSecondBilling() {
+	a.secondBillingModel = ""
+	a.secondBillingDims = nil
+	a.secondBillingSeconds = 0
+	a.secondBillingModelPrice = 0
+	a.secondBillingRules = nil
+	a.secondBillingErr = nil
 }

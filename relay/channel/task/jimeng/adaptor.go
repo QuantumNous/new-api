@@ -27,6 +27,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 )
 
 // ============================
@@ -72,6 +73,34 @@ const (
 	MaxFileSize int64 = 4*1024*1024 + 700*1024 // 4.7MB (4MB + 724KB)
 )
 
+// The upstream expresses output length as a frame count, not seconds, at the
+// documented 24 fps (https://www.volcengine.com/docs/85621/1544774). These are
+// the only two counts convertToRequestPayload produces, and each carries a
+// documented length; see billableSeconds for why the mapping is a closed table.
+const (
+	framesFor5Seconds  = 121 // 24*5+1
+	framesFor10Seconds = 241 // 24*10+1
+)
+
+// billableSeconds converts the frame count the upstream will actually render
+// into the output length to bill.
+//
+// The table is closed rather than a division by 24. A metadata override can set
+// `frames` to any value, and the fps behind an arbitrary count is not something
+// this gateway knows — different req_keys may render at different rates. Dividing
+// by an assumed 24 would silently bill a wrong length; reporting false instead
+// leaves the request on the per-call path, which is the pre-existing behaviour.
+func billableSeconds(frames int) (float64, bool) {
+	switch frames {
+	case framesFor5Seconds:
+		return 5, true
+	case framesFor10Seconds:
+		return 10, true
+	default:
+		return 0, false
+	}
+}
+
 // ============================
 // Adaptor implementation
 // ============================
@@ -82,6 +111,140 @@ type TaskAdaptor struct {
 	accessKey   string
 	secretKey   string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 10-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those.
+//
+// Jimeng exposes no output resolution parameter — the upstream submit body is
+// req_key / prompt / images / seed / aspect_ratio / frames — so no resolution
+// key is reported. aspect_ratio is a shape, not a pixel tier, and reporting it
+// as one would let a "720p" rule match a request whose real tier nobody knows.
+// FindVideoPriceRule treats a dimension the adapter did not resolve as
+// unmatchable rather than as a wildcard, which is what makes a resolution rule
+// written for this channel fail loudly instead of silently pricing every tier
+// alike. has_video is always "false" (the optional references are images, never
+// video) and is emitted anyway so rules stay uniform across channels.
+func resolveDimensions() map[string]string {
+	return map[string]string{"has_video": "false"}
+}
+
+// EstimateBilling captures the per-second billing inputs. This channel bills
+// purely per call today, so there is no legacy per-second estimate to preserve:
+// it always returns nil and all per-second pricing flows through
+// SecondBillingRatios. A model absent from the price table is left exactly as it
+// is today.
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// Clear the previous request's capture: a stale Err would reject this
+	// request even when it is perfectly priceable. See SecondBillingState.Reset.
+	a.resetSecondBilling()
+	if info == nil {
+		return nil
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	// Price the body the upstream will actually receive. The length lives in
+	// `frames`, which convertToRequestPayload derives from the top-level
+	// duration and metadata may then override, so deriving it any other way
+	// could bill a length the upstream never renders.
+	payload, err := a.convertToRequestPayload(&req, info)
+	if err != nil {
+		return nil
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// Keyed on info.OriginModelName — the client-facing name the administrator
+	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
+	// Not the upstream req_key: convertToRequestPayload rewrites it per request
+	// shape (t2v / i2v / first-tail / 3.0-pro), so keying on it would divide one
+	// model's per-second rate by another model's price.
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length is actually knowable: a wrong duration would
+	// misprice the request silently. For an UNCONFIGURED model that leaves the
+	// request on the per-call path, which is the documented pre-existing
+	// behaviour. For a configured one there is no per-call price left to fall
+	// back to — this channel contributes no legacy ratios at all — so the
+	// request must be refused instead.
+	//
+	// There is no dimension failure mode to mirror this one: resolveDimensions
+	// reports only has_video, which is always resolvable.
+	seconds, ok := billableSeconds(payload.Frames)
+	if !ok {
+		if configured {
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, unknowableLengthReason(payload.Frames))
+		}
+		return nil
+	}
+
+	a.secondBillingModel = info.OriginModelName
+	a.secondBillingDims = resolveDimensions()
+	a.secondBillingSeconds = seconds
+	a.secondBillingModelPrice = info.PriceData.ModelPrice
+	a.secondBillingRules = rules
+	return nil
+}
+
+// unknowableLengthReason explains why billableSeconds refused, in terms the
+// caller can act on. It is only meaningful when that function returned false.
+//
+// The frame count is always a metadata override when it lands here: every value
+// convertToRequestPayload produces on its own is one of the two documented
+// counts, so the fix is always to drop the override or use a documented count.
+func unknowableLengthReason(frames int) string {
+	return fmt.Sprintf(
+		"metadata 指定的 frames=%d 无对应的官方帧率，网关无法换算为秒（仅 %d=5s / %d=10s 有记载）；"+
+			"metadata set frames=%d, which has no documented fps behind it "+
+			"(only %d=5s and %d=10s are documented), so it cannot be converted to seconds",
+		frames, framesFor5Seconds, framesFor10Seconds,
+		frames, framesFor5Seconds, framesFor10Seconds)
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -386,9 +549,9 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 
 	switch req.Duration {
 	case 10:
-		r.Frames = 241 // 24*10+1 = 241
+		r.Frames = framesFor10Seconds
 	default:
-		r.Frames = 121 // 24*5+1 = 121
+		r.Frames = framesFor5Seconds
 	}
 
 	// Handle one-of image_urls or binary_data_base64
@@ -477,4 +640,15 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 
 func isNewAPIRelay(apiKey string) bool {
 	return strings.HasPrefix(apiKey, "sk-")
+}
+
+// resetSecondBilling clears the per-request capture. The adaptor instance can
+// outlive a request when injected for tests, so the fields must not carry over.
+func (a *TaskAdaptor) resetSecondBilling() {
+	a.secondBillingModel = ""
+	a.secondBillingDims = nil
+	a.secondBillingSeconds = 0
+	a.secondBillingModelPrice = 0
+	a.secondBillingRules = nil
+	a.secondBillingErr = nil
 }
