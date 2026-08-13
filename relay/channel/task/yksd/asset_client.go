@@ -59,6 +59,9 @@ func (c *assetClient) upload(assetType, url, name string) (*assetInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := checkAssetAPIBusinessError(raw); err != nil {
+		return nil, fmt.Errorf("asset upload failed: %w", err)
+	}
 	info := parseAssetInfo(raw)
 	if info.AssetID == "" {
 		if msg := extractAssetError(raw); msg != "" {
@@ -78,11 +81,33 @@ func (c *assetClient) detail(assetID string) (*assetInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := checkAssetAPIBusinessError(raw); err != nil {
+		return nil, fmt.Errorf("asset detail failed: %w", err)
+	}
 	info := parseAssetInfo(raw)
 	if info.AssetID == "" {
 		info.AssetID = id
 	}
 	return info, nil
+}
+
+// checkAssetAPIBusinessError handles KYY-style {"code":N,"msg":...} wrappers.
+// code==0 (or absent) is success.
+func checkAssetAPIBusinessError(raw []byte) error {
+	s := string(raw)
+	code := gjson.Get(s, "code")
+	if !code.Exists() || code.Type == gjson.Null {
+		return nil
+	}
+	// Numeric business code: non-zero means failure.
+	if code.Type == gjson.Number && code.Int() != 0 {
+		msg := extractAssetError(raw)
+		if msg == "" {
+			msg = fmt.Sprintf("upstream code=%d", code.Int())
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
 }
 
 func (c *assetClient) waitActive(assetID string) (*assetInfo, error) {
@@ -155,10 +180,27 @@ func (c *assetClient) postJSON(path string, payload map[string]interface{}) ([]b
 
 func parseAssetInfo(raw []byte) *assetInfo {
 	s := string(raw)
+	// Upstream may return flat docs shape or KYY wrapper:
+	// {"code":0,"msg":null,"data":{"assetId":"...","materialStatus":"PROCESSING",...}}
 	return &assetInfo{
-		AssetID:      strings.TrimSpace(gjson.Get(s, "assetId").String()),
-		Status:       strings.TrimSpace(gjson.Get(s, "status").String()),
-		ErrorMessage: strings.TrimSpace(firstNonEmpty(gjson.Get(s, "errorMessage").String(), gjson.Get(s, "error").String(), gjson.Get(s, "message").String())),
+		AssetID: firstNonEmpty(
+			gjson.Get(s, "assetId").String(),
+			gjson.Get(s, "data.assetId").String(),
+		),
+		Status: firstNonEmpty(
+			gjson.Get(s, "status").String(),
+			gjson.Get(s, "materialStatus").String(),
+			gjson.Get(s, "data.status").String(),
+			gjson.Get(s, "data.materialStatus").String(),
+		),
+		ErrorMessage: firstNonEmpty(
+			gjson.Get(s, "errorMessage").String(),
+			gjson.Get(s, "data.errorMessage").String(),
+			gjson.Get(s, "error").String(),
+			gjson.Get(s, "data.error").String(),
+			gjson.Get(s, "message").String(),
+			nullableJSONString(gjson.Get(s, "msg")),
+		),
 	}
 }
 
@@ -166,11 +208,23 @@ func extractAssetError(raw []byte) string {
 	s := string(raw)
 	return firstNonEmpty(
 		gjson.Get(s, "errorMessage").String(),
+		gjson.Get(s, "data.errorMessage").String(),
 		gjson.Get(s, "error.message").String(),
 		gjson.Get(s, "error").String(),
 		gjson.Get(s, "message").String(),
-		gjson.Get(s, "msg").String(),
+		nullableJSONString(gjson.Get(s, "msg")),
 	)
+}
+
+// nullableJSONString returns trimmed string only for non-null JSON string nodes.
+func nullableJSONString(node gjson.Result) string {
+	if !node.Exists() || node.Type == gjson.Null {
+		return ""
+	}
+	if node.Type != gjson.String {
+		return ""
+	}
+	return strings.TrimSpace(node.String())
 }
 
 func firstNonEmpty(vals ...string) string {

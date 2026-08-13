@@ -107,6 +107,58 @@ func TestNormalizeVolcOfficialInBodyMap(t *testing.T) {
 	}
 }
 
+func TestForceAssets_WrappedKYYResponse(t *testing.T) {
+	var detailCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/asset/seedance2/assetUpload"):
+			_, _ = w.Write([]byte(`{"msg":null,"code":0,"data":{"materialStatus":"PROCESSING","ossStatus":"PENDING","ossUrl":null,"assetId":"asset-20260813122205-i8jcz","name":"Image-auto","errorMessage":null,"url":"https://example.com/a.png"}}`))
+		case strings.HasSuffix(r.URL.Path, "/asset/seedance2/assetDetail"):
+			n := atomic.AddInt32(&detailCalls, 1)
+			if n == 1 {
+				_, _ = w.Write([]byte(`{"msg":null,"code":0,"data":{"assetId":"asset-20260813122205-i8jcz","materialStatus":"PROCESSING","errorMessage":null}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"msg":null,"code":0,"data":{"assetId":"asset-20260813122205-i8jcz","materialStatus":"ACTIVE","errorMessage":null}}`))
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	client := newAssetClient(srv.URL, "test-key")
+	client.httpClient = srv.Client()
+	client.pollEvery = time.Millisecond
+	client.pollLimit = time.Second
+	client.sleep = func(time.Duration) {}
+
+	body := map[string]interface{}{
+		"reference_images": []string{"https://example.com/a.png"},
+	}
+	if err := forceAssetsInBody(client, body); err != nil {
+		t.Fatal(err)
+	}
+	imgs := body["reference_images"].([]string)
+	if imgs[0] != "assetId://asset-20260813122205-i8jcz" {
+		t.Fatalf("reference_images=%v", imgs)
+	}
+	if atomic.LoadInt32(&detailCalls) < 2 {
+		t.Fatalf("detailCalls=%d want >=2", detailCalls)
+	}
+}
+
+func TestParseAssetInfo_Wrapped(t *testing.T) {
+	raw := []byte(`{"msg":null,"code":0,"data":{"materialStatus":"PROCESSING","assetId":"asset-abc","errorMessage":null}}`)
+	info := parseAssetInfo(raw)
+	if info.AssetID != "asset-abc" {
+		t.Fatalf("assetId=%q", info.AssetID)
+	}
+	if info.Status != "PROCESSING" {
+		t.Fatalf("status=%q", info.Status)
+	}
+}
+
 func TestForceAssets_HTTPURLToAssetID(t *testing.T) {
 	var uploads int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
