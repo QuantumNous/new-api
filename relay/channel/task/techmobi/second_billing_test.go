@@ -375,7 +375,104 @@ func TestTechMobiEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	}
 }
 
-// The mirror image: an UNCONFIGURED model must still reach its legacy path.
+// EstimateBilling caches per-request state on the adapter, and
+// SecondBillingRatios reads it back later in the same request. GetTaskAdaptor
+// hands out a fresh &TaskAdaptor{} per call in production, so this is latent
+// rather than live -- but relay/relay_adaptor.go's taskAdaptorForTest returns a
+// shared singleton once a test injects an adapter, and any future adapter reuse
+// or pooling would make it live everywhere.
+//
+// The sharp edge is a stale secondBillingErr: it makes a subsequent, perfectly
+// valid request fail on a pricing error that belonged to an earlier one.
+// EstimateBilling must therefore start from a clean slate rather than assuming
+// the struct it was handed is zero-valued.
+func TestTechMobiEstimateBillingClearsStaleErrorFromAPreviousRequest(t *testing.T) {
+	installTechMobiVideoPriceRules(t, `[
+		{"model":"public-video","match":{"resolution":"1080p","has_video":"false"},"price_per_second":0.5,"basis":"output_duration"}
+	]`)
+
+	// Request 1: a configured model the gateway cannot price. Leaves an error
+	// parked on the adapter, which is correct for this request.
+	a, c, info := newTechMobiBillingRequest(t, `{
+		"model":"doubao/doubao-seedance-2-0-260128",
+		"content":[{"type":"text","text":"a cat"}],
+		"resolution":"1080p",
+		"frames":240
+	}`, "public-video", 0.14)
+	a.EstimateBilling(c, info)
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("test premise: the first request must be unpriceable")
+	}
+
+	// Request 2 on the same adapter: an unconfigured model that is priced by the
+	// legacy path and must not inherit the previous request's failure.
+	c2, _ := newJSONCtx(`{
+		"model":"doubao/doubao-seedance-2-0-260128",
+		"content":[{"type":"text","text":"a cat walking"}],
+		"resolution":"1080p",
+		"duration":8
+	}`)
+	info2 := newRelayInfo()
+	info2.OriginModelName = "techmobi-unconfigured"
+	info2.UpstreamModelName = "doubao/doubao-seedance-2-0-260128"
+	info2.PriceData.UsePrice = true
+	info2.PriceData.ModelPrice = 0.14
+	if taskErr := a.ValidateRequestAndSetAction(c2, info2); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction error: %+v", taskErr)
+	}
+
+	a.EstimateBilling(c2, info2)
+	if _, err := a.SecondBillingRatios(); err != nil {
+		t.Fatalf("a valid request inherited the previous request's pricing failure: %v", err)
+	}
+}
+
+// The same staleness in the other direction: capture state left by a priced
+// request must not price a later request that captured nothing. Here the second
+// model is absent from the table, so it belongs on the legacy path and must
+// report no per-second units at all.
+func TestTechMobiEstimateBillingClearsStaleCaptureFromAPreviousRequest(t *testing.T) {
+	installTechMobiVideoPriceRules(t, `[
+		{"model":"public-video","match":{"resolution":"1080p","has_video":"false"},"price_per_second":0.5,"basis":"output_duration"}
+	]`)
+
+	a, c, info := newTechMobiBillingRequest(t, `{
+		"model":"doubao/doubao-seedance-2-0-260128",
+		"content":[{"type":"text","text":"a cat"}],
+		"resolution":"1080p",
+		"duration":8
+	}`, "public-video", 0.14)
+	a.EstimateBilling(c, info)
+	first, err := a.SecondBillingRatios()
+	if err != nil || len(first) == 0 {
+		t.Fatalf("test premise: the first request must price per-second (ratios=%v err=%v)", first, err)
+	}
+
+	c2, _ := newJSONCtx(`{
+		"model":"doubao/doubao-seedance-2-0-260128",
+		"content":[{"type":"text","text":"a cat walking"}],
+		"resolution":"1080p",
+		"duration":8
+	}`)
+	info2 := newRelayInfo()
+	info2.OriginModelName = "techmobi-unconfigured"
+	info2.UpstreamModelName = "doubao/doubao-seedance-2-0-260128"
+	info2.PriceData.UsePrice = true
+	info2.PriceData.ModelPrice = 0.14
+	if taskErr := a.ValidateRequestAndSetAction(c2, info2); taskErr != nil {
+		t.Fatalf("ValidateRequestAndSetAction error: %+v", taskErr)
+	}
+
+	a.EstimateBilling(c2, info2)
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("SecondBillingRatios error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("an unconfigured model was priced from the previous request's captured state: %v", got)
+	}
+}
+
 // GetVideoGenerationRatio ignores the length entirely and falls an unrecognised
 // resolution back to the base tier, so it really does still price every shape
 // the per-second path refuses -- returning nil would silently drop these
