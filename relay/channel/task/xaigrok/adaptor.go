@@ -134,6 +134,22 @@ var _ interface {
 	SecondBillingRatios() (map[string]float64, error)
 } = (*TaskAdaptor)(nil)
 
+// service's perCallTaskBillingAdjuster is unexported, so assert the method set.
+// Without this a typo'd name would compile and silently keep the reservation.
+var _ interface {
+	AdjustPerCallBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int
+} = (*TaskAdaptor)(nil)
+
+// AdjustPerCallBillingOnComplete implements service's perCallTaskBillingAdjuster.
+//
+// xAI prices by output resolution but accepts no resolution parameter, so the
+// reservation cannot know what tier it is paying for. The upstream reports the
+// exact charge on completion; settling against it tracks the published price
+// through any tier, discount, or repricing without a config change.
+func (a *TaskAdaptor) AdjustPerCallBillingOnComplete(task *model.Task, _ *relaycommon.TaskInfo) int {
+	return completedQuota(task)
+}
+
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
 	if a.secondBillingErr != nil {

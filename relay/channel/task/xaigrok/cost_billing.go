@@ -1,9 +1,11 @@
 package xaigrok
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 )
 
 // usdTicksPerDollar is the fixed-point scale xAI reports costs in.
@@ -74,4 +76,40 @@ func settledQuotaFromCost(usd, groupRatio float64) int {
 
 func isPositiveFinite(v float64) bool {
 	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
+}
+
+// completedQuota settles a finished task against the cost the upstream reported.
+//
+// Returns 0 to keep the reservation. That is the right answer whenever the cost
+// cannot be read: the alternative is charging a number nobody reported.
+func completedQuota(task *model.Task) int {
+	if task == nil || task.PrivateData.BillingContext == nil {
+		return keepReservedQuota(task, "billing snapshot is missing")
+	}
+	usd, ok := parseUpstreamCost(task.Data)
+	if !ok {
+		return keepReservedQuota(task,
+			"upstream reported no usable usage.cost_in_usd_ticks")
+	}
+	quota := settledQuotaFromCost(usd, task.PrivateData.BillingContext.GroupRatio)
+	if quota <= 0 {
+		return keepReservedQuota(task, "settled quota is not positive")
+	}
+	return quota
+}
+
+// keepReservedQuota returns 0 -- the caller's signal to leave the reservation
+// alone -- and says why.
+//
+// Without this line a stuck settlement is invisible: every task silently bills
+// at the worst-case reservation, which is exactly what happens if xAI renames
+// cost_in_usd_ticks. Mirrors hailuo_v2's keepReservedQuota.
+func keepReservedQuota(task *model.Task, reason string) int {
+	taskID := "unknown"
+	if task != nil && task.TaskID != "" {
+		taskID = task.TaskID
+	}
+	common.SysError(fmt.Sprintf(
+		"Grok video task %s keeps its pre-consumed quota: %s", taskID, reason))
+	return 0
 }

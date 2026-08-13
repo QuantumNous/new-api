@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 // The observed pairs come from real production task rows: grok-imagine-video at
@@ -109,3 +111,67 @@ func TestSettledQuotaRejectsUnusableInput(t *testing.T) {
 		})
 	}
 }
+
+func newGrokTask(t *testing.T, body string, groupRatio float64) *model.Task {
+	t.Helper()
+	task := &model.Task{Data: []byte(body)}
+	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		GroupRatio: groupRatio,
+	}
+	return task
+}
+
+func TestCompletedQuotaFromRealResponse(t *testing.T) {
+	task := newGrokTask(t,
+		`{"model":"grok-imagine-video","usage":{"cost_in_usd_ticks":500000000},"video":{"url":"x","duration":1},"status":"done"}`,
+		1.0)
+	got := completedQuota(task)
+	want := int(0.05 * grokMarkup * common.QuotaPerUnit)
+	if got != want {
+		t.Fatalf("quota = %d, want %d", got, want)
+	}
+}
+
+// The case that touches user balances: a render cheaper than the reservation
+// must settle below it so the difference is refunded.
+func TestCompletedQuotaBelowReservationRefunds(t *testing.T) {
+	// Reserved at the 1080P worst case, rendered at 480P.
+	task := newGrokTask(t,
+		`{"usage":{"cost_in_usd_ticks":500000000}}`, 1.0)
+	reserved := int(0.25 * common.QuotaPerUnit)
+	settled := completedQuota(task)
+	if settled <= 0 {
+		t.Fatalf("settlement must produce a quota, got %d", settled)
+	}
+	if settled >= reserved {
+		t.Fatalf("a 480P render must settle below a 1080P reservation: %d vs %d",
+			settled, reserved)
+	}
+}
+
+func TestCompletedQuotaKeepsReservationWhenUnusable(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		task *model.Task
+	}{
+		{"nil task", nil},
+		{"no billing snapshot", &model.Task{Data: []byte(`{"usage":{"cost_in_usd_ticks":500000000}}`)}},
+		{"usage absent", newGrokTask(t, `{"status":"done"}`, 1.0)},
+		{"cost absent", newGrokTask(t, `{"usage":{"completion_tokens":5}}`, 1.0)},
+		{"cost zero", newGrokTask(t, `{"usage":{"cost_in_usd_ticks":0}}`, 1.0)},
+		{"malformed body", newGrokTask(t, `{not json`, 1.0)},
+		{"empty body", newGrokTask(t, ``, 1.0)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// 0 tells the caller to keep the reservation.
+			if got := completedQuota(tc.task); got != 0 {
+				t.Fatalf("quota = %d, want 0", got)
+			}
+		})
+	}
+}
+
+// The interface is unexported in package service, so assert the method set.
+var _ interface {
+	AdjustPerCallBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int
+} = (*TaskAdaptor)(nil)
