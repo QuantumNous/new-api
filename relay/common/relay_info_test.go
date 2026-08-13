@@ -176,3 +176,21 @@ func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	info.InitChannelMeta(ctx)
 	assert.Equal(t, "max", info.ReasoningEffort)
 }
+
+func TestRelayInfoConvOptionsCopiesOpenAIPromptIncludesCache(t *testing.T) {
+	enabled := &RelayInfo{
+		ChannelMeta: &ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{OpenAIPromptIncludesCache: true},
+		},
+	}
+	assert.True(t, enabled.ConvOptions().Claude.OpenAIPromptIncludesCache)
+
+	unset := &RelayInfo{ChannelMeta: &ChannelMeta{}}
+	assert.False(t, unset.ConvOptions().Claude.OpenAIPromptIncludesCache)
+
+	noMeta := &RelayInfo{}
+	assert.False(t, noMeta.ConvOptions().Claude.OpenAIPromptIncludesCache)
+
+	var nilInfo *RelayInfo
+	assert.False(t, nilInfo.ConvOptions().Claude.OpenAIPromptIncludesCache)
+}

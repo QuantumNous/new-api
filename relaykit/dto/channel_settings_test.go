@@ -578,3 +578,23 @@ func TestChannelSettingsValidateHTTPTransport(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "http2_connection_shards")
 }
+
+func TestChannelSettingsOpenAIPromptIncludesCacheJSON(t *testing.T) {
+	omitted := ChannelSettings{}
+	encoded, err := json.Marshal(omitted)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "openai_prompt_includes_cache")
+
+	var decoded ChannelSettings
+	require.NoError(t, json.Unmarshal([]byte(`{"proxy":"http://127.0.0.1:8080"}`), &decoded))
+	assert.False(t, decoded.OpenAIPromptIncludesCache)
+
+	enabled := ChannelSettings{OpenAIPromptIncludesCache: true}
+	encoded, err = json.Marshal(enabled)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"openai_prompt_includes_cache":true`)
+
+	var enabledDecoded ChannelSettings
+	require.NoError(t, json.Unmarshal(encoded, &enabledDecoded))
+	assert.True(t, enabledDecoded.OpenAIPromptIncludesCache)
+}
