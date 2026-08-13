@@ -11,18 +11,20 @@ enable_legacy_runtime = false
 custom_domains = []
 
 // HTTPS LB front door — replaces domain mappings.
-// Old `new-api.*.flatkey.ai` kept during the migration window so existing
-// clients keep working while we cut over to the shorter `one.flatkey.ai` /
-// `router.flatkey.ai` pair. Remove the old entries once monitoring shows
-// no traffic on them.
+// Certificate Manager validates the five active production hosts through
+// persistent DNS authorizations in Cloudflare. Retired `new-api.*` hosts are
+// intentionally excluded so they cannot block automatic renewal again.
 enable_load_balancer = true
 lb_default_backend   = "console"
 lb_domains = [
-  "new-api.app.flatkey.ai",
-  "new-api.api.flatkey.ai",
+  "flatkey.ai",
+  "www.flatkey.ai",
   "one.flatkey.ai",
   "router.flatkey.ai",
+  "console.flatkey.ai",
 ]
+certificate_map_name                 = "flatkey-prod-map"
+certificate_manager_certificate_name = "flatkey-prod-cert"
 
 // Keep Cloud Run open during initial bring-up so health probes against *.run.app still work.
 // After LB is healthy and CI/CD probes via the LB hostname, lock this down to
@@ -64,10 +66,10 @@ console_service_name = "newapi-console"
 router_domains       = ["router.flatkey.ai"]
 console_domains      = ["console.flatkey.ai"]
 
-// console.flatkey.ai is Cloudflare-proxied (orange-cloud) and origin routing
-// has been verified with curl --resolve -k. Keep it out of lb_domains to avoid
-// GCP managed-cert rotation and the associated HTTPS downtime window.
-console_domains_require_managed_cert = false
+// Every production host is covered by the Certificate Manager certificate,
+// including Cloudflare-proxied console and website hosts, so Full (strict) and
+// emergency DNS-only access both validate the origin certificate.
+console_domains_require_managed_cert = true
 
 // Router keeps the current production capacity profile for long-lived model
 // calls. Console starts smaller because it handles authenticated UI/API traffic

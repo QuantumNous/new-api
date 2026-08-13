@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
@@ -190,20 +192,36 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 }
 
 func buildEndpointChannelFilter(c *gin.Context, modelName string) model.ChannelFilter {
-	if requestedEndpointType(c) == "" {
-		return nil
-	}
 	return func(channel *model.Channel) bool {
 		return ChannelSupportsRequestEndpoint(c, channel, modelName)
 	}
 }
 
 func ChannelSupportsRequestEndpoint(c *gin.Context, channel *model.Channel, modelName string) bool {
+	if !blockRunSolanaSupportsRequest(c, channel) {
+		return false
+	}
 	endpointType := requestedEndpointType(c)
 	if endpointType == "" {
 		return true
 	}
 	return channelSupportsRequestedEndpoint(channel, modelName, endpointType)
+}
+
+func blockRunSolanaSupportsRequest(c *gin.Context, channel *model.Channel) bool {
+	if channel == nil || channel.Type != constant.ChannelTypeBlockRun ||
+		channel.GetOtherSettings().GetBlockRunPaymentChain() != dto.BlockRunPaymentChainSolana {
+		return true
+	}
+	if c == nil || c.Request == nil || c.Request.URL == nil || c.Request.Method != http.MethodPost {
+		return false
+	}
+	switch c.Request.URL.Path {
+	case "/v1/chat/completions", "/v1/messages", "/v1/responses":
+		return true
+	default:
+		return false
+	}
 }
 
 func requestedEndpointType(c *gin.Context) constant.EndpointType {

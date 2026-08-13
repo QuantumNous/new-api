@@ -125,6 +125,13 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
+		if info.ChannelType == appconstant.ChannelTypeCodex && c.Writer.Written() {
+			if usageDto, ok := usage.(*dto.Usage); ok && usageDto != nil && usageDto.TotalTokens > 0 {
+				if settleErr := service.PostTextConsumeQuotaOnError(c, info, usageDto, []string{"Codex 流式响应部分输出后失败，按已返回 usage 结算"}); settleErr != nil {
+					logger.LogError(c, "failed to settle delivered Codex response usage: "+settleErr.Error())
+				}
+			}
+		}
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError

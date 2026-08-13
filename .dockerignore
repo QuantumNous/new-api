@@ -1,6 +1,9 @@
 .github
 .git
 *.md
+!.agents/skills/flatkey-new-user-onboarding/SKILL.md
+!.agents/skills/flatkey-new-user-onboarding/references/*.md
+!.agents/skills/flatkey-new-user-onboarding/tests/*.md
 .vscode
 .gitignore
 Makefile

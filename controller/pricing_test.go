@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -226,9 +227,100 @@ func TestBuildWebsitePublicGroupPricingPayloadIncludesHiddenPLGOnly(t *testing.T
 		],
 		"vendors": null,
 		"group_ratio": {"plg": 0.9},
+		"group_model_ratio": {},
 		"usable_group": {"plg": "plg"},
 		"supported_endpoint": null,
 		"auto_groups": null,
-		"pricing_version": "website-public-plg-v1"
+		"pricing_version": "website-public-plg-v2"
 	}`, string(body))
+}
+
+func withHiddenPricingModels(t *testing.T, value string) {
+	t.Helper()
+	setting := operation_setting.GetPricingVisibilitySetting()
+	previous := setting.HiddenModels
+	t.Cleanup(func() { setting.HiddenModels = previous })
+	setting.HiddenModels = value
+}
+
+func TestFilterHiddenPricingModels(t *testing.T) {
+	withHiddenPricingModels(t, "gpt-4o, *-internal , secret*")
+
+	pricing := []model.Pricing{
+		{ModelName: "gpt-4o"},
+		{ModelName: "gpt-4o-mini"},
+		{ModelName: "foo-internal"},
+		{ModelName: "secret-model"},
+		{ModelName: "claude-opus-4-8"},
+	}
+
+	filtered := filterHiddenPricingModels(pricing)
+
+	require.Len(t, filtered, 2)
+	require.Equal(t, "gpt-4o-mini", filtered[0].ModelName)
+	require.Equal(t, "claude-opus-4-8", filtered[1].ModelName)
+}
+
+func TestFilterHiddenPricingModelsNoConfigKeepsAll(t *testing.T) {
+	withHiddenPricingModels(t, "")
+
+	pricing := []model.Pricing{{ModelName: "gpt-4o"}, {ModelName: "claude-opus-4-8"}}
+
+	require.Len(t, filterHiddenPricingModels(pricing), 2)
+}
+
+func TestFilterHiddenPricingModelsDoesNotMutateInput(t *testing.T) {
+	withHiddenPricingModels(t, "gpt-4o")
+
+	pricing := []model.Pricing{{ModelName: "gpt-4o"}, {ModelName: "claude-opus-4-8"}}
+
+	filterHiddenPricingModels(pricing)
+
+	require.Len(t, pricing, 2)
+	require.Equal(t, "gpt-4o", pricing[0].ModelName)
+}
+
+func withGroupModelRatio(t *testing.T, value string) {
+	t.Helper()
+	previous := ratio_setting.GroupModelRatio2JSONString()
+	t.Cleanup(func() {
+		_ = ratio_setting.UpdateGroupModelRatioByJSONString(previous)
+	})
+	require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(value))
+}
+
+// The public PLG payload must expose per-model group ratios. Without them the
+// website falls back to the flat plg ratio and quotes a price the user does
+// not actually pay when a model is configured cheaper for plg.
+func TestBuildWebsitePublicGroupPricingPayloadExposesGroupModelRatio(t *testing.T) {
+	withGroupModelRatio(t, `{"plg":{"glm-5":0.6,"hidden-elsewhere":0.5},"vip":{"glm-5":0.4}}`)
+
+	pricing := []model.Pricing{
+		{ModelName: "glm-5", EnableGroup: []string{"plg"}},
+		{ModelName: "gpt-4o", EnableGroup: []string{"plg"}},
+	}
+
+	payload := buildWebsitePublicGroupPricingPayload(pricing, nil, nil, nil, "plg", 0.9)
+
+	groupModelRatio, ok := payload["group_model_ratio"].(map[string]map[string]float64)
+	require.True(t, ok, "group_model_ratio must be present")
+	require.Equal(t, map[string]map[string]float64{
+		"plg": {"glm-5": 0.6},
+	}, groupModelRatio)
+}
+
+func TestBuildWebsitePublicGroupPricingPayloadOmitsHiddenModelRatios(t *testing.T) {
+	withGroupModelRatio(t, `{"plg":{"glm-5":0.6,"secret-model":0.3}}`)
+	withHiddenPricingModels(t, "secret-model")
+
+	pricing := []model.Pricing{
+		{ModelName: "glm-5", EnableGroup: []string{"plg"}},
+		{ModelName: "secret-model", EnableGroup: []string{"plg"}},
+	}
+
+	payload := buildWebsitePublicGroupPricingPayload(pricing, nil, nil, nil, "plg", 0.9)
+
+	require.Equal(t, map[string]map[string]float64{
+		"plg": {"glm-5": 0.6},
+	}, payload["group_model_ratio"])
 }

@@ -135,9 +135,13 @@ func CurrentVideoResultStorageConfig() VideoResultStorageConfig {
 }
 
 func ArchiveVideoResult(ctx context.Context, publicTaskID, upstreamURL, proxy string) (*model.VideoResult, error) {
+	return ArchiveVideoResultForChannel(ctx, "techmobi", publicTaskID, upstreamURL, proxy)
+}
+
+func ArchiveVideoResultForChannel(ctx context.Context, channel, publicTaskID, upstreamURL, proxy string) (*model.VideoResult, error) {
 	archiveStart := videoResultNow().UTC()
 	recordArchive := func(outcome string, bytes int64) {
-		perfmetrics.RecordVideoResultArchive("techmobi", outcome, bytes, videoResultNow().UTC().Sub(archiveStart))
+		perfmetrics.RecordVideoResultArchive(channel, outcome, bytes, videoResultNow().UTC().Sub(archiveStart))
 	}
 	cfg := CurrentVideoResultStorageConfig()
 	if strings.TrimSpace(cfg.Bucket) == "" {
@@ -153,7 +157,23 @@ func ArchiveVideoResult(ctx context.Context, publicTaskID, upstreamURL, proxy st
 		recordArchive("failure", 0)
 		return nil, ErrVideoResultInvalidContent
 	}
-	client, err := newVideoResultFetchHTTPClient(cfg, proxy, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
+	proxy = strings.TrimSpace(proxy)
+	var client *http.Client
+	if proxy != "" {
+		if strings.EqualFold(strings.TrimSpace(channel), "modelapi") {
+			recordArchive("failure", 0)
+			return nil, ErrVideoResultInvalidContent
+		}
+		client, err = GetHttpClientWithProxy(proxy)
+		if err == nil {
+			proxyClient := *client
+			proxyClient.Timeout = cfg.FetchTimeout
+			proxyClient.CheckRedirect = videoResultCheckRedirect
+			client = &proxyClient
+		}
+	} else {
+		client, err = newVideoResultFetchHTTPClient(cfg, videoResultDirectFetchResolver, videoResultDirectFetchDialContext)
+	}
 	if err != nil {
 		recordArchive("failure", 0)
 		return nil, ErrVideoResultInvalidContent
@@ -290,23 +310,12 @@ func completeVideoResultMetadata(result *model.VideoResult) bool {
 		result.ExpiresAt > 0
 }
 
-func newVideoResultFetchHTTPClient(cfg VideoResultStorageConfig, proxy string, resolver assetFetchResolver, dialContext func(context.Context, string, string) (net.Conn, error)) (*http.Client, error) {
-	var client *http.Client
-	if strings.TrimSpace(proxy) == "" {
-		client = newAssetFetchHTTPClient(assetFetchHTTPClientConfig{
-			Timeout:     cfg.FetchTimeout,
-			Resolver:    resolver,
-			DialContext: dialContext,
-		})
-	} else {
-		baseClient, err := GetHttpClientWithProxy(proxy)
-		if err != nil {
-			return nil, err
-		}
-		cloned := *baseClient
-		cloned.Timeout = cfg.FetchTimeout
-		client = &cloned
-	}
+func newVideoResultFetchHTTPClient(cfg VideoResultStorageConfig, resolver assetFetchResolver, dialContext func(context.Context, string, string) (net.Conn, error)) (*http.Client, error) {
+	client := newAssetFetchHTTPClient(assetFetchHTTPClientConfig{
+		Timeout:     cfg.FetchTimeout,
+		Resolver:    resolver,
+		DialContext: dialContext,
+	})
 	client.CheckRedirect = videoResultCheckRedirect
 	return client, nil
 }
@@ -321,11 +330,11 @@ func videoResultCheckRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func buildVideoResultObjectKey(taskID string, archiveStart time.Time) (string, error) {
+func buildVideoResultObjectKey(taskID string, _ time.Time) (string, error) {
 	if !videoResultTaskIDPattern.MatchString(taskID) {
 		return "", ErrVideoResultInvalidTaskID
 	}
-	return "video-results/" + archiveStart.UTC().Format("20060102") + "/" + taskID + ".mp4", nil
+	return "video-results/tasks/" + taskID + ".mp4", nil
 }
 
 func videoResultObjectBelongsToTask(objectKey, taskID string) bool {
@@ -334,6 +343,9 @@ func videoResultObjectBelongsToTask(objectKey, taskID string) bool {
 		return false
 	}
 	remainder := strings.TrimPrefix(objectKey, prefix)
+	if remainder == "tasks/"+taskID+".mp4" {
+		return true
+	}
 	if len(remainder) <= 9 || remainder[8] != '/' {
 		return false
 	}

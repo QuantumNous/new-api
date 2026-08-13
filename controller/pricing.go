@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,30 @@ var (
 	}{}
 	buildWebsitePricingPayload = buildWebsitePricingPayloadDefault
 )
+
+func init() {
+	operation_setting.OnPricingVisibilityChanged(InvalidateWebsitePricingCache)
+}
+
+// filterHiddenPricingModels 按后台配置的隐藏名单过滤定价列表。
+// 只影响定价接口的展示，不影响模型可用性与实际调用。
+func filterHiddenPricingModels(pricing []model.Pricing) []model.Pricing {
+	if len(pricing) == 0 {
+		return pricing
+	}
+	if len(operation_setting.GetPricingHiddenModelPatterns()) == 0 {
+		return pricing
+	}
+
+	filtered := make([]model.Pricing, 0, len(pricing))
+	for _, item := range pricing {
+		if operation_setting.IsPricingHiddenModel(item.ModelName) {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
+}
 
 func getSortedUsableGroupNames(usableGroup map[string]string) []string {
 	groups := make([]string, 0, len(usableGroup))
@@ -138,6 +163,7 @@ func GetPricing(c *gin.Context) {
 
 	usableGroup = service.GetUserUsableGroups(group)
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
+	pricing = filterHiddenPricingModels(pricing)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; !ok {
@@ -243,7 +269,7 @@ func getCachedWebsitePricingJSON() ([]byte, error) {
 func buildWebsitePricingPayloadDefault() gin.H {
 	pricing := model.GetPricing()
 	usableGroup := service.GetUserUsableGroups("")
-	filteredPricing := filterPricingByUsableGroups(pricing, usableGroup)
+	filteredPricing := filterHiddenPricingModels(filterPricingByUsableGroups(pricing, usableGroup))
 	groupRatio := map[string]float64{}
 	for group, ratio := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; ok {
@@ -277,16 +303,22 @@ func buildWebsitePublicGroupPricingPayload(
 		description = group
 	}
 	usableGroup := map[string]string{group: description}
+	visiblePricing := filterHiddenPricingModels(filterPricingByUsableGroups(pricing, usableGroup))
 
 	return gin.H{
-		"success":            true,
-		"data":               filterPricingByUsableGroups(pricing, usableGroup),
-		"vendors":            vendors,
-		"group_ratio":        map[string]float64{group: ratio},
+		"success":     true,
+		"data":        visiblePricing,
+		"vendors":     vendors,
+		"group_ratio": map[string]float64{group: ratio},
+		// Per-model overrides beat the flat group ratio during billing
+		// (ratio_setting.GetEffectiveGroupRatio), so the public payload has to
+		// carry them too — otherwise a model priced below the group ratio is
+		// quoted higher than it is actually charged.
+		"group_model_ratio":  filterGroupModelRatioByUsableGroupsAndModels(ratio_setting.GetGroupModelRatioCopy(), usableGroup, visiblePricing),
 		"usable_group":       usableGroup,
 		"supported_endpoint": supportedEndpoint,
 		"auto_groups":        autoGroups,
-		"pricing_version":    "website-public-plg-v1",
+		"pricing_version":    "website-public-plg-v2",
 	}
 }
 

@@ -1,0 +1,26 @@
+{
+  "id": "msg-1",
+  "internalDate": "1800000005000",
+  "payload": {
+    "mimeType": "multipart/alternative",
+    "headers": [
+      {"name": "From", "value": "Flatkey <noreply@flatkey.ai>"},
+      {"name": "To", "value": "Owner <owner+qa-123456789-abc123de@gmail.com>"},
+      {"name": "Subject", "value": "Flatkey Email Verification"}
+    ],
+    "parts": [
+      {
+        "mimeType": "text/plain",
+        "body": {
+          "data": "VXNlIDY1NDMyMSB0byB2ZXJpZnkgRmZsYXRrZXku"
+        }
+      },
+      {
+        "mimeType": "text/html",
+        "body": {
+          "data": "PGh0bWw-PGJvZHk-UGxlYXNlIHVzZSA2NTQzMjEgdG8gdmVyaWZ5LjwvYm9keT48L2h0bWw-"
+        }
+      }
+    ]
+  }
+}

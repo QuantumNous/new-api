@@ -1345,6 +1345,8 @@ func handleConfigUpdate(key, value string) (bool, error) {
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
+	} else if configName == "pricing_visibility_setting" {
+		operation_setting.NotifyPricingVisibilityChanged()
 	} else if configName == "theme" {
 		system_setting.UpdateAndSyncTheme()
 	}
@@ -1445,7 +1447,7 @@ func syncRenamedGroupsToGroupModelRatio(renames map[string]string) error {
 		for _, key := range []string{"GroupModelRatio", "group_ratio_setting.group_model_ratio"} {
 			if key == "group_ratio_setting.group_model_ratio" {
 				var count int64
-				if err := tx.Model(&Option{}).Where("key = ?", key).Count(&count).Error; err != nil {
+				if err := tx.Model(&Option{}).Where("`key` = ?", key).Count(&count).Error; err != nil {
 					return err
 				}
 				if count == 0 {

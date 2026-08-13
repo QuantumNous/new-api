@@ -80,6 +80,9 @@ const (
 	// from X-Payment-Receipt). Value type: map[string]interface{}. Surfaced into
 	// the consume-log "other" map by service.GenerateTextOtherInfo.
 	ContextKeyBlockRunSettlement ContextKey = "blockrun_settlement"
+	// ContextKeyBlockRunPaymentState stores request-scoped signed-payment state.
+	// Value type: *relay/common.BlockRunPaymentState.
+	ContextKeyBlockRunPaymentState ContextKey = "blockrun_payment_state"
 
 	// ContextKeyRequestSamplingEligible marks user-facing text LLM relay
 	// requests that may be considered for optional request-parameter sampling.

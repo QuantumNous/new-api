@@ -134,6 +134,15 @@ func (s *BillingSession) NeedsRefund() bool {
 	return s.needsRefundLocked()
 }
 
+// settlementApplied reports whether settlement has committed far enough that
+// the original pre-consumption must not be refunded. It intentionally remains
+// a service-local optional capability rather than widening BillingSettler.
+func (s *BillingSession) settlementApplied() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settled || s.fundingSettled
+}
+
 func (s *BillingSession) needsRefundLocked() bool {
 	if s.settled || s.refunded || s.fundingSettled {
 		// fundingSettled 时资金来源已提交结算，不能再退预扣费

@@ -671,6 +671,18 @@ func (info *RelayInfo) SetFirstResponseTime() {
 	}
 }
 
+// ResetStreamResponseStateForRetry restores the response-observation fields
+// after an upstream attempt produced no downstream-visible response. Callers
+// must only use it before retrying an uncommitted response.
+func (info *RelayInfo) ResetStreamResponseStateForRetry() {
+	if info == nil {
+		return
+	}
+	info.FirstResponseTime = info.StartTime.Add(-time.Second)
+	info.isFirstResponse = true
+	info.ReceivedResponseCount = 0
+}
+
 func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
 }

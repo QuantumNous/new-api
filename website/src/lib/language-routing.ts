@@ -31,8 +31,8 @@ const IGNORED_EXACT_PATHS = [
   "/br",
   "/in",
   "/id-market",
-  // Paid-search SKAG pages are English-only physical routes. Redirecting a
-  // returning localized visitor would send paid traffic to a missing sibling.
+  // These paid-search pages have no localized siblings. Redirecting a returning
+  // localized visitor would send paid traffic to a missing route.
   "/gpt-api-alternative",
   "/chinese-ai",
   "/chinese-ai-models-api",

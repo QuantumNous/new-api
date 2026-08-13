@@ -324,6 +324,9 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	// ModelAPI Seedance 2.5 calculation base; the adaptor converts each
+	// request/task snapshot into a complete billable_units multiplier.
+	"doubao-seedance-2-5-260628": 0.14,
 	// MiniMax H3 international 768P base rate ($0.08/s).
 	// The task adaptor applies the 1.625 multiplier for 2K output.
 	"MiniMax-H3": 0.08,
