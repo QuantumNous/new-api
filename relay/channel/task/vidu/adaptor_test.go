@@ -293,9 +293,12 @@ func TestViduEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.T)
 	}
 }
 
-// A length that cannot be determined must never be guessed: capture is skipped
-// and the request keeps its per-call price. Vidu's duration is an int, so only
-// metadata can push it non-positive — DefaultInt turns a top-level 0 into 5.
+// A length that cannot be determined must never be guessed. For a model absent
+// from the price table capture is skipped and the request keeps its per-call
+// price. Vidu's duration is an int, so only metadata can push it non-positive —
+// DefaultInt turns a top-level 0 into 5. (A CONFIGURED model has no per-call
+// price left to fall back to, so the same shapes are refused instead — see
+// TestViduEstimateBillingConfiguredButUnpriceableErrors.)
 func TestViduEstimateBillingUndeterminableRequestIsNotCaptured(t *testing.T) {
 	installViduVideoPriceRules(t, `[
 		{"model":"viduq1","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
@@ -312,7 +315,7 @@ func TestViduEstimateBillingUndeterminableRequestIsNotCaptured(t *testing.T) {
 		{"empty metadata resolution", `{"model":"viduq1","prompt":"a cat","duration":8,"metadata":{"resolution":""}}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			a, c, info := newViduBillingRequest(t, tc.body, "viduq1", 0.5)
+			a, c, info := newViduBillingRequest(t, tc.body, "vidu-unconfigured", 0.5)
 			a.EstimateBilling(c, info)
 			got, err := a.SecondBillingRatios()
 			if err != nil {
@@ -344,5 +347,37 @@ func TestViduEstimateBillingWithoutTaskRequestCapturesNothing(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("captured without a request: %v", got)
+	}
+}
+
+// Vidu contributes no legacy ratios at all -- EstimateBilling always returns
+// nil -- so a configured model is priced by SecondBillingRatios or not at all.
+// When the request cannot be priced, returning no ratios bills the bare
+// ModelPrice with no seconds multiplier, charging an 8-second render as a
+// single unit. It has to fail instead, so relay_task rejects before submitting
+// upstream and the request costs nothing.
+func TestViduEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installViduVideoPriceRules(t, `[
+		{"model":"viduq1","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		// DefaultInt turns a top-level 0 into 5, so only metadata can push the
+		// duration non-positive.
+		{"zero metadata duration", `{"model":"viduq1","prompt":"a cat","size":"720p","metadata":{"duration":0}}`},
+		{"negative metadata duration", `{"model":"viduq1","prompt":"a cat","size":"720p","metadata":{"duration":-1}}`},
+		// A resolution the shared vocabulary refuses to tier.
+		{"unknown resolution", `{"model":"viduq1","prompt":"a cat","duration":8,"size":"8k"}`},
+		{"empty metadata resolution", `{"model":"viduq1","prompt":"a cat","duration":8,"metadata":{"resolution":""}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newViduBillingRequest(t, tc.body, "viduq1", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("vidu has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
 	}
 }
