@@ -56,6 +56,21 @@ type secondBillingAdaptor interface {
 // resolveSecondBillingRatios runs the optional per-second billing hook.
 // An adaptor that does not implement it keeps its previous billing path, so the
 // zero result (nil, nil) has to be indistinguishable from "model not configured".
+// shouldApplyOtherRatios reports whether the accumulated OtherRatios multipliers
+// should be applied to the base quota.
+//
+// TASK_PRICE_PATCH (constant.TaskPricePatches) is a temporary escape hatch that
+// forces a model to pure per-call billing by skipping every multiplier. A
+// configured per-second price outranks it: the multiplier is otherwise computed,
+// persisted into the billing snapshot, and then silently never applied, so a
+// 30-second video would bill at the base quota as if it were one unit.
+//
+// An administrator configuring a per-second rule is making a deliberate pricing
+// decision; the patch list is a legacy stopgap for models that have none.
+func shouldApplyOtherRatios(pricePatched bool, secondRatios map[string]float64) bool {
+	return !pricePatched || len(secondRatios) > 0
+}
+
 func resolveSecondBillingRatios(adaptor any) (map[string]float64, error) {
 	sba, ok := adaptor.(secondBillingAdaptor)
 	if !ok {
@@ -270,7 +285,7 @@ func prepareTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo, reserveBilli
 	}
 
 	// 6. 将 OtherRatios 应用到基础额度
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
+	if shouldApplyOtherRatios(common.StringsContains(constant.TaskPricePatches, modelName), secondRatios) {
 		applyTaskOtherRatios(&info.PriceData)
 	}
 

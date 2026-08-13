@@ -82,3 +82,30 @@ func TestSecondBillingRejectionIsLocalNotChannelFault(t *testing.T) {
 		t.Fatalf("code = %q, want video_price_not_configured", taskErr.Code)
 	}
 }
+
+// TASK_PRICE_PATCH is a temporary escape hatch meaning "force pure per-call,
+// skip every OtherRatios multiplier". A configured per-second price is a
+// deliberate administrator decision and must outrank it: otherwise the
+// multiplier is computed, stored in the billing snapshot, and then silently
+// never applied, so a 30-second video bills at the base quota.
+func TestShouldApplyOtherRatios(t *testing.T) {
+	tests := []struct {
+		name         string
+		patched      bool
+		secondRatios map[string]float64
+		want         bool
+	}{
+		{"not patched, no per-second", false, nil, true},
+		{"not patched, per-second", false, map[string]float64{"video_billing_units": 11.2}, true},
+		{"patched, no per-second", true, nil, false},
+		{"patched, per-second wins", true, map[string]float64{"video_billing_units": 11.2}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldApplyOtherRatios(tc.patched, tc.secondRatios); got != tc.want {
+				t.Fatalf("shouldApplyOtherRatios(%v, %v) = %v, want %v",
+					tc.patched, tc.secondRatios, got, tc.want)
+			}
+		})
+	}
+}
