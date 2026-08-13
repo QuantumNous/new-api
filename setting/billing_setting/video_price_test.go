@@ -844,17 +844,20 @@ func TestReloadDoesNotMutateCapturedMatchMaps(t *testing.T) {
 	}
 }
 
-// The production write path must quarantine bad rules, not just LoadFromDB.
+// The save path and the load path deliberately disagree on bad rules, and each
+// choice follows from who is there to hear about it.
 //
-// LoadFromDB has no non-test callers: an administrator save goes
-// LoadOptionsFromDatabase -> applyOptionMapValue -> handleConfigUpdate
-// (model/option.go) -> config.UpdateConfigFromMap. If that entry point skips
-// NormalizeAndValidate, an ambiguous rule set reaches the matcher and
-// FindVideoPriceRule's tie-break decides the price by JSON array order --
-// exactly the silent defect the validation exists to prevent.
-func TestUpdateConfigFromMapQuarantinesAmbiguousRules(t *testing.T) {
+// A save has an administrator in front of it, so it rejects: handleConfigUpdate
+// writes the raw value to OptionMap and the database whenever the update returns
+// nil, so quarantining would report success while dropping the model.
+//
+// A load has nobody, and rejecting the whole set would revert every correctly
+// configured model to legacy billing over one typo -- so it quarantines the
+// offending model and keeps the rest serving.
+func TestSaveRejectsWhatLoadQuarantines(t *testing.T) {
 	restore := swapVideoPriceSetting(t)
 	defer restore()
+
 	ambiguous := []VideoPriceRule{
 		{Model: "m", Match: map[string]string{"resolution": "720p"},
 			PricePerSecond: 9, Basis: BasisOutputDuration},
@@ -863,18 +866,27 @@ func TestUpdateConfigFromMapQuarantinesAmbiguousRules(t *testing.T) {
 		{Model: "keep", Match: map[string]string{"resolution": "480p"},
 			PricePerSecond: 0.1, Basis: BasisOutputDuration},
 	}
+
+	// Save: refuses outright, live table untouched.
 	if err := UpdateVideoPriceSettingFromMap(map[string]string{
 		"video_price_rules": marshalRules(t, ambiguous),
-	}); err != nil {
-		t.Fatalf("UpdateVideoPriceSettingFromMap: %v", err)
+	}); err == nil {
+		t.Fatal("a save must reject an ambiguous rule set")
+	}
+	if len(GetVideoPriceRules()) != 0 {
+		t.Fatalf("a rejected save must not touch the live table: %+v", GetVideoPriceRules())
 	}
 
-	live := GetVideoPriceRules()
-	if IsVideoModelConfigured(live, "m") {
-		t.Fatalf("the ambiguous model reached the matcher unquarantined: %+v", live)
+	// Load: quarantines the bad model, keeps the good one serving.
+	loaded := &VideoPriceSetting{VideoPriceRules: ambiguous}
+	if err := loaded.NormalizeAndValidate(); err != nil {
+		t.Fatalf("a load must not fail the whole set: %v", err)
 	}
-	if !IsVideoModelConfigured(live, "keep") {
-		t.Fatalf("the well-formed model was lost as collateral: %+v", live)
+	if IsVideoModelConfigured(loaded.VideoPriceRules, "m") {
+		t.Fatal("the ambiguous model must be quarantined on load")
+	}
+	if !IsVideoModelConfigured(loaded.VideoPriceRules, "keep") {
+		t.Fatal("the well-formed model must survive the load")
 	}
 }
 
@@ -907,5 +919,58 @@ func swapVideoPriceSetting(t *testing.T) func() {
 		videoPriceSettingMu.Lock()
 		videoPriceSetting = prev
 		videoPriceSettingMu.Unlock()
+	}
+}
+
+// An administrator save must fail loudly, not quarantine. handleConfigUpdate
+// writes the raw value into OptionMap and the database whenever this returns
+// nil (model/option.go:884-886), so a quarantining save would report success
+// while the model was silently dropped from the live table -- the admin sees
+// their price saved, and the model bills on its old path.
+//
+// Quarantine belongs to the load path, where the alternative is a fleet-wide
+// outage of the table. At the point of entry there is a human to tell.
+func TestUpdateVideoPriceSettingFromMapRejectsBadRulesOutright(t *testing.T) {
+	restore := swapVideoPriceSetting(t)
+	defer restore()
+
+	good := []VideoPriceRule{
+		{Model: "keep", Match: map[string]string{"resolution": "480p"},
+			PricePerSecond: 0.1, Basis: BasisOutputDuration},
+	}
+	if err := UpdateVideoPriceSettingFromMap(map[string]string{
+		"video_price_rules": marshalRules(t, good),
+	}); err != nil {
+		t.Fatalf("valid save must succeed: %v", err)
+	}
+
+	cases := map[string][]VideoPriceRule{
+		"unrecognized value": {
+			{Model: "m", Match: map[string]string{"resolution": "1440p"},
+				PricePerSecond: 1, Basis: BasisOutputDuration},
+		},
+		"ambiguous pair": {
+			{Model: "m", Match: map[string]string{"resolution": "720p"},
+				PricePerSecond: 1, Basis: BasisOutputDuration},
+			{Model: "m", Match: map[string]string{"has_video": "true"},
+				PricePerSecond: 2, Basis: BasisOutputDuration},
+		},
+		"zero price": {
+			{Model: "m", PricePerSecond: 0, Basis: BasisOutputDuration},
+		},
+	}
+	for name, rules := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := UpdateVideoPriceSettingFromMap(map[string]string{
+				"video_price_rules": marshalRules(t, rules),
+			})
+			if err == nil {
+				t.Fatal("a bad save must be rejected, not silently quarantined")
+			}
+			// The previously saved table must still be serving.
+			if !IsVideoModelConfigured(GetVideoPriceRules(), "keep") {
+				t.Fatal("a rejected save discarded the table that was already live")
+			}
+		})
 	}
 }

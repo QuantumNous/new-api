@@ -399,16 +399,24 @@ func GetVideoPriceRules() []VideoPriceRule {
 }
 
 // UpdateVideoPriceSettingFromMap applies an administrator save to the live rule
-// table, holding the module write lock and running the same normalization and
-// quarantine that a database load performs.
+// table, holding the module write lock and rejecting anything malformed.
 //
 // The generic path cannot do this. An administrator save reaches
 // model/option.go's handleConfigUpdate, which calls config.UpdateConfigFromMap
-// -- a raw setter that skips both NormalizeAndValidate and the module lock.
-// Without this entry point an ambiguous rule set reaches the matcher, and
-// FindVideoPriceRule's tie-break then decides prices by JSON array order; a
-// hand-written "4K" also stays unfolded and never matches the "4k" adapters
-// emit. Mirrors system_setting.UpdateRegistrationSecuritySettingsFromMap.
+// -- a raw setter that skips both validation and the module lock. Without this
+// entry point an ambiguous rule set reaches the matcher, and FindVideoPriceRule's
+// tie-break then decides prices by JSON array order; a hand-written "4K" also
+// stays unfolded and never matches the "4k" adapters emit.
+//
+// This validates strictly rather than quarantining. handleConfigUpdate writes
+// the raw value into OptionMap and the database whenever this returns nil, so
+// quarantining here would report a successful save while silently dropping the
+// model from the live table -- the administrator would see their price stored
+// and the model would keep billing on its old path. Quarantine belongs to the
+// load path, where the alternative is a fleet-wide outage of the table and
+// there is nobody to tell; at the point of entry there is a human to tell.
+//
+// Mirrors system_setting.UpdateRegistrationSecuritySettingsFromMap.
 func UpdateVideoPriceSettingFromMap(values map[string]string) error {
 	videoPriceSettingMu.Lock()
 	defer videoPriceSettingMu.Unlock()
@@ -419,7 +427,10 @@ func UpdateVideoPriceSettingFromMap(values map[string]string) error {
 	if err := config.UpdateConfigFromMap(&next, values); err != nil {
 		return err
 	}
-	if err := next.NormalizeAndValidate(); err != nil {
+	if err := NormalizeVideoPriceRules(next.VideoPriceRules); err != nil {
+		return err
+	}
+	if err := ValidateVideoPriceRules(next.VideoPriceRules); err != nil {
 		return err
 	}
 	videoPriceSetting = next
