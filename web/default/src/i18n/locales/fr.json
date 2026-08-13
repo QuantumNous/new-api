@@ -6576,6 +6576,7 @@
     "Step 2 · Submit a video task, then poll for the result": "Étape 2 · Soumettez une tâche vidéo, puis interrogez le résultat",
     "Step 2 · Copy the async video generation flow": "Étape 2 · Copiez le flux de génération vidéo asynchrone",
     "Step 2 · Copy a ready-to-run image request": "Étape 2 · Copiez une requête d'image prête à exécuter",
-    "Step 2 · Copy the image generation setup": "Étape 2 · Copiez la configuration de génération d'images"
+    "Step 2 · Copy the image generation setup": "Étape 2 · Copiez la configuration de génération d'images",
+    "Paste the next line into your terminal to integrate Flatkey in seconds.": "Collez la ligne suivante dans votre terminal pour intégrer Flatkey en quelques secondes."
   }
 }

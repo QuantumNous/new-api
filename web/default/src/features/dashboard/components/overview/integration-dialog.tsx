@@ -332,6 +332,11 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
               <StepLabel>
                 {t('Step 2 · Install Flatkey for your system')}
               </StepLabel>
+              <p className='text-muted-foreground text-sm leading-relaxed'>
+                {t(
+                  'Paste the next line into your terminal to integrate Flatkey in seconds.'
+                )}
+              </p>
               <Tabs
                 value={agentPlatform}
                 onValueChange={(value) =>

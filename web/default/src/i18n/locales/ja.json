@@ -6576,6 +6576,7 @@
     "Step 2 · Submit a video task, then poll for the result": "ステップ 2 · 動画タスクを送信し、結果をポーリングする",
     "Step 2 · Copy the async video generation flow": "ステップ 2 · 非同期の動画生成フローをコピーする",
     "Step 2 · Copy a ready-to-run image request": "ステップ 2 · すぐに実行できる画像リクエストをコピーする",
-    "Step 2 · Copy the image generation setup": "ステップ 2 · 画像生成のセットアップをコピーする"
+    "Step 2 · Copy the image generation setup": "ステップ 2 · 画像生成のセットアップをコピーする",
+    "Paste the next line into your terminal to integrate Flatkey in seconds.": "次の行をターミナルに貼り付ければ、数秒で Flatkey を導入できます。"
   }
 }

@@ -6576,6 +6576,7 @@
     "Step 2 · Submit a video task, then poll for the result": "Step 2 · Submit a video task, then poll for the result",
     "Step 2 · Copy the async video generation flow": "Step 2 · Copy the async video generation flow",
     "Step 2 · Copy a ready-to-run image request": "Step 2 · Copy a ready-to-run image request",
-    "Step 2 · Copy the image generation setup": "Step 2 · Copy the image generation setup"
+    "Step 2 · Copy the image generation setup": "Step 2 · Copy the image generation setup",
+    "Paste the next line into your terminal to integrate Flatkey in seconds.": "Paste the next line into your terminal to integrate Flatkey in seconds."
   }
 }

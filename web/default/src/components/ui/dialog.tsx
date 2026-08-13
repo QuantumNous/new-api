@@ -61,6 +61,7 @@ function DialogContent({
   children,
   showCloseButton = true,
   overlayClassName,
+  forceOverlay = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
@@ -70,12 +71,18 @@ function DialogContent({
    * content and reads as almost nothing over an already-open popup.
    */
   overlayClassName?: string
+  /**
+   * Render a backdrop even when this dialog is nested inside another one.
+   * Base UI suppresses nested backdrops by default, which leaves a child
+   * dialog sitting flat on its parent with nothing separating the layers.
+   */
+  forceOverlay?: boolean
 }) {
   const { t } = useTranslation()
 
   return (
     <DialogPortal>
-      <DialogOverlay className={overlayClassName} />
+      <DialogOverlay className={overlayClassName} forceRender={forceOverlay} />
       <DialogPrimitive.Popup
         data-slot='dialog-content'
         className={cn(

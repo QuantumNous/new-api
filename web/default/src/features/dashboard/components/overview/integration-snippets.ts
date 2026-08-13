@@ -24,7 +24,13 @@ export type AgentPlatform = 'mac' | 'linux' | 'windows'
 
 export type SnippetKind = 'chat' | 'image' | 'video'
 
-export const API_KEY_PLACEHOLDER = 'FLATKEY_API_KEY'
+/**
+ * Stands in for the key when the account has none yet. It is shaped like a
+ * real key so the sample still reads as a complete command, and it is copied
+ * verbatim — a reader with no key should still be able to take the snippet
+ * away and paste their own credential into it.
+ */
+export const API_KEY_PLACEHOLDER = 'sk-***'
 
 export interface SnippetContext {
   /** Chat completions endpoint, e.g. https://host/v1/chat/completions */
@@ -388,6 +394,13 @@ export function buildSdkSnippet(
   return buildCurl(ctx)
 }
 
+/**
+ * Snippets render a masked key but copy the real one. Copying is withheld
+ * only while a genuine key is being resolved — handing over a masked secret
+ * would produce a command that fails in a confusing way. With no key selected
+ * at all there is nothing to resolve, so the placeholder is copied as-is and
+ * the reader substitutes their own credential.
+ */
 export function getSnippetCopyValue(
   code: string,
   displayedKey: string,
@@ -395,7 +408,8 @@ export function getSnippetCopyValue(
   resolvedKey?: string
 ): string | undefined {
   if (!displayedKey || !code.includes(displayedKey)) return code
-  if (selectedKeyId === null || !resolvedKey) return undefined
+  if (selectedKeyId === null) return code
+  if (!resolvedKey) return undefined
   return code.replaceAll(displayedKey, () => resolvedKey)
 }
 

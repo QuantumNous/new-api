@@ -92,19 +92,20 @@ export function ApiKeyPicker(props: {
               <div
                 key={key.id}
                 className={cn(
-                  'bg-background flex items-center gap-3 rounded-lg border px-3 py-2',
+                  'bg-background flex items-center gap-2 rounded-lg border px-3 py-2',
                   selected && 'border-primary ring-primary/30 ring-1'
                 )}
               >
-                {/* The copy affordance sits right after the key it copies, so
-                    it reads as belonging to the key rather than to the row.
-                    It cannot live inside the select button — nesting buttons
-                    is invalid — so the row is split into two select targets
-                    with the copy control between them. */}
+                {/* The copy affordance sits directly against the key it
+                    copies, so the key text is sized to its content rather
+                    than stretched; the name column takes the slack instead.
+                    Copy cannot live inside the select button — nesting
+                    buttons is invalid — so the row is split into two select
+                    targets with the copy control between them. */}
                 <button
                   type='button'
                   onClick={() => props.onSelect(key.id)}
-                  className='min-w-0 flex-1 truncate text-left font-mono text-xs'
+                  className='min-w-0 shrink truncate text-left font-mono text-xs'
                   aria-pressed={selected}
                 >
                   {`sk-${key.key}`}
@@ -112,7 +113,7 @@ export function ApiKeyPicker(props: {
                 {fullKey ? (
                   <CopyButton
                     value={fullKey}
-                    className='size-7 shrink-0'
+                    className='size-6 shrink-0'
                     iconClassName='size-3.5'
                     tooltip={t('Copy API key')}
                     successTooltip={t('Copied!')}
@@ -128,12 +129,12 @@ export function ApiKeyPicker(props: {
                 ) : (
                   // Holds the column so unresolved rows stay aligned with
                   // the ones that render a copy button.
-                  <span className='size-7 shrink-0' aria-hidden='true' />
+                  <span className='size-6 shrink-0' aria-hidden='true' />
                 )}
                 <button
                   type='button'
                   onClick={() => props.onSelect(key.id)}
-                  className='hidden min-w-0 flex-1 items-center gap-3 text-left sm:flex'
+                  className='ml-1 hidden min-w-0 flex-1 items-center gap-3 text-left sm:flex'
                   aria-pressed={selected}
                   tabIndex={-1}
                 >

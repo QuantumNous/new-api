@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import {
+  API_KEY_PLACEHOLDER,
   buildAgentInstallCommand,
   buildApiSnippet,
   buildSdkSnippet,
@@ -378,14 +379,16 @@ describe('buildSdkSnippet', () => {
 })
 
 describe('getSnippetCopyValue', () => {
-  test('does not copy a placeholder when no API key is selected', () => {
-    expect(
-      getSnippetCopyValue(
-        'Authorization: Bearer FLATKEY_API_KEY',
-        'FLATKEY_API_KEY',
-        null
-      )
-    ).toBeUndefined()
+  test('copies the placeholder as-is when no API key is selected', () => {
+    // Nothing is being resolved, so there is no secret to wait for: the
+    // reader takes the snippet and pastes their own credential in.
+    const code = `Authorization: Bearer ${API_KEY_PLACEHOLDER}`
+
+    expect(getSnippetCopyValue(code, API_KEY_PLACEHOLDER, null)).toBe(code)
+  })
+
+  test('the placeholder is shaped like a key, not a shell variable', () => {
+    expect(API_KEY_PLACEHOLDER).toBe('sk-***')
   })
 
   test('replaces the masked key only after the real key is resolved', () => {
@@ -409,9 +412,9 @@ describe('getSnippetCopyValue', () => {
   })
 
   test('keeps snippets that do not need an API key copyable', () => {
-    expect(getSnippetCopyValue('flatkey login', 'FLATKEY_API_KEY', null)).toBe(
-      'flatkey login'
-    )
+    expect(
+      getSnippetCopyValue('flatkey login', API_KEY_PLACEHOLDER, null)
+    ).toBe('flatkey login')
   })
 })
 

@@ -67,6 +67,9 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
   }
 
   const handleSubmit = async () => {
+    // Synchronous re-entry guard: Enter plus a fast double-click can fire
+    // before the pending state re-renders the disabled controls.
+    if (isSubmitting) return
     setSubmitted(true)
     if (nameMissing) return
 
@@ -80,9 +83,21 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
         return
       }
 
+      // A success response without a usable id cannot be pre-selected; treat
+      // it as a failure instead of handing the caller a bogus key id.
+      const createdId = result.data?.id
+      if (
+        typeof createdId !== 'number' ||
+        !Number.isInteger(createdId) ||
+        createdId <= 0
+      ) {
+        toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+        return
+      }
+
       // The list refresh and the selection are the caller's business; this
       // dialog only reports which key was created.
-      await props.onCreated(result.data?.id ?? 0)
+      await props.onCreated(createdId)
       toast.success(t('API key created'))
       setName('')
       setSubmitted(false)
@@ -96,12 +111,14 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={handleOpenChange}>
-      {/* This opens on top of the integration dialog, so it carries a heavier
-          scrim than the default: the standard backdrop is tuned for dimming
-          page content and barely registers over an already-open popup. */}
+      {/* This opens on top of the integration dialog. Base UI suppresses
+          nested backdrops by default, which left this popup sitting flat on
+          the one beneath it, so the backdrop is forced on and given a heavier
+          scrim than the page-level default. */}
       <DialogContent
         className='sm:max-w-md'
-        overlayClassName='bg-black/40 supports-backdrop-filter:backdrop-blur-sm'
+        overlayClassName='bg-black/50 supports-backdrop-filter:backdrop-blur-sm'
+        forceOverlay
         showCloseButton={!isSubmitting}
       >
         <DialogHeader>

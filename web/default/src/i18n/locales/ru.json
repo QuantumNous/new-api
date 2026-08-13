@@ -6576,6 +6576,7 @@
     "Step 2 · Submit a video task, then poll for the result": "Шаг 2 · Создайте задачу генерации видео и опрашивайте результат",
     "Step 2 · Copy the async video generation flow": "Шаг 2 · Скопируйте асинхронный процесс генерации видео",
     "Step 2 · Copy a ready-to-run image request": "Шаг 2 · Скопируйте готовый запрос на генерацию изображения",
-    "Step 2 · Copy the image generation setup": "Шаг 2 · Скопируйте настройку генерации изображений"
+    "Step 2 · Copy the image generation setup": "Шаг 2 · Скопируйте настройку генерации изображений",
+    "Paste the next line into your terminal to integrate Flatkey in seconds.": "Вставьте следующую строку в терминал, чтобы подключить Flatkey за считаные секунды."
   }
 }
