@@ -60,15 +60,22 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  overlayClassName,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /**
+   * Extra backdrop classes. A dialog opened on top of another one needs a
+   * heavier scrim than the default, which is tuned for dimming plain page
+   * content and reads as almost nothing over an already-open popup.
+   */
+  overlayClassName?: string
 }) {
   const { t } = useTranslation()
 
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot='dialog-content'
         className={cn(

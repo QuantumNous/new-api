@@ -96,26 +96,23 @@ export function ApiKeyPicker(props: {
                   selected && 'border-primary ring-primary/30 ring-1'
                 )}
               >
+                {/* The copy affordance sits right after the key it copies, so
+                    it reads as belonging to the key rather than to the row.
+                    It cannot live inside the select button — nesting buttons
+                    is invalid — so the row is split into two select targets
+                    with the copy control between them. */}
                 <button
                   type='button'
                   onClick={() => props.onSelect(key.id)}
-                  className='flex min-w-0 flex-1 items-center gap-3 text-left'
+                  className='min-w-0 flex-1 truncate text-left font-mono text-xs'
                   aria-pressed={selected}
                 >
-                  <span className='min-w-0 flex-1 truncate font-mono text-xs'>
-                    {`sk-${key.key}`}
-                  </span>
-                  <span className='text-muted-foreground hidden min-w-0 flex-1 truncate text-xs sm:block'>
-                    {key.name}
-                  </span>
-                  <span className='text-muted-foreground hidden shrink-0 text-xs md:block'>
-                    {formatTimestampToDate(key.created_time)}
-                  </span>
+                  {`sk-${key.key}`}
                 </button>
                 {fullKey ? (
                   <CopyButton
                     value={fullKey}
-                    className='size-7'
+                    className='size-7 shrink-0'
                     iconClassName='size-3.5'
                     tooltip={t('Copy API key')}
                     successTooltip={t('Copied!')}
@@ -128,7 +125,25 @@ export function ApiKeyPicker(props: {
                     className='text-muted-foreground size-3.5 shrink-0 animate-spin'
                     aria-label={t('Loading...')}
                   />
-                ) : null}
+                ) : (
+                  // Holds the column so unresolved rows stay aligned with
+                  // the ones that render a copy button.
+                  <span className='size-7 shrink-0' aria-hidden='true' />
+                )}
+                <button
+                  type='button'
+                  onClick={() => props.onSelect(key.id)}
+                  className='hidden min-w-0 flex-1 items-center gap-3 text-left sm:flex'
+                  aria-pressed={selected}
+                  tabIndex={-1}
+                >
+                  <span className='text-muted-foreground min-w-0 flex-1 truncate text-xs'>
+                    {key.name}
+                  </span>
+                  <span className='text-muted-foreground hidden shrink-0 text-xs md:block'>
+                    {formatTimestampToDate(key.created_time)}
+                  </span>
+                </button>
               </div>
             )
           })}

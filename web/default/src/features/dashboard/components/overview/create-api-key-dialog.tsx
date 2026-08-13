@@ -96,7 +96,14 @@ export function CreateApiKeyDialog(props: CreateApiKeyDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={handleOpenChange}>
-      <DialogContent className='sm:max-w-md' showCloseButton={!isSubmitting}>
+      {/* This opens on top of the integration dialog, so it carries a heavier
+          scrim than the default: the standard backdrop is tuned for dimming
+          page content and barely registers over an already-open popup. */}
+      <DialogContent
+        className='sm:max-w-md'
+        overlayClassName='bg-black/40 supports-backdrop-filter:backdrop-blur-sm'
+        showCloseButton={!isSubmitting}
+      >
         <DialogHeader>
           <DialogTitle>{t('Create API Key')}</DialogTitle>
           <DialogDescription>
