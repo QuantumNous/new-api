@@ -40,16 +40,13 @@ func TestInMemoryRateLimiterEnforcesWindowBoundary(t *testing.T) {
 	assert.Nil(t, queue.tail)
 }
 
-func TestInMemoryRateLimiterRemovesAtMostThreeExpiredRequestsPerCall(t *testing.T) {
+func TestInMemoryRateLimiterRemovesAllExpiredRequestsPerCall(t *testing.T) {
 	var queue rateLimitQueue
 	for range 5 {
 		queue.append(100)
 	}
-
-	queue.removeExpired(110, 10)
-	assert.Equal(t, 2, queue.length)
-
 	queue.append(110)
+
 	queue.removeExpired(110, 10)
 	assert.Equal(t, 1, queue.length)
 	require.NotNil(t, queue.head)

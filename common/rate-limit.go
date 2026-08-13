@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-const expiredRequestsCleanupLimit = 3
-
 // rateLimitRequest stores one accepted request in a key's sliding window.
 type rateLimitRequest struct {
 	next      *rateLimitRequest
@@ -34,20 +32,23 @@ func (q *rateLimitQueue) append(timestamp int64) {
 	q.length++
 }
 
-// removeExpired bounds per-request cleanup work while removing the oldest expired requests.
+// removeExpired releases every expired request at the front of the queue.
 func (q *rateLimitQueue) removeExpired(now int64, duration int64) {
-	for range expiredRequestsCleanupLimit {
-		if q.head == nil || now-q.head.timestamp < duration {
-			return
-		}
+	if q.head == nil || now-q.head.timestamp < duration {
+		return
+	}
 
+	// Requests are time ordered, so an expired tail means the whole queue expired.
+	if now-q.tail.timestamp >= duration {
+		q.clear()
+		return
+	}
+
+	for now-q.head.timestamp >= duration {
 		expired := q.head
 		q.head = expired.next
 		expired.next = nil
 		q.length--
-		if q.head == nil {
-			q.tail = nil
-		}
 	}
 }
 
@@ -140,11 +141,11 @@ func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration in
 		entry.element = l.lru.PushFront(entry)
 		l.store[key] = entry
 	} else {
+		entry.requests.removeExpired(now.Unix(), duration)
 		entry.lastActive = now
 		l.lru.MoveToFront(entry.element)
 	}
 
-	entry.requests.removeExpired(now.Unix(), duration)
 	allowed := entry.requests.length < maxRequestNum
 	if allowed {
 		entry.requests.append(now.Unix())
