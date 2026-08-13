@@ -360,7 +360,10 @@ func TestAliEstimateBillingConfiguredModelWithNoMatchingRuleFails(t *testing.T) 
 
 // A malformed legacy request cannot be converted, so neither its length nor its
 // resolution is knowable. Capturing would price the request off a fabricated
-// tier; skipping leaves it on the pre-existing (nil ratios) path.
+// tier; for a model absent from the price table, skipping leaves it on the
+// pre-existing (nil ratios) path. (A CONFIGURED model has no legacy path left
+// to fall back to, so it is refused instead — see
+// TestAliEstimateBillingConfiguredButUnpriceableErrorsOnLegacyShape.)
 func TestAliEstimateBillingSkipsCaptureWhenRequestIsUnconvertible(t *testing.T) {
 	installAliVideoPriceRules(t, `[
 		{"model":"wan-video","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
@@ -371,13 +374,13 @@ func TestAliEstimateBillingSkipsCaptureWhenRequestIsUnconvertible(t *testing.T) 
 		Model:    "wan2.5-t2v-preview",
 		Duration: 5,
 		Size:     "720P",
-	}, "wan-video", "wan2.5-t2v-preview", 0.14)
+	}, "ali-unconfigured", "wan2.5-t2v-preview", 0.14)
 	if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
 		t.Fatalf("unconvertible request produced ratios: %v", ratios)
 	}
 	got, err := a.SecondBillingRatios()
 	if err != nil {
-		t.Fatalf("unconvertible request must not fail pricing: %v", err)
+		t.Fatalf("unconvertible request must not fail an unconfigured model: %v", err)
 	}
 	if len(got) != 0 {
 		t.Fatalf("unconvertible request was priced anyway: %v", got)
@@ -385,8 +388,10 @@ func TestAliEstimateBillingSkipsCaptureWhenRequestIsUnconvertible(t *testing.T) 
 }
 
 // happyhorse-1.1-t2v requires an explicit duration; a request without one is
-// rejected at validation, but EstimateBilling is defensive about it too. An
-// unknowable length must not be captured and priced off a guess.
+// rejected at validation, but EstimateBilling is defensive about it too. For a
+// model absent from the price table an unknowable length must not be captured
+// and priced off a guess. (A CONFIGURED model is refused instead — see
+// TestAliEstimateBillingConfiguredButUnpriceableErrorsOnHappyHorseShape.)
 func TestAliEstimateBillingSkipsCaptureWhenHappyHorseLengthIsUnknowable(t *testing.T) {
 	installAliVideoPriceRules(t, `[
 		{"model":"public-video","match":{"resolution":"1080p"},"price_per_second":0.5,"basis":"output_duration"}
@@ -395,14 +400,14 @@ func TestAliEstimateBillingSkipsCaptureWhenHappyHorseLengthIsUnknowable(t *testi
 	ctx := newHappyHorseContext(
 		`{"model":"happyhorse-1.1-t2v","input":{"prompt":"run"},"parameters":{"resolution":"1080P"}}`,
 		"application/json")
-	info := newAliSecondBillingInfo("public-video", "happyhorse-1.1-t2v", 0.14)
+	info := newAliSecondBillingInfo("ali-unconfigured", "happyhorse-1.1-t2v", 0.14)
 	a := &TaskAdaptor{}
 	if ratios := a.EstimateBilling(ctx, info); len(ratios) != 0 {
 		t.Fatalf("unknowable length produced ratios: %v", ratios)
 	}
 	got, err := a.SecondBillingRatios()
 	if err != nil {
-		t.Fatalf("unknowable length must not fail pricing: %v", err)
+		t.Fatalf("unknowable length must not fail an unconfigured model: %v", err)
 	}
 	if len(got) != 0 {
 		t.Fatalf("unknowable length was priced anyway: %v", got)
@@ -435,5 +440,98 @@ func TestAliEstimateBillingKeysTableOnOriginModelNameNotUpstream(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("priced per-second off the upstream model: %v", got)
+	}
+}
+
+// A configured model returns nil from EstimateBilling, so its legacy ratios
+// never apply -- per-second is the whole price. When the request cannot be
+// priced, returning no ratios therefore bills the bare ModelPrice with no
+// seconds multiplier, charging a 10-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the
+// request costs nothing.
+//
+// The legacy (wan*) shape has two unpriceable cases: a request that will not
+// convert at all, and one whose derived resolution the vocabulary refuses.
+func TestAliEstimateBillingConfiguredButUnpriceableErrorsOnLegacyShape(t *testing.T) {
+	installAliVideoPriceRules(t, `[
+		{"model":"wan-configured","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct {
+		name string
+		req  relaycommon.TaskSubmitReq
+	}{
+		// A t2v model with a non-"W*H" size fails convertToAliRequest outright,
+		// so neither the length nor the tier is knowable.
+		{"unconvertible request", relaycommon.TaskSubmitReq{
+			Model: "wan2.5-t2v-preview", Duration: 5, Size: "720P"}},
+		// Converts cleanly, but "999P" is not a tier the vocabulary knows.
+		{"unclassifiable resolution", relaycommon.TaskSubmitReq{
+			Model: "wan2.5-i2v-preview", Duration: 5, Size: "999p"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newAliLegacyRequest(t, tc.req, "wan-configured", tc.req.Model, 0.14)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The happyhorse shape has its own two: a length ReservationSeconds cannot
+// determine, and a resolution outside the pair the upstream renders.
+func TestAliEstimateBillingConfiguredButUnpriceableErrorsOnHappyHorseShape(t *testing.T) {
+	installAliVideoPriceRules(t, `[
+		{"model":"public-video","match":{"resolution":"1080p"},"price_per_second":0.5,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body, upstream string }{
+		// happyhorse-1.1-t2v requires an explicit duration; without one the
+		// length is not knowable.
+		{"unknowable length",
+			`{"model":"happyhorse-1.1-t2v","input":{"prompt":"run"},"parameters":{"resolution":"1080P"}}`,
+			"happyhorse-1.1-t2v"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := newHappyHorseContext(tc.body, "application/json")
+			info := newAliSecondBillingInfo("public-video", tc.upstream, 0.14)
+			a := &TaskAdaptor{}
+			if ratios := a.EstimateBilling(ctx, info); len(ratios) != 0 {
+				t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image on the legacy shape: an UNCONFIGURED model must still reach
+// its legacy path. ProcessAliOtherRatios returns an error for a tier it does
+// not price, and EstimateBilling falls back to the bare seconds ratio -- which
+// is real billing that must not be lost.
+func TestAliEstimateBillingUnconfiguredModelKeepsLegacyRatiosWhenUnpriceable(t *testing.T) {
+	installAliVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	// Converts cleanly (duration 5 survives), but "999P" is not a tier the
+	// vocabulary classifies, so the per-second path declines it.
+	a, c, info := newAliLegacyRequest(t, relaycommon.TaskSubmitReq{
+		Model: "wan2.5-i2v-preview", Duration: 5, Size: "999p",
+	}, "ali-unconfigured", "wan2.5-i2v-preview", 0.14)
+	ratios := a.EstimateBilling(c, info)
+	if ratios["seconds"] != 5 {
+		t.Fatalf("unconfigured model lost its legacy seconds ratio: %v", ratios)
+	}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("unconfigured model produced per-second units: %v", got)
 	}
 }

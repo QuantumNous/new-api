@@ -69,6 +69,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 var _ channel.TaskAdaptor = (*TaskAdaptor)(nil)
@@ -83,6 +91,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -598,14 +609,27 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	//
 	// req.Duration is validated into [minVideoDuration, maxVideoDuration] before
 	// this runs, so the length is always determinable; an unrecognised
-	// resolution is the only way capture is skipped, and that leaves the request
-	// on the legacy path.
-	if dims, ok := resolveDimensions(req.Resolution, hasReferenceVideo); ok {
+	// resolution is the only way a request goes unpriced. For an UNCONFIGURED
+	// model that leaves it on the legacy path, which refuses the same tiers
+	// (billingResolution accepts exactly 768P and 2K) and so returns nil too.
+	// For a configured one there is no legacy path to fall back to — the early
+	// return below skips it — so the request must be refused instead.
+	//
+	// hailuoResolutionLabels and isSupportedResolution agree today, making this
+	// unreachable. It is kept because they are separate lists: adding a tier to
+	// the validator without adding it here would otherwise bill every request
+	// at that tier as a single unit rather than failing.
+	dims, dimsOK := resolveDimensions(req.Resolution, hasReferenceVideo)
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+	if dimsOK {
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
 		a.secondBillingSeconds = seconds
 		a.secondBillingModelPrice = info.PriceData.ModelPrice
 		a.secondBillingRules = rules
+	} else if configured {
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", req.Resolution)
 	}
 	// A model in the price table is priced by SecondBillingRatios; returning
 	// nil here keeps the legacy hardcoded ratios from also applying. It also
@@ -614,7 +638,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// table cannot express would be an invisible addition to it. An
 	// administrator who wants to charge more for image-heavy requests adds a
 	// dimension to the rule instead.
-	if billing_setting.IsVideoModelConfigured(rules, info.OriginModelName) {
+	if configured {
 		return nil
 	}
 

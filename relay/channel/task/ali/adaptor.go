@@ -153,6 +153,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -164,6 +172,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -602,12 +613,24 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if isHappyHorseModel(info.UpstreamModelName) {
 		req, err := GetHappyHorseRequest(c)
 		if err != nil {
+			// The request did not even bind, so nothing about it is knowable.
+			// The legacy path below returns nil for this too, so a configured
+			// model has no reservation to make either way.
+			if configured {
+				a.secondBillingErr = taskcommon.UnpriceableDurationError(
+					info.OriginModelName, "happyhorse 请求无法解析；the happyhorse request could not be parsed")
+			}
 			return nil
 		}
 		seconds, err := req.ReservationSeconds()
 		if err != nil {
-			// The length is not knowable, so capture nothing: pricing off a
-			// fabricated duration is worse than keeping the previous path.
+			// The length is not knowable, so pricing off a fabricated duration
+			// is worse than keeping the previous path. For an UNCONFIGURED
+			// model that path is the nil return below. For a configured one
+			// there is no path at all, so refuse.
+			if configured {
+				a.secondBillingErr = taskcommon.UnpriceableDurationError(info.OriginModelName, err.Error())
+			}
 			return nil
 		}
 		// The upstream renders 1080P when the optional parameter is omitted;
@@ -618,12 +641,21 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		}
 		// Only video-edit takes a reference video, and it always requires one.
 		hasVideo := req.Model == "happyhorse-1.0-video-edit"
-		if dims, ok := resolveDimensions(resolution, hasVideo); ok && seconds > 0 {
+		dims, dimsOK := resolveDimensions(resolution, hasVideo)
+		switch {
+		case dimsOK && seconds > 0:
 			a.secondBillingModel = info.OriginModelName
 			a.secondBillingDims = dims
 			a.secondBillingSeconds = float64(seconds)
 			a.secondBillingModelPrice = info.PriceData.ModelPrice
 			a.secondBillingRules = rules
+		case !dimsOK && configured:
+			a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+				info.OriginModelName, "resolution", resolution)
+		case configured:
+			// seconds <= 0 despite ReservationSeconds succeeding.
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, "预留时长非正数；the reserved length is not positive")
 		}
 		// A model in the price table is priced by SecondBillingRatios;
 		// returning nil here keeps the legacy reservation from also applying.
@@ -635,27 +667,56 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 
 	taskReq, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
+		// No stored request at all; the legacy path below returns nil too.
+		if configured {
+			a.secondBillingErr = taskcommon.UnpriceableDurationError(
+				info.OriginModelName, "请求未能读取；the task request could not be read")
+		}
 		return nil
 	}
 
 	aliReq, err := a.convertToAliRequest(info, taskReq)
 	if err != nil {
 		// Neither the length nor the resolution is knowable for a request that
-		// does not convert, so capture nothing and keep the previous path.
+		// does not convert. For an UNCONFIGURED model the legacy path is this
+		// same nil return, so nothing is lost; a configured one must refuse.
+		if configured {
+			a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+				info.OriginModelName, "size", taskReq.Size)
+		}
 		return nil
 	}
 
 	// aliRequestResolution is the same derivation ProcessAliOtherRatios uses,
 	// so the configured tier can never disagree with the legacy one. An
-	// unmappable size returns an error and skips capture.
-	if resolution, resErr := aliRequestResolution(aliReq.Parameters); resErr == nil {
-		if dims, ok := resolveDimensions(resolution, false); ok && aliReq.Parameters.Duration > 0 {
-			a.secondBillingModel = info.OriginModelName
-			a.secondBillingDims = dims
-			a.secondBillingSeconds = float64(aliReq.Parameters.Duration)
-			a.secondBillingModelPrice = info.PriceData.ModelPrice
-			a.secondBillingRules = rules
+	// unmappable size returns an error.
+	//
+	// The legacy path below still prices an unclassifiable tier: it falls back
+	// to a bare seconds ratio when ProcessAliOtherRatios declines. So an
+	// UNCONFIGURED model must fall through to it, while a configured one — for
+	// which that path is unreachable — must refuse.
+	resolution, resErr := aliRequestResolution(aliReq.Parameters)
+	dims, dimsOK := resolveDimensions(resolution, false)
+	switch {
+	case resErr == nil && dimsOK && aliReq.Parameters.Duration > 0:
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = float64(aliReq.Parameters.Duration)
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	case configured && (resErr != nil || !dimsOK):
+		raw := resolution
+		if resErr != nil {
+			raw = aliReq.Parameters.Size
 		}
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", raw)
+	case configured:
+		// convertToAliRequest defaults a non-positive duration to 5, so this is
+		// unreachable today; it is kept so a future change to that default
+		// cannot silently reintroduce a request billed without a length.
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName, "duration 非正数；the duration is not positive")
 	}
 	// A model in the price table is priced by SecondBillingRatios; returning
 	// nil here keeps the legacy hardcoded ratios from also applying.

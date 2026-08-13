@@ -288,39 +288,76 @@ func TestEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.T) {
 	}
 }
 
-// A length or tier that cannot be determined must never be guessed. This channel
-// forwards duration only when positive and applies no default of its own, so an
-// omitted, zero, or negative duration leaves the length to the upstream —
-// unknowable here. Capture is skipped and the request keeps its per-call price.
-func TestEstimateBillingUndeterminableRequestIsNotCaptured(t *testing.T) {
+// unpriceableRequests are the request shapes this channel cannot price.
+// convertToSubmitPayload forwards duration only when positive and applies no
+// default of its own, so an omitted, zero, or negative duration leaves the length
+// to the upstream — unknowable here. A resolution the shared vocabulary cannot
+// classify is equally unpriceable, and this channel applies no resolution default
+// either.
+//
+// What happens to them depends entirely on whether the model is configured for
+// per-second billing, which is why the two tests below share this list.
+var unpriceableRequests = []struct {
+	name string
+	body string
+}{
+	{"omitted duration", `{"model":"jimeng-video-3.0","prompt":"a cat","resolution":"720p"}`},
+	{"zero duration", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":0,"resolution":"720p"}`},
+	{"negative duration", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":-1,"resolution":"720p"}`},
+	{"unparseable duration", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":"eight","resolution":"720p"}`},
+	// `seconds` is not a field this channel forwards upstream, so it must not
+	// be mistaken for a length the upstream will honour.
+	{"seconds only", `{"model":"jimeng-video-3.0","prompt":"a cat","seconds":"8","resolution":"720p"}`},
+	// A resolution the adapter cannot classify is equally unpriceable.
+	{"omitted resolution", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":8}`},
+	{"unknown resolution", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":8,"resolution":"8k"}`},
+	// Seedance-shaped bodies get the same care: duration -1 hands the length
+	// to the model.
+	{"seedance model-chosen duration", `{"model":"jimeng-video-3.0","content":[{"type":"text","text":"a cat"}],"duration":-1,"resolution":"720p"}`},
+}
+
+// A configured model returns nil from EstimateBilling — this channel has no
+// legacy ratios at all — so per-second is the whole price. When the request
+// cannot be priced, returning no ratios therefore bills the bare ModelPrice with
+// no seconds multiplier, charging a 10-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing.
+func TestEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	installVideoPriceRules(t, `[
 		{"model":"jimeng-video-3.0","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
 	]`)
 
-	for _, tc := range []struct {
-		name string
-		body string
-	}{
-		{"omitted duration", `{"model":"jimeng-video-3.0","prompt":"a cat","resolution":"720p"}`},
-		{"zero duration", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":0,"resolution":"720p"}`},
-		{"negative duration", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":-1,"resolution":"720p"}`},
-		{"unparseable duration", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":"eight","resolution":"720p"}`},
-		// `seconds` is not a field this channel forwards upstream, so it must not
-		// be mistaken for a length the upstream will honour.
-		{"seconds only", `{"model":"jimeng-video-3.0","prompt":"a cat","seconds":"8","resolution":"720p"}`},
-		// A resolution the adapter cannot classify is equally unpriceable.
-		{"omitted resolution", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":8}`},
-		{"unknown resolution", `{"model":"jimeng-video-3.0","prompt":"a cat","duration":8,"resolution":"8k"}`},
-		// Seedance-shaped bodies get the same care: duration -1 hands the length
-		// to the model.
-		{"seedance model-chosen duration", `{"model":"jimeng-video-3.0","content":[{"type":"text","text":"a cat"}],"duration":-1,"resolution":"720p"}`},
-	} {
+	for _, tc := range unpriceableRequests {
 		t.Run(tc.name, func(t *testing.T) {
 			a, c, info := newBillingRequest(t, tc.body, "jimeng-video-3.0", 0.5)
-			a.EstimateBilling(c, info)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model is untouched by all of this. It has no
+// per-second price to fail to compute, so the same shapes must stay silently on
+// the per-call path exactly as they do today — failing them would reject requests
+// this gateway has always accepted.
+func TestEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range unpriceableRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newBillingRequest(t, tc.body, "jimeng-video-3.0", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("an undeterminable request must stay on the per-call path, got error: %v", err)
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("priced off an undeterminable request: %v", got)

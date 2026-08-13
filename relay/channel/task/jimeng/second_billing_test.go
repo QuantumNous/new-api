@@ -306,28 +306,68 @@ func TestEstimateBillingKeysTableOnOriginModelNameNotUpstream(t *testing.T) {
 	}
 }
 
-// A metadata frames override with no documented fps behind it makes the rendered
-// length unknowable. Capture must be skipped so the request keeps its per-call
-// price rather than being billed off a guessed frame rate.
-func TestEstimateBillingUndeterminableFrameCountIsNotCaptured(t *testing.T) {
+// unpriceableRequests are the request shapes this channel cannot price. The
+// length lives in `frames`, and only the two counts this channel itself produces
+// have a documented fps behind them (24 fps: 121 = 5s, 241 = 10s); a
+// metadata-injected count does not, so it cannot be converted to seconds. There
+// is no resolution dimension here at all — the upstream body carries none — so
+// frames is the only way a request goes unpriceable.
+//
+// What happens to them depends entirely on whether the model is configured for
+// per-second billing, which is why the two tests below share this list.
+var unpriceableRequests = []struct {
+	name string
+	body string
+}{
+	{"arbitrary frames", `{"model":"jimeng_vgfm_t2v_l20","prompt":"a cat","duration":5,"metadata":{"frames":300}}`},
+	{"zero frames", `{"model":"jimeng_vgfm_t2v_l20","prompt":"a cat","duration":5,"metadata":{"frames":0}}`},
+	{"negative frames", `{"model":"jimeng_vgfm_t2v_l20","prompt":"a cat","duration":5,"metadata":{"frames":-1}}`},
+	// One frame off a documented count has no documented fps either.
+	{"off-by-one frames", `{"model":"jimeng_vgfm_t2v_l20","prompt":"a cat","duration":5,"metadata":{"frames":122}}`},
+}
+
+// A configured model returns nil from EstimateBilling — this channel has no
+// legacy ratios at all — so per-second is the whole price. When the request
+// cannot be priced, returning no ratios therefore bills the bare ModelPrice with
+// no seconds multiplier, charging a 10-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing.
+func TestEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	installVideoPriceRules(t, `[
 		{"model":"jimeng_vgfm_t2v_l20","match":{"has_video":"false"},"price_per_second":0.3,"basis":"output_duration"}
 	]`)
 
-	for _, tc := range []struct {
-		name string
-		body string
-	}{
-		{"arbitrary frames", `{"model":"jimeng_vgfm_t2v_l20","prompt":"a cat","duration":5,"metadata":{"frames":300}}`},
-		{"zero frames", `{"model":"jimeng_vgfm_t2v_l20","prompt":"a cat","duration":5,"metadata":{"frames":0}}`},
-		{"negative frames", `{"model":"jimeng_vgfm_t2v_l20","prompt":"a cat","duration":5,"metadata":{"frames":-1}}`},
-	} {
+	for _, tc := range unpriceableRequests {
 		t.Run(tc.name, func(t *testing.T) {
 			a, c, info := newBillingRequest(t, tc.body, "jimeng_vgfm_t2v_l20", 0.5)
-			a.EstimateBilling(c, info)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model is untouched by all of this. It has no
+// per-second price to fail to compute, so the same shapes must stay silently on
+// the per-call path exactly as they do today — failing them would reject requests
+// this gateway has always accepted.
+func TestEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"has_video":"false"},"price_per_second":0.3,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range unpriceableRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newBillingRequest(t, tc.body, "jimeng_vgfm_t2v_l20", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("an undeterminable request must stay on the per-call path, got error: %v", err)
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("priced off an undeterminable frame count: %v", got)

@@ -406,3 +406,76 @@ func TestHailuoV2CompletionStillSettlesLegacyReservations(t *testing.T) {
 		t.Fatal("a legacy snapshot must not be mistaken for a per-second reservation")
 	}
 }
+
+// A configured model returns nil from EstimateBilling, so its legacy ratios and
+// the extraImagePriceUSD surcharge never apply -- per-second is the whole
+// price. When the request cannot be priced, returning no ratios therefore bills
+// the bare ModelPrice with no seconds multiplier, charging a 10-second render
+// as a single unit. It has to fail instead, so relay_task rejects before
+// submitting upstream and the request costs nothing.
+//
+// With today's validator this is unreachable: validateVideoRequest accepts only
+// 768P and 2K, which is exactly what hailuoResolutionLabels maps, and it clamps
+// duration into [minVideoDuration, maxVideoDuration]. The request is therefore
+// injected into the context directly, bypassing validation.
+//
+// The branch is kept because the two lists are separate and only agree by
+// convention. Adding a tier to isSupportedResolution without adding it here
+// would otherwise not fail -- it would silently bill every request at that tier
+// as one unit, which is precisely the defect this test exists to prevent.
+func TestHailuoV2EstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installHailuoV2VideoPriceRules(t, `[
+		{"model":"client-alias","match":{"resolution":"768p"},"price_per_second":0.08,"basis":"output_duration"}
+	]`)
+
+	req := validTextRequest("1080P", 5) // a tier hailuoResolutionLabels does not map
+	body, err := common.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	c, info := newVideoContext(string(body), ModelName)
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = 0.08
+	c.Set(requestContextKey, req)
+
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+		t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+	}
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured but unpriceable request must return an error")
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must still reach its legacy path.
+// billingResolution refuses the same unmapped tier, so that path already
+// returned nil -- the point is that it must not start erroring either, since a
+// request the gateway never priced per second has nothing to reject.
+func TestHailuoV2EstimateBillingUnconfiguredModelStaysOnLegacyPathWhenUnpriceable(t *testing.T) {
+	installHailuoV2VideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"768p"},"price_per_second":0.08,"basis":"output_duration"}
+	]`)
+
+	req := validTextRequest("1080P", 5)
+	body, err := common.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	c, info := newVideoContext(string(body), ModelName)
+	info.OriginModelName = "hailuo-unconfigured"
+	info.PriceData.UsePrice = true
+	info.PriceData.ModelPrice = 0.08
+	c.Set(requestContextKey, req)
+
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+		t.Fatalf("legacy billingResolution refuses this tier too; got %v", ratios)
+	}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("unconfigured model produced per-second units: %v", got)
+	}
+}
