@@ -388,4 +388,24 @@ describe("resolveDisplayPrice", () => {
     expect(resolved?.unit).toBe("/ 1M tokens");
     expect(resolved?.source).toBe("display");
   });
+
+  test("keeps token units for image and audio dimensions that scale token counts", () => {
+    const model = {
+      ...tokenModel,
+      display_pricing: {
+        billing_kind: "token" as const,
+        prices: {
+          image: { configured: 2.5, plg: 2 },
+          audio_input: { configured: 5, plg: 4 },
+          audio_output: { configured: 15, plg: 12 },
+        },
+      },
+    };
+
+    for (const dimension of ["image", "audio_input", "audio_output"] as const) {
+      const resolved = resolveModelDisplayPrice(model, dimension, "plg");
+      expect(resolved?.unit).toBe("/ 1M tokens");
+      expect(resolved?.source).toBe("display");
+    }
+  });
 });

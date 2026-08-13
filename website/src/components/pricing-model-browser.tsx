@@ -184,6 +184,16 @@ function localizedPricingKind(dimension: string, locale: Locale): string {
   return "Per 1M tokens";
 }
 
+// A per-model group ratio (group_model_ratio) overrides the group-wide ratio
+// for both the Ratio column and the derived group price.
+function resolveGroupPriceRatio(modelSpecificRatio: number | undefined, groupRatio: number | undefined): number {
+  if (typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio)) return modelSpecificRatio;
+  if (typeof groupRatio === "number" && Number.isFinite(groupRatio)) return groupRatio;
+  return 1;
+}
+
+export const resolveGroupPriceRatioForTest = resolveGroupPriceRatio;
+
 function formatGroupDisplayPrice(
   model: PricingModel,
   dimension: Parameters<typeof resolveModelDisplayPrice>[1],
@@ -752,7 +762,7 @@ function GroupPricingSection(props: {
               {availableGroups.map((group) => {
                 const modelSpecificRatio = props.model.group_model_ratio?.[group];
                 const hasModelSpecificRatio = typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio);
-                const ratio = effectiveGroupRatio[group] ?? props.groupRatio[group] ?? 1;
+                const ratio = resolveGroupPriceRatio(modelSpecificRatio, effectiveGroupRatio[group] ?? props.groupRatio[group]);
                 return (
                   <tr
                     key={group}

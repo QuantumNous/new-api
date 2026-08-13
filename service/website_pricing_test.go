@@ -295,6 +295,47 @@ func TestBuildWebsiteDisplayPricingIgnoresInvalidVideoRules(t *testing.T) {
 	require.Equal(t, "0.04", displayPricing["invalid-video-rule-model"].Prices.Request.Configured)
 }
 
+func TestBuildWebsiteDisplayPricingFailsOnSecondPriceOverflow(t *testing.T) {
+	pricing := []model.Pricing{{
+		ModelName:   "overflow-video-model",
+		QuotaType:   1,
+		ModelPrice:  0.04,
+		EnableGroup: []string{"plg"},
+	}}
+	source := fakeWebsitePricingSource{
+		ratios:          map[string]types.GroupRatioInfo{"overflow-video-model": {GroupRatio: 2}},
+		quotaPerUnit:    500_000,
+		configuredGroup: true,
+		videoRules: []billing_setting.VideoPriceRule{
+			{Model: "overflow-video-model", PricePerSecond: math.MaxFloat64},
+		},
+	}
+
+	_, err := buildWebsiteDisplayPricing(pricing, "plg", source)
+	require.ErrorContains(t, err, "invalid per-second price for model \"overflow-video-model\"")
+}
+
+func TestBuildWebsiteDisplayPricingSkipsTieredExpressionModels(t *testing.T) {
+	pricing := []model.Pricing{
+		{ModelName: "tiered-model", QuotaType: 0, EnableGroup: []string{"plg"}, BillingExpr: "tier(secret)"},
+		{ModelName: "request-model", QuotaType: 1, ModelPrice: 0.04, EnableGroup: []string{"plg"}},
+	}
+	source := fakeWebsitePricingSource{
+		modes: map[string]string{"tiered-model": billing_setting.BillingModeTieredExpr},
+		ratios: map[string]types.GroupRatioInfo{
+			"tiered-model":  {GroupRatio: 0.5},
+			"request-model": {GroupRatio: 0.5},
+		},
+		quotaPerUnit:    500_000,
+		configuredGroup: true,
+	}
+
+	displayPricing, err := buildWebsiteDisplayPricing(pricing, "plg", source)
+	require.NoError(t, err)
+	require.NotContains(t, displayPricing, "tiered-model")
+	require.Contains(t, displayPricing, "request-model")
+}
+
 func mapKeys(value map[string]any) []string {
 	keys := make([]string, 0, len(value))
 	for key := range value {

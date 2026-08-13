@@ -129,7 +129,11 @@ func buildWebsiteDisplayPricing(
 		}
 
 		row := WebsiteDisplayPricing{}
-		if secondPrice, ok := websiteDisplaySecondPrice(item.ModelName, videoRules, ratioInfo.GroupRatio); ok {
+		secondPrice, hasSecondPrice, secondErr := websiteDisplaySecondPrice(item.ModelName, videoRules, ratioInfo.GroupRatio)
+		if secondErr != nil {
+			return nil, fmt.Errorf("invalid per-second price for model %q: %w", item.ModelName, secondErr)
+		}
+		if hasSecondPrice {
 			row.BillingKind = "per_second"
 			row.Prices.Second = secondPrice
 			displayPricing[item.ModelName] = row
@@ -137,7 +141,10 @@ func buildWebsiteDisplayPricing(
 		}
 		switch source.BillingMode(item.ModelName) {
 		case billing_setting.BillingModeTieredExpr:
-			row.BillingKind = billing_setting.BillingModeTieredExpr
+			// Expression-priced models have no single display price; leave them
+			// out of the display map so the site keeps its legacy
+			// dynamic-pricing presentation instead of a misleading flat rate.
+			continue
 		default:
 			if item.QuotaType == 1 {
 				row.BillingKind = "request"
@@ -316,7 +323,7 @@ func buildWebsitePricingV2(
 	}, nil
 }
 
-func websiteDisplaySecondPrice(modelName string, rules []billing_setting.VideoPriceRule, groupRatio float64) (*WebsitePricePair, bool) {
+func websiteDisplaySecondPrice(modelName string, rules []billing_setting.VideoPriceRule, groupRatio float64) (*WebsitePricePair, bool, error) {
 	var (
 		bestPrice float64
 		found     bool
@@ -333,14 +340,14 @@ func websiteDisplaySecondPrice(modelName string, rules []billing_setting.VideoPr
 		}
 	}
 	if !found {
-		return nil, false
+		return nil, false, nil
 	}
 	price, err := websitePricePair(bestPrice, groupRatio)
 	if err != nil {
-		return nil, false
+		return nil, false, err
 	}
 	price.From = valid > 1
-	return price, true
+	return price, true, nil
 }
 
 func featuredOrderOrMax(order *int) int {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PricingModelBrowser, buildCodeSampleForTest, buildPerformanceMetricsPathForTest, buildPerformanceSummaryPathForTest } from "./pricing-model-browser";
+import { PricingModelBrowser, buildCodeSampleForTest, buildPerformanceMetricsPathForTest, buildPerformanceSummaryPathForTest, resolveGroupPriceRatioForTest } from "./pricing-model-browser";
 import type { PricingModel } from "@/lib/pricing";
 
 const model: PricingModel = {
@@ -106,6 +106,13 @@ describe("PricingModelBrowser pricing units", () => {
     expect(html).toContain("Per Request");
     expect(html).not.toContain("Input <span");
     expect(html).not.toContain("Output <span");
+  });
+
+  test("prefers the model-specific group ratio for group price rows", () => {
+    expect(resolveGroupPriceRatioForTest(0.5, 0.9)).toBe(0.5);
+    expect(resolveGroupPriceRatioForTest(undefined, 0.9)).toBe(0.9);
+    expect(resolveGroupPriceRatioForTest(Number.NaN, 0.9)).toBe(0.9);
+    expect(resolveGroupPriceRatioForTest(undefined, undefined)).toBe(1);
   });
 });
 
