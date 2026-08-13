@@ -162,6 +162,35 @@ export interface GetVendorResponse {
 }
 
 /**
+ * Public website featured model configuration row
+ */
+export interface WebsiteFeaturedModel {
+  model_name: string
+  sort_order: number
+  vendor_name?: string
+  available: boolean
+}
+
+/**
+ * Public model candidate that can be added to the featured list
+ */
+export interface WebsiteFeaturedCandidate {
+  model_name: string
+  vendor_name?: string
+  icon?: string
+  available: boolean
+}
+
+export interface WebsiteFeaturedModelsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    featured: WebsiteFeaturedModel[]
+    candidates: WebsiteFeaturedCandidate[]
+  }
+}
+
+/**
  * Sync diff data
  */
 export interface SyncDiffData {
@@ -313,7 +342,7 @@ export type SyncSource = 'official' | 'config'
 /**
  * Model tab type
  */
-export type ModelTabCategory = 'metadata' | 'deployments'
+export type ModelTabCategory = 'metadata' | 'deployments' | 'website-featured'
 
 /**
  * Deployment entity from API

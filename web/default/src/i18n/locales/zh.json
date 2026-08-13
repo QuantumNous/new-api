@@ -6544,6 +6544,26 @@
     "Unknown lifecycle event": "未知生命周期事件",
     "Unknown lifecycle outcome": "未知生命周期结果",
     "Hidden models": "隐藏模型",
-    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "以逗号分隔的模型名，这些模型不会出现在定价页面。支持 * 通配符（前缀、后缀或包含）。被隐藏的模型仍可通过 API 正常调用。"
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "以逗号分隔的模型名，这些模型不会出现在定价页面。支持 * 通配符（前缀、后缀或包含）。被隐藏的模型仍可通过 API 正常调用。",
+    "Website Featured": "官网精选模型",
+    "Loading featured models": "正在加载精选模型",
+    "Unable to load featured models": "无法加载精选模型",
+    "Please retry later or check your administrator permissions.": "请稍后重试，或检查管理员权限。",
+    "Choose one or more models and arrange their order. Featured models appear first on the public model directory.": "选择一个或多个模型并调整顺序。精选模型会优先显示在公开模型目录中。",
+    "Featured model order": "精选模型顺序",
+    "Models not listed here keep the normal automatic ordering.": "未列出的模型继续使用默认自动排序。",
+    "Save order": "保存顺序",
+    "Featured models saved successfully": "精选模型已保存",
+    "Failed to save featured models": "保存精选模型失败",
+    "No longer available": "已不可用",
+    "Move featured model up": "上移精选模型",
+    "Move featured model down": "下移精选模型",
+    "Remove featured model": "移除精选模型",
+    "No featured models configured. Add models from the list below.": "尚未配置精选模型，请从下方列表添加。",
+    "Available public models": "可选的公开模型",
+    "Only models currently shown on the public model directory can be selected.": "只能选择当前显示在公开模型目录中的模型。",
+    "Search public models": "搜索公开模型",
+    "Feature": "设为精选",
+    "No additional public models found": "没有找到其他公开模型"
   }
 }

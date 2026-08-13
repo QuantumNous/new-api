@@ -6544,6 +6544,26 @@
     "Unknown lifecycle event": "Événement de cycle de vie inconnu",
     "Unknown lifecycle outcome": "Résultat de cycle de vie inconnu",
     "Hidden models": "Modèles masqués",
-    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Noms de modèles séparés par des virgules à masquer sur les pages de tarifs. Prend en charge les caractères génériques * (préfixe, suffixe ou contient). Les modèles masqués restent entièrement appelables via l’API."
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Noms de modèles séparés par des virgules à masquer sur les pages de tarifs. Prend en charge les caractères génériques * (préfixe, suffixe ou contient). Les modèles masqués restent entièrement appelables via l’API.",
+    "Website Featured": "Modèles mis en avant sur le site",
+    "Loading featured models": "Chargement des modèles mis en avant",
+    "Unable to load featured models": "Impossible de charger les modèles mis en avant",
+    "Please retry later or check your administrator permissions.": "Réessayez plus tard ou vérifiez vos droits d’administrateur.",
+    "Choose one or more models and arrange their order. Featured models appear first on the public model directory.": "Choisissez un ou plusieurs modèles et définissez leur ordre. Les modèles mis en avant apparaissent en premier dans le répertoire public.",
+    "Featured model order": "Ordre des modèles mis en avant",
+    "Models not listed here keep the normal automatic ordering.": "Les modèles absents de cette liste conservent l’ordre automatique.",
+    "Save order": "Enregistrer l’ordre",
+    "Featured models saved successfully": "Modèles mis en avant enregistrés",
+    "Failed to save featured models": "Échec de l’enregistrement des modèles mis en avant",
+    "No longer available": "Plus disponible",
+    "Move featured model up": "Monter le modèle mis en avant",
+    "Move featured model down": "Descendre le modèle mis en avant",
+    "Remove featured model": "Retirer le modèle mis en avant",
+    "No featured models configured. Add models from the list below.": "Aucun modèle mis en avant. Ajoutez-en depuis la liste ci-dessous.",
+    "Available public models": "Modèles publics disponibles",
+    "Only models currently shown on the public model directory can be selected.": "Seuls les modèles actuellement visibles dans le répertoire public peuvent être sélectionnés.",
+    "Search public models": "Rechercher des modèles publics",
+    "Feature": "Mettre en avant",
+    "No additional public models found": "Aucun autre modèle public trouvé"
   }
 }

@@ -6544,6 +6544,26 @@
     "Unknown lifecycle event": "Sự kiện vòng đời không xác định",
     "Unknown lifecycle outcome": "Kết quả vòng đời không xác định",
     "Hidden models": "Mô hình ẩn",
-    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Danh sách tên mô hình cách nhau bằng dấu phẩy sẽ bị ẩn khỏi các trang giá. Hỗ trợ ký tự đại diện * (tiền tố, hậu tố hoặc chứa). Các mô hình bị ẩn vẫn gọi được bình thường qua API."
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Danh sách tên mô hình cách nhau bằng dấu phẩy sẽ bị ẩn khỏi các trang giá. Hỗ trợ ký tự đại diện * (tiền tố, hậu tố hoặc chứa). Các mô hình bị ẩn vẫn gọi được bình thường qua API.",
+    "Website Featured": "Mô hình nổi bật trên website",
+    "Loading featured models": "Đang tải mô hình nổi bật",
+    "Unable to load featured models": "Không thể tải mô hình nổi bật",
+    "Please retry later or check your administrator permissions.": "Vui lòng thử lại sau hoặc kiểm tra quyền quản trị viên.",
+    "Choose one or more models and arrange their order. Featured models appear first on the public model directory.": "Chọn một hoặc nhiều mô hình và sắp xếp thứ tự. Mô hình nổi bật sẽ hiển thị đầu tiên trong danh mục công khai.",
+    "Featured model order": "Thứ tự mô hình nổi bật",
+    "Models not listed here keep the normal automatic ordering.": "Các mô hình không có trong danh sách vẫn dùng thứ tự tự động thông thường.",
+    "Save order": "Lưu thứ tự",
+    "Featured models saved successfully": "Đã lưu mô hình nổi bật",
+    "Failed to save featured models": "Lưu mô hình nổi bật thất bại",
+    "No longer available": "Không còn khả dụng",
+    "Move featured model up": "Đưa mô hình lên",
+    "Move featured model down": "Đưa mô hình xuống",
+    "Remove featured model": "Xóa mô hình nổi bật",
+    "No featured models configured. Add models from the list below.": "Chưa cấu hình mô hình nổi bật. Hãy thêm từ danh sách bên dưới.",
+    "Available public models": "Mô hình công khai khả dụng",
+    "Only models currently shown on the public model directory can be selected.": "Chỉ có thể chọn các mô hình đang hiển thị trong danh mục công khai.",
+    "Search public models": "Tìm mô hình công khai",
+    "Feature": "Đặt nổi bật",
+    "No additional public models found": "Không tìm thấy mô hình công khai khác"
   }
 }

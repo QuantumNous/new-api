@@ -6544,6 +6544,26 @@
     "Unknown lifecycle event": "不明なライフサイクルイベント",
     "Unknown lifecycle outcome": "不明なライフサイクル結果",
     "Hidden models": "非表示モデル",
-    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "価格ページに表示しないモデル名をカンマ区切りで指定します。* のワイルドカード（前方一致・後方一致・部分一致）に対応します。非表示のモデルも API からは通常どおり呼び出せます。"
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "価格ページに表示しないモデル名をカンマ区切りで指定します。* のワイルドカード（前方一致・後方一致・部分一致）に対応します。非表示のモデルも API からは通常どおり呼び出せます。",
+    "Website Featured": "ウェブサイトの注目モデル",
+    "Loading featured models": "注目モデルを読み込み中",
+    "Unable to load featured models": "注目モデルを読み込めません",
+    "Please retry later or check your administrator permissions.": "後でもう一度お試しいただくか、管理者権限を確認してください。",
+    "Choose one or more models and arrange their order. Featured models appear first on the public model directory.": "1つ以上のモデルを選び、順序を並べ替えます。注目モデルは公開モデル一覧の先頭に表示されます。",
+    "Featured model order": "注目モデルの順序",
+    "Models not listed here keep the normal automatic ordering.": "ここにないモデルは通常の自動並び順になります。",
+    "Save order": "順序を保存",
+    "Featured models saved successfully": "注目モデルを保存しました",
+    "Failed to save featured models": "注目モデルの保存に失敗しました",
+    "No longer available": "利用不可",
+    "Move featured model up": "注目モデルを上へ移動",
+    "Move featured model down": "注目モデルを下へ移動",
+    "Remove featured model": "注目モデルから削除",
+    "No featured models configured. Add models from the list below.": "注目モデルは未設定です。下の一覧から追加してください。",
+    "Available public models": "利用可能な公開モデル",
+    "Only models currently shown on the public model directory can be selected.": "現在公開モデル一覧に表示されているモデルのみ選択できます。",
+    "Search public models": "公開モデルを検索",
+    "Feature": "注目に追加",
+    "No additional public models found": "追加の公開モデルは見つかりません"
   }
 }

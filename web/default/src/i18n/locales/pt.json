@@ -6544,6 +6544,26 @@
     "Unknown lifecycle event": "Evento de ciclo de vida desconhecido",
     "Unknown lifecycle outcome": "Resultado de ciclo de vida desconhecido",
     "Hidden models": "Modelos ocultos",
-    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Nomes de modelos separados por vírgulas a ocultar nas páginas de preços. Suporta curingas * (prefixo, sufixo ou contém). Os modelos ocultos continuam totalmente acessíveis pela API."
+    "Comma-separated model names to hide from the pricing pages. Supports * wildcards (prefix, suffix, or contains). Hidden models remain fully callable via the API.": "Nomes de modelos separados por vírgulas a ocultar nas páginas de preços. Suporta curingas * (prefixo, sufixo ou contém). Os modelos ocultos continuam totalmente acessíveis pela API.",
+    "Website Featured": "Modelos em destaque no site",
+    "Loading featured models": "Carregando modelos em destaque",
+    "Unable to load featured models": "Não foi possível carregar os modelos em destaque",
+    "Please retry later or check your administrator permissions.": "Tente novamente mais tarde ou verifique suas permissões de administrador.",
+    "Choose one or more models and arrange their order. Featured models appear first on the public model directory.": "Escolha um ou mais modelos e organize a ordem. Os modelos em destaque aparecem primeiro no diretório público.",
+    "Featured model order": "Ordem dos modelos em destaque",
+    "Models not listed here keep the normal automatic ordering.": "Os modelos não listados mantêm a ordenação automática normal.",
+    "Save order": "Salvar ordem",
+    "Featured models saved successfully": "Modelos em destaque salvos com sucesso",
+    "Failed to save featured models": "Falha ao salvar os modelos em destaque",
+    "No longer available": "Não está mais disponível",
+    "Move featured model up": "Mover modelo em destaque para cima",
+    "Move featured model down": "Mover modelo em destaque para baixo",
+    "Remove featured model": "Remover modelo em destaque",
+    "No featured models configured. Add models from the list below.": "Nenhum modelo em destaque configurado. Adicione modelos da lista abaixo.",
+    "Available public models": "Modelos públicos disponíveis",
+    "Only models currently shown on the public model directory can be selected.": "Somente modelos exibidos atualmente no diretório público podem ser selecionados.",
+    "Search public models": "Pesquisar modelos públicos",
+    "Feature": "Destacar",
+    "No additional public models found": "Nenhum outro modelo público encontrado"
   }
 }

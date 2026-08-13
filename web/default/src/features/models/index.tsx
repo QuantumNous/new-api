@@ -32,6 +32,7 @@ import { ModelsDialogs } from './components/models-dialogs'
 import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
 import { ModelsTable } from './components/models-table'
+import { WebsiteFeaturedSection } from './components/website-featured-section'
 import { useModelDeploymentSettings } from './hooks/use-model-deployment-settings'
 import { deploymentsQueryKeys } from './lib'
 import {
@@ -48,6 +49,9 @@ const SECTION_META: Record<ModelsSectionId, { titleKey: string }> = {
   },
   deployments: {
     titleKey: 'Deployments',
+  },
+  'website-featured': {
+    titleKey: 'Website Featured',
   },
 }
 
@@ -124,12 +128,12 @@ function ModelsContent() {
         <SectionPageLayout.Actions>
           {activeSection === 'metadata' ? (
             <ModelsPrimaryButtons />
-          ) : (
+          ) : activeSection === 'deployments' ? (
             <Button onClick={() => setCreateDeploymentOpen(true)} size='sm'>
               <Plus className='h-4 w-4' />
               {t('Create deployment')}
             </Button>
-          )}
+          ) : null}
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='space-y-4'>
@@ -142,9 +146,11 @@ function ModelsContent() {
                 ))}
               </TabsList>
             </Tabs>
-            {activeSection === 'metadata' ? (
-              <ModelsTable />
-            ) : (
+          {activeSection === 'metadata' ? (
+            <ModelsTable />
+          ) : activeSection === 'website-featured' ? (
+            <WebsiteFeaturedSection />
+          ) : (
               <DeploymentAccessGuard
                 loading={deploymentLoading}
                 loadingPhase={loadingPhase}
