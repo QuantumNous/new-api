@@ -40,7 +40,10 @@ import ChannelMobileList from '@/components/console/channels/ChannelMobileList.v
 import ChannelTestModal from '@/components/console/channels/ChannelTestModal.vue'
 import ChannelTestPickerDialog from '@/components/console/channels/ChannelTestPickerDialog.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
-import { useAdminChannels } from '@/composables/useAdminChannels'
+import {
+  type ChannelModelTestResult,
+  useAdminChannels,
+} from '@/composables/useAdminChannels'
 import { useAuthStore } from '@/stores/auth'
 import {
   ADMIN_CHANNEL_DEFAULT_VISIBLE_FIELDS,
@@ -143,6 +146,11 @@ const editing = ref<AdminChannel | null>(null)
 const deleting = ref<DeleteTarget | null>(null)
 const testing = ref<AdminChannel | null>(null)
 const pickingGroup = ref<SupplierGroup | null>(null)
+/** Per-channel batch-test results shown in the response column until the
+    background reload replaces them with the persisted values. */
+const groupTestOverrides = ref<
+  Record<number, ChannelModelTestResult | 'running'>
+>({})
 const selectedIds = ref<number[]>([])
 const collapsedSuppliers = ref<string[]>([])
 const storedVisibleFields = useStorage<string[]>(
@@ -456,7 +464,82 @@ function openTest(channel: AdminChannel) {
 
 function openSupplierTest(group: SupplierGroup) {
   if (!canOperate.value) return
+  groupTestOverrides.value = {}
   pickingGroup.value = group
+}
+
+function closeSupplierTest() {
+  pickingGroup.value = null
+  groupTestOverrides.value = {}
+}
+
+function onGroupTestStart(channelId: number) {
+  groupTestOverrides.value = {
+    ...groupTestOverrides.value,
+    [channelId]: 'running',
+  }
+}
+
+function onGroupTestResult(channelId: number, result: ChannelModelTestResult) {
+  groupTestOverrides.value = {
+    ...groupTestOverrides.value,
+    [channelId]: result,
+  }
+}
+
+function onGroupTested() {
+  groupTestOverrides.value = {}
+  void load({ background: true })
+}
+
+/** Response cell content: batch-test override first, persisted value after. */
+function responseCellDisplay(channel: AdminChannel): {
+  tone: 'neutral' | 'success' | 'warning' | 'danger'
+  text: string
+  title: string
+  running: boolean
+} {
+  const override = groupTestOverrides.value[channel.id]
+  if (override === 'running') {
+    return {
+      tone: 'warning',
+      text: t('channels.testStatusRunning'),
+      title: t('channels.testStatusRunning'),
+      running: true,
+    }
+  }
+  if (override) {
+    if (override.ok) {
+      return {
+        tone: 'success',
+        text: adminChannelResponseText(
+          override.timeMs ?? 0,
+          t('channels.notTested')
+        ),
+        title: t('channels.testStatusSuccess'),
+        running: false,
+      }
+    }
+    return {
+      tone: 'danger',
+      text: t('channels.testStatusFailed'),
+      title: override.message ?? t('channels.testStatusFailed'),
+      running: false,
+    }
+  }
+  return {
+    tone: adminChannelResponseTone(channel.response_time),
+    text: adminChannelResponseText(
+      channel.response_time,
+      t('channels.notTested')
+    ),
+    title: channel.test_time
+      ? t('channels.testedAt', {
+          time: relativeTime(channel.test_time, locale.value),
+        })
+      : t('channels.notTested'),
+    running: false,
+  }
 }
 
 function openCreate() {
@@ -1140,29 +1223,35 @@ async function runBulkStatus(
             </div>
           </template>
           <template #cell-response="{ row }">
-            <div class="flex items-center justify-between gap-1">
+            <div
+              v-if="(row as AdminChannelTableRow).kind === 'channel'"
+              class="flex items-center justify-between gap-1"
+            >
               <StatusChip
                 :tone="
-                  adminChannelResponseTone(
-                    channelFromRow(row as AdminChannelTableRow).response_time
-                  )
+                  responseCellDisplay(
+                    channelFromRow(row as AdminChannelTableRow)
+                  ).tone
                 "
                 :title="
-                  channelFromRow(row as AdminChannelTableRow).test_time
-                    ? t('channels.testedAt', {
-                        time: relativeTime(
-                          channelFromRow(row as AdminChannelTableRow).test_time,
-                          locale
-                        ),
-                      })
-                    : t('channels.notTested')
+                  responseCellDisplay(
+                    channelFromRow(row as AdminChannelTableRow)
+                  ).title
                 "
               >
+                <LoaderCircle
+                  v-if="
+                    responseCellDisplay(
+                      channelFromRow(row as AdminChannelTableRow)
+                    ).running
+                  "
+                  :size="12"
+                  class="animate-spin"
+                />
                 {{
-                  adminChannelResponseText(
-                    channelFromRow(row as AdminChannelTableRow).response_time,
-                    t('channels.notTested')
-                  )
+                  responseCellDisplay(
+                    channelFromRow(row as AdminChannelTableRow)
+                  ).text
                 }}
               </StatusChip>
               <IconButton
@@ -1297,6 +1386,7 @@ async function runBulkStatus(
             :is-supplier-collapsed="isSupplierCollapsed"
             :toggle-supplier="toggleSupplier"
             :batch-progress="batchProgress"
+            :group-test-overrides="groupTestOverrides"
             :can-run-batch="canRunBatch"
             :can-mutate="canMutate"
             :can-operate="canOperate"
@@ -1347,8 +1437,10 @@ async function runBulkStatus(
       :supplier="pickingGroup?.supplier ?? ''"
       :channels="pickingGroup?.channels ?? []"
       :test-model="testChannelModel"
-      @close="pickingGroup = null"
-      @tested="load({ background: true })"
+      @close="closeSupplierTest"
+      @start="onGroupTestStart"
+      @result="onGroupTestResult"
+      @tested="onGroupTested"
     />
 
     <ConfirmDialog

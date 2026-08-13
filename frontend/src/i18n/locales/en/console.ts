@@ -737,6 +737,9 @@ export default {
     pickModelPlaceholder: 'Select a model to test',
     pickModelHint: '{count} channels publish this model',
     pickModelMissing: 'Not published',
+    batchTestCompleted: '{model}: all {count} channels passed',
+    batchTestPartial: '{model}: {succeeded} passed, {failed} failed',
+    batchTestFailed: '{model}: all {count} channels failed',
     batchCompleted: '{action} completed for {count} channels',
     batchPartial:
       '{action} completed: {succeeded}/{total} succeeded, {failed} failed',

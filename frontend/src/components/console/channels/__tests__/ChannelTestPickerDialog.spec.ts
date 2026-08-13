@@ -116,13 +116,6 @@ function startButton(): HTMLButtonElement {
   return button as HTMLButtonElement
 }
 
-function rowFor(name: string): HTMLElement {
-  const rows = Array.from(document.body.querySelectorAll('.channel-pick-row'))
-  const row = rows.find((item) => item.textContent?.includes(name))
-  expect(row, `row for ${name}`).toBeTruthy()
-  return row as HTMLElement
-}
-
 describe('ChannelTestPickerDialog', () => {
   it('offers the deduped union of the group models', async () => {
     render()
@@ -154,8 +147,17 @@ describe('ChannelTestPickerDialog', () => {
     expect(bodyText()).toContain('1 个渠道已配置该模型')
   })
 
-  it('tests every channel publishing the model and renders each response', async () => {
-    const { testModel } = render({
+  it('does not render an in-dialog channel list', async () => {
+    render()
+
+    await selectModel('gpt-5')
+
+    expect(document.body.querySelectorAll('.channel-pick-row')).toHaveLength(0)
+    expect(document.body.querySelector('[role="list"]')).toBeNull()
+  })
+
+  it('emits start/result per channel and tested once at the end', async () => {
+    const { wrapper, testModel } = render({
       testModel: async (channel) =>
         channel.id === 2
           ? { ok: false, message: 'bad response status code 523' }
@@ -173,16 +175,16 @@ describe('ChannelTestPickerDialog', () => {
       {},
       expect.anything()
     )
-    expect(rowFor('RenRen2').textContent).toContain('261 毫秒')
-    expect(rowFor('RenRen2').textContent).toContain('成功')
-    expect(rowFor('RenRen3').textContent).toContain(
-      'bad response status code 523'
-    )
-    expect(rowFor('RenRen3').textContent).toContain('失败')
+    expect(wrapper.emitted('start')).toEqual([[1], [2]])
+    expect(wrapper.emitted('result')).toEqual([
+      [1, { ok: true, timeMs: 261 }],
+      [2, { ok: false, message: 'bad response status code 523' }],
+    ])
+    expect(wrapper.emitted('tested')).toHaveLength(1)
   })
 
-  it('skips channels that do not publish the picked model', async () => {
-    const { testModel } = render()
+  it('only tests channels publishing the picked model', async () => {
+    const { wrapper, testModel } = render()
 
     await selectModel('gpt-5-mini')
     startButton().click()
@@ -195,17 +197,7 @@ describe('ChannelTestPickerDialog', () => {
       {},
       expect.anything()
     )
-    expect(rowFor('RenRen3').textContent).toContain('未配置')
-  })
-
-  it('emits tested once the batch finishes so the table can refresh', async () => {
-    const { wrapper } = render()
-
-    await selectModel('gpt-5')
-    startButton().click()
-    await flushPromises()
-
-    expect(wrapper.emitted('tested')).toHaveLength(1)
+    expect(wrapper.emitted('result')).toEqual([[1, { ok: true, timeMs: 261 }]])
   })
 
   it('discards in-flight results after the model changes mid-batch', async () => {
@@ -221,27 +213,15 @@ describe('ChannelTestPickerDialog', () => {
     startButton().click()
     await flushPromises()
 
-    await selectModel('gpt-5-mini')
+    // The picker is inert during a batch, so change the model programmatically
+    // to simulate a race (e.g. reopened state).
+    ;(wrapper.vm as unknown as { selectedModel: string }).selectedModel =
+      'gpt-5-mini'
     resolveTest({ ok: true, timeMs: 261 })
     await flushPromises()
 
-    expect(rowFor('RenRen2').textContent).not.toContain('261 毫秒')
-    expect(rowFor('RenRen2').textContent).toContain('未测试')
+    expect(wrapper.emitted('result')).toBeUndefined()
     expect(wrapper.emitted('tested')).toBeUndefined()
-  })
-
-  it('drops results when the picked model changes', async () => {
-    render()
-
-    await selectModel('gpt-5')
-    startButton().click()
-    await flushPromises()
-    expect(rowFor('RenRen2').textContent).toContain('261 毫秒')
-
-    await selectModel('gpt-5-mini')
-
-    expect(rowFor('RenRen2').textContent).not.toContain('261 毫秒')
-    expect(rowFor('RenRen2').textContent).toContain('未测试')
   })
 
   it('aborts in-flight tests when the dialog closes', async () => {
@@ -266,6 +246,7 @@ describe('ChannelTestPickerDialog', () => {
 
     resolveTest({ ok: true, timeMs: 100 })
     await flushPromises()
+    expect(wrapper.emitted('result')).toBeUndefined()
     expect(wrapper.emitted('tested')).toBeUndefined()
   })
 })

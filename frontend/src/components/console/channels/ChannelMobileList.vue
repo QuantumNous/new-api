@@ -15,6 +15,7 @@ import { useI18n } from 'vue-i18n'
 import IconButton from '@/components/common/IconButton.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
+import type { ChannelModelTestResult } from '@/composables/useAdminChannels'
 import {
   type AdminChannelOptionalField,
   adminChannelResponseText,
@@ -38,7 +39,7 @@ interface ChannelBatchProgress {
   processed: number
 }
 
-defineProps<{
+const props = defineProps<{
   groups: Array<{ supplier: string; channels: AdminChannel[] }>
   visibleFields: AdminChannelOptionalField[]
   selectedIds: number[]
@@ -49,6 +50,9 @@ defineProps<{
   isSupplierCollapsed: (supplier: string) => boolean
   toggleSupplier: (supplier: string) => void
   batchProgress: ChannelBatchProgress | null
+  /** Inline batch-test results, keyed by channel id; overrides persisted
+      response_time while a group test is running. */
+  groupTestOverrides: Record<number, ChannelModelTestResult | 'running'>
   canRunBatch: boolean
   canMutate: boolean
   canOperate: boolean
@@ -78,6 +82,56 @@ defineProps<{
 }>()
 
 const { t, locale } = useI18n()
+
+/** Response cell content: batch-test override first, persisted value after. */
+function responseDisplay(channel: AdminChannel): {
+  tone: 'neutral' | 'success' | 'warning' | 'danger'
+  text: string
+  title: string
+  running: boolean
+} {
+  const override = props.groupTestOverrides[channel.id]
+  if (override === 'running') {
+    return {
+      tone: 'warning',
+      text: t('channels.testStatusRunning'),
+      title: t('channels.testStatusRunning'),
+      running: true,
+    }
+  }
+  if (override) {
+    if (override.ok) {
+      return {
+        tone: 'success',
+        text: adminChannelResponseText(
+          override.timeMs ?? 0,
+          t('channels.notTested')
+        ),
+        title: t('channels.testStatusSuccess'),
+        running: false,
+      }
+    }
+    return {
+      tone: 'danger',
+      text: t('channels.testStatusFailed'),
+      title: override.message ?? t('channels.testStatusFailed'),
+      running: false,
+    }
+  }
+  return {
+    tone: adminChannelResponseTone(channel.response_time),
+    text: adminChannelResponseText(
+      channel.response_time,
+      t('channels.notTested')
+    ),
+    title: channel.test_time
+      ? t('channels.testedAt', {
+          time: relativeTime(channel.test_time, locale.value),
+        })
+      : t('channels.notTested'),
+    running: false,
+  }
+}
 </script>
 
 <template>
@@ -344,21 +398,15 @@ const { t, locale } = useI18n()
                 </dt>
                 <dd class="mt-1 flex items-center justify-between gap-1">
                   <StatusChip
-                    :tone="adminChannelResponseTone(channel.response_time)"
-                    :title="
-                      channel.test_time
-                        ? t('channels.testedAt', {
-                            time: relativeTime(channel.test_time, locale),
-                          })
-                        : t('channels.notTested')
-                    "
+                    :tone="responseDisplay(channel).tone"
+                    :title="responseDisplay(channel).title"
                   >
-                    {{
-                      adminChannelResponseText(
-                        channel.response_time,
-                        t('channels.notTested')
-                      )
-                    }}
+                    <LoaderCircle
+                      v-if="responseDisplay(channel).running"
+                      :size="12"
+                      class="animate-spin"
+                    />
+                    {{ responseDisplay(channel).text }}
                   </StatusChip>
                   <IconButton
                     v-if="

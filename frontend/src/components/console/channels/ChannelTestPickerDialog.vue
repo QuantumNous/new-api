@@ -6,27 +6,12 @@ import { useI18n } from 'vue-i18n'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
-import StatusChip from '@/components/common/StatusChip.vue'
-import VendorLogo from '@/components/console/models/VendorLogo.vue'
 import type {
   ChannelModelTestOptions,
   ChannelModelTestResult,
 } from '@/composables/useAdminChannels'
-import {
-  adminChannelStatusLabelKey,
-  adminChannelStatusTone,
-  adminChannelTypeMeta,
-} from '@/constants/adminChannels'
+import { useToast } from '@/composables/useToast'
 import type { AdminChannel } from '@/types/console'
-
-type ChannelTestStatus =
-  'idle' | 'running' | 'success' | 'failed' | 'unsupported'
-
-interface ChannelTestState {
-  status: ChannelTestStatus
-  timeMs?: number
-  message?: string
-}
 
 const props = defineProps<{
   open: boolean
@@ -42,15 +27,20 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  /** One channel started testing; the table can show a running state. */
+  start: [channelId: number]
+  /** One channel finished testing; the table can render the result inline. */
+  result: [channelId: number, outcome: ChannelModelTestResult]
+  /** The whole batch finished; safe to refresh persisted response fields. */
   tested: []
 }>()
 
 const { t } = useI18n()
+const toast = useToast()
 
 const TEST_BATCH_SIZE = 5
 
 const selectedModel = ref('')
-const states = ref<Record<number, ChannelTestState>>({})
 const testing = ref(false)
 const done = ref(0)
 const total = ref(0)
@@ -92,7 +82,6 @@ watch(
       return
     }
     abortController = new AbortController()
-    states.value = {}
     testing.value = false
     done.value = 0
     // Preselect when the group publishes exactly one model.
@@ -102,46 +91,27 @@ watch(
   { immediate: true }
 )
 
-watch(selectedModel, () => {
-  // Results belong to a single model; switching invalidates them.
-  states.value = {}
-  done.value = 0
-})
-
 onBeforeUnmount(() => {
   abortController?.abort()
 })
 
-function stateFor(channel: AdminChannel): ChannelTestState {
-  if (
-    selectedModel.value &&
-    !channelModels(channel).includes(selectedModel.value)
-  ) {
-    return { status: 'unsupported' }
-  }
-  return states.value[channel.id] ?? { status: 'idle' }
-}
-
 async function runChannelTest(
   channel: AdminChannel,
   model: string
-): Promise<void> {
+): Promise<'success' | 'failed' | 'dropped'> {
   const signal = abortController?.signal
-  if (!signal || signal.aborted) return
-  states.value[channel.id] = { status: 'running' }
+  if (!signal || signal.aborted) return 'dropped'
+  emit('start', channel.id)
   try {
     const result = await props.testModel(channel, model, {}, signal)
     // Discard outcomes that no longer belong to the current selection so a
     // mid-flight model switch cannot attribute old results to the new model.
-    if (signal.aborted || selectedModel.value !== model) return
-    states.value[channel.id] = result.ok
-      ? { status: 'success', timeMs: result.timeMs }
-      : { status: 'failed', message: result.message }
+    if (signal.aborted || selectedModel.value !== model) return 'dropped'
+    emit('result', channel.id, result)
+    return result.ok ? 'success' : 'failed'
   } catch {
     // Aborted (dialog closed): leave the row untested.
-    if (states.value[channel.id]?.status === 'running') {
-      states.value[channel.id] = { status: 'idle' }
-    }
+    return 'dropped'
   }
 }
 
@@ -155,58 +125,41 @@ async function runBatch() {
   testing.value = true
   done.value = 0
   total.value = batchTargets.length
+  let succeeded = 0
+  let failed = 0
   try {
     for (let start = 0; start < batchTargets.length; start += TEST_BATCH_SIZE) {
       if (controller.signal.aborted || selectedModel.value !== model) return
       const batch = batchTargets.slice(start, start + TEST_BATCH_SIZE)
-      await Promise.all(batch.map((channel) => runChannelTest(channel, model)))
+      const outcomes = await Promise.all(
+        batch.map((channel) => runChannelTest(channel, model))
+      )
+      for (const outcome of outcomes) {
+        if (outcome === 'success') succeeded += 1
+        else if (outcome === 'failed') failed += 1
+      }
       done.value = Math.min(start + batch.length, batchTargets.length)
     }
     // Each test writes the channel's response time server-side; let the table
-    // pick up the new values.
+    // pick up the new values once the batch is complete.
     emit('tested')
+    const attempted = succeeded + failed
+    if (attempted === 0) return
+    if (failed === 0) {
+      toast.success(
+        t('channels.batchTestCompleted', { count: succeeded, model })
+      )
+    } else if (succeeded === 0) {
+      toast.error(t('channels.batchTestFailed', { count: failed, model }))
+    } else {
+      toast.warning(
+        t('channels.batchTestPartial', { succeeded, failed, model })
+      )
+    }
   } finally {
     testing.value = false
     done.value = 0
   }
-}
-
-function statusTone(
-  status: ChannelTestStatus
-): 'neutral' | 'success' | 'danger' | 'warning' {
-  if (status === 'success') return 'success'
-  if (status === 'failed') return 'danger'
-  if (status === 'running') return 'warning'
-  return 'neutral'
-}
-
-function statusLabel(status: ChannelTestStatus): string {
-  if (status === 'success') return t('channels.testStatusSuccess')
-  if (status === 'failed') return t('channels.testStatusFailed')
-  if (status === 'running') return t('channels.testStatusRunning')
-  if (status === 'unsupported') return t('channels.pickModelMissing')
-  return t('channels.testStatusIdle')
-}
-
-/** Second row line doubles as the response field: timing, error, or catalog. */
-function resultText(channel: AdminChannel): string {
-  const state = stateFor(channel)
-  if (state.status === 'success') {
-    return t('channels.testResultMs', { ms: state.timeMs ?? 0 })
-  }
-  if (state.status === 'failed') return state.message ?? ''
-  return t('channels.pickChannelModels', {
-    count: channelModels(channel).length,
-  })
-}
-
-function resultClass(channel: AdminChannel): string {
-  const status = stateFor(channel).status
-  if (status === 'success') {
-    return 'tabular-nums text-[var(--status-success-text)]'
-  }
-  if (status === 'failed') return 'text-[var(--status-danger-text)]'
-  return 'text-[var(--text-tertiary)]'
 }
 </script>
 
@@ -214,7 +167,7 @@ function resultClass(channel: AdminChannel): string {
   <ConsoleModal
     :open="open"
     :title="t('channels.pickChannelTitle')"
-    size="lg"
+    size="sm"
     @close="emit('close')"
   >
     <div class="space-y-4 text-left">
@@ -243,58 +196,6 @@ function resultClass(channel: AdminChannel): string {
           {{ t('channels.pickModelHint', { count: targets.length }) }}
         </p>
       </div>
-
-      <ul class="subtle-scroll max-h-80 space-y-2 overflow-y-auto">
-        <li
-          v-for="channel in channels"
-          :key="channel.id"
-          class="channel-pick-row"
-          :class="
-            stateFor(channel).status === 'unsupported'
-              ? 'channel-pick-row--muted'
-              : ''
-          "
-        >
-          <VendorLogo
-            :vendor="adminChannelTypeMeta(channel.type).supplier"
-            :size="22"
-          />
-          <div class="min-w-0 flex-1">
-            <div class="flex min-w-0 items-center gap-2">
-              <span
-                class="truncate text-sm font-medium text-[var(--text-primary)]"
-                :title="channel.name"
-              >
-                {{ channel.name }}
-              </span>
-              <StatusChip
-                class="shrink-0 whitespace-nowrap"
-                :tone="adminChannelStatusTone(channel.status)"
-              >
-                {{ t(adminChannelStatusLabelKey(channel.status)) }}
-              </StatusChip>
-            </div>
-            <p
-              class="mt-0.5 truncate text-xs"
-              :class="resultClass(channel)"
-              :title="resultText(channel)"
-            >
-              {{ resultText(channel) }}
-            </p>
-          </div>
-          <StatusChip
-            class="shrink-0 whitespace-nowrap"
-            :tone="statusTone(stateFor(channel).status)"
-          >
-            <LoaderCircle
-              v-if="stateFor(channel).status === 'running'"
-              :size="12"
-              class="animate-spin"
-            />
-            {{ statusLabel(stateFor(channel).status) }}
-          </StatusChip>
-        </li>
-      </ul>
     </div>
 
     <template #footer>
@@ -315,21 +216,3 @@ function resultClass(channel: AdminChannel): string {
     </template>
   </ConsoleModal>
 </template>
-
-<style scoped>
-.channel-pick-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
-  background: var(--surface-solid);
-  transition:
-    border-color 0.15s,
-    background-color 0.15s;
-}
-.channel-pick-row--muted {
-  opacity: 0.6;
-}
-</style>
