@@ -196,10 +196,22 @@ describe('integration context resolution', () => {
     )
   })
 
-  test('does not publish a local preview origin as a runnable endpoint', () => {
-    expect(resolveApiEndpoint(undefined, 'http://localhost:3000')).toBe(
-      'https://router.flatkey.ai/v1/chat/completions'
+  test('keeps a custom or self-hosted origin as the gateway host', () => {
+    expect(resolveApiEndpoint(undefined, 'https://ai.mycompany.com')).toBe(
+      'https://ai.mycompany.com/v1/chat/completions'
     )
+    expect(resolveApiEndpoint(undefined, 'http://localhost:3000')).toBe(
+      'http://localhost:3000/v1/chat/completions'
+    )
+  })
+
+  test('prefers the status server address over any origin mapping', () => {
+    expect(
+      resolveApiEndpoint(
+        'https://gateway.internal.example',
+        'https://console.flatkey.ai'
+      )
+    ).toBe('https://gateway.internal.example/v1/chat/completions')
   })
 
   test('does not publish malformed origins as runnable endpoints', () => {
@@ -214,6 +226,17 @@ describe('integration context resolution', () => {
     expect(
       resolveSnippetModel(selectedModel, availableModels, availableModels[0])
     ).toBe('gpt-4o-mini')
+  })
+
+  test('does not publish a default model this key cannot call', () => {
+    expect(
+      resolveSnippetModel(null, ['claude-sonnet', 'gpt-5-mini'], 'gpt-4o-mini')
+    ).toBe('claude-sonnet')
+    expect(
+      resolveSnippetModel('stale-model', ['claude-sonnet'], 'gpt-4o-mini')
+    ).toBe('claude-sonnet')
+    // With no model list at all, the fallback is still better than nothing.
+    expect(resolveSnippetModel(null, [], 'gpt-4o-mini')).toBe('gpt-4o-mini')
   })
 
   test('honors the model selected in the picker on every render', () => {

@@ -116,12 +116,23 @@ export function OverviewDashboard() {
   })
 
   const apiKeys = useMemo(() => apiKeysQuery.data ?? [], [apiKeysQuery.data])
-  const resolvedKeys = useResolvedApiKeys(apiKeys, openIntegration !== null)
 
   const selectedKey = useMemo(() => {
-    const match = apiKeys.find((key) => key.id === selectedKeyId)
-    return match ?? getPreferredKey(apiKeys)
+    // An explicit selection is never silently replaced with another key:
+    // copying credentials for a key the user did not pick is worse than
+    // waiting for the list to settle.
+    if (selectedKeyId !== null) {
+      return apiKeys.find((key) => key.id === selectedKeyId) ?? null
+    }
+    return getPreferredKey(apiKeys)
   }, [apiKeys, selectedKeyId])
+
+  // Only the key backing the open dialog is ever resolved to its real value;
+  // the rest of the list stays masked.
+  const resolvedKeys = useResolvedApiKeys(
+    selectedKey?.id ?? null,
+    openIntegration !== null
+  )
 
   // Scope the model list to the group the selected key actually routes with,
   // so the example only offers models this key can call.
@@ -197,6 +208,9 @@ export function OverviewDashboard() {
 
   const snippetContext = useMemo<SnippetContext>(
     () => ({
+      // When status has no server_address yet, the current origin is kept as
+      // the gateway host (only known console hosts map to their routers), so
+      // self-hosted consoles never publish someone else's gateway.
       endpoint: resolveApiEndpoint(serverAddress, getCurrentOrigin()),
       model: exampleModel,
       kind: classifyModel(exampleModel) ?? 'chat',

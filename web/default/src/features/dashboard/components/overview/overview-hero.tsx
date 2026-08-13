@@ -26,9 +26,14 @@ const WELCOME_NOTICE_DISMISSED_STORAGE_KEY =
 
 function getWelcomeNoticeDismissed(): boolean {
   if (typeof window === 'undefined') return true
-  return (
-    window.localStorage.getItem(WELCOME_NOTICE_DISMISSED_STORAGE_KEY) === '1'
-  )
+  // Private mode or a restricted WebView can throw on any storage access.
+  try {
+    return (
+      window.localStorage.getItem(WELCOME_NOTICE_DISMISSED_STORAGE_KEY) === '1'
+    )
+  } catch {
+    return false
+  }
 }
 
 export function OverviewHero() {
@@ -39,7 +44,11 @@ export function OverviewHero() {
 
   const handleDismiss = () => {
     setNoticeDismissed(true)
-    window.localStorage.setItem(WELCOME_NOTICE_DISMISSED_STORAGE_KEY, '1')
+    try {
+      window.localStorage.setItem(WELCOME_NOTICE_DISMISSED_STORAGE_KEY, '1')
+    } catch {
+      // Storage is unavailable; the dismissal lives for this session only.
+    }
   }
 
   return (

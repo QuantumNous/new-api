@@ -53,14 +53,10 @@ function inferRouterOrigin(browserOrigin: string | undefined): string {
       )
     } else if (url.hostname.startsWith('console.')) {
       url.hostname = url.hostname.replace(/^console\./, 'router.')
-    } else if (
-      !url.hostname.startsWith('staging-router.') &&
-      !url.hostname.startsWith('router.')
-    ) {
-      // A local preview or an unrelated proxy origin is not a public model
-      // gateway. Never publish a copyable command that points at it.
-      return DEFAULT_ROUTER_ORIGIN
     }
+    // Any other origin (custom domain, private deployment, local preview)
+    // serves the gateway from the same host, so keep it instead of pointing
+    // the copyable command at the public production router.
     url.pathname = ''
     url.search = ''
     url.hash = ''
@@ -82,7 +78,7 @@ function normalizeChatEndpoint(source: string | undefined): string {
  * Resolve the public model-router endpoint used by copyable examples.
  * `/api/status.server_address` is authoritative. If status is unavailable,
  * known console origins are converted to their router hostnames; every other
- * origin falls back to the public production router.
+ * origin (custom domain, private deployment) is kept as the gateway host.
  */
 export function resolveApiEndpoint(
   serverAddress: string | undefined,
@@ -101,9 +97,13 @@ export function resolveSnippetModel(
   fallbackModel: string
 ): string {
   const selected = selectedModel?.trim()
-  return selected && availableModels.includes(selected)
-    ? selected
-    : fallbackModel
+  if (selected && availableModels.includes(selected)) return selected
+  // The default example model may not be callable with the current key, so
+  // it goes through the same availability check before being published.
+  if (availableModels.length === 0 || availableModels.includes(fallbackModel)) {
+    return fallbackModel
+  }
+  return availableModels[0]
 }
 
 function toBaseUrl(chatEndpoint: string): string {

@@ -319,7 +319,10 @@ export function IntegrationDialog(props: IntegrationDialogProps) {
               {renderCode(
                 buildAgentInstallCommand(
                   agentPlatform,
-                  OFFICIAL_WEBSITE_ORIGIN || window.location.origin
+                  OFFICIAL_WEBSITE_ORIGIN ||
+                    (typeof window === 'undefined'
+                      ? ''
+                      : window.location.origin)
                 )
               )}
             </div>

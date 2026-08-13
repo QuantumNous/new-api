@@ -137,12 +137,14 @@ export function ApiKeyPicker(props: {
                     successTooltip={t('Copied!')}
                     aria-label={t('Copy API key')}
                   />
-                ) : (
+                ) : selected ? (
+                  // Only the selected key is ever resolved to its real value,
+                  // so only it gets a resolving indicator.
                   <Loader2
                     className='text-muted-foreground size-3.5 shrink-0 animate-spin'
                     aria-label={t('Loading...')}
                   />
-                )}
+                ) : null}
               </div>
             )
           })}

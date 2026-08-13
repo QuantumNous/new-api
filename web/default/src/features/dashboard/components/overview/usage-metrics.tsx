@@ -36,24 +36,24 @@ export function UsageMetrics() {
   const user = useAuthStore((state) => state.auth.user)
   const { status, loading } = useStatus()
 
-  const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
   const usedQuota = Number(user?.used_quota ?? 0)
   const requestCount = Number(user?.request_count ?? 0)
 
   const usageTrendQuery = useQuery({
-    queryKey: [
-      'dashboard',
-      'overview',
-      'summary-sparklines',
-      summaryTimeRange.start_timestamp,
-      summaryTimeRange.end_timestamp,
-    ],
-    queryFn: async () =>
-      getUserQuotaDates({
+    // Scoped to the signed-in user so switching accounts in the same session
+    // can never surface the previous user's cached usage.
+    queryKey: ['dashboard', 'overview', 'summary-sparklines', user?.id],
+    queryFn: async () => {
+      // Recomputed per fetch so a long-lived tab keeps a true trailing
+      // 24-hour window; refetch-on-focus rolls it forward after idling.
+      const summaryTimeRange = computeTimeRange(1)
+      return getUserQuotaDates({
         start_timestamp: summaryTimeRange.start_timestamp,
         end_timestamp: summaryTimeRange.end_timestamp,
         default_time: 'hour',
-      }),
+      })
+    },
+    enabled: Boolean(user?.id),
     staleTime: 60 * 1000,
   })
 
@@ -77,7 +77,8 @@ export function UsageMetrics() {
       : currencyEnabledFromStore
 
   const items = useSummaryCardsConfig({
-    todayUsageDisplay: formatQuota(recentUsage),
+    // A failed trend query reads as "unavailable", never as zero usage.
+    todayUsageDisplay: usageTrendQuery.isError ? '—' : formatQuota(recentUsage),
     usedDisplay: formatQuota(usedQuota),
     requestCountDisplay: formatNumber(requestCount),
     currencyEnabled,
@@ -113,7 +114,12 @@ export function UsageMetrics() {
               value={item.value}
               description={item.description}
               icon={item.icon}
-              loading={loading}
+              loading={
+                loading ||
+                // isLoading (not isPending) so a signed-out disabled query
+                // does not read as an endless fetch.
+                (item.key === 'todayUsage' && usageTrendQuery.isLoading)
+              }
             />
           </StaggerItem>
         ))}

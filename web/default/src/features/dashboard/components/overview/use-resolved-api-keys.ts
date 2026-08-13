@@ -17,46 +17,58 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
-import { fetchTokenKeysBatch } from '@/features/keys/api'
-import type { ApiKey } from '@/features/keys/types'
+import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { fetchTokenKey } from '@/features/keys/api'
+import { ERROR_MESSAGES } from '@/features/keys/constants'
 
 /**
- * The key list endpoint only ever returns masked keys, so the real values are
- * resolved in one batch to back copy actions and ready-to-run samples. Gated on
- * `enabled` so merely loading the overview never reveals full keys.
+ * The key list endpoint only ever returns masked keys, so the real value is
+ * resolved to back copy actions and ready-to-run samples. Only the key the
+ * user actually selected is resolved — never the whole visible list — to keep
+ * unrelated secrets out of the page. Resolved values accumulate so keys the
+ * user already revealed stay copyable after switching the selection.
  */
 export function useResolvedApiKeys(
-  keys: ApiKey[],
+  selectedKeyId: number | null,
   enabled: boolean
 ): Record<number, string> {
+  const { t } = useTranslation()
   const [resolvedKeys, setResolvedKeys] = useState<Record<number, string>>({})
 
-  const pendingSignature = !enabled
-    ? ''
-    : keys
-        .map((key) => key.id)
-        .filter((id) => !(id in resolvedKeys))
-        .join(',')
-
-  useEffect(() => {
-    if (!pendingSignature) return
-
-    let cancelled = false
-    const ids = pendingSignature.split(',').map(Number)
-
-    void fetchTokenKeysBatch(ids).then((result) => {
-      if (cancelled || !result.success || !result.data?.keys) return
-      const next: Record<number, string> = {}
-      for (const [id, key] of Object.entries(result.data.keys)) {
-        next[Number(id)] = `sk-${key}`
+  const keyQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'token-key', selectedKeyId],
+    queryFn: async () => {
+      const id = selectedKeyId as number
+      const result = await fetchTokenKey(id)
+      if (!result.success || !result.data?.key) {
+        throw new Error(result.message || 'Failed to resolve the API key')
       }
-      setResolvedKeys((prev) => ({ ...prev, ...next }))
-    })
+      return { id, key: `sk-${result.data.key}` }
+    },
+    enabled: enabled && selectedKeyId !== null,
+    // A token's secret never changes, so a resolved value is kept for the
+    // whole session instead of being refetched on focus.
+    staleTime: Infinity,
+  })
 
-    return () => {
-      cancelled = true
-    }
-  }, [pendingSignature])
+  const resolved = keyQuery.data
+  useEffect(() => {
+    if (!resolved) return
+    setResolvedKeys((prev) =>
+      prev[resolved.id] === resolved.key
+        ? prev
+        : { ...prev, [resolved.id]: resolved.key }
+    )
+  }, [resolved])
+
+  // Failures surface instead of leaving the copy affordance spinning
+  // silently; React Query's default retry policy already reattempts first.
+  const resolveFailed = keyQuery.isError
+  useEffect(() => {
+    if (resolveFailed) toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+  }, [resolveFailed, t])
 
   return resolvedKeys
 }
