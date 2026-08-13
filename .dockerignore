@@ -3,10 +3,11 @@
 *.md
 .vscode
 .gitignore
-Makefile
+justfile
 docs
 .eslintcache
 .gocache
-/web/node_modules
-/web/dist
+app/web/node_modules
+app/web/dist
+app/api/web/dist
 !THIRD-PARTY-LICENSES.md

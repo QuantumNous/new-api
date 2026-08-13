@@ -35,7 +35,7 @@ app/api/       — Go backend application (main module)
   types/         — Type definitions (relay formats, file sources, errors)
   i18n/          — Backend internationalization (go-i18n, en/zh)
   oauth/         — OAuth provider implementations
-  pkg/           — Internal packages (cachex)
+  pkg/           — Internal packages (billingexpr, cachex, perf_metrics)
   web/dist/      — Frontend build output copied here for go:embed (gitignored)
 app/web/       — Frontend (React 19, Rsbuild, Base UI, Tailwind)
   src/i18n/    — Frontend internationalization (i18next, en/zh/zh-TW/fr/ru/ja/vi)
@@ -53,7 +53,7 @@ go.work        — Go workspace (app/api + modules/relaykit)
 
 `app/api/main.go` uses `//go:embed web/dist`. `go:embed` cannot reference parent
 directories, so the frontend build output must be copied from `app/web/dist`
-into `app/api/web/dist` before compiling Go. `make build-web` performs this copy;
+into `app/api/web/dist` before compiling Go. `just build-web` performs this copy;
 Dockerfile and release workflows do the same. The copy target is
 gitignored.
 
@@ -61,7 +61,7 @@ gitignored.
 
 ### Backend (`app/api/i18n/`)
 - Library: `nicksnyder/go-i18n/v2`
-- Languages: en, zh
+- Languages: en, zh-CN, zh-TW
 
 ### Frontend (`app/web/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
@@ -71,6 +71,11 @@ gitignored.
 - CLI tools: `bun run i18n:sync` (from `web/`)
 
 ## Rules
+
+### Development Process
+
+- When a maintainer asks to start a dev server or backend process for manual testing, also create a test account on that instance and report its credentials in the reply, so the maintainer can sign in and verify the UI immediately.
+- Test accounts MUST be super-admin (`RoleRootUser`, role 100) unless the maintainer specifies a lower role.
 
 ### Common Code Quality
 
@@ -154,7 +159,7 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
   - `bun run i18n:*` for i18n tooling
 - Frontend UI text must support i18n with `i18next`/`react-i18next`. Use flat JSON locale files in `app/web/src/i18n/locales/{lang}.json`, with English source strings as keys.
 - In React components, use `useTranslation()` and call `t('English key')` for user-facing text.
-- Follow `app/web/AGENTS.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
+- Follow `app/web/README.md` for detailed frontend conventions, including TypeScript, component structure, styling, accessibility, testing, and build checks.
 
 ### Project Governance
 
