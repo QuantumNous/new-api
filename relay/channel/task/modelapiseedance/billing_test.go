@@ -363,9 +363,16 @@ func installModelAPIVideoPriceRules(t *testing.T, rulesJSON string) {
 //
 // The length is never in doubt on this channel: an omitted duration defaults to
 // 5 and this upstream has no `frames` field, so an unclassifiable resolution is
-// the only way a request goes unpriced. validateModelAPISeedanceRequest narrows
-// resolution to 480p/720p, but it runs in BuildRequestBody -- after preflight
-// pricing -- so EstimateBilling really does see arbitrary caller text.
+// the only way a request goes unpriced.
+//
+// That shape is NOT reachable through the production path -- see
+// TestModelAPIUnpriceableResolutionIsUnreachableInProduction, which pins why.
+// This test drives EstimateBilling directly to pin the contract anyway, because
+// reachability rests on two lists that agree only by convention:
+// supportedModelAPIResolutions (480p/720p) happens to be a subset of the shared
+// vocabulary NormalizeResolution knows. Widening the validator without widening
+// the vocabulary would make it reachable, and the failure mode it guards
+// against is silent -- every request at the new tier billed as one unit.
 func TestModelAPIEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	installModelAPIVideoPriceRules(t, `[
 		{"model":"client-seedance","match":{"resolution":"720p"},"price_per_second":0.314,"basis":"output_duration"}
@@ -422,5 +429,43 @@ func TestModelAPIEstimateBillingUnconfiguredModelKeepsLegacyPricingForKnownTiers
 	assertModelAPIBillableUnits(t, got, 0.140*4/modelAPIBaseModelPrice)
 	if _, err := a.SecondBillingRatios(); err != nil {
 		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+	}
+}
+
+// Unlike its sibling channels, this one cannot actually reach the unpriceable
+// branch in production. It implements ValidateRequestAfterModelMapping, and
+// relay_task's prepareTaskSubmit runs that BEFORE EstimateBilling (step 2.5
+// precedes step 5), so validateModelAPISeedanceRequest has already rejected any
+// resolution outside 480p/720p with a 400. Both values are in the shared
+// vocabulary, so whatever survives validation always classifies.
+//
+// This test pins that ordering rather than the adaptor's own logic. If a future
+// change lets arbitrary resolution text through to pricing -- by dropping the
+// post-mapping validator, reordering the relay, or widening the whitelist --
+// this test fails and says so, and the guard the sibling tests exercise starts
+// carrying real traffic instead of merely being defensive.
+func TestModelAPIUnpriceableResolutionIsUnreachableInProduction(t *testing.T) {
+	// The exact request the unpriceable-branch test drives directly.
+	c, _ := newModelAPITestContext(
+		`{"model":"client","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"}]}`)
+	a := &TaskAdaptor{}
+
+	taskErr := a.ValidateRequestAfterModelMapping(c, modelAPIBillingInfo(modelAPIBaseModelPrice))
+	if taskErr == nil {
+		t.Fatal("an unclassifiable resolution now reaches EstimateBilling; " +
+			"the per-second guard is live and this test's premise is stale")
+	}
+	if taskErr.StatusCode != http.StatusBadRequest {
+		t.Fatalf("rejection status = %d, want %d", taskErr.StatusCode, http.StatusBadRequest)
+	}
+
+	// Every resolution that DOES survive validation must classify, or a
+	// configured request would be rejected at submit time for a value the
+	// channel officially supports.
+	for resolution := range supportedModelAPIResolutions {
+		if _, ok := taskcommon.NormalizeResolution(resolution); !ok {
+			t.Fatalf("supported resolution %q does not classify; a configured "+
+				"model would be refused for a value this channel accepts", resolution)
+		}
 	}
 }
