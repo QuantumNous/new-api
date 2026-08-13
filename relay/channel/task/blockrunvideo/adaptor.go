@@ -71,6 +71,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -82,6 +90,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -124,14 +135,28 @@ func resolveDimensions(resolution string, hasVideo bool) (map[string]string, boo
 // convertToRequestPayload renders the field only from a positive inbound
 // duration and applies no default, so an omitted, zero, or negative duration
 // leaves it empty and hands the length to the proxy. That length is unknowable
-// here, and a guessed one would misprice the request silently, whereas skipping
-// capture leaves it on the per-call path, which is the pre-existing behaviour.
+// here, and a guessed one would misprice the request silently.
 func billableSeconds(secondsField string) (int, bool) {
 	seconds, err := strconv.Atoi(strings.TrimSpace(secondsField))
 	if err != nil || seconds <= 0 {
 		return 0, false
 	}
 	return seconds, true
+}
+
+// unknowableLengthReason explains why billableSeconds refused, in terms the
+// caller can act on. It is only meaningful when that function returned false.
+//
+// One message covers every case reachable from a real request:
+// convertToRequestPayload writes the upstream field only as strconv.Itoa of a
+// positive duration, so the only value billableSeconds can refuse in production
+// is the empty string it leaves when no positive duration was given. The parser
+// in billableSeconds still guards the malformed shapes — it is the layer that
+// keeps a future change to that mapping from being priced off a bad string —
+// but naming them here would be a branch no request can take.
+func unknowableLengthReason() string {
+	return "未提供正数 duration，上游将自行决定长度；" +
+		"no positive duration was given, so the upstream picks the length"
 }
 
 // EstimateBilling captures the per-second billing inputs. This channel bills
@@ -153,10 +178,6 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	seconds, ok := billableSeconds(payload.Seconds)
-	if !ok {
-		return nil
-	}
 
 	// One snapshot per request: a second fetch could straddle a config reload
 	// and judge the model "configured" against one table while pricing it
@@ -167,10 +188,27 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// also prices with ModelPrice, which is ComputeSecondBilling's denominator.
 	// Not the upstream name: model mapping would otherwise divide one model's
 	// per-second rate by another model's price.
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length and tier are actually knowable: a wrong
+	// duration or tier would misprice the request silently. For an UNCONFIGURED
+	// model that leaves the request on the per-call path, which is the documented
+	// pre-existing behaviour. For a configured one there is no per-call price
+	// left to fall back to — this channel contributes no legacy ratios at all —
+	// so the request must be refused instead.
 	//
 	// has_video is always false: the channel accepts an input image only (there
 	// is no video input field on the upstream body at all).
-	if dims, ok := resolveDimensions(payload.Resolution, false); ok {
+	seconds, secondsOK := billableSeconds(payload.Seconds)
+	dims, dimsOK := resolveDimensions(payload.Resolution, false)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName, unknowableLengthReason())
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", payload.Resolution)
+	case secondsOK && dimsOK:
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
 		a.secondBillingSeconds = float64(seconds)

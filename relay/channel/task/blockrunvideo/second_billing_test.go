@@ -292,38 +292,74 @@ func TestEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.T) {
 	}
 }
 
-// A length or tier that cannot be determined must never be guessed.
-// convertToRequestPayload renders `seconds` only from a positive duration and
-// applies no default of its own, so an omitted, zero, or negative duration
-// leaves an empty string upstream and the length to whatever the proxy picks.
-func TestEstimateBillingUndeterminableRequestIsNotCaptured(t *testing.T) {
+// unpriceableRequests are the request shapes this channel cannot price.
+// convertToRequestPayload renders the upstream `seconds` string only from a
+// positive duration and applies no default of its own, so an omitted, zero, or
+// negative duration leaves it empty and the length to whatever the proxy picks.
+// A resolution the shared vocabulary cannot classify is equally unpriceable, and
+// this channel applies no resolution default either.
+//
+// What happens to them depends entirely on whether the model is configured for
+// per-second billing, which is why the two tests below share this list.
+var unpriceableRequests = []struct {
+	name string
+	body string
+}{
+	{"omitted duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","resolution":"720p"}`},
+	{"zero duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":0,"resolution":"720p"}`},
+	{"negative duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":-1,"resolution":"720p"}`},
+	{"unparseable duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":"eight","resolution":"720p"}`},
+	// `seconds` is not a field this channel reads from the client — only the
+	// top-level int duration reaches the upstream `seconds` string — so it
+	// must not be mistaken for a length the upstream will honour.
+	{"client seconds only", `{"model":"bytedance/seedance-2.0","prompt":"a cat","seconds":"8","resolution":"720p"}`},
+	// A resolution the adapter cannot classify is equally unpriceable.
+	{"omitted resolution", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":8}`},
+	{"unknown resolution", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":8,"resolution":"8k"}`},
+}
+
+// A configured model returns nil from EstimateBilling — this channel has no
+// legacy ratios at all — so per-second is the whole price. When the request
+// cannot be priced, returning no ratios therefore bills the bare ModelPrice with
+// no seconds multiplier, charging a 30-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing.
+func TestEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	installVideoPriceRules(t, `[
 		{"model":"bytedance/seedance-2.0","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
 	]`)
 
-	for _, tc := range []struct {
-		name string
-		body string
-	}{
-		{"omitted duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","resolution":"720p"}`},
-		{"zero duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":0,"resolution":"720p"}`},
-		{"negative duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":-1,"resolution":"720p"}`},
-		{"unparseable duration", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":"eight","resolution":"720p"}`},
-		// `seconds` is not a field this channel reads from the client — only the
-		// top-level int duration reaches the upstream `seconds` string — so it
-		// must not be mistaken for a length the upstream will honour.
-		{"client seconds only", `{"model":"bytedance/seedance-2.0","prompt":"a cat","seconds":"8","resolution":"720p"}`},
-		// A resolution the adapter cannot classify is equally unpriceable, and
-		// this channel applies no resolution default either.
-		{"omitted resolution", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":8}`},
-		{"unknown resolution", `{"model":"bytedance/seedance-2.0","prompt":"a cat","duration":8,"resolution":"8k"}`},
-	} {
+	for _, tc := range unpriceableRequests {
 		t.Run(tc.name, func(t *testing.T) {
 			a, c, info := newBillingRequest(t, tc.body, "bytedance/seedance-2.0", 0.5)
-			a.EstimateBilling(c, info)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model is untouched by all of this. It has no
+// per-second price to fail to compute, so the same shapes must stay silently on
+// the per-call path exactly as they do today — failing them would reject requests
+// this gateway has always accepted.
+func TestEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range unpriceableRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newBillingRequest(t, tc.body, "bytedance/seedance-2.0", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("an undeterminable request must stay on the per-call path, got error: %v", err)
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("priced off an undeterminable request: %v", got)
@@ -365,30 +401,59 @@ func TestBillableSeconds(t *testing.T) {
 	}
 }
 
-func TestEstimateBillingUnparseableSecondsStringIsNotCaptured(t *testing.T) {
-	installVideoPriceRules(t, `[
-		{"model":"bytedance/seedance-2.0","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
-	]`)
-
-	for _, seconds := range []string{"", "eight", "8s", "8.5", " ", "-4", "0"} {
-		t.Run(seconds, func(t *testing.T) {
-			c := newJSONCtx(`{}`)
-			info := newBillingRelayInfo("bytedance/seedance-2.0", 0.5)
-			// Store a request that renders exactly this upstream `seconds` value.
-			relaycommon.StoreTaskRequest(c, info, "generate", relaycommon.TaskSubmitReq{
-				Model:      "bytedance/seedance-2.0",
-				Prompt:     "a cat",
-				Resolution: "720p",
-				Seconds:    seconds,
-			})
-			a := &TaskAdaptor{}
-			a.EstimateBilling(c, info)
-			got, err := a.SecondBillingRatios()
-			if err != nil {
-				t.Fatalf("an unparseable length must stay on the per-call path, got error: %v", err)
-			}
-			if len(got) != 0 {
-				t.Fatalf("priced off an unparseable length %q: %v", seconds, got)
+// A `seconds` on the stored request is NOT a length this channel honours:
+// convertToRequestPayload renders the upstream field only from a positive
+// Duration and never reads req.Seconds. So the price must never follow it — not
+// even when it looks perfectly valid, which is the case that would silently bill
+// a length the upstream was never asked for.
+//
+// The length is therefore undeterminable in every row below, and what that means
+// depends on the model: a configured one must be refused before the submit, an
+// unconfigured one must stay on the per-call path.
+func TestEstimateBillingIgnoresAStoredSecondsField(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		rules      string
+		wantErr    bool
+		priceModel string
+	}{
+		{"configured model refuses", `[
+			{"model":"bytedance/seedance-2.0","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
+		]`, true, "bytedance/seedance-2.0"},
+		{"unconfigured model stays per-call", `[
+			{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
+		]`, false, "bytedance/seedance-2.0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			installVideoPriceRules(t, tc.rules)
+			// "8" is the important row: a well-formed value that must still not
+			// become the billed length, since it never reaches the upstream.
+			for _, seconds := range []string{"", "8", "eight", "8s", "8.5", " ", "-4", "0"} {
+				t.Run(seconds, func(t *testing.T) {
+					c := newJSONCtx(`{}`)
+					info := newBillingRelayInfo(tc.priceModel, 0.5)
+					relaycommon.StoreTaskRequest(c, info, "generate", relaycommon.TaskSubmitReq{
+						Model:      "bytedance/seedance-2.0",
+						Prompt:     "a cat",
+						Resolution: "720p",
+						Seconds:    seconds,
+					})
+					a := &TaskAdaptor{}
+					a.EstimateBilling(c, info)
+					got, err := a.SecondBillingRatios()
+					if tc.wantErr {
+						if err == nil {
+							t.Fatalf("a configured but unpriceable request must return an error, got ratios %v", got)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+					}
+					if len(got) != 0 {
+						t.Fatalf("priced off a stored seconds field %q: %v", seconds, got)
+					}
+				})
 			}
 		})
 	}
