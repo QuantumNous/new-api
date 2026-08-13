@@ -51,11 +51,11 @@ const colors = [
 
 /** 用量日志表格中展示额度/令牌等列的类型（含管理 type=3、充值 type=1） */
 function isQuotaLedgerLogType(type) {
-  return type === 0 || type === 1 || type === 2 || type === 3 || type === 5 || type === 6;
+  return type === 0 || type === 1 || type === 2 || type === 3 || type === 6;
 }
 
 function isUsageMetricLogType(type) {
-  return type === 0 || type === 2 || type === 5 || type === 6;
+  return type === 0 || type === 2 || type === 6;
 }
 
 function formatManageOperator(other, t) {
@@ -764,7 +764,7 @@ export const getLogsColumns = ({
       title: t('用时/首字'),
       dataIndex: 'use_time',
       render: (text, record, index) => {
-        if (!(record.type === 2 || record.type === 5)) {
+        if (record.type !== 2) {
           return <></>;
         }
         if (record.is_stream) {
@@ -906,10 +906,7 @@ export const getLogsColumns = ({
       dataIndex: 'ip',
       render: (text, record, index) => {
         const showIp =
-          (record.type === 2 ||
-            record.type === 5 ||
-            (isAdminUser && record.type === 1)) &&
-          text;
+          (record.type === 2 || (isAdminUser && record.type === 1)) && text;
         return showIp ? (
           <Tooltip content={text}>
             <span>
@@ -934,7 +931,7 @@ export const getLogsColumns = ({
       title: t('重试'),
       dataIndex: 'retry',
       render: (text, record, index) => {
-        if (!(record.type === 2 || record.type === 5)) {
+        if (record.type !== 2) {
           return <></>;
         }
         let content = t('渠道') + `：${record.channel}`;

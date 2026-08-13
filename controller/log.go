@@ -13,6 +13,13 @@ import (
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
+	// Error logs are on /api/error-log; never list type=5 via usage-log API.
+	if logType == model.LogTypeError {
+		pageInfo.SetTotal(0)
+		pageInfo.SetItems([]*model.Log{})
+		common.ApiSuccess(c, pageInfo)
+		return
+	}
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	username := c.Query("username")

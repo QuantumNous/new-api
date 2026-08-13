@@ -87,7 +87,7 @@ export const LOG_TYPES = [
   { value: 2, label: 'Consume', color: 'green' },
   { value: 3, label: 'Manage', color: 'orange' },
   { value: 4, label: 'System', color: 'purple' },
-  { value: 5, label: 'Error', color: 'red' },
+  // type=5 Error lives on the dedicated Error Logs page, not usage logs
   { value: 6, label: 'Refund', color: 'blue' },
 ] as const
 
@@ -330,9 +330,9 @@ export const LOG_CATEGORY_LABELS: Record<LogCategory, string> = {
 /**
  * Log types that are displayable (have detailed info)
  */
-export const DISPLAYABLE_LOG_TYPES = [0, 2, 5, 6] as const
+export const DISPLAYABLE_LOG_TYPES = [0, 2, 6] as const
 
 /**
  * Log types that show timing info
  */
-export const TIMING_LOG_TYPES = [2, 5] as const
+export const TIMING_LOG_TYPES = [2] as const

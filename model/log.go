@@ -435,8 +435,11 @@ func TryPatchTaskConsumeLogTokens(userId int, publicTaskID string, promptTokens,
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
+	// Usage logs must not mix admin error logs (type=5); those belong to /api/error-log.
 	if logType == LogTypeUnknown {
-		tx = LOG_DB
+		tx = LOG_DB.Where("logs.type <> ?", LogTypeError)
+	} else if logType == LogTypeError {
+		tx = LOG_DB.Where("1 = 0")
 	} else {
 		tx = LOG_DB.Where("logs.type = ?", logType)
 	}

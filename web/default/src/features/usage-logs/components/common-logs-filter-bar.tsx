@@ -48,7 +48,7 @@ import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
-const logTypeValues = ['0', '1', '2', '3', '4', '5', '6'] as const
+const logTypeValues = ['0', '1', '2', '3', '4', '6'] as const
 
 type LogTypeValue = (typeof logTypeValues)[number]
 
