@@ -1,6 +1,8 @@
 package xaigrok
 
 import (
+	"math"
+
 	"github.com/QuantumNous/new-api/common"
 )
 
@@ -52,4 +54,24 @@ func parseUpstreamCost(body []byte) (float64, bool) {
 		return 0, false
 	}
 	return upstreamCostUSD(envelope.Usage.CostInUSDTicks)
+}
+
+// settledQuotaFromCost converts an upstream cost into the quota to charge.
+//
+// Returns 0 for any input that cannot produce a meaningful charge. The caller
+// treats 0 as "keep the reservation", so a bad input leaves the customer billed
+// at the reserved amount rather than at nothing.
+func settledQuotaFromCost(usd, groupRatio float64) int {
+	if !isPositiveFinite(usd) || !isPositiveFinite(groupRatio) {
+		return 0
+	}
+	quota := usd * grokMarkup * common.QuotaPerUnit * groupRatio
+	if !isPositiveFinite(quota) {
+		return 0
+	}
+	return int(quota)
+}
+
+func isPositiveFinite(v float64) bool {
+	return v > 0 && !math.IsNaN(v) && !math.IsInf(v, 0)
 }
