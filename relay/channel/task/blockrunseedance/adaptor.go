@@ -63,6 +63,15 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing — which matters doubly here,
+	// where submitting burns a signed x402 payment.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -74,6 +83,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -95,8 +107,8 @@ func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
 // One accepted value is deliberately NOT priceable: 360p is in this channel's
 // supportedResolutions but has no tier in the shared vocabulary. Refusing is the
 // safe outcome — folding it into 480p would overcharge silently, whereas
-// refusing leaves an unconfigured model on the per-call path and makes a
-// configured one fail loudly at submit rather than mis-bill.
+// refusing leaves an unconfigured model on the per-call path and rejects a
+// configured one at submit rather than mis-billing it.
 func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
 	label, ok := taskcommon.NormalizeResolution(resolution)
 	if !ok {
@@ -137,12 +149,8 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// channel does know.
 	//
 	// What remains is the one case both agree on: a non-positive or absent
-	// duration is not determinable. Capture nothing rather than price off a
-	// guess, which leaves the request on the per-call path exactly as today.
-	if seedReq.Duration == nil || *seedReq.Duration <= 0 {
-		return nil
-	}
-	seconds := *seedReq.Duration
+	// duration is not determinable.
+	secondsOK := seedReq.Duration != nil && *seedReq.Duration > 0
 
 	resolution := seedReq.Resolution
 	if strings.TrimSpace(resolution) == "" {
@@ -159,13 +167,34 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// Not the upstream name: the three whitelabel models carry different rates,
 	// so keying on the mapped name would divide one model's rate by another's
 	// price.
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length and tier are actually knowable: a wrong
+	// duration or tier would misprice the request silently. For an UNCONFIGURED
+	// model that leaves the request on the per-call path, which is the documented
+	// pre-existing behaviour. For a configured one there is no per-call price
+	// left to fall back to — this channel contributes no legacy ratios at all —
+	// so the request must be refused instead, before the submit burns an x402
+	// payment.
 	//
 	// has_video is always false: validateSeedanceValues rejects video input
 	// outright, so a request carrying video never reaches billing.
-	if dims, ok := resolveDimensions(resolution, false); ok {
+	dims, dimsOK := resolveDimensions(resolution, false)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName,
+			"未提供正数 duration，该上游省略时的默认时长由模型决定；"+
+				"no positive duration was given, and this upstream's default length is model-specific")
+	case !dimsOK && configured:
+		// 360p reaches here: validateResolution accepts it but the shared price
+		// vocabulary has no 360p tier, so it is knowingly unpriceable.
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", resolution)
+	case secondsOK && dimsOK:
 		a.secondBillingModel = info.OriginModelName
 		a.secondBillingDims = dims
-		a.secondBillingSeconds = float64(seconds)
+		a.secondBillingSeconds = float64(*seedReq.Duration)
 		a.secondBillingModelPrice = info.PriceData.ModelPrice
 		a.secondBillingRules = rules
 	}

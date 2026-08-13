@@ -121,8 +121,10 @@ func TestResolveDimensions(t *testing.T) {
 // 360p is in this channel's supportedResolutions but NOT in the shared price
 // vocabulary, which has no 360p tier. It must refuse rather than be folded into
 // a neighbouring tier: a 360p request billed at the 480p rate would overcharge
-// silently, whereas refusing keeps it on the per-call path — and once a 360p
-// tier is added to the vocabulary this test is the reminder to revisit.
+// silently. Refusing keeps an unconfigured model on the per-call path and makes
+// a configured one fail loudly before the upstream submit — see
+// TestEstimateBillingConfiguredButUnpriceableErrors. Once a 360p tier is added
+// to the vocabulary this test is the reminder to revisit both.
 func TestResolveDimensions_RejectsUnknown(t *testing.T) {
 	for _, r := range []string{"", "banana", "999x999", "1920x", "8k", "360p"} {
 		if _, ok := resolveDimensions(r, false); ok {
@@ -313,34 +315,77 @@ func TestEstimateBillingKeysTableOnOriginModelNameNotBodyModel(t *testing.T) {
 	}
 }
 
-// A length that cannot be determined must never be guessed. The upstream
-// documents an absent duration_seconds as "the model's default duration" — a
-// per-model number this gateway does not know — so an absent, zero, or negative
-// duration leaves the request on the per-call path. In particular the seedance
+// unpriceableRequests are the request shapes this channel cannot price. The
+// upstream documents an absent duration_seconds as "the model's default
+// duration" — a per-model number this gateway does not know — so an absent,
+// zero, or negative duration is undeterminable. In particular the seedance
 // family's Ark 5s default must NOT be assumed here: this upstream is not Ark.
-func TestEstimateBillingUndeterminableDurationIsNotCaptured(t *testing.T) {
+//
+// What happens to them depends entirely on whether the model is configured for
+// per-second billing, which is why the two tests below share this list.
+var unpriceableRequests = []struct {
+	name string
+	body string
+}{
+	{"absent duration", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"720p"}`},
+	{"zero duration", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"720p","duration":0}`},
+	// -1 is the seedance convention for "let the model decide".
+	{"model-chosen duration", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"720p","duration":-1}`},
+	// 360p is accepted by this channel but has no tier in the shared price
+	// vocabulary, so it is unpriceable rather than folded into 480p.
+	{"360p resolution", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"360p","duration":8}`},
+}
+
+// A configured model returns nil from EstimateBilling — this channel has no
+// legacy ratios at all — so per-second is the whole price. When the request
+// cannot be priced, returning no ratios therefore bills the bare ModelPrice with
+// no seconds multiplier, charging a 30-second render as a single unit. It has to
+// fail instead, so relay_task rejects before submitting upstream and the request
+// costs nothing. That matters more here than elsewhere: submitting burns a
+// signed x402 payment.
+//
+// The 360p case is the interesting one. It is in this channel's
+// supportedResolutions, so validateResolution admits it, but the shared price
+// vocabulary has no 360p tier — see TestResolveDimensions_RejectsUnknown. Under
+// a configured model that is now an explicit rejection rather than a silent drop
+// to the bare ModelPrice. Adding a 360p tier to the vocabulary would make this
+// subtest start passing for the wrong reason, so it is the reminder to revisit.
+func TestEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
 	installVideoPriceRules(t, `[
 		{"model":"seedance-2.0","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
 	]`)
 
-	for _, tc := range []struct {
-		name string
-		body string
-	}{
-		{"absent duration", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"720p"}`},
-		{"zero duration", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"720p","duration":0}`},
-		// -1 is the seedance convention for "let the model decide".
-		{"model-chosen duration", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"720p","duration":-1}`},
-		// 360p is accepted by this channel but has no tier in the shared price
-		// vocabulary, so it is unpriceable rather than folded into 480p.
-		{"360p resolution", `{"model":"seedance-2.0","content":[{"type":"text","text":"a cat"}],"resolution":"360p","duration":8}`},
-	} {
+	for _, tc := range unpriceableRequests {
 		t.Run(tc.name, func(t *testing.T) {
 			a, c, info := newBillingRequest(t, tc.body, "seedance-2.0", 0.5)
-			a.EstimateBilling(c, info)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model is untouched by all of this. It has no
+// per-second price to fail to compute, so the same shapes must stay silently on
+// the per-call path exactly as they do today — failing them would reject requests
+// this gateway has always accepted, 360p among them.
+func TestEstimateBillingUnconfiguredModelStaysPerCallWhenUnpriceable(t *testing.T) {
+	installVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.2,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range unpriceableRequests {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newBillingRequest(t, tc.body, "seedance-2.0", 0.5)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("this channel has no legacy ratios; got %v", ratios)
+			}
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("an undeterminable request must stay on the per-call path, got error: %v", err)
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("priced off an undeterminable request: %v", got)
