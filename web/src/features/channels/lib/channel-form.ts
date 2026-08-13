@@ -252,6 +252,7 @@ export const channelFormSchema = z
     // Channel extra settings (stored in setting JSON, not sent directly)
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
+    openai_prompt_includes_cache: z.boolean().optional(),
     proxy: z
       .string()
       .optional()
@@ -427,6 +428,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Channel extra settings
   force_format: false,
   thinking_to_content: false,
+  openai_prompt_includes_cache: false,
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
@@ -467,6 +469,7 @@ export function transformChannelToFormDefaults(
   let extraSettings = {
     force_format: false,
     thinking_to_content: false,
+    openai_prompt_includes_cache: false,
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
@@ -485,6 +488,8 @@ export function transformChannelToFormDefaults(
       extraSettings = {
         force_format: parsed.force_format || false,
         thinking_to_content: parsed.thinking_to_content || false,
+        openai_prompt_includes_cache:
+          parsed.openai_prompt_includes_cache || false,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
         http2_connection_shards:
@@ -605,6 +610,8 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
   const settingObj: Record<string, unknown> = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
+    openai_prompt_includes_cache:
+      formData.openai_prompt_includes_cache || false,
     proxy: formData.proxy?.trim() || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     system_prompt: formData.system_prompt || '',

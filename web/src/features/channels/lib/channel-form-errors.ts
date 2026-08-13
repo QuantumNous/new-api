@@ -37,6 +37,7 @@ const ADVANCED_SETTINGS_FIELDS = new Set<FieldPath<ChannelFormValues>>([
   'advanced_custom',
   'force_format',
   'thinking_to_content',
+  'openai_prompt_includes_cache',
   'pass_through_body_enabled',
   'proxy',
   'http_protocol',
