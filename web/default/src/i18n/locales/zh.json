@@ -6564,6 +6564,13 @@
     "Only models currently shown on the public model directory can be selected.": "只能选择当前显示在公开模型目录中的模型。",
     "Search public models": "搜索公开模型",
     "Feature": "设为精选",
-    "No additional public models found": "没有找到其他公开模型"
+    "No additional public models found": "没有找到其他公开模型",
+    "Codex Fingerprint Convergence": "Codex 指纹收敛",
+    "Off (passthrough)": "关闭（透传）",
+    "Device only": "仅设备",
+    "Device + Session (recommended)": "设备+会话（推荐）",
+    "Full convergence": "完全收敛",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "为共享 OAuth 账号收敛 Codex 设备和会话标识",
+    "Applies only to selected Codex channels": "仅应用于选中的 Codex 渠道"
   }
 }

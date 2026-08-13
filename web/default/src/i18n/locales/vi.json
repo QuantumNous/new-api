@@ -6564,6 +6564,13 @@
     "Only models currently shown on the public model directory can be selected.": "Chỉ có thể chọn các mô hình đang hiển thị trong danh mục công khai.",
     "Search public models": "Tìm mô hình công khai",
     "Feature": "Đặt nổi bật",
-    "No additional public models found": "Không tìm thấy mô hình công khai khác"
+    "No additional public models found": "Không tìm thấy mô hình công khai khác",
+    "Codex Fingerprint Convergence": "Hợp nhất dấu vân tay Codex",
+    "Off (passthrough)": "Tắt (chuyển tiếp nguyên trạng)",
+    "Device only": "Chỉ thiết bị",
+    "Device + Session (recommended)": "Thiết bị + phiên (khuyến nghị)",
+    "Full convergence": "Hợp nhất đầy đủ",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "Hợp nhất mã nhận diện Codex cho tài khoản OAuth dùng chung",
+    "Applies only to selected Codex channels": "Chỉ áp dụng cho các kênh Codex đã chọn"
   }
 }

@@ -890,12 +890,13 @@ type ChannelBatch struct {
 }
 
 type ChannelBatchEdit struct {
-	Ids          []int   `json:"ids"`
-	Models       *string `json:"models"`
-	ModelMapping *string `json:"model_mapping"`
-	Groups       *string `json:"groups"`
-	Priority     *int64  `json:"priority"`
-	Weight       *uint   `json:"weight"`
+	Ids                  []int   `json:"ids"`
+	Models               *string `json:"models"`
+	ModelMapping         *string `json:"model_mapping"`
+	Groups               *string `json:"groups"`
+	Priority             *int64  `json:"priority"`
+	Weight               *uint   `json:"weight"`
+	CodexFingerprintMode *string `json:"codex_fingerprint_mode"`
 }
 
 func DeleteChannelBatch(c *gin.Context) {
@@ -1281,7 +1282,7 @@ func BatchSetChannelTag(c *gin.Context) {
 	return
 }
 
-// EditChannelBatch 对勾选的渠道做覆盖式批量编辑（models / model_mapping / groups / priority / weight）。
+// EditChannelBatch 对勾选的渠道做覆盖式批量编辑（models / model_mapping / groups / priority / weight / Codex 指纹收敛）。
 func EditChannelBatch(c *gin.Context) {
 	batchEdit := ChannelBatchEdit{}
 	err := c.ShouldBindJSON(&batchEdit)
@@ -1303,10 +1304,24 @@ func EditChannelBatch(c *gin.Context) {
 		}
 		batchEdit.ModelMapping = common.GetPointer[string](trimmed)
 	}
+	if batchEdit.CodexFingerprintMode != nil {
+		mode := strings.ToLower(strings.TrimSpace(*batchEdit.CodexFingerprintMode))
+		if mode != "off" && mode != "device" && mode != "session" && mode != "full" {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, "common.invalid_params")})
+			return
+		}
+		batchEdit.CodexFingerprintMode = common.GetPointer[string](mode)
+	}
 	err = model.EditChannelsByIds(batchEdit.Ids, batchEdit.ModelMapping, batchEdit.Models, batchEdit.Groups, batchEdit.Priority, batchEdit.Weight)
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if batchEdit.CodexFingerprintMode != nil {
+		if err := model.UpdateCodexFingerprintModeByIds(batchEdit.Ids, *batchEdit.CodexFingerprintMode); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{

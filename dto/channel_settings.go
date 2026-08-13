@@ -10,6 +10,9 @@ type ChannelSettings struct {
 	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
 	// ImageCarrierModel 覆盖该渠道图像出图的承载文本模型（留空=用全局/默认）。仅 codex 渠道使用。
 	ImageCarrierModel string `json:"image_carrier_model,omitempty"`
+	// CodexFingerprintMode controls Codex OAuth device/session identifier convergence.
+	// Empty means session (the safe default); off disables rewriting.
+	CodexFingerprintMode string `json:"codex_fingerprint_mode,omitempty"`
 	// Temporary 标记该渠道为「临时渠道」——用中转站顶上、尚未接入直连供应链的渠道。
 	// 单模型在临时渠道上的累计消耗超过阈值后会预警到管理后台，驱动供应链侧寻找更便宜的
 	// 直连资源替换。逻辑：用真实消耗证明市场需求成立，再优化成本。

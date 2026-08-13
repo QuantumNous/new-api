@@ -6564,6 +6564,13 @@
     "Only models currently shown on the public model directory can be selected.": "Можно выбрать только модели, которые сейчас отображаются в публичном каталоге.",
     "Search public models": "Поиск публичных моделей",
     "Feature": "Добавить в избранное",
-    "No additional public models found": "Другие публичные модели не найдены"
+    "No additional public models found": "Другие публичные модели не найдены",
+    "Codex Fingerprint Convergence": "Сведение отпечатка Codex",
+    "Off (passthrough)": "Выкл. (передавать как есть)",
+    "Device only": "Только устройство",
+    "Device + Session (recommended)": "Устройство + сессия (рекомендуется)",
+    "Full convergence": "Полное сведение",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "Связывать идентификаторы Codex для общих OAuth-аккаунтов",
+    "Applies only to selected Codex channels": "Только для выбранных каналов Codex"
   }
 }

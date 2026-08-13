@@ -6564,6 +6564,13 @@
     "Only models currently shown on the public model directory can be selected.": "Solo se pueden seleccionar modelos que aparecen actualmente en el directorio público.",
     "Search public models": "Buscar modelos públicos",
     "Feature": "Destacar",
-    "No additional public models found": "No se encontraron más modelos públicos"
+    "No additional public models found": "No se encontraron más modelos públicos",
+    "Codex Fingerprint Convergence": "Convergencia de huella de Codex",
+    "Off (passthrough)": "Desactivado (pasar sin cambios)",
+    "Device only": "Solo dispositivo",
+    "Device + Session (recommended)": "Dispositivo + sesión (recomendado)",
+    "Full convergence": "Convergencia completa",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "Converge los identificadores de Codex para cuentas OAuth compartidas",
+    "Applies only to selected Codex channels": "Solo se aplica a los canales Codex seleccionados"
   }
 }

@@ -918,10 +918,11 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 // 采用与 EditChannelByTag 相同的非事务模式：DB.Updates 先提交，再用 GetChannelsByIds
 // 读已提交的新值重建 abilities。不包外层事务——GetChannelsByIds 走全局 DB 独立连接，
 // 事务内读不到未提交写入，生产 MySQL/PG 会用旧 models/group/priority/weight 重建 abilities。
-// - models / group 变更 → 全量重建 abilities（delete+insert，因模型集合变了）；
-// - 仅 priority / weight 变更 → 走 UpdateAbilityByIds 定向 UPDATE（无需重建，效率与
-//   EditChannelByTag 的 UpdateAbilityByTag 路径对齐）；
-// - model_mapping 单独变更不影响 abilities。
+//   - models / group 变更 → 全量重建 abilities（delete+insert，因模型集合变了）；
+//   - 仅 priority / weight 变更 → 走 UpdateAbilityByIds 定向 UPDATE（无需重建，效率与
+//     EditChannelByTag 的 UpdateAbilityByTag 路径对齐）；
+//   - model_mapping 单独变更不影响 abilities。
+//
 // 重建失败仅记日志、不回滚（与 EditChannelByTag 一致）。
 func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority *int64, weight *uint) error {
 	if len(ids) == 0 {
@@ -966,6 +967,32 @@ func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority 
 	}
 	publishChannelsChanged()
 	return nil
+}
+
+// UpdateCodexFingerprintModeByIds updates the Codex fingerprint setting while
+// preserving every other per-channel setting field.
+func UpdateCodexFingerprintModeByIds(ids []int, mode string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := tx.Where("id IN ?", ids).Find(&channels).Error; err != nil {
+			return err
+		}
+		for i := range channels {
+			if channels[i].Type != constant.ChannelTypeCodex {
+				continue
+			}
+			setting := channels[i].GetSetting()
+			setting.CodexFingerprintMode = mode
+			channels[i].SetSetting(setting)
+			if err := tx.Model(&Channel{}).Where("id = ?", channels[i].Id).Update("setting", channels[i].Setting).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func UpdateChannelUsedQuota(id int, quota int) {

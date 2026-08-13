@@ -6564,6 +6564,13 @@
     "Only models currently shown on the public model directory can be selected.": "現在公開モデル一覧に表示されているモデルのみ選択できます。",
     "Search public models": "公開モデルを検索",
     "Feature": "注目に追加",
-    "No additional public models found": "追加の公開モデルは見つかりません"
+    "No additional public models found": "追加の公開モデルは見つかりません",
+    "Codex Fingerprint Convergence": "Codex フィンガープリント統合",
+    "Off (passthrough)": "オフ（そのまま転送）",
+    "Device only": "デバイスのみ",
+    "Device + Session (recommended)": "デバイス＋セッション（推奨）",
+    "Full convergence": "完全統合",
+    "Converge Codex device and session identifiers for shared OAuth accounts": "共有 OAuth アカウントの Codex 識別子を統合",
+    "Applies only to selected Codex channels": "選択した Codex チャネルにのみ適用"
   }
 }
