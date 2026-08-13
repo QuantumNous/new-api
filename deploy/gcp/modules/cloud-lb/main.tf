@@ -109,7 +109,6 @@ resource "google_compute_backend_service" "router" {
   protocol              = "HTTPS"
   port_name             = "http"
   load_balancing_scheme = "EXTERNAL_MANAGED"
-  timeout_sec           = var.router_backend_timeout_seconds
 
   log_config {
     enable      = true

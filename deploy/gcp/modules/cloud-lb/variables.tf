@@ -77,12 +77,6 @@ variable "router_cloud_run_service_name" {
   default     = ""
 }
 
-variable "router_backend_timeout_seconds" {
-  type        = number
-  description = "Backend request timeout for long-running router/model requests."
-  default     = 3600
-}
-
 variable "router_domains" {
   type        = list(string)
   description = "Hosts routed to the router backend, e.g. [\"router.flatkey.ai\"]."
