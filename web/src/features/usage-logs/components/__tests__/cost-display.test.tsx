@@ -17,10 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
 
 import { Window } from 'happy-dom'
 import type React from 'react'
+
+// Use Bun's runner at runtime while reusing the Node test types installed here.
+const bunTestModule = 'bun:test'
+const { afterAll, describe, test } = (await import(bunTestModule)) as {
+  afterAll: typeof import('node:test').after
+  describe: typeof import('node:test').describe
+  test: typeof import('node:test').test
+}
 
 const domWindow = new Window()
 const domGlobals = [
@@ -105,7 +112,7 @@ function normalizedText(value: string | null): string {
 }
 
 describe('log cost display', () => {
-  after(() => {
+  afterAll(() => {
     domWindow.close()
   })
 
