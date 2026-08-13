@@ -721,8 +721,11 @@ export default {
     testStatusFailed: '失败',
     testResultMs: '{ms} 毫秒',
     testModelAction: '测试模型 {model}',
-    pickChannelTitle: '选择要测试的渠道',
-    pickChannelDesc: '从 {supplier} 分组中选择一个渠道进行连接测试。',
+    pickChannelTitle: '选择要测试的模型',
+    pickChannelDesc:
+      '从 {supplier} 分组已有的模型中选择一个，测试所有提供该模型的渠道。',
+    pickChannelModelLabel: '测试模型',
+    pickChannelModelPlaceholder: '选择模型',
     pickChannelModels: '{count} 个模型',
     pickChannelStart: '开始测试',
     batchCompleted: '已完成{action}，共 {count} 条渠道',
