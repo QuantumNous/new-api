@@ -245,7 +245,11 @@ export function Dashboard() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      {/* The overview leads with its own hero heading, so it drops the
+          generic page title instead of stacking two headings. */}
+      {activeSection !== 'overview' && (
+        <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      )}
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
           {activeSection !== 'overview' && (
