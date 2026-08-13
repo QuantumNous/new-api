@@ -31,9 +31,9 @@ type StreamErrorEntry struct {
 type StreamStatus struct {
 	EndReason StreamEndReason
 	EndError  error
-	endOnce   sync.Once
 
 	mu         sync.Mutex
+	reasonSet  bool
 	Errors     []StreamErrorEntry
 	ErrorCount int
 }
@@ -42,14 +42,33 @@ func NewStreamStatus() *StreamStatus {
 	return &StreamStatus{}
 }
 
+// SetEndReason records why the stream ended. First write wins, with one
+// exception: a normal completion (the scanner saw [DONE] or hit a clean EOF)
+// is the ground truth about the stream and corrects an earlier client_gone.
+//
+// The main select can record client_gone in the small window between a client
+// closing the socket right after the final event and the scanner recording the
+// terminal reason it already reached (see issue #6649). Without this override
+// that race mislabels a finished stream. A genuine mid-stream disconnect makes
+// the forced body close surface as scanner_error, not a completion, so it keeps
+// client_gone.
 func (s *StreamStatus) SetEndReason(reason StreamEndReason, err error) {
 	if s == nil {
 		return
 	}
-	s.endOnce.Do(func() {
-		s.EndReason = reason
-		s.EndError = err
-	})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.reasonSet {
+		if s.EndReason == StreamEndReasonClientGone &&
+			(reason == StreamEndReasonDone || reason == StreamEndReasonEOF) {
+			s.EndReason = reason
+			s.EndError = err
+		}
+		return
+	}
+	s.reasonSet = true
+	s.EndReason = reason
+	s.EndError = err
 }
 
 func (s *StreamStatus) RecordError(msg string) {
@@ -89,6 +108,8 @@ func (s *StreamStatus) IsNormalEnd() bool {
 	if s == nil {
 		return true
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.EndReason == StreamEndReasonDone ||
 		s.EndReason == StreamEndReasonEOF ||
 		s.EndReason == StreamEndReasonHandlerStop
@@ -98,15 +119,15 @@ func (s *StreamStatus) Summary() string {
 	if s == nil {
 		return "StreamStatus<nil>"
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	b := &strings.Builder{}
 	fmt.Fprintf(b, "reason=%s", s.EndReason)
 	if s.EndError != nil {
 		fmt.Fprintf(b, " end_error=%q", s.EndError.Error())
 	}
-	s.mu.Lock()
 	if s.ErrorCount > 0 {
 		fmt.Fprintf(b, " soft_errors=%d", s.ErrorCount)
 	}
-	s.mu.Unlock()
 	return b.String()
 }

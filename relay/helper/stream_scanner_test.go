@@ -571,3 +571,48 @@ func TestStreamScannerHandler_StreamStatus_ReplacesPreInitialized(t *testing.T) 
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 	assert.Equal(t, 0, info.StreamStatus.TotalErrorCount())
 }
+
+// TestStreamScannerHandler_CompletedStreamNotRelabeledClientGone covers issue
+// #6649. A client (e.g. codex CLI) can close its socket right after the final
+// event, so the handler's main select wins c.Request.Context().Done() and
+// records client_gone in the small window before the scanner records the
+// terminal reason it already reached ([DONE] or a clean EOF). The completed
+// stream must keep its completion reason, not be relabeled client_gone.
+//
+// The ordering is asserted on StreamStatus directly: the handler-level window
+// between recording client_gone and cleanup cannot be forced deterministically,
+// and a timing-based test would be flaky. This proves the fix in
+// StreamStatus.SetEndReason, which the scanner and the main select share.
+func TestStreamScannerHandler_CompletedStreamNotRelabeledClientGone(t *testing.T) {
+	t.Parallel()
+
+	// A normal stream really reaches a completed reason via the scanner.
+	c, resp, info := setupStreamTest(t, strings.NewReader(buildSSEBody(5)))
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+	require.NotNil(t, info.StreamStatus)
+	require.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+	require.True(t, info.StreamStatus.IsNormalEnd())
+
+	// Regression: client_gone recorded first (main select), completion recorded
+	// after (scanner). The completion must win and clear the spurious error.
+	completions := []relaycommon.StreamEndReason{
+		relaycommon.StreamEndReasonDone,
+		relaycommon.StreamEndReasonEOF,
+	}
+	for _, completed := range completions {
+		s := relaycommon.NewStreamStatus()
+		s.SetEndReason(relaycommon.StreamEndReasonClientGone, context.Canceled)
+		s.SetEndReason(completed, nil)
+		assert.Equalf(t, completed, s.EndReason, "completion %s must override earlier client_gone", completed)
+		assert.Nilf(t, s.EndError, "completion %s must clear the client_gone error", completed)
+		assert.Truef(t, s.IsNormalEnd(), "completion %s must read as a normal end", completed)
+	}
+
+	// A genuine mid-stream disconnect surfaces as scanner_error (not a
+	// completion) after the forced body close, so it stays client_gone.
+	s := relaycommon.NewStreamStatus()
+	s.SetEndReason(relaycommon.StreamEndReasonClientGone, context.Canceled)
+	s.SetEndReason(relaycommon.StreamEndReasonScannerErr, io.ErrClosedPipe)
+	assert.Equal(t, relaycommon.StreamEndReasonClientGone, s.EndReason)
+	assert.False(t, s.IsNormalEnd())
+}
