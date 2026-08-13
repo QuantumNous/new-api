@@ -96,3 +96,24 @@ export function mergeModelRules(
   const others = all.filter((rule) => rule.model !== model)
   return [...others, ...next.map((rule) => ({ ...rule, model }))]
 }
+
+export type RuleDraftError = 'price' | 'fallback'
+
+/**
+ * Checks only what the backend cannot report positionally against a draft the
+ * administrator is still editing. Unknown dimension values and ambiguous rule
+ * pairs are deliberately left to the backend, whose messages name the offending
+ * rule index and field.
+ */
+export function validateRuleDraft(rule: VideoPriceRule): RuleDraftError | null {
+  if (!Number.isFinite(rule.price_per_second) || rule.price_per_second <= 0) {
+    return 'price'
+  }
+  if (rule.basis === 'total_duration') {
+    const fallback = rule.fallback_seconds
+    if (!Number.isFinite(fallback ?? Number.NaN) || (fallback ?? 0) <= 0) {
+      return 'fallback'
+    }
+  }
+  return null
+}

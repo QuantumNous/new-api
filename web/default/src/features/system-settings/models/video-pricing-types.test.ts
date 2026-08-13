@@ -123,3 +123,74 @@ describe('rule serialization', () => {
     expect(next[0].model).toBe('c')
   })
 })
+
+import { validateRuleDraft } from './video-pricing-types'
+
+describe('client-side rule checks', () => {
+  test('accepts a well-formed output_duration rule', () => {
+    expect(
+      validateRuleDraft({
+        model: 'm',
+        match: { resolution: '720p' },
+        price_per_second: 0.314,
+        basis: 'output_duration',
+      }),
+    ).toBeNull()
+  })
+
+  test('rejects a non-positive price', () => {
+    for (const price of [0, -1, Number.NaN]) {
+      expect(
+        validateRuleDraft({
+          model: 'm',
+          match: {},
+          price_per_second: price,
+          basis: 'output_duration',
+        }),
+      ).toBe('price')
+    }
+  })
+
+  test('total_duration requires a positive fallback', () => {
+    expect(
+      validateRuleDraft({
+        model: 'm',
+        match: {},
+        price_per_second: 1,
+        basis: 'total_duration',
+      }),
+    ).toBe('fallback')
+
+    expect(
+      validateRuleDraft({
+        model: 'm',
+        match: {},
+        price_per_second: 1,
+        basis: 'total_duration',
+        fallback_seconds: 0,
+      }),
+    ).toBe('fallback')
+  })
+
+  test('output_duration does not require a fallback', () => {
+    expect(
+      validateRuleDraft({
+        model: 'm',
+        match: {},
+        price_per_second: 1,
+        basis: 'output_duration',
+      }),
+    ).toBeNull()
+  })
+
+  test('an unconstrained match is valid — it is a deliberate wildcard', () => {
+    expect(
+      validateRuleDraft({
+        model: 'm',
+        match: {},
+        price_per_second: 1,
+        basis: 'output_duration',
+      }),
+    ).toBeNull()
+  })
+})
