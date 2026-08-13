@@ -975,22 +975,24 @@ func UpdateCodexFingerprintModeByIds(ids []int, mode string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	var channels []Channel
-	if err := DB.Where("id IN ?", ids).Find(&channels).Error; err != nil {
-		return err
-	}
-	for i := range channels {
-		if channels[i].Type != constant.ChannelTypeCodex {
-			continue
-		}
-		setting := channels[i].GetSetting()
-		setting.CodexFingerprintMode = mode
-		channels[i].SetSetting(setting)
-		if err := DB.Model(&Channel{}).Where("id = ?", channels[i].Id).Update("setting", channels[i].Setting).Error; err != nil {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := tx.Where("id IN ?", ids).Find(&channels).Error; err != nil {
 			return err
 		}
-	}
-	return nil
+		for i := range channels {
+			if channels[i].Type != constant.ChannelTypeCodex {
+				continue
+			}
+			setting := channels[i].GetSetting()
+			setting.CodexFingerprintMode = mode
+			channels[i].SetSetting(setting)
+			if err := tx.Model(&Channel{}).Where("id = ?", channels[i].Id).Update("setting", channels[i].Setting).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func UpdateChannelUsedQuota(id int, quota int) {
