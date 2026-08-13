@@ -111,6 +111,11 @@ func main() {
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
 
+	// Restore the automatic pricing catalog from its local cache and start the
+	// refresh loop before pricing is warmed, so models that rely on the
+	// fallback are priced on the first request after a restart.
+	service.InitAutoPricing()
+
 	// Warm pricing after channel cache initialization so Advanced Custom
 	// endpoint inference can read cached route settings on first request.
 	model.GetPricing()

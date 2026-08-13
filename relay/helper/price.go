@@ -266,6 +266,29 @@ func HasModelBillingConfig(modelName string) bool {
 	return ok && strings.TrimSpace(expr) != ""
 }
 
+// HasExplicitModelBillingConfig mirrors HasModelBillingConfig but never
+// consults the automatic pricing catalog, preserving that function's exact
+// pre-catalog semantics: manual price, manual ratio, self-use mode, or a
+// tiered billing expression.
+//
+// Use it for decisions that change which billing name a request is recorded
+// under (for example the Gemini "-nothinking" rewrite). A catalog entry for a
+// variant name must not silently move a manually priced base model onto
+// catalog pricing.
+func HasExplicitModelBillingConfig(modelName string) bool {
+	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+		return true
+	}
+	if ratio_setting.HasManualModelRatio(modelName) || operation_setting.SelfUseModeEnabled {
+		return true
+	}
+	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {
+		return false
+	}
+	expr, ok := billing_setting.GetBillingExpr(modelName)
+	return ok && strings.TrimSpace(expr) != ""
+}
+
 func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
 	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
 	if !ok {

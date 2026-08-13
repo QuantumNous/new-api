@@ -330,6 +330,33 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'auto_pricing.enabled': boolean
+  'auto_pricing.remote_url': string
+  'auto_pricing.hash_url': string
+  'auto_pricing.check_interval_minutes': number
+  'auto_pricing.fuzzy_match_enabled': boolean
+}
+
+export type AutoPricingStatus = {
+  enabled: boolean
+  fuzzy_match_enabled: boolean
+  remote_url: string
+  hash_url: string
+  check_interval_minutes: number
+  loaded: boolean
+  model_count: number
+  skipped_count: number
+  version: string
+  updated_at?: string
+  last_sync_at?: string
+  last_error?: string
+  source?: string
+}
+
+export type AutoPricingStatusResponse = {
+  success: boolean
+  message?: string
+  data: AutoPricingStatus
 }
 
 export type OperationsSettings = {

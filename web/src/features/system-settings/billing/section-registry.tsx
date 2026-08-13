@@ -22,6 +22,7 @@ import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
+import { AutoPricingSection } from '../models/auto-pricing-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
@@ -112,6 +113,21 @@ const BILLING_SECTIONS = [
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
         visibleTabs={['models', 'unset-models', 'tool-prices', 'upstream-sync']}
+      />
+    ),
+  },
+  {
+    id: 'auto-pricing',
+    titleKey: 'Automatic Pricing',
+    build: (settings: BillingSettings) => (
+      <AutoPricingSection
+        defaultValues={{
+          enabled: settings['auto_pricing.enabled'],
+          remoteUrl: settings['auto_pricing.remote_url'],
+          hashUrl: settings['auto_pricing.hash_url'] ?? '',
+          checkIntervalMinutes: settings['auto_pricing.check_interval_minutes'],
+          fuzzyMatchEnabled: settings['auto_pricing.fuzzy_match_enabled'],
+        }}
       />
     ),
   },

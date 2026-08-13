@@ -329,6 +329,12 @@ func SetApiRouter(router *gin.Engine) {
 			ratioSyncRoute.GET("/channels", controller.GetSyncableChannels)
 			ratioSyncRoute.POST("/fetch", controller.FetchUpstreamRatios)
 		}
+		autoPricingRoute := apiRouter.Group("/auto_pricing")
+		autoPricingRoute.Use(middleware.RootAuth())
+		{
+			autoPricingRoute.GET("/status", controller.GetAutoPricingStatus)
+			autoPricingRoute.POST("/sync", controller.SyncAutoPricing)
+		}
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)
 		tokenRoute := apiRouter.Group("/token")

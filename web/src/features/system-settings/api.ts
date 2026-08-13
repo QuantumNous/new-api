@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  AutoPricingStatusResponse,
   ConfirmPaymentComplianceResponse,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
@@ -102,6 +103,20 @@ export async function fetchUpstreamRatios(request: FetchUpstreamRatiosRequest) {
   const res = await api.post<UpstreamRatiosResponse>(
     '/api/ratio_sync/fetch',
     request
+  )
+  return res.data
+}
+
+export async function getAutoPricingStatus() {
+  const res = await api.get<AutoPricingStatusResponse>(
+    '/api/auto_pricing/status'
+  )
+  return res.data
+}
+
+export async function syncAutoPricing() {
+  const res = await api.post<AutoPricingStatusResponse>(
+    '/api/auto_pricing/sync'
   )
   return res.data
 }

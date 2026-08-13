@@ -106,6 +106,12 @@ const defaultBillingSettings: BillingSettings = {
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
+  'auto_pricing.enabled': true,
+  'auto_pricing.remote_url':
+    'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json',
+  'auto_pricing.hash_url': '',
+  'auto_pricing.check_interval_minutes': 60,
+  'auto_pricing.fuzzy_match_enabled': true,
 }
 
 export function BillingSettings() {

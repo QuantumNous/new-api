@@ -74,9 +74,11 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if isNoThinkingRequest(request) {
 			// check is thinking
 			if !strings.Contains(info.OriginModelName, "-nothinking") {
-				// try to get no thinking model price
+				// Rewrite to the "-nothinking" billing name only when the
+				// operator explicitly priced that variant. The automatic
+				// pricing catalog must not trigger this rename.
 				noThinkingModelName := info.OriginModelName + "-nothinking"
-				containPrice := helper.HasModelBillingConfig(noThinkingModelName)
+				containPrice := helper.HasExplicitModelBillingConfig(noThinkingModelName)
 				if containPrice {
 					info.OriginModelName = noThinkingModelName
 					info.UpstreamModelName = noThinkingModelName

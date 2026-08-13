@@ -404,6 +404,9 @@ func GetModelRatio(name string) (float64, bool, string) {
 			}
 			//return 0, true, name
 		}
+		if entry, autoOK := autoPricingEntry(name); autoOK {
+			return entry.ModelRatio, true, name
+		}
 		return 37.5, operation_setting.SelfUseModeEnabled, name
 	}
 	return ratio, true, name
@@ -447,6 +450,12 @@ func GetCompletionRatio(name string) float64 {
 	}
 	if ratio, ok := completionRatioMap.Get(name); ok {
 		return ratio
+	}
+	// Only models with no manual pricing at all reach this point, so taking the
+	// completion multiplier from the automatic catalog keeps it paired with the
+	// base ratio GetModelRatio resolved from the same catalog entry.
+	if entry, autoOK := autoPricingEntry(name); autoOK {
+		return entry.CompletionRatio
 	}
 	return hardCodedRatio
 }
