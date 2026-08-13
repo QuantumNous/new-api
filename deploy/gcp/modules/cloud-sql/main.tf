@@ -72,6 +72,10 @@ resource "google_sql_database_instance" "main" {
       name  = "default_time_zone"
       value = "+00:00"
     }
+    database_flags {
+      name  = "log_bin_trust_function_creators"
+      value = "on"
+    }
 
     insights_config {
       query_insights_enabled  = true
