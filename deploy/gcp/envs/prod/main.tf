@@ -28,6 +28,11 @@ locals {
 // 2026-08-12 zero-downtime certificate recovery. These import blocks are
 // idempotent after the resources enter Terraform state.
 import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate.managed[0]
+  id = "projects/vocai-gemini-prod/locations/global/certificates/flatkey-prod-cert"
+}
+
+import {
   to = module.cloud_lb[0].google_certificate_manager_certificate_map.managed[0]
   id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map"
 }
@@ -429,6 +434,7 @@ module "cloud_lb" {
   domains                              = var.lb_domains
   certificate_map_name                 = var.certificate_map_name
   certificate_manager_certificate_name = var.certificate_manager_certificate_name
+  certificate_dns_authorization_names  = var.certificate_dns_authorization_names
 
   // Host-based split: when the website is enabled, route var.website_domains to
   // the Next.js backend; all other hosts stay on the Go backend. Empty otherwise.
