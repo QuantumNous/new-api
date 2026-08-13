@@ -28,11 +28,6 @@ locals {
 // 2026-08-12 zero-downtime certificate recovery. These import blocks are
 // idempotent after the resources enter Terraform state.
 import {
-  to = module.apis.google_project_service.this["certificatemanager.googleapis.com"]
-  id = "vocai-gemini-prod/certificatemanager.googleapis.com"
-}
-
-import {
   to = module.cloud_lb[0].google_certificate_manager_certificate.managed[0]
   id = "projects/vocai-gemini-prod/locations/global/certificates/flatkey-prod-cert"
 }
