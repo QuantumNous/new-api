@@ -36,7 +36,7 @@ OpenAI **Codex** CLI 后端适配器（非标准 OpenAI API，走 ChatGPT 订阅
 - **`instructions` 字段必现**：Codex 后端硬性要求 body 含 `instructions` key。`apicompat.ResponsesRequest.Instructions` 是 `string + omitempty`，空字符串会被省略，所以 `ensureInstructionsField` 在序列化后通过 map 强制注入 `instructions: ""`。修改 Convert 链路时不要漏掉这一步。
 - **图像路径上游不接受 `n` 参数**：`buildCodexImageBody` 显式不设 `tool["n"]`（上游返回 `Unknown parameter: 'tools[0].n'`）。每次请求只生成一张图，客户端的 `n` 不向上游透传。改这条限制需要确认上游协议变化。
 - **图像计费 token 健壮化**：`RelayImageOverCodex` 分别读 `image_gen.input_tokens`/`output_tokens`/`total_tokens`，任一缺失/为零时用 `defaultCodexImageOutputTokens=272` 兜底（避免计费塌到 0）。`total` 与 `p+comp` 不自洽时重算。这段逻辑的演进历史见代码注释（F2/F3/F11），改动前先读注释理解旧 bug。
-- **图像输入 token 没透出 image 细分**：已知限制——`PromptTokensDetails.ImageTokens` 不设，因为 `relay/helper/price.go` 的 `imageRatio` 未配时默认 0，透出会导致输入图被算成"免费"。改动需先改计费引擎（见 image.go 末尾长注释）。
+- **图像 token 明细透传**：`RelayImageOverCodex` 在上游提供 `input_tokens_details`/`output_tokens_details` 时映射图片 token 到标准 usage；缺失明细时仍保留 aggregate token 计费与既有 completion 兜底。
 - **白标脱敏**：`sanitizeCodexImageErrorResponse` 在 `DoRequest` 拦截图像路径非 200 响应，把上游原文落服务端日志，替换为通用 `{"error":{"message":"codex image generation failed","type":"upstream_error"}}`——避免 ChatGPT/OpenAI 品牌、`gpt-5.4` 承载模型名、内部模型名泄露给客户端。只作用于图像路径，text/responses 路径不脱敏。
 - **SSE 256 MiB 上限**：`RelayImageOverCodex` 用 `io.LimitReader` + 1 字节哨兵检测截断（F8），显式返回 "response exceeded size limit" 而不是误报 "no image returned"。修改读取逻辑时保留这个哨兵机制。
 - **chat bridge 的 `state.Model` 显式赋值**：上游 Responses SSE 通常不带 `model` 字段，所以 `RelayChatOverCodex` 用 `info.UpstreamModelName` 作为 chunk model 的起始值。改 chunk 构造时保留。

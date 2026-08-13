@@ -34,10 +34,6 @@ var uploadTempMediaImageForCodex = service.UploadTempMediaImage
 // 而不是静默截断后误报 "no image returned"（见 F8）。
 const codexImageStreamReadLimit = 256 << 20 // 256 MiB
 
-// defaultCodexImageOutputTokens 是 image_gen 用量缺失但确实产出了图像时的兜底
-// 计费 token 数（约等于 low quality 1024x1024 的输出 token），避免计费塌到 ~0。
-const defaultCodexImageOutputTokens = 272
-
 // resolveImageCarrierModel：per-channel 覆盖 > 全局设置 > 代码默认 gpt-5.4。
 func resolveImageCarrierModel(info *relaycommon.RelayInfo) string {
 	if info != nil {
@@ -406,57 +402,5 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	c.Writer.WriteHeader(http.StatusOK)
 	_, _ = c.Writer.Write(body)
 
-	// F2+F3+F11：逐 token 健壮化，取代旧的"hasUsage ? tokens : fallback"全或无逻辑。
-	// 旧逻辑的缺陷：image_gen:{} 存在但为空、或 output_tokens:0 时，u.Exists()==true
-	// 导致 hasUsage=true 但 token 全 0，计费塌到 ~0；且兜底只补 CompletionTokens，
-	// 把 PromptTokens 置 0，丢掉 edit 的输入图像 token 成本。
-	//
-	// 新策略：分别读取 input_tokens(p)/output_tokens(comp)/total_tokens(t)，无论 image_gen
-	// 是缺失、为空 {} 还是被置零，只要确实产出了图像（len(data)>0），就保证至少
-	// 计入 defaultCodexImageOutputTokens 的 completion；并保留 p，使 edit 的输入图像 token 计费不丢。
-	p := 0
-	comp := 0
-	t := 0
-	if hasUsage {
-		p = int(imgUsage.Get("input_tokens").Int())
-		comp = int(imgUsage.Get("output_tokens").Int())
-		t = int(imgUsage.Get("total_tokens").Int())
-	}
-	if comp <= 0 {
-		// output_tokens 缺失/为零/被截断：兜底到非零默认，确保真实图像计费 >= 默认值。
-		common.SysError("codex image: image produced but image_gen output_tokens missing/zero, applying fallback completion tokens")
-		comp = defaultCodexImageOutputTokens
-	}
-	if p < 0 {
-		p = 0
-	}
-	// 已知限制 / 后续增强（刻意不做，2026-06-10）：
-	// 上游 image_gen 其实返回了图像/文本 token 细分
-	// （input_tokens_details.image_tokens / text_tokens，edit 实测输入图约 256 image_token）。
-	// 这里只透出"合计" PromptTokens，没有设 usage.PromptTokensDetails.ImageTokens，
-	// 因此计费引擎对输入一律按文本输入价计，渠道配置的「图像输入价格」对本路径不生效。
-	// 不做的原因：
-	//   1) 输入仅占总成本约 5%，图像价($8)与文本价($5)的差异 ≈ 总账单的 0.15%，收益极小；
-	//   2) 暗坑：relay/helper/price.go 取 imageRatio 时丢弃了 GetImageRatio 的 ok 标志
-	//      （imageRatio, _ = GetImageRatio(...)），模型未配图像倍率时默认 0。一旦在此透出
-	//      ImageTokens，text_quota.go 会把这些 token 从合计中减去再 ×imageRatio(=0)，
-	//      导致输入图被算成"免费" → 少收费。
-	// 若将来要让「图像输入价格」精确生效，安全顺序：
-	//   a) 先给 gpt-image-2 配「图像输入价格」（如 $8/M，imageRatio≈1.6 对齐官方）；
-	//   b) 把 price.go 的 imageRatio 未配兜底由 0 改为 1（防免费），评估对其他渠道的影响；
-	//   c) 再在此读取 input_tokens_details.image_tokens / text_tokens，设
-	//      usage.PromptTokensDetails.ImageTokens / TextTokens；
-	//   d) e2e 校验 edits 账单（尤其确认输入图不再被算成 0）。
-	usage := &dto.Usage{
-		PromptTokens:     p,
-		CompletionTokens: comp,
-	}
-	// total 仅在上游给出且与 p+comp 自洽（不小于二者之和）时采用，否则用 p+comp 重算，
-	// 避免上游 total 把兜底后的 completion 抵消掉。
-	if t >= p+comp {
-		usage.TotalTokens = t
-	} else {
-		usage.TotalTokens = p + comp
-	}
-	return usage, nil
+	return buildCodexImageUsage(imgUsage, hasUsage), nil
 }
