@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNotifications } from '@/hooks/use-notifications'
-import { useTopNavLinks } from '@/hooks/use-top-nav-links'
+import { useConsoleTopNavLinks } from '@/hooks/use-top-nav-links'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
@@ -84,9 +84,10 @@ export function AppHeader({
   showNotifications = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
-  // Prioritize dynamically generated links from backend
-  const dynamicLinks = useTopNavLinks()
-  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  // The console header always shows exactly the Docs entry; explicit
+  // navLinks from a caller still win for bespoke headers.
+  const consoleLinks = useConsoleTopNavLinks()
+  const links = navLinks !== defaultTopNavLinks ? navLinks : consoleLinks
 
   // Notifications hook
   const notifications = useNotifications()

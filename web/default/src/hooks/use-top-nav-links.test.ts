@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { parseHeaderNavModules } from '@/lib/nav-modules'
-import { buildTopNavLinks } from './use-top-nav-links'
+import { buildConsoleTopNavLinks, buildTopNavLinks } from './use-top-nav-links'
 
 const translate = (key: string) => {
   if (key === 'Playground (website navigation)') return 'Playground'
@@ -27,8 +27,8 @@ const translate = (key: string) => {
   return key
 }
 
-describe('top navigation links', () => {
-  test('omits Home, Rankings, and Playground from console navigation', () => {
+describe('public top navigation links', () => {
+  test('keeps the full website navigation for public pages', () => {
     const links = buildTopNavLinks({
       translate,
       language: 'en',
@@ -50,18 +50,6 @@ describe('top navigation links', () => {
         ['Use cases', '/usecases'],
       ]
     )
-    assert.equal(
-      links.some((link) => link.title === 'Home'),
-      false
-    )
-    assert.equal(
-      links.some((link) => link.title === 'Rankings'),
-      false
-    )
-    assert.equal(
-      links.some((link) => link.title === 'Playground'),
-      false
-    )
   })
 
   test('preserves pricing access control', () => {
@@ -77,6 +65,17 @@ describe('top navigation links', () => {
     assert.equal(
       links.find((link) => link.title === 'Pricing')?.requiresAuth,
       true
+    )
+  })
+})
+
+describe('console top navigation links', () => {
+  test('shows only the Docs link in the console header', () => {
+    const links = buildConsoleTopNavLinks(translate)
+
+    assert.deepEqual(
+      links.map((link) => [link.title, link.href, link.external]),
+      [['Docs', 'https://docs.flatkey.ai/', true]]
     )
   })
 })
