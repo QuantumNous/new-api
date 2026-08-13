@@ -138,8 +138,8 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 	if !found {
 		return &CopilotDevicePoll{Status: "expired", Message: "authorization session expired"}, nil
 	}
-	if session.ClientID == "" {
-		return nil, errors.New("copilot device authorization session is invalid")
+	if err := ensureCopilotDeviceSessionClientID(&session); err != nil {
+		return nil, err
 	}
 	now := time.Now()
 	if err := validateCopilotDeviceSession(session, adminID, channelID, now); err != nil {
@@ -171,8 +171,8 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 	if !stillPresent {
 		return &CopilotDevicePoll{Status: "expired", Message: "authorization session expired"}, nil
 	}
-	if session.ClientID == "" {
-		return nil, errors.New("copilot device authorization session is invalid")
+	if err := ensureCopilotDeviceSessionClientID(&session); err != nil {
+		return nil, err
 	}
 	now = time.Now()
 	if err := validateCopilotDeviceSession(session, adminID, channelID, now); err != nil {
@@ -257,6 +257,17 @@ func PollCopilotDeviceFlow(ctx context.Context, flowID string, adminID int, chan
 
 func copilotDeviceClientID() string {
 	return strings.TrimSpace(system_setting.GetCopilotSettings().ClientID)
+}
+
+func ensureCopilotDeviceSessionClientID(session *copilotDeviceSession) error {
+	if session.ClientID != "" {
+		return nil
+	}
+	session.ClientID = copilotDeviceClientID()
+	if session.ClientID == "" {
+		return errors.New("Copilot Device Flow is not configured; configure the Copilot Client ID")
+	}
+	return nil
 }
 
 func claimCopilotDeviceFlow(ctx context.Context, flowID string) (release func(), claimed bool, err error) {

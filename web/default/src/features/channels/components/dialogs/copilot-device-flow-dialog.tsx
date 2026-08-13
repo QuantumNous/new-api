@@ -158,6 +158,7 @@ export function CopilotDeviceFlowDialog(props: CopilotDeviceFlowDialogProps) {
       window.open(verificationUri, '_blank', 'noopener,noreferrer')
       schedulePoll(intervalSeconds)
     } catch (error) {
+      if (requestId !== startRequestIdRef.current || !props.open) return
       setState((current) => ({ ...current, isStarting: false }))
       toast.error(
         error instanceof Error ? error.message : t('Authorization failed')
