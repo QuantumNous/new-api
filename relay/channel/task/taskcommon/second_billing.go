@@ -248,3 +248,45 @@ func UnpriceableDurationError(model, reason string) error {
 			"so the request cannot be priced.",
 		model, reason, model, reason)
 }
+
+// SecondBillingState is one request's per-second billing capture, held on the
+// adaptor between EstimateBilling and SecondBillingRatios.
+//
+// It exists as a named type so every channel resets the same set of fields.
+// The fields were previously spelled out per adaptor, which meant adding one
+// required remembering to clear it in twenty places.
+type SecondBillingState struct {
+	Model      string
+	Dims       map[string]string
+	Seconds    float64
+	ModelPrice float64
+	Rules      []billing_setting.VideoPriceRule
+	// Err records that the model IS configured for per-second billing but this
+	// request cannot be priced. It must be reported rather than left as absent
+	// capture: EstimateBilling returns nil for a configured model, so no legacy
+	// ratio applies either, and (nil, nil) would bill the bare ModelPrice with
+	// no seconds multiplier -- a 30-second render charged as one unit.
+	Err error
+}
+
+// Reset clears the previous request's capture.
+//
+// Production hands each request a fresh adaptor (GetTaskAdaptor), but a test
+// injected through registerTaskAdaptorForTest is a shared singleton, and any
+// future caching would reuse instances too. Without this, a stale Err would
+// reject the *next* request even though that request is perfectly priceable.
+func (s *SecondBillingState) Reset() {
+	*s = SecondBillingState{}
+}
+
+// Ratios turns the captured state into OtherRatios, reporting a capture-time
+// pricing failure ahead of everything else.
+func (s *SecondBillingState) Ratios() (map[string]float64, error) {
+	if s.Err != nil {
+		return nil, s.Err
+	}
+	if s.Model == "" {
+		return nil, nil
+	}
+	return ComputeSecondBilling(s.Rules, s.Model, s.Dims, s.Seconds, s.ModelPrice)
+}

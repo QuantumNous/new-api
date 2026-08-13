@@ -396,3 +396,69 @@ func TestSeedanceUnknowableLengthReason(t *testing.T) {
 		})
 	}
 }
+
+// An adaptor caches per-request billing state on its own struct. In production
+// GetTaskAdaptor hands out a fresh instance per call, but registerTaskAdaptorForTest
+// returns a shared singleton, so an injected adaptor is reused across requests.
+// Stale state there would make a later, perfectly valid request fail with the
+// previous request's error -- so every adaptor must clear the fields before
+// capturing.
+func TestSecondBillingState_ResetClearsEverything(t *testing.T) {
+	s := SecondBillingState{
+		Model:      "stale-model",
+		Dims:       map[string]string{"resolution": "720p"},
+		Seconds:    9,
+		ModelPrice: 0.5,
+		Rules:      []billing_setting.VideoPriceRule{{Model: "stale-model"}},
+		Err:        UnpriceableDurationError("stale-model", "stale"),
+	}
+	s.Reset()
+	if s.Model != "" || s.Dims != nil || s.Seconds != 0 ||
+		s.ModelPrice != 0 || s.Rules != nil || s.Err != nil {
+		t.Fatalf("Reset left state behind: %+v", s)
+	}
+}
+
+// The failure this guards: a request that errors, followed by one that is fine.
+// Without a reset the second inherits the first's error and is rejected.
+func TestSecondBillingState_StaleErrorDoesNotLeakToNextRequest(t *testing.T) {
+	var s SecondBillingState
+	s.Err = UnpriceableDurationError("m", "first request had no length")
+
+	// Second request: reset, then capture normally.
+	s.Reset()
+	s.Model = "m"
+	s.Dims = map[string]string{"resolution": "720p"}
+	s.Seconds = 5
+	s.ModelPrice = 0.14
+	s.Rules = []billing_setting.VideoPriceRule{
+		{Model: "m", Match: map[string]string{"resolution": "720p"},
+			PricePerSecond: 0.3, Basis: billing_setting.BasisOutputDuration},
+	}
+
+	got, err := s.Ratios()
+	if err != nil {
+		t.Fatalf("a valid request inherited a stale error: %v", err)
+	}
+	if math.Abs(got[BillingUnitsKey]-0.3*5/0.14) > 1e-9 {
+		t.Fatalf("units = %v", got[BillingUnitsKey])
+	}
+}
+
+func TestSecondBillingState_RatiosReportsErrorFirst(t *testing.T) {
+	s := SecondBillingState{
+		Model: "m",
+		Err:   UnpriceableDimensionError("m", "resolution", "banana"),
+	}
+	if _, err := s.Ratios(); err == nil {
+		t.Fatal("a captured error must be reported")
+	}
+}
+
+func TestSecondBillingState_UncapturedIsNoOp(t *testing.T) {
+	var s SecondBillingState
+	got, err := s.Ratios()
+	if err != nil || got != nil {
+		t.Fatalf("uncaptured state must be a no-op, got %v / %v", got, err)
+	}
+}
