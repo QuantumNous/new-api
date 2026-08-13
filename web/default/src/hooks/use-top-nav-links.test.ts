@@ -18,65 +18,37 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { parseHeaderNavModules } from '@/lib/nav-modules'
 import { buildTopNavLinks } from './use-top-nav-links'
 
-const translate = (key: string) => {
-  if (key === 'Playground (website navigation)') return 'Playground'
-  if (key === 'Pricing (website navigation)') return 'Pricing'
-  return key
-}
+const translate = (key: string) => key
 
 describe('top navigation links', () => {
-  test('omits Home, Rankings, and Playground from console navigation', () => {
-    const links = buildTopNavLinks({
-      translate,
-      language: 'en',
-      modules: parseHeaderNavModules({
-        pricing: { enabled: true, requireAuth: false },
-        rankings: { enabled: true, requireAuth: false },
-      }),
-      isAuthed: false,
-    })
+  test('shows only the Docs link in the console header', () => {
+    const links = buildTopNavLinks({ translate })
 
     assert.deepEqual(
-      links.map((link) => [link.title, link.href]),
-      [
-        ['Blog', '/blog'],
-        ['Models', '/models'],
-        ['Docs', 'https://docs.flatkey.ai/'],
-        ['Pricing', '/pricing'],
-        ['Compute', '/compute'],
-        ['Use cases', '/usecases'],
-      ]
-    )
-    assert.equal(
-      links.some((link) => link.title === 'Home'),
-      false
-    )
-    assert.equal(
-      links.some((link) => link.title === 'Rankings'),
-      false
-    )
-    assert.equal(
-      links.some((link) => link.title === 'Playground'),
-      false
+      links.map((link) => [link.title, link.href, link.external]),
+      [['Docs', 'https://docs.flatkey.ai/', true]]
     )
   })
 
-  test('preserves pricing access control', () => {
-    const links = buildTopNavLinks({
-      translate,
-      modules: parseHeaderNavModules({
-        pricing: { enabled: true, requireAuth: true },
-        rankings: { enabled: true, requireAuth: false },
-      }),
-      isAuthed: false,
-    })
+  test('never emits website navigation entries', () => {
+    const links = buildTopNavLinks({ translate })
 
-    assert.equal(
-      links.find((link) => link.title === 'Pricing')?.requiresAuth,
-      true
-    )
+    for (const removed of [
+      'Home',
+      'Blog',
+      'Models',
+      'Pricing (website navigation)',
+      'Compute',
+      'Use cases',
+      'Rankings',
+      'Playground (website navigation)',
+    ]) {
+      assert.equal(
+        links.some((link) => link.title === removed),
+        false
+      )
+    }
   })
 })
