@@ -29,6 +29,31 @@ resource "google_monitoring_uptime_check_config" "api_status" {
   }
 }
 
+resource "google_monitoring_uptime_check_config" "certificate" {
+  for_each = setsubtract(var.certificate_hosts, toset([var.uptime_host]))
+
+  project      = var.project_id
+  display_name = "new-api TLS ${each.value}"
+  timeout      = "10s"
+  period       = "300s"
+
+  http_check {
+    path           = "/"
+    port           = 443
+    use_ssl        = true
+    validate_ssl   = true
+    request_method = "GET"
+  }
+
+  monitored_resource {
+    type = "uptime_url"
+    labels = {
+      host       = each.value
+      project_id = var.project_id
+    }
+  }
+}
+
 // Email alert channel — operator can register more channels manually.
 resource "google_monitoring_notification_channel" "email" {
   for_each = toset(local.alert_emails)
@@ -71,6 +96,54 @@ resource "google_monitoring_alert_policy" "uptime_failed" {
 
   alert_strategy {
     auto_close = "3600s"
+  }
+}
+
+resource "google_monitoring_alert_policy" "certificate_expiry" {
+  for_each = local.alerts_enabled ? {
+    warning  = { days = 30, severity = "WARNING" }
+    error    = { days = 14, severity = "ERROR" }
+    critical = { days = 7, severity = "CRITICAL" }
+  } : {}
+
+  project      = var.project_id
+  display_name = "new-api TLS certificate expires within ${each.value.days} days"
+  combiner     = "OR"
+  severity     = each.value.severity
+
+  dynamic "conditions" {
+    for_each = var.certificate_hosts
+    content {
+      display_name = "${conditions.value} certificate has fewer than ${each.value.days} days remaining"
+      condition_threshold {
+        filter = join(" AND ", [
+          "metric.type=\"monitoring.googleapis.com/uptime_check/time_until_ssl_cert_expires\"",
+          "resource.type=\"uptime_url\"",
+          "resource.label.host=\"${conditions.value}\"",
+        ])
+        duration        = "0s"
+        comparison      = "COMPARISON_LT"
+        threshold_value = each.value.days
+        aggregations {
+          alignment_period   = "300s"
+          per_series_aligner = "ALIGN_MIN"
+        }
+        trigger {
+          count = 1
+        }
+      }
+    }
+  }
+
+  notification_channels = values(google_monitoring_notification_channel.email)[*].id
+
+  alert_strategy {
+    auto_close = "86400s"
+  }
+
+  documentation {
+    content   = "A production hostname is serving a TLS certificate close to expiry. Verify Certificate Manager state and all persistent _acme-challenge DNS authorization CNAME records."
+    mime_type = "text/markdown"
   }
 }
 

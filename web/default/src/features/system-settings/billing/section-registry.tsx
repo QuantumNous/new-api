@@ -37,6 +37,7 @@ const getModelDefaults = (settings: BillingSettings) => ({
   ExposeRatioEnabled: settings.ExposeRatioEnabled,
   BillingMode: settings['billing_setting.billing_mode'],
   BillingExpr: settings['billing_setting.billing_expr'],
+  VideoRules: settings['billing_setting_video.video_price_rules'],
 })
 
 const getGroupDefaults = (settings: BillingSettings) => ({
@@ -118,7 +119,12 @@ const BILLING_SECTIONS = [
         hiddenModelsDefault={
           settings['pricing_visibility_setting.hidden_models'] ?? ''
         }
-        visibleTabs={['models', 'tool-prices', 'upstream-sync', 'hidden-models']}
+        visibleTabs={[
+          'models',
+          'tool-prices',
+          'upstream-sync',
+          'hidden-models',
+        ]}
       />
     ),
   },

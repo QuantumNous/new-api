@@ -109,6 +109,7 @@ const createModelSchema = (t: Translate) =>
     ExposeRatioEnabled: z.boolean(),
     BillingMode: createJsonStringField(t),
     BillingExpr: createJsonStringField(t),
+    VideoRules: createJsonStringField(t),
   })
 
 const createGroupSchema = (t: Translate) =>
@@ -189,6 +190,7 @@ export function RatioSettingsCard({
     ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
     BillingMode: normalizeJsonString(modelDefaults.BillingMode),
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+    VideoRules: normalizeJsonString(modelDefaults.VideoRules),
   })
   const [savedModelValues, setSavedModelValues] = useState(
     modelNormalizedDefaults.current
@@ -226,6 +228,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      VideoRules: formatJsonForTextarea(modelDefaults.VideoRules),
     },
   })
 
@@ -261,6 +264,7 @@ export function RatioSettingsCard({
       ExposeRatioEnabled: modelDefaults.ExposeRatioEnabled,
       BillingMode: normalizeJsonString(modelDefaults.BillingMode),
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
+      VideoRules: normalizeJsonString(modelDefaults.VideoRules),
     }
     setSavedModelValues(modelNormalizedDefaults.current)
 
@@ -278,6 +282,7 @@ export function RatioSettingsCard({
       ),
       BillingMode: formatJsonForTextarea(modelDefaults.BillingMode),
       BillingExpr: formatJsonForTextarea(modelDefaults.BillingExpr),
+      VideoRules: formatJsonForTextarea(modelDefaults.VideoRules),
     })
   }, [modelDefaults, modelForm])
 
@@ -323,11 +328,13 @@ export function RatioSettingsCard({
         ExposeRatioEnabled: values.ExposeRatioEnabled,
         BillingMode: normalizeJsonString(values.BillingMode),
         BillingExpr: normalizeJsonString(values.BillingExpr),
+        VideoRules: normalizeJsonString(values.VideoRules),
       }
 
       const apiKeyMap: Record<string, string> = {
         BillingMode: 'billing_setting.billing_mode',
         BillingExpr: 'billing_setting.billing_expr',
+        VideoRules: 'billing_setting_video.video_price_rules',
       }
 
       const updates = (

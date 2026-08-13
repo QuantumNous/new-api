@@ -54,6 +54,7 @@ const defaultBillingSettings: BillingSettings = {
   'pricing_visibility_setting.hidden_models': '',
   'billing_setting.billing_mode': '{}',
   'billing_setting.billing_expr': '{}',
+  'billing_setting_video.video_price_rules': '[]',
   'tool_price_setting.prices': '{}',
   TopupGroupRatio: '',
   GroupRatio: '',
