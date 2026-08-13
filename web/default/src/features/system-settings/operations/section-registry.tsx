@@ -27,6 +27,7 @@ import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { SeedanceAssetSettingsSection } from './seedance-asset-settings-section'
 import { SeedanceOfficialAssetSettingsSection } from './seedance-official-asset-settings-section'
+import { YkSdAssetSettingsSection } from './yk-sd-asset-settings-section'
 import { TaskModelChannelOrderSection } from './task-model-channel-order-section'
 
 const OPERATIONS_SECTIONS = [
@@ -199,6 +200,20 @@ const OPERATIONS_SECTIONS = [
               : 'cn',
           projectName:
             settings['seedance_asset_official.project_name'] || 'default',
+        }}
+      />
+    ),
+  },
+  {
+    id: 'yk-sd-asset',
+    titleKey: 'yk-sd Asset Gateway',
+    descriptionKey:
+      'Proxy /api/yk-sd/assets to a yk-sd (KYY) channel for Seedance asset upload/detail',
+    build: (settings: OperationsSettings) => (
+      <YkSdAssetSettingsSection
+        defaultValues={{
+          enabled: settings['yk_sd_asset.enabled'] ?? false,
+          gatewayChannelId: settings['yk_sd_asset.gateway_channel_id'] ?? 0,
         }}
       />
     ),

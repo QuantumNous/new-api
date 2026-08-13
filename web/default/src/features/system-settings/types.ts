@@ -333,6 +333,8 @@ export type OperationsSettings = {
   'seedance_asset_official.default_callback_url': string
   'seedance_asset_official.platform': string
   'seedance_asset_official.project_name': string
+  'yk_sd_asset.enabled': boolean
+  'yk_sd_asset.gateway_channel_id': number
 }
 
 export type SecuritySettings = {

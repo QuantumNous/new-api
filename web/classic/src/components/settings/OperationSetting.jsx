@@ -29,6 +29,7 @@ import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLim
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsSeedanceAsset from '../../pages/Setting/Operation/SettingsSeedanceAsset';
 import SettingsSeedanceOfficialAsset from '../../pages/Setting/Operation/SettingsSeedanceOfficialAsset';
+import SettingsYkSdAsset from '../../pages/Setting/Operation/SettingsYkSdAsset';
 import SettingsTaskModelChannelOrder from '../../pages/Setting/Operation/SettingsTaskModelChannelOrder';
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -97,6 +98,10 @@ const OperationSetting = () => {
     'seedance_asset_official.refresh_on_get': true,
     'seedance_asset_official.default_callback_url': '',
     'seedance_asset_official.platform': 'cn',
+
+    /* yk-sd 素材网关 */
+    'yk_sd_asset.enabled': false,
+    'yk_sd_asset.gateway_channel_id': 0,
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
@@ -184,6 +189,10 @@ const OperationSetting = () => {
         {/* Seedance 官方素材网关 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsSeedanceOfficialAsset options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* yk-sd 素材网关 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsYkSdAsset options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

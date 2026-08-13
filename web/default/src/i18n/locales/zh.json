@@ -1784,7 +1784,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "For third-party proxies using VolcEngine protocol, choose official API or append /api/v3 to the base URL. OpenAI-compatible uses /v1/video/generations.": "第三方中转站若走火山官方协议，请选择「火山官方 API」，或在 API 地址末尾加上 /api/v3；OpenAI 兼容模式使用 /v1/video/generations。",
@@ -4527,5 +4527,12 @@
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放"
-  }
+  },
+  "yk-sd Asset Gateway": "yk-sd 素材网关",
+  "Proxy /api/yk-sd/assets to a yk-sd (KYY) channel for Seedance asset upload/detail": "将 /api/yk-sd/assets 转发到 yk-sd（KYY）渠道，用于 Seedance 素材提交/详情",
+  "Enable yk-sd asset APIs": "启用 yk-sd 素材 API",
+  "Expose /api/yk-sd/assets/upload and /detail": "开放 /api/yk-sd/assets/upload 与 /detail",
+  "Save yk-sd asset settings": "保存 yk-sd 素材设置",
+  "Point to a yk-sd channel (type 70) for Base URL and Key": "填写 type=70 的 yk-sd 渠道 ID，用于 Base URL 与 Key",
+  "Gateway channel ID": "网关渠道 ID"
 }

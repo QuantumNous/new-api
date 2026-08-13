@@ -174,6 +174,8 @@ function type2secretPrompt(type) {
       return 'mao_key_prompt';
     case 69:
       return 'ykvideo_key_prompt';
+    case 70:
+      return 'yksd_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -801,6 +803,13 @@ const EditChannelModal = (props) => {
           break;
         case 69: // yk-video
           localModels = ['seedance2.0-yk-933', 'seedance2.0-ykst-933'];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
+          }));
+          break;
+        case 70: // yk-sd
+          localModels = ['seedance2.0-yk-special', 'seedance2.0-yk-discount'];
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
@@ -2907,6 +2916,8 @@ const EditChannelModal = (props) => {
                                           ? 'mao 渠道说明'
                                           : inputs.type === 69
                                             ? 'yk-video 渠道说明'
+                                            : inputs.type === 70
+                                              ? 'yk-sd 渠道说明'
                                             : '异步视频渠道通用说明',
                         )}
                       />

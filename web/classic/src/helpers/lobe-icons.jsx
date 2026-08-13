@@ -464,6 +464,8 @@ export function getChannelIcon(channelType) {
       return <OpenAI size={iconSize} />;
     case 69: // yk-video KYY model-center
       return <OpenAI size={iconSize} />;
+    case 70: // yk-sd KYY Seedance special/discount
+      return <OpenAI size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

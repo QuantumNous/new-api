@@ -310,6 +310,21 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Async video: POST /v2/model-center/tasks, poll GET /v2/model-center/tasks/{id}. Supports reference_images/videos/audios, first_image/last_image, and VolcEngine content[] normalize. Completed tasks expose video_url/result_url.',
     },
   },
+  70: {
+    id: 70,
+    name: CHANNEL_TYPES[70],
+    icon: 'openai',
+    defaultBaseUrl: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
+    supportedModels: ['seedance2.0-yk-special', 'seedance2.0-yk-discount'],
+    hints: {
+      key: 'Bearer token (KYY / yk-sd API Key)',
+      models:
+        'Client: seedance2.0-yk-special → sd_2.0_special; seedance2.0-yk-discount → sd_2.0_discount (per-second). All media forced through Seedance asset library.',
+      baseUrl: 'Default: https://zcbservice.aizfw.cn/kyyReactApiServer',
+      other:
+        'Async video with forced assetUpload/assetDetail before create. Public asset APIs: POST /api/yk-sd/assets/upload|detail. Watermark/seed/tools passthrough.',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [

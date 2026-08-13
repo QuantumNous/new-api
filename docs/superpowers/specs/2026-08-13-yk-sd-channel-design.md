@@ -1,7 +1,7 @@
 # yk-sd（KYY Seedance 折扣 / special）渠道设计
 
 日期：2026-08-13  
-状态：已确认设计（待写实现计划）
+状态：已确认设计；实现计划见 `docs/superpowers/specs/2026-08-13-yk-sd-channel-plan.md`（已实现）
 
 ## 1. 背景与目标
 

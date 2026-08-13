@@ -20,6 +20,8 @@ func ExtractDurationSecondsFromJSON(raw []byte) float64 {
 		return 0
 	}
 	for _, path := range []string{
+		"actualDuration",
+		"data.actualDuration",
 		"data.data.duration",
 		"data.duration",
 		"duration",

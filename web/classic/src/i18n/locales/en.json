@@ -4047,6 +4047,12 @@
     "whsec_xxx 的 Webhook 签名密钥，敏感信息不显示": "Webhook signature key for whsec_xxx, sensitive information not displayed",
     "Worker地址": "Worker Address",
     "Worker密钥": "Worker Key",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": ""
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "",
+    "yk-sd 渠道说明": "yk-sd (KYY Seedance special/discount) async video: seedance2.0-yk-special→sd_2.0_special, seedance2.0-yk-discount→sd_2.0_discount (per-second). All media forced through asset library before create. Public APIs: POST /api/yk-sd/assets/upload|detail. Default Base URL https://zcbservice.aizfw.cn/kyyReactApiServer. Key is a Bearer token.",
+    "yksd_key_prompt": "Format: Bearer token (KYY / yk-sd API Key)",
+    "yk-sd 素材网关": "yk-sd Asset Gateway",
+    "将 /api/yk-sd/assets 转发到 yk-sd（或同 Base 的 KYY）渠道": "Proxy /api/yk-sd/assets to a yk-sd (or same-base KYY) channel",
+    "启用 yk-sd 素材 API": "Enable yk-sd asset APIs",
+    "保存 yk-sd 素材设置": "Save yk-sd asset settings"
   }
 }

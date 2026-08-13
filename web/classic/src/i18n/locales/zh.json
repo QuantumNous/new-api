@@ -2668,6 +2668,12 @@
     "GET 时回源刷新素材状态": "GET 时回源刷新素材状态",
     "网关渠道 ID": "网关渠道 ID",
     "渠道 Base URL 指向 83zi（如 http://s.83zi.com），Key 为该站 sk-": "渠道 Base URL 指向 83zi（如 http://s.83zi.com），Key 为该站 sk-",
-    "保存 Seedance 素材设置": "保存 Seedance 素材设置"
+    "保存 Seedance 素材设置": "保存 Seedance 素材设置",
+    "yk-sd 渠道说明": "yk-sd（KYY Seedance special/discount）异步视频：对外模型 seedance2.0-yk-special→sd_2.0_special、seedance2.0-yk-discount→sd_2.0_discount（按秒）。提交前强制将图/视/音经素材库（assetUpload+ACTIVE）改写为 assetId://。对外素材 API：POST /api/yk-sd/assets/upload|detail。默认 Base URL https://zcbservice.aizfw.cn/kyyReactApiServer，Key 为 Bearer token。",
+    "yksd_key_prompt": "格式：Bearer token（KYY / yk-sd API Key）",
+    "yk-sd 素材网关": "yk-sd 素材网关",
+    "将 /api/yk-sd/assets 转发到 yk-sd（或同 Base 的 KYY）渠道": "将 /api/yk-sd/assets 转发到 yk-sd（或同 Base 的 KYY）渠道",
+    "启用 yk-sd 素材 API": "启用 yk-sd 素材 API",
+    "保存 yk-sd 素材设置": "保存 yk-sd 素材设置"
   }
 }

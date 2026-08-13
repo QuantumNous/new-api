@@ -3937,6 +3937,8 @@
     "whsec_xxx 的 Webhook 签名密钥，敏感信息不显示": "whsec_xxx 的 Webhook 簽名密鑰，敏感資訊不顯示",
     "Worker地址": "Worker位址",
     "Worker密钥": "Worker密鑰",
-    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": ""
+    "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "",
+    "yk-sd 渠道说明": "yk-sd（KYY Seedance special/discount）非同步视频：seedance2.0-yk-special→sd_2.0_special、seedance2.0-yk-discount→sd_2.0_discount（按秒）；媒体强制入素材库。",
+    "yksd_key_prompt": "格式：Bearer token（KYY / yk-sd API Key）"
   }
 }

@@ -113,6 +113,7 @@ export function getChannelTypeIcon(type: number): string {
     67: 'OpenAI', // zz MiniMax-H3 video
     68: 'OpenAI', // mao catertx Seedance
     69: 'OpenAI', // yk-video KYY model-center
+    70: 'OpenAI', // yk-sd KYY Seedance special/discount
 
     // Tools & Platforms
     37: 'Dify', // Dify

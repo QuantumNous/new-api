@@ -78,6 +78,8 @@ const defaultOperationsSettings: OperationsSettings = {
   'seedance_asset_official.default_callback_url': '',
   'seedance_asset_official.platform': 'cn',
   'seedance_asset_official.project_name': 'default',
+  'yk_sd_asset.enabled': false,
+  'yk_sd_asset.gateway_channel_id': 0,
 }
 
 export function OperationsSettings() {
