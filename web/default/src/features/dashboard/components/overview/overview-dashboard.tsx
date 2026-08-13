@@ -185,6 +185,12 @@ export function OverviewDashboard() {
       ) {
         return 'video'
       }
+      // A "video" id that is neither tagged openai-video nor from a known
+      // provider (video-to-music and the like) fits none of the samples;
+      // dropping it beats demoing it against the wrong endpoint.
+      if (GENERIC_VIDEO_NAME_PATTERN.test(model)) {
+        return null
+      }
       if (
         types.includes('image-generation') ||
         IMAGE_NAME_PATTERN.test(model)

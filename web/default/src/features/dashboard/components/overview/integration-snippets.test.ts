@@ -226,15 +226,40 @@ curl "https://console.example.ai/v1/generation/tasks/TASK_ID" \\
     expect(snippet).toContain('fetch(`${tasksUrl}/${id}`')
   })
 
+  test('node checks HTTP status and the task id before polling', () => {
+    const snippet = buildApiSnippet('node', VIDEO)
+
+    expect(snippet).toContain(
+      'if (!createRes.ok) throw new Error(`Create task failed: ${createRes.status}`)'
+    )
+    expect(snippet).toContain(
+      "if (!taskId) throw new Error('Create task response is missing an id')"
+    )
+    expect(snippet).toContain(
+      'if (!res.ok) throw new Error(`Poll failed: ${res.status}`)'
+    )
+  })
+
   test('python polls until the task reports a terminal status', () => {
     const snippet = buildApiSnippet('python', VIDEO)
 
     expect(snippet).toContain('import time')
     expect(snippet).toContain('import requests')
-    expect(snippet).toContain('task_id = response.json()["id"]')
+    expect(snippet).toContain('task_id = response.json().get("id")')
     expect(snippet).toContain('f"{TASKS_URL}/{task_id}"')
     expect(snippet).toContain('if data["status"] == "succeeded":')
     expect(snippet).toContain('time.sleep(5)')
+  })
+
+  test('python checks HTTP status and the task id before polling', () => {
+    const snippet = buildApiSnippet('python', VIDEO)
+
+    const createChunk = snippet.split('# Step 2')[0]
+    expect(createChunk).toContain('response.raise_for_status()')
+    expect(createChunk).toContain(
+      'raise Exception("Create task response is missing an id")'
+    )
+    expect(snippet).toContain('poll.raise_for_status()')
   })
 
   test('the sdk tab installs only what the video sample imports', () => {

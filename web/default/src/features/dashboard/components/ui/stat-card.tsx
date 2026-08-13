@@ -206,9 +206,21 @@ export function StatCard(props: StatCardProps) {
   const Icon = props.icon
   const tone = props.tone ?? 'gray'
   const sparklineVariant = props.sparklineVariant ?? 'bars'
+  // With no details and no sparkline data there is nothing to put in the
+  // bottom slot, and reserving its height would leave a visible gap under
+  // the description. Cards that do chart something keep the fixed footprint
+  // so a row of them still lines up.
+  const hasDetails = Boolean(props.details?.length)
+  const hasSparkline = Boolean(props.sparkline?.length)
+  const hasFooter = hasDetails || hasSparkline
 
   return (
-    <div className='group flex min-h-32 flex-col justify-between gap-3'>
+    <div
+      className={cn(
+        'group flex flex-col justify-between gap-3',
+        hasFooter && 'min-h-32'
+      )}
+    >
       <div className='flex items-start justify-between gap-1'>
         <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium sm:gap-2'>
           <Icon
