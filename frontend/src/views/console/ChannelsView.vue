@@ -37,8 +37,8 @@ import Breadcrumb from '@/components/console/Breadcrumb.vue'
 import ChannelFormModal from '@/components/console/channels/ChannelFormModal.vue'
 import ChannelInlineNumber from '@/components/console/channels/ChannelInlineNumber.vue'
 import ChannelMobileList from '@/components/console/channels/ChannelMobileList.vue'
+import ChannelGroupTestDialog from '@/components/console/channels/ChannelGroupTestDialog.vue'
 import ChannelTestModal from '@/components/console/channels/ChannelTestModal.vue'
-import ChannelTestPickerDialog from '@/components/console/channels/ChannelTestPickerDialog.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
 import { useAdminChannels } from '@/composables/useAdminChannels'
 import { useAuthStore } from '@/stores/auth'
@@ -459,11 +459,6 @@ function openSupplierTest(group: SupplierGroup) {
   pickingGroup.value = group
 }
 
-function onPickerConfirm(channel: AdminChannel) {
-  pickingGroup.value = null
-  testing.value = channel
-}
-
 function openCreate() {
   if (!canMutate.value || !canSensitiveWrite.value) return
   editing.value = null
@@ -811,6 +806,7 @@ async function runBulkStatus(
           :loading="loading"
           :skeleton-rows="pageSize"
           adaptive-scroll
+          fill-height
           :page-size="pageSize"
           :min-table-width="minTableWidth"
           :scroll-region-label="t('channels.title')"
@@ -1347,12 +1343,12 @@ async function runBulkStatus(
       @close="testing = null"
     />
 
-    <ChannelTestPickerDialog
+    <ChannelGroupTestDialog
       :open="pickingGroup !== null"
       :supplier="pickingGroup?.supplier ?? ''"
       :channels="pickingGroup?.channels ?? []"
+      :test-model="testChannelModel"
       @close="pickingGroup = null"
-      @confirm="onPickerConfirm"
     />
 
     <ConfirmDialog

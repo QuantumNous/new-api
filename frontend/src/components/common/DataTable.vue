@@ -63,6 +63,12 @@ const props = withDefaults(
      * sticky console header and the pagination footer.
      */
     adaptiveScroll?: boolean
+    /**
+     * Stretches a short page to the same viewport-derived height that
+     * adaptiveScroll would cap it at, so the list fills the content area and
+     * the footer stays pinned to the card bottom. Requires adaptiveScroll.
+     */
+    fillHeight?: boolean
     /** Current server page size. Changing it resets the body scroll position. */
     pageSize?: number
     /** Accessible name for the independently scrollable row region. */
@@ -93,6 +99,7 @@ const props = withDefaults(
     emptyIllustration: 'empty-search',
     skeletonRows: 5,
     adaptiveScroll: false,
+    fillHeight: false,
     pageSize: 0,
     scrollRegionLabel: '',
     minTableWidth: '720px',
@@ -207,6 +214,7 @@ const constrained = ref(false)
 const innerScrollActive = ref(false)
 const horizontalScrollAvailable = ref(false)
 const bodyMaxHeight = ref(0)
+const bodyMinHeight = ref(0)
 const headerViewportWidth = ref(0)
 
 const bodyViewportStyle = computed(() => {
@@ -214,6 +222,9 @@ const bodyViewportStyle = computed(() => {
     return {
       maxHeight: 'none',
       overflowY: 'visible' as const,
+      ...(bodyMinHeight.value > 0
+        ? { minHeight: `${bodyMinHeight.value}px` }
+        : {}),
     }
   }
   return {
@@ -337,6 +348,7 @@ function measure() {
   if (!props.adaptiveScroll || !boundaryElement) {
     constrained.value = false
     bodyMaxHeight.value = 0
+    bodyMinHeight.value = 0
     updateActivation()
     return
   }
@@ -361,9 +373,14 @@ function measure() {
   if (shouldConstrain) {
     bodyMaxHeight.value = availableHeight
     constrained.value = true
+    bodyMinHeight.value = 0
   } else {
     constrained.value = false
     bodyMaxHeight.value = 0
+    // A short page stretches to the same cap so the list fills the content
+    // area and the footer pins to the card bottom.
+    bodyMinHeight.value =
+      props.fillHeight && availableHeight > naturalHeight ? availableHeight : 0
   }
 
   updateActivation()
