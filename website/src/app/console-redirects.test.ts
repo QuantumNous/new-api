@@ -23,14 +23,21 @@ describe("console redirects", () => {
     const response = signInRedirect(new Request("https://flatkey.ai/sign-in?redirect=%2Fdashboard"));
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard&provider=google");
   });
 
   test("preserves legacy login search params", () => {
     const response = loginRedirect(new Request("https://flatkey.ai/login?redirect=%2Fdashboard"));
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard&provider=google");
+  });
+
+  test("normalizes sign-in provider to Google", () => {
+    const response = signInRedirect(new Request("https://flatkey.ai/sign-in?redirect=%2Fdashboard&provider=github"));
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard&provider=google");
   });
 
   test("preserves sign-up search params", () => {
@@ -53,7 +60,7 @@ describe("console redirects", () => {
     });
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard&provider=google");
   });
 
   test("preserves localized legacy login search params", async () => {
@@ -62,7 +69,7 @@ describe("console redirects", () => {
     });
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard&provider=google");
   });
 
   test("preserves localized sign-up search params", async () => {

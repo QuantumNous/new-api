@@ -73,6 +73,7 @@ export type PricingSearch = {
   q?: string;
   vendor?: string;
   endpoint?: string;
+  pricing?: string;
   quota?: string;
 };
 
@@ -169,7 +170,7 @@ export function filterPricingModels(models: PricingModel[], search: PricingSearc
   const query = search.q?.trim().toLowerCase();
   const vendor = search.vendor?.trim().toLowerCase();
   const endpoint = search.endpoint?.trim().toLowerCase();
-  const quota = search.quota?.trim().toLowerCase();
+  const pricing = (search.pricing ?? search.quota)?.trim().toLowerCase();
 
   return models.filter((model) => {
     if (query) {
@@ -190,8 +191,8 @@ export function filterPricingModels(models: PricingModel[], search: PricingSearc
     if (endpoint && endpoint !== "all" && !(model.supported_endpoint_types ?? []).some((item) => item.toLowerCase() === endpoint)) {
       return false;
     }
-    if (quota === "token" && model.quota_type !== QUOTA_TYPE_TOKEN) return false;
-    if (quota === "request" && model.quota_type !== QUOTA_TYPE_REQUEST) return false;
+    if (pricing === "token" && model.quota_type !== QUOTA_TYPE_TOKEN) return false;
+    if (pricing === "request" && model.quota_type !== QUOTA_TYPE_REQUEST) return false;
 
     return true;
   });

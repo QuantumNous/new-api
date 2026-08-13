@@ -204,24 +204,24 @@ const en: OnlineCopy = {
   },
   home: {
     balance: "FLATKEY BALANCE",
-    ctaKey: "Get up to $40 free credits",
-    ctaModels: "Explore DeepSeek, Kimi, GLM",
-    eyebrow: "DEEPSEEK · KIMI · GLM · CODEX · CLAUDE CODE",
+    ctaKey: "Get up to 40 USD free credits",
+    ctaModels: "Explore DeepSeek Kimi GLM",
+    eyebrow: "DEEPSEEK KIMI GLM CODEX CLAUDE CODE",
     heroTitle: (
       <>
-        One key.
+        One key
         <br />
         <span className="price">
-          More models.
-          <span className="toolLine"> More tools.</span>
-          <span className="costLine">Lower cost.</span>
+          More models
+          <span className="toolLine"> More tools</span>
+          <span className="costLine">Lower cost</span>
         </span>
       </>
     ),
-    invoice: "Every model. Every tool. One invoice.",
-    pay: "Pay per successful call.",
+    invoice: "Every model Every tool One invoice",
+    pay: "Pay per successful call",
     savings: ["Model subscriptions", "Data tool subscriptions", "Automation subscriptions"],
-    sub: "One balance covers 300+ official models and 1,000+ pay-per-call tools. No idle seats, duplicate subscriptions, or API keys scattered across providers.",
+    sub: "One balance covers over 100 official models and over 1000 pay per call tools No idle seats duplicate subscriptions or API keys scattered across providers",
     terminal: {
       billed: "✓ $0.83 billed · failed calls $0.00",
       contacts: "✓ 489 contacts waterfall enriched across 5 providers",
@@ -247,7 +247,7 @@ const en: OnlineCopy = {
       </>
     ),
     universeCopy: "Use one Flatkey interface for leading AI models, social platforms, web data, crawlers, GTM intelligence, and more.",
-    universeKicker: "300+ MODELS · 1,000+ TOOLS",
+    universeKicker: "100+ MODELS · 1,000+ TOOLS",
     universeTitle: (
       <>
         Every model. Every tool.
@@ -274,18 +274,18 @@ const en: OnlineCopy = {
   pricing: {
     enterpriseAudience: "Committed volume & procurement",
     enterpriseBody: <>Custom pricing with committed-volume discounts, custom routing, invoicing and procurement.</>,
-    enterpriseCta: "Contact sales →",
+    enterpriseCta: "Contact sales",
     enterpriseLabel: "Enterprise",
     imageVideoLabel: "Image · video models",
     local: <>Stripe Checkout · Adaptive Pricing (BRL/INR/CNY/EUR) · bank transfer & invoicing via <u>Enterprise billing</u> · cancel anytime — new users start with $1 free credit</>,
     mostPopular: "MOST POPULAR",
     payAsYouGo: "Starter top-up",
-    payCta: "Subscribe Go $10/mo → sign in",
+    payCta: "Subscribe Go $10/mo sign in",
     payWith: "Pay with",
     plans: {
       Go: {
         audience: "For individuals & light daily use",
-        cta: "Subscribe →",
+        cta: "Subscribe",
         media: "300 media credits / mo",
         mediaSub: "≈ 100 images, or 75s of video",
         text: "Up to $45 model usage / mo",
@@ -293,7 +293,7 @@ const en: OnlineCopy = {
       },
       Pro: {
         audience: "For daily development & high-frequency requests",
-        cta: "Subscribe →",
+        cta: "Subscribe",
         media: "1,200 media credits / mo",
         mediaSub: "≈ 400 images, or 5 min of video",
         text: "Up to $90 model usage / mo",
@@ -301,7 +301,7 @@ const en: OnlineCopy = {
       },
       Max: {
         audience: "For teams & heavy workloads",
-        cta: "Subscribe →",
+        cta: "Subscribe",
         media: "5,000 media credits / mo",
         mediaSub: "≈ 1,600 images, or 20 min of video",
         text: "Up to $300 model usage / mo",
@@ -311,7 +311,7 @@ const en: OnlineCopy = {
     subscriptionNotRequired: "Credit package",
     sub: (
       <>
-        Subscribe to Go, Pro or Max for more model usage. All 328+ models are included — GPT, Claude,
+        Subscribe to Go, Pro or Max for more model usage. All 100+ models are included — GPT, Claude,
         Gemini, DeepSeek, Kimi, GLM, plus Seedance image & video. <b>Enterprise contracts add committed-volume discounts</b>.
       </>
     ),
@@ -336,7 +336,7 @@ const zh: OnlineCopy = {
     email: "邮件 support@flatkey.ai",
     fine: (
       <>
-        习惯异步？邮件也行。
+        习惯异步？邮件也行
         <br />
         已经在开发？<a href={consoleUrl("/sign-up")} style={{ color: "var(--violet-deep)", fontWeight: 650 }}>免费开始，送 $1 额度 →</a>
       </>
@@ -346,7 +346,7 @@ const zh: OnlineCopy = {
       <>
         在官方模型上扩张，
         <br />
-        背后有真人兜底<span style={{ color: "var(--violet-deep)" }}>。</span>
+        背后有真人兜底
       </>
     ),
     linkedin: "关注 LinkedIn",
@@ -380,7 +380,7 @@ const zh: OnlineCopy = {
     developers: "开发者",
     docs: "Docs",
     gdpr: "GDPR 合规",
-    legalPrefix: "© 2026 flatkey.ai · VOC AI INC (San Jose, CA). 保留所有权利。",
+    legalPrefix: "© 2026 flatkey.ai · VOC AI INC (San Jose, CA). 保留所有权利",
     models: "Models",
     playground: "Playground",
     privacy: "隐私",
@@ -402,24 +402,24 @@ const zh: OnlineCopy = {
   home: {
     ...en.home,
     balance: "FLATKEY 统一余额",
-    ctaKey: "最高领取 $40 免费额度",
-    ctaModels: "查看 DeepSeek / Kimi / GLM",
-    eyebrow: "DEEPSEEK · KIMI · GLM · CODEX · CLAUDE CODE",
+    ctaKey: "最高领取 40 美元免费额度",
+    ctaModels: "查看 DeepSeek Kimi GLM",
+    eyebrow: "DEEPSEEK KIMI GLM CODEX CLAUDE CODE",
     heroTitle: (
       <>
-        一个key。
+        一个key
         <br />
         <span className="price">
-          更多模型。
-          <span className="toolLine">更多工具。</span>
-          <span className="costLine">更低成本。</span>
+          更多模型
+          <span className="toolLine">更多工具</span>
+          <span className="costLine">更低成本</span>
         </span>
       </>
     ),
-    invoice: "每个模型、每个工具，只需一张账单。",
-    pay: "仅成功调用才付费。",
+    invoice: "每个模型 每个工具 只需一张账单",
+    pay: "仅成功调用才付费",
     savings: ["模型订阅", "数据工具订阅", "自动化工具订阅"],
-    sub: "一个余额覆盖 300+个官方模型和1,000+个按调用付费工具。无需闲置席位、重复订阅，也无需管理散落在各供应商的 API Key。",
+    sub: "一个余额覆盖 100 个以上官方模型和 1000 个以上按调用付费工具 无需闲置席位 重复订阅 也无需管理散落在各供应商的 API Key",
     terminal: {
       billed: "✓ 计费 $0.83 · 失败调用 $0.00",
       contacts: "✓ 通过 5 个供应商瀑布式补全 489 位联系人",
@@ -441,16 +441,16 @@ const zh: OnlineCopy = {
       <>
         一个 key，一张账单，
         <br />
-        1,000+ 工具。
+        1,000+ 工具
       </>
     ),
     universeCopy: "通过一个 Flatkey 接口调用领先 AI 模型、社交平台、网页数据、爬虫、GTM 情报以及更多能力。",
-    universeKicker: "300+ 模型 · 1,000+ 工具",
+    universeKicker: "100+ 模型 · 1,000+ 工具",
     universeTitle: (
       <>
-        每个模型，每个工具。
+        每个模型，每个工具
         <br />
-        一个 key。
+        一个 key
       </>
     ),
   },
@@ -472,19 +472,19 @@ const zh: OnlineCopy = {
   pricing: {
     ...en.pricing,
     enterpriseAudience: "承诺用量与企业采购",
-    enterpriseBody: <>承诺用量折扣、定制路由、发票与采购支持。</>,
-    enterpriseCta: "联系销售 →",
+    enterpriseBody: <>承诺用量折扣、定制路由、发票与采购支持</>,
+    enterpriseCta: "联系销售",
     enterpriseLabel: "企业版",
     imageVideoLabel: "图像 · 视频模型",
     local: <>Stripe Checkout · 自适应定价 (BRL/INR/CNY/EUR) · 企业账单支持银行转账与发票 · 随时取消，新用户送 $1 免费额度</>,
     mostPopular: "最受欢迎",
     payAsYouGo: "起始充值",
-    payCta: "订阅 Go $10/月 → 登录",
+    payCta: "订阅 Go $10/月 登录",
     payWith: "支付方式",
     plans: {
       Go: {
         audience: "适合个人与轻量日常使用",
-        cta: "立即订阅 →",
+        cta: "立即订阅",
         media: "每月 300 media credits",
         mediaSub: "约可生成 100 张图，或 75 秒视频",
         text: "每月最多 $45 模型用量",
@@ -492,7 +492,7 @@ const zh: OnlineCopy = {
       },
       Pro: {
         audience: "适合日常开发与高频请求",
-        cta: "立即订阅 →",
+        cta: "立即订阅",
         media: "每月 1,200 media credits",
         mediaSub: "约可生成 400 张图，或 5 分钟视频",
         text: "每月最多 $90 模型用量",
@@ -500,7 +500,7 @@ const zh: OnlineCopy = {
       },
       Max: {
         audience: "适合团队与高强度任务",
-        cta: "立即订阅 →",
+        cta: "立即订阅",
         media: "每月 5,000 media credits",
         mediaSub: "约可生成 1,600 张图，或 20 分钟视频",
         text: "每月最多 $300 模型用量",
@@ -510,15 +510,15 @@ const zh: OnlineCopy = {
     subscriptionNotRequired: "额度包",
     sub: (
       <>
-        订阅 Go、Pro 或 Max 获得更多模型用量。全部 328+ 模型均可使用，GPT、Claude、Gemini、DeepSeek、Kimi、GLM，以及 Seedance 生图和生视频。<b>企业级合同提供承诺用量折扣</b>。
+        订阅 Go、Pro 或 Max 获得更多模型用量。全部 100+ 模型均可使用，GPT、Claude、Gemini、DeepSeek、Kimi、GLM，以及 Seedance 生图和生视频。<b>企业级合同提供承诺用量折扣</b>。
       </>
     ),
     textModelsLabel: "文本模型",
     title: (
       <>
-        灵活定价。
+        灵活定价
         <br />
-        所有模型全包含。
+        所有模型全包含
       </>
     ),
     toolsLabel: "Tools Credits",

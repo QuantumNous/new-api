@@ -76,7 +76,7 @@ const WEB_SCRAPING_API: ToolsAdLandingConfig = {
     },
     {
       title: "Continue with the same balance",
-      body: "Pass extracted data to 300+ AI models and other metered tools without opening another provider account.",
+      body: "Pass extracted data to 100+ AI models and other metered tools without opening another provider account.",
     },
   ],
   workflowTitle: "From URL to accepted data in one bounded workflow.",
@@ -131,7 +131,7 @@ const WEB_SCRAPING_API: ToolsAdLandingConfig = {
       ],
       [
         "Commercial model",
-        "Pay per accepted run; the same balance also covers 300+ AI models and other tools",
+        "Pay per accepted run; the same balance also covers 100+ AI models and other tools",
         "Subscription tiers or credit packs scoped to that scraping product; verify current terms",
       ],
       [
@@ -196,7 +196,7 @@ const GOOGLE_SEARCH_API: ToolsAdLandingConfig = {
     },
     {
       title: "Move from result to decision",
-      body: "Use 300+ AI models and other tools from the same Flatkey account to classify, enrich, or summarize the search evidence.",
+      body: "Use 100+ AI models and other tools from the same Flatkey account to classify, enrich, or summarize the search evidence.",
     },
   ],
   workflowTitle: "Search is the first step, not the final deliverable.",
@@ -251,7 +251,7 @@ const GOOGLE_SEARCH_API: ToolsAdLandingConfig = {
       ],
       [
         "Commercial model",
-        "Pay per accepted run; the same balance also covers 300+ AI models and other tools",
+        "Pay per accepted run; the same balance also covers 100+ AI models and other tools",
         "Monthly search quotas or credit tiers scoped to that SERP product; verify current terms",
       ],
       [

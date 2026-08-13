@@ -6,9 +6,11 @@ import { cn } from "@/lib/utils";
 // Status-page style daily bars: one green bar per day. The height range is
 // deliberately compressed (worst day still reads tall) so the wall signals
 // stability; exact per-day rates live in the native tooltips.
-export function DailyHealthBars(props: { points: HomeTrendPoint[]; label: string; heightPx?: number }) {
+export function DailyHealthBars(props: { points: HomeTrendPoint[]; label: string; heightPx?: number; maxDays?: number }) {
   const heightPx = props.heightPx ?? 56;
-  const days = bucketByDay(props.points);
+  const bucketed = bucketByDay(props.points);
+  // Keep the most recent window so the wall stays readable in narrow cells.
+  const days = props.maxDays ? bucketed.slice(-props.maxDays) : bucketed;
   if (days.length === 0) return null;
   const min = Math.min(...days.map((day) => day.rate));
   const range = Math.max(100 - min, 0.1);

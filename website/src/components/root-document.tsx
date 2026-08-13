@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import type { ReactNode } from "react";
+import { GoogleOneTapPrompt } from "@/components/google-one-tap-prompt";
 import { SiteConfigProvider } from "@/components/site-config-provider";
 import { MIXPANEL_BROWSER_SCRIPT } from "@/lib/mixpanel";
 import { localeLanguageTag, type Locale } from "@/lib/locales";
+import { SITE_ORIGIN, consoleUrl } from "@/lib/origins";
+import type { PublicSiteSettings } from "@/lib/public-site-settings";
 
 const GTM_IDS = ["GTM-NKH9LPX9", "GTM-5T5LPLSZ"] as const;
 
@@ -120,10 +123,25 @@ type RootDocumentProps = {
   bodyStart?: ReactNode;
   children: ReactNode;
   docsUrl: string | null;
+  hasConsoleSessionHint: boolean;
+  googleOneTap: PublicSiteSettings["googleOneTap"];
   lang: Locale;
 };
 
-export function RootDocument({ bodyStart, children, docsUrl, lang }: RootDocumentProps) {
+export function RootDocument({
+  bodyStart,
+  children,
+  docsUrl,
+  hasConsoleSessionHint,
+  googleOneTap,
+  lang,
+}: RootDocumentProps) {
+  const googleOneTapSearch = new URLSearchParams({
+    lng: lang,
+    return_to: "/",
+  });
+  const googleOneTapCookieDomain = googleOneTapStateCookieDomain();
+
   return (
     <html lang={localeLanguageTag(lang)} suppressHydrationWarning>
       <body>
@@ -160,6 +178,16 @@ export function RootDocument({ bodyStart, children, docsUrl, lang }: RootDocumen
             />
           ))}
         </noscript>
+        <GoogleOneTapPrompt
+          clientId={googleOneTap.clientId}
+          cookieDomain={googleOneTapCookieDomain}
+          disabled={hasConsoleSessionHint}
+          enabled={googleOneTap.enabled}
+          loginUri={consoleUrl(
+            "/api/oauth/google/one-tap",
+            googleOneTapSearch.toString(),
+          )}
+        />
         <SiteConfigProvider docsUrl={docsUrl}>{children}</SiteConfigProvider>
         <Script id="solvea-livechat-bootstrap" strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.livechatStrategy}>
           {LIVECHAT_BOOTSTRAP_SCRIPT}
@@ -167,4 +195,19 @@ export function RootDocument({ bodyStart, children, docsUrl, lang }: RootDocumen
       </body>
     </html>
   );
+}
+
+function googleOneTapStateCookieDomain(): string | undefined {
+  const configured = process.env.COOKIE_SESSION_DOMAIN?.trim();
+  if (configured) return configured;
+
+  try {
+    const hostname = new URL(SITE_ORIGIN).hostname;
+    if (hostname === "localhost" || !hostname.includes(".")) return undefined;
+    const labels = hostname.split(".").filter(Boolean);
+    if (labels.length < 2) return undefined;
+    return labels.slice(-2).join(".");
+  } catch {
+    return undefined;
+  }
 }

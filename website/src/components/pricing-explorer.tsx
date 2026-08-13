@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Boxes, Filter, RotateCcw, Search } from "lucide-react";
 import { ModelsDirectoryTable } from "@/components/models-directory-table";
@@ -31,34 +32,58 @@ type PricingExplorerProps = {
 };
 
 const ALL = "all";
+const DIRECTORY_TABLE_LABELS: Record<Locale, { colFlatkey: string; colHealth: string }> = {
+  en: { colFlatkey: "Our price", colHealth: "Health Score" },
+  zh: { colFlatkey: "我们的价格", colHealth: "健康评分" },
+  es: { colFlatkey: "Nuestro precio", colHealth: "Puntuación de salud" },
+  fr: { colFlatkey: "Notre prix", colHealth: "Score de santé" },
+  pt: { colFlatkey: "Nosso preço", colHealth: "Pontuação de saúde" },
+  ru: { colFlatkey: "Наша цена", colHealth: "Оценка здоровья" },
+  ja: { colFlatkey: "当社価格", colHealth: "健全性スコア" },
+  vi: { colFlatkey: "Giá của chúng tôi", colHealth: "Điểm sức khỏe" },
+  de: { colFlatkey: "Unser Preis", colHealth: "Gesundheitswert" },
+  id: { colFlatkey: "Harga kami", colHealth: "Skor kesehatan" },
+};
 
 export function PricingExplorer(props: PricingExplorerProps) {
+  const router = useRouter();
   const [query, setQuery] = useState(props.initialSearch?.q ?? "");
   const [vendor, setVendor] = useState(props.initialSearch?.vendor ?? ALL);
-  const [quota, setQuota] = useState(props.initialSearch?.quota ?? ALL);
+  const [pricing, setPricing] = useState(props.initialSearch?.pricing ?? ALL);
   const [endpoint, setEndpoint] = useState(props.initialSearch?.endpoint ?? ALL);
+  const activeFilters = useMemo(
+    () => normalizePricingSearch({ q: query, vendor, pricing, endpoint }),
+    [endpoint, pricing, query, vendor]
+  );
 
   const filteredModels = useMemo(
     () =>
       sortPricingModelsBySeries(
         filterPricingModels(props.models, {
-          q: query,
-          vendor,
-          quota,
-          endpoint,
+          q: activeFilters.q,
+          vendor: activeFilters.vendor,
+          pricing: activeFilters.pricing,
+          endpoint: activeFilters.endpoint,
         })
       ),
-    [endpoint, props.models, query, quota, vendor]
+    [activeFilters.endpoint, activeFilters.pricing, activeFilters.q, activeFilters.vendor, props.models]
   );
   const visibleModels = filteredModels.slice(0, 120);
   const topVendors = useMemo(() => getTopVendors(props.models, 18), [props.models]);
   const topEndpoints = useMemo(() => getTopEndpoints(props.models, 10), [props.models]);
-  const hasActiveFilters = vendor !== ALL || quota !== ALL || endpoint !== ALL;
+  const hasActiveFilters = activeFilters.vendor !== ALL || activeFilters.pricing !== ALL || activeFilters.endpoint !== ALL || Boolean(activeFilters.q);
 
   const resetFilters = () => {
-    setVendor(ALL);
-    setQuota(ALL);
-    setEndpoint(ALL);
+    navigateWithFilters({});
+  };
+
+  const navigateWithFilters = (nextSearch: PricingSearch) => {
+    const normalized = normalizePricingSearch(nextSearch);
+    setQuery(normalized.q ?? "");
+    setVendor(normalized.vendor ?? ALL);
+    setPricing(normalized.pricing ?? ALL);
+    setEndpoint(normalized.endpoint ?? ALL);
+    router.push(modelsHref(props.locale, normalized));
   };
 
   return (
@@ -78,7 +103,11 @@ export function PricingExplorer(props: PricingExplorerProps) {
             <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                const nextQuery = event.target.value;
+                setQuery(nextQuery);
+                navigateWithFilters({ ...activeFilters, q: nextQuery });
+              }}
               placeholder={copy(props.locale, "searchPlaceholder")}
               className="border-input bg-background h-11 w-full rounded-full border px-4 pl-10 text-sm outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/15"
               type="search"
@@ -110,11 +139,11 @@ export function PricingExplorer(props: PricingExplorerProps) {
           <div className="space-y-1">
             <FilterSection title={copy(props.locale, "allVendors")}>
               <FilterChip
-                href={pricingHref(props.locale)}
+                href={modelsHref(props.locale, { ...activeFilters, vendor: ALL })}
                 label={copy(props.locale, "allVendors")}
                 count={props.models.length}
-                active={vendor === ALL}
-                onClick={() => setVendor(ALL)}
+                active={activeFilters.vendor === ALL}
+                onClick={() => navigateWithFilters({ ...activeFilters, vendor: ALL })}
               />
               {topVendors.map((vendorName) => {
                 const vendorInfo = props.vendors.find((item) => item.name === vendorName);
@@ -122,32 +151,33 @@ export function PricingExplorer(props: PricingExplorerProps) {
                 return (
                   <FilterChip
                     key={vendorName}
-                    href={pricingHref(props.locale, { vendor: vendorName })}
+                    href={modelsHref(props.locale, { ...activeFilters, vendor: vendorName })}
                     label={vendorName}
                     count={count}
-                    active={vendor === vendorName}
+                    active={activeFilters.vendor === vendorName}
                     icon={vendorInfo?.icon ? <ModelLogo iconKey={vendorInfo.icon} fallback={vendorName.charAt(0)} size={14} /> : undefined}
-                    onClick={() => setVendor(vendorName)}
+                    onClick={() => navigateWithFilters({ ...activeFilters, vendor: vendorName })}
                   />
                 );
               })}
             </FilterSection>
 
             <FilterSection title={copy(props.locale, "pricingType")}>
-              <FilterChip label={copy(props.locale, "allModels")} count={props.models.length} active={quota === ALL} onClick={() => setQuota(ALL)} />
-              <FilterChip label={copy(props.locale, "tokenBased")} count={props.models.filter((model) => model.quota_type === 0).length} active={quota === "token"} onClick={() => setQuota("token")} />
-              <FilterChip label={copy(props.locale, "perRequest")} count={props.models.filter((model) => model.quota_type === 1).length} active={quota === "request"} onClick={() => setQuota("request")} />
+              <FilterChip href={modelsHref(props.locale, { ...activeFilters, pricing: ALL })} label={copy(props.locale, "allModels")} count={props.models.length} active={activeFilters.pricing === ALL} onClick={() => navigateWithFilters({ ...activeFilters, pricing: ALL })} />
+              <FilterChip href={modelsHref(props.locale, { ...activeFilters, pricing: "token" })} label={copy(props.locale, "tokenBased")} count={props.models.filter((model) => model.quota_type === 0).length} active={activeFilters.pricing === "token"} onClick={() => navigateWithFilters({ ...activeFilters, pricing: "token" })} />
+              <FilterChip href={modelsHref(props.locale, { ...activeFilters, pricing: "request" })} label={copy(props.locale, "perRequest")} count={props.models.filter((model) => model.quota_type === 1).length} active={activeFilters.pricing === "request"} onClick={() => navigateWithFilters({ ...activeFilters, pricing: "request" })} />
             </FilterSection>
 
             <FilterSection title={copy(props.locale, "endpointType")}>
-              <FilterChip label={copy(props.locale, "allTypes")} count={props.models.length} active={endpoint === ALL} onClick={() => setEndpoint(ALL)} />
+              <FilterChip href={modelsHref(props.locale, { ...activeFilters, endpoint: ALL })} label={copy(props.locale, "allTypes")} count={props.models.length} active={activeFilters.endpoint === ALL} onClick={() => navigateWithFilters({ ...activeFilters, endpoint: ALL })} />
               {topEndpoints.map((endpointName) => (
                 <FilterChip
                   key={endpointName}
+                  href={modelsHref(props.locale, { ...activeFilters, endpoint: endpointName })}
                   label={endpointName}
                   count={props.models.filter((model) => model.supported_endpoint_types?.includes(endpointName)).length}
-                  active={endpoint === endpointName}
-                  onClick={() => setEndpoint(endpointName)}
+                  active={activeFilters.endpoint === endpointName}
+                  onClick={() => navigateWithFilters({ ...activeFilters, endpoint: endpointName })}
                 />
               ))}
             </FilterSection>
@@ -183,36 +213,47 @@ export function PricingExplorer(props: PricingExplorerProps) {
             </div>
             <div className="space-y-3">
               <MobileFilterRow title={copy(props.locale, "pricingType")}>
-                <FilterChip label={copy(props.locale, "allModels")} active={quota === ALL} onClick={() => setQuota(ALL)} />
-                <FilterChip label={copy(props.locale, "tokenBased")} active={quota === "token"} onClick={() => setQuota("token")} />
-                <FilterChip label={copy(props.locale, "perRequest")} active={quota === "request"} onClick={() => setQuota("request")} />
+                <FilterChip href={modelsHref(props.locale, { ...activeFilters, pricing: ALL })} label={copy(props.locale, "allModels")} active={activeFilters.pricing === ALL} onClick={() => navigateWithFilters({ ...activeFilters, pricing: ALL })} />
+                <FilterChip href={modelsHref(props.locale, { ...activeFilters, pricing: "token" })} label={copy(props.locale, "tokenBased")} active={activeFilters.pricing === "token"} onClick={() => navigateWithFilters({ ...activeFilters, pricing: "token" })} />
+                <FilterChip href={modelsHref(props.locale, { ...activeFilters, pricing: "request" })} label={copy(props.locale, "perRequest")} active={activeFilters.pricing === "request"} onClick={() => navigateWithFilters({ ...activeFilters, pricing: "request" })} />
               </MobileFilterRow>
               <MobileFilterRow title={copy(props.locale, "allVendors")}>
-                <FilterChip label={copy(props.locale, "allVendors")} active={vendor === ALL} onClick={() => setVendor(ALL)} />
+                <FilterChip href={modelsHref(props.locale, { ...activeFilters, vendor: ALL })} label={copy(props.locale, "allVendors")} active={activeFilters.vendor === ALL} onClick={() => navigateWithFilters({ ...activeFilters, vendor: ALL })} />
                 {topVendors.slice(0, 8).map((vendorName) => (
-                  <FilterChip key={vendorName} label={vendorName} active={vendor === vendorName} onClick={() => setVendor(vendorName)} />
+                  <FilterChip key={vendorName} href={modelsHref(props.locale, { ...activeFilters, vendor: vendorName })} label={vendorName} active={activeFilters.vendor === vendorName} onClick={() => navigateWithFilters({ ...activeFilters, vendor: vendorName })} />
                 ))}
               </MobileFilterRow>
             </div>
           </div>
 
-          {visibleModels.length > 0 ? (
-            <ModelsDirectoryTable
-              copy={getHomeCopy(props.locale).table}
-              rows={buildRowsForModels(visibleModels, props.vendors, props.groupRatio)}
-              locale={props.locale}
-            />
-          ) : (
-            <div className="border-border bg-card flex min-h-64 flex-col items-center justify-center rounded-3xl border px-6 py-14 text-center">
-              <Boxes className="text-muted-foreground size-10" />
-              <h2 className="mt-4 text-lg font-semibold">{copy(props.locale, "noModels")}</h2>
-              <p className="text-muted-foreground mt-2 max-w-md text-sm">{copy(props.locale, "noModelsHint")}</p>
+          <div className="relative min-h-64">
+            <div>
+              {visibleModels.length > 0 ? (
+                <ModelsDirectoryTable
+                  copy={getModelsDirectoryTableCopy(props.locale)}
+                  rows={buildRowsForModels(visibleModels, props.vendors, props.groupRatio)}
+                  locale={props.locale}
+                />
+              ) : (
+                <div className="border-border bg-card flex min-h-64 flex-col items-center justify-center rounded-3xl border px-6 py-14 text-center">
+                  <Boxes className="text-muted-foreground size-10" />
+                  <h2 className="mt-4 text-lg font-semibold">{copy(props.locale, "noModels")}</h2>
+                  <p className="text-muted-foreground mt-2 max-w-md text-sm">{copy(props.locale, "noModelsHint")}</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </section>
       </div>
     </>
   );
+}
+
+export function getModelsDirectoryTableCopy(locale: Locale) {
+  return {
+    ...getHomeCopy(locale).table,
+    ...DIRECTORY_TABLE_LABELS[locale],
+  };
 }
 
 function FilterSection(props: { title: string; children: React.ReactNode }) {
@@ -260,10 +301,11 @@ function FilterChip(props: {
       <Link
         href={props.href}
         onClick={(event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
           event.preventDefault();
           props.onClick();
-          window.history.replaceState(null, "", props.href);
         }}
+        data-local-models-filter="true"
         className={className}
         title={props.label}
       >
@@ -279,11 +321,34 @@ function FilterChip(props: {
   );
 }
 
-function pricingHref(locale: Locale, params?: { vendor?: string }) {
-  const search = new URLSearchParams();
-  if (params?.vendor) search.set("vendor", params.vendor);
-  const query = search.toString();
-  return `${localizePath("/pricing", locale)}${query ? `?${query}` : ""}`;
+function normalizeFilterValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  if (!normalized || normalized.toLowerCase() === ALL) return undefined;
+  return normalized;
+}
+
+export function normalizePricingSearch(search: PricingSearch = {}): PricingSearch {
+  const q = normalizeFilterValue(search.q);
+  const vendor = normalizeFilterValue(search.vendor);
+  const endpoint = normalizeFilterValue(search.endpoint);
+  const pricing = normalizeFilterValue(search.pricing ?? search.quota);
+  return {
+    ...(q ? { q } : {}),
+    vendor: vendor ?? ALL,
+    pricing: pricing ?? ALL,
+    endpoint: endpoint ?? ALL,
+  };
+}
+
+export function modelsHref(locale: Locale, search: PricingSearch = {}) {
+  const normalized = normalizePricingSearch(search);
+  const params = new URLSearchParams();
+  if (normalized.q) params.set("q", normalized.q);
+  if (normalized.vendor && normalized.vendor !== ALL) params.set("vendor", normalized.vendor);
+  if (normalized.pricing && normalized.pricing !== ALL) params.set("pricing", normalized.pricing);
+  if (normalized.endpoint && normalized.endpoint !== ALL) params.set("endpoint", normalized.endpoint);
+  const query = params.toString();
+  return `${localizePath("/models", locale)}${query ? `?${query}` : ""}`;
 }
 
 const COPY: Record<string, Record<string, string>> = {
@@ -305,6 +370,7 @@ const COPY: Record<string, Record<string, string>> = {
     models: "models",
     noModels: "No Models Found",
     noModelsHint: "No models match your current filters.",
+    loadingModels: "Loading models",
   },
   zh: {
     enabledModels: "本站当前已启用 {{count}} 个模型",
@@ -324,6 +390,7 @@ const COPY: Record<string, Record<string, string>> = {
     models: "个模型",
     noModels: "未找到模型",
     noModelsHint: "没有模型匹配当前筛选条件。",
+    loadingModels: "正在加载模型",
   },
   es: {
     enabledModels: "Este sitio tiene {{count}} modelos habilitados",
@@ -343,6 +410,7 @@ const COPY: Record<string, Record<string, string>> = {
     models: "modelos",
     noModels: "No se encontraron modelos",
     noModelsHint: "Ningún modelo coincide con los filtros actuales.",
+    loadingModels: "Cargando modelos",
   },
   fr: {
     enabledModels: "Ce site a actuellement {{count}} modèles activés",
@@ -362,6 +430,7 @@ const COPY: Record<string, Record<string, string>> = {
     models: "modèles",
     noModels: "Aucun modèle trouvé",
     noModelsHint: "Aucun modèle ne correspond aux filtres actuels.",
+    loadingModels: "Chargement des modèles",
   },
   pt: {
     enabledModels: "Este site tem {{count}} modelos habilitados",
@@ -381,6 +450,7 @@ const COPY: Record<string, Record<string, string>> = {
     models: "modelos",
     noModels: "Nenhum modelo encontrado",
     noModelsHint: "Nenhum modelo corresponde aos filtros atuais.",
+    loadingModels: "Carregando modelos",
   },
   ru: {
     enabledModels: "На сайте сейчас включено {{count}} моделей",
@@ -400,6 +470,7 @@ const COPY: Record<string, Record<string, string>> = {
     models: "моделей",
     noModels: "Модели не найдены",
     noModelsHint: "Ни одна модель не соответствует текущим фильтрам.",
+    loadingModels: "Загрузка моделей",
   },
   ja: {
     enabledModels: "このサイトでは現在 {{count}} 個のモデルが有効です",
@@ -419,6 +490,7 @@ const COPY: Record<string, Record<string, string>> = {
     models: "モデル",
     noModels: "モデルが見つかりません",
     noModelsHint: "現在のフィルターに一致するモデルはありません。",
+    loadingModels: "モデルを読み込み中",
   },
   vi: {
     enabledModels: "Site này hiện có {{count}} mô hình được bật",
@@ -438,6 +510,47 @@ const COPY: Record<string, Record<string, string>> = {
     models: "mô hình",
     noModels: "Không tìm thấy mô hình",
     noModelsHint: "Không có mô hình nào khớp với bộ lọc hiện tại.",
+    loadingModels: "Đang tải mô hình",
+  },
+  de: {
+    enabledModels: "Diese Site hat derzeit {{count}} Modelle aktiviert",
+    searchPlaceholder: "Modellname, Anbieter, Endpoint oder Tag suchen...",
+    filter: "Filtern",
+    filterHint: "Modelle nach Anbieter, Typ und Endpoint eingrenzen.",
+    reset: "Zuruecksetzen",
+    filtersActive: "Filter aktiv",
+    allVendors: "Alle Anbieter",
+    pricingType: "Preistyp",
+    endpointType: "Endpoint-Typ",
+    allModels: "Alle Modelle",
+    tokenBased: "Token-basiert",
+    perRequest: "Pro Anfrage",
+    allTypes: "Alle Typen",
+    model: "Modell",
+    models: "Modelle",
+    noModels: "Keine Modelle gefunden",
+    noModelsHint: "Keine Modelle passen zu den aktuellen Filtern.",
+    loadingModels: "Modelle werden geladen",
+  },
+  id: {
+    enabledModels: "Situs ini saat ini memiliki {{count}} model aktif",
+    searchPlaceholder: "Cari nama model, penyedia, endpoint, atau tag...",
+    filter: "Filter",
+    filterHint: "Saring model berdasarkan penyedia, tipe, dan endpoint.",
+    reset: "Atur ulang",
+    filtersActive: "Filter aktif",
+    allVendors: "Semua penyedia",
+    pricingType: "Tipe harga",
+    endpointType: "Tipe endpoint",
+    allModels: "Semua model",
+    tokenBased: "Berbasis token",
+    perRequest: "Per permintaan",
+    allTypes: "Semua tipe",
+    model: "model",
+    models: "model",
+    noModels: "Model tidak ditemukan",
+    noModelsHint: "Tidak ada model yang cocok dengan filter saat ini.",
+    loadingModels: "Memuat model",
   },
 };
 

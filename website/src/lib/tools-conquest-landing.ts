@@ -30,7 +30,7 @@ export const apifyAlternativeCopy = {
   benefits: [
     {
       title: "One runtime for tools and models",
-      body: "Use 1,000+ metered tools and 300+ AI models from the same Flatkey account and prepaid balance.",
+      body: "Use 1,000+ metered tools and 100+ AI models from the same Flatkey account and prepaid balance.",
     },
     {
       title: "Price before execution",
@@ -53,7 +53,7 @@ export const apifyAlternativeCopy = {
   comparisonRows: [
     ["Primary unit", "A metered tool with a visible schema and price", "An Actor or API integration running on the Apify platform"],
     ["Credentials", "One Flatkey API key", "An Apify API token; some Actors can require additional credentials"],
-    ["Commercial model", "One prepaid balance shared by tools and 300+ models", "Platform usage plus Actor-specific pricing; verify current terms on official pages"],
+    ["Commercial model", "One prepaid balance shared by tools and 100+ models", "Platform usage plus Actor-specific pricing; verify current terms on official pages"],
     ["Agent entry points", "Public Skill, API, and Tools Marketplace", "Actors, API, SDKs, and integrations supported by Apify"],
     ["Best fit", "Agents that move across web, GTM, social, commerce, and media jobs", "Teams building, publishing, or operating reusable Actors on Apify Cloud"],
   ],
@@ -116,7 +116,7 @@ export const apifyAlternativeCopy = {
   seo: {
     title: "Apify Alternative for AI Agents — one key for 1,000+ tools",
     description:
-      "Compare Flatkey as an Apify alternative for agent workflows: 1,000+ metered tools, 300+ AI models, one API key, one balance, and request-level billing.",
+      "Compare Flatkey as an Apify alternative for agent workflows: 1,000+ metered tools, 100+ AI models, one API key, one balance, and request-level billing.",
   },
 } as const;
 

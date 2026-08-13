@@ -6,6 +6,7 @@ import {
   GPT_IMAGE_2_CONFIG,
   MINIMAX_H3_CONFIG,
   QWEN_CONFIG,
+  SONILO_VIDEO_TO_MUSIC_CONFIG,
   getModelLandingConfig,
   getModelLandingConfigForModel,
   getModelLandingConfigForPricingModel,
@@ -38,9 +39,12 @@ describe("model landing configuration", () => {
   test("resolves configured landing pages by slug", () => {
     expect(getModelLandingConfig("gpt-api")?.displayName).toBe("GPT-5");
     expect(getModelLandingConfig("gpt-image-2")).toBe(GPT_IMAGE_2_CONFIG);
+    expect(getModelLandingConfig("gpt-4.1-mini")?.modelId).toBe("gpt-4.1-mini");
     expect(getModelLandingConfig("minimax-h3")).toBe(MINIMAX_H3_CONFIG);
+    expect(getModelLandingConfig("sonilo-video-to-music")).toBe(SONILO_VIDEO_TO_MUSIC_CONFIG);
     expect(getModelLandingConfigForModel("gpt-image-2")?.generator?.kind).toBe("image");
     expect(getModelLandingConfigForModel("MiniMax-H3")?.generator?.kind).toBe("video");
+    expect(getModelLandingConfigForModel("sonilo-video-to-music")?.generator?.kind).toBe("audio");
     expect(getModelLandingConfig("missing-model")).toBeNull();
   });
 
@@ -49,12 +53,14 @@ describe("model landing configuration", () => {
       "/models/claude-api",
       "/models/deepseek-api",
       "/models/gemini-api",
+      "/models/gpt-4.1-mini",
       "/models/gpt-image-2",
       "/models/glm-api",
       "/models/gpt-api",
       "/models/minimax-h3",
       "/models/qwen-api",
       "/models/seedance-api",
+      "/models/sonilo-video-to-music",
     ]);
   });
 
@@ -115,5 +121,24 @@ describe("model landing configuration", () => {
     expect(config?.generator?.kind).toBe("audio");
     expect(config?.generator?.endpoint).toBe("/v1/video-to-music");
     expect(config?.generator?.storageKey).toBe("flatkey:model-generator-draft:sonilo-video-to-music");
+  });
+
+  test("builds text landing configs for generic live pricing models", () => {
+    const kimi: PricingModel = {
+      model_name: "kimi-k2.5",
+      vendor_name: "Moonshot AI",
+      quota_type: 0,
+      model_ratio: 0.3,
+      completion_ratio: 4,
+      supported_endpoint_types: ["openai"],
+    };
+
+    const config = getModelLandingConfigForPricingModel(kimi);
+
+    expect(config.slug).toBe("kimi-k2.5");
+    expect(config.modelId).toBe("kimi-k2.5");
+    expect(config.officialName).toBe("Moonshot AI");
+    expect(config.generator).toBeUndefined();
+    expect(config.seo.title).toContain("kimi-k2.5");
   });
 });

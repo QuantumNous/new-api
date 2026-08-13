@@ -6,6 +6,7 @@ import {
   getPricingPageCopy,
   getPricingPlans,
   getPricingPageFaqs,
+  parsePricingSearch,
 } from "./pricing-page";
 
 describe("pricing page conversion copy", () => {
@@ -111,5 +112,15 @@ describe("pricing page conversion copy", () => {
 
   test("models directory uses the PLG public pricing group", () => {
     expect(MODELS_PAGE_PRICING_GROUP).toBe("plg");
+  });
+
+  test("parses crawlable model directory pricing filters", () => {
+    expect(parsePricingSearch({ vendor: "Qwen", pricing: "token", endpoint: "openai-chat", q: "coder" })).toEqual({
+      q: "coder",
+      vendor: "Qwen",
+      endpoint: "openai-chat",
+      pricing: "token",
+    });
+    expect(parsePricingSearch({ quota: "request" }).pricing).toBe("request");
   });
 });

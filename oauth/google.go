@@ -201,6 +201,10 @@ func parseGoogleUserInfo(body []byte) (*OAuthUser, error) {
 	}, nil
 }
 
+func GoogleUsernameFromEmail(email string) string {
+	return googleUsernameFromEmail(email)
+}
+
 // googleUsernameFromEmail builds a "google_<local-part>" username from the
 // Google email (e.g. jjcc1024byte@gmail.com -> google_jjcc1024byte), keeping
 // only safe characters (lowercase letters, digits, '.', '_', '-'). Returns ""

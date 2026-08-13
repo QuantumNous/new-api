@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
+import { useSiteConfig } from "@/components/site-config-provider";
 import { getCopy } from "@/lib/copy";
 import { type Locale, localizePath, withIdFallback } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
@@ -196,6 +197,7 @@ function FooterColumn(props: { links: FooterLink[]; locale: Locale; title: strin
 }
 
 export function SiteFooter(props: SiteFooterProps) {
+  const { docsUrl } = useSiteConfig();
   const siteCopy = getCopy(props.locale);
   const copy = siteCopy.footer;
   const labels = footerLabels[props.locale] ?? footerLabels.en;
@@ -212,7 +214,9 @@ export function SiteFooter(props: SiteFooterProps) {
   ];
   const developerLinks: FooterLink[] = [
     { href: "/cli", label: "CLI" },
-    { href: "/docs", label: siteCopy.nav.docs },
+    ...(docsUrl
+      ? [{ href: docsUrl, label: siteCopy.nav.docs, external: true }]
+      : []),
     { href: "/status", label: labels.status },
     { href: "/llms.txt", label: "llms.txt" },
     { href: "/blog", label: `${siteCopy.nav.blog} ↗` },
@@ -234,8 +238,8 @@ export function SiteFooter(props: SiteFooterProps) {
   ];
 
   return (
-    <footer className="relative overflow-hidden border-t border-[#0B0B0F14] bg-[#F7F6FB] text-[#0B0B0F]">
-      <div className="mx-auto grid max-w-[1240px] grid-cols-1 gap-8 px-5 pt-12 pb-2 sm:grid-cols-2 md:px-10 md:pt-14 lg:grid-cols-[2fr_repeat(4,1fr)] lg:gap-10">
+    <footer className="fk-site-footer relative overflow-hidden border-t border-[#0B0B0F14] bg-[#F7F6FB] text-[#0B0B0F]">
+      <div className="fk-site-frame grid grid-cols-1 gap-8 pt-12 pb-2 sm:grid-cols-2 md:pt-14 lg:grid-cols-[2fr_repeat(4,1fr)] lg:gap-10">
         <div className="sm:col-span-2 lg:col-span-1">
           <Link href={localizePath("/", props.locale)} className="inline-flex items-center">
             <FlatkeyBrandLogo className="[&_[data-flatkey-wordmark='true']]:text-[30px] [&_img]:h-11 [&_img]:w-11" />
@@ -250,7 +254,7 @@ export function SiteFooter(props: SiteFooterProps) {
         <FooterColumn title={labels.socials} links={socialLinks} locale={props.locale} />
       </div>
 
-      <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-3 px-5 pt-5 pb-2 md:px-10">
+      <div className="fk-site-frame flex flex-wrap items-center gap-3 pt-5 pb-2">
         <span className="font-mono text-[10.5px] tracking-[1.2px] text-[#83838E]">{labels.trusted}</span>
         <a className="rounded-full border border-[#0B0B0F14] bg-white px-3.5 py-1.5 text-[13px] font-semibold text-[#43434C] hover:border-[#5B21B6] hover:text-[#4C1D95]" href="https://www.cert-assure.com/serchresult.php?type=Management+System+Certification&certificate=USA-SOC2-220513" target="_blank" rel="noopener noreferrer nofollow">
           SOC 2 Type II
@@ -265,7 +269,7 @@ export function SiteFooter(props: SiteFooterProps) {
         <span className="rounded-full border border-[#0B0B0F14] bg-white px-3.5 py-1.5 text-[13px] font-semibold text-[#43434C]">{labels.zeroRetention}</span>
       </div>
 
-      <div className="flex flex-col gap-6 px-5 pt-2 md:px-12 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
+      <div className="fk-site-frame flex flex-col gap-6 pt-2 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
         <div className="max-w-[470px] pb-8 text-sm leading-7 text-[#43434C]">
           © {currentYear} flatkey.ai · VOC AI INC, San Jose, CA. {copy.defaultCopyright}{" "}
           <Link className="text-[#0B0B0F] underline underline-offset-4" href={localizePath("/terms", props.locale)}>

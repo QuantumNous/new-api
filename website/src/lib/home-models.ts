@@ -15,6 +15,8 @@ export type HomePricedModel = {
   vendor: string;
   official: string;
   discounted: string;
+  officialUsd: number;
+  discountedUsd: number;
   // Lobehub static-svg icon key rendered by ModelLogo; derived from the model
   // name because the pricing payload's icon fields are empty in production.
   iconKey: string;
@@ -112,6 +114,8 @@ export function buildRowsForModels(
         vendor,
         official: `${formatUsdPrice(official)}${suffix}`,
         discounted: `${formatUsdPrice(discountedPriceUsd(listed))}${suffix}`,
+        officialUsd: official,
+        discountedUsd: discountedPriceUsd(listed),
         iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
       };
     });
@@ -138,6 +142,8 @@ function toHomeRow(model: PricingModel, data: PricingData): HomePricedModel {
     vendor,
     official: formatUsdPrice(official),
     discounted: formatUsdPrice(discountedPriceUsd(listed)),
+    officialUsd: official,
+    discountedUsd: discountedPriceUsd(listed),
     iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
   };
 }

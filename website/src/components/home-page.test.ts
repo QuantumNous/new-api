@@ -3,6 +3,7 @@ import { getHomeCopy } from "@/lib/home-copy";
 import { buildHomeModelRows, pickFlagshipModels } from "@/lib/home-models";
 import { LOCALES } from "@/lib/locales";
 import type { PricingData } from "@/lib/pricing";
+import { resolveHomeModelLogo } from "./home-model-logo";
 
 describe("home copy", () => {
   test("every locale has a full copy set", () => {
@@ -30,6 +31,7 @@ describe("home model rows", () => {
     ],
     vendors: [],
     groupRatio: { Economy: 0.6, Standard: 0.8, "Claude Official": 0.9 },
+    groupModelRatio: {},
     usableGroup: {},
     supportedEndpoint: {},
     autoGroups: [],
@@ -60,5 +62,14 @@ describe("home model rows", () => {
     expect(names).not.toContain("sora-2");
     expect(names).not.toContain("free-model");
     expect(names).toContain("gpt-5.4-mini");
+  });
+
+  test("home model logo resolver keeps Kimi and DeepSeek local even with stale icon keys", () => {
+    expect(resolveHomeModelLogo({ modelName: "kimi3", vendor: "Moonshot", iconKey: "openai" }).src).toBe(
+      "/assets/logos/moonshotai.svg"
+    );
+    expect(resolveHomeModelLogo({ modelName: "deepseek-v4-flash", vendor: "DeepSeek", iconKey: "openai" }).src).toBe(
+      "/assets/logos/deepseek.svg"
+    );
   });
 });

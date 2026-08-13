@@ -17,10 +17,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ 计费 $0.83 · 失败调用 $0.00", success: "成功工具调用", runtime: "总运行时间", invoice: "一张账单"
     },
     universe: {
-      kicker: "300+ 模型 · 1,000+ 工具", title: "每个模型，每个工具。<br>一个 key。",
+      kicker: "100+ 模型 · 1,000+ 工具", title: "每个模型，每个工具。<br>一个 key。",
       copy: "通过一个 Flatkey 接口调用领先 AI 模型、社交平台、网页数据、爬虫、GTM 情报以及更多能力。",
       router: "统一模型 + 工具路由", live: "实时路由", models: "官方模型", tools: "AI 工具", balance: "共享余额",
-      moreModels: "<em>更多</em>模型", moreModelsCount: "300+ 官方模型", moreTools: "<em>更多</em>工具", moreToolsCount: "1,000+ 可用"
+      moreModels: "<em>更多</em>模型", moreModelsCount: "100+ 官方模型", moreTools: "<em>更多</em>工具", moreToolsCount: "1,000+ 可用"
     },
     value: {
       authEye: "统一认证", authTitle: "一个 Flatkey key", authCopy: "不再让供应商凭据散落在 Agent、代码仓库和不同环境中。",
@@ -46,10 +46,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ 課金 $0.83 · 失敗した呼び出し $0.00", success: "成功したツール", runtime: "合計実行時間", invoice: "請求は 1 つ"
     },
     universe: {
-      kicker: "300+ モデル · 1,000+ ツール", title: "すべてのモデル。すべてのツール。<br>1 つの key。",
+      kicker: "100+ モデル · 1,000+ ツール", title: "すべてのモデル。すべてのツール。<br>1 つの key。",
       copy: "主要 AI モデル、ソーシャル、Web データ、クローラー、GTM インテリジェンスなどを 1 つの Flatkey インターフェースで。",
       router: "モデル + ツール統合ルーター", live: "ルーティング中", models: "公式モデル", tools: "AI ツール", balance: "共通残高",
-      moreModels: "<em>その他</em>のモデル", moreModelsCount: "300+ 公式モデル", moreTools: "<em>その他</em>のツール", moreToolsCount: "1,000+ 利用可能"
+      moreModels: "<em>その他</em>のモデル", moreModelsCount: "100+ 公式モデル", moreTools: "<em>その他</em>のツール", moreToolsCount: "1,000+ 利用可能"
     },
     value: {
       authEye: "認証を 1 つに", authTitle: "1 つの Flatkey key", authCopy: "Agent、リポジトリ、環境ごとにプロバイダー認証情報を散在させません。",
@@ -75,10 +75,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ $0,83 facturados · llamadas fallidas $0,00", success: "Herramientas exitosas", runtime: "Tiempo total", invoice: "Una factura"
     },
     universe: {
-      kicker: "300+ MODELOS · 1.000+ HERRAMIENTAS", title: "Cada modelo. Cada herramienta.<br>Una key.",
+      kicker: "100+ MODELOS · 1.000+ HERRAMIENTAS", title: "Cada modelo. Cada herramienta.<br>Una key.",
       copy: "Usa una interfaz de Flatkey para los principales modelos de IA, redes sociales, datos web, crawlers, inteligencia GTM y más.",
       router: "Router unificado de modelos + herramientas", live: "ENRUTANDO EN VIVO", models: "modelos oficiales", tools: "herramientas de IA", balance: "saldo compartido",
-      moreModels: "<em>Más</em> modelos", moreModelsCount: "300+ modelos oficiales", moreTools: "<em>Más</em> herramientas", moreToolsCount: "1.000+ disponibles"
+      moreModels: "<em>Más</em> modelos", moreModelsCount: "100+ modelos oficiales", moreTools: "<em>Más</em> herramientas", moreToolsCount: "1.000+ disponibles"
     },
     value: {
       authEye: "UNA AUTENTICACIÓN", authTitle: "Una key de Flatkey", authCopy: "Sin credenciales de proveedores dispersas entre agentes, repositorios y entornos.",
@@ -104,10 +104,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ 0,83 $ facturé · appels échoués 0,00 $", success: "Outils réussis", runtime: "Durée totale", invoice: "Une facture"
     },
     universe: {
-      kicker: "300+ MODÈLES · 1 000+ OUTILS", title: "Chaque modèle. Chaque outil.<br>Une clé.",
+      kicker: "100+ MODÈLES · 1 000+ OUTILS", title: "Chaque modèle. Chaque outil.<br>Une clé.",
       copy: "Une interface Flatkey pour les meilleurs modèles IA, réseaux sociaux, données web, crawlers, intelligence GTM et plus encore.",
       router: "Routeur unifié modèles + outils", live: "ROUTAGE EN DIRECT", models: "modèles officiels", tools: "outils IA", balance: "solde partagé",
-      moreModels: "<em>Plus</em> de modèles", moreModelsCount: "300+ modèles officiels", moreTools: "<em>Plus</em> d’outils", moreToolsCount: "1 000+ disponibles"
+      moreModels: "<em>Plus</em> de modèles", moreModelsCount: "100+ modèles officiels", moreTools: "<em>Plus</em> d’outils", moreToolsCount: "1 000+ disponibles"
     },
     value: {
       authEye: "UNE AUTHENTIFICATION", authTitle: "Une clé Flatkey", authCopy: "Plus d’identifiants fournisseurs dispersés entre agents, dépôts et environnements.",
@@ -133,10 +133,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ US$ 0,83 cobrados · chamadas com falha US$ 0,00", success: "Ferramentas bem-sucedidas", runtime: "Tempo total", invoice: "Uma fatura"
     },
     universe: {
-      kicker: "300+ MODELOS · 1.000+ FERRAMENTAS", title: "Todo modelo. Toda ferramenta.<br>Uma key.",
+      kicker: "100+ MODELOS · 1.000+ FERRAMENTAS", title: "Todo modelo. Toda ferramenta.<br>Uma key.",
       copy: "Uma interface Flatkey para os principais modelos de IA, redes sociais, dados web, crawlers, inteligência GTM e muito mais.",
       router: "Roteador unificado de modelos + ferramentas", live: "ROTEAMENTO AO VIVO", models: "modelos oficiais", tools: "ferramentas de IA", balance: "saldo compartilhado",
-      moreModels: "<em>Mais</em> modelos", moreModelsCount: "300+ modelos oficiais", moreTools: "<em>Mais</em> ferramentas", moreToolsCount: "1.000+ disponíveis"
+      moreModels: "<em>Mais</em> modelos", moreModelsCount: "100+ modelos oficiais", moreTools: "<em>Mais</em> ferramentas", moreToolsCount: "1.000+ disponíveis"
     },
     value: {
       authEye: "UMA AUTENTICAÇÃO", authTitle: "Uma key Flatkey", authCopy: "Nada de credenciais de provedores espalhadas entre agentes, repositórios e ambientes.",
@@ -162,10 +162,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ Списано $0,83 · неуспешные вызовы $0,00", success: "Успешные инструменты", runtime: "Общее время", invoice: "Один счёт"
     },
     universe: {
-      kicker: "300+ МОДЕЛЕЙ · 1 000+ ИНСТРУМЕНТОВ", title: "Все модели. Все инструменты.<br>Один ключ.",
+      kicker: "100+ МОДЕЛЕЙ · 1 000+ ИНСТРУМЕНТОВ", title: "Все модели. Все инструменты.<br>Один ключ.",
       copy: "Единый интерфейс Flatkey для ведущих AI-моделей, соцсетей, веб-данных, краулеров, GTM-аналитики и многого другого.",
       router: "Единый роутер моделей + инструментов", live: "МАРШРУТИЗАЦИЯ LIVE", models: "официальных моделей", tools: "AI-инструментов", balance: "общий баланс",
-      moreModels: "<em>Больше</em> моделей", moreModelsCount: "300+ официальных моделей", moreTools: "<em>Больше</em> инструментов", moreToolsCount: "1 000+ доступно"
+      moreModels: "<em>Больше</em> моделей", moreModelsCount: "100+ официальных моделей", moreTools: "<em>Больше</em> инструментов", moreToolsCount: "1 000+ доступно"
     },
     value: {
       authEye: "ОДНА АВТОРИЗАЦИЯ", authTitle: "Один ключ Flatkey", authCopy: "Никаких ключей провайдеров, разбросанных по агентам, репозиториям и окружениям.",
@@ -191,10 +191,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ Đã tính $0,83 · cuộc gọi lỗi $0,00", success: "Công cụ thành công", runtime: "Tổng thời gian", invoice: "Một hóa đơn"
     },
     universe: {
-      kicker: "300+ MODEL · 1.000+ CÔNG CỤ", title: "Mọi model. Mọi công cụ.<br>Một key.",
+      kicker: "100+ MODEL · 1.000+ CÔNG CỤ", title: "Mọi model. Mọi công cụ.<br>Một key.",
       copy: "Dùng một giao diện Flatkey cho các model AI hàng đầu, mạng xã hội, dữ liệu web, crawler, dữ liệu GTM và hơn thế nữa.",
       router: "Router hợp nhất model + công cụ", live: "ĐỊNH TUYẾN TRỰC TIẾP", models: "model chính thức", tools: "công cụ AI", balance: "số dư chung",
-      moreModels: "<em>Thêm</em> model", moreModelsCount: "300+ model chính thức", moreTools: "<em>Thêm</em> công cụ", moreToolsCount: "1.000+ khả dụng"
+      moreModels: "<em>Thêm</em> model", moreModelsCount: "100+ model chính thức", moreTools: "<em>Thêm</em> công cụ", moreToolsCount: "1.000+ khả dụng"
     },
     value: {
       authEye: "MỘT XÁC THỰC", authTitle: "Một Flatkey key", authCopy: "Không còn credential nhà cung cấp rải rác trong agent, repo và môi trường.",
@@ -220,10 +220,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ 0,83 $ berechnet · fehlgeschlagene Calls 0,00 $", success: "Erfolgreiche Tools", runtime: "Gesamtlaufzeit", invoice: "Eine Rechnung"
     },
     universe: {
-      kicker: "300+ MODELLE · 1.000+ TOOLS", title: "Jedes Modell. Jedes Tool.<br>Ein Key.",
+      kicker: "100+ MODELLE · 1.000+ TOOLS", title: "Jedes Modell. Jedes Tool.<br>Ein Key.",
       copy: "Eine Flatkey-Schnittstelle für führende AI-Modelle, Social-Plattformen, Webdaten, Crawler, GTM Intelligence und mehr.",
       router: "Einheitlicher Modell- + Tool-Router", live: "ROUTING LIVE", models: "offizielle Modelle", tools: "AI-Tools", balance: "gemeinsames Guthaben",
-      moreModels: "<em>Mehr</em> Modelle", moreModelsCount: "300+ offizielle Modelle", moreTools: "<em>Mehr</em> Tools", moreToolsCount: "1.000+ verfügbar"
+      moreModels: "<em>Mehr</em> Modelle", moreModelsCount: "100+ offizielle Modelle", moreTools: "<em>Mehr</em> Tools", moreToolsCount: "1.000+ verfügbar"
     },
     value: {
       authEye: "EINE AUTH", authTitle: "Ein Flatkey Key", authCopy: "Keine Provider-Zugangsdaten verteilt über Agenten, Repositories und Umgebungen.",
@@ -249,10 +249,10 @@ window.FLATKEY_HOME_TOOLS_COPY = {
       line5: "✓ Ditagih $0,83 · panggilan gagal $0,00", success: "Tool berhasil", runtime: "Total waktu", invoice: "Satu tagihan"
     },
     universe: {
-      kicker: "300+ MODEL · 1.000+ TOOL", title: "Setiap model. Setiap tool.<br>Satu key.",
+      kicker: "100+ MODEL · 1.000+ TOOL", title: "Setiap model. Setiap tool.<br>Satu key.",
       copy: "Gunakan satu antarmuka Flatkey untuk model AI terdepan, platform sosial, data web, crawler, intelijen GTM, dan lainnya.",
       router: "Router terpadu model + tool", live: "ROUTING LIVE", models: "model resmi", tools: "tool AI", balance: "saldo bersama",
-      moreModels: "<em>Model</em> lainnya", moreModelsCount: "300+ model resmi", moreTools: "<em>Tool</em> lainnya", moreToolsCount: "1.000+ tersedia"
+      moreModels: "<em>Model</em> lainnya", moreModelsCount: "100+ model resmi", moreTools: "<em>Tool</em> lainnya", moreToolsCount: "1.000+ tersedia"
     },
     value: {
       authEye: "SATU AUTENTIKASI", authTitle: "Satu Flatkey key", authCopy: "Tidak ada credential provider yang tersebar di agent, repo, dan environment.",

@@ -41,6 +41,7 @@ import {
   WEBSITE_PUBLIC_PRICING_GROUP,
   type PricingModel,
 } from "@/lib/pricing";
+import { formatHealthSuccessRate, getJitteredSuccessRate } from "@/lib/health-display";
 import { localizePath, type Locale } from "@/lib/locales";
 import { getModelLandingConfigForPricingModel } from "@/lib/model-landing";
 import { ROUTER_ORIGIN } from "@/lib/origins";
@@ -551,11 +552,14 @@ function ModelHeader(props: { model: PricingModel }) {
 
 function OverviewSummaryGrid(props: { model: PricingModel; performance?: PerformanceSummary }) {
   const successFallback = props.model.availability_status ? props.model.availability_status.replace(/_/g, " ") : "--";
+  const displaySuccessRate = props.performance
+    ? getJitteredSuccessRate(props.performance.success_rate, props.model.model_name) ?? props.performance.success_rate
+    : undefined;
   return (
     <div className="grid overflow-hidden rounded-lg border bg-muted/20 sm:grid-cols-3 sm:divide-x">
       <OverviewMetric icon={Timer} label="TPS" value={props.performance ? formatThroughput(props.performance.avg_tps) : "--"} />
       <OverviewMetric icon={Timer} label="Average latency" value={props.performance ? formatLatency(props.performance.avg_latency_ms) : "--"} />
-      <OverviewMetric icon={HeartPulse} label="Success rate" value={props.performance ? formatUptimePct(props.performance.success_rate) : successFallback} />
+      <OverviewMetric icon={HeartPulse} label="Success rate" value={displaySuccessRate != null ? formatUptimePct(displaySuccessRate) : successFallback} />
     </div>
   );
 }
@@ -1038,7 +1042,7 @@ function ApiPanel(props: { model: PricingModel; endpointMap: Record<string, unkn
 }
 
 function HealthBadge(props: { summary: PerformanceSummary }) {
-  const successRate = props.summary.success_rate;
+  const successRate = getJitteredSuccessRate(props.summary.success_rate, props.summary.model_name) ?? props.summary.success_rate;
   const Icon = successRate >= 99.9 ? CheckCircle2 : successRate >= 99 ? Activity : AlertTriangle;
   return (
     <span
@@ -1553,7 +1557,7 @@ function formatLatency(ms: number): string {
 
 function formatUptimePct(pct: number): string {
   if (!Number.isFinite(pct)) return "—";
-  return `${pct.toFixed(2)}%`;
+  return formatHealthSuccessRate(pct);
 }
 
 export function buildCodeSampleForTest(lang: ApiLang, model: PricingModel, endpointType: string, endpointPath: string): string {

@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -12,10 +13,14 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/api/idtoken"
 	"gorm.io/gorm"
 )
+
+var googleOneTapValidateIDToken = idtoken.Validate
 
 // providerParams returns map with Provider key for i18n templates
 func providerParams(name string) map[string]any {
@@ -179,6 +184,192 @@ func HandleOAuth(c *gin.Context) {
 	// 9. Setup login. Pass isNewUser so the frontend can trigger first-login onboarding for
 	// OAuth registrations (mirrors password registration's route-level Playground first-run contract).
 	setupLogin(user, c, isNewUser)
+}
+
+// HandleGoogleOneTap accepts Google Identity Services One Tap credentials from
+// the public website, validates the ID token, and creates the same console
+// session used by the normal OAuth authorization-code flow.
+func HandleGoogleOneTap(c *gin.Context) {
+	provider := oauth.GetProvider("google")
+	if provider == nil {
+		respondGoogleOneTapFailure(c, http.StatusBadRequest, i18n.T(c, i18n.MsgOAuthUnknownProvider))
+		return
+	}
+	if !provider.IsEnabled() {
+		respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName())))
+		return
+	}
+
+	csrfCookie, cookieErr := c.Cookie("g_csrf_token")
+	csrfBody := strings.TrimSpace(c.PostForm("g_csrf_token"))
+	if cookieErr != nil || csrfCookie == "" || csrfBody == "" || csrfCookie != csrfBody {
+		respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthStateInvalid))
+		return
+	}
+
+	credential := strings.TrimSpace(c.PostForm("credential"))
+	if credential == "" {
+		respondGoogleOneTapFailure(c, http.StatusBadRequest, i18n.T(c, i18n.MsgOAuthInvalidCode))
+		return
+	}
+
+	settings := system_setting.GetGoogleSettings()
+	if strings.TrimSpace(settings.ClientId) == "" {
+		respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName())))
+		return
+	}
+
+	payload, err := googleOneTapValidateIDToken(c.Request.Context(), credential, settings.ClientId)
+	if err != nil {
+		respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthTokenFailed, providerParams(provider.GetName())))
+		return
+	}
+	oauthUser, err := googleOneTapOAuthUser(payload)
+	if err != nil {
+		respondGoogleOneTapOAuthError(c, err)
+		return
+	}
+
+	session := sessions.Default(c)
+	if session.Get("username") != nil {
+		respondGoogleOneTapSuccess(c, gin.H{"already_logged_in": true})
+		return
+	}
+
+	user, isNewUser, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
+	if err != nil {
+		if _, ok := registrationEmailErrorKey(err); ok {
+			respondGoogleOneTapFailure(c, http.StatusForbidden, err.Error())
+			return
+		}
+		switch err.(type) {
+		case *OAuthUserDeletedError:
+			respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthUserDeleted))
+		case *OAuthRegistrationDisabledError:
+			respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgUserRegisterDisabled))
+		default:
+			respondGoogleOneTapFailure(c, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthUserBanned))
+		return
+	}
+
+	session.Delete("oauth_state")
+	session.Delete("ads_attribution")
+	session.Delete("aff")
+	session.Delete("ga_client_id")
+	session.Delete("ga_session_id")
+
+	data, err := setupLoginSession(user, c, isNewUser)
+	if err != nil {
+		respondGoogleOneTapFailure(c, http.StatusInternalServerError, i18n.T(c, i18n.MsgUserSessionSaveFailed))
+		return
+	}
+	respondGoogleOneTapSuccess(c, data)
+}
+
+func googleOneTapOAuthUser(payload *idtoken.Payload) (*oauth.OAuthUser, error) {
+	if payload == nil {
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "Google"})
+	}
+	sub := strings.TrimSpace(payload.Subject)
+	if sub == "" {
+		sub = googleOneTapStringClaim(payload, "sub")
+	}
+	email := googleOneTapStringClaim(payload, "email")
+	if sub == "" || email == "" {
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "Google"})
+	}
+	if !googleOneTapBoolClaim(payload, "email_verified") {
+		return nil, oauth.NewOAuthError(i18n.MsgOAuthEmailNotVerified, map[string]any{"Provider": "Google"})
+	}
+	return &oauth.OAuthUser{
+		ProviderUserID: sub,
+		Username:       oauth.GoogleUsernameFromEmail(email),
+		DisplayName:    googleOneTapStringClaim(payload, "name"),
+		Email:          email,
+	}, nil
+}
+
+func googleOneTapStringClaim(payload *idtoken.Payload, key string) string {
+	if payload == nil || payload.Claims == nil {
+		return ""
+	}
+	value, _ := payload.Claims[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func googleOneTapBoolClaim(payload *idtoken.Payload, key string) bool {
+	if payload == nil || payload.Claims == nil {
+		return false
+	}
+	switch value := payload.Claims[key].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
+}
+
+func respondGoogleOneTapOAuthError(c *gin.Context, err error) {
+	if oauthErr, ok := err.(*oauth.OAuthError); ok {
+		respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, oauthErr.MsgKey, oauthErr.Params))
+		return
+	}
+	respondGoogleOneTapFailure(c, http.StatusInternalServerError, err.Error())
+}
+
+func respondGoogleOneTapSuccess(c *gin.Context, data any) {
+	if googleOneTapWantsJSON(c) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "",
+			"success": true,
+			"data":    data,
+		})
+		return
+	}
+	c.Redirect(http.StatusSeeOther, googleOneTapReturnPath(c))
+}
+
+func respondGoogleOneTapFailure(c *gin.Context, status int, message string) {
+	if googleOneTapWantsJSON(c) {
+		c.JSON(status, gin.H{
+			"success": false,
+			"message": message,
+		})
+		return
+	}
+	c.Redirect(http.StatusSeeOther, googleOneTapFallbackPath(c))
+}
+
+func googleOneTapWantsJSON(c *gin.Context) bool {
+	accept := c.GetHeader("Accept")
+	return strings.Contains(accept, "application/json") || c.GetHeader("X-Requested-With") == "XMLHttpRequest"
+}
+
+func googleOneTapReturnPath(c *gin.Context) string {
+	path := strings.TrimSpace(c.Query("return_to"))
+	if path == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") || strings.ContainsAny(path, "\r\n") {
+		return "/"
+	}
+	return path
+}
+
+func googleOneTapFallbackPath(c *gin.Context) string {
+	values := url.Values{}
+	if lng := strings.TrimSpace(c.Query("lng")); lng != "" {
+		values.Set("lng", lng)
+	}
+	values.Set("provider", "google")
+	return "/sign-in?" + values.Encode()
 }
 
 // handleOAuthBind handles binding OAuth account to existing user
