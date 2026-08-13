@@ -23,7 +23,7 @@ const tabs = [
 
 <template>
   <nav
-    class="flex w-fit items-center gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-1"
+    class="flex w-fit items-center gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-1 lg:ml-auto"
     :aria-label="t('relayLogs.tabsLabel')"
   >
     <RouterLink
