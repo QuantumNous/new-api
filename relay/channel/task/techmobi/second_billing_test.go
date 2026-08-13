@@ -233,8 +233,11 @@ func TestTechMobiEstimateBillingPricesVideoInputSeparately(t *testing.T) {
 
 // frames sets the length in frames at a per-model fps the gateway does not
 // know, and duration -1 explicitly hands the length to the model. Neither is
-// knowable at submit time, so capture must be skipped and the request left on
-// the legacy path rather than priced off a fabricated length.
+// knowable at submit time, so for a model absent from the price table capture
+// must be skipped and the request left on the legacy path rather than priced
+// off a fabricated length. (A CONFIGURED model has no legacy path left to fall
+// back to, so the same shapes are refused instead — see
+// TestTechMobiEstimateBillingConfiguredButUnpriceableErrors.)
 func TestTechMobiEstimateBillingSkipsCaptureWhenLengthIsUndeterminable(t *testing.T) {
 	installTechMobiVideoPriceRules(t, `[
 		{"model":"doubao/doubao-seedance-2-0-260128","match":{"resolution":"1080p","has_video":"false"},"price_per_second":0.5,"basis":"output_duration"}
@@ -250,12 +253,12 @@ func TestTechMobiEstimateBillingSkipsCaptureWhenLengthIsUndeterminable(t *testin
 				"content":[{"type":"text","text":"a cat walking"}],
 				"resolution":"1080p",
 				`+tc.field+`
-			}`, "doubao/doubao-seedance-2-0-260128", 0.14)
+			}`, "techmobi-unconfigured", 0.14)
 
 			a.EstimateBilling(c, info)
 			got, err := a.SecondBillingRatios()
 			if err != nil {
-				t.Fatalf("an undeterminable length must not fail pricing: %v", err)
+				t.Fatalf("an undeterminable length must not fail an unconfigured model: %v", err)
 			}
 			if len(got) != 0 {
 				t.Fatalf("priced off a fabricated length: %v", got)
@@ -341,5 +344,70 @@ func TestTechMobiEstimateBillingConfiguredModelWithNoMatchingRuleFails(t *testin
 	a.EstimateBilling(c, info)
 	if _, err := a.SecondBillingRatios(); err == nil {
 		t.Fatal("a configured model with no matching rule must fail loudly")
+	}
+}
+
+// A configured model returns nil from EstimateBilling, so its legacy
+// video_generation ratio never applies -- per-second is the whole price. When
+// the request cannot be priced, returning no ratios therefore bills the bare
+// ModelPrice with no seconds multiplier, charging a 30-second render as a
+// single unit. It has to fail instead, so relay_task rejects before submitting
+// upstream and the request costs nothing.
+func TestTechMobiEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installTechMobiVideoPriceRules(t, `[
+		{"model":"public-video","match":{"resolution":"1080p"},"price_per_second":0.5,"basis":"output_duration"}
+	]`)
+
+	for _, tc := range []struct{ name, body string }{
+		{"frames", `{"model":"doubao/doubao-seedance-2-0-260128","content":[{"type":"text","text":"a cat"}],"resolution":"1080p","frames":240}`},
+		{"model-chosen duration", `{"model":"doubao/doubao-seedance-2-0-260128","content":[{"type":"text","text":"a cat"}],"resolution":"1080p","duration":-1}`},
+		{"unclassifiable resolution", `{"model":"doubao/doubao-seedance-2-0-260128","content":[{"type":"text","text":"a cat"}],"resolution":"banana","duration":5}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newTechMobiBillingRequest(t, tc.body, "public-video", 0.14)
+			if ratios := a.EstimateBilling(c, info); len(ratios) != 0 {
+				t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+			}
+			if _, err := a.SecondBillingRatios(); err == nil {
+				t.Fatal("a configured but unpriceable request must return an error")
+			}
+		})
+	}
+}
+
+// The mirror image: an UNCONFIGURED model must still reach its legacy path.
+// GetVideoGenerationRatio ignores the length entirely and falls an unrecognised
+// resolution back to the base tier, so it really does still price every shape
+// the per-second path refuses -- returning nil would silently drop these
+// requests to per-call billing.
+func TestTechMobiEstimateBillingUnconfiguredModelKeepsLegacyRatioWhenUnpriceable(t *testing.T) {
+	installTechMobiVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"1080p"},"price_per_second":0.5,"basis":"output_duration"}
+	]`)
+
+	video := `{"type":"video_url","video_url":{"url":"https://cdn.example.com/input.mp4"}}`
+	for _, tc := range []struct{ name, body, resolution string }{
+		{"frames", `{"model":"doubao/doubao-seedance-2-0-260128","content":[{"type":"text","text":"a cat"},` + video + `],"resolution":"1080p","frames":240}`, "1080p"},
+		{"model-chosen duration", `{"model":"doubao/doubao-seedance-2-0-260128","content":[{"type":"text","text":"a cat"},` + video + `],"resolution":"1080p","duration":-1}`, "1080p"},
+		{"unclassifiable resolution", `{"model":"doubao/doubao-seedance-2-0-260128","content":[{"type":"text","text":"a cat"},` + video + `],"resolution":"banana","duration":5}`, "banana"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, c, info := newTechMobiBillingRequest(t, tc.body, "techmobi-unconfigured", 0.14)
+			ratios := a.EstimateBilling(c, info)
+			want, ok := GetVideoGenerationRatio("doubao/doubao-seedance-2-0-260128", tc.resolution, true)
+			if !ok || want == 1.0 {
+				t.Fatal("test premise: the legacy table must price this shape at a non-unit ratio")
+			}
+			if ratios["video_generation"] != want {
+				t.Fatalf("unconfigured model lost its legacy video_generation ratio: %v, want %v", ratios, want)
+			}
+			got, err := a.SecondBillingRatios()
+			if err != nil {
+				t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+			}
+			if len(got) != 0 {
+				t.Fatalf("unconfigured model produced per-second units: %v", got)
+			}
+		})
 	}
 }

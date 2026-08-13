@@ -39,6 +39,14 @@ type TaskAdaptor struct {
 	secondBillingSeconds    float64
 	secondBillingModelPrice float64
 	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
 }
 
 // The relay's secondBillingAdaptor interface is unexported, so assert against a
@@ -50,6 +58,9 @@ var _ interface {
 
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
 	if a.secondBillingModel == "" {
 		return nil, nil
 	}
@@ -199,22 +210,32 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	// denominator in ComputeSecondBilling. The legacy videoGenerationPriceTable
 	// keys on the upstream name instead because it ships real upstream model
 	// ids; the two keys are deliberately different and must not be "unified".
-	//
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
 	// Capture only when the length is actually knowable: frames and a
 	// model-chosen duration are not, and a fabricated length would misprice the
-	// request silently, whereas skipping capture leaves it on the legacy path.
-	if seconds, ok := taskcommon.SeedanceBillableSeconds(req); ok {
-		if dims, ok := resolveDimensions(resolution, hasVideo); ok {
-			a.secondBillingModel = info.OriginModelName
-			a.secondBillingDims = dims
-			a.secondBillingSeconds = seconds
-			a.secondBillingModelPrice = info.PriceData.ModelPrice
-			a.secondBillingRules = rules
-		}
+	// request silently. For an UNCONFIGURED model that leaves it on the legacy
+	// path. For a configured one there is no legacy path to fall back to — the
+	// early return below skips it — so the request must be refused instead.
+	seconds, secondsOK := taskcommon.SeedanceBillableSeconds(req)
+	dims, dimsOK := resolveDimensions(resolution, hasVideo)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName, taskcommon.SeedanceUnknowableLengthReason(req))
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", resolution)
+	case secondsOK && dimsOK:
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = seconds
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
 	}
 	// A model in the price table is priced by SecondBillingRatios; returning
 	// nil here keeps the legacy hardcoded ratios from also applying.
-	if billing_setting.IsVideoModelConfigured(rules, info.OriginModelName) {
+	if configured {
 		return nil
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -322,5 +323,104 @@ func TestSecondBillingRatios_ConfiguredButUnmatchedErrors(t *testing.T) {
 
 	if _, err := a.SecondBillingRatios(); err == nil {
 		t.Fatal("a configured model with no matching rule must fail loudly")
+	}
+}
+
+// installModelAPIVideoPriceRules loads a rule set into the live config and
+// restores the previous configuration afterwards. It exercises the real
+// GetVideoPriceRules path rather than hand-setting adapter fields, so a test
+// using it proves EstimateBilling actually consults the configured table.
+func installModelAPIVideoPriceRules(t *testing.T, rulesJSON string) {
+	t.Helper()
+	saved := map[string]string{}
+	if err := config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}); err != nil {
+		t.Fatalf("snapshot config: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := config.GlobalConfig.LoadFromDB(saved); err != nil {
+			t.Fatalf("restore config: %v", err)
+		}
+	})
+	if err := config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting_video.video_price_rules": rulesJSON,
+	}); err != nil {
+		t.Fatalf("install video price rules: %v", err)
+	}
+	if len(billing_setting.GetVideoPriceRules()) == 0 {
+		t.Fatal("video price rules did not load; the config module name or key is wrong")
+	}
+}
+
+// A configured model returns nil from EstimateBilling, so its legacy USD
+// estimate never applies -- per-second is the whole price. When the request
+// cannot be priced, returning no ratios therefore bills the bare ModelPrice
+// with no seconds multiplier, charging a 30-second render as a single unit. It
+// has to fail instead, so relay_task rejects before submitting upstream and the
+// request costs nothing.
+//
+// The length is never in doubt on this channel: an omitted duration defaults to
+// 5 and this upstream has no `frames` field, so an unclassifiable resolution is
+// the only way a request goes unpriced. validateModelAPISeedanceRequest narrows
+// resolution to 480p/720p, but it runs in BuildRequestBody -- after preflight
+// pricing -- so EstimateBilling really does see arbitrary caller text.
+func TestModelAPIEstimateBillingConfiguredButUnpriceableErrors(t *testing.T) {
+	installModelAPIVideoPriceRules(t, `[
+		{"model":"client-seedance","match":{"resolution":"720p"},"price_per_second":0.314,"basis":"output_duration"}
+	]`)
+
+	c, _ := newModelAPITestContext(
+		`{"model":"client","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"}]}`)
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(c, modelAPIBillingInfo(modelAPIBaseModelPrice)); len(ratios) != 0 {
+		t.Fatalf("configured model must not use legacy ratios: %v", ratios)
+	}
+	if _, err := a.SecondBillingRatios(); err == nil {
+		t.Fatal("a configured but unpriceable request must return an error")
+	}
+}
+
+// The mirror image: an UNCONFIGURED model keeps today's behaviour exactly.
+// modelAPIEstimatedUSD prices only 480p and 720p, so an unclassifiable
+// resolution already yielded no ratios here -- the point is that it must not
+// start erroring either, since a request the gateway never priced per second
+// has nothing to reject.
+func TestModelAPIEstimateBillingUnconfiguredModelStaysOnLegacyPathWhenUnpriceable(t *testing.T) {
+	installModelAPIVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.314,"basis":"output_duration"}
+	]`)
+
+	c, _ := newModelAPITestContext(
+		`{"model":"client","resolution":"banana","duration":5,"content":[{"type":"text","text":"hi"}]}`)
+	a := &TaskAdaptor{}
+	if ratios := a.EstimateBilling(c, modelAPIBillingInfo(modelAPIBaseModelPrice)); len(ratios) != 0 {
+		t.Fatalf("legacy path prices only 480p/720p; got %v", ratios)
+	}
+	got, err := a.SecondBillingRatios()
+	if err != nil {
+		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("unconfigured model produced per-second units: %v", got)
+	}
+}
+
+// A tier the shared vocabulary classifies but this channel's legacy table does
+// not price (1080p) must still reach the legacy path for an unconfigured model
+// and still return nothing -- capture succeeds, so no error is recorded.
+func TestModelAPIEstimateBillingUnconfiguredModelKeepsLegacyPricingForKnownTiers(t *testing.T) {
+	installModelAPIVideoPriceRules(t, `[
+		{"model":"some-other-model","match":{"resolution":"720p"},"price_per_second":0.314,"basis":"output_duration"}
+	]`)
+
+	c, _ := newModelAPITestContext(
+		`{"model":"client","resolution":"480p","duration":4,"content":[{"type":"text","text":"hi"}]}`)
+	a := &TaskAdaptor{}
+	got := a.EstimateBilling(c, modelAPIBillingInfo(modelAPIBaseModelPrice))
+	assertModelAPIBillableUnits(t, got, 0.140*4/modelAPIBaseModelPrice)
+	if _, err := a.SecondBillingRatios(); err != nil {
+		t.Fatalf("an unconfigured model must never fail pricing: %v", err)
 	}
 }
