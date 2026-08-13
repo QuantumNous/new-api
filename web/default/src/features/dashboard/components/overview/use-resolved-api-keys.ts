@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/auth-store'
 import { fetchTokenKey } from '@/features/keys/api'
 import { ERROR_MESSAGES } from '@/features/keys/constants'
 
@@ -35,22 +36,37 @@ export function useResolvedApiKeys(
   enabled: boolean
 ): Record<number, string> {
   const { t } = useTranslation()
+  const userId = useAuthStore((state) => state.auth.user?.id)
   const [resolvedKeys, setResolvedKeys] = useState<Record<number, string>>({})
 
+  // A different account must never see key material resolved for the
+  // previous one, even if a token id happens to repeat across accounts.
+  useEffect(() => {
+    setResolvedKeys({})
+  }, [userId])
+
+  const keyId =
+    typeof selectedKeyId === 'number' && Number.isFinite(selectedKeyId)
+      ? selectedKeyId
+      : null
+
   const keyQuery = useQuery({
-    queryKey: ['dashboard', 'overview', 'token-key', selectedKeyId],
+    // Scoped to the signed-in user so an account switch in the same session
+    // can never surface the previous user's plaintext key from the cache.
+    queryKey: ['dashboard', 'overview', 'token-key', userId, keyId],
     queryFn: async () => {
-      const id = selectedKeyId as number
-      const result = await fetchTokenKey(id)
+      if (keyId === null) throw new Error('No API key selected')
+      const result = await fetchTokenKey(keyId)
       if (!result.success || !result.data?.key) {
         throw new Error(result.message || 'Failed to resolve the API key')
       }
-      return { id, key: `sk-${result.data.key}` }
+      return { id: keyId, key: `sk-${result.data.key}` }
     },
-    enabled: enabled && selectedKeyId !== null,
-    // A token's secret never changes, so a resolved value is kept for the
-    // whole session instead of being refetched on focus.
-    staleTime: Infinity,
+    enabled: enabled && keyId !== null && userId !== undefined,
+    // Plaintext key material must not linger in the shared query cache:
+    // consider it stale after a minute and drop unused entries after five.
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   })
 
   const resolved = keyQuery.data
