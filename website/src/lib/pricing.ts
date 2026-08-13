@@ -38,6 +38,7 @@ export type PricingModel = {
   billing_mode?: string;
   billing_expr?: string;
   pricing_version?: string;
+  featured_order?: number;
   availability_status?: string;
   availability_reason?: string;
   availability_detected_at?: number;
@@ -198,6 +199,14 @@ export function filterPricingModels(models: PricingModel[], search: PricingSearc
 
 export function sortPricingModelsBySeries(models: PricingModel[]): PricingModel[] {
   return [...models].sort((a, b) => {
+    const aFeaturedOrder = Number.isFinite(a.featured_order)
+      ? (a.featured_order as number)
+      : Number.POSITIVE_INFINITY;
+    const bFeaturedOrder = Number.isFinite(b.featured_order)
+      ? (b.featured_order as number)
+      : Number.POSITIVE_INFINITY;
+    if (aFeaturedOrder !== bFeaturedOrder) return aFeaturedOrder - bFeaturedOrder;
+
     const vendorCompare = getVendorSortKey(a).localeCompare(getVendorSortKey(b), "en", { numeric: true });
     if (vendorCompare !== 0) return vendorCompare;
 

@@ -12,7 +12,8 @@ import (
 )
 
 var buildWebsitePricingV2Payload = func(group string, generatedAt time.Time) (service.WebsitePricingV2, error) {
-	return service.BuildWebsitePricingV2(model.GetPricing(), group, generatedAt)
+	pricing := applyWebsiteFeaturedOrder(model.GetPricing(), getWebsiteFeaturedModelNames())
+	return service.BuildWebsitePricingV2(pricing, group, generatedAt)
 }
 
 func GetWebsitePricingV2(c *gin.Context) {

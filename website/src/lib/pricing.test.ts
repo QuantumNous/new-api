@@ -71,6 +71,20 @@ describe("sortPricingModelsBySeries", () => {
       "Z.ai:glm-5",
     ]);
   });
+
+  test("keeps multiple configured featured models ahead in their configured order", () => {
+    const sorted = sortPricingModelsBySeries([
+      { ...baseModel, vendor_name: "OpenAI", model_name: "gpt-4o-mini" },
+      { ...baseModel, vendor_name: "Anthropic", model_name: "claude-sonnet-4", featured_order: 1 },
+      { ...baseModel, vendor_name: "OpenAI", model_name: "gpt-5", featured_order: 0 },
+    ]);
+
+    expect(sorted.map((model) => model.model_name)).toEqual([
+      "gpt-5",
+      "claude-sonnet-4",
+      "gpt-4o-mini",
+    ]);
+  });
 });
 
 describe("group model ratio", () => {

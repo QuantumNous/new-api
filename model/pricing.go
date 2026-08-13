@@ -36,6 +36,7 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+	WebsiteFeaturedOrder   *int                    `json:"featured_order,omitempty"`
 	AvailabilityStatus     string                  `json:"availability_status,omitempty"`
 	AvailabilityReason     string                  `json:"availability_reason,omitempty"`
 	AvailabilityDetectedAt int64                   `json:"availability_detected_at,omitempty"`

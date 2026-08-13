@@ -33,9 +33,10 @@ type WebsiteDisplayPrices struct {
 }
 
 type WebsitePricingModel struct {
-	ModelName   string               `json:"model_name"`
-	BillingKind string               `json:"billing_kind"`
-	Prices      WebsiteDisplayPrices `json:"prices"`
+	ModelName     string               `json:"model_name"`
+	BillingKind   string               `json:"billing_kind"`
+	Prices        WebsiteDisplayPrices `json:"prices"`
+	FeaturedOrder *int                 `json:"featured_order,omitempty"`
 }
 
 type WebsitePricingV2 struct {
@@ -106,7 +107,8 @@ func buildWebsitePricingV2(
 		}
 
 		row := WebsitePricingModel{
-			ModelName: item.ModelName,
+			ModelName:     item.ModelName,
+			FeaturedOrder: item.WebsiteFeaturedOrder,
 		}
 
 		switch source.BillingMode(item.ModelName) {
@@ -169,7 +171,14 @@ func buildWebsitePricingV2(
 		models = append(models, row)
 	}
 
-	sort.Slice(models, func(i, j int) bool { return models[i].ModelName < models[j].ModelName })
+	sort.SliceStable(models, func(i, j int) bool {
+		leftOrder := featuredOrderOrMax(models[i].FeaturedOrder)
+		rightOrder := featuredOrderOrMax(models[j].FeaturedOrder)
+		if leftOrder != rightOrder {
+			return leftOrder < rightOrder
+		}
+		return models[i].ModelName < models[j].ModelName
+	})
 	return WebsitePricingV2{
 		Success:       true,
 		SchemaVersion: "website-public-plg-v2",
@@ -177,6 +186,13 @@ func buildWebsitePricingV2(
 		GeneratedAt:   generatedAt.Unix(),
 		Models:        models,
 	}, nil
+}
+
+func featuredOrderOrMax(order *int) int {
+	if order == nil {
+		return int(^uint(0) >> 1)
+	}
+	return *order
 }
 
 func websitePricePair(configured, groupRatio float64) (*WebsitePricePair, error) {
