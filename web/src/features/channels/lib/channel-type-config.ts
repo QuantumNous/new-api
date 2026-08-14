@@ -164,6 +164,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'OpenAI',
+    defaultBaseUrl: 'https://api.orcarouter.ai',
+    hints: {
+      baseUrl: 'Default: https://api.orcarouter.ai',
+      key: 'OrcaRouter API Key (sk-orca-...)',
+      models: 'Use model IDs from OrcaRouter',
+    },
+  },
 }
 
 /**

@@ -3166,6 +3166,7 @@
     "OpenAI, Anthropic, Google, etc.": "OpenAI、Anthropic、Google 等",
     "OpenAIMax": "OpenAIMax",
     "OpenRouter": "OpenRouter",
+    "OrcaRouter": "OrcaRouter",
     "opens in an external client. Trigger it from the sidebar or API key actions to launch the configured application.": "在外部客户端中打开。从侧边栏或 API 密钥操作中触发，以启动配置的应用。",
     "Operate channels": "运维渠道",
     "Operation": "操作",
