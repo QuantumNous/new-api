@@ -171,7 +171,7 @@ onBeforeUnmount(() => {
         <div
           ref="panel"
           tabindex="-1"
-          class="pencil-surface-strong relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden border border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper animate-scale-in focus:outline-none"
+          class="pencil-surface-strong relative flex max-h-[calc(100dvh-2rem)] w-full flex-col border border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper animate-scale-in focus:outline-none"
           data-handdrawn="modal"
           style="
             border-radius: var(--shape-overlay);
