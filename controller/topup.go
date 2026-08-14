@@ -187,6 +187,54 @@ func getMinTopup() int64 {
 	return int64(minTopup)
 }
 
+func getTopUpQuota(amount int64) (int, error) {
+	quota := decimal.NewFromInt(amount)
+	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
+		quota = quota.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	}
+	return common.QuotaFromDecimalStrict(quota)
+}
+
+func getMaxTopUpAmount() int64 {
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		return int64(common.MaxQuota - 1)
+	}
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	return decimal.NewFromInt(common.MaxQuota - 1).
+		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Floor().IntPart()
+}
+
+func validateCreditedQuota(quota decimal.Decimal) error {
+	value, err := common.QuotaFromDecimalStrict(quota)
+	if err != nil || value <= 0 {
+		return errors.New("充值额度超出系统可表示范围")
+	}
+	return nil
+}
+
+func validateTopUpQuota(amount int64) error {
+	quota, err := getTopUpQuota(amount)
+	if err == nil && quota > 0 {
+		return nil
+	}
+	maxAmount := getMaxTopUpAmount()
+	if maxAmount > 0 && amount > maxAmount {
+		return fmt.Errorf("单笔充值数量不能大于 %d", maxAmount)
+	}
+	return errors.New("充值数量无效")
+}
+
+func rejectInvalidTopUpQuota(c *gin.Context, amount int64) bool {
+	if err := validateTopUpQuota(amount); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return true
+	}
+	return false
+}
+
 func RequestEpay(c *gin.Context) {
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
@@ -196,6 +244,9 @@ func RequestEpay(c *gin.Context) {
 	}
 	if req.Amount < getMinTopup() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+		return
+	}
+	if rejectInvalidTopUpQuota(c, req.Amount) {
 		return
 	}
 
@@ -410,6 +461,9 @@ func RequestAmount(c *gin.Context) {
 
 	if req.Amount < getMinTopup() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+		return
+	}
+	if rejectInvalidTopUpQuota(c, req.Amount) {
 		return
 	}
 	id := c.GetInt("id")

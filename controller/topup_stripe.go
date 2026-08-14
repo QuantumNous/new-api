@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/checkout/session"
 	"github.com/stripe/stripe-go/v81/webhook"
@@ -51,6 +52,10 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 	group, err := model.GetUserGroup(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
+		return
+	}
+	if err := validateCreditedQuota(getStripeCreditedQuota(req.Amount, group)); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
 		return
 	}
 	payMoney := getStripePayMoney(float64(req.Amount), group)
@@ -88,6 +93,12 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	id := c.GetInt("id")
 	user, _ := model.GetUserById(id, false)
 	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
+	if err := validateCreditedQuota(
+		decimal.NewFromFloat(chargedMoney).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
+	); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
 
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "ref_" + common.Sha1([]byte(reference))
@@ -392,6 +403,13 @@ func GetChargedAmount(count float64, user model.User) float64 {
 	}
 
 	return count * topUpGroupRatio
+}
+
+func getStripeCreditedQuota(amount int64, group string) decimal.Decimal {
+	topUpGroupRatio := common.GetTopupGroupRatio(group)
+	return decimal.NewFromInt(amount).
+		Mul(decimal.NewFromFloat(topUpGroupRatio)).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit))
 }
 
 func getStripePayMoney(amount float64, group string) float64 {
