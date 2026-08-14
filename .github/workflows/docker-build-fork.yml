@@ -122,6 +122,7 @@ jobs:
         run: |
           docker buildx imagetools create \
             -t "${REGISTRY}/${IMAGE_NAME}:main" \
+            -t "${REGISTRY}/${IMAGE_NAME}:latest" \
             -t "${REGISTRY}/${IMAGE_NAME}:sha-${{ needs.prepare.outputs.sha }}" \
             "${REGISTRY}/${IMAGE_NAME}:sha-${{ needs.prepare.outputs.sha }}-amd64" \
             "${REGISTRY}/${IMAGE_NAME}:sha-${{ needs.prepare.outputs.sha }}-arm64"
