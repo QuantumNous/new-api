@@ -365,6 +365,9 @@ func ResetPassword(c *gin.Context) {
 	password := common.GenerateVerificationCode(12)
 	err = model.ResetUserPasswordByEmail(req.Email, password)
 	if err != nil {
+		if restoreErr := common.RestoreVerificationCodeIfAbsent(req.Email, req.Token, common.PasswordResetPurpose); restoreErr != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to restore password reset code for %s after reset failure: %s", req.Email, restoreErr.Error()))
+		}
 		if errors.Is(err, model.ErrEmailNotFound) || errors.Is(err, model.ErrEmailAmbiguous) {
 			common.ApiErrorI18n(c, i18n.MsgUserPasswordResetLinkInvalid)
 			return

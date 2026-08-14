@@ -138,6 +138,33 @@ func TestConsumeVerificationCodeDoesNotDeleteReplacement(t *testing.T) {
 	assert.True(t, valid)
 }
 
+func TestRestoreVerificationCodeDoesNotOverwriteReplacement(t *testing.T) {
+	useVerificationTestState(t)
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	RedisEnabled = true
+	RDB = client
+
+	require.NoError(t, RegisterVerificationCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose))
+	valid, err := ConsumeVerificationCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose)
+	require.NoError(t, err)
+	require.True(t, valid)
+	require.NoError(t, RestoreVerificationCodeIfAbsent("restore@example.com", "old-code", PasswordResetPurpose))
+	valid, err = VerifyCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose)
+	require.NoError(t, err)
+	assert.True(t, valid)
+
+	require.NoError(t, RegisterVerificationCodeWithKey("restore@example.com", "new-code", PasswordResetPurpose))
+	require.NoError(t, RestoreVerificationCodeIfAbsent("restore@example.com", "old-code", PasswordResetPurpose))
+	valid, err = VerifyCodeWithKey("restore@example.com", "new-code", PasswordResetPurpose)
+	require.NoError(t, err)
+	assert.True(t, valid)
+	valid, err = VerifyCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose)
+	require.NoError(t, err)
+	assert.False(t, valid)
+}
+
 func assertExactlyOneVerificationConsumer(t *testing.T, consume func() (bool, error)) {
 	t.Helper()
 	const attempts = 8

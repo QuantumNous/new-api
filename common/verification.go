@@ -38,6 +38,14 @@ redis.call("DEL", KEYS[1])
 return 1
 `)
 
+var restoreVerificationCodeScript = redis.NewScript(`
+if redis.call("EXISTS", KEYS[1]) == 1 then
+  return 0
+end
+redis.call("SET", KEYS[1], ARGV[1], "PX", ARGV[2])
+return 1
+`)
+
 func GenerateVerificationCode(length int) string {
 	code := uuid.New().String()
 	code = strings.Replace(code, "-", "", -1)
@@ -139,6 +147,35 @@ func ConsumeVerificationCodeWithKey(key string, code string, purpose string) (bo
 	}
 	delete(verificationMap, storageKey)
 	return true, nil
+}
+
+// RestoreVerificationCodeIfAbsent restores a consumed code after the protected
+// operation fails, without overwriting a newer code issued concurrently.
+func RestoreVerificationCodeIfAbsent(key string, code string, purpose string) error {
+	if RedisEnabled {
+		if RDB == nil {
+			return fmt.Errorf("verification code storage: Redis is enabled but unavailable")
+		}
+		_, err := restoreVerificationCodeScript.Run(
+			context.Background(),
+			RDB,
+			[]string{verificationStorageKey(key, purpose)},
+			code,
+			verificationTTL().Milliseconds(),
+		).Int()
+		if err != nil {
+			return fmt.Errorf("restore verification code in Redis: %w", err)
+		}
+		return nil
+	}
+
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+	storageKey := purpose + key
+	if _, exists := verificationMap[storageKey]; !exists {
+		verificationMap[storageKey] = verificationValue{code: code, time: time.Now()}
+	}
+	return nil
 }
 
 func secureCodeEqual(expected string, actual string) bool {
