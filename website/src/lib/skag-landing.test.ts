@@ -87,11 +87,13 @@ describe("SKAG landing configuration", () => {
   test("exposes the Portuguese Chinese AI models API landing variant", () => {
     const config = getSkagLandingConfig("chinese-ai-models-api", "pt");
 
-    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("Modelos Chineses de IA via API");
+    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("Modelos chineses de IA via API");
     expect(config.locale).toBe("pt");
     expect(config.pathname).toBe("/chinese-ai-models-api");
-    expect(config.secondaryCtaLabel).toBe("Ver preços ao vivo");
-    expect(config.trustLine).toContain("uma chave, uma fatura");
+    expect(config.ctaLabel).toBe("Crie sua chave de API grátis");
+    expect(config.hideSecondaryCta).toBe(true);
+    expect(config.pricingColumns).toEqual({ platform: "Flatkey", reference: "Referência" });
+    expect(config.trustLine).toContain("Uma conta");
     expect(config.exampleModel).toBe("deepseek-v4-flash");
   });
 
@@ -101,7 +103,7 @@ describe("SKAG landing configuration", () => {
     expect(input.pathname).toBe("/chinese-ai-models-api");
     expect(input.locale).toBe("pt");
     expect(input.locales).toEqual(["en", "pt"]);
-    expect(input.title).toContain("API de Modelos Chineses de IA");
+    expect(input.title).toContain("Modelos chineses de IA via API");
   });
 
   test("exposes Portuguese DeepSeek paid-search copy", () => {
