@@ -95,6 +95,21 @@ describe('ConsoleModal', () => {
     wrapper.unmount()
   })
 
+  it('can give flex-based modal content a definite viewport height', async () => {
+    const wrapper = mount(ConsoleModal, {
+      attachTo: document.body,
+      props: { open: true, title: 'Large dataset', fillViewport: true },
+    })
+    await nextTick()
+
+    expect(
+      document.body
+        .querySelector<HTMLElement>('[data-handdrawn="modal"]')
+        ?.classList.contains('h-[calc(100dvh-2rem)]')
+    ).toBe(true)
+    wrapper.unmount()
+  })
+
   it('keeps the body locked when stacked modals close out of order', async () => {
     document.body.style.overflow = ''
     const first = mount(ConsoleModal, {

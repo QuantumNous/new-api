@@ -295,10 +295,14 @@ function close() {
     :open="open"
     :title="modalTitle"
     :body-scrollable="false"
+    fill-viewport
     size="lg"
     @close="close"
   >
-    <div class="flex h-full min-h-0 flex-col gap-4 text-left">
+    <div
+      class="subtle-scroll flex h-full min-h-0 flex-col gap-4 overflow-y-auto text-left sm:overflow-hidden"
+      data-channel-test-layout
+    >
       <!-- ══ 测试配置 ══════════════════════════════════════════════════ -->
       <section class="channel-test-section shrink-0">
         <div class="grid gap-4 sm:grid-cols-2">
@@ -355,7 +359,9 @@ function close() {
       </section>
 
       <!-- ══ 渠道模型 ══════════════════════════════════════════════════ -->
-      <section class="channel-test-section flex min-h-0 flex-1 flex-col">
+      <section
+        class="channel-test-section flex shrink-0 flex-col sm:min-h-0 sm:flex-1"
+      >
         <div
           class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
         >
@@ -434,7 +440,7 @@ function close() {
         </div>
 
         <div
-          class="channel-test-table-wrap subtle-scroll mt-3 min-h-0 flex-1 overflow-auto"
+          class="channel-test-table-wrap subtle-scroll mt-3 shrink-0 overflow-x-auto sm:min-h-0 sm:flex-1 sm:overflow-auto"
           data-channel-model-scroll
         >
           <table class="w-full text-sm">
@@ -606,10 +612,14 @@ function close() {
   background: var(--surface-muted);
 }
 .channel-test-table-wrap {
-  max-height: 20rem;
   border: 1px solid var(--border-subtle);
   border-radius: 0.75rem;
   background: var(--surface-solid);
+}
+@media (min-width: 640px) {
+  .channel-test-table-wrap {
+    max-height: 20rem;
+  }
 }
 .channel-test-head-row {
   border-bottom: 1px solid var(--border-subtle);

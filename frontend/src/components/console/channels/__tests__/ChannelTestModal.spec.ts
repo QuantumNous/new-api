@@ -79,12 +79,18 @@ function rowFor(model: string): HTMLTableRowElement {
 }
 
 describe('ChannelTestModal', () => {
-  it('keeps modal body fixed and scrolls only the model list', () => {
+  it('keeps the modal shell fixed while preserving mobile and model scrolling', () => {
     render()
 
     const modalBody = document.body.querySelector(
       '[data-modal-body]'
     ) as HTMLElement
+    const responsiveLayout = document.body.querySelector(
+      '[data-channel-test-layout]'
+    ) as HTMLElement
+    const modelSection = document.body.querySelectorAll(
+      '.channel-test-section'
+    )[1] as HTMLElement
     const modelScroll = document.body.querySelector(
       '[data-channel-model-scroll]'
     ) as HTMLElement
@@ -94,7 +100,13 @@ describe('ChannelTestModal', () => {
 
     expect(modalBody.classList).toContain('overflow-hidden')
     expect(modalBody.classList).not.toContain('overflow-y-auto')
-    expect(modelScroll.classList).toContain('overflow-auto')
+    expect(responsiveLayout.classList).toContain('overflow-y-auto')
+    expect(responsiveLayout.classList).toContain('sm:overflow-hidden')
+    expect(modelSection.classList).toContain('shrink-0')
+    expect(modelSection.classList).toContain('sm:flex-1')
+    expect(modelScroll.classList).toContain('overflow-x-auto')
+    expect(modelScroll.classList).toContain('sm:overflow-auto')
+    expect(modelScroll.classList).toContain('sm:flex-1')
     expect(modelScroll.classList).toContain('subtle-scroll')
     expect(modelScroll.contains(pagination)).toBe(false)
   })

@@ -35,6 +35,7 @@ const props = withDefaults(
     size?: 'sm' | 'md' | 'lg'
     closeDisabled?: boolean
     bodyScrollable?: boolean
+    fillViewport?: boolean
   }>(),
   {
     title: '',
@@ -43,6 +44,7 @@ const props = withDefaults(
     size: 'md',
     closeDisabled: false,
     bodyScrollable: true,
+    fillViewport: false,
   }
 )
 
@@ -179,7 +181,7 @@ onBeforeUnmount(() => {
             border-radius: var(--shape-overlay);
             box-shadow: var(--overlay-shadow);
           "
-          :class="widths[size]"
+          :class="[widths[size], fillViewport ? 'h-[calc(100dvh-2rem)]' : '']"
         >
           <!-- Decorative gold-line top accent -->
           <div
