@@ -64,7 +64,17 @@ export default {
   },
 
   dashboard: {
-    greeting: 'Welcome back, {name}',
+    greeting: {
+      format: '{greeting}, {name}.',
+      generic: '{greeting}.',
+      period: {
+        lateNight: "It's late",
+        morning: 'Good morning',
+        lunch: 'Time for lunch',
+        afternoon: 'Good afternoon',
+        evening: 'Good evening',
+      },
+    },
     breadcrumb: ['Dashboard', 'Overview'],
     tabOverview: 'Overview',
     tabStats: 'Statistics',

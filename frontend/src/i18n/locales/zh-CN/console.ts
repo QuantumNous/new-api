@@ -64,7 +64,17 @@ export default {
   },
 
   dashboard: {
-    greeting: '欢迎回来，{name}',
+    greeting: {
+      format: '{greeting}，{name}。',
+      generic: '{greeting}。',
+      period: {
+        lateNight: '夜深了',
+        morning: '早上好',
+        lunch: '该去吃饭了',
+        afternoon: '下午好',
+        evening: '晚上好',
+      },
+    },
     breadcrumb: ['仪表盘', '概览'],
     tabOverview: '概览',
     tabStats: '统计数据',

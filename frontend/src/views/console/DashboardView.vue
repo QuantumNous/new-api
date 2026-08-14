@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useNow } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -22,6 +23,10 @@ import { useDashboardStats } from '@/composables/useDashboardStats'
 import { useUsageDistribution } from '@/composables/useUsageDistribution'
 import type { StatsRange } from '@/composables/useDashboardStats'
 import { useAuthStore } from '@/stores/auth'
+import {
+  getDashboardGreetingName,
+  getDashboardGreetingPeriod,
+} from '@/utils/dashboardGreeting'
 import { dateInputValue } from '@/utils/format'
 
 const { t } = useI18n()
@@ -39,6 +44,7 @@ const {
 } = useDashboard()
 const statsComposable = useDashboardStats()
 const distribution = useUsageDistribution()
+const now = useNow({ interval: 60_000 })
 
 onMounted(() => {
   void load()
@@ -55,10 +61,20 @@ const dailyBurn = computed(() => {
   return tail.reduce((sum, point) => sum + point.consume, 0) / tail.length
 })
 
+const displayName = computed(() => getDashboardGreetingName(auth.user))
+const greetingPeriod = computed(() =>
+  getDashboardGreetingPeriod(now.value.getHours())
+)
+const greetingLabel = computed(() =>
+  t(`dashboard.greeting.period.${greetingPeriod.value}`)
+)
 const greeting = computed(() =>
-  t('dashboard.greeting', {
-    name: auth.user?.display_name || auth.user?.username || '',
-  })
+  displayName.value
+    ? t('dashboard.greeting.format', {
+        greeting: greetingLabel.value,
+        name: displayName.value,
+      })
+    : t('dashboard.greeting.generic', { greeting: greetingLabel.value })
 )
 
 const tabs = computed(() => {
@@ -127,7 +143,23 @@ const rangeOptions = computed(() => [
       :crumbs="[$t('dashboard.breadcrumb.0'), $t('dashboard.breadcrumb.1')]"
       :tabs="tabs"
       :tab-panel-id="dashboardPanelId"
-    />
+    >
+      <template #title>
+        <i18n-t
+          v-if="displayName"
+          keypath="dashboard.greeting.format"
+          tag="span"
+          scope="global"
+        >
+          <template #greeting>{{ greetingLabel }}</template>
+          <!-- Slot whitespace becomes visible between CJK punctuation and the name. -->
+          <template #name
+            ><span data-greeting-name>{{ displayName }}</span></template
+          >
+        </i18n-t>
+        <span v-else>{{ greeting }}</span>
+      </template>
+    </PageHero>
 
     <div
       :id="dashboardPanelId"
@@ -292,3 +324,41 @@ const rangeOptions = computed(() => [
     <ContactFloatBall />
   </div>
 </template>
+
+<style scoped>
+[data-greeting-name] {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
+}
+
+[data-greeting-name]::after {
+  content: '';
+  position: absolute;
+  right: -0.06em;
+  bottom: -0.05em;
+  left: -0.06em;
+  height: max(3px, 0.11em);
+  background:
+    linear-gradient(
+        90deg,
+        transparent 0 2%,
+        currentcolor 5% 96%,
+        transparent 99%
+      )
+      top left / 100% 2px no-repeat,
+    linear-gradient(
+        91deg,
+        transparent 0 8%,
+        currentcolor 12% 92%,
+        transparent 100%
+      )
+      bottom left / 96% 1px no-repeat;
+  opacity: 0.72;
+  transform: rotate(-0.8deg);
+  transform-origin: center;
+  pointer-events: none;
+}
+</style>

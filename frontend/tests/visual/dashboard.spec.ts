@@ -13,6 +13,31 @@ test.beforeEach(async ({ page }) => {
   await waitForStablePage(page)
 })
 
+test('shows a local-time greeting with an underlined display name', async ({
+  page,
+}) => {
+  const heading = page.getByRole('heading', { level: 1 })
+  const name = heading.locator('[data-greeting-name]')
+
+  await expect(heading).toBeVisible()
+  await expect(heading).toHaveText('该去吃饭了，Visual Root。')
+  await expect(name).toHaveText('Visual Root')
+  const underline = await name.evaluate((element) => {
+    const style = getComputedStyle(element, '::after')
+    return {
+      content: style.content,
+      backgroundImage: style.backgroundImage,
+      height: Number.parseFloat(style.height),
+      opacity: Number.parseFloat(style.opacity),
+    }
+  })
+  expect(underline.content).toBe('""')
+  expect(underline.backgroundImage).not.toBe('none')
+  expect(underline.height).toBeGreaterThanOrEqual(3)
+  expect(underline.opacity).toBeGreaterThan(0)
+  await assertNoHorizontalOverflow(page)
+})
+
 test('usage heatmap keeps year navigation inside the card', async ({
   page,
 }) => {
