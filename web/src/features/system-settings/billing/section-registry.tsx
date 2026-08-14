@@ -125,6 +125,12 @@ const BILLING_SECTIONS = [
           enabled: settings['auto_pricing.enabled'],
           remoteUrl: settings['auto_pricing.remote_url'],
           hashUrl: settings['auto_pricing.hash_url'] ?? '',
+          allowedHosts: settings['auto_pricing.allowed_hosts'] ?? [
+            'raw.githubusercontent.com',
+          ],
+          proxyUrl: settings['auto_pricing.proxy_url'] ?? '',
+          allowDirectOnProxyFailure:
+            settings['auto_pricing.allow_direct_on_proxy_failure'] ?? false,
           checkIntervalMinutes: settings['auto_pricing.check_interval_minutes'],
           fuzzyMatchEnabled: settings['auto_pricing.fuzzy_match_enabled'],
         }}
