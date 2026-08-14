@@ -34,6 +34,7 @@ const props = withDefaults(
     ariaLabel?: string
     size?: 'sm' | 'md' | 'lg'
     closeDisabled?: boolean
+    bodyScrollable?: boolean
   }>(),
   {
     title: '',
@@ -41,6 +42,7 @@ const props = withDefaults(
     ariaLabel: '',
     size: 'md',
     closeDisabled: false,
+    bodyScrollable: true,
   }
 )
 
@@ -211,7 +213,15 @@ onBeforeUnmount(() => {
               {{ subtitle }}
             </p>
           </header>
-          <div class="subtle-scroll min-h-0 overflow-y-auto px-6 py-5">
+          <div
+            class="min-h-0 px-6 py-5"
+            :class="
+              bodyScrollable
+                ? 'subtle-scroll overflow-y-auto'
+                : 'flex-1 overflow-hidden'
+            "
+            data-modal-body
+          >
             <slot />
           </div>
           <footer v-if="$slots.footer" class="shrink-0 px-6 pb-6">

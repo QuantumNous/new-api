@@ -79,6 +79,26 @@ function rowFor(model: string): HTMLTableRowElement {
 }
 
 describe('ChannelTestModal', () => {
+  it('keeps modal body fixed and scrolls only the model list', () => {
+    render()
+
+    const modalBody = document.body.querySelector(
+      '[data-modal-body]'
+    ) as HTMLElement
+    const modelScroll = document.body.querySelector(
+      '[data-channel-model-scroll]'
+    ) as HTMLElement
+    const pagination = document.body.querySelector(
+      '[data-channel-model-pagination]'
+    ) as HTMLElement
+
+    expect(modalBody.classList).toContain('overflow-hidden')
+    expect(modalBody.classList).not.toContain('overflow-y-auto')
+    expect(modelScroll.classList).toContain('overflow-auto')
+    expect(modelScroll.classList).toContain('subtle-scroll')
+    expect(modelScroll.contains(pagination)).toBe(false)
+  })
+
   it('lists every channel model with idle status', () => {
     render()
 
@@ -124,6 +144,45 @@ describe('ChannelTestModal', () => {
       'bad response status code 523'
     )
     expect(rowFor('glm-5.2').textContent).toContain('失败')
+  })
+
+  it('shows spinning testing states in status, result, and action cells', async () => {
+    let resolveTest: ((result: ChannelModelTestResult) => void) | undefined
+    const pending = new Promise<ChannelModelTestResult>((resolve) => {
+      resolveTest = resolve
+    })
+    render({ models: 'gpt-oss-20b', testModel: () => pending })
+
+    const row = rowFor('gpt-oss-20b')
+    const rowTest = row.querySelector(
+      'td:last-child button'
+    ) as HTMLButtonElement
+    rowTest.click()
+    await flushPromises()
+
+    const cells = row.querySelectorAll('td')
+    const runningLabel = i18n.global.t('channels.testStatusRunning')
+    expect(cells[2]?.textContent).toContain(runningLabel)
+    expect(cells[3]?.textContent).toContain(runningLabel)
+    expect(row.querySelectorAll('.animate-spin')).toHaveLength(3)
+
+    resolveTest?.({ ok: true, timeMs: 261 })
+    await flushPromises()
+  })
+
+  it('requests a persisted-state reconciliation after a completed batch', async () => {
+    const { wrapper } = render({ models: 'gpt-oss-20b' })
+    const testAll = Array.from(document.body.querySelectorAll('button')).find(
+      (button) =>
+        button.textContent?.includes(
+          i18n.global.t('channels.testAllModels', { count: 1 })
+        )
+    ) as HTMLButtonElement
+
+    testAll.click()
+    await flushPromises()
+
+    expect(wrapper.emitted('tested')).toHaveLength(1)
   })
 
   it('removes failed models through the two-step confirm', async () => {
