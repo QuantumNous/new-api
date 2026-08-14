@@ -110,3 +110,28 @@ func TestProbeProxyNodePersistsFailureState(t *testing.T) {
 	assert.Equal(t, result.Error, persisted.LastError)
 	require.NotNil(t, persisted.LastProbeAt)
 }
+
+func TestResetProxyNodeProbeStatsForClearsCounterMap(t *testing.T) {
+	// Simulate a probe creating a counter entry
+	_ = getProxyNodeProbeCounter(42)
+	_ = getProxyNodeProbeCounter(99)
+
+	// Verify entries exist
+	assert.Equal(t, int64(0), GetProxyNodeProbeStatsFor(42).Total)
+	assert.Equal(t, int64(0), GetProxyNodeProbeStatsFor(99).Total)
+
+	// Reset one
+	ResetProxyNodeProbeStatsFor(42)
+
+	// Verify 42 is gone but 99 remains
+	proxyNodeProbeCountersMu.RLock()
+	_, has42 := proxyNodeProbeCounters[42]
+	_, has99 := proxyNodeProbeCounters[99]
+	proxyNodeProbeCountersMu.RUnlock()
+
+	assert.False(t, has42, "counter for node 42 should be removed after reset")
+	assert.True(t, has99, "counter for node 99 should still exist")
+
+	// Cleanup
+	ResetProxyNodeProbeStatsFor(99)
+}

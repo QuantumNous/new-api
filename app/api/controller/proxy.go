@@ -655,6 +655,7 @@ func DeleteProxyNode(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	service.ResetProxyNodeProbeStatsFor(id)
 	common.ApiSuccess(c, nil)
 }
 

@@ -219,6 +219,7 @@ func SetApiRouter(router *gin.Engine) {
 			proxyRoute.POST("/nodes/batch-clear-errors", controller.BatchClearProxyNodeErrors)
 			proxyRoute.GET("/nodes/:id", controller.GetProxyNode)
 			proxyRoute.PUT("/nodes/:id", controller.UpdateProxyNode)
+			proxyRoute.DELETE("/nodes/:id", controller.DeleteProxyNode)
 			proxyRoute.POST("/nodes/:id/test", controller.TestProxyNode)
 			proxyRoute.POST("/nodes/test", controller.TestAllProxyNodes)
 		}
