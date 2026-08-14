@@ -123,7 +123,6 @@ jobs:
     permissions:
       id-token: write
       packages: write
-      actions: write
 
     steps:
       - name: Set version
@@ -165,12 +164,12 @@ jobs:
           docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${TAG} >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-      - name: Trigger deploy to Kubernetes
-        if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run deploy.yml \
-            -f image_tag="$TAG" \
-            -f worker_replicas=3
-          echo "已触发 Deploy to Kubernetes (image_tag=$TAG)"
+      - name: Upload tag artifact
+        run: echo "$TAG" > tag.txt && cat tag.txt
+
+      - name: Upload tag
+        uses: actions/upload-artifact@50769540e7f4bd5e21ca5a8e5e8d9ad4efaf8c00 # v4.4.0
+        with:
+          name: docker-tag
+          path: tag.txt
+          retention-days: 1

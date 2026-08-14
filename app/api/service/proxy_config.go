@@ -1,6 +1,8 @@
 package service
 
 import (
+	"fmt"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
@@ -56,12 +58,47 @@ func getGlobalProxyURL() string {
 	if err := model.DB.Where("key = ?", "proxy_config").First(&option).Error; err != nil {
 		return ""
 	}
+	// Decrypt if encrypted; fall back to plaintext for backward compatibility.
+	raw := option.Value
+	if plain, err := common.DecryptAESGCM(raw, "proxy-config"); err == nil {
+		raw = plain
+	}
 	var cfg ProxyConfig
-	if err := common.Unmarshal([]byte(option.Value), &cfg); err != nil {
+	if err := common.Unmarshal([]byte(raw), &cfg); err != nil {
 		return ""
 	}
 	if !cfg.Enabled {
 		return ""
 	}
 	return cfg.GlobalProxyURL
+}
+
+// LoadProxyConfigJSON reads the "proxy_config" Option row, decrypts it if
+// encrypted, and returns the plaintext JSON. For backward compatibility, if
+// decryption fails the raw value is returned as-is (legacy plaintext stored
+// before #141 introduced encryption).
+func LoadProxyConfigJSON() (string, error) {
+	if model.DB == nil {
+		return "", fmt.Errorf("database not initialised")
+	}
+	var option model.Option
+	if err := model.DB.Where("key = ?", "proxy_config").First(&option).Error; err != nil {
+		return "", err
+	}
+	plain, err := common.DecryptAESGCM(option.Value, "proxy-config")
+	if err != nil {
+		// Legacy plaintext value — return as-is.
+		return option.Value, nil
+	}
+	return plain, nil
+}
+
+// SaveProxyConfigJSON encrypts and persists the proxy config JSON to the
+// Option table.
+func SaveProxyConfigJSON(plaintext string) error {
+	encrypted, err := common.EncryptAESGCM(plaintext, "proxy-config")
+	if err != nil {
+		return fmt.Errorf("encrypt proxy config: %w", err)
+	}
+	return model.UpdateOption("proxy_config", encrypted)
 }

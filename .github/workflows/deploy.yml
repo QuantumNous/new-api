@@ -9,7 +9,8 @@ name: Deploy to Kubernetes
 #
 # 触发方式：
 #   1. 手动：Actions 页面 → Deploy to Kubernetes → Run workflow
-#   2. 自动：docker-build.yml 发布镜像成功后用 gh workflow run 调用本 workflow
+#   2. 自动：docker-build.yml 成功后通过 workflow_run 事件触发本 workflow
+#      （image_tag 从 docker-build.yml 的 artifact 读取）
 #
 # 需要在仓库 Settings → Secrets and variables → Actions 配置的 Secret：
 #   KUBE_CONFIG_B64     base64 编码的 kubeconfig（runner 访问集群用）
@@ -33,6 +34,9 @@ on:
         description: "要部署的不可变镜像 tag，如 sha-abc123 或 v0.11.0"
         required: true
         type: string
+  workflow_run:
+    workflows: ["Publish Docker image (Multi-arch)"]
+    types: [completed]
 
 
 concurrency:
@@ -41,10 +45,40 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
+      - name: Resolve image tag
+        id: resolve_tag
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.image_tag }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "$DISPATCH_TAG" ]; then
+            IMAGE_TAG="$DISPATCH_TAG"
+          else
+            # workflow_run 触发时从 artifact 读取 tag
+            IMAGE_TAG=""
+            if [ -n "$WORKFLOW_RUN_ID" ]; then
+              gh run download "$WORKFLOW_RUN_ID" \
+                --repo "${{ github.repository }}" \
+                --name docker-tag \
+                --dir /tmp/tag-artifact || true
+              IMAGE_TAG=$(cat /tmp/tag-artifact/tag.txt 2>/dev/null || echo "")
+            fi
+            if [ -z "$IMAGE_TAG" ]; then
+              echo "::error::Cannot resolve image_tag from workflow_run artifact"
+              exit 1
+            fi
+          fi
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+
       - name: Validate image tag
         env:
-          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          IMAGE_TAG: ${{ steps.resolve_tag.outputs.image_tag }}
         run: |
           case "$IMAGE_TAG" in
             ''|latest|*[!A-Za-z0-9_.-]*)
@@ -93,7 +127,7 @@ jobs:
 
       - name: Apply new-api master
         env:
-          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          IMAGE_TAG: ${{ steps.resolve_tag.outputs.image_tag }}
         run: |
           IMAGE="ghcr.io/${{ github.repository }}:${IMAGE_TAG}"
           sed "s#ghcr.io/${{ github.repository }}:latest#${IMAGE}#g" deploy/k8s/new-api-master.yaml | kubectl apply -f -
@@ -101,11 +135,12 @@ jobs:
 
       - name: Apply new-api worker
         env:
-          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          IMAGE_TAG: ${{ steps.resolve_tag.outputs.image_tag }}
+          WORKER_REPLICAS: ${{ github.event.inputs.worker_replicas || '3' }}
         run: |
           IMAGE="ghcr.io/${{ github.repository }}:${IMAGE_TAG}"
           sed "s#ghcr.io/${{ github.repository }}:latest#${IMAGE}#g" deploy/k8s/new-api-worker.yaml | kubectl apply -f -
-          kubectl scale deployment/new-api-worker --replicas="${{ github.event.inputs.worker_replicas }}"
+          kubectl scale deployment/new-api-worker --replicas="$WORKER_REPLICAS"
           kubectl apply -f deploy/k8s/service.yaml
           kubectl apply -f deploy/k8s/ingress.yaml
           echo "部署镜像: $IMAGE"

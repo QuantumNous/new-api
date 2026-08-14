@@ -107,6 +107,7 @@ type outboundConfigFields struct {
 	Masquerade       string `json:"masquerade,omitempty"`
 	Obfs             string `json:"obfs,omitempty"`
 	ObfsPassword     string `json:"obfs_password,omitempty"`
+	PrivateKey       string `json:"private_key,omitempty"`
 	HopPorts         string `json:"hop_ports,omitempty"`
 	TLSEnabled       bool   `json:"tls_enabled,omitempty"`
 	TLSServerName    string `json:"tls_server_name,omitempty"`
@@ -197,8 +198,14 @@ func buildOptionsJSON(outboundJSON json.RawMessage) ([]byte, error) {
 		}
 		setTLS(outbound, cfg.TLSEnabled, cfg.TLSServerName)
 	case "ssh":
+		if cfg.Username != "" {
+			outbound["user"] = cfg.Username
+		}
 		if cfg.Password != "" {
-			outbound["private_key"] = cfg.Password
+			outbound["password"] = cfg.Password
+		}
+		if cfg.PrivateKey != "" {
+			outbound["private_key"] = cfg.PrivateKey
 		}
 	case "hysteria2":
 		if cfg.Password != "" {

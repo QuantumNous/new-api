@@ -17,6 +17,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// maskedSecret is the sentinel value substituted for sensitive fields in
+// API responses. UpdateProxyConfig restores the original value when it sees
+// this sentinel so a round-trip doesn't overwrite real secrets.
+const maskedSecret = "********"
+
 // ProxyConfigRequest is the JSON shape for saving proxy configuration.
 type ProxyConfigRequest struct {
 	Outbound       OutboundConfig `json:"outbound"`
@@ -118,9 +123,10 @@ type routeConfig struct {
 }
 
 // GetProxyConfig returns the current proxy configuration and global proxy URL.
+// Sensitive fields (Password, UUID, ObfsPassword) are masked in the response.
 func GetProxyConfig(c *gin.Context) {
-	var opt model.Option
-	if err := model.DB.Where("key = ?", "proxy_config").First(&opt).Error; err != nil {
+	jsonStr, err := service.LoadProxyConfigJSON()
+	if err != nil {
 		common.ApiSuccess(c, gin.H{
 			"enabled":          false,
 			"outbound":         nil,
@@ -129,11 +135,24 @@ func GetProxyConfig(c *gin.Context) {
 		return
 	}
 	var cfg ProxyConfigRequest
-	if err := common.Unmarshal([]byte(opt.Value), &cfg); err != nil {
+	if err := common.Unmarshal([]byte(jsonStr), &cfg); err != nil {
 		common.ApiErrorMsg(c, "invalid proxy config in database")
 		return
 	}
+	// Mask sensitive fields before returning to the API caller.
+	cfg.Outbound.Password = maskSecret(cfg.Outbound.Password)
+	cfg.Outbound.UUID = maskSecret(cfg.Outbound.UUID)
+	cfg.Outbound.ObfsPassword = maskSecret(cfg.Outbound.ObfsPassword)
 	common.ApiSuccess(c, cfg)
+}
+
+// maskSecret replaces a secret with a fixed-length mask, or returns empty
+// when the secret is already empty.
+func maskSecret(s string) string {
+	if s == "" {
+		return ""
+	}
+	return maskedSecret
 }
 
 // UpdateProxyConfig saves the proxy configuration to the Option table.
@@ -154,6 +173,27 @@ func UpdateProxyConfig(c *gin.Context) {
 			Path:        req.Outbound.TransportPath,
 			Headers:     headers,
 			ServiceName: req.Outbound.TransportService,
+		}
+	}
+	// If sensitive fields arrive as the mask sentinel ("********"), restore
+	// the original values from the stored config so a round-trip
+	// GetProxyConfig → edit unrelated fields → UpdateProxyConfig doesn't
+	// overwrite real secrets with the sentinel.
+	// Sentinel value match — maskedSecret is defined at package level.
+	if req.Outbound.Password == maskedSecret || req.Outbound.UUID == maskedSecret || req.Outbound.ObfsPassword == maskedSecret {
+		if stored, loadErr := service.LoadProxyConfigJSON(); loadErr == nil {
+			var prev ProxyConfigRequest
+			if unmarshalErr := common.Unmarshal([]byte(stored), &prev); unmarshalErr == nil {
+				if req.Outbound.Password == maskedSecret {
+					req.Outbound.Password = prev.Outbound.Password
+				}
+				if req.Outbound.UUID == maskedSecret {
+					req.Outbound.UUID = prev.Outbound.UUID
+				}
+				if req.Outbound.ObfsPassword == maskedSecret {
+					req.Outbound.ObfsPassword = prev.Outbound.ObfsPassword
+				}
+			}
 		}
 	}
 	// Validate the outbound against an in-process sing-box build before
@@ -177,7 +217,7 @@ func UpdateProxyConfig(c *gin.Context) {
 		common.ApiErrorMsg(c, "failed to marshal config")
 		return
 	}
-	if err := model.UpdateOption("proxy_config", string(jsonBytes)); err != nil {
+	if err := service.SaveProxyConfigJSON(string(jsonBytes)); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -187,13 +227,13 @@ func UpdateProxyConfig(c *gin.Context) {
 // GenerateProxyConfig returns a complete sing-box config.json for the current
 // proxy configuration. It uses encoding/json directly (no sing-box dependency).
 func GenerateProxyConfig(c *gin.Context) {
-	var opt model.Option
-	if err := model.DB.Where("key = ?", "proxy_config").First(&opt).Error; err != nil {
+	jsonStr, err := service.LoadProxyConfigJSON()
+	if err != nil {
 		common.ApiErrorMsg(c, "proxy not configured")
 		return
 	}
 	var cfg ProxyConfigRequest
-	if err := common.Unmarshal([]byte(opt.Value), &cfg); err != nil {
+	if err := common.Unmarshal([]byte(jsonStr), &cfg); err != nil {
 		common.ApiErrorMsg(c, "invalid proxy config")
 		return
 	}
