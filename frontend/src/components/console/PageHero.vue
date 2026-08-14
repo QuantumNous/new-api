@@ -46,14 +46,16 @@ withDefaults(defineProps<PageHeroProps>(), {
           v-if="titleSide === 'left'"
           class="gesture-mark display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight"
         >
-          {{ title }}
-          <!-- accent phrase wrapped in brush-highlight for a painted underline -->
-          <span
-            v-if="titleAccent"
-            class="brush-highlight text-[var(--accent-text)]"
-          >
-            &amp;&thinsp;{{ titleAccent }}
-          </span>
+          <slot name="title">
+            {{ title }}
+            <!-- accent phrase wrapped in brush-highlight for a painted underline -->
+            <span
+              v-if="titleAccent"
+              class="brush-highlight text-[var(--accent-text)]"
+            >
+              &amp;&thinsp;{{ titleAccent }}
+            </span>
+          </slot>
         </h1>
         <!-- hero metric slot (wallet balance, etc.) -->
         <slot />
@@ -70,13 +72,15 @@ withDefaults(defineProps<PageHeroProps>(), {
           v-if="titleSide === 'right'"
           class="gesture-mark display-title whitespace-nowrap text-right text-4xl font-bold leading-tight text-[var(--text-primary)] lg:text-5xl"
         >
-          {{ title }}
-          <span
-            v-if="titleAccent"
-            class="brush-highlight text-[var(--accent-text)]"
-          >
-            &amp;&thinsp;{{ titleAccent }}
-          </span>
+          <slot name="title">
+            {{ title }}
+            <span
+              v-if="titleAccent"
+              class="brush-highlight text-[var(--accent-text)]"
+            >
+              &amp;&thinsp;{{ titleAccent }}
+            </span>
+          </slot>
         </h1>
         <!-- right-side actions slot -->
         <slot name="actions" />
