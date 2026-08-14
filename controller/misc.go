@@ -351,7 +351,7 @@ func ResetPassword(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	valid, err := common.VerifyCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose)
+	valid, err := common.ConsumeVerificationCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -369,9 +369,6 @@ func ResetPassword(c *gin.Context) {
 		}
 		common.ApiError(c, err)
 		return
-	}
-	if err := common.DeleteKey(req.Email, common.PasswordResetPurpose); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume password reset code for %s: %s", req.Email, err.Error()))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

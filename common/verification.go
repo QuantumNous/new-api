@@ -29,6 +29,15 @@ var verificationMap map[string]verificationValue
 var verificationMapMaxSize = 10
 var VerificationValidMinutes = 10
 
+var consumeVerificationCodeScript = redis.NewScript(`
+local stored = redis.call("GET", KEYS[1])
+if not stored or stored ~= ARGV[1] then
+  return 0
+end
+redis.call("DEL", KEYS[1])
+return 1
+`)
+
 func GenerateVerificationCode(length int) string {
 	code := uuid.New().String()
 	code = strings.Replace(code, "-", "", -1)
@@ -97,6 +106,39 @@ func VerifyCodeWithKey(key string, code string, purpose string) (bool, error) {
 		return false, nil
 	}
 	return secureCodeEqual(value.code, code), nil
+}
+
+// ConsumeVerificationCodeWithKey atomically validates and deletes a code.
+// Use it when replay must be prevented before performing the protected action.
+func ConsumeVerificationCodeWithKey(key string, code string, purpose string) (bool, error) {
+	if RedisEnabled {
+		if RDB == nil {
+			return false, fmt.Errorf("verification code storage: Redis is enabled but unavailable")
+		}
+		result, err := consumeVerificationCodeScript.Run(
+			context.Background(),
+			RDB,
+			[]string{verificationStorageKey(key, purpose)},
+			code,
+		).Int()
+		if err != nil {
+			return false, fmt.Errorf("consume verification code from Redis: %w", err)
+		}
+		return result == 1, nil
+	}
+
+	verificationMutex.Lock()
+	defer verificationMutex.Unlock()
+	storageKey := purpose + key
+	value, okay := verificationMap[storageKey]
+	if !okay || int(time.Since(value.time).Seconds()) >= VerificationValidMinutes*60 {
+		return false, nil
+	}
+	if !secureCodeEqual(value.code, code) {
+		return false, nil
+	}
+	delete(verificationMap, storageKey)
+	return true, nil
 }
 
 func secureCodeEqual(expected string, actual string) bool {

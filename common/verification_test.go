@@ -1,6 +1,7 @@
 package common
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -93,6 +94,61 @@ func TestVerificationCodeRedisTTLAndPurposeIsolation(t *testing.T) {
 	valid, err = VerifyCodeWithKey("same@example.com", "reset-code", PasswordResetPurpose)
 	require.NoError(t, err)
 	assert.False(t, valid)
+}
+
+func TestConsumeVerificationCodeIsAtomicInMemory(t *testing.T) {
+	useVerificationTestState(t)
+	RedisEnabled = false
+	require.NoError(t, RegisterVerificationCodeWithKey("consume@example.com", "123456", EmailVerificationPurpose))
+
+	assertExactlyOneVerificationConsumer(t, func() (bool, error) {
+		return ConsumeVerificationCodeWithKey("consume@example.com", "123456", EmailVerificationPurpose)
+	})
+}
+
+func TestConsumeVerificationCodeIsAtomicInRedis(t *testing.T) {
+	useVerificationTestState(t)
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	RedisEnabled = true
+	RDB = client
+	require.NoError(t, RegisterVerificationCodeWithKey("consume@example.com", "123456", PasswordResetPurpose))
+
+	assertExactlyOneVerificationConsumer(t, func() (bool, error) {
+		return ConsumeVerificationCodeWithKey("consume@example.com", "123456", PasswordResetPurpose)
+	})
+}
+
+func assertExactlyOneVerificationConsumer(t *testing.T, consume func() (bool, error)) {
+	t.Helper()
+	const attempts = 8
+	results := make(chan bool, attempts)
+	errors := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for range attempts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			valid, err := consume()
+			results <- valid
+			errors <- err
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(errors)
+
+	consumed := 0
+	for err := range errors {
+		require.NoError(t, err)
+	}
+	for valid := range results {
+		if valid {
+			consumed++
+		}
+	}
+	assert.Equal(t, 1, consumed)
 }
 
 func TestVerificationCodeDoesNotSilentlyFallBackWhenRedisFails(t *testing.T) {
