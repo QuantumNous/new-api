@@ -64,6 +64,8 @@ import {
   getChannelTypeIcon,
   getChannelTypeLabel,
   getResponseTimeConfig,
+  formatYikeCredits,
+  isYikeChannel,
   isMultiKeyChannel,
   parseModelsList,
   parseGroupsList,
@@ -333,6 +335,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
   const isTagRow = isTagAggregateRow(channel)
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
+  const yikeChannel = isYikeChannel(channel.type)
   const [isUpdating, setIsUpdating] = useState(false)
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
@@ -358,9 +361,9 @@ function BalanceCell({ channel }: { channel: Channel }) {
       showSymbol: layout !== 'card',
     })
   )
-  const remainingFull = withSuffix(
-    formatCurrencyFromUSD(balance, balanceFormatOptions)
-  )
+  const remainingFull = yikeChannel
+    ? formatYikeCredits(balance, t('Credits'), locale)
+    : withSuffix(formatCurrencyFromUSD(balance, balanceFormatOptions))
   const usedDisplay =
     usedFull.length > MAX_INLINE_BALANCE_CHARS
       ? withSuffix(
@@ -371,16 +374,18 @@ function BalanceCell({ channel }: { channel: Channel }) {
           })
         )
       : usedFull
-  const remainingDisplay =
-    remainingFull.length > MAX_INLINE_BALANCE_CHARS
-      ? withSuffix(
+  let remainingDisplay = remainingFull
+  if (remainingFull.length > MAX_INLINE_BALANCE_CHARS) {
+    remainingDisplay = yikeChannel
+      ? formatYikeCredits(balance, t('Credits'), locale, true)
+      : withSuffix(
           formatCurrencyFromUSD(balance, {
             compact: true,
             locale,
             showSymbol: layout !== 'card',
           })
         )
-      : remainingFull
+  }
   const usedLabel = `${t('Used:')} ${usedFull}`
   const remainingLabel = `${t('Remaining:')} ${remainingFull}`
   const maskedUsedLabel = `${t('Used:')} ${SENSITIVE_MASK}`

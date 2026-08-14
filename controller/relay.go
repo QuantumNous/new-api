@@ -526,7 +526,7 @@ func RelayTask(c *gin.Context) {
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
 			channel = lockedCh
-			if retryParam.GetRetry() > 0 {
+			if retryParam.GetRetry() > 0 && channel.Type != constant.ChannelTypeYike {
 				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
 					break
@@ -540,6 +540,11 @@ func RelayTask(c *gin.Context) {
 				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
 				break
 			}
+		}
+		if channel.Type == constant.ChannelTypeYike && relayInfo.LockedChannel == nil {
+			// A Yike submit may have reached the provider even when its response is
+			// ambiguous. Keep the same account and already-selected AK|SK on retry.
+			relayInfo.LockedChannel = channel
 		}
 
 		addUsedChannel(c, channel.Id)

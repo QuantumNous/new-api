@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CHANNEL_TYPES } from '../constants'
+import {
+  CHANNEL_TYPES,
+  CHANNEL_TYPE_YIKE,
+  TYPE_TO_KEY_PROMPT,
+} from '../constants'
+
+const YIKE_BASE_URL_HINT = 'Yike API base URL hint'
 
 // ============================================================================
 // Channel Type Configuration
@@ -162,6 +168,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Base URL is required for this channel type',
       key: 'Enter API key for this channel',
       models: 'Models',
+    },
+  },
+  [CHANNEL_TYPE_YIKE]: {
+    id: CHANNEL_TYPE_YIKE,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_YIKE],
+    icon: 'Yike',
+    defaultBaseUrl: 'https://yike.cn-shanghai.aliyuncs.com',
+    hints: {
+      baseUrl: YIKE_BASE_URL_HINT,
+      key: TYPE_TO_KEY_PROMPT[CHANNEL_TYPE_YIKE],
+      models: 'Wonder-Pro,Wonder-Standard,happyhorse-1.1,happyhorse-1.0,wan2.7',
     },
   },
 }

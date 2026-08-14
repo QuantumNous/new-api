@@ -30,7 +30,7 @@ func TestSanitizeURLForLogMasksSensitiveQueryValues(t *testing.T) {
 }
 
 func TestSanitizeURLForLogMasksAWSAndSecretLikeQueryKeys(t *testing.T) {
-	rawURL := "https://example.test/path?X-Amz-Credential=credential&X-Amz-Signature=signature&session_token=session&client_secret=secret&model=gpt-test"
+	rawURL := "https://example.test/path?X-Amz-Credential=credential&X-Amz-Signature=signature&OSSAccessKeyId=access-key&session_token=session&client_secret=secret&model=gpt-test"
 
 	got := SanitizeURLForLog(rawURL)
 
@@ -38,6 +38,7 @@ func TestSanitizeURLForLogMasksAWSAndSecretLikeQueryKeys(t *testing.T) {
 	assert.NotContains(t, got, "X-Amz-Signature=signature")
 	assert.NotContains(t, got, "session_token=session")
 	assert.NotContains(t, got, "client_secret=secret")
+	assert.NotContains(t, got, "OSSAccessKeyId=access-key")
 	parsedURL, err := url.Parse(got)
 	require.NoError(t, err)
 	query := parsedURL.Query()
@@ -45,6 +46,7 @@ func TestSanitizeURLForLogMasksAWSAndSecretLikeQueryKeys(t *testing.T) {
 	assert.Equal(t, "***masked***", query.Get("X-Amz-Signature"))
 	assert.Equal(t, "***masked***", query.Get("session_token"))
 	assert.Equal(t, "***masked***", query.Get("client_secret"))
+	assert.Equal(t, "***masked***", query.Get("OSSAccessKeyId"))
 	assert.Equal(t, "gpt-test", query.Get("model"))
 }
 
@@ -54,6 +56,36 @@ func TestSanitizeURLForLogKeepsURLWithoutSensitiveQuery(t *testing.T) {
 	got := SanitizeURLForLog(rawURL)
 
 	assert.Equal(t, rawURL, got)
+}
+
+func TestSanitizeURLForLogMasksYikePayloadQueryValues(t *testing.T) {
+	rawURL := "https://yike.example.test/?Input=%7B%22Prompt%22%3A%22secret+prompt%22%7D&UserData=private&JobParameters=%7B%7D&Model=wan2.7"
+
+	got := SanitizeURLForLog(rawURL)
+
+	assert.NotContains(t, got, "secret+prompt")
+	assert.NotContains(t, got, "private")
+	parsedURL, err := url.Parse(got)
+	require.NoError(t, err)
+	query := parsedURL.Query()
+	assert.Equal(t, "***masked***", query.Get("Input"))
+	assert.Equal(t, "***masked***", query.Get("UserData"))
+	assert.Equal(t, "***masked***", query.Get("JobParameters"))
+	assert.Equal(t, "wan2.7", query.Get("Model"))
+}
+
+func TestSanitizeErrorForLogMasksURLQuery(t *testing.T) {
+	err := &url.Error{
+		Op:  "Post",
+		URL: "https://yike.example.test/?Input=secret-prompt&ClientToken=task-secret&Model=wan2.7",
+		Err: assert.AnError,
+	}
+
+	got := SanitizeErrorForLog(err)
+
+	assert.NotContains(t, got, "secret-prompt")
+	assert.NotContains(t, got, "task-secret")
+	assert.Contains(t, got, "Model=wan2.7")
 }
 
 func TestValidateMultipartDirectNormalizesImageField(t *testing.T) {

@@ -139,12 +139,14 @@ import {
 import {
   ADD_MODE_OPTIONS,
   CHANNEL_STATUS_LABELS,
+  CHANNEL_TYPE_YIKE,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
   FIELD_DESCRIPTIONS,
   FIELD_PLACEHOLDERS,
   MODEL_FETCHABLE_TYPES,
+  YIKE_KEY_INPUT_GUIDES,
 } from '../../constants'
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
@@ -852,6 +854,14 @@ export function ChannelMutateDrawer({
   // Helper computed values
   const isBatchMode =
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
+  const yikeKeyGuide =
+    currentType === CHANNEL_TYPE_YIKE
+      ? YIKE_KEY_INPUT_GUIDES[
+          isEditing && isMultiKeyChannel
+            ? 'multi_to_single'
+            : (multiKeyMode ?? 'single')
+        ]
+      : undefined
   const isChannelDetailLoading = isEditing && isChannelLoading
   const supportsMultiKeyAddMode =
     currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
@@ -2923,6 +2933,8 @@ export function ChannelMutateDrawer({
                                     keyPlaceholder = t(
                                       'Leave empty to keep existing key'
                                     )
+                                  } else if (yikeKeyGuide) {
+                                    keyPlaceholder = yikeKeyGuide.placeholder
                                   } else if (
                                     currentType === 33 &&
                                     awsKeyType === 'api_key' &&
@@ -2972,6 +2984,11 @@ export function ChannelMutateDrawer({
                                         {t(
                                           'Enter new key to update, or leave empty to keep current key'
                                         )}
+                                        {yikeKeyGuide && (
+                                          <span className='mt-1 block'>
+                                            {t(yikeKeyGuide.description)}
+                                          </span>
+                                        )}
                                         {isMultiKeyChannel && (
                                           <span className='text-warning mt-1 block'>
                                             {keyModeDescription}
@@ -2979,6 +2996,8 @@ export function ChannelMutateDrawer({
                                         )}
                                       </>
                                     )
+                                  } else if (yikeKeyGuide) {
+                                    keyDescription = t(yikeKeyGuide.description)
                                   } else if (isBatchMode) {
                                     keyDescription = t(
                                       'Enter one API key per line for batch creation'

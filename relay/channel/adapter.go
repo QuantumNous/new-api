@@ -82,3 +82,9 @@ type TaskAdaptor interface {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+
+// MappedModelValidator lets task-only adaptors revalidate provider-specific
+// capabilities after channel model mapping has selected the upstream model.
+type MappedModelValidator interface {
+	ValidateMappedModel(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError
+}

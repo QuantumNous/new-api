@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -97,8 +98,32 @@ func init() {
 	for i := 1; i <= constant.ChannelTypeDummy; i++ {
 		apiType, success := common.ChannelType2APIType(i)
 		if !success || apiType == constant.APITypeAIProxyLibrary {
+			if i != constant.ChannelTypeYike {
+				continue
+			}
+
+			// Yike is intentionally task-only, so it has no Chat APIType adaptor.
+			meta := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: i}}
+			taskAdaptor := relay.GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(i)))
+			if taskAdaptor == nil {
+				continue
+			}
+			taskAdaptor.Init(meta)
+			models := taskAdaptor.GetModelList()
+			channelId2Models[i] = models
+			for _, modelName := range models {
+				aiModel := dto.OpenAIModels{
+					Id:      modelName,
+					Object:  "model",
+					Created: 1626777600,
+					OwnedBy: taskAdaptor.GetChannelName(),
+				}
+				openAIModels = append(openAIModels, aiModel)
+				openAIModelsMap[modelName] = aiModel
+			}
 			continue
 		}
+
 		meta := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType: i,
 		}}

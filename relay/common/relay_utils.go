@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -67,6 +68,19 @@ func SanitizeURLForLog(rawURL string) string {
 	return parsedURL.String()
 }
 
+// SanitizeErrorForLog removes a net/url transport error's raw URL before it is
+// logged. That URL may contain signed credentials or an RPC Input query.
+func SanitizeErrorForLog(err error) string {
+	if err == nil {
+		return ""
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Sprintf("%s %s: %v", urlErr.Op, SanitizeURLForLog(urlErr.URL), urlErr.Err)
+	}
+	return err.Error()
+}
+
 func isSensitiveURLQueryKey(key string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(key))
 	switch normalized {
@@ -90,12 +104,17 @@ func isSensitiveURLQueryKey(key string) bool {
 		"awsaccesskeyid",
 		"x-amz-credential",
 		"x-amz-security-token",
-		"x-amz-signature":
+		"x-amz-signature",
+		"input",
+		"userdata",
+		"jobparameters":
 		return true
 	}
 	return strings.Contains(normalized, "token") ||
 		strings.Contains(normalized, "secret") ||
-		strings.Contains(normalized, "signature")
+		strings.Contains(normalized, "signature") ||
+		strings.Contains(normalized, "accesskeyid") ||
+		strings.Contains(normalized, "credential")
 }
 
 func GetAPIVersion(c *gin.Context) string {

@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay"
+	taskyike "github.com/QuantumNous/new-api/relay/channel/task/yike"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -74,6 +75,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		ctx = context.Background()
 	}
 	tik := time.Now()
+	if channel.Type == constant.ChannelTypeYike {
+		return testYikeChannel(ctx, channel)
+	}
 	var unsupportedTestChannelTypes = []int{
 		constant.ChannelTypeMidjourney,
 		constant.ChannelTypeMidjourneyPlus,
@@ -512,6 +516,29 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		context:     c,
 		localErr:    nil,
 		newAPIError: nil,
+	}
+}
+
+func testYikeChannel(ctx context.Context, channel *model.Channel) testResult {
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	key, _, keyErr := channel.GetNextEnabledKey()
+	var err error
+	if keyErr != nil {
+		err = keyErr
+	} else if strings.TrimSpace(key) == "" {
+		err = fmt.Errorf("Yike channel key is empty")
+	} else {
+		common.SetContextKey(c, constant.ContextKeyChannelKey, key)
+		err = taskyike.CheckChannelAccountCredit(ctx, channel.GetBaseURL(), key, channel.GetSetting().Proxy)
+	}
+	if err == nil {
+		return testResult{context: c}
+	}
+	return testResult{
+		context:     c,
+		localErr:    err,
+		newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusBadGateway),
 	}
 }
 

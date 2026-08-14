@@ -22,6 +22,11 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 
 export const CHANNEL_TYPE_NEW_API = 60
+export const CHANNEL_TYPE_YIKE = 61
+
+const YIKE_KEY_PAIR_PLACEHOLDER = 'AccessKeyId|AccessKeySecret'
+const YIKE_MULTI_KEY_PLACEHOLDER =
+  'AccessKeyId_1|AccessKeySecret_1\nAccessKeyId_2|AccessKeySecret_2'
 
 export const CHANNEL_TYPES = {
   0: 'Unknown',
@@ -81,12 +86,13 @@ export const CHANNEL_TYPES = {
   58: 'Advanced Custom',
   59: 'Sub2API',
   60: 'New API',
+  [CHANNEL_TYPE_YIKE]: 'Yike',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 3, 41, 48, 60, 58, 42, 34, 20, 4, 40, 27, 25, 17, 26, 15,
   46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 59, 22, 21, 44, 2,
-  5, 36, 50, 51, 52, 53, 54, 55, 56,
+  5, 36, 50, 51, 52, 61, 53, 54, 55, 56,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -199,6 +205,24 @@ export const ADD_MODE_OPTIONS = [
     label: 'Multi-Key Mode (multiple keys, one channel)',
   },
 ] as const
+
+export const YIKE_KEY_INPUT_GUIDES = {
+  single: {
+    placeholder: YIKE_KEY_PAIR_PLACEHOLDER,
+    description:
+      'Enter one complete credential pair in the format AccessKeyId|AccessKeySecret. Use a half-width vertical bar (|) with no spaces. This channel can query its credits independently.',
+  },
+  batch: {
+    placeholder: YIKE_MULTI_KEY_PLACEHOLDER,
+    description:
+      'Enter one complete AccessKeyId|AccessKeySecret pair per line. A separate channel is created for each line, and each channel can query its own credits. Do not put the ID and secret on separate lines.',
+  },
+  multi_to_single: {
+    placeholder: YIKE_MULTI_KEY_PLACEHOLDER,
+    description:
+      'Enter one complete AccessKeyId|AccessKeySecret pair per line. All pairs are stored in one channel and selected randomly or by polling. This mode is for request rotation and does not support querying or summing credits.',
+  },
+} as const
 
 // ============================================================================
 // Multi-Key Management
@@ -389,7 +413,7 @@ export const FIELD_DESCRIPTIONS = {
 
 export const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48, 57, 58,
-  59, 60,
+  59, 60, 61,
 ])
 
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
@@ -403,6 +427,7 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
   59: 'Enter API key for this channel',
   60: 'Enter API key for this channel',
+  [CHANNEL_TYPE_YIKE]: YIKE_KEY_PAIR_PLACEHOLDER,
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {

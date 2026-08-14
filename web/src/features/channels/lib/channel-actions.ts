@@ -42,6 +42,7 @@ import {
 } from '../api'
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import type { ChannelTestResponse, CopyChannelParams } from '../types'
+import { formatYikeCredits } from './yike-balance'
 
 // ============================================================================
 // Query Keys
@@ -374,13 +375,17 @@ export async function handleUpdateChannelBalance(
     const response = await updateChannelBalance(id)
     if (response.success && response.balance !== undefined) {
       const balance = response.balance
+      const formattedBalance =
+        response.unit === 'credits'
+          ? formatYikeCredits(balance, i18next.t('Credits'))
+          : formatCurrencyFromUSD(balance, {
+              digitsLarge: 2,
+              digitsSmall: 4,
+              abbreviate: false,
+            })
       toast.success(
         i18next.t('Balance updated: {{balance}}', {
-          balance: formatCurrencyFromUSD(balance, {
-            digitsLarge: 2,
-            digitsSmall: 4,
-            abbreviate: false,
-          }),
+          balance: formattedBalance,
         })
       )
       queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
