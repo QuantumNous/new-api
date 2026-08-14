@@ -196,9 +196,6 @@ func TestResolveFuzzyRules(t *testing.T) {
 	}{
 		{name: "undated request to dated entry", model: "claude-sonnet-4-5", catalogKey: "claude-sonnet-4-5-20250929"},
 		{name: "unknown date to known base", model: "claude-sonnet-4-5-20261231", catalogKey: "claude-sonnet-4-5-20250929"},
-		{name: "unpublished opus 5 falls back to 4.8", model: "claude-opus-5-20260401", catalogKey: "claude-opus-4-8"},
-		{name: "opus 4.8 thinking variant", model: "claude-opus-4-8-thinking", catalogKey: "claude-opus-4-8"},
-		{name: "openai suffix variant", model: "gpt-5.2-codex", catalogKey: "gpt-5.2"},
 		{name: "openai dated variant", model: "gpt-5.2-20251222", catalogKey: "gpt-5.2"},
 	}
 
@@ -225,6 +222,9 @@ func TestResolveFuzzyMisses(t *testing.T) {
 		{name: "unrelated vendor model", model: "some-vendor/llama-4-405b"},
 		{name: "opus lookalike from another vendor", model: "acme-opus-turbo"},
 		{name: "unknown openai family", model: "gpt-9.9-experimental"},
+		{name: "unpublished claude generation", model: "claude-opus-5-20260401"},
+		{name: "claude service variant", model: "claude-opus-4-8-thinking"},
+		{name: "openai suffix variant", model: "gpt-5.2-codex"},
 		{name: "empty name", model: "   "},
 	}
 
@@ -238,19 +238,15 @@ func TestResolveFuzzyMisses(t *testing.T) {
 	}
 }
 
-func TestClaudeFamilyOrderIsMostSpecificFirst(t *testing.T) {
-	// claude-opus-4 is a substring of claude-opus-4-7, so an unordered scan
-	// would price the newer model with the legacy family's rate.
+func TestClaudeFamilyVariantDoesNotUseGuessedPrice(t *testing.T) {
 	SetCatalog(buildTestCatalog(t, `{
 		"claude-opus-4-20250514": {"input_cost_per_token": 0.000015, "output_cost_per_token": 0.000075},
 		"claude-opus-4-7": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025}
 	}`))
 	t.Cleanup(func() { SetCatalog(nil) })
 
-	entry, ok := Resolve("claude-opus-4-7-xhigh", true)
-	require.True(t, ok)
-	assert.Equal(t, "claude-opus-4-7", entry.CatalogKey)
-	assert.Equal(t, 2.5, entry.ModelRatio)
+	_, ok := Resolve("claude-opus-4-7-xhigh", true)
+	assert.False(t, ok)
 }
 
 func TestResolveWithoutCatalog(t *testing.T) {
@@ -262,20 +258,20 @@ func TestResolveWithoutCatalog(t *testing.T) {
 
 func TestSetCatalogClearsFuzzyCache(t *testing.T) {
 	SetCatalog(buildTestCatalog(t, `{
-		"claude-opus-4-8": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025}
+		"claude-opus-4-8-20260814": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025}
 	}`))
 	t.Cleanup(func() { SetCatalog(nil) })
 
-	entry, ok := Resolve("claude-opus-4-8-high", true)
+	entry, ok := Resolve("claude-opus-4-8-20260815", true)
 	require.True(t, ok)
 	require.Equal(t, 2.5, entry.ModelRatio)
 
 	// A new catalog generation must invalidate memoized fuzzy results.
 	SetCatalog(buildTestCatalog(t, `{
-		"claude-opus-4-8": {"input_cost_per_token": 0.00001, "output_cost_per_token": 0.00005}
+		"claude-opus-4-8-20260814": {"input_cost_per_token": 0.00001, "output_cost_per_token": 0.00005}
 	}`))
 
-	entry, ok = Resolve("claude-opus-4-8-high", true)
+	entry, ok = Resolve("claude-opus-4-8-20260815", true)
 	require.True(t, ok)
 	assert.Equal(t, 5.0, entry.ModelRatio)
 }
