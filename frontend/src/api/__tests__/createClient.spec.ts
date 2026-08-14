@@ -160,4 +160,20 @@ describe('API client request scope', () => {
       code: 'INVALID_RESPONSE',
     })
   })
+
+  it('preserves data returned with business failures', async () => {
+    const client = createApiClient({
+      request: vi.fn().mockResolvedValue({
+        success: false,
+        message: 'upstream failed',
+        data: { response_time: 523, test_time: 1_725_000_000 },
+      }),
+    } as ApiTransport)
+
+    await expect(client.get('/api/channel/test/7')).rejects.toMatchObject({
+      business: true,
+      message: 'upstream failed',
+      data: { response_time: 523, test_time: 1_725_000_000 },
+    })
+  })
 })

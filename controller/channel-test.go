@@ -859,26 +859,40 @@ func TestChannel(c *gin.Context) {
 	}
 	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
 	if result.localErr != nil {
-		resp := gin.H{
+		writeChannelTestResponse(c, result, 0, 0, 0)
+		return
+	}
+	tok := time.Now()
+	milliseconds := tok.Sub(tik).Milliseconds()
+	if err := channel.UpdateResponseTime(milliseconds); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	consumedTime := float64(milliseconds) / 1000.0
+	writeChannelTestResponse(c, result, consumedTime, milliseconds, channel.TestTime)
+}
+
+func writeChannelTestResponse(c *gin.Context, result testResult, consumedTime float64, responseTime, testTime int64) {
+	if result.localErr != nil {
+		response := gin.H{
 			"success": false,
 			"message": result.localErr.Error(),
 			"time":    0.0,
 		}
 		if result.newAPIError != nil {
-			resp["error_code"] = result.newAPIError.GetErrorCode()
+			response["error_code"] = result.newAPIError.GetErrorCode()
 		}
-		c.JSON(http.StatusOK, resp)
+		c.JSON(http.StatusOK, response)
 		return
 	}
-	tok := time.Now()
-	milliseconds := tok.Sub(tik).Milliseconds()
-	go channel.UpdateResponseTime(milliseconds)
-	consumedTime := float64(milliseconds) / 1000.0
+
+	timing := channelTestTimingData(consumedTime, responseTime, testTime)
 	if result.newAPIError != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success":    false,
 			"message":    result.newAPIError.Error(),
 			"time":       consumedTime,
+			"data":       timing,
 			"error_code": result.newAPIError.GetErrorCode(),
 		})
 		return
@@ -889,8 +903,16 @@ func TestChannel(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"time":    consumedTime,
-		"data":    gin.H{"time": consumedTime},
+		"data":    timing,
 	})
+}
+
+func channelTestTimingData(consumedTime float64, responseTime, testTime int64) gin.H {
+	return gin.H{
+		"time":          consumedTime,
+		"response_time": responseTime,
+		"test_time":     testTime,
+	}
 }
 
 // channelTestSummary records the outcome of one channel test cycle so the
@@ -970,7 +992,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 			summary.Enabled++
 		}
 
-		channel.UpdateResponseTime(milliseconds)
+		_ = channel.UpdateResponseTime(milliseconds)
 		if common.RequestInterval > 0 {
 			if ctx == nil {
 				time.Sleep(common.RequestInterval)
