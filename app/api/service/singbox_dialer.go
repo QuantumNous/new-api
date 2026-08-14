@@ -313,19 +313,18 @@ func outboundFingerprint() (string, json.RawMessage) {
 	// "transport.headers"; round-tripping through the service's OutboundConfig
 	// struct would drop them (it only models a flat Host), silently losing
 	// WebSocket/gRPC transport settings when the dialer rebuilds.
-	var enabled bool
-	var outboundRaw json.RawMessage
-	if err := common.Unmarshal([]byte(opt.Value), &struct {
+	var cfg struct {
 		Enabled  bool            `json:"enabled"`
 		Outbound json.RawMessage `json:"outbound"`
-	}{Enabled: enabled, Outbound: outboundRaw}); err != nil {
+	}
+	if err := common.Unmarshal([]byte(opt.Value), &cfg); err != nil {
 		return "", nil
 	}
-	if !enabled {
+	if !cfg.Enabled {
 		return "", nil
 	}
-	h := sha256.Sum256(outboundRaw)
-	return fmt.Sprintf("%x", h[:16]), outboundRaw
+	h := sha256.Sum256(cfg.Outbound)
+	return fmt.Sprintf("%x", h[:16]), cfg.Outbound
 }
 
 type singBoxDialerCache struct {
