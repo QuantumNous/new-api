@@ -180,6 +180,25 @@ func TestResolveFuzzyDisabledStopsAfterExactCandidates(t *testing.T) {
 	assert.Equal(t, "claude-opus-4-5-20251101", entry.CatalogKey)
 }
 
+func TestResolveTracksSeparateRequestAndIdentifiedPolicies(t *testing.T) {
+	SetCatalog(buildTestCatalog(t, `{
+		"gpt-5.2": {"input_cost_per_token": 0.00000125, "output_cost_per_token": 0.00001}
+	}`))
+	t.Cleanup(func() { SetCatalog(nil) })
+
+	_, ok := ResolveForRequest("gpt-5.2-20251222", false)
+	assert.False(t, ok)
+	requestEntry, ok := ResolveForRequest("gpt-5.2-20251222", true)
+	require.True(t, ok)
+	identifiedEntry, ok := ResolveIdentified("providers/openai/models/gpt-5.2-20251222")
+	require.True(t, ok)
+	assert.Equal(t, "gpt-5.2", requestEntry.CatalogKey)
+	assert.Equal(t, "gpt-5.2", identifiedEntry.CatalogKey)
+
+	_, ok = ResolveIdentified("gpt-5.2-codex")
+	assert.False(t, ok, "identified models must not use family inference")
+}
+
 func TestResolveFuzzyRules(t *testing.T) {
 	SetCatalog(buildTestCatalog(t, `{
 		"claude-opus-4-8": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025},

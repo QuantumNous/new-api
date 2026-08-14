@@ -206,10 +206,29 @@ func Loaded() bool {
 	return c != nil && c.ModelCount > 0
 }
 
-// Resolve looks up pricing for a model name. Exact candidate matching always
-// runs; the fuzzy rule chain runs only when allowFuzzy is set, and its results
-// are memoized because family matching scans the whole catalog.
+// ResolveForRequest prices a client-requested model. Exact keys, explicit
+// aliases and deterministic provider/path spelling normalization always run.
+// Date/revision compatibility runs only when allowCompatibility is enabled.
+func ResolveForRequest(model string, allowCompatibility bool) (Entry, bool) {
+	return resolve(model, allowCompatibility)
+}
+
+// ResolveIdentified prices a model name identified by an upstream response or
+// another trusted protocol field. It permits only exact keys, explicit aliases
+// and deterministic path/date/revision normalization. It never performs family
+// or nearest-model inference.
+func ResolveIdentified(model string) (Entry, bool) {
+	return resolve(model, true)
+}
+
+// Resolve is retained for callers that have not yet selected an explicit
+// lookup track. New request billing code should call ResolveForRequest, while
+// upstream-identified models should call ResolveIdentified.
 func Resolve(model string, allowFuzzy bool) (Entry, bool) {
+	return ResolveForRequest(model, allowFuzzy)
+}
+
+func resolve(model string, allowDateNormalization bool) (Entry, bool) {
 	c := current.Load()
 	if c == nil || len(c.entries) == 0 {
 		return Entry{}, false
@@ -232,7 +251,7 @@ func Resolve(model string, allowFuzzy bool) (Entry, bool) {
 		}
 	}
 
-	if !allowFuzzy {
+	if !allowDateNormalization {
 		return Entry{}, false
 	}
 

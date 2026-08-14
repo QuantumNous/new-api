@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/autopricing"
@@ -82,9 +84,8 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 	previousSetting := *setting
 	setting.HashURL = ""
 
-	workDir, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(t.TempDir()))
+	previousDataRoot := autoPricingDataRoot
+	autoPricingDataRoot = t.TempDir()
 
 	t.Cleanup(func() {
 		autoPricingClient = previousClient
@@ -93,7 +94,7 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 		autoPricingStateMu.Lock()
 		autoPricingState = newAutoPricingState()
 		autoPricingStateMu.Unlock()
-		_ = os.Chdir(workDir)
+		autoPricingDataRoot = previousDataRoot
 	})
 }
 
@@ -111,6 +112,7 @@ func setHashURLForTest(t *testing.T, hashURL string) {
 
 	previous := *setting
 	setting.HashURL = hashURL
+	setting.AllowedHosts = append(setting.EffectiveAllowedHosts(), "example.invalid")
 	t.Cleanup(func() { *setting = previous })
 }
 
@@ -275,8 +277,9 @@ func TestPersistenceFailureKeepsPreviousEffectiveCatalog(t *testing.T) {
 	useFakeRemote(t, client)
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 
-	require.NoError(t, os.RemoveAll(autoPricingStateDir))
-	require.NoError(t, os.WriteFile(autoPricingStateDir, []byte("blocks state directory"), 0o600))
+	stateDir := filepath.Dir(autoPricingStatePath())
+	require.NoError(t, os.RemoveAll(stateDir))
+	require.NoError(t, os.WriteFile(stateDir, []byte("blocks state directory"), 0o600))
 	client.body = []byte(updatedCatalogDocument)
 	client.version = `"etag-2"`
 	require.Error(t, SyncAutoPricingOnce(context.Background(), true))
@@ -368,7 +371,10 @@ func TestLoadFromDiskRestoresLastGoodCatalog(t *testing.T) {
 
 func TestLoadFromDiskWithoutCacheIsNotAnError(t *testing.T) {
 	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
-	assert.False(t, loadAutoPricingFromDisk())
+	assert.True(t, loadAutoPricingFromDisk())
+	assert.Equal(t, "offline-snapshot", GetAutoPricingStatus().Source)
+	_, ok := autopricing.Resolve("gpt-5.6-sol", false)
+	assert.True(t, ok)
 }
 
 func TestLoadLegacyCacheCreatesRestorableMultiSourceState(t *testing.T) {
@@ -408,10 +414,115 @@ func TestLoadFromDiskReplacesUnrestorableStateFromLegacyCache(t *testing.T) {
 func TestLoadFromDiskRejectsCorruptCache(t *testing.T) {
 	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
 
-	require.NoError(t, os.MkdirAll(autoPricingStateDir, 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Dir(autoPricingStatePath()), 0o700))
 	require.NoError(t, os.WriteFile(autoPricingStatePath(), []byte("not json"), 0o600))
-	assert.False(t, loadAutoPricingFromDisk())
-	assert.False(t, autopricing.Loaded())
+	assert.True(t, loadAutoPricingFromDisk())
+	assert.True(t, autopricing.Loaded())
+	assert.Equal(t, "offline-snapshot", GetAutoPricingStatus().Source)
+}
+
+func TestValidateAutoPricingURLRequiresHTTPSAllowlistedHost(t *testing.T) {
+	valid, err := validateAutoPricingURLForHosts("https://mirror.example/catalog.json", []string{"mirror.example"})
+	require.NoError(t, err)
+	assert.Equal(t, "https://mirror.example/catalog.json", valid)
+	_, err = validateAutoPricingURLForHosts("http://mirror.example/catalog.json", []string{"mirror.example"})
+	assert.ErrorContains(t, err, "HTTPS")
+	_, err = validateAutoPricingURLForHosts("https://other.example/catalog.json", []string{"mirror.example"})
+	assert.ErrorContains(t, err, "allowlist")
+	_, err = validateAutoPricingURLForHosts("https://user@mirror.example/catalog.json", []string{"mirror.example"})
+	assert.ErrorContains(t, err, "userinfo")
+}
+
+func TestReviewByModelsRejectsStaleRevision(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	client.body = []byte(updatedCatalogDocument)
+	client.version = `"etag-2"`
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
+	pending, revision := GetAutoPricingPendingWithRevision()
+	require.Len(t, pending, 1)
+	require.NotEmpty(t, revision)
+	_, err := ReviewAutoPricingByModels([]string{pending[0].Model}, "approve", "stale-revision")
+	var reviewErr *AutoPricingReviewError
+	require.ErrorAs(t, err, &reviewErr)
+	assert.Equal(t, http.StatusConflict, reviewErr.Status)
+	results, err := ReviewAutoPricingByModels([]string{pending[0].Model}, "approve", revision)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, pending[0].Model, results[0].Model)
+	assert.Equal(t, pending[0].Fingerprint, results[0].Fingerprint)
+	assert.Equal(t, "approve", results[0].Action)
+}
+
+func TestSameCatalogPricesIgnoresSourceMetadataButDetectsBillingChanges(t *testing.T) {
+	input, output, changedOutput := 2.0, 8.0, 9.0
+	base := &autopricing.CatalogSnapshot{Records: map[string]autopricing.PriceRecord{
+		"model": {
+			Model: "model", PrimarySource: autopricing.SourceMirror,
+			SourceVersion: "v1", SourceURL: "https://mirror.example/v1.json",
+			Standard: autopricing.CostSet{Input: &input, Output: &output},
+		},
+	}}
+	metadataOnly := &autopricing.CatalogSnapshot{Records: map[string]autopricing.PriceRecord{
+		"model": {
+			Model: "model", PrimarySource: autopricing.SourceModelsDev,
+			SourceVersion: "v2", SourceURL: "https://models.dev/api.json",
+			Standard: autopricing.CostSet{Input: &input, Output: &output},
+		},
+	}}
+	assert.True(t, sameCatalogPrices(base, metadataOnly))
+	metadataOnly.Records["model"] = autopricing.PriceRecord{
+		Model: "model", PrimarySource: autopricing.SourceModelsDev,
+		Standard: autopricing.CostSet{Input: &input, Output: &changedOutput},
+	}
+	assert.False(t, sameCatalogPrices(base, metadataOnly))
+}
+
+func TestAutoPricingRevisionIgnoresSnapshotTimestamp(t *testing.T) {
+	first := &autopricing.CatalogSnapshot{
+		Version:   "candidate-v1",
+		UpdatedAt: time.Date(2026, time.August, 14, 1, 0, 0, 0, time.UTC),
+	}
+	second := &autopricing.CatalogSnapshot{
+		Version:   first.Version,
+		UpdatedAt: first.UpdatedAt.Add(time.Hour),
+	}
+	pending := []autopricing.PendingReview{{Model: "model", Fingerprint: "fingerprint-v1"}}
+
+	assert.Equal(t, autoPricingRevision(first, pending), autoPricingRevision(second, pending))
+	second.Version = "candidate-v2"
+	assert.NotEqual(t, autoPricingRevision(first, pending), autoPricingRevision(second, pending))
+}
+
+func TestReadStateMigratesMissingReviewRevision(t *testing.T) {
+	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
+	state := newAutoPricingState()
+	state.Revision = ""
+	require.NoError(t, persistAutoPricingState(state))
+
+	restored, err := readAutoPricingState()
+	require.NoError(t, err)
+	require.NotNil(t, restored)
+	assert.NotEmpty(t, restored.Revision)
+	reloaded, err := readAutoPricingState()
+	require.NoError(t, err)
+	assert.Equal(t, restored.Revision, reloaded.Revision)
+}
+
+func TestAutoPricingProxyInitializationFailsClosed(t *testing.T) {
+	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
+	setting, ok := config.GlobalConfig.Get("auto_pricing").(*ratio_setting.AutoPricingSetting)
+	require.True(t, ok)
+	setting.ProxyURL = "://invalid-proxy"
+	setting.AllowDirectOnProxyFailure = false
+	_, err := (&httpAutoPricingClient{}).client()
+	assert.ErrorContains(t, err, "proxy")
+
+	setting.AllowDirectOnProxyFailure = true
+	client, err := (&httpAutoPricingClient{}).client()
+	require.NoError(t, err)
+	assert.NotNil(t, client)
 }
 
 func TestLoadFromDiskRestoresPendingReviews(t *testing.T) {
@@ -454,5 +565,40 @@ func TestFirstTakeoverArchivesAndDeletesLegacyPricingOptions(t *testing.T) {
 	require.FileExists(t, autoPricingArchivePath())
 	var count int64
 	require.NoError(t, db.Model(&model.Option{}).Where("key IN ?", takeoverOptionKeys).Count(&count).Error)
+	assert.Zero(t, count)
+	var marker model.Option
+	require.NoError(t, db.Where("key = ?", autoPricingTakeoverKey).First(&marker).Error)
+	assert.Equal(t, "true", marker.Value)
+}
+
+func TestFirstTakeoverRollsBackOptionsAndStateOnDatabaseFailure(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+
+	previousDB := model.DB
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "takeover-rollback.db")), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Option{}))
+	require.NoError(t, db.Create(&model.Option{Key: "ModelRatio", Value: `{"legacy-model":1}`}).Error)
+	callbackName := "test:fail-auto-pricing-takeover-delete"
+	require.NoError(t, db.Callback().Delete().Before("gorm:delete").Register(callbackName, func(tx *gorm.DB) {
+		tx.AddError(errors.New("forced takeover delete failure"))
+	}))
+	model.DB = db
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		model.DB = previousDB
+		_ = db.Callback().Delete().Remove(callbackName)
+		_ = sqlDB.Close()
+	})
+
+	err = SyncAutoPricingOnce(context.Background(), false)
+	assert.ErrorContains(t, err, "forced takeover delete failure")
+	assert.False(t, GetAutoPricingStatus().TakeoverComplete)
+	var count int64
+	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", "ModelRatio").Count(&count).Error)
+	assert.EqualValues(t, 1, count)
+	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", autoPricingTakeoverKey).Count(&count).Error)
 	assert.Zero(t, count)
 }

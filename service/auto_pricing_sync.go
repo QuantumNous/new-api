@@ -33,6 +33,7 @@ const (
 	autoPricingArchiveFile     = "legacy-options.json"
 	autoPricingCacheFile       = "model_pricing_catalog.json"
 	autoPricingVersionFile     = "model_pricing_catalog.version"
+	autoPricingTakeoverKey     = "auto_pricing.takeover_complete"
 	contentHashVersionPrefix   = "sha256:"
 	autoPricingGuardThreshold  = 0.25
 )
@@ -48,11 +49,12 @@ type autoPricingRemoteClient interface {
 }
 
 type AutoPricingSourceStatus struct {
-	Source    autopricing.SourceID `json:"source"`
-	URL       string               `json:"url,omitempty"`
-	Version   string               `json:"version,omitempty"`
-	Error     string               `json:"error,omitempty"`
-	UpdatedAt time.Time            `json:"updated_at,omitempty"`
+	Source     autopricing.SourceID `json:"source"`
+	URL        string               `json:"url,omitempty"`
+	Version    string               `json:"version,omitempty"`
+	Error      string               `json:"error,omitempty"`
+	UpdatedAt  time.Time            `json:"updated_at,omitempty"`
+	ManualOnly bool                 `json:"manual_only,omitempty"`
 }
 
 type AutoPricingStatus struct {
@@ -73,6 +75,8 @@ type AutoPricingStatus struct {
 	PendingCount      int                       `json:"pending_count"`
 	TakeoverComplete  bool                      `json:"takeover_complete"`
 	Sources           []AutoPricingSourceStatus `json:"sources"`
+	ManualSources     []AutoPricingSourceStatus `json:"manual_sources"`
+	Revision          string                    `json:"revision"`
 }
 
 type autoPricingPersistentState struct {
@@ -88,23 +92,27 @@ type autoPricingPersistentState struct {
 	LastSuccessfulAt time.Time                                           `json:"last_successful_at,omitempty"`
 	LastError        string                                              `json:"last_error,omitempty"`
 	Source           string                                              `json:"source,omitempty"`
+	Revision         string                                              `json:"revision,omitempty"`
 }
 
 var (
-	autoPricingClient  = autoPricingRemoteClient(&httpAutoPricingClient{})
-	autoPricingSyncMu  sync.Mutex
-	autoPricingStateMu sync.RWMutex
-	autoPricingState   = newAutoPricingState()
+	autoPricingClient   = autoPricingRemoteClient(&httpAutoPricingClient{})
+	autoPricingSyncMu   sync.Mutex
+	autoPricingStateMu  sync.RWMutex
+	autoPricingState    = newAutoPricingState()
+	autoPricingDataRoot = "/data"
 )
 
 func newAutoPricingState() *autoPricingPersistentState {
-	return &autoPricingPersistentState{
+	state := &autoPricingPersistentState{
 		SchemaVersion:  1,
 		Pending:        []autopricing.PendingReview{},
 		Rejected:       map[string]bool{},
 		Sources:        map[autopricing.SourceID]AutoPricingSourceStatus{},
 		SourceCatalogs: map[autopricing.SourceID]*autopricing.SourceCatalog{},
 	}
+	state.Revision = autoPricingRevision(nil, nil)
+	return state
 }
 
 func InitAutoPricing() {
@@ -148,7 +156,6 @@ func SyncAutoPricingOnce(ctx context.Context, force bool) error {
 		{autopricing.SourceMirror, mirrorURL, autopricing.ParseMirrorSource},
 		{autopricing.SourceModelsDev, autopricing.DefaultModelsDevURL, autopricing.ParseModelsDevSource},
 		{autopricing.SourceLiteLLM, autopricing.DefaultLiteLLMURL, autopricing.ParseLiteLLMSource},
-		{autopricing.SourceNewAPI, autopricing.DefaultNewAPIURL, autopricing.ParseNewAPISource},
 	}
 
 	collected := []*autopricing.SourceCatalog{override}
@@ -210,6 +217,7 @@ func SyncAutoPricingOnce(ctx context.Context, force bool) error {
 
 	state.Candidate = candidate.Snapshot()
 	state.Pending = pending
+	state.Revision = autoPricingRevision(state.Candidate, pending)
 	state.LastSuccessfulAt = now
 	state.LastError = ""
 	state.Source = "remote"
@@ -256,6 +264,7 @@ func fetchMirrorSource(ctx context.Context, catalogURL, hashURL, knownVersion st
 			return nil, fmt.Errorf("invalid mirror checksum: %w", err)
 		}
 		if !force && previous != nil && hashToken != "" && strings.EqualFold(strings.TrimPrefix(previous.Version, contentHashVersionPrefix), hashToken) {
+			setPricingSourceURL(previous, catalogURL)
 			return previous, nil
 		}
 	}
@@ -280,6 +289,7 @@ func fetchMirrorSource(ctx context.Context, catalogURL, hashURL, knownVersion st
 	if err != nil {
 		return nil, err
 	}
+	setPricingSourceURL(source, catalogURL)
 	return source, nil
 }
 
@@ -306,13 +316,27 @@ func fetchPricingSource(ctx context.Context, sourceURL, knownVersion string, pre
 		if previous == nil {
 			return nil, fmt.Errorf("source returned not modified without a cached catalog")
 		}
+		setPricingSourceURL(previous, sourceURL)
 		return previous, nil
 	}
 	source, err := parser(body, version)
 	if err != nil {
 		return nil, err
 	}
+	setPricingSourceURL(source, sourceURL)
 	return source, nil
+}
+
+func setPricingSourceURL(source *autopricing.SourceCatalog, sourceURL string) {
+	if source == nil {
+		return
+	}
+	for model, record := range source.Records {
+		if strings.TrimSpace(record.SourceURL) == "" {
+			record.SourceURL = sourceURL
+			source.Records[model] = record
+		}
+	}
 }
 
 func GetAutoPricingStatus() AutoPricingStatus {
@@ -324,7 +348,12 @@ func GetAutoPricingStatus() AutoPricingStatus {
 		IntervalMinutes: setting.EffectiveCheckIntervalMinutes(), LastSyncAt: state.LastSyncAt,
 		LastSuccessfulAt: state.LastSuccessfulAt, LastError: state.LastError, Source: state.Source,
 		PendingCount: len(state.Pending), TakeoverComplete: state.TakeoverComplete,
-		Sources: make([]AutoPricingSourceStatus, 0, len(state.Sources)),
+		Revision:      state.Revision,
+		Sources:       make([]AutoPricingSourceStatus, 0, len(state.Sources)),
+		ManualSources: []AutoPricingSourceStatus{{Source: autopricing.SourceNewAPI, URL: autopricing.DefaultNewAPIURL, ManualOnly: true}},
+	}
+	if status.Revision == "" {
+		status.Revision = autoPricingRevision(state.Candidate, state.Pending)
 	}
 	if catalog := autopricing.CurrentCatalog(); catalog != nil {
 		status.Loaded = catalog.ModelCount > 0
@@ -334,7 +363,22 @@ func GetAutoPricingStatus() AutoPricingStatus {
 		status.UpdatedAt = catalog.UpdatedAt
 	}
 	for _, source := range state.Sources {
-		status.Sources = append(status.Sources, source)
+		switch source.Source {
+		case autopricing.SourceOverride, autopricing.SourceMirror, autopricing.SourceModelsDev, autopricing.SourceLiteLLM:
+			status.Sources = append(status.Sources, source)
+		}
+	}
+	for _, sourceID := range []autopricing.SourceID{autopricing.SourceOverride, autopricing.SourceMirror, autopricing.SourceModelsDev, autopricing.SourceLiteLLM} {
+		found := false
+		for _, source := range status.Sources {
+			if source.Source == sourceID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			status.Sources = append(status.Sources, AutoPricingSourceStatus{Source: sourceID})
+		}
 	}
 	sort.Slice(status.Sources, func(i, j int) bool { return status.Sources[i].Source < status.Sources[j].Source })
 	return status
@@ -345,11 +389,45 @@ func GetAutoPricingPending() []autopricing.PendingReview {
 	return append([]autopricing.PendingReview{}, state.Pending...)
 }
 
+func GetAutoPricingPendingWithRevision() ([]autopricing.PendingReview, string) {
+	state := snapshotAutoPricingState()
+	revision := state.Revision
+	if revision == "" {
+		revision = autoPricingRevision(state.Candidate, state.Pending)
+	}
+	return append([]autopricing.PendingReview{}, state.Pending...), revision
+}
+
 func ReviewAutoPricing(fingerprints []string, action string) error {
+	_, err := reviewAutoPricing(fingerprints, nil, action, "")
+	return err
+}
+
+type AutoPricingReviewResult struct {
+	Model       string `json:"model"`
+	Fingerprint string `json:"fingerprint"`
+	Action      string `json:"action"`
+}
+
+func ReviewAutoPricingByModels(models []string, action, revision string) ([]AutoPricingReviewResult, error) {
+	if strings.TrimSpace(revision) == "" {
+		return nil, &AutoPricingReviewError{Status: http.StatusConflict, Message: "review revision is required"}
+	}
+	return reviewAutoPricing(nil, models, action, revision)
+}
+
+type AutoPricingReviewError struct {
+	Status  int
+	Message string
+}
+
+func (e *AutoPricingReviewError) Error() string { return e.Message }
+
+func reviewAutoPricing(fingerprints, models []string, action, revision string) ([]AutoPricingReviewResult, error) {
 	autoPricingSyncMu.Lock()
 	defer autoPricingSyncMu.Unlock()
-	if len(fingerprints) == 0 {
-		return fmt.Errorf("fingerprints must contain at least one review fingerprint")
+	if len(fingerprints) == 0 && len(models) == 0 {
+		return nil, fmt.Errorf("fingerprints must contain at least one review fingerprint")
 	}
 	approve := false
 	switch action {
@@ -357,28 +435,66 @@ func ReviewAutoPricing(fingerprints []string, action string) error {
 		approve = true
 	case "reject":
 	default:
-		return fmt.Errorf("action must be approve or reject")
+		return nil, fmt.Errorf("action must be approve or reject")
 	}
 	state := snapshotAutoPricingState()
+	if revision != "" && revision != state.Revision {
+		return nil, &AutoPricingReviewError{Status: http.StatusConflict, Message: "review revision is stale"}
+	}
+	results := make([]AutoPricingReviewResult, 0, len(fingerprints)+len(models))
+	if len(models) > 0 {
+		seen := map[string]bool{}
+		fingerprints = make([]string, 0, len(models))
+		for _, requestedModel := range models {
+			requestedModel = strings.TrimSpace(requestedModel)
+			if requestedModel == "" || seen[requestedModel] {
+				return nil, &AutoPricingReviewError{Status: http.StatusUnprocessableEntity, Message: "review models must be non-empty and unique"}
+			}
+			seen[requestedModel] = true
+			found := false
+			for _, item := range state.Pending {
+				if item.Model == requestedModel {
+					fingerprints = append(fingerprints, item.Fingerprint)
+					results = append(results, AutoPricingReviewResult{Model: item.Model, Fingerprint: item.Fingerprint, Action: action})
+					found = true
+					break
+				}
+			}
+			if !found {
+				return nil, &AutoPricingReviewError{Status: http.StatusUnprocessableEntity, Message: fmt.Sprintf("model %q is not pending or is stale", requestedModel)}
+			}
+		}
+	} else {
+		selected := make(map[string]bool, len(fingerprints))
+		for _, fingerprint := range fingerprints {
+			selected[fingerprint] = true
+		}
+		for _, item := range state.Pending {
+			if selected[item.Fingerprint] {
+				results = append(results, AutoPricingReviewResult{Model: item.Model, Fingerprint: item.Fingerprint, Action: action})
+			}
+		}
+	}
 	active, err := autopricing.RestoreCatalog(state.Active)
 	if err != nil {
-		return fmt.Errorf("restore active pricing catalog: %w", err)
+		return nil, fmt.Errorf("restore active pricing catalog: %w", err)
 	}
 	next, remaining, rejected, err := autopricing.ApplyReview(active, state.Pending, fingerprints, approve)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, fingerprint := range rejected {
 		state.Rejected[fingerprint] = true
 	}
 	state.Active = next.Snapshot()
 	state.Pending = remaining
+	state.Revision = autoPricingRevision(state.Candidate, remaining)
 	state.LastSuccessfulAt = time.Now().UTC()
 	if err := persistAutoPricingState(state); err != nil {
-		return fmt.Errorf("persist pricing review: %w", err)
+		return nil, fmt.Errorf("persist pricing review: %w", err)
 	}
-	publishAutoPricingState(state, next, true)
-	return nil
+	publishAutoPricingState(state, next, !sameCatalogPrices(active.Snapshot(), next.Snapshot()))
+	return results, nil
 }
 
 func snapshotAutoPricingState() *autoPricingPersistentState {
@@ -403,7 +519,9 @@ func publishAutoPricingState(state *autoPricingPersistentState, catalog *autopri
 func recordAutoPricingFailure(state *autoPricingPersistentState, err error) error {
 	state.LastError = err.Error()
 	state.Source = "error"
-	_ = persistAutoPricingState(state)
+	if persistErr := persistAutoPricingState(state); persistErr != nil {
+		err = fmt.Errorf("%w; persist failure state: %v", err, persistErr)
+	}
 	autoPricingStateMu.Lock()
 	autoPricingState = state
 	autoPricingStateMu.Unlock()
@@ -414,7 +532,22 @@ func sameCatalogPrices(a, b *autopricing.CatalogSnapshot) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return reflect.DeepEqual(a.Records, b.Records)
+	return reflect.DeepEqual(effectiveCatalogRecords(a.Records), effectiveCatalogRecords(b.Records))
+}
+
+func effectiveCatalogRecords(records map[string]autopricing.PriceRecord) map[string]autopricing.PriceRecord {
+	effective := make(map[string]autopricing.PriceRecord, len(records))
+	for modelName, record := range records {
+		record.Provider = ""
+		record.PrimarySource = ""
+		record.SourceVersion = ""
+		record.SourceURL = ""
+		record.Reason = ""
+		record.ValidUntil = time.Time{}
+		record.FieldSources = nil
+		effective[modelName] = record
+	}
+	return effective
 }
 
 func runAutoPricingRefreshLoop() {
@@ -436,31 +569,61 @@ func runAutoPricingRefreshLoop() {
 }
 
 func validateAutoPricingURL(raw string) (string, error) {
+	return validateAutoPricingURLForHosts(raw, ratio_setting.GetAutoPricingSetting().EffectiveAllowedHosts())
+}
+
+func validateAutoPricingURLForHosts(raw string, allowedHosts []string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return "", fmt.Errorf("invalid pricing catalog url: %w", err)
 	}
-	switch parsed.Scheme {
-	case "https":
-	case "http":
-		common.SysError("auto pricing url uses plain HTTP; catalog contents can be tampered with in transit: " + parsed.Host)
-	default:
-		return "", fmt.Errorf("pricing catalog url must be http(s), got scheme %q", parsed.Scheme)
+	if parsed.Scheme != "https" {
+		return "", fmt.Errorf("pricing catalog url must use HTTPS")
 	}
-	if parsed.Host == "" {
-		return "", fmt.Errorf("pricing catalog url has no host")
+	if parsed.Host == "" || parsed.User != nil {
+		return "", fmt.Errorf("pricing catalog url must include a host without userinfo")
+	}
+	host := strings.ToLower(parsed.Hostname())
+	allowed := false
+	for _, candidate := range allowedHosts {
+		if strings.EqualFold(strings.TrimSpace(candidate), host) {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return "", fmt.Errorf("pricing catalog host %q is not in the configured HTTPS allowlist", host)
 	}
 	return parsed.String(), nil
 }
 
 func autoPricingStatePath() string {
-	return filepath.Join(".", autoPricingStateDir, autoPricingStateFile)
+	return filepath.Join(autoPricingDataRoot, autoPricingStateDir, autoPricingStateFile)
 }
 func autoPricingArchivePath() string {
-	return filepath.Join(".", autoPricingStateDir, autoPricingArchiveFile)
+	return filepath.Join(autoPricingDataRoot, autoPricingStateDir, autoPricingArchiveFile)
 }
-func autoPricingCachePath() string   { return filepath.Join(".", autoPricingCacheFile) }
-func autoPricingVersionPath() string { return filepath.Join(".", autoPricingVersionFile) }
+func autoPricingCachePath() string { return filepath.Join(autoPricingDataRoot, autoPricingCacheFile) }
+func autoPricingVersionPath() string {
+	return filepath.Join(autoPricingDataRoot, autoPricingVersionFile)
+}
+
+func autoPricingRevision(candidate *autopricing.CatalogSnapshot, pending []autopricing.PendingReview) string {
+	items := make([]string, 0, len(pending))
+	for _, item := range pending {
+		items = append(items, item.Model+":"+item.Fingerprint)
+	}
+	sort.Strings(items)
+	candidateVersion := ""
+	if candidate != nil {
+		candidateVersion = candidate.Version
+	}
+	payload, _ := common.Marshal(struct {
+		CandidateVersion string   `json:"candidate_version"`
+		Items            []string `json:"items"`
+	}{CandidateVersion: candidateVersion, Items: items})
+	return hex.EncodeToString(common.Sha256Raw(payload))
+}
 
 func persistAutoPricingState(state *autoPricingPersistentState) error {
 	raw, err := common.Marshal(state)
@@ -474,8 +637,30 @@ func autoPricingWriteFileAtomic(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
+	if err := os.Chmod(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
 	tempPath := path + ".tmp"
-	if err := os.WriteFile(tempPath, data, 0o600); err != nil {
+	file, err := os.OpenFile(tempPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		_ = os.Remove(tempPath)
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		_ = os.Remove(tempPath)
+		return err
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return err
+	}
+	if err := os.Chmod(tempPath, 0o600); err != nil {
+		_ = os.Remove(tempPath)
 		return err
 	}
 	if err := os.Rename(tempPath, path); err != nil {
@@ -489,15 +674,24 @@ func loadAutoPricingFromDisk() bool {
 	state, err := readAutoPricingState()
 	if err != nil {
 		common.SysError("auto pricing state is unusable: " + err.Error())
-		return loadLegacyAutoPricingCache()
+		if loadLegacyAutoPricingCache() {
+			return true
+		}
+		return loadFrozenAutoPricingSnapshot()
 	}
 	if state == nil {
-		return loadLegacyAutoPricingCache()
+		if loadLegacyAutoPricingCache() {
+			return true
+		}
+		return loadFrozenAutoPricingSnapshot()
 	}
 	active, err := autopricing.RestoreCatalog(state.Active)
 	if err != nil {
 		common.SysError("auto pricing active catalog is unusable: " + err.Error())
-		return loadLegacyAutoPricingCache()
+		if loadLegacyAutoPricingCache() {
+			return true
+		}
+		return loadFrozenAutoPricingSnapshot()
 	}
 	state.Source = "cache"
 	autoPricingStateMu.Lock()
@@ -507,7 +701,27 @@ func loadAutoPricingFromDisk() bool {
 		autopricing.SetCatalog(active)
 		return true
 	}
-	return false
+	return loadFrozenAutoPricingSnapshot()
+}
+
+func loadFrozenAutoPricingSnapshot() bool {
+	snapshot, err := autopricing.LoadFrozenSnapshot()
+	if err != nil {
+		common.SysError("frozen auto pricing snapshot is unusable: " + err.Error())
+		return false
+	}
+	catalog, err := autopricing.RestoreCatalog(snapshot)
+	if err != nil {
+		common.SysError("restore frozen auto pricing snapshot: " + err.Error())
+		return false
+	}
+	state := newAutoPricingState()
+	state.Source = "offline-snapshot"
+	autoPricingStateMu.Lock()
+	autoPricingState = state
+	autoPricingStateMu.Unlock()
+	autopricing.SetCatalog(catalog)
+	return true
 }
 
 func readAutoPricingState() (*autoPricingPersistentState, error) {
@@ -524,6 +738,12 @@ func readAutoPricingState() (*autoPricingPersistentState, error) {
 	}
 	if state.SchemaVersion != 1 {
 		return nil, fmt.Errorf("unsupported state schema version %d", state.SchemaVersion)
+	}
+	if state.Revision == "" {
+		state.Revision = autoPricingRevision(state.Candidate, state.Pending)
+		if err := persistAutoPricingState(state); err != nil {
+			common.SysError("persist migrated auto pricing review revision: " + err.Error())
+		}
 	}
 	return state, nil
 }
@@ -588,18 +808,27 @@ func completeAutoPricingTakeover(state *autoPricingPersistentState, active *auto
 		if err := tx.Where("key IN ?", takeoverOptionKeys).Delete(&model.Option{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Save(&model.Option{Key: autoPricingTakeoverKey, Value: "true"}).Error; err != nil {
+			return err
+		}
 		return persistAutoPricingState(state)
 	}); err != nil {
 		state.Active = previousActive
 		state.TakeoverComplete = false
-		_ = persistAutoPricingState(state)
+		if persistErr := persistAutoPricingState(state); persistErr != nil {
+			return fmt.Errorf("complete automatic pricing takeover: %v; restore pricing state: %w", err, persistErr)
+		}
 		return fmt.Errorf("complete automatic pricing takeover: %w", err)
 	}
 
 	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
 	for _, key := range takeoverOptionKeys {
 		delete(common.OptionMap, key)
 	}
+	common.OptionMap[autoPricingTakeoverKey] = "true"
 	common.OptionMapRWMutex.Unlock()
 	ratio_setting.ResetPricingForAutoCatalogTakeover()
 	billing_setting.ResetPricingForAutoCatalogTakeover()
@@ -608,7 +837,27 @@ func completeAutoPricingTakeover(state *autoPricingPersistentState, active *auto
 
 type httpAutoPricingClient struct{}
 
+func (c *httpAutoPricingClient) client() (*http.Client, error) {
+	setting := ratio_setting.GetAutoPricingSetting()
+	client, err := GetHttpClientWithProxy(strings.TrimSpace(setting.ProxyURL))
+	if err == nil {
+		return client, nil
+	}
+	if !setting.AllowDirectOnProxyFailure {
+		return nil, fmt.Errorf("initialize automatic pricing proxy: %w", err)
+	}
+	client = GetHttpClient()
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return client, nil
+}
+
 func (c *httpAutoPricingClient) FetchCatalog(ctx context.Context, sourceURL, knownVersion string) ([]byte, string, bool, error) {
+	client, err := c.client()
+	if err != nil {
+		return nil, "", false, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return nil, "", false, err
@@ -617,7 +866,7 @@ func (c *httpAutoPricingClient) FetchCatalog(ctx context.Context, sourceURL, kno
 	if knownVersion != "" && !strings.HasPrefix(knownVersion, contentHashVersionPrefix) {
 		req.Header.Set("If-None-Match", knownVersion)
 	}
-	resp, err := GetHttpClient().Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -640,11 +889,15 @@ func (c *httpAutoPricingClient) FetchCatalog(ctx context.Context, sourceURL, kno
 }
 
 func (c *httpAutoPricingClient) FetchChangeToken(ctx context.Context, sourceURL string) (string, error) {
+	client, err := c.client()
+	if err != nil {
+		return "", err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return "", err
 	}
-	resp, err := GetHttpClient().Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}

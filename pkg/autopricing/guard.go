@@ -9,11 +9,12 @@ import (
 )
 
 type PendingReview struct {
-	Model       string       `json:"model"`
-	Reason      string       `json:"reason"`
-	Fingerprint string       `json:"fingerprint"`
-	Current     *PriceRecord `json:"current,omitempty"`
-	Candidate   *PriceRecord `json:"candidate,omitempty"`
+	Model            string       `json:"model"`
+	Reason           string       `json:"reason"`
+	Fingerprint      string       `json:"fingerprint"`
+	CandidateVersion string       `json:"candidate_version"`
+	Current          *PriceRecord `json:"current,omitempty"`
+	Candidate        *PriceRecord `json:"candidate,omitempty"`
 }
 
 func GuardCatalog(active, candidate *Catalog, threshold float64, rejected map[string]bool) (*Catalog, []PendingReview, error) {
@@ -41,6 +42,17 @@ func GuardCatalog(active, candidate *Catalog, threshold float64, rejected map[st
 		newRecord, candidateExists := candidate.records[model]
 		oldRecord, exists := active.records[model]
 		if !exists {
+			if candidateExists && newRecord.PrimarySource != SourceOverride {
+				candidateCopy := newRecord
+				fingerprint := catalogFingerprint(candidate.Version, model, &candidateCopy)
+				delete(result, model)
+				if !rejected[fingerprint] {
+					pending = append(pending, PendingReview{
+						Model: model, Reason: "model added to catalog", Fingerprint: fingerprint,
+						CandidateVersion: candidate.Version, Candidate: &candidateCopy,
+					})
+				}
+			}
 			continue
 		}
 		reason := ""
@@ -63,7 +75,7 @@ func GuardCatalog(active, candidate *Catalog, threshold float64, rejected map[st
 			continue
 		}
 		oldCopy := oldRecord
-		pending = append(pending, PendingReview{Model: model, Reason: reason, Fingerprint: fingerprint, Current: &oldCopy, Candidate: candidateRecord})
+		pending = append(pending, PendingReview{Model: model, Reason: reason, Fingerprint: fingerprint, CandidateVersion: candidate.Version, Current: &oldCopy, Candidate: candidateRecord})
 	}
 	guarded, err := catalogFromRecords(result, candidate.Version, candidate.SourceVersions)
 	return guarded, pending, err
@@ -116,7 +128,7 @@ func sameStructure(a, b PriceRecord) bool {
 func numericFields(record PriceRecord) map[string]float64 {
 	result := map[string]float64{}
 	addCosts := func(prefix string, costs CostSet) {
-		pairs := map[string]*float64{"input": costs.Input, "output": costs.Output, "cache_read": costs.CacheRead, "cache_write_5m": costs.CacheWrite5m, "cache_write_1h": costs.CacheWrite1h, "image_input": costs.ImageInput, "image_output": costs.ImageOutput}
+		pairs := map[string]*float64{"input": costs.Input, "output": costs.Output, "cache_read": costs.CacheRead, "cache_write_5m": costs.CacheWrite5m, "cache_write_1h": costs.CacheWrite1h, "image_input": costs.ImageInput, "image_output": costs.ImageOutput, "audio_input": costs.AudioInput, "audio_output": costs.AudioOutput}
 		for name, value := range pairs {
 			if value != nil {
 				result[prefix+name] = *value
