@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
@@ -190,15 +191,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	var activeAdmissionLease *service.ChannelAdmissionLease
+	defer func() { releaseChannelAdmissionLease(c, activeAdmissionLease) }()
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
-		channel, channelErr := getChannel(c, relayInfo, retryParam)
+		channel, admissionLease, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
 		}
+		activeAdmissionLease = admissionLease
 		addUsedChannel(c, channel.Id)
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
@@ -216,6 +220,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+		activeAdmissionLease.Commit()
 
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -227,6 +232,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}
+		releaseChannelAdmissionLease(c, activeAdmissionLease)
+		activeAdmissionLease = nil
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
@@ -297,35 +304,84 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	return meta
 }
 
-func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *service.ChannelAdmissionLease, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
-		autoBan := c.GetBool("auto_ban")
-		autoBanInt := 1
-		if !autoBan {
-			autoBanInt = 0
+		lease := service.GetChannelAdmissionLease(c)
+		channelSetting, hasChannelSetting := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+		if hasChannelSetting && (lease != nil || (channelSetting.MaxConcurrency <= 0 && channelSetting.RPMLimit <= 0)) {
+			autoBanInt := 1
+			if !common.GetContextKeyBool(c, constant.ContextKeyChannelAutoBan) {
+				autoBanInt = 0
+			}
+			return &model.Channel{
+				Id:      common.GetContextKeyInt(c, constant.ContextKeyChannelId),
+				Type:    common.GetContextKeyInt(c, constant.ContextKeyChannelType),
+				Name:    common.GetContextKeyString(c, constant.ContextKeyChannelName),
+				AutoBan: &autoBanInt,
+				ChannelInfo: model.ChannelInfo{
+					IsMultiKey: common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey),
+				},
+			}, lease, nil
 		}
-		return &model.Channel{
-			Id:      c.GetInt("channel_id"),
-			Type:    c.GetInt("channel_type"),
-			Name:    c.GetString("channel_name"),
-			AutoBan: &autoBanInt,
-		}, nil
+
+		channelID := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
+		channel, err := model.CacheGetChannel(channelID)
+		if err != nil {
+			return nil, nil, types.NewError(fmt.Errorf("get initial channel #%d: %w", channelID, err), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		var decision service.ChannelAdmissionDecision
+		lease, decision, err = service.AcquireChannelAdmission(c.Request.Context(), channel)
+		if err != nil {
+			return nil, nil, types.NewError(fmt.Errorf("acquire initial channel #%d admission: %w", channelID, err), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		if !decision.Allowed {
+			return nil, nil, channelCapacityAPIError(c, decision.RetryAfter)
+		}
+		return channel, lease, nil
 	}
-	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
+
+	selection, err := service.SelectChannelWithAdmission(retryParam)
 	if err != nil {
-		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		var capacityErr *service.ChannelCapacityError
+		if errors.As(err, &capacityErr) {
+			return nil, nil, channelCapacityAPIError(c, time.Duration(capacityErr.RetryAfterSeconds())*time.Second)
+		}
+		return nil, nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", retryParam.TokenGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
-	if channel == nil {
-		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	if selection == nil || selection.Channel == nil {
+		return nil, nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", retryParam.TokenGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
-
-	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
+	newAPIError := middleware.SetupContextForSelectedChannel(c, selection.Channel, info.OriginModelName)
 	if newAPIError != nil {
-		return nil, newAPIError
+		if releaseErr := selection.Lease.Release(); releaseErr != nil {
+			logger.LogWarn(c, fmt.Sprintf("release channel admission after setup failure: %v", releaseErr))
+		}
+		return nil, nil, newAPIError
 	}
-	return channel, nil
+	return selection.Channel, selection.Lease, nil
+}
+
+func channelCapacityAPIError(c *gin.Context, retryAfter time.Duration) *types.NewAPIError {
+	retryAfterSeconds := int64((retryAfter + time.Second - 1) / time.Second)
+	if retryAfterSeconds < 1 {
+		retryAfterSeconds = 1
+	}
+	c.Header("Retry-After", fmt.Sprintf("%d", retryAfterSeconds))
+	return types.NewErrorWithStatusCode(
+		errors.New(i18n.T(c, i18n.MsgDistributorChannelCapacityExceeded)),
+		types.ErrorCodeChannelCapacityExhausted,
+		http.StatusTooManyRequests,
+		types.ErrOptionWithSkipRetry(),
+		types.ErrOptionWithNoRecordErrorLog(),
+	)
+}
+
+func releaseChannelAdmissionLease(c *gin.Context, lease *service.ChannelAdmissionLease) {
+	if err := lease.Release(); err != nil {
+		logger.LogWarn(c, fmt.Sprintf("release channel admission lease failed: %v", err))
+	}
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
@@ -520,13 +576,36 @@ func RelayTask(c *gin.Context) {
 		RequestPath: c.Request.URL.Path,
 		Retry:       common.GetPointer(0),
 	}
+	var activeAdmissionLease *service.ChannelAdmissionLease
+	defer func() { releaseChannelAdmissionLease(c, activeAdmissionLease) }()
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		var channel *model.Channel
+		var admissionLease *service.ChannelAdmissionLease
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
 			channel = lockedCh
-			if retryParam.GetRetry() > 0 {
+			initialLease := service.GetChannelAdmissionLease(c)
+			if retryParam.GetRetry() == 0 && initialLease != nil && initialLease.ChannelID() == channel.Id {
+				admissionLease = initialLease
+			} else {
+				if retryParam.GetRetry() == 0 && initialLease != nil {
+					releaseChannelAdmissionLease(c, initialLease)
+				}
+				lease, decision, admissionErr := service.AcquireChannelAdmission(c.Request.Context(), channel)
+				if admissionErr != nil {
+					taskErr = service.TaskErrorWrapperLocal(admissionErr, "channel_admission_failed", http.StatusServiceUnavailable)
+					break
+				}
+				if !decision.Allowed {
+					capacityErr := channelCapacityAPIError(c, decision.RetryAfter)
+					taskErr = service.TaskErrorWrapperLocal(capacityErr.Err, string(capacityErr.GetErrorCode()), capacityErr.StatusCode)
+					break
+				}
+				admissionLease = lease
+			}
+			activeAdmissionLease = admissionLease
+			if retryParam.GetRetry() > 0 || common.GetContextKeyInt(c, constant.ContextKeyChannelId) != channel.Id {
 				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)
 					break
@@ -534,12 +613,17 @@ func RelayTask(c *gin.Context) {
 			}
 		} else {
 			var channelErr *types.NewAPIError
-			channel, channelErr = getChannel(c, relayInfo, retryParam)
+			channel, admissionLease, channelErr = getChannel(c, relayInfo, retryParam)
 			if channelErr != nil {
 				logger.LogError(c, channelErr.Error())
-				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
+				statusCode := channelErr.StatusCode
+				if statusCode <= 0 {
+					statusCode = http.StatusInternalServerError
+				}
+				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, string(channelErr.GetErrorCode()), statusCode)
 				break
 			}
+			activeAdmissionLease = admissionLease
 		}
 
 		addUsedChannel(c, channel.Id)
@@ -553,8 +637,11 @@ func RelayTask(c *gin.Context) {
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+		activeAdmissionLease.Commit()
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
+		releaseChannelAdmissionLease(c, activeAdmissionLease)
+		activeAdmissionLease = nil
 		if taskErr == nil {
 			break
 		}
@@ -613,7 +700,7 @@ func RelayTask(c *gin.Context) {
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
-	if taskErr.StatusCode == http.StatusTooManyRequests {
+	if taskErr.StatusCode == http.StatusTooManyRequests && taskErr.Code != string(types.ErrorCodeChannelCapacityExhausted) {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
 	c.JSON(taskErr.StatusCode, taskErr)
@@ -630,6 +717,9 @@ func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *taskdto.TaskEr
 		return false
 	}
 	if _, ok := c.Get("specific_channel_id"); ok {
+		return false
+	}
+	if taskErr.Code == string(types.ErrorCodeChannelCapacityExhausted) {
 		return false
 	}
 	if taskErr.StatusCode == http.StatusTooManyRequests {

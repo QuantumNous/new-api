@@ -10,6 +10,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestChannelSettingsValidateAdmissionLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		setting ChannelSettings
+		wantErr string
+	}{
+		{name: "unset is unlimited"},
+		{name: "positive limits", setting: ChannelSettings{MaxConcurrency: 20, RPMLimit: 120}},
+		{name: "negative concurrency", setting: ChannelSettings{MaxConcurrency: -1}, wantErr: "max_concurrency"},
+		{name: "excessive concurrency", setting: ChannelSettings{MaxConcurrency: MaxChannelConcurrencyLimit + 1}, wantErr: "max_concurrency"},
+		{name: "negative rpm", setting: ChannelSettings{RPMLimit: -1}, wantErr: "rpm_limit"},
+		{name: "excessive rpm", setting: ChannelSettings{RPMLimit: MaxChannelRequestsPerMinute + 1}, wantErr: "rpm_limit"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.setting.ValidateAdmissionLimits()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
 func TestAdvancedCustomValidateResponsesToChatConverterPath(t *testing.T) {
 	valid := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{

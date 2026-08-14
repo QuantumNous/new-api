@@ -273,6 +273,7 @@ distributor.invalid_playground_request: "无效的playground请求，{{.Error}}"
 distributor.group_access_denied: "无权访问该分组"
 distributor.get_channel_failed: "获取分组 {{.Group}} 下模型 {{.Model}} 的可用渠道失败（distributor）：{{.Error}}"
 distributor.no_available_channel: "分组 {{.Group}} 下模型 {{.Model}} 无可用渠道（distributor）"
+distributor.channel_capacity_exhausted: "匹配的渠道均已达到配置的容量上限，请稍后重试"
 distributor.invalid_midjourney_request: "无效的midjourney请求，{{.Error}}"
 distributor.invalid_request_parse_model: "无效的请求，无法解析模型"
 

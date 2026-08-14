@@ -1,7 +1,10 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -45,118 +48,194 @@ func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
 }
 
-// CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
-// 尝试获取一个满足要求的随机渠道。
-//
-// For "auto" tokenGroup with cross-group Retry enabled:
-// 对于启用了跨分组重试的 "auto" tokenGroup：
-//
-//   - Each group will exhaust all its priorities before moving to the next group.
-//     每个分组会用完所有优先级后才会切换到下一个分组。
-//
-//   - Uses ContextKeyAutoGroupIndex to track current group index.
-//     使用 ContextKeyAutoGroupIndex 跟踪当前分组索引。
-//
-//   - Uses ContextKeyAutoGroupRetryIndex to track the global Retry count when current group started.
-//     使用 ContextKeyAutoGroupRetryIndex 跟踪当前分组开始时的全局重试次数。
-//
-//   - priorityRetry = Retry - startRetryIndex, represents the priority level within current group.
-//     priorityRetry = Retry - startRetryIndex，表示当前分组内的优先级级别。
-//
-//   - When GetRandomSatisfiedChannel returns nil (priorities exhausted), moves to next group.
-//     当 GetRandomSatisfiedChannel 返回 nil（优先级用完）时，切换到下一个分组。
-//
-// Example flow (2 groups, each with 2 priorities, RetryTimes=3):
-// 示例流程（2个分组，每个有2个优先级，RetryTimes=3）：
-//
-//	Retry=0: GroupA, priority0 (startRetryIndex=0, priorityRetry=0)
-//	         分组A, 优先级0
-//
-//	Retry=1: GroupA, priority1 (startRetryIndex=0, priorityRetry=1)
-//	         分组A, 优先级1
-//
-//	Retry=2: GroupA exhausted → GroupB, priority0 (startRetryIndex=2, priorityRetry=0)
-//	         分组A用完 → 分组B, 优先级0
-//
-//	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
-//	         分组B, 优先级1
-func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
-	var channel *model.Channel
-	var err error
-	selectGroup := param.TokenGroup
-	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+type ChannelSelection struct {
+	Channel *model.Channel
+	Group   string
+	Lease   *ChannelAdmissionLease
+}
 
-	if param.TokenGroup == "auto" {
-		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
-		if len(autoGroups) == 0 {
-			return nil, selectGroup, errors.New("auto groups is not enabled")
-		}
+type ChannelCapacityError struct {
+	RetryAfter         time.Duration
+	ConcurrencyRejects int
+	RPMRejects         int
+}
 
-		// startGroupIndex: the group index to start searching from
-		// startGroupIndex: 开始搜索的分组索引
-		startGroupIndex := 0
-		crossGroupRetry := common.GetContextKeyBool(param.Ctx, constant.ContextKeyTokenCrossGroupRetry)
+func (e *ChannelCapacityError) Error() string {
+	return "all matching channels are at their configured capacity"
+}
 
-		if lastGroupIndex, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
-			if idx, ok := lastGroupIndex.(int); ok {
-				startGroupIndex = idx
-			}
-		}
+func (e *ChannelCapacityError) RetryAfterSeconds() int64 {
+	if e == nil || e.RetryAfter <= 0 {
+		return 1
+	}
+	seconds := int64((e.RetryAfter + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
+}
 
-		for i := startGroupIndex; i < len(autoGroups); i++ {
-			autoGroup := autoGroups[i]
-			// Calculate priorityRetry for current group
-			// 计算当前分组的 priorityRetry
-			priorityRetry := param.GetRetry()
-			// If moved to a new group, reset priorityRetry and update startRetryIndex
-			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
-			if i > startGroupIndex {
-				priorityRetry = 0
-			}
-			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
+func (e *ChannelCapacityError) addDecision(decision ChannelAdmissionDecision) {
+	if decision.Reason == ChannelAdmissionReasonConcurrency {
+		e.ConcurrencyRejects++
+	} else if decision.Reason == ChannelAdmissionReasonRPM {
+		e.RPMRejects++
+	}
+	if decision.RetryAfter > 0 && (e.RetryAfter <= 0 || decision.RetryAfter < e.RetryAfter) {
+		e.RetryAfter = decision.RetryAfter
+	}
+}
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
-			if channel == nil {
-				// Current group has no available channel for this model, try next group
-				// 当前分组没有该模型的可用渠道，尝试下一个分组
-				logger.LogDebug(param.Ctx, "No available channel in group %s for model %s at priorityRetry %d, trying next group", autoGroup, param.ModelName, priorityRetry)
-				// 重置状态以尝试下一个分组
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				continue
-			}
-			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, autoGroup)
-			selectGroup = autoGroup
-			logger.LogDebug(param.Ctx, "Auto selected group: %s", autoGroup)
+func (e *ChannelCapacityError) merge(other *ChannelCapacityError) {
+	if other == nil {
+		return
+	}
+	e.ConcurrencyRejects += other.ConcurrencyRejects
+	e.RPMRejects += other.RPMRejects
+	if other.RetryAfter > 0 && (e.RetryAfter <= 0 || other.RetryAfter < e.RetryAfter) {
+		e.RetryAfter = other.RetryAfter
+	}
+}
 
-			// Prepare state for next retry
-			// 为下一次重试准备状态
-			if crossGroupRetry && priorityRetry >= common.RetryTimes {
-				// Current group has exhausted all retries, prepare to switch to next group
-				// This request still uses current group, but next retry will use next group
-				// 当前分组已用完所有重试次数，准备切换到下一个分组
-				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
-				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
-				// Reset retry counter so outer loop can continue for next group
-				// 重置重试计数器，以便外层循环可以为下一个分组继续
-				param.SetRetry(0)
-				param.ResetRetryNextTry()
-			} else {
-				// Stay in current group, save current state
-				// 保持在当前分组，保存当前状态
-				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i)
-			}
-			break
-		}
-	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+// SelectChannelWithAdmission selects and reserves a channel before any upstream
+// request is sent. Capacity rejections are handled inside this call, so they do
+// not advance RetryParam or consume an upstream retry.
+func SelectChannelWithAdmission(param *RetryParam) (*ChannelSelection, error) {
+	if param == nil || param.Ctx == nil {
+		return nil, errors.New("channel selection requires a request context")
+	}
+	if param.TokenGroup != "auto" {
+		tiers, err := model.GetSatisfiedChannelTiers(param.TokenGroup, param.ModelName, param.RequestPath)
 		if err != nil {
-			return nil, param.TokenGroup, err
+			return nil, err
+		}
+		selection, err := selectAdmittedChannel(param.Ctx, param.TokenGroup, tiers, param.GetRetry())
+		return selection, err
+	}
+
+	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
+	if len(autoGroups) == 0 {
+		return nil, errors.New("auto groups is not enabled")
+	}
+	startGroupIndex := 0
+	if lastGroupIndex, exists := common.GetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex); exists {
+		if index, ok := lastGroupIndex.(int); ok && index >= 0 {
+			startGroupIndex = index
 		}
 	}
-	return channel, selectGroup, nil
+	if startGroupIndex >= len(autoGroups) {
+		return nil, nil
+	}
+
+	crossGroupRetry := common.GetContextKeyBool(param.Ctx, constant.ContextKeyTokenCrossGroupRetry)
+	capacityErr := &ChannelCapacityError{}
+	for groupIndex := startGroupIndex; groupIndex < len(autoGroups); groupIndex++ {
+		selectGroup := autoGroups[groupIndex]
+		priorityRetry := param.GetRetry()
+		if groupIndex > startGroupIndex {
+			priorityRetry = 0
+		}
+		logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", selectGroup, priorityRetry)
+
+		tiers, err := model.GetSatisfiedChannelTiers(selectGroup, param.ModelName, param.RequestPath)
+		if err != nil {
+			return nil, err
+		}
+		if len(tiers) == 0 {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, groupIndex+1)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+			param.SetRetry(0)
+			continue
+		}
+
+		selection, err := selectAdmittedChannel(param.Ctx, selectGroup, tiers, priorityRetry)
+		if err != nil {
+			var groupCapacityErr *ChannelCapacityError
+			if !errors.As(err, &groupCapacityErr) {
+				return nil, err
+			}
+			capacityErr.merge(groupCapacityErr)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, groupIndex+1)
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupRetryIndex, 0)
+			param.SetRetry(0)
+			continue
+		}
+		if selection == nil {
+			continue
+		}
+
+		common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroup, selectGroup)
+		logger.LogDebug(param.Ctx, "Auto selected group: %s", selectGroup)
+		if crossGroupRetry && priorityRetry >= common.RetryTimes {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, groupIndex+1)
+			param.SetRetry(0)
+			param.ResetRetryNextTry()
+		} else {
+			common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, groupIndex)
+		}
+		return selection, nil
+	}
+
+	if capacityErr.ConcurrencyRejects > 0 || capacityErr.RPMRejects > 0 {
+		return nil, capacityErr
+	}
+	return nil, nil
+}
+
+// CacheGetRandomSatisfiedChannel preserves the legacy selection contract for
+// callers that cannot take ownership of an admission lease.
+func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	group := ""
+	if param != nil {
+		group = param.TokenGroup
+	}
+	selection, err := SelectChannelWithAdmission(param)
+	if err != nil {
+		return nil, group, err
+	}
+	if selection == nil || selection.Channel == nil {
+		return nil, group, nil
+	}
+	if err := selection.Lease.Release(); err != nil {
+		return nil, selection.Group, err
+	}
+	return selection.Channel, selection.Group, nil
+}
+
+func selectAdmittedChannel(ctx context.Context, group string, tiers []model.ChannelCandidateTier, startTier int) (*ChannelSelection, error) {
+	if len(tiers) == 0 {
+		return nil, nil
+	}
+	if startTier < 0 {
+		startTier = 0
+	}
+	if startTier >= len(tiers) {
+		startTier = len(tiers) - 1
+	}
+
+	capacityErr := &ChannelCapacityError{}
+	for tierIndex := startTier; tierIndex < len(tiers); tierIndex++ {
+		candidates := append([]model.ChannelCandidate(nil), tiers[tierIndex].Candidates...)
+		for len(candidates) > 0 {
+			candidate, candidateIndex := model.PickWeightedChannelCandidate(candidates)
+			if candidateIndex < 0 || candidate.Channel == nil {
+				break
+			}
+			candidates = append(candidates[:candidateIndex], candidates[candidateIndex+1:]...)
+
+			lease, decision, err := AcquireChannelAdmission(ctx, candidate.Channel)
+			if err != nil {
+				return nil, fmt.Errorf("acquire channel #%d admission: %w", candidate.Channel.Id, err)
+			}
+			if decision.Allowed {
+				return &ChannelSelection{Channel: candidate.Channel, Group: group, Lease: lease}, nil
+			}
+			capacityErr.addDecision(decision)
+		}
+	}
+	if capacityErr.ConcurrencyRejects > 0 || capacityErr.RPMRejects > 0 {
+		return nil, capacityErr
+	}
+	return nil, nil
 }
