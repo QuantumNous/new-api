@@ -3,6 +3,7 @@ import { reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useSystemSettings } from '@/composables/useSystemSettings'
+import { BRAND_NAME } from '@/constants/branding'
 import SysSettingsFormCard from '@/components/console/systemSettings/SysSettingsFormCard.vue'
 import SysInputRow from '@/components/console/systemSettings/SysInputRow.vue'
 
@@ -101,7 +102,7 @@ onMounted(async () => {
           v-model="info.SystemName"
           :label="t('systemSettings.site.systemName')"
           :description="t('systemSettings.site.systemNameDesc')"
-          placeholder="New API"
+          :placeholder="BRAND_NAME"
           class="sm:col-span-2"
         />
         <SysInputRow

@@ -1,3 +1,5 @@
+import { BRAND_NAME } from '@/constants/branding'
+
 /** Raw key-value pair returned by GET /api/option/ */
 export interface SystemOption {
   key: string
@@ -249,7 +251,7 @@ export type AllSystemSettings = SiteSettings &
 
 export const SYSTEM_SETTINGS_DEFAULTS: AllSystemSettings = {
   // Site
-  SystemName: '',
+  SystemName: BRAND_NAME,
   Logo: '',
   Footer: '',
   About: '',
