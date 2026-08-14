@@ -208,6 +208,21 @@ func TestConfiguredCompactWildcardWinsOverCatalog(t *testing.T) {
 	assert.Equal(t, 3.25, ratio)
 }
 
+func TestConfiguredRatioWinsOverBuiltInFixedPrice(t *testing.T) {
+	InitRatioSettings()
+	previousRatios := configuredModelRatioMap.ReadAll()
+	configuredModelRatioMap.Set("gpt-4-gizmo-*", 7.5)
+	t.Cleanup(func() {
+		configuredModelRatioMap.Clear()
+		configuredModelRatioMap.AddAll(previousRatios)
+	})
+
+	value, usePrice, exists := GetModelRatioOrPrice("gpt-4-gizmo-custom-abc")
+	require.True(t, exists)
+	assert.False(t, usePrice, "administrator ratio must suppress the built-in fixed-price fallback")
+	assert.Equal(t, 7.5, value)
+}
+
 func TestCatalogTakesOverBuiltInDefaults(t *testing.T) {
 	InitRatioSettings()
 	// Shipped defaults are compatibility fallbacks, not administrator intent.

@@ -30,6 +30,14 @@ const updatedCatalogDocument = `{
 	"probe-model": {"input_cost_per_token": 0.000004, "output_cost_per_token": 0.000016}
 }`
 
+func TestAutoPricingDataRootFromEnvironment(t *testing.T) {
+	t.Setenv(autoPricingDataRootEnv, t.TempDir())
+	assert.Equal(t, filepath.Clean(os.Getenv(autoPricingDataRootEnv)), autoPricingDataRootFromEnvironment())
+
+	t.Setenv(autoPricingDataRootEnv, "  ")
+	assert.Equal(t, "/data", autoPricingDataRootFromEnvironment())
+}
+
 // fakeRemoteClient records what the sync asked for and replays canned answers.
 type fakeRemoteClient struct {
 	body          []byte

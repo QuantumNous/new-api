@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestValidateChannelProxy(t *testing.T) {
@@ -473,6 +475,31 @@ func TestUpdateResponseTimePersistsBeforeReturning(t *testing.T) {
 	require.NoError(t, db.First(&stored, channel.Id).Error)
 	require.Equal(t, 261, stored.ResponseTime)
 	require.Equal(t, channel.TestTime, stored.TestTime)
+}
+
+func TestPerformChannelTestsReturnsResponseTimePersistenceError(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	callbackName := "test:fail-channel-response-time-update"
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "channels" {
+			tx.AddError(errors.New("forced response-time write failure"))
+		}
+	}))
+	t.Cleanup(func() {
+		_ = db.Callback().Update().Remove(callbackName)
+	})
+
+	summary, err := performChannelTests(context.Background(), []*model.Channel{{
+		Id:   43,
+		Name: "unsupported-test-channel",
+		Type: constant.ChannelTypeMidjourney,
+	}}, 1, false, nil)
+
+	require.ErrorContains(t, err, "persist channel 43 response time")
+	require.ErrorContains(t, err, "forced response-time write failure")
+	assert.Equal(t, 1, summary.Tested)
+	assert.Equal(t, 0, summary.Succeeded)
+	assert.Equal(t, 1, summary.Failed)
 }
 
 func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {

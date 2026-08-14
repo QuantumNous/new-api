@@ -399,9 +399,29 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 			return price, true
 		}
 	}
+	if _, ok := configuredModelRatioMap.Get(name); ok {
+		return -1, false
+	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if _, ok := configuredModelRatioMap.Get(CompactWildcardModelKey); ok {
+			return -1, false
+		}
+	}
 	if price, ok := modelPriceMap.Get(name); ok {
 		if _, builtIn := defaultModelPrice[name]; !builtIn {
 			return price, true
+		}
+	}
+	if _, ok := modelRatioMap.Get(name); ok {
+		if _, builtIn := defaultModelRatio[name]; !builtIn {
+			return -1, false
+		}
+	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if _, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
+			if _, builtIn := defaultModelRatio[CompactWildcardModelKey]; !builtIn {
+				return -1, false
+			}
 		}
 	}
 	if _, ok := autoPricingEntry(name); ok {

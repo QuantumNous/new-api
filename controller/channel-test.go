@@ -929,7 +929,7 @@ type channelTestSummary struct {
 // cancellation so a system-task runner that loses its lease stops promptly. When
 // report is non-nil it is called after each channel with (processed, total) so
 // the system task can surface progress.
-func performChannelTests(ctx context.Context, channels []*model.Channel, testUserID int, allowDisable bool, report func(processed, total int)) channelTestSummary {
+func performChannelTests(ctx context.Context, channels []*model.Channel, testUserID int, allowDisable bool, report func(processed, total int)) (channelTestSummary, error) {
 	summary := channelTestSummary{}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
@@ -974,7 +974,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 			}
 		}
 
-		if newAPIError == nil {
+		if result.localErr == nil && newAPIError == nil {
 			summary.Succeeded++
 		} else {
 			summary.Failed++
@@ -992,14 +992,16 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 			summary.Enabled++
 		}
 
-		_ = channel.UpdateResponseTime(milliseconds)
+		if err := channel.UpdateResponseTime(milliseconds); err != nil {
+			return summary, fmt.Errorf("persist channel %d response time: %w", channel.Id, err)
+		}
 		if common.RequestInterval > 0 {
 			if ctx == nil {
 				time.Sleep(common.RequestInterval)
 			} else {
 				select {
 				case <-ctx.Done():
-					return summary
+					return summary, nil
 				case <-time.After(common.RequestInterval):
 				}
 			}
@@ -1008,7 +1010,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 	if report != nil && (ctx == nil || ctx.Err() == nil) {
 		report(total, total) // mark complete only when the full set was tested
 	}
-	return summary
+	return summary, nil
 }
 
 // runChannelTestTask runs one synchronous channel test cycle for the system task
@@ -1033,7 +1035,10 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	}
 	selected := selectChannelsForAutomaticTest(channels, mode)
 	allowDisable := mode != operation_setting.ChannelTestModePassiveRecovery
-	summary := performChannelTests(ctx, selected, testUserID, allowDisable, report)
+	summary, err := performChannelTests(ctx, selected, testUserID, allowDisable, report)
+	if err != nil {
+		return summary, err
+	}
 	if notify && (ctx == nil || ctx.Err() == nil) {
 		service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
 	}

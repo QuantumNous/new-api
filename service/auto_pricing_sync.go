@@ -35,6 +35,7 @@ const (
 	autoPricingCacheFile       = "model_pricing_catalog.json"
 	autoPricingVersionFile     = "model_pricing_catalog.version"
 	autoPricingTakeoverKey     = "auto_pricing.takeover_complete"
+	autoPricingDataRootEnv     = "AUTO_PRICING_DATA_ROOT"
 	contentHashVersionPrefix   = "sha256:"
 	autoPricingGuardThreshold  = 0.25
 )
@@ -101,8 +102,15 @@ var (
 	autoPricingSyncMu   sync.Mutex
 	autoPricingStateMu  sync.RWMutex
 	autoPricingState    = newAutoPricingState()
-	autoPricingDataRoot = "/data"
+	autoPricingDataRoot = autoPricingDataRootFromEnvironment()
 )
+
+func autoPricingDataRootFromEnvironment() string {
+	if root := strings.TrimSpace(os.Getenv(autoPricingDataRootEnv)); root != "" {
+		return filepath.Clean(root)
+	}
+	return "/data"
+}
 
 func newAutoPricingState() *autoPricingPersistentState {
 	state := &autoPricingPersistentState{
