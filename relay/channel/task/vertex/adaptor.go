@@ -46,12 +46,13 @@ type operationResponse struct {
 	Name     string `json:"name"`
 	Done     bool   `json:"done"`
 	Response struct {
-		Type                  string           `json:"@type"`
-		RaiMediaFilteredCount int              `json:"raiMediaFilteredCount"`
-		Videos                []operationVideo `json:"videos"`
-		BytesBase64Encoded    string           `json:"bytesBase64Encoded"`
-		Encoding              string           `json:"encoding"`
-		Video                 string           `json:"video"`
+		Type                    string           `json:"@type"`
+		RaiMediaFilteredCount   int              `json:"raiMediaFilteredCount"`
+		RaiMediaFilteredReasons []string         `json:"raiMediaFilteredReasons"`
+		Videos                  []operationVideo `json:"videos"`
+		BytesBase64Encoded      string           `json:"bytesBase64Encoded"`
+		Encoding                string           `json:"encoding"`
+		Video                   string           `json:"video"`
 	} `json:"response"`
 	Error struct {
 		Message string `json:"message"`
@@ -222,6 +223,9 @@ func (a *TaskAdaptor) GetModelList() []string {
 		"veo-3.0-fast-generate-001",
 		"veo-3.1-generate-preview",
 		"veo-3.1-fast-generate-preview",
+		"veo-3.1-generate-001",
+		"veo-3.1-fast-generate-001",
+		"veo-3.1-lite-generate-001",
 	}
 }
 func (a *TaskAdaptor) GetChannelName() string { return "vertex" }
@@ -299,6 +303,16 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	if !op.Done {
 		ti.Status = model.TaskStatusInProgress
 		ti.Progress = "50%"
+		return ti, nil
+	}
+	if op.Response.RaiMediaFilteredCount > 0 {
+		ti.Status = model.TaskStatusFailure
+		ti.Progress = "100%"
+		if len(op.Response.RaiMediaFilteredReasons) > 0 {
+			ti.Reason = op.Response.RaiMediaFilteredReasons[0]
+		} else {
+			ti.Reason = "videos were filtered out due to Google's Responsible AI practices"
+		}
 		return ti, nil
 	}
 	ti.Status = model.TaskStatusSuccess
