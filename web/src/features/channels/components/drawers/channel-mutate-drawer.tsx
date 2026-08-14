@@ -4824,9 +4824,7 @@ export function ChannelMutateDrawer({
         channelName={
           shouldPreviewUnsavedModels ? currentName?.trim() : undefined
         }
-        existingModelsOverride={parseModelsString(
-          form.getValues('models') || ''
-        )}
+        existingModelsOverride={currentModelsArray}
       />
 
       <SecureVerificationDialog
