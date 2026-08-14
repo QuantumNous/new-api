@@ -343,6 +343,19 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		// upstream 402 as a hard error, which is the correct operator signal.
 		return resolveImageResult(c, info, firstResp, "")
 	}
+	fullURL, urlErr := a.GetRequestURL(info)
+	if urlErr != nil {
+		return nil, fmt.Errorf("blockrun: get request url: %w", urlErr)
+	}
+
+	// Solana signatures contain a server-provided recent blockhash. If the
+	// gateway rejects that signature as stale, the only safe recovery is a new
+	// unsigned challenge followed by a new signature. Keep this state machine
+	// isolated from Base so the existing single-shot EIP-3009 flow is unchanged.
+	if chain == dto.BlockRunPaymentChainSolana {
+		return a.doSolanaPaymentRequest(c, info, bodyBytes, firstResp, fullURL, payer)
+	}
+
 	// 402 — the payment requirements live in the HEADERS (extractPaymentRequired
 	// never reads the body), so drain & close the body NOW to return this
 	// connection to the pool. A defer here would pin the connection for the
@@ -350,11 +363,6 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	// Bound the drain: a misbehaving/huge 402 body must not stall the retry.
 	_, _ = io.CopyN(io.Discard, firstResp.Body, 512<<10)
 	_ = firstResp.Body.Close()
-
-	fullURL, urlErr := a.GetRequestURL(info)
-	if urlErr != nil {
-		return nil, fmt.Errorf("blockrun: get request url: %w", urlErr)
-	}
 
 	// Image endpoints (sync fast path or async 202+poll) advertise a longer
 	// authorization window — the same signature must stay valid through
@@ -398,6 +406,59 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		return nil, errors.New("blockrun: payment signature rejected by upstream (status 402 after signing)")
 	}
 	return resolveImageResult(c, info, retryResp, paymentB64)
+}
+
+func (a *Adaptor) doSolanaPaymentRequest(c *gin.Context, info *relaycommon.RelayInfo, bodyBytes []byte, firstResp *http.Response, fullURL, payer string) (any, error) {
+	defer delete(c.Keys, ctxKeyPaymentSignature)
+
+	maxAmountAtomic, _ := new(big.Int).SetString(strings.TrimSpace(info.ChannelOtherSettings.BlockRunMaxPaymentAtomic), 10)
+	backoffs := blockRunStaleRetryBackoffs
+	staleRetries := 0
+	resp := firstResp
+	for {
+		// The first response is the initial challenge; subsequent unsigned
+		// responses are fresh challenges after a stale signed transaction.
+		_, _ = io.CopyN(io.Discard, resp.Body, 512<<10)
+		_ = resp.Body.Close()
+		paymentB64, signErr := SignSolanaX402Payment(resp, info.ApiKey, fullURL, maxAmountAtomic)
+		if signErr != nil {
+			return nil, signErr
+		}
+		c.Set(ctxKeyPaymentSignature, paymentB64)
+		relaycommon.MarkBlockRunPaymentAttempt(c, dto.BlockRunPaymentChainSolana, info.ChannelId, blockRunPaymentReconciliation(c, payer, paymentB64))
+
+		retryResp, err := channel.DoApiRequest(a, c, info, bodyReader(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
+		if retryResp.StatusCode != http.StatusPaymentRequired {
+			return resolveImageResult(c, info, retryResp, paymentB64)
+		}
+
+		if staleRetries >= len(backoffs) || !isStaleSolanaPaymentResponse(retryResp) {
+			relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeRejected, false)
+			_, _ = io.CopyN(io.Discard, retryResp.Body, 512<<10)
+			_ = retryResp.Body.Close()
+			return nil, errors.New("blockrun: payment signature rejected by upstream (status 402 after signing)")
+		}
+
+		// Discard the stale signed transaction and return to an unsigned
+		// challenge. Never replay the same signature: a different nonce can
+		// otherwise result in a second settlement for one request.
+		_ = retryResp.Body.Close()
+		if err := waitForBlockRunStaleRetry(c, backoffs[staleRetries]); err != nil {
+			return nil, err
+		}
+		staleRetries++
+		c.Set(ctxKeyPaymentSignature, "")
+		resp, err = channel.DoApiRequest(a, c, info, bodyReader(bodyBytes))
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode != http.StatusPaymentRequired {
+			return resolveImageResult(c, info, resp, "")
+		}
+	}
 }
 
 func blockRunPaymentReconciliation(c *gin.Context, payer, paymentPayload string) string {
