@@ -32,10 +32,11 @@ var VerificationValidMinutes = 10
 var consumeVerificationCodeScript = redis.NewScript(`
 local stored = redis.call("GET", KEYS[1])
 if not stored or stored ~= ARGV[1] then
-  return 0
+  return -1
 end
+local ttl = redis.call("PTTL", KEYS[1])
 redis.call("DEL", KEYS[1])
-return 1
+return ttl
 `)
 
 var restoreVerificationCodeScript = redis.NewScript(`
@@ -119,39 +120,53 @@ func VerifyCodeWithKey(key string, code string, purpose string) (bool, error) {
 // ConsumeVerificationCodeWithKey atomically validates and deletes a code.
 // Use it when replay must be prevented before performing the protected action.
 func ConsumeVerificationCodeWithKey(key string, code string, purpose string) (bool, error) {
+	valid, _, err := ConsumeVerificationCodeWithTTL(key, code, purpose)
+	return valid, err
+}
+
+// ConsumeVerificationCodeWithTTL atomically validates and deletes a code and
+// returns its remaining validity for failure recovery.
+func ConsumeVerificationCodeWithTTL(key string, code string, purpose string) (bool, time.Duration, error) {
 	if RedisEnabled {
 		if RDB == nil {
-			return false, fmt.Errorf("verification code storage: Redis is enabled but unavailable")
+			return false, 0, fmt.Errorf("verification code storage: Redis is enabled but unavailable")
 		}
-		result, err := consumeVerificationCodeScript.Run(
+		remainingMilliseconds, err := consumeVerificationCodeScript.Run(
 			context.Background(),
 			RDB,
 			[]string{verificationStorageKey(key, purpose)},
 			code,
 		).Int()
 		if err != nil {
-			return false, fmt.Errorf("consume verification code from Redis: %w", err)
+			return false, 0, fmt.Errorf("consume verification code from Redis: %w", err)
 		}
-		return result == 1, nil
+		if remainingMilliseconds < 0 {
+			return false, 0, nil
+		}
+		return true, time.Duration(remainingMilliseconds) * time.Millisecond, nil
 	}
 
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	storageKey := purpose + key
 	value, okay := verificationMap[storageKey]
-	if !okay || int(time.Since(value.time).Seconds()) >= VerificationValidMinutes*60 {
-		return false, nil
+	remaining := verificationTTL() - time.Since(value.time)
+	if !okay || remaining <= 0 {
+		return false, 0, nil
 	}
 	if !secureCodeEqual(value.code, code) {
-		return false, nil
+		return false, 0, nil
 	}
 	delete(verificationMap, storageKey)
-	return true, nil
+	return true, remaining, nil
 }
 
 // RestoreVerificationCodeIfAbsent restores a consumed code after the protected
 // operation fails, without overwriting a newer code issued concurrently.
-func RestoreVerificationCodeIfAbsent(key string, code string, purpose string) error {
+func RestoreVerificationCodeIfAbsent(key string, code string, purpose string, remaining time.Duration) error {
+	if remaining <= 0 {
+		return nil
+	}
 	if RedisEnabled {
 		if RDB == nil {
 			return fmt.Errorf("verification code storage: Redis is enabled but unavailable")
@@ -161,7 +176,7 @@ func RestoreVerificationCodeIfAbsent(key string, code string, purpose string) er
 			RDB,
 			[]string{verificationStorageKey(key, purpose)},
 			code,
-			verificationTTL().Milliseconds(),
+			remaining.Milliseconds(),
 		).Int()
 		if err != nil {
 			return fmt.Errorf("restore verification code in Redis: %w", err)
@@ -173,7 +188,10 @@ func RestoreVerificationCodeIfAbsent(key string, code string, purpose string) er
 	defer verificationMutex.Unlock()
 	storageKey := purpose + key
 	if _, exists := verificationMap[storageKey]; !exists {
-		verificationMap[storageKey] = verificationValue{code: code, time: time.Now()}
+		verificationMap[storageKey] = verificationValue{
+			code: code,
+			time: time.Now().Add(remaining - verificationTTL()),
+		}
 	}
 	return nil
 }

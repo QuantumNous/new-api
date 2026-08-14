@@ -147,20 +147,42 @@ func TestRestoreVerificationCodeDoesNotOverwriteReplacement(t *testing.T) {
 	RDB = client
 
 	require.NoError(t, RegisterVerificationCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose))
-	valid, err := ConsumeVerificationCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose)
+	valid, remaining, err := ConsumeVerificationCodeWithTTL("restore@example.com", "old-code", PasswordResetPurpose)
 	require.NoError(t, err)
 	require.True(t, valid)
-	require.NoError(t, RestoreVerificationCodeIfAbsent("restore@example.com", "old-code", PasswordResetPurpose))
+	require.NoError(t, RestoreVerificationCodeIfAbsent("restore@example.com", "old-code", PasswordResetPurpose, remaining))
 	valid, err = VerifyCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose)
 	require.NoError(t, err)
 	assert.True(t, valid)
 
 	require.NoError(t, RegisterVerificationCodeWithKey("restore@example.com", "new-code", PasswordResetPurpose))
-	require.NoError(t, RestoreVerificationCodeIfAbsent("restore@example.com", "old-code", PasswordResetPurpose))
+	require.NoError(t, RestoreVerificationCodeIfAbsent("restore@example.com", "old-code", PasswordResetPurpose, remaining))
 	valid, err = VerifyCodeWithKey("restore@example.com", "new-code", PasswordResetPurpose)
 	require.NoError(t, err)
 	assert.True(t, valid)
 	valid, err = VerifyCodeWithKey("restore@example.com", "old-code", PasswordResetPurpose)
+	require.NoError(t, err)
+	assert.False(t, valid)
+}
+
+func TestRestoreVerificationCodePreservesRemainingTTL(t *testing.T) {
+	useVerificationTestState(t)
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	RedisEnabled = true
+	RDB = client
+	VerificationValidMinutes = 10
+
+	require.NoError(t, RegisterVerificationCodeWithKey("ttl@example.com", "reset-code", PasswordResetPurpose))
+	server.FastForward(9 * time.Minute)
+	valid, remaining, err := ConsumeVerificationCodeWithTTL("ttl@example.com", "reset-code", PasswordResetPurpose)
+	require.NoError(t, err)
+	require.True(t, valid)
+	assert.InDelta(t, time.Minute.Milliseconds(), remaining.Milliseconds(), float64(time.Second.Milliseconds()))
+	require.NoError(t, RestoreVerificationCodeIfAbsent("ttl@example.com", "reset-code", PasswordResetPurpose, remaining))
+	server.FastForward(61 * time.Second)
+	valid, err = VerifyCodeWithKey("ttl@example.com", "reset-code", PasswordResetPurpose)
 	require.NoError(t, err)
 	assert.False(t, valid)
 }

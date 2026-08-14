@@ -352,7 +352,7 @@ func ResetPassword(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	valid, err := common.ConsumeVerificationCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose)
+	valid, remaining, err := common.ConsumeVerificationCodeWithTTL(req.Email, req.Token, common.PasswordResetPurpose)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume password reset code for %s: %s", req.Email, err.Error()))
 		common.ApiErrorI18n(c, i18n.MsgRetryLater)
@@ -365,7 +365,7 @@ func ResetPassword(c *gin.Context) {
 	password := common.GenerateVerificationCode(12)
 	err = model.ResetUserPasswordByEmail(req.Email, password)
 	if err != nil {
-		if restoreErr := common.RestoreVerificationCodeIfAbsent(req.Email, req.Token, common.PasswordResetPurpose); restoreErr != nil {
+		if restoreErr := common.RestoreVerificationCodeIfAbsent(req.Email, req.Token, common.PasswordResetPurpose, remaining); restoreErr != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to restore password reset code for %s after reset failure: %s", req.Email, restoreErr.Error()))
 		}
 		if errors.Is(err, model.ErrEmailNotFound) || errors.Is(err, model.ErrEmailAmbiguous) {
