@@ -95,23 +95,25 @@ func TestNewAPIChannelRegistration(t *testing.T) {
 	assert.Empty(t, constant.ChannelBaseURLs[constant.ChannelTypeNewAPI])
 }
 
-func TestResponsesCompactAPITypeSupport(t *testing.T) {
+func TestResponsesCompactChannelSupport(t *testing.T) {
 	tests := []struct {
-		name    string
-		apiType int
-		want    bool
+		name        string
+		channelType int
+		apiType     int
+		want        bool
 	}{
-		{name: "OpenAI", apiType: constant.APITypeOpenAI, want: true},
-		{name: "Codex", apiType: constant.APITypeCodex, want: true},
-		{name: "Advanced Custom", apiType: constant.APITypeAdvancedCustom, want: true},
-		{name: "Sub2API", apiType: constant.APITypeSub2API, want: true},
-		{name: "New API", apiType: constant.APITypeNewAPI, want: true},
-		{name: "Anthropic", apiType: constant.APITypeAnthropic, want: false},
+		{name: "OpenAI", channelType: constant.ChannelTypeOpenAI, apiType: constant.APITypeOpenAI, want: true},
+		{name: "Azure", channelType: constant.ChannelTypeAzure, apiType: constant.APITypeOpenAI, want: true},
+		{name: "Codex", channelType: constant.ChannelTypeCodex, apiType: constant.APITypeCodex, want: true},
+		{name: "Advanced Custom", channelType: constant.ChannelTypeAdvancedCustom, apiType: constant.APITypeAdvancedCustom, want: true},
+		{name: "Sub2API", channelType: constant.ChannelTypeSub2API, apiType: constant.APITypeSub2API, want: true},
+		{name: "New API", channelType: constant.ChannelTypeNewAPI, apiType: constant.APITypeNewAPI, want: true},
+		{name: "Anthropic", channelType: constant.ChannelTypeAnthropic, apiType: constant.APITypeAnthropic, want: false},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.want, common.IsResponsesCompactAPIType(test.apiType))
+			assert.Equal(t, test.want, common.SupportsResponsesCompact(test.channelType, test.apiType))
 		})
 	}
 }
@@ -265,12 +267,19 @@ func TestBuildTestLogOtherInjectsTieredInfo(t *testing.T) {
 		},
 	}
 
+	requestRules := []billingexpr.RequestRuleTrace{{
+		Cond:       `param("service_tier") == "fast"`,
+		Multiplier: 2,
+		Matched:    true,
+	}}
 	other := buildTestLogOther(ctx, info, priceData, usage, &billingexpr.TieredResult{
-		MatchedTier: "base",
+		MatchedTier:  "base",
+		RequestRules: requestRules,
 	})
 
 	require.Equal(t, "tiered_expr", other["billing_mode"])
 	require.Equal(t, "base", other["matched_tier"])
+	require.Equal(t, requestRules, other["request_rules"])
 	require.NotEmpty(t, other["expr_b64"])
 }
 
@@ -310,6 +319,24 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 	require.Len(t, selected, 2)
 	require.Equal(t, 1, selected[0].Id)
 	require.Equal(t, 2, selected[1].Id)
+}
+
+func TestSelectChannelsForAutomaticTestAutoBanOnlyUsesEligibleChannels(t *testing.T) {
+	autoBanEnabled := 1
+	autoBanDisabled := 0
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled, AutoBan: &autoBanEnabled},
+		{Id: 2, Status: common.ChannelStatusEnabled, AutoBan: &autoBanDisabled},
+		{Id: 3, Status: common.ChannelStatusAutoDisabled, AutoBan: &autoBanEnabled},
+		{Id: 4, Status: common.ChannelStatusManuallyDisabled, AutoBan: &autoBanEnabled},
+		{Id: 5, Status: common.ChannelStatusEnabled},
+	}
+
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeAutoBanOnly)
+
+	require.Len(t, selected, 2)
+	require.Equal(t, 1, selected[0].Id)
+	require.Equal(t, 3, selected[1].Id)
 }
 
 func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
