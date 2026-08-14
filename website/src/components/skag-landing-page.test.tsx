@@ -52,11 +52,12 @@ describe("SkagLandingPage", () => {
       "GLM",
       "Kimi",
       "Seedance",
-      "deepseek-v4-flash",
     ]) {
       expect(html).toContain(text);
     }
     expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).not.toContain("curl");
   });
 
   test("uses the shared site shell so paid-search pages retain the homepage navigation", () => {

@@ -241,6 +241,7 @@ const PT_CHINESE_AI_MODELS_API: SkagLandingConfig = {
   ctaLabel: "Crie sua chave de API grátis",
   hideSecondaryCta: true,
   compactHero: true,
+  hideCodeWindow: true,
   trustLine: "Uma conta · uma chave · uma cobrança · sem cartão de crédito para começar",
   pricingTitle: "Preços de referência · US$ por 1 milhão de tokens",
   pricingColumns: { platform: "Flatkey", reference: "Referência" },
