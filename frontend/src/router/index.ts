@@ -286,6 +286,65 @@ const router = createRouter({
           meta: { feature: 'profile' },
         },
         {
+          path: 'system-settings',
+          name: 'system-settings',
+          redirect: { name: 'system-settings-site' },
+          component: () =>
+            import('@/views/console/SystemSettingsView.vue'),
+          meta: { wide: true, feature: 'admin' },
+          children: [
+            {
+              path: 'site',
+              name: 'system-settings-site',
+              component: () =>
+                import('@/views/console/systemSettings/SiteSettingsView.vue'),
+              meta: { wide: true, feature: 'admin' },
+            },
+            {
+              path: 'auth',
+              name: 'system-settings-auth',
+              component: () =>
+                import('@/views/console/systemSettings/AuthSettingsView.vue'),
+              meta: { wide: true, feature: 'admin' },
+            },
+            {
+              path: 'billing',
+              name: 'system-settings-billing',
+              component: () =>
+                import('@/views/console/systemSettings/BillingSettingsView.vue'),
+              meta: { wide: true, feature: 'admin' },
+            },
+            {
+              path: 'models',
+              name: 'system-settings-models',
+              component: () =>
+                import('@/views/console/systemSettings/ModelSettingsView.vue'),
+              meta: { wide: true, feature: 'admin' },
+            },
+            {
+              path: 'security',
+              name: 'system-settings-security',
+              component: () =>
+                import('@/views/console/systemSettings/SecuritySettingsView.vue'),
+              meta: { wide: true, feature: 'admin' },
+            },
+            {
+              path: 'content',
+              name: 'system-settings-content',
+              component: () =>
+                import('@/views/console/systemSettings/ContentSettingsView.vue'),
+              meta: { wide: true, feature: 'admin' },
+            },
+            {
+              path: 'operations',
+              name: 'system-settings-operations',
+              component: () =>
+                import('@/views/console/systemSettings/OperationsSettingsView.vue'),
+              meta: { wide: true, feature: 'admin' },
+            },
+          ],
+        },
+        {
           path: 'profile',
           name: 'profile',
           component: () => import('@/views/console/AccountCenterView.vue'),
