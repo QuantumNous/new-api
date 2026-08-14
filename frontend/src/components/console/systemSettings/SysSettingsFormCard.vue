@@ -1,9 +1,8 @@
 <script setup lang="ts">
 /**
  * Standard card wrapper for a system settings section.
- * Renders a labelled heading, content slot, and a sticky save bar with
- * optional loading + dirty indicator. Matches the Desert-Ledger / One-Night
- * dual-theme token system used by AccountSecurityPanel.
+ * Renders a labelled heading, content slot, and a save bar.
+ * Matches the Desert-Ledger / One-Night dual-theme token system.
  */
 import { useI18n } from 'vue-i18n'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
@@ -13,7 +12,7 @@ withDefaults(
     title: string
     description?: string
     saving?: boolean
-    /** When true the save button is enabled; when false it is ghost/disabled */
+    /** When true the save button is enabled */
     dirty?: boolean
   }>(),
   { description: '', saving: false, dirty: false }
@@ -25,7 +24,6 @@ const { t } = useI18n()
 
 <template>
   <section
-    ref="panel"
     class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] pencil-surface"
     style="box-shadow: var(--card-shadow)"
   >
@@ -46,13 +44,10 @@ const { t } = useI18n()
 
     <!-- Save bar -->
     <footer
-      class="flex items-center justify-between gap-4 border-t border-[var(--border-subtle)] bg-[var(--surface-table-header)] px-6 py-3"
+      class="flex items-center gap-4 border-t border-[var(--border-subtle)] bg-[var(--surface-table-header)] px-6 py-3"
     >
-      <span
-        v-if="dirty"
-        class="text-xs text-[var(--text-tertiary)]"
-      >
-        {{ t('systemSettings.noChanges') === t('systemSettings.noChanges') ? '· ' : '' }}
+      <span v-if="dirty" class="text-xs text-[var(--text-tertiary)]">
+        {{ t('common.unsavedChanges') }}
       </span>
       <span class="flex-1" />
       <ConsoleButton

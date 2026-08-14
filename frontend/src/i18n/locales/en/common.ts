@@ -55,5 +55,6 @@ export default {
     selectColumn: 'Select',
     to: 'to',
     noResults: 'No results',
+    unsavedChanges: 'Unsaved changes',
   },
 }

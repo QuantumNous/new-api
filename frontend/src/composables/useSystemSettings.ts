@@ -6,7 +6,6 @@ import {
   SYSTEM_SETTINGS_DEFAULTS,
   type AllSystemSettings,
   type SystemOption,
-  type UpdateOptionRequest,
 } from '@/types/systemSettings'
 
 /** Parse a raw string value into boolean / number / string based on the default key type. */
@@ -55,14 +54,16 @@ export function useSystemSettings() {
     if (_fetchPromise) return _fetchPromise
 
     _loading.value = true
+    // api.get<T> unwraps the ApiResponse envelope and returns .data directly
+    // /api/option/ returns { success, message, data: SystemOption[] }
+    // so T = SystemOption[]
     _fetchPromise = api
       .get<SystemOption[]>('/api/option/')
       .then((data) => {
-        _settings.value = parseOptions(data ?? [], SYSTEM_SETTINGS_DEFAULTS)
+        _settings.value = parseOptions(Array.isArray(data) ? data : [], SYSTEM_SETTINGS_DEFAULTS)
         _loaded.value = true
       })
       .catch((err) => {
-        // non-fatal — page still renders with defaults
         const msg = err instanceof ApiError ? err.message : String(err)
         toast.error(msg)
       })
@@ -78,9 +79,10 @@ export function useSystemSettings() {
     key: string,
     value: string | boolean | number
   ): Promise<boolean> {
-    const req: UpdateOptionRequest = { key, value }
     try {
-      await api.put<{ success: boolean; message: string }>('/api/option/', req)
+      // PUT /api/option/ expects { key, value } and returns { success, message }
+      // api.put unwraps the envelope; success:false throws as ApiError
+      await api.put<null>('/api/option/', { key, value })
       // Optimistically update local state
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ;(_settings.value as any)[key] = value

@@ -54,5 +54,6 @@ export default {
     selectColumn: '选择',
     to: '至',
     noResults: '无匹配结果',
+    unsavedChanges: '有未保存的更改',
   },
 }

@@ -4,11 +4,10 @@
  * Layout: PageHero (title + tab strip) / content panel below.
  * Root-only page; access guard is handled by the router.
  */
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, RouterView, RouterLink } from 'vue-router'
 import { useSystemSettings } from '@/composables/useSystemSettings'
-import { onMounted } from 'vue'
 
 const { t } = useI18n()
 const route = useRoute()

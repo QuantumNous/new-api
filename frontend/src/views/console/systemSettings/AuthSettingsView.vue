@@ -23,15 +23,19 @@ const basic = reactive({
 })
 const basicSaving = reactive({ value: false })
 
-const basicDirty = computed(() =>
-  basic.PasswordLoginEnabled !== settings.value.PasswordLoginEnabled ||
-  basic.RegisterEnabled !== settings.value.RegisterEnabled ||
-  basic.PasswordRegisterEnabled !== settings.value.PasswordRegisterEnabled ||
-  basic.EmailVerificationEnabled !== settings.value.EmailVerificationEnabled ||
-  basic.EmailDomainRestrictionEnabled !== settings.value.EmailDomainRestrictionEnabled ||
-  basic.EmailAliasRestrictionEnabled !== settings.value.EmailAliasRestrictionEnabled ||
-  basic.EmailDomainWhitelist !== settings.value.EmailDomainWhitelist
-)
+const basicDirty = computed(() => {
+  // EmailDomainWhitelist is stored as newline-separated locally but
+  // comma-separated in settings; normalise both sides before comparing.
+  const localWhitelist = basic.EmailDomainWhitelist
+    .split('\n').map((d) => d.trim()).filter(Boolean).join(',')
+  return basic.PasswordLoginEnabled !== settings.value.PasswordLoginEnabled ||
+    basic.RegisterEnabled !== settings.value.RegisterEnabled ||
+    basic.PasswordRegisterEnabled !== settings.value.PasswordRegisterEnabled ||
+    basic.EmailVerificationEnabled !== settings.value.EmailVerificationEnabled ||
+    basic.EmailDomainRestrictionEnabled !== settings.value.EmailDomainRestrictionEnabled ||
+    basic.EmailAliasRestrictionEnabled !== settings.value.EmailAliasRestrictionEnabled ||
+    localWhitelist !== settings.value.EmailDomainWhitelist
+})
 
 async function saveBasic() {
   basicSaving.value = true
