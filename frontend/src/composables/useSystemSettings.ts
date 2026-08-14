@@ -1,0 +1,114 @@
+import { ref, readonly } from 'vue'
+import { api } from '@/api/console'
+import { ApiError } from '@/api/types'
+import { useToast } from '@/composables/useToast'
+import {
+  SYSTEM_SETTINGS_DEFAULTS,
+  type AllSystemSettings,
+  type SystemOption,
+  type UpdateOptionRequest,
+} from '@/types/systemSettings'
+
+/** Parse a raw string value into boolean / number / string based on the default key type. */
+function castValue(
+  key: string,
+  raw: string,
+  defaults: AllSystemSettings
+): string | boolean | number {
+  const def = defaults[key as keyof AllSystemSettings]
+  if (typeof def === 'boolean') {
+    return raw === 'true' || raw === '1'
+  }
+  if (typeof def === 'number') {
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : def
+  }
+  return raw
+}
+
+/** Merge a flat array of SystemOption into the typed settings object. */
+function parseOptions(
+  options: SystemOption[],
+  defaults: AllSystemSettings
+): AllSystemSettings {
+  const result = { ...defaults }
+  for (const opt of options) {
+    if (Object.prototype.hasOwnProperty.call(defaults, opt.key)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(result as any)[opt.key] = castValue(opt.key, opt.value, defaults)
+    }
+  }
+  return result
+}
+
+// Module-level singleton so multiple consumers share the same fetch
+const _settings = ref<AllSystemSettings>({ ...SYSTEM_SETTINGS_DEFAULTS })
+const _loading = ref(false)
+const _loaded = ref(false)
+let _fetchPromise: Promise<void> | null = null
+
+export function useSystemSettings() {
+  const toast = useToast()
+
+  async function load(force = false): Promise<void> {
+    if (_loaded.value && !force) return
+    if (_fetchPromise) return _fetchPromise
+
+    _loading.value = true
+    _fetchPromise = api
+      .get<SystemOption[]>('/api/option/')
+      .then((data) => {
+        _settings.value = parseOptions(data ?? [], SYSTEM_SETTINGS_DEFAULTS)
+        _loaded.value = true
+      })
+      .catch((err) => {
+        // non-fatal — page still renders with defaults
+        const msg = err instanceof ApiError ? err.message : String(err)
+        toast.error(msg)
+      })
+      .finally(() => {
+        _loading.value = false
+        _fetchPromise = null
+      })
+
+    return _fetchPromise
+  }
+
+  async function updateOption(
+    key: string,
+    value: string | boolean | number
+  ): Promise<boolean> {
+    const req: UpdateOptionRequest = { key, value }
+    try {
+      await api.put<{ success: boolean; message: string }>('/api/option/', req)
+      // Optimistically update local state
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(_settings.value as any)[key] = value
+      return true
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : String(err)
+      toast.error(msg)
+      return false
+    }
+  }
+
+  /** Save a whole flat patch object; stops on first failure. */
+  async function saveOptions(
+    patch: Partial<Record<string, string | boolean | number>>
+  ): Promise<boolean> {
+    for (const [key, value] of Object.entries(patch)) {
+      const ok = await updateOption(key, value as string | boolean | number)
+      if (!ok) return false
+    }
+    return true
+  }
+
+  return {
+    settings: readonly(_settings),
+    loading: readonly(_loading),
+    loaded: readonly(_loaded),
+    load,
+    updateOption,
+    saveOptions,
+  }
+}
