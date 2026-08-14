@@ -489,7 +489,7 @@ func loadAutoPricingFromDisk() bool {
 	state, err := readAutoPricingState()
 	if err != nil {
 		common.SysError("auto pricing state is unusable: " + err.Error())
-		return false
+		return loadLegacyAutoPricingCache()
 	}
 	if state == nil {
 		return loadLegacyAutoPricingCache()
@@ -497,7 +497,7 @@ func loadAutoPricingFromDisk() bool {
 	active, err := autopricing.RestoreCatalog(state.Active)
 	if err != nil {
 		common.SysError("auto pricing active catalog is unusable: " + err.Error())
-		return false
+		return loadLegacyAutoPricingCache()
 	}
 	state.Source = "cache"
 	autoPricingStateMu.Lock()
@@ -537,7 +537,12 @@ func loadLegacyAutoPricingCache() bool {
 	if raw, err := os.ReadFile(autoPricingVersionPath()); err == nil {
 		version = strings.TrimSpace(string(raw))
 	}
-	catalog, err := autopricing.BuildCatalog(body, version)
+	source, err := autopricing.ParseMirrorSource(body, version)
+	if err != nil {
+		common.SysError("legacy auto pricing cache is unusable: " + err.Error())
+		return false
+	}
+	catalog, err := autopricing.MergeSources(source)
 	if err != nil {
 		common.SysError("legacy auto pricing cache is unusable: " + err.Error())
 		return false
@@ -545,8 +550,16 @@ func loadLegacyAutoPricingCache() bool {
 	state := newAutoPricingState()
 	state.Active = catalog.Snapshot()
 	state.Candidate = catalog.Snapshot()
+	state.SourceCatalogs[autopricing.SourceMirror] = source
+	state.Sources[autopricing.SourceMirror] = AutoPricingSourceStatus{
+		Source:  autopricing.SourceMirror,
+		URL:     ratio_setting.GetAutoPricingSetting().AutoPricingRemoteURL(),
+		Version: source.Version,
+	}
 	state.Source = "legacy-cache"
-	_ = persistAutoPricingState(state)
+	if err := persistAutoPricingState(state); err != nil {
+		common.SysError("persist migrated legacy auto pricing cache: " + err.Error())
+	}
 	publishAutoPricingState(state, catalog, false)
 	return true
 }

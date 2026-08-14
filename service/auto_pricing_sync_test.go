@@ -371,6 +371,40 @@ func TestLoadFromDiskWithoutCacheIsNotAnError(t *testing.T) {
 	assert.False(t, loadAutoPricingFromDisk())
 }
 
+func TestLoadLegacyCacheCreatesRestorableMultiSourceState(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+	require.NoError(t, os.WriteFile(autoPricingCachePath(), []byte(validCatalogDocument), 0o600))
+	require.NoError(t, os.WriteFile(autoPricingVersionPath(), []byte(`"legacy-etag"`), 0o600))
+
+	require.True(t, loadLegacyAutoPricingCache())
+	state := snapshotAutoPricingState()
+	require.NotNil(t, state.Active)
+	assert.NotEmpty(t, state.Active.Records)
+	_, err := autopricing.RestoreCatalog(state.Active)
+	require.NoError(t, err)
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	assert.Empty(t, GetAutoPricingStatus().LastError)
+}
+
+func TestLoadFromDiskReplacesUnrestorableStateFromLegacyCache(t *testing.T) {
+	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
+	broken := newAutoPricingState()
+	broken.Active = &autopricing.CatalogSnapshot{
+		Version: "legacy-cache-without-records",
+		Records: map[string]autopricing.PriceRecord{},
+	}
+	require.NoError(t, persistAutoPricingState(broken))
+	require.NoError(t, os.WriteFile(autoPricingCachePath(), []byte(validCatalogDocument), 0o600))
+
+	require.True(t, loadAutoPricingFromDisk())
+	state := snapshotAutoPricingState()
+	require.NotNil(t, state.Active)
+	assert.NotEmpty(t, state.Active.Records)
+	_, err := autopricing.RestoreCatalog(state.Active)
+	require.NoError(t, err)
+}
+
 func TestLoadFromDiskRejectsCorruptCache(t *testing.T) {
 	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
 
