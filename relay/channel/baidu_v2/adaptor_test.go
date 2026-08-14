@@ -1,6 +1,7 @@
 package baidu_v2
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -36,7 +37,7 @@ func baiduV2RelayInfo(apiKey string, format types.RelayFormat) *relaycommon.Rela
 func baiduV2GinContext(path string, clientHeaders map[string]string) *gin.Context {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, path, nil)
+	c.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, path, nil)
 	c.Request.Header.Set("Content-Type", "application/json")
 	for k, v := range clientHeaders {
 		c.Request.Header.Set(k, v)
