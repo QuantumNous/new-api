@@ -283,7 +283,8 @@ func SendEmailVerification(c *gin.Context) {
 	}
 	code := common.GenerateVerificationCode(6)
 	if err := common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose); err != nil {
-		common.ApiError(c, err)
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to store email verification code for %s: %s", email, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgRetryLater)
 		return
 	}
 	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
@@ -353,7 +354,8 @@ func ResetPassword(c *gin.Context) {
 	}
 	valid, err := common.ConsumeVerificationCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose)
 	if err != nil {
-		common.ApiError(c, err)
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume password reset code for %s: %s", req.Email, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgRetryLater)
 		return
 	}
 	if !valid {

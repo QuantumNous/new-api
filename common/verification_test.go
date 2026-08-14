@@ -120,6 +120,24 @@ func TestConsumeVerificationCodeIsAtomicInRedis(t *testing.T) {
 	})
 }
 
+func TestConsumeVerificationCodeDoesNotDeleteReplacement(t *testing.T) {
+	useVerificationTestState(t)
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+	RedisEnabled = true
+	RDB = client
+
+	require.NoError(t, RegisterVerificationCodeWithKey("replace@example.com", "old-code", EmailVerificationPurpose))
+	require.NoError(t, RegisterVerificationCodeWithKey("replace@example.com", "new-code", EmailVerificationPurpose))
+	valid, err := ConsumeVerificationCodeWithKey("replace@example.com", "old-code", EmailVerificationPurpose)
+	require.NoError(t, err)
+	assert.False(t, valid)
+	valid, err = ConsumeVerificationCodeWithKey("replace@example.com", "new-code", EmailVerificationPurpose)
+	require.NoError(t, err)
+	assert.True(t, valid)
+}
+
 func assertExactlyOneVerificationConsumer(t *testing.T, consume func() (bool, error)) {
 	t.Helper()
 	const attempts = 8
