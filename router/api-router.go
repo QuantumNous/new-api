@@ -333,7 +333,9 @@ func SetApiRouter(router *gin.Engine) {
 		autoPricingRoute.Use(middleware.RootAuth())
 		{
 			autoPricingRoute.GET("/status", controller.GetAutoPricingStatus)
+			autoPricingRoute.GET("/pending", controller.GetAutoPricingPending)
 			autoPricingRoute.POST("/sync", controller.SyncAutoPricing)
+			autoPricingRoute.POST("/review", controller.ReviewAutoPricing)
 		}
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)

@@ -6,9 +6,10 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
-// DefaultAutoPricingRemoteURL is the upstream LiteLLM pricing catalog. It is a
-// static document read over plain HTTPS GET with no credentials.
-const DefaultAutoPricingRemoteURL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+// DefaultAutoPricingRemoteURL is the reviewed Sub2API-compatible mirror used
+// as the primary remote source. Its checksum is used for change detection.
+const DefaultAutoPricingRemoteURL = "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json"
+const DefaultAutoPricingHashURL = "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.sha256"
 
 const (
 	// minAutoPricingCheckIntervalMinutes keeps a misconfigured interval from
@@ -39,7 +40,7 @@ type AutoPricingSetting struct {
 var autoPricingSetting = AutoPricingSetting{
 	Enabled:              true,
 	RemoteURL:            DefaultAutoPricingRemoteURL,
-	HashURL:              "",
+	HashURL:              DefaultAutoPricingHashURL,
 	CheckIntervalMinutes: defaultAutoPricingCheckIntervalMin,
 	FuzzyMatchEnabled:    true,
 }

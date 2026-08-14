@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -324,6 +323,9 @@ var defaultAudioCompletionRatio = map[string]float64{
 var modelPriceMap = types.NewRWMap[string, float64]()
 var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
+var configuredModelPriceMap = types.NewRWMap[string, float64]()
+var configuredModelRatioMap = types.NewRWMap[string, float64]()
+var configuredCompletionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
 	"gpt-4-gizmo-*":  2,
@@ -334,6 +336,11 @@ var defaultCompletionRatio = map[string]float64{
 
 // InitRatioSettings initializes all model related settings maps
 func InitRatioSettings() {
+	configuredModelPriceMap.Clear()
+	configuredModelRatioMap.Clear()
+	configuredCompletionRatioMap.Clear()
+	configuredCacheRatioMap.Clear()
+	configuredCreateCacheRatioMap.Clear()
 	modelPriceMap.AddAll(defaultModelPrice)
 	modelRatioMap.AddAll(defaultModelRatio)
 	completionRatioMap.AddAll(defaultCompletionRatio)
@@ -342,6 +349,27 @@ func InitRatioSettings() {
 	imageRatioMap.AddAll(defaultImageRatio)
 	audioRatioMap.AddAll(defaultAudioRatio)
 	audioCompletionRatioMap.AddAll(defaultAudioCompletionRatio)
+}
+
+// ResetPricingForAutoCatalogTakeover removes only the legacy pricing options
+// now owned by the automatic catalog. Unrelated ratio settings stay intact.
+func ResetPricingForAutoCatalogTakeover() {
+	configuredModelPriceMap.Clear()
+	configuredModelRatioMap.Clear()
+	configuredCompletionRatioMap.Clear()
+	configuredCacheRatioMap.Clear()
+	configuredCreateCacheRatioMap.Clear()
+	modelPriceMap.Clear()
+	modelRatioMap.Clear()
+	completionRatioMap.Clear()
+	cacheRatioMap.Clear()
+	createCacheRatioMap.Clear()
+	modelPriceMap.AddAll(defaultModelPrice)
+	modelRatioMap.AddAll(defaultModelRatio)
+	completionRatioMap.AddAll(defaultCompletionRatio)
+	cacheRatioMap.AddAll(defaultCacheRatio)
+	createCacheRatioMap.AddAll(defaultCreateCacheRatio)
+	InvalidateExposedDataCache()
 }
 
 func GetModelPriceMap() map[string]float64 {
@@ -353,6 +381,9 @@ func ModelPrice2JSONString() string {
 }
 
 func UpdateModelPriceByJSONString(jsonStr string) error {
+	if err := types.LoadFromJsonString(configuredModelPriceMap, jsonStr); err != nil {
+		return err
+	}
 	return types.LoadFromJsonStringWithCallback(modelPriceMap, jsonStr, InvalidateExposedDataCache)
 }
 
@@ -360,6 +391,17 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
 
+	if price, ok := configuredModelPriceMap.Get(name); ok {
+		return price, true
+	}
+	if price, ok := modelPriceMap.Get(name); ok {
+		if _, builtIn := defaultModelPrice[name]; !builtIn {
+			return price, true
+		}
+	}
+	if _, ok := autoPricingEntry(name); ok {
+		return -1, false
+	}
 	if price, ok := modelPriceMap.Get(name); ok {
 		return price, true
 	}
@@ -382,6 +424,9 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 }
 
 func UpdateModelRatioByJSONString(jsonStr string) error {
+	if err := types.LoadFromJsonString(configuredModelRatioMap, jsonStr); err != nil {
+		return err
+	}
 	return types.LoadFromJsonStringWithCallback(modelRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
@@ -395,6 +440,13 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 
 func GetModelRatio(name string) (float64, bool, string) {
 	name = FormatMatchingModelName(name)
+	if _, manual := configuredModelRatioMap.Get(name); !manual {
+		if _, fixed := configuredModelPriceMap.Get(name); !fixed {
+			if entry, autoOK := autoPricingEntry(name); autoOK {
+				return entry.ModelRatio, true, name
+			}
+		}
+	}
 
 	ratio, ok := modelRatioMap.Get(name)
 	if !ok {
@@ -404,10 +456,7 @@ func GetModelRatio(name string) (float64, bool, string) {
 			}
 			//return 0, true, name
 		}
-		if entry, autoOK := autoPricingEntry(name); autoOK {
-			return entry.ModelRatio, true, name
-		}
-		return 37.5, operation_setting.SelfUseModeEnabled, name
+		return 0, false, name
 	}
 	return ratio, true, name
 }
@@ -433,11 +482,20 @@ func CompletionRatio2JSONString() string {
 }
 
 func UpdateCompletionRatioByJSONString(jsonStr string) error {
+	if err := types.LoadFromJsonString(configuredCompletionRatioMap, jsonStr); err != nil {
+		return err
+	}
 	return types.LoadFromJsonStringWithCallback(completionRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
 func GetCompletionRatio(name string) float64 {
 	name = FormatMatchingModelName(name)
+	if ratio, manual := configuredCompletionRatioMap.Get(name); manual {
+		return ratio
+	}
+	if entry, autoOK := autoPricingEntry(name); autoOK {
+		return entry.CompletionRatio
+	}
 
 	if strings.Contains(name, "/") {
 		if ratio, ok := completionRatioMap.Get(name); ok {
@@ -454,9 +512,6 @@ func GetCompletionRatio(name string) float64 {
 	// Only models with no manual pricing at all reach this point, so taking the
 	// completion multiplier from the automatic catalog keeps it paired with the
 	// base ratio GetModelRatio resolved from the same catalog entry.
-	if entry, autoOK := autoPricingEntry(name); autoOK {
-		return entry.CompletionRatio
-	}
 	return hardCodedRatio
 }
 

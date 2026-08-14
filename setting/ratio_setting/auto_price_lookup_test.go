@@ -100,6 +100,21 @@ func TestManualFixedPriceSuppressesCatalogRatio(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestConfiguredCompletionRatioAlwaysWins(t *testing.T) {
+	InitRatioSettings()
+	useTestCatalog(t, "{\"gpt-4o\": {\"input_cost_per_token\": 0.0001, \"output_cost_per_token\": 0.0004}}", enabledAutoPricing())
+
+	previous := configuredCompletionRatioMap.ReadAll()
+	configuredCompletionRatioMap.Set("gpt-4o", 1.75)
+	t.Cleanup(func() {
+		configuredCompletionRatioMap.Clear()
+		configuredCompletionRatioMap.AddAll(previous)
+	})
+
+	assert.Equal(t, 1.75, GetCompletionRatio("gpt-4o"),
+		"an administrator completion ratio must override both the catalog and hard-coded compatibility values")
+}
+
 func TestCatalogPricesModelsWithoutManualConfig(t *testing.T) {
 	useTestCatalog(t, testCatalogDocument, enabledAutoPricing())
 
@@ -143,7 +158,7 @@ func TestDisabledAutoPricingRestoresLegacyBehavior(t *testing.T) {
 
 	ratio, ok, _ := GetModelRatio("auto-only-model")
 	assert.False(t, ok, "with the feature off an unconfigured model stays unpriced")
-	assert.Equal(t, 37.5, ratio)
+	assert.Equal(t, 0.0, ratio)
 
 	cacheRatio, cacheOK := GetCacheRatio("auto-only-model")
 	assert.False(t, cacheOK)
@@ -155,19 +170,22 @@ func TestUnknownModelStaysUnpricedWithCatalogLoaded(t *testing.T) {
 
 	ratio, ok, _ := GetModelRatio("model-nobody-has-heard-of")
 	assert.False(t, ok)
-	assert.Equal(t, 37.5, ratio)
+	assert.Equal(t, 0.0, ratio)
 }
 
-func TestBuiltInDefaultsAreUnaffectedByCatalog(t *testing.T) {
+func TestCatalogTakesOverBuiltInDefaults(t *testing.T) {
 	InitRatioSettings()
-	// The catalog prices gpt-4o far above its real rate; the shipped default
-	// must still win because it is manual configuration.
-	useTestCatalog(t, `{"gpt-4o": {"input_cost_per_token": 0.0001, "output_cost_per_token": 0.0004}}`, enabledAutoPricing())
+	// Shipped defaults are compatibility fallbacks, not administrator intent.
+	// A loaded catalog therefore takes ownership of the model.
+	useTestCatalog(t, `{"gpt-4o": {"input_cost_per_token": 0.0001, "output_cost_per_token": 0.0004, "cache_read_input_token_cost": 0.00002}}`, enabledAutoPricing())
 
 	ratio, ok, _ := GetModelRatio("gpt-4o")
 	require.True(t, ok)
-	assert.Equal(t, 1.25, ratio)
+	assert.Equal(t, 50.0, ratio)
 	assert.Equal(t, 4.0, GetCompletionRatio("gpt-4o"))
+	cacheRatio, cacheOK := GetCacheRatio("gpt-4o")
+	require.True(t, cacheOK)
+	assert.Equal(t, 0.2, cacheRatio)
 }
 
 func TestCatalogNeverLeaksIntoExportedManualMaps(t *testing.T) {
