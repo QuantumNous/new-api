@@ -101,7 +101,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		Model:         textRequest.Model,
 		StopSequences: nil,
 		Temperature:   textRequest.Temperature,
-		Tools:         claudeTools,
+	}
+	if len(claudeTools) > 0 {
+		claudeRequest.Tools = claudeTools
 	}
 	if maxTokens := textRequest.GetMaxTokens(); maxTokens > 0 {
 		claudeRequest.MaxTokens = kitutil.GetPointer(maxTokens)
