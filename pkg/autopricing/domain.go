@@ -388,8 +388,8 @@ func needsBillingExpr(r PriceRecord) bool {
 func validBillingExpr(expr string) bool {
 	vectors := []billingexpr.TokenParams{
 		{},
-		{P: 1000, C: 1000, Len: 1000, CR: 100, CC: 100, CC1h: 100, Img: 100, ImgO: 100},
-		{P: 300000, C: 100000, Len: 300000, CR: 10000, CC: 10000, CC1h: 10000, Img: 1000, ImgO: 1000},
+		{P: 1000, C: 1000, Len: 1000, CR: 100, CC: 100, CC1h: 100, Img: 100, ImgO: 100, AI: 100, AO: 100},
+		{P: 300000, C: 100000, Len: 300000, CR: 10000, CC: 10000, CC1h: 10000, Img: 1000, ImgO: 1000, AI: 1000, AO: 1000},
 	}
 	requests := []billingexpr.RequestInput{
 		{},

@@ -156,14 +156,17 @@ func TestCatalogSkipsInvalidCostsAndExpressions(t *testing.T) {
 	source.Records["valid"] = PriceRecord{Model: "valid", PrimarySource: SourceNewAPI, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}}
 	source.Records["negative-output"] = PriceRecord{Model: "negative-output", PrimarySource: SourceNewAPI, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(-8)}}
 	source.Records["invalid-expression"] = PriceRecord{Model: "invalid-expression", PrimarySource: SourceNewAPI, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}, BillingMode: "tiered_expr", BillingExpr: "p *"}
+	source.Records["negative-audio-expression"] = PriceRecord{Model: "negative-audio-expression", PrimarySource: SourceNewAPI, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}, BillingMode: "tiered_expr", BillingExpr: "tier(\"audio\", ao * -1)"}
 
 	catalog, err := MergeSources(source)
 	require.NoError(t, err)
 	assert.Equal(t, 1, catalog.ModelCount)
-	assert.Equal(t, 2, catalog.SkippedCount)
+	assert.Equal(t, 3, catalog.SkippedCount)
 	_, ok := catalog.Lookup("negative-output")
 	assert.False(t, ok)
 	_, ok = catalog.Lookup("invalid-expression")
+	assert.False(t, ok)
+	_, ok = catalog.Lookup("negative-audio-expression")
 	assert.False(t, ok)
 }
 
