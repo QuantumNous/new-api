@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -26,8 +27,10 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	adaptor := openai.Adaptor{}
-	return adaptor.ConvertClaudeRequest(c, info, req)
+	if req == nil {
+		return nil, errors.New("request is nil")
+	}
+	return req, nil
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -44,6 +47,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info.RelayFormat == types.RelayFormatClaude {
+		return fmt.Sprintf("%s/anthropic/v1/messages", info.ChannelBaseUrl), nil
+	}
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:
 		return fmt.Sprintf("%s/v2/chat/completions", info.ChannelBaseUrl), nil
@@ -70,6 +76,13 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		if keyParts[1] != "" {
 			req.Set("appid", keyParts[1])
 		}
+	}
+	if info.RelayFormat == types.RelayFormatClaude {
+		req.Set("x-api-key", keyParts[0])
+		if req.Get("anthropic-version") == "" {
+			req.Set("anthropic-version", "2023-06-01")
+		}
+		return nil
 	}
 	req.Set("Authorization", "Bearer "+keyParts[0])
 	return nil
@@ -116,6 +129,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info.RelayFormat == types.RelayFormatClaude {
+		adaptor := claude.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
+	}
 	adaptor := openai.Adaptor{}
 	usage, err = adaptor.DoResponse(c, resp, info)
 	return
