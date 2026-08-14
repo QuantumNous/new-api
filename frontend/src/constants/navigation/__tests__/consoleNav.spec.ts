@@ -113,8 +113,25 @@ describe('console navigation', () => {
         name: 'subscription',
         labelKey: 'nav.subscription',
         route: 'subscription',
+        hidden: true,
       })
     )
+  })
+
+  it('hides package entries without weakening their direct-route guards', () => {
+    const visibleAdminItems = getAccessibleConsoleNavGroups({
+      isAdmin: true,
+      hasPermission: () => true,
+    })
+      .flatMap((group) => group.items)
+      .map((item) => item.name)
+
+    expect(visibleAdminItems).not.toContain('plan-management')
+    expect(visibleAdminItems).not.toContain('subscription')
+    expect(getConsoleRouteAccessMeta('plan-management')).toEqual({
+      requiresAdmin: true,
+    })
+    expect(getConsoleRouteAccessMeta('subscription')).toEqual({})
   })
 
   it('keeps every route name unique across the whole navigation', () => {
