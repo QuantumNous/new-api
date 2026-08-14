@@ -31,7 +31,6 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -979,9 +978,6 @@ export function Wallet(props: WalletProps) {
         <DialogContent className='sm:max-w-lg' showCloseButton>
           <DialogHeader>
             <DialogTitle>{t('Top up balance')}</DialogTitle>
-            <DialogDescription>
-              {t('Pay face value. The same amount is added to your balance.')}
-            </DialogDescription>
           </DialogHeader>
           <RechargeFormCard
             topupInfo={topupInfo}
