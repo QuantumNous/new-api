@@ -36,6 +36,9 @@ var defaultCacheRatio = map[string]float64{
 	"gpt-5-mini-2025-08-07":               0.1,
 	"gpt-5-nano":                          0.1,
 	"gpt-5-nano-2025-08-07":               0.1,
+	"gpt-5.6-sol":                         0.1,
+	"gpt-5.6-terra":                       0.1,
+	"gpt-5.6-luna":                        0.1,
 	"deepseek-chat":                       0.25,
 	"deepseek-reasoner":                   0.25,
 	"deepseek-coder":                      0.25,
@@ -174,10 +177,14 @@ func GetCacheRatio(name string) (float64, bool) {
 			return ratio, true
 		}
 	}
-	// A missing automatic cache cost keeps the built-in/default behavior; it
-	// must never become a free cache read.
-	if entry, autoOK := autoPricingEntry(name); autoOK && entry.HasCacheRatio {
-		return entry.CacheRatio, true
+	if entry, autoOK := autoPricingEntry(name); autoOK {
+		if entry.HasCacheRatio {
+			return entry.CacheRatio, true
+		}
+		// The automatic catalog owns the model. A missing cache-read price means
+		// cached input is billed like ordinary input, not by an unrelated legacy
+		// compatibility map.
+		return 1, entry.HasModelRatio
 	}
 	if ratio, ok := cacheRatioMap.Get(name); ok {
 		return ratio, true
@@ -195,8 +202,13 @@ func GetCreateCacheRatio(name string) (float64, bool) {
 			return ratio, true
 		}
 	}
-	if entry, autoOK := autoPricingEntry(name); autoOK && entry.HasCreateCacheRatio {
-		return entry.CreateCacheRatio, true
+	if entry, autoOK := autoPricingEntry(name); autoOK {
+		if entry.HasCreateCacheRatio {
+			return entry.CreateCacheRatio, true
+		}
+		// No catalog cache-write surcharge means ordinary input pricing. Do not
+		// reintroduce the historical generic 1.25 multiplier as a second fact.
+		return 1, entry.HasModelRatio
 	}
 	if ratio, ok := createCacheRatioMap.Get(name); ok {
 		return ratio, true

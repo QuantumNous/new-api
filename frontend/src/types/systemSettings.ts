@@ -106,6 +106,7 @@ export interface AutoPricingSourceStatus {
   version?: string
   error?: string
   updated_at?: string
+  manual_only?: boolean
 }
 
 export interface AutoPricingStatus {
@@ -126,6 +127,8 @@ export interface AutoPricingStatus {
   pending_count: number
   takeover_complete: boolean
   sources: AutoPricingSourceStatus[]
+  manual_sources: AutoPricingSourceStatus[]
+  revision: string
 }
 
 export interface AutoPricingCostSet {
@@ -136,6 +139,8 @@ export interface AutoPricingCostSet {
   cache_write_1h?: number
   image_input?: number
   image_output?: number
+  audio_input?: number
+  audio_output?: number
 }
 
 export interface AutoPricingRecord {
@@ -147,6 +152,7 @@ export interface AutoPricingRecord {
   priority?: AutoPricingCostSet
   flex?: AutoPricingCostSet
   per_request?: number
+  per_image?: number
   tiers?: Array<{
     name: string
     max_input_tokens?: number
@@ -162,6 +168,7 @@ export interface AutoPricingPendingReview {
   model: string
   reason: string
   fingerprint: string
+  candidate_version: string
   current?: AutoPricingRecord
   candidate?: AutoPricingRecord
 }

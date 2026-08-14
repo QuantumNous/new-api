@@ -3,6 +3,7 @@ package autopricing
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,10 +63,8 @@ func TestBuildCatalogRejectsUnusableEntries(t *testing.T) {
 		name  string
 		entry string
 	}{
-		{name: "no token pricing at all", entry: `{"output_cost_per_image": 0.04, "mode": "image_generation"}`},
 		{name: "negative input cost", entry: `{"input_cost_per_token": -0.000001, "output_cost_per_token": 0.000002}`},
 		{name: "negative output cost", entry: `{"input_cost_per_token": 0.000001, "output_cost_per_token": -0.000002}`},
-		{name: "free input with paid output", entry: `{"input_cost_per_token": 0, "output_cost_per_token": 0.000002}`},
 		{name: "absurd input cost", entry: `{"input_cost_per_token": 100, "output_cost_per_token": 100}`},
 		{name: "absurd completion multiplier", entry: `{"input_cost_per_token": 0.0000000001, "output_cost_per_token": 0.01}`},
 		{name: "absurd cache multiplier", entry: `{"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000002, "cache_read_input_token_cost": 1}`},
@@ -83,6 +82,49 @@ func TestBuildCatalogRejectsUnusableEntries(t *testing.T) {
 			assert.Equal(t, 1, catalog.SkippedCount)
 		})
 	}
+}
+
+func TestBuildCatalogKeepsPerImageOnlyEntries(t *testing.T) {
+	catalog := buildTestCatalog(t, `{
+		"image-only": {"output_cost_per_image": 0.04, "mode": "image_generation"}
+	}`)
+
+	entry, ok := catalog.Lookup("image-only")
+	require.True(t, ok)
+	assert.False(t, entry.HasModelRatio)
+	assert.True(t, entry.HasPerImagePrice)
+	assert.Equal(t, 0.04, entry.PerImagePrice)
+	assert.True(t, entry.HasBillingExpr)
+
+	cost, _, err := billingexpr.RunExprWithRequest(
+		entry.BillingExpr,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Counts: map[string]float64{"n": 3}},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 120000.0, cost)
+
+	// Arbitrary JSON fields are not trusted as billing quantities.
+	cost, _, err = billingexpr.RunExprWithRequest(
+		entry.BillingExpr,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Body: []byte(`{"n":999999999}`)},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 40000.0, cost)
+}
+
+func TestBuildCatalogKeepsZeroInputPaidOutputAsExpression(t *testing.T) {
+	catalog := buildTestCatalog(t, `{
+		"output-only": {"input_cost_per_token": 0, "output_cost_per_token": 0.000002}
+	}`)
+	entry, ok := catalog.Lookup("output-only")
+	require.True(t, ok)
+	assert.True(t, entry.HasModelRatio)
+	assert.True(t, entry.HasBillingExpr)
+	cost, _, err := billingexpr.RunExpr(entry.BillingExpr, billingexpr.TokenParams{P: 100, C: 100})
+	require.NoError(t, err)
+	assert.Equal(t, 200.0, cost)
 }
 
 func TestBuildCatalogKeepsFreeModels(t *testing.T) {
@@ -114,7 +156,7 @@ func TestBuildCatalogRejectsUnusableDocuments(t *testing.T) {
 	}{
 		{name: "not json", document: `not json at all`},
 		{name: "empty object", document: `{}`},
-		{name: "no token priced entries", document: `{"img": {"output_cost_per_image": 0.04}}`},
+		{name: "invalid image price", document: `{"img": {"output_cost_per_image": -0.04}}`},
 	}
 
 	for _, tc := range cases {
@@ -133,7 +175,7 @@ func TestBuildCatalogNormalizesKeyCase(t *testing.T) {
 
 	entry, ok := catalog.Lookup("gpt-4o-mini")
 	require.True(t, ok)
-	assert.Equal(t, "GPT-4O-Mini", entry.CatalogKey, "the original spelling stays visible for auditing")
+	assert.Equal(t, "gpt-4o-mini", entry.CatalogKey)
 }
 
 func TestResolveExactMatchVariants(t *testing.T) {

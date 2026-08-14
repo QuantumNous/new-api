@@ -276,6 +276,7 @@ func TestPersistenceFailureKeepsPreviousEffectiveCatalog(t *testing.T) {
 	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
 	useFakeRemote(t, client)
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	previousState := snapshotAutoPricingState()
 
 	stateDir := filepath.Dir(autoPricingStatePath())
 	require.NoError(t, os.RemoveAll(stateDir))
@@ -287,6 +288,11 @@ func TestPersistenceFailureKeepsPreviousEffectiveCatalog(t *testing.T) {
 	entry, ok := autopricing.Resolve("probe-model", false)
 	require.True(t, ok)
 	assert.Equal(t, 1.0, entry.ModelRatio)
+	currentState := snapshotAutoPricingState()
+	assert.Equal(t, previousState.Active, currentState.Active)
+	assert.Equal(t, previousState.Candidate, currentState.Candidate)
+	assert.Equal(t, previousState.Pending, currentState.Pending)
+	assert.Equal(t, previousState.Revision, currentState.Revision)
 	assert.NotEmpty(t, GetAutoPricingStatus().LastError)
 }
 
@@ -391,6 +397,17 @@ func TestLoadLegacyCacheCreatesRestorableMultiSourceState(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 	assert.Empty(t, GetAutoPricingStatus().LastError)
+}
+
+func TestLoadLegacyCacheDoesNotPublishWhenMigrationCannotPersist(t *testing.T) {
+	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
+	require.NoError(t, os.WriteFile(autoPricingCachePath(), []byte(validCatalogDocument), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Dir(autoPricingStatePath()), []byte("blocks state directory"), 0o600))
+	autopricing.SetCatalog(nil)
+
+	assert.False(t, loadLegacyAutoPricingCache())
+	assert.False(t, autopricing.Loaded())
+	assert.Nil(t, snapshotAutoPricingState().Active)
 }
 
 func TestLoadFromDiskReplacesUnrestorableStateFromLegacyCache(t *testing.T) {
@@ -601,4 +618,70 @@ func TestFirstTakeoverRollsBackOptionsAndStateOnDatabaseFailure(t *testing.T) {
 	assert.EqualValues(t, 1, count)
 	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", autoPricingTakeoverKey).Count(&count).Error)
 	assert.Zero(t, count)
+}
+
+func TestTakeoverMarkerPreventsRepeatedCleanupWhenStateIsLost(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+
+	previousDB := model.DB
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "takeover-marker.db")), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Option{}))
+	require.NoError(t, db.Create(&model.Option{Key: autoPricingTakeoverKey, Value: "true"}).Error)
+	require.NoError(t, db.Create(&model.Option{Key: "ModelRatio", Value: `{"admin-model":1.5}`}).Error)
+	model.DB = db
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		model.DB = previousDB
+		_ = sqlDB.Close()
+	})
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	assert.True(t, GetAutoPricingStatus().TakeoverComplete)
+	var option model.Option
+	require.NoError(t, db.Where("key = ?", "ModelRatio").First(&option).Error)
+	assert.Equal(t, `{"admin-model":1.5}`, option.Value)
+	assert.NoFileExists(t, autoPricingArchivePath())
+}
+
+func TestTakeoverReconcilesRolledBackDatabaseMarkerFromPersistedState(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+
+	previousDB := model.DB
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "takeover-state-rollback.db")), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Option{}))
+	require.NoError(t, db.Create(&model.Option{Key: "ModelRatio", Value: `{"legacy-model":1}`}).Error)
+	model.DB = db
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		model.DB = previousDB
+		_ = sqlDB.Close()
+	})
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	state := snapshotAutoPricingState()
+	require.NotNil(t, state.Active)
+	state.TakeoverComplete = true
+	require.NoError(t, db.Where("key = ?", autoPricingTakeoverKey).Delete(&model.Option{}).Error)
+	require.NoError(t, db.Create(&model.Option{Key: "ModelRatio", Value: `{"legacy-model":1}`}).Error)
+	require.NoError(t, persistAutoPricingState(state))
+
+	autoPricingStateMu.Lock()
+	autoPricingState = newAutoPricingState()
+	autoPricingStateMu.Unlock()
+	require.True(t, loadAutoPricingFromDisk())
+	assert.False(t, GetAutoPricingStatus().TakeoverComplete)
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	assert.True(t, GetAutoPricingStatus().TakeoverComplete)
+	var count int64
+	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", "ModelRatio").Count(&count).Error)
+	assert.Zero(t, count)
+	require.NoError(t, db.Model(&model.Option{}).Where("key = ?", autoPricingTakeoverKey).Count(&count).Error)
+	assert.EqualValues(t, 1, count)
 }

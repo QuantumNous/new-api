@@ -31,9 +31,10 @@ type DifferenceItem struct {
 }
 
 type SyncableChannel struct {
-	ID      int    `json:"id"`
-	Name    string `json:"name"`
-	BaseURL string `json:"base_url"`
-	Status  int    `json:"status"`
-	Type    int    `json:"type"`
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	BaseURL  string `json:"base_url"`
+	Endpoint string `json:"endpoint,omitempty"`
+	Status   int    `json:"status"`
+	Type     int    `json:"type"`
 }

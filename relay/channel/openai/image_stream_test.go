@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
@@ -33,6 +34,19 @@ func newImageTestContext(t *testing.T, body, contentType string, isStream bool) 
 		IsStream:    isStream,
 	}
 	return c, recorder, resp, info
+}
+
+func newTieredImageInfo(requested int) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{},
+		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
+			BillingMode: "tiered_expr",
+			ExprString:  `tier("image", count("n") * 1)`,
+		},
+		BillingRequestInput: &billingexpr.RequestInput{
+			Counts: map[string]float64{"n": float64(requested)},
+		},
+	}
 }
 
 func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {
@@ -233,6 +247,8 @@ func TestOpenaiImageStreamHandlerClientDisconnectKeepsRequestedCount(t *testing.
 	c, recorder, resp, info := newDisconnectingImageStream(t, body, "first")
 	info.PriceData.UsePrice = true
 	info.PriceData.AddOtherRatio("n", 3)
+	info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: "tiered_expr"}
+	info.BillingRequestInput = &billingexpr.RequestInput{Counts: map[string]float64{"n": 3}}
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 
@@ -246,6 +262,7 @@ func TestOpenaiImageStreamHandlerClientDisconnectKeepsRequestedCount(t *testing.
 		info.StreamStatus.EndReason)
 	require.Contains(t, recorder.Body.String(), `"b64_json":"first"`)
 	require.Equal(t, 3.0, info.PriceData.OtherRatios()["n"], "client abort must not reduce the billed image count")
+	require.Equal(t, 3.0, info.BillingRequestInput.Counts["n"], "client abort must not reduce the tiered image count")
 }
 
 // TestOpenaiImageStreamHandlerClientDisconnectRaisesCount covers the other
@@ -270,6 +287,8 @@ func TestOpenaiImageStreamHandlerClientDisconnectRaisesCount(t *testing.T) {
 	c, _, resp, info := newDisconnectingImageStream(t, body, "second")
 	info.PriceData.UsePrice = true
 	info.PriceData.AddOtherRatio("n", 1)
+	info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: "tiered_expr"}
+	info.BillingRequestInput = &billingexpr.RequestInput{Counts: map[string]float64{"n": 1}}
 
 	usage, err := OpenaiImageStreamHandler(c, info, resp)
 
@@ -280,6 +299,7 @@ func TestOpenaiImageStreamHandlerClientDisconnectRaisesCount(t *testing.T) {
 		[]relaycommon.StreamEndReason{relaycommon.StreamEndReasonClientGone, relaycommon.StreamEndReasonHandlerStop},
 		info.StreamStatus.EndReason)
 	require.Equal(t, 2.0, info.PriceData.OtherRatios()["n"], "completed events beyond the recorded n must raise the charge even on abort")
+	require.Equal(t, 2.0, info.BillingRequestInput.Counts["n"], "completed events beyond the requested n must raise the tiered charge")
 }
 
 // TestOpenaiImageStreamHandlerWrapsJSONResponse covers the non-SSE fallback:
@@ -359,6 +379,49 @@ func TestOpenaiImageHandlerUsesPositiveActualCountForFixedPrice(t *testing.T) {
 			require.Equal(t, tt.body, recorder.Body.String())
 		})
 	}
+}
+
+func TestOpenaiImageHandlersUpdateTieredImageCount(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	t.Run("json response", func(t *testing.T) {
+		body := `{"data":[{"b64_json":"first"},{"b64_json":"second"}]}`
+		c, _, resp, info := newImageTestContext(t, body, "application/json", false)
+		info = newTieredImageInfo(3)
+		_, err := OpenaiImageHandler(c, info, resp)
+		require.Nil(t, err)
+		require.Equal(t, 2.0, info.BillingRequestInput.Counts["n"])
+	})
+
+	t.Run("sse completed events", func(t *testing.T) {
+		body := strings.Join([]string{
+			`data: {"type":"image_generation.completed"}`,
+			``,
+			`data: {"type":"image_generation.completed"}`,
+			``,
+			`data: [DONE]`,
+			``,
+		}, "\n")
+		c, _, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+		info = newTieredImageInfo(3)
+		_, err := OpenaiImageStreamHandler(c, info, resp)
+		require.Nil(t, err)
+		require.Equal(t, 2.0, info.BillingRequestInput.Counts["n"])
+	})
+
+	t.Run("json wrapped as sse", func(t *testing.T) {
+		body := `{"data":[{"b64_json":"first"},{"b64_json":"second"}]}`
+		c, _, resp, info := newImageTestContext(t, body, "application/json", true)
+		info = newTieredImageInfo(3)
+		_, err := OpenaiImageStreamHandler(c, info, resp)
+		require.Nil(t, err)
+		require.Equal(t, 2.0, info.BillingRequestInput.Counts["n"])
+	})
 }
 
 // TestOpenaiImageHandlersReturnJSONError covers JSON error responses for both

@@ -23,10 +23,34 @@ import (
 )
 
 func updateOpenAIImageCount(info *relaycommon.RelayInfo, count int64) {
-	if info == nil || !info.PriceData.UsePrice || count <= 0 || count > int64(dto.MaxImageN) {
+	if info == nil || count <= 0 || count > int64(dto.MaxImageN) {
 		return
 	}
-	info.PriceData.AddOtherRatio("n", float64(count))
+	if info.PriceData.UsePrice {
+		info.PriceData.AddOtherRatio("n", float64(count))
+	}
+	if info.TieredBillingSnapshot != nil && info.BillingRequestInput != nil {
+		if info.BillingRequestInput.Counts == nil {
+			info.BillingRequestInput.Counts = map[string]float64{}
+		}
+		info.BillingRequestInput.Counts["n"] = float64(count)
+	}
+}
+
+func requestedOpenAIImageCount(info *relaycommon.RelayInfo) float64 {
+	requested := 1.0
+	if info == nil {
+		return requested
+	}
+	if n, ok := info.PriceData.OtherRatios()["n"]; ok && n >= 1 && n <= float64(dto.MaxImageN) {
+		requested = n
+	}
+	if info.BillingRequestInput != nil {
+		if n, ok := info.BillingRequestInput.Counts["n"]; ok && n >= 1 && n <= float64(dto.MaxImageN) && n > requested {
+			requested = n
+		}
+	}
+	return requested
 }
 
 // OpenaiImageHandler handles non-streaming OpenAI image responses
@@ -156,10 +180,7 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	if info.StreamStatus != nil {
 		upstreamFinished := info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone ||
 			info.StreamStatus.EndReason == relaycommon.StreamEndReasonEOF
-		requestedN := 1.0
-		if n, ok := info.PriceData.OtherRatios()["n"]; ok {
-			requestedN = n
-		}
+		requestedN := requestedOpenAIImageCount(info)
 		if upstreamFinished || float64(completedImages) > requestedN {
 			updateOpenAIImageCount(info, completedImages)
 		}
@@ -250,10 +271,9 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 	normalizeOpenAIUsage(&usageResp.Usage)
-	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
-
 	imageCount := gjson.GetBytes(responseBody, "data.#").Int()
 	updateOpenAIImageCount(info, imageCount)
+	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 
 	helper.SetEventStreamHeaders(c)
 	c.Status(http.StatusOK)

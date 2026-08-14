@@ -134,21 +134,35 @@ func TestCatalogPricesModelsWithoutManualConfig(t *testing.T) {
 	assert.Equal(t, 1.25, createCacheRatio)
 }
 
-func TestCatalogWithoutCacheCostKeepsDefaults(t *testing.T) {
+func TestCatalogWithoutCacheCostUsesInputPriceSemantics(t *testing.T) {
 	useTestCatalog(t, testCatalogDocument, enabledAutoPricing())
 
 	ratio, ok, _ := GetModelRatio("auto-no-cache-model")
 	require.True(t, ok)
 	assert.Equal(t, 1.0, ratio)
 
-	// A silent catalog must not make cached tokens free.
+	// A missing cache price means ordinary input pricing. It must not fall back
+	// to the legacy generic cache-write surcharge.
 	cacheRatio, cacheOK := GetCacheRatio("auto-no-cache-model")
-	assert.False(t, cacheOK)
+	assert.True(t, cacheOK)
 	assert.Equal(t, 1.0, cacheRatio)
 
 	createCacheRatio, createOK := GetCreateCacheRatio("auto-no-cache-model")
-	assert.False(t, createOK)
-	assert.Equal(t, 1.25, createCacheRatio)
+	assert.True(t, createOK)
+	assert.Equal(t, 1.0, createCacheRatio)
+}
+
+func TestImageOnlyCatalogEntryDoesNotBecomeZeroTokenRatio(t *testing.T) {
+	useTestCatalog(t, `{"image-only":{"output_cost_per_image":0.04}}`, enabledAutoPricing())
+
+	_, ratioOK, _ := GetModelRatio("image-only")
+	assert.False(t, ratioOK)
+	price, priceOK := GetAutoPerCallPrice("image-only")
+	require.True(t, priceOK)
+	assert.Equal(t, 0.04, price)
+	expr, exprOK := GetAutoBillingExpr("image-only")
+	assert.True(t, exprOK)
+	assert.Contains(t, expr, `count("n")`)
 }
 
 func TestDisabledAutoPricingRestoresLegacyBehavior(t *testing.T) {
@@ -259,4 +273,15 @@ func TestRatioUnitMatchesRatioSetting(t *testing.T) {
 	entry, ok := catalog.Lookup("probe")
 	require.True(t, ok)
 	assert.Equal(t, 1.0, entry.ModelRatio, "$2 per 1M tokens must convert to exactly one ratio unit")
+}
+
+func TestReviewedGPT56CompatibilityPricesStayPinned(t *testing.T) {
+	assert.Equal(t, 2.5, GetDefaultModelRatioMap()["gpt-5.6-sol"])
+	assert.Equal(t, 1.0, GetDefaultModelRatioMap()["gpt-5.6-terra"])
+	assert.Equal(t, 0.1, GetDefaultModelRatioMap()["gpt-5.6-luna"])
+	assert.Equal(t, 0.1, defaultCacheRatio["gpt-5.6-sol"])
+	assert.Equal(t, 0.1, defaultCacheRatio["gpt-5.6-terra"])
+	assert.Equal(t, 0.1, defaultCacheRatio["gpt-5.6-luna"])
+	assert.Equal(t, 6.0, GetCompletionRatio("gpt-5.6-terra"))
+	assert.Equal(t, 6.0, GetCompletionRatio("gpt-5.6-luna"))
 }

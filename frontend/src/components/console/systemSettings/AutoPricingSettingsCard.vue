@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Check, RefreshCw, X } from 'lucide-vue-next'
+import { RefreshCw } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { api } from '@/api/console'
 import { ApiError } from '@/api/types'
@@ -10,11 +10,7 @@ import SysSettingsFormCard from '@/components/console/systemSettings/SysSettings
 import SysToggleRow from '@/components/console/systemSettings/SysToggleRow.vue'
 import { useSystemSettings } from '@/composables/useSystemSettings'
 import { useToast } from '@/composables/useToast'
-import type {
-  AutoPricingPendingReview,
-  AutoPricingRecord,
-  AutoPricingStatus,
-} from '@/types/systemSettings'
+import type { AutoPricingStatus } from '@/types/systemSettings'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -30,10 +26,7 @@ const form = reactive({
 const saving = ref(false)
 const loading = ref(false)
 const syncing = ref(false)
-const reviewing = ref(false)
 const status = ref<AutoPricingStatus | null>(null)
-const pending = ref<AutoPricingPendingReview[]>([])
-const selectedFingerprints = ref<string[]>([])
 
 const dirty = computed(() => {
   const current = settings.value
@@ -56,7 +49,7 @@ function isHttpUrl(value: string, optional = false): boolean {
   if (optional && normalized === '') return true
   try {
     const parsed = new URL(normalized)
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+    return parsed.protocol === 'https:'
   } catch {
     return false
   }
@@ -65,18 +58,10 @@ function isHttpUrl(value: string, optional = false): boolean {
 async function refreshStatus(showError = true) {
   loading.value = true
   try {
-    const [nextStatus, nextPending] = await Promise.all([
-      api.get<AutoPricingStatus>('/api/auto_pricing/status'),
-      api.get<AutoPricingPendingReview[]>('/api/auto_pricing/pending'),
-    ])
+    const nextStatus = await api.get<AutoPricingStatus>(
+      '/api/auto_pricing/status'
+    )
     status.value = nextStatus
-    pending.value = nextPending
-    const currentFingerprints = new Set(
-      nextPending.map((item) => item.fingerprint)
-    )
-    selectedFingerprints.value = selectedFingerprints.value.filter(
-      (fingerprint) => currentFingerprints.has(fingerprint)
-    )
   } catch (error) {
     if (showError) toast.error(errorMessage(error))
   } finally {
@@ -137,36 +122,6 @@ async function syncNow() {
   } finally {
     syncing.value = false
   }
-}
-
-function toggleSelection(fingerprint: string) {
-  selectedFingerprints.value = selectedFingerprints.value.includes(fingerprint)
-    ? selectedFingerprints.value.filter((item) => item !== fingerprint)
-    : [...selectedFingerprints.value, fingerprint]
-}
-
-async function review(action: 'approve' | 'reject') {
-  if (selectedFingerprints.value.length === 0) return
-  reviewing.value = true
-  try {
-    await api.post('/api/auto_pricing/review', {
-      fingerprints: selectedFingerprints.value,
-      action,
-    })
-    selectedFingerprints.value = []
-    toast.success(t('systemSettings.billing.autoPricing.reviewSaved'))
-    await refreshStatus(false)
-  } catch (error) {
-    toast.error(errorMessage(error))
-    await refreshStatus(false)
-  } finally {
-    reviewing.value = false
-  }
-}
-
-function formatRecord(record?: AutoPricingRecord): string {
-  if (!record) return t('systemSettings.billing.autoPricing.removal')
-  return JSON.stringify(record, null, 2)
 }
 
 function formatTime(value?: string): string {
@@ -271,7 +226,7 @@ onMounted(async () => {
             variant="secondary"
             size="sm"
             :loading="syncing"
-            :disabled="reviewing"
+            :disabled="loading"
             @click="syncNow"
           >
             <RefreshCw class="h-4 w-4" aria-hidden="true" />
@@ -310,91 +265,6 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="mt-5 border-t border-[var(--border-subtle)] pt-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-[var(--text-primary)]">
-              {{ t('systemSettings.billing.autoPricing.reviews') }}
-            </p>
-            <p class="text-xs text-[var(--text-tertiary)]">
-              {{
-                t('systemSettings.billing.autoPricing.pending', {
-                  count: pending.length,
-                })
-              }}
-            </p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <ConsoleButton
-              variant="secondary"
-              size="sm"
-              :disabled="selectedFingerprints.length === 0 || syncing"
-              :loading="reviewing"
-              @click="review('reject')"
-            >
-              <X class="h-4 w-4" aria-hidden="true" />
-              {{ t('systemSettings.billing.autoPricing.reject') }}
-            </ConsoleButton>
-            <ConsoleButton
-              size="sm"
-              :disabled="selectedFingerprints.length === 0 || syncing"
-              :loading="reviewing"
-              @click="review('approve')"
-            >
-              <Check class="h-4 w-4" aria-hidden="true" />
-              {{ t('systemSettings.billing.autoPricing.approve') }}
-            </ConsoleButton>
-          </div>
-        </div>
-
-        <p
-          v-if="!loading && pending.length === 0"
-          class="mt-4 text-sm text-[var(--text-tertiary)]"
-        >
-          {{ t('systemSettings.billing.autoPricing.noReviews') }}
-        </p>
-        <div v-else class="mt-4 space-y-3">
-          <label
-            v-for="item in pending"
-            :key="item.fingerprint"
-            class="grid cursor-pointer gap-3 border-t border-[var(--border-subtle)] py-4 sm:grid-cols-[auto_minmax(0,1fr)]"
-          >
-            <input
-              type="checkbox"
-              class="mt-1 h-4 w-4 accent-[var(--accent)]"
-              :checked="selectedFingerprints.includes(item.fingerprint)"
-              :disabled="reviewing"
-              @change="toggleSelection(item.fingerprint)"
-            />
-            <span class="min-w-0">
-              <span class="block font-semibold text-[var(--text-primary)]">{{
-                item.model
-              }}</span>
-              <span class="block text-sm text-[var(--text-tertiary)]">{{
-                item.reason
-              }}</span>
-              <span class="mt-3 grid gap-3 lg:grid-cols-2">
-                <span class="min-w-0 bg-[var(--surface-muted)] p-3 text-xs">
-                  <span class="mb-2 block font-semibold">{{
-                    t('systemSettings.billing.autoPricing.current')
-                  }}</span>
-                  <pre
-                    class="max-h-48 overflow-auto whitespace-pre-wrap break-words"
-                    >{{ formatRecord(item.current) }}</pre>
-                </span>
-                <span class="min-w-0 bg-[var(--surface-muted)] p-3 text-xs">
-                  <span class="mb-2 block font-semibold">{{
-                    t('systemSettings.billing.autoPricing.candidate')
-                  }}</span>
-                  <pre
-                    class="max-h-48 overflow-auto whitespace-pre-wrap break-words"
-                    >{{ formatRecord(item.candidate) }}</pre>
-                </span>
-              </span>
-            </span>
-          </label>
-        </div>
-      </div>
     </template>
   </SysSettingsFormCard>
 </template>

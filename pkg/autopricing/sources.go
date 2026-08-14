@@ -74,6 +74,10 @@ func parseLiteLLMWithSource(data []byte, version string, sourceID SourceID) (*So
 		if name == "" || name == "sample_spec" {
 			continue
 		}
+		if invalidLiteLLMCosts(item) {
+			source.SkippedCount++
+			continue
+		}
 		record := PriceRecord{
 			Model: normalizeKey(name), PrimarySource: sourceID, SourceVersion: version,
 			Standard: CostSet{Input: toMillion(item.Input), Output: toMillion(item.Output), CacheRead: toMillion(item.CacheRead), CacheWrite5m: toMillion(item.CacheWrite5m), CacheWrite1h: toMillion(item.CacheWrite1h), ImageInput: toMillion(item.ImageInput), ImageOutput: toMillion(item.ImageOutput), AudioInput: toMillion(item.AudioInput), AudioOutput: toMillion(item.AudioOutput)},
@@ -81,7 +85,7 @@ func parseLiteLLMWithSource(data []byte, version string, sourceID SourceID) (*So
 			Flex:     CostSet{Input: toMillion(item.FlexInput), Output: toMillion(item.FlexOutput), CacheRead: toMillion(item.FlexCacheRead), CacheWrite5m: toMillion(item.FlexCacheWrite), AudioInput: toMillion(item.FlexAudioInput), AudioOutput: toMillion(item.FlexAudioOutput)},
 		}
 		if item.PerImage != nil && validCost(*item.PerImage) {
-			record.PerRequest = pricePtr(*item.PerImage)
+			record.PerImage = pricePtr(*item.PerImage)
 		}
 		if item.Above200KInput != nil || item.Above200KOutput != nil || item.Above200KCacheRead != nil || item.Above200KCacheWrite != nil {
 			threshold := 200000
@@ -106,7 +110,7 @@ func parseLiteLLMWithSource(data []byte, version string, sourceID SourceID) (*So
 				{Name: "long_context", Costs: longCosts},
 			}
 		}
-		if record.Standard.Input == nil && record.PerRequest == nil {
+		if record.Standard.Input == nil && record.PerRequest == nil && record.PerImage == nil {
 			source.SkippedCount++
 			continue
 		}
@@ -117,6 +121,23 @@ func parseLiteLLMWithSource(data []byte, version string, sourceID SourceID) (*So
 		return nil, fmt.Errorf("%s pricing source has no usable entries", sourceID)
 	}
 	return source, nil
+}
+
+func invalidLiteLLMCosts(item liteLLMRichEntry) bool {
+	values := []*float64{
+		item.Input, item.Output, item.CacheRead, item.CacheWrite5m, item.CacheWrite1h,
+		item.PriorityInput, item.PriorityOutput, item.PriorityCacheRead, item.PriorityCacheWrite,
+		item.FlexInput, item.FlexOutput, item.FlexCacheRead, item.FlexCacheWrite,
+		item.ImageInput, item.ImageOutput, item.AudioInput, item.AudioOutput,
+		item.PriorityAudioInput, item.PriorityAudioOutput, item.FlexAudioInput, item.FlexAudioOutput,
+		item.PerImage, item.Above200KInput, item.Above200KOutput, item.Above200KCacheRead, item.Above200KCacheWrite,
+	}
+	for _, value := range values {
+		if value != nil && !validCost(*value) {
+			return true
+		}
+	}
+	return false
 }
 
 type modelsDevProvider struct {
@@ -142,6 +163,9 @@ func ParseModelsDevSource(data []byte, version string) (*SourceCatalog, error) {
 				continue
 			}
 			record := PriceRecord{Model: normalizeKey(model), Provider: provider, PrimarySource: SourceModelsDev, SourceVersion: version, Standard: CostSet{Input: item.Cost.Input, Output: item.Cost.Output, CacheRead: item.Cost.CacheRead, CacheWrite5m: item.Cost.CacheWrite}}
+			if record.Standard.Input == nil || !validPriceRecord(record) {
+				continue
+			}
 			setRecordFieldSources(&record, SourceModelsDev)
 			byModel[record.Model] = append(byModel[record.Model], record)
 		}

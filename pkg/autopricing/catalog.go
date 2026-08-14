@@ -20,17 +20,21 @@ import (
 
 // Entry is the normalized pricing of one model in Ren2Hub ratio units.
 //
-// The Has* flags distinguish "the catalog states this multiplier" from "the
-// catalog is silent". Callers must keep their own default (cache ratio 1,
-// create-cache ratio 1.25) when a flag is false, because a zero cache ratio
-// would silently make cached tokens free.
+// The Has* flags distinguish "the catalog states this price" from "the catalog
+// is silent". In particular, image-only entries must not look like zero-priced
+// token models merely because ModelRatio's zero value is zero.
 type Entry struct {
 	ModelRatio          float64
+	HasModelRatio       bool
 	CompletionRatio     float64
 	CacheRatio          float64
 	HasCacheRatio       bool
 	CreateCacheRatio    float64
 	HasCreateCacheRatio bool
+	PerRequestPrice     float64
+	HasPerRequestPrice  bool
+	PerImagePrice       float64
+	HasPerImagePrice    bool
 	// CatalogKey is the catalog entry that produced this pricing. It differs
 	// from the requested model name whenever a fuzzy rule matched.
 	CatalogKey     string
@@ -54,8 +58,8 @@ type Catalog struct {
 	Version    string
 	UpdatedAt  time.Time
 	ModelCount int
-	// SkippedCount counts entries dropped as unusable (unparseable, priced only
-	// per image, or failing validation).
+	// SkippedCount counts entries dropped as unusable (unparseable or failing
+	// validation).
 	SkippedCount   int
 	records        map[string]PriceRecord
 	SourceVersions map[SourceID]string `json:"source_versions,omitempty"`

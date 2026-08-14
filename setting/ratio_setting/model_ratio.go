@@ -97,8 +97,8 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5-nano-2025-08-07":                     0.025,
 	"gpt-5.5":                                   2.5, // $5 / 1M tokens
 	"gpt-5.6-sol":                               2.5,
-	"gpt-5.6-terra":                             1.25,
-	"gpt-5.6-luna":                              0.5,
+	"gpt-5.6-terra":                             1.0,
+	"gpt-5.6-luna":                              0.1,
 	"gpt-3.5-turbo":                             0.25,
 	"gpt-3.5-turbo-0613":                        0.75,
 	"gpt-3.5-turbo-16k":                         1.5, // $0.003 / 1K tokens
@@ -462,7 +462,10 @@ func GetModelRatio(name string) (float64, bool, string) {
 		}
 	}
 	if entry, autoOK := autoPricingEntry(name); autoOK {
-		return entry.ModelRatio, true, name
+		if entry.HasModelRatio {
+			return entry.ModelRatio, true, name
+		}
+		return 0, false, name
 	}
 
 	ratio, ok := modelRatioMap.Get(name)

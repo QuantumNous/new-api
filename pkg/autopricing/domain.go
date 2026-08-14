@@ -54,6 +54,7 @@ const (
 	FieldFlexAudioInput       FieldID = "flex.audio_input"
 	FieldFlexAudioOutput      FieldID = "flex.audio_output"
 	FieldPerRequest           FieldID = "per_request"
+	FieldPerImage             FieldID = "per_image"
 	FieldBillingExpr          FieldID = "billing_expr"
 )
 
@@ -87,6 +88,7 @@ type PriceRecord struct {
 	Priority      CostSet              `json:"priority,omitempty"`
 	Flex          CostSet              `json:"flex,omitempty"`
 	PerRequest    *float64             `json:"per_request,omitempty"`
+	PerImage      *float64             `json:"per_image,omitempty"`
 	Tiers         []PriceTier          `json:"tiers,omitempty"`
 	Aliases       []string             `json:"aliases,omitempty"`
 	BillingMode   string               `json:"billing_mode,omitempty"`
@@ -148,7 +150,7 @@ func MergeSources(sources ...*SourceCatalog) (*Catalog, error) {
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			incoming := source.Records[key]
+			incoming := clonePriceRecord(source.Records[key])
 			key = normalizeKey(key)
 			if incoming.Model == "" {
 				incoming.Model = key
@@ -192,6 +194,48 @@ func MergeSources(sources ...*SourceCatalog) (*Catalog, error) {
 	return catalog, nil
 }
 
+func clonePriceRecord(record PriceRecord) PriceRecord {
+	clonePrice := func(value *float64) *float64 {
+		if value == nil {
+			return nil
+		}
+		return pricePtr(*value)
+	}
+	cloneCosts := func(costs CostSet) CostSet {
+		return CostSet{
+			Input:        clonePrice(costs.Input),
+			Output:       clonePrice(costs.Output),
+			CacheRead:    clonePrice(costs.CacheRead),
+			CacheWrite5m: clonePrice(costs.CacheWrite5m),
+			CacheWrite1h: clonePrice(costs.CacheWrite1h),
+			ImageInput:   clonePrice(costs.ImageInput),
+			ImageOutput:  clonePrice(costs.ImageOutput),
+			AudioInput:   clonePrice(costs.AudioInput),
+			AudioOutput:  clonePrice(costs.AudioOutput),
+		}
+	}
+
+	cloned := record
+	cloned.Standard = cloneCosts(record.Standard)
+	cloned.Priority = cloneCosts(record.Priority)
+	cloned.Flex = cloneCosts(record.Flex)
+	cloned.PerRequest = clonePrice(record.PerRequest)
+	cloned.PerImage = clonePrice(record.PerImage)
+	cloned.Tiers = make([]PriceTier, len(record.Tiers))
+	for index, tier := range record.Tiers {
+		cloned.Tiers[index] = tier
+		cloned.Tiers[index].Costs = cloneCosts(tier.Costs)
+	}
+	cloned.Aliases = append([]string(nil), record.Aliases...)
+	if record.FieldSources != nil {
+		cloned.FieldSources = make(map[FieldID]SourceID, len(record.FieldSources))
+		for field, source := range record.FieldSources {
+			cloned.FieldSources[field] = source
+		}
+	}
+	return cloned
+}
+
 func setRecordFieldSources(r *PriceRecord, source SourceID) {
 	if r.FieldSources == nil {
 		r.FieldSources = map[FieldID]SourceID{}
@@ -199,7 +243,7 @@ func setRecordFieldSources(r *PriceRecord, source SourceID) {
 	pairs := []struct {
 		id    FieldID
 		value *float64
-	}{{FieldInput, r.Standard.Input}, {FieldOutput, r.Standard.Output}, {FieldCacheRead, r.Standard.CacheRead}, {FieldCacheWrite5m, r.Standard.CacheWrite5m}, {FieldCacheWrite1h, r.Standard.CacheWrite1h}, {FieldImageInput, r.Standard.ImageInput}, {FieldImageOutput, r.Standard.ImageOutput}, {FieldAudioInput, r.Standard.AudioInput}, {FieldAudioOutput, r.Standard.AudioOutput}, {FieldPerRequest, r.PerRequest}}
+	}{{FieldInput, r.Standard.Input}, {FieldOutput, r.Standard.Output}, {FieldCacheRead, r.Standard.CacheRead}, {FieldCacheWrite5m, r.Standard.CacheWrite5m}, {FieldCacheWrite1h, r.Standard.CacheWrite1h}, {FieldImageInput, r.Standard.ImageInput}, {FieldImageOutput, r.Standard.ImageOutput}, {FieldAudioInput, r.Standard.AudioInput}, {FieldAudioOutput, r.Standard.AudioOutput}, {FieldPerRequest, r.PerRequest}, {FieldPerImage, r.PerImage}}
 	for _, pair := range pairs {
 		if pair.value != nil {
 			if _, ok := r.FieldSources[pair.id]; !ok {
@@ -273,8 +317,12 @@ func mergeMissingRecord(dst *PriceRecord, src PriceRecord) {
 		dst.PerRequest = pricePtr(*src.PerRequest)
 		dst.FieldSources[FieldPerRequest] = src.FieldSources[FieldPerRequest]
 	}
+	if dst.PerImage == nil && src.PerImage != nil {
+		dst.PerImage = pricePtr(*src.PerImage)
+		dst.FieldSources[FieldPerImage] = src.FieldSources[FieldPerImage]
+	}
 	if len(dst.Tiers) == 0 && len(src.Tiers) > 0 {
-		dst.Tiers = src.Tiers
+		dst.Tiers = append([]PriceTier(nil), src.Tiers...)
 		for index, tier := range src.Tiers {
 			prefix := fmt.Sprintf("tier.%d.", index)
 			setCostSetFieldSources(dst.FieldSources, tier.Costs, src.PrimarySource, prefix)
@@ -284,37 +332,58 @@ func mergeMissingRecord(dst *PriceRecord, src PriceRecord) {
 				}
 			}
 		}
+	} else if sameTierStructure(dst.Tiers, src.Tiers) {
+		for index := range dst.Tiers {
+			copyCostMissing(&dst.Tiers[index].Costs, src.Tiers[index].Costs, fmt.Sprintf("tier.%d.", index))
+		}
 	}
 	if len(dst.Aliases) == 0 && len(src.Aliases) > 0 {
-		dst.Aliases = src.Aliases
+		dst.Aliases = append([]string(nil), src.Aliases...)
 	}
-	if dst.BillingExpr == "" && src.BillingExpr != "" {
-		dst.BillingExpr, dst.BillingMode = src.BillingExpr, src.BillingMode
-		dst.FieldSources[FieldBillingExpr] = src.FieldSources[FieldBillingExpr]
-	}
+	// An expression is a complete pricing contract, not a missing scalar field.
+	// Copying a lower-priority expression would let it override the normalized
+	// higher-priority costs at runtime. Standalone sources (notably the manual
+	// New API preset) retain their own expression when they are first inserted;
+	// merged automatic records are compiled from the merged domain fields.
 	if dst.Provider == "" {
 		dst.Provider = src.Provider
 	}
 }
 
+func sameTierStructure(left, right []PriceTier) bool {
+	if len(left) == 0 || len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index].Name != right[index].Name || left[index].MaxInputTokens != right[index].MaxInputTokens {
+			return false
+		}
+	}
+	return true
+}
+
 func recordToEntry(record PriceRecord) (Entry, bool) {
 	input, output := record.Standard.Input, record.Standard.Output
-	if input == nil && record.PerRequest == nil {
+	if input == nil && record.PerRequest == nil && record.PerImage == nil {
 		return Entry{}, false
 	}
 	if !validPriceRecord(record) {
 		return Entry{}, false
 	}
-	entry := Entry{CatalogKey: normalizeKey(record.Model), Source: record.PrimarySource, FieldSources: record.FieldSources}
+	entry := Entry{
+		CatalogKey:      normalizeKey(record.Model),
+		Source:          record.PrimarySource,
+		FieldSources:    record.FieldSources,
+		CompletionRatio: 1,
+	}
 	if input != nil {
 		entry.ModelRatio = roundRatio(*input / ratioUnitUSDPerMillionTokens)
+		entry.HasModelRatio = true
 		if output != nil && *input > 0 {
 			entry.CompletionRatio = roundRatio(*output / *input)
 			if entry.CompletionRatio > maxMultiplier {
 				return Entry{}, false
 			}
-		} else {
-			entry.CompletionRatio = 1
 		}
 		if record.Standard.CacheRead != nil && *input > 0 {
 			entry.CacheRatio = roundRatio(*record.Standard.CacheRead / *input)
@@ -330,6 +399,14 @@ func recordToEntry(record PriceRecord) (Entry, bool) {
 			}
 			entry.HasCreateCacheRatio = true
 		}
+	}
+	if record.PerRequest != nil {
+		entry.PerRequestPrice = *record.PerRequest
+		entry.HasPerRequestPrice = true
+	}
+	if record.PerImage != nil {
+		entry.PerImagePrice = *record.PerImage
+		entry.HasPerImagePrice = true
 	}
 	expr := strings.TrimSpace(record.BillingExpr)
 	if expr == "" && needsBillingExpr(record) {
@@ -369,6 +446,9 @@ func validPriceRecord(record PriceRecord) bool {
 	if record.PerRequest != nil && !validMillionCost(*record.PerRequest) {
 		return false
 	}
+	if record.PerImage != nil && !validMillionCost(*record.PerImage) {
+		return false
+	}
 	for _, tier := range record.Tiers {
 		if tier.MaxInputTokens < 0 || !validCostSet(tier.Costs) {
 			return false
@@ -382,7 +462,7 @@ func needsBillingExpr(r PriceRecord) bool {
 		(r.Standard.Output != nil && *r.Standard.Output > 0 ||
 			r.Standard.CacheRead != nil && *r.Standard.CacheRead > 0 ||
 			r.Standard.CacheWrite5m != nil && *r.Standard.CacheWrite5m > 0)
-	return zeroInputWithPaidTokens || len(r.Tiers) > 0 || hasCosts(r.Priority) || hasCosts(r.Flex) || r.Standard.CacheWrite1h != nil || r.Standard.ImageInput != nil || r.Standard.ImageOutput != nil || r.Standard.AudioInput != nil || r.Standard.AudioOutput != nil || r.PerRequest != nil
+	return zeroInputWithPaidTokens || len(r.Tiers) > 0 || hasCosts(r.Priority) || hasCosts(r.Flex) || r.Standard.CacheWrite1h != nil || r.Standard.ImageInput != nil || r.Standard.ImageOutput != nil || r.Standard.AudioInput != nil || r.Standard.AudioOutput != nil || r.PerRequest != nil || r.PerImage != nil
 }
 
 func validBillingExpr(expr string) bool {
@@ -395,6 +475,7 @@ func validBillingExpr(expr string) bool {
 		{},
 		{Body: []byte(`{"service_tier":"priority"}`)},
 		{Body: []byte(`{"service_tier":"flex"}`)},
+		{Counts: map[string]float64{"n": 4}},
 	}
 	for _, vector := range vectors {
 		for _, request := range requests {
@@ -408,7 +489,7 @@ func validBillingExpr(expr string) bool {
 }
 
 func buildBillingExpr(r PriceRecord) string {
-	standard := costExpr(r.Standard, r.PerRequest)
+	standard := costExpr(r.Standard, r.PerRequest, r.PerImage)
 	tierExpr := standard
 	if len(r.Tiers) > 0 {
 		tiers := append([]PriceTier(nil), r.Tiers...)
@@ -417,7 +498,8 @@ func buildBillingExpr(r PriceRecord) string {
 		})
 		tail := standard
 		for i := len(tiers) - 1; i >= 0; i-- {
-			e := fmt.Sprintf("tier(%q, %s)", safeTierName(tiers[i].Name), costExpr(tiers[i].Costs, r.PerRequest))
+			tierCosts := inheritMissingCosts(tiers[i].Costs, r.Standard)
+			e := fmt.Sprintf("tier(%q, %s)", safeTierName(tiers[i].Name), costExpr(tierCosts, r.PerRequest, r.PerImage))
 			if tiers[i].MaxInputTokens > 0 {
 				tail = fmt.Sprintf("len <= %d ? %s : %s", tiers[i].MaxInputTokens, e, tail)
 			} else {
@@ -429,12 +511,38 @@ func buildBillingExpr(r PriceRecord) string {
 		tierExpr = fmt.Sprintf("tier(%q, %s)", "standard", standard)
 	}
 	if hasCosts(r.Priority) {
-		tierExpr = fmt.Sprintf("(param(\"service_tier\") == \"priority\" || param(\"service_tier\") == \"fast\") ? tier(\"priority\", %s) : (%s)", costExpr(r.Priority, r.PerRequest), tierExpr)
+		priority := inheritMissingCosts(r.Priority, r.Standard)
+		tierExpr = fmt.Sprintf("(param(\"service_tier\") == \"priority\" || param(\"service_tier\") == \"fast\") ? tier(\"priority\", %s) : (%s)", costExpr(priority, r.PerRequest, r.PerImage), tierExpr)
 	}
 	if hasCosts(r.Flex) {
-		tierExpr = fmt.Sprintf("param(\"service_tier\") == \"flex\" ? tier(\"flex\", %s) : (%s)", costExpr(r.Flex, r.PerRequest), tierExpr)
+		flex := inheritMissingCosts(r.Flex, r.Standard)
+		tierExpr = fmt.Sprintf("param(\"service_tier\") == \"flex\" ? tier(\"flex\", %s) : (%s)", costExpr(flex, r.PerRequest, r.PerImage), tierExpr)
 	}
 	return tierExpr
+}
+
+func inheritMissingCosts(costs, fallback CostSet) CostSet {
+	result := costs
+	fields := []struct {
+		dst **float64
+		src *float64
+	}{
+		{&result.Input, fallback.Input},
+		{&result.Output, fallback.Output},
+		{&result.CacheRead, fallback.CacheRead},
+		{&result.CacheWrite5m, fallback.CacheWrite5m},
+		{&result.CacheWrite1h, fallback.CacheWrite1h},
+		{&result.ImageInput, fallback.ImageInput},
+		{&result.ImageOutput, fallback.ImageOutput},
+		{&result.AudioInput, fallback.AudioInput},
+		{&result.AudioOutput, fallback.AudioOutput},
+	}
+	for _, field := range fields {
+		if *field.dst == nil {
+			*field.dst = field.src
+		}
+	}
+	return result
 }
 
 func safeTierName(name string) string {
@@ -443,8 +551,8 @@ func safeTierName(name string) string {
 	}
 	return strings.ReplaceAll(name, "\"", "")
 }
-func costExpr(c CostSet, perRequest *float64) string {
-	terms := make([]string, 0, 9)
+func costExpr(c CostSet, perRequest, perImage *float64) string {
+	terms := make([]string, 0, 11)
 	add := func(name string, v *float64) {
 		if v != nil {
 			terms = append(terms, fmt.Sprintf("%s * %s", name, formatFloat(*v)))
@@ -461,6 +569,9 @@ func costExpr(c CostSet, perRequest *float64) string {
 	add("ao", c.AudioOutput)
 	if perRequest != nil {
 		terms = append(terms, formatFloat(*perRequest*1_000_000))
+	}
+	if perImage != nil {
+		terms = append(terms, fmt.Sprintf("count(\"n\") * %s", formatFloat(*perImage*1_000_000)))
 	}
 	if len(terms) == 0 {
 		return "0"

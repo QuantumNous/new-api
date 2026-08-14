@@ -222,7 +222,9 @@ export function ChannelSelectorDialog({
         cell: ({ row }) => {
           const channel = row.original
           const currentEndpoint =
-            channelEndpoints[channel.id] || DEFAULT_ENDPOINT
+            channelEndpoints[channel.id] ||
+            channel.endpoint?.trim() ||
+            DEFAULT_ENDPOINT
           const endpointType = getEndpointType(currentEndpoint)
 
           const handleTypeChange = (value: string) => {

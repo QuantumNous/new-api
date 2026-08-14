@@ -52,6 +52,7 @@ func TestGuardCatalogAcceptsExactlyThresholdAndReviewsPriceShapeChanges(t *testi
 		{name: "field added", mutate: func(record *PriceRecord) { record.Standard.CacheRead = pricePtr(.2) }, reason: "pricing fields added or removed"},
 		{name: "zero changed", mutate: func(record *PriceRecord) { record.Standard.Input = pricePtr(0) }, reason: "zero price changed"},
 		{name: "audio structure added", mutate: func(record *PriceRecord) { record.Standard.AudioInput = pricePtr(3) }, reason: "pricing fields added or removed"},
+		{name: "per-image field added", mutate: func(record *PriceRecord) { record.PerImage = pricePtr(.04) }, reason: "pricing fields added or removed"},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -67,6 +68,28 @@ func TestGuardCatalogAcceptsExactlyThresholdAndReviewsPriceShapeChanges(t *testi
 			assert.Equal(t, test.reason, reviews[0].Reason)
 		})
 	}
+}
+
+func TestGuardCatalogReviewsPerImagePriceChanges(t *testing.T) {
+	build := func(version string, price float64) *Catalog {
+		source := newSourceCatalog(SourceLiteLLM, version)
+		source.Records["image-model"] = PriceRecord{
+			Model: "image-model", PrimarySource: SourceLiteLLM, PerImage: pricePtr(price),
+		}
+		catalog, err := MergeSources(source)
+		require.NoError(t, err)
+		return catalog
+	}
+
+	active := build("v1", .04)
+	_, pending, err := GuardCatalog(active, build("v2", .05), .25, nil)
+	require.NoError(t, err)
+	assert.Empty(t, pending, "exactly 25 percent remains auto-accepted")
+
+	_, pending, err = GuardCatalog(active, build("v3", .051), .25, nil)
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	assert.Equal(t, "price change exceeds threshold", pending[0].Reason)
 }
 
 func TestGuardCatalogKeepsActivePriceWhenChangeExceedsThreshold(t *testing.T) {

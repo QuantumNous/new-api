@@ -97,7 +97,7 @@ func reviewReason(oldRecord, newRecord PriceRecord, threshold float64) string {
 		if (oldValue == 0) != (newValue == 0) {
 			return "zero price changed"
 		}
-		if oldValue != 0 && math.Abs(newValue-oldValue)/math.Abs(oldValue) > threshold {
+		if oldValue != 0 && math.Abs(newValue-oldValue)/math.Abs(oldValue) > threshold+1e-12 {
 			return "price change exceeds threshold"
 		}
 	}
@@ -143,6 +143,9 @@ func numericFields(record PriceRecord) map[string]float64 {
 	}
 	if record.PerRequest != nil {
 		result["per_request"] = *record.PerRequest
+	}
+	if record.PerImage != nil {
+		result["per_image"] = *record.PerImage
 	}
 	return result
 }

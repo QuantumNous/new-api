@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -127,6 +128,9 @@ func SyncAutoPricingOnce(ctx context.Context, force bool) error {
 	defer autoPricingSyncMu.Unlock()
 
 	state := snapshotAutoPricingState()
+	if err := reconcileAutoPricingTakeoverState(state); err != nil {
+		return recordAutoPricingFailure(state, err)
+	}
 	now := time.Now().UTC()
 	state.LastSyncAt = now
 	state.LastError = ""
@@ -223,7 +227,7 @@ func SyncAutoPricingOnce(ctx context.Context, force bool) error {
 	state.Source = "remote"
 
 	changed := !sameCatalogPrices(state.Active, guarded.Snapshot())
-	if state.Active == nil && !state.TakeoverComplete && canCompleteAutoPricingTakeover() {
+	if !state.TakeoverComplete && canCompleteAutoPricingTakeover() {
 		if err := persistAutoPricingState(state); err != nil {
 			return recordAutoPricingFailure(state, fmt.Errorf("persist pricing candidate: %w", err))
 		}
@@ -244,6 +248,26 @@ func SyncAutoPricingOnce(ctx context.Context, force bool) error {
 
 func canCompleteAutoPricingTakeover() bool {
 	return model.DB != nil && model.DB.Migrator().HasTable(&model.Option{})
+}
+
+// reconcileAutoPricingTakeoverState treats the database marker as authoritative
+// whenever the options table is available. This recovers both a lost state file
+// and a state file written before a database transaction later rolled back.
+func reconcileAutoPricingTakeoverState(state *autoPricingPersistentState) error {
+	if state == nil || !canCompleteAutoPricingTakeover() {
+		return nil
+	}
+	var marker model.Option
+	err := model.DB.Where("key = ?", autoPricingTakeoverKey).First(&marker).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		state.TakeoverComplete = false
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read automatic pricing takeover marker: %w", err)
+	}
+	state.TakeoverComplete = strings.EqualFold(strings.TrimSpace(marker.Value), "true")
+	return nil
 }
 
 func fetchMirrorSource(ctx context.Context, catalogURL, hashURL, knownVersion string, previous *autopricing.SourceCatalog, force bool) (*autopricing.SourceCatalog, error) {
@@ -517,10 +541,21 @@ func publishAutoPricingState(state *autoPricingPersistentState, catalog *autopri
 }
 
 func recordAutoPricingFailure(state *autoPricingPersistentState, err error) error {
+	previous := snapshotAutoPricingState()
 	state.LastError = err.Error()
 	state.Source = "error"
 	if persistErr := persistAutoPricingState(state); persistErr != nil {
+		// The working copy may contain a new candidate or pending queue. If it
+		// cannot be persisted, publishing it would make an unreviewed catalog
+		// reachable only in memory and allow a later review to activate it.
 		err = fmt.Errorf("%w; persist failure state: %v", err, persistErr)
+		previous.LastError = err.Error()
+		previous.LastSyncAt = state.LastSyncAt
+		previous.Source = "error"
+		autoPricingStateMu.Lock()
+		autoPricingState = previous
+		autoPricingStateMu.Unlock()
+		return err
 	}
 	autoPricingStateMu.Lock()
 	autoPricingState = state
@@ -685,6 +720,9 @@ func loadAutoPricingFromDisk() bool {
 		}
 		return loadFrozenAutoPricingSnapshot()
 	}
+	if err := reconcileAutoPricingTakeoverState(state); err != nil {
+		common.SysError(err.Error())
+	}
 	active, err := autopricing.RestoreCatalog(state.Active)
 	if err != nil {
 		common.SysError("auto pricing active catalog is unusable: " + err.Error())
@@ -717,6 +755,9 @@ func loadFrozenAutoPricingSnapshot() bool {
 	}
 	state := newAutoPricingState()
 	state.Source = "offline-snapshot"
+	if err := reconcileAutoPricingTakeoverState(state); err != nil {
+		common.SysError(err.Error())
+	}
 	autoPricingStateMu.Lock()
 	autoPricingState = state
 	autoPricingStateMu.Unlock()
@@ -777,8 +818,13 @@ func loadLegacyAutoPricingCache() bool {
 		Version: source.Version,
 	}
 	state.Source = "legacy-cache"
+	if err := reconcileAutoPricingTakeoverState(state); err != nil {
+		common.SysError(err.Error())
+		return false
+	}
 	if err := persistAutoPricingState(state); err != nil {
 		common.SysError("persist migrated legacy auto pricing cache: " + err.Error())
+		return false
 	}
 	publishAutoPricingState(state, catalog, false)
 	return true

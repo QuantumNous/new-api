@@ -82,6 +82,17 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 			}
 			return result.Value()
 		},
+		"count": func(path string) float64 {
+			path = strings.TrimSpace(path)
+			if path != "n" {
+				return 1
+			}
+			value, ok := request.Counts[path]
+			if !ok || value < 1 || math.IsNaN(value) || math.IsInf(value, 0) {
+				return 1
+			}
+			return value
+		},
 		"has": func(source interface{}, substr string) bool {
 			if source == nil || substr == "" {
 				return false

@@ -10,7 +10,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/autopricing"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -37,6 +37,7 @@ const (
 	officialRatioPresetID       = -100
 	officialRatioPresetName     = "官方倍率预设"
 	officialRatioPresetBaseURL  = "https://basellm.github.io"
+	officialRatioPresetEndpoint = "/llm-metadata/api/newapi/ratio_config-v1-base.json"
 	modelsDevPresetID           = -101
 	modelsDevPresetName         = "models.dev 价格预设"
 	modelsDevPresetBaseURL      = "https://models.dev"
@@ -806,92 +807,6 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 	return converted, nil
 }
 
-type modelsDevProvider struct {
-	Models map[string]modelsDevModel `json:"models"`
-}
-
-type modelsDevModel struct {
-	Cost modelsDevCost `json:"cost"`
-}
-
-type modelsDevCost struct {
-	Input     *float64 `json:"input"`
-	Output    *float64 `json:"output"`
-	CacheRead *float64 `json:"cache_read"`
-}
-
-type modelsDevCandidate struct {
-	Provider  string
-	Input     float64
-	Output    *float64
-	CacheRead *float64
-}
-
-func cloneFloatPtr(v *float64) *float64 {
-	if v == nil {
-		return nil
-	}
-	out := *v
-	return &out
-}
-
-func isValidNonNegativeCost(v float64) bool {
-	if math.IsNaN(v) || math.IsInf(v, 0) {
-		return false
-	}
-	return v >= 0
-}
-
-func buildModelsDevCandidate(provider string, cost modelsDevCost) (modelsDevCandidate, bool) {
-	if cost.Input == nil {
-		return modelsDevCandidate{}, false
-	}
-
-	input := *cost.Input
-	if !isValidNonNegativeCost(input) {
-		return modelsDevCandidate{}, false
-	}
-
-	var output *float64
-	if cost.Output != nil {
-		if !isValidNonNegativeCost(*cost.Output) {
-			return modelsDevCandidate{}, false
-		}
-		output = cloneFloatPtr(cost.Output)
-	}
-
-	// input=0/output>0 cannot be transformed into local ratio.
-	if input == 0 && output != nil && *output > 0 {
-		return modelsDevCandidate{}, false
-	}
-
-	var cacheRead *float64
-	if cost.CacheRead != nil && isValidNonNegativeCost(*cost.CacheRead) {
-		cacheRead = cloneFloatPtr(cost.CacheRead)
-	}
-
-	return modelsDevCandidate{
-		Provider:  provider,
-		Input:     input,
-		Output:    output,
-		CacheRead: cacheRead,
-	}, true
-}
-
-func shouldReplaceModelsDevCandidate(current, next modelsDevCandidate) bool {
-	currentNonZero := current.Input > 0
-	nextNonZero := next.Input > 0
-	if currentNonZero != nextNonZero {
-		// Prefer non-zero pricing data; this matches "cheapest non-zero" conflict policy.
-		return nextNonZero
-	}
-	if nextNonZero && !nearlyEqual(next.Input, current.Input) {
-		return next.Input < current.Input
-	}
-	// Stable tie-breaker for deterministic result.
-	return next.Provider < current.Provider
-}
-
 // convertModelsDevToRatioData parses models.dev /api.json and converts
 // provider pricing metadata into local ratio format.
 // models.dev costs are USD per 1M tokens:
@@ -900,75 +815,55 @@ func shouldReplaceModelsDevCandidate(current, next modelsDevCandidate) bool {
 //	completion_ratio = output_cost / input_cost
 //	cache_ratio = cache_read_cost / input_cost
 //
-// Duplicate model keys across providers are resolved by selecting the
-// cheapest non-zero input cost. If only zero-priced candidates exist,
-// a zero ratio is kept.
+// Provider selection is delegated to pkg/autopricing so the manual preset and
+// automatic catalog use the same first-party/cloud/aggregator precedence.
 func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
-	var upstreamData map[string]modelsDevProvider
-	if err := common.DecodeJson(reader, &upstreamData); err != nil {
-		return nil, fmt.Errorf("failed to decode models.dev response: %w", err)
+	body, err := io.ReadAll(io.LimitReader(reader, maxRatioConfigBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read models.dev response: %w", err)
 	}
-	if len(upstreamData) == 0 {
-		return nil, fmt.Errorf("empty models.dev response")
+	if len(body) > maxRatioConfigBytes {
+		return nil, fmt.Errorf("models.dev response exceeds %d bytes", maxRatioConfigBytes)
 	}
-
-	providers := make([]string, 0, len(upstreamData))
-	for provider := range upstreamData {
-		providers = append(providers, provider)
-	}
-	sort.Strings(providers)
-
-	selectedCandidates := make(map[string]modelsDevCandidate)
-	for _, provider := range providers {
-		providerData := upstreamData[provider]
-		if len(providerData.Models) == 0 {
-			continue
-		}
-
-		modelNames := make([]string, 0, len(providerData.Models))
-		for modelName := range providerData.Models {
-			modelNames = append(modelNames, modelName)
-		}
-		sort.Strings(modelNames)
-
-		for _, modelName := range modelNames {
-			candidate, ok := buildModelsDevCandidate(provider, providerData.Models[modelName].Cost)
-			if !ok {
-				continue
-			}
-			current, exists := selectedCandidates[modelName]
-			if !exists || shouldReplaceModelsDevCandidate(current, candidate) {
-				selectedCandidates[modelName] = candidate
-			}
-		}
-	}
-
-	if len(selectedCandidates) == 0 {
-		return nil, fmt.Errorf("no valid models.dev pricing entries found")
+	source, err := autopricing.ParseModelsDevSource(body, "manual-preset")
+	if err != nil {
+		return nil, err
 	}
 
 	modelRatioMap := make(map[string]any)
 	completionRatioMap := make(map[string]any)
 	cacheRatioMap := make(map[string]any)
 
-	for modelName, candidate := range selectedCandidates {
-		if candidate.Input == 0 {
+	for modelName, record := range source.Records {
+		if record.Standard.Input == nil {
+			continue
+		}
+		input := *record.Standard.Input
+		if input == 0 {
+			paidOutput := record.Standard.Output != nil && *record.Standard.Output > 0
+			paidCache := record.Standard.CacheRead != nil && *record.Standard.CacheRead > 0
+			if paidOutput || paidCache {
+				continue
+			}
 			modelRatioMap[modelName] = 0.0
 			continue
 		}
 
-		modelRatio := candidate.Input * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
+		modelRatio := input * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
 		modelRatioMap[modelName] = roundRatioValue(modelRatio)
 
-		if candidate.Output != nil {
-			completionRatio := *candidate.Output / candidate.Input
+		if record.Standard.Output != nil {
+			completionRatio := *record.Standard.Output / input
 			completionRatioMap[modelName] = roundRatioValue(completionRatio)
 		}
 
-		if candidate.CacheRead != nil {
-			cacheRatio := *candidate.CacheRead / candidate.Input
+		if record.Standard.CacheRead != nil {
+			cacheRatio := *record.Standard.CacheRead / input
 			cacheRatioMap[modelName] = roundRatioValue(cacheRatio)
 		}
+	}
+	if len(modelRatioMap) == 0 {
+		return nil, fmt.Errorf("no models.dev entries can be represented as manual ratios")
 	}
 
 	converted := make(map[string]any)
@@ -1007,23 +902,30 @@ func GetSyncableChannels(c *gin.Context) {
 		}
 	}
 
-	syncableChannels = append(syncableChannels, dto.SyncableChannel{
-		ID:      officialRatioPresetID,
-		Name:    officialRatioPresetName,
-		BaseURL: officialRatioPresetBaseURL,
-		Status:  1,
-	})
-
-	syncableChannels = append(syncableChannels, dto.SyncableChannel{
-		ID:      modelsDevPresetID,
-		Name:    modelsDevPresetName,
-		BaseURL: modelsDevPresetBaseURL,
-		Status:  1,
-	})
+	syncableChannels = append(syncableChannels, builtinRatioSyncPresets()...)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    syncableChannels,
 	})
+}
+
+func builtinRatioSyncPresets() []dto.SyncableChannel {
+	return []dto.SyncableChannel{
+		{
+			ID:       officialRatioPresetID,
+			Name:     officialRatioPresetName,
+			BaseURL:  officialRatioPresetBaseURL,
+			Endpoint: officialRatioPresetEndpoint,
+			Status:   1,
+		},
+		{
+			ID:       modelsDevPresetID,
+			Name:     modelsDevPresetName,
+			BaseURL:  modelsDevPresetBaseURL,
+			Endpoint: modelsDevPath,
+			Status:   1,
+		},
+	}
 }

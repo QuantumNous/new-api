@@ -87,6 +87,24 @@ func GetAutoBillingExpr(name string) (string, bool) {
 	return entry.BillingExpr, true
 }
 
+// GetAutoPerCallPrice exposes an explicit automatic per-request or per-image
+// price to endpoints whose billing contract is one completed task/call. Token
+// prices are intentionally excluded so a task cannot silently reinterpret a
+// per-token catalog entry as a fixed price.
+func GetAutoPerCallPrice(name string) (float64, bool) {
+	entry, ok := autoPricingEntry(FormatMatchingModelName(name))
+	if !ok {
+		return 0, false
+	}
+	if entry.HasPerRequestPrice {
+		return entry.PerRequestPrice, true
+	}
+	if entry.HasPerImagePrice {
+		return entry.PerImagePrice, true
+	}
+	return 0, false
+}
+
 // autoPricingEntry resolves a model against the automatic catalog. It reports
 // false whenever the feature is off, the model is manually priced, or the
 // catalog has nothing for it.

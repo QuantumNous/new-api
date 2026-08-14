@@ -104,7 +104,86 @@ func TestMergeSourcesUsesFixedFieldPrecedenceAndLowerSourceFill(t *testing.T) {
 	assert.True(t, entry.HasCreateCacheRatio)
 	assert.Equal(t, 1.5625, entry.CreateCacheRatio)
 	assert.Equal(t, SourceLiteLLM, entry.FieldSources[FieldCacheWrite5m])
-	assert.Equal(t, SourceNewAPI, entry.FieldSources[FieldBillingExpr])
+	assert.False(t, entry.HasBillingExpr)
+	_, hasExpressionSource := entry.FieldSources[FieldBillingExpr]
+	assert.False(t, hasExpressionSource)
+}
+
+func TestParseModelsDevSourceSkipsInvalidHigherPriorityProvider(t *testing.T) {
+	source, err := ParseModelsDevSource([]byte(`{
+		"openai": {"models": {"gpt-5.6-sol": {"cost": {"input": -1, "output": 30}}}},
+		"azure": {"models": {"gpt-5.6-sol": {"cost": {"input": 4, "output": 24}}}}
+	}`), "models-dev-v1")
+	require.NoError(t, err)
+
+	record := source.Records["gpt-5.6-sol"]
+	assert.Equal(t, "azure", record.Provider)
+	require.NotNil(t, record.Standard.Input)
+	assert.Equal(t, 4.0, *record.Standard.Input)
+}
+
+func TestBillingExprServiceTierInheritsMissingStandardCosts(t *testing.T) {
+	source := newSourceCatalog(SourceOverride, "service-tier-v1")
+	source.Records["partial-priority"] = PriceRecord{
+		Model: "partial-priority", PrimarySource: SourceOverride,
+		Standard: CostSet{
+			Input: pricePtr(2), Output: pricePtr(8), CacheRead: pricePtr(.2),
+			ImageInput: pricePtr(3), AudioInput: pricePtr(4),
+		},
+		Priority: CostSet{Input: pricePtr(5)},
+	}
+
+	catalog, err := MergeSources(source)
+	require.NoError(t, err)
+	entry, ok := catalog.Lookup("partial-priority")
+	require.True(t, ok)
+	require.True(t, entry.HasBillingExpr)
+
+	value, _, err := billingexpr.RunExprWithRequest(entry.BillingExpr, billingexpr.TokenParams{
+		P: 10, C: 10, CR: 10, Img: 10, AI: 10,
+	}, billingexpr.RequestInput{Body: []byte(`{"service_tier":"priority"}`)})
+	require.NoError(t, err)
+	assert.Equal(t, 202.0, value)
+}
+
+func TestMergeSourcesFillsOnlyMatchingTierStructures(t *testing.T) {
+	high := newSourceCatalog(SourceModelsDev, "models-v1")
+	high.Records["tiered"] = PriceRecord{
+		Model: "tiered", PrimarySource: SourceModelsDev,
+		Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)},
+		Tiers: []PriceTier{
+			{Name: "base", MaxInputTokens: 200000, Costs: CostSet{Input: pricePtr(2)}},
+			{Name: "long", Costs: CostSet{Input: pricePtr(4)}},
+		},
+	}
+	low := newSourceCatalog(SourceLiteLLM, "litellm-v1")
+	low.Records["tiered"] = PriceRecord{
+		Model: "tiered", PrimarySource: SourceLiteLLM,
+		Standard: CostSet{Input: pricePtr(1), Output: pricePtr(4)},
+		Tiers: []PriceTier{
+			{Name: "base", MaxInputTokens: 200000, Costs: CostSet{Output: pricePtr(8)}},
+			{Name: "long", Costs: CostSet{Output: pricePtr(12)}},
+		},
+	}
+
+	catalog, err := MergeSources(high, low)
+	require.NoError(t, err)
+	record := catalog.records["tiered"]
+	require.NotNil(t, record.Tiers[0].Costs.Output)
+	require.NotNil(t, record.Tiers[1].Costs.Output)
+	assert.Equal(t, 8.0, *record.Tiers[0].Costs.Output)
+	assert.Equal(t, 12.0, *record.Tiers[1].Costs.Output)
+	assert.Equal(t, SourceLiteLLM, record.FieldSources[FieldID("tier.0.output")])
+
+	conflict := newSourceCatalog(SourceLiteLLM, "litellm-conflict")
+	conflict.Records["tiered"] = PriceRecord{
+		Model: "tiered", PrimarySource: SourceLiteLLM,
+		Standard: CostSet{Input: pricePtr(1), Output: pricePtr(4)},
+		Tiers:    []PriceTier{{Name: "different", MaxInputTokens: 100000, Costs: CostSet{Output: pricePtr(99)}}},
+	}
+	catalog, err = MergeSources(high, conflict)
+	require.NoError(t, err)
+	assert.Nil(t, catalog.records["tiered"].Tiers[0].Costs.Output)
 }
 
 func TestMergeSourcesTracksPriorityAndFlexFieldSourcesSeparately(t *testing.T) {
@@ -205,14 +284,14 @@ func TestParseLiteLLMSourceKeepsRichBillingFields(t *testing.T) {
 	require.NotNil(t, record.Standard.ImageInput)
 	require.NotNil(t, record.Standard.AudioInput)
 	require.NotNil(t, record.Priority.CacheRead)
-	require.NotNil(t, record.PerRequest)
+	require.NotNil(t, record.PerImage)
 	assert.Equal(t, 4.0, *record.Priority.Input)
 	assert.Equal(t, 4.0, *record.Flex.Output)
 	assert.Equal(t, 4.0, *record.Standard.CacheWrite1h)
 	assert.Equal(t, 3.0, *record.Standard.ImageInput)
 	assert.Equal(t, 6.0, *record.Standard.AudioInput)
 	assert.InDelta(t, 0.4, *record.Priority.CacheRead, 1e-12)
-	assert.Equal(t, 0.04, *record.PerRequest)
+	assert.Equal(t, 0.04, *record.PerImage)
 	require.Len(t, record.Tiers, 2)
 	assert.Equal(t, 272000, record.Tiers[0].MaxInputTokens)
 	assert.Equal(t, 4.0, *record.Tiers[1].Costs.Input)
@@ -225,8 +304,14 @@ func TestParseLiteLLMSourceKeepsRichBillingFields(t *testing.T) {
 	entry, ok := catalog.Lookup("rich-model")
 	require.True(t, ok)
 	require.True(t, entry.HasBillingExpr)
+	require.True(t, entry.HasPerImagePrice)
+	assert.Equal(t, 0.04, entry.PerImagePrice)
 	assert.Contains(t, entry.BillingExpr, "ai * 6")
 	assert.Contains(t, entry.BillingExpr, "ao * 24")
+	assert.Contains(t, entry.BillingExpr, `count("n") * 40000`)
+	value, _, err := billingexpr.RunExprWithRequest(entry.BillingExpr, billingexpr.TokenParams{}, billingexpr.RequestInput{Counts: map[string]float64{"n": 3}})
+	require.NoError(t, err)
+	assert.Equal(t, 120000.0, value)
 }
 
 func TestLoadBuiltInOverridesIncludesReviewedPricesAndMetadata(t *testing.T) {

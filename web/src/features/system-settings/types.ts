@@ -392,6 +392,7 @@ export type AutoPricingRecord = {
   priority?: AutoPricingCostSet
   flex?: AutoPricingCostSet
   per_request?: number
+  per_image?: number
   tiers?: Array<{
     name: string
     max_input_tokens?: number
@@ -501,6 +502,7 @@ export type UpstreamChannel = {
   id: number
   name: string
   base_url: string
+  endpoint?: string
   status: number
   type?: number
 }

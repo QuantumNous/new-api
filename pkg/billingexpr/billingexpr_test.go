@@ -159,6 +159,34 @@ func TestRequestProbeHelpers(t *testing.T) {
 	}
 }
 
+func TestCountProbeUsesPositiveRequestCount(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		counts map[string]float64
+		body   string
+		want   float64
+	}{
+		{name: "validated count", counts: map[string]float64{"n": 3}, want: 120000},
+		{name: "zero count defaults to one", counts: map[string]float64{"n": 0}, want: 40000},
+		{name: "missing count defaults to one", want: 40000},
+		{name: "request body cannot set count", body: `{"n":999999999}`, want: 40000},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cost, _, err := billingexpr.RunExprWithRequest(
+				`tier("image", count("n") * 40000)`,
+				billingexpr.TokenParams{},
+				billingexpr.RequestInput{Counts: test.counts, Body: []byte(test.body)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cost != test.want {
+				t.Fatalf("cost = %f, want %f", cost, test.want)
+			}
+		})
+	}
+}
+
 func TestHeaderProbeHelper(t *testing.T) {
 	cost, _, err := billingexpr.RunExprWithRequest(
 		`p * 0.5 + c * 1.0 * (has(header("anthropic-beta"), "fast-mode") ? 2 : 1)`,
@@ -914,6 +942,17 @@ func TestImageAudioZero(t *testing.T) {
 	// img, ai, ao default to 0
 	if math.Abs(cost-2000) > 1e-6 {
 		t.Errorf("cost = %f, want 2000", cost)
+	}
+}
+
+func TestCountAllowsOnlyValidatedImageCount(t *testing.T) {
+	request := billingexpr.RequestInput{Counts: map[string]float64{"n": 3, "unknown": 99}}
+	cost, _, err := billingexpr.RunExprWithRequest(`count("n") + count("unknown")`, billingexpr.TokenParams{}, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cost != 4 {
+		t.Fatalf("cost = %f, want 4", cost)
 	}
 }
 

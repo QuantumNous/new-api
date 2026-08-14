@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/autopricing"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -62,6 +64,62 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, "stream", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, billing_setting.BillingModeTieredExpr, info.TieredBillingSnapshot.BillingMode)
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
+}
+
+func TestModelPriceHelperTieredUsesValidatedImageCount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode":    `{"image-count-model":"tiered_expr"}`,
+		"billing_setting.billing_expr":    `{"image-count-model":"tier(\"image\", count(\"n\") * 40000)"}`,
+		"group_ratio_setting.group_ratio": `{"default":1}`,
+	}))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "image-count-model",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		BillingRequestInput: &billingexpr.RequestInput{
+			Body: []byte(`{"n":999999999}`),
+		},
+	}
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{BillingRatios: map[string]float64{"n": 3}})
+	require.NoError(t, err)
+	require.Equal(t, 60000, priceData.QuotaToPreConsume)
+	require.Equal(t, 3.0, info.BillingRequestInput.Counts["n"])
+
+	info.BillingRequestInput = &billingexpr.RequestInput{}
+	priceData, err = ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{BillingRatios: map[string]float64{"n": 1e9}})
+	require.NoError(t, err)
+	require.Equal(t, dto.MaxImageN, int(info.BillingRequestInput.Counts["n"]))
+	require.Equal(t, dto.MaxImageN*20000, priceData.QuotaToPreConsume)
+}
+
+func TestModelPriceHelperPerCallUsesExplicitAutomaticPrice(t *testing.T) {
+	catalog, err := autopricing.BuildCatalog([]byte(`{"auto-image":{"output_cost_per_image":0.04}}`), "test")
+	require.NoError(t, err)
+	autopricing.SetCatalog(catalog)
+	t.Cleanup(func() { autopricing.SetCatalog(nil) })
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "auto-image",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+	priceData, err := ModelPriceHelperPerCall(ctx, info)
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, 0.04, priceData.ModelPrice)
+	require.Equal(t, 20000, priceData.Quota)
 }
 
 func TestModelPriceHelperTieredPreConsumeMaxTokensFallback(t *testing.T) {
