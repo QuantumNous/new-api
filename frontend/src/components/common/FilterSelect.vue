@@ -221,7 +221,7 @@ onClickOutside(root, closeMenu)
         v-if="open"
         :id="listboxId"
         ref="listRef"
-        class="subtle-scroll texture-paper absolute left-0 z-[200] max-h-64 w-full overflow-y-auto border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1"
+        class="subtle-scroll texture-paper absolute left-0 z-40 max-h-64 w-full overflow-y-auto border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1"
         style="
           border-radius: var(--sketch-border-radius-md);
           box-shadow: var(--elevation-3);
