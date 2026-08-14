@@ -147,7 +147,7 @@ export default {
       memory: 'Memory',
       bandwidth: 'Bandwidth',
       disk: 'Disk',
-      successRate: 'API success rate',
+      successRate: 'API success rate (24h)',
       version: 'Version',
     },
     stats: {

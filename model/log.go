@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -714,6 +715,52 @@ type HomeRequestMetrics struct {
 type homeRequestMetricBucket struct {
 	Bucket int64
 	Count  int64
+}
+
+type apiRequestOutcomeCount struct {
+	Type  int
+	Count int64
+}
+
+// GetAPISuccessRate24hWithContext returns the global rolling 24-hour rate
+// represented by consume and error logs. A nil rate means the window is empty.
+func GetAPISuccessRate24hWithContext(ctx context.Context, now time.Time) (*float64, error) {
+	if !common.LogConsumeEnabled {
+		return nil, errors.New("consume logging is disabled")
+	}
+	if LOG_DB == nil {
+		return nil, errors.New("log database is unavailable")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	startUnix := now.Unix() - 24*60*60 + 1
+	var counts []apiRequestOutcomeCount
+	err := LOG_DB.WithContext(ctx).Table("logs").
+		Select("type, COUNT(*) AS count").
+		Where("created_at >= ? AND created_at <= ? AND type IN ?", startUnix, now.Unix(), []int{LogTypeConsume, LogTypeError}).
+		Group("type").
+		Scan(&counts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var successful, failed int64
+	for _, count := range counts {
+		switch count.Type {
+		case LogTypeConsume:
+			successful = count.Count
+		case LogTypeError:
+			failed = count.Count
+		}
+	}
+	total := successful + failed
+	if total == 0 {
+		return nil, nil
+	}
+	rate := math.Round(float64(successful)/float64(total)*1000) / 10
+	return &rate, nil
 }
 
 // GetHomeRequestMetrics preserves the original context-free model API for

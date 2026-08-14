@@ -1,138 +1,110 @@
-import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 
+import type { SystemStatusSnapshot } from '@/api/systemStatus'
 import SystemStatusCard from '@/components/console/dashboard/SystemStatusCard.vue'
 import i18n, { loadMessageDomain, setLocale } from '@/i18n'
-import type { SystemMetrics } from '@/composables/useDashboard'
 
 beforeAll(async () => {
   await loadMessageDomain('console')
   setLocale('en')
 })
 
-beforeEach(() => {
-  setActivePinia(createPinia())
-})
-
-function metrics(): SystemMetrics {
+function metrics(): SystemStatusSnapshot {
   return {
+    status: 'online',
+    scope: 'current_node',
+    sampled_at: 1_786_700_000,
     cpu_percent: 34,
-    memory_used_gb: 5.2,
-    memory_total_gb: 16,
-    bandwidth_up_mbps: 2.1,
-    bandwidth_down_mbps: 12.4,
-    disk_used_gb: 218,
-    disk_total_gb: 512,
-    api_success_rate: 99.7,
-    bandwidth_series: {
-      up: [1.1, 1.6, 2.1],
-      down: [8.6, 10.9, 12.4],
-    },
+    memory_used_bytes: 5.2 * 1024 ** 3,
+    memory_total_bytes: 16 * 1024 ** 3,
+    network_tx_bytes_per_second: 2_100_000,
+    network_rx_bytes_per_second: 12_400_000,
+    disk_used_bytes: 218 * 1024 ** 3,
+    disk_total_bytes: 512 * 1024 ** 3,
+    api_success_rate_24h: 99.7,
+    network_series: [
+      {
+        timestamp: 1,
+        tx_bytes_per_second: 1_100_000,
+        rx_bytes_per_second: 8_600_000,
+      },
+      {
+        timestamp: 2,
+        tx_bytes_per_second: 2_100_000,
+        rx_bytes_per_second: 12_400_000,
+      },
+    ],
+    version: 'v1.0.0-test',
   }
 }
 
-describe('SystemStatusCard', () => {
-  it('starts unknown instead of claiming that the service is healthy', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const wrapper = mount(SystemStatusCard, {
-      global: { plugins: [pinia, i18n] },
-    })
+function mountCard(
+  props: InstanceType<typeof SystemStatusCard>['$props'] = {}
+) {
+  return mount(SystemStatusCard, { props, global: { plugins: [i18n] } })
+}
 
-    expect(wrapper.text()).toContain('UNKNOWN')
+describe('SystemStatusCard', () => {
+  it('starts offline without claiming that the service is healthy', () => {
+    const wrapper = mountCard()
+    expect(wrapper.text()).toContain('OFFLINE')
     expect(wrapper.text()).not.toContain('ONLINE')
-    expect(wrapper.find('[data-status-reachable]').attributes()).toMatchObject({
-      'data-status-reachable': 'false',
+    expect(wrapper.find('[data-service-state]').attributes()).toMatchObject({
+      'data-service-state': 'offline',
     })
   })
 
-  it('renders placeholders rather than zeroes when metrics are unavailable', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const wrapper = mount(SystemStatusCard, {
-      props: { metrics: null },
-      global: { plugins: [pinia, i18n] },
-    })
-
-    // Four tiles plus the header readout, none of which have data yet (version
-    // falls back to the store's own '--').
+  it('renders placeholders for unavailable independent metrics', () => {
+    const partial = metrics()
+    partial.status = 'degraded'
+    partial.cpu_percent = null
+    partial.network_tx_bytes_per_second = null
+    partial.network_rx_bytes_per_second = null
+    partial.api_success_rate_24h = null
+    const wrapper = mountCard({ metrics: partial, serviceState: 'degraded' })
+    expect(wrapper.text()).toContain('DEGRADED')
     expect(wrapper.text()).toContain('--')
+    expect(wrapper.text()).toContain('5.2 / 16')
     expect(wrapper.text()).not.toContain('0%')
   })
 
-  it('reads the success rate out in the header, not as a tile', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const wrapper = mount(SystemStatusCard, {
-      props: { metrics: metrics() },
-      global: { plugins: [pinia, i18n] },
-    })
-
-    expect(wrapper.find('header').text()).toContain('99.7%')
-    // Four resource tiles remain; success rate is no longer one of them.
-    expect(wrapper.findAll('.grid > .min-w-0')).toHaveLength(4)
+  it('formats bytes as GiB and throughput as decimal MB/s', () => {
+    const text = mountCard({
+      metrics: metrics(),
+      serviceState: 'online',
+    }).text()
+    expect(text).toContain('5.2 / 16')
+    expect(text).toContain('218 / 512')
+    expect(text).toContain('GiB')
+    expect(text).toContain('↑2.10 ↓12.40')
+    expect(text).toContain('MB/s')
+    expect(text).toContain('99.7%')
+    expect(text).toContain('v1.0.0-test')
   })
 
-  it('foots ceilinged tiles with usage bars and charts bandwidth instead', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const wrapper = mount(SystemStatusCard, {
-      props: { metrics: metrics() },
-      global: { plugins: [pinia, i18n] },
-    })
-
-    const tiles = wrapper.findAll('.grid > .min-w-0')
-    expect(tiles).toHaveLength(4)
-    const [cpu, memory, bandwidth, disk] = tiles
-    expect(cpu!.find('.h-1').exists()).toBe(true)
-    expect(memory!.find('.h-1').exists()).toBe(true)
-    expect(disk!.find('.h-1').exists()).toBe(true)
-    expect(bandwidth!.find('.h-1').exists()).toBe(false)
-    expect(bandwidth!.find('svg[aria-hidden="true"]').exists()).toBe(true)
-  })
-
-  it('charts both bandwidth directions on one shared scale', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const wrapper = mount(SystemStatusCard, {
-      props: { metrics: metrics() },
-      global: { plugins: [pinia, i18n] },
-    })
-
-    const spark = wrapper
+  it('charts both throughput directions on one shared scale', () => {
+    const spark = mountCard({ metrics: metrics() })
       .findAll('.grid > .min-w-0')[2]!
-      .find('svg[aria-hidden="true"]')
+      .find('.mt-auto > svg[aria-hidden="true"]')
     expect(spark.exists()).toBe(true)
-    // One line per direction plus the shaded download area beneath them.
     expect(spark.findAll('path[fill="none"]')).toHaveLength(2)
     expect(spark.findAll('circle')).toHaveLength(2)
   })
 
-  it('does not advertise its own mock provenance', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const wrapper = mount(SystemStatusCard, {
-      props: { metrics: metrics() },
-      global: { plugins: [pinia, i18n] },
-    })
-
-    expect(wrapper.text()).not.toContain('Local mock')
-    expect(wrapper.text()).not.toContain('demo data')
-  })
-
-  it('renders supplied metrics with usage bars', () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const wrapper = mount(SystemStatusCard, {
-      props: { metrics: metrics() },
-      global: { plugins: [pinia, i18n] },
-    })
-
-    const text = wrapper.text()
-    expect(text).toContain('34')
-    expect(text).toContain('5.2 / 16')
-    expect(text).toContain('218 / 512')
-    expect(text).toContain('99.7')
+  it('clamps percentage progress and keeps threshold colors deterministic', () => {
+    const overloaded = metrics()
+    overloaded.cpu_percent = 120
+    overloaded.memory_used_bytes = 12 * 1024 ** 3
+    const [cpu, memory] = mountCard({ metrics: overloaded }).findAll(
+      '.grid > .min-w-0'
+    )
+    expect(cpu!.find('.h-full').attributes('style')).toContain('width: 100%')
+    expect(cpu!.find('.h-full').attributes('style')).toContain(
+      'var(--status-danger)'
+    )
+    expect(memory!.find('.h-full').attributes('style')).toContain(
+      'var(--status-warning)'
+    )
   })
 })

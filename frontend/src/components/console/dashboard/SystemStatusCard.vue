@@ -1,63 +1,57 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
+import { computed, type Component } from 'vue'
+import {
+  Cpu,
+  HardDrive,
+  MemoryStick,
+  Network,
+  Tag,
+  Wifi,
+} from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
+import type { SystemStatusSnapshot } from '@/api/systemStatus'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import MiniRing from '@/components/console/dashboard/MiniRing.vue'
 import MiniSparkline from '@/components/console/dashboard/MiniSparkline.vue'
-import type { SystemMetrics } from '@/composables/useDashboard'
-import { useAppStore } from '@/stores'
+import type { SystemServiceState } from '@/composables/useSystemStatus'
 
-const props = defineProps<{
-  metrics?: SystemMetrics | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    metrics?: SystemStatusSnapshot | null
+    serviceState?: SystemServiceState
+  }>(),
+  { metrics: null, serviceState: 'offline' }
+)
 
-const { t } = useI18n()
-const { phase, statusReachable, versionLabel } = storeToRefs(useAppStore())
+const { t, locale } = useI18n()
 
 const apiState = computed(() => {
-  if (phase.value === 'ready' && statusReachable.value) {
+  if (props.serviceState === 'online') {
     return {
-      tone: 'success' as const,
       color: 'var(--status-success)',
       label: t('dashboard.online'),
       pulse: true,
     }
   }
-  if (phase.value === 'degraded' && statusReachable.value) {
+  if (props.serviceState === 'degraded') {
     return {
-      tone: 'warning' as const,
       color: 'var(--status-warning)',
       label: t('dashboard.degraded'),
       pulse: false,
     }
   }
-  if (phase.value === 'error') {
-    return {
-      tone: 'danger' as const,
-      color: 'var(--status-danger)',
-      label: t('dashboard.offline'),
-      pulse: false,
-    }
-  }
-  if (phase.value === 'loading') {
-    return {
-      tone: 'info' as const,
-      color: 'var(--status-info)',
-      label: t('dashboard.loading'),
-      pulse: false,
-    }
-  }
   return {
-    tone: 'neutral' as const,
-    color: 'var(--text-tertiary)',
-    label: t('dashboard.unknown'),
+    color: 'var(--status-danger)',
+    label: t('dashboard.offline'),
     pulse: false,
   }
 })
 
-/** Load thresholds: comfortable below 70%, tight from 70%, saturated from 90%. */
+function clampPercent(percent: number): number {
+  return Math.min(100, Math.max(0, percent))
+}
+
 function loadColor(percent: number | null): string {
   if (percent === null) return 'var(--text-tertiary)'
   if (percent >= 90) return 'var(--status-danger)'
@@ -65,7 +59,6 @@ function loadColor(percent: number | null): string {
   return 'var(--status-success)'
 }
 
-/** Success rate reads the other way round — high is good. */
 function rateColor(percent: number | null): string {
   if (percent === null) return 'var(--text-tertiary)'
   if (percent >= 99) return 'var(--status-success)'
@@ -73,84 +66,130 @@ function rateColor(percent: number | null): string {
   return 'var(--status-danger)'
 }
 
+function formatNumber(value: number, maximumFractionDigits: number): string {
+  return new Intl.NumberFormat(locale.value, { maximumFractionDigits }).format(
+    value
+  )
+}
+
+function formatGiB(value: number): string {
+  return formatNumber(value / 1024 ** 3, 1)
+}
+
+function formatMBPerSecond(value: number): string {
+  return (value / 1_000_000).toFixed(2)
+}
+
+function usagePercent(
+  used: number | null | undefined,
+  total: number | null | undefined
+): number | null {
+  if (used === null || used === undefined || !total || total <= 0) return null
+  return clampPercent((used / total) * 100)
+}
+
 interface MetricTile {
   key: string
   label: string
-  /** lucide 24×24 path data */
-  icon: string
+  icon: Component
   value: string
   unit: string
-  /** 0-100 usage against a ceiling; null when the metric has none */
   percent: number | null
-  /** Shared-scale throughput history, for metrics with no ceiling */
   series?: { down: number[]; up: number[] }
   color: string
 }
 
 const tiles = computed<MetricTile[]>(() => {
-  const m = props.metrics
-  const dash = '--'
-
-  const memPercent =
-    m && m.memory_total_gb > 0
-      ? Math.round((m.memory_used_gb / m.memory_total_gb) * 100)
-      : null
-  const diskPercent =
-    m && m.disk_total_gb > 0
-      ? Math.round((m.disk_used_gb / m.disk_total_gb) * 100)
-      : null
+  const metrics = props.metrics
+  const cpu = metrics?.cpu_percent ?? null
+  const memoryPercent = usagePercent(
+    metrics?.memory_used_bytes,
+    metrics?.memory_total_bytes
+  )
+  const diskPercent = usagePercent(
+    metrics?.disk_used_bytes,
+    metrics?.disk_total_bytes
+  )
+  const hasMemory =
+    metrics?.memory_used_bytes != null && metrics?.memory_total_bytes != null
+  const hasDisk =
+    metrics?.disk_used_bytes != null && metrics?.disk_total_bytes != null
+  const hasNetwork =
+    metrics?.network_tx_bytes_per_second != null &&
+    metrics?.network_rx_bytes_per_second != null
 
   return [
     {
       key: 'cpu',
       label: t('dashboard.systemStatus.cpu'),
-      icon: 'M4 4h16v16H4zM9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3M9 9h6v6H9z',
-      value: m ? String(m.cpu_percent) : dash,
-      unit: m ? '%' : '',
-      percent: m ? m.cpu_percent : null,
-      color: loadColor(m ? m.cpu_percent : null),
+      icon: Cpu,
+      value: cpu === null ? '--' : formatNumber(cpu, 1),
+      unit: cpu === null ? '' : '%',
+      percent: cpu === null ? null : clampPercent(cpu),
+      color: loadColor(cpu === null ? null : clampPercent(cpu)),
     },
     {
       key: 'memory',
       label: t('dashboard.systemStatus.memory'),
-      icon: 'M3 7h18v10H3zM7 7v10M11 7v10M15 7v10M5 17v3M19 17v3',
-      value: m ? `${m.memory_used_gb} / ${m.memory_total_gb}` : dash,
-      unit: m ? 'GB' : '',
-      percent: memPercent,
-      color: loadColor(memPercent),
+      icon: MemoryStick,
+      value: hasMemory
+        ? `${formatGiB(metrics.memory_used_bytes!)} / ${formatGiB(metrics.memory_total_bytes!)}`
+        : '--',
+      unit: hasMemory ? 'GiB' : '',
+      percent: memoryPercent,
+      color: loadColor(memoryPercent),
     },
     {
       key: 'bandwidth',
       label: t('dashboard.systemStatus.bandwidth'),
-      icon: 'M12 19V5M5 12l7-7 7 7',
-      value: m ? `↑${m.bandwidth_up_mbps} ↓${m.bandwidth_down_mbps}` : dash,
-      unit: m ? 'MB/s' : '',
-      // Bandwidth has no ceiling to measure against, so instead of a bar it
-      // charts recent throughput — download shaded, upload as a line.
+      icon: Network,
+      value: hasNetwork
+        ? `↑${formatMBPerSecond(metrics.network_tx_bytes_per_second!)} ↓${formatMBPerSecond(metrics.network_rx_bytes_per_second!)}`
+        : '--',
+      unit: hasNetwork ? 'MB/s' : '',
       percent: null,
-      series: m ? m.bandwidth_series : undefined,
+      series: metrics
+        ? {
+            down: metrics.network_series.map(
+              (sample) => sample.rx_bytes_per_second / 1_000_000
+            ),
+            up: metrics.network_series.map(
+              (sample) => sample.tx_bytes_per_second / 1_000_000
+            ),
+          }
+        : undefined,
       color: 'var(--signal)',
     },
     {
       key: 'disk',
       label: t('dashboard.systemStatus.disk'),
-      icon: 'M22 12H2M5.5 16h.01M9.5 16h.01M5.45 5h13.1a2 2 0 0 1 1.79 1.11L22 12v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5l1.66-5.89A2 2 0 0 1 5.45 5z',
-      value: m ? `${m.disk_used_gb} / ${m.disk_total_gb}` : dash,
-      unit: m ? 'GB' : '',
+      icon: HardDrive,
+      value: hasDisk
+        ? `${formatGiB(metrics.disk_used_bytes!)} / ${formatGiB(metrics.disk_total_bytes!)}`
+        : '--',
+      unit: hasDisk ? 'GiB' : '',
       percent: diskPercent,
       color: loadColor(diskPercent),
     },
   ]
 })
 
-/** Success rate reads out in the header, so it is not one of the tiles. */
-const successRate = computed(() => props.metrics?.api_success_rate ?? null)
-const successColor = computed(() => rateColor(successRate.value))
+const successRate = computed(() => props.metrics?.api_success_rate_24h ?? null)
+const successProgress = computed(() =>
+  successRate.value === null ? 0 : clampPercent(successRate.value)
+)
+const successColor = computed(() =>
+  rateColor(successRate.value === null ? null : successProgress.value)
+)
+const versionLabel = computed(() => props.metrics?.version || '--')
 </script>
 
 <template>
-  <ConsoleCard :title="t('dashboard.systemStatus.title')" stretch>
-    <!-- Success rate reads out as a ring in the header, not as a tile -->
+  <ConsoleCard
+    :title="t('dashboard.systemStatus.title')"
+    data-system-status-card
+    stretch
+  >
     <template #action>
       <div class="flex items-center gap-2">
         <div class="text-right">
@@ -161,11 +200,13 @@ const successColor = computed(() => rateColor(successRate.value))
             class="mt-1 text-sm font-bold leading-none tabular-nums"
             :style="{ color: successColor }"
           >
-            {{ successRate === null ? '--' : `${successRate}%` }}
+            {{
+              successRate === null ? '--' : `${formatNumber(successRate, 1)}%`
+            }}
           </p>
         </div>
         <MiniRing
-          :percent="successRate ?? 0"
+          :percent="successProgress"
           :color="successColor"
           :size="34"
           :indeterminate="successRate === null"
@@ -173,24 +214,12 @@ const successColor = computed(() => rateColor(successRate.value))
       </div>
     </template>
 
-    <!-- API reachability: the one row backed by a live source -->
     <div
       class="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] pb-3.5"
-      :data-status-reachable="statusReachable"
+      :data-service-state="serviceState"
     >
       <span class="flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            d="M5 12.55a11 11 0 0 1 14.08 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"
-          />
-        </svg>
+        <Wifi :size="15" :stroke-width="2" aria-hidden="true" />
         {{ t('dashboard.systemStatus.apiService') }}
       </span>
       <span
@@ -212,14 +241,6 @@ const successColor = computed(() => rateColor(successRate.value))
       </span>
     </div>
 
-    <!--
-      Four resource gauges as equal panels. Every tile carries a bar so the 2×2
-      grid stays square: the three with a ceiling show usage against it, and
-      bandwidth — which has no ceiling — shows its up/down split instead.
-      `grow` hands the row's surplus height to this grid, whose auto rows split
-      it evenly — the panels get a little airier instead of the surplus pooling
-      as one blank band above the version row.
-    -->
     <div class="mb-4 mt-4 grid grow grid-cols-2 gap-3">
       <div
         v-for="tile in tiles"
@@ -229,35 +250,27 @@ const successColor = computed(() => rateColor(successRate.value))
         <p
           class="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]"
         >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path :d="tile.icon" />
-          </svg>
+          <component
+            :is="tile.icon"
+            :size="13"
+            :stroke-width="1.8"
+            aria-hidden="true"
+          />
           <span class="truncate">{{ tile.label }}</span>
         </p>
         <p class="mt-1 flex items-baseline gap-1 pb-2">
           <span
-            class="truncate text-base font-bold leading-tight tabular-nums tracking-tight"
+            class="truncate font-bold leading-tight tabular-nums"
+            :class="tile.key === 'bandwidth' ? 'text-[13px]' : 'text-base'"
             :style="{ color: tile.color }"
+            >{{ tile.value }}</span
           >
-            {{ tile.value }}
-          </span>
           <span
             v-if="tile.unit"
             class="text-[10px] text-[var(--text-tertiary)]"
+            >{{ tile.unit }}</span
           >
-            {{ tile.unit }}
-          </span>
         </p>
-        <!-- Throughput chart for the ceiling-less metric, a usage bar otherwise -->
         <div v-if="tile.series" class="mt-auto" aria-hidden="true">
           <MiniSparkline
             :points="tile.series.down"
@@ -281,30 +294,17 @@ const successColor = computed(() => rateColor(successRate.value))
       </div>
     </div>
 
-    <!-- Version — pinned to the bottom edge when the row runs taller -->
     <div
       class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5 text-xs"
     >
       <span class="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01"
-          />
-        </svg>
+        <Tag :size="13" :stroke-width="1.8" aria-hidden="true" />
         {{ t('dashboard.systemStatus.version') }}
       </span>
-      <span class="font-mono text-[var(--text-secondary)]">{{
-        versionLabel
-      }}</span>
+      <span
+        class="min-w-0 break-all text-right font-mono text-[var(--text-secondary)]"
+        >{{ versionLabel }}</span
+      >
     </div>
   </ConsoleCard>
 </template>

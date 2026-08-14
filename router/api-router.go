@@ -163,6 +163,7 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				dashboardRoute.GET("/stats", controller.NextGetDashboardStats)
 				dashboardRoute.GET("/distribution", controller.NextGetDashboardDistribution)
+				dashboardRoute.GET("/system", controller.NextGetDashboardSystem)
 			}
 			inviteRoute := nextRoute.Group("/invite")
 			{

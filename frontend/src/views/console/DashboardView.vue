@@ -19,6 +19,7 @@ import PageHero from '@/components/console/PageHero.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import { useDashboard } from '@/composables/useDashboard'
 import { useDashboardStats } from '@/composables/useDashboardStats'
+import { useSystemStatus } from '@/composables/useSystemStatus'
 import { useUsageDistribution } from '@/composables/useUsageDistribution'
 import type { StatsRange } from '@/composables/useDashboardStats'
 import { useAuthStore } from '@/stores/auth'
@@ -26,17 +27,10 @@ import { dateInputValue } from '@/utils/format'
 
 const { t } = useI18n()
 const auth = useAuthStore()
-const {
-  loading,
-  stats,
-  share,
-  flow,
-  tokenTrend,
-  system,
-  limits,
-  discounts,
-  load,
-} = useDashboard()
+const { loading, stats, share, flow, tokenTrend, limits, discounts, load } =
+  useDashboard()
+const { metrics: systemMetrics, serviceState: systemServiceState } =
+  useSystemStatus()
 const statsComposable = useDashboardStats()
 const distribution = useUsageDistribution()
 
@@ -191,7 +185,11 @@ const rangeOptions = computed(() => [
           />
 
           <!-- 系统状态 -->
-          <SystemStatusCard class="min-w-0" :metrics="system" />
+          <SystemStatusCard
+            class="min-w-0"
+            :metrics="systemMetrics"
+            :service-state="systemServiceState"
+          />
           <!-- Token 使用趋势 -->
           <TokenTrendCard
             class="min-w-0 xl:col-span-2"

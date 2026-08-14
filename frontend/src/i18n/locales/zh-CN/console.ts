@@ -147,7 +147,7 @@ export default {
       memory: '内存',
       bandwidth: '带宽',
       disk: '磁盘',
-      successRate: 'API 成功率',
+      successRate: 'API 成功率（24 小时）',
       version: '系统版本',
     },
     stats: {
