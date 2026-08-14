@@ -2126,7 +2126,8 @@ export default {
       systemName: 'System Name',
       systemNameDesc: 'The name displayed across the application',
       serverAddress: 'Server Address',
-      serverAddressDesc: 'Public URL used for OAuth callbacks, webhooks, and other external integrations',
+      serverAddressDesc:
+        'Public URL used for OAuth callbacks, webhooks, and other external integrations',
       serverAddressPlaceholder: 'https://yourdomain.com',
       logoUrl: 'Logo URL',
       logoUrlDesc: 'URL to your logo image (optional)',
@@ -2137,13 +2138,16 @@ export default {
       about: 'About',
       aboutDesc: 'Supports HTML markup or iframe embedding',
       homePageContent: 'Home Page Content',
-      homePageContentDesc: 'Content displayed on the home page (supports Markdown)',
+      homePageContentDesc:
+        'Content displayed on the home page (supports Markdown)',
       notice: 'System Notice',
       noticeDesc: 'Notice shown at the top of the console (supports Markdown)',
       userAgreement: 'User Agreement',
-      userAgreementDesc: 'Leave empty to disable. Supports Markdown, HTML, or a URL',
+      userAgreementDesc:
+        'Leave empty to disable. Supports Markdown, HTML, or a URL',
       privacyPolicy: 'Privacy Policy',
-      privacyPolicyDesc: 'Leave empty to disable. Supports Markdown, HTML, or a URL',
+      privacyPolicyDesc:
+        'Leave empty to disable. Supports Markdown, HTML, or a URL',
     },
     auth: {
       title: 'Authentication',
@@ -2157,11 +2161,14 @@ export default {
       emailVerification: 'Email Verification',
       emailVerificationDesc: 'Require email verification for new accounts',
       emailDomainRestriction: 'Email Domain Restriction',
-      emailDomainRestrictionDesc: 'Only allow specific email domains to register',
+      emailDomainRestrictionDesc:
+        'Only allow specific email domains to register',
       emailAliasRestriction: 'Block Email Aliases',
-      emailAliasRestrictionDesc: 'Reject user+alias@domain.com style addresses',
+      emailAliasRestrictionDesc:
+        "Reject user+alias{'@'}domain.com style addresses",
       emailDomainWhitelist: 'Email Domain Whitelist',
-      emailDomainWhitelistDesc: 'One domain per line (only applies when domain restriction is enabled)',
+      emailDomainWhitelistDesc:
+        'One domain per line (only applies when domain restriction is enabled)',
       emailDomainWhitelistPlaceholder: 'example.com\ncompany.com',
       oauth: 'OAuth Integrations',
       github: 'GitHub',
@@ -2196,7 +2203,8 @@ export default {
       oidcUserInfoEndpoint: 'User Info Endpoint',
       botProtection: 'Bot Protection',
       turnstileEnabled: 'Enable Turnstile',
-      turnstileEnabledDesc: 'Add Cloudflare Turnstile CAPTCHA to login/register forms',
+      turnstileEnabledDesc:
+        'Add Cloudflare Turnstile CAPTCHA to login/register forms',
       turnstileSiteKey: 'Site Key',
       turnstileSecretKey: 'Secret Key',
       callbackUrl: 'Callback URL',
@@ -2219,7 +2227,8 @@ export default {
       docsLink: 'Documentation Link',
       docsLinkDesc: 'Link to your documentation site',
       freeModelPreConsume: 'Pre-Consume for Free Models',
-      freeModelPreConsumeDesc: 'When enabled, zero-cost models also pre-consume quota before settlement',
+      freeModelPreConsumeDesc:
+        'When enabled, zero-cost models also pre-consume quota before settlement',
       currency: 'Currency & Display',
       quotaPerUnit: 'Quota Per Unit',
       usdExchangeRate: 'USD Exchange Rate',
@@ -2228,53 +2237,100 @@ export default {
       displayTokenStat: 'Show Token Statistics',
       checkin: 'Check-in Rewards',
       checkinEnabled: 'Enable Daily Check-in',
-      checkinEnabledDesc: 'Users receive a random quota reward for daily check-in',
+      checkinEnabledDesc:
+        'Users receive a random quota reward for daily check-in',
       checkinMinQuota: 'Minimum Reward',
       checkinMaxQuota: 'Maximum Reward',
+      autoPricing: {
+        title: 'Automatic Model Pricing',
+        description: 'Maintain fallback prices from verified upstream catalogs',
+        enabled: 'Enable automatic pricing',
+        enabledDesc:
+          'Use catalog pricing only when no administrator price exists',
+        fuzzy: 'Match dated model variants',
+        fuzzyDesc:
+          'Allow release-date variants to use the same canonical model price',
+        catalogUrl: 'Pricing catalog URL',
+        checksumUrl: 'SHA-256 checksum URL (optional)',
+        interval: 'Check interval (minutes)',
+        invalidCatalogUrl: 'Enter a valid HTTP or HTTPS catalog URL',
+        invalidChecksumUrl: 'Enter a valid HTTP or HTTPS checksum URL',
+        invalidInterval:
+          'The check interval must be an integer from 5 to 10080 minutes',
+        status: 'Catalog status',
+        catalogSummary: '{count} models loaded',
+        notLoaded: 'No pricing catalog loaded',
+        lastSuccess: 'Last successful sync',
+        pending: '{count} pending reviews',
+        sync: 'Sync now',
+        synced: 'Pricing catalog synchronized',
+        noVersion: 'No version reported',
+        reviews: 'Pricing reviews',
+        approve: 'Approve selected',
+        reject: 'Reject selected',
+        reviewSaved: 'Pricing review saved',
+        noReviews: 'No pricing changes require review',
+        current: 'Current price',
+        candidate: 'Candidate price',
+        removal: 'Remove this model from the catalog',
+        never: 'Never',
+      },
     },
     models: {
       title: 'Models & Routing',
       globalConfig: 'Global Configuration',
       passThroughRequest: 'Pass-Through Request Mode',
-      passThroughRequestDesc: 'Forward requests to upstream without modification',
+      passThroughRequestDesc:
+        'Forward requests to upstream without modification',
       pingInterval: 'Enable Ping Interval',
       pingIntervalDesc: 'Periodically check channel availability',
       pingIntervalSeconds: 'Ping Interval (seconds)',
       routingReliability: 'Routing Reliability',
       retryTimes: 'Retry Times',
-      retryTimesDesc: 'Maximum number of retries on upstream failure (0 = no retry)',
+      retryTimesDesc:
+        'Maximum number of retries on upstream failure (0 = no retry)',
       channelDisableThreshold: 'Auto-Disable Threshold',
-      channelDisableThresholdDesc: 'Disable a channel after this many consecutive failures',
+      channelDisableThresholdDesc:
+        'Disable a channel after this many consecutive failures',
       autoDisableChannel: 'Auto-Disable Channels',
-      autoDisableChannelDesc: 'Automatically disable channels that exceed the failure threshold',
+      autoDisableChannelDesc:
+        'Automatically disable channels that exceed the failure threshold',
       autoEnableChannel: 'Auto-Enable Channels',
-      autoEnableChannelDesc: 'Periodically test disabled channels and re-enable on success',
+      autoEnableChannelDesc:
+        'Periodically test disabled channels and re-enable on success',
       autoTestChannel: 'Auto-Test Channels',
-      autoTestChannelDesc: 'Automatically test all channels at the configured interval',
+      autoTestChannelDesc:
+        'Automatically test all channels at the configured interval',
       autoTestMinutes: 'Auto-Test Interval (minutes)',
       channelAffinity: 'Channel Affinity',
       channelAffinityEnabled: 'Enable Channel Affinity',
-      channelAffinityEnabledDesc: 'Route a user\'s requests to previously successful channels first',
+      channelAffinityEnabledDesc:
+        "Route a user's requests to previously successful channels first",
       channelAffinitySwitchOnSuccess: 'Switch on Success',
-      channelAffinitySwitchOnSuccessDesc: 'Update the bound channel after a successful request',
+      channelAffinitySwitchOnSuccessDesc:
+        'Update the bound channel after a successful request',
       channelAffinityTtl: 'Affinity TTL (seconds)',
       claude: 'Claude Settings',
       claudeDefaultMaxTokens: 'Default max_tokens',
-      claudeDefaultMaxTokensDesc: 'Default max_tokens for Claude requests (0 = not set)',
+      claudeDefaultMaxTokensDesc:
+        'Default max_tokens for Claude requests (0 = not set)',
       claudeThinkingAdapter: 'Thinking Adapter',
-      claudeThinkingAdapterDesc: 'Auto-inject budget_tokens for models that support extended thinking',
+      claudeThinkingAdapterDesc:
+        'Auto-inject budget_tokens for models that support extended thinking',
     },
     security: {
       title: 'Security & Limits',
       rateLimit: 'Rate Limiting',
       rateLimitEnabled: 'Enable Rate Limiting',
-      rateLimitEnabledDesc: 'Limit the number of requests per user per time window',
+      rateLimitEnabledDesc:
+        'Limit the number of requests per user per time window',
       rateLimitCount: 'Request Limit (count)',
       rateLimitCountDesc: 'Maximum requests allowed within the time window',
       rateLimitDuration: 'Time Window (minutes)',
       sensitiveWords: 'Sensitive Words',
       sensitiveWordsEnabled: 'Enable Sensitive Word Detection',
-      sensitiveWordsEnabledDesc: 'Check request and response content for sensitive words',
+      sensitiveWordsEnabledDesc:
+        'Check request and response content for sensitive words',
       sensitiveWordsOnPrompt: 'Check Prompt Content',
       sensitiveWordsOnPromptDesc: 'Check the content of user prompts',
       sensitiveWordsList: 'Sensitive Word List',
@@ -2287,7 +2343,8 @@ export default {
       ssrfAllowPrivateIpDesc: 'Allow requests to LAN/private IP addresses',
       tokenLimits: 'Token Limits',
       maxUserTokens: 'Max User Tokens',
-      maxUserTokensDesc: 'Maximum number of API tokens a user can create (0 = unlimited)',
+      maxUserTokensDesc:
+        'Maximum number of API tokens a user can create (0 = unlimited)',
     },
     content: {
       title: 'Console Content',
@@ -2301,19 +2358,24 @@ export default {
       mjNotify: 'Allow Upstream Callbacks',
       mjNotifyDesc: 'Accept MjProxy callbacks (reveals server IP)',
       mjAccountFilter: 'Allow accountFilter Parameter',
-      mjAccountFilterDesc: 'Keep enabled if proxying multiple upstream accounts',
+      mjAccountFilterDesc:
+        'Keep enabled if proxying multiple upstream accounts',
       mjForwardUrl: 'Rewrite Callback URLs to Local Server',
-      mjForwardUrlDesc: 'Automatically replace upstream callback URLs with server address',
+      mjForwardUrlDesc:
+        'Automatically replace upstream callback URLs with server address',
       mjModeClear: 'Clear Mode Flags from Prompts',
-      mjModeClearDesc: 'Remove --fast, --relax, --turbo flags from user prompts',
+      mjModeClearDesc:
+        'Remove --fast, --relax, --turbo flags from user prompts',
       mjActionCheck: 'Require Job Success Before Follow-up Actions',
-      mjActionCheckDesc: 'Users must wait for a successful drawing before upscales or variations',
+      mjActionCheckDesc:
+        'Users must wait for a successful drawing before upscales or variations',
     },
     operations: {
       title: 'Operations',
       behavior: 'System Behavior',
       defaultCollapseSidebar: 'Default Collapsed Sidebar',
-      defaultCollapseSidebarDesc: 'New users start with the sidebar collapsed by default',
+      defaultCollapseSidebarDesc:
+        'New users start with the sidebar collapsed by default',
       demoMode: 'Demo Site Mode',
       demoModeDesc: 'Enable demo mode with limited functionality',
       selfUseMode: 'Self-Use Mode',
@@ -2325,7 +2387,7 @@ export default {
       smtpPort: 'Port',
       smtpPortDesc: 'Common ports: 25, 465, 587',
       smtpAccount: 'Username',
-      smtpAccountPlaceholder: 'noreply@example.com',
+      smtpAccountPlaceholder: "noreply{'@'}example.com",
       smtpAccountDesc: 'Account used when authenticating with the SMTP server',
       smtpFrom: 'From Address',
       smtpFromDesc: 'Display name and email used in outgoing messages',
@@ -2337,12 +2399,15 @@ export default {
       smtpSslTls: 'SSL/TLS',
       smtpStarttls: 'STARTTLS',
       smtpInsecureSkipVerify: 'Skip TLS Certificate Verification',
-      smtpInsecureSkipVerifyDesc: 'Allow self-signed or hostname-mismatched certificates',
+      smtpInsecureSkipVerifyDesc:
+        'Allow self-signed or hostname-mismatched certificates',
       smtpForceAuthLogin: 'Force AUTH LOGIN',
-      smtpForceAuthLoginDesc: 'Force SMTP authentication using AUTH LOGIN method',
+      smtpForceAuthLoginDesc:
+        'Force SMTP authentication using AUTH LOGIN method',
       monitoring: 'Monitoring & Alerts',
       quotaRemindThreshold: 'Quota Reminder Threshold',
-      quotaRemindThresholdDesc: 'Send reminder notifications when user balance drops below this value',
+      quotaRemindThresholdDesc:
+        'Send reminder notifications when user balance drops below this value',
       worker: 'Worker Proxy',
       workerUrl: 'Worker URL',
       workerUrlDesc: 'Address of the Worker proxy service',
@@ -2350,18 +2415,22 @@ export default {
       workerValidKeyDesc: 'Key used to validate Worker requests',
       logs: 'Log Maintenance',
       logConsumeEnabled: 'Record Quota Usage Logs',
-      logConsumeEnabledDesc: 'Track per-request consumption for usage analytics. Increases database writes.',
+      logConsumeEnabledDesc:
+        'Track per-request consumption for usage analytics. Increases database writes.',
       performance: 'Performance Settings',
       diskCacheEnabled: 'Enable Disk Cache',
-      diskCacheEnabledDesc: 'Store large request bodies on disk instead of memory. SSD recommended.',
+      diskCacheEnabledDesc:
+        'Store large request bodies on disk instead of memory. SSD recommended.',
       diskCacheThreshold: 'Disk Cache Threshold (MB)',
-      diskCacheThresholdDesc: 'Use disk cache when request body exceeds this size',
+      diskCacheThresholdDesc:
+        'Use disk cache when request body exceeds this size',
       diskCacheMaxSize: 'Max Disk Cache Size (MB)',
       diskCachePath: 'Cache Directory',
       diskCachePathDesc: 'Leave empty to use system temp directory',
       diskCachePathPlaceholder: 'Leave empty for system temp directory',
       monitorEnabled: 'Enable Performance Monitoring',
-      monitorEnabledDesc: 'Reject new Relay requests when resource usage exceeds thresholds',
+      monitorEnabledDesc:
+        'Reject new Relay requests when resource usage exceeds thresholds',
       monitorCpuThreshold: 'CPU Threshold (%)',
       monitorMemoryThreshold: 'Memory Threshold (%)',
       monitorDiskThreshold: 'Disk Threshold (%)',

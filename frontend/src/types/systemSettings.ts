@@ -89,8 +89,79 @@ export interface BillingSettings {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'auto_pricing.enabled': boolean
+  'auto_pricing.remote_url': string
+  'auto_pricing.hash_url': string
+  'auto_pricing.check_interval_minutes': number
+  'auto_pricing.fuzzy_match_enabled': boolean
   Price: number
   MinTopUp: number
+}
+
+export interface AutoPricingSourceStatus {
+  source: string
+  url?: string
+  version?: string
+  error?: string
+  updated_at?: string
+}
+
+export interface AutoPricingStatus {
+  enabled: boolean
+  fuzzy_match_enabled: boolean
+  remote_url: string
+  hash_url: string
+  check_interval_minutes: number
+  loaded: boolean
+  model_count: number
+  skipped_count: number
+  version: string
+  updated_at?: string
+  last_sync_at?: string
+  last_successful_at?: string
+  last_error?: string
+  source?: string
+  pending_count: number
+  takeover_complete: boolean
+  sources: AutoPricingSourceStatus[]
+}
+
+export interface AutoPricingCostSet {
+  input?: number
+  output?: number
+  cache_read?: number
+  cache_write_5m?: number
+  cache_write_1h?: number
+  image_input?: number
+  image_output?: number
+}
+
+export interface AutoPricingRecord {
+  model: string
+  provider?: string
+  primary_source: string
+  source_version?: string
+  standard: AutoPricingCostSet
+  priority?: AutoPricingCostSet
+  flex?: AutoPricingCostSet
+  per_request?: number
+  tiers?: Array<{
+    name: string
+    max_input_tokens?: number
+    costs: AutoPricingCostSet
+  }>
+  aliases?: string[]
+  billing_mode?: string
+  billing_expr?: string
+  field_sources?: Record<string, string>
+}
+
+export interface AutoPricingPendingReview {
+  model: string
+  reason: string
+  fingerprint: string
+  current?: AutoPricingRecord
+  candidate?: AutoPricingRecord
 }
 
 export interface ModelSettings {
@@ -244,6 +315,13 @@ export const SYSTEM_SETTINGS_DEFAULTS: AllSystemSettings = {
   'quota_setting.enable_free_model_pre_consume': false,
   'checkin_setting.enabled': false,
   'checkin_setting.min_quota': 100,
+  'auto_pricing.enabled': true,
+  'auto_pricing.remote_url':
+    'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json',
+  'auto_pricing.hash_url':
+    'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.sha256',
+  'auto_pricing.check_interval_minutes': 60,
+  'auto_pricing.fuzzy_match_enabled': true,
   'checkin_setting.max_quota': 500,
   Price: 7.3,
   MinTopUp: 1,

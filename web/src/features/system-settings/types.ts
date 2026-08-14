@@ -400,7 +400,7 @@ export type AutoPricingPendingReview = {
   reason: string
   fingerprint: string
   current?: AutoPricingRecord
-  candidate: AutoPricingRecord
+  candidate?: AutoPricingRecord
 }
 
 export type AutoPricingStatusResponse = {
@@ -416,7 +416,7 @@ export type AutoPricingPendingResponse = {
 }
 
 export type AutoPricingReviewRequest = {
-  models: string[]
+  fingerprints: string[]
   action: 'approve' | 'reject'
 }
 

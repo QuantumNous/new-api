@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"path/filepath"
@@ -75,6 +77,10 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 
 	previousClient := autoPricingClient
 	autoPricingClient = client
+	setting, ok := config.GlobalConfig.Get("auto_pricing").(*ratio_setting.AutoPricingSetting)
+	require.True(t, ok, "auto_pricing config must be registered")
+	previousSetting := *setting
+	setting.HashURL = ""
 
 	workDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -82,12 +88,18 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 
 	t.Cleanup(func() {
 		autoPricingClient = previousClient
+		*setting = previousSetting
 		autopricing.SetCatalog(nil)
 		autoPricingStateMu.Lock()
 		autoPricingState = newAutoPricingState()
 		autoPricingStateMu.Unlock()
 		_ = os.Chdir(workDir)
 	})
+}
+
+func testCatalogSHA256(body []byte) string {
+	sum := sha256.Sum256(body)
+	return hex.EncodeToString(sum[:])
 }
 
 // setHashURLForTest mutates the registered auto-pricing config through the
@@ -100,6 +112,21 @@ func setHashURLForTest(t *testing.T, hashURL string) {
 	previous := *setting
 	setting.HashURL = hashURL
 	t.Cleanup(func() { *setting = previous })
+}
+
+func TestAutoPricingAPICollectionsAreNeverNil(t *testing.T) {
+	autoPricingStateMu.Lock()
+	previous := autoPricingState
+	autoPricingState = newAutoPricingState()
+	autoPricingStateMu.Unlock()
+	t.Cleanup(func() {
+		autoPricingStateMu.Lock()
+		autoPricingState = previous
+		autoPricingStateMu.Unlock()
+	})
+
+	assert.NotNil(t, GetAutoPricingStatus().Sources)
+	assert.NotNil(t, GetAutoPricingPending())
 }
 
 func TestSyncPublishesDownloadedCatalog(t *testing.T) {
@@ -157,12 +184,14 @@ func TestReviewApprovesCurrentPendingCandidate(t *testing.T) {
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
 	require.Len(t, GetAutoPricingPending(), 1)
 
-	require.NoError(t, ReviewAutoPricing([]string{"probe-model"}, "approve"))
+	pending := GetAutoPricingPending()
+	require.Len(t, pending, 1)
+	require.NoError(t, ReviewAutoPricing([]string{pending[0].Fingerprint}, "approve"))
 	assert.Empty(t, GetAutoPricingPending())
 	entry, ok := autopricing.Resolve("probe-model", false)
 	require.True(t, ok)
 	assert.Equal(t, 2.0, entry.ModelRatio)
-	assert.ErrorContains(t, ReviewAutoPricing([]string{"probe-model"}, "approve"), "not pending or is stale")
+	assert.ErrorContains(t, ReviewAutoPricing([]string{pending[0].Fingerprint}, "approve"), "not pending or is stale")
 }
 
 func TestReviewRejectSuppressesOnlySameFingerprint(t *testing.T) {
@@ -173,7 +202,9 @@ func TestReviewRejectSuppressesOnlySameFingerprint(t *testing.T) {
 	client.body = []byte(updatedCatalogDocument)
 	client.version = `"etag-2"`
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
-	require.NoError(t, ReviewAutoPricing([]string{"probe-model"}, "reject"))
+	pending := GetAutoPricingPending()
+	require.Len(t, pending, 1)
+	require.NoError(t, ReviewAutoPricing([]string{pending[0].Fingerprint}, "reject"))
 	assert.Empty(t, GetAutoPricingPending())
 
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
@@ -257,10 +288,11 @@ func TestPersistenceFailureKeepsPreviousEffectiveCatalog(t *testing.T) {
 }
 
 func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
+	firstHash := testCatalogSHA256([]byte(validCatalogDocument))
 	client := &fakeRemoteClient{
 		body:        []byte(validCatalogDocument),
 		version:     `"etag-1"`,
-		changeToken: "abc123",
+		changeToken: firstHash,
 	}
 	useFakeRemote(t, client)
 
@@ -271,7 +303,7 @@ func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 	mirrorURL := ratio_setting.GetAutoPricingSetting().AutoPricingRemoteURL()
 	require.Equal(t, 1, client.callsByURL[mirrorURL])
-	assert.Contains(t, GetAutoPricingStatus().Version, "wei-shaw:sha256:abc123")
+	assert.Contains(t, GetAutoPricingStatus().Version, "wei-shaw:sha256:"+firstHash)
 
 	// Second run sees the same hash and must not download the document again.
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
@@ -279,11 +311,40 @@ func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
 	assert.Equal(t, 2, client.tokenCalls)
 
 	// A new hash triggers a fresh download.
-	client.changeToken = "def456"
 	client.body = []byte(updatedCatalogDocument)
+	secondHash := testCatalogSHA256(client.body)
+	client.changeToken = secondHash
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 	assert.Equal(t, 2, client.callsByURL[mirrorURL])
-	assert.Contains(t, GetAutoPricingStatus().Version, "wei-shaw:sha256:def456")
+	assert.Contains(t, GetAutoPricingStatus().Version, "wei-shaw:sha256:"+secondHash)
+}
+
+func TestMirrorChecksumMismatchIsReportedAndKeepsLastGoodPrice(t *testing.T) {
+	client := &fakeRemoteClient{
+		body:        []byte(validCatalogDocument),
+		version:     `"etag-1"`,
+		changeToken: testCatalogSHA256([]byte(validCatalogDocument)),
+	}
+	useFakeRemote(t, client)
+	setHashURLForTest(t, "https://example.invalid/catalog.sha256")
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+
+	client.body = []byte(updatedCatalogDocument)
+	client.changeToken = testCatalogSHA256([]byte("different document"))
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false), "another healthy source may still complete the sync")
+	status := GetAutoPricingStatus()
+	var mirrorStatus *AutoPricingSourceStatus
+	for index := range status.Sources {
+		if status.Sources[index].Source == autopricing.SourceMirror {
+			mirrorStatus = &status.Sources[index]
+			break
+		}
+	}
+	require.NotNil(t, mirrorStatus)
+	assert.Contains(t, mirrorStatus.Error, "checksum mismatch")
+	entry, ok := autopricing.Resolve("probe-model", false)
+	require.True(t, ok)
+	assert.Equal(t, 1.0, entry.ModelRatio)
 }
 
 func TestLoadFromDiskRestoresLastGoodCatalog(t *testing.T) {

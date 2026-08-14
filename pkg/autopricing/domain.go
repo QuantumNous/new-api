@@ -3,11 +3,14 @@ package autopricing
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 )
 
 type SourceID string
@@ -161,32 +164,16 @@ func MergeSources(sources ...*SourceCatalog) (*Catalog, error) {
 		return nil, fmt.Errorf("pricing catalog has no usable entries")
 	}
 
-	entries := make(map[string]Entry, len(records))
-	for key, record := range records {
-		entry, ok := recordToEntry(record)
-		if !ok {
-			skipped++
-			delete(records, key)
-			continue
-		}
-		entries[key] = entry
-		for _, alias := range record.Aliases {
-			alias = normalizeKey(alias)
-			if alias == "" {
-				continue
-			}
-			aliasEntry := entry
-			aliasEntry.CatalogKey = key
-			entries[alias] = aliasEntry
-		}
-	}
 	version := strings.Join(versions, "|")
-	catalog := newCatalog(entries, version, skipped)
-	catalog.records = records
-	catalog.SourceVersions = map[SourceID]string{}
+	sourceVersions := map[SourceID]string{}
 	for _, source := range filtered {
-		catalog.SourceVersions[source.Source] = source.Version
+		sourceVersions[source.Source] = source.Version
 	}
+	catalog, err := catalogFromRecords(records, version, sourceVersions)
+	if err != nil {
+		return nil, err
+	}
+	catalog.SkippedCount += skipped
 	return catalog, nil
 }
 
@@ -255,23 +242,32 @@ func recordToEntry(record PriceRecord) (Entry, bool) {
 	if input == nil && record.PerRequest == nil {
 		return Entry{}, false
 	}
+	if !validPriceRecord(record) {
+		return Entry{}, false
+	}
 	entry := Entry{CatalogKey: normalizeKey(record.Model), Source: record.PrimarySource, FieldSources: record.FieldSources}
 	if input != nil {
-		if !validMillionCost(*input) {
-			return Entry{}, false
-		}
 		entry.ModelRatio = roundRatio(*input / ratioUnitUSDPerMillionTokens)
 		if output != nil && *input > 0 {
 			entry.CompletionRatio = roundRatio(*output / *input)
+			if entry.CompletionRatio > maxMultiplier {
+				return Entry{}, false
+			}
 		} else {
 			entry.CompletionRatio = 1
 		}
 		if record.Standard.CacheRead != nil && *input > 0 {
 			entry.CacheRatio = roundRatio(*record.Standard.CacheRead / *input)
+			if entry.CacheRatio > maxMultiplier {
+				return Entry{}, false
+			}
 			entry.HasCacheRatio = true
 		}
 		if record.Standard.CacheWrite5m != nil && *input > 0 {
 			entry.CreateCacheRatio = roundRatio(*record.Standard.CacheWrite5m / *input)
+			if entry.CreateCacheRatio > maxMultiplier {
+				return Entry{}, false
+			}
 			entry.HasCreateCacheRatio = true
 		}
 	}
@@ -280,6 +276,9 @@ func recordToEntry(record PriceRecord) (Entry, bool) {
 		expr = buildBillingExpr(record)
 	}
 	if expr != "" {
+		if !validBillingExpr(expr) {
+			return Entry{}, false
+		}
 		entry.BillingExpr = expr
 		entry.HasBillingExpr = true
 	}
@@ -289,8 +288,62 @@ func recordToEntry(record PriceRecord) (Entry, bool) {
 func validMillionCost(v float64) bool {
 	return validCost(v) && v <= maxModelRatio*ratioUnitUSDPerMillionTokens
 }
+
+func validPriceRecord(record PriceRecord) bool {
+	validCostSet := func(costs CostSet) bool {
+		values := []*float64{
+			costs.Input, costs.Output, costs.CacheRead, costs.CacheWrite5m,
+			costs.CacheWrite1h, costs.ImageInput, costs.ImageOutput,
+		}
+		for _, value := range values {
+			if value != nil && !validMillionCost(*value) {
+				return false
+			}
+		}
+		return true
+	}
+	if !validCostSet(record.Standard) || !validCostSet(record.Priority) || !validCostSet(record.Flex) {
+		return false
+	}
+	if record.PerRequest != nil && !validMillionCost(*record.PerRequest) {
+		return false
+	}
+	for _, tier := range record.Tiers {
+		if tier.MaxInputTokens < 0 || !validCostSet(tier.Costs) {
+			return false
+		}
+	}
+	return true
+}
+
 func needsBillingExpr(r PriceRecord) bool {
-	return len(r.Tiers) > 0 || hasCosts(r.Priority) || hasCosts(r.Flex) || r.Standard.CacheWrite1h != nil || r.Standard.ImageInput != nil || r.Standard.ImageOutput != nil || r.PerRequest != nil
+	zeroInputWithPaidTokens := r.Standard.Input != nil && *r.Standard.Input == 0 &&
+		(r.Standard.Output != nil && *r.Standard.Output > 0 ||
+			r.Standard.CacheRead != nil && *r.Standard.CacheRead > 0 ||
+			r.Standard.CacheWrite5m != nil && *r.Standard.CacheWrite5m > 0)
+	return zeroInputWithPaidTokens || len(r.Tiers) > 0 || hasCosts(r.Priority) || hasCosts(r.Flex) || r.Standard.CacheWrite1h != nil || r.Standard.ImageInput != nil || r.Standard.ImageOutput != nil || r.PerRequest != nil
+}
+
+func validBillingExpr(expr string) bool {
+	vectors := []billingexpr.TokenParams{
+		{},
+		{P: 1000, C: 1000, Len: 1000, CR: 100, CC: 100, CC1h: 100, Img: 100, ImgO: 100},
+		{P: 300000, C: 100000, Len: 300000, CR: 10000, CC: 10000, CC1h: 10000, Img: 1000, ImgO: 1000},
+	}
+	requests := []billingexpr.RequestInput{
+		{},
+		{Body: []byte(`{"service_tier":"priority"}`)},
+		{Body: []byte(`{"service_tier":"flex"}`)},
+	}
+	for _, vector := range vectors {
+		for _, request := range requests {
+			value, _, err := billingexpr.RunExprWithRequest(expr, vector, request)
+			if err != nil || value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func buildBillingExpr(r PriceRecord) string {
@@ -355,11 +408,12 @@ func formatFloat(v float64) string {
 	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.9f", v), "0"), ".")
 }
 
-func catalogFingerprint(version string, record PriceRecord) string {
-	payload, _ := json.Marshal(struct {
-		Version string      `json:"version"`
-		Record  PriceRecord `json:"record"`
-	}{version, record})
+func catalogFingerprint(version, model string, record *PriceRecord) string {
+	payload, _ := common.Marshal(struct {
+		Version string       `json:"version"`
+		Model   string       `json:"model"`
+		Record  *PriceRecord `json:"record,omitempty"`
+	}{version, model, record})
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:])
 }

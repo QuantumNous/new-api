@@ -1,10 +1,11 @@
 package autopricing
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type PendingReview struct {
@@ -12,7 +13,7 @@ type PendingReview struct {
 	Reason      string       `json:"reason"`
 	Fingerprint string       `json:"fingerprint"`
 	Current     *PriceRecord `json:"current,omitempty"`
-	Candidate   PriceRecord  `json:"candidate"`
+	Candidate   *PriceRecord `json:"candidate,omitempty"`
 }
 
 func GuardCatalog(active, candidate *Catalog, threshold float64, rejected map[string]bool) (*Catalog, []PendingReview, error) {
@@ -24,28 +25,45 @@ func GuardCatalog(active, candidate *Catalog, threshold float64, rejected map[st
 	}
 	result := cloneRecords(candidate.records)
 	pending := []PendingReview{}
-	keys := make([]string, 0, len(candidate.records))
+	keySet := make(map[string]struct{}, len(active.records)+len(candidate.records))
+	for key := range active.records {
+		keySet[key] = struct{}{}
+	}
 	for key := range candidate.records {
+		keySet[key] = struct{}{}
+	}
+	keys := make([]string, 0, len(keySet))
+	for key := range keySet {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	for _, model := range keys {
-		newRecord := candidate.records[model]
+		newRecord, candidateExists := candidate.records[model]
 		oldRecord, exists := active.records[model]
-		if !exists || newRecord.PrimarySource == SourceOverride {
+		if !exists {
 			continue
 		}
-		reason := reviewReason(oldRecord, newRecord, threshold)
+		reason := ""
+		var candidateRecord *PriceRecord
+		if !candidateExists {
+			reason = "model removed from catalog"
+		} else {
+			candidateCopy := newRecord
+			candidateRecord = &candidateCopy
+			if newRecord.PrimarySource != SourceOverride {
+				reason = reviewReason(oldRecord, newRecord, threshold)
+			}
+		}
 		if reason == "" {
 			continue
 		}
-		fingerprint := catalogFingerprint(candidate.Version, newRecord)
+		fingerprint := catalogFingerprint(candidate.Version, model, candidateRecord)
 		result[model] = oldRecord
 		if rejected[fingerprint] {
 			continue
 		}
 		oldCopy := oldRecord
-		pending = append(pending, PendingReview{Model: model, Reason: reason, Fingerprint: fingerprint, Current: &oldCopy, Candidate: newRecord})
+		pending = append(pending, PendingReview{Model: model, Reason: reason, Fingerprint: fingerprint, Current: &oldCopy, Candidate: candidateRecord})
 	}
 	guarded, err := catalogFromRecords(result, candidate.Version, candidate.SourceVersions)
 	return guarded, pending, err
@@ -78,6 +96,15 @@ func sameStructure(a, b PriceRecord) bool {
 	if a.BillingMode != b.BillingMode || a.BillingExpr != b.BillingExpr || len(a.Tiers) != len(b.Tiers) || len(a.Aliases) != len(b.Aliases) {
 		return false
 	}
+	aAliases := append([]string(nil), a.Aliases...)
+	bAliases := append([]string(nil), b.Aliases...)
+	sort.Strings(aAliases)
+	sort.Strings(bAliases)
+	for index := range aAliases {
+		if normalizeKey(aAliases[index]) != normalizeKey(bAliases[index]) {
+			return false
+		}
+	}
 	for index := range a.Tiers {
 		if a.Tiers[index].Name != b.Tiers[index].Name || a.Tiers[index].MaxInputTokens != b.Tiers[index].MaxInputTokens {
 			return false
@@ -108,41 +135,45 @@ func numericFields(record PriceRecord) map[string]float64 {
 	return result
 }
 
-func ApplyReview(guarded *Catalog, pending []PendingReview, models []string, approve bool) (*Catalog, []PendingReview, []string, error) {
+func ApplyReview(guarded *Catalog, pending []PendingReview, fingerprints []string, approve bool) (*Catalog, []PendingReview, []string, error) {
 	if guarded == nil {
 		return nil, nil, nil, fmt.Errorf("guarded catalog is nil")
 	}
 	selected := map[string]bool{}
-	for _, model := range models {
-		if selected[model] {
-			return nil, nil, nil, fmt.Errorf("duplicate model %q", model)
+	for _, fingerprint := range fingerprints {
+		if selected[fingerprint] {
+			return nil, nil, nil, fmt.Errorf("duplicate fingerprint %q", fingerprint)
 		}
-		selected[model] = true
+		selected[fingerprint] = true
 	}
-	if !approve && len(models) == 0 {
+	if !approve && len(fingerprints) == 0 {
 		for _, item := range pending {
-			selected[item.Model] = true
+			selected[item.Fingerprint] = true
 		}
 	}
 	known := map[string]bool{}
 	for _, item := range pending {
-		known[item.Model] = true
+		known[item.Fingerprint] = true
 	}
-	for model := range selected {
-		if !known[model] {
-			return nil, nil, nil, fmt.Errorf("model %q is not pending or is stale", model)
+	for fingerprint := range selected {
+		if !known[fingerprint] {
+			return nil, nil, nil, fmt.Errorf("review fingerprint %q is not pending or is stale", fingerprint)
 		}
 	}
 	records := cloneRecords(guarded.records)
 	remaining := []PendingReview{}
 	rejected := []string{}
 	for _, item := range pending {
-		if !selected[item.Model] {
+		if !selected[item.Fingerprint] {
 			remaining = append(remaining, item)
 			continue
 		}
 		if approve {
-			records[item.Model] = item.Candidate
+			if item.Candidate == nil {
+				delete(records, item.Model)
+			} else {
+				records[item.Model] = *item.Candidate
+			}
 		} else {
 			rejected = append(rejected, item.Fingerprint)
 		}
@@ -153,33 +184,59 @@ func ApplyReview(guarded *Catalog, pending []PendingReview, models []string, app
 }
 
 func cloneRecords(input map[string]PriceRecord) map[string]PriceRecord {
-	raw, _ := json.Marshal(input)
+	raw, _ := common.Marshal(input)
 	output := map[string]PriceRecord{}
-	_ = json.Unmarshal(raw, &output)
+	_ = common.Unmarshal(raw, &output)
 	return output
 }
 
 func catalogFromRecords(records map[string]PriceRecord, version string, versions map[SourceID]string) (*Catalog, error) {
-	entries := map[string]Entry{}
+	keys := make([]string, 0, len(records))
+	for key := range records {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	entries := make(map[string]Entry, len(records))
+	validRecords := make(map[string]PriceRecord, len(records))
 	skipped := 0
-	for key, record := range records {
+	for _, key := range keys {
+		record := records[key]
 		entry, ok := recordToEntry(record)
 		if !ok {
 			skipped++
 			continue
 		}
 		entries[key] = entry
+		validRecords[key] = record
+	}
+	for _, key := range keys {
+		record, ok := validRecords[key]
+		if !ok {
+			continue
+		}
+		entry := entries[key]
 		for _, alias := range record.Aliases {
+			alias = normalizeKey(alias)
+			if alias == "" {
+				continue
+			}
+			if _, canonical := validRecords[alias]; canonical {
+				continue
+			}
+			if _, exists := entries[alias]; exists {
+				continue
+			}
 			aliasEntry := entry
 			aliasEntry.CatalogKey = key
-			entries[normalizeKey(alias)] = aliasEntry
+			entries[alias] = aliasEntry
 		}
 	}
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("catalog has no usable entries")
 	}
 	catalog := newCatalog(entries, version, skipped)
-	catalog.records = cloneRecords(records)
+	catalog.records = cloneRecords(validRecords)
 	catalog.SourceVersions = map[SourceID]string{}
 	for source, value := range versions {
 		catalog.SourceVersions[source] = value

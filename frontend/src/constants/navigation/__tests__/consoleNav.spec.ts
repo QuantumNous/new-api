@@ -56,7 +56,7 @@ describe('console navigation', () => {
     })
   })
 
-  it('shows the legacy system-settings entry only to root users', () => {
+  it('shows the Vue system-settings entry only to root users', () => {
     const adminItems = getAccessibleConsoleNavGroups({
       isAdmin: true,
       hasPermission: () => true,
@@ -73,7 +73,7 @@ describe('console navigation', () => {
     expect(
       rootItems.find((item) => item.name === 'system-settings')
     ).toMatchObject({
-      href: '/system-settings',
+      route: 'system-settings-site',
       rootOnly: true,
     })
   })

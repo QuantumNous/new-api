@@ -20,9 +20,12 @@ const rate = reactive({
 const rateSaving = reactive({ value: false })
 const rateDirty = computed(() => {
   const s = settings.value
-  return rate.ModelRequestRateLimitEnabled !== s.ModelRequestRateLimitEnabled ||
+  return (
+    rate.ModelRequestRateLimitEnabled !== s.ModelRequestRateLimitEnabled ||
     rate.ModelRequestRateLimitCount !== s.ModelRequestRateLimitCount ||
-    rate.ModelRequestRateLimitDurationMinutes !== s.ModelRequestRateLimitDurationMinutes
+    rate.ModelRequestRateLimitDurationMinutes !==
+      s.ModelRequestRateLimitDurationMinutes
+  )
 })
 async function saveRate() {
   rateSaving.value = true
@@ -32,8 +35,12 @@ async function saveRate() {
     patch.ModelRequestRateLimitEnabled = rate.ModelRequestRateLimitEnabled
   if (rate.ModelRequestRateLimitCount !== s.ModelRequestRateLimitCount)
     patch.ModelRequestRateLimitCount = rate.ModelRequestRateLimitCount
-  if (rate.ModelRequestRateLimitDurationMinutes !== s.ModelRequestRateLimitDurationMinutes)
-    patch.ModelRequestRateLimitDurationMinutes = rate.ModelRequestRateLimitDurationMinutes
+  if (
+    rate.ModelRequestRateLimitDurationMinutes !==
+    s.ModelRequestRateLimitDurationMinutes
+  )
+    patch.ModelRequestRateLimitDurationMinutes =
+      rate.ModelRequestRateLimitDurationMinutes
   const ok = await saveOptions(patch)
   rateSaving.value = false
   if (ok) toast.success(t('systemSettings.saved'))
@@ -48,9 +55,12 @@ const sensitive = reactive({
 const sensitiveSaving = reactive({ value: false })
 const sensitiveDirty = computed(() => {
   const s = settings.value
-  return sensitive.CheckSensitiveEnabled !== s.CheckSensitiveEnabled ||
-    sensitive.CheckSensitiveOnPromptEnabled !== s.CheckSensitiveOnPromptEnabled ||
+  return (
+    sensitive.CheckSensitiveEnabled !== s.CheckSensitiveEnabled ||
+    sensitive.CheckSensitiveOnPromptEnabled !==
+      s.CheckSensitiveOnPromptEnabled ||
     sensitive.SensitiveWords !== s.SensitiveWords
+  )
 })
 async function saveSensitive() {
   sensitiveSaving.value = true
@@ -58,8 +68,11 @@ async function saveSensitive() {
   const patch: Record<string, boolean | string> = {}
   if (sensitive.CheckSensitiveEnabled !== s.CheckSensitiveEnabled)
     patch.CheckSensitiveEnabled = sensitive.CheckSensitiveEnabled
-  if (sensitive.CheckSensitiveOnPromptEnabled !== s.CheckSensitiveOnPromptEnabled)
-    patch.CheckSensitiveOnPromptEnabled = sensitive.CheckSensitiveOnPromptEnabled
+  if (
+    sensitive.CheckSensitiveOnPromptEnabled !== s.CheckSensitiveOnPromptEnabled
+  )
+    patch.CheckSensitiveOnPromptEnabled =
+      sensitive.CheckSensitiveOnPromptEnabled
   if (sensitive.SensitiveWords !== s.SensitiveWords)
     patch.SensitiveWords = sensitive.SensitiveWords
   const ok = await saveOptions(patch)
@@ -76,20 +89,35 @@ const ssrf = reactive({
 const ssrfSaving = reactive({ value: false })
 const ssrfDirty = computed(() => {
   const s = settings.value
-  return ssrf['fetch_setting.enable_ssrf_protection'] !== s['fetch_setting.enable_ssrf_protection'] ||
-    ssrf['fetch_setting.allow_private_ip'] !== s['fetch_setting.allow_private_ip'] ||
+  return (
+    ssrf['fetch_setting.enable_ssrf_protection'] !==
+      s['fetch_setting.enable_ssrf_protection'] ||
+    ssrf['fetch_setting.allow_private_ip'] !==
+      s['fetch_setting.allow_private_ip'] ||
     ssrf['token_setting.max_user_tokens'] !== s['token_setting.max_user_tokens']
+  )
 })
 async function saveSsrf() {
   ssrfSaving.value = true
   const s = settings.value
   const patch: Record<string, boolean | number> = {}
-  if (ssrf['fetch_setting.enable_ssrf_protection'] !== s['fetch_setting.enable_ssrf_protection'])
-    patch['fetch_setting.enable_ssrf_protection'] = ssrf['fetch_setting.enable_ssrf_protection']
-  if (ssrf['fetch_setting.allow_private_ip'] !== s['fetch_setting.allow_private_ip'])
-    patch['fetch_setting.allow_private_ip'] = ssrf['fetch_setting.allow_private_ip']
-  if (ssrf['token_setting.max_user_tokens'] !== s['token_setting.max_user_tokens'])
-    patch['token_setting.max_user_tokens'] = ssrf['token_setting.max_user_tokens']
+  if (
+    ssrf['fetch_setting.enable_ssrf_protection'] !==
+    s['fetch_setting.enable_ssrf_protection']
+  )
+    patch['fetch_setting.enable_ssrf_protection'] =
+      ssrf['fetch_setting.enable_ssrf_protection']
+  if (
+    ssrf['fetch_setting.allow_private_ip'] !==
+    s['fetch_setting.allow_private_ip']
+  )
+    patch['fetch_setting.allow_private_ip'] =
+      ssrf['fetch_setting.allow_private_ip']
+  if (
+    ssrf['token_setting.max_user_tokens'] !== s['token_setting.max_user_tokens']
+  )
+    patch['token_setting.max_user_tokens'] =
+      ssrf['token_setting.max_user_tokens']
   const ok = await saveOptions(patch)
   ssrfSaving.value = false
   if (ok) toast.success(t('systemSettings.saved'))
@@ -101,7 +129,8 @@ onMounted(async () => {
   Object.assign(rate, {
     ModelRequestRateLimitEnabled: s.ModelRequestRateLimitEnabled,
     ModelRequestRateLimitCount: s.ModelRequestRateLimitCount,
-    ModelRequestRateLimitDurationMinutes: s.ModelRequestRateLimitDurationMinutes,
+    ModelRequestRateLimitDurationMinutes:
+      s.ModelRequestRateLimitDurationMinutes,
   })
   Object.assign(sensitive, {
     CheckSensitiveEnabled: s.CheckSensitiveEnabled,
@@ -109,7 +138,8 @@ onMounted(async () => {
     SensitiveWords: s.SensitiveWords,
   })
   Object.assign(ssrf, {
-    'fetch_setting.enable_ssrf_protection': s['fetch_setting.enable_ssrf_protection'],
+    'fetch_setting.enable_ssrf_protection':
+      s['fetch_setting.enable_ssrf_protection'],
     'fetch_setting.allow_private_ip': s['fetch_setting.allow_private_ip'],
     'token_setting.max_user_tokens': s['token_setting.max_user_tokens'],
   })
@@ -138,13 +168,17 @@ onMounted(async () => {
           :description="t('systemSettings.security.rateLimitCountDesc')"
           :model-value="String(rate.ModelRequestRateLimitCount)"
           type="number"
-          @update:model-value="rate.ModelRequestRateLimitCount = Number($event) || 60"
+          @update:model-value="
+            rate.ModelRequestRateLimitCount = Number($event) || 60
+          "
         />
         <SysInputRow
           :label="t('systemSettings.security.rateLimitDuration')"
           :model-value="String(rate.ModelRequestRateLimitDurationMinutes)"
           type="number"
-          @update:model-value="rate.ModelRequestRateLimitDurationMinutes = Number($event) || 1"
+          @update:model-value="
+            rate.ModelRequestRateLimitDurationMinutes = Number($event) || 1
+          "
         />
       </div>
     </SysSettingsFormCard>
@@ -173,7 +207,9 @@ onMounted(async () => {
           v-model="sensitive.SensitiveWords"
           :label="t('systemSettings.security.sensitiveWordsList')"
           :description="t('systemSettings.security.sensitiveWordsListDesc')"
-          :placeholder="t('systemSettings.security.sensitiveWordsListPlaceholder')"
+          :placeholder="
+            t('systemSettings.security.sensitiveWordsListPlaceholder')
+          "
           :rows="6"
         />
       </div>
@@ -207,7 +243,9 @@ onMounted(async () => {
           :description="t('systemSettings.security.maxUserTokensDesc')"
           :model-value="String(ssrf['token_setting.max_user_tokens'])"
           type="number"
-          @update:model-value="ssrf['token_setting.max_user_tokens'] = Number($event) || 0"
+          @update:model-value="
+            ssrf['token_setting.max_user_tokens'] = Number($event) || 0
+          "
         />
       </div>
     </SysSettingsFormCard>

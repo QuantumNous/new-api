@@ -77,6 +77,50 @@ func TestGuardCatalogTreatsBillingStructureChangeAsPending(t *testing.T) {
 	assert.False(t, entry.HasBillingExpr)
 }
 
+func TestGuardCatalogRequiresReviewBeforeRemovingModel(t *testing.T) {
+	activeSource := newSourceCatalog(SourceLiteLLM, "v1")
+	activeSource.Records["guard-model"] = PriceRecord{Model: "guard-model", PrimarySource: SourceLiteLLM, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}}
+	activeSource.Records["survivor"] = PriceRecord{Model: "survivor", PrimarySource: SourceLiteLLM, Standard: CostSet{Input: pricePtr(1), Output: pricePtr(2)}}
+	active, err := MergeSources(activeSource)
+	require.NoError(t, err)
+
+	candidateSource := newSourceCatalog(SourceLiteLLM, "v2")
+	candidateSource.Records["survivor"] = activeSource.Records["survivor"]
+	candidate, err := MergeSources(candidateSource)
+	require.NoError(t, err)
+
+	guarded, pending, err := GuardCatalog(active, candidate, 0.25, nil)
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	assert.Equal(t, "model removed from catalog", pending[0].Reason)
+	assert.Nil(t, pending[0].Candidate)
+	_, ok := guarded.Lookup("guard-model")
+	assert.True(t, ok, "the active price must remain until deletion is approved")
+
+	approved, remaining, _, err := ApplyReview(guarded, pending, []string{pending[0].Fingerprint}, true)
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
+	_, ok = approved.Lookup("guard-model")
+	assert.False(t, ok)
+}
+
+func TestGuardCatalogTreatsAliasChangeAsStructureChange(t *testing.T) {
+	activeSource := newSourceCatalog(SourceLiteLLM, "v1")
+	activeSource.Records["guard-model"] = PriceRecord{Model: "guard-model", PrimarySource: SourceLiteLLM, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}, Aliases: []string{"old-alias"}}
+	active, err := MergeSources(activeSource)
+	require.NoError(t, err)
+
+	candidateSource := newSourceCatalog(SourceLiteLLM, "v2")
+	candidateSource.Records["guard-model"] = PriceRecord{Model: "guard-model", PrimarySource: SourceLiteLLM, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}, Aliases: []string{"new-alias"}}
+	candidate, err := MergeSources(candidateSource)
+	require.NoError(t, err)
+
+	_, pending, err := GuardCatalog(active, candidate, 0.25, nil)
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	assert.Equal(t, "billing structure changed", pending[0].Reason)
+}
+
 func TestGuardCatalogReviewedOverrideBypassesReview(t *testing.T) {
 	active := catalogForGuard(t, "v1", 2, 8, SourceLiteLLM)
 	candidate := catalogForGuard(t, "override-v1", 20, 80, SourceOverride)
@@ -121,7 +165,7 @@ func TestApplyReviewApprovesSelectedModelsAndRejectsFingerprints(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pending, 1)
 
-	approved, remaining, rejected, err := ApplyReview(guarded, pending, []string{"guard-model"}, true)
+	approved, remaining, rejected, err := ApplyReview(guarded, pending, []string{pending[0].Fingerprint}, true)
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
 	assert.Empty(t, rejected)
@@ -138,4 +182,20 @@ func TestApplyReviewApprovesSelectedModelsAndRejectsFingerprints(t *testing.T) {
 	entry, ok = kept.Lookup("guard-model")
 	require.True(t, ok)
 	assert.Equal(t, 1.0, entry.ModelRatio)
+}
+
+func TestApplyReviewRejectsStaleFingerprintForSameModel(t *testing.T) {
+	active := catalogForGuard(t, "v1", 2, 8, SourceLiteLLM)
+	firstCandidate := catalogForGuard(t, "v2", 4, 16, SourceLiteLLM)
+	_, firstPending, err := GuardCatalog(active, firstCandidate, 0.25, nil)
+	require.NoError(t, err)
+	require.Len(t, firstPending, 1)
+
+	secondCandidate := catalogForGuard(t, "v3", 6, 24, SourceLiteLLM)
+	guarded, secondPending, err := GuardCatalog(active, secondCandidate, 0.25, nil)
+	require.NoError(t, err)
+	require.Len(t, secondPending, 1)
+
+	_, _, _, err = ApplyReview(guarded, secondPending, []string{firstPending[0].Fingerprint}, true)
+	assert.ErrorContains(t, err, "not pending or is stale")
 }

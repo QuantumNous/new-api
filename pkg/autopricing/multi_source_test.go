@@ -92,6 +92,40 @@ func TestMergeSourcesUsesFieldPrecedenceAndLowerSourceFill(t *testing.T) {
 	assert.Equal(t, SourceNewAPI, entry.FieldSources[FieldBillingExpr])
 }
 
+func TestCatalogAliasesNeverOverrideCanonicalModels(t *testing.T) {
+	source := newSourceCatalog(SourceOverride, "alias-v1")
+	source.Records["alpha"] = PriceRecord{Model: "alpha", PrimarySource: SourceOverride, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(4)}, Aliases: []string{"beta", "shared"}}
+	source.Records["beta"] = PriceRecord{Model: "beta", PrimarySource: SourceOverride, Standard: CostSet{Input: pricePtr(8), Output: pricePtr(16)}, Aliases: []string{"shared"}}
+
+	for range 20 {
+		catalog, err := MergeSources(source)
+		require.NoError(t, err)
+		beta, ok := catalog.Lookup("beta")
+		require.True(t, ok)
+		assert.Equal(t, "beta", beta.CatalogKey)
+		assert.Equal(t, 4.0, beta.ModelRatio)
+		shared, ok := catalog.Lookup("shared")
+		require.True(t, ok)
+		assert.Equal(t, "alpha", shared.CatalogKey)
+	}
+}
+
+func TestCatalogSkipsInvalidCostsAndExpressions(t *testing.T) {
+	source := newSourceCatalog(SourceNewAPI, "invalid-v1")
+	source.Records["valid"] = PriceRecord{Model: "valid", PrimarySource: SourceNewAPI, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}}
+	source.Records["negative-output"] = PriceRecord{Model: "negative-output", PrimarySource: SourceNewAPI, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(-8)}}
+	source.Records["invalid-expression"] = PriceRecord{Model: "invalid-expression", PrimarySource: SourceNewAPI, Standard: CostSet{Input: pricePtr(2), Output: pricePtr(8)}, BillingMode: "tiered_expr", BillingExpr: "p *"}
+
+	catalog, err := MergeSources(source)
+	require.NoError(t, err)
+	assert.Equal(t, 1, catalog.ModelCount)
+	assert.Equal(t, 2, catalog.SkippedCount)
+	_, ok := catalog.Lookup("negative-output")
+	assert.False(t, ok)
+	_, ok = catalog.Lookup("invalid-expression")
+	assert.False(t, ok)
+}
+
 func TestParseLiteLLMSourceKeepsRichBillingFields(t *testing.T) {
 	source, err := ParseLiteLLMSource([]byte(`{
 		"rich-model": {

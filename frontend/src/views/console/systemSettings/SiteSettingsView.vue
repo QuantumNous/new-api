@@ -34,15 +34,16 @@ function syncInfo() {
   info['legal.privacy_policy'] = settings.value['legal.privacy_policy']
 }
 
-const infoDirty = computed(() =>
-  info.SystemName !== settings.value.SystemName ||
-  info.ServerAddress !== settings.value.ServerAddress ||
-  info.Logo !== settings.value.Logo ||
-  info.Footer !== settings.value.Footer ||
-  info.About !== settings.value.About ||
-  info.HomePageContent !== settings.value.HomePageContent ||
-  info['legal.user_agreement'] !== settings.value['legal.user_agreement'] ||
-  info['legal.privacy_policy'] !== settings.value['legal.privacy_policy']
+const infoDirty = computed(
+  () =>
+    info.SystemName !== settings.value.SystemName ||
+    info.ServerAddress !== settings.value.ServerAddress ||
+    info.Logo !== settings.value.Logo ||
+    info.Footer !== settings.value.Footer ||
+    info.About !== settings.value.About ||
+    info.HomePageContent !== settings.value.HomePageContent ||
+    info['legal.user_agreement'] !== settings.value['legal.user_agreement'] ||
+    info['legal.privacy_policy'] !== settings.value['legal.privacy_policy']
 )
 
 async function saveInfo() {

@@ -53,12 +53,12 @@ func GetAutoPricingPending(c *gin.Context) {
 }
 
 type autoPricingReviewRequest struct {
-	Models []string `json:"models" binding:"required,min=1"`
-	Action string   `json:"action" binding:"required,oneof=approve reject"`
+	Fingerprints []string `json:"fingerprints" binding:"required,min=1,dive,required"`
+	Action       string   `json:"action" binding:"required,oneof=approve reject"`
 }
 
 // ReviewAutoPricing atomically approves or rejects only items in the current
-// pending queue. Stale and duplicate model names are rejected by the service.
+// pending queue. Stale and duplicate candidate fingerprints are rejected.
 func ReviewAutoPricing(c *gin.Context) {
 	var request autoPricingReviewRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -68,7 +68,7 @@ func ReviewAutoPricing(c *gin.Context) {
 		})
 		return
 	}
-	if err := service.ReviewAutoPricing(request.Models, request.Action); err != nil {
+	if err := service.ReviewAutoPricing(request.Fingerprints, request.Action); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),

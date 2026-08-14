@@ -19,8 +19,8 @@ func TestAutoPricingReviewValidatesRequest(t *testing.T) {
 		body string
 	}{
 		{name: "malformed json", body: `{`},
-		{name: "empty models", body: `{"models":[],"action":"approve"}`},
-		{name: "invalid action", body: `{"models":["probe-model"],"action":"apply"}`},
+		{name: "empty fingerprints", body: `{"fingerprints":[],"action":"approve"}`},
+		{name: "invalid action", body: `{"fingerprints":["candidate-fingerprint"],"action":"apply"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -100,6 +100,7 @@ var (
 func newAutoPricingState() *autoPricingPersistentState {
 	return &autoPricingPersistentState{
 		SchemaVersion:  1,
+		Pending:        []autopricing.PendingReview{},
 		Rejected:       map[string]bool{},
 		Sources:        map[autopricing.SourceID]AutoPricingSourceStatus{},
 		SourceCatalogs: map[autopricing.SourceID]*autopricing.SourceCatalog{},
@@ -250,22 +251,48 @@ func fetchMirrorSource(ctx context.Context, catalogURL, hashURL, knownVersion st
 		if err != nil {
 			return nil, fmt.Errorf("fetch mirror checksum: %w", err)
 		}
+		hashToken, err = normalizeSHA256Token(hashToken)
+		if err != nil {
+			return nil, fmt.Errorf("invalid mirror checksum: %w", err)
+		}
 		if !force && previous != nil && hashToken != "" && strings.EqualFold(strings.TrimPrefix(previous.Version, contentHashVersionPrefix), hashToken) {
 			return previous, nil
 		}
 	}
-	source, err := fetchPricingSource(ctx, catalogURL, knownVersion, previous, autopricing.ParseMirrorSource)
+	if hashToken == "" {
+		return fetchPricingSource(ctx, catalogURL, knownVersion, previous, autopricing.ParseMirrorSource)
+	}
+
+	downloadCtx, cancel := context.WithTimeout(ctx, autoPricingDownloadTimeout)
+	defer cancel()
+	body, _, notModified, err := autoPricingClient.FetchCatalog(downloadCtx, catalogURL, knownVersion)
+	if err != nil {
+		return nil, fmt.Errorf("download %s: %w", catalogURL, err)
+	}
+	if notModified {
+		return nil, fmt.Errorf("mirror returned not modified after publishing a new checksum")
+	}
+	actualHash := hex.EncodeToString(common.Sha256Raw(body))
+	if !strings.EqualFold(actualHash, hashToken) {
+		return nil, fmt.Errorf("mirror checksum mismatch: expected %s, got %s", hashToken, actualHash)
+	}
+	source, err := autopricing.ParseMirrorSource(body, contentHashVersionPrefix+hashToken)
 	if err != nil {
 		return nil, err
 	}
-	if hashToken != "" && source != nil {
-		source.Version = contentHashVersionPrefix + hashToken
-		for key, record := range source.Records {
-			record.SourceVersion = source.Version
-			source.Records[key] = record
-		}
-	}
 	return source, nil
+}
+
+func normalizeSHA256Token(raw string) (string, error) {
+	token := strings.TrimSpace(raw)
+	token = strings.TrimPrefix(strings.ToLower(token), contentHashVersionPrefix)
+	if len(token) != sha256.Size*2 {
+		return "", fmt.Errorf("expected %d hexadecimal characters", sha256.Size*2)
+	}
+	if _, err := hex.DecodeString(token); err != nil {
+		return "", fmt.Errorf("decode SHA-256: %w", err)
+	}
+	return token, nil
 }
 
 func fetchPricingSource(ctx context.Context, sourceURL, knownVersion string, previous *autopricing.SourceCatalog, parser func([]byte, string) (*autopricing.SourceCatalog, error)) (*autopricing.SourceCatalog, error) {
@@ -297,6 +324,7 @@ func GetAutoPricingStatus() AutoPricingStatus {
 		IntervalMinutes: setting.EffectiveCheckIntervalMinutes(), LastSyncAt: state.LastSyncAt,
 		LastSuccessfulAt: state.LastSuccessfulAt, LastError: state.LastError, Source: state.Source,
 		PendingCount: len(state.Pending), TakeoverComplete: state.TakeoverComplete,
+		Sources: make([]AutoPricingSourceStatus, 0, len(state.Sources)),
 	}
 	if catalog := autopricing.CurrentCatalog(); catalog != nil {
 		status.Loaded = catalog.ModelCount > 0
@@ -314,14 +342,14 @@ func GetAutoPricingStatus() AutoPricingStatus {
 
 func GetAutoPricingPending() []autopricing.PendingReview {
 	state := snapshotAutoPricingState()
-	return state.Pending
+	return append([]autopricing.PendingReview{}, state.Pending...)
 }
 
-func ReviewAutoPricing(models []string, action string) error {
+func ReviewAutoPricing(fingerprints []string, action string) error {
 	autoPricingSyncMu.Lock()
 	defer autoPricingSyncMu.Unlock()
-	if len(models) == 0 {
-		return fmt.Errorf("models must contain at least one model")
+	if len(fingerprints) == 0 {
+		return fmt.Errorf("fingerprints must contain at least one review fingerprint")
 	}
 	approve := false
 	switch action {
@@ -336,7 +364,7 @@ func ReviewAutoPricing(models []string, action string) error {
 	if err != nil {
 		return fmt.Errorf("restore active pricing catalog: %w", err)
 	}
-	next, remaining, rejected, err := autopricing.ApplyReview(active, state.Pending, models, approve)
+	next, remaining, rejected, err := autopricing.ApplyReview(active, state.Pending, fingerprints, approve)
 	if err != nil {
 		return err
 	}
@@ -356,9 +384,9 @@ func ReviewAutoPricing(models []string, action string) error {
 func snapshotAutoPricingState() *autoPricingPersistentState {
 	autoPricingStateMu.RLock()
 	defer autoPricingStateMu.RUnlock()
-	raw, _ := json.Marshal(autoPricingState)
+	raw, _ := common.Marshal(autoPricingState)
 	copy := newAutoPricingState()
-	_ = json.Unmarshal(raw, copy)
+	_ = common.Unmarshal(raw, copy)
 	return copy
 }
 
@@ -435,7 +463,7 @@ func autoPricingCachePath() string   { return filepath.Join(".", autoPricingCach
 func autoPricingVersionPath() string { return filepath.Join(".", autoPricingVersionFile) }
 
 func persistAutoPricingState(state *autoPricingPersistentState) error {
-	raw, err := json.MarshalIndent(state, "", "  ")
+	raw, err := common.Marshal(state)
 	if err != nil {
 		return err
 	}
@@ -491,7 +519,7 @@ func readAutoPricingState() (*autoPricingPersistentState, error) {
 		return nil, err
 	}
 	state := newAutoPricingState()
-	if err := json.Unmarshal(raw, state); err != nil {
+	if err := common.Unmarshal(raw, state); err != nil {
 		return nil, err
 	}
 	if state.SchemaVersion != 1 {
@@ -532,7 +560,7 @@ func completeAutoPricingTakeover(state *autoPricingPersistentState, active *auto
 		ArchivedAt time.Time      `json:"archived_at"`
 		Options    []model.Option `json:"options"`
 	}{ArchivedAt: time.Now().UTC(), Options: options}
-	raw, err := json.MarshalIndent(archive, "", "  ")
+	raw, err := common.Marshal(archive)
 	if err != nil {
 		return fmt.Errorf("encode legacy pricing archive: %w", err)
 	}

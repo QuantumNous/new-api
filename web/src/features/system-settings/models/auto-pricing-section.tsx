@@ -72,7 +72,7 @@ export function AutoPricingSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const queryClient = useQueryClient()
-  const [selectedModels, setSelectedModels] = useState<string[]>([])
+  const [selectedFingerprints, setSelectedFingerprints] = useState<string[]>([])
 
   const statusQuery = useQuery({
     queryKey: AUTO_PRICING_STATUS_KEY,
@@ -96,7 +96,7 @@ export function AutoPricingSection({
           })
         )
       }
-      setSelectedModels([])
+      setSelectedFingerprints([])
       void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_STATUS_KEY })
       void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_PENDING_KEY })
     },
@@ -111,7 +111,7 @@ export function AutoPricingSection({
         return
       }
       toast.success(t('Pricing review saved'))
-      setSelectedModels([])
+      setSelectedFingerprints([])
       void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_STATUS_KEY })
       void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_PENDING_KEY })
     },
@@ -228,11 +228,14 @@ export function AutoPricingSection({
                     ? pendingQuery.error.message
                     : undefined
                 }
-                selectedModels={selectedModels}
-                onSelectionChange={setSelectedModels}
+                selectedFingerprints={selectedFingerprints}
+                onSelectionChange={setSelectedFingerprints}
                 isReviewing={reviewMutation.isPending || syncMutation.isPending}
                 onReview={(action) =>
-                  reviewMutation.mutate({ models: selectedModels, action })
+                  reviewMutation.mutate({
+                    fingerprints: selectedFingerprints,
+                    action,
+                  })
                 }
               />
 
@@ -399,19 +402,19 @@ function AutoPricingReviewList(props: {
   items: AutoPricingPendingReview[]
   isLoading: boolean
   error?: string
-  selectedModels: string[]
-  onSelectionChange: (models: string[]) => void
+  selectedFingerprints: string[]
+  onSelectionChange: (fingerprints: string[]) => void
   isReviewing: boolean
   onReview: (action: 'approve' | 'reject') => void
 }) {
   const { t } = useTranslation()
-  const selected = new Set(props.selectedModels)
+  const selected = new Set(props.selectedFingerprints)
 
-  function toggle(model: string, checked: boolean) {
+  function toggle(fingerprint: string, checked: boolean) {
     props.onSelectionChange(
       checked
-        ? [...new Set([...props.selectedModels, model])]
-        : props.selectedModels.filter((item) => item !== model)
+        ? [...new Set([...props.selectedFingerprints, fingerprint])]
+        : props.selectedFingerprints.filter((item) => item !== fingerprint)
     )
   }
 
@@ -458,8 +461,10 @@ function AutoPricingReviewList(props: {
           className='grid cursor-pointer gap-3 rounded-lg border p-4 sm:grid-cols-[auto_minmax(0,1fr)]'
         >
           <Checkbox
-            checked={selected.has(item.model)}
-            onCheckedChange={(checked) => toggle(item.model, checked === true)}
+            checked={selected.has(item.fingerprint)}
+            onCheckedChange={(checked) =>
+              toggle(item.fingerprint, checked === true)
+            }
             disabled={props.isReviewing}
             aria-label={t('Select {{model}}', { model: item.model })}
           />
@@ -475,7 +480,7 @@ function AutoPricingReviewList(props: {
                 record={item.candidate}
               />
             </div>
-            {item.candidate.field_sources ? (
+            {item.candidate?.field_sources ? (
               <p className='text-muted-foreground text-xs break-words'>
                 {t('Field sources')}:{' '}
                 {formatFieldSources(item.candidate.field_sources)}
