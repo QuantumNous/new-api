@@ -233,7 +233,12 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+		valid, err := common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if !valid {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
@@ -313,6 +318,11 @@ func Register(c *gin.Context) {
 		if err := token.Insert(); err != nil {
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 			return
+		}
+	}
+	if common.EmailVerificationEnabled {
+		if err := common.DeleteKey(user.Email, common.EmailVerificationPurpose); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume registration verification code for %s: %s", user.Email, err.Error()))
 		}
 	}
 
@@ -1276,7 +1286,12 @@ func EmailBind(c *gin.Context) {
 	email := req.Email
 	email = model.NormalizeEmail(email)
 	code := req.Code
-	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
+	valid, err := common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !valid {
 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 		return
 	}
@@ -1287,7 +1302,7 @@ func EmailBind(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "not authenticated"})
 		return
 	}
-	err := user.FillUserById()
+	err = user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -1299,6 +1314,9 @@ func EmailBind(c *gin.Context) {
 		}
 		common.ApiError(c, err)
 		return
+	}
+	if err := common.DeleteKey(email, common.EmailVerificationPurpose); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume email binding verification code for %s: %s", email, err.Error()))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
