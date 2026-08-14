@@ -43,15 +43,15 @@ func TestTopUpQuotaValidation(t *testing.T) {
 			wantErr:     true,
 		},
 		{
-			name:        "token amount below limit",
-			displayType: operation_setting.QuotaDisplayTypeTokens,
-			amount:      common.MaxQuota - 1,
-			wantQuota:   common.MaxQuota - 1,
-		},
-		{
-			name:        "token amount at strict boundary",
+			name:        "token amount preserves settlement truncation",
 			displayType: operation_setting.QuotaDisplayTypeTokens,
 			amount:      common.MaxQuota,
+			wantQuota:   2_147_000_000,
+		},
+		{
+			name:        "token amount above settlement limit",
+			displayType: operation_setting.QuotaDisplayTypeTokens,
+			amount:      2_147_500_000,
 			wantErr:     true,
 		},
 	}
@@ -117,6 +117,7 @@ func TestRequestAmountRejectsTopUpThatCannotBeSettled(t *testing.T) {
 
 func TestValidateCreditedQuotaRejectsOverflow(t *testing.T) {
 	require.NoError(t, validateCreditedQuota(decimal.NewFromInt(common.MaxQuota-1)))
+	require.EqualError(t, validateCreditedQuota(decimal.Zero), "充值额度必须大于 0")
 	require.EqualError(
 		t,
 		validateCreditedQuota(decimal.NewFromInt(common.MaxQuota)),

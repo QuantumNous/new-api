@@ -189,28 +189,40 @@ func getMinTopup() int64 {
 
 func getTopUpQuota(amount int64) (int, error) {
 	quota := decimal.NewFromInt(amount)
-	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		quota = decimal.NewFromInt(quota.Div(quotaPerUnit).IntPart()).Mul(quotaPerUnit)
+	} else {
 		quota = quota.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
 	}
 	return common.QuotaFromDecimalStrict(quota)
 }
 
 func getMaxTopUpAmount() int64 {
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		return int64(common.MaxQuota - 1)
-	}
 	if common.QuotaPerUnit <= 0 {
 		return 0
 	}
-	return decimal.NewFromInt(common.MaxQuota - 1).
-		Div(decimal.NewFromFloat(common.QuotaPerUnit)).
-		Floor().IntPart()
+	quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+	maxStoredAmount := decimal.NewFromInt(common.MaxQuota - 1).
+		Div(quotaPerUnit).
+		Floor()
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		return maxStoredAmount.Add(decimal.NewFromInt(1)).
+			Mul(quotaPerUnit).
+			Ceil().
+			Sub(decimal.NewFromInt(1)).
+			IntPart()
+	}
+	return maxStoredAmount.IntPart()
 }
 
 func validateCreditedQuota(quota decimal.Decimal) error {
 	value, err := common.QuotaFromDecimalStrict(quota)
-	if err != nil || value <= 0 {
+	if err != nil {
 		return errors.New("充值额度超出系统可表示范围")
+	}
+	if value <= 0 {
+		return errors.New("充值额度必须大于 0")
 	}
 	return nil
 }
