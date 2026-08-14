@@ -4,14 +4,18 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/autopricing"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const validCatalogDocument = `{
@@ -24,20 +28,32 @@ const updatedCatalogDocument = `{
 
 // fakeRemoteClient records what the sync asked for and replays canned answers.
 type fakeRemoteClient struct {
-	body         []byte
-	version      string
-	notModified  bool
-	fetchErr     error
-	changeToken  string
-	tokenErr     error
-	catalogCalls int
-	tokenCalls   int
-	seenVersion  string
+	body          []byte
+	version       string
+	notModified   bool
+	fetchErr      error
+	changeToken   string
+	tokenErr      error
+	catalogCalls  int
+	tokenCalls    int
+	seenVersion   string
+	callsByURL    map[string]int
+	versionsByURL map[string]string
+	fetchErrByURL map[string]error
 }
 
-func (f *fakeRemoteClient) FetchCatalog(_ context.Context, _, knownVersion string) ([]byte, string, bool, error) {
+func (f *fakeRemoteClient) FetchCatalog(_ context.Context, url, knownVersion string) ([]byte, string, bool, error) {
 	f.catalogCalls++
 	f.seenVersion = knownVersion
+	if f.callsByURL == nil {
+		f.callsByURL = map[string]int{}
+		f.versionsByURL = map[string]string{}
+	}
+	f.callsByURL[url]++
+	f.versionsByURL[url] = knownVersion
+	if err := f.fetchErrByURL[url]; err != nil {
+		return nil, "", false, err
+	}
 	if f.fetchErr != nil {
 		return nil, "", false, f.fetchErr
 	}
@@ -67,6 +83,9 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 	t.Cleanup(func() {
 		autoPricingClient = previousClient
 		autopricing.SetCatalog(nil)
+		autoPricingStateMu.Lock()
+		autoPricingState = newAutoPricingState()
+		autoPricingStateMu.Unlock()
 		_ = os.Chdir(workDir)
 	})
 }
@@ -94,8 +113,8 @@ func TestSyncPublishesDownloadedCatalog(t *testing.T) {
 	assert.Equal(t, 1.0, entry.ModelRatio)
 
 	status := GetAutoPricingStatus()
-	assert.Equal(t, 1, status.ModelCount)
-	assert.Equal(t, `"etag-1"`, status.Version)
+	assert.GreaterOrEqual(t, status.ModelCount, 1)
+	assert.Contains(t, status.Version, `wei-shaw:"etag-1"`)
 	assert.Empty(t, status.LastError)
 	assert.Equal(t, "remote", status.Source)
 }
@@ -108,8 +127,8 @@ func TestSyncSendsKnownVersionAndHandlesNotModified(t *testing.T) {
 	client.notModified = true
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 
-	assert.Equal(t, `"etag-1"`, client.seenVersion, "the stored token must be offered for conditional GET")
-	assert.Equal(t, "unchanged", GetAutoPricingStatus().Source)
+	assert.Equal(t, `"etag-1"`, client.versionsByURL[ratio_setting.GetAutoPricingSetting().AutoPricingRemoteURL()], "the stored token must be offered for conditional GET")
+	assert.Equal(t, "remote", GetAutoPricingStatus().Source)
 }
 
 func TestForceSyncIgnoresKnownVersion(t *testing.T) {
@@ -124,7 +143,45 @@ func TestForceSyncIgnoresKnownVersion(t *testing.T) {
 	assert.Empty(t, client.seenVersion, "a forced sync must not send a conditional header")
 	entry, ok := autopricing.Resolve("probe-model", false)
 	require.True(t, ok)
+	assert.Equal(t, 1.0, entry.ModelRatio, "large changes stay on the active price before review")
+	assert.Equal(t, 1, GetAutoPricingStatus().PendingCount)
+}
+
+func TestReviewApprovesCurrentPendingCandidate(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+
+	client.body = []byte(updatedCatalogDocument)
+	client.version = `"etag-2"`
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
+	require.Len(t, GetAutoPricingPending(), 1)
+
+	require.NoError(t, ReviewAutoPricing([]string{"probe-model"}, "approve"))
+	assert.Empty(t, GetAutoPricingPending())
+	entry, ok := autopricing.Resolve("probe-model", false)
+	require.True(t, ok)
 	assert.Equal(t, 2.0, entry.ModelRatio)
+	assert.ErrorContains(t, ReviewAutoPricing([]string{"probe-model"}, "approve"), "not pending or is stale")
+}
+
+func TestReviewRejectSuppressesOnlySameFingerprint(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+
+	client.body = []byte(updatedCatalogDocument)
+	client.version = `"etag-2"`
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
+	require.NoError(t, ReviewAutoPricing([]string{"probe-model"}, "reject"))
+	assert.Empty(t, GetAutoPricingPending())
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
+	assert.Empty(t, GetAutoPricingPending(), "the same source version and price structure stays suppressed")
+
+	client.version = `"etag-3"`
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
+	require.Len(t, GetAutoPricingPending(), 1, "a new source version must produce a new fingerprint")
 }
 
 func TestFailedSyncKeepsPreviousCatalog(t *testing.T) {
@@ -159,6 +216,46 @@ func TestFailedSyncKeepsPreviousCatalog(t *testing.T) {
 	}
 }
 
+func TestSingleSourceFailureIsReportedWithoutBlockingCatalog(t *testing.T) {
+	client := &fakeRemoteClient{
+		body:    []byte(validCatalogDocument),
+		version: `"etag-1"`,
+		fetchErrByURL: map[string]error{
+			autopricing.DefaultModelsDevURL: errors.New("models.dev unavailable"),
+		},
+	}
+	useFakeRemote(t, client)
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+
+	status := GetAutoPricingStatus()
+	require.True(t, status.Loaded)
+	found := false
+	for _, source := range status.Sources {
+		if source.Source == autopricing.SourceModelsDev {
+			found = true
+			assert.Contains(t, source.Error, "models.dev unavailable")
+		}
+	}
+	assert.True(t, found)
+}
+
+func TestPersistenceFailureKeepsPreviousEffectiveCatalog(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+
+	require.NoError(t, os.RemoveAll(autoPricingStateDir))
+	require.NoError(t, os.WriteFile(autoPricingStateDir, []byte("blocks state directory"), 0o600))
+	client.body = []byte(updatedCatalogDocument)
+	client.version = `"etag-2"`
+	require.Error(t, SyncAutoPricingOnce(context.Background(), true))
+
+	entry, ok := autopricing.Resolve("probe-model", false)
+	require.True(t, ok)
+	assert.Equal(t, 1.0, entry.ModelRatio)
+	assert.NotEmpty(t, GetAutoPricingStatus().LastError)
+}
+
 func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
 	client := &fakeRemoteClient{
 		body:        []byte(validCatalogDocument),
@@ -172,20 +269,21 @@ func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
 	// First run has no stored token, so it downloads and stores the published
 	// hash as the comparison token.
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
-	require.Equal(t, 1, client.catalogCalls)
-	assert.Equal(t, "sha256:abc123", GetAutoPricingStatus().Version)
+	mirrorURL := ratio_setting.GetAutoPricingSetting().AutoPricingRemoteURL()
+	require.Equal(t, 1, client.callsByURL[mirrorURL])
+	assert.Contains(t, GetAutoPricingStatus().Version, "wei-shaw:sha256:abc123")
 
 	// Second run sees the same hash and must not download the document again.
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
-	assert.Equal(t, 1, client.catalogCalls, "an unchanged checksum must skip the download")
+	assert.Equal(t, 1, client.callsByURL[mirrorURL], "an unchanged checksum must skip the mirror download")
 	assert.Equal(t, 2, client.tokenCalls)
 
 	// A new hash triggers a fresh download.
 	client.changeToken = "def456"
 	client.body = []byte(updatedCatalogDocument)
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
-	assert.Equal(t, 2, client.catalogCalls)
-	assert.Equal(t, "sha256:def456", GetAutoPricingStatus().Version)
+	assert.Equal(t, 2, client.callsByURL[mirrorURL])
+	assert.Contains(t, GetAutoPricingStatus().Version, "wei-shaw:sha256:def456")
 }
 
 func TestLoadFromDiskRestoresLastGoodCatalog(t *testing.T) {
@@ -193,7 +291,7 @@ func TestLoadFromDiskRestoresLastGoodCatalog(t *testing.T) {
 	useFakeRemote(t, client)
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 
-	cachePath := autoPricingCachePath()
+	cachePath := autoPricingStatePath()
 	require.FileExists(t, cachePath)
 
 	// Simulate a restart with the upstream unreachable.
@@ -204,7 +302,7 @@ func TestLoadFromDiskRestoresLastGoodCatalog(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 1.0, entry.ModelRatio)
 	assert.Equal(t, "cache", GetAutoPricingStatus().Source)
-	assert.Equal(t, `"etag-1"`, GetAutoPricingStatus().Version)
+	assert.Contains(t, GetAutoPricingStatus().Version, `wei-shaw:"etag-1"`)
 }
 
 func TestLoadFromDiskWithoutCacheIsNotAnError(t *testing.T) {
@@ -215,7 +313,51 @@ func TestLoadFromDiskWithoutCacheIsNotAnError(t *testing.T) {
 func TestLoadFromDiskRejectsCorruptCache(t *testing.T) {
 	useFakeRemote(t, &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`})
 
-	require.NoError(t, os.WriteFile(autoPricingCachePath(), []byte("not json"), 0o600))
+	require.NoError(t, os.MkdirAll(autoPricingStateDir, 0o700))
+	require.NoError(t, os.WriteFile(autoPricingStatePath(), []byte("not json"), 0o600))
 	assert.False(t, loadAutoPricingFromDisk())
 	assert.False(t, autopricing.Loaded())
+}
+
+func TestLoadFromDiskRestoresPendingReviews(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	client.body = []byte(updatedCatalogDocument)
+	client.version = `"etag-2"`
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
+	require.Len(t, GetAutoPricingPending(), 1)
+
+	autopricing.SetCatalog(nil)
+	autoPricingStateMu.Lock()
+	autoPricingState = newAutoPricingState()
+	autoPricingStateMu.Unlock()
+	require.True(t, loadAutoPricingFromDisk())
+	require.Len(t, GetAutoPricingPending(), 1)
+}
+
+func TestFirstTakeoverArchivesAndDeletesLegacyPricingOptions(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+
+	previousDB := model.DB
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "takeover.db")), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Option{}))
+	require.NoError(t, db.Create(&model.Option{Key: "ModelRatio", Value: `{"legacy-model":1}`}).Error)
+	require.NoError(t, db.Create(&model.Option{Key: "billing_setting.billing_expr", Value: `{"legacy-model":"p * 2"}`}).Error)
+	model.DB = db
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		model.DB = previousDB
+		_ = sqlDB.Close()
+	})
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	assert.True(t, GetAutoPricingStatus().TakeoverComplete)
+	require.FileExists(t, autoPricingArchivePath())
+	var count int64
+	require.NoError(t, db.Model(&model.Option{}).Where("key IN ?", takeoverOptionKeys).Count(&count).Error)
+	assert.Zero(t, count)
 }

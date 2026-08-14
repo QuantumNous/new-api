@@ -5269,6 +5269,19 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Failed to review pricing changes": "Не удалось проверить изменения цен",
+    "Pricing review saved": "Проверка цен сохранена",
+    "{{pendingCount}} pending reviews / takeover {{state}}": "Ожидают проверки: {{pendingCount}} / перенос {{state}}",
+    "complete": "завершён",
+    "not complete": "не завершён",
+    "No version reported": "Версия не указана",
+    "Pending pricing reviews": "Изменения цен на проверке",
+    "{{count}} changes require review": "Изменений, требующих проверки: {{count}}",
+    "Reject selected": "Отклонить выбранные",
+    "Approve selected": "Одобрить выбранные",
+    "Select {{model}}": "Выбрать {{model}}",
+    "Candidate price": "Предлагаемая цена",
+    "Field sources": "Источники полей"
   }
 }

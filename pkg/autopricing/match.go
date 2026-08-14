@@ -9,12 +9,6 @@ var (
 	// versionDashPattern rewrites dashed minor versions into the dotted spelling
 	// LiteLLM sometimes uses: claude-opus-4-5-20251101 -> claude-opus-4.5-20251101.
 	versionDashPattern = regexp.MustCompile(`-(\d)-(\d)(-|$)`)
-	// openAIDateSuffixPattern matches a trailing release date: gpt-5.2-20251222.
-	openAIDateSuffixPattern = regexp.MustCompile(`-\d{8}$`)
-	// openAIBaseVersionPattern extracts the numeric base version so suffixed
-	// variants (gpt-5.2-codex) can fall back to their base model. It
-	// deliberately requires a numeric version so gpt-4o is not reduced to gpt-4.
-	openAIBaseVersionPattern = regexp.MustCompile(`^(gpt-\d+(?:\.\d+)?)(?:-|$)`)
 )
 
 func normalizeKey(model string) string {
@@ -93,55 +87,14 @@ func isAllDigits(s string) bool {
 	return len(s) > 0
 }
 
-// modelFamily groups model names that share a published rate.
-//
-// match holds the patterns that classify a request model into the family;
-// pricing holds the catalog patterns to price it with, in order. A family whose
-// own rate is not published yet falls back to the closest previous generation,
-// which is deliberate: without it, substring classification would drop
-// claude-opus-5 into the much pricier legacy "claude-opus-4" family.
-type modelFamily struct {
-	name    string
-	match   []string
-	pricing []string
-}
-
-// claudeFamilies is ordered most specific first. Order is load-bearing:
-// "claude-opus-4" is a substring of "claude-opus-4-7", so a less specific entry
-// placed earlier would capture newer models at the wrong rate.
-var claudeFamilies = []modelFamily{
-	{name: "opus-5", match: []string{"claude-opus-5"}, pricing: []string{"claude-opus-5", "claude-opus-4-8"}},
-	{name: "opus-4.8", match: []string{"claude-opus-4-8", "claude-opus-4.8"}, pricing: []string{"claude-opus-4-8", "claude-opus-4.8", "claude-opus-4-7"}},
-	{name: "opus-4.7", match: []string{"claude-opus-4-7", "claude-opus-4.7"}, pricing: []string{"claude-opus-4-7", "claude-opus-4.7", "claude-opus-4-6"}},
-	{name: "opus-4.6", match: []string{"claude-opus-4-6", "claude-opus-4.6"}, pricing: []string{"claude-opus-4-6", "claude-opus-4.6", "claude-opus-4-5"}},
-	{name: "opus-4.5", match: []string{"claude-opus-4-5", "claude-opus-4.5"}},
-	{name: "opus-4.1", match: []string{"claude-opus-4-1", "claude-opus-4.1"}},
-	{name: "opus-4", match: []string{"claude-opus-4"}},
-	{name: "haiku-4.5", match: []string{"claude-haiku-4-5", "claude-haiku-4.5"}},
-	{name: "sonnet-4.5", match: []string{"claude-sonnet-4-5", "claude-sonnet-4.5"}},
-	{name: "sonnet-4", match: []string{"claude-sonnet-4"}},
-	{name: "sonnet-3.7", match: []string{"claude-3-7-sonnet"}},
-	{name: "sonnet-3.5", match: []string{"claude-3-5-sonnet"}},
-	{name: "haiku-3.5", match: []string{"claude-3-5-haiku"}},
-	{name: "opus-3", match: []string{"claude-3-opus"}},
-	{name: "sonnet-3", match: []string{"claude-3-sonnet"}},
-	{name: "haiku-3", match: []string{"claude-3-haiku"}},
-}
-
 // resolveFuzzy runs the inference rules for a model name that is not a catalog
 // key under any of its exact spellings.
 //
-// Unlike the upstream reference implementation this chain has no final
-// catch-all: a name that matches nothing returns a miss so the caller falls back
-// to "price not configured" rather than billing at an unrelated model's rate.
+// Only release-date normalization is allowed. Family or nearest-generation
+// inference is deliberately excluded because billing unknown models by a
+// guessed GPT or Claude price is not fail-closed.
 func (c *Catalog) resolveFuzzy(candidates []string) (Entry, bool) {
-	if entry, ok := c.matchByBaseName(candidates); ok {
-		return entry, true
-	}
-	if entry, ok := c.matchClaudeFamily(candidates[0]); ok {
-		return entry, true
-	}
-	return c.matchOpenAIVariant(candidates[0])
+	return c.matchByBaseName(candidates)
 }
 
 // matchByBaseName pairs a dated request model with an undated catalog entry, or
@@ -159,82 +112,6 @@ func (c *Catalog) matchByBaseName(candidates []string) (Entry, bool) {
 	// A dated catalog entry can also answer an undated request.
 	for _, candidate := range candidates {
 		if key, ok := c.baseIndex[candidate]; ok {
-			return c.entries[key], true
-		}
-	}
-	return Entry{}, false
-}
-
-func (c *Catalog) matchClaudeFamily(model string) (Entry, bool) {
-	if !strings.Contains(model, "claude") {
-		return Entry{}, false
-	}
-
-	var matched *modelFamily
-	for i := range claudeFamilies {
-		for _, pattern := range claudeFamilies[i].match {
-			if strings.Contains(model, pattern) {
-				matched = &claudeFamilies[i]
-				break
-			}
-		}
-		if matched != nil {
-			break
-		}
-	}
-	if matched == nil {
-		return Entry{}, false
-	}
-
-	lookups := matched.pricing
-	if lookups == nil {
-		lookups = matched.match
-	}
-	for _, pattern := range lookups {
-		if entry, ok := c.findByKeyPrefixOrSubstring(pattern); ok {
-			return entry, true
-		}
-	}
-	return Entry{}, false
-}
-
-// matchOpenAIVariant reduces a suffixed or dated OpenAI model to its base
-// version: gpt-5.2-codex and gpt-5.2-20251222 both fall back to gpt-5.2.
-func (c *Catalog) matchOpenAIVariant(model string) (Entry, bool) {
-	if !strings.HasPrefix(model, "gpt-") {
-		return Entry{}, false
-	}
-
-	variants := make([]string, 0, 3)
-	withoutDate := openAIDateSuffixPattern.ReplaceAllString(model, "")
-	if withoutDate != model {
-		variants = append(variants, withoutDate)
-	}
-	if matches := openAIBaseVersionPattern.FindStringSubmatch(model); len(matches) > 1 {
-		variants = append(variants, matches[1])
-	}
-	if withoutDate != model {
-		if matches := openAIBaseVersionPattern.FindStringSubmatch(withoutDate); len(matches) > 1 {
-			variants = append(variants, matches[1])
-		}
-	}
-
-	for _, variant := range variants {
-		if variant == model {
-			continue
-		}
-		if entry, ok := c.entries[variant]; ok {
-			return entry, true
-		}
-	}
-	return Entry{}, false
-}
-
-// findByKeyPrefixOrSubstring scans catalog keys in sorted order so a family
-// pattern resolves to the same entry on every process.
-func (c *Catalog) findByKeyPrefixOrSubstring(pattern string) (Entry, bool) {
-	for _, key := range c.sortedKeys {
-		if strings.Contains(key, pattern) {
 			return c.entries[key], true
 		}
 	}

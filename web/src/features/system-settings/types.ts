@@ -349,14 +349,84 @@ export type AutoPricingStatus = {
   version: string
   updated_at?: string
   last_sync_at?: string
+  last_successful_at?: string
   last_error?: string
   source?: string
+  pending_count: number
+  takeover_complete: boolean
+  sources: AutoPricingSourceStatus[]
+}
+
+export type AutoPricingSourceStatus = {
+  source: string
+  url?: string
+  version?: string
+  error?: string
+  updated_at?: string
+}
+
+export type AutoPricingCostSet = {
+  input?: number
+  output?: number
+  cache_read?: number
+  cache_write_5m?: number
+  cache_write_1h?: number
+  image_input?: number
+  image_output?: number
+}
+
+export type AutoPricingRecord = {
+  model: string
+  provider?: string
+  primary_source: string
+  source_version?: string
+  standard: AutoPricingCostSet
+  priority?: AutoPricingCostSet
+  flex?: AutoPricingCostSet
+  per_request?: number
+  tiers?: Array<{
+    name: string
+    max_input_tokens?: number
+    costs: AutoPricingCostSet
+  }>
+  aliases?: string[]
+  billing_mode?: string
+  billing_expr?: string
+  field_sources?: Record<string, string>
+}
+
+export type AutoPricingPendingReview = {
+  model: string
+  reason: string
+  fingerprint: string
+  current?: AutoPricingRecord
+  candidate: AutoPricingRecord
 }
 
 export type AutoPricingStatusResponse = {
   success: boolean
   message?: string
   data: AutoPricingStatus
+}
+
+export type AutoPricingPendingResponse = {
+  success: boolean
+  message?: string
+  data: AutoPricingPendingReview[]
+}
+
+export type AutoPricingReviewRequest = {
+  models: string[]
+  action: 'approve' | 'reject'
+}
+
+export type AutoPricingReviewResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    status: AutoPricingStatus
+    pending: AutoPricingPendingReview[]
+  }
 }
 
 export type OperationsSettings = {

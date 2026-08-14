@@ -18,11 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, RefreshCw, X } from 'lucide-react'
+import { useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -35,7 +38,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 
-import { getAutoPricingStatus, syncAutoPricing } from '../api'
+import {
+  getAutoPricingPending,
+  getAutoPricingStatus,
+  reviewAutoPricing,
+  syncAutoPricing,
+} from '../api'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -44,6 +52,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
+import type { AutoPricingPendingReview, AutoPricingStatus } from '../types'
 import {
   autoPricingFormSchema,
   type AutoPricingDefaults,
@@ -51,6 +60,7 @@ import {
 } from './auto-pricing-form'
 
 const AUTO_PRICING_STATUS_KEY = ['system-settings', 'auto-pricing-status']
+const AUTO_PRICING_PENDING_KEY = ['system-settings', 'auto-pricing-pending']
 
 export type { AutoPricingDefaults }
 
@@ -62,10 +72,16 @@ export function AutoPricingSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const queryClient = useQueryClient()
+  const [selectedModels, setSelectedModels] = useState<string[]>([])
 
   const statusQuery = useQuery({
     queryKey: AUTO_PRICING_STATUS_KEY,
     queryFn: getAutoPricingStatus,
+  })
+
+  const pendingQuery = useQuery({
+    queryKey: AUTO_PRICING_PENDING_KEY,
+    queryFn: getAutoPricingPending,
   })
 
   const syncMutation = useMutation({
@@ -80,8 +96,26 @@ export function AutoPricingSection({
           })
         )
       }
+      setSelectedModels([])
       void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_STATUS_KEY })
+      void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_PENDING_KEY })
     },
+    onError: () => toast.error(t('Failed to sync pricing catalog')),
+  })
+
+  const reviewMutation = useMutation({
+    mutationFn: reviewAutoPricing,
+    onSuccess: (response) => {
+      if (!response.success) {
+        toast.error(response.message ?? t('Failed to review pricing changes'))
+        return
+      }
+      toast.success(t('Pricing review saved'))
+      setSelectedModels([])
+      void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_STATUS_KEY })
+      void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_PENDING_KEY })
+    },
+    onError: () => toast.error(t('Failed to review pricing changes')),
   })
 
   const form = useForm<AutoPricingFormValues>({
@@ -182,8 +216,24 @@ export function AutoPricingSection({
               <AutoPricingStatusPanel
                 isLoading={statusQuery.isPending}
                 status={statusQuery.data?.data}
-                isSyncing={syncMutation.isPending}
+                isSyncing={syncMutation.isPending || reviewMutation.isPending}
                 onSync={() => syncMutation.mutate()}
+              />
+
+              <AutoPricingReviewList
+                items={pendingQuery.data?.data ?? []}
+                isLoading={pendingQuery.isPending}
+                error={
+                  pendingQuery.error instanceof Error
+                    ? pendingQuery.error.message
+                    : undefined
+                }
+                selectedModels={selectedModels}
+                onSelectionChange={setSelectedModels}
+                isReviewing={reviewMutation.isPending || syncMutation.isPending}
+                onReview={(action) =>
+                  reviewMutation.mutate({ models: selectedModels, action })
+                }
               />
 
               <FormField
@@ -278,46 +328,185 @@ export function AutoPricingSection({
 
 function AutoPricingStatusPanel(props: {
   isLoading: boolean
-  status?: {
-    loaded: boolean
-    model_count: number
-    skipped_count: number
-    updated_at?: string
-    last_error?: string
-  }
+  status?: AutoPricingStatus
   isSyncing: boolean
   onSync: () => void
 }) {
   const { t } = useTranslation()
 
   return (
-    <div className='flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4'>
-      <div className='space-y-1 text-sm'>
-        <p className='font-medium'>{t('Catalog status')}</p>
-        <p className='text-muted-foreground'>
-          <AutoPricingStatusText
-            isLoading={props.isLoading}
-            status={props.status}
-          />
-        </p>
-        {props.status?.last_error ? (
-          <p className='text-destructive'>
-            {t('Last sync failed: {{error}}', {
-              error: props.status.last_error,
-            })}
+    <div className='space-y-4 rounded-lg border p-4'>
+      <div className='flex flex-wrap items-start justify-between gap-4'>
+        <div className='space-y-1 text-sm'>
+          <p className='font-medium'>{t('Catalog status')}</p>
+          <p className='text-muted-foreground'>
+            <AutoPricingStatusText
+              isLoading={props.isLoading}
+              status={props.status}
+            />
           </p>
-        ) : null}
+          {props.status?.last_error ? (
+            <p className='text-destructive'>
+              {t('Last sync failed: {{error}}', {
+                error: props.status.last_error,
+              })}
+            </p>
+          ) : null}
+          {props.status ? (
+            <p className='text-muted-foreground'>
+              {t('{{pendingCount}} pending reviews / takeover {{state}}', {
+                pendingCount: props.status.pending_count,
+                state: props.status.takeover_complete
+                  ? t('complete')
+                  : t('not complete'),
+              })}
+            </p>
+          ) : null}
+        </div>
+        <Button
+          type='button'
+          variant='outline'
+          onClick={props.onSync}
+          disabled={props.isSyncing}
+        >
+          <RefreshCw className={props.isSyncing ? 'animate-spin' : undefined} />
+          {props.isSyncing ? t('Syncing...') : t('Sync now')}
+        </Button>
       </div>
-      <Button
-        type='button'
-        variant='outline'
-        onClick={props.onSync}
-        disabled={props.isSyncing}
-      >
-        {props.isSyncing ? t('Syncing...') : t('Sync now')}
-      </Button>
+      {props.status?.sources.length ? (
+        <div className='grid gap-2 text-sm sm:grid-cols-2'>
+          {props.status.sources.map((source) => (
+            <div key={source.source} className='min-w-0 border-t pt-2'>
+              <p className='font-medium'>{source.source}</p>
+              <p
+                className='text-muted-foreground truncate'
+                title={source.version}
+              >
+                {source.version || t('No version reported')}
+              </p>
+              {source.error ? (
+                <p className='text-destructive'>{source.error}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
+}
+
+function AutoPricingReviewList(props: {
+  items: AutoPricingPendingReview[]
+  isLoading: boolean
+  error?: string
+  selectedModels: string[]
+  onSelectionChange: (models: string[]) => void
+  isReviewing: boolean
+  onReview: (action: 'approve' | 'reject') => void
+}) {
+  const { t } = useTranslation()
+  const selected = new Set(props.selectedModels)
+
+  function toggle(model: string, checked: boolean) {
+    props.onSelectionChange(
+      checked
+        ? [...new Set([...props.selectedModels, model])]
+        : props.selectedModels.filter((item) => item !== model)
+    )
+  }
+
+  return (
+    <div className='space-y-3'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div>
+          <p className='text-sm font-medium'>{t('Pending pricing reviews')}</p>
+          <p className='text-muted-foreground text-sm'>
+            {props.isLoading
+              ? t('Loading...')
+              : t('{{count}} changes require review', {
+                  count: props.items.length,
+                })}
+          </p>
+          {props.error ? (
+            <p className='text-destructive text-sm'>{props.error}</p>
+          ) : null}
+        </div>
+        <div className='flex gap-2'>
+          <Button
+            type='button'
+            variant='outline'
+            disabled={props.isReviewing || selected.size === 0}
+            onClick={() => props.onReview('reject')}
+          >
+            <X />
+            {t('Reject selected')}
+          </Button>
+          <Button
+            type='button'
+            disabled={props.isReviewing || selected.size === 0}
+            onClick={() => props.onReview('approve')}
+          >
+            <Check />
+            {t('Approve selected')}
+          </Button>
+        </div>
+      </div>
+
+      {props.items.map((item) => (
+        <label
+          key={item.fingerprint}
+          className='grid cursor-pointer gap-3 rounded-lg border p-4 sm:grid-cols-[auto_minmax(0,1fr)]'
+        >
+          <Checkbox
+            checked={selected.has(item.model)}
+            onCheckedChange={(checked) => toggle(item.model, checked === true)}
+            disabled={props.isReviewing}
+            aria-label={t('Select {{model}}', { model: item.model })}
+          />
+          <div className='min-w-0 space-y-3'>
+            <div>
+              <p className='font-medium'>{item.model}</p>
+              <p className='text-muted-foreground text-sm'>{item.reason}</p>
+            </div>
+            <div className='grid gap-3 text-xs lg:grid-cols-2'>
+              <PricingRecord title={t('Current price')} record={item.current} />
+              <PricingRecord
+                title={t('Candidate price')}
+                record={item.candidate}
+              />
+            </div>
+            {item.candidate.field_sources ? (
+              <p className='text-muted-foreground text-xs break-words'>
+                {t('Field sources')}:{' '}
+                {formatFieldSources(item.candidate.field_sources)}
+              </p>
+            ) : null}
+          </div>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function PricingRecord(props: {
+  title: string
+  record?: AutoPricingPendingReview['candidate']
+}) {
+  return (
+    <div className='bg-muted/40 min-w-0 p-3'>
+      <p className='mb-2 font-medium'>{props.title}</p>
+      <pre className='max-h-48 overflow-auto break-words whitespace-pre-wrap'>
+        {props.record ? JSON.stringify(props.record, null, 2) : '-'}
+      </pre>
+    </div>
+  )
+}
+
+function formatFieldSources(sources: Record<string, string>) {
+  return Object.entries(sources)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([field, source]) => `${field}: ${source}`)
+    .join(', ')
 }
 
 function AutoPricingStatusText(props: {

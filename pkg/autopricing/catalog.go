@@ -33,7 +33,11 @@ type Entry struct {
 	HasCreateCacheRatio bool
 	// CatalogKey is the catalog entry that produced this pricing. It differs
 	// from the requested model name whenever a fuzzy rule matched.
-	CatalogKey string
+	CatalogKey     string
+	Source         SourceID             `json:"source"`
+	FieldSources   map[FieldID]SourceID `json:"field_sources,omitempty"`
+	BillingExpr    string               `json:"billing_expr,omitempty"`
+	HasBillingExpr bool                 `json:"has_billing_expr,omitempty"`
 }
 
 // Catalog is an immutable snapshot of one downloaded pricing document.
@@ -52,7 +56,53 @@ type Catalog struct {
 	ModelCount int
 	// SkippedCount counts entries dropped as unusable (unparseable, priced only
 	// per image, or failing validation).
-	SkippedCount int
+	SkippedCount   int
+	records        map[string]PriceRecord
+	SourceVersions map[SourceID]string `json:"source_versions,omitempty"`
+}
+
+// CatalogSnapshot is the durable representation of an immutable catalog.
+// Runtime indexes are rebuilt on restore instead of being persisted.
+type CatalogSnapshot struct {
+	Version        string                 `json:"version"`
+	UpdatedAt      time.Time              `json:"updated_at"`
+	SkippedCount   int                    `json:"skipped_count"`
+	Records        map[string]PriceRecord `json:"records"`
+	SourceVersions map[SourceID]string    `json:"source_versions,omitempty"`
+}
+
+// Snapshot returns an independent copy suitable for JSON persistence.
+func (c *Catalog) Snapshot() *CatalogSnapshot {
+	if c == nil {
+		return nil
+	}
+	versions := make(map[SourceID]string, len(c.SourceVersions))
+	for source, version := range c.SourceVersions {
+		versions[source] = version
+	}
+	return &CatalogSnapshot{
+		Version:        c.Version,
+		UpdatedAt:      c.UpdatedAt,
+		SkippedCount:   c.SkippedCount,
+		Records:        cloneRecords(c.records),
+		SourceVersions: versions,
+	}
+}
+
+// RestoreCatalog validates a persisted snapshot and rebuilds runtime indexes.
+func RestoreCatalog(snapshot *CatalogSnapshot) (*Catalog, error) {
+	if snapshot == nil {
+		return nil, nil
+	}
+	catalog, err := catalogFromRecords(snapshot.Records, snapshot.Version, snapshot.SourceVersions)
+	if err != nil {
+		return nil, err
+	}
+	if !snapshot.UpdatedAt.IsZero() {
+		catalog.UpdatedAt = snapshot.UpdatedAt
+	}
+	catalog.SkippedCount = snapshot.SkippedCount
+	return catalog, nil
 }
 
 // Lookup resolves a single catalog key without any fuzzy rule.

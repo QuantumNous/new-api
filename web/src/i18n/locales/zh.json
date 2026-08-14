@@ -5269,6 +5269,19 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Failed to review pricing changes": "审核价格变更失败",
+    "Pricing review saved": "价格审核已保存",
+    "{{pendingCount}} pending reviews / takeover {{state}}": "{{pendingCount}} 项待审核 / 接管状态：{{state}}",
+    "complete": "已完成",
+    "not complete": "未完成",
+    "No version reported": "未报告版本",
+    "Pending pricing reviews": "待审核价格变更",
+    "{{count}} changes require review": "{{count}} 项变更需要审核",
+    "Reject selected": "拒绝所选项",
+    "Approve selected": "批准所选项",
+    "Select {{model}}": "选择 {{model}}",
+    "Candidate price": "候选价格",
+    "Field sources": "字段来源"
   }
 }
