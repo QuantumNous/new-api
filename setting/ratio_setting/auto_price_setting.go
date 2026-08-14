@@ -11,6 +11,8 @@ import (
 const DefaultAutoPricingRemoteURL = "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json"
 const DefaultAutoPricingHashURL = "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.sha256"
 
+var DefaultAutoPricingAllowedHosts = []string{"raw.githubusercontent.com"}
+
 const (
 	// minAutoPricingCheckIntervalMinutes keeps a misconfigured interval from
 	// hammering the upstream host.
@@ -30,6 +32,12 @@ type AutoPricingSetting struct {
 	// document. Mirrors that do not serve usable ETags can use it as the change
 	// token instead.
 	HashURL string `json:"hash_url"`
+	// AllowedHosts limits configurable mirror and checksum URLs to reviewed HTTPS hosts.
+	AllowedHosts []string `json:"allowed_hosts"`
+	// ProxyURL optionally routes automatic pricing fetches through a validated proxy.
+	ProxyURL string `json:"proxy_url"`
+	// AllowDirectOnProxyFailure is an explicit emergency escape hatch.
+	AllowDirectOnProxyFailure bool `json:"allow_direct_on_proxy_failure"`
 	// CheckIntervalMinutes is how often the catalog is checked for changes.
 	CheckIntervalMinutes int `json:"check_interval_minutes"`
 	// FuzzyMatchEnabled allows a request model to be priced by an inferred
@@ -41,6 +49,7 @@ var autoPricingSetting = AutoPricingSetting{
 	Enabled:              true,
 	RemoteURL:            DefaultAutoPricingRemoteURL,
 	HashURL:              DefaultAutoPricingHashURL,
+	AllowedHosts:         append([]string(nil), DefaultAutoPricingAllowedHosts...),
 	CheckIntervalMinutes: defaultAutoPricingCheckIntervalMin,
 	FuzzyMatchEnabled:    true,
 }
@@ -64,6 +73,23 @@ func (s AutoPricingSetting) AutoPricingRemoteURL() string {
 		return DefaultAutoPricingRemoteURL
 	}
 	return url
+}
+
+func (s AutoPricingSetting) EffectiveAllowedHosts() []string {
+	if len(s.AllowedHosts) == 0 {
+		return append([]string(nil), DefaultAutoPricingAllowedHosts...)
+	}
+	hosts := make([]string, 0, len(s.AllowedHosts))
+	seen := map[string]bool{}
+	for _, host := range s.AllowedHosts {
+		host = strings.ToLower(strings.TrimSpace(host))
+		if host == "" || seen[host] {
+			continue
+		}
+		seen[host] = true
+		hosts = append(hosts, host)
+	}
+	return hosts
 }
 
 // EffectiveCheckIntervalMinutes clamps the configured interval to a sane floor.

@@ -131,10 +131,17 @@ export async function getAutoPricingPending() {
   return res.data
 }
 
-export async function reviewAutoPricing(request: AutoPricingReviewRequest) {
+export async function reviewAutoPricing(
+  request: AutoPricingReviewRequest,
+  revision: string
+) {
   const res = await api.post<AutoPricingReviewResponse>(
     '/api/auto_pricing/review',
-    request
+    request,
+    {
+      headers: { 'If-Match': `"${revision}"` },
+      skipErrorHandler: true,
+    }
   )
   return res.data
 }

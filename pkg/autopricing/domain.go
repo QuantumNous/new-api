@@ -26,15 +26,35 @@ const (
 type FieldID string
 
 const (
-	FieldInput        FieldID = "input"
-	FieldOutput       FieldID = "output"
-	FieldCacheRead    FieldID = "cache_read"
-	FieldCacheWrite5m FieldID = "cache_write_5m"
-	FieldCacheWrite1h FieldID = "cache_write_1h"
-	FieldImageInput   FieldID = "image_input"
-	FieldImageOutput  FieldID = "image_output"
-	FieldPerRequest   FieldID = "per_request"
-	FieldBillingExpr  FieldID = "billing_expr"
+	FieldInput                FieldID = "input"
+	FieldOutput               FieldID = "output"
+	FieldCacheRead            FieldID = "cache_read"
+	FieldCacheWrite5m         FieldID = "cache_write_5m"
+	FieldCacheWrite1h         FieldID = "cache_write_1h"
+	FieldImageInput           FieldID = "image_input"
+	FieldImageOutput          FieldID = "image_output"
+	FieldAudioInput           FieldID = "audio_input"
+	FieldAudioOutput          FieldID = "audio_output"
+	FieldPriorityInput        FieldID = "priority.input"
+	FieldPriorityOutput       FieldID = "priority.output"
+	FieldPriorityCacheRead    FieldID = "priority.cache_read"
+	FieldPriorityCacheWrite5m FieldID = "priority.cache_write_5m"
+	FieldPriorityCacheWrite1h FieldID = "priority.cache_write_1h"
+	FieldPriorityImageInput   FieldID = "priority.image_input"
+	FieldPriorityImageOutput  FieldID = "priority.image_output"
+	FieldPriorityAudioInput   FieldID = "priority.audio_input"
+	FieldPriorityAudioOutput  FieldID = "priority.audio_output"
+	FieldFlexInput            FieldID = "flex.input"
+	FieldFlexOutput           FieldID = "flex.output"
+	FieldFlexCacheRead        FieldID = "flex.cache_read"
+	FieldFlexCacheWrite5m     FieldID = "flex.cache_write_5m"
+	FieldFlexCacheWrite1h     FieldID = "flex.cache_write_1h"
+	FieldFlexImageInput       FieldID = "flex.image_input"
+	FieldFlexImageOutput      FieldID = "flex.image_output"
+	FieldFlexAudioInput       FieldID = "flex.audio_input"
+	FieldFlexAudioOutput      FieldID = "flex.audio_output"
+	FieldPerRequest           FieldID = "per_request"
+	FieldBillingExpr          FieldID = "billing_expr"
 )
 
 type CostSet struct {
@@ -45,6 +65,8 @@ type CostSet struct {
 	CacheWrite1h *float64 `json:"cache_write_1h,omitempty"`
 	ImageInput   *float64 `json:"image_input,omitempty"`
 	ImageOutput  *float64 `json:"image_output,omitempty"`
+	AudioInput   *float64 `json:"audio_input,omitempty"`
+	AudioOutput  *float64 `json:"audio_output,omitempty"`
 }
 
 type PriceTier struct {
@@ -85,7 +107,7 @@ func newSourceCatalog(source SourceID, version string) *SourceCatalog {
 
 func pricePtr(v float64) *float64 { return &v }
 func hasCosts(c CostSet) bool {
-	return c.Input != nil || c.Output != nil || c.CacheRead != nil || c.CacheWrite5m != nil || c.CacheWrite1h != nil || c.ImageInput != nil || c.ImageOutput != nil
+	return c.Input != nil || c.Output != nil || c.CacheRead != nil || c.CacheWrite5m != nil || c.CacheWrite1h != nil || c.ImageInput != nil || c.ImageOutput != nil || c.AudioInput != nil || c.AudioOutput != nil
 }
 
 func sourcePriority(source SourceID) int {
@@ -146,17 +168,10 @@ func MergeSources(sources ...*SourceCatalog) (*Catalog, error) {
 				records[key] = incoming
 				continue
 			}
-			// An explicit New API billing expression is an indivisible pricing
-			// contract. Keep its base coefficients coherent, then fill richer
-			// cache/image fields from higher-quality catalogs.
-			if incoming.BillingExpr != "" && incoming.BillingMode == "tiered_expr" && current.PrimarySource != SourceOverride {
-				base := incoming
-				setRecordFieldSources(&base, incoming.PrimarySource)
-				mergeMissingRecord(&base, current)
-				current = base
-			} else {
-				mergeMissingRecord(&current, incoming)
-			}
+			// Merge every field strictly by source precedence. A lower-priority
+			// expression may fill an absent expression, but it must never replace
+			// higher-priority base costs as a second pricing contract.
+			mergeMissingRecord(&current, incoming)
 			records[key] = current
 		}
 	}
@@ -184,7 +199,7 @@ func setRecordFieldSources(r *PriceRecord, source SourceID) {
 	pairs := []struct {
 		id    FieldID
 		value *float64
-	}{{FieldInput, r.Standard.Input}, {FieldOutput, r.Standard.Output}, {FieldCacheRead, r.Standard.CacheRead}, {FieldCacheWrite5m, r.Standard.CacheWrite5m}, {FieldCacheWrite1h, r.Standard.CacheWrite1h}, {FieldImageInput, r.Standard.ImageInput}, {FieldImageOutput, r.Standard.ImageOutput}, {FieldPerRequest, r.PerRequest}}
+	}{{FieldInput, r.Standard.Input}, {FieldOutput, r.Standard.Output}, {FieldCacheRead, r.Standard.CacheRead}, {FieldCacheWrite5m, r.Standard.CacheWrite5m}, {FieldCacheWrite1h, r.Standard.CacheWrite1h}, {FieldImageInput, r.Standard.ImageInput}, {FieldImageOutput, r.Standard.ImageOutput}, {FieldAudioInput, r.Standard.AudioInput}, {FieldAudioOutput, r.Standard.AudioOutput}, {FieldPerRequest, r.PerRequest}}
 	for _, pair := range pairs {
 		if pair.value != nil {
 			if _, ok := r.FieldSources[pair.id]; !ok {
@@ -192,8 +207,39 @@ func setRecordFieldSources(r *PriceRecord, source SourceID) {
 			}
 		}
 	}
+	setCostSetFieldSources(r.FieldSources, r.Priority, source, "priority.")
+	setCostSetFieldSources(r.FieldSources, r.Flex, source, "flex.")
+	for index, tier := range r.Tiers {
+		setCostSetFieldSources(r.FieldSources, tier.Costs, source, fmt.Sprintf("tier.%d.", index))
+	}
 	if r.BillingExpr != "" {
 		r.FieldSources[FieldBillingExpr] = source
+	}
+}
+
+func setCostSetFieldSources(target map[FieldID]SourceID, costs CostSet, source SourceID, prefix string) {
+	pairs := []struct {
+		name  string
+		value *float64
+	}{
+		{"input", costs.Input},
+		{"output", costs.Output},
+		{"cache_read", costs.CacheRead},
+		{"cache_write_5m", costs.CacheWrite5m},
+		{"cache_write_1h", costs.CacheWrite1h},
+		{"image_input", costs.ImageInput},
+		{"image_output", costs.ImageOutput},
+		{"audio_input", costs.AudioInput},
+		{"audio_output", costs.AudioOutput},
+	}
+	for _, pair := range pairs {
+		if pair.value == nil {
+			continue
+		}
+		id := FieldID(prefix + pair.name)
+		if _, exists := target[id]; !exists {
+			target[id] = source
+		}
 	}
 }
 
@@ -202,28 +248,42 @@ func mergeMissingRecord(dst *PriceRecord, src PriceRecord) {
 		dst.FieldSources = map[FieldID]SourceID{}
 	}
 	setRecordFieldSources(&src, src.PrimarySource)
-	copyCostMissing := func(d *CostSet, s CostSet) {
+	copyCostMissing := func(d *CostSet, s CostSet, prefix string) {
 		fields := []struct {
 			id FieldID
 			d  **float64
 			s  *float64
-		}{{FieldInput, &d.Input, s.Input}, {FieldOutput, &d.Output, s.Output}, {FieldCacheRead, &d.CacheRead, s.CacheRead}, {FieldCacheWrite5m, &d.CacheWrite5m, s.CacheWrite5m}, {FieldCacheWrite1h, &d.CacheWrite1h, s.CacheWrite1h}, {FieldImageInput, &d.ImageInput, s.ImageInput}, {FieldImageOutput, &d.ImageOutput, s.ImageOutput}}
+		}{{FieldInput, &d.Input, s.Input}, {FieldOutput, &d.Output, s.Output}, {FieldCacheRead, &d.CacheRead, s.CacheRead}, {FieldCacheWrite5m, &d.CacheWrite5m, s.CacheWrite5m}, {FieldCacheWrite1h, &d.CacheWrite1h, s.CacheWrite1h}, {FieldImageInput, &d.ImageInput, s.ImageInput}, {FieldImageOutput, &d.ImageOutput, s.ImageOutput}, {FieldAudioInput, &d.AudioInput, s.AudioInput}, {FieldAudioOutput, &d.AudioOutput, s.AudioOutput}}
 		for _, f := range fields {
 			if *f.d == nil && f.s != nil {
 				*f.d = pricePtr(*f.s)
-				dst.FieldSources[f.id] = src.FieldSources[f.id]
+				id := FieldID(prefix + string(f.id))
+				if source, ok := src.FieldSources[id]; ok {
+					dst.FieldSources[id] = source
+				} else {
+					dst.FieldSources[id] = src.PrimarySource
+				}
 			}
 		}
 	}
-	copyCostMissing(&dst.Standard, src.Standard)
-	copyCostMissing(&dst.Priority, src.Priority)
-	copyCostMissing(&dst.Flex, src.Flex)
+	copyCostMissing(&dst.Standard, src.Standard, "")
+	copyCostMissing(&dst.Priority, src.Priority, "priority.")
+	copyCostMissing(&dst.Flex, src.Flex, "flex.")
 	if dst.PerRequest == nil && src.PerRequest != nil {
 		dst.PerRequest = pricePtr(*src.PerRequest)
 		dst.FieldSources[FieldPerRequest] = src.FieldSources[FieldPerRequest]
 	}
 	if len(dst.Tiers) == 0 && len(src.Tiers) > 0 {
 		dst.Tiers = src.Tiers
+		for index, tier := range src.Tiers {
+			prefix := fmt.Sprintf("tier.%d.", index)
+			setCostSetFieldSources(dst.FieldSources, tier.Costs, src.PrimarySource, prefix)
+			for field, source := range src.FieldSources {
+				if strings.HasPrefix(string(field), prefix) {
+					dst.FieldSources[field] = source
+				}
+			}
+		}
 	}
 	if len(dst.Aliases) == 0 && len(src.Aliases) > 0 {
 		dst.Aliases = src.Aliases
@@ -294,6 +354,7 @@ func validPriceRecord(record PriceRecord) bool {
 		values := []*float64{
 			costs.Input, costs.Output, costs.CacheRead, costs.CacheWrite5m,
 			costs.CacheWrite1h, costs.ImageInput, costs.ImageOutput,
+			costs.AudioInput, costs.AudioOutput,
 		}
 		for _, value := range values {
 			if value != nil && !validMillionCost(*value) {
@@ -321,14 +382,14 @@ func needsBillingExpr(r PriceRecord) bool {
 		(r.Standard.Output != nil && *r.Standard.Output > 0 ||
 			r.Standard.CacheRead != nil && *r.Standard.CacheRead > 0 ||
 			r.Standard.CacheWrite5m != nil && *r.Standard.CacheWrite5m > 0)
-	return zeroInputWithPaidTokens || len(r.Tiers) > 0 || hasCosts(r.Priority) || hasCosts(r.Flex) || r.Standard.CacheWrite1h != nil || r.Standard.ImageInput != nil || r.Standard.ImageOutput != nil || r.PerRequest != nil
+	return zeroInputWithPaidTokens || len(r.Tiers) > 0 || hasCosts(r.Priority) || hasCosts(r.Flex) || r.Standard.CacheWrite1h != nil || r.Standard.ImageInput != nil || r.Standard.ImageOutput != nil || r.Standard.AudioInput != nil || r.Standard.AudioOutput != nil || r.PerRequest != nil
 }
 
 func validBillingExpr(expr string) bool {
 	vectors := []billingexpr.TokenParams{
 		{},
-		{P: 1000, C: 1000, Len: 1000, CR: 100, CC: 100, CC1h: 100, Img: 100, ImgO: 100},
-		{P: 300000, C: 100000, Len: 300000, CR: 10000, CC: 10000, CC1h: 10000, Img: 1000, ImgO: 1000},
+		{P: 1000, C: 1000, Len: 1000, CR: 100, CC: 100, CC1h: 100, Img: 100, ImgO: 100, AI: 100, AO: 100},
+		{P: 300000, C: 100000, Len: 300000, CR: 10000, CC: 10000, CC1h: 10000, Img: 1000, ImgO: 1000, AI: 1000, AO: 1000},
 	}
 	requests := []billingexpr.RequestInput{
 		{},
@@ -396,6 +457,8 @@ func costExpr(c CostSet, perRequest *float64) string {
 	add("cc1h", c.CacheWrite1h)
 	add("img", c.ImageInput)
 	add("img_o", c.ImageOutput)
+	add("ai", c.AudioInput)
+	add("ao", c.AudioOutput)
 	if perRequest != nil {
 		terms = append(terms, formatFloat(*perRequest*1_000_000))
 	}

@@ -111,6 +111,9 @@ const defaultBillingSettings: BillingSettings = {
     'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json',
   'auto_pricing.hash_url':
     'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.sha256',
+  'auto_pricing.allowed_hosts': ['raw.githubusercontent.com'],
+  'auto_pricing.proxy_url': '',
+  'auto_pricing.allow_direct_on_proxy_failure': false,
   'auto_pricing.check_interval_minutes': 60,
   'auto_pricing.fuzzy_match_enabled': true,
 }

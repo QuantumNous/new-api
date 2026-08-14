@@ -18,20 +18,33 @@ const (
 )
 
 type liteLLMRichEntry struct {
-	Input           *float64 `json:"input_cost_per_token"`
-	Output          *float64 `json:"output_cost_per_token"`
-	CacheRead       *float64 `json:"cache_read_input_token_cost"`
-	CacheWrite5m    *float64 `json:"cache_creation_input_token_cost"`
-	CacheWrite1h    *float64 `json:"cache_creation_input_token_cost_above_1hr"`
-	PriorityInput   *float64 `json:"input_cost_per_token_priority"`
-	PriorityOutput  *float64 `json:"output_cost_per_token_priority"`
-	FlexInput       *float64 `json:"input_cost_per_token_flex"`
-	FlexOutput      *float64 `json:"output_cost_per_token_flex"`
-	ImageInput      *float64 `json:"input_cost_per_image_token"`
-	ImageOutput     *float64 `json:"output_cost_per_image_token"`
-	PerImage        *float64 `json:"output_cost_per_image"`
-	Above200KInput  *float64 `json:"input_cost_per_token_above_200k_tokens"`
-	Above200KOutput *float64 `json:"output_cost_per_token_above_200k_tokens"`
+	Input                *float64 `json:"input_cost_per_token"`
+	Output               *float64 `json:"output_cost_per_token"`
+	CacheRead            *float64 `json:"cache_read_input_token_cost"`
+	CacheWrite5m         *float64 `json:"cache_creation_input_token_cost"`
+	CacheWrite1h         *float64 `json:"cache_creation_input_token_cost_above_1hr"`
+	PriorityInput        *float64 `json:"input_cost_per_token_priority"`
+	PriorityOutput       *float64 `json:"output_cost_per_token_priority"`
+	PriorityCacheRead    *float64 `json:"cache_read_input_token_cost_priority"`
+	PriorityCacheWrite   *float64 `json:"cache_creation_input_token_cost_priority"`
+	FlexInput            *float64 `json:"input_cost_per_token_flex"`
+	FlexOutput           *float64 `json:"output_cost_per_token_flex"`
+	FlexCacheRead        *float64 `json:"cache_read_input_token_cost_flex"`
+	FlexCacheWrite       *float64 `json:"cache_creation_input_token_cost_flex"`
+	ImageInput           *float64 `json:"input_cost_per_image_token"`
+	ImageOutput          *float64 `json:"output_cost_per_image_token"`
+	AudioInput           *float64 `json:"input_cost_per_audio_token"`
+	AudioOutput          *float64 `json:"output_cost_per_audio_token"`
+	PriorityAudioInput   *float64 `json:"input_cost_per_audio_token_priority"`
+	PriorityAudioOutput  *float64 `json:"output_cost_per_audio_token_priority"`
+	FlexAudioInput       *float64 `json:"input_cost_per_audio_token_flex"`
+	FlexAudioOutput      *float64 `json:"output_cost_per_audio_token_flex"`
+	PerImage             *float64 `json:"output_cost_per_image"`
+	LongContextThreshold *int     `json:"long_context_input_token_threshold"`
+	Above200KInput       *float64 `json:"input_cost_per_token_above_200k_tokens"`
+	Above200KOutput      *float64 `json:"output_cost_per_token_above_200k_tokens"`
+	Above200KCacheRead   *float64 `json:"cache_read_input_token_cost_above_200k_tokens"`
+	Above200KCacheWrite  *float64 `json:"cache_creation_input_token_cost_above_200k_tokens"`
 }
 
 func ParseLiteLLMSource(data []byte, version string) (*SourceCatalog, error) {
@@ -63,17 +76,34 @@ func parseLiteLLMWithSource(data []byte, version string, sourceID SourceID) (*So
 		}
 		record := PriceRecord{
 			Model: normalizeKey(name), PrimarySource: sourceID, SourceVersion: version,
-			Standard: CostSet{Input: toMillion(item.Input), Output: toMillion(item.Output), CacheRead: toMillion(item.CacheRead), CacheWrite5m: toMillion(item.CacheWrite5m), CacheWrite1h: toMillion(item.CacheWrite1h), ImageInput: toMillion(item.ImageInput), ImageOutput: toMillion(item.ImageOutput)},
-			Priority: CostSet{Input: toMillion(item.PriorityInput), Output: toMillion(item.PriorityOutput)},
-			Flex:     CostSet{Input: toMillion(item.FlexInput), Output: toMillion(item.FlexOutput)},
+			Standard: CostSet{Input: toMillion(item.Input), Output: toMillion(item.Output), CacheRead: toMillion(item.CacheRead), CacheWrite5m: toMillion(item.CacheWrite5m), CacheWrite1h: toMillion(item.CacheWrite1h), ImageInput: toMillion(item.ImageInput), ImageOutput: toMillion(item.ImageOutput), AudioInput: toMillion(item.AudioInput), AudioOutput: toMillion(item.AudioOutput)},
+			Priority: CostSet{Input: toMillion(item.PriorityInput), Output: toMillion(item.PriorityOutput), CacheRead: toMillion(item.PriorityCacheRead), CacheWrite5m: toMillion(item.PriorityCacheWrite), AudioInput: toMillion(item.PriorityAudioInput), AudioOutput: toMillion(item.PriorityAudioOutput)},
+			Flex:     CostSet{Input: toMillion(item.FlexInput), Output: toMillion(item.FlexOutput), CacheRead: toMillion(item.FlexCacheRead), CacheWrite5m: toMillion(item.FlexCacheWrite), AudioInput: toMillion(item.FlexAudioInput), AudioOutput: toMillion(item.FlexAudioOutput)},
 		}
 		if item.PerImage != nil && validCost(*item.PerImage) {
 			record.PerRequest = pricePtr(*item.PerImage)
 		}
-		if item.Above200KInput != nil || item.Above200KOutput != nil {
+		if item.Above200KInput != nil || item.Above200KOutput != nil || item.Above200KCacheRead != nil || item.Above200KCacheWrite != nil {
+			threshold := 200000
+			if item.LongContextThreshold != nil && *item.LongContextThreshold > 0 {
+				threshold = *item.LongContextThreshold
+			}
+			longCosts := record.Standard
+			if value := toMillion(item.Above200KInput); value != nil {
+				longCosts.Input = value
+			}
+			if value := toMillion(item.Above200KOutput); value != nil {
+				longCosts.Output = value
+			}
+			if value := toMillion(item.Above200KCacheRead); value != nil {
+				longCosts.CacheRead = value
+			}
+			if value := toMillion(item.Above200KCacheWrite); value != nil {
+				longCosts.CacheWrite5m = value
+			}
 			record.Tiers = []PriceTier{
-				{Name: "base", MaxInputTokens: 200000, Costs: record.Standard},
-				{Name: "long_context", Costs: CostSet{Input: toMillion(item.Above200KInput), Output: toMillion(item.Above200KOutput), CacheRead: record.Standard.CacheRead, CacheWrite5m: record.Standard.CacheWrite5m, CacheWrite1h: record.Standard.CacheWrite1h}},
+				{Name: "base", MaxInputTokens: threshold, Costs: record.Standard},
+				{Name: "long_context", Costs: longCosts},
 			}
 		}
 		if record.Standard.Input == nil && record.PerRequest == nil {
@@ -119,7 +149,12 @@ func ParseModelsDevSource(data []byte, version string) (*SourceCatalog, error) {
 	source := newSourceCatalog(SourceModelsDev, version)
 	for model, candidates := range byModel {
 		sort.SliceStable(candidates, func(i, j int) bool {
-			return providerRank(candidates[i].Provider, model) < providerRank(candidates[j].Provider, model)
+			leftRank := providerRank(candidates[i].Provider, model)
+			rightRank := providerRank(candidates[j].Provider, model)
+			if leftRank != rightRank {
+				return leftRank < rightRank
+			}
+			return candidates[i].Provider < candidates[j].Provider
 		})
 		source.Records[model] = candidates[0]
 	}
@@ -131,14 +166,42 @@ func ParseModelsDevSource(data []byte, version string) (*SourceCatalog, error) {
 
 func providerRank(provider, model string) int {
 	p, m := strings.ToLower(provider), strings.ToLower(model)
-	firstParty := (strings.HasPrefix(m, "gpt-") && p == "openai") || (strings.Contains(m, "claude") && p == "anthropic") || (strings.Contains(m, "gemini") && (p == "google" || p == "google-vertex")) || (strings.Contains(m, "grok") && p == "xai")
+	firstParty := (isOpenAIModel(m) && p == "openai") ||
+		(strings.Contains(m, "claude") && p == "anthropic") ||
+		(strings.Contains(m, "gemini") && p == "google") ||
+		(strings.Contains(m, "grok") && p == "xai") ||
+		(isMistralModel(m) && p == "mistral") ||
+		(strings.HasPrefix(m, "command") && p == "cohere") ||
+		(strings.HasPrefix(m, "deepseek") && p == "deepseek") ||
+		(strings.HasPrefix(m, "qwen") && (p == "alibaba" || p == "qwen"))
 	if firstParty {
 		return 0
 	}
-	if map[string]bool{"openrouter": true, "xpersona": true, "togetherai": true, "azure": true, "amazon-bedrock": true}[p] {
-		return 2
+	if map[string]bool{"amazon-bedrock": true, "aws-bedrock": true, "azure": true, "google-vertex": true, "vertex": true}[p] {
+		return 1
 	}
-	return 1
+	if map[string]bool{"deepinfra": true, "fireworks-ai": true, "groq": true, "openrouter": true, "togetherai": true, "xpersona": true}[p] {
+		return 3
+	}
+	return 2
+}
+
+func isOpenAIModel(model string) bool {
+	for _, prefix := range []string{"chatgpt-", "dall-e-", "gpt-", "o1", "o3", "o4", "text-embedding-", "tts-", "whisper-"} {
+		if strings.HasPrefix(model, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func isMistralModel(model string) bool {
+	for _, prefix := range []string{"codestral", "ministral", "mistral", "pixtral"} {
+		if strings.HasPrefix(model, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 type newAPIDocument struct {

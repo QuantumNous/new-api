@@ -333,6 +333,9 @@ export type BillingSettings = {
   'auto_pricing.enabled': boolean
   'auto_pricing.remote_url': string
   'auto_pricing.hash_url': string
+  'auto_pricing.allowed_hosts': string[]
+  'auto_pricing.proxy_url': string
+  'auto_pricing.allow_direct_on_proxy_failure': boolean
   'auto_pricing.check_interval_minutes': number
   'auto_pricing.fuzzy_match_enabled': boolean
 }
@@ -355,6 +358,8 @@ export type AutoPricingStatus = {
   pending_count: number
   takeover_complete: boolean
   sources: AutoPricingSourceStatus[]
+  manual_sources: AutoPricingSourceStatus[]
+  revision: string
 }
 
 export type AutoPricingSourceStatus = {
@@ -363,6 +368,7 @@ export type AutoPricingSourceStatus = {
   version?: string
   error?: string
   updated_at?: string
+  manual_only?: boolean
 }
 
 export type AutoPricingCostSet = {
@@ -373,6 +379,8 @@ export type AutoPricingCostSet = {
   cache_write_1h?: number
   image_input?: number
   image_output?: number
+  audio_input?: number
+  audio_output?: number
 }
 
 export type AutoPricingRecord = {
@@ -399,6 +407,7 @@ export type AutoPricingPendingReview = {
   model: string
   reason: string
   fingerprint: string
+  candidate_version: string
   current?: AutoPricingRecord
   candidate?: AutoPricingRecord
 }
@@ -412,11 +421,12 @@ export type AutoPricingStatusResponse = {
 export type AutoPricingPendingResponse = {
   success: boolean
   message?: string
+  revision: string
   data: AutoPricingPendingReview[]
 }
 
 export type AutoPricingReviewRequest = {
-  fingerprints: string[]
+  models: string[]
   action: 'approve' | 'reject'
 }
 
@@ -426,6 +436,12 @@ export type AutoPricingReviewResponse = {
   data?: {
     status: AutoPricingStatus
     pending: AutoPricingPendingReview[]
+    revision: string
+    results: Array<{
+      model: string
+      fingerprint: string
+      action: 'approve' | 'reject'
+    }>
   }
 }
 

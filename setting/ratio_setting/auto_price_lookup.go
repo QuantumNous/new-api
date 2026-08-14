@@ -102,5 +102,5 @@ func autoPricingEntry(name string) (autopricing.Entry, bool) {
 	if hasManualPricing(name) {
 		return autopricing.Entry{}, false
 	}
-	return autopricing.Resolve(name, setting.FuzzyMatchEnabled)
+	return autopricing.ResolveForRequest(name, setting.FuzzyMatchEnabled)
 }

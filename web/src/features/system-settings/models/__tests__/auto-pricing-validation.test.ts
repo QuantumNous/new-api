@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { autoPricingFormSchema } from '../auto-pricing-form'
+import { autoPricingFormSchema, parseAllowedHosts } from '../auto-pricing-form'
 
 const validValues = {
   enabled: true,
@@ -27,6 +27,9 @@ const validValues = {
     'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json',
   hashUrl:
     'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.sha256',
+  allowedHosts: 'raw.githubusercontent.com',
+  proxyUrl: '',
+  allowDirectOnProxyFailure: false,
   checkIntervalMinutes: 60,
   fuzzyMatchEnabled: true,
 }
@@ -46,10 +49,11 @@ describe('auto pricing settings validation', () => {
     }
   })
 
-  test('rejects catalog URLs that are not http(s) URLs', () => {
+  test('rejects catalog URLs that are not HTTPS URLs', () => {
     for (const remoteUrl of [
       '',
       'not a url',
+      'http://mirror.example.com/catalog.json',
       'ftp://mirror.example.com/catalog.json',
       'file:///etc/passwd',
     ]) {
@@ -63,6 +67,54 @@ describe('auto pricing settings validation', () => {
         `remoteUrl ${JSON.stringify(remoteUrl)} must be rejected`
       )
     }
+  })
+
+  test('normalizes and validates the configured host allowlist', () => {
+    assert.deepEqual(
+      parseAllowedHosts(
+        'RAW.GITHUBUSERCONTENT.COM, mirror.example\nmirror.example'
+      ),
+      ['raw.githubusercontent.com', 'mirror.example']
+    )
+    for (const allowedHosts of [
+      '',
+      'https://mirror.example',
+      'mirror.example:443',
+      'user@mirror.example',
+    ]) {
+      const result = autoPricingFormSchema.safeParse({
+        ...validValues,
+        allowedHosts,
+      })
+      assert.equal(
+        result.success,
+        false,
+        `allowedHosts ${JSON.stringify(allowedHosts)} must be rejected`
+      )
+    }
+  })
+
+  test('accepts supported proxy protocols and rejects unsafe schemes', () => {
+    for (const proxyUrl of [
+      '',
+      'http://proxy.example:8080',
+      'https://proxy.example',
+      'socks5://proxy.example:1080',
+      'socks5h://proxy.example:1080',
+    ]) {
+      assert.equal(
+        autoPricingFormSchema.safeParse({ ...validValues, proxyUrl }).success,
+        true,
+        `proxyUrl ${JSON.stringify(proxyUrl)} must be accepted`
+      )
+    }
+    assert.equal(
+      autoPricingFormSchema.safeParse({
+        ...validValues,
+        proxyUrl: 'file:///etc/passwd',
+      }).success,
+      false
+    )
   })
 
   test('rejects intervals the backend would clamp away', () => {
