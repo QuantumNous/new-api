@@ -373,9 +373,6 @@ onMounted(async () => {
       :dirty="perfDirty"
       @save="savePerf"
     >
-      <p class="mb-4 text-sm font-semibold text-[var(--text-primary)]">
-        {{ t('systemSettings.operations.diskCacheEnabled') }}
-      </p>
       <div class="divide-y divide-[var(--border-subtle)]">
         <SysToggleRow
           v-model="perf['performance_setting.disk_cache_enabled']"
