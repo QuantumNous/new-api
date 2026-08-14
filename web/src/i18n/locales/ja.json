@@ -5269,6 +5269,19 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Failed to review pricing changes": "価格変更のレビューに失敗しました",
+    "Pricing review saved": "価格レビューを保存しました",
+    "{{pendingCount}} pending reviews / takeover {{state}}": "レビュー待ち {{pendingCount}} 件 / 引き継ぎ {{state}}",
+    "complete": "完了",
+    "not complete": "未完了",
+    "No version reported": "バージョン情報なし",
+    "Pending pricing reviews": "レビュー待ちの価格変更",
+    "{{count}} changes require review": "{{count}} 件の変更にレビューが必要です",
+    "Reject selected": "選択項目を却下",
+    "Approve selected": "選択項目を承認",
+    "Select {{model}}": "{{model}} を選択",
+    "Candidate price": "候補価格",
+    "Field sources": "フィールドの出典"
   }
 }

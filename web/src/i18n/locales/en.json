@@ -5269,6 +5269,19 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Failed to review pricing changes": "Failed to review pricing changes",
+    "Pricing review saved": "Pricing review saved",
+    "{{pendingCount}} pending reviews / takeover {{state}}": "{{pendingCount}} pending reviews / takeover {{state}}",
+    "complete": "complete",
+    "not complete": "not complete",
+    "No version reported": "No version reported",
+    "Pending pricing reviews": "Pending pricing reviews",
+    "{{count}} changes require review": "{{count}} changes require review",
+    "Reject selected": "Reject selected",
+    "Approve selected": "Approve selected",
+    "Select {{model}}": "Select {{model}}",
+    "Candidate price": "Candidate price",
+    "Field sources": "Field sources"
   }
 }

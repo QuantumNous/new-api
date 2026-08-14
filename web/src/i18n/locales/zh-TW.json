@@ -5269,6 +5269,19 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Failed to review pricing changes": "審核價格變更失敗",
+    "Pricing review saved": "價格審核已儲存",
+    "{{pendingCount}} pending reviews / takeover {{state}}": "{{pendingCount}} 項待審核 / 接管狀態：{{state}}",
+    "complete": "已完成",
+    "not complete": "未完成",
+    "No version reported": "未回報版本",
+    "Pending pricing reviews": "待審核價格變更",
+    "{{count}} changes require review": "{{count}} 項變更需要審核",
+    "Reject selected": "拒絕所選項目",
+    "Approve selected": "核准所選項目",
+    "Select {{model}}": "選擇 {{model}}",
+    "Candidate price": "候選價格",
+    "Field sources": "欄位來源"
   }
 }

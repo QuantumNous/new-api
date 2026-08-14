@@ -5269,6 +5269,19 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Failed to review pricing changes": "Échec de la validation des changements tarifaires",
+    "Pricing review saved": "Validation tarifaire enregistrée",
+    "{{pendingCount}} pending reviews / takeover {{state}}": "{{pendingCount}} validations en attente / reprise {{state}}",
+    "complete": "terminée",
+    "not complete": "incomplète",
+    "No version reported": "Aucune version indiquée",
+    "Pending pricing reviews": "Validations tarifaires en attente",
+    "{{count}} changes require review": "{{count}} changements nécessitent une validation",
+    "Reject selected": "Rejeter la sélection",
+    "Approve selected": "Approuver la sélection",
+    "Select {{model}}": "Sélectionner {{model}}",
+    "Candidate price": "Tarif proposé",
+    "Field sources": "Sources des champs"
   }
 }

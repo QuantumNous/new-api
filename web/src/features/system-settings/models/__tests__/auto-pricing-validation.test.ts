@@ -24,8 +24,9 @@ import { autoPricingFormSchema } from '../auto-pricing-form'
 const validValues = {
   enabled: true,
   remoteUrl:
-    'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json',
-  hashUrl: '',
+    'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json',
+  hashUrl:
+    'https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.sha256',
   checkIntervalMinutes: 60,
   fuzzyMatchEnabled: true,
 }
