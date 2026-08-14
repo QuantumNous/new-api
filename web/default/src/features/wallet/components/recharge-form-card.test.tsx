@@ -75,6 +75,7 @@ describe('RechargeFormCard', () => {
       resources: {
         en: {
           translation: {
+            'Top up balance': 'Top up balance',
             'Top up {{amount}}': 'Top up {{amount}}',
           },
         },
@@ -99,7 +100,7 @@ describe('RechargeFormCard', () => {
       />
     )
 
-    expect(html).toContain('Choose an amount')
+    expect(html).not.toContain('Choose an amount')
     expect(html).toContain('$10')
     expect(html).toContain('$20')
     expect(html).toContain('$200')
@@ -111,6 +112,21 @@ describe('RechargeFormCard', () => {
     expect(html).not.toContain('free')
     expect(html).not.toContain('discount')
     expect(html).not.toContain('Enterprise')
+  })
+
+  test('uses a generic top-up fallback when no amount is selected', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={topupInfoWithStripe}
+        presetAmounts={[{ value: 10 }, { value: 20 }]}
+        selectedPreset={999}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+      />
+    )
+
+    expect(html).toContain('Top up balance')
+    expect(html).not.toContain('Choose an amount')
   })
 
   test('renders only amounts supplied by backend presets', () => {
