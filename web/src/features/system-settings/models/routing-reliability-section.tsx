@@ -83,6 +83,8 @@ const createRoutingReliabilitySchema = (
       AutomaticDisableKeywords: z.string(),
       AutomaticDisableStatusCodes: z.string(),
       AutomaticRetryStatusCodes: z.string(),
+      EmptyResponseRetryEnabled: z.boolean(),
+      ResponseBlacklistKeywords: z.string(),
       monitor_setting: z.object({
         auto_test_channel_enabled: z.boolean(),
         auto_test_channel_minutes: z.coerce
@@ -143,6 +145,8 @@ type RoutingReliabilitySectionProps = {
     AutomaticDisableKeywords: string
     AutomaticDisableStatusCodes: string
     AutomaticRetryStatusCodes: string
+    EmptyResponseRetryEnabled: boolean
+    ResponseBlacklistKeywords: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
     'monitor_setting.channel_test_concurrency': number
@@ -162,6 +166,8 @@ type NormalizedRoutingReliabilityValues = {
   AutomaticDisableKeywords: string
   AutomaticDisableStatusCodes: string
   AutomaticRetryStatusCodes: string
+  EmptyResponseRetryEnabled: boolean
+  ResponseBlacklistKeywords: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_concurrency': number
@@ -187,6 +193,10 @@ const buildFormDefaults = (
   ),
   AutomaticDisableStatusCodes: defaults.AutomaticDisableStatusCodes ?? '',
   AutomaticRetryStatusCodes: defaults.AutomaticRetryStatusCodes ?? '',
+  EmptyResponseRetryEnabled: defaults.EmptyResponseRetryEnabled,
+  ResponseBlacklistKeywords: normalizeLineEndings(
+    defaults.ResponseBlacklistKeywords ?? ''
+  ),
   monitor_setting: {
     auto_test_channel_enabled:
       defaults['monitor_setting.auto_test_channel_enabled'],
@@ -216,6 +226,10 @@ const normalizeDefaults = (
   AutomaticRetryStatusCodes: parseHttpStatusCodeRules(
     defaults.AutomaticRetryStatusCodes ?? ''
   ).normalized,
+  EmptyResponseRetryEnabled: defaults.EmptyResponseRetryEnabled,
+  ResponseBlacklistKeywords: normalizeLineEndings(
+    defaults.ResponseBlacklistKeywords ?? ''
+  ),
   'monitor_setting.auto_test_channel_enabled':
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
@@ -243,6 +257,10 @@ const normalizeFormValues = (
   AutomaticRetryStatusCodes: parseHttpStatusCodeRules(
     values.AutomaticRetryStatusCodes
   ).normalized,
+  EmptyResponseRetryEnabled: values.EmptyResponseRetryEnabled,
+  ResponseBlacklistKeywords: normalizeLineEndings(
+    values.ResponseBlacklistKeywords
+  ),
   'monitor_setting.auto_test_channel_enabled':
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
@@ -389,6 +407,64 @@ export function RoutingReliabilitySection({
                             {t('Normalized:')} {autoRetryParsed.normalized}
                           </span>
                         )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className='flex min-w-0 flex-col gap-4'>
+            <div className='flex flex-col gap-1'>
+              <h4 className='text-sm font-medium'>
+                {t('Response validation')}
+              </h4>
+            </div>
+            <div className='grid min-w-0 gap-6 xl:grid-cols-[minmax(12rem,24rem)_minmax(0,1fr)]'>
+              <FormField
+                control={form.control}
+                name='EmptyResponseRetryEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Retry empty responses')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Treat responses without content or tool calls (including reasoning-only output) as failures and retry on another channel.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='ResponseBlacklistKeywords'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Response blacklist keywords')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={6}
+                        placeholder={t('one keyword per line')}
+                        {...field}
+                        onChange={(event) => field.onChange(event.target.value)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'If the model output contains any of these keywords (case insensitive), the response is treated as failed and retried on another channel. Useful when a provider returns HTTP 200 with an error message as model output.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

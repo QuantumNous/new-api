@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -33,6 +34,12 @@ func OaiChatToResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	}
 	if oaiError := chatResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+
+	// Validate model output before anything is written to the client: retry
+	// empty/thinking-only responses and outputs matching the blacklist.
+	if apiErr := validateChatTextOutput(c, &chatResp); apiErr != nil {
+		return nil, apiErr
 	}
 
 	if responseID := helper.GetResponseID(c); responseID != "" {
@@ -77,6 +84,9 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 	streamErr := (*types.NewAPIError)(nil)
+	var hasContent bool
+	var toolCount int
+	var validationText strings.Builder
 
 	sendEvent := func(event relayconvert.ChatToResponsesStreamEvent) bool {
 		data, err := common.Marshal(event.Payload)
@@ -110,6 +120,18 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			return
 		}
 
+		for _, choice := range chunk.Choices {
+			content := choice.Delta.GetContentString()
+			if strings.TrimSpace(content) != "" {
+				hasContent = true
+			}
+			validationText.WriteString(content)
+			validationText.WriteString(choice.Delta.GetReasoningContent())
+			if len(choice.Delta.ToolCalls) > 0 {
+				toolCount = len(choice.Delta.ToolCalls)
+			}
+		}
+
 		results, err := relayconvert.ConvertStreamResponseChunk(c, info, state, &chunk)
 		if err != nil {
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -132,6 +154,20 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	if streamErr != nil {
 		return nil, streamErr
+	}
+
+	// Validate model output while nothing has been written to the client
+	// yet: retry empty/thinking-only responses and outputs matching the
+	// blacklist. Once events have been forwarded, the response cannot be
+	// replayed on another channel.
+	if helper.ResponseValidationActive() {
+		if apiErr := helper.CheckModelOutput(c, validationText.String(), hasContent || toolCount > 0); apiErr != nil {
+			if helper.StreamResponseRetryAvailable(c) {
+				helper.ResetEventStreamHeaders(c)
+				return nil, apiErr
+			}
+			logger.LogError(c, fmt.Sprintf("invalid upstream response detected, but stream data was already sent, skip retry: %s", apiErr.Error()))
+		}
 	}
 
 	usage := state.Usage()

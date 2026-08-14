@@ -17,6 +17,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// inspectResponsesOutput reports whether the Responses output items carry
+// usable output (non-empty message content or any tool call item) and
+// accumulates the output text for validation. Reasoning-only output counts as
+// empty.
+func inspectResponsesOutput(output []dto.ResponsesOutput) (string, bool) {
+	var text strings.Builder
+	hasOutput := false
+	for i := range output {
+		item := &output[i]
+		switch item.Type {
+		case "message":
+			for _, content := range item.Content {
+				text.WriteString(content.Text)
+				if strings.TrimSpace(content.Text) != "" {
+					hasOutput = true
+				}
+			}
+		case "reasoning":
+			// reasoning-only output is treated as empty
+		default:
+			// function calls, web search, image generation, etc. are usable
+			// output; unknown item types are conservatively treated as usable
+			hasOutput = true
+		}
+	}
+	return text.String(), hasOutput
+}
+
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -32,6 +60,15 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+
+	// Validate model output before anything is written to the client: retry
+	// empty/thinking-only responses and outputs matching the blacklist.
+	if helper.ResponseValidationActive() {
+		text, hasOutput := inspectResponsesOutput(responsesResponse.Output)
+		if apiErr := helper.CheckModelOutput(c, text, hasOutput); apiErr != nil {
+			return nil, apiErr
+		}
 	}
 
 	// 写入新的 response body
@@ -82,6 +119,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	var hasText bool
+	var hasOutputItem bool
 	imageCounter := &relaycommon.ImageGenerationCallCounter{}
 	imageCommitted := false
 
@@ -98,6 +137,13 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		switch streamResponse.Type {
 		case "response.completed", "response.done":
 			if streamResponse.Response != nil {
+				completedText, hasCompletedOutput := inspectResponsesOutput(streamResponse.Response.Output)
+				if hasCompletedOutput {
+					hasOutputItem = true
+				}
+				if completedText != "" && !hasText {
+					responseTextBuilder.WriteString(completedText)
+				}
 				if streamResponse.Response.Usage != nil {
 					if streamResponse.Response.Usage.InputTokens != 0 {
 						usage.PromptTokens = streamResponse.Response.Usage.InputTokens
@@ -140,8 +186,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		case "response.output_text.delta":
 			// 处理输出文本
 			responseTextBuilder.WriteString(streamResponse.Delta)
+			if strings.TrimSpace(streamResponse.Delta) != "" {
+				hasText = true
+			}
 		case dto.ResponsesOutputTypeItemDone:
 			if streamResponse.Item != nil {
+				if streamResponse.Item.Type != "message" && streamResponse.Item.Type != "reasoning" {
+					hasOutputItem = true
+				}
 				switch streamResponse.Item.Type {
 				case dto.BuildInCallWebSearchCall:
 					info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
@@ -157,6 +209,20 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+
+	// Validate model output while no response bytes have been written to the
+	// client: retry empty/thinking-only responses and
+	// outputs matching the blacklist. Once stream data has been forwarded, the
+	// response cannot be replayed on another channel.
+	if helper.ResponseValidationActive() {
+		if apiErr := helper.CheckModelOutput(c, responseTextBuilder.String(), hasText || hasOutputItem); apiErr != nil {
+			if helper.StreamResponseRetryAvailable(c) {
+				helper.ResetEventStreamHeaders(c)
+				return nil, apiErr
+			}
+			logger.LogError(c, fmt.Sprintf("invalid upstream response detected, but stream data was already sent, skip retry: %s", apiErr.Error()))
+		}
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量

@@ -41,6 +41,15 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	// Validate model output before anything is written to the client: retry
+	// empty/thinking-only responses and outputs matching the blacklist.
+	if helper.ResponseValidationActive() {
+		text, hasOutput := inspectResponsesOutput(responsesResp.Output)
+		if apiErr := helper.CheckModelOutput(c, text, hasOutput); apiErr != nil {
+			return nil, apiErr
+		}
+	}
+
 	chatResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatOpenAI, &responsesResp)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -150,6 +159,16 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	}
 	accumulator.SupplementResponseOutput(finalResponse)
 
+	// The upstream stream was fully buffered before anything reached the
+	// client, so an empty/blacklisted response can still be retried on
+	// another channel.
+	if helper.ResponseValidationActive() {
+		text, hasOutput := inspectResponsesOutput(finalResponse.Output)
+		if apiErr := helper.CheckModelOutput(c, text, hasOutput); apiErr != nil {
+			return nil, apiErr
+		}
+	}
+
 	chatResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatOpenAI, finalResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -203,6 +222,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 	streamErr := (*types.NewAPIError)(nil)
+	var hasText bool
+	var hasOutputItem bool
+	var validationText strings.Builder
 
 	if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo == nil {
 		info.ClaudeConvertInfo = &relaycommon.ClaudeConvertInfo{LastMessagesType: relaycommon.LastMessageTypeNone}
@@ -293,6 +315,28 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			return
 		}
 
+		switch streamResp.Type {
+		case "response.output_text.delta":
+			validationText.WriteString(streamResp.Delta)
+			if strings.TrimSpace(streamResp.Delta) != "" {
+				hasText = true
+			}
+		case dto.ResponsesOutputTypeItemDone:
+			if streamResp.Item != nil && streamResp.Item.Type != "message" && streamResp.Item.Type != "reasoning" {
+				hasOutputItem = true
+			}
+		case "response.completed", "response.done":
+			if streamResp.Response != nil {
+				completedText, hasCompletedOutput := inspectResponsesOutput(streamResp.Response.Output)
+				if hasCompletedOutput {
+					hasOutputItem = true
+				}
+				if completedText != "" && !hasText {
+					validationText.WriteString(completedText)
+				}
+			}
+		}
+
 		results, err := relayconvert.ConvertStreamResponseChunk(c, info, state, &streamResp)
 		if err != nil {
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -309,6 +353,20 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	if streamErr != nil {
 		return nil, streamErr
+	}
+
+	// Validate model output while no upstream event reached the client yet:
+	// retry empty/thinking-only responses and outputs matching the blacklist.
+	// Once events have been forwarded, the response cannot be replayed on
+	// another channel.
+	if helper.ResponseValidationActive() {
+		if apiErr := helper.CheckModelOutput(c, validationText.String(), hasText || hasOutputItem); apiErr != nil {
+			if helper.StreamResponseRetryAvailable(c) {
+				helper.ResetEventStreamHeaders(c)
+				return nil, apiErr
+			}
+			logger.LogError(c, fmt.Sprintf("invalid upstream response detected, but stream data was already sent, skip retry: %s", apiErr.Error()))
+		}
 	}
 
 	usage := state.Usage()

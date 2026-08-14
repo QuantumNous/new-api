@@ -44,7 +44,7 @@ func requestContextDone(c *gin.Context) bool {
 
 func SetEventStreamHeaders(c *gin.Context) {
 	// 检查是否已经设置过头部
-	if _, exists := c.Get("event_stream_headers_set"); exists {
+	if c.GetBool("event_stream_headers_set") {
 		return
 	}
 
@@ -56,6 +56,34 @@ func SetEventStreamHeaders(c *gin.Context) {
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("Transfer-Encoding", "chunked")
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
+}
+
+// StreamResponseRetryAvailable reports whether an invalid buffered stream can
+// still be replaced by a retry or a terminal JSON error. Keep-alive pings also
+// commit the response, so tracking model events alone is not sufficient.
+func StreamResponseRetryAvailable(c *gin.Context) bool {
+	if c == nil || c.Writer == nil || c.Request == nil {
+		return false
+	}
+	return c.Request.Context().Err() == nil && !c.Writer.Written()
+}
+
+// ResetEventStreamHeaders clears the SSE headers prepared by
+// SetEventStreamHeaders when no response bytes have been written.
+func ResetEventStreamHeaders(c *gin.Context) {
+	if c == nil || c.Writer == nil || c.Writer.Written() {
+		return
+	}
+	c.Set("event_stream_headers_set", false)
+	for _, header := range []string{
+		"Content-Type",
+		"Cache-Control",
+		"Connection",
+		"Transfer-Encoding",
+		"X-Accel-Buffering",
+	} {
+		c.Writer.Header().Del(header)
+	}
 }
 
 func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {

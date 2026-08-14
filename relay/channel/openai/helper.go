@@ -107,22 +107,40 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 	return nil
 }
 
-func processTokenData(relayMode int, data string, responseTextBuilder *strings.Builder, toolCount *int) error {
+// processTokenData accumulates response text and tool call count from a
+// stream chunk, and reports whether the chunk carries non-empty content
+// (reasoning-only chunks do not count as content).
+func processTokenData(relayMode int, data string, responseTextBuilder *strings.Builder, toolCount *int) (bool, error) {
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			return err
+			return false, err
 		}
-		return ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount)
+		hasContent := false
+		for _, choice := range streamResponse.Choices {
+			if strings.TrimSpace(choice.Delta.GetContentString()) != "" {
+				hasContent = true
+				break
+			}
+		}
+		return hasContent, ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount)
 	case relayconstant.RelayModeCompletions:
 		var streamResponse dto.CompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			return err
+			return false, err
+		}
+		hasContent := false
+		for _, choice := range streamResponse.Choices {
+			if strings.TrimSpace(choice.Text) != "" {
+				hasContent = true
+				break
+			}
 		}
 		processCompletionsStreamResponse(streamResponse, responseTextBuilder)
+		return hasContent, nil
 	}
-	return nil
+	return false, nil
 }
 
 func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamResponse, responseTextBuilder *strings.Builder) {
