@@ -64,6 +64,7 @@ describe("website documentation links", () => {
     expect(html.indexOf(">Documentation<")).toBeLessThan(
       html.indexOf(">Terms of Service<"),
     );
+    expect(html).toContain('href="https://discord.gg/Xnm8Cc7JRD"');
   });
 
   test("hides header and footer entries when the setting is unavailable", () => {

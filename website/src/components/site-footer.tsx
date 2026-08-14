@@ -234,7 +234,7 @@ export function SiteFooter(props: SiteFooterProps) {
     { href: "https://x.com/flatkey101", label: "X @flatkey101", external: true },
     { href: "mailto:support@flatkey.ai", label: "support@flatkey.ai" },
     { href: "https://www.linkedin.com/company/flatkey/", label: "LinkedIn", external: true },
-    { href: "https://discord.gg/VrbZFDXj5g", label: "Discord", external: true },
+    { href: "https://discord.gg/Xnm8Cc7JRD", label: "Discord", external: true },
   ];
 
   return (
