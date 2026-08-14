@@ -1,0 +1,140 @@
+name: Publish fork image to GHCR
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-image-main
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: laplaceorange/new-api
+
+jobs:
+  prepare:
+    name: Resolve main revision
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.version.outputs.sha }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+
+      - name: Resolve build version
+        id: version
+        shell: bash
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "sha=${SHA}" >> "${GITHUB_OUTPUT}"
+          echo "version=main-${SHA::12}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build and push (${{ matrix.arch }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Write build version
+        shell: bash
+        run: echo "${{ needs.prepare.outputs.version }}" > VERSION
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ needs.prepare.outputs.sha }}-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+          cache-from: type=gha,scope=fork-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=fork-${{ matrix.arch }}
+          provenance: mode=max
+          sbom: true
+
+  manifest:
+    name: Publish multi-arch manifest
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Create and push manifests
+        shell: bash
+        run: |
+          docker buildx imagetools create \
+            -t "${REGISTRY}/${IMAGE_NAME}:main" \
+            -t "${REGISTRY}/${IMAGE_NAME}:latest" \
+            -t "${REGISTRY}/${IMAGE_NAME}:sha-${{ needs.prepare.outputs.sha }}" \
+            "${REGISTRY}/${IMAGE_NAME}:sha-${{ needs.prepare.outputs.sha }}-amd64" \
+            "${REGISTRY}/${IMAGE_NAME}:sha-${{ needs.prepare.outputs.sha }}-arm64"
+
+      - name: Record published image
+        shell: bash
+        run: |
+          docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:sha-${{ needs.prepare.outputs.sha }}" \
+            | tee manifest.txt
+          {
+            echo '### Published image'
+            echo '```text'
+            cat manifest.txt
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
