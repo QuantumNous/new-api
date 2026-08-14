@@ -264,12 +264,12 @@ const PT_CHINESE_AI_MODELS_API: SkagLandingConfig = {
       body: "Mantenha o SDK da OpenAI que sua equipe já usa. Altere base_url, api_key e model id — sem reescrever a integração para cada fornecedor.",
     },
     {
-      title: "Comece do Brasil com menos atrito",
-      body: "Tenha acesso internacional simplificado aos modelos chineses sem gerenciar diretamente telefone chinês, recargas em RMB ou vários consoles de fornecedor.",
+      title: "Acesso fácil aos modelos chineses de IA",
+      body: "Use DeepSeek, Qwen, GLM e Kimi por uma única API compatível com OpenAI, sem precisar gerenciar várias integrações.",
     },
     {
-      title: "Texto, código, raciocínio e vídeo",
-      body: "Teste modelos de texto e raciocínio no mesmo catálogo. Os modelos de vídeo, como Seedance, seguem disponibilidade, formato e cobrança próprios.",
+      title: "Modelos de classe mundial para texto, código, raciocínio e vídeo",
+      body: "Acesse modelos de classe mundial em um único catálogo para criar, programar, raciocinar e gerar vídeos, escolhendo o modelo certo para cada tarefa.",
     },
   ],
   faq: [

@@ -95,6 +95,8 @@ describe("SKAG landing configuration", () => {
     expect(config.pricingColumns).toEqual({ platform: "Flatkey", reference: "Referência" });
     expect(config.trustLine).toContain("Uma conta");
     expect(config.exampleModel).toBe("deepseek-v4-flash");
+    expect(config.features.map((feature) => feature.title)).toContain("Acesso fácil aos modelos chineses de IA");
+    expect(config.features.map((feature) => feature.title)).toContain("Modelos de classe mundial para texto, código, raciocínio e vídeo");
   });
 
   test("Portuguese metadata shares the landing's English and Portuguese alternates", () => {
