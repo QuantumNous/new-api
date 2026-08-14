@@ -58,8 +58,7 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	if err := validateCreditedQuota(getStripeCreditedQuota(req.Amount, group)); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+	if rejectInvalidCreditedQuota(c, id, getStripeCreditedQuota(req.Amount, group)) {
 		return
 	}
 	payMoney := getStripePayMoney(float64(req.Amount), group)
@@ -95,12 +94,15 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	}
 
 	id := c.GetInt("id")
-	user, _ := model.GetUserById(id, false)
+	user, err := model.GetUserById(id, false)
+	if err != nil || user == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "用户不存在"})
+		return
+	}
 	chargedMoney := GetChargedAmount(float64(req.Amount), *user)
-	if err := validateCreditedQuota(
+	if rejectInvalidCreditedQuota(c, id,
 		decimal.NewFromFloat(chargedMoney).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
-	); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+	) {
 		return
 	}
 

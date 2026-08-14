@@ -97,13 +97,17 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "产品不存在"})
 		return
 	}
-	if err := validateCreditedQuota(decimal.NewFromInt(selectedProduct.Quota)); err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+
+	id := c.GetInt("id")
+	if rejectInvalidCreditedQuota(c, id, decimal.NewFromInt(selectedProduct.Quota)) {
 		return
 	}
 
-	id := c.GetInt("id")
-	user, _ := model.GetUserById(id, false)
+	user, err := model.GetUserById(id, false)
+	if err != nil || user == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "用户不存在"})
+		return
+	}
 
 	// 生成唯一的订单引用ID
 	reference := fmt.Sprintf("creem-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
