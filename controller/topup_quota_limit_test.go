@@ -136,4 +136,7 @@ func TestStripeCreditedQuotaIncludesGroupRatio(t *testing.T) {
 
 	require.NoError(t, validateCreditedQuota(getStripeCreditedQuota(2147, "vip")))
 	require.Error(t, validateCreditedQuota(getStripeCreditedQuota(2148, "vip")))
+
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"free":0}`))
+	assert.True(t, decimal.NewFromInt(500000).Equal(getStripeCreditedQuota(1, "free")))
 }
