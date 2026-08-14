@@ -171,6 +171,27 @@ func TestUnknownModelStaysUnpricedWithCatalogLoaded(t *testing.T) {
 	ratio, ok, _ := GetModelRatio("model-nobody-has-heard-of")
 	assert.False(t, ok)
 	assert.Equal(t, 0.0, ratio)
+
+	value, usePrice, exists := GetModelRatioOrPrice("model-nobody-has-heard-of")
+	assert.False(t, exists)
+	assert.False(t, usePrice)
+	assert.Equal(t, 0.0, value)
+}
+
+func TestConfiguredCompactWildcardWinsOverCatalog(t *testing.T) {
+	InitRatioSettings()
+	useTestCatalog(t, `{"vendor/model-openai-compact": {"input_cost_per_token": 0.000004, "output_cost_per_token": 0.00002}}`, enabledAutoPricing())
+
+	previousRatios := configuredModelRatioMap.ReadAll()
+	configuredModelRatioMap.Set(CompactWildcardModelKey, 3.25)
+	t.Cleanup(func() {
+		configuredModelRatioMap.Clear()
+		configuredModelRatioMap.AddAll(previousRatios)
+	})
+
+	ratio, ok, _ := GetModelRatio("vendor/model-openai-compact")
+	require.True(t, ok)
+	assert.Equal(t, 3.25, ratio)
 }
 
 func TestCatalogTakesOverBuiltInDefaults(t *testing.T) {

@@ -394,6 +394,11 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	if price, ok := configuredModelPriceMap.Get(name); ok {
 		return price, true
 	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if price, ok := configuredModelPriceMap.Get(CompactWildcardModelKey); ok {
+			return price, true
+		}
+	}
 	if price, ok := modelPriceMap.Get(name); ok {
 		if _, builtIn := defaultModelPrice[name]; !builtIn {
 			return price, true
@@ -440,12 +445,24 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 
 func GetModelRatio(name string) (float64, bool, string) {
 	name = FormatMatchingModelName(name)
-	if _, manual := configuredModelRatioMap.Get(name); !manual {
-		if _, fixed := configuredModelPriceMap.Get(name); !fixed {
-			if entry, autoOK := autoPricingEntry(name); autoOK {
-				return entry.ModelRatio, true, name
-			}
+	if ratio, manual := configuredModelRatioMap.Get(name); manual {
+		return ratio, true, name
+	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if ratio, manual := configuredModelRatioMap.Get(CompactWildcardModelKey); manual {
+			return ratio, true, name
 		}
+	}
+	if _, fixed := configuredModelPriceMap.Get(name); fixed {
+		return 0, false, name
+	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if _, fixed := configuredModelPriceMap.Get(CompactWildcardModelKey); fixed {
+			return 0, false, name
+		}
+	}
+	if entry, autoOK := autoPricingEntry(name); autoOK {
+		return entry.ModelRatio, true, name
 	}
 
 	ratio, ok := modelRatioMap.Get(name)
@@ -809,5 +826,5 @@ func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or rati
 	if success {
 		return modelRatio, false, true
 	}
-	return 37.5, false, false
+	return 0, false, false
 }

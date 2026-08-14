@@ -18,6 +18,14 @@ func hasManualPricing(name string) bool {
 	if _, ok := configuredModelPriceMap.Get(name); ok {
 		return true
 	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if _, ok := configuredModelRatioMap.Get(CompactWildcardModelKey); ok {
+			return true
+		}
+		if _, ok := configuredModelPriceMap.Get(CompactWildcardModelKey); ok {
+			return true
+		}
+	}
 	// Tests and internal callers may set the live map directly. Treat entries
 	// absent from the shipped defaults as explicit configuration as well.
 	if _, ok := modelRatioMap.Get(name); ok {
@@ -28,6 +36,18 @@ func hasManualPricing(name string) bool {
 	if _, ok := modelPriceMap.Get(name); ok {
 		if _, builtIn := defaultModelPrice[name]; !builtIn {
 			return true
+		}
+	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if _, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
+			if _, builtIn := defaultModelRatio[CompactWildcardModelKey]; !builtIn {
+				return true
+			}
+		}
+		if _, ok := modelPriceMap.Get(CompactWildcardModelKey); ok {
+			if _, builtIn := defaultModelPrice[CompactWildcardModelKey]; !builtIn {
+				return true
+			}
 		}
 	}
 	return false
