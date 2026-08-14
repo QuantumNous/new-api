@@ -3184,6 +3184,8 @@
     "Pass request body directly to upstream": "Passe o corpo da solicitação diretamente para o upstream",
     "Pass specified request headers to upstream": "Passar cabeçalhos de solicitação especificados para upstream",
     "Pass Through Body": "Passe pelo corpo",
+    "Return Source URL": "Retornar URL de origem",
+    "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)": "Retorna diretamente a URL do vídeo do upstream sem arquivar; expõe o host do upstream e sua expiração (somente TechMobi)",
     "Pass Through Headers": "Passar pelos cabeçalhos",
     "Pass through the anthropic-beta header for beta features": "Passe pelo cabeçalho anthropic-beta para recursos beta",
     "Pass through the include field for usage obfuscation": "Passe pelo campo include para ofuscação de uso",

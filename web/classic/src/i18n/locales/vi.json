@@ -3864,6 +3864,8 @@
     "选择预设模板（可选）": "Chọn mẫu đặt trước (tùy chọn)",
     "选项": "Tùy chọn",
     "透传请求体": "Truyền qua thân yêu cầu",
+    "直接返回上游视频链接": "Trả về trực tiếp URL video thượng nguồn",
+    "开启后成功任务直接返回上游原始视频 URL，不再转存 GCS；会暴露上游主机名，链接有效期由上游决定": "Khi bật, các tác vụ thành công trả về trực tiếp URL video gốc từ thượng nguồn mà không lưu vào GCS; sẽ lộ máy chủ thượng nguồn và thời hạn liên kết do thượng nguồn quyết định",
     "透传请求头": "Pass through request header",
     "递归": "Đệ quy",
     "递归策略": "Chiến lược đệ quy",

@@ -3397,6 +3397,8 @@
     "选择部署位置（可多选）": "Select deployment location(s) (multiple selections allowed)",
     "选择预设模板（可选）": "Sélectionner un modèle prédéfini (optionnel)",
     "透传请求体": "Corps de transmission",
+    "直接返回上游视频链接": "Renvoyer directement l'URL vidéo amont",
+    "开启后成功任务直接返回上游原始视频 URL，不再转存 GCS；会暴露上游主机名，链接有效期由上游决定": "Une fois activé, les tâches réussies renvoient directement l'URL vidéo d'origine de l'amont sans archivage GCS ; expose l'hôte amont et la validité du lien dépend de l'amont",
     "透传请求头": "Pass through request header",
     "递归": "Récursif",
     "递归策略": "Stratégie récursive",

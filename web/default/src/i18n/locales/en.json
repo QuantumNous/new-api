@@ -3184,6 +3184,8 @@
     "Pass request body directly to upstream": "Pass request body directly to upstream",
     "Pass specified request headers to upstream": "Pass specified request headers to upstream",
     "Pass Through Body": "Pass Through Body",
+    "Return Source URL": "Return Source URL",
+    "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)": "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)",
     "Pass Through Headers": "Pass Through Headers",
     "Pass through the anthropic-beta header for beta features": "Pass through the anthropic-beta header for beta features",
     "Pass through the include field for usage obfuscation": "Pass through the include field for usage obfuscation",

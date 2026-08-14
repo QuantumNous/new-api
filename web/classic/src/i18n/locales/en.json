@@ -3419,6 +3419,8 @@
     "选择预设...": "Select preset...",
     "选择预设模板（可选）": "Select Preset Template (optional)",
     "透传请求体": "Pass through body",
+    "直接返回上游视频链接": "Return upstream video URL directly",
+    "开启后成功任务直接返回上游原始视频 URL，不再转存 GCS；会暴露上游主机名，链接有效期由上游决定": "When enabled, successful tasks return the upstream original video URL without archiving to GCS; exposes the upstream host and the link expiry is controlled by the upstream",
     "透传请求头": "Pass through request header",
     "递归": "Recursive",
     "递归策略": "Recursion Strategy",

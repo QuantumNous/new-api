@@ -3184,6 +3184,8 @@
     "Pass request body directly to upstream": "将请求体直接传递给上游",
     "Pass specified request headers to upstream": "把指定请求头透传到上游请求",
     "Pass Through Body": "透传请求体",
+    "Return Source URL": "直接返回上游链接",
+    "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)": "开启后成功任务直接返回上游原始视频 URL，不再转存；会暴露上游主机名，链接有效期由上游决定（仅 TechMobi 渠道生效）",
     "Pass Through Headers": "请求头透传",
     "Pass through the anthropic-beta header for beta features": "透传 anthropic-beta 头部以使用 beta 功能",
     "Pass through the include field for usage obfuscation": "透传 include 字段以用于用量混淆",

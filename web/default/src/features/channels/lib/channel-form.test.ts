@@ -341,3 +341,59 @@ describe('BlockRun payment chain form mapping', () => {
     )
   })
 })
+
+describe('TechMobi return_source_url channel setting', () => {
+  test('restores the switch from channel setting JSON when editing', () => {
+    const defaults = transformChannelToFormDefaults({
+      ...baseChannel,
+      type: 105,
+      setting: JSON.stringify({ return_source_url: true }),
+    })
+
+    expect(defaults.return_source_url).toBe(true)
+  })
+
+  test('defaults to false when setting JSON omits the key', () => {
+    const defaults = transformChannelToFormDefaults({
+      ...baseChannel,
+      type: 105,
+      setting: JSON.stringify({ proxy: '' }),
+    })
+
+    expect(defaults.return_source_url).toBe(false)
+  })
+
+  test('serializes the switch for TechMobi payloads', () => {
+    const payload = transformFormDataToUpdatePayload(
+      {
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        name: 'techmobi',
+        type: 105,
+        models: 'seedance',
+        return_source_url: true,
+      },
+      106
+    )
+
+    expect(JSON.parse(payload.setting || '{}')).toMatchObject({
+      return_source_url: true,
+    })
+  })
+
+  test('forces the switch to false for non-TechMobi channel types', () => {
+    const payload = transformFormDataToUpdatePayload(
+      {
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        name: 'openai',
+        type: 1,
+        models: 'gpt-4o',
+        return_source_url: true,
+      },
+      1
+    )
+
+    expect(JSON.parse(payload.setting || '{}')).toMatchObject({
+      return_source_url: false,
+    })
+  })
+})
