@@ -3184,6 +3184,8 @@
     "Pass request body directly to upstream": "Передать тело запроса напрямую вышестоящему серверу",
     "Pass specified request headers to upstream": "Передать указанные заголовки запроса вышестоящему серверу",
     "Pass Through Body": "Передача тела запроса",
+    "Return Source URL": "Возвращать исходный URL",
+    "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)": "Возвращает URL видео вышестоящего сервера напрямую без архивирования; раскрывает хост и срок действия ссылки (только TechMobi)",
     "Pass Through Headers": "Передать заголовки",
     "Pass through the anthropic-beta header for beta features": "Проброс заголовка anthropic-beta для бета-функций",
     "Pass through the include field for usage obfuscation": "Проброс поля include для обфускации использования",

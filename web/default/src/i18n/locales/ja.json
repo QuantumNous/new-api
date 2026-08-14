@@ -3184,6 +3184,8 @@
     "Pass request body directly to upstream": "リクエストボディを直接アップストリームに渡す",
     "Pass specified request headers to upstream": "指定のリクエストヘッダーを上流に透過",
     "Pass Through Body": "ボディをパススルー",
+    "Return Source URL": "ソースURLを返す",
+    "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)": "アーカイブせずに上流の動画URLを直接返します。上流ホスト名と有効期限が公開されます（TechMobiのみ）",
     "Pass Through Headers": "ヘッダー透過",
     "Pass through the anthropic-beta header for beta features": "ベータ機能用に anthropic-beta ヘッダーをパススルー",
     "Pass through the include field for usage obfuscation": "使用量難読化用に include フィールドをパススルー",

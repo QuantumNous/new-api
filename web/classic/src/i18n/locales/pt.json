@@ -4284,6 +4284,8 @@
     "选择预设模板（可选）": "Selecione modelo predefinido (opcional)",
     "选项": "Opções",
     "透传请求体": "Passe pelo corpo",
+    "直接返回上游视频链接": "Retornar diretamente a URL do vídeo upstream",
+    "开启后成功任务直接返回上游原始视频 URL，不再转存 GCS；会暴露上游主机名，链接有效期由上游决定": "Quando ativado, tarefas bem-sucedidas retornam diretamente a URL original do vídeo do upstream sem arquivar no GCS; expõe o host do upstream e a validade do link é controlada pelo upstream",
     "透传请求头": "Passar pelo cabeçalho da solicitação",
     "递归": "Recursivo",
     "递归策略": "Estratégia de recursão",

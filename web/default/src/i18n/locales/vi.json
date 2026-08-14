@@ -3184,6 +3184,8 @@
     "Pass request body directly to upstream": "Truyền phần thân yêu cầu trực tiếp lên upstream",
     "Pass specified request headers to upstream": "Chuyển tiếp header yêu cầu chỉ định lên upstream",
     "Pass Through Body": "Xuyên qua cơ thể",
+    "Return Source URL": "Trả về URL nguồn",
+    "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)": "Trả về trực tiếp URL video từ thượng nguồn mà không lưu trữ; sẽ lộ máy chủ thượng nguồn và thời hạn liên kết (chỉ TechMobi)",
     "Pass Through Headers": "Truyền header qua",
     "Pass through the anthropic-beta header for beta features": "Chuyển tiếp header anthropic-beta cho tính năng beta",
     "Pass through the include field for usage obfuscation": "Chuyển tiếp trường include cho che giấu sử dụng",

@@ -3184,6 +3184,8 @@
     "Pass request body directly to upstream": "Transmettre le corps de la requête directement à l'upstream",
     "Pass specified request headers to upstream": "Transmettre les en-têtes de requête spécifiés en amont",
     "Pass Through Body": "Corps de transmission directe",
+    "Return Source URL": "Renvoyer l'URL source",
+    "Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)": "Renvoie directement l'URL vidéo de l'amont sans archivage ; expose l'hôte amont et son délai d'expiration (TechMobi uniquement)",
     "Pass Through Headers": "Transmettre les en-têtes",
     "Pass through the anthropic-beta header for beta features": "Transmettre l'en-tête anthropic-beta pour les fonctionnalités bêta",
     "Pass through the include field for usage obfuscation": "Transmettre le champ include pour l'obfuscation d'utilisation",
