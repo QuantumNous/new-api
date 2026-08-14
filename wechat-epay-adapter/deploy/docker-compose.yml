@@ -1,0 +1,42 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: wechat_epay_adapter
+      MYSQL_USER: wechat_epay
+      MYSQL_PASSWORD: change-this-password
+      MYSQL_ROOT_PASSWORD: change-this-root-password
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pchange-this-root-password"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  adapter:
+    build:
+      context: ..
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_TYPE: mysql
+      DATABASE_DSN: wechat_epay:change-this-password@tcp(mysql:3306)/wechat_epay_adapter?charset=utf8mb4&parseTime=True&loc=UTC
+      HTTP_LISTEN_ADDR: :8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ../secrets
+        target: /run/secrets
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+volumes:
+  mysql_data:

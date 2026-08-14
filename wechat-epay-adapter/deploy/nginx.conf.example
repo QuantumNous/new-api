@@ -1,0 +1,34 @@
+server {
+    listen 80;
+    server_name pay.example.com;
+    return 308 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name pay.example.com;
+
+    ssl_certificate /etc/nginx/tls/fullchain.pem;
+    ssl_certificate_key /etc/nginx/tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:TLS:10m;
+    ssl_session_timeout 10m;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Frame-Options "DENY" always;
+
+    client_max_body_size 1m;
+
+    location = /submit.php { proxy_pass http://127.0.0.1:8080; include proxy_params; }
+    location ^~ /cashier/ { proxy_pass http://127.0.0.1:8080; include proxy_params; }
+    location ^~ /api/v1/cashier/ { proxy_pass http://127.0.0.1:8080; include proxy_params; }
+    location = /api/v1/wechat/notify { proxy_pass http://127.0.0.1:8080; include proxy_params; }
+    location = /health/live { proxy_pass http://127.0.0.1:8080; include proxy_params; }
+    location = /health/ready { proxy_pass http://127.0.0.1:8080; include proxy_params; }
+
+    location ^~ /api/v1/admin/ { deny all; }
+    location = /metrics { deny all; }
+    location / { return 404; }
+}

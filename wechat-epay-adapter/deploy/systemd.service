@@ -1,0 +1,25 @@
+[Unit]
+Description=WeChat Epay Adapter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wechat-epay
+Group=wechat-epay
+EnvironmentFile=/etc/wechat-epay-adapter/adapter.env
+ExecStartPre=/usr/bin/test -r /run/secrets/wechat_merchant_private_key.pem
+ExecStartPre=/usr/bin/test -r /run/secrets/wechat_pay_public_key.pem
+ExecStart=/usr/local/bin/wechat-epay-adapter
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/wechat-epay-adapter
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

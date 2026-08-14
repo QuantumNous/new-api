@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+bin/
+tmp/
+coverage.out
+
