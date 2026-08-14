@@ -21,6 +21,7 @@ func TestAutoPricingReviewValidatesRequest(t *testing.T) {
 		{name: "malformed json", body: `{`},
 		{name: "empty fingerprints", body: `{"fingerprints":[],"action":"approve"}`},
 		{name: "invalid action", body: `{"fingerprints":["candidate-fingerprint"],"action":"apply"}`},
+		{name: "mixed selection protocols", body: `{"models":["candidate-model"],"fingerprints":["candidate-fingerprint"],"action":"approve"}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -34,6 +35,30 @@ func TestAutoPricingReviewValidatesRequest(t *testing.T) {
 			assert.Contains(t, response.Body.String(), `"success":false`)
 		})
 	}
+}
+
+func TestAutoPricingModelReviewRequiresRevision(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/review", ReviewAutoPricing)
+	request := httptest.NewRequest(http.MethodPost, "/review", strings.NewReader(`{"models":["candidate-model"],"action":"approve"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusConflict, response.Code)
+	assert.Contains(t, response.Body.String(), "revision is required")
+}
+
+func TestAutoPricingPendingReturnsRevisionAndETag(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/pending", GetAutoPricingPending)
+	request := httptest.NewRequest(http.MethodGet, "/pending", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.NotEmpty(t, response.Header().Get("ETag"))
+	assert.Contains(t, response.Body.String(), `"revision"`)
 }
 
 func TestAutoPricingRoutesRequireRootAuthentication(t *testing.T) {
