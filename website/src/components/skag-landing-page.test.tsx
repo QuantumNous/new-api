@@ -43,25 +43,27 @@ describe("SkagLandingPage", () => {
     const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("chinese-ai-models-api", "pt")} />);
 
     for (const text of [
-      "Modelos Chineses de IA",
-      "Obter sua chave de API para modelos chineses",
-      "Ver preços ao vivo",
-      "/pt/pricing",
+      "Modelos chineses de IA",
+      "Crie sua chave de API grátis",
+      "Preços de referência",
+      "US$ por 1 milhão de tokens",
       "DeepSeek",
       "Qwen",
       "GLM",
       "Kimi",
       "Seedance",
-      "deepseek-v4-flash",
     ]) {
       expect(html).toContain(text);
     }
+    expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).not.toContain("curl");
   });
 
   test("uses the shared site shell so paid-search pages retain the homepage navigation", () => {
     const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api", "pt")} />);
 
-    for (const text of ["Produtos", "Desenvolvedores", "Recursos", "Português", "Começar grátis"]) {
+    for (const text of ["Produto", "Recursos", "Português", "Começar grátis"]) {
       expect(html).toContain(text);
     }
   });

@@ -100,6 +100,13 @@ export function SkagLandingPage({ config }: Props) {
               <div className={cn("rounded-lg border border-violet-200/70 bg-white/80 p-5 text-left shadow-[0_18px_48px_rgba(79,70,229,0.08)] dark:border-slate-800 dark:bg-[#0d121c] dark:shadow-none", compactHero ? "mt-6" : "mt-8")}>
                 <p className="font-mono text-xs font-bold tracking-[0.2em] text-slate-500 uppercase">{config.pricingTitle}</p>
                 <table className="mt-3 w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-violet-500/10 text-xs text-slate-400 dark:text-slate-500">
+                      <th className="pb-2 text-left font-semibold">Modelo</th>
+                      <th className="pb-2 text-right font-semibold">{config.pricingColumns?.platform ?? "Flatkey"}</th>
+                      <th className="pb-2 text-right font-semibold">{config.pricingColumns?.reference ?? "Reference"}</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {config.priceRows.map((row) => (
                       <tr key={row.label} className="border-b border-violet-500/10 last:border-0">

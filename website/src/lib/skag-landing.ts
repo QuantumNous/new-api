@@ -41,6 +41,7 @@ export type SkagLandingConfig = {
   /** Shown under the price table. */
   priceFootnote: string;
   pricingTitle: string;
+  pricingColumns?: { platform: string; reference: string };
   priceRows: Array<{ label: string; flatkey: string; official: string }>;
   /** Model id used in the runnable curl / Python example. */
   exampleModel: string;
@@ -232,73 +233,76 @@ const PT_CHINESE_AI_MODELS_API: SkagLandingConfig = {
   locale: "pt",
   pathname: "/chinese-ai-models-api",
   keyword: "api de modelos chineses de ia",
-  badge: "DeepSeek · Qwen · GLM · Kimi · Seedance",
-  h1Lead: "Modelos Chineses de IA",
+  badge: "Acesso internacional · API compatível com OpenAI",
+  h1Lead: "Modelos chineses de IA",
   h1Accent: "via API",
   description:
-    "Execute DeepSeek, Qwen, GLM, Kimi e Seedance a partir de uma API compatível com OpenAI. Uma única chave flatkey substitui contas em fornecedores da China continental, recargas separadas e trabalho específico por SDK de cada provedor.",
-  ctaLabel: "Obter sua chave de API para modelos chineses",
-  secondaryCtaLabel: "Ver preços ao vivo",
-  trustLine: "GPT · Gemini · Claude · DeepSeek · Kimi · Seedance — uma chave, uma fatura · sem cartão de crédito para começar",
-  pricingTitle: "Cobertura de modelos pronta para produção",
+    "Compare os principais modelos chineses — texto, código, raciocínio e vídeo — em uma única conta, sem criar contas em vários provedores.",
+  ctaLabel: "Crie sua chave de API grátis",
+  hideSecondaryCta: true,
+  compactHero: true,
+  hideCodeWindow: true,
+  trustLine: "Uma conta · uma chave · uma cobrança · sem cartão de crédito para começar",
+  pricingTitle: "Preços de referência · US$ por 1 milhão de tokens",
+  pricingColumns: { platform: "Flatkey", reference: "Referência" },
   priceRows: [
-    { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.056", official: "$0.14" },
-    { label: "GLM 5.2 / 1M tokens", flatkey: "$0.56", official: "$1.40" },
+    { label: "DeepSeek V4 Flash", flatkey: "$0.056", official: "$0.14" },
+    { label: "GLM 5.2", flatkey: "$0.56", official: "$1.40" },
     { label: "Vídeo Seedance 2.5", flatkey: "Por uso", official: "Apenas fornecedor" },
     { label: "Qwen, Kimi, Hunyuan, Wan", flatkey: "Uma chave", official: "Contas separadas" },
   ],
-  priceFootnote: "* Cobertura representativa do catálogo — veja os preços ao vivo para taxas atuais por modelo e status de acesso.",
+  priceFootnote: "* Valores ilustrativos em USD por 1M de tokens. Consulte os preços ao vivo para a taxa atual, unidade de cobrança e disponibilidade de cada modelo.",
   exampleModel: "deepseek-v4-flash",
   codeTitle: "Chame modelos chineses de IA via /v1",
   features: [
     {
-      title: "Cobertura de modelos da China",
-      body: "DeepSeek, Qwen, GLM, Kimi, Seedance, Kling, Wan, Hailuo, Vidu, MiniMax, Tencent Hunyuan, Baidu ERNIE e mais em um único catálogo.",
+      title: "Uma chave em vez de vários cadastros",
+      body: "Na Flatkey, use uma API key e uma cobrança para comparar DeepSeek, Qwen, GLM e Kimi, sem abrir contas em vários provedores.",
     },
     {
-      title: "API compatível com OpenAI",
-      body: "Use o SDK da OpenAI que você já tem. Altere base_url, defina uma chave de API flatkey e troque IDs de modelo como deepseek-v4-flash ou glm-5.2.",
+      title: "Seu SDK continua funcionando",
+      body: "Mantenha o SDK da OpenAI que sua equipe já usa. Altere base_url, api_key e model id — sem reescrever a integração para cada fornecedor.",
     },
     {
-      title: "Sem configuração com fornecedor continental",
-      body: "Evite verificação por telefone chinês, recargas em RMB, perfis de cobrança locais e consoles separados por fornecedor ao testar ou lançar modelos chineses de IA.",
+      title: "Acesso fácil aos modelos chineses de IA",
+      body: "Use DeepSeek, Qwen, GLM e Kimi por uma única API compatível com OpenAI, sem precisar gerenciar várias integrações.",
     },
     {
-      title: "Texto, raciocínio e vídeo",
-      body: "Encaminhe chat, código, raciocínio e geração de vídeo pela mesma conta, com controles de gasto unificados e uma única fatura.",
+      title: "Modelos de classe mundial para texto, código, raciocínio e vídeo",
+      body: "Acesse modelos de classe mundial em um único catálogo para criar, programar, raciocinar e gerar vídeos, escolhendo o modelo certo para cada tarefa.",
     },
   ],
   faq: [
     {
-      question: "Quais famílias de modelos chineses de IA posso testar?",
+      question: "Por que usar modelos chineses em vez de apenas GPT ou Claude?",
       answer:
-        "Comece com DeepSeek, Qwen, GLM, Kimi e Seedance, depois compare outras famílias de modelos da China, como Kling, Wan, Hailuo, Vidu, MiniMax, Hunyuan e ERNIE conforme aparecerem no catálogo.",
+        "Você pode comparar diferentes modelos para código, raciocínio, atendimento, conteúdo e vídeo em uma única conta. O catálogo e os preços ao vivo ajudam a escolher por tarefa, capacidade e custo.",
     },
     {
-      question: "Esta API é compatível com SDKs da OpenAI?",
+      question: "Quais modelos chineses de IA posso testar?",
       answer:
-        "Sim. Mantenha seu SDK da OpenAI e aponte-o para a base URL /v1 da flatkey. O formato da requisição continua familiar; apenas base_url, api_key e o ID do modelo mudam.",
+        "Comece com DeepSeek, Qwen, GLM e Kimi. Modelos de vídeo, como Seedance, Kling, Wan e Hailuo, aparecem no catálogo conforme disponibilidade e usam seus próprios formatos e regras de cobrança.",
     },
     {
-      question: "Preciso de telefone chinês, conta em RMB ou empresa local?",
+      question: "Posso usar meu SDK atual da OpenAI?",
       answer:
-        "Não. A flatkey.ai oferece a equipes internacionais uma conta, uma chave e um fluxo de cobrança para modelos chineses de IA sem gerenciar diretamente cada conta de fornecedor continental.",
+        "Sim. Aponte o SDK para a base URL /v1 da flatkey, use uma chave de API flatkey e escolha o ID do modelo. O formato da requisição permanece compatível com OpenAI.",
     },
     {
-      question: "Preciso alterar meu código?",
+      question: "Consigo usar a Flatkey a partir do Brasil?",
       answer:
-        "Não. A flatkey.ai é compatível com OpenAI: mantenha seu SDK da OpenAI e troque base_url e api_key. Os IDs dos modelos permanecem iguais.",
+        "Sim. A Flatkey reúne os modelos em uma conta para equipes internacionais, com preços em USD e opções de pagamento exibidas no fluxo de compra. Consulte as condições aplicáveis antes de escalar o uso.",
     },
     {
-      question: "Como a cobrança funciona entre modelos?",
+      question: "Como os preços são calculados?",
       answer:
-        "Um plano cobre todos os modelos. Analytics de uso e uma única fatura mantêm o gasto visível antes de escalar.",
+        "Os valores variam por modelo e unidade de cobrança. Veja a tabela como referência e confirme o preço ao vivo no catálogo antes de integrar ou aumentar o volume.",
     },
   ],
   seo: {
-    title: "API de Modelos Chineses de IA — DeepSeek, Qwen, GLM, Kimi, Seedance",
+    title: "Modelos chineses de IA via API no Brasil — DeepSeek, Qwen e GLM",
     description:
-      "Use uma API de modelos chineses de IA para DeepSeek, Qwen, GLM, Kimi, Seedance e mais com uma chave compatível com OpenAI. Sem contas em fornecedores continentais ou reescrita de SDK.",
+      "Compare DeepSeek, Qwen, GLM e Kimi com uma única API compatível com OpenAI. Acesse do Brasil sem gerenciar várias contas de fornecedores e consulte preços ao vivo.",
   },
 };
 
