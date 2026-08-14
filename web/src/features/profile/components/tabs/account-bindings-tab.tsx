@@ -475,7 +475,7 @@ export function AccountBindingsTab({
           <div className='grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3'>
             {customProviders.map((provider) => {
               const binding = customBindings.find(
-                (b) => b.provider_id === String(provider.id)
+                (b) => b.provider_id === provider.id
               )
               const isBound = !!binding
               return (
@@ -500,7 +500,7 @@ export function AccountBindingsTab({
                       </div>
                       <p className='text-muted-foreground truncate text-xs'>
                         {isBound
-                          ? binding?.external_id || t('Bound')
+                          ? binding?.provider_user_id || t('Bound')
                           : t('Not bound')}
                       </p>
                     </div>
