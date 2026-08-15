@@ -480,6 +480,13 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	return &user, err
 }
 
+// GetUserByOidcId resolves a NewAPI user from the Account Center subject.
+// The OIDC sub is the only cross-product identifier; callers must not fall
+// back to email when it is absent.
+func GetUserByOidcId(oidcId string) (*User, error) {
+	return GetUserByExternalIdentity(ExternalIdentityProviderOIDC, oidcId)
+}
+
 func GetUserIdByAffCode(affCode string) (int, error) {
 	if affCode == "" {
 		return 0, errors.New("affCode 为空！")
