@@ -11,6 +11,7 @@ describe("model directory filter links", () => {
 
   test("omits all filters from model directory URLs", () => {
     expect(modelsHref("en", { vendor: "all", pricing: "all", endpoint: "all", q: " " })).toBe("/models");
+    expect(modelsHref("en", { vendor: "Qwen", q: "coder" })).toBe("/models?vendor=Qwen");
   });
 
   test("normalizes old quota filters into pricing filters", () => {

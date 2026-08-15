@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Boxes, Filter, RotateCcw, Search } from "lucide-react";
 import { ModelsDirectoryTable } from "@/components/models-directory-table";
 import { ModelLogo } from "@/components/pricing-model-browser";
@@ -46,14 +45,27 @@ const DIRECTORY_TABLE_LABELS: Record<Locale, { colFlatkey: string; colHealth: st
 };
 
 export function PricingExplorer(props: PricingExplorerProps) {
-  const router = useRouter();
-  const [query, setQuery] = useState(props.initialSearch?.q ?? "");
-  const [vendor, setVendor] = useState(props.initialSearch?.vendor ?? ALL);
-  const [pricing, setPricing] = useState(props.initialSearch?.pricing ?? ALL);
-  const [endpoint, setEndpoint] = useState(props.initialSearch?.endpoint ?? ALL);
+  const [query, setQuery] = useState("");
+  const [routeFilters, setRouteFilters] = useState(() => normalizePricingRouteSearch(props.initialSearch));
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setRouteFilters(normalizePricingRouteSearch(readModelsLocationSearch()));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   const activeFilters = useMemo(
-    () => normalizePricingSearch({ q: query, vendor, pricing, endpoint }),
-    [endpoint, pricing, query, vendor]
+    () =>
+      normalizePricingSearch({
+        q: query,
+        vendor: routeFilters.vendor,
+        pricing: routeFilters.pricing,
+        endpoint: routeFilters.endpoint,
+      }),
+    [query, routeFilters.endpoint, routeFilters.pricing, routeFilters.vendor]
   );
 
   const filteredModels = useMemo(
@@ -80,10 +92,8 @@ export function PricingExplorer(props: PricingExplorerProps) {
   const navigateWithFilters = (nextSearch: PricingSearch) => {
     const normalized = normalizePricingSearch(nextSearch);
     setQuery(normalized.q ?? "");
-    setVendor(normalized.vendor ?? ALL);
-    setPricing(normalized.pricing ?? ALL);
-    setEndpoint(normalized.endpoint ?? ALL);
-    router.push(modelsHref(props.locale, normalized));
+    setRouteFilters(normalizePricingRouteSearch(normalized));
+    window.history.pushState(null, "", modelsHref(props.locale, normalized));
   };
 
   return (
@@ -103,11 +113,7 @@ export function PricingExplorer(props: PricingExplorerProps) {
             <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
             <input
               value={query}
-              onChange={(event) => {
-                const nextQuery = event.target.value;
-                setQuery(nextQuery);
-                navigateWithFilters({ ...activeFilters, q: nextQuery });
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder={copy(props.locale, "searchPlaceholder")}
               className="border-input bg-background h-11 w-full rounded-full border px-4 pl-10 text-sm outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/15"
               type="search"
@@ -340,10 +346,27 @@ export function normalizePricingSearch(search: PricingSearch = {}): PricingSearc
   };
 }
 
+function normalizePricingRouteSearch(search: PricingSearch = {}): PricingSearch {
+  const normalized = normalizePricingSearch(search);
+  return {
+    vendor: normalized.vendor ?? ALL,
+    pricing: normalized.pricing ?? ALL,
+    endpoint: normalized.endpoint ?? ALL,
+  };
+}
+
+function readModelsLocationSearch(): PricingSearch {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    vendor: params.get("vendor") ?? undefined,
+    pricing: params.get("pricing") ?? params.get("quota") ?? undefined,
+    endpoint: params.get("endpoint") ?? undefined,
+  };
+}
+
 export function modelsHref(locale: Locale, search: PricingSearch = {}) {
   const normalized = normalizePricingSearch(search);
   const params = new URLSearchParams();
-  if (normalized.q) params.set("q", normalized.q);
   if (normalized.vendor && normalized.vendor !== ALL) params.set("vendor", normalized.vendor);
   if (normalized.pricing && normalized.pricing !== ALL) params.set("pricing", normalized.pricing);
   if (normalized.endpoint && normalized.endpoint !== ALL) params.set("endpoint", normalized.endpoint);

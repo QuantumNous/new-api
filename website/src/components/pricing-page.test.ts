@@ -116,7 +116,6 @@ describe("pricing page conversion copy", () => {
 
   test("parses crawlable model directory pricing filters", () => {
     expect(parsePricingSearch({ vendor: "Qwen", pricing: "token", endpoint: "openai-chat", q: "coder" })).toEqual({
-      q: "coder",
       vendor: "Qwen",
       endpoint: "openai-chat",
       pricing: "token",

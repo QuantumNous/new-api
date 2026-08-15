@@ -11,7 +11,8 @@ type Props = {
 };
 
 export function GoogleOneTapPrompt(props: Props) {
-  if (!props.enabled || !props.clientId || props.disabled) return null;
+  const disabledByDevelopment = process.env.NODE_ENV !== "production";
+  if (disabledByDevelopment || !props.enabled || !props.clientId || props.disabled) return null;
 
   const cookieDomain = normalizeCookieDomain(props.cookieDomain);
 

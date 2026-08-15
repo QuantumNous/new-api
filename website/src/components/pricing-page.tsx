@@ -880,7 +880,6 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
 
 export function parsePricingSearch(searchParams?: Record<string, string | string[] | undefined>): PricingSearch {
   return {
-    q: parseParam(searchParams?.q),
     vendor: parseParam(searchParams?.vendor),
     endpoint: parseParam(searchParams?.endpoint),
     pricing: parseParam(searchParams?.pricing) ?? parseParam(searchParams?.quota),
@@ -981,7 +980,6 @@ export async function ModelsPage(props: PricingPageProps) {
           </header>
 
           <PricingExplorer
-            key={modelsSearchKey(props.search)}
             locale={props.locale}
             models={allModels}
             vendors={pricing.vendors}
@@ -997,15 +995,6 @@ export async function ModelsPage(props: PricingPageProps) {
       </main>
     </SiteShell>
   );
-}
-
-function modelsSearchKey(search: PricingSearch | undefined): string {
-  return JSON.stringify({
-    q: search?.q ?? "",
-    vendor: search?.vendor ?? "",
-    pricing: search?.pricing ?? search?.quota ?? "",
-    endpoint: search?.endpoint ?? "",
-  });
 }
 
 function PricingPackages(props: { locale: Locale }) {
