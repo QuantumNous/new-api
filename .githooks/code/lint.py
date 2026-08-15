@@ -8,6 +8,7 @@ If --lang is omitted, runs all enabled languages.
 """
 from __future__ import annotations
 
+import glob
 import re
 import sys
 from pathlib import Path
@@ -40,6 +41,10 @@ def run_lang(lang: str, target: str = ".") -> list[Finding]:
 
     if not command:
         return [Finding(f"code-{lang}", Severity.WARN, f"{lang}: no command configured")]
+    includes = cfg.get("paths_include", [])
+    if includes and not any(glob.glob(str(ROOT.parent / p), recursive=True) for p in includes):
+        return [Finding(f"code-{lang}", Severity.INFO, f"{lang}: no matching files (paths_include: {includes})")]
+
 
     cmd = [command] + list(args) + ([] if command == "cargo" else [target])
     try:
