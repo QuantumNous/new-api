@@ -395,6 +395,37 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 }
 
 func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []string) {
+	if usage != nil && usage.UsageSource == dto.UsageSourceCursorHarnessDeferred {
+		// A Cursor SDK run spans multiple HTTP requests while client tools execute.
+		// Intermediate tool_use responses do not carry the run's authoritative
+		// cumulative usage. Refund the pre-consumption now; the final continuation
+		// settles once with the SDK's terminal usage snapshot.
+		if err := SettleBilling(ctx, relayInfo, 0); err != nil {
+			logger.LogError(ctx, "error settling deferred Cursor harness billing: "+err.Error())
+		}
+		// Keep an auditable zero-quota marker for abandoned tool loops and crash
+		// recovery. The terminal SDK snapshot remains the only billable record.
+		other := map[string]interface{}{
+			"usage_source":     string(dto.UsageSourceCursorHarnessDeferred),
+			"billing_deferred": true,
+			"billing_reason":   "cursor_sdk_run_awaiting_tool_result",
+		}
+		model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
+			ChannelId:        relayInfo.ChannelId,
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			ModelName:        relayInfo.OriginModelName,
+			TokenName:        ctx.GetString("token_name"),
+			Quota:            0,
+			Content:          "Cursor SDK run awaiting tool_result; billing deferred to terminal usage",
+			TokenId:          relayInfo.TokenId,
+			UseTimeSeconds:   int(time.Since(relayInfo.StartTime).Seconds()),
+			IsStream:         relayInfo.IsStream,
+			Group:            relayInfo.UsingGroup,
+			Other:            other,
+		})
+		return
+	}
 	originUsage := usage
 	billingUsage := effectiveBillingUsage(usage)
 	if usage == nil {

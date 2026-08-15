@@ -66,6 +66,7 @@ Transitive dependencies should be audited before a final external release.
 | backend     | production  | Go        | `gorm.io/gorm`                                        | `v1.25.2`                            | MIT                                                |
 | backend     | production  | Go        | `github.com/expr-lang/expr`                           | `v1.17.8`                            | MIT                                                |
 | web | production | npm | `@base-ui/react` | `1.6.0` | MIT |
+| sidecar | production | npm | `@cursor/sdk` | `1.0.27` | Cursor SDK License (included in package) |
 | web | production | npm | `@codemirror/lang-markdown` | `6.5.1` | MIT |
 | web | production | npm | `@codemirror/language` | `6.12.4` | MIT |
 | web | production | npm | `@codemirror/state` | `6.7.1` | MIT |

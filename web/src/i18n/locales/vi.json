@@ -5273,6 +5273,15 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Cursor Account Info": "Thông tin tài khoản Cursor",
+    "Account Type": "Loại tài khoản",
+    "API Key Name": "Tên khóa API",
+    "Quota Usage": "Mức sử dụng hạn ngạch",
+    "Billing Cycle End": "Kết thúc chu kỳ thanh toán",
+    "Quota details are unavailable": "Không có thông tin chi tiết hạn ngạch",
+    "Click to view Cursor account": "Nhấp để xem tài khoản Cursor",
+    "Cursor Agent": "Cursor Agent",
+    "Enter Cursor User API Key (dashboard API key)": "Nhập Cursor User API Key (API key trên bảng điều khiển)"
   }
 }

@@ -19,6 +19,7 @@ type ClaudeResponseInfo struct {
 	ResponseText strings.Builder
 	Usage        *dto.Usage
 	Done         bool
+	HasToolUse   bool
 }
 
 func StopReasonClaudeToOpenAI(reason string) string {
@@ -388,6 +389,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 
 		claudeInfo.Done = true
 	} else if claudeResponse.Type == "content_block_start" {
+		if claudeResponse.ContentBlock != nil && claudeResponse.ContentBlock.Type == "tool_use" {
+			claudeInfo.HasToolUse = true
+		}
 	} else {
 		return false
 	}

@@ -126,60 +126,63 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
-	needCountToken := constant.CountToken
-	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
-	var meta *types.TokenCountMeta
-	if needSensitiveCheck || needCountToken {
-		meta = request.GetTokenCountMeta()
-	} else {
-		meta = fastTokenCountMetaForPricing(request)
-	}
-
-	if needSensitiveCheck && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
-			return
+	// Claude Code uses count_tokens as a sizing probe. It still goes through
+	// authentication, routing and channel selection, but it is never billed as
+	// a model generation.
+	if relayInfo.RelayMode != relayconstant.RelayModeClaudeCountTokens {
+		needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+		needCountToken := constant.CountToken
+		// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
+		var meta *types.TokenCountMeta
+		if needSensitiveCheck || needCountToken {
+			meta = request.GetTokenCountMeta()
+		} else {
+			meta = fastTokenCountMetaForPricing(request)
 		}
-	}
 
-	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
-		return
-	}
-
-	relayInfo.SetEstimatePromptTokens(tokens)
-
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
-		return
-	}
-
-	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
-	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
-		if newAPIError != nil {
-			return
-		}
-	}
-
-	defer func() {
-		// Only return quota if downstream failed and quota was actually pre-consumed
-		if newAPIError != nil {
-			newAPIError = service.NormalizeViolationFeeError(newAPIError)
-			if relayInfo.Billing != nil {
-				relayInfo.Billing.Refund(c)
+		if needSensitiveCheck && meta != nil {
+			contains, words := service.CheckSensitiveText(meta.CombineText)
+			if contains {
+				logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
+				newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
+				return
 			}
-			service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
 		}
-	}()
+
+		tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
+			return
+		}
+
+		relayInfo.SetEstimatePromptTokens(tokens)
+
+		priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+			return
+		}
+
+		if priceData.FreeModel {
+			logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
+		} else {
+			newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+			if newAPIError != nil {
+				return
+			}
+		}
+
+		defer func() {
+			// Only return quota if downstream failed and quota was actually pre-consumed
+			if newAPIError != nil {
+				newAPIError = service.NormalizeViolationFeeError(newAPIError)
+				if relayInfo.Billing != nil {
+					relayInfo.Billing.Refund(c)
+				}
+				service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
+			}
+		}()
+	}
 
 	retryParam := &service.RetryParam{
 		Ctx:         c,

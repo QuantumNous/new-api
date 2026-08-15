@@ -164,6 +164,27 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'Claude',
+    defaultBaseUrl: 'http://127.0.0.1:3927',
+    supportedModels: [
+      'claude-sonnet-4-6',
+      'claude-opus-4-6',
+      'grok-4.6',
+      'grok-4.5',
+      'composer-2.5',
+    ],
+    hints: {
+      baseUrl:
+        'Official @cursor/sdk sidecar URL; leave empty to use the deployment default',
+      key: 'Cursor User API Key; never paste browser cookies',
+      models: 'Cursor catalog model IDs; aliases are normalized automatically',
+      other:
+        'Native tools require the bundled SDK sidecar to remain available across tool continuations',
+    },
+  },
 }
 
 /**

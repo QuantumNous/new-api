@@ -5273,6 +5273,15 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Cursor Account Info": "Cursor 账号信息",
+    "Account Type": "账号类型",
+    "API Key Name": "API Key 名称",
+    "Quota Usage": "额度用量",
+    "Billing Cycle End": "计费周期结束",
+    "Quota details are unavailable": "暂无法获取额度详情",
+    "Click to view Cursor account": "点击查看 Cursor 账号",
+    "Cursor Agent": "Cursor Agent",
+    "Enter Cursor User API Key (dashboard API key)": "请输入 Cursor User API Key（Dashboard API Key）"
   }
 }

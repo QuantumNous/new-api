@@ -53,6 +53,26 @@ func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
 	return openAIUsage.PromptTokens - usage.PromptTokens - usage.PromptTokensDetails.CachedTokens
 }
 
+func hasClaudeInputUsage(usage *dto.Usage) bool {
+	if usage == nil {
+		return false
+	}
+	return usage.PromptTokens+usage.PromptTokensDetails.CachedTokens+cacheCreationTokensForOpenAIUsage(usage) > 0
+}
+
+func shouldDeferCursorHarnessToolUsage(info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) bool {
+	return info != nil && info.ChannelMeta != nil &&
+		info.ChannelType == constant.ChannelTypeCursorAgent &&
+		claudeInfo != nil && claudeInfo.HasToolUse
+}
+
+func markDeferredCursorHarnessUsage(usage *dto.Usage, semantic string) {
+	if usage == nil {
+		return
+	}
+	*usage = dto.Usage{UsageSemantic: semantic, UsageSource: dto.UsageSourceCursorHarnessDeferred}
+}
+
 func buildOpenAIStyleUsageFromClaudeUsage(usage *dto.Usage) dto.Usage {
 	mapped := relayconvert.UsageFromClaudeUsage(usage)
 	if mapped == nil {
@@ -151,10 +171,9 @@ func countClaudeStreamBillableTools(c *gin.Context, info *relaycommon.RelayInfo,
 }
 
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
-	if claudeInfo.Usage.PromptTokens == 0 {
-		//上游出错
-	}
-	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
+	missingInputUsage := !hasClaudeInputUsage(claudeInfo.Usage)
+	deferredToolUsage := shouldDeferCursorHarnessToolUsage(info, claudeInfo)
+	if !deferredToolUsage && (missingInputUsage || claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done) {
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
@@ -164,13 +183,18 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			(!claudeInfo.Done && fallback.CompletionTokens > claudeInfo.Usage.CompletionTokens) {
 			claudeInfo.Usage.CompletionTokens = fallback.CompletionTokens
 		}
-		if claudeInfo.Usage.PromptTokens == 0 {
+		if missingInputUsage {
 			claudeInfo.Usage.PromptTokens = fallback.PromptTokens
+			claudeInfo.Usage.InputTokens = fallback.PromptTokens
 		}
 		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 	}
 	if claudeInfo.Usage != nil {
-		claudeInfo.Usage.UsageSemantic = "anthropic"
+		if deferredToolUsage {
+			markDeferredCursorHarnessUsage(claudeInfo.Usage, "anthropic")
+		} else {
+			claudeInfo.Usage.UsageSemantic = "anthropic"
+		}
 	}
 	if claudeInfo.Usage != nil && claudeInfo.Usage.BillingUsage == nil {
 		claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(buildMessageDeltaPatchUsage(nil, claudeInfo))
@@ -257,6 +281,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 	for _, block := range claudeResponse.Content {
 		if block.Type == "tool_use" {
+			claudeInfo.HasToolUse = true
 			info.CountBillableToolCall(dto.BuildInCallToolUse, block.Name)
 		}
 	}
@@ -283,6 +308,15 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody)
 	if handleErr != nil {
 		return nil, handleErr
+	}
+	deferredToolUsage := shouldDeferCursorHarnessToolUsage(info, claudeInfo)
+	if !hasClaudeInputUsage(claudeInfo.Usage) && !deferredToolUsage {
+		claudeInfo.Usage.PromptTokens = info.GetEstimatePromptTokens()
+		claudeInfo.Usage.InputTokens = claudeInfo.Usage.PromptTokens
+		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
+	}
+	if deferredToolUsage {
+		markDeferredCursorHarnessUsage(claudeInfo.Usage, "anthropic")
 	}
 	return claudeInfo.Usage, nil
 }

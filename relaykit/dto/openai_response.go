@@ -243,6 +243,8 @@ type Usage struct {
 	Cost any `json:"cost,omitempty"`
 }
 
+const UsageSourceCursorHarnessDeferred = "cursor_harness_deferred"
+
 type OpenAIVideoResponse struct {
 	Id        string `json:"id" example:"file-abc123"`
 	Object    string `json:"object" example:"file"`
@@ -325,17 +327,18 @@ type IncompleteDetails struct {
 }
 
 type ResponsesOutput struct {
-	Type      string                   `json:"type"`
-	ID        string                   `json:"id"`
-	Status    string                   `json:"status"`
-	Role      string                   `json:"role"`
-	Content   []ResponsesOutputContent `json:"content"`
-	Quality   string                   `json:"quality"`
-	Size      string                   `json:"size"`
-	Result    string                   `json:"result,omitempty"`
-	CallId    string                   `json:"call_id,omitempty"`
-	Name      string                   `json:"name,omitempty"`
-	Arguments json.RawMessage          `json:"arguments,omitempty"`
+	Type      string                          `json:"type"`
+	ID        string                          `json:"id"`
+	Status    string                          `json:"status"`
+	Role      string                          `json:"role"`
+	Content   []ResponsesOutputContent        `json:"content"`
+	Quality   string                          `json:"quality"`
+	Size      string                          `json:"size"`
+	Result    string                          `json:"result,omitempty"`
+	CallId    string                          `json:"call_id,omitempty"`
+	Name      string                          `json:"name,omitempty"`
+	Arguments json.RawMessage                 `json:"arguments,omitempty"`
+	Summary   []ResponsesReasoningSummaryPart `json:"summary,omitempty"`
 }
 
 // ArgumentsString returns function call arguments in the string form expected by Chat Completions.

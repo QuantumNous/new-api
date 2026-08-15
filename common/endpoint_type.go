@@ -20,6 +20,12 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		fallthrough
 	case constant.ChannelTypeAnthropic:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}
+	case constant.ChannelTypeCursorAgent:
+		endpointTypes = []constant.EndpointType{
+			constant.EndpointTypeAnthropic,
+			constant.EndpointTypeOpenAI,
+			constant.EndpointTypeOpenAIResponse,
+		}
 	case constant.ChannelTypeVertexAi:
 		fallthrough
 	case constant.ChannelTypeGemini:

@@ -9,4 +9,7 @@ docs
 .gocache
 /web/node_modules
 /web/dist
+/cursor_agent_sidecar/node_modules
+/cursor_agent_sidecar/.env*
+/cursor_agent_sidecar/state
 !THIRD-PARTY-LICENSES.md

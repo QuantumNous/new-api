@@ -332,6 +332,16 @@ export async function getCodexUsage(
   return res.data
 }
 
+export async function getCursorAgentAccount(
+  channelId: number
+): Promise<CodexUsageResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/cursor-agent/account`,
+    channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
 export async function getCodexResetCredits(
   channelId: number
 ): Promise<CodexResetCreditsResponse> {

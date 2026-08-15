@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
+	"github.com/QuantumNous/new-api/relay/channel/cursor_agent"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -347,6 +348,21 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(lo.Map(models, func(item ollama.OllamaModel, _ int) string {
 			return item.Name
 		})), nil
+	}
+
+	if channel.Type == constant.ChannelTypeCursorAgent {
+		credential, err := cursor_agent.ParseCredential(strings.TrimSpace(channel.Key))
+		if err != nil {
+			return nil, err
+		}
+		baseURL = cursor_agent.ResolveSidecarBaseURL(channel.GetBaseURL())
+		headers := GetAuthHeader(credential.APIKey)
+		headers.Set("x-api-key", credential.APIKey)
+		body, err := getFetchModelsResponseBody(http.MethodGet, baseURL+"/v1/models", channel, headers)
+		if err != nil {
+			return nil, sanitizeFetchModelsError(err, credential.APIKey)
+		}
+		return parseOpenAIModelIDs(body)
 	}
 
 	if channel.Type == constant.ChannelTypeGemini {

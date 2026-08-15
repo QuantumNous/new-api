@@ -27,15 +27,25 @@ COPY . .
 COPY --from=builder /build/web/dist ./web/dist
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
+FROM node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436 AS cursor_sidecar
+WORKDIR /opt/cursor-agent
+COPY cursor_agent_sidecar/package.json cursor_agent_sidecar/package-lock.json ./
+RUN npm ci --omit=dev
+COPY cursor_agent_sidecar/ ./
+
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata libasan8 wget tini \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
 COPY --from=builder2 /build/new-api /
+COPY --from=cursor_sidecar /usr/local/bin/node /usr/local/bin/node
+COPY --from=cursor_sidecar /opt/cursor-agent /opt/cursor-agent
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY LICENSE NOTICE THIRD-PARTY-LICENSES.md /licenses/
-EXPOSE 3000
+RUN chmod +x /docker-entrypoint.sh
+EXPOSE 3000 3927
 WORKDIR /data
-ENTRYPOINT ["/new-api"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/docker-entrypoint.sh"]

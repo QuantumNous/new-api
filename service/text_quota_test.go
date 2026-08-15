@@ -2,12 +2,14 @@ package service
 
 import (
 	"math"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -21,6 +23,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPostTextConsumeQuotaRecordsZeroQuotaDeferredCursorHarnessAudit(t *testing.T) {
+	truncate(t)
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set("request_id", "req-cursor-tool-continuation")
+	c.Set("token_name", "cursor-test")
+	now := time.Now()
+	relayInfo := &relaycommon.RelayInfo{
+		UserId: 42, TokenId: 7, OriginModelName: "grok-4.6",
+		StartTime: now, FirstResponseTime: now,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeCursorAgent, ChannelId: 252},
+	}
+
+	PostTextConsumeQuota(c, relayInfo, &dto.Usage{
+		UsageSemantic: "anthropic",
+		UsageSource:   dto.UsageSourceCursorHarnessDeferred,
+	}, nil)
+
+	var log model.Log
+	require.NoError(t, model.LOG_DB.
+		Where("channel_id = ? AND model_name = ?", 252, "grok-4.6").First(&log).Error)
+	require.Zero(t, log.Quota)
+	require.Contains(t, log.Other, "billing_deferred")
+}
 
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)

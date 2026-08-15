@@ -5273,6 +5273,15 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Cursor Account Info": "Cursor Account Info",
+    "Account Type": "Account Type",
+    "API Key Name": "API Key Name",
+    "Quota Usage": "Quota Usage",
+    "Billing Cycle End": "Billing Cycle End",
+    "Quota details are unavailable": "Quota details are unavailable",
+    "Click to view Cursor account": "Click to view Cursor account",
+    "Cursor Agent": "Cursor Agent",
+    "Enter Cursor User API Key (dashboard API key)": "Enter Cursor User API Key (dashboard API key)"
   }
 }

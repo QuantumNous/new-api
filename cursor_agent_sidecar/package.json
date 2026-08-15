@@ -1,0 +1,30 @@
+{
+  "name": "cursor-agent-sidecar",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 *.test.mjs",
+    "start": "bash ./start.sh",
+    "start:node": "node server.mjs",
+    "start:proxychains": "PROXYCHAINS=1 bash ./start.sh",
+    "smoke:claude": "node smoke_claude.mjs",
+    "smoke:custom-tool": "node smoke_custom_tool.mjs",
+    "smoke:messages-bridge": "node smoke_messages_bridge.mjs",
+    "smoke:messages-parallel": "node smoke_messages_parallel.mjs"
+  },
+  "dependencies": {
+    "@cursor/sdk": "1.0.27",
+    "global-agent": "^4.1.3",
+    "https-proxy-agent": "^9.1.0",
+    "undici": "^8.10.0"
+  },
+  "overrides": {
+    "@connectrpc/connect-node": {
+      "undici": "6.28.0"
+    }
+  }
+}

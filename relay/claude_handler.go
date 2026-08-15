@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,9 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -24,6 +27,9 @@ import (
 func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 
 	info.InitChannelMeta(c)
+	if info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		return ClaudeCountTokensHelper(c, info)
+	}
 
 	claudeReq, ok := info.Request.(*dto.ClaudeRequest)
 
@@ -227,4 +233,99 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
+}
+
+// ClaudeCountTokensHelper provides the Anthropic token-counting contract used
+// by Claude Code. The Cursor SDK has no count_tokens primitive, so counting is
+// intentionally local and does not create an agent run or consume quota.
+func ClaudeCountTokensHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
+	claudeReq, ok := info.Request.(*dto.ClaudeRequest)
+	if !ok {
+		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.ClaudeRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	request, err := common.DeepCopy(claudeReq)
+	if err != nil {
+		return types.NewError(fmt.Errorf("failed to copy request to ClaudeRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	if err = helper.ModelMappedHelper(c, info, request); err != nil {
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+	if info.ChannelType == constant.ChannelTypeCursorAgent {
+		meta := request.GetTokenCountMeta()
+		inputTokens := service.CountTextToken(meta.CombineText, info.OriginModelName)
+		for range meta.Files {
+			// Claude image token accounting is approximate in local mode; match the
+			// existing non-OpenAI media estimate without fetching remote URLs.
+			inputTokens += 520
+		}
+		common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
+		common.SetContextKey(c, constant.ContextKeyPromptTokens, inputTokens)
+		c.JSON(http.StatusOK, gin.H{"input_tokens": inputTokens})
+		return nil
+	}
+
+	adaptor := GetAdaptor(info.ApiType)
+	if adaptor == nil {
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+	}
+	adaptor.Init(info)
+	requestBody, err := buildClaudeCountTokensRequestBody(c, info, adaptor, request)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	resp, err := adaptor.DoRequest(c, info, requestBody)
+	if err != nil {
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+	httpResp, ok := resp.(*http.Response)
+	if !ok || httpResp == nil {
+		return types.NewError(fmt.Errorf("invalid response type, expected *http.Response, got %T", resp), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	}
+	defer httpResp.Body.Close()
+	respBody, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return types.NewErrorWithStatusCode(err, types.ErrorCodeReadResponseBodyFailed, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+	}
+	copyClaudeCountTokensResponseHeaders(c.Writer.Header(), httpResp.Header)
+	contentType := strings.TrimSpace(httpResp.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	c.Data(httpResp.StatusCode, contentType, respBody)
+	return nil
+}
+
+func buildClaudeCountTokensRequestBody(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request *dto.ClaudeRequest) (io.Reader, error) {
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return nil, err
+		}
+		rawBody, err := storage.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewReader(helper.SanitizeClaudeCountTokensRequestBody(rawBody)), nil
+	}
+	convertedRequest, err := adaptor.ConvertClaudeRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	}
+	jsonData, err := common.Marshal(convertedRequest)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(helper.SanitizeClaudeCountTokensRequestBody(jsonData)), nil
+}
+
+func copyClaudeCountTokensResponseHeaders(dst http.Header, src http.Header) {
+	for key, values := range src {
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "content-length", "content-encoding", "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "set-cookie", "www-authenticate", "authorization", "x-api-key", "x-goog-api-key":
+			continue
+		}
+		for _, value := range values {
+			dst.Add(key, value)
+		}
+	}
 }

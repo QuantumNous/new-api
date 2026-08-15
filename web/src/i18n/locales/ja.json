@@ -5273,6 +5273,15 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Cursor Account Info": "Cursor アカウント情報",
+    "Account Type": "アカウント種別",
+    "API Key Name": "API キー名",
+    "Quota Usage": "クォータ使用量",
+    "Billing Cycle End": "請求サイクル終了日",
+    "Quota details are unavailable": "クォータの詳細を取得できません",
+    "Click to view Cursor account": "クリックして Cursor アカウントを表示",
+    "Cursor Agent": "Cursor Agent",
+    "Enter Cursor User API Key (dashboard API key)": "Cursor User API Key（ダッシュボード API キー）を入力"
   }
 }

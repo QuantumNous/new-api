@@ -6,9 +6,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -43,7 +45,21 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	requestURL := fmt.Sprintf("%s/v1/messages", info.ChannelBaseUrl)
+	path := "/v1/messages"
+	if info != nil && info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		path = "/v1/messages/count_tokens"
+	}
+	requestURL := fmt.Sprintf("%s%s", info.ChannelBaseUrl, path)
+	if info != nil && info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		parsedURL, err := url.Parse(requestURL)
+		if err != nil {
+			return "", err
+		}
+		query := parsedURL.Query()
+		query.Set("beta", "true")
+		parsedURL.RawQuery = query.Encode()
+		return parsedURL.String(), nil
+	}
 	if !shouldAppendClaudeBetaQuery(info) {
 		return requestURL, nil
 	}
@@ -89,7 +105,31 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	}
 	req.Set("anthropic-version", anthropicVersion)
 	CommonClaudeHeadersOperation(c, req, info)
+	if info != nil && info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		req.Set("anthropic-beta", mergeClaudeCountTokensBeta(req.Get("anthropic-beta")))
+	}
 	return nil
+}
+
+func mergeClaudeCountTokensBeta(existing string) string {
+	const tokenCountingBeta = "token-counting-2024-11-01"
+	parts := make([]string, 0, 4)
+	seen := map[string]struct{}{}
+	for _, item := range strings.Split(existing, ",") {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		parts = append(parts, item)
+		seen[item] = struct{}{}
+	}
+	if _, ok := seen[tokenCountingBeta]; !ok {
+		parts = append(parts, tokenCountingBeta)
+	}
+	return strings.Join(parts, ",")
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {

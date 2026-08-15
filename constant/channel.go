@@ -58,7 +58,11 @@ const (
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeSub2API        = 59
 	ChannelTypeNewAPI         = 60
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	// ChannelTypeCursorAgent relays through the official @cursor/sdk harness.
+	// The Go gateway owns routing and billing; the companion sidecar owns the
+	// Cursor Agent/Run lifecycle required for native tool continuation.
+	ChannelTypeCursorAgent = 61
+	ChannelTypeDummy       // this one is only for count, do not add any channel after this
 
 )
 
@@ -124,6 +128,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //58
 	"",                                          //59
 	"",                                          //60
+	"http://127.0.0.1:3927",                     //61 Cursor SDK sidecar
 }
 
 var ChannelTypeNames = map[int]string{
@@ -184,6 +189,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeAdvancedCustom: "Advanced Custom",
 	ChannelTypeSub2API:        "Sub2API",
 	ChannelTypeNewAPI:         "New API",
+	ChannelTypeCursorAgent:    "Cursor Agent",
 }
 
 func GetChannelTypeName(channelType int) string {
