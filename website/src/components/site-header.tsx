@@ -7,7 +7,7 @@ import { FlatkeyBrandLogo } from "@/components/flatkey-brand-logo";
 import { useSiteConfig } from "@/components/site-config-provider";
 import { buildLanguagePreferenceCookieWrites } from "@/lib/language-routing";
 import { CLI_LANDING_PATH, cliLandingCopy } from "@/lib/cli-landing";
-import { consoleSignInUrl } from "@/lib/console-auth-links";
+import { consoleGoogleOAuthStartUrl } from "@/lib/console-auth-links";
 import { getCopy } from "@/lib/copy";
 import {
   LOCALE_LABELS,
@@ -361,10 +361,10 @@ export function SiteHeader(props: Props) {
   const mobileMenuId = useId();
   const [consoleSessionActive, setConsoleSessionActive] = useState(false);
   const currentPath = stripLocale(props.pathname);
-  const signInHref = consoleSignInUrl(props.locale);
+  const googleSignInHref = consoleGoogleOAuthStartUrl(props.locale);
   const signUpHref = consoleUrl("/sign-up", `lng=${props.locale}`);
   const dashboardHref = consoleUrl("/dashboard");
-  const accountHref = consoleSessionActive ? dashboardHref : signInHref;
+  const accountHref = consoleSessionActive ? dashboardHref : googleSignInHref;
   const accountLabel = consoleSessionActive ? copy.nav.console : copy.nav.signIn;
   const startFreeLabel =
     startFreeLabelByLocale[props.locale] ?? startFreeLabelByLocale.en;

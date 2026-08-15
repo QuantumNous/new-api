@@ -26,7 +26,7 @@ describe("OnlineStaticShell", () => {
     expect(html).not.toContain(">Menu<");
   });
 
-  test("defaults the online nav sign-in action to Google", async () => {
+  test("defaults the online nav sign-in action to Google OAuth start", async () => {
     const { OnlineStaticShell } = await import("./online-static-shell");
     const html = renderToStaticMarkup(
       <OnlineStaticShell locale="en" pathname="/">
@@ -35,7 +35,7 @@ describe("OnlineStaticShell", () => {
     );
 
     expect(html).toContain(
-      'href="https://console.flatkey.ai/sign-in?lng=en&amp;provider=google"',
+      'href="https://console.flatkey.ai/api/oauth/google/start?lng=en&amp;source=website"',
     );
   });
 });

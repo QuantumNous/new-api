@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import { consoleSignInUrl } from "@/lib/console-auth-links";
+import { consoleGoogleOAuthStartUrl } from "@/lib/console-auth-links";
 import { getHomeCopy } from "@/lib/home-copy";
 import { type Locale, localizePath } from "@/lib/locales";
 import {
@@ -295,7 +295,7 @@ export async function OnlineHomePage(props: { locale: Locale }) {
   };
   const modelPrice = (price: string) =>
     price === "Early access" ? t("md.early", price) : price;
-  const authActionHref = consoleSignInUrl(props.locale);
+  const authActionHref = consoleGoogleOAuthStartUrl(props.locale);
   const authActionLabel = copy.home.ctaKey;
   const finalCtaLabel = t("cta.b1", "Get started");
 
