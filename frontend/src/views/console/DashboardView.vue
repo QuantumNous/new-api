@@ -23,6 +23,7 @@ import { useUsageDistribution } from '@/composables/useUsageDistribution'
 import type { StatsRange } from '@/composables/useDashboardStats'
 import { useAuthStore } from '@/stores/auth'
 import { dateInputValue } from '@/utils/format'
+import { greetingBucketForHour } from '@/utils/greeting'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -56,9 +57,17 @@ const dailyBurn = computed(() => {
 })
 
 const greeting = computed(() =>
-  t('dashboard.greeting', {
-    name: auth.user?.display_name || auth.user?.username || '',
-  })
+  t(`dashboard.greeting.${greetingBucketForHour(new Date().getHours())}`)
+)
+
+const greetingName = computed(
+  () => auth.user?.display_name || auth.user?.username || ''
+)
+
+// Without a name the sentence would read "早上好，。", so the separator and the
+// closing punctuation only appear alongside the accent.
+const greetingSuffix = computed(() =>
+  greetingName.value ? t('dashboard.greetingSuffix') : ''
 )
 
 const tabs = computed(() => {
@@ -124,6 +133,11 @@ const rangeOptions = computed(() => [
     <PageHero
       v-model:tab="activeTab"
       :title="greeting"
+      :title-accent="greetingName"
+      :title-separator="$t('dashboard.greetingSeparator')"
+      title-accent-prefix=""
+      :title-suffix="greetingSuffix"
+      accent-variant="underline"
       :crumbs="[$t('dashboard.breadcrumb.0'), $t('dashboard.breadcrumb.1')]"
       :tabs="tabs"
       :tab-panel-id="dashboardPanelId"

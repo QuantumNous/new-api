@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import Breadcrumb from './Breadcrumb.vue'
 import ConsoleTabs, { type TabItem } from '@/components/common/ConsoleTabs.vue'
 
@@ -7,6 +9,14 @@ const tab = defineModel<string>('tab', { default: '' })
 interface PageHeroBaseProps {
   title: string
   titleAccent?: string
+  /** Sits between title and accent, outside the painted mark. */
+  titleSeparator?: string
+  /** Sits inside the painted mark, ahead of the accent phrase. */
+  titleAccentPrefix?: string
+  /** Trails the accent, outside the painted mark — e.g. sentence punctuation. */
+  titleSuffix?: string
+  /** `brush` paints a filled swash; `underline` draws a thin hand-drawn rule. */
+  accentVariant?: 'brush' | 'underline'
   crumbs?: string[]
   titleSide?: 'left' | 'right'
 }
@@ -19,11 +29,23 @@ type PageHeroProps = PageHeroBaseProps &
   )
 /* eslint-enable vue/require-default-prop */
 
-withDefaults(defineProps<PageHeroProps>(), {
+// The prefix default reproduces the original hardcoded "& " accent join, so
+// existing callers keep rendering unchanged.
+const props = withDefaults(defineProps<PageHeroProps>(), {
   titleAccent: '',
+  titleSeparator: ' ',
+  titleAccentPrefix: '& ',
+  titleSuffix: '',
+  accentVariant: 'brush',
   crumbs: () => [],
   titleSide: 'left',
 })
+
+const accentClass = computed(() => [
+  'brush-highlight',
+  'text-[var(--accent-text)]',
+  props.accentVariant === 'underline' ? 'brush-highlight--underline' : '',
+])
 </script>
 
 <template>
@@ -46,14 +68,15 @@ withDefaults(defineProps<PageHeroProps>(), {
           v-if="titleSide === 'left'"
           class="gesture-mark display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight"
         >
-          {{ title }}
-          <!-- accent phrase wrapped in brush-highlight for a painted underline -->
-          <span
-            v-if="titleAccent"
-            class="brush-highlight text-[var(--accent-text)]"
-          >
-            &amp;&thinsp;{{ titleAccent }}
-          </span>
+          {{ title
+          }}<template v-if="titleAccent"
+            >{{
+              titleSeparator
+            }}<!-- accent phrase carries the painted mark; punctuation stays outside it --><span
+              :class="accentClass"
+              >{{ titleAccentPrefix }}{{ titleAccent }}</span
+            ></template
+          >{{ titleSuffix }}
         </h1>
         <!-- hero metric slot (wallet balance, etc.) -->
         <slot />
@@ -70,13 +93,13 @@ withDefaults(defineProps<PageHeroProps>(), {
           v-if="titleSide === 'right'"
           class="gesture-mark display-title whitespace-nowrap text-right text-4xl font-bold leading-tight text-[var(--text-primary)] lg:text-5xl"
         >
-          {{ title }}
-          <span
-            v-if="titleAccent"
-            class="brush-highlight text-[var(--accent-text)]"
-          >
-            &amp;&thinsp;{{ titleAccent }}
-          </span>
+          {{ title
+          }}<template v-if="titleAccent"
+            >{{ titleSeparator
+            }}<span :class="accentClass"
+              >{{ titleAccentPrefix }}{{ titleAccent }}</span
+            ></template
+          >{{ titleSuffix }}
         </h1>
         <!-- right-side actions slot -->
         <slot name="actions" />

@@ -64,7 +64,15 @@ export default {
   },
 
   dashboard: {
-    greeting: '欢迎回来，{name}',
+    greeting: {
+      morning: '早上好',
+      noon: '该去吃饭了',
+      afternoon: '下午好',
+      evening: '晚上好',
+      night: '夜深了',
+    },
+    greetingSeparator: '，',
+    greetingSuffix: '。',
     breadcrumb: ['仪表盘', '概览'],
     tabOverview: '概览',
     tabStats: '统计数据',
@@ -2213,7 +2221,8 @@ export default {
       channelAffinityTtl: '亲和性 TTL（秒）',
       claude: 'Claude 配置',
       claudeDefaultMaxTokens: '默认 max_tokens',
-      claudeDefaultMaxTokensDesc: '为 Claude 请求设置默认的 max_tokens（0 为不设置）',
+      claudeDefaultMaxTokensDesc:
+        '为 Claude 请求设置默认的 max_tokens（0 为不设置）',
       claudeThinkingAdapter: '思考适配器',
       claudeThinkingAdapterDesc: '自动为支持扩展思考的模型注入 budget_tokens',
     },
@@ -2303,10 +2312,12 @@ export default {
       workerValidKeyDesc: '用于验证 Worker 请求合法性的密钥',
       logs: '日志维护',
       logConsumeEnabled: '记录额度消耗日志',
-      logConsumeEnabledDesc: '追踪每次请求的消耗，支持用量统计。会增加数据库写入量',
+      logConsumeEnabledDesc:
+        '追踪每次请求的消耗，支持用量统计。会增加数据库写入量',
       performance: '性能设置',
       diskCacheEnabled: '启用磁盘缓存',
-      diskCacheEnabledDesc: '将大请求体临时写入磁盘，显著降低内存占用。推荐 SSD',
+      diskCacheEnabledDesc:
+        '将大请求体临时写入磁盘，显著降低内存占用。推荐 SSD',
       diskCacheThreshold: '磁盘缓存阈值（MB）',
       diskCacheThresholdDesc: '请求体超过此大小时使用磁盘缓存',
       diskCacheMaxSize: '最大磁盘缓存（MB）',
