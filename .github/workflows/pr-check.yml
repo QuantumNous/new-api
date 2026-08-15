@@ -11,6 +11,7 @@ on:
 
 jobs:
   pr-quality:
+    if: github.repository == 'QuantumNous/new-api'
     runs-on: ubuntu-latest
     steps:
       - uses: peakoss/anti-slop@85daca1880e9e1af197fc06ea03349daf08f4202 # v0.2.1

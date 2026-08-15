@@ -10,6 +10,7 @@ on:
 
 jobs:
   build:
+    if: github.repository == 'QuantumNous/new-api'
     strategy:
       matrix:
         # os: [macos-latest, windows-latest]
@@ -124,7 +125,7 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.repository == 'QuantumNous/new-api' && startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
 

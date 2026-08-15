@@ -11,6 +11,7 @@ on:
 jobs:
   prepare:
     name: Prepare Docker tags
+    if: github.repository == 'QuantumNous/new-api'
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.version.outputs.branch }}
@@ -51,6 +52,7 @@ jobs:
 
   build_single_arch:
     name: Build & push (${{ matrix.arch }}) [native]
+    if: github.repository == 'QuantumNous/new-api'
     needs: [prepare]
     strategy:
       fail-fast: false
