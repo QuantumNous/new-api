@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, nextTick, ref, useId } from 'vue'
 import { onClickOutside } from '@vueuse/core'
 
 export interface SelectOption {
@@ -35,7 +35,6 @@ const open = ref(false)
 const activeIndex = ref(-1)
 const triggerId = useId()
 const listboxId = useId()
-const menuStyle = ref<Record<string, string>>({})
 const optionId = (i: number) => `${listboxId}-option-${i}`
 
 /**
@@ -83,37 +82,10 @@ function scrollActiveIntoView() {
   )
 }
 
-function updateMenuPosition() {
-  if (!open.value || !root.value) return
-  const rect = root.value.getBoundingClientRect()
-  const viewportHeight = window.innerHeight
-  const gap = 8
-  const spaceAbove = Math.max(0, rect.top - gap)
-  const spaceBelow = Math.max(0, viewportHeight - rect.bottom - gap)
-  const opensUp =
-    props.direction === 'up' || (spaceBelow < 160 && spaceAbove > spaceBelow)
-  const available = opensUp ? spaceAbove : spaceBelow
-  const width = Math.min(rect.width, window.innerWidth - 16)
-  const left = Math.min(
-    Math.max(8, rect.left),
-    Math.max(8, window.innerWidth - width - 8)
-  )
-
-  menuStyle.value = {
-    left: `${left}px`,
-    width: `${width}px`,
-    maxHeight: `${Math.max(96, Math.min(256, available))}px`,
-    ...(opensUp
-      ? { bottom: `${viewportHeight - rect.top + gap}px` }
-      : { top: `${rect.bottom + gap}px` }),
-  }
-}
-
 function openMenu() {
   open.value = true
   const cur = allOptions.value.findIndex((o) => o.value === model.value)
   activeIndex.value = cur >= 0 ? cur : 0
-  nextTick(updateMenuPosition)
   scrollActiveIntoView()
 }
 
@@ -189,22 +161,7 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-watch(open, (isOpen) => {
-  if (isOpen) {
-    window.addEventListener('resize', updateMenuPosition)
-    window.addEventListener('scroll', updateMenuPosition, true)
-    return
-  }
-  window.removeEventListener('resize', updateMenuPosition)
-  window.removeEventListener('scroll', updateMenuPosition, true)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateMenuPosition)
-  window.removeEventListener('scroll', updateMenuPosition, true)
-})
-
-onClickOutside(root, closeMenu, { ignore: [listRef] })
+onClickOutside(root, closeMenu)
 </script>
 
 <template>
@@ -257,21 +214,19 @@ onClickOutside(root, closeMenu, { ignore: [listRef] })
         <path d="m6 9 6 6 6-6" />
       </svg>
     </button>
-  </div>
 
-  <!-- Teleport keeps menus outside modal and scroll-container clipping. -->
-  <Teleport to="body">
+    <!-- panel: sketch radius + paper texture by day, uniform + elevation by night -->
     <Transition name="fs-pop">
       <ul
         v-if="open"
         :id="listboxId"
         ref="listRef"
-        class="subtle-scroll texture-paper fixed z-[200] overflow-y-auto border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1"
-        :style="{
-          ...menuStyle,
-          borderRadius: 'var(--sketch-border-radius-md)',
-          boxShadow: 'var(--elevation-3)',
-        }"
+        class="subtle-scroll texture-paper absolute left-0 z-[200] max-h-64 w-full overflow-y-auto border border-[var(--border-subtle)] bg-[var(--surface-solid)] py-1"
+        style="
+          border-radius: var(--sketch-border-radius-md);
+          box-shadow: var(--elevation-3);
+        "
+        :class="direction === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'"
         role="listbox"
         data-handdrawn="menu"
       >
@@ -316,7 +271,7 @@ onClickOutside(root, closeMenu, { ignore: [listRef] })
         </li>
       </ul>
     </Transition>
-  </Teleport>
+  </div>
 </template>
 
 <style scoped>

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
@@ -38,17 +37,6 @@ func TestResolveIncomingBillingExprRequestInput(t *testing.T) {
 	require.Equal(t, "application/json", input.Headers["Content-Type"])
 }
 
-func TestResolveIncomingBillingExprRequestInputClonesCounts(t *testing.T) {
-	info := &relaycommon.RelayInfo{BillingRequestInput: &billingexpr.RequestInput{
-		Counts: map[string]float64{"n": 3},
-	}}
-	input, err := ResolveIncomingBillingExprRequestInput(nil, info)
-	require.NoError(t, err)
-	require.Equal(t, 3.0, input.Counts["n"])
-	input.Counts["n"] = 2
-	require.Equal(t, 3.0, info.BillingRequestInput.Counts["n"])
-}
-
 func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
 	request := &dto.GeneralOpenAIRequest{
 		Model:  "gemini-3.1-pro-preview",
@@ -72,15 +60,4 @@ func TestBuildBillingExprRequestInputFromRequest(t *testing.T) {
 	require.True(t, gjson.GetBytes(input.Body, "stream").Bool())
 	require.Equal(t, "user", gjson.GetBytes(input.Body, "messages.0.role").String())
 	require.Equal(t, float64(3000), gjson.GetBytes(input.Body, "max_tokens").Float())
-}
-
-func TestMergeValidatedBillingCountsRejectsUnknownNamesAndCapsImageCount(t *testing.T) {
-	input := billingexpr.RequestInput{}
-	mergeValidatedBillingCounts(&input, map[string]float64{
-		"n":       1e9,
-		"unknown": 99,
-	})
-
-	require.Equal(t, float64(dto.MaxImageN), input.Counts["n"])
-	require.NotContains(t, input.Counts, "unknown")
 }

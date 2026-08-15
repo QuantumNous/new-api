@@ -3,7 +3,6 @@ import { reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useSystemSettings } from '@/composables/useSystemSettings'
-import { BRAND_NAME } from '@/constants/branding'
 import SysSettingsFormCard from '@/components/console/systemSettings/SysSettingsFormCard.vue'
 import SysInputRow from '@/components/console/systemSettings/SysInputRow.vue'
 
@@ -35,16 +34,15 @@ function syncInfo() {
   info['legal.privacy_policy'] = settings.value['legal.privacy_policy']
 }
 
-const infoDirty = computed(
-  () =>
-    info.SystemName !== settings.value.SystemName ||
-    info.ServerAddress !== settings.value.ServerAddress ||
-    info.Logo !== settings.value.Logo ||
-    info.Footer !== settings.value.Footer ||
-    info.About !== settings.value.About ||
-    info.HomePageContent !== settings.value.HomePageContent ||
-    info['legal.user_agreement'] !== settings.value['legal.user_agreement'] ||
-    info['legal.privacy_policy'] !== settings.value['legal.privacy_policy']
+const infoDirty = computed(() =>
+  info.SystemName !== settings.value.SystemName ||
+  info.ServerAddress !== settings.value.ServerAddress ||
+  info.Logo !== settings.value.Logo ||
+  info.Footer !== settings.value.Footer ||
+  info.About !== settings.value.About ||
+  info.HomePageContent !== settings.value.HomePageContent ||
+  info['legal.user_agreement'] !== settings.value['legal.user_agreement'] ||
+  info['legal.privacy_policy'] !== settings.value['legal.privacy_policy']
 )
 
 async function saveInfo() {
@@ -102,7 +100,7 @@ onMounted(async () => {
           v-model="info.SystemName"
           :label="t('systemSettings.site.systemName')"
           :description="t('systemSettings.site.systemNameDesc')"
-          :placeholder="BRAND_NAME"
+          placeholder="New API"
           class="sm:col-span-2"
         />
         <SysInputRow

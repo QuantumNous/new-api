@@ -289,8 +289,9 @@ const router = createRouter({
           path: 'system-settings',
           name: 'system-settings',
           redirect: { name: 'system-settings-site' },
-          component: () => import('@/views/console/SystemSettingsView.vue'),
-          meta: { wide: true, feature: 'admin', requiresRoot: true },
+          component: () =>
+            import('@/views/console/SystemSettingsView.vue'),
+          meta: { wide: true, feature: 'admin' },
           children: [
             {
               path: 'site',

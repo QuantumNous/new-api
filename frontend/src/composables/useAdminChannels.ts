@@ -39,42 +39,7 @@ export interface ChannelModelTestOptions {
 export interface ChannelModelTestResult {
   ok: boolean
   timeMs?: number
-  responseTime?: number
-  testTime?: number
   message?: string
-}
-
-interface ChannelModelTestTiming {
-  timeMs?: number
-  responseTime?: number
-  testTime?: number
-}
-
-function readChannelModelTestTiming(data: unknown): ChannelModelTestTiming {
-  if (!data || typeof data !== 'object') return {}
-  const payload = data as Record<string, unknown>
-  const responseTime =
-    typeof payload.response_time === 'number' &&
-    Number.isFinite(payload.response_time) &&
-    payload.response_time >= 0
-      ? Math.round(payload.response_time)
-      : undefined
-  const testTime =
-    typeof payload.test_time === 'number' &&
-    Number.isFinite(payload.test_time) &&
-    payload.test_time > 0
-      ? Math.round(payload.test_time)
-      : undefined
-  const seconds =
-    typeof payload.time === 'number' &&
-    Number.isFinite(payload.time) &&
-    payload.time >= 0
-      ? payload.time
-      : undefined
-  const timeMs =
-    responseTime ??
-    (seconds === undefined ? undefined : Math.round(seconds * 1000))
-  return { timeMs, responseTime, testTime }
 }
 
 const CHANNEL_BATCH_SIZE = 5
@@ -280,24 +245,6 @@ export function useAdminChannels() {
     )
   }
 
-  function applyChannelModelTestTiming(
-    channelId: number,
-    timing: ChannelModelTestTiming
-  ): void {
-    if (timing.responseTime === undefined && timing.testTime === undefined) {
-      return
-    }
-    rows.value = rows.value.map((row) =>
-      row.id === channelId
-        ? {
-            ...row,
-            response_time: timing.responseTime ?? row.response_time,
-            test_time: timing.testTime ?? row.test_time,
-          }
-        : row
-    )
-  }
-
   /**
    * Test one model on a channel, optionally overriding the endpoint and
    * stream mode. Failures come back as a result (not a throw) so the test
@@ -310,11 +257,7 @@ export function useAdminChannels() {
     signal?: AbortSignal
   ): Promise<ChannelModelTestResult> {
     try {
-      const data = await api.get<{
-        time?: number
-        response_time?: number
-        test_time?: number
-      }>(
+      const data = await api.get<{ time?: number }>(
         `/api/next/admin/channels/test/${channel.id}`,
         {
           model,
@@ -325,18 +268,12 @@ export function useAdminChannels() {
         },
         { signal }
       )
-      const timing = readChannelModelTestTiming(data)
-      const result = { ok: true, ...timing }
-      applyChannelModelTestTiming(channel.id, result)
-      return result
+      const seconds = typeof data?.time === 'number' ? data.time : 0
+      return { ok: true, timeMs: Math.round(seconds * 1000) }
     } catch (error) {
       if (signal?.aborted) throw error
-      const timing =
-        error instanceof ApiError ? readChannelModelTestTiming(error.data) : {}
-      applyChannelModelTestTiming(channel.id, timing)
       return {
         ok: false,
-        ...timing,
         message: error instanceof ApiError ? error.message : String(error),
       }
     }

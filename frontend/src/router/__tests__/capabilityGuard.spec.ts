@@ -108,34 +108,6 @@ describe('capability route guard', () => {
     expect(router.currentRoute.value.name).toBe('models')
   })
 
-  it('allows only root users to open system settings directly', async () => {
-    const auth = useAuthStore()
-    auth.persist({
-      id: 10,
-      username: 'admin',
-      display_name: 'Admin',
-      email: 'admin@example.com',
-      role: 10,
-      quota: 100,
-      used_quota: 0,
-    })
-
-    await router.push('/console/system-settings/site')
-    expect(router.currentRoute.value.name).toBe('dashboard')
-
-    auth.persist({
-      id: 100,
-      username: 'root',
-      display_name: 'Root',
-      email: 'root@example.com',
-      role: 100,
-      quota: 100,
-      used_quota: 0,
-    })
-    await router.push('/console/system-settings/site')
-    expect(router.currentRoute.value.name).toBe('system-settings-site')
-  })
-
   it('redirects every deferred module when its capability is disabled', async () => {
     publicApi.status.mockResolvedValue({
       frontend_capabilities: {

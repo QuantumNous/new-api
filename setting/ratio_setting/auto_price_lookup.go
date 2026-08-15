@@ -12,43 +12,11 @@ import (
 //
 // The caller must pass a name already normalized by FormatMatchingModelName.
 func hasManualPricing(name string) bool {
-	if _, ok := configuredModelRatioMap.Get(name); ok {
-		return true
-	}
-	if _, ok := configuredModelPriceMap.Get(name); ok {
-		return true
-	}
-	if strings.HasSuffix(name, CompactModelSuffix) {
-		if _, ok := configuredModelRatioMap.Get(CompactWildcardModelKey); ok {
-			return true
-		}
-		if _, ok := configuredModelPriceMap.Get(CompactWildcardModelKey); ok {
-			return true
-		}
-	}
-	// Tests and internal callers may set the live map directly. Treat entries
-	// absent from the shipped defaults as explicit configuration as well.
 	if _, ok := modelRatioMap.Get(name); ok {
-		if _, builtIn := defaultModelRatio[name]; !builtIn {
-			return true
-		}
+		return true
 	}
 	if _, ok := modelPriceMap.Get(name); ok {
-		if _, builtIn := defaultModelPrice[name]; !builtIn {
-			return true
-		}
-	}
-	if strings.HasSuffix(name, CompactModelSuffix) {
-		if _, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
-			if _, builtIn := defaultModelRatio[CompactWildcardModelKey]; !builtIn {
-				return true
-			}
-		}
-		if _, ok := modelPriceMap.Get(CompactWildcardModelKey); ok {
-			if _, builtIn := defaultModelPrice[CompactWildcardModelKey]; !builtIn {
-				return true
-			}
-		}
+		return true
 	}
 	return false
 }
@@ -63,9 +31,6 @@ func hasManualPricing(name string) bool {
 // manually priced base model onto catalog pricing through the variant's name.
 func HasManualModelRatio(name string) bool {
 	name = FormatMatchingModelName(name)
-	if _, ok := configuredModelRatioMap.Get(name); ok {
-		return true
-	}
 	if _, ok := modelRatioMap.Get(name); ok {
 		return true
 	}
@@ -75,34 +40,6 @@ func HasManualModelRatio(name string) bool {
 		}
 	}
 	return false
-}
-
-// GetAutoBillingExpr returns an automatic catalog expression only when the
-// feature is enabled and no administrator price owns the model.
-func GetAutoBillingExpr(name string) (string, bool) {
-	entry, ok := autoPricingEntry(FormatMatchingModelName(name))
-	if !ok || !entry.HasBillingExpr || strings.TrimSpace(entry.BillingExpr) == "" {
-		return "", false
-	}
-	return entry.BillingExpr, true
-}
-
-// GetAutoPerCallPrice exposes an explicit automatic per-request or per-image
-// price to endpoints whose billing contract is one completed task/call. Token
-// prices are intentionally excluded so a task cannot silently reinterpret a
-// per-token catalog entry as a fixed price.
-func GetAutoPerCallPrice(name string) (float64, bool) {
-	entry, ok := autoPricingEntry(FormatMatchingModelName(name))
-	if !ok {
-		return 0, false
-	}
-	if entry.HasPerRequestPrice {
-		return entry.PerRequestPrice, true
-	}
-	if entry.HasPerImagePrice {
-		return entry.PerImagePrice, true
-	}
-	return 0, false
 }
 
 // autoPricingEntry resolves a model against the automatic catalog. It reports
@@ -120,5 +57,5 @@ func autoPricingEntry(name string) (autopricing.Entry, bool) {
 	if hasManualPricing(name) {
 		return autopricing.Entry{}, false
 	}
-	return autopricing.ResolveForRequest(name, setting.FuzzyMatchEnabled)
+	return autopricing.Resolve(name, setting.FuzzyMatchEnabled)
 }

@@ -20,28 +20,20 @@ import (
 
 // Entry is the normalized pricing of one model in Ren2Hub ratio units.
 //
-// The Has* flags distinguish "the catalog states this price" from "the catalog
-// is silent". In particular, image-only entries must not look like zero-priced
-// token models merely because ModelRatio's zero value is zero.
+// The Has* flags distinguish "the catalog states this multiplier" from "the
+// catalog is silent". Callers must keep their own default (cache ratio 1,
+// create-cache ratio 1.25) when a flag is false, because a zero cache ratio
+// would silently make cached tokens free.
 type Entry struct {
 	ModelRatio          float64
-	HasModelRatio       bool
 	CompletionRatio     float64
 	CacheRatio          float64
 	HasCacheRatio       bool
 	CreateCacheRatio    float64
 	HasCreateCacheRatio bool
-	PerRequestPrice     float64
-	HasPerRequestPrice  bool
-	PerImagePrice       float64
-	HasPerImagePrice    bool
 	// CatalogKey is the catalog entry that produced this pricing. It differs
 	// from the requested model name whenever a fuzzy rule matched.
-	CatalogKey     string
-	Source         SourceID             `json:"source"`
-	FieldSources   map[FieldID]SourceID `json:"field_sources,omitempty"`
-	BillingExpr    string               `json:"billing_expr,omitempty"`
-	HasBillingExpr bool                 `json:"has_billing_expr,omitempty"`
+	CatalogKey string
 }
 
 // Catalog is an immutable snapshot of one downloaded pricing document.
@@ -58,55 +50,9 @@ type Catalog struct {
 	Version    string
 	UpdatedAt  time.Time
 	ModelCount int
-	// SkippedCount counts entries dropped as unusable (unparseable or failing
-	// validation).
-	SkippedCount   int
-	records        map[string]PriceRecord
-	SourceVersions map[SourceID]string `json:"source_versions,omitempty"`
-}
-
-// CatalogSnapshot is the durable representation of an immutable catalog.
-// Runtime indexes are rebuilt on restore instead of being persisted.
-type CatalogSnapshot struct {
-	Version        string                 `json:"version"`
-	UpdatedAt      time.Time              `json:"updated_at"`
-	SkippedCount   int                    `json:"skipped_count"`
-	Records        map[string]PriceRecord `json:"records"`
-	SourceVersions map[SourceID]string    `json:"source_versions,omitempty"`
-}
-
-// Snapshot returns an independent copy suitable for JSON persistence.
-func (c *Catalog) Snapshot() *CatalogSnapshot {
-	if c == nil {
-		return nil
-	}
-	versions := make(map[SourceID]string, len(c.SourceVersions))
-	for source, version := range c.SourceVersions {
-		versions[source] = version
-	}
-	return &CatalogSnapshot{
-		Version:        c.Version,
-		UpdatedAt:      c.UpdatedAt,
-		SkippedCount:   c.SkippedCount,
-		Records:        cloneRecords(c.records),
-		SourceVersions: versions,
-	}
-}
-
-// RestoreCatalog validates a persisted snapshot and rebuilds runtime indexes.
-func RestoreCatalog(snapshot *CatalogSnapshot) (*Catalog, error) {
-	if snapshot == nil {
-		return nil, nil
-	}
-	catalog, err := catalogFromRecords(snapshot.Records, snapshot.Version, snapshot.SourceVersions)
-	if err != nil {
-		return nil, err
-	}
-	if !snapshot.UpdatedAt.IsZero() {
-		catalog.UpdatedAt = snapshot.UpdatedAt
-	}
-	catalog.SkippedCount = snapshot.SkippedCount
-	return catalog, nil
+	// SkippedCount counts entries dropped as unusable (unparseable, priced only
+	// per image, or failing validation).
+	SkippedCount int
 }
 
 // Lookup resolves a single catalog key without any fuzzy rule.
@@ -210,29 +156,10 @@ func Loaded() bool {
 	return c != nil && c.ModelCount > 0
 }
 
-// ResolveForRequest prices a client-requested model. Exact keys, explicit
-// aliases and deterministic provider/path spelling normalization always run.
-// Date/revision compatibility runs only when allowCompatibility is enabled.
-func ResolveForRequest(model string, allowCompatibility bool) (Entry, bool) {
-	return resolve(model, allowCompatibility)
-}
-
-// ResolveIdentified prices a model name identified by an upstream response or
-// another trusted protocol field. It permits only exact keys, explicit aliases
-// and deterministic path/date/revision normalization. It never performs family
-// or nearest-model inference.
-func ResolveIdentified(model string) (Entry, bool) {
-	return resolve(model, true)
-}
-
-// Resolve is retained for callers that have not yet selected an explicit
-// lookup track. New request billing code should call ResolveForRequest, while
-// upstream-identified models should call ResolveIdentified.
+// Resolve looks up pricing for a model name. Exact candidate matching always
+// runs; the fuzzy rule chain runs only when allowFuzzy is set, and its results
+// are memoized because family matching scans the whole catalog.
 func Resolve(model string, allowFuzzy bool) (Entry, bool) {
-	return ResolveForRequest(model, allowFuzzy)
-}
-
-func resolve(model string, allowDateNormalization bool) (Entry, bool) {
 	c := current.Load()
 	if c == nil || len(c.entries) == 0 {
 		return Entry{}, false
@@ -255,7 +182,7 @@ func resolve(model string, allowDateNormalization bool) (Entry, bool) {
 		}
 	}
 
-	if !allowDateNormalization {
+	if !allowFuzzy {
 		return Entry{}, false
 	}
 

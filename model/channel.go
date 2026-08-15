@@ -595,19 +595,14 @@ func (channel *Channel) Update() error {
 	return err
 }
 
-func (channel *Channel) UpdateResponseTime(responseTime int64) error {
-	testTime := common.GetTimestamp()
+func (channel *Channel) UpdateResponseTime(responseTime int64) {
 	err := DB.Model(channel).Select("response_time", "test_time").Updates(Channel{
-		TestTime:     testTime,
+		TestTime:     common.GetTimestamp(),
 		ResponseTime: int(responseTime),
 	}).Error
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to update response time: channel_id=%d, error=%v", channel.Id, err))
-		return err
 	}
-	channel.TestTime = testTime
-	channel.ResponseTime = int(responseTime)
-	return nil
 }
 
 func (channel *Channel) UpdateBalance(balance float64) {

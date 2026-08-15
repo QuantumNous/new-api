@@ -44,7 +44,6 @@ skills-lock.json
 /model_pricing_catalog.json.tmp
 /model_pricing_catalog.version
 /model_pricing_catalog.version.tmp
-/auto-pricing/
 
 # Local-only live probes and scratch test workspaces.
 .local-tests/

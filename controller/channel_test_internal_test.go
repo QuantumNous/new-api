@@ -2,8 +2,6 @@ package controller
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,14 +13,12 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 func TestValidateChannelProxy(t *testing.T) {
@@ -409,97 +405,6 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, userID)
-}
-
-func TestWriteChannelTestResponseContract(t *testing.T) {
-	tests := []struct {
-		name        string
-		result      testResult
-		wantSuccess bool
-		wantData    bool
-	}{
-		{name: "success", wantSuccess: true, wantData: true},
-		{
-			name: "upstream failure",
-			result: testResult{newAPIError: relaytypes.NewOpenAIError(
-				errors.New("upstream failed"),
-				relaytypes.ErrorCodeBadResponse,
-				http.StatusBadGateway,
-			)},
-			wantData: true,
-		},
-		{
-			name:   "local failure",
-			result: testResult{localErr: errors.New("unsupported channel")},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(recorder)
-
-			writeChannelTestResponse(ctx, test.result, 0.261, 261, 1_725_000_000)
-
-			require.Equal(t, http.StatusOK, recorder.Code)
-			var response map[string]any
-			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-			require.Equal(t, test.wantSuccess, response["success"])
-			data, hasData := response["data"].(map[string]any)
-			require.Equal(t, test.wantData, hasData)
-			if !test.wantData {
-				return
-			}
-			require.Equal(t, float64(261), data["response_time"])
-			require.Equal(t, float64(1_725_000_000), data["test_time"])
-			require.Equal(t, 0.261, data["time"])
-		})
-	}
-}
-
-func TestUpdateResponseTimePersistsBeforeReturning(t *testing.T) {
-	db := setupModelListControllerTestDB(t)
-	channel := &model.Channel{
-		Id:     42,
-		Name:   "response-time-test",
-		Type:   constant.ChannelTypeOpenAI,
-		Key:    "test-key",
-		Models: "gpt-4o",
-	}
-	require.NoError(t, db.Create(channel).Error)
-
-	require.NoError(t, channel.UpdateResponseTime(261))
-	require.NotZero(t, channel.TestTime)
-
-	var stored model.Channel
-	require.NoError(t, db.First(&stored, channel.Id).Error)
-	require.Equal(t, 261, stored.ResponseTime)
-	require.Equal(t, channel.TestTime, stored.TestTime)
-}
-
-func TestPerformChannelTestsReturnsResponseTimePersistenceError(t *testing.T) {
-	db := setupModelListControllerTestDB(t)
-	callbackName := "test:fail-channel-response-time-update"
-	require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
-		if tx.Statement.Table == "channels" {
-			tx.AddError(errors.New("forced response-time write failure"))
-		}
-	}))
-	t.Cleanup(func() {
-		_ = db.Callback().Update().Remove(callbackName)
-	})
-
-	summary, err := performChannelTests(context.Background(), []*model.Channel{{
-		Id:   43,
-		Name: "unsupported-test-channel",
-		Type: constant.ChannelTypeMidjourney,
-	}}, 1, false, nil)
-
-	require.ErrorContains(t, err, "persist channel 43 response time")
-	require.ErrorContains(t, err, "forced response-time write failure")
-	assert.Equal(t, 1, summary.Tested)
-	assert.Equal(t, 0, summary.Succeeded)
-	assert.Equal(t, 1, summary.Failed)
 }
 
 func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {

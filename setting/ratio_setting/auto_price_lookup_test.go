@@ -100,21 +100,6 @@ func TestManualFixedPriceSuppressesCatalogRatio(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestConfiguredCompletionRatioAlwaysWins(t *testing.T) {
-	InitRatioSettings()
-	useTestCatalog(t, "{\"gpt-4o\": {\"input_cost_per_token\": 0.0001, \"output_cost_per_token\": 0.0004}}", enabledAutoPricing())
-
-	previous := configuredCompletionRatioMap.ReadAll()
-	configuredCompletionRatioMap.Set("gpt-4o", 1.75)
-	t.Cleanup(func() {
-		configuredCompletionRatioMap.Clear()
-		configuredCompletionRatioMap.AddAll(previous)
-	})
-
-	assert.Equal(t, 1.75, GetCompletionRatio("gpt-4o"),
-		"an administrator completion ratio must override both the catalog and hard-coded compatibility values")
-}
-
 func TestCatalogPricesModelsWithoutManualConfig(t *testing.T) {
 	useTestCatalog(t, testCatalogDocument, enabledAutoPricing())
 
@@ -134,35 +119,21 @@ func TestCatalogPricesModelsWithoutManualConfig(t *testing.T) {
 	assert.Equal(t, 1.25, createCacheRatio)
 }
 
-func TestCatalogWithoutCacheCostUsesInputPriceSemantics(t *testing.T) {
+func TestCatalogWithoutCacheCostKeepsDefaults(t *testing.T) {
 	useTestCatalog(t, testCatalogDocument, enabledAutoPricing())
 
 	ratio, ok, _ := GetModelRatio("auto-no-cache-model")
 	require.True(t, ok)
 	assert.Equal(t, 1.0, ratio)
 
-	// A missing cache price means ordinary input pricing. It must not fall back
-	// to the legacy generic cache-write surcharge.
+	// A silent catalog must not make cached tokens free.
 	cacheRatio, cacheOK := GetCacheRatio("auto-no-cache-model")
-	assert.True(t, cacheOK)
+	assert.False(t, cacheOK)
 	assert.Equal(t, 1.0, cacheRatio)
 
 	createCacheRatio, createOK := GetCreateCacheRatio("auto-no-cache-model")
-	assert.True(t, createOK)
-	assert.Equal(t, 1.0, createCacheRatio)
-}
-
-func TestImageOnlyCatalogEntryDoesNotBecomeZeroTokenRatio(t *testing.T) {
-	useTestCatalog(t, `{"image-only":{"output_cost_per_image":0.04}}`, enabledAutoPricing())
-
-	_, ratioOK, _ := GetModelRatio("image-only")
-	assert.False(t, ratioOK)
-	price, priceOK := GetAutoPerCallPrice("image-only")
-	require.True(t, priceOK)
-	assert.Equal(t, 0.04, price)
-	expr, exprOK := GetAutoBillingExpr("image-only")
-	assert.True(t, exprOK)
-	assert.Contains(t, expr, `count("n")`)
+	assert.False(t, createOK)
+	assert.Equal(t, 1.25, createCacheRatio)
 }
 
 func TestDisabledAutoPricingRestoresLegacyBehavior(t *testing.T) {
@@ -172,7 +143,7 @@ func TestDisabledAutoPricingRestoresLegacyBehavior(t *testing.T) {
 
 	ratio, ok, _ := GetModelRatio("auto-only-model")
 	assert.False(t, ok, "with the feature off an unconfigured model stays unpriced")
-	assert.Equal(t, 0.0, ratio)
+	assert.Equal(t, 37.5, ratio)
 
 	cacheRatio, cacheOK := GetCacheRatio("auto-only-model")
 	assert.False(t, cacheOK)
@@ -184,58 +155,19 @@ func TestUnknownModelStaysUnpricedWithCatalogLoaded(t *testing.T) {
 
 	ratio, ok, _ := GetModelRatio("model-nobody-has-heard-of")
 	assert.False(t, ok)
-	assert.Equal(t, 0.0, ratio)
-
-	value, usePrice, exists := GetModelRatioOrPrice("model-nobody-has-heard-of")
-	assert.False(t, exists)
-	assert.False(t, usePrice)
-	assert.Equal(t, 0.0, value)
+	assert.Equal(t, 37.5, ratio)
 }
 
-func TestConfiguredCompactWildcardWinsOverCatalog(t *testing.T) {
+func TestBuiltInDefaultsAreUnaffectedByCatalog(t *testing.T) {
 	InitRatioSettings()
-	useTestCatalog(t, `{"vendor/model-openai-compact": {"input_cost_per_token": 0.000004, "output_cost_per_token": 0.00002}}`, enabledAutoPricing())
-
-	previousRatios := configuredModelRatioMap.ReadAll()
-	configuredModelRatioMap.Set(CompactWildcardModelKey, 3.25)
-	t.Cleanup(func() {
-		configuredModelRatioMap.Clear()
-		configuredModelRatioMap.AddAll(previousRatios)
-	})
-
-	ratio, ok, _ := GetModelRatio("vendor/model-openai-compact")
-	require.True(t, ok)
-	assert.Equal(t, 3.25, ratio)
-}
-
-func TestConfiguredRatioWinsOverBuiltInFixedPrice(t *testing.T) {
-	InitRatioSettings()
-	previousRatios := configuredModelRatioMap.ReadAll()
-	configuredModelRatioMap.Set("gpt-4-gizmo-*", 7.5)
-	t.Cleanup(func() {
-		configuredModelRatioMap.Clear()
-		configuredModelRatioMap.AddAll(previousRatios)
-	})
-
-	value, usePrice, exists := GetModelRatioOrPrice("gpt-4-gizmo-custom-abc")
-	require.True(t, exists)
-	assert.False(t, usePrice, "administrator ratio must suppress the built-in fixed-price fallback")
-	assert.Equal(t, 7.5, value)
-}
-
-func TestCatalogTakesOverBuiltInDefaults(t *testing.T) {
-	InitRatioSettings()
-	// Shipped defaults are compatibility fallbacks, not administrator intent.
-	// A loaded catalog therefore takes ownership of the model.
-	useTestCatalog(t, `{"gpt-4o": {"input_cost_per_token": 0.0001, "output_cost_per_token": 0.0004, "cache_read_input_token_cost": 0.00002}}`, enabledAutoPricing())
+	// The catalog prices gpt-4o far above its real rate; the shipped default
+	// must still win because it is manual configuration.
+	useTestCatalog(t, `{"gpt-4o": {"input_cost_per_token": 0.0001, "output_cost_per_token": 0.0004}}`, enabledAutoPricing())
 
 	ratio, ok, _ := GetModelRatio("gpt-4o")
 	require.True(t, ok)
-	assert.Equal(t, 50.0, ratio)
+	assert.Equal(t, 1.25, ratio)
 	assert.Equal(t, 4.0, GetCompletionRatio("gpt-4o"))
-	cacheRatio, cacheOK := GetCacheRatio("gpt-4o")
-	require.True(t, cacheOK)
-	assert.Equal(t, 0.2, cacheRatio)
 }
 
 func TestCatalogNeverLeaksIntoExportedManualMaps(t *testing.T) {
@@ -288,15 +220,4 @@ func TestRatioUnitMatchesRatioSetting(t *testing.T) {
 	entry, ok := catalog.Lookup("probe")
 	require.True(t, ok)
 	assert.Equal(t, 1.0, entry.ModelRatio, "$2 per 1M tokens must convert to exactly one ratio unit")
-}
-
-func TestReviewedGPT56CompatibilityPricesStayPinned(t *testing.T) {
-	assert.Equal(t, 2.5, GetDefaultModelRatioMap()["gpt-5.6-sol"])
-	assert.Equal(t, 1.0, GetDefaultModelRatioMap()["gpt-5.6-terra"])
-	assert.Equal(t, 0.1, GetDefaultModelRatioMap()["gpt-5.6-luna"])
-	assert.Equal(t, 0.1, defaultCacheRatio["gpt-5.6-sol"])
-	assert.Equal(t, 0.1, defaultCacheRatio["gpt-5.6-terra"])
-	assert.Equal(t, 0.1, defaultCacheRatio["gpt-5.6-luna"])
-	assert.Equal(t, 6.0, GetCompletionRatio("gpt-5.6-terra"))
-	assert.Equal(t, 6.0, GetCompletionRatio("gpt-5.6-luna"))
 }

@@ -99,7 +99,6 @@ export function createApiClient(
           throw new ApiError(envelope.message || 'Request failed', {
             status: 200,
             business: true,
-            data: payload.data,
           })
         }
         return envelope.data

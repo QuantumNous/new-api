@@ -34,8 +34,6 @@ const props = withDefaults(
     ariaLabel?: string
     size?: 'sm' | 'md' | 'lg'
     closeDisabled?: boolean
-    bodyScrollable?: boolean
-    fillViewport?: boolean
   }>(),
   {
     title: '',
@@ -43,8 +41,6 @@ const props = withDefaults(
     ariaLabel: '',
     size: 'md',
     closeDisabled: false,
-    bodyScrollable: true,
-    fillViewport: false,
   }
 )
 
@@ -175,13 +171,13 @@ onBeforeUnmount(() => {
         <div
           ref="panel"
           tabindex="-1"
-          class="pencil-surface-strong relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden border border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper animate-scale-in focus:outline-none"
+          class="pencil-surface-strong relative flex max-h-[calc(100dvh-2rem)] w-full flex-col border border-[var(--border-subtle)] bg-[var(--surface-solid)] texture-paper animate-scale-in focus:outline-none"
           data-handdrawn="modal"
           style="
             border-radius: var(--shape-overlay);
             box-shadow: var(--overlay-shadow);
           "
-          :class="[widths[size], fillViewport ? 'h-[calc(100dvh-2rem)]' : '']"
+          :class="widths[size]"
         >
           <!-- Decorative gold-line top accent -->
           <div
@@ -215,15 +211,7 @@ onBeforeUnmount(() => {
               {{ subtitle }}
             </p>
           </header>
-          <div
-            class="min-h-0 px-6 py-5"
-            :class="
-              bodyScrollable
-                ? 'subtle-scroll overflow-y-auto'
-                : 'flex-1 overflow-hidden'
-            "
-            data-modal-body
-          >
+          <div class="subtle-scroll min-h-0 overflow-y-auto px-6 py-5">
             <slot />
           </div>
           <footer v-if="$slots.footer" class="shrink-0 px-6 pb-6">

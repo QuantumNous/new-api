@@ -10,10 +10,6 @@ import (
 type RequestInput struct {
 	Headers map[string]string
 	Body    []byte
-	// Counts contains quantities validated by the request layer. Keeping these
-	// values separate from Body prevents an arbitrary JSON field from becoming
-	// an unbounded billing multiplier.
-	Counts map[string]float64
 }
 
 // TokenParams holds all token dimensions passed into an Expr evaluation.

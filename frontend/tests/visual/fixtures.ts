@@ -360,35 +360,6 @@ export async function configureStablePage(
     ['/api/data/self', VISUAL_USAGE_ROWS],
     ['/api/next/dashboard/distribution', VISUAL_DISTRIBUTION],
     ['/api/next/dashboard/stats', VISUAL_STATS],
-    [
-      '/api/next/dashboard/system',
-      {
-        status: 'online',
-        scope: 'current_node',
-        sampled_at: Math.floor(FIXED_NOW / 1000),
-        cpu_percent: 34.2,
-        memory_used_bytes: 5_583_457_484,
-        memory_total_bytes: 17_179_869_184,
-        disk_used_bytes: 234_075_717_632,
-        disk_total_bytes: 549_755_813_888,
-        network_tx_bytes_per_second: 2_202_000,
-        network_rx_bytes_per_second: 13_002_300,
-        network_series: [
-          {
-            timestamp: Math.floor(FIXED_NOW / 1000) - 10,
-            tx_bytes_per_second: 1_800_000,
-            rx_bytes_per_second: 11_000_000,
-          },
-          {
-            timestamp: Math.floor(FIXED_NOW / 1000) - 5,
-            tx_bytes_per_second: 2_202_000,
-            rx_bytes_per_second: 13_002_300,
-          },
-        ],
-        api_success_rate_24h: 99.7,
-        version: 'v1.0.0-rc.23-visual',
-      },
-    ],
     ['/api/next/admin/dashboard/routes', VISUAL_ROUTE_CHANNELS],
     [
       '/api/user/models',

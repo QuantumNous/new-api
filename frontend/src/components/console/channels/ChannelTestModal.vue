@@ -48,7 +48,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  tested: []
 }>()
 
 const { t } = useI18n()
@@ -222,7 +221,6 @@ async function testBatch() {
       await Promise.all(batch.map((model) => runModelTest(model)))
       batchDone.value = Math.min(start + batch.length, targets.length)
     }
-    if (!abortController?.signal.aborted) emit('tested')
   } finally {
     testingAll.value = false
     batchDone.value = 0
@@ -291,20 +289,10 @@ function close() {
 </script>
 
 <template>
-  <ConsoleModal
-    :open="open"
-    :title="modalTitle"
-    :body-scrollable="false"
-    fill-viewport
-    size="lg"
-    @close="close"
-  >
-    <div
-      class="subtle-scroll flex h-full min-h-0 flex-col gap-4 overflow-y-auto text-left sm:overflow-hidden"
-      data-channel-test-layout
-    >
+  <ConsoleModal :open="open" :title="modalTitle" size="lg" @close="close">
+    <div class="space-y-4 text-left">
       <!-- ══ 测试配置 ══════════════════════════════════════════════════ -->
-      <section class="channel-test-section shrink-0">
+      <section class="channel-test-section">
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <p class="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">
@@ -359,9 +347,7 @@ function close() {
       </section>
 
       <!-- ══ 渠道模型 ══════════════════════════════════════════════════ -->
-      <section
-        class="channel-test-section flex shrink-0 flex-col sm:min-h-0 sm:flex-1"
-      >
+      <section class="channel-test-section">
         <div
           class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
         >
@@ -439,12 +425,9 @@ function close() {
           </ConsoleButton>
         </div>
 
-        <div
-          class="channel-test-table-wrap subtle-scroll mt-3 shrink-0 overflow-x-auto sm:min-h-0 sm:flex-1 sm:overflow-auto"
-          data-channel-model-scroll
-        >
+        <div class="channel-test-table-wrap mt-3">
           <table class="w-full text-sm">
-            <thead class="sticky top-0 z-10">
+            <thead>
               <tr class="channel-test-head-row">
                 <th class="w-9 px-3 py-2">
                   <input
@@ -508,29 +491,12 @@ function close() {
                 </td>
                 <td class="px-2 py-2.5">
                   <StatusChip :tone="statusTone(modelState(model).status)">
-                    <LoaderCircle
-                      v-if="modelState(model).status === 'running'"
-                      :size="12"
-                      class="animate-spin"
-                      aria-hidden="true"
-                    />
                     {{ statusLabel(modelState(model).status) }}
                   </StatusChip>
                 </td>
                 <td class="px-2 py-2.5">
                   <span
-                    v-if="modelState(model).status === 'running'"
-                    class="inline-flex items-center gap-1 text-xs text-[var(--status-warning-text)]"
-                  >
-                    <LoaderCircle
-                      :size="12"
-                      class="animate-spin"
-                      aria-hidden="true"
-                    />
-                    {{ t('channels.testStatusRunning') }}
-                  </span>
-                  <span
-                    v-else-if="modelState(model).status === 'success'"
+                    v-if="modelState(model).status === 'success'"
                     class="text-xs tabular-nums text-[var(--status-success-text)]"
                   >
                     {{
@@ -563,7 +529,6 @@ function close() {
                       v-if="modelState(model).status === 'running'"
                       :size="14"
                       class="animate-spin"
-                      aria-hidden="true"
                     />
                     <Activity v-else :size="14" />
                   </IconButton>
@@ -581,14 +546,12 @@ function close() {
           </table>
         </div>
 
-        <div class="shrink-0" data-channel-model-pagination>
-          <TablePagination
-            v-model:page="page"
-            v-model:page-size="pageSize"
-            :total="filteredModels.length"
-            :page-sizes="[10, 30, 50]"
-          />
-        </div>
+        <TablePagination
+          v-model:page="page"
+          v-model:page-size="pageSize"
+          :total="filteredModels.length"
+          :page-sizes="[10, 30, 50]"
+        />
       </section>
     </div>
 
@@ -615,11 +578,7 @@ function close() {
   border: 1px solid var(--border-subtle);
   border-radius: 0.75rem;
   background: var(--surface-solid);
-}
-@media (min-width: 640px) {
-  .channel-test-table-wrap {
-    max-height: 20rem;
-  }
+  overflow: hidden;
 }
 .channel-test-head-row {
   border-bottom: 1px solid var(--border-subtle);

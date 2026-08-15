@@ -62,14 +62,6 @@ describe('orders locale parity', () => {
       }
     }
   })
-
-  it('uses generic payment wording in user-visible values', () => {
-    for (const messages of [zhOrders, enOrders]) {
-      for (const path of flatten(messages)) {
-        expect(String(resolve(messages, path)), path).not.toMatch(/epay/i)
-      }
-    }
-  })
 })
 
 describe('orders message references', () => {

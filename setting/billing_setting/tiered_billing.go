@@ -55,13 +55,6 @@ func GetBillingExprCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingExpr)
 }
 
-// ResetPricingForAutoCatalogTakeover clears legacy model billing expressions
-// after they have been archived and removed from persistent Options.
-func ResetPricingForAutoCatalogTakeover() {
-	billingSetting.BillingMode = make(map[string]string)
-	billingSetting.BillingExpr = make(map[string]string)
-}
-
 func GetPricingSyncData(base map[string]any) map[string]any {
 	extra := make(map[string]any, 2)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {

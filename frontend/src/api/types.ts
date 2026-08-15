@@ -12,8 +12,6 @@ export interface ApiResponse<T> {
 export class ApiError extends Error {
   readonly status?: number
   readonly code?: string
-  /** Optional payload returned with a business failure envelope. */
-  readonly data?: unknown
   /** true when the server answered 200 with success:false */
   readonly business: boolean
 
@@ -23,7 +21,6 @@ export class ApiError extends Error {
       status?: number
       code?: string
       business?: boolean
-      data?: unknown
       cause?: unknown
     }
   ) {
@@ -31,7 +28,6 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = options?.status
     this.code = options?.code
-    this.data = options?.data
     this.business = options?.business ?? false
     if (options?.cause !== undefined) this.cause = options.cause
   }

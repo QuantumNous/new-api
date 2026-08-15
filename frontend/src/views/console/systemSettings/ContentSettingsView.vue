@@ -19,10 +19,8 @@ const dashboard = reactive({
 const dashboardSaving = reactive({ value: false })
 const dashboardDirty = computed(() => {
   const s = settings.value
-  return (
-    dashboard.DataExportEnabled !== s.DataExportEnabled ||
+  return dashboard.DataExportEnabled !== s.DataExportEnabled ||
     dashboard.DataExportInterval !== s.DataExportInterval
-  )
 })
 async function saveDashboard() {
   dashboardSaving.value = true
@@ -46,7 +44,7 @@ const drawingKeys = [
   'MjModeClearEnabled',
   'MjActionCheckSuccessEnabled',
 ] as const
-type DrawingKey = (typeof drawingKeys)[number]
+type DrawingKey = typeof drawingKeys[number]
 
 const drawing = reactive<Record<DrawingKey, boolean>>({
   DrawingEnabled: false,
@@ -71,41 +69,13 @@ async function saveDrawing() {
   if (ok) toast.success(t('systemSettings.saved'))
 }
 
-const drawingSwitches: Array<{
-  key: DrawingKey
-  labelKey: string
-  descKey: string
-}> = [
-  {
-    key: 'DrawingEnabled',
-    labelKey: 'systemSettings.content.drawingEnabled',
-    descKey: 'systemSettings.content.drawingEnabledDesc',
-  },
-  {
-    key: 'MjNotifyEnabled',
-    labelKey: 'systemSettings.content.mjNotify',
-    descKey: 'systemSettings.content.mjNotifyDesc',
-  },
-  {
-    key: 'MjAccountFilterEnabled',
-    labelKey: 'systemSettings.content.mjAccountFilter',
-    descKey: 'systemSettings.content.mjAccountFilterDesc',
-  },
-  {
-    key: 'MjForwardUrlEnabled',
-    labelKey: 'systemSettings.content.mjForwardUrl',
-    descKey: 'systemSettings.content.mjForwardUrlDesc',
-  },
-  {
-    key: 'MjModeClearEnabled',
-    labelKey: 'systemSettings.content.mjModeClear',
-    descKey: 'systemSettings.content.mjModeClearDesc',
-  },
-  {
-    key: 'MjActionCheckSuccessEnabled',
-    labelKey: 'systemSettings.content.mjActionCheck',
-    descKey: 'systemSettings.content.mjActionCheckDesc',
-  },
+const drawingSwitches: Array<{ key: DrawingKey; labelKey: string; descKey: string }> = [
+  { key: 'DrawingEnabled', labelKey: 'systemSettings.content.drawingEnabled', descKey: 'systemSettings.content.drawingEnabledDesc' },
+  { key: 'MjNotifyEnabled', labelKey: 'systemSettings.content.mjNotify', descKey: 'systemSettings.content.mjNotifyDesc' },
+  { key: 'MjAccountFilterEnabled', labelKey: 'systemSettings.content.mjAccountFilter', descKey: 'systemSettings.content.mjAccountFilterDesc' },
+  { key: 'MjForwardUrlEnabled', labelKey: 'systemSettings.content.mjForwardUrl', descKey: 'systemSettings.content.mjForwardUrlDesc' },
+  { key: 'MjModeClearEnabled', labelKey: 'systemSettings.content.mjModeClear', descKey: 'systemSettings.content.mjModeClearDesc' },
+  { key: 'MjActionCheckSuccessEnabled', labelKey: 'systemSettings.content.mjActionCheck', descKey: 'systemSettings.content.mjActionCheckDesc' },
 ]
 
 onMounted(async () => {
@@ -113,9 +83,7 @@ onMounted(async () => {
   const s = settings.value
   dashboard.DataExportEnabled = s.DataExportEnabled
   dashboard.DataExportInterval = s.DataExportInterval
-  drawingKeys.forEach((k) => {
-    drawing[k] = s[k]
-  })
+  drawingKeys.forEach((k) => { drawing[k] = s[k] })
 })
 </script>
 
@@ -140,9 +108,7 @@ onMounted(async () => {
           :label="t('systemSettings.content.dataExportInterval')"
           :model-value="String(dashboard.DataExportInterval)"
           type="number"
-          @update:model-value="
-            dashboard.DataExportInterval = Number($event) || 5
-          "
+          @update:model-value="dashboard.DataExportInterval = Number($event) || 5"
         />
       </div>
     </SysSettingsFormCard>

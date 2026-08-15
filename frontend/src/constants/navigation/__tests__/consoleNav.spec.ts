@@ -56,7 +56,7 @@ describe('console navigation', () => {
     })
   })
 
-  it('shows the Vue system-settings entry only to root users', () => {
+  it('shows the legacy system-settings entry only to root users', () => {
     const adminItems = getAccessibleConsoleNavGroups({
       isAdmin: true,
       hasPermission: () => true,
@@ -73,7 +73,7 @@ describe('console navigation', () => {
     expect(
       rootItems.find((item) => item.name === 'system-settings')
     ).toMatchObject({
-      route: 'system-settings-site',
+      href: '/system-settings',
       rootOnly: true,
     })
   })
@@ -113,25 +113,8 @@ describe('console navigation', () => {
         name: 'subscription',
         labelKey: 'nav.subscription',
         route: 'subscription',
-        hidden: true,
       })
     )
-  })
-
-  it('hides package entries without weakening their direct-route guards', () => {
-    const visibleAdminItems = getAccessibleConsoleNavGroups({
-      isAdmin: true,
-      hasPermission: () => true,
-    })
-      .flatMap((group) => group.items)
-      .map((item) => item.name)
-
-    expect(visibleAdminItems).not.toContain('plan-management')
-    expect(visibleAdminItems).not.toContain('subscription')
-    expect(getConsoleRouteAccessMeta('plan-management')).toEqual({
-      requiresAdmin: true,
-    })
-    expect(getConsoleRouteAccessMeta('subscription')).toEqual({})
   })
 
   it('keeps every route name unique across the whole navigation', () => {

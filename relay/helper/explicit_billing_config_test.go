@@ -55,20 +55,6 @@ func TestExplicitBillingConfigIgnoresAutoPricingCatalog(t *testing.T) {
 		"a catalog entry must not count as operator configuration")
 }
 
-func TestModelBillingConfigRecognizesAutoPerImageCatalogEntry(t *testing.T) {
-	installExplicitConfigFixture(t)
-	source, err := autopricing.ParseLiteLLMSource([]byte(`{
-		"image-only-auto-model": {"output_cost_per_image": 0.04}
-	}`), "image-only-v1")
-	require.NoError(t, err)
-	catalog, err := autopricing.MergeSources(source)
-	require.NoError(t, err)
-	autopricing.SetCatalog(catalog)
-
-	assert.True(t, HasModelBillingConfig("image-only-auto-model"))
-	assert.False(t, HasExplicitModelBillingConfig("image-only-auto-model"))
-}
-
 func TestExplicitBillingConfigHonorsManualEntries(t *testing.T) {
 	installExplicitConfigFixture(t)
 	ratio_setting.InitRatioSettings()

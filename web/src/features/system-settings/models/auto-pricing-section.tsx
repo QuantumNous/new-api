@@ -18,12 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import axios from 'axios'
-import { useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -35,14 +34,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 
-import {
-  getAutoPricingPending,
-  getAutoPricingStatus,
-  reviewAutoPricing,
-  syncAutoPricing,
-} from '../api'
+import { getAutoPricingStatus, syncAutoPricing } from '../api'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -53,40 +46,26 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import {
   autoPricingFormSchema,
-  parseAllowedHosts,
   type AutoPricingDefaults,
   type AutoPricingFormValues,
 } from './auto-pricing-form'
-import { AutoPricingReviewList } from './auto-pricing-review-list'
-import { AutoPricingStatusPanel } from './auto-pricing-status-panel'
 
 const AUTO_PRICING_STATUS_KEY = ['system-settings', 'auto-pricing-status']
-const AUTO_PRICING_PENDING_KEY = ['system-settings', 'auto-pricing-pending']
 
 export type { AutoPricingDefaults }
 
-type ReviewSubmission = {
-  models: string[]
-  action: 'approve' | 'reject'
-  revision: string
-}
-
-export function AutoPricingSection(props: {
+export function AutoPricingSection({
+  defaultValues,
+}: {
   defaultValues: AutoPricingDefaults
 }) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const queryClient = useQueryClient()
-  const [selectedModels, setSelectedModels] = useState<string[]>([])
 
   const statusQuery = useQuery({
     queryKey: AUTO_PRICING_STATUS_KEY,
     queryFn: getAutoPricingStatus,
-  })
-
-  const pendingQuery = useQuery({
-    queryKey: AUTO_PRICING_PENDING_KEY,
-    queryFn: getAutoPricingPending,
   })
 
   const syncMutation = useMutation({
@@ -101,40 +80,7 @@ export function AutoPricingSection(props: {
           })
         )
       }
-      setSelectedModels([])
-      void refreshAutoPricingQueries(queryClient)
-    },
-    onError: (error) =>
-      toast.error(
-        requestErrorMessage(error) ?? t('Failed to sync pricing catalog')
-      ),
-  })
-
-  const reviewMutation = useMutation({
-    mutationFn: (submission: ReviewSubmission) =>
-      reviewAutoPricing(
-        { models: submission.models, action: submission.action },
-        submission.revision
-      ),
-    onSuccess: (response) => {
-      if (!response.success) {
-        toast.error(response.message ?? t('Failed to review pricing changes'))
-        return
-      }
-      toast.success(t('Pricing review saved'))
-      setSelectedModels([])
-      void refreshAutoPricingQueries(queryClient)
-    },
-    onError: (error) => {
-      if (axios.isAxiosError(error) && error.response?.status === 409) {
-        toast.error(t('Pricing review queue changed. Refresh and try again.'))
-        setSelectedModels([])
-        void refreshAutoPricingQueries(queryClient)
-        return
-      }
-      toast.error(
-        requestErrorMessage(error) ?? t('Failed to review pricing changes')
-      )
+      void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_STATUS_KEY })
     },
   })
 
@@ -143,70 +89,40 @@ export function AutoPricingSection(props: {
       autoPricingFormSchema
     ) as unknown as Resolver<AutoPricingFormValues>,
     defaultValues: {
-      enabled: props.defaultValues.enabled,
-      remoteUrl: props.defaultValues.remoteUrl,
-      hashUrl: props.defaultValues.hashUrl,
-      allowedHosts: props.defaultValues.allowedHosts.join('\n'),
-      proxyUrl: props.defaultValues.proxyUrl,
-      allowDirectOnProxyFailure: props.defaultValues.allowDirectOnProxyFailure,
-      checkIntervalMinutes: props.defaultValues.checkIntervalMinutes,
-      fuzzyMatchEnabled: props.defaultValues.fuzzyMatchEnabled,
+      enabled: defaultValues.enabled,
+      remoteUrl: defaultValues.remoteUrl,
+      hashUrl: defaultValues.hashUrl,
+      checkIntervalMinutes: defaultValues.checkIntervalMinutes,
+      fuzzyMatchEnabled: defaultValues.fuzzyMatchEnabled,
     },
   })
 
   const { isDirty, isSubmitting } = form.formState
   const enabled = form.watch('enabled')
-  const isBusy =
-    updateOption.isPending ||
-    isSubmitting ||
-    syncMutation.isPending ||
-    reviewMutation.isPending
-  const reviewRevision =
-    pendingQuery.data?.revision ?? statusQuery.data?.data.revision ?? ''
+  const isBusy = updateOption.isPending || isSubmitting
 
   async function onSubmit(values: AutoPricingFormValues) {
     const updates: Array<{ key: string; value: string }> = []
-    const nextAllowedHosts = parseAllowedHosts(values.allowedHosts)
 
-    if (values.enabled !== props.defaultValues.enabled) {
+    if (values.enabled !== defaultValues.enabled) {
       updates.push({
         key: 'auto_pricing.enabled',
         value: String(values.enabled),
       })
     }
-    if (values.remoteUrl !== props.defaultValues.remoteUrl) {
+    if (values.remoteUrl !== defaultValues.remoteUrl) {
       updates.push({ key: 'auto_pricing.remote_url', value: values.remoteUrl })
     }
-    if (values.hashUrl !== props.defaultValues.hashUrl) {
+    if (values.hashUrl !== defaultValues.hashUrl) {
       updates.push({ key: 'auto_pricing.hash_url', value: values.hashUrl })
     }
-    if (!sameStringArray(nextAllowedHosts, props.defaultValues.allowedHosts)) {
-      updates.push({
-        key: 'auto_pricing.allowed_hosts',
-        value: JSON.stringify(nextAllowedHosts),
-      })
-    }
-    if (values.proxyUrl !== props.defaultValues.proxyUrl) {
-      updates.push({ key: 'auto_pricing.proxy_url', value: values.proxyUrl })
-    }
-    if (
-      values.allowDirectOnProxyFailure !==
-      props.defaultValues.allowDirectOnProxyFailure
-    ) {
-      updates.push({
-        key: 'auto_pricing.allow_direct_on_proxy_failure',
-        value: String(values.allowDirectOnProxyFailure),
-      })
-    }
-    if (
-      values.checkIntervalMinutes !== props.defaultValues.checkIntervalMinutes
-    ) {
+    if (values.checkIntervalMinutes !== defaultValues.checkIntervalMinutes) {
       updates.push({
         key: 'auto_pricing.check_interval_minutes',
         value: String(values.checkIntervalMinutes),
       })
     }
-    if (values.fuzzyMatchEnabled !== props.defaultValues.fuzzyMatchEnabled) {
+    if (values.fuzzyMatchEnabled !== defaultValues.fuzzyMatchEnabled) {
       updates.push({
         key: 'auto_pricing.fuzzy_match_enabled',
         value: String(values.fuzzyMatchEnabled),
@@ -222,24 +138,8 @@ export function AutoPricingSection(props: {
       await updateOption.mutateAsync(update)
     }
 
-    form.reset({
-      ...values,
-      allowedHosts: nextAllowedHosts.join('\n'),
-    })
+    form.reset(values)
     void queryClient.invalidateQueries({ queryKey: AUTO_PRICING_STATUS_KEY })
-  }
-
-  function submitReview(action: 'approve' | 'reject') {
-    if (!reviewRevision) {
-      toast.error(t('Pricing review queue changed. Refresh and try again.'))
-      void refreshAutoPricingQueries(queryClient)
-      return
-    }
-    reviewMutation.mutate({
-      models: selectedModels,
-      action,
-      revision: reviewRevision,
-    })
   }
 
   return (
@@ -249,7 +149,7 @@ export function AutoPricingSection(props: {
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={isBusy}
-            isSaveDisabled={!isDirty || isBusy}
+            isSaveDisabled={!isDirty}
             saveLabel='Save automatic pricing settings'
           />
 
@@ -277,28 +177,13 @@ export function AutoPricingSection(props: {
             )}
           />
 
-          {enabled ? (
+          {enabled && (
             <>
               <AutoPricingStatusPanel
                 isLoading={statusQuery.isPending}
-                error={requestErrorMessage(statusQuery.error)}
                 status={statusQuery.data?.data}
-                isSyncing={syncMutation.isPending || reviewMutation.isPending}
+                isSyncing={syncMutation.isPending}
                 onSync={() => syncMutation.mutate()}
-              />
-
-              <AutoPricingReviewList
-                items={pendingQuery.data?.data ?? []}
-                isLoading={pendingQuery.isPending}
-                error={requestErrorMessage(pendingQuery.error)}
-                selectedModels={selectedModels}
-                onSelectionChange={setSelectedModels}
-                isReviewing={
-                  reviewMutation.isPending ||
-                  syncMutation.isPending ||
-                  !reviewRevision
-                }
-                onReview={submitReview}
               />
 
               <FormField
@@ -307,12 +192,10 @@ export function AutoPricingSection(props: {
                 render={({ field }) => (
                   <SettingsSwitchItem>
                     <SettingsSwitchContent>
-                      <FormLabel>
-                        {t('Enable compatible model matching')}
-                      </FormLabel>
+                      <FormLabel>{t('Enable fuzzy model matching')}</FormLabel>
                       <FormDescription>
                         {t(
-                          'Allow explicit provider paths and deterministic release-date variants to use the same catalog entry.'
+                          'Allow a model to be priced by a closely related catalog entry, such as another release date of the same model. Turn this off to require an exact catalog match.'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>
@@ -334,10 +217,12 @@ export function AutoPricingSection(props: {
                   <FormItem>
                     <FormLabel>{t('Pricing catalog URL')}</FormLabel>
                     <FormControl>
-                      <Input type='url' {...field} disabled={isBusy} />
+                      <Input type='url' {...field} />
                     </FormControl>
                     <FormDescription>
-                      {t('The primary Wei-Shaw mirror URL. HTTPS is required.')}
+                      {t(
+                        'A LiteLLM format pricing document. Use a mirror if the default host is unreachable.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -352,10 +237,12 @@ export function AutoPricingSection(props: {
                     <FormItem>
                       <FormLabel>{t('Checksum URL (optional)')}</FormLabel>
                       <FormControl>
-                        <Input type='url' {...field} disabled={isBusy} />
+                        <Input type='url' {...field} />
                       </FormControl>
                       <FormDescription>
-                        {t('SHA256 checksum published next to the catalog.')}
+                        {t(
+                          'Checksum file published next to the catalog. Used to detect changes on mirrors that do not send an ETag.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -369,111 +256,101 @@ export function AutoPricingSection(props: {
                     <FormItem>
                       <FormLabel>{t('Check interval (minutes)')}</FormLabel>
                       <FormControl>
-                        <Input
-                          type='number'
-                          min={5}
-                          max={10080}
-                          {...field}
-                          disabled={isBusy}
-                        />
+                        <Input type='number' min={5} max={10080} {...field} />
                       </FormControl>
                       <FormDescription>
-                        {t('How often to check source versions for changes.')}
+                        {t(
+                          'How often to check for a new catalog. The document is downloaded only when it changed.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name='allowedHosts'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Allowed pricing hosts')}</FormLabel>
-                    <FormControl>
-                      <Textarea rows={3} {...field} disabled={isBusy} />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'HTTPS host names allowed for the configurable catalog and checksum URLs, separated by commas or new lines.'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='proxyUrl'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Pricing proxy URL (optional)')}</FormLabel>
-                    <FormControl>
-                      <Input type='url' {...field} disabled={isBusy} />
-                    </FormControl>
-                    <FormDescription>
-                      {t(
-                        'HTTP, HTTPS, SOCKS5, and SOCKS5H proxies are supported.'
-                      )}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name='allowDirectOnProxyFailure'
-                render={({ field }) => (
-                  <SettingsSwitchItem>
-                    <SettingsSwitchContent>
-                      <FormLabel>
-                        {t('Allow direct connection when proxy setup fails')}
-                      </FormLabel>
-                      <FormDescription>
-                        {t(
-                          'Disabled by default so an invalid proxy cannot silently bypass the configured route.'
-                        )}
-                      </FormDescription>
-                    </SettingsSwitchContent>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={isBusy}
-                      />
-                    </FormControl>
-                  </SettingsSwitchItem>
-                )}
-              />
             </>
-          ) : null}
+          )}
         </SettingsForm>
       </Form>
     </SettingsSection>
   )
 }
 
-function refreshAutoPricingQueries(
-  queryClient: ReturnType<typeof useQueryClient>
-): Promise<void> {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: AUTO_PRICING_STATUS_KEY }),
-    queryClient.invalidateQueries({ queryKey: AUTO_PRICING_PENDING_KEY }),
-  ]).then(() => undefined)
-}
-
-function requestErrorMessage(error: unknown): string | undefined {
-  if (axios.isAxiosError<{ message?: string }>(error)) {
-    return error.response?.data?.message ?? error.message
+function AutoPricingStatusPanel(props: {
+  isLoading: boolean
+  status?: {
+    loaded: boolean
+    model_count: number
+    skipped_count: number
+    updated_at?: string
+    last_error?: string
   }
-  return error instanceof Error ? error.message : undefined
+  isSyncing: boolean
+  onSync: () => void
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4'>
+      <div className='space-y-1 text-sm'>
+        <p className='font-medium'>{t('Catalog status')}</p>
+        <p className='text-muted-foreground'>
+          <AutoPricingStatusText
+            isLoading={props.isLoading}
+            status={props.status}
+          />
+        </p>
+        {props.status?.last_error ? (
+          <p className='text-destructive'>
+            {t('Last sync failed: {{error}}', {
+              error: props.status.last_error,
+            })}
+          </p>
+        ) : null}
+      </div>
+      <Button
+        type='button'
+        variant='outline'
+        onClick={props.onSync}
+        disabled={props.isSyncing}
+      >
+        {props.isSyncing ? t('Syncing...') : t('Sync now')}
+      </Button>
+    </div>
+  )
 }
 
-function sameStringArray(left: string[], right: string[]): boolean {
-  if (left.length !== right.length) return false
-  return left.every((value, index) => value === right[index])
+function AutoPricingStatusText(props: {
+  isLoading: boolean
+  status?: {
+    loaded: boolean
+    model_count: number
+    updated_at?: string
+  }
+}) {
+  const { t } = useTranslation()
+
+  if (props.isLoading) {
+    return <>{t('Loading...')}</>
+  }
+  if (!props.status?.loaded) {
+    return <>{t('No pricing catalog loaded yet')}</>
+  }
+  if (!props.status.updated_at) {
+    return (
+      <>
+        {t('Catalog prices {{modelCount}} models', {
+          modelCount: props.status.model_count,
+        })}
+      </>
+    )
+  }
+  return (
+    <>
+      {t('Catalog prices {{modelCount}} models, updated {{time}}', {
+        modelCount: props.status.model_count,
+        time: new Date(props.status.updated_at).toLocaleString(),
+      })}
+    </>
+  )
 }

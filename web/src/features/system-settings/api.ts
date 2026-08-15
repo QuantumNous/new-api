@@ -20,9 +20,6 @@ import { api } from '@/lib/api'
 
 import type {
   AutoPricingStatusResponse,
-  AutoPricingPendingResponse,
-  AutoPricingReviewRequest,
-  AutoPricingReviewResponse,
   ConfirmPaymentComplianceResponse,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
@@ -120,28 +117,6 @@ export async function getAutoPricingStatus() {
 export async function syncAutoPricing() {
   const res = await api.post<AutoPricingStatusResponse>(
     '/api/auto_pricing/sync'
-  )
-  return res.data
-}
-
-export async function getAutoPricingPending() {
-  const res = await api.get<AutoPricingPendingResponse>(
-    '/api/auto_pricing/pending'
-  )
-  return res.data
-}
-
-export async function reviewAutoPricing(
-  request: AutoPricingReviewRequest,
-  revision: string
-) {
-  const res = await api.post<AutoPricingReviewResponse>(
-    '/api/auto_pricing/review',
-    request,
-    {
-      headers: { 'If-Match': `"${revision}"` },
-      skipErrorHandler: true,
-    }
   )
   return res.data
 }

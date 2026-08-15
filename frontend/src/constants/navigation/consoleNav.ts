@@ -15,8 +15,6 @@ export interface ConsoleNavItem {
   href?: string
   icon: string
   disabled?: boolean
-  /** Keep route and access metadata while removing the item from navigation. */
-  hidden?: boolean
   /** Restrict the item to root users (role >= 100). */
   rootOnly?: boolean
   permission?: { resource: string; action: string }
@@ -105,7 +103,6 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         labelKey: 'nav.subscription',
         route: 'subscription',
         feature: 'subscription_balance',
-        hidden: true,
         // Lucide "gem": faceted stone, reads as a tiered membership
         icon: 'M6 3h12l4 6-10 12L2 9l4-6ZM11 3 8 9l4 12M13 3l3 6-4 12M2 9h20',
       },
@@ -152,7 +149,6 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         labelKey: 'nav.planManagement',
         route: 'plan-management',
         feature: 'subscription_balance',
-        hidden: true,
         // Lucide "layers": stacked tiers, the catalogue behind the storefront
         icon: 'm12 2 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 17l9 5 9-5',
       },
@@ -197,7 +193,6 @@ export function getAccessibleConsoleNavGroups(
     if (!canAccessConsoleNavGroup(group, context)) return []
     const items = group.items.filter(
       (item) =>
-        !item.hidden &&
         (!item.rootOnly || context.isRoot === true) &&
         (!item.permission ||
           context.hasPermission?.(

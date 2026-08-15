@@ -60,10 +60,7 @@ export function useSystemSettings() {
     _fetchPromise = api
       .get<SystemOption[]>('/api/option/')
       .then((data) => {
-        _settings.value = parseOptions(
-          Array.isArray(data) ? data : [],
-          SYSTEM_SETTINGS_DEFAULTS
-        )
+        _settings.value = parseOptions(Array.isArray(data) ? data : [], SYSTEM_SETTINGS_DEFAULTS)
         _loaded.value = true
       })
       .catch((err) => {
@@ -97,24 +94,13 @@ export function useSystemSettings() {
     }
   }
 
-  /** Save prerequisites before their enable switches, then resync on partial failure. */
+  /** Save a whole flat patch object; stops on first failure. */
   async function saveOptions(
     patch: Partial<Record<string, string | boolean | number>>
   ): Promise<boolean> {
-    const entries = Object.entries(patch).sort(([left], [right]) => {
-      const leftIsEnable = left.endsWith('Enabled') || left.endsWith('.enabled')
-      const rightIsEnable =
-        right.endsWith('Enabled') || right.endsWith('.enabled')
-      return Number(leftIsEnable) - Number(rightIsEnable)
-    })
-    let savedAny = false
-    for (const [key, value] of entries) {
+    for (const [key, value] of Object.entries(patch)) {
       const ok = await updateOption(key, value as string | boolean | number)
-      if (!ok) {
-        if (savedAny) await load(true)
-        return false
-      }
-      savedAny = true
+      if (!ok) return false
     }
     return true
   }

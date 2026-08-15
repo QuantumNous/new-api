@@ -462,10 +462,6 @@ function openTest(channel: AdminChannel) {
   testing.value = channel
 }
 
-function onChannelTestsCompleted() {
-  void load({ background: true })
-}
-
 function openSupplierTest(group: SupplierGroup) {
   if (!canOperate.value) return
   groupTestOverrides.value = {}
@@ -1434,7 +1430,6 @@ async function runBulkStatus(
       :test-model="testChannelModel"
       :remove-models="removeChannelModels"
       @close="testing = null"
-      @tested="onChannelTestsCompleted"
     />
 
     <ChannelTestPickerDialog

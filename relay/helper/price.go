@@ -2,7 +2,6 @@ package helper
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -10,7 +9,6 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -79,9 +77,6 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
-		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
-	}
-	if _, ok := ratio_setting.GetAutoBillingExpr(info.OriginModelName); ok {
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
@@ -197,8 +192,9 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 	var modelRatio float64
 
 	if !success {
-		if autoPrice, ok := ratio_setting.GetAutoPerCallPrice(info.OriginModelName); ok {
-			modelPrice = autoPrice
+		defaultPrice, ok := ratio_setting.GetDefaultModelPriceMap()[info.OriginModelName]
+		if ok {
+			modelPrice = defaultPrice
 			usePrice = true
 		} else {
 			var ratioSuccess bool
@@ -263,12 +259,6 @@ func HasModelBillingConfig(modelName string) bool {
 	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
 		return true
 	}
-	if _, ok := ratio_setting.GetAutoBillingExpr(modelName); ok {
-		return true
-	}
-	if _, ok := ratio_setting.GetAutoPerCallPrice(modelName); ok {
-		return true
-	}
 	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {
 		return false
 	}
@@ -302,9 +292,6 @@ func HasExplicitModelBillingConfig(modelName string) bool {
 func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
 	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
 	if !ok {
-		exprStr, ok = ratio_setting.GetAutoBillingExpr(info.OriginModelName)
-	}
-	if !ok {
 		return hosttypes.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
 	}
 
@@ -317,7 +304,6 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 	if err != nil {
 		return hosttypes.PriceData{}, err
 	}
-	mergeValidatedBillingCounts(&requestInput, meta.BillingRatios)
 
 	rawCost, trace, err := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{
 		P:   float64(promptTokens),
@@ -371,23 +357,4 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 
 	info.PriceData = priceData
 	return priceData, nil
-}
-
-func mergeValidatedBillingCounts(input *billingexpr.RequestInput, ratios map[string]float64) {
-	if input == nil || len(ratios) == 0 {
-		return
-	}
-	if input.Counts == nil {
-		input.Counts = make(map[string]float64, len(ratios))
-	}
-	for name, value := range ratios {
-		name = strings.TrimSpace(name)
-		if name != "n" || value < 1 || math.IsNaN(value) || math.IsInf(value, 0) {
-			continue
-		}
-		if value > float64(dto.MaxImageN) {
-			value = float64(dto.MaxImageN)
-		}
-		input.Counts[name] = value
-	}
 }

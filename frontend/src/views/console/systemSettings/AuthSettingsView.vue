@@ -26,22 +26,15 @@ const basicSaving = reactive({ value: false })
 const basicDirty = computed(() => {
   // EmailDomainWhitelist is stored as newline-separated locally but
   // comma-separated in settings; normalise both sides before comparing.
-  const localWhitelist = basic.EmailDomainWhitelist.split('\n')
-    .map((d) => d.trim())
-    .filter(Boolean)
-    .join(',')
-  return (
-    basic.PasswordLoginEnabled !== settings.value.PasswordLoginEnabled ||
+  const localWhitelist = basic.EmailDomainWhitelist
+    .split('\n').map((d) => d.trim()).filter(Boolean).join(',')
+  return basic.PasswordLoginEnabled !== settings.value.PasswordLoginEnabled ||
     basic.RegisterEnabled !== settings.value.RegisterEnabled ||
     basic.PasswordRegisterEnabled !== settings.value.PasswordRegisterEnabled ||
-    basic.EmailVerificationEnabled !==
-      settings.value.EmailVerificationEnabled ||
-    basic.EmailDomainRestrictionEnabled !==
-      settings.value.EmailDomainRestrictionEnabled ||
-    basic.EmailAliasRestrictionEnabled !==
-      settings.value.EmailAliasRestrictionEnabled ||
+    basic.EmailVerificationEnabled !== settings.value.EmailVerificationEnabled ||
+    basic.EmailDomainRestrictionEnabled !== settings.value.EmailDomainRestrictionEnabled ||
+    basic.EmailAliasRestrictionEnabled !== settings.value.EmailAliasRestrictionEnabled ||
     localWhitelist !== settings.value.EmailDomainWhitelist
-  )
 })
 
 async function saveBasic() {
@@ -62,7 +55,8 @@ async function saveBasic() {
     patch.EmailAliasRestrictionEnabled = basic.EmailAliasRestrictionEnabled
   if (basic.EmailDomainWhitelist !== s.EmailDomainWhitelist) {
     // normalize: newline-separated → comma-separated
-    patch.EmailDomainWhitelist = basic.EmailDomainWhitelist.split('\n')
+    patch.EmailDomainWhitelist = basic.EmailDomainWhitelist
+      .split('\n')
       .map((d) => d.trim())
       .filter(Boolean)
       .join(',')
@@ -79,11 +73,10 @@ const github = reactive({
   GitHubClientSecret: '',
 })
 const githubSaving = reactive({ value: false })
-const githubDirty = computed(
-  () =>
-    github.GitHubOAuthEnabled !== settings.value.GitHubOAuthEnabled ||
-    github.GitHubClientId !== settings.value.GitHubClientId ||
-    github.GitHubClientSecret !== settings.value.GitHubClientSecret
+const githubDirty = computed(() =>
+  github.GitHubOAuthEnabled !== settings.value.GitHubOAuthEnabled ||
+  github.GitHubClientId !== settings.value.GitHubClientId ||
+  github.GitHubClientSecret !== settings.value.GitHubClientSecret
 )
 async function saveGithub() {
   githubSaving.value = true
@@ -107,11 +100,10 @@ const discord = reactive({
   'discord.client_secret': '',
 })
 const discordSaving = reactive({ value: false })
-const discordDirty = computed(
-  () =>
-    discord['discord.enabled'] !== settings.value['discord.enabled'] ||
-    discord['discord.client_id'] !== settings.value['discord.client_id'] ||
-    discord['discord.client_secret'] !== settings.value['discord.client_secret']
+const discordDirty = computed(() =>
+  discord['discord.enabled'] !== settings.value['discord.enabled'] ||
+  discord['discord.client_id'] !== settings.value['discord.client_id'] ||
+  discord['discord.client_secret'] !== settings.value['discord.client_secret']
 )
 async function saveDiscord() {
   discordSaving.value = true
@@ -135,11 +127,10 @@ const telegram = reactive({
   TelegramBotName: '',
 })
 const telegramSaving = reactive({ value: false })
-const telegramDirty = computed(
-  () =>
-    telegram.TelegramOAuthEnabled !== settings.value.TelegramOAuthEnabled ||
-    telegram.TelegramBotToken !== settings.value.TelegramBotToken ||
-    telegram.TelegramBotName !== settings.value.TelegramBotName
+const telegramDirty = computed(() =>
+  telegram.TelegramOAuthEnabled !== settings.value.TelegramOAuthEnabled ||
+  telegram.TelegramBotToken !== settings.value.TelegramBotToken ||
+  telegram.TelegramBotName !== settings.value.TelegramBotName
 )
 async function saveTelegram() {
   telegramSaving.value = true
@@ -163,11 +154,10 @@ const turnstile = reactive({
   TurnstileSecretKey: '',
 })
 const turnstileSaving = reactive({ value: false })
-const turnstileDirty = computed(
-  () =>
-    turnstile.TurnstileCheckEnabled !== settings.value.TurnstileCheckEnabled ||
-    turnstile.TurnstileSiteKey !== settings.value.TurnstileSiteKey ||
-    turnstile.TurnstileSecretKey !== settings.value.TurnstileSecretKey
+const turnstileDirty = computed(() =>
+  turnstile.TurnstileCheckEnabled !== settings.value.TurnstileCheckEnabled ||
+  turnstile.TurnstileSiteKey !== settings.value.TurnstileSiteKey ||
+  turnstile.TurnstileSecretKey !== settings.value.TurnstileSecretKey
 )
 async function saveTurnstile() {
   turnstileSaving.value = true
@@ -195,7 +185,8 @@ onMounted(async () => {
     EmailDomainRestrictionEnabled: s.EmailDomainRestrictionEnabled,
     EmailAliasRestrictionEnabled: s.EmailAliasRestrictionEnabled,
     // store newline-separated for textarea UX
-    EmailDomainWhitelist: s.EmailDomainWhitelist.split(',')
+    EmailDomainWhitelist: s.EmailDomainWhitelist
+      .split(',')
       .map((d) => d.trim())
       .filter(Boolean)
       .join('\n'),
@@ -269,9 +260,7 @@ onMounted(async () => {
           v-model="basic.EmailDomainWhitelist"
           :label="t('systemSettings.auth.emailDomainWhitelist')"
           :description="t('systemSettings.auth.emailDomainWhitelistDesc')"
-          :placeholder="
-            t('systemSettings.auth.emailDomainWhitelistPlaceholder')
-          "
+          :placeholder="t('systemSettings.auth.emailDomainWhitelistPlaceholder')"
           :rows="4"
         />
       </div>

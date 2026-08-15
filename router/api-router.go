@@ -163,7 +163,6 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				dashboardRoute.GET("/stats", controller.NextGetDashboardStats)
 				dashboardRoute.GET("/distribution", controller.NextGetDashboardDistribution)
-				dashboardRoute.GET("/system", controller.NextGetDashboardSystem)
 			}
 			inviteRoute := nextRoute.Group("/invite")
 			{
@@ -334,9 +333,7 @@ func SetApiRouter(router *gin.Engine) {
 		autoPricingRoute.Use(middleware.RootAuth())
 		{
 			autoPricingRoute.GET("/status", controller.GetAutoPricingStatus)
-			autoPricingRoute.GET("/pending", controller.GetAutoPricingPending)
 			autoPricingRoute.POST("/sync", controller.SyncAutoPricing)
-			autoPricingRoute.POST("/review", controller.ReviewAutoPricing)
 		}
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)

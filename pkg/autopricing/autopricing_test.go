@@ -3,7 +3,6 @@ package autopricing
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,8 +62,10 @@ func TestBuildCatalogRejectsUnusableEntries(t *testing.T) {
 		name  string
 		entry string
 	}{
+		{name: "no token pricing at all", entry: `{"output_cost_per_image": 0.04, "mode": "image_generation"}`},
 		{name: "negative input cost", entry: `{"input_cost_per_token": -0.000001, "output_cost_per_token": 0.000002}`},
 		{name: "negative output cost", entry: `{"input_cost_per_token": 0.000001, "output_cost_per_token": -0.000002}`},
+		{name: "free input with paid output", entry: `{"input_cost_per_token": 0, "output_cost_per_token": 0.000002}`},
 		{name: "absurd input cost", entry: `{"input_cost_per_token": 100, "output_cost_per_token": 100}`},
 		{name: "absurd completion multiplier", entry: `{"input_cost_per_token": 0.0000000001, "output_cost_per_token": 0.01}`},
 		{name: "absurd cache multiplier", entry: `{"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000002, "cache_read_input_token_cost": 1}`},
@@ -82,49 +83,6 @@ func TestBuildCatalogRejectsUnusableEntries(t *testing.T) {
 			assert.Equal(t, 1, catalog.SkippedCount)
 		})
 	}
-}
-
-func TestBuildCatalogKeepsPerImageOnlyEntries(t *testing.T) {
-	catalog := buildTestCatalog(t, `{
-		"image-only": {"output_cost_per_image": 0.04, "mode": "image_generation"}
-	}`)
-
-	entry, ok := catalog.Lookup("image-only")
-	require.True(t, ok)
-	assert.False(t, entry.HasModelRatio)
-	assert.True(t, entry.HasPerImagePrice)
-	assert.Equal(t, 0.04, entry.PerImagePrice)
-	assert.True(t, entry.HasBillingExpr)
-
-	cost, _, err := billingexpr.RunExprWithRequest(
-		entry.BillingExpr,
-		billingexpr.TokenParams{},
-		billingexpr.RequestInput{Counts: map[string]float64{"n": 3}},
-	)
-	require.NoError(t, err)
-	assert.Equal(t, 120000.0, cost)
-
-	// Arbitrary JSON fields are not trusted as billing quantities.
-	cost, _, err = billingexpr.RunExprWithRequest(
-		entry.BillingExpr,
-		billingexpr.TokenParams{},
-		billingexpr.RequestInput{Body: []byte(`{"n":999999999}`)},
-	)
-	require.NoError(t, err)
-	assert.Equal(t, 40000.0, cost)
-}
-
-func TestBuildCatalogKeepsZeroInputPaidOutputAsExpression(t *testing.T) {
-	catalog := buildTestCatalog(t, `{
-		"output-only": {"input_cost_per_token": 0, "output_cost_per_token": 0.000002}
-	}`)
-	entry, ok := catalog.Lookup("output-only")
-	require.True(t, ok)
-	assert.True(t, entry.HasModelRatio)
-	assert.True(t, entry.HasBillingExpr)
-	cost, _, err := billingexpr.RunExpr(entry.BillingExpr, billingexpr.TokenParams{P: 100, C: 100})
-	require.NoError(t, err)
-	assert.Equal(t, 200.0, cost)
 }
 
 func TestBuildCatalogKeepsFreeModels(t *testing.T) {
@@ -156,7 +114,7 @@ func TestBuildCatalogRejectsUnusableDocuments(t *testing.T) {
 	}{
 		{name: "not json", document: `not json at all`},
 		{name: "empty object", document: `{}`},
-		{name: "invalid image price", document: `{"img": {"output_cost_per_image": -0.04}}`},
+		{name: "no token priced entries", document: `{"img": {"output_cost_per_image": 0.04}}`},
 	}
 
 	for _, tc := range cases {
@@ -175,7 +133,7 @@ func TestBuildCatalogNormalizesKeyCase(t *testing.T) {
 
 	entry, ok := catalog.Lookup("gpt-4o-mini")
 	require.True(t, ok)
-	assert.Equal(t, "gpt-4o-mini", entry.CatalogKey)
+	assert.Equal(t, "GPT-4O-Mini", entry.CatalogKey, "the original spelling stays visible for auditing")
 }
 
 func TestResolveExactMatchVariants(t *testing.T) {
@@ -222,25 +180,6 @@ func TestResolveFuzzyDisabledStopsAfterExactCandidates(t *testing.T) {
 	assert.Equal(t, "claude-opus-4-5-20251101", entry.CatalogKey)
 }
 
-func TestResolveTracksSeparateRequestAndIdentifiedPolicies(t *testing.T) {
-	SetCatalog(buildTestCatalog(t, `{
-		"gpt-5.2": {"input_cost_per_token": 0.00000125, "output_cost_per_token": 0.00001}
-	}`))
-	t.Cleanup(func() { SetCatalog(nil) })
-
-	_, ok := ResolveForRequest("gpt-5.2-20251222", false)
-	assert.False(t, ok)
-	requestEntry, ok := ResolveForRequest("gpt-5.2-20251222", true)
-	require.True(t, ok)
-	identifiedEntry, ok := ResolveIdentified("providers/openai/models/gpt-5.2-20251222")
-	require.True(t, ok)
-	assert.Equal(t, "gpt-5.2", requestEntry.CatalogKey)
-	assert.Equal(t, "gpt-5.2", identifiedEntry.CatalogKey)
-
-	_, ok = ResolveIdentified("gpt-5.2-codex")
-	assert.False(t, ok, "identified models must not use family inference")
-}
-
 func TestResolveFuzzyRules(t *testing.T) {
 	SetCatalog(buildTestCatalog(t, `{
 		"claude-opus-4-8": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025},
@@ -257,6 +196,9 @@ func TestResolveFuzzyRules(t *testing.T) {
 	}{
 		{name: "undated request to dated entry", model: "claude-sonnet-4-5", catalogKey: "claude-sonnet-4-5-20250929"},
 		{name: "unknown date to known base", model: "claude-sonnet-4-5-20261231", catalogKey: "claude-sonnet-4-5-20250929"},
+		{name: "unpublished opus 5 falls back to 4.8", model: "claude-opus-5-20260401", catalogKey: "claude-opus-4-8"},
+		{name: "opus 4.8 thinking variant", model: "claude-opus-4-8-thinking", catalogKey: "claude-opus-4-8"},
+		{name: "openai suffix variant", model: "gpt-5.2-codex", catalogKey: "gpt-5.2"},
 		{name: "openai dated variant", model: "gpt-5.2-20251222", catalogKey: "gpt-5.2"},
 	}
 
@@ -283,9 +225,6 @@ func TestResolveFuzzyMisses(t *testing.T) {
 		{name: "unrelated vendor model", model: "some-vendor/llama-4-405b"},
 		{name: "opus lookalike from another vendor", model: "acme-opus-turbo"},
 		{name: "unknown openai family", model: "gpt-9.9-experimental"},
-		{name: "unpublished claude generation", model: "claude-opus-5-20260401"},
-		{name: "claude service variant", model: "claude-opus-4-8-thinking"},
-		{name: "openai suffix variant", model: "gpt-5.2-codex"},
 		{name: "empty name", model: "   "},
 	}
 
@@ -299,15 +238,19 @@ func TestResolveFuzzyMisses(t *testing.T) {
 	}
 }
 
-func TestClaudeFamilyVariantDoesNotUseGuessedPrice(t *testing.T) {
+func TestClaudeFamilyOrderIsMostSpecificFirst(t *testing.T) {
+	// claude-opus-4 is a substring of claude-opus-4-7, so an unordered scan
+	// would price the newer model with the legacy family's rate.
 	SetCatalog(buildTestCatalog(t, `{
 		"claude-opus-4-20250514": {"input_cost_per_token": 0.000015, "output_cost_per_token": 0.000075},
 		"claude-opus-4-7": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025}
 	}`))
 	t.Cleanup(func() { SetCatalog(nil) })
 
-	_, ok := Resolve("claude-opus-4-7-xhigh", true)
-	assert.False(t, ok)
+	entry, ok := Resolve("claude-opus-4-7-xhigh", true)
+	require.True(t, ok)
+	assert.Equal(t, "claude-opus-4-7", entry.CatalogKey)
+	assert.Equal(t, 2.5, entry.ModelRatio)
 }
 
 func TestResolveWithoutCatalog(t *testing.T) {
@@ -319,20 +262,20 @@ func TestResolveWithoutCatalog(t *testing.T) {
 
 func TestSetCatalogClearsFuzzyCache(t *testing.T) {
 	SetCatalog(buildTestCatalog(t, `{
-		"claude-opus-4-8-20260814": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025}
+		"claude-opus-4-8": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025}
 	}`))
 	t.Cleanup(func() { SetCatalog(nil) })
 
-	entry, ok := Resolve("claude-opus-4-8-20260815", true)
+	entry, ok := Resolve("claude-opus-4-8-high", true)
 	require.True(t, ok)
 	require.Equal(t, 2.5, entry.ModelRatio)
 
 	// A new catalog generation must invalidate memoized fuzzy results.
 	SetCatalog(buildTestCatalog(t, `{
-		"claude-opus-4-8-20260814": {"input_cost_per_token": 0.00001, "output_cost_per_token": 0.00005}
+		"claude-opus-4-8": {"input_cost_per_token": 0.00001, "output_cost_per_token": 0.00005}
 	}`))
 
-	entry, ok = Resolve("claude-opus-4-8-20260815", true)
+	entry, ok = Resolve("claude-opus-4-8-high", true)
 	require.True(t, ok)
 	assert.Equal(t, 5.0, entry.ModelRatio)
 }

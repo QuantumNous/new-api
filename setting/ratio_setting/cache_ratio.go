@@ -36,9 +36,6 @@ var defaultCacheRatio = map[string]float64{
 	"gpt-5-mini-2025-08-07":               0.1,
 	"gpt-5-nano":                          0.1,
 	"gpt-5-nano-2025-08-07":               0.1,
-	"gpt-5.6-sol":                         0.1,
-	"gpt-5.6-terra":                       0.1,
-	"gpt-5.6-luna":                        0.1,
 	"deepseek-chat":                       0.25,
 	"deepseek-reasoner":                   0.25,
 	"deepseek-coder":                      0.25,
@@ -132,8 +129,6 @@ var defaultCreateCacheRatio = map[string]float64{
 
 var cacheRatioMap = types.NewRWMap[string, float64]()
 var createCacheRatioMap = types.NewRWMap[string, float64]()
-var configuredCacheRatioMap = types.NewRWMap[string, float64]()
-var configuredCreateCacheRatioMap = types.NewRWMap[string, float64]()
 
 // GetCacheRatioMap returns a copy of the cache ratio map
 func GetCacheRatioMap() map[string]float64 {
@@ -152,68 +147,38 @@ func CreateCacheRatio2JSONString() string {
 
 // UpdateCacheRatioByJSONString updates the cache ratio map from a JSON string
 func UpdateCacheRatioByJSONString(jsonStr string) error {
-	if err := types.LoadFromJsonString(configuredCacheRatioMap, jsonStr); err != nil {
-		return err
-	}
 	return types.LoadFromJsonStringWithCallback(cacheRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
 // UpdateCreateCacheRatioByJSONString updates the create cache ratio map from a JSON string
 func UpdateCreateCacheRatioByJSONString(jsonStr string) error {
-	if err := types.LoadFromJsonString(configuredCreateCacheRatioMap, jsonStr); err != nil {
-		return err
-	}
 	return types.LoadFromJsonStringWithCallback(createCacheRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
 // GetCacheRatio returns the cache ratio for a model
 func GetCacheRatio(name string) (float64, bool) {
-	name = FormatMatchingModelName(name)
-	if ratio, ok := configuredCacheRatioMap.Get(name); ok {
-		return ratio, true
-	}
-	if ratio, ok := cacheRatioMap.Get(name); ok {
-		if _, builtIn := defaultCacheRatio[name]; !builtIn {
-			return ratio, true
-		}
-	}
-	if entry, autoOK := autoPricingEntry(name); autoOK {
-		if entry.HasCacheRatio {
+	ratio, ok := cacheRatioMap.Get(name)
+	if !ok {
+		// The automatic catalog only answers for models with no manual pricing,
+		// and only when it actually publishes a cache read cost. A missing cost
+		// must keep the default of 1 rather than become a free cache read.
+		if entry, autoOK := autoPricingEntry(FormatMatchingModelName(name)); autoOK && entry.HasCacheRatio {
 			return entry.CacheRatio, true
 		}
-		// The automatic catalog owns the model. A missing cache-read price means
-		// cached input is billed like ordinary input, not by an unrelated legacy
-		// compatibility map.
-		return 1, entry.HasModelRatio
+		return 1, false // Default to 1 if not found
 	}
-	if ratio, ok := cacheRatioMap.Get(name); ok {
-		return ratio, true
-	}
-	return 1, false
+	return ratio, true
 }
 
 func GetCreateCacheRatio(name string) (float64, bool) {
-	name = FormatMatchingModelName(name)
-	if ratio, ok := configuredCreateCacheRatioMap.Get(name); ok {
-		return ratio, true
-	}
-	if ratio, ok := createCacheRatioMap.Get(name); ok {
-		if _, builtIn := defaultCreateCacheRatio[name]; !builtIn {
-			return ratio, true
-		}
-	}
-	if entry, autoOK := autoPricingEntry(name); autoOK {
-		if entry.HasCreateCacheRatio {
+	ratio, ok := createCacheRatioMap.Get(name)
+	if !ok {
+		if entry, autoOK := autoPricingEntry(FormatMatchingModelName(name)); autoOK && entry.HasCreateCacheRatio {
 			return entry.CreateCacheRatio, true
 		}
-		// No catalog cache-write surcharge means ordinary input pricing. Do not
-		// reintroduce the historical generic 1.25 multiplier as a second fact.
-		return 1, entry.HasModelRatio
+		return 1.25, false // Default to 1.25 if not found
 	}
-	if ratio, ok := createCacheRatioMap.Get(name); ok {
-		return ratio, true
-	}
-	return 1.25, false
+	return ratio, true
 }
 
 func GetCacheRatioCopy() map[string]float64 {

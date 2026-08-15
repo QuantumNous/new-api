@@ -52,6 +52,19 @@ export interface TokenTrendPoint {
   standard: number
 }
 
+export interface SystemMetrics {
+  cpu_percent: number
+  memory_used_gb: number
+  memory_total_gb: number
+  bandwidth_up_mbps: number
+  bandwidth_down_mbps: number
+  disk_used_gb: number
+  disk_total_gb: number
+  api_success_rate: number
+  /** Recent throughput samples, oldest → newest; the last pair is the live figure. */
+  bandwidth_series: { up: number[]; down: number[] }
+}
+
 export interface FlowPoint {
   date: string
   consume: number
@@ -74,6 +87,7 @@ export function useDashboard() {
   const share = ref<ModelShare[]>([])
   const flow = ref<FlowPoint[]>([])
   const tokenTrend = ref<TokenTrendPoint[]>([])
+  const system = ref<SystemMetrics | null>(null)
   const limits = ref<UserLimits | null>(null)
   const discounts = ref<UserDiscounts | null>(null)
 
@@ -167,6 +181,7 @@ export function useDashboard() {
           a.date.localeCompare(b.date)
         )
         tokenTrend.value = []
+        system.value = null
         limits.value = null
         discounts.value = null
         return
@@ -186,6 +201,7 @@ export function useDashboard() {
     share,
     flow,
     tokenTrend,
+    system,
     limits,
     discounts,
     load,
