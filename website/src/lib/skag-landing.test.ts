@@ -18,10 +18,12 @@ describe("SKAG landing configuration", () => {
       return `${config.h1Lead} ${config.h1Accent}`;
     };
 
+    expect(h1("gpt-api")).toBe("GPT API");
     expect(h1("gpt-api-alternative")).toBe("ChatGPT API Alternative");
     expect(h1("chinese-ai")).toBe("Chinese AI Models, One API");
     expect(h1("chinese-ai-models-api")).toBe("Chinese AI Models API");
     expect(h1("deepseek-api")).toBe("Stable DeepSeek API");
+    expect(h1("claude-api")).toBe("Claude API");
     expect(h1("kimi-api")).toBe("Kimi K2.5 API");
     expect(h1("qwen-api")).toBe("Use Qwen without GPU setup");
     expect(h1("openai-compatible")).toBe("OpenAI-Compatible API");
@@ -30,10 +32,12 @@ describe("SKAG landing configuration", () => {
 
   test("exposes sitemap pathnames matching the (en) routes", () => {
     expect(getSkagLandingPathnames()).toEqual([
+      "/gpt-api",
       "/gpt-api-alternative",
       "/chinese-ai",
       "/chinese-ai-models-api",
       "/deepseek-api",
+      "/claude-api",
       "/kimi-api",
       "/qwen-api",
       "/openai-compatible",
@@ -77,8 +81,10 @@ describe("SKAG landing configuration", () => {
   });
 
   test("maps each landing to the locales that have translated copy", () => {
+    expect(getSkagLandingLocales("gpt-api")).toEqual(["en", "pt"]);
     expect(getSkagLandingLocales("chinese-ai-models-api")).toEqual(["en", "pt"]);
     expect(getSkagLandingLocales("deepseek-api")).toEqual(["en", "pt"]);
+    expect(getSkagLandingLocales("claude-api")).toEqual(["en", "pt"]);
     expect(getSkagLandingLocales("kimi-api")).toEqual(["en", "pt"]);
     expect(getSkagLandingLocales("qwen-api")).toEqual(["en", "pt"]);
     expect(getSkagLandingLocales("gateway")).toEqual(["en"]);
@@ -118,6 +124,50 @@ describe("SKAG landing configuration", () => {
     expect(config.compactHero).toBe(true);
     expect(config.hideCodeWindow).toBe(true);
     expect(config.exampleModel).toBe("deepseek-v4-flash");
+  });
+
+  test("exposes Portuguese GPT paid-search copy with current model coverage", () => {
+    const config = getSkagLandingConfig("gpt-api", "pt");
+
+    expect(config.keyword).toBe("gpt api");
+    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("API GPT para texto e imagem");
+    expect(config.ctaLabel).toBe("Obter chave da API GPT");
+    expect(config.hideSecondaryCta).toBe(true);
+    expect(config.compactHero).toBe(true);
+    expect(config.exampleModel).toBe("gpt-5.5");
+    expect(config.features.map((item) => item.body).join(" ")).toContain("GPT-5.6 Sol");
+    expect(config.faq.map((item) => item.answer).join(" ")).toContain("GPT Image 2");
+  });
+
+  test("Portuguese GPT metadata advertises only English and Portuguese alternates", () => {
+    const input = getSkagLandingMetadataInput("gpt-api", "pt");
+
+    expect(input.pathname).toBe("/gpt-api");
+    expect(input.locale).toBe("pt");
+    expect(input.locales).toEqual(["en", "pt"]);
+    expect(input.title).toContain("API GPT no Brasil");
+  });
+
+  test("exposes Portuguese Claude paid-search copy with current model coverage", () => {
+    const config = getSkagLandingConfig("claude-api", "pt");
+
+    expect(config.keyword).toBe("claude api");
+    expect(`${config.h1Lead} ${config.h1Accent}`).toBe("API Claude para código e agentes");
+    expect(config.ctaLabel).toBe("Obter chave da API Claude");
+    expect(config.hideSecondaryCta).toBe(true);
+    expect(config.compactHero).toBe(true);
+    expect(config.exampleModel).toBe("claude-sonnet-5");
+    expect(config.priceRows.map((row) => row.label).join(" ")).toContain("Claude Opus 5");
+    expect(config.faq.map((item) => item.answer).join(" ")).toContain("Claude Haiku 4.5");
+  });
+
+  test("Portuguese Claude metadata advertises only English and Portuguese alternates", () => {
+    const input = getSkagLandingMetadataInput("claude-api", "pt");
+
+    expect(input.pathname).toBe("/claude-api");
+    expect(input.locale).toBe("pt");
+    expect(input.locales).toEqual(["en", "pt"]);
+    expect(input.title).toContain("API Claude no Brasil");
   });
 
   test("Portuguese DeepSeek metadata advertises only English and Portuguese alternates", () => {

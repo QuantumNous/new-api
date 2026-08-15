@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ModelLandingPage } from "@/components/model-landing-page";
 import {
   getModelLandingConfig,
@@ -10,6 +10,7 @@ import { modelPublicPath, resolvePublicModel } from "@/lib/model-public";
 import { getPricingData, getVendorName } from "@/lib/pricing";
 import { fetchRankingsData } from "@/lib/rankings-live";
 import { buildMetadata } from "@/lib/seo";
+import { getSkagLandingMetadataInput } from "@/lib/skag-landing";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -21,6 +22,12 @@ export function generateStaticParams() {
 
 export async function generateMetadata(props: Props) {
   const params = await props.params;
+  if (params.slug === "gpt-api") {
+    return buildMetadata(getSkagLandingMetadataInput("gpt-api"));
+  }
+  if (params.slug === "claude-api") {
+    return buildMetadata(getSkagLandingMetadataInput("claude-api"));
+  }
   const config = getModelLandingConfig(params.slug);
   if (config) {
     return buildMetadata({
@@ -46,6 +53,9 @@ export async function generateMetadata(props: Props) {
 
 export default async function Page(props: Props) {
   const params = await props.params;
+  if (params.slug === "gpt-api") redirect("/gpt-api");
+  if (params.slug === "claude-api") redirect("/claude-api");
+
   const config = getModelLandingConfig(params.slug);
   const [pricing, rankings] = await Promise.all([getPricingData(), fetchRankingsData()]);
   const models = pricing.models.map((model) => ({
