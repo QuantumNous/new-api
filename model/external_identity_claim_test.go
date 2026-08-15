@@ -60,6 +60,23 @@ func TestClearTelegramBindingReleasesIdentityClaim(t *testing.T) {
 	assert.Zero(t, count)
 }
 
+func TestClearOIDCBindingReleasesIdentityClaim(t *testing.T) {
+	truncateTables(t)
+
+	user := User{Username: "oidc-unbind", Password: "password", OidcId: "oidc-unbind-subject"}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return ClaimExternalIdentityWithTx(tx, ExternalIdentityProviderOIDC, user.OidcId, user.Id)
+	}))
+
+	require.NoError(t, user.ClearBinding(ExternalIdentityProviderOIDC))
+	assert.Empty(t, user.OidcId)
+
+	var count int64
+	require.NoError(t, DB.Model(&ExternalIdentityClaim{}).Where("user_id = ?", user.Id).Count(&count).Error)
+	assert.Zero(t, count)
+}
+
 func TestInitializeExternalIdentityClaimsIsIdempotent(t *testing.T) {
 	truncateTables(t)
 

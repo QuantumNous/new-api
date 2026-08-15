@@ -278,6 +278,22 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model
 			common.ApiError(c, err)
 			return
 		}
+	} else if _, ok := provider.(*oauth.OIDCProvider); ok {
+		err = model.DB.Transaction(func(tx *gorm.DB) error {
+			provider.SetProviderUserID(&user, oauthUser.ProviderUserID)
+			if err := tx.Model(&user).Update("oidc_id", user.OidcId).Error; err != nil {
+				return err
+			}
+			return model.ClaimExternalIdentityWithTx(tx, model.ExternalIdentityProviderOIDC, oauthUser.ProviderUserID, user.Id)
+		})
+		if err != nil {
+			if errors.Is(err, model.ErrExternalIdentityAlreadyClaimed) {
+				common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+				return
+			}
+			common.ApiError(c, err)
+			return
+		}
 	} else {
 		// Built-in provider: update user record directly
 		provider.SetProviderUserID(&user, oauthUser.ProviderUserID)
@@ -295,6 +311,12 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model
 
 // findOrCreateOAuthUser finds existing user or creates new user
 func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, affiliateCode string) (*model.User, error) {
+	// OIDC is the one cross-product identity. Its durable claim is the
+	// concurrency boundary, not the nullable users.oidc_id projection and never
+	// an email address. Keep all other provider behavior unchanged below.
+	if oidcProvider, ok := provider.(*oauth.OIDCProvider); ok {
+		return findOrCreateOIDCUser(oidcProvider, oauthUser, affiliateCode)
+	}
 	user := &model.User{}
 
 	// Check if user already exists with new ID
@@ -330,46 +352,13 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 	}
 
-	// User doesn't exist, create new user if registration is enabled
 	if !common.RegisterEnabled {
 		return nil, &OAuthRegistrationDisabledError{}
 	}
 
-	// Set up new user
-	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
-
-	if oauthUser.Username != "" {
-		if exists, err := model.CheckUserExistOrDeleted(oauthUser.Username, ""); err == nil && !exists {
-			// 防止索引退化
-			if len(oauthUser.Username) <= model.UserNameMaxLength {
-				user.Username = oauthUser.Username
-			}
-		}
-	}
-
-	if oauthUser.DisplayName != "" {
-		user.DisplayName = oauthUser.DisplayName
-	} else if oauthUser.Username != "" {
-		user.DisplayName = oauthUser.Username
-	} else {
-		user.DisplayName = provider.GetName() + " User"
-	}
-	if oauthUser.Email != "" {
-		user.Email = model.NormalizeEmail(oauthUser.Email)
-		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
-			if errors.Is(err, model.ErrEmailAlreadyTaken) {
-				return nil, &OAuthEmailAlreadyTakenError{}
-			}
-			return nil, err
-		}
-	}
-	user.Role = common.RoleCommonUser
-	user.Status = common.UserStatusEnabled
-
-	// Handle affiliate code
-	inviterId := 0
-	if affiliateCode != "" {
-		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
+	user, inviterId, err := newOAuthUser(provider, oauthUser, affiliateCode)
+	if err != nil {
+		return nil, err
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
@@ -431,6 +420,97 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	return user, nil
+}
+
+// findOrCreateOIDCUser atomically creates the NewAPI projection and its
+// exact-subject claim. The only retry after a database race resolves the exact
+// OIDC claim owner; it deliberately does not search by email, username, or any
+// other provider identifier.
+func findOrCreateOIDCUser(provider *oauth.OIDCProvider, oauthUser *oauth.OAuthUser, affiliateCode string) (*model.User, error) {
+	if provider == nil || oauthUser == nil {
+		return nil, errors.New("OIDC user is invalid")
+	}
+	if existing, err := model.GetUserByOidcId(oauthUser.ProviderUserID); err == nil {
+		return existing, nil
+	} else if errors.Is(err, model.ErrExternalIdentityOwnerDeleted) {
+		return nil, &OAuthUserDeletedError{}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+	if !common.RegisterEnabled {
+		return nil, &OAuthRegistrationDisabledError{}
+	}
+
+	user, inviterId, err := newOAuthUser(provider, oauthUser, affiliateCode)
+	if err != nil {
+		return nil, err
+	}
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		if err := user.InsertWithTx(tx, inviterId); err != nil {
+			return err
+		}
+		provider.SetProviderUserID(user, oauthUser.ProviderUserID)
+		if err := tx.Model(user).Update("oidc_id", user.OidcId).Error; err != nil {
+			return err
+		}
+		return model.ClaimExternalIdentityWithTx(tx, model.ExternalIdentityProviderOIDC, oauthUser.ProviderUserID, user.Id)
+	})
+	if err != nil {
+		// A competing callback may have committed while this attempt was
+		// inserting its local row (for example, before the unique claim write).
+		// Re-read only the exact durable claim; no other identifier is a valid
+		// owner resolution mechanism.
+		if existing, lookupErr := model.GetUserByOidcId(oauthUser.ProviderUserID); lookupErr == nil {
+			return existing, nil
+		} else if errors.Is(lookupErr, model.ErrExternalIdentityOwnerDeleted) {
+			return nil, &OAuthUserDeletedError{}
+		}
+		if errors.Is(err, model.ErrEmailAlreadyTaken) {
+			return nil, &OAuthEmailAlreadyTakenError{}
+		}
+		return nil, err
+	}
+	user.FinalizeOAuthUserCreation(inviterId)
+	return user, nil
+}
+
+func newOAuthUser(provider oauth.Provider, oauthUser *oauth.OAuthUser, affiliateCode string) (*model.User, int, error) {
+	if provider == nil || oauthUser == nil {
+		return nil, 0, errors.New("OAuth user is invalid")
+	}
+	user := &model.User{Username: provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)}
+	if oauthUser.Username != "" {
+		if exists, err := model.CheckUserExistOrDeleted(oauthUser.Username, ""); err == nil && !exists {
+			// 防止索引退化
+			if len(oauthUser.Username) <= model.UserNameMaxLength {
+				user.Username = oauthUser.Username
+			}
+		}
+	}
+	if oauthUser.DisplayName != "" {
+		user.DisplayName = oauthUser.DisplayName
+	} else if oauthUser.Username != "" {
+		user.DisplayName = oauthUser.Username
+	} else {
+		user.DisplayName = provider.GetName() + " User"
+	}
+	if oauthUser.Email != "" {
+		user.Email = model.NormalizeEmail(oauthUser.Email)
+		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
+			if errors.Is(err, model.ErrEmailAlreadyTaken) {
+				return nil, 0, &OAuthEmailAlreadyTakenError{}
+			}
+			return nil, 0, err
+		}
+	}
+	user.Role = common.RoleCommonUser
+	user.Status = common.UserStatusEnabled
+
+	inviterId := 0
+	if affiliateCode != "" {
+		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
+	}
+	return user, inviterId, nil
 }
 
 // Error types for OAuth
