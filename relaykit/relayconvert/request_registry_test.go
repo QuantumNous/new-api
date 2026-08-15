@@ -55,6 +55,43 @@ func TestClaudeMessagesToOpenAIChatPreservesAssistantTextWithToolCalls(t *testin
 	assert.Equal(t, text, assistant.ParseContent()[0].Text)
 }
 
+func TestClaudeMessagesToOpenAIChatKeepsToolOnlyContentEmpty(t *testing.T) {
+	request := dto.ClaudeRequest{
+		Model: "claude-test",
+		Messages: []dto.ClaudeMessage{
+			{
+				Role: "assistant",
+				Content: []dto.ClaudeMediaMessage{
+					{
+						Type:  "tool_use",
+						Id:    "call_1",
+						Name:  "lookup",
+						Input: map[string]any{"query": "weather"},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(
+		context.Background(),
+		&convmeta.Values{},
+		types.RelayFormatOpenAI,
+		&request,
+	)
+	require.NoError(t, err)
+
+	converted, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, converted.Messages, 1)
+
+	assistant := converted.Messages[0]
+	assert.Empty(t, assistant.ParseContent())
+	toolCalls := assistant.ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "call_1", toolCalls[0].ID)
+}
+
 func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 	tests := []struct {
 		converter      string
