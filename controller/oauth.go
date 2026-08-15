@@ -24,6 +24,8 @@ import (
 
 var googleOneTapValidateIDToken = idtoken.Validate
 
+const googleOAuthAuthorizeEndpoint = "https://accounts.google.com/o/oauth2/v2/auth"
+
 // providerParams returns map with Provider key for i18n templates
 func providerParams(name string) map[string]any {
 	return map[string]any{"Provider": name}
@@ -32,6 +34,20 @@ func providerParams(name string) map[string]any {
 // GenerateOAuthCode generates a state code for OAuth CSRF protection
 func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
+	state := prepareOAuthState(c, session)
+	err := session.Save()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    state,
+	})
+}
+
+func prepareOAuthState(c *gin.Context, session sessions.Session) string {
 	state := common.GetRandomString(12)
 	affCode := c.Query("aff")
 	if affCode != "" {
@@ -54,16 +70,94 @@ func GenerateOAuthCode(c *gin.Context) {
 		session.Delete("ga_session_id")
 	}
 	session.Set("oauth_state", state)
-	err := session.Save()
-	if err != nil {
-		common.ApiError(c, err)
+	return state
+}
+
+func StartGoogleOAuth(c *gin.Context) {
+	provider := oauth.GetProvider("google")
+	if provider == nil || !provider.IsEnabled() {
+		c.Redirect(http.StatusSeeOther, googleOAuthStartFallbackPath(c))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    state,
-	})
+
+	settings := system_setting.GetGoogleSettings()
+	clientID := strings.TrimSpace(settings.ClientId)
+	if clientID == "" {
+		c.Redirect(http.StatusSeeOther, googleOAuthStartFallbackPath(c))
+		return
+	}
+
+	consoleOrigin, err := googleOAuthConsoleOrigin(c)
+	if err != nil {
+		common.SysError("[OAuth-Google] failed to resolve console origin: " + err.Error())
+		c.Redirect(http.StatusSeeOther, googleOAuthStartFallbackPath(c))
+		return
+	}
+
+	session := sessions.Default(c)
+	session.Clear()
+	state := prepareOAuthState(c, session)
+	if err := session.Save(); err != nil {
+		common.SysError("[OAuth-Google] failed to save OAuth start session: " + err.Error())
+		c.Redirect(http.StatusSeeOther, googleOAuthStartFallbackPath(c))
+		return
+	}
+	setConsoleSessionHintCookie(c, false)
+
+	values := url.Values{}
+	values.Set("client_id", clientID)
+	values.Set("redirect_uri", consoleOrigin+"/oauth/google")
+	values.Set("response_type", "code")
+	values.Set("scope", "openid email profile")
+	values.Set("state", state)
+	c.Redirect(http.StatusSeeOther, googleOAuthAuthorizeEndpoint+"?"+values.Encode())
+}
+
+func googleOAuthConsoleOrigin(c *gin.Context) (string, error) {
+	if origin, err := system_setting.NormalizeAppConsoleOrigin(system_setting.GetAppConsoleSettings().Origin); err == nil && origin != "" {
+		return origin, nil
+	}
+	if origin, err := googleOAuthRequestOrigin(c); err == nil && origin != "" {
+		return origin, nil
+	}
+	return system_setting.NormalizeAppConsoleOrigin(system_setting.ServerAddress)
+}
+
+func googleOAuthRequestOrigin(c *gin.Context) (string, error) {
+	proto := firstForwardedHeaderValue(c.GetHeader("X-Forwarded-Proto"))
+	if proto == "" {
+		if c.Request.TLS != nil {
+			proto = "https"
+		} else {
+			proto = "http"
+		}
+	}
+	host := firstForwardedHeaderValue(c.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = c.Request.Host
+	}
+	return system_setting.NormalizeAppConsoleOrigin(proto + "://" + host)
+}
+
+func firstForwardedHeaderValue(value string) string {
+	if i := strings.IndexByte(value, ','); i >= 0 {
+		value = value[:i]
+	}
+	return strings.TrimSpace(value)
+}
+
+func googleOAuthStartFallbackPath(c *gin.Context) string {
+	values := url.Values{}
+	if lng := strings.TrimSpace(c.Query("lng")); lng != "" {
+		values.Set("lng", lng)
+	}
+	if redirect := safeInternalPath(c.Query("redirect"), ""); redirect != "" {
+		values.Set("redirect", redirect)
+	}
+	if encoded := values.Encode(); encoded != "" {
+		return "/sign-in?" + encoded
+	}
+	return "/sign-in"
 }
 
 func getOAuthAdsAttribution(c *gin.Context, session sessions.Session) string {
@@ -202,9 +296,8 @@ func HandleGoogleOneTap(c *gin.Context) {
 		return
 	}
 
-	csrfCookie, cookieErr := c.Cookie("g_csrf_token")
 	csrfBody := strings.TrimSpace(c.PostForm("g_csrf_token"))
-	if cookieErr != nil || csrfCookie == "" || csrfBody == "" || csrfCookie != csrfBody {
+	if !googleOneTapCSRFCookieMatches(c, csrfBody) {
 		respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthStateInvalid))
 		return
 	}
@@ -392,14 +485,30 @@ func googleOneTapWantsJSON(c *gin.Context) bool {
 }
 
 func googleOneTapReturnPath(c *gin.Context) string {
-	path := strings.TrimSpace(c.Query("return_to"))
+	return safeInternalPath(c.Query("return_to"), "/")
+}
+
+func safeInternalPath(path string, fallback string) string {
+	path = strings.TrimSpace(path)
 	if path == "" {
-		return "/"
+		return fallback
 	}
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") || strings.ContainsAny(path, "\r\n") {
-		return "/"
+		return fallback
 	}
 	return path
+}
+
+func googleOneTapCSRFCookieMatches(c *gin.Context, csrfBody string) bool {
+	if strings.TrimSpace(csrfBody) == "" {
+		return false
+	}
+	for _, cookie := range c.Request.Cookies() {
+		if cookie.Name == "g_csrf_token" && cookie.Value == csrfBody {
+			return true
+		}
+	}
+	return false
 }
 
 func googleOneTapFallbackPath(c *gin.Context) string {
@@ -407,8 +516,8 @@ func googleOneTapFallbackPath(c *gin.Context) string {
 	if lng := strings.TrimSpace(c.Query("lng")); lng != "" {
 		values.Set("lng", lng)
 	}
-	values.Set("provider", "google")
-	return "/sign-in?" + values.Encode()
+	values.Set("source", "one_tap_fallback")
+	return "/api/oauth/google/start?" + values.Encode()
 }
 
 // handleOAuthBind handles binding OAuth account to existing user

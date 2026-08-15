@@ -30,20 +30,10 @@ describe("website documentation links", () => {
       html.match(/<a[^>]+href="https:\/\/docs\.example\.com\/start"[^>]*>/g) ??
       [];
 
-    for (const removedHref of [
-      "/blog",
-      "/models",
-      "/pricing",
-      "/compute",
-      "/usecases",
-      "/playground",
-      "/rankings",
-      "/status",
-      "/about",
-      "/careers",
-      "/cli",
-    ]) {
-      expect(html).not.toContain(`href="${removedHref}"`);
+    expect(docsAnchors.length).toBeGreaterThan(0);
+    for (const docsAnchor of docsAnchors) {
+      expect(docsAnchor).toContain('target="_blank"');
+      expect(docsAnchor).toContain('rel="noopener noreferrer"');
     }
     expect(html.indexOf(">Ranking<")).toBeLessThan(html.indexOf(">Documentation<"));
     expect(html.indexOf(">Documentation<")).toBeLessThan(
@@ -72,7 +62,7 @@ describe("website documentation links", () => {
     expect(renderFooter(null)).not.toContain("Documentation");
   });
 
-  test("defaults the public site sign-in link to Google", () => {
+  test("defaults the public site sign-in link to Google OAuth start", () => {
     const html = renderToStaticMarkup(
       <SiteConfigProvider docsUrl={DOCS_URL}>
         <SiteShell locale="en" pathname="/">
@@ -82,7 +72,7 @@ describe("website documentation links", () => {
     );
 
     expect(html).toContain(
-      'href="https://console.flatkey.ai/sign-in?lng=en&amp;provider=google"',
+      'href="https://console.flatkey.ai/api/oauth/google/start?lng=en&amp;source=website"',
     );
   });
 });
