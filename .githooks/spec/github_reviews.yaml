@@ -1,7 +1,7 @@
 # github_reviews.yaml — review 评论 + reply 格式契约
 #
 # 使用方式: .githooks/github/reviews.py 读取本文件。
-# 规则对应 validate_pr.sh 中的 P-22/P-24/P-25/P-35/P-36/P-37 等。
+# 规则对应 validate_pr.sh 中的 RV-01/RV-02/RV-03/RV-04/RV-05/RV-06 等。
 #
 # 格式契约 (全部中文正文, 英文标题):
 # - CRG Review: `## Agent 🤖 - CRG Review: <title>` (单 H2) → 所有子节点 `###` (H3) → 中文内容

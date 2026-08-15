@@ -147,9 +147,11 @@
 - GT-02 pr create 前校验（调 PR-*，FAIL 拒）— 触发：gh pr create
 - GT-03 sub 自动挂载 parent（spec.sub_issue_must_link_parent）— 触发：gh issue create
 - GT-04 issue close 前 Done when 全勾 + 必须 --comment 理由 — 触发：gh issue close
-- GT-05 pr merge 前 checkbox 全勾 + 必须 --body 理由 + **squash 标题（--title 或 PR 标题）必须符合 CM-01/CM-02** — 触发：gh pr merge
+- GT-04b issue close 前必须有 PR 关联（timeline cross-referenced 事件检查 PR，无则 REJECT + 日志 "no linked PR"）— 触发：gh issue close
+- GT-05 pr merge 前 PR checkbox 全勾 + 关联 Fixes issue 的 checkbox 全勾 + 必须 --body 理由 + **squash 标题（--title 或 PR 标题）必须符合 CM-01/CM-02** — 触发：gh pr merge
 - GT-06 epic close 前所有 sub-issues 已关闭 — 触发：gh issue close（epic）
 - GT-07 merge 后自动在 PR 留言（含理由）+ **自动删除本地 head 分支（git branch -d 安全模式），远程删除仅提示需用户确认** — 触发：gh pr merge
+- RV-07 有文件改动的 PR merge 前必须 CRG + ocr 审查（失败 FAIL 阻塞）；无文件改动跳过并说明 — 触发：hooks/merge
 
 实现位置：`.githooks/install_gh_gate.py`（安装到 ~/.local/bin/gh；改动后需重跑 --install）
 
@@ -211,9 +213,12 @@
 
 ### 审查流程（merge 自动执行 + 手动触发）
 
-1. hooks/merge 自动执行：CRG 摘要 → ocr 详细发现 → 汇总报告
-2. 手动：`python .githooks/dev/ocr_review.py [--post|--post-inline] [--pr N]`
-3. 输出：终端（默认）/ PR conversation（--post）/ Files changed inline（--post-inline）
+1. hooks/merge 自动执行：检测 PR 文件改动数（`repos/{repo}/pulls/{n}/files`）
+   - 有改动：必须 CRG 结构分析 + ocr AI 审查（RV-07，失败 FAIL 阻塞 merge）
+   - 无改动：跳过审查，输出"无需审查"
+2. 审查顺序：CRG 摘要 → ocr 详细发现 → 汇总报告
+3. 手动：`python .githooks/dev/ocr_review.py [--post|--post-inline] [--pr N]`
+4. 输出：终端（默认）/ PR conversation（--post）/ Files changed inline（--post-inline）
 
 实现位置：`.githooks/dev/ocr_review.py`（依赖外部工具 `code-review-graph` + `ocr`）
 
@@ -223,7 +228,7 @@
 只在使用特定 gh 命令 / git 操作时检查对应规则，不全量扫描：
 
 - gh issue create → IS-01~16、GT-01（含 --disable-check 逃生门）、GT-03
-- gh issue close → GT-04、GT-06（epic）
+- gh issue close → GT-04、GT-04b、GT-06（epic）
 - gh pr create → PR-01~10、GT-02
 - gh pr merge → PR-11、PR-12、GT-05（含 squash 标题 CM-01/CM-02）、GT-07（含分支清理）、RV-01~06
 - gh pr comment → RV-01~06
