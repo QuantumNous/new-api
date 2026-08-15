@@ -10,7 +10,12 @@ func TestIsModelEligible(t *testing.T) {
 		{"gpt-4o-mini", true},
 		{"claude-3-5-sonnet-latest", true},
 		{"claude-3-5-sonnet-20241022", true}, // versioned variant of whitelisted base
-		{"gpt-3.5-turbo", false},             // not on whitelist
+		// claude-haiku-4-5 is the current successor to claude-3-5-haiku
+		{"claude-haiku-4-5", true},
+		{"claude-haiku-4-5-20251001", true}, // dated snapshot via HasPrefix
+		{"claude-opus-5", false},            // frontier tier is deliberately NOT kids-eligible
+		{"claude-sonnet-5", false},
+		{"gpt-3.5-turbo", false}, // not on whitelist
 		{"some-uncensored-model-v2", false},
 		{"", false},
 		// gpt-image-2 lineup (added 2026-04-21, replaced DALL-E on 2026-05-12)

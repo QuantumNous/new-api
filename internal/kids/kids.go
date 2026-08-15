@@ -31,6 +31,11 @@ var EligibleModels = map[string]bool{
 	"gpt-image-2": true,
 	"gpt-image-1": true,
 	// Anthropic — base names match "-latest" and "-YYYYMMDD" via HasPrefix.
+	// claude-haiku-4-5 is the current small/cheap tier and the successor to
+	// claude-3-5-haiku; the two 3.5 entries were retired by Anthropic
+	// (sonnet 2025-10-28, haiku 2026-02-19) and are kept only so tenants
+	// pinned to them are gated the same way instead of falling through.
+	"claude-haiku-4-5":  true,
 	"claude-3-5-haiku":  true,
 	"claude-3-5-sonnet": true,
 	// Image (Fal / Replicate proxies)

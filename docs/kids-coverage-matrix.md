@@ -43,8 +43,9 @@ rest of the safety gate unreachable.
 
 Block requests for non-whitelisted models when `KidsMode=true` or
 `EnforceModelWhitelist=true`. Allowed models: `gpt-4o`, `gpt-4o-mini`,
-`gpt-image-2`, `gpt-image-1`, `claude-3-5-haiku-*`, `claude-3-5-sonnet-*`,
-`flux-schnell`, `flux-1.1-pro`.
+`gpt-image-2`, `gpt-image-1`, `claude-haiku-4-5-*`, `claude-3-5-haiku-*`
+(retired upstream), `claude-3-5-sonnet-*` (retired upstream), `flux-schnell`,
+`flux-1.1-pro`.
 
 | Layer | Owning File | Test File | Test Function(s) |
 |---|---|---|---|

@@ -28,35 +28,38 @@ channels:
     enabled: true
     key_env: OPENAI_API_KEY
     base_url: https://api.openai.com
-    test_model: gpt-4o-mini
+    test_model: gpt-5.6-luna
     tag: openai
     models:
+      # GPT-5.6 系列（当前旗舰；gpt-5.6 = gpt-5.6-sol 的别名）
+      - gpt-5.6
+      - gpt-5.6-sol
+      - gpt-5.6-terra
+      - gpt-5.6-luna
+      # GPT-5.5 / 5.4 系列
+      - gpt-5.5
+      - gpt-5.5-pro
+      - gpt-5.4
+      - gpt-5.4-pro
+      - gpt-5.4-mini
+      - gpt-5.4-nano
       # GPT-5 系列
       - gpt-5
       - gpt-5-mini
       - gpt-5-nano
       - gpt-5-chat-latest
-      # GPT-4.1 系列
+      # GPT-4.1 / 4o 系列（上一代，仍在服务）
       - gpt-4.1
       - gpt-4.1-mini
       - gpt-4.1-nano
-      # GPT-4o 系列
       - gpt-4o
       - gpt-4o-mini
       - chatgpt-4o-latest
-      - gpt-4o-audio-preview
-      - gpt-4o-realtime-preview
-      - gpt-4o-mini-realtime-preview
-      # 推理系列 o-family
-      - o3
-      - o3-mini
-      - o3-pro
-      - o4-mini
-      # 多模态生成
+      # 多模态生成（dall-e-* 已于 2026-05-12 下线，不再种子化）
+      - gpt-image-2
       - gpt-image-1
-      - dall-e-3
-      - dall-e-2
-      # 语音
+      # 语音（实时 / 转写 / TTS）
+      - gpt-4o-mini-tts
       - whisper-1
       - tts-1
       - tts-1-hd
@@ -74,22 +77,22 @@ channels:
     test_model: claude-haiku-4-5-20251001
     tag: anthropic
     models:
-      # Claude 4.x 最新主力
+      # Claude 5 系列（当前）—— 官方 ID 不带日期后缀
+      - claude-opus-5
+      - claude-sonnet-5
+      - claude-fable-5
+      # Opus 5 思维深度变体
+      - claude-opus-5-max
+      - claude-opus-5-xhigh
+      - claude-opus-5-high
+      - claude-opus-5-medium
+      - claude-opus-5-low
+      # Claude 4.6 – 4.8
       - claude-opus-4-8
       - claude-opus-4-7
       - claude-opus-4-6
-      - claude-opus-4-5-20251101
-      - claude-sonnet-4-5-20250929
-      - claude-sonnet-4-20250514
+      - claude-sonnet-4-6
       - claude-haiku-4-5-20251001
-      # Claude 3.x 兼容
-      - claude-3-7-sonnet-20250219
-      - claude-3-7-sonnet-20250219-thinking
-      - claude-3-5-sonnet-20241022
-      - claude-3-5-sonnet-20240620
-      - claude-3-5-haiku-20241022
-      - claude-3-opus-20240229
-      - claude-3-haiku-20240307
       # Opus 4.8 思维深度变体
       - claude-opus-4-8-max
       - claude-opus-4-8-xhigh
@@ -102,21 +105,34 @@ channels:
       - claude-opus-4-7-high
       - claude-opus-4-7-medium
       - claude-opus-4-7-low
+      # Claude 4.0 – 4.5（快照式 ID）
+      - claude-opus-4-5-20251101
+      - claude-sonnet-4-5-20250929
+      # Claude 3.x 已被 Anthropic 全部下线（3.5 sonnet 2025-10-28、3 opus 2026-01-05、
+      # 3.7 sonnet / 3.5 haiku 2026-02-19、3 haiku 2026-04-19），不再种子化。
 
   - name: Google Gemini
     type: 24
     enabled: true
     key_env: GEMINI_API_KEY
     base_url: https://generativelanguage.googleapis.com
-    test_model: gemini-2.5-flash
+    test_model: gemini-3.7-flash
     tag: google
     models:
+      # Gemini 3.x（当前）
+      - gemini-3.7-flash
+      - gemini-3.6-flash
+      - gemini-3.5-flash
+      - gemini-3.1-flash-lite
+      - gemini-3.1-pro-preview
+      # 图像
+      - gemini-3-pro-image
+      - gemini-3.1-flash-image
+      # Gemini 2.5（上一代，仍在服务）
       - gemini-2.5-pro
       - gemini-2.5-flash
-      - gemini-2.5-flash-lite-preview-06-17
-      - gemini-2.0-flash
-      - gemini-1.5-pro-latest
-      - gemini-1.5-flash-latest
+      - gemini-2.5-flash-lite
+      # 向量（gemini-1.5-* 已下线，不再种子化）
       - gemini-embedding-001
 
   - name: xAI Grok
@@ -124,17 +140,14 @@ channels:
     enabled: true
     key_env: XAI_API_KEY
     base_url: https://api.x.ai
-    test_model: grok-3-mini-beta
+    test_model: grok-4.6
     tag: xai
     models:
-      - grok-3-beta
-      - grok-3-mini-beta
-      - grok-3-fast-beta
-      - grok-3-mini-fast-beta
-      - grok-2
-      - grok-2-vision
-      - grok-beta
-      - grok-vision-beta
+      - grok-4.6
+      - grok-4.5
+      - grok-4.3
+      - grok-4.20
+      - grok-build-0.1
 
   - name: Mistral
     type: 42
@@ -143,6 +156,8 @@ channels:
     base_url: https://api.mistral.ai
     test_model: mistral-small-latest
     tag: mistral
+    # Mistral 的 -latest 别名始终指向当前快照（large→Large 3、medium→Medium 3.5、
+    # small→Small 4），无需按版本改动。
     models:
       - mistral-large-latest
       - mistral-medium-latest
@@ -170,13 +185,14 @@ channels:
     enabled: true
     key_env: PERPLEXITY_API_KEY
     base_url: https://api.perplexity.ai
-    test_model: llama-3-sonar-small-32k-online
+    test_model: sonar
     tag: perplexity
     models:
-      - llama-3-sonar-small-32k-chat
-      - llama-3-sonar-small-32k-online
-      - llama-3-sonar-large-32k-chat
-      - llama-3-sonar-large-32k-online
+      - sonar
+      - sonar-pro
+      - sonar-reasoning
+      - sonar-reasoning-pro
+      - sonar-deep-research
 
   # ─────────────────────────────────────────────────────────────────────
   # 国产大模型厂商（China majors）
@@ -187,85 +203,100 @@ channels:
     enabled: true
     key_env: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com
-    test_model: deepseek-chat
+    test_model: deepseek-v4-flash
     tag: deepseek
+    # deepseek-chat / deepseek-reasoner 已于 2026-07-24 下线，不再种子化。
     models:
-      - deepseek-chat
-      - deepseek-reasoner
-      - deepseek-coder
+      - deepseek-v4-pro
+      - deepseek-v4-flash
 
   - name: Moonshot Kimi 月之暗面
     type: 25
     enabled: true
     key_env: MOONSHOT_API_KEY
     base_url: https://api.moonshot.cn
-    test_model: moonshot-v1-8k
+    test_model: kimi-k2.6
     tag: moonshot
     models:
+      - kimi-k3
+      - kimi-k2.7-code
+      - kimi-k2.7-code-highspeed
+      - kimi-k2.6
+      - kimi-k2.5
+      - moonshot-v1-auto
       - moonshot-v1-8k
       - moonshot-v1-32k
       - moonshot-v1-128k
-      - moonshot-v1-auto
-      - kimi-latest
-      - kimi-k2-0905
-      - kimi-k2-turbo-preview
 
   - name: 阿里通义 Qwen
     type: 17
     enabled: true
     key_env: ALI_API_KEY
     base_url: https://dashscope.aliyuncs.com
-    test_model: qwen-turbo
+    test_model: qwen3.7-flash
     tag: alibaba
     models:
-      - qwen-max
-      - qwen-plus
-      - qwen-turbo
-      - qwen-long
+      # 旗舰 / 主力（当前）
+      - qwen3.8-max
+      - qwen3.7-max
+      - qwen3.7-plus
+      - qwen3.7-flash
+      - qwen3-coder-plus
+      # 多模态
       - qwen-vl-max
       - qwen-vl-plus
-      - qwen2.5-72b-instruct
-      - qwen2.5-coder-32b-instruct
+      # 上一代（仍在服务）
       - qwen3-max
-      - qwen3-plus
-      - qwen3-turbo
-      - qwen3-coder-plus
+      - qwen-plus
+      - qwen-flash
+      - qwen-turbo
+      - qwen-long
 
   - name: 智谱 GLM
     type: 26
     enabled: true
     key_env: ZHIPU_API_KEY
     base_url: https://open.bigmodel.cn
-    test_model: glm-4-flash
+    test_model: glm-4.7-flash
     tag: zhipu
     models:
+      # GLM-5 系列（当前）
+      - glm-5.3
+      - glm-5.2
+      - glm-5.1
+      - glm-5
+      # GLM-4.5 – 4.7
+      - glm-4.7
+      - glm-4.7-flash
+      - glm-4.6
+      - glm-4.5-air
+      # 上一代
       - glm-4-plus
-      - glm-4-air
-      - glm-4-airx
       - glm-4-long
       - glm-4-flash
       - glm-4v-plus
-      - glm-4
-      - glm-4v
-      - glm-4-alltools
 
   - name: 字节跳动豆包 Doubao
     type: 45
     enabled: true
     key_env: VOLCENGINE_API_KEY
     base_url: https://ark.cn-beijing.volces.com
-    test_model: doubao-lite-32k
+    test_model: doubao-seed-2.0-mini
     tag: doubao
     models:
-      - doubao-pro-4k
+      # Doubao Seed 2.0（当前）
+      - doubao-seed-2.0-pro
+      - doubao-seed-2.0-lite
+      - doubao-seed-2.0-mini
+      # DeepSeek（方舟托管，与豆包共用同一把 VOLCENGINE_API_KEY）
+      - deepseek-v4-pro
+      - deepseek-v4-flash
+      - deepseek-v3-1-250821
+      - deepseek-r1-250120
+      # 上一代
       - doubao-pro-32k
       - doubao-pro-128k
-      - doubao-pro-256k
-      - doubao-lite-4k
       - doubao-lite-32k
-      - doubao-lite-128k
-      - doubao-vision-pro-32k
-      - doubao-vision-lite-32k
 
   # 火山方舟视频生成（Seedance）。type 54 = ChannelTypeDoubaoVideo,
   # 与上面的聊天渠道共用同一个方舟 API Key（VOLCENGINE_API_KEY）。
@@ -278,6 +309,9 @@ channels:
     test_model: doubao-seedance-1-0-lite-t2v
     tag: doubao
     models:
+      # 2.5：单段最长 30s / 原生 4K / 同步音轨。按 token 倍率计费（不是按次价），
+      # 见 setting/ratio_setting/model_ratio.go 的说明。
+      - doubao-seedance-2-5-260628
       - doubao-seedance-1-0-pro-250528
       - doubao-seedance-1-0-lite-t2v
       - doubao-seedance-1-0-lite-i2v
@@ -338,13 +372,12 @@ channels:
     enabled: true
     key_env: MINIMAX_API_KEY
     base_url: https://api.minimax.chat
-    test_model: abab6.5-chat
+    test_model: MiniMax-M2
     tag: minimax
     models:
-      - abab7-chat-preview
-      - abab6.5s-chat
-      - abab6.5-chat
-      - abab5.5-chat
+      - MiniMax-M3
+      - MiniMax-M2.7
+      - MiniMax-M2
 
   - name: 零一万物 Yi
     type: 31
@@ -384,14 +417,14 @@ channels:
     enabled: false        # 默认关，作为兜底渠道
     key_env: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api
-    test_model: openai/gpt-4o-mini
+    test_model: openai/gpt-5.6
     tag: openrouter
     models:
-      - openai/gpt-4o
-      - openai/gpt-4o-mini
-      - anthropic/claude-3.5-sonnet
-      - google/gemini-pro-1.5
-      - meta-llama/llama-3.1-405b-instruct
+      - openai/gpt-5.6
+      - anthropic/claude-opus-5
+      - anthropic/claude-sonnet-5
+      - google/gemini-3.7-flash
+      - deepseek/deepseek-v4-pro
       - mistralai/mistral-large
 
   - name: SiliconFlow 硅基流动

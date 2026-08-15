@@ -94,6 +94,11 @@ var defaultModelRatio = map[string]float64{
 	"gpt-4-turbo-2024-04-09":           5, // $0.01 / 1K tokens
 	"gpt-4.5-preview":                  37.5,
 	"gpt-4.5-preview-2025-02-27":       37.5,
+	"gpt-5.6":                          2.5,   // alias of -sol; $5/$30 per 1M (2026-07-30 price cut)
+	"gpt-5.6-sol":                      2.5,   // $5/$30 per 1M (flagship)
+	"gpt-5.6-terra":                    1.0,   // $2/$12 per 1M
+	"gpt-5.6-luna":                     0.1,   // $0.2/$1.2 per 1M
+	"gpt-5.6-cyber":                    2.5,   // bootstrap (≈sol); security-specialised tier — verify
 	"gpt-5.5":                          2.5,   // $5/$30 per 1M (2026-04-24); completion 6 via prefix
 	"gpt-5.5-pro":                      15.0,  // $30/$180 per 1M
 	"gpt-5.4":                          1.25,  // $2.5/$15 per 1M (2026-03-05)
@@ -123,40 +128,54 @@ var defaultModelRatio = map[string]float64{
 	"text-curie-001":         1,
 	//"text-davinci-002":               10,
 	//"text-davinci-003":               10,
-	"text-davinci-edit-001":                     10,
-	"code-davinci-edit-001":                     10,
-	"whisper-1":                                 15,  // $0.006 / minute -> $0.006 / 150 words -> $0.006 / 200 tokens -> $0.03 / 1k tokens
-	"tts-1":                                     7.5, // 1k characters -> $0.015
-	"tts-1-1106":                                7.5, // 1k characters -> $0.015
-	"tts-1-hd":                                  15,  // 1k characters -> $0.03
-	"tts-1-hd-1106":                             15,  // 1k characters -> $0.03
-	"davinci":                                   10,
-	"curie":                                     10,
-	"babbage":                                   10,
-	"ada":                                       10,
-	"text-embedding-3-small":                    0.01,
-	"text-embedding-3-large":                    0.065,
-	"text-embedding-ada-002":                    0.05,
-	"text-search-ada-doc-001":                   10,
-	"text-moderation-stable":                    0.1,
-	"text-moderation-latest":                    0.1,
-	"claude-3-haiku-20240307":                   0.125, // $0.25 / 1M tokens
-	"claude-3-5-haiku-20241022":                 0.5,   // $1 / 1M tokens
-	"claude-3-5-haiku-latest":                   0.5,   // -latest alias
-	"claude-haiku-4-5-20251001":                 0.5,   // $1 / 1M tokens
-	"claude-3-sonnet-20240229":                  1.5,   // $3 / 1M tokens
-	"claude-3-5-sonnet-20240620":                1.5,
-	"claude-3-5-sonnet-20241022":                1.5,
-	"claude-3-5-sonnet-latest":                  1.5, // -latest alias
-	"claude-3-7-sonnet-20250219":                1.5,
-	"claude-3-7-sonnet-20250219-thinking":       1.5,
-	"claude-3-7-sonnet-latest":                  1.5, // -latest alias
-	"claude-sonnet-4-20250514":                  1.5,
-	"claude-sonnet-4-5-20250929":                1.5,
-	"claude-sonnet-4-6":                         1.5, // $3 / 1M tokens (Sonnet tier); -thinking covered by suffix fallback
-	"claude-sonnet-4-6-thinking":                1.5,
-	"claude-fable-5":                            5.0, // $10/$50 per 1M; TEMPORARILY UNAVAILABLE (kept priced/dormant, pulled from quick-import presets)
-	"claude-fable-5-thinking":                   5.0,
+	"text-davinci-edit-001":               10,
+	"code-davinci-edit-001":               10,
+	"whisper-1":                           15,  // $0.006 / minute -> $0.006 / 150 words -> $0.006 / 200 tokens -> $0.03 / 1k tokens
+	"tts-1":                               7.5, // 1k characters -> $0.015
+	"tts-1-1106":                          7.5, // 1k characters -> $0.015
+	"tts-1-hd":                            15,  // 1k characters -> $0.03
+	"tts-1-hd-1106":                       15,  // 1k characters -> $0.03
+	"davinci":                             10,
+	"curie":                               10,
+	"babbage":                             10,
+	"ada":                                 10,
+	"text-embedding-3-small":              0.01,
+	"text-embedding-3-large":              0.065,
+	"text-embedding-ada-002":              0.05,
+	"text-search-ada-doc-001":             10,
+	"text-moderation-stable":              0.1,
+	"text-moderation-latest":              0.1,
+	"omni-moderation-latest":              0, // moderation endpoint is free
+	"omni-moderation-2024-09-26":          0,
+	"claude-3-haiku-20240307":             0.125, // $0.25 / 1M tokens
+	"claude-3-5-haiku-20241022":           0.5,   // $1 / 1M tokens
+	"claude-3-5-haiku-latest":             0.5,   // -latest alias
+	"claude-haiku-4-5-20251001":           0.5,   // $1 / 1M tokens
+	"claude-3-sonnet-20240229":            1.5,   // $3 / 1M tokens
+	"claude-3-5-sonnet-20240620":          1.5,
+	"claude-3-5-sonnet-20241022":          1.5,
+	"claude-3-5-sonnet-latest":            1.5, // -latest alias
+	"claude-3-7-sonnet-20250219":          1.5,
+	"claude-3-7-sonnet-20250219-thinking": 1.5,
+	"claude-3-7-sonnet-latest":            1.5, // -latest alias
+	"claude-sonnet-4-20250514":            1.5,
+	"claude-sonnet-4-5-20250929":          1.5,
+	"claude-sonnet-4-6":                   1.5, // $3 / 1M tokens (Sonnet tier); -thinking covered by suffix fallback
+	"claude-sonnet-4-6-thinking":          1.5,
+	"claude-fable-5":                      5.0, // $10/$50 per 1M; TEMPORARILY UNAVAILABLE (kept priced/dormant, pulled from quick-import presets)
+	"claude-fable-5-thinking":             5.0,
+	"claude-mythos-5":                     5.0, // $10/$50 per 1M (Project Glasswing only; same rates as Fable 5)
+	"claude-mythos-5-thinking":            5.0,
+	// Claude 5 generation (completion ratio 5x is locked in getHardcodedCompletionModelRatio)
+	"claude-sonnet-5":                           1.5, // $3/$15 per 1M standard ($2/$10 intro through 2026-08-31 — we bill standard)
+	"claude-sonnet-5-thinking":                  1.5,
+	"claude-opus-5":                             2.5, // $5/$25 per 1M (same sticker as Opus 4.8)
+	"claude-opus-5-max":                         2.5,
+	"claude-opus-5-xhigh":                       2.5,
+	"claude-opus-5-high":                        2.5,
+	"claude-opus-5-medium":                      2.5,
+	"claude-opus-5-low":                         2.5,
+	"claude-opus-5-thinking":                    2.5,
 	"claude-opus-4-5-20251101":                  2.5,
 	"claude-opus-4-6":                           2.5,
 	"claude-opus-4-6-max":                       2.5,
@@ -208,7 +227,10 @@ var defaultModelRatio = map[string]float64{
 	"gemini-3.1-pro":                            1.0,
 	"gemini-3-flash-preview":                    0.25,  // $0.5/$3 per 1M; completion 6 set explicitly
 	"gemini-3.5-flash":                          0.75,  // $1.5/$9 per 1M
+	"gemini-3.7-flash":                          0.75,  // $1.5/$7.5 per 1M standard ($0.75/$3.75 intro through 2026-12-31 — we bill standard)
+	"gemini-3.6-flash":                          0.75,  // $1.5/$7.5 per 1M standard (same intro window as 3.7)
 	"gemini-3.1-flash-lite":                     0.125, // $0.25/$1.5 per 1M
+	"gemini-2.5-flash-lite":                     0.05,  // $0.10/$0.40 per 1M
 	"gemini-2.5-pro":                            0.625,
 	"gemini-2.5-flash-preview-04-17":            0.075,
 	"gemini-2.5-flash-preview-04-17-thinking":   0.075,
@@ -239,6 +261,7 @@ var defaultModelRatio = map[string]float64{
 	"glm-4-long":                                0.001 * RMB,
 	"glm-4-flash":                               0,
 	"glm-4v-plus":                               0.01 * RMB,
+	"glm-5.3":                                   0.7,    // bootstrap (≈glm-5.2); Z.ai list price not published yet — verify
 	"glm-5.2":                                   0.7,    // bootstrap (≈glm-5.1); verify
 	"glm-5.1":                                   0.7,    // $1.4/$4.4 per 1M (Z.ai)
 	"glm-5":                                     0.5,    // $1.0/$3.2 per 1M (Z.ai)
@@ -252,6 +275,10 @@ var defaultModelRatio = map[string]float64{
 	"qwen-plus":                                 0.2,    // $0.4/$1.2 per 1M ≤256K (was $20/1M — ~50x overcharge)
 	"qwen-max":                                  0.8,    // $1.6/$6.4 per 1M (legacy flagship; was $20/1M)
 	"qwen-flash":                                0.025,  // $0.05/$0.4 per 1M
+	"qwen3.8-max":                               1.0,    // $2/$6 per 1M (2026-08 flagship)
+	"qwen3.7-max":                               1.0,    // bootstrap (≈qwen3.8-max); verify
+	"qwen3.7-plus":                              0.2,    // bootstrap (≈qwen3.5-plus); verify
+	"qwen3.7-flash":                             0.025,  // bootstrap (≈qwen-flash); verify
 	"qwen3-max":                                 0.6,    // $1.2/$6 per 1M (0–32K tier); flagship
 	"qwen3.5-plus":                              0.2,    // $0.4/$2.4 per 1M (≤256K tier)
 	"qwen3-coder-plus":                          0.5,    // $1/$5 per 1M (≤32K tier)
@@ -302,13 +329,15 @@ var defaultModelRatio = map[string]float64{
 	// ── Bootstrap defaults for Quick Import providers (verify via models.dev sync
 	//    before charging customers; list prices below are approximate). ──
 	// Moonshot / Kimi (input, RMB per 1K tokens)
-	"moonshot-v1-8k":       0.012 * RMB,
-	"moonshot-v1-32k":      0.024 * RMB,
-	"moonshot-v1-128k":     0.060 * RMB,
-	"kimi-k2-0905-preview": 0.004 * RMB,
-	"kimi-k2.5":            0.004 * RMB,  // ¥4/¥21 per 1M (cache-miss)
-	"kimi-k2.6":            0.0065 * RMB, // ¥6.5/¥27 per 1M flagship (cache-miss)
-	"kimi-k2.7-code":       0.0065 * RMB, // ¥6.5/¥27 per 1M coding (cache-miss)
+	"moonshot-v1-8k":           0.012 * RMB,
+	"moonshot-v1-32k":          0.024 * RMB,
+	"moonshot-v1-128k":         0.060 * RMB,
+	"kimi-k2-0905-preview":     0.004 * RMB,
+	"kimi-k2.5":                0.004 * RMB,  // ¥4/¥21 per 1M (cache-miss)
+	"kimi-k2.6":                0.0065 * RMB, // ¥6.5/¥27 per 1M flagship (cache-miss)
+	"kimi-k2.7-code":           0.0065 * RMB, // ¥6.5/¥27 per 1M coding (cache-miss)
+	"kimi-k2.7-code-highspeed": 0.0065 * RMB,
+	"kimi-k3":                  1.5, // $3/$15 per 1M (2026-07-17 flagship; USD-denominated, cache hit $0.3)
 	// Doubao / VolcEngine (input, RMB per 1K tokens)
 	"doubao-pro-32k":                  0.0008 * RMB,
 	"doubao-pro-128k":                 0.005 * RMB,
@@ -317,6 +346,23 @@ var defaultModelRatio = map[string]float64{
 	"doubao-seed-2.0-pro":             0.0032 * RMB, // ¥3.2/¥16 per 1M ≤32K (Seed 2.0, 2026-02-14)
 	"doubao-seed-2.0-lite":            0.0006 * RMB, // ¥0.6/¥3.6 per 1M ≤32K
 	"doubao-seed-2.0-mini":            0.0002 * RMB, // ¥0.2/¥2.0 per 1M ≤32K
+	// ── Seedance 2.5 video: TOKEN RATIO, not a per-call price ──
+	// Ark bills video generation per token; 2.5 allows 30s segments, so the flat
+	// per-call prices used for Seedance ≤2.0 (defaultModelPrice) would lose money
+	// on every long clip. Because the model has a ratio and no per-call price,
+	// settleTaskBillingOnComplete recalculates the charge from the task's actual
+	// TotalTokens (service/task_billing.go RecalculateTaskQuotaByTokens).
+	//
+	// $10.85 / 1M tokens is the no-video-input rate → 10.85 / 2 = 5.425.
+	// Requests that DO include video input bill at $6.51 / 1M; that discount is
+	// applied as an OtherRatio by relay/channel/task/doubao (videoInputRatioMap),
+	// so the ratio here must stay the higher, no-video figure.
+	"doubao-seedance-2-5-260628": 5.425,
+	"doubao-seedance-2.5":        5.425, // undated alias
+	// DeepSeek served through VolcEngine Ark. Ark dispatches DATED ids; the
+	// undated aliases resolve on the Coding/Agent Plan endpoints.
+	"deepseek-v3-1-250821": 0.135, // = deepseek-v3 tier
+	"deepseek-r1-250120":   0.275, // = deepseek-r1 tier
 	// MiniMax (input, USD per 1M tokens)
 	"MiniMax-M3":   0.3,  // $0.6/$2.4 per 1M (2026-06-01)
 	"MiniMax-M2":   0.15, // $0.3/$1.2 per 1M
@@ -334,11 +380,21 @@ var defaultModelRatio = map[string]float64{
 	"eleven_turbo_v2_5":      0.075,
 	"eleven_flash_v2_5":      0.05,
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
-	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
+	"llama-3-sonar-small-32k-chat": 0.2 / 1000 * USD,
+	// Perplexity Sonar (input, USD per 1M tokens). Note: Perplexity also charges a
+	// per-request search fee ($5–$14 per 1k requests) that the token ratios below
+	// do not model — margins on this channel are thinner than they look.
+	"sonar":                          0.5, // $1/$1 per 1M
+	"sonar-pro":                      1.5, // $3/$15 per 1M
+	"sonar-reasoning":                0.5, // $1/$5 per 1M
+	"sonar-reasoning-pro":            1.0, // $2/$8 per 1M
+	"sonar-deep-research":            1.0, // $2/$8 per 1M (+ citation/reasoning/search fees)
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
 	"llama-3-sonar-large-32k-chat":   1 / 1000 * USD,
 	"llama-3-sonar-large-32k-online": 1 / 1000 * USD,
 	// grok
+	"grok-4.6":              1.0,   // $2/$6 per 1M (<200K prompt; ≥200K bills the whole request at $4/$12)
+	"grok-4.5":              1.0,   // bootstrap (≈grok-4.6); verify
 	"grok-4.3":              0.625, // $1.25/$2.50 per 1M (2026-04-30 flagship; grok-3/4 ids now redirect here)
 	"grok-4.3-latest":       0.625,
 	"grok-4.20":             0.625, // $1.25/$2.50 per 1M
@@ -420,6 +476,11 @@ var defaultModelPrice = map[string]float64{
 	// values are safe for the ~5s default; if long clips become common, move
 	// Seedance to defaultModelRatio (Ark bills per token and ParseTaskResult
 	// already records usage) instead of raising the flat price again.
+	//
+	// 🚫 Seedance 2.5 is deliberately NOT in this map. It generates up to 30s per
+	// segment (6x the 5s basis these flat prices assume), so it is priced by
+	// token ratio in defaultModelRatio instead — GetModelPrice is checked first,
+	// so adding it here would silently switch it back to flat per-call billing.
 	"doubao-seedance-2-0-260128":      1.0,  // ¥46/M → 5s cost ≈ $0.69
 	"doubao-seedance-2.0":             1.0,  // alias of the above
 	"doubao-seedance-2.0-fast":        0.8,  // ¥37/M → 5s cost ≈ $0.55
@@ -483,47 +544,65 @@ var defaultCompletionRatio = map[string]float64{
 	// Output-price multipliers for models whose output ≠ input and which are NOT
 	// covered by the prefix logic in getHardcodedCompletionModelRatio (otherwise
 	// they would default to 1× = output billed at input price, undercharging).
-	"claude-fable-5":          5, // $50/$10
-	"claude-fable-5-thinking": 5,
-	"gemini-3.1-pro-preview":  6, // $12/$2
-	"gemini-3.1-pro":          6,
-	"gemini-3-flash-preview":  6, // $3/$0.5
-	"gemini-3.5-flash":        6, // $9/$1.5
-	"gemini-3.1-flash-lite":   6, // $1.5/$0.25
-	"qwen-plus":               3, // $1.2/$0.4
-	"qwen-max":                4, // $6.4/$1.6
-	"qwen-turbo":              4, // $0.2/$0.05
-	"qwen-flash":              8, // $0.4/$0.05
-	"qwen3-max":               5, // $6/$1.2
-	"qwen3.5-plus":            6, // $2.4/$0.4
-	"qwen3-coder-plus":        5, // $5/$1
-	"deepseek-chat":           2, // $0.28/$0.14
-	"deepseek-coder":          2,
-	"deepseek-reasoner":       2,
-	"deepseek-v4-flash":       2,
-	"deepseek-v4-pro":         2, // $0.87/$0.435
-	"deepseek-v3":             4, // legacy V3 ≈ $1.1/$0.27
-	"deepseek-r1":             4, // legacy R1 ≈ $2.19/$0.55
-	"glm-5.2":                 3.14,
-	"glm-5.1":                 3.14, // $4.4/$1.4
-	"glm-5":                   3.2,  // $3.2/$1.0
-	"glm-4.7":                 3.67, // $2.2/$0.6
-	"glm-4.6":                 3.67,
-	"glm-4.5":                 3.67,
-	"glm-4.5-air":             5.5, // $1.1/$0.2
-	"grok-4.3":                2,   // $2.5/$1.25
-	"grok-4.3-latest":         2,
-	"grok-4.20":               2,
-	"grok-build-0.1":          2,    // $2/$1
-	"doubao-seed-2.0-pro":     5,    // ¥16/¥3.2
-	"doubao-seed-2.0-lite":    6,    // ¥3.6/¥0.6
-	"doubao-seed-2.0-mini":    10,   // ¥2.0/¥0.2
-	"kimi-k2.5":               5.25, // ¥21/¥4
-	"kimi-k2.6":               4.15, // ¥27/¥6.5
-	"kimi-k2.7-code":          4.15,
-	"MiniMax-M3":              4, // $2.4/$0.6
-	"MiniMax-M2":              4, // $1.2/$0.3
-	"MiniMax-M2.7":            4,
+	"claude-fable-5":           5, // $50/$10
+	"claude-fable-5-thinking":  5,
+	"gemini-3.1-pro-preview":   6, // $12/$2
+	"gemini-3.1-pro":           6,
+	"gemini-3-flash-preview":   6, // $3/$0.5
+	"gemini-3.5-flash":         6, // $9/$1.5
+	"gemini-3.7-flash":         5, // $7.5/$1.5
+	"gemini-3.6-flash":         5, // $7.5/$1.5
+	"gemini-3.1-flash-lite":    6, // $1.5/$0.25
+	"qwen-plus":                3, // $1.2/$0.4
+	"qwen-max":                 4, // $6.4/$1.6
+	"qwen-turbo":               4, // $0.2/$0.05
+	"qwen-flash":               8, // $0.4/$0.05
+	"qwen3-max":                5, // $6/$1.2
+	"qwen3.8-max":              3, // $6/$2
+	"qwen3.7-max":              3,
+	"qwen3.7-plus":             6,
+	"qwen3.7-flash":            8,
+	"qwen3.5-plus":             6, // $2.4/$0.4
+	"qwen3-coder-plus":         5, // $5/$1
+	"deepseek-chat":            2, // $0.28/$0.14
+	"deepseek-coder":           2,
+	"deepseek-reasoner":        2,
+	"deepseek-v4-flash":        2,
+	"deepseek-v4-pro":          2, // $0.87/$0.435
+	"deepseek-v3-1-250821":     4, // Ark dated id (= deepseek-v3 tier)
+	"deepseek-r1-250120":       4, // Ark dated id (= deepseek-r1 tier)
+	"deepseek-v3":              4, // legacy V3 ≈ $1.1/$0.27
+	"deepseek-r1":              4, // legacy R1 ≈ $2.19/$0.55
+	"glm-5.3":                  3.14,
+	"glm-5.2":                  3.14,
+	"glm-5.1":                  3.14, // $4.4/$1.4
+	"glm-5":                    3.2,  // $3.2/$1.0
+	"glm-4.7":                  3.67, // $2.2/$0.6
+	"glm-4.6":                  3.67,
+	"glm-4.5":                  3.67,
+	"glm-4.5-air":              5.5, // $1.1/$0.2
+	"sonar":                    1,   // $1/$1
+	"sonar-pro":                5,   // $15/$3
+	"sonar-reasoning":          5,   // $5/$1
+	"sonar-reasoning-pro":      4,   // $8/$2
+	"sonar-deep-research":      4,   // $8/$2
+	"grok-4.6":                 3,   // $6/$2
+	"grok-4.5":                 3,
+	"grok-4.3":                 2, // $2.5/$1.25
+	"grok-4.3-latest":          2,
+	"grok-4.20":                2,
+	"grok-build-0.1":           2,    // $2/$1
+	"doubao-seed-2.0-pro":      5,    // ¥16/¥3.2
+	"doubao-seed-2.0-lite":     6,    // ¥3.6/¥0.6
+	"doubao-seed-2.0-mini":     10,   // ¥2.0/¥0.2
+	"kimi-k2.5":                5.25, // ¥21/¥4
+	"kimi-k2.6":                4.15, // ¥27/¥6.5
+	"kimi-k2.7-code":           4.15,
+	"kimi-k2.7-code-highspeed": 4.15,
+	"kimi-k3":                  5, // $15/$3
+	"MiniMax-M3":               4, // $2.4/$0.6
+	"MiniMax-M2":               4, // $1.2/$0.3
+	"MiniMax-M2.7":             4,
 }
 
 // InitRatioSettings initializes all model related settings maps
@@ -712,6 +791,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 		// gpt-5 匹配
 		if strings.HasPrefix(name, "gpt-5") {
+			if strings.HasPrefix(name, "gpt-5.6") {
+				return 6, true // every 5.6 tier bills output at 6x input
+			}
 			if strings.HasPrefix(name, "gpt-5.5") {
 				return 6, true
 			}
@@ -743,6 +825,13 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 	if strings.Contains(name, "claude-3") {
 		return 5, true
 	} else if strings.Contains(name, "claude-sonnet-4") || strings.Contains(name, "claude-opus-4") || strings.Contains(name, "claude-haiku-4") {
+		return 5, true
+	} else if strings.Contains(name, "claude-opus-5") || strings.Contains(name, "claude-sonnet-5") ||
+		strings.Contains(name, "claude-fable-5") || strings.Contains(name, "claude-mythos-5") {
+		// Claude 5 generation: every tier bills output at 5x input
+		// (Opus 5 $5/$25, Sonnet 5 $3/$15, Fable/Mythos 5 $10/$50).
+		// Without this branch the effort/thinking variants fall through to 1x
+		// and output tokens are billed at the input price.
 		return 5, true
 	}
 

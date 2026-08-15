@@ -1,7 +1,13 @@
 package xai
 
 var ModelList = []string{
-	// language models
+	// language models — current
+	"grok-4.6",
+	"grok-4.5",
+	"grok-4.3", "grok-4.3-latest",
+	"grok-4.20",
+	"grok-build-0.1",
+	// language models — previous generations
 	"grok-4-1-fast-reasoning",
 	"grok-4-1-fast-non-reasoning",
 	"grok-code-fast-1",

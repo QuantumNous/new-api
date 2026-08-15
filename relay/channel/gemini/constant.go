@@ -1,7 +1,11 @@
 package gemini
 
 var ModelList = []string{
-	// stable version
+	// stable version — Gemini 3.x
+	"gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash",
+	"gemini-3.5-flash-lite", "gemini-3.1-flash-lite",
+	"gemini-3.1-flash-image", "gemini-3.1-flash-lite-image", "gemini-3-pro-image",
+	// stable version — Gemini 2.x
 	"gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash",
 	"gemini-2.0-flash-001", "gemini-2.0-flash-lite-001", "gemini-2.0-flash-lite",
 	"gemini-2.5-flash-lite",
@@ -17,6 +21,11 @@ var ModelList = []string{
 	"gemini-3.1-flash-image-preview", "gemini-robotics-er-1.5-preview",
 	"gemini-2.5-computer-use-preview-10-2025", "deep-research-pro-preview-12-2025",
 	"gemini-2.5-flash-native-audio-preview-09-2025", "gemini-2.5-flash-native-audio-preview-12-2025",
+	"gemini-3.5-live-translate-preview", "gemini-3.1-flash-live-preview",
+	"gemini-3.1-flash-tts-preview", "gemini-omni-flash",
+	"gemini-robotics-er-2-preview",
+	"deep-research-preview-04-2026", "deep-research-max-preview-04-2026",
+	"antigravity-preview-05-2026",
 	// gemma models
 	"gemma-3-1b-it", "gemma-3-4b-it", "gemma-3-12b-it",
 	"gemma-3-27b-it", "gemma-3n-e4b-it", "gemma-3n-e2b-it",

@@ -34,7 +34,7 @@ Hardcoded in this package. Stays deliberately narrow:
 |---|---|
 | OpenAI chat | `gpt-4o-mini`, `gpt-4o` |
 | OpenAI image | `gpt-image-2` (primary, added 2026-04-21), `gpt-image-1` (fallback) |
-| Anthropic | `claude-3-5-haiku`, `claude-3-5-sonnet` |
+| Anthropic | `claude-haiku-4-5`, `claude-3-5-haiku` (retired), `claude-3-5-sonnet` (retired) |
 | Image | `flux-schnell`, `flux-1.1-pro` |
 
 DALL-E 3 was retired from the whitelist on 2026-05-12. Versioned variants (e.g. `gpt-4o-2024-08-06`) match via `HasPrefix`.
