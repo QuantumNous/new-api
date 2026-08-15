@@ -280,15 +280,20 @@ def run(repo: str, num: int, mode: str = "", strict: bool = False) -> list[Findi
     if fixes:
         for fn in fixes:
             issue = gh_api_get(f"repos/{repo}/issues/{fn}")
-            if issue:
-                subs = gh_api_get(f"repos/{repo}/issues/{fn}/sub_issues")
-                if subs:
-                    findings.append(Finding(
-                        "PR-10", Severity.WARN,
-                        f"Fixes #{fn} 是 parent issue（{len(subs)} 个 sub-issues）：epic 侧 Development "
-                        "面板不显示 closing 关联；合并会尝试关闭 epic。应 Fixes 其 sub-issue 建立层级链"))
-                else:
-                    findings.append(Finding("PR-10", Severity.INFO, f"Fixes #{fn} 是普通 issue，双向关联正常"))
+            if not issue:
+                findings.append(Finding(
+                    "PR-10", Severity.WARN,
+                    f"Fixes #{fn} 不存在：issue 需先创建（或修正编号）。PR 与 issue 的关联必须双向可查，"
+                    "无 issue 时 Fixes 是死引用，不会建立 Development 关联"))
+                continue
+            subs = gh_api_get(f"repos/{repo}/issues/{fn}/sub_issues")
+            if subs:
+                findings.append(Finding(
+                    "PR-10", Severity.WARN,
+                    f"Fixes #{fn} 是 parent issue（{len(subs)} 个 sub-issues）：epic 侧 Development "
+                    "面板不显示 closing 关联；合并会尝试关闭 epic。应 Fixes 其 sub-issue 建立层级链"))
+            else:
+                findings.append(Finding("PR-10", Severity.INFO, f"Fixes #{fn} 是普通 issue，双向关联正常"))
         findings.append(Finding("PR-10", Severity.INFO,
                                 f"Fixes # present: #{fixes[0]}; closing reference check requires base branch = default"))
 
