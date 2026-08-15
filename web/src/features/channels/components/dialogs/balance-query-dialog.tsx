@@ -42,14 +42,12 @@ import {
 } from './codex-usage-dialog'
 
 type BalanceQueryDialogProps = {
+  initialRawResponse?: string
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function BalanceQueryDialog({
-  open,
-  onOpenChange,
-}: BalanceQueryDialogProps) {
+export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   const { t } = useTranslation()
   const { currentRow, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
@@ -58,7 +56,9 @@ export function BalanceQueryDialog({
   const [balanceUpdatedTime, setBalanceUpdatedTime] = useState<number | null>(
     null
   )
-  const [rawResponse, setRawResponse] = useState<string | null>(null)
+  const [rawResponse, setRawResponse] = useState<string | null>(
+    props.initialRawResponse ?? null
+  )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
 
@@ -85,10 +85,10 @@ export function BalanceQueryDialog({
 
   useEffect(() => {
     if (!isCodex) return
-    if (!open) return
+    if (!props.open) return
     handleQueryCodexUsage()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isCodex])
+  }, [props.open, isCodex])
 
   if (!currentRow) return null
 
@@ -135,7 +135,7 @@ export function BalanceQueryDialog({
     setBalanceUpdatedTime(null)
     setRawResponse(null)
     setCodexUsageResponse(null)
-    onOpenChange(false)
+    props.onOpenChange(false)
   }
 
   const formatBalance = (bal: number) =>
@@ -153,7 +153,7 @@ export function BalanceQueryDialog({
   if (isCodex) {
     return (
       <CodexUsageDialog
-        open={open}
+        open={props.open}
         onOpenChange={(v) => {
           if (!v) handleClose()
         }}
@@ -168,7 +168,7 @@ export function BalanceQueryDialog({
 
   return (
     <Dialog
-      open={open}
+      open={props.open}
       onOpenChange={handleClose}
       title={t('Query Balance')}
       description={
