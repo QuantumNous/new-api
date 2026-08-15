@@ -122,6 +122,211 @@ func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
 	assert.Equal(t, "https://example.test/v.mp4", parts[4].GetVideoUrl().Url)
 }
 
+func TestResponsesRequestToChatCompletionsRequestPreservesToolCallReasoning(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         []map[string]any
+		wantContent   string
+		wantReasoning string
+		wantCalls     int
+	}{
+		{
+			name: "reasoning before parallel function calls",
+			input: []map[string]any{
+				{
+					"type": "reasoning",
+					"summary": []map[string]any{
+						{"type": "summary_text", "text": "Need both "},
+						{"type": "summary_text", "text": "tool results."},
+					},
+				},
+				{"type": "function_call", "call_id": "call_1", "name": "first", "arguments": `{}`},
+				{"type": "function_call", "call_id": "call_2", "name": "second", "arguments": `{}`},
+				{"type": "function_call_output", "call_id": "call_1", "output": "one"},
+				{"type": "function_call_output", "call_id": "call_2", "output": "two"},
+			},
+			wantReasoning: "Need both tool results.",
+			wantCalls:     2,
+		},
+		{
+			name: "reasoning between assistant text and function call",
+			input: []map[string]any{
+				{
+					"role":    "assistant",
+					"content": []map[string]any{{"type": "output_text", "text": "Checking now."}},
+				},
+				{
+					"type":    "reasoning",
+					"content": []map[string]any{{"type": "summary_text", "text": "Need the lookup."}},
+				},
+				{"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": `{}`},
+				{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+			},
+			wantContent:   "Checking now.",
+			wantReasoning: "Need the lookup.",
+			wantCalls:     1,
+		},
+		{
+			name: "reasoning embedded in function call",
+			input: []map[string]any{
+				{
+					"type":              "function_call",
+					"call_id":           "call_1",
+					"name":              "lookup",
+					"arguments":         `{}`,
+					"reasoning_content": "Need the lookup.",
+				},
+				{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+			},
+			wantReasoning: "Need the lookup.",
+			wantCalls:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+				Model: "gpt-test",
+				Input: mustRawMessage(t, tt.input),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, got.Messages, tt.wantCalls+1)
+			assistant := got.Messages[0]
+			assert.Equal(t, "assistant", assistant.Role)
+			assert.Equal(t, tt.wantContent, assistant.StringContent())
+			assert.Equal(t, tt.wantReasoning, assistant.GetReasoningContent())
+			assert.Len(t, assistant.ParseToolCalls(), tt.wantCalls)
+		})
+	}
+}
+
+func TestResponsesRequestToChatCompletionsRequestReasoningItemNeverBecomesUserMessage(t *testing.T) {
+	// Regression: a standalone reasoning item without a role previously fell into
+	// the default branch and was emitted as role="user", corrupting the history.
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"role": "user", "content": "hi"},
+			{
+				"type":    "reasoning",
+				"summary": []map[string]any{{"type": "summary_text", "text": "thinking..."}},
+			},
+			{"role": "user", "content": "continue"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 3)
+	assert.Equal(t, "user", got.Messages[0].Role)
+	assert.Equal(t, "assistant", got.Messages[1].Role)
+	assert.Equal(t, "thinking...", got.Messages[1].GetReasoningContent())
+	assert.Equal(t, "user", got.Messages[2].Role)
+	assert.Equal(t, "continue", got.Messages[2].StringContent())
+	for i, message := range got.Messages {
+		assert.NotEqualf(t, "thinking...", message.StringContent(), "reasoning text leaked into content of message %d", i)
+	}
+}
+
+func TestResponsesRequestToChatCompletionsRequestOrphanReasoningBecomesStandaloneAssistant(t *testing.T) {
+	// Reasoning with no following function_call must not be dropped: it is kept as
+	// a standalone assistant message (mirrors the modelbridge decode behavior).
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"type": "reasoning", "summary": []map[string]any{{"type": "summary_text", "text": "orphan thought"}}},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 1)
+	assert.Equal(t, "assistant", got.Messages[0].Role)
+	assert.Equal(t, "orphan thought", got.Messages[0].GetReasoningContent())
+}
+
+func TestResponsesRequestToChatCompletionsRequestMergesConsecutiveAssistantReasoning(t *testing.T) {
+	// An assistant message with inline reasoning followed by a standalone
+	// reasoning item and a function_call: both reasoning parts land on the single
+	// assistant message carrying the tool call (inline first, then pending).
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"role": "assistant", "content": "先做第一步", "reasoning_content": "推理A"},
+			{"type": "reasoning", "summary": []map[string]any{{"type": "summary_text", "text": "推理B"}}},
+			{"type": "function_call", "call_id": "c1", "name": "f", "arguments": `{}`},
+			{"type": "function_call_output", "call_id": "c1", "output": "ok"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 2)
+	assert.Equal(t, "推理A推理B", got.Messages[0].GetReasoningContent())
+	assert.Len(t, got.Messages[0].ParseToolCalls(), 1)
+}
+
+func TestResponsesRequestToChatCompletionsRequestReasoningBeforeToolOutput(t *testing.T) {
+	// Reasoning immediately before a function_call_output (no function_call):
+	// it becomes a standalone assistant message placed before the tool message.
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"type": "reasoning", "summary": []map[string]any{{"type": "summary_text", "text": "孤立推理"}}},
+			{"type": "function_call_output", "call_id": "c1", "output": "ok"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 2)
+	assert.Equal(t, "assistant", got.Messages[0].Role)
+	assert.Equal(t, "孤立推理", got.Messages[0].GetReasoningContent())
+	assert.Equal(t, "tool", got.Messages[1].Role)
+}
+
+func TestResponsesRequestToChatCompletionsRequestPendingReasoningPrecedesInline(t *testing.T) {
+	// A standalone reasoning item precedes an assistant message carrying an
+	// inline reasoning_content key: the merged reasoning must keep wire order
+	// (pending first, inline second).
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"type": "reasoning", "summary": []map[string]any{{"type": "summary_text", "text": "B"}}},
+			{"role": "assistant", "content": "hi", "reasoning_content": "A"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 1)
+	assert.Equal(t, "BA", got.Messages[0].GetReasoningContent())
+}
+
+func TestResponsesRequestToChatCompletionsRequestReasoningStaysInOwnTurn(t *testing.T) {
+	// After a tool output message, the next function_call starts a new assistant
+	// message, so each turn keeps its own reasoning:
+	// [assistant(r1, f1), tool, assistant(r2, f2), tool].
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"type": "reasoning", "summary": []map[string]any{{"type": "summary_text", "text": "回合1推理"}}},
+			{"type": "function_call", "call_id": "c1", "name": "f1", "arguments": `{}`},
+			{"type": "function_call_output", "call_id": "c1", "output": "r1"},
+			{"type": "reasoning", "summary": []map[string]any{{"type": "summary_text", "text": "回合2推理"}}},
+			{"type": "function_call", "call_id": "c2", "name": "f2", "arguments": `{}`},
+			{"type": "function_call_output", "call_id": "c2", "output": "r2"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 4)
+	assert.Equal(t, "assistant", got.Messages[0].Role)
+	assert.Equal(t, "回合1推理", got.Messages[0].GetReasoningContent())
+	assert.Len(t, got.Messages[0].ParseToolCalls(), 1)
+	assert.Equal(t, "tool", got.Messages[1].Role)
+	assert.Equal(t, "assistant", got.Messages[2].Role)
+	assert.Equal(t, "回合2推理", got.Messages[2].GetReasoningContent())
+	assert.Len(t, got.Messages[2].ParseToolCalls(), 1)
+	assert.Equal(t, "tool", got.Messages[3].Role)
+}
+
 func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoexist(t *testing.T) {
 	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
 		Model: "gpt-test",

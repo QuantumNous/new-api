@@ -15,6 +15,16 @@
       "role": "user"
     },
     {
+      "id": "rs_<uuid>",
+      "summary": [
+        {
+          "text": "Let me look.",
+          "type": "summary_text"
+        }
+      ],
+      "type": "reasoning"
+    },
+    {
       "content": "",
       "role": "assistant"
     },
