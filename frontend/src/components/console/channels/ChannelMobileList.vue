@@ -398,13 +398,15 @@ function responseDisplay(channel: AdminChannel): {
                 </dt>
                 <dd class="mt-1 flex items-center justify-between gap-1">
                   <StatusChip
+                    class="overflow-visible whitespace-nowrap"
                     :tone="responseDisplay(channel).tone"
                     :title="responseDisplay(channel).title"
                   >
                     <LoaderCircle
                       v-if="responseDisplay(channel).running"
                       :size="12"
-                      class="animate-spin"
+                      class="relative z-[1] shrink-0 animate-spin overflow-visible"
+                      data-channel-response-spinner
                     />
                     {{ responseDisplay(channel).text }}
                   </StatusChip>

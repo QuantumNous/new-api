@@ -10,8 +10,12 @@ const props = withDefaults(
     pageSize: number
     total: number
     pageSizes?: number[]
+    variant?: 'default' | 'modal-footer'
   }>(),
-  { pageSizes: () => [10, 20, 50] }
+  {
+    pageSizes: () => [10, 20, 50],
+    variant: 'default',
+  }
 )
 
 const emit = defineEmits<{
@@ -60,13 +64,19 @@ const pageItems = computed<Array<number | '…'>>(() => {
 
 <template>
   <div
-    class="flex flex-col gap-3 px-3 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+    class="text-sm"
+    :class="
+      variant === 'modal-footer'
+        ? 'flex flex-wrap items-center justify-between gap-3'
+        : 'flex flex-col gap-3 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between'
+    "
     data-handdrawn="pagination"
+    :data-pagination-variant="variant"
   >
     <!-- Compact navigation keeps mobile targets reachable without making the
          whole document wider than the viewport. Desktop retains number links. -->
     <div
-      v-if="pageCount > 1"
+      v-if="variant === 'default' && pageCount > 1"
       class="flex items-center justify-between sm:hidden"
     >
       <button
@@ -116,7 +126,10 @@ const pageItems = computed<Array<number | '…'>>(() => {
       </button>
     </div>
 
-    <div v-if="pageCount > 1" class="hidden items-center gap-1 sm:flex">
+    <div
+      v-if="variant === 'default' && pageCount > 1"
+      class="hidden items-center gap-1 sm:flex"
+    >
       <button
         type="button"
         class="flex h-9 min-w-9 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--surface-muted)] enabled:hover:text-[var(--text-primary)] disabled:opacity-40"
@@ -186,9 +199,17 @@ const pageItems = computed<Array<number | '…'>>(() => {
     </div>
 
     <div
-      class="flex items-center justify-between gap-3 text-[var(--text-tertiary)] sm:ml-auto sm:justify-start"
+      class="flex items-center gap-3 text-[var(--text-tertiary)]"
+      :class="
+        variant === 'default'
+          ? 'justify-between sm:ml-auto sm:justify-start'
+          : 'shrink-0'
+      "
+      data-pagination-page-size
     >
-      <span class="shrink-0">{{ t('common.pageInfo', { total }) }}</span>
+      <span v-if="variant === 'default'" class="shrink-0">
+        {{ t('common.pageInfo', { total }) }}
+      </span>
       <FilterSelect
         v-model="pageSizeModel"
         :options="pageSizeOptions"
@@ -197,6 +218,143 @@ const pageItems = computed<Array<number | '…'>>(() => {
         size="sm"
         class="w-32"
       />
+    </div>
+
+    <div
+      v-if="variant === 'modal-footer'"
+      class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 sm:flex-nowrap"
+    >
+      <div
+        v-if="pageCount > 1"
+        class="flex items-center gap-1 sm:hidden"
+        data-pagination-controls
+      >
+        <button
+          type="button"
+          class="flex h-10 w-10 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--surface-muted)] enabled:hover:text-[var(--text-primary)] disabled:opacity-40"
+          :disabled="page <= 1"
+          :aria-label="t('common.prevPage')"
+          @click="emit('update:page', page - 1)"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m15 6-6 6 6 6" />
+          </svg>
+        </button>
+        <span
+          class="min-w-12 text-center text-xs font-medium text-[var(--text-secondary)]"
+          aria-live="polite"
+        >
+          {{ t('common.pageProgress', { page, count: pageCount }) }}
+        </span>
+        <button
+          type="button"
+          class="flex h-10 w-10 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--surface-muted)] enabled:hover:text-[var(--text-primary)] disabled:opacity-40"
+          :disabled="page >= pageCount"
+          :aria-label="t('common.nextPage')"
+          @click="emit('update:page', page + 1)"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
+      </div>
+
+      <div
+        v-if="pageCount > 1"
+        class="hidden items-center gap-1 sm:flex"
+        data-pagination-controls
+      >
+        <button
+          type="button"
+          class="flex h-9 min-w-9 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--surface-muted)] enabled:hover:text-[var(--text-primary)] disabled:opacity-40"
+          :disabled="page <= 1"
+          :aria-label="t('common.prevPage')"
+          @click="emit('update:page', page - 1)"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m15 6-6 6 6 6" />
+          </svg>
+        </button>
+        <template v-for="(item, i) in pageItems" :key="i">
+          <span v-if="item === '…'" class="px-1 text-[var(--text-tertiary)]">
+            …
+          </span>
+          <button
+            v-else
+            type="button"
+            class="h-9 min-w-9 rounded-md px-2.5 font-medium transition-colors"
+            :style="
+              item === page
+                ? 'background:var(--accent);color:var(--accent-contrast)'
+                : 'color:var(--text-secondary)'
+            "
+            :class="{
+              'hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]':
+                item !== page,
+            }"
+            :aria-current="item === page ? 'page' : undefined"
+            :aria-label="t('common.goToPage', { page: item })"
+            @click="emit('update:page', item)"
+          >
+            {{ item }}
+          </button>
+        </template>
+        <button
+          type="button"
+          class="flex h-9 min-w-9 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors enabled:hover:bg-[var(--surface-muted)] enabled:hover:text-[var(--text-primary)] disabled:opacity-40"
+          :disabled="page >= pageCount"
+          :aria-label="t('common.nextPage')"
+          @click="emit('update:page', page + 1)"
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="shrink-0" data-pagination-actions>
+        <slot name="actions" />
+      </div>
     </div>
   </div>
 </template>

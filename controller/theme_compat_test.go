@@ -27,7 +27,7 @@ func TestUpdateOptionRejectsRetiredFrontendTheme(t *testing.T) {
 	assert.JSONEq(t, `{"success":false,"message":"Classic 前端已移除，主题只能设置为 default"}`, response.Body.String())
 }
 
-func TestGetStatusAdvertisesDefaultDashboard(t *testing.T) {
+func TestGetStatusAdvertisesDefaults(t *testing.T) {
 	previousMap := common.OptionMap
 	common.OptionMap = map[string]string{}
 	t.Cleanup(func() { common.OptionMap = previousMap })
@@ -44,4 +44,5 @@ func TestGetStatusAdvertisesDefaultDashboard(t *testing.T) {
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &payload))
 	assert.True(t, payload.Success)
 	assert.Equal(t, "default", payload.Data["theme"])
+	assert.Equal(t, "Ren2Hub", payload.Data["system_name"])
 }

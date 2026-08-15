@@ -1228,6 +1228,7 @@ async function runBulkStatus(
               class="flex items-center justify-between gap-1"
             >
               <StatusChip
+                class="overflow-visible whitespace-nowrap"
                 :tone="
                   responseCellDisplay(
                     channelFromRow(row as AdminChannelTableRow)
@@ -1246,7 +1247,8 @@ async function runBulkStatus(
                     ).running
                   "
                   :size="12"
-                  class="animate-spin"
+                  class="relative z-[1] shrink-0 animate-spin overflow-visible"
+                  data-channel-response-spinner
                 />
                 {{
                   responseCellDisplay(

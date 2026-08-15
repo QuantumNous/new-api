@@ -32,7 +32,7 @@ const props = withDefaults(
     title?: string
     subtitle?: string
     ariaLabel?: string
-    size?: 'sm' | 'md' | 'lg'
+    size?: 'sm' | 'md' | 'lg' | 'xl'
     closeDisabled?: boolean
   }>(),
   {
@@ -48,7 +48,12 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const widths = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-2xl' }
+const widths = {
+  sm: 'max-w-sm',
+  md: 'max-w-md',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+}
 
 const titleId = useId()
 const subtitleId = useId()

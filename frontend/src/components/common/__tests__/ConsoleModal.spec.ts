@@ -139,4 +139,18 @@ describe('ConsoleModal', () => {
     wrapper.unmount()
     expect(document.body.style.overflow).toBe('')
   })
+
+  it('supports the wide workbench size', async () => {
+    const wrapper = mount(ConsoleModal, {
+      attachTo: document.body,
+      props: { open: true, title: 'Channel test', size: 'xl' },
+    })
+    await nextTick()
+
+    expect(
+      document.body.querySelector('[data-handdrawn="modal"]')?.classList
+    ).toContain('max-w-4xl')
+
+    wrapper.unmount()
+  })
 })

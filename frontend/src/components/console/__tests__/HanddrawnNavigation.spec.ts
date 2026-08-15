@@ -48,7 +48,14 @@ describe('hand-drawn mobile navigation', () => {
     })
 
     expect(wrapper.attributes('data-handdrawn')).toBe('navigation-strip')
+    expect(wrapper.classes()).toContain('select-none')
     expect(wrapper.get('[aria-current="page"]').text()).toBeTruthy()
+    expect(
+      wrapper.find('[data-console-nav-item="subscription"]').exists()
+    ).toBe(false)
+    expect(
+      wrapper.find('[data-console-nav-item="plan-management"]').exists()
+    ).toBe(false)
   })
 
   it('marks the Lab strip and keeps the active route semantic', async () => {

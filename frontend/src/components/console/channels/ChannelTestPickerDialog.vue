@@ -170,8 +170,8 @@ async function runBatch() {
     size="sm"
     @close="emit('close')"
   >
-    <div class="space-y-4 text-left">
-      <p class="text-xs text-[var(--text-tertiary)]">
+    <div class="space-y-5 text-left">
+      <p class="text-sm leading-6 text-[var(--text-tertiary)]">
         {{ t('channels.pickChannelDesc', { supplier }) }}
       </p>
 
@@ -181,7 +181,11 @@ async function runBatch() {
         </p>
         <!-- Switching models mid-batch would misattribute in-flight results,
              so the picker is inert while tests run. -->
-        <div :inert="testing" :class="testing ? 'opacity-60' : ''">
+        <div
+          :inert="testing"
+          :class="testing ? 'opacity-60' : ''"
+          data-channel-test-picker
+        >
           <FilterSelect
             v-model="selectedModel"
             :options="modelOptions"
@@ -191,7 +195,7 @@ async function runBatch() {
         </div>
         <p
           v-if="selectedModel"
-          class="mt-1.5 text-xs text-[var(--text-tertiary)]"
+          class="mt-2 text-xs text-[var(--text-tertiary)]"
         >
           {{ t('channels.pickModelHint', { count: targets.length }) }}
         </p>
@@ -206,11 +210,19 @@ async function runBatch() {
         <ConsoleButton
           size="lg"
           :disabled="targets.length === 0 || testing"
+          data-channel-test-start
           @click="runBatch"
         >
-          <LoaderCircle v-if="testing" :size="15" class="animate-spin" />
-          <Activity v-else :size="15" />
-          {{ testing ? `${done}/${total}` : t('channels.pickChannelStart') }}
+          <LoaderCircle
+            v-if="testing"
+            :size="15"
+            class="relative z-[1] shrink-0 animate-spin overflow-visible"
+            data-channel-test-spinner
+          />
+          <Activity v-else :size="15" class="relative z-[1] shrink-0" />
+          <span class="relative z-[1] tabular-nums">
+            {{ testing ? `${done}/${total}` : t('channels.pickChannelStart') }}
+          </span>
         </ConsoleButton>
       </div>
     </template>

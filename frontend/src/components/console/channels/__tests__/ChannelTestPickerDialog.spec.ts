@@ -165,7 +165,8 @@ describe('ChannelTestPickerDialog', () => {
     })
 
     await selectModel('gpt-5')
-    startButton().click()
+    const button = startButton()
+    button.click()
     await flushPromises()
 
     expect(testModel).toHaveBeenCalledTimes(2)
@@ -198,6 +199,34 @@ describe('ChannelTestPickerDialog', () => {
       expect.anything()
     )
     expect(wrapper.emitted('result')).toEqual([[1, { ok: true, timeMs: 261 }]])
+  })
+
+  it('keeps the batch spinner visible while tests are pending', async () => {
+    let resolveTest: (result: ChannelModelTestResult) => void = () => {}
+    const pendingTest = new Promise<ChannelModelTestResult>((resolve) => {
+      resolveTest = resolve
+    })
+    render({
+      testModel: () => pendingTest,
+    })
+
+    await selectModel('gpt-5')
+    const button = startButton()
+    button.click()
+    await flushPromises()
+
+    expect(
+      document.body.querySelector('[data-channel-test-spinner]')
+    ).toBeTruthy()
+    expect(button.textContent).toContain('0/2')
+    expect(
+      document.body
+        .querySelector('[data-channel-test-picker]')
+        ?.hasAttribute('inert')
+    ).toBe(true)
+
+    resolveTest({ ok: true, timeMs: 100 })
+    await flushPromises()
   })
 
   it('discards in-flight results after the model changes mid-batch', async () => {

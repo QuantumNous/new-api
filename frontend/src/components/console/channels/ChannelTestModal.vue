@@ -62,7 +62,7 @@ const endpointType = ref('')
 const stream = ref(false)
 const filter = ref('')
 const page = ref(1)
-const pageSize = ref(30)
+const pageSize = ref(5)
 const sortOrder = ref<'none' | 'asc' | 'desc'>('none')
 const selected = ref<string[]>([])
 const testingAll = ref(false)
@@ -93,6 +93,7 @@ function resetFromChannel(channel: AdminChannel | null) {
   stream.value = false
   filter.value = ''
   page.value = 1
+  pageSize.value = 5
   sortOrder.value = 'none'
   selected.value = []
   testingAll.value = false
@@ -135,6 +136,11 @@ const pagedModels = computed(() =>
 
 watch([filter, sortOrder], () => {
   page.value = 1
+})
+
+watch([() => filteredModels.value.length, pageSize], ([modelCount]) => {
+  const pageCount = Math.max(1, Math.ceil(modelCount / pageSize.value))
+  if (page.value > pageCount) page.value = pageCount
 })
 
 const successModels = computed(() =>
@@ -289,10 +295,10 @@ function close() {
 </script>
 
 <template>
-  <ConsoleModal :open="open" :title="modalTitle" size="lg" @close="close">
-    <div class="space-y-4 text-left">
+  <ConsoleModal :open="open" :title="modalTitle" size="xl" @close="close">
+    <div class="space-y-5 text-left">
       <!-- ══ 测试配置 ══════════════════════════════════════════════════ -->
-      <section class="channel-test-section">
+      <section class="channel-test-config">
         <div class="grid gap-4 sm:grid-cols-2">
           <div>
             <p class="mb-1.5 text-sm font-medium text-[var(--text-secondary)]">
@@ -347,7 +353,7 @@ function close() {
       </section>
 
       <!-- ══ 渠道模型 ══════════════════════════════════════════════════ -->
-      <section class="channel-test-section">
+      <section>
         <div
           class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
         >
@@ -374,17 +380,26 @@ function close() {
             :disabled="batchTargets.length === 0 || testingAll"
             @click="testBatch"
           >
-            <LoaderCircle v-if="testingAll" :size="14" class="animate-spin" />
-            <Activity v-else :size="14" />
-            {{
-              testingAll
-                ? `${batchDone}/${batchTargets.length}`
-                : selected.length > 0
-                  ? t('channels.testSelectedModels', { count: selected.length })
-                  : t('channels.testAllModels', {
-                      count: filteredModels.length,
-                    })
-            }}
+            <LoaderCircle
+              v-if="testingAll"
+              :size="14"
+              class="relative z-[1] shrink-0 animate-spin overflow-visible"
+              data-channel-model-test-spinner
+            />
+            <Activity v-else :size="14" class="relative z-[1] shrink-0" />
+            <span class="relative z-[1] tabular-nums">
+              {{
+                testingAll
+                  ? `${batchDone}/${batchTargets.length}`
+                  : selected.length > 0
+                    ? t('channels.testSelectedModels', {
+                        count: selected.length,
+                      })
+                    : t('channels.testAllModels', {
+                        count: filteredModels.length,
+                      })
+              }}
+            </span>
           </ConsoleButton>
           <ConsoleButton
             variant="secondary"
@@ -425,8 +440,8 @@ function close() {
           </ConsoleButton>
         </div>
 
-        <div class="channel-test-table-wrap mt-3">
-          <table class="w-full text-sm">
+        <div class="channel-test-table-wrap subtle-scroll mt-3">
+          <table class="w-full min-w-[720px] text-sm">
             <thead>
               <tr class="channel-test-head-row">
                 <th class="w-9 px-3 py-2">
@@ -528,7 +543,8 @@ function close() {
                     <LoaderCircle
                       v-if="modelState(model).status === 'running'"
                       :size="14"
-                      class="animate-spin"
+                      class="relative z-[1] shrink-0 animate-spin overflow-visible"
+                      data-channel-model-row-spinner
                     />
                     <Activity v-else :size="14" />
                   </IconButton>
@@ -545,40 +561,42 @@ function close() {
             </tbody>
           </table>
         </div>
-
-        <TablePagination
-          v-model:page="page"
-          v-model:page-size="pageSize"
-          :total="filteredModels.length"
-          :page-sizes="[10, 30, 50]"
-        />
       </section>
     </div>
 
     <template #footer>
-      <div class="flex justify-end">
-        <ConsoleButton variant="secondary" size="lg" @click="close">
-          {{ t('common.close') }}
-        </ConsoleButton>
-      </div>
+      <TablePagination
+        v-model:page="page"
+        v-model:page-size="pageSize"
+        :total="filteredModels.length"
+        :page-sizes="[5, 10, 30, 50]"
+        variant="modal-footer"
+      >
+        <template #actions>
+          <ConsoleButton
+            variant="secondary"
+            size="md"
+            data-channel-test-close
+            @click="close"
+          >
+            {{ t('common.close') }}
+          </ConsoleButton>
+        </template>
+      </TablePagination>
     </template>
   </ConsoleModal>
 </template>
 
 <style scoped>
-/* Card sections mirror the channel form modal so both dialogs read as one
-   family in the day (Desert Ledger) and night (One Night) themes. */
-.channel-test-section {
-  padding: 1rem 1.125rem 1.125rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 1rem;
-  background: var(--surface-muted);
+.channel-test-config {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 .channel-test-table-wrap {
   border: 1px solid var(--border-subtle);
   border-radius: 0.75rem;
   background: var(--surface-solid);
-  overflow: hidden;
+  overflow-x: auto;
 }
 .channel-test-head-row {
   border-bottom: 1px solid var(--border-subtle);

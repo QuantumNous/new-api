@@ -37,6 +37,7 @@ describe('console navigation', () => {
         name: 'plan-management',
         labelKey: 'nav.planManagement',
         route: 'plan-management',
+        hidden: true,
       })
     )
     expect(adminGroup?.items).toContainEqual(
@@ -56,7 +57,7 @@ describe('console navigation', () => {
     })
   })
 
-  it('shows the legacy system-settings entry only to root users', () => {
+  it('shows the system-settings entry only to root users', () => {
     const adminItems = getAccessibleConsoleNavGroups({
       isAdmin: true,
       hasPermission: () => true,
@@ -73,7 +74,7 @@ describe('console navigation', () => {
     expect(
       rootItems.find((item) => item.name === 'system-settings')
     ).toMatchObject({
-      href: '/system-settings',
+      route: 'system-settings-site',
       rootOnly: true,
     })
   })
@@ -103,7 +104,7 @@ describe('console navigation', () => {
     expect(getConsoleRouteAccessMeta('models')).toEqual({})
   })
 
-  it('exposes the subscription storefront in the account group', () => {
+  it('retains hidden subscription routes without rendering navigation items', () => {
     const accountGroup = consoleNavGroups.find(
       (group) => group.key === 'account'
     )
@@ -113,8 +114,23 @@ describe('console navigation', () => {
         name: 'subscription',
         labelKey: 'nav.subscription',
         route: 'subscription',
+        hidden: true,
       })
     )
+
+    const accessibleItems = getAccessibleConsoleNavGroups({
+      isAdmin: true,
+      hasPermission: () => true,
+    }).flatMap((group) => group.items)
+    expect(accessibleItems.some((item) => item.name === 'subscription')).toBe(
+      false
+    )
+    expect(
+      accessibleItems.some((item) => item.name === 'plan-management')
+    ).toBe(false)
+    expect(getConsoleRouteAccessMeta('plan-management')).toEqual({
+      requiresAdmin: true,
+    })
   })
 
   it('keeps every route name unique across the whole navigation', () => {

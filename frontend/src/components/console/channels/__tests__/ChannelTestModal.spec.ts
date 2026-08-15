@@ -1,5 +1,5 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import ChannelTestModal from '@/components/console/channels/ChannelTestModal.vue'
 import type { ChannelModelTestResult } from '@/composables/useAdminChannels'
@@ -9,6 +9,14 @@ import type { AdminChannel } from '@/types/console'
 beforeAll(async () => {
   await loadMessageDomain('console')
   await setLocale('zh-CN')
+})
+
+let mounted: VueWrapper[] = []
+
+afterEach(() => {
+  mounted.forEach((wrapper) => wrapper.unmount())
+  mounted = []
+  document.body.innerHTML = ''
 })
 
 function makeChannel(models: string): AdminChannel {
@@ -64,6 +72,7 @@ function render(options: MountOptions = {}): {
     },
     global: { plugins: [i18n] },
   })
+  mounted.push(wrapper)
   return { wrapper, testModel, removeModels }
 }
 
@@ -76,6 +85,28 @@ function rowFor(model: string): HTMLTableRowElement {
   const row = rows.find((item) => item.textContent?.includes(model))
   expect(row, `row for ${model}`).toBeTruthy()
   return row as HTMLTableRowElement
+}
+
+function visibleModels(): string[] {
+  return Array.from(document.body.querySelectorAll('tbody tr'))
+    .map((row) => row.querySelector('td:nth-child(2)')?.textContent?.trim())
+    .filter((model): model is string => Boolean(model))
+}
+
+function batchTestButton(): HTMLButtonElement {
+  const button = Array.from(document.body.querySelectorAll('button')).find(
+    (item) => item.textContent?.includes('测试全部')
+  )
+  expect(button, 'batch test button').toBeTruthy()
+  return button as HTMLButtonElement
+}
+
+async function goToNextPage(): Promise<void> {
+  const button = document.body.querySelector(
+    '[data-pagination-variant="modal-footer"] button[aria-label="下一页"]'
+  ) as HTMLButtonElement
+  button.click()
+  await flushPromises()
 }
 
 describe('ChannelTestModal', () => {
@@ -104,6 +135,134 @@ describe('ChannelTestModal', () => {
     expect(bodyText()).toContain('测试全部 1 个模型')
   })
 
+  it('paginates the model list with a default size of five', async () => {
+    const models = Array.from(
+      { length: 12 },
+      (_, index) => `model-${String(index + 1).padStart(2, '0')}`
+    )
+    render({ models: models.join(',') })
+
+    expect(visibleModels()).toEqual(models.slice(0, 5))
+    expect(bodyText()).not.toContain('共 12 项')
+
+    const footer = document.body.querySelector(
+      '[data-pagination-variant="modal-footer"]'
+    ) as HTMLElement
+    const pageSize = footer.querySelector(
+      '[data-pagination-page-size]'
+    ) as HTMLElement
+    const controls = footer.querySelector(
+      '[data-pagination-controls]'
+    ) as HTMLElement
+    const actions = footer.querySelector(
+      '[data-pagination-actions]'
+    ) as HTMLElement
+    expect(
+      pageSize.compareDocumentPosition(controls) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      controls.compareDocumentPosition(actions) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    const nextPage = footer.querySelector(
+      'button[aria-label="下一页"]'
+    ) as HTMLButtonElement
+    nextPage.click()
+    await flushPromises()
+    expect(visibleModels()).toEqual(models.slice(5, 10))
+
+    const pageSizeSelect = footer.querySelector(
+      '[data-pagination-page-size] [role="combobox"]'
+    ) as HTMLButtonElement
+    pageSizeSelect.click()
+    await flushPromises()
+    const option = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((item) => item.textContent?.trim() === '显示 10')
+    expect(
+      Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]'))
+        .map((item) => item.textContent?.trim())
+        .filter(Boolean)
+    ).toEqual(['显示 5', '显示 10', '显示 30', '显示 50'])
+    expect(option).toBeTruthy()
+    option?.click()
+    await flushPromises()
+
+    expect(visibleModels()).toEqual(models.slice(0, 10))
+  })
+
+  it('returns to a valid page after filtering or deleting models', async () => {
+    const models = Array.from(
+      { length: 12 },
+      (_, index) => `model-${String(index + 1).padStart(2, '0')}`
+    )
+    render({
+      models: models.join(','),
+      testModel: async (_channel, model) =>
+        Number(model.slice(-2)) > 5
+          ? { ok: false, message: 'unavailable' }
+          : { ok: true, timeMs: 100 },
+    })
+
+    await goToNextPage()
+    await goToNextPage()
+    expect(visibleModels()).toEqual(models.slice(10))
+
+    const search = document.body.querySelector(
+      'input[name="channel-test-model-filter"]'
+    ) as HTMLInputElement
+    search.value = 'model-01'
+    search.dispatchEvent(new Event('input'))
+    await flushPromises()
+    expect(visibleModels()).toEqual(['model-01'])
+
+    search.value = ''
+    search.dispatchEvent(new Event('input'))
+    await flushPromises()
+    batchTestButton().click()
+    await flushPromises()
+    await goToNextPage()
+    await goToNextPage()
+    expect(visibleModels()).toEqual(models.slice(10))
+
+    const removeButton = Array.from(
+      document.body.querySelectorAll('button')
+    ).find((button) =>
+      button.textContent?.includes('删除失败模型')
+    ) as HTMLButtonElement
+    removeButton.click()
+    await flushPromises()
+    removeButton.click()
+    await flushPromises()
+
+    expect(visibleModels()).toEqual(models.slice(0, 5))
+  })
+
+  it('keeps batch progress and spinners visible while requests are pending', async () => {
+    let resolveTest: (result: ChannelModelTestResult) => void = () => {}
+    const pendingTest = new Promise<ChannelModelTestResult>((resolve) => {
+      resolveTest = resolve
+    })
+    render({ testModel: () => pendingTest })
+
+    const button = batchTestButton()
+    button.click()
+    await flushPromises()
+
+    expect(button.textContent).toContain('0/3')
+    expect(
+      document.body.querySelector('[data-channel-model-test-spinner]')
+    ).toBeTruthy()
+    expect(
+      document.body.querySelectorAll('[data-channel-model-row-spinner]')
+    ).toHaveLength(3)
+
+    resolveTest({ ok: true, timeMs: 100 })
+    await flushPromises()
+  })
+
   it('tests all models and renders per-model outcomes', async () => {
     const { testModel } = render({
       testModel: async (_channel, model) =>
@@ -112,10 +271,7 @@ describe('ChannelTestModal', () => {
           : { ok: true, timeMs: 261 },
     })
 
-    const testAll = Array.from(document.body.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('测试全部')
-    ) as HTMLButtonElement
-    testAll.click()
+    batchTestButton().click()
     await flushPromises()
 
     expect(testModel).toHaveBeenCalledTimes(3)
@@ -134,10 +290,7 @@ describe('ChannelTestModal', () => {
           : { ok: true, timeMs: 100 },
     })
 
-    const testAll = Array.from(document.body.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('测试全部')
-    ) as HTMLButtonElement
-    testAll.click()
+    batchTestButton().click()
     await flushPromises()
 
     const removeButton = Array.from(
