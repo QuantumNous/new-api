@@ -17,10 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
 
-import { Window } from 'happy-dom'
-import type React from 'react'
+import { render } from '@testing-library/react'
+import { describe, expect, test } from 'vitest'
 
 import {
   evaluatePasswordStrength,
@@ -136,97 +135,25 @@ describe('password confirmation state', () => {
   })
 })
 
-const domWindow = new Window()
-const domGlobals = [
-  'window',
-  'document',
-  'navigator',
-  'HTMLElement',
-  'SVGElement',
-  'Node',
-  'Element',
-  'MutationObserver',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'getComputedStyle',
-] as const
-
-for (const key of domGlobals) {
-  Object.defineProperty(globalThis, key, {
-    configurable: true,
-    value: domWindow[key],
-  })
-}
-
-const { act } = await import('react')
-const { createRoot } = await import('react-dom/client')
-const { createInstance } = await import('i18next')
-const { I18nextProvider, initReactI18next } = await import('react-i18next')
 const { PasswordStrength } = await import('../password-strength')
 
-const i18n = createInstance()
-await i18n.use(initReactI18next).init({
-  lng: 'en',
-  resources: { en: { translation: {} } },
-})
-
-const reactTestGlobals = globalThis as typeof globalThis & {
-  IS_REACT_ACT_ENVIRONMENT?: boolean
-}
-reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
-
-async function renderPasswordStrength(
-  props: React.ComponentProps<typeof PasswordStrength>
-) {
-  const container = document.createElement('div')
-  document.body.append(container)
-  const root = createRoot(container)
-
-  await act(async () => {
-    root.render(
-      <I18nextProvider i18n={i18n}>
-        <PasswordStrength {...props} />
-      </I18nextProvider>
-    )
-  })
-
-  return { container, root }
-}
-
 describe('password strength feedback', () => {
-  after(() => domWindow.close())
-
-  test('exposes requirement feedback through its caller-provided id', async () => {
-    const rendered = await renderPasswordStrength({
-      id: 'password-strength-help',
-      value: 'alllowercase',
-    })
+  test('exposes requirement feedback through its caller-provided id', () => {
+    const rendered = render(
+      <PasswordStrength id='password-strength-help' value='alllowercase' />
+    )
 
     const feedback = rendered.container.querySelector('#password-strength-help')
-    assert.ok(feedback)
-    assert.equal(
-      feedback.textContent?.includes('Password requirements met'),
-      true
-    )
-    assert.equal(
-      feedback.textContent?.includes('For a stronger password'),
-      true
-    )
-
-    await act(async () => rendered.root.unmount())
-    rendered.container.remove()
+    expect(feedback).toBeInTheDocument()
+    expect(feedback).toHaveTextContent('Password requirements met')
+    expect(feedback).toHaveTextContent('For a stronger password')
   })
 
-  test('keeps an optional update password quiet while empty', async () => {
-    const rendered = await renderPasswordStrength({
-      id: 'password-strength-help',
-      value: '',
-      quietWhenEmpty: true,
-    })
+  test('keeps an optional update password quiet while empty', () => {
+    const rendered = render(
+      <PasswordStrength id='password-strength-help' value='' quietWhenEmpty />
+    )
 
-    assert.equal(rendered.container.childElementCount, 0)
-
-    await act(async () => rendered.root.unmount())
-    rendered.container.remove()
+    expect(rendered.container).toBeEmptyDOMElement()
   })
 })
