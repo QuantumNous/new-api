@@ -27,7 +27,7 @@ forbidden_brackets_in_title:
 # review 相关 (指 review 评论, 不在本 yaml 范围, 详见 #103)
 # allowed_review_types_prefixes: ...
 
-# branch 前缀 (I-31 参考)
+# branch 前缀 (PR-08 参考)
 allowed_branch_prefixes:
   - "feat/"
   - "fix/"
