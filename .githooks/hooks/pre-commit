@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""pre-commit hook: runs workspace + code checks on staged + working tree."""
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / ".."))
+
+from lib._shared import Finding, Severity, aggregate_result, print_findings, load_yaml  # noqa: E402
+
+def _check_commit_title() -> list[Finding]:
+    """校验 commit 标题：必须 conventional commit 格式（与 PR 标题一致）。"""
+    findings: list[Finding] = []
+    try:
+        msg_file = ROOT.parent / ".git" / "COMMIT_EDITMSG"
+        if not msg_file.exists():
+            return []
+        title = msg_file.read_text(encoding="utf-8").splitlines()[0].strip()
+        # 跳过 merge/squash 自动消息
+        if not title or title.startswith(("Merge ", "Revert ", "fixup!", "squash!")):
+            return []
+        # conventional commit: type(scope): desc 或 type: desc
+        if not re.match(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?:\s+\S+", title):
+            findings.append(Finding(
+                "CM-01", Severity.FAIL,
+                f"commit 标题非 conventional commit 格式（应与 PR 标题一致）: '{title}'"))
+        # 标题禁 CJK（PR-01 一致性）
+        elif re.search(r"[\u4e00-\u9fff]", title):
+            findings.append(Finding("CM-02", Severity.FAIL, f"commit 标题含 CJK（应为英文，同 PR-01）: '{title}'"))
+    except Exception:
+        pass
+    return findings
+
+TYPE_RE = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)")
+
+
+def _gh_api(args: list[str], timeout: int = 20) -> tuple[int, str]:
+    """gh api 调用（短超时；代理不稳时失败即跳过，不阻塞 commit）。"""
+    try:
+        p = subprocess.run(["gh", "api"] + args, capture_output=True, text=True, timeout=timeout)
+        return p.returncode, p.stdout
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return -1, ""
+
+
+def _derive_repo() -> tuple[str, str] | None:
+    """从 git remote 解析 owner/repo。"""
+    try:
+        p = subprocess.run(["git", "remote", "get-url", "origin"],
+                           capture_output=True, text=True, timeout=5)
+        url = p.stdout.strip()
+        m = re.search(r"(?:github\.com[:/])([^/]+)/([^/.]+)", url)
+        return (m.group(1), m.group(2)) if m else None
+    except Exception:
+        return None
+
+
+def _check_commit_pr_consistency() -> list[Finding]:
+    """CM-03: 分支有关联 open PR 时，commit 标题 type 必须与 PR 标题 type 一致。"""
+    findings: list[Finding] = []
+    repo = _derive_repo()
+    if not repo:
+        return []
+    owner, name = repo
+    try:
+        branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                                capture_output=True, text=True, timeout=5).stdout.strip()
+        if not branch or branch in ("HEAD", "main"):
+            return []
+        rc, out = _gh_api([f"repos/{owner}/{name}/pulls?head={owner}:{branch}&state=open"])
+        if rc != 0 or not out.strip():
+            return []
+        prs = json.loads(out)
+        if not prs:
+            return []
+        pr = prs[0]
+        pr_title = pr.get("title", "")
+        pr_type = TYPE_RE.match(pr_title).group(1) if TYPE_RE.match(pr_title) else None
+        if not pr_type:
+            return []
+        msg_file = ROOT.parent / ".git" / "COMMIT_EDITMSG"
+        if not msg_file.exists():
+            return []
+        commit_title = msg_file.read_text(encoding="utf-8").splitlines()[0].strip()
+        commit_type = TYPE_RE.match(commit_title).group(1) if TYPE_RE.match(commit_title) else None
+        if commit_type and commit_type != pr_type:
+            findings.append(Finding(
+                "CM-03", Severity.FAIL,
+                f"commit 标题 type '{commit_type}' 与关联 PR 标题 type '{pr_type}' 不一致\n"
+                f"  commit: {commit_title}\n"
+                f"  PR #{pr.get('number', '?')}: {pr_title}"))
+    except Exception:
+        pass
+    return findings
+
+
+def main() -> int:
+    cfg = load_yaml(ROOT / "spec" / "dispatch.yaml")
+    findings: list[Finding] = []
+    findings.extend(_check_commit_title())
+    findings.extend(_check_commit_pr_consistency())
+
+    for topic in cfg.get("pre-commit", []):
+        print(f"--- {topic} ---")
+        if topic == "workspace":
+            from workspace.tree_hygiene import run as tree_run
+            from workspace.file_placement import run as placement_run
+            findings.extend(tree_run())
+            findings.extend(placement_run())
+        elif topic == "code":
+            from code.lint import run as code_run
+            findings.extend(code_run())
+
+    print_findings(findings)
+    return aggregate_result(findings)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

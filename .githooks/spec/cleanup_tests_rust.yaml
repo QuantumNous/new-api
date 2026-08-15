@@ -1,0 +1,7 @@
+enabled: true
+naming_pattern: 'fn (test_|it_)'
+min_assertions_per_test: 1
+assert_patterns: ['assert!', 'assert_eq!', 'assert_ne!']
+required_helpers: []
+paths_include: ["**/tests/*.rs", "**/*_test.rs", "**/test_*.rs"]
+paths_exclude: ["target/", ".wt/"]

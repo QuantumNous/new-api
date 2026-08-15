@@ -1,0 +1,7 @@
+enabled: true
+naming_pattern: '(it|test)\\('
+min_assertions_per_test: 1
+assert_patterns: ['expect\\(', 'assert\\.']
+required_helpers: ['afterEach', 'describe']
+paths_include: ["**/*.test.js", "**/*.spec.js", "**/*.test.ts", "**/*.spec.ts"]
+paths_exclude: ["node_modules/", "dist/", ".wt/"]

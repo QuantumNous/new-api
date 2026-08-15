@@ -1,0 +1,6 @@
+enabled: true
+command: npx
+args: ["tsc", "--noEmit"]
+fail_severity: FAIL
+paths_include: ["**/*.ts", "**/*.tsx"]
+paths_exclude: ["node_modules/", "dist/", ".wt/"]

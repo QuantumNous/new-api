@@ -1,0 +1,28 @@
+# cleanup_branch_cleanup.yaml — branch cleanup configuration
+#
+# branch_cleanup.py reads this file for all policy decisions.
+
+protected_branches:
+  - main
+  - master
+  - dev
+  - "release/*"
+
+local_merged:
+  action: WARN    # WARN | DELETE
+  age_days: 0
+
+remote_merged:
+  action: WARN
+  age_days: 7
+
+orphan_local:
+  action: WARN
+  age_days: 30
+
+temp_branch_prefixes:
+  - "tmp/"
+  - "wip/"
+  - "test/"
+
+current_branch_protected: true

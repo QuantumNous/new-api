@@ -1,0 +1,91 @@
+# github_issues.yaml — issue / sub-issue 内容格式与创建补充行为契约。
+#
+# 使用方式: .githooks/github/issues.py 读取本文件, 逐条匹配规则。
+# 新增/调整规则时只改本文件, 不改 issues.py, 除非是新的检查流程。
+#
+# 段名约定: 所有 heading 必须是英文 (Heading 语言契约), 正文中文。
+
+# 必填的 body 段 (按出现顺序检查)
+required_headings:
+  - "Goal"
+  - "Background"
+  - "Done when"
+  - "Suspected areas"
+  - "Out of scope"
+  - "How to observe success"
+
+# 各关键段的 heading 名称 (可自定义, 脚本按名匹配)
+heading_names:
+  done_when: "Done when"
+  suspected_areas: "Suspected areas"
+  out_of_scope: "Out of scope"
+
+# 标题必须是中文 (非 ASCII 拼音/英文标题 → FAIL, 但允许技术标识符)
+title_must_be_chinese: true
+
+# 标题禁止出现的中文全角标点 (同 I-04)
+forbidden_brackets_in_title:
+  - "（"
+  - "）"
+  - "「"
+  - "」"
+  - "【"
+  - "】"
+  - "『"
+  - "』"
+  - "《"
+  - "》"
+  - "〈"
+  - "〉"
+
+# 正文禁止关键词 (I-xx)
+forbidden_keywords:
+  - "TODO"
+  - "TBD"
+  - "FIXME"
+  - "XXX"
+
+# I-21b: 标题/body 命中关键字时建议的 label (WARN 级)
+keyword_label_suggestions:
+  "bug": "bug"
+  "bug 报告": "bug"
+  "重构": "refactor"
+  "重构(": "refactor"
+  "测试": "tests"
+  "测试代码": "tests"
+  "文档": "documentation"
+  "文档清洁": "documentation"
+  "feature": "enhancement"
+  "新功能": "enhancement"
+  "清理": "chore"
+  "cleanup": "chore"
+
+# 标题禁用前缀 (默认: 父/issue:/sub: 等，关系用 label 表达)
+title_forbidden_prefixes:
+  - "父"
+  - "issue:"
+  - "sub:"
+  - "parent:"
+
+# 正文禁 Labels 段 (label 用 gh label 操作，不写正文)
+labels_section_forbidden: true
+
+# 父 issue 判定: 标题含这些前缀视为父 (只做进度跟踪, 不强制)
+# 默认父 issue 编号 (sub-issue 创建后自动挂载到这里; 用 0 表示不自动挂载)
+default_parent_issue: 124
+
+# 乱码检查: 正文含字面 \n (反斜杠+n) 或 U+FFFD 替换符 (�) → FAIL (创建时拦截)
+garbled_content_check: true
+
+# sub-issue 挂载: sub 创建后必须挂到 default_parent_issue (或 --parent 指定) 下
+sub_issue_must_link_parent: true
+
+# sub-issue 关联: CLOSED 时 Done when 必须全勾 (I-22b)
+sub_issue_closed_requires_done_when_checked: true
+
+# 创建补充行为 (第 7 点): 新建 issue 在宽限期内缺关键段时给出建议
+creation_grace_minutes: 5
+creation_suggestion:
+  enabled: true
+  severity: "WARN"
+  hint: "新 issue 建议补充: Goal / Done when / Suspected areas / Out of scope"

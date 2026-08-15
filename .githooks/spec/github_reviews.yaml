@@ -1,0 +1,48 @@
+# github_reviews.yaml — review 评论 + reply 格式契约
+#
+# 使用方式: .githooks/github/reviews.py 读取本文件。
+# 规则对应 validate_pr.sh 中的 P-22/P-24/P-25/P-35/P-36/P-37 等。
+#
+# 格式契约 (全部中文正文, 英文标题):
+# - CRG Review: `## Agent 🤖 - CRG Review: <title>` (单 H2) → 所有子节点 `###` (H3) → 中文内容
+# - Inline Review: `Agent 🤖 - Inline Review P0|P1|P2|P3: <content>` (tied to path+line)
+# - Reply: `Agent 🤖 - Fix: <reason>` / `Block:` / `Note:` — 任何 English intent word + 理由
+# - 严禁 `- [x]` / `- [ ]` (checkbox) 在 review 评论中出现; 只能用于 Done when / Construction plan
+# - review 评论 (Inline / CRG) 禁止出现checkbox
+
+# review 评论格式契约
+review_formats:
+  # CRG Review 格式: 必须是 ## (二级标题), 子分类必须 ### (三级标题)
+  crg_review:
+    heading_level_crg: "H2"       # CRG Review 必须是 ##
+    heading_level_crg_sub: "H3"   # CRG Review 子分类必须 ###
+    content_must_be_chinese: true  # 正文必须中文
+    checkbox_forbidden: true      # 评论中严禁 - [x] / - [ ]
+    allowed_reply_words:
+      - Fix
+      - Block
+      - Resolve
+      - Note
+      - Withdraw
+      - Supersede
+
+  # Inline Review 格式
+  inline_review:
+    # 前缀格式: Agent 🤖 - Inline Review P0|P1|P2|P3:
+    # 注意: 中间用 - (短杠) 分隔, 而非 : (冒号) 单独出现
+    # 例如: Agent 🤖 - Inline Review P2: 这是一个修复建议
+    prefix: "Agent 🤖 - Inline Review"
+    # 正文中文
+    content_must_be_chinese: true
+    # 评论中禁止 checkbox
+    checkbox_forbidden: true
+
+# reply 格式契约
+reply_formats:
+  # 回复格式: Agent 🤖 - Fix: <原因> / Block: <原因> / Note: <备注>
+  # - 必须有 English intent word (Fix, Block, Resolve, Note, Withdraw, Supersede)
+  # - 必须有冒号 ": " 分隔理由
+  # - 禁止在 - [ ] 中出现
+  required_intent_word: true
+  # 冒号后必须跟空格
+  colon_after: true

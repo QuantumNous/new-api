@@ -1,0 +1,12 @@
+max_depth: 5
+ignore_paths:
+  - ".wt/"
+  - "node_modules/"
+  - "target/"
+  - "__pycache__/"
+  - ".git/"
+  - ".benchmarks/"
+  - ".pytest_cache/"
+orphan_patterns:
+  - "tmp/"
+  - "__pycache__/"
