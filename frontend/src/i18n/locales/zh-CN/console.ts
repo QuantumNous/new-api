@@ -153,7 +153,7 @@ export default {
       apiService: 'API 服务',
       cpu: 'CPU',
       memory: '内存',
-      bandwidth: '带宽',
+      bandwidth: '应用流量',
       disk: '磁盘',
       successRate: 'API 成功率',
       version: '系统版本',

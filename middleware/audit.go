@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"sync/atomic"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -17,8 +18,9 @@ import (
 // 此时仅依据 HTTP 状态码判断成败。
 type auditResponseWriter struct {
 	gin.ResponseWriter
-	body    *bytes.Buffer
-	maxSize int
+	body         *bytes.Buffer
+	maxSize      int
+	bytesWritten atomic.Int64
 }
 
 func (w *auditResponseWriter) Write(b []byte) (int, error) {
@@ -30,7 +32,15 @@ func (w *auditResponseWriter) Write(b []byte) (int, error) {
 			w.body.Write(b[:remain])
 		}
 	}
-	return w.ResponseWriter.Write(b)
+	n, err := w.ResponseWriter.Write(b)
+	if n > 0 {
+		w.bytesWritten.Add(int64(n))
+	}
+	return n, err
+}
+
+func (w *auditResponseWriter) BytesWritten() int64 {
+	return w.bytesWritten.Load()
 }
 
 func (w *auditResponseWriter) WriteString(s string) (int, error) {

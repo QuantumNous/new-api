@@ -61,6 +61,8 @@ func startNetworkSystemMonitor() {
 	for {
 		config := GetPerformanceMonitorConfig()
 		if !config.Enabled {
+			ResetNetworkBandwidthSampler()
+			latestNetworkBandwidth.Store(NetworkBandwidth{})
 			time.Sleep(30 * time.Second)
 			continue
 		}

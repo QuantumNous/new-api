@@ -159,4 +159,19 @@ describe('SystemStatusCard', () => {
     expect(text).toContain('218 / 512')
     expect(text).toContain('99.7')
   })
+
+  it('rounds long CPU values without truncating the displayed number', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: {
+        metrics: { ...metrics(), cpu_percent: 4.627766599 },
+      },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    expect(wrapper.text()).toContain('4.6%')
+    expect(wrapper.text()).not.toContain('4.627766599')
+    expect(wrapper.text()).not.toContain('…')
+  })
 })

@@ -153,7 +153,7 @@ export default {
       apiService: 'API service',
       cpu: 'CPU',
       memory: 'Memory',
-      bandwidth: 'Bandwidth',
+      bandwidth: 'App traffic',
       disk: 'Disk',
       successRate: 'API success rate',
       version: 'Version',
