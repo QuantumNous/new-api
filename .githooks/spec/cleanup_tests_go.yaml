@@ -1,0 +1,7 @@
+enabled: true
+naming_pattern: 'func (Test[A-Z])'
+min_assertions_per_test: 1
+assert_patterns: ['if .+ != .+', 'require\\.', 'assert\\.']
+required_helpers: []
+paths_include: ["**/*_test.go"]
+paths_exclude: ["vendor/", ".wt/"]

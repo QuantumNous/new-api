@@ -1,0 +1,6 @@
+enabled: true
+command: shellcheck
+args: ["--format=gcc"]
+fail_severity: FAIL
+paths_include: ["**/*.sh", "**/bin/*", "**/lib/*"]
+paths_exclude: [".wt/"]

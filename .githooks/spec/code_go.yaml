@@ -1,0 +1,6 @@
+enabled: true
+command: gofmt
+args: ["-l"]
+fail_severity: FAIL
+paths_include: ["**/*.go"]
+paths_exclude: ["vendor/", ".wt/"]

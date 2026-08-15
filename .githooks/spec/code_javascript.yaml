@@ -1,0 +1,6 @@
+enabled: true
+command: eslint
+args: ["--format", "compact"]
+fail_severity: FAIL
+paths_include: ["**/*.js", "**/*.mjs", "**/*.cjs"]
+paths_exclude: ["node_modules/", "dist/", ".wt/"]

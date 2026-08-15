@@ -1,0 +1,7 @@
+enabled: true
+naming_pattern: '@test'
+min_assertions_per_test: 1
+assert_patterns: ['\\[ ', 'assert ']
+required_helpers: []
+paths_include: ["**/*.bats", "**/test_*.sh"]
+paths_exclude: [".wt/"]

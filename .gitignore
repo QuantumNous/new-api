@@ -36,4 +36,6 @@ go.work.sum
 todo/
 .codegraph/
 .code-review-graph/
+__pycache__/
+*.pyc
 .wt/

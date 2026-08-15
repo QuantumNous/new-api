@@ -26,6 +26,10 @@ build-web:
 
 build-all-web: build-web
 
+# Remove reproducible frontend build output only
+clean-web:
+    gio trash --force "{{ WEB_DIR }}/dist" "{{ API_EMBED_DIR }}"
+
 # Start api dev server (background)
 start-api:
     cd "{{ API_DIR }}" && go run main.go &

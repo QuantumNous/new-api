@@ -1,0 +1,23 @@
+file_extensions: [".md", ".txt", ".rst"]
+ignore_paths:
+  - ".wt/"
+  - "node_modules/"
+  - "target/"
+forbidden_brackets:
+  - "（"
+  - "）"
+  - "「"
+  - "」"
+  - "【"
+  - "】"
+  - "『"
+  - "』"
+  - "《"
+  - "》"
+  - "〈"
+  - "〉"
+check_fullwidth: true
+cn_en_space_required: false
+broken_link_check: true
+stale_marker_keywords: ["TODO", "FIXME", "XXX"]
+min_content_lines: 3

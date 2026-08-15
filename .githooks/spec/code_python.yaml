@@ -1,0 +1,6 @@
+enabled: true
+command: ruff
+args: ["check", "--no-cache", "--exclude", ".githooks"]
+fail_severity: FAIL
+paths_include: ["**/*.py"]
+paths_exclude: [".wt/", "__pycache__/"]

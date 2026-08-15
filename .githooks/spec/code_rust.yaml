@@ -1,0 +1,6 @@
+enabled: true
+command: cargo
+args: ["fmt", "--check"]
+fail_severity: FAIL
+paths_include: ["**/*.rs"]
+paths_exclude: ["target/", ".wt/"]

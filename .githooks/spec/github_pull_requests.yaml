@@ -1,0 +1,73 @@
+# github_pull_requests.yaml — PR 元数据 + body 结构契约
+# 使用方式: .githooks/github/pull_requests.py 读取本文件, 脚本逻辑由 YAML 驱动 (规则参数从 yaml 读取, 不硬编码)。
+# 审查评论格式契约请参考 #103 (github_reviews.yaml)。
+
+# 必填的 body 段 (按出现顺序检查)
+required_body_headings: ["Issue", "What", "Why", "Construction plan", "Delivery record", "How to test", "Checklist"]
+
+# 必填的标题 (可自定义)
+required_title_headings: ["Goal", "Background", "Done when", "Suspected areas", "Out of scope"]
+# 标题必须是中文
+title_must_be_chinese: true
+# 标题禁止出现的中文全角标点
+forbidden_brackets_in_title:
+  - "（"
+  - "）"
+  - "「"
+  - "」"
+  - "【"
+  - "】"
+  - "『"
+  - "』"
+  - "《"
+  - "》"
+  - "〈"
+  - "〉"
+
+# review 相关 (指 review 评论, 不在本 yaml 范围, 详见 #103)
+# allowed_review_types_prefixes: ...
+
+# branch 前缀 (I-31 参考)
+allowed_branch_prefixes:
+  - "feat/"
+  - "fix/"
+  - "chore/"
+  - "epic/"
+  - "main"
+  - "master"
+  - "release/"
+
+# Fixes 关键词
+fixes_keywords: ["Fixes", "Closes", "Resolves"]
+
+# type label (从 label_policy 读取)
+type_labels_cfg: ["bug", "enhancement", "feature", "documentation", "chore", "refactor", "tests", "epic"]
+
+# CI 状态检查策略
+ci_check_mode: "WARN"  # 可选 FAIL / WARN
+
+# Done when 检查策略
+done_when_check_mode: "FAIL"  # 可选 FAIL / WARN
+
+# keyword_label_suggestions (WARN 级辅助)
+keyword_label_suggestions:
+  "bug": "bug"
+  "修复": "bug"
+  "新功能": "enhancement"
+  "功能": "enhancement"
+  "功能添加": "enhancement"
+  "清理": "chore"
+  "优化": "refactor"
+  "测试": "tests"
+  "代码质量": "refactor"
+
+# 关键词建议 (WARN 级) — 标题/body 命中关键字但缺对应 label 时提示
+# 工作方式: 读取 keyword_label_suggestions, 若 title/body 命中某关键字但对应 label 缺失, 则 WARN 建议
+# 示例: body 命中 "测试" 但 label 缺 "tests", 则 WARN "based on content keywords, consider also labeling: tests"
+
+# PR-10 关联机制 (check_content + run)
+# - check_content: Part of/Related #N 是纯文本，不产生 GitHub Development 关联 → INFO
+# - run: Fixes #N 目标是 parent issue (epic) 时提示 (epic 侧不显示 closing 关联, 应 Fixes sub-issue) → WARN
+linkage_check:
+  plain_text_links_severity: "INFO"   # Part of/Related 提示级别
+  fixes_epic_severity: "WARN"         # Fixes 目标是 parent issue 时提示级别
