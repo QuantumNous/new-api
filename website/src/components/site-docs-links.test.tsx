@@ -62,7 +62,7 @@ describe("website documentation links", () => {
     expect(renderFooter(null)).not.toContain("Documentation");
   });
 
-  test("defaults the public site sign-in link to Google OAuth start", () => {
+  test("defaults the public site sign-in link to the console sign-in page", () => {
     const html = renderToStaticMarkup(
       <SiteConfigProvider docsUrl={DOCS_URL}>
         <SiteShell locale="en" pathname="/">
@@ -72,7 +72,7 @@ describe("website documentation links", () => {
     );
 
     expect(html).toContain(
-      'href="https://console.flatkey.ai/api/oauth/google/start?lng=en&amp;source=website"',
+      'href="https://console.flatkey.ai/sign-in?lng=en"',
     );
   });
 });
