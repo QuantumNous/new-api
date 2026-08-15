@@ -26,20 +26,72 @@ import (
 // would silently make cached tokens free.
 type Entry struct {
 	ModelRatio          float64
+	HasModelRatio       bool
 	CompletionRatio     float64
+	HasCompletionRatio  bool
 	CacheRatio          float64
 	HasCacheRatio       bool
 	CreateCacheRatio    float64
 	HasCreateCacheRatio bool
+	Source              SourceID
+	FieldSources        map[FieldID]SourceID
+	HasBillingExpr      bool
+	BillingExpr         string
 	// CatalogKey is the catalog entry that produced this pricing. It differs
 	// from the requested model name whenever a fuzzy rule matched.
 	CatalogKey string
 }
 
+// SourceEntries is the normalized representation persisted for one upstream
+// source. Keys are lower-cased model names and values retain field presence so
+// a secondary source can fill only fields the primary source omitted.
+type SourceEntries map[string]Entry
+
+// MergeEntries combines a primary source with a secondary source. Primary
+// values win whenever they are explicitly present; missing primary fields are
+// filled from the secondary entry. The returned count is the number of model
+// keys added exclusively by the secondary source.
+func MergeEntries(primary, secondary SourceEntries) (SourceEntries, int) {
+	merged := make(SourceEntries, len(primary)+len(secondary))
+	for key, entry := range primary {
+		merged[normalizeKey(key)] = entry
+	}
+	supplemented := 0
+	for rawKey, secondaryEntry := range secondary {
+		key := normalizeKey(rawKey)
+		primaryEntry, exists := merged[key]
+		if !exists {
+			merged[key] = secondaryEntry
+			supplemented++
+			continue
+		}
+		if !primaryEntry.HasModelRatio && secondaryEntry.HasModelRatio {
+			primaryEntry.ModelRatio = secondaryEntry.ModelRatio
+			primaryEntry.HasModelRatio = true
+		}
+		if !primaryEntry.HasCompletionRatio && secondaryEntry.HasCompletionRatio {
+			primaryEntry.CompletionRatio = secondaryEntry.CompletionRatio
+			primaryEntry.HasCompletionRatio = true
+		}
+		if !primaryEntry.HasCacheRatio && secondaryEntry.HasCacheRatio {
+			primaryEntry.CacheRatio = secondaryEntry.CacheRatio
+			primaryEntry.HasCacheRatio = true
+		}
+		if !primaryEntry.HasCreateCacheRatio && secondaryEntry.HasCreateCacheRatio {
+			primaryEntry.CreateCacheRatio = secondaryEntry.CreateCacheRatio
+			primaryEntry.HasCreateCacheRatio = true
+		}
+		merged[key] = primaryEntry
+	}
+	return merged, supplemented
+}
+
 // Catalog is an immutable snapshot of one downloaded pricing document.
 // It is replaced wholesale on every successful sync and never mutated in place.
 type Catalog struct {
-	entries map[string]Entry
+	entries          map[string]Entry
+	records          map[string]PriceRecord
+	reviewCandidates map[string]Entry
 	// sortedKeys keeps substring scans deterministic. Go map iteration order is
 	// random, and family matching returns the first substring hit, so scanning
 	// an unordered map would price the same model differently across restarts.
@@ -100,6 +152,12 @@ func newCatalog(entries map[string]Entry, version string, skipped int) *Catalog 
 		ModelCount:   len(entries),
 		SkippedCount: skipped,
 	}
+}
+
+// BuildCatalogFromEntries publishes a catalog from already normalized source
+// entries. It is used by the multi-source synchronizer and cache loader.
+func BuildCatalogFromEntries(entries SourceEntries, version string, skipped int) *Catalog {
+	return newCatalog(entries, version, skipped)
 }
 
 // preferBaseKey decides which catalog key represents a shared base name. The

@@ -474,7 +474,9 @@ html.light [data-handdrawn^='navigation'] [aria-current='page']::before {
   pointer-events: none;
 }
 
-html.light [data-handdrawn='page-hero'] h1::before {
+html.light
+  [data-handdrawn='page-hero']
+  h1:not([data-accent-variant='underline'])::before {
   content: '';
   position: absolute;
   top: -0.2rem;
@@ -914,16 +916,30 @@ html.dark .pencil-brand-frame {
 }
 
 /* 细手绘下划线变体：只改形态参数，明暗契约与基础 brush-highlight 一致。
-   日间为略带起伏的细墨线；夜间沿用金色 hairline 覆盖值。 */
+   日间为贴合字符基线、带微起伏的温润手绘笔墨下划线；夜间为金色发丝线与微光晕。 */
 .brush-highlight--underline::after {
-  bottom: -0.12em;
-  height: 2px;
+  left: -4px;
+  right: -4px;
+  bottom: -0.15em;
+  height: 2.5px;
   /* 基础变体的填充色是半透明色块底，作为细线太淡，改用强调文字色。 */
   background: var(--accent-text);
-  border-radius: 60% 40% 55% 45%;
+  border-radius: 45% 55% 50% 50% / 60% 40% 60% 40%;
   clip-path: none;
-  transform: skewX(-2deg) rotate(-0.4deg);
-  opacity: 0.85;
+  transform: skewX(-1.5deg) rotate(-0.35deg);
+  opacity: 0.9;
+}
+
+html.dark .brush-highlight--underline::after {
+  left: -2px;
+  right: -2px;
+  bottom: -0.12em;
+  height: 1.5px;
+  background: var(--accent-text);
+  border-radius: 9999px;
+  transform: none;
+  opacity: 1;
+  box-shadow: 0 0 6px rgba(226, 188, 85, 0.4);
 }
 
 /* 墨线分隔：日间 AI 干刷笔触；夜间金色 hairline */

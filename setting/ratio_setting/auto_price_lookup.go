@@ -18,6 +18,14 @@ func hasManualPricing(name string) bool {
 	if _, ok := modelPriceMap.Get(name); ok {
 		return true
 	}
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		if _, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
+			return true
+		}
+		if _, ok := modelPriceMap.Get(CompactWildcardModelKey); ok {
+			return true
+		}
+	}
 	return false
 }
 

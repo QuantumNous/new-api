@@ -9,8 +9,9 @@ var (
 	// versionDashPattern rewrites dashed minor versions into the dotted spelling
 	// LiteLLM sometimes uses: claude-opus-4-5-20251101 -> claude-opus-4.5-20251101.
 	versionDashPattern = regexp.MustCompile(`-(\d)-(\d)(-|$)`)
-	// openAIDateSuffixPattern matches a trailing release date: gpt-5.2-20251222.
-	openAIDateSuffixPattern = regexp.MustCompile(`-\d{8}$`)
+	// openAIDateSuffixPattern matches continuous and segmented release dates.
+	// Both gpt-5.2-20251222 and gpt-4o-2024-08-06 are common upstream forms.
+	openAIDateSuffixPattern = regexp.MustCompile(`-(?:\d{8}|\d{4}-\d{2}-\d{2})$`)
 	// openAIBaseVersionPattern extracts the numeric base version so suffixed
 	// variants (gpt-5.2-codex) can fall back to their base model. It
 	// deliberately requires a numeric version so gpt-4o is not reduced to gpt-4.
@@ -30,6 +31,12 @@ func buildCandidates(name string) []string {
 		name,
 		strings.TrimPrefix(name, "models/"),
 		lastPathSegment(name),
+	}
+	if name == "gpt-5.6" {
+		raw = append(raw, "gpt-5.6-sol")
+	}
+	if alias := normalizeGeminiThinkingTierAlias(lastPathSegment(name)); alias != lastPathSegment(name) {
+		raw = append(raw, alias)
 	}
 
 	candidates := make([]string, 0, len(raw)*2)
@@ -53,6 +60,18 @@ func buildCandidates(name string) []string {
 	return candidates
 }
 
+func normalizeGeminiThinkingTierAlias(model string) string {
+	if !strings.HasPrefix(model, "gemini-") {
+		return model
+	}
+	for _, suffix := range []string{"-thinking-high", "-thinking-low", "-thinking-medium", "-thinking", "-high", "-low", "-medium", "-tiered"} {
+		if strings.HasSuffix(model, suffix) && len(model) > len(suffix) {
+			return strings.TrimSuffix(model, suffix)
+		}
+	}
+	return model
+}
+
 func lastPathSegment(model string) string {
 	if index := strings.LastIndex(model, "/"); index != -1 {
 		return model[index+1:]
@@ -66,9 +85,19 @@ func lastPathSegment(model string) string {
 func stripDateSegments(model string) string {
 	parts := strings.Split(model, "-")
 	kept := make([]string, 0, len(parts))
-	for _, part := range parts {
+	for i := 0; i < len(parts); i++ {
+		part := parts[i]
 		if len(part) == 8 && isAllDigits(part) {
 			continue
+		}
+		if i+2 < len(parts) && len(part) == 4 && isAllDigits(part) &&
+			len(parts[i+1]) == 2 && isAllDigits(parts[i+1]) &&
+			len(parts[i+2]) == 2 && isAllDigits(parts[i+2]) {
+			month, day := atoiSmall(parts[i+1]), atoiSmall(parts[i+2])
+			if month >= 1 && month <= 12 && day >= 1 && day <= 31 {
+				i += 2
+				continue
+			}
 		}
 		// Bedrock-style revisions are a suffix of the version segment (v2:1).
 		// Only the revision is dropped; discarding the whole segment would
@@ -82,6 +111,14 @@ func stripDateSegments(model string) string {
 		kept = append(kept, part)
 	}
 	return strings.Join(kept, "-")
+}
+
+func atoiSmall(value string) int {
+	result := 0
+	for _, r := range value {
+		result = result*10 + int(r-'0')
+	}
+	return result
 }
 
 func isAllDigits(s string) bool {
@@ -138,10 +175,17 @@ func (c *Catalog) resolveFuzzy(candidates []string) (Entry, bool) {
 	if entry, ok := c.matchByBaseName(candidates); ok {
 		return entry, true
 	}
-	if entry, ok := c.matchClaudeFamily(candidates[0]); ok {
-		return entry, true
+	for _, candidate := range candidates {
+		if entry, ok := c.matchClaudeFamily(candidate); ok {
+			return entry, true
+		}
 	}
-	return c.matchOpenAIVariant(candidates[0])
+	for _, candidate := range candidates {
+		if entry, ok := c.matchOpenAIVariant(candidate); ok {
+			return entry, true
+		}
+	}
+	return Entry{}, false
 }
 
 // matchByBaseName pairs a dated request model with an undated catalog entry, or
@@ -204,6 +248,25 @@ func (c *Catalog) matchOpenAIVariant(model string) (Entry, bool) {
 	if !strings.HasPrefix(model, "gpt-") {
 		return Entry{}, false
 	}
+	if model == "gpt-5.6" {
+		if entry, ok := c.entries["gpt-5.6-sol"]; ok {
+			return entry, true
+		}
+	}
+
+	// These aliases are business-defined billing identities from Sub2API. They
+	// are checked before generic base extraction so a codex variant cannot be
+	// priced by an unrelated plain GPT entry when its codex rate is available.
+	if strings.HasPrefix(model, "gpt-5.3-codex-spark") {
+		if entry, ok := c.lookupFirst("gpt-5.1-codex", "gpt-5.2-codex", "gpt-5.3-codex"); ok {
+			return entry, true
+		}
+	}
+	if strings.HasPrefix(model, "gpt-5.3-codex") {
+		if entry, ok := c.lookupFirst("gpt-5.2-codex", "gpt-5.1-codex", "gpt-5.3-codex"); ok {
+			return entry, true
+		}
+	}
 
 	variants := make([]string, 0, 3)
 	withoutDate := openAIDateSuffixPattern.ReplaceAllString(model, "")
@@ -219,11 +282,25 @@ func (c *Catalog) matchOpenAIVariant(model string) (Entry, bool) {
 		}
 	}
 
+	if strings.Contains(model, "-codex") {
+		if matches := openAIBaseVersionPattern.FindStringSubmatch(model); len(matches) > 1 {
+			variants = append([]string{matches[1] + "-codex"}, variants...)
+		}
+	}
 	for _, variant := range variants {
 		if variant == model {
 			continue
 		}
 		if entry, ok := c.entries[variant]; ok {
+			return entry, true
+		}
+	}
+	return Entry{}, false
+}
+
+func (c *Catalog) lookupFirst(keys ...string) (Entry, bool) {
+	for _, key := range keys {
+		if entry, ok := c.entries[key]; ok {
 			return entry, true
 		}
 	}

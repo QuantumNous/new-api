@@ -455,7 +455,9 @@ func GetCompletionRatio(name string) float64 {
 	// completion multiplier from the automatic catalog keeps it paired with the
 	// base ratio GetModelRatio resolved from the same catalog entry.
 	if entry, autoOK := autoPricingEntry(name); autoOK {
-		return entry.CompletionRatio
+		if entry.HasCompletionRatio {
+			return entry.CompletionRatio
+		}
 	}
 	return hardCodedRatio
 }

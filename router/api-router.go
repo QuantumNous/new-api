@@ -16,6 +16,7 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
+	apiRouter.Use(middleware.RecordRequestMetrics())
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	anonymousRequestBodyLimit := middleware.AnonymousRequestBodyLimit()
@@ -163,6 +164,7 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				dashboardRoute.GET("/stats", controller.NextGetDashboardStats)
 				dashboardRoute.GET("/distribution", controller.NextGetDashboardDistribution)
+				dashboardRoute.GET("/system-status", controller.NextGetDashboardSystemStatus)
 			}
 			inviteRoute := nextRoute.Group("/invite")
 			{

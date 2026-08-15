@@ -60,7 +60,10 @@ export function useSystemSettings() {
     _fetchPromise = api
       .get<SystemOption[]>('/api/option/')
       .then((data) => {
-        _settings.value = parseOptions(Array.isArray(data) ? data : [], SYSTEM_SETTINGS_DEFAULTS)
+        _settings.value = parseOptions(
+          Array.isArray(data) ? data : [],
+          SYSTEM_SETTINGS_DEFAULTS
+        )
         _loaded.value = true
       })
       .catch((err) => {

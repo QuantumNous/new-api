@@ -67,6 +67,23 @@ type nextDashboardDistributionPoint struct {
 	Tokens   int64  `json:"tokens"`
 }
 
+type nextDashboardBandwidthSeries struct {
+	Up   []float64 `json:"up"`
+	Down []float64 `json:"down"`
+}
+
+type nextDashboardSystemStatus struct {
+	CPUPercent        *float64                      `json:"cpu_percent"`
+	MemoryUsedGB      *float64                      `json:"memory_used_gb"`
+	MemoryTotalGB     *float64                      `json:"memory_total_gb"`
+	BandwidthUpMbps   *float64                      `json:"bandwidth_up_mbps"`
+	BandwidthDownMbps *float64                      `json:"bandwidth_down_mbps"`
+	DiskUsedGB        *float64                      `json:"disk_used_gb"`
+	DiskTotalGB       *float64                      `json:"disk_total_gb"`
+	APISuccessRate    *float64                      `json:"api_success_rate"`
+	BandwidthSeries   *nextDashboardBandwidthSeries `json:"bandwidth_series"`
+}
+
 type nextAdminDashboardRoute struct {
 	ID       int     `json:"id"`
 	Name     string  `json:"name"`
@@ -251,6 +268,42 @@ func NextGetDashboardDistribution(c *gin.Context) {
 		})
 	}
 	common.ApiSuccess(c, points)
+}
+
+func NextGetDashboardSystemStatus(c *gin.Context) {
+	status := common.GetSystemStatus()
+	response := nextDashboardSystemStatus{
+		APISuccessRate: common.GetRequestSuccessRate(),
+	}
+	if status.CPUAvailable {
+		response.CPUPercent = float64Pointer(status.CPUUsage)
+	}
+	if status.MemoryAvailable {
+		response.MemoryUsedGB = bytesToGBPointer(status.MemoryUsedBytes)
+		response.MemoryTotalGB = bytesToGBPointer(status.MemoryTotalBytes)
+	}
+	if status.DiskAvailable {
+		response.DiskUsedGB = bytesToGBPointer(status.DiskUsedBytes)
+		response.DiskTotalGB = bytesToGBPointer(status.DiskTotalBytes)
+	}
+	if status.Network.Available {
+		response.BandwidthUpMbps = float64Pointer(status.Network.UpMbps)
+		response.BandwidthDownMbps = float64Pointer(status.Network.DownMbps)
+		response.BandwidthSeries = &nextDashboardBandwidthSeries{
+			Up:   append([]float64(nil), status.Network.UpSeries...),
+			Down: append([]float64(nil), status.Network.DownSeries...),
+		}
+	}
+	common.ApiSuccess(c, response)
+}
+
+func float64Pointer(value float64) *float64 {
+	return &value
+}
+
+func bytesToGBPointer(value uint64) *float64 {
+	gb := math.Round(float64(value)/float64(1<<30)*10) / 10
+	return &gb
 }
 
 func NextGetAdminDashboardRoutes(c *gin.Context) {

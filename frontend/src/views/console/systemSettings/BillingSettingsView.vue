@@ -24,27 +24,38 @@ const quota = reactive({
 const quotaSaving = reactive({ value: false })
 const quotaDirty = computed(() => {
   const s = settings.value
-  return quota.QuotaForNewUser !== s.QuotaForNewUser ||
+  return (
+    quota.QuotaForNewUser !== s.QuotaForNewUser ||
     quota.PreConsumedQuota !== s.PreConsumedQuota ||
     quota.QuotaForInviter !== s.QuotaForInviter ||
     quota.QuotaForInvitee !== s.QuotaForInvitee ||
     quota.TopUpLink !== s.TopUpLink ||
     quota['general_setting.docs_link'] !== s['general_setting.docs_link'] ||
-    quota['quota_setting.enable_free_model_pre_consume'] !== s['quota_setting.enable_free_model_pre_consume']
+    quota['quota_setting.enable_free_model_pre_consume'] !==
+      s['quota_setting.enable_free_model_pre_consume']
+  )
 })
 async function saveQuota() {
   quotaSaving.value = true
   const s = settings.value
   const patch: Record<string, string | boolean | number> = {}
-  if (quota.QuotaForNewUser !== s.QuotaForNewUser) patch.QuotaForNewUser = quota.QuotaForNewUser
-  if (quota.PreConsumedQuota !== s.PreConsumedQuota) patch.PreConsumedQuota = quota.PreConsumedQuota
-  if (quota.QuotaForInviter !== s.QuotaForInviter) patch.QuotaForInviter = quota.QuotaForInviter
-  if (quota.QuotaForInvitee !== s.QuotaForInvitee) patch.QuotaForInvitee = quota.QuotaForInvitee
+  if (quota.QuotaForNewUser !== s.QuotaForNewUser)
+    patch.QuotaForNewUser = quota.QuotaForNewUser
+  if (quota.PreConsumedQuota !== s.PreConsumedQuota)
+    patch.PreConsumedQuota = quota.PreConsumedQuota
+  if (quota.QuotaForInviter !== s.QuotaForInviter)
+    patch.QuotaForInviter = quota.QuotaForInviter
+  if (quota.QuotaForInvitee !== s.QuotaForInvitee)
+    patch.QuotaForInvitee = quota.QuotaForInvitee
   if (quota.TopUpLink !== s.TopUpLink) patch.TopUpLink = quota.TopUpLink
   if (quota['general_setting.docs_link'] !== s['general_setting.docs_link'])
     patch['general_setting.docs_link'] = quota['general_setting.docs_link']
-  if (quota['quota_setting.enable_free_model_pre_consume'] !== s['quota_setting.enable_free_model_pre_consume'])
-    patch['quota_setting.enable_free_model_pre_consume'] = quota['quota_setting.enable_free_model_pre_consume']
+  if (
+    quota['quota_setting.enable_free_model_pre_consume'] !==
+    s['quota_setting.enable_free_model_pre_consume']
+  )
+    patch['quota_setting.enable_free_model_pre_consume'] =
+      quota['quota_setting.enable_free_model_pre_consume']
   const ok = await saveOptions(patch)
   quotaSaving.value = false
   if (ok) toast.success(t('systemSettings.saved'))
@@ -59,9 +70,11 @@ const checkin = reactive({
 const checkinSaving = reactive({ value: false })
 const checkinDirty = computed(() => {
   const s = settings.value
-  return checkin['checkin_setting.enabled'] !== s['checkin_setting.enabled'] ||
+  return (
+    checkin['checkin_setting.enabled'] !== s['checkin_setting.enabled'] ||
     checkin['checkin_setting.min_quota'] !== s['checkin_setting.min_quota'] ||
     checkin['checkin_setting.max_quota'] !== s['checkin_setting.max_quota']
+  )
 })
 async function saveCheckin() {
   checkinSaving.value = true
@@ -88,7 +101,8 @@ onMounted(async () => {
     QuotaForInvitee: s.QuotaForInvitee,
     TopUpLink: s.TopUpLink,
     'general_setting.docs_link': s['general_setting.docs_link'],
-    'quota_setting.enable_free_model_pre_consume': s['quota_setting.enable_free_model_pre_consume'],
+    'quota_setting.enable_free_model_pre_consume':
+      s['quota_setting.enable_free_model_pre_consume'],
   })
   Object.assign(checkin, {
     'checkin_setting.enabled': s['checkin_setting.enabled'],
@@ -98,7 +112,9 @@ onMounted(async () => {
 })
 
 // helper: bind number input with two-way numeric model
-function asStr(n: number) { return String(n) }
+function asStr(n: number) {
+  return String(n)
+}
 function fromStr(v: string, key: string) {
   const n = Number(v)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -189,13 +205,17 @@ function fromStr(v: string, key: string) {
           :label="t('systemSettings.billing.checkinMinQuota')"
           :model-value="String(checkin['checkin_setting.min_quota'])"
           type="number"
-          @update:model-value="checkin['checkin_setting.min_quota'] = Number($event) || 0"
+          @update:model-value="
+            checkin['checkin_setting.min_quota'] = Number($event) || 0
+          "
         />
         <SysInputRow
           :label="t('systemSettings.billing.checkinMaxQuota')"
           :model-value="String(checkin['checkin_setting.max_quota'])"
           type="number"
-          @update:model-value="checkin['checkin_setting.max_quota'] = Number($event) || 0"
+          @update:model-value="
+            checkin['checkin_setting.max_quota'] = Number($event) || 0
+          "
         />
       </div>
     </SysSettingsFormCard>

@@ -35,7 +35,7 @@ func TestParseNewAPISourcePreservesTieredExpression(t *testing.T) {
 	assert.Equal(t, SourceNewAPI, record.PrimarySource)
 }
 
-func TestParseModelsDevSourceUsesFirstPartyProviderNotCheapestAggregator(t *testing.T) {
+func TestParseModelsDevSourceUsesCheapestProviderWithStableTieBreak(t *testing.T) {
 	source, err := ParseModelsDevSource([]byte(`{
 		"xpersona": {"models": {"gpt-5.6-sol": {"cost": {"input": 1.5, "output": 12}}}},
 		"openai": {"models": {"gpt-5.6-sol": {"cost": {"input": 5, "output": 30, "cache_read": 0.5}}}}
@@ -44,11 +44,24 @@ func TestParseModelsDevSourceUsesFirstPartyProviderNotCheapestAggregator(t *test
 
 	record, ok := source.Records["gpt-5.6-sol"]
 	require.True(t, ok)
-	assert.Equal(t, "openai", record.Provider)
+	assert.Equal(t, "xpersona", record.Provider)
 	require.NotNil(t, record.Standard.Input)
 	require.NotNil(t, record.Standard.Output)
-	assert.Equal(t, 5.0, *record.Standard.Input)
-	assert.Equal(t, 30.0, *record.Standard.Output)
+	assert.Equal(t, 1.5, *record.Standard.Input)
+	assert.Equal(t, 12.0, *record.Standard.Output)
+}
+
+func TestParseModelsDevSourcePreservesFreeModelFields(t *testing.T) {
+	source, err := ParseModelsDevSource([]byte(`{
+		"openai": {"models": {"free-model": {"cost": {"input": 0, "output": 0}}}}
+	}`), "models-dev-free")
+	require.NoError(t, err)
+	entry, ok := source.Records["free-model"]
+	require.True(t, ok)
+	catalogEntry := recordToEntry(entry)
+	assert.True(t, catalogEntry.HasModelRatio)
+	assert.True(t, catalogEntry.HasCompletionRatio)
+	assert.Equal(t, 1.0, catalogEntry.CompletionRatio)
 }
 
 func TestMergeSourcesUsesFieldPrecedenceAndLowerSourceFill(t *testing.T) {
@@ -128,6 +141,18 @@ func TestParseLiteLLMSourceKeepsRichBillingFields(t *testing.T) {
 	assert.Equal(t, 200000, record.Tiers[0].MaxInputTokens)
 	assert.Equal(t, 4.0, *record.Tiers[1].Costs.Input)
 	assert.Equal(t, 12.0, *record.Tiers[1].Costs.Output)
+}
+
+func TestParseLiteLLMSourceSkipsOutputOnlyTokenEntries(t *testing.T) {
+	source, err := ParseLiteLLMSource([]byte(`{
+		"output-only": {"output_cost_per_token": 0.000008},
+		"token-model": {"input_cost_per_token": 0.000002, "output_cost_per_token": 0.000008}
+	}`), "litellm-token")
+	require.NoError(t, err)
+	_, ok := source.Records["output-only"]
+	assert.False(t, ok)
+	_, ok = source.Records["token-model"]
+	assert.True(t, ok)
 }
 
 func TestLoadBuiltInOverridesIncludesReviewedPricesAndMetadata(t *testing.T) {

@@ -12,12 +12,21 @@ withDefaults(
     hint?: string
     type?: 'text' | 'password' | 'number' | 'url' | 'email'
     placeholder?: string
-    rows?: number   // > 1 renders a <textarea>
+    rows?: number // > 1 renders a <textarea>
     autocomplete?: string
     readonly?: boolean
     maxlength?: number
   }>(),
-  { description: '', hint: '', type: 'text', rows: 1, autocomplete: 'off', readonly: false, placeholder: '', maxlength: undefined }
+  {
+    description: '',
+    hint: '',
+    type: 'text',
+    rows: 1,
+    autocomplete: 'off',
+    readonly: false,
+    placeholder: '',
+    maxlength: undefined,
+  }
 )
 
 const model = defineModel<string>({ default: '' })

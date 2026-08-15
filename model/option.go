@@ -189,10 +189,30 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	legacyAutoPricingURL := false
+	legacyAutoPricingHashNeedsMigration := true
 	for _, option := range options {
+		if option.Key == "auto_pricing.remote_url" && strings.TrimSpace(option.Value) == ratio_setting.LegacyAutoPricingRemoteURL {
+			legacyAutoPricingURL = true
+		}
+		if option.Key == "auto_pricing.hash_url" && strings.TrimSpace(option.Value) != "" {
+			// A non-empty checksum URL is an operator choice and must survive
+			// the legacy URL migration unchanged.
+			legacyAutoPricingHashNeedsMigration = false
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
+		}
+	}
+	if legacyAutoPricingURL {
+		if err := UpdateOption("auto_pricing.remote_url", ratio_setting.DefaultAutoPricingRemoteURL); err != nil {
+			common.SysLog("failed to migrate legacy auto pricing URL: " + err.Error())
+		}
+		if legacyAutoPricingHashNeedsMigration {
+			if err := UpdateOption("auto_pricing.hash_url", ratio_setting.DefaultAutoPricingHashURL); err != nil {
+				common.SysLog("failed to migrate legacy auto pricing checksum URL: " + err.Error())
+			}
 		}
 	}
 }

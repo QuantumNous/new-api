@@ -13,6 +13,7 @@ describe('PageHero accent rendering', () => {
     const heading = wrapper.get('h1')
 
     expect(heading.text()).toContain('&')
+    expect(heading.classes()).toContain('gesture-mark')
     const accent = heading.get('span')
     expect(accent.classes()).toContain('brush-highlight')
     expect(accent.classes()).not.toContain('brush-highlight--underline')
@@ -33,6 +34,8 @@ describe('PageHero accent rendering', () => {
     const heading = wrapper.get('h1')
 
     expect(heading.text()).toBe('该去吃饭了，白日飞猪。')
+    expect(heading.classes()).not.toContain('gesture-mark')
+    expect(heading.attributes('data-accent-variant')).toBe('underline')
 
     const accent = heading.get('span')
     expect(accent.classes()).toContain('brush-highlight--underline')

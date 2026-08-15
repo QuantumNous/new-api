@@ -96,6 +96,22 @@ func TestBuildCatalogKeepsFreeModels(t *testing.T) {
 	assert.Equal(t, 1.0, entry.CompletionRatio)
 }
 
+func TestBuildCatalogDistinguishesMissingOutputFromExplicitZero(t *testing.T) {
+	catalog := buildTestCatalog(t, `{
+		"missing-output": {"input_cost_per_token": 0.000002},
+		"free-model": {"input_cost_per_token": 0, "output_cost_per_token": 0}
+	}`)
+
+	missing, ok := catalog.Lookup("missing-output")
+	require.True(t, ok)
+	assert.False(t, missing.HasCompletionRatio)
+
+	free, ok := catalog.Lookup("free-model")
+	require.True(t, ok)
+	assert.True(t, free.HasCompletionRatio)
+	assert.Equal(t, 1.0, free.CompletionRatio)
+}
+
 func TestBuildCatalogSkipsSampleSpec(t *testing.T) {
 	catalog := buildTestCatalog(t, `{
 		"sample_spec": {"input_cost_per_token": 0.000001, "output_cost_per_token": 0.000002},
@@ -153,6 +169,7 @@ func TestResolveExactMatchVariants(t *testing.T) {
 		{name: "different case", model: "Gemini-2.5-Pro", catalogKey: "gemini-2.5-pro"},
 		{name: "models prefix", model: "models/gemini-2.5-pro", catalogKey: "gemini-2.5-pro"},
 		{name: "vertex resource path", model: "publishers/google/models/gemini-2.5-pro", catalogKey: "gemini-2.5-pro"},
+		{name: "gemini thinking tier", model: "gemini-2.5-pro-thinking-high", catalogKey: "gemini-2.5-pro"},
 		{name: "dashed minor version", model: "claude-opus-4-5", catalogKey: "claude-opus-4.5"},
 	}
 
@@ -185,6 +202,8 @@ func TestResolveFuzzyRules(t *testing.T) {
 		"claude-opus-4-8": {"input_cost_per_token": 0.000005, "output_cost_per_token": 0.000025},
 		"claude-sonnet-4-5-20250929": {"input_cost_per_token": 0.000003, "output_cost_per_token": 0.000015},
 		"gpt-5.2": {"input_cost_per_token": 0.00000125, "output_cost_per_token": 0.00001},
+		"gpt-5.1-codex": {"input_cost_per_token": 0.0000015, "output_cost_per_token": 0.000012},
+		"gpt-5.2-codex": {"input_cost_per_token": 0.000002, "output_cost_per_token": 0.000016},
 		"gemini-3-pro": {"input_cost_per_token": 0.000002, "output_cost_per_token": 0.000012}
 	}`))
 	t.Cleanup(func() { SetCatalog(nil) })
@@ -198,8 +217,10 @@ func TestResolveFuzzyRules(t *testing.T) {
 		{name: "unknown date to known base", model: "claude-sonnet-4-5-20261231", catalogKey: "claude-sonnet-4-5-20250929"},
 		{name: "unpublished opus 5 falls back to 4.8", model: "claude-opus-5-20260401", catalogKey: "claude-opus-4-8"},
 		{name: "opus 4.8 thinking variant", model: "claude-opus-4-8-thinking", catalogKey: "claude-opus-4-8"},
-		{name: "openai suffix variant", model: "gpt-5.2-codex", catalogKey: "gpt-5.2"},
+		{name: "openai suffix variant", model: "gpt-5.2-codex", catalogKey: "gpt-5.2-codex"},
 		{name: "openai dated variant", model: "gpt-5.2-20251222", catalogKey: "gpt-5.2"},
+		{name: "openai spark alias", model: "gpt-5.3-codex-spark-high", catalogKey: "gpt-5.1-codex"},
+		{name: "openai codex alias", model: "gpt-5.3-codex-high", catalogKey: "gpt-5.2-codex"},
 	}
 
 	for _, tc := range cases {
@@ -209,6 +230,17 @@ func TestResolveFuzzyRules(t *testing.T) {
 			assert.Equal(t, tc.catalogKey, entry.CatalogKey)
 		})
 	}
+}
+
+func TestResolveFuzzyProviderPathUsesLastModelSegment(t *testing.T) {
+	SetCatalog(buildTestCatalog(t, `{
+		"gpt-5.2": {"input_cost_per_token": 0.00000125, "output_cost_per_token": 0.00001}
+	}`))
+	t.Cleanup(func() { SetCatalog(nil) })
+
+	entry, ok := Resolve("openai/gpt-5.2-20251222", true)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-5.2", entry.CatalogKey)
 }
 
 func TestResolveFuzzyMisses(t *testing.T) {
@@ -316,7 +348,7 @@ func TestStripDateSegments(t *testing.T) {
 		want  string
 	}{
 		{input: "claude-opus-4-5-20251101", want: "claude-opus-4-5"},
-		{input: "gpt-4o-2024-08-06", want: "gpt-4o-2024-08-06"},
+		{input: "gpt-4o-2024-08-06", want: "gpt-4o"},
 		{input: "anthropic.claude-v2:1", want: "anthropic.claude-v2"},
 		{input: "gpt-4o", want: "gpt-4o"},
 	}

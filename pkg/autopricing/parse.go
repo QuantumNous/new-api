@@ -1,11 +1,7 @@
 package autopricing
 
 import (
-	"encoding/json"
-	"fmt"
 	"math"
-
-	"github.com/QuantumNous/new-api/common"
 )
 
 // ratioUnitUSDPerMillionTokens is the USD price that one Ren2Hub ratio unit
@@ -41,37 +37,9 @@ type litellmRawEntry struct {
 // version is the change token the document was fetched with (ETag or hash) and
 // is echoed back through the status API.
 func BuildCatalog(data []byte, version string) (*Catalog, error) {
-	var raw map[string]json.RawMessage
-	if err := common.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parse pricing catalog: %w", err)
-	}
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("pricing catalog is empty")
-	}
-
-	entries := make(map[string]Entry, len(raw))
-	skipped := 0
-	for modelName, rawEntry := range raw {
-		// sample_spec documents the schema and carries no real pricing.
-		if modelName == "" || modelName == "sample_spec" {
-			continue
-		}
-		var parsed litellmRawEntry
-		if err := common.Unmarshal(rawEntry, &parsed); err != nil {
-			skipped++
-			continue
-		}
-		entry, ok := convertEntry(parsed)
-		if !ok {
-			skipped++
-			continue
-		}
-		entry.CatalogKey = modelName
-		entries[normalizeKey(modelName)] = entry
-	}
-
-	if len(entries) == 0 {
-		return nil, fmt.Errorf("pricing catalog has no usable token-priced entries")
+	entries, skipped, err := ParseLiteLLM(data)
+	if err != nil {
+		return nil, err
 	}
 	return newCatalog(entries, version, skipped), nil
 }
@@ -81,7 +49,7 @@ func BuildCatalog(data []byte, version string) (*Catalog, error) {
 func convertEntry(raw litellmRawEntry) (Entry, bool) {
 	// Image-only and metadata-only entries carry no token price. Treating them
 	// as zero would bill token traffic at no cost.
-	if raw.InputCostPerToken == nil && raw.OutputCostPerToken == nil {
+	if raw.InputCostPerToken == nil {
 		return Entry{}, false
 	}
 
@@ -104,7 +72,12 @@ func convertEntry(raw litellmRawEntry) (Entry, bool) {
 		if output > 0 {
 			return Entry{}, false
 		}
-		return Entry{ModelRatio: 0, CompletionRatio: 1}, true
+		entry := Entry{ModelRatio: 0, HasModelRatio: true}
+		if raw.OutputCostPerToken != nil {
+			entry.CompletionRatio = 1
+			entry.HasCompletionRatio = true
+		}
+		return entry, true
 	}
 
 	modelRatio := roundRatio(input * 1e6 / ratioUnitUSDPerMillionTokens)
@@ -118,8 +91,10 @@ func convertEntry(raw litellmRawEntry) (Entry, bool) {
 	}
 
 	entry := Entry{
-		ModelRatio:      modelRatio,
-		CompletionRatio: completionRatio,
+		ModelRatio:         modelRatio,
+		HasModelRatio:      true,
+		CompletionRatio:    completionRatio,
+		HasCompletionRatio: raw.OutputCostPerToken != nil,
 	}
 
 	if raw.CacheReadInputTokenCost != nil && validCost(*raw.CacheReadInputTokenCost) {

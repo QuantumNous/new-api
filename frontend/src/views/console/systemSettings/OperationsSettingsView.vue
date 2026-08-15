@@ -20,9 +20,11 @@ const behavior = reactive({
 const behaviorSaving = reactive({ value: false })
 const behaviorDirty = computed(() => {
   const s = settings.value
-  return behavior.DefaultCollapseSidebar !== s.DefaultCollapseSidebar ||
+  return (
+    behavior.DefaultCollapseSidebar !== s.DefaultCollapseSidebar ||
     behavior.DemoSiteEnabled !== s.DemoSiteEnabled ||
     behavior.SelfUseModeEnabled !== s.SelfUseModeEnabled
+  )
 })
 async function saveBehavior() {
   behaviorSaving.value = true
@@ -54,7 +56,8 @@ const smtp = reactive({
 const smtpSaving = reactive({ value: false })
 const smtpDirty = computed(() => {
   const s = settings.value
-  return smtp.SMTPServer !== s.SMTPServer ||
+  return (
+    smtp.SMTPServer !== s.SMTPServer ||
     smtp.SMTPPort !== s.SMTPPort ||
     smtp.SMTPAccount !== s.SMTPAccount ||
     smtp.SMTPFrom !== s.SMTPFrom ||
@@ -63,6 +66,7 @@ const smtpDirty = computed(() => {
     smtp.SMTPStartTLSEnabled !== s.SMTPStartTLSEnabled ||
     smtp.SMTPInsecureSkipVerify !== s.SMTPInsecureSkipVerify ||
     smtp.SMTPForceAuthLogin !== s.SMTPForceAuthLogin
+  )
 })
 
 // SSL/TLS radio helper
@@ -83,12 +87,15 @@ async function saveSmtp() {
   smtpSaving.value = true
   const s = settings.value
   const patch: Record<string, string | boolean> = {}
-  if (smtp.SMTPServer.trim() !== s.SMTPServer) patch.SMTPServer = smtp.SMTPServer.trim()
+  if (smtp.SMTPServer.trim() !== s.SMTPServer)
+    patch.SMTPServer = smtp.SMTPServer.trim()
   if (smtp.SMTPPort.trim() !== s.SMTPPort) patch.SMTPPort = smtp.SMTPPort.trim()
-  if (smtp.SMTPAccount.trim() !== s.SMTPAccount) patch.SMTPAccount = smtp.SMTPAccount.trim()
+  if (smtp.SMTPAccount.trim() !== s.SMTPAccount)
+    patch.SMTPAccount = smtp.SMTPAccount.trim()
   if (smtp.SMTPFrom.trim() !== s.SMTPFrom) patch.SMTPFrom = smtp.SMTPFrom.trim()
   if (smtp.SMTPToken.trim()) patch.SMTPToken = smtp.SMTPToken.trim()
-  if (smtp.SMTPSSLEnabled !== s.SMTPSSLEnabled) patch.SMTPSSLEnabled = smtp.SMTPSSLEnabled
+  if (smtp.SMTPSSLEnabled !== s.SMTPSSLEnabled)
+    patch.SMTPSSLEnabled = smtp.SMTPSSLEnabled
   if (smtp.SMTPStartTLSEnabled !== s.SMTPStartTLSEnabled)
     patch.SMTPStartTLSEnabled = smtp.SMTPStartTLSEnabled
   if (smtp.SMTPInsecureSkipVerify !== s.SMTPInsecureSkipVerify)
@@ -96,7 +103,7 @@ async function saveSmtp() {
   if (smtp.SMTPForceAuthLogin !== s.SMTPForceAuthLogin)
     patch.SMTPForceAuthLogin = smtp.SMTPForceAuthLogin
   const ok = await saveOptions(patch)
-  if (ok) smtp.SMTPToken = ''   // clear password field after save
+  if (ok) smtp.SMTPToken = '' // clear password field after save
   smtpSaving.value = false
   if (ok) toast.success(t('systemSettings.saved'))
 }
@@ -109,8 +116,10 @@ const monitoring = reactive({
 const monitoringSaving = reactive({ value: false })
 const monitoringDirty = computed(() => {
   const s = settings.value
-  return monitoring.QuotaRemindThreshold !== s.QuotaRemindThreshold ||
+  return (
+    monitoring.QuotaRemindThreshold !== s.QuotaRemindThreshold ||
     monitoring.LogConsumeEnabled !== s.LogConsumeEnabled
+  )
 })
 async function saveMonitoring() {
   monitoringSaving.value = true
@@ -133,14 +142,18 @@ const worker = reactive({
 const workerSaving = reactive({ value: false })
 const workerDirty = computed(() => {
   const s = settings.value
-  return worker.WorkerUrl !== s.WorkerUrl || worker.WorkerValidKey !== s.WorkerValidKey
+  return (
+    worker.WorkerUrl !== s.WorkerUrl ||
+    worker.WorkerValidKey !== s.WorkerValidKey
+  )
 })
 async function saveWorker() {
   workerSaving.value = true
   const s = settings.value
   const patch: Record<string, string> = {}
   if (worker.WorkerUrl !== s.WorkerUrl) patch.WorkerUrl = worker.WorkerUrl
-  if (worker.WorkerValidKey !== s.WorkerValidKey) patch.WorkerValidKey = worker.WorkerValidKey
+  if (worker.WorkerValidKey !== s.WorkerValidKey)
+    patch.WorkerValidKey = worker.WorkerValidKey
   const ok = await saveOptions(patch)
   workerSaving.value = false
   if (ok) toast.success(t('systemSettings.saved'))
@@ -159,7 +172,9 @@ const perf = reactive({
 })
 const perfSaving = reactive({ value: false })
 const perfKeys = Object.keys(perf) as Array<keyof typeof perf>
-const perfDirty = computed(() => perfKeys.some((k) => perf[k] !== settings.value[k]))
+const perfDirty = computed(() =>
+  perfKeys.some((k) => perf[k] !== settings.value[k])
+)
 async function savePerf() {
   perfSaving.value = true
   const patch: Record<string, boolean | number | string> = {}
@@ -194,7 +209,10 @@ onMounted(async () => {
     QuotaRemindThreshold: s.QuotaRemindThreshold,
     LogConsumeEnabled: s.LogConsumeEnabled,
   })
-  Object.assign(worker, { WorkerUrl: s.WorkerUrl, WorkerValidKey: s.WorkerValidKey })
+  Object.assign(worker, {
+    WorkerUrl: s.WorkerUrl,
+    WorkerValidKey: s.WorkerValidKey,
+  })
   perfKeys.forEach((k) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(perf as any)[k] = (s as any)[k]
@@ -215,7 +233,9 @@ onMounted(async () => {
         <SysToggleRow
           v-model="behavior.DefaultCollapseSidebar"
           :label="t('systemSettings.operations.defaultCollapseSidebar')"
-          :description="t('systemSettings.operations.defaultCollapseSidebarDesc')"
+          :description="
+            t('systemSettings.operations.defaultCollapseSidebarDesc')
+          "
         />
         <SysToggleRow
           v-model="behavior.DemoSiteEnabled"
@@ -261,9 +281,18 @@ onMounted(async () => {
           <div class="flex flex-col gap-2">
             <label
               v-for="opt in [
-                { value: 'none', label: t('systemSettings.operations.smtpNoEncryption') },
-                { value: 'ssl_tls', label: t('systemSettings.operations.smtpSslTls') },
-                { value: 'starttls', label: t('systemSettings.operations.smtpStarttls') },
+                {
+                  value: 'none',
+                  label: t('systemSettings.operations.smtpNoEncryption'),
+                },
+                {
+                  value: 'ssl_tls',
+                  label: t('systemSettings.operations.smtpSslTls'),
+                },
+                {
+                  value: 'starttls',
+                  label: t('systemSettings.operations.smtpStarttls'),
+                },
               ]"
               :key="opt.value"
               class="flex cursor-pointer items-center gap-2 text-sm"
@@ -306,7 +335,9 @@ onMounted(async () => {
         <SysToggleRow
           v-model="smtp.SMTPInsecureSkipVerify"
           :label="t('systemSettings.operations.smtpInsecureSkipVerify')"
-          :description="t('systemSettings.operations.smtpInsecureSkipVerifyDesc')"
+          :description="
+            t('systemSettings.operations.smtpInsecureSkipVerifyDesc')
+          "
         />
         <SysToggleRow
           v-model="smtp.SMTPForceAuthLogin"
@@ -336,7 +367,9 @@ onMounted(async () => {
           :description="t('systemSettings.operations.quotaRemindThresholdDesc')"
           :model-value="String(monitoring.QuotaRemindThreshold)"
           type="number"
-          @update:model-value="monitoring.QuotaRemindThreshold = Number($event) || 0"
+          @update:model-value="
+            monitoring.QuotaRemindThreshold = Number($event) || 0
+          "
         />
       </div>
     </SysSettingsFormCard>
@@ -384,17 +417,27 @@ onMounted(async () => {
         <SysInputRow
           :label="t('systemSettings.operations.diskCacheThreshold')"
           :description="t('systemSettings.operations.diskCacheThresholdDesc')"
-          :model-value="String(perf['performance_setting.disk_cache_threshold_mb'])"
+          :model-value="
+            String(perf['performance_setting.disk_cache_threshold_mb'])
+          "
           type="number"
           :readonly="!perf['performance_setting.disk_cache_enabled']"
-          @update:model-value="perf['performance_setting.disk_cache_threshold_mb'] = Number($event) || 10"
+          @update:model-value="
+            perf['performance_setting.disk_cache_threshold_mb'] =
+              Number($event) || 10
+          "
         />
         <SysInputRow
           :label="t('systemSettings.operations.diskCacheMaxSize')"
-          :model-value="String(perf['performance_setting.disk_cache_max_size_mb'])"
+          :model-value="
+            String(perf['performance_setting.disk_cache_max_size_mb'])
+          "
           type="number"
           :readonly="!perf['performance_setting.disk_cache_enabled']"
-          @update:model-value="perf['performance_setting.disk_cache_max_size_mb'] = Number($event) || 1024"
+          @update:model-value="
+            perf['performance_setting.disk_cache_max_size_mb'] =
+              Number($event) || 1024
+          "
         />
         <SysInputRow
           v-model="perf['performance_setting.disk_cache_path']"
@@ -417,24 +460,39 @@ onMounted(async () => {
         <div class="mt-4 grid gap-4 sm:grid-cols-3">
           <SysInputRow
             :label="t('systemSettings.operations.monitorCpuThreshold')"
-            :model-value="String(perf['performance_setting.monitor_cpu_threshold'])"
+            :model-value="
+              String(perf['performance_setting.monitor_cpu_threshold'])
+            "
             type="number"
             :readonly="!perf['performance_setting.monitor_enabled']"
-            @update:model-value="perf['performance_setting.monitor_cpu_threshold'] = Number($event) || 90"
+            @update:model-value="
+              perf['performance_setting.monitor_cpu_threshold'] =
+                Number($event) || 90
+            "
           />
           <SysInputRow
             :label="t('systemSettings.operations.monitorMemoryThreshold')"
-            :model-value="String(perf['performance_setting.monitor_memory_threshold'])"
+            :model-value="
+              String(perf['performance_setting.monitor_memory_threshold'])
+            "
             type="number"
             :readonly="!perf['performance_setting.monitor_enabled']"
-            @update:model-value="perf['performance_setting.monitor_memory_threshold'] = Number($event) || 90"
+            @update:model-value="
+              perf['performance_setting.monitor_memory_threshold'] =
+                Number($event) || 90
+            "
           />
           <SysInputRow
             :label="t('systemSettings.operations.monitorDiskThreshold')"
-            :model-value="String(perf['performance_setting.monitor_disk_threshold'])"
+            :model-value="
+              String(perf['performance_setting.monitor_disk_threshold'])
+            "
             type="number"
             :readonly="!perf['performance_setting.monitor_enabled']"
-            @update:model-value="perf['performance_setting.monitor_disk_threshold'] = Number($event) || 95"
+            @update:model-value="
+              perf['performance_setting.monitor_disk_threshold'] =
+                Number($event) || 95
+            "
           />
         </div>
       </div>

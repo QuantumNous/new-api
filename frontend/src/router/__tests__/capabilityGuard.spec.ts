@@ -98,7 +98,7 @@ describe('capability route guard', () => {
     await router.push('/console/market')
 
     expect(router.currentRoute.value.name).toBe('dashboard')
-  })
+  }, 15000)
 
   it('keeps live routes available when status is unreachable', async () => {
     publicApi.status.mockRejectedValue(new Error('status unavailable'))

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import OverviewKpiStrip from '@/components/console/dashboard/OverviewKpiStrip.vue'
@@ -36,14 +36,22 @@ const {
   system,
   limits,
   discounts,
+  loadSystem,
   load,
 } = useDashboard()
 const statsComposable = useDashboardStats()
 const distribution = useUsageDistribution()
 
+let systemRefreshTimer: ReturnType<typeof setInterval> | undefined
+
 onMounted(() => {
   void load()
   void distribution.load()
+  systemRefreshTimer = setInterval(() => void loadSystem(), 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (systemRefreshTimer) clearInterval(systemRefreshTimer)
 })
 
 /**

@@ -8,6 +8,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'embed-dist',
       'node_modules',
       'output',
       'tmp',

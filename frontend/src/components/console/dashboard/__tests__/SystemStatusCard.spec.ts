@@ -61,6 +61,30 @@ describe('SystemStatusCard', () => {
     expect(wrapper.text()).not.toContain('0%')
   })
 
+  it('keeps unavailable fields as placeholders when the response is partial', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: {
+        metrics: {
+          cpu_percent: null,
+          memory_used_gb: null,
+          memory_total_gb: null,
+          bandwidth_up_mbps: null,
+          bandwidth_down_mbps: null,
+          disk_used_gb: null,
+          disk_total_gb: null,
+          api_success_rate: null,
+          bandwidth_series: null,
+        },
+      },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    expect(wrapper.text()).not.toContain('null')
+    expect(wrapper.text()).toContain('--')
+  })
+
   it('reads the success rate out in the header, not as a tile', () => {
     const pinia = createPinia()
     setActivePinia(pinia)

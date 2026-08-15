@@ -125,6 +125,7 @@ const BILLING_SECTIONS = [
           enabled: settings['auto_pricing.enabled'],
           remoteUrl: settings['auto_pricing.remote_url'],
           hashUrl: settings['auto_pricing.hash_url'] ?? '',
+          modelsDevUrl: settings['auto_pricing.models_dev_url'] ?? 'https://models.dev/api.json',
           checkIntervalMinutes: settings['auto_pricing.check_interval_minutes'],
           fuzzyMatchEnabled: settings['auto_pricing.fuzzy_match_enabled'],
         }}

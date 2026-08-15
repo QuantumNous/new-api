@@ -53,16 +53,16 @@ export interface TokenTrendPoint {
 }
 
 export interface SystemMetrics {
-  cpu_percent: number
-  memory_used_gb: number
-  memory_total_gb: number
-  bandwidth_up_mbps: number
-  bandwidth_down_mbps: number
-  disk_used_gb: number
-  disk_total_gb: number
-  api_success_rate: number
+  cpu_percent: number | null
+  memory_used_gb: number | null
+  memory_total_gb: number | null
+  bandwidth_up_mbps: number | null
+  bandwidth_down_mbps: number | null
+  disk_used_gb: number | null
+  disk_total_gb: number | null
+  api_success_rate: number | null
   /** Recent throughput samples, oldest → newest; the last pair is the live figure. */
-  bandwidth_series: { up: number[]; down: number[] }
+  bandwidth_series: { up: number[]; down: number[] } | null
 }
 
 export interface FlowPoint {
@@ -90,6 +90,13 @@ export function useDashboard() {
   const system = ref<SystemMetrics | null>(null)
   const limits = ref<UserLimits | null>(null)
   const discounts = ref<UserDiscounts | null>(null)
+
+  async function loadSystem() {
+    const result = await Promise.allSettled([
+      api.get<SystemMetrics>('/api/next/dashboard/system-status'),
+    ])
+    system.value = result[0]?.status === 'fulfilled' ? result[0].value : null
+  }
 
   async function load() {
     loading.value = true
@@ -181,7 +188,7 @@ export function useDashboard() {
           a.date.localeCompare(b.date)
         )
         tokenTrend.value = []
-        system.value = null
+        await loadSystem()
         limits.value = null
         discounts.value = null
         return
@@ -204,6 +211,7 @@ export function useDashboard() {
     system,
     limits,
     discounts,
+    loadSystem,
     load,
   }
 }

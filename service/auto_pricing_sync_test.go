@@ -22,6 +22,9 @@ const updatedCatalogDocument = `{
 	"probe-model": {"input_cost_per_token": 0.000004, "output_cost_per_token": 0.000016}
 }`
 
+const validCatalogSHA256 = "1c9fed45a1f4983c0e7953389bffcf9cbb22cd5b323d779cf5461d877ddc134a"
+const updatedCatalogSHA256 = "5f7dbeebb2909014b38af892e9a029478c64306d7fb0dc39b2110a8f91c46d9b"
+
 // fakeRemoteClient records what the sync asked for and replays canned answers.
 type fakeRemoteClient struct {
 	body         []byte
@@ -59,6 +62,10 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 
 	previousClient := autoPricingClient
 	autoPricingClient = client
+	setting, ok := config.GlobalConfig.Get("auto_pricing").(*ratio_setting.AutoPricingSetting)
+	require.True(t, ok, "auto_pricing config must be registered")
+	previousSetting := *setting
+	setting.HashURL = ""
 
 	workDir, err := os.Getwd()
 	require.NoError(t, err)
@@ -66,6 +73,7 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 
 	t.Cleanup(func() {
 		autoPricingClient = previousClient
+		*setting = previousSetting
 		autopricing.SetCatalog(nil)
 		_ = os.Chdir(workDir)
 	})
@@ -112,6 +120,23 @@ func TestSyncSendsKnownVersionAndHandlesNotModified(t *testing.T) {
 	assert.Equal(t, "unchanged", GetAutoPricingStatus().Source)
 }
 
+func TestContentHashVersionSkipsReparseWhenETagIsMissing(t *testing.T) {
+	client := &fakeRemoteClient{
+		body:    []byte(validCatalogDocument),
+		version: contentHashVersionPrefix + validCatalogSHA256,
+	}
+	useFakeRemote(t, client)
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	firstUpdatedAt := GetAutoPricingStatus().UpdatedAt
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+
+	status := GetAutoPricingStatus()
+	assert.Equal(t, "unchanged", status.Source)
+	assert.Equal(t, "unchanged", status.State)
+	assert.Equal(t, firstUpdatedAt, status.UpdatedAt)
+}
+
 func TestForceSyncIgnoresKnownVersion(t *testing.T) {
 	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
 	useFakeRemote(t, client)
@@ -122,6 +147,24 @@ func TestForceSyncIgnoresKnownVersion(t *testing.T) {
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
 
 	assert.Empty(t, client.seenVersion, "a forced sync must not send a conditional header")
+	entry, ok := autopricing.Resolve("probe-model", false)
+	require.True(t, ok)
+	assert.Equal(t, 2.0, entry.ModelRatio)
+}
+
+func TestChangingCatalogURLForcesFreshDownload(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	setting, ok := config.GlobalConfig.Get("auto_pricing").(*ratio_setting.AutoPricingSetting)
+	require.True(t, ok)
+	setting.RemoteURL = "https://new.example.invalid/catalog.json"
+	client.body = []byte(updatedCatalogDocument)
+	client.version = `"etag-2"`
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	assert.Empty(t, client.seenVersion, "a new source URL must not reuse the previous URL's change token")
 	entry, ok := autopricing.Resolve("probe-model", false)
 	require.True(t, ok)
 	assert.Equal(t, 2.0, entry.ModelRatio)
@@ -163,7 +206,7 @@ func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
 	client := &fakeRemoteClient{
 		body:        []byte(validCatalogDocument),
 		version:     `"etag-1"`,
-		changeToken: "abc123",
+		changeToken: validCatalogSHA256,
 	}
 	useFakeRemote(t, client)
 
@@ -173,7 +216,7 @@ func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
 	// hash as the comparison token.
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 	require.Equal(t, 1, client.catalogCalls)
-	assert.Equal(t, "sha256:abc123", GetAutoPricingStatus().Version)
+	assert.Equal(t, "sha256:"+validCatalogSHA256, GetAutoPricingStatus().Version)
 
 	// Second run sees the same hash and must not download the document again.
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
@@ -181,11 +224,11 @@ func TestChangeTokenSkipsDownloadWhenUnchanged(t *testing.T) {
 	assert.Equal(t, 2, client.tokenCalls)
 
 	// A new hash triggers a fresh download.
-	client.changeToken = "def456"
+	client.changeToken = updatedCatalogSHA256
 	client.body = []byte(updatedCatalogDocument)
 	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
 	assert.Equal(t, 2, client.catalogCalls)
-	assert.Equal(t, "sha256:def456", GetAutoPricingStatus().Version)
+	assert.Equal(t, "sha256:"+updatedCatalogSHA256, GetAutoPricingStatus().Version)
 }
 
 func TestLoadFromDiskRestoresLastGoodCatalog(t *testing.T) {

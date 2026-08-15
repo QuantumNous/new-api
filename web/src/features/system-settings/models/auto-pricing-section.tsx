@@ -92,6 +92,7 @@ export function AutoPricingSection({
       enabled: defaultValues.enabled,
       remoteUrl: defaultValues.remoteUrl,
       hashUrl: defaultValues.hashUrl,
+      modelsDevUrl: defaultValues.modelsDevUrl,
       checkIntervalMinutes: defaultValues.checkIntervalMinutes,
       fuzzyMatchEnabled: defaultValues.fuzzyMatchEnabled,
     },
@@ -115,6 +116,12 @@ export function AutoPricingSection({
     }
     if (values.hashUrl !== defaultValues.hashUrl) {
       updates.push({ key: 'auto_pricing.hash_url', value: values.hashUrl })
+    }
+    if (values.modelsDevUrl !== defaultValues.modelsDevUrl) {
+      updates.push({
+        key: 'auto_pricing.models_dev_url',
+        value: values.modelsDevUrl,
+      })
     }
     if (values.checkIntervalMinutes !== defaultValues.checkIntervalMinutes) {
       updates.push({
@@ -229,6 +236,25 @@ export function AutoPricingSection({
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name='modelsDevUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('models.dev pricing URL')}</FormLabel>
+                    <FormControl>
+                      <Input type='url' {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Secondary pricing source used to fill models missing from LiteLLM.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className='grid gap-6 sm:grid-cols-2'>
                 <FormField
                   control={form.control}
@@ -284,6 +310,21 @@ function AutoPricingStatusPanel(props: {
     skipped_count: number
     updated_at?: string
     last_error?: string
+    state?: string
+    primary_model_count?: number
+    secondary_model_count?: number
+    secondary_supplement_count?: number
+    sources?: Array<{
+      name: string
+      url: string
+      hash_url?: string
+      model_count: number
+      state: string
+      version?: string
+      updated_at?: string
+      last_sync_at?: string
+      last_error?: string
+    }>
   }
   isSyncing: boolean
   onSync: () => void
@@ -307,6 +348,68 @@ function AutoPricingStatusPanel(props: {
             })}
           </p>
         ) : null}
+        {/*
+          props.status?.sources?.map((source) => (
+            <p key={source.name} className="text-muted-foreground">
+              {source.name}: {source.model_count} models ({source.state})
+              {source.version ? ` · ${source.version.slice(0, 16)}` : ""}
+              {source.last_error ? ` · ${source.last_error}` : ""}
+            </p>
+          ))}
+        */}
+        {props.status?.sources?.map((source) => (
+          <div
+            key={`${source.name}-details`}
+            className='text-muted-foreground space-y-0.5'
+          >
+            <p>
+              <span className='font-medium'>{source.name}</span>:{' '}
+              {t('{{count}} models', { count: source.model_count })} (
+              {source.state})
+            </p>
+            <p className='break-all'>
+              {t('Source URL: {{url}}', { url: source.url })}
+            </p>
+            {source.hash_url ? (
+              <p className='break-all'>
+                {t('Checksum URL: {{url}}', { url: source.hash_url })}
+              </p>
+            ) : null}
+            {source.version ? (
+              <p className='break-all'>
+                {t('Version/hash: {{version}}', { version: source.version })}
+              </p>
+            ) : null}
+            {source.updated_at ? (
+              <p>
+                {t('Updated: {{time}}', {
+                  time: new Date(source.updated_at).toLocaleString(),
+                })}
+              </p>
+            ) : null}
+            {source.last_sync_at ? (
+              <p>
+                {t('Last checked: {{time}}', {
+                  time: new Date(source.last_sync_at).toLocaleString(),
+                })}
+              </p>
+            ) : null}
+            {source.last_error ? (
+              <p className='text-destructive'>{source.last_error}</p>
+            ) : null}
+          </div>
+        ))}
+        {props.status?.secondary_supplement_count !== undefined ? (
+          <p className='text-muted-foreground'>
+            {t(
+              'Merged catalog: {{count}} models; models.dev supplements: {{supplements}}',
+              {
+                count: props.status.model_count,
+                supplements: props.status.secondary_supplement_count,
+              }
+            )}
+          </p>
+        ) : null}
       </div>
       <Button
         type='button'
@@ -326,6 +429,7 @@ function AutoPricingStatusText(props: {
     loaded: boolean
     model_count: number
     updated_at?: string
+    state?: string
   }
 }) {
   const { t } = useTranslation()
@@ -335,6 +439,16 @@ function AutoPricingStatusText(props: {
   }
   if (!props.status?.loaded) {
     return <>{t('No pricing catalog loaded yet')}</>
+  }
+  if (props.status.state) {
+    return (
+      <>
+        {t('Catalog state: {{state}}; {{modelCount}} models', {
+          state: props.status.state,
+          modelCount: props.status.model_count,
+        })}
+      </>
+    )
   }
   if (!props.status.updated_at) {
     return (

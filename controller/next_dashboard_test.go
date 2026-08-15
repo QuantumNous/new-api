@@ -126,6 +126,21 @@ func TestNextDashboardDistributionUsesCurrentUserLogs(t *testing.T) {
 	assert.Equal(t, int64(10), points[0].Tokens)
 }
 
+func TestNextDashboardSystemStatusLeavesUnavailableFieldsNull(t *testing.T) {
+	response := decodeNextResponse[nextDashboardSystemStatus](t, performNextDashboardGet(
+		t,
+		"/api/next/dashboard/system-status",
+		99,
+		common.RoleCommonUser,
+		NextGetDashboardSystemStatus,
+	))
+	assert.Nil(t, response.CPUPercent)
+	assert.Nil(t, response.MemoryUsedGB)
+	assert.Nil(t, response.BandwidthUpMbps)
+	assert.Nil(t, response.BandwidthSeries)
+	assert.Nil(t, response.APISuccessRate)
+}
+
 func TestNextAdminDashboardRoutesExposeOnlyPersistedMetrics(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.Channel{}))

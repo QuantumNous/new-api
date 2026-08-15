@@ -92,30 +92,51 @@ const tiles = computed<MetricTile[]>(() => {
   const dash = '--'
 
   const memPercent =
-    m && m.memory_total_gb > 0
+    m &&
+    m.memory_total_gb !== null &&
+    m.memory_total_gb > 0 &&
+    m.memory_used_gb !== null
       ? Math.round((m.memory_used_gb / m.memory_total_gb) * 100)
       : null
   const diskPercent =
-    m && m.disk_total_gb > 0
+    m &&
+    m.disk_total_gb !== null &&
+    m.disk_total_gb > 0 &&
+    m.disk_used_gb !== null
       ? Math.round((m.disk_used_gb / m.disk_total_gb) * 100)
       : null
 
-  return [
+  const result: MetricTile[] = [
     {
       key: 'cpu',
       label: t('dashboard.systemStatus.cpu'),
       icon: 'M4 4h16v16H4zM9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3M9 9h6v6H9z',
-      value: m ? String(m.cpu_percent) : dash,
-      unit: m ? '%' : '',
-      percent: m ? m.cpu_percent : null,
-      color: loadColor(m ? m.cpu_percent : null),
+      value:
+        m?.cpu_percent !== null && m?.cpu_percent !== undefined
+          ? String(m.cpu_percent)
+          : dash,
+      unit: m?.cpu_percent !== null && m?.cpu_percent !== undefined ? '%' : '',
+      percent: m?.cpu_percent ?? null,
+      color: loadColor(m?.cpu_percent ?? null),
     },
     {
       key: 'memory',
       label: t('dashboard.systemStatus.memory'),
       icon: 'M3 7h18v10H3zM7 7v10M11 7v10M15 7v10M5 17v3M19 17v3',
-      value: m ? `${m.memory_used_gb} / ${m.memory_total_gb}` : dash,
-      unit: m ? 'GB' : '',
+      value:
+        m?.memory_used_gb !== null &&
+        m?.memory_used_gb !== undefined &&
+        m?.memory_total_gb !== null &&
+        m?.memory_total_gb !== undefined
+          ? `${m.memory_used_gb} / ${m.memory_total_gb}`
+          : dash,
+      unit:
+        m?.memory_used_gb !== null &&
+        m?.memory_used_gb !== undefined &&
+        m?.memory_total_gb !== null &&
+        m?.memory_total_gb !== undefined
+          ? 'GB'
+          : '',
       percent: memPercent,
       color: loadColor(memPercent),
     },
@@ -123,24 +144,49 @@ const tiles = computed<MetricTile[]>(() => {
       key: 'bandwidth',
       label: t('dashboard.systemStatus.bandwidth'),
       icon: 'M12 19V5M5 12l7-7 7 7',
-      value: m ? `↑${m.bandwidth_up_mbps} ↓${m.bandwidth_down_mbps}` : dash,
-      unit: m ? 'MB/s' : '',
+      value:
+        m?.bandwidth_up_mbps !== null &&
+        m?.bandwidth_up_mbps !== undefined &&
+        m?.bandwidth_down_mbps !== null &&
+        m?.bandwidth_down_mbps !== undefined
+          ? `↑${m.bandwidth_up_mbps} ↓${m.bandwidth_down_mbps}`
+          : dash,
+      unit:
+        m?.bandwidth_up_mbps !== null &&
+        m?.bandwidth_up_mbps !== undefined &&
+        m?.bandwidth_down_mbps !== null &&
+        m?.bandwidth_down_mbps !== undefined
+          ? 'Mbps'
+          : '',
       // Bandwidth has no ceiling to measure against, so instead of a bar it
       // charts recent throughput — download shaded, upload as a line.
       percent: null,
-      series: m ? m.bandwidth_series : undefined,
+      series: m?.bandwidth_series ?? undefined,
       color: 'var(--signal)',
     },
     {
       key: 'disk',
       label: t('dashboard.systemStatus.disk'),
       icon: 'M22 12H2M5.5 16h.01M9.5 16h.01M5.45 5h13.1a2 2 0 0 1 1.79 1.11L22 12v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5l1.66-5.89A2 2 0 0 1 5.45 5z',
-      value: m ? `${m.disk_used_gb} / ${m.disk_total_gb}` : dash,
-      unit: m ? 'GB' : '',
+      value:
+        m?.disk_used_gb !== null &&
+        m?.disk_used_gb !== undefined &&
+        m?.disk_total_gb !== null &&
+        m?.disk_total_gb !== undefined
+          ? `${m.disk_used_gb} / ${m.disk_total_gb}`
+          : dash,
+      unit:
+        m?.disk_used_gb !== null &&
+        m?.disk_used_gb !== undefined &&
+        m?.disk_total_gb !== null &&
+        m?.disk_total_gb !== undefined
+          ? 'GB'
+          : '',
       percent: diskPercent,
       color: loadColor(diskPercent),
     },
   ]
+  return result
 })
 
 /** Success rate reads out in the header, so it is not one of the tiles. */

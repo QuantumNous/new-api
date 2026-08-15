@@ -37,6 +37,7 @@ export const autoPricingFormSchema = z.object({
   enabled: z.boolean(),
   remoteUrl: httpUrl,
   hashUrl: z.union([httpUrl, z.literal('')]),
+  modelsDevUrl: httpUrl,
   checkIntervalMinutes: z.coerce.number().int().min(5).max(10080),
   fuzzyMatchEnabled: z.boolean(),
 })
@@ -47,6 +48,7 @@ export type AutoPricingDefaults = {
   enabled: boolean
   remoteUrl: string
   hashUrl: string
+  modelsDevUrl: string
   checkIntervalMinutes: number
   fuzzyMatchEnabled: boolean
 }

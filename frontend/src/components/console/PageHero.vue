@@ -66,7 +66,9 @@ const accentClass = computed(() => [
       <div class="min-w-0" :class="titleSide === 'right' ? 'self-end' : ''">
         <h1
           v-if="titleSide === 'left'"
-          class="gesture-mark display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight"
+          class="display-title text-4xl font-bold text-[var(--text-primary)] lg:text-5xl leading-tight"
+          :class="{ 'gesture-mark': accentVariant !== 'underline' }"
+          :data-accent-variant="accentVariant"
         >
           {{ title
           }}<template v-if="titleAccent"
@@ -91,7 +93,9 @@ const accentClass = computed(() => [
       >
         <h1
           v-if="titleSide === 'right'"
-          class="gesture-mark display-title whitespace-nowrap text-right text-4xl font-bold leading-tight text-[var(--text-primary)] lg:text-5xl"
+          class="display-title whitespace-nowrap text-right text-4xl font-bold leading-tight text-[var(--text-primary)] lg:text-5xl"
+          :class="{ 'gesture-mark': accentVariant !== 'underline' }"
+          :data-accent-variant="accentVariant"
         >
           {{ title
           }}<template v-if="titleAccent"
