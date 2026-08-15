@@ -16,15 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// Re-export all library functions
-export * from './channel-actions'
-export * from './new-api-balance'
-export * from './channel-field-update'
-export * from './advanced-custom'
-export * from './channel-form-errors'
-export * from './channel-form'
-export * from './channel-type-config'
-export * from './channel-utils'
-export * from './multi-key-utils'
-export * from './model-mapping-validation'
-export * from './model-categories'
+import type { ChannelBalanceInfo } from '../types'
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  CNY: '¥',
+  EUR: '€',
+  GBP: '£',
+  JPY: '¥',
+  KRW: '₩',
+  USD: '$',
+}
+
+export function formatNewAPIBalance(
+  info: ChannelBalanceInfo,
+  unlimitedLabel: string
+): string {
+  if (info.unlimited) return unlimitedLabel
+  const amount = info.remaining?.trim()
+  if (!amount) return '-'
+  if (info.unit === 'money') {
+    const currency = info.currency?.toUpperCase() || ''
+    const symbol = info.display_unit?.trim() || CURRENCY_SYMBOLS[currency] || ''
+    return `${symbol}${amount}`.trim()
+  }
+  return info.display_unit ? `${amount} ${info.display_unit}` : amount
+}

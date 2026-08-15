@@ -42,6 +42,7 @@ import {
 } from '../api'
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import type { ChannelTestResponse, CopyChannelParams } from '../types'
+import { formatNewAPIBalance } from './new-api-balance'
 
 // ============================================================================
 // Query Keys
@@ -372,19 +373,31 @@ export async function handleUpdateChannelBalance(
 ): Promise<void> {
   try {
     const response = await updateChannelBalance(id)
-    if (response.success && response.balance !== undefined) {
-      const balance = response.balance
+    const hasPayload =
+      response.data !== undefined || response.balance !== undefined
+    if (response.success && hasPayload) {
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      let displayBalance = '-'
+      if (response.data) {
+        displayBalance = formatNewAPIBalance(
+          response.data,
+          i18next.t('Unlimited')
+        )
+      } else if (response.balance !== undefined) {
+        displayBalance = formatCurrencyFromUSD(response.balance, {
+          digitsLarge: 2,
+          digitsSmall: 4,
+          abbreviate: false,
+        })
+      }
       toast.success(
         i18next.t('Balance updated: {{balance}}', {
-          balance: formatCurrencyFromUSD(balance, {
-            digitsLarge: 2,
-            digitsSmall: 4,
-            abbreviate: false,
-          }),
+          balance: displayBalance,
         })
       )
-      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-      onSuccess?.(balance)
+      if (response.balance !== undefined) {
+        onSuccess?.(response.balance)
+      }
     } else {
       toast.error(response.message || i18next.t('Failed to update balance'))
     }
@@ -462,7 +475,9 @@ export async function handleBatchEnable(
       toast.error(response.message || i18next.t('Failed to enable channels'))
     } else if (failCount > 0) {
       toast.error(
-        i18next.t('{{count}} channel(s) failed to enable', { count: failCount })
+        i18next.t('{{count}} channel(s) failed to enable', {
+          count: failCount,
+        })
       )
     }
   } catch {

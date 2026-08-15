@@ -152,14 +152,11 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 	if err != nil {
 		return nil, err
 	}
+	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("status code: %d", res.StatusCode)
 	}
 	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	err = res.Body.Close()
 	if err != nil {
 		return nil, err
 	}
@@ -439,6 +436,19 @@ func UpdateChannelBalance(c *gin.Context) {
 		})
 		return
 	}
+	if channel.Type == constant.ChannelTypeNewAPI {
+		info, legacyBalance, refreshErr := updateChannelNewAPIBalance(channel)
+		if refreshErr != nil {
+			common.ApiError(c, refreshErr)
+			return
+		}
+		response := gin.H{"success": true, "message": "", "data": info}
+		if legacyBalance != nil {
+			response["balance"] = *legacyBalance
+		}
+		c.JSON(http.StatusOK, response)
+		return
+	}
 	balance, err := updateChannelBalance(channel)
 	if err != nil {
 		common.ApiError(c, err)
@@ -462,6 +472,14 @@ func updateAllChannelsBalance() error {
 		}
 		if channel.ChannelInfo.IsMultiKey {
 			continue // skip multi-key channels
+		}
+		if channel.Type == constant.ChannelTypeNewAPI {
+			info, _, refreshErr := updateChannelNewAPIBalance(channel)
+			if refreshErr == nil && newAPIBalanceExhausted(info) {
+				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, false, "", channel.GetAutoBan()), "余额不足")
+			}
+			time.Sleep(common.RequestInterval)
+			continue
 		}
 		// TODO: support Azure
 		//if channel.Type != common.ChannelTypeOpenAI && channel.Type != common.ChannelTypeCustom {

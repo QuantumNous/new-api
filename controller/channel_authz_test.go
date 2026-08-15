@@ -85,11 +85,13 @@ func TestChannelHasSensitiveChanges(t *testing.T) {
 	t.Run("read-only fields are ignored by sensitivity check", func(t *testing.T) {
 		updated := PatchChannel{Channel: *origin}
 		updated.Balance = 99
+		updated.BalanceInfo = &model.ChannelBalanceInfo{Unit: model.ChannelBalanceUnitCredits}
 		updated.UsedQuota = 100
 		updated.ResponseTime = 200
 
 		assert.False(t, channelHasSensitiveChanges(&updated, origin, map[string]any{
 			"balance":       updated.Balance,
+			"balance_info":  updated.BalanceInfo,
 			"used_quota":    updated.UsedQuota,
 			"response_time": updated.ResponseTime,
 		}))
@@ -103,6 +105,7 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 		ResponseTime:       33,
 		Balance:            44.5,
 		BalanceUpdatedTime: 55,
+		BalanceInfo:        &model.ChannelBalanceInfo{Unit: model.ChannelBalanceUnitCredits},
 		UsedQuota:          66,
 		Models:             "gpt-4o",
 		Group:              "default",
@@ -114,6 +117,7 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 		"response_time":        channel.ResponseTime,
 		"balance":              channel.Balance,
 		"balance_updated_time": channel.BalanceUpdatedTime,
+		"balance_info":         channel.BalanceInfo,
 		"used_quota":           channel.UsedQuota,
 		"models":               channel.Models,
 		"group":                channel.Group,
@@ -124,9 +128,35 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 	assert.Zero(t, channel.ResponseTime)
 	assert.Zero(t, channel.Balance)
 	assert.Zero(t, channel.BalanceUpdatedTime)
+	assert.Nil(t, channel.BalanceInfo)
 	assert.Zero(t, channel.UsedQuota)
 	assert.Equal(t, "gpt-4o", channel.Models)
 	assert.Equal(t, "default", channel.Group)
+}
+
+func TestApplyChannelBalanceReset(t *testing.T) {
+	original := model.Channel{
+		Balance:            12.5,
+		BalanceUpdatedTime: 123,
+		BalanceInfo:        &model.ChannelBalanceInfo{Remaining: "12.5"},
+		UsedQuota:          456,
+	}
+
+	preserved := original
+	preservedInfo := *original.BalanceInfo
+	preserved.BalanceInfo = &preservedInfo
+	applyChannelBalanceReset(&preserved, false)
+	assert.Equal(t, original.Balance, preserved.Balance)
+	assert.Equal(t, original.BalanceUpdatedTime, preserved.BalanceUpdatedTime)
+	assert.Equal(t, original.BalanceInfo, preserved.BalanceInfo)
+	assert.Equal(t, original.UsedQuota, preserved.UsedQuota)
+
+	reset := original
+	applyChannelBalanceReset(&reset, true)
+	assert.Zero(t, reset.Balance)
+	assert.Zero(t, reset.BalanceUpdatedTime)
+	assert.Nil(t, reset.BalanceInfo)
+	assert.Zero(t, reset.UsedQuota)
 }
 
 func TestUpdateChannelRejectsStatusField(t *testing.T) {

@@ -34,6 +34,20 @@ export const channelInfoSchema = z.object({
 
 export type ChannelInfo = z.infer<typeof channelInfoSchema>
 
+export const channelBalanceUnitSchema = z.enum(['money', 'tokens', 'credits'])
+
+export const channelBalanceInfoSchema = z.object({
+  remaining: z.string().nullish(),
+  unit: channelBalanceUnitSchema.nullish(),
+  currency: z.string().nullish(),
+  display_unit: z.string().nullish(),
+  unlimited: z.boolean(),
+  updated_at: z.number(),
+})
+
+export type ChannelBalanceUnit = z.infer<typeof channelBalanceUnitSchema>
+export type ChannelBalanceInfo = z.infer<typeof channelBalanceInfoSchema>
+
 export const channelSchema = z.object({
   id: z.number(),
   type: z.number(),
@@ -50,6 +64,7 @@ export const channelSchema = z.object({
   other: z.string().default(''),
   balance: z.number().default(0), // in USD
   balance_updated_time: z.number(),
+  balance_info: channelBalanceInfoSchema.nullish(),
   models: z.string().default(''),
   group: z.string().default('default'),
   used_quota: z.number().default(0),
@@ -197,6 +212,7 @@ export interface ChannelBalanceResponse {
   message?: string
   balance?: number
   currency?: string
+  data?: ChannelBalanceInfo
 }
 
 export interface FetchModelsResponse {
