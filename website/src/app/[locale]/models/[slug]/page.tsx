@@ -1,6 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ModelLandingPage } from "@/components/model-landing-page";
-import { isLocale, LOCALES } from "@/lib/locales";
+import { isLocale, LOCALES, localizePath } from "@/lib/locales";
 import {
   getModelLandingConfig,
   getModelLandingConfigForPricingModel,
@@ -11,6 +11,7 @@ import { modelPublicPath, resolvePublicModel } from "@/lib/model-public";
 import { getPricingData, getVendorName } from "@/lib/pricing";
 import { fetchRankingsData } from "@/lib/rankings-live";
 import { buildMetadata } from "@/lib/seo";
+import { getSkagLandingMetadataInput } from "@/lib/skag-landing";
 
 type Props = {
   params: Promise<{ locale: string; slug: string }>;
@@ -25,6 +26,12 @@ export function generateStaticParams() {
 export async function generateMetadata(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale)) return {};
+  if (params.slug === "gpt-api") {
+    return buildMetadata(getSkagLandingMetadataInput("gpt-api", params.locale));
+  }
+  if (params.slug === "claude-api") {
+    return buildMetadata(getSkagLandingMetadataInput("claude-api", params.locale));
+  }
   const config = getModelLandingConfig(params.slug);
   if (config) {
     return buildMetadata({
@@ -53,6 +60,8 @@ export async function generateMetadata(props: Props) {
 export default async function Page(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale) || params.locale === "en") notFound();
+  if (params.slug === "gpt-api") redirect(localizePath("/gpt-api", params.locale));
+  if (params.slug === "claude-api") redirect(localizePath("/claude-api", params.locale));
 
   const config = getModelLandingConfig(params.slug);
   const [pricing, rankings] = await Promise.all([getPricingData(), fetchRankingsData()]);

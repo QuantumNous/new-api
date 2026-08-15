@@ -90,4 +90,42 @@ describe("SkagLandingPage", () => {
       expect(html).toContain("max-w-6xl");
     }
   });
+
+  test("renders the Portuguese GPT page with current model coverage and one primary CTA", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("gpt-api", "pt")} />);
+
+    for (const text of [
+      "API GPT",
+      "GPT-5.6 Sol",
+      "GPT-5.5",
+      "GPT Image 2",
+      "OpenAI",
+      "gpt-5.5",
+      "Obter chave da API GPT",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).toContain("max-w-6xl");
+  });
+
+  test("renders the Portuguese Claude page with current model coverage and one primary CTA", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("claude-api", "pt")} />);
+
+    for (const text of [
+      "API Claude",
+      "Claude Opus 5",
+      "Claude Sonnet 5",
+      "Claude Haiku 4.5",
+      "OpenAI",
+      "claude-sonnet-5",
+      "Obter chave da API Claude",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).toContain("max-w-6xl");
+  });
 });
