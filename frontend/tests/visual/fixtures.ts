@@ -360,6 +360,23 @@ export async function configureStablePage(
     ['/api/data/self', VISUAL_USAGE_ROWS],
     ['/api/next/dashboard/distribution', VISUAL_DISTRIBUTION],
     ['/api/next/dashboard/stats', VISUAL_STATS],
+    [
+      '/api/next/dashboard/system-status',
+      {
+        cpu_percent: 4.627766599,
+        memory_used_gb: 5.2,
+        memory_total_gb: 16,
+        bandwidth_up_mbps: 1.249,
+        bandwidth_down_mbps: 6.555,
+        disk_used_gb: 218,
+        disk_total_gb: 512,
+        api_success_rate: 99.7,
+        bandwidth_series: {
+          up: [0.4, 0.8, 1.249],
+          down: [2.1, 4.4, 6.555],
+        },
+      },
+    ],
     ['/api/next/admin/dashboard/routes', VISUAL_ROUTE_CHANNELS],
     [
       '/api/user/models',

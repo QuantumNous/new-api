@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -19,10 +20,11 @@ type auditResponseWriter struct {
 	gin.ResponseWriter
 	body    *bytes.Buffer
 	maxSize int
+	onWrite func(int)
 }
 
 func (w *auditResponseWriter) Write(b []byte) (int, error) {
-	if w.body.Len() < w.maxSize {
+	if w.body != nil && w.body.Len() < w.maxSize {
 		remain := w.maxSize - w.body.Len()
 		if remain >= len(b) {
 			w.body.Write(b)
@@ -30,7 +32,17 @@ func (w *auditResponseWriter) Write(b []byte) (int, error) {
 			w.body.Write(b[:remain])
 		}
 	}
-	return w.ResponseWriter.Write(b)
+	n, err := w.ResponseWriter.Write(b)
+	if n > 0 {
+		if w.onWrite != nil {
+			w.onWrite(n)
+		}
+	}
+	return n, err
+}
+
+func (w *auditResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
 }
 
 func (w *auditResponseWriter) WriteString(s string) (int, error) {

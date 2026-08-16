@@ -141,6 +141,38 @@ func TestNextDashboardSystemStatusLeavesUnavailableFieldsNull(t *testing.T) {
 	assert.Nil(t, response.APISuccessRate)
 }
 
+func TestBuildNextDashboardSystemStatusReturnsAvailableApplicationTraffic(t *testing.T) {
+	successRate := 99.5
+	response := buildNextDashboardSystemStatus(common.SystemStatus{
+		CPUUsage:         4.627,
+		CPUAvailable:     true,
+		MemoryAvailable:  true,
+		MemoryUsedBytes:  2 << 30,
+		MemoryTotalBytes: 4 << 30,
+		DiskAvailable:    true,
+		DiskUsedBytes:    8 << 30,
+		DiskTotalBytes:   16 << 30,
+		Network: common.NetworkBandwidth{
+			Available:  true,
+			UpMbps:     1.25,
+			DownMbps:   6.5,
+			UpSeries:   []float64{0, 1.25},
+			DownSeries: []float64{0, 6.5},
+		},
+	}, &successRate)
+
+	require.NotNil(t, response.CPUPercent)
+	require.NotNil(t, response.BandwidthUpMbps)
+	require.NotNil(t, response.BandwidthDownMbps)
+	require.NotNil(t, response.BandwidthSeries)
+	assert.InDelta(t, 4.627, *response.CPUPercent, 0.0001)
+	assert.InDelta(t, 1.25, *response.BandwidthUpMbps, 0.0001)
+	assert.InDelta(t, 6.5, *response.BandwidthDownMbps, 0.0001)
+	assert.Equal(t, []float64{0, 1.25}, response.BandwidthSeries.Up)
+	assert.Equal(t, []float64{0, 6.5}, response.BandwidthSeries.Down)
+	assert.Equal(t, &successRate, response.APISuccessRate)
+}
+
 func TestNextAdminDashboardRoutesExposeOnlyPersistedMetrics(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.Channel{}))

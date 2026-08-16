@@ -271,9 +271,13 @@ func NextGetDashboardDistribution(c *gin.Context) {
 }
 
 func NextGetDashboardSystemStatus(c *gin.Context) {
-	status := common.GetSystemStatus()
+	response := buildNextDashboardSystemStatus(common.GetSystemStatus(), common.GetRequestSuccessRate())
+	common.ApiSuccess(c, response)
+}
+
+func buildNextDashboardSystemStatus(status common.SystemStatus, successRate *float64) nextDashboardSystemStatus {
 	response := nextDashboardSystemStatus{
-		APISuccessRate: common.GetRequestSuccessRate(),
+		APISuccessRate: successRate,
 	}
 	if status.CPUAvailable {
 		response.CPUPercent = float64Pointer(status.CPUUsage)
@@ -294,7 +298,7 @@ func NextGetDashboardSystemStatus(c *gin.Context) {
 			Down: append([]float64(nil), status.Network.DownSeries...),
 		}
 	}
-	common.ApiSuccess(c, response)
+	return response
 }
 
 func float64Pointer(value float64) *float64 {

@@ -1,72 +1,80 @@
 package common
 
 import (
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
-	"strings"
-	"sync"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestSampleNetworkBandwidthQueriesPrometheusAndBuildsSeries(t *testing.T) {
-	var queries []string
-	var queriesMu sync.Mutex
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Header.Get("Authorization") != "Bearer test-token" {
-			http.Error(writer, "missing auth", http.StatusUnauthorized)
-			return
-		}
-		query, _ := url.QueryUnescape(request.URL.Query().Get("query"))
-		queriesMu.Lock()
-		queries = append(queries, query)
-		queriesMu.Unlock()
-		value := "2.5"
-		if strings.Contains(query, "receive") {
-			value = "12.5"
-		}
-		fmt.Fprintf(writer, `{"status":"success","data":{"resultType":"vector","result":[{"value":["0","%s"]}]}}`, value)
-	}))
-	defer server.Close()
-	t.Setenv("PROMETHEUS_URL", server.URL)
-	t.Setenv("PROMETHEUS_INSTANCE", "node-exporter:9100")
-	t.Setenv("PROMETHEUS_BEARER_TOKEN", "test-token")
-	t.Setenv("PROMETHEUS_NETWORK_DEVICE", "bond0")
-
-	bandwidth := SampleNetworkBandwidth()
-	if !bandwidth.Available || bandwidth.UpMbps != 2.5 || bandwidth.DownMbps != 12.5 {
-		t.Fatalf("unexpected bandwidth sample: %+v", bandwidth)
-	}
-	if len(bandwidth.UpSeries) != 1 || len(bandwidth.DownSeries) != 1 {
-		t.Fatalf("expected one sample in each series: %+v", bandwidth)
-	}
-	if len(queries) != 2 || !strings.Contains(queries[0], `device=~"bond0"`) {
-		t.Fatalf("unexpected Prometheus queries: %v", queries)
-	}
+func resetApplicationTrafficForTest() {
+	applicationTraffic.requestBytes.Store(0)
+	applicationTraffic.responseBytes.Store(0)
+	ResetNetworkBandwidthSampler()
 }
 
-func TestQueryPrometheusRejectsInvalidBandwidthValues(t *testing.T) {
-	testCases := []struct {
-		name  string
-		value string
-	}{
-		{name: "NaN", value: `"NaN"`},
-		{name: "+Inf", value: `"+Inf"`},
-		{name: "-Inf", value: `"-Inf"`},
-		{name: "negative", value: `"-1"`},
-		{name: "null", value: "null"},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				fmt.Fprintf(writer, `{"status":"success","data":{"resultType":"vector","result":[{"value":["0",%s]}]}}`, testCase.value)
-			}))
-			defer server.Close()
+func TestSampleNetworkBandwidthUsesApplicationTraffic(t *testing.T) {
+	resetApplicationTrafficForTest()
+	t.Cleanup(resetApplicationTrafficForTest)
 
-			if got, ok := queryPrometheus(server.URL, "test"); ok {
-				t.Fatalf("expected invalid value %q to be rejected, got %v", testCase.name, got)
-			}
-		})
+	start := time.Unix(100, 0)
+	require.False(t, sampleNetworkBandwidthCounters(start, 0, 0).Available)
+
+	got := sampleNetworkBandwidthCounters(start.Add(5*time.Second), 1_250_000, 6_250_000)
+	require.True(t, got.Available)
+	assert.Equal(t, float64(2), got.UpMbps)
+	assert.Equal(t, float64(10), got.DownMbps)
+	assert.Len(t, got.UpSeries, 1)
+	assert.Len(t, got.DownSeries, 1)
+
+	zero := sampleNetworkBandwidthCounters(start.Add(10*time.Second), 1_250_000, 6_250_000)
+	require.True(t, zero.Available)
+	assert.Zero(t, zero.UpMbps)
+	assert.Zero(t, zero.DownMbps)
+}
+
+func TestSampleNetworkBandwidthResetsOnRollbackAndRecovery(t *testing.T) {
+	resetApplicationTrafficForTest()
+	t.Cleanup(resetApplicationTrafficForTest)
+
+	start := time.Unix(200, 0)
+	require.False(t, sampleNetworkBandwidthCounters(start, 100, 200).Available)
+	require.True(t, sampleNetworkBandwidthCounters(start.Add(time.Second), 200, 400).Available)
+	require.False(t, sampleNetworkBandwidthCounters(start.Add(2*time.Second), 50, 100).Available)
+	require.True(t, sampleNetworkBandwidthCounters(start.Add(3*time.Second), 150, 300).Available)
+
+	ResetNetworkBandwidthSampler()
+	require.False(t, sampleNetworkBandwidthCounters(start.Add(4*time.Second), 200, 400).Available)
+	require.True(t, sampleNetworkBandwidthCounters(start.Add(5*time.Second), 300, 600).Available)
+}
+
+func TestSampleNetworkBandwidthRejectsInvalidElapsedTime(t *testing.T) {
+	resetApplicationTrafficForTest()
+	t.Cleanup(resetApplicationTrafficForTest)
+
+	start := time.Unix(300, 0)
+	require.False(t, sampleNetworkBandwidthCounters(start, 100, 200).Available)
+	require.False(t, sampleNetworkBandwidthCounters(start, 200, 400).Available)
+	require.True(t, sampleNetworkBandwidthCounters(start.Add(time.Second), 300, 600).Available)
+}
+
+func TestSampleNetworkBandwidthKeepsTwelveHistoryPoints(t *testing.T) {
+	resetApplicationTrafficForTest()
+	t.Cleanup(resetApplicationTrafficForTest)
+
+	start := time.Unix(400, 0)
+	require.False(t, sampleNetworkBandwidthCounters(start, 0, 0).Available)
+	var got NetworkBandwidth
+	for i := 1; i <= networkSeriesLength+2; i++ {
+		got = sampleNetworkBandwidthCounters(
+			start.Add(time.Duration(i)*time.Second),
+			uint64(i*1000),
+			uint64(i*2000),
+		)
 	}
+	assert.Len(t, got.UpSeries, networkSeriesLength)
+	assert.Len(t, got.DownSeries, networkSeriesLength)
+	assert.Equal(t, bytesPerSecondToMbps(1000), got.UpSeries[len(got.UpSeries)-1])
+	assert.Equal(t, bytesPerSecondToMbps(2000), got.DownSeries[len(got.DownSeries)-1])
 }

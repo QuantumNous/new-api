@@ -4,6 +4,7 @@ import (
 	"math"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,6 +24,27 @@ var requestMetrics = struct {
 	sync.Mutex
 	buckets [requestMetricsBuckets]requestMetricsBucketState
 }{}
+
+var applicationTraffic struct {
+	requestBytes  atomic.Uint64
+	responseBytes atomic.Uint64
+}
+
+func ObserveApplicationRequestBytes(n int) {
+	if n > 0 {
+		applicationTraffic.requestBytes.Add(uint64(n))
+	}
+}
+
+func ObserveApplicationResponseBytes(n int) {
+	if n > 0 {
+		applicationTraffic.responseBytes.Add(uint64(n))
+	}
+}
+
+func ApplicationTrafficSnapshot() (requestBytes, responseBytes uint64) {
+	return applicationTraffic.requestBytes.Load(), applicationTraffic.responseBytes.Load()
+}
 
 func ObserveRequest(status int) {
 	ObserveRequestOutcome(status >= http.StatusOK && status < http.StatusBadRequest)

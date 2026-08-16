@@ -8,11 +8,12 @@ import type { SystemMetrics } from '@/composables/useDashboard'
 
 beforeAll(async () => {
   await loadMessageDomain('console')
-  setLocale('en')
+  await setLocale('en')
 })
 
-beforeEach(() => {
+beforeEach(async () => {
   setActivePinia(createPinia())
+  await setLocale('en')
 })
 
 function metrics(): SystemMetrics {
@@ -158,5 +159,41 @@ describe('SystemStatusCard', () => {
     expect(text).toContain('5.2 / 16')
     expect(text).toContain('218 / 512')
     expect(text).toContain('99.7')
+    expect(text).toContain('App traffic')
+  })
+
+  it('rounds CPU and app traffic values without truncating them', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: {
+        metrics: {
+          ...metrics(),
+          cpu_percent: 4.627766599,
+          bandwidth_up_mbps: 1.249,
+          bandwidth_down_mbps: 6.555,
+        },
+      },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    const cpuValue = wrapper.findAll('.grid > .min-w-0')[0]!.find('.mt-1 span')
+    expect(wrapper.text()).toContain('4.6%')
+    expect(wrapper.text()).toContain('↑1.2 ↓6.6')
+    expect(wrapper.text()).not.toContain('4.627766599')
+    expect(cpuValue.classes()).toContain('whitespace-nowrap')
+    expect(cpuValue.classes()).not.toContain('truncate')
+  })
+
+  it('uses the Chinese app traffic label', async () => {
+    await setLocale('zh-CN')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: { metrics: metrics() },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    expect(wrapper.text()).toContain('应用流量')
   })
 })

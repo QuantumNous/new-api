@@ -29,5 +29,9 @@ func GetPerformanceMonitorConfig() PerformanceMonitorConfig {
 
 // SetPerformanceMonitorConfig 设置性能监控配置
 func SetPerformanceMonitorConfig(config PerformanceMonitorConfig) {
+	previous := GetPerformanceMonitorConfig()
 	performanceMonitorConfig.Store(config)
+	if previous.Enabled != config.Enabled {
+		resetSystemMonitorState()
+	}
 }

@@ -48,6 +48,7 @@ func startHostSystemMonitor() {
 	for {
 		config := GetPerformanceMonitorConfig()
 		if !config.Enabled {
+			latestSystemStatus.Store(SystemStatus{})
 			time.Sleep(30 * time.Second)
 			continue
 		}
@@ -61,6 +62,8 @@ func startNetworkSystemMonitor() {
 	for {
 		config := GetPerformanceMonitorConfig()
 		if !config.Enabled {
+			ResetNetworkBandwidthSampler()
+			latestNetworkBandwidth.Store(NetworkBandwidth{})
 			time.Sleep(30 * time.Second)
 			continue
 		}
@@ -97,7 +100,16 @@ func updateSystemStatus() {
 }
 
 func GetSystemStatus() SystemStatus {
+	if !GetPerformanceMonitorConfig().Enabled {
+		return SystemStatus{}
+	}
 	status := latestSystemStatus.Load().(SystemStatus)
 	status.Network = latestNetworkBandwidth.Load().(NetworkBandwidth)
 	return status
+}
+
+func resetSystemMonitorState() {
+	latestSystemStatus.Store(SystemStatus{})
+	latestNetworkBandwidth.Store(NetworkBandwidth{})
+	ResetNetworkBandwidthSampler()
 }

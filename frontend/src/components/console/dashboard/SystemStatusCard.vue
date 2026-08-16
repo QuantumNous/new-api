@@ -73,6 +73,12 @@ function rateColor(percent: number | null): string {
   return 'var(--status-danger)'
 }
 
+function formatMetric(value: number): string {
+  if (!Number.isFinite(value)) return '--'
+  const rounded = Math.round(value * 10) / 10
+  return String(Object.is(rounded, -0) ? 0 : rounded)
+}
+
 interface MetricTile {
   key: string
   label: string
@@ -113,7 +119,7 @@ const tiles = computed<MetricTile[]>(() => {
       icon: 'M4 4h16v16H4zM9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3M9 9h6v6H9z',
       value:
         m?.cpu_percent !== null && m?.cpu_percent !== undefined
-          ? String(m.cpu_percent)
+          ? formatMetric(m.cpu_percent)
           : dash,
       unit: m?.cpu_percent !== null && m?.cpu_percent !== undefined ? '%' : '',
       percent: m?.cpu_percent ?? null,
@@ -149,7 +155,7 @@ const tiles = computed<MetricTile[]>(() => {
         m?.bandwidth_up_mbps !== undefined &&
         m?.bandwidth_down_mbps !== null &&
         m?.bandwidth_down_mbps !== undefined
-          ? `↑${m.bandwidth_up_mbps} ↓${m.bandwidth_down_mbps}`
+          ? `↑${formatMetric(m.bandwidth_up_mbps)} ↓${formatMetric(m.bandwidth_down_mbps)}`
           : dash,
       unit:
         m?.bandwidth_up_mbps !== null &&
@@ -195,7 +201,11 @@ const successColor = computed(() => rateColor(successRate.value))
 </script>
 
 <template>
-  <ConsoleCard :title="t('dashboard.systemStatus.title')" stretch>
+  <ConsoleCard
+    :title="t('dashboard.systemStatus.title')"
+    data-system-status-card
+    stretch
+  >
     <!-- Success rate reads out as a ring in the header, not as a tile -->
     <template #action>
       <div class="flex items-center gap-2">
@@ -291,14 +301,14 @@ const successColor = computed(() => rateColor(successRate.value))
         </p>
         <p class="mt-1 flex items-baseline gap-1 pb-2">
           <span
-            class="truncate text-base font-bold leading-tight tabular-nums tracking-tight"
+            class="shrink-0 whitespace-nowrap text-base font-bold leading-tight tabular-nums tracking-tight"
             :style="{ color: tile.color }"
           >
             {{ tile.value }}
           </span>
           <span
             v-if="tile.unit"
-            class="text-[10px] text-[var(--text-tertiary)]"
+            class="shrink-0 whitespace-nowrap text-[10px] text-[var(--text-tertiary)]"
           >
             {{ tile.unit }}
           </span>
