@@ -61,7 +61,7 @@ function CellHarness(props: {
 }
 
 describe('API key group table cell', () => {
-  test('renders an unclipped ring and a localized Auto ratio when API data uses a nonlocalized string', () => {
+  test('renders two unclipped rings and a localized Auto ratio when API data uses a nonlocalized string', () => {
     const { container } = render(
       <CellHarness
         group='auto'
@@ -81,8 +81,8 @@ describe('API key group table cell', () => {
     const movingRings = container.querySelectorAll(
       '[data-auto-group-flow-border]'
     )
-    expect(frames.length).toBe(1)
-    expect(movingRings.length).toBe(1)
+    expect(frames.length).toBe(2)
+    expect(movingRings.length).toBe(2)
     for (const frame of frames) {
       expect(frame).toHaveClass(
         'relative',
@@ -107,31 +107,30 @@ describe('API key group table cell', () => {
     expect(crossGroupBadge?.closest('[data-auto-group-frame]')).toBeNull()
   })
 
-  test('keeps the static Auto ratio frame but omits its moving layer for reduced motion', () => {
+  test('keeps static Auto frames but omits both moving layers for reduced motion', () => {
     const { container } = render(
       <CellHarness group='auto' ratio='Auto' shouldReduceMotion />
     )
 
-    expect(container.querySelectorAll('[data-auto-group-frame]').length).toBe(1)
+    expect(container.querySelectorAll('[data-auto-group-frame]').length).toBe(2)
     expect(
       container.querySelectorAll('[data-auto-group-flow-border]').length
     ).toBe(0)
   })
 
-  test('shows only the cross-group badge when ratio data is unavailable', () => {
+  test('shows only the Auto badge when ratio data is unavailable', () => {
     const { container } = render(
       <CellHarness group='auto' shouldReduceMotion={false} />
     )
 
-    expect(container.querySelectorAll('[data-auto-group-frame]').length).toBe(0)
+    expect(container.querySelectorAll('[data-auto-group-frame]').length).toBe(1)
     expect(
       container.querySelectorAll('[data-auto-group-flow-border]').length
-    ).toBe(0)
+    ).toBe(1)
     expect(container.querySelector('[data-auto-group-effect="ratio"]')).toBe(
       null
     )
-    expect(container).toHaveTextContent('Cross-group')
-    expect(container).not.toHaveTextContent('Auto')
+    expect(container).toHaveTextContent('Auto')
     expect(container).not.toHaveTextContent('Ratio')
   })
 
