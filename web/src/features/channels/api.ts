@@ -160,7 +160,11 @@ export async function updateChannelStatus(
 export async function batchUpdateChannelStatus(
   ids: number[],
   status: number
-): Promise<{ success: boolean; message?: string; data?: number }> {
+): Promise<{
+  success: boolean
+  message?: string
+  data?: number | { changed: number; failed_ids: number[] }
+}> {
   const res = await api.post(
     '/api/channel/status/batch',
     { ids, status },

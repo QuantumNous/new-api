@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -372,6 +373,10 @@ func UpdateOption(c *gin.Context) {
 	recordManageAudit(c, "option.update", map[string]interface{}{
 		"key": option.Key,
 	})
+	if err := service.MaybeSyncModelChannelAvailabilityAfterOptionChange(option.Key, option.Value.(string)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

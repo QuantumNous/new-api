@@ -77,10 +77,13 @@ var auditRouteActions = map[string]string{
 	"DELETE /api/vendors/:id": "vendor.delete",
 
 	// 模型元数据
-	"POST /api/models/":              "model.create",
-	"PUT /api/models/":               "model.update",
-	"DELETE /api/models/:id":         "model.delete",
-	"POST /api/models/sync_upstream": "model.sync_upstream",
+	"POST /api/models/":                           "model.create",
+	"PUT /api/models/":                            "model.update",
+	"DELETE /api/models/:id":                      "model.delete",
+	"POST /api/models/sync_upstream":              "model.sync_upstream",
+	"POST /api/models/batch_status":               "model.batch_status_update",
+	"POST /api/models/batch_disable_no_channels":  "model.batch_disable_no_channels",
+	"POST /api/models/batch_enable_with_channels": "model.batch_enable_with_channels",
 
 	// 部署
 	"POST /api/deployments/":      "deployment.create",

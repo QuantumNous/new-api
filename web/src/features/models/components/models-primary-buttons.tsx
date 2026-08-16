@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
   MoreHorizontal,
@@ -23,9 +24,13 @@ import {
   List,
   Building2,
   AlertCircle,
+  PowerOff,
+  Power,
 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -36,11 +41,27 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+import {
+  handleBatchDisableModelsNoChannels,
+  handleBatchEnableModelsWithChannels,
+} from '../lib/model-actions'
 import { useModels } from './models-provider'
+
+type ConfirmAction = 'disable-no-channels' | 'enable-with-channels'
+
+type ConfirmDialogConfig = {
+  title: string
+  description: string
+  confirmLabel: string
+  variant: 'default' | 'destructive'
+}
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
+  const queryClient = useQueryClient()
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
+  const [confirming, setConfirming] = useState(false)
 
   const handleCreateModel = () => {
     setCurrentRow(null)
@@ -63,6 +84,43 @@ export function ModelsPrimaryButtons() {
     setOpen('create-vendor') // Will be a separate vendors management dialog
   }
 
+  let confirmDialog: ConfirmDialogConfig | null = null
+  if (confirmAction === 'disable-no-channels') {
+    confirmDialog = {
+      title: t('Disable Models with No Channels?'),
+      description: t(
+        'This will disable all currently enabled models that have no available channels. Continue?'
+      ),
+      confirmLabel: t('Disable'),
+      variant: 'destructive',
+    }
+  } else if (confirmAction === 'enable-with-channels') {
+    confirmDialog = {
+      title: t('Enable Models with Recovered Channels?'),
+      description: t(
+        'This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?'
+      ),
+      confirmLabel: t('Enable'),
+      variant: 'default',
+    }
+  }
+
+  const handleConfirm = async () => {
+    if (!confirmAction || confirming) return
+    setConfirming(true)
+    try {
+      let succeeded = false
+      if (confirmAction === 'disable-no-channels') {
+        succeeded = await handleBatchDisableModelsNoChannels(queryClient)
+      } else {
+        succeeded = await handleBatchEnableModelsWithChannels(queryClient)
+      }
+      if (succeeded) setConfirmAction(null)
+    } finally {
+      setConfirming(false)
+    }
+  }
+
   return (
     <div className='flex items-center gap-2'>
       {/* Create Model */}
@@ -76,7 +134,7 @@ export function ModelsPrimaryButtons() {
         <DropdownMenuTrigger render={<Button variant='outline' size='sm' />}>
           <MoreHorizontal className='h-4 w-4' />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align='end' className='w-56'>
+        <DropdownMenuContent align='end' className='w-64'>
           <DropdownMenuItem onClick={handleMissingModels}>
             {t('Missing Models')}
             <DropdownMenuShortcut>
@@ -106,8 +164,58 @@ export function ModelsPrimaryButtons() {
               <Building2 className='h-4 w-4' />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onClick={() => setConfirmAction('disable-no-channels')}
+          >
+            {t('Batch Disable Models with No Channels')}
+            <DropdownMenuShortcut>
+              <PowerOff className='h-4 w-4' />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={() => setConfirmAction('enable-with-channels')}
+          >
+            {t('Batch Enable Models with Recovered Channels')}
+            <DropdownMenuShortcut>
+              <Power className='h-4 w-4' />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open && !confirming) setConfirmAction(null)
+        }}
+        title={confirmDialog?.title ?? ''}
+        description={confirmDialog?.description}
+        contentHeight='auto'
+        footer={
+          <>
+            <Button
+              variant='outline'
+              disabled={confirming}
+              onClick={() => setConfirmAction(null)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              variant={confirmDialog?.variant ?? 'default'}
+              disabled={confirming}
+              onClick={handleConfirm}
+            >
+              {confirmDialog?.confirmLabel ?? t('Confirm')}
+            </Button>
+          </>
+        }
+      >
+        {' '}
+      </Dialog>
     </div>
   )
 }

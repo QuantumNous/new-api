@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -349,6 +351,256 @@ func TestFailedAdvancedCustomDetectionDoesNotStageFullRemoval(t *testing.T) {
 	require.Empty(t, persistedSettings.UpstreamModelUpdateLastDetectedModels)
 	require.Empty(t, persistedSettings.UpstreamModelUpdateLastRemovedModels)
 	require.Equal(t, "gpt-4.1,o3", reloaded.Models)
+}
+
+func TestUpdateChannelUpstreamModelSettingsUsesPersistedChannelStateForAbilities(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	priority := int64(3)
+	weight := uint(7)
+	persisted := &model.Channel{
+		Name:     "disabled upstream sync channel",
+		Type:     constant.ChannelTypeOpenAI,
+		Key:      "secret-key",
+		Status:   common.ChannelStatusManuallyDisabled,
+		Models:   "old-model",
+		Group:    "default",
+		Priority: &priority,
+		Weight:   &weight,
+	}
+	require.NoError(t, db.Create(persisted).Error)
+	require.NoError(t, persisted.UpdateAbilities(nil))
+
+	stale := *persisted
+	stale.Status = common.ChannelStatusEnabled
+
+	require.NoError(t, updateChannelUpstreamModelSettings(&stale, func(current *model.Channel, settings *dto.ChannelOtherSettings) error {
+		current.Models = "new-model"
+		settings.UpstreamModelUpdateLastCheckTime = 123
+		return nil
+	}))
+
+	var abilities []model.Ability
+	require.NoError(t, db.Where("channel_id = ?", persisted.Id).Find(&abilities).Error)
+	require.Len(t, abilities, 1)
+	assert.Equal(t, "new-model", abilities[0].Model)
+	assert.False(t, abilities[0].Enabled)
+
+	reloaded, err := model.GetChannelById(persisted.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusManuallyDisabled, reloaded.Status)
+}
+
+func TestApplyChannelUpstreamModelUpdatesPreservesConcurrentChannelEdits(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	priority := int64(3)
+	weight := uint(7)
+	persisted := &model.Channel{
+		Name:     "concurrently edited upstream channel",
+		Type:     constant.ChannelTypeOpenAI,
+		Key:      "secret-key",
+		Status:   common.ChannelStatusEnabled,
+		Models:   "old-model,remove-model",
+		Group:    "default",
+		Priority: &priority,
+		Weight:   &weight,
+	}
+	persisted.SetOtherSettings(dto.ChannelOtherSettings{
+		UpstreamModelUpdateLastDetectedModels: []string{"new-model", "ignored-model"},
+		UpstreamModelUpdateLastRemovedModels:  []string{"remove-model"},
+		UpstreamModelUpdateIgnoredModels:      []string{"existing-ignore"},
+	})
+	require.NoError(t, db.Create(persisted).Error)
+	require.NoError(t, persisted.UpdateAbilities(nil))
+
+	stale := *persisted
+	latestSettings := persisted.GetOtherSettings()
+	latestSettings.AllowServiceTier = true
+	persisted.SetOtherSettings(latestSettings)
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", persisted.Id).Updates(map[string]interface{}{
+		"models":   "old-model,manual-model,remove-model",
+		"settings": persisted.OtherSettings,
+	}).Error)
+
+	added, removed, ignored, remaining, remainingRemoved, changed, err := applyChannelUpstreamModelUpdates(
+		&stale,
+		[]string{"new-model"},
+		[]string{"ignored-model"},
+		[]string{"remove-model"},
+	)
+	require.NoError(t, err)
+	assert.True(t, changed)
+	assert.Equal(t, []string{"new-model"}, added)
+	assert.Equal(t, []string{"remove-model"}, removed)
+	assert.Equal(t, []string{"ignored-model"}, ignored)
+	assert.Empty(t, remaining)
+	assert.Empty(t, remainingRemoved)
+	assert.Equal(t, "old-model,manual-model,new-model", stale.Models)
+
+	reloaded, err := model.GetChannelById(persisted.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "old-model,manual-model,new-model", reloaded.Models)
+	reloadedSettings := reloaded.GetOtherSettings()
+	assert.True(t, reloadedSettings.AllowServiceTier)
+	assert.Equal(t, []string{"existing-ignore", "ignored-model"}, reloadedSettings.UpstreamModelUpdateIgnoredModels)
+	assert.Empty(t, reloadedSettings.UpstreamModelUpdateLastDetectedModels)
+	assert.Empty(t, reloadedSettings.UpstreamModelUpdateLastRemovedModels)
+
+	var abilities []model.Ability
+	require.NoError(t, db.Where("channel_id = ?", persisted.Id).Order("model ASC").Find(&abilities).Error)
+	require.Len(t, abilities, 3)
+	assert.Equal(t, []string{"manual-model", "new-model", "old-model"}, []string{
+		abilities[0].Model,
+		abilities[1].Model,
+		abilities[2].Model,
+	})
+}
+
+func TestCheckAndPersistChannelUpstreamModelUpdatesPreservesConcurrentChannelEdits(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[{"id":"old-model"},{"id":"manual-model"},{"id":"new-model"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	channel := newAdvancedCustomModelListChannel(server.URL, "secret-key", "/v1/models", nil)
+	channel.Name = "concurrently edited detection channel"
+	channel.Status = common.ChannelStatusEnabled
+	channel.Models = "old-model"
+	channel.Group = "default"
+	settings := channel.GetOtherSettings()
+	settings.UpstreamModelUpdateCheckEnabled = true
+	settings.UpstreamModelUpdateAutoSyncEnabled = true
+	channel.SetOtherSettings(settings)
+	require.NoError(t, db.Create(channel).Error)
+	require.NoError(t, channel.UpdateAbilities(nil))
+
+	stale := *channel
+	staleSettings := stale.GetOtherSettings()
+	latestSettings := channel.GetOtherSettings()
+	latestSettings.AllowServiceTier = true
+	latestSettings.UpstreamModelUpdateIgnoredModels = []string{"preserved-ignore"}
+	channel.SetOtherSettings(latestSettings)
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(map[string]interface{}{
+		"models":   "old-model,manual-model",
+		"settings": channel.OtherSettings,
+	}).Error)
+
+	modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(&stale, &staleSettings, true, true)
+	require.NoError(t, err)
+	assert.True(t, modelsChanged)
+	assert.Equal(t, 1, autoAdded)
+	assert.Equal(t, "old-model,manual-model,new-model", stale.Models)
+	assert.True(t, staleSettings.AllowServiceTier)
+	assert.Equal(t, []string{"preserved-ignore"}, staleSettings.UpstreamModelUpdateIgnoredModels)
+
+	reloaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "old-model,manual-model,new-model", reloaded.Models)
+	assert.True(t, reloaded.GetOtherSettings().AllowServiceTier)
+}
+
+func TestCheckAndPersistChannelUpstreamModelUpdatesSkipsStaleFetchConfig(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	requestStarted := make(chan struct{})
+	releaseResponse := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() { releaseOnce.Do(func() { close(releaseResponse) }) })
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(requestStarted)
+		<-releaseResponse
+		_, _ = w.Write([]byte(`{"data":[{"id":"old-model"},{"id":"stale-model"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	channel := newAdvancedCustomModelListChannel(server.URL, "secret-key", "/v1/models", nil)
+	channel.Name = "stale fetch configuration channel"
+	channel.Status = common.ChannelStatusEnabled
+	channel.Models = "old-model"
+	channel.Group = "default"
+	settings := channel.GetOtherSettings()
+	settings.UpstreamModelUpdateCheckEnabled = true
+	settings.UpstreamModelUpdateAutoSyncEnabled = true
+	channel.SetOtherSettings(settings)
+	require.NoError(t, db.Create(channel).Error)
+	require.NoError(t, channel.UpdateAbilities(nil))
+
+	type checkResult struct {
+		modelsChanged bool
+		autoAdded     int
+		err           error
+	}
+	resultCh := make(chan checkResult, 1)
+	go func() {
+		modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, true)
+		resultCh <- checkResult{modelsChanged: modelsChanged, autoAdded: autoAdded, err: err}
+	}()
+
+	select {
+	case <-requestStarted:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out waiting for upstream model request")
+	}
+	newBaseURL := "http://new-upstream.invalid"
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", channel.Id).Update("base_url", newBaseURL).Error)
+	releaseOnce.Do(func() { close(releaseResponse) })
+
+	var result checkResult
+	select {
+	case result = <-resultCh:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out waiting for stale fetch handling")
+	}
+	require.NoError(t, result.err)
+	assert.False(t, result.modelsChanged)
+	assert.Zero(t, result.autoAdded)
+
+	reloaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, newBaseURL, reloaded.GetBaseURL())
+	assert.Equal(t, "old-model", reloaded.Models)
+	assert.Empty(t, reloaded.GetOtherSettings().UpstreamModelUpdateLastDetectedModels)
+}
+
+func TestRefreshChannelRuntimeCacheInvalidatesPricingWithoutMemoryCache(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	originalMemoryCacheEnabled := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	model.InvalidatePricingCache()
+	t.Cleanup(func() {
+		common.MemoryCacheEnabled = originalMemoryCacheEnabled
+		model.InvalidatePricingCache()
+	})
+
+	channel := &model.Channel{
+		Name:   "pricing invalidation channel",
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "secret-key",
+		Status: common.ChannelStatusEnabled,
+		Models: "old-pricing-model",
+		Group:  "default",
+	}
+	require.NoError(t, db.Create(channel).Error)
+	require.NoError(t, channel.UpdateAbilities(nil))
+
+	containsModel := func(pricing []model.Pricing, name string) bool {
+		for _, item := range pricing {
+			if item.ModelName == name {
+				return true
+			}
+		}
+		return false
+	}
+	require.True(t, containsModel(model.GetPricing(), "old-pricing-model"))
+	require.NoError(t, db.Model(&model.Ability{}).
+		Where("channel_id = ?", channel.Id).
+		Update("model", "new-pricing-model").Error)
+	require.True(t, containsModel(model.GetPricing(), "old-pricing-model"))
+
+	refreshChannelRuntimeCache()
+
+	pricing := model.GetPricing()
+	assert.True(t, containsModel(pricing, "new-pricing-model"))
+	assert.False(t, containsModel(pricing, "old-pricing-model"))
 }
 
 func TestFetchModelsUsesSharedChannelFetchBehavior(t *testing.T) {

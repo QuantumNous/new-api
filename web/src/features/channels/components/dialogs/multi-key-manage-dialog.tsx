@@ -54,11 +54,11 @@ import {
 } from '../../api'
 import { MULTI_KEY_FILTER_OPTIONS } from '../../constants'
 import {
-  channelsQueryKeys,
   formatTimestamp,
   getMultiKeyStatusConfig,
   getMultiKeyConfirmMessage,
   isDestructiveAction,
+  invalidateChannelMutationQueries,
 } from '../../lib'
 import type { KeyStatus, MultiKeyConfirmAction } from '../../types'
 import { useChannels } from '../channels-provider'
@@ -149,7 +149,7 @@ export function MultiKeyManageDialog({
   }
 
   const handleStatusFilterChange = (value: string) => {
-    const newFilter = value === 'all' ? null : parseInt(value)
+    const newFilter = value === 'all' ? null : Number.parseInt(value)
     setStatusFilter(newFilter)
     setCurrentPage(1)
     loadKeyStatus(1, pageSize, newFilter)
@@ -193,7 +193,7 @@ export function MultiKeyManageDialog({
 
       if (response?.success) {
         toast.success(response.message || t('Operation successful'))
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        void invalidateChannelMutationQueries(queryClient)
 
         // Reload data - reset to page 1 for bulk actions
         const isBulkAction = type.includes('all') || type === 'delete-disabled'
@@ -294,12 +294,10 @@ export function MultiKeyManageDialog({
           {/* Toolbar */}
           <div className='flex shrink-0 items-center justify-between'>
             <Select
-              items={[
-                ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.label),
-                })),
-              ]}
+              items={MULTI_KEY_FILTER_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.label),
+              }))}
               value={statusFilter === null ? 'all' : statusFilter.toString()}
               onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
             >
@@ -382,11 +380,13 @@ export function MultiKeyManageDialog({
               <div className='flex items-center justify-center py-12'>
                 <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
               </div>
-            ) : keys.length === 0 ? (
+            ) : null}
+            {!isLoading && keys.length === 0 ? (
               <div className='text-muted-foreground py-12 text-center'>
                 {t('No keys found')}
               </div>
-            ) : (
+            ) : null}
+            {!isLoading && keys.length > 0 ? (
               <StaticDataTable
                 className='rounded-none border-0'
                 tableClassName='min-w-[800px]'
@@ -435,7 +435,7 @@ export function MultiKeyManageDialog({
                   },
                 ]}
               />
-            )}
+            ) : null}
           </div>
 
           {/* Pagination */}

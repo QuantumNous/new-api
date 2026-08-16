@@ -46,7 +46,7 @@ import {
   getAllModels,
   getGroups,
 } from '../../api'
-import { channelsQueryKeys } from '../../lib'
+import { invalidateChannelMutationQueries } from '../../lib'
 import type { TagOperationParams } from '../../types'
 import { useChannels } from '../channels-provider'
 
@@ -196,7 +196,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
       if (response.success) {
         toast.success(t('Tag updated successfully'))
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        void invalidateChannelMutationQueries(queryClient)
         onOpenChange(false)
       } else {
         toast.error(response.message || t('Failed to update tag'))
@@ -304,12 +304,10 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
 
                 <div className='flex gap-2'>
                   <Select<string>
-                    items={[
-                      ...availableModels.map((model) => ({
-                        value: model,
-                        label: model,
-                      })),
-                    ]}
+                    items={availableModels.map((model) => ({
+                      value: model,
+                      label: model,
+                    }))}
                     onValueChange={(value) => {
                       if (value === null) return
                       if (!selectedModels.includes(value)) {

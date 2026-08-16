@@ -106,7 +106,7 @@ export function SyncWizardDialog({
         toast.success(
           `Sync completed! Created ${created_models || 0} models, updated ${updated_models || 0}, and added ${created_vendors || 0} vendors.`
         )
-        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all })
         queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
         onOpenChange(false)
       } else {

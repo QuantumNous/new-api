@@ -19,8 +19,8 @@ import (
 	"gorm.io/gorm"
 )
 
-var commonGroupCol string
-var commonKeyCol string
+var commonGroupCol = "`group`"
+var commonKeyCol = "`key`"
 var commonTrueVal string
 var commonFalseVal string
 

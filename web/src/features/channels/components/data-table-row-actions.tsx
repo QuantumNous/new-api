@@ -61,10 +61,10 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { MODEL_FETCHABLE_TYPES } from '../constants'
 import {
-  channelsQueryKeys,
   handleDeleteChannel,
   handleTestChannel,
   handleToggleChannelStatus,
+  invalidateChannelMutationQueries,
   isChannelEnabled,
   isMultiKeyChannel,
 } from '../lib'
@@ -111,7 +111,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     setIsTesting(true)
     try {
       await handleTestChannel(channel.id, { channelName: channel.name }, () => {
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        void invalidateChannelMutationQueries(queryClient)
       })
     } finally {
       setIsTesting(false)

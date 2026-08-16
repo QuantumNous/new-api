@@ -155,6 +155,7 @@ import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   channelFormSchema,
   channelsQueryKeys,
+  invalidateChannelMutationQueries,
   getAdvancedCustomStats,
   transformChannelToFormDefaults,
   type ChannelFormValues,
@@ -1555,7 +1556,7 @@ export function ChannelMutateDrawer({
 
   // Handle successful submission
   const handleSuccess = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+    void invalidateChannelMutationQueries(queryClient)
     if (channelId) {
       queryClient.invalidateQueries({
         queryKey: channelsQueryKeys.detail(channelId),
