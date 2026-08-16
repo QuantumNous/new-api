@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { AuthBundle } from '@/stores/auth-store'
 
+import type { CaptchaPayload } from '@/lib/captcha'
+
 // ============================================================================
 // API Payloads
 // ============================================================================
@@ -25,7 +27,7 @@ import type { AuthBundle } from '@/stores/auth-store'
 export interface LoginPayload {
   username: string
   password: string
-  turnstile?: string
+  captcha?: CaptchaPayload
 }
 
 export interface TwoFAPayload {
@@ -39,17 +41,17 @@ export interface RegisterPayload {
   email?: string
   verification_code?: string
   aff_code?: string
-  turnstile?: string
+  captcha?: CaptchaPayload
 }
 
 export interface PasswordResetPayload {
   email: string
-  turnstile?: string
+  captcha?: CaptchaPayload
 }
 
 export interface EmailVerificationPayload {
   email: string
-  turnstile?: string
+  captcha?: CaptchaPayload
 }
 
 export interface BindEmailPayload {
@@ -118,6 +120,10 @@ export interface SystemStatus {
     WeChatAccountQRCodeImageURL?: string
     turnstile_check?: boolean
     turnstile_site_key?: string
+    geetest_check?: boolean
+    geetest_captcha_id?: string
+    corptcha_check?: boolean
+    corptcha_site_id?: string
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -163,6 +169,10 @@ export interface SystemStatus {
   WeChatAccountQRCodeImageURL?: string
   turnstile_check?: boolean
   turnstile_site_key?: string
+  geetest_check?: boolean
+  geetest_captcha_id?: string
+  corptcha_check?: boolean
+  corptcha_site_id?: string
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean
