@@ -157,12 +157,10 @@ func UpdateCreateCacheRatioByJSONString(jsonStr string) error {
 
 // GetCacheRatio returns the cache ratio for a model
 func GetCacheRatio(name string) (float64, bool) {
+	name = FormatMatchingModelName(name)
 	ratio, ok := cacheRatioMap.Get(name)
 	if !ok {
-		// The automatic catalog only answers for models with no manual pricing,
-		// and only when it actually publishes a cache read cost. A missing cost
-		// must keep the default of 1 rather than become a free cache read.
-		if entry, autoOK := autoPricingEntry(FormatMatchingModelName(name)); autoOK && entry.HasCacheRatio {
+		if entry, autoOK := autoPricingEntry(name); autoOK && entry.HasCacheRatio {
 			return entry.CacheRatio, true
 		}
 		return 1, false // Default to 1 if not found
@@ -171,9 +169,10 @@ func GetCacheRatio(name string) (float64, bool) {
 }
 
 func GetCreateCacheRatio(name string) (float64, bool) {
+	name = FormatMatchingModelName(name)
 	ratio, ok := createCacheRatioMap.Get(name)
 	if !ok {
-		if entry, autoOK := autoPricingEntry(FormatMatchingModelName(name)); autoOK && entry.HasCreateCacheRatio {
+		if entry, autoOK := autoPricingEntry(name); autoOK && entry.HasCreateCacheRatio {
 			return entry.CreateCacheRatio, true
 		}
 		return 1.25, false // Default to 1.25 if not found

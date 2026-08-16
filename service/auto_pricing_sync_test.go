@@ -6,6 +6,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/autopricing"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -65,6 +68,7 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 	setting, ok := config.GlobalConfig.Get("auto_pricing").(*ratio_setting.AutoPricingSetting)
 	require.True(t, ok, "auto_pricing config must be registered")
 	previousSetting := *setting
+	setting.Enabled = true
 	setting.HashURL = ""
 
 	workDir, err := os.Getwd()
@@ -75,8 +79,20 @@ func useFakeRemote(t *testing.T, client autoPricingRemoteClient) {
 		autoPricingClient = previousClient
 		*setting = previousSetting
 		autopricing.SetCatalog(nil)
+		model.InvalidatePricingCache()
 		_ = os.Chdir(workDir)
 	})
+}
+
+func findPricing(t *testing.T, entries []model.Pricing, name string) model.Pricing {
+	t.Helper()
+	for _, entry := range entries {
+		if entry.ModelName == name {
+			return entry
+		}
+	}
+	t.Fatalf("pricing entry %q not found", name)
+	return model.Pricing{}
 }
 
 // setHashURLForTest mutates the registered auto-pricing config through the
@@ -106,6 +122,60 @@ func TestSyncPublishesDownloadedCatalog(t *testing.T) {
 	assert.Equal(t, `"etag-1"`, status.Version)
 	assert.Empty(t, status.LastError)
 	assert.Equal(t, "remote", status.Source)
+}
+
+func TestSyncInvalidatesPricingCacheOnlyWhenCatalogChanges(t *testing.T) {
+	client := &fakeRemoteClient{body: []byte(validCatalogDocument), version: `"etag-1"`}
+	useFakeRemote(t, client)
+
+	require.NoError(t, model.DB.AutoMigrate(&model.Ability{}, &model.Model{}, &model.Vendor{}))
+	const channelID = 909001
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:     channelID,
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "auto-pricing-cache-test",
+		Status: common.ChannelStatusEnabled,
+		Name:   "auto-pricing-cache-test",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "default",
+		Model:     "probe-model",
+		ChannelId: channelID,
+		Enabled:   true,
+	}).Error)
+	model.InvalidatePricingCache()
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Where("channel_id = ?", channelID).Delete(&model.Ability{}).Error)
+		require.NoError(t, model.DB.Where("id = ?", channelID).Delete(&model.Channel{}).Error)
+		model.InvalidatePricingCache()
+	})
+
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	initial := model.GetPricing()
+	require.NotEmpty(t, initial)
+	assert.Equal(t, 1.0, findPricing(t, initial, "probe-model").ModelRatio)
+
+	client.notModified = true
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), false))
+	unchanged := model.GetPricing()
+	require.NotEmpty(t, unchanged)
+	assert.Same(t, &initial[0], &unchanged[0], "an unchanged health check must keep the existing pricing snapshot")
+
+	client.notModified = false
+	client.fetchErr = errors.New("connection refused")
+	require.Error(t, SyncAutoPricingOnce(context.Background(), true))
+	failed := model.GetPricing()
+	require.NotEmpty(t, failed)
+	assert.Same(t, &initial[0], &failed[0], "a failed sync retaining the last catalog must keep the pricing snapshot")
+
+	client.fetchErr = nil
+	client.body = []byte(updatedCatalogDocument)
+	client.version = `"etag-2"`
+	require.NoError(t, SyncAutoPricingOnce(context.Background(), true))
+	refreshed := model.GetPricing()
+	require.NotEmpty(t, refreshed)
+	assert.NotSame(t, &initial[0], &refreshed[0], "a changed catalog must rebuild the pricing snapshot")
+	assert.Equal(t, 2.0, findPricing(t, refreshed, "probe-model").ModelRatio)
 }
 
 func TestSyncSendsKnownVersionAndHandlesNotModified(t *testing.T) {

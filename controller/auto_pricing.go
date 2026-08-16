@@ -3,7 +3,6 @@ package controller
 import (
 	"net/http"
 
-	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -30,10 +29,6 @@ func SyncAutoPricing(c *gin.Context) {
 		})
 		return
 	}
-
-	// Pricing page output embeds the resolved ratios, so it has to be rebuilt
-	// against the new catalog instead of serving the previous snapshot.
-	model.InvalidatePricingCache()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

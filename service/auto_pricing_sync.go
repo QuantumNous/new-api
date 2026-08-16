@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/autopricing"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -331,7 +332,9 @@ func SyncAutoPricingOnce(ctx context.Context, force bool) error {
 		updated.UpdatedAt = time.Now()
 	}
 	catalog := autopricing.BuildCatalogFromEntries(merged, version, updated.Sources["litellm"].SkippedCount+updated.Sources["models.dev"].SkippedCount)
-	autopricing.SetCatalog(catalog)
+	if !autopricing.Loaded() || previous.Version != version || updated.UpdatedAt.After(previous.UpdatedAt) {
+		publishAutoPricingCatalog(catalog)
+	}
 	catalogState := "current"
 	if allUnchanged {
 		catalogState = "unchanged"
@@ -402,6 +405,12 @@ func setLiveSnapshot(snapshot *autoPricingSnapshot) {
 	autoPricingSnapshotLive = cloneSnapshot(snapshot)
 	autoPricingMu.Unlock()
 }
+
+func publishAutoPricingCatalog(catalog *autopricing.Catalog) {
+	autopricing.SetCatalog(catalog)
+	model.InvalidatePricingCache()
+}
+
 func cloneSnapshot(snapshot *autoPricingSnapshot) *autoPricingSnapshot {
 	if snapshot == nil {
 		return nil
@@ -533,7 +542,7 @@ func loadAutoPricingFromDisk() bool {
 	if snapshot.Sources == nil {
 		snapshot.Sources = make(map[string]autoPricingSourceSnapshot)
 	}
-	autopricing.SetCatalog(autopricing.BuildCatalogFromEntries(snapshot.Entries, snapshot.Version, 0))
+	publishAutoPricingCatalog(autopricing.BuildCatalogFromEntries(snapshot.Entries, snapshot.Version, 0))
 	setLiveSnapshot(&snapshot)
 	recordAutoPricingSync("", "cache")
 	return true

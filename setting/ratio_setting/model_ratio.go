@@ -437,29 +437,7 @@ func UpdateCompletionRatioByJSONString(jsonStr string) error {
 }
 
 func GetCompletionRatio(name string) float64 {
-	name = FormatMatchingModelName(name)
-
-	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
-			return ratio
-		}
-	}
-	hardCodedRatio, contain := getHardcodedCompletionModelRatio(name)
-	if contain {
-		return hardCodedRatio
-	}
-	if ratio, ok := completionRatioMap.Get(name); ok {
-		return ratio
-	}
-	// Only models with no manual pricing at all reach this point, so taking the
-	// completion multiplier from the automatic catalog keeps it paired with the
-	// base ratio GetModelRatio resolved from the same catalog entry.
-	if entry, autoOK := autoPricingEntry(name); autoOK {
-		if entry.HasCompletionRatio {
-			return entry.CompletionRatio
-		}
-	}
-	return hardCodedRatio
+	return GetCompletionRatioInfo(name).Ratio
 }
 
 type CompletionRatioInfo struct {
@@ -490,6 +468,12 @@ func GetCompletionRatioInfo(name string) CompletionRatioInfo {
 	if ratio, ok := completionRatioMap.Get(name); ok {
 		return CompletionRatioInfo{
 			Ratio:  ratio,
+			Locked: false,
+		}
+	}
+	if entry, autoOK := autoPricingEntry(name); autoOK && entry.HasCompletionRatio {
+		return CompletionRatioInfo{
+			Ratio:  entry.CompletionRatio,
 			Locked: false,
 		}
 	}

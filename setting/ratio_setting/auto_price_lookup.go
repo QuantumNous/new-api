@@ -6,22 +6,17 @@ import (
 	"github.com/QuantumNous/new-api/pkg/autopricing"
 )
 
-// hasManualPricing reports whether an administrator has priced this model, by
-// either a ratio or a fixed per-call price. The automatic catalog is a fallback
-// only, so a manually priced model never consults it.
+// hasManualFixedPrice reports whether an administrator has configured fixed
+// per-call pricing for this model. Fixed pricing and token pricing are mutually
+// exclusive, so it is the only manual field that suppresses the whole automatic
+// catalog entry.
 //
 // The caller must pass a name already normalized by FormatMatchingModelName.
-func hasManualPricing(name string) bool {
-	if _, ok := modelRatioMap.Get(name); ok {
-		return true
-	}
+func hasManualFixedPrice(name string) bool {
 	if _, ok := modelPriceMap.Get(name); ok {
 		return true
 	}
 	if strings.HasSuffix(name, CompactModelSuffix) {
-		if _, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
-			return true
-		}
 		if _, ok := modelPriceMap.Get(CompactWildcardModelKey); ok {
 			return true
 		}
@@ -50,19 +45,15 @@ func HasManualModelRatio(name string) bool {
 	return false
 }
 
-// autoPricingEntry resolves a model against the automatic catalog. It reports
-// false whenever the feature is off, the model is manually priced, or the
-// catalog has nothing for it.
-//
-// Every multiplier a caller takes from the returned entry must come from this
-// same entry: mixing an automatic base ratio with a manual completion ratio
-// (or the reverse) would bill at a rate that exists in neither source.
+// autoPricingEntry resolves a model against the automatic catalog. Manual
+// token-pricing fields override only their matching automatic fields; a fixed
+// per-call price suppresses automatic token pricing entirely.
 func autoPricingEntry(name string) (autopricing.Entry, bool) {
 	setting := GetAutoPricingSetting()
 	if !setting.Enabled {
 		return autopricing.Entry{}, false
 	}
-	if hasManualPricing(name) {
+	if hasManualFixedPrice(name) {
 		return autopricing.Entry{}, false
 	}
 	return autopricing.Resolve(name, setting.FuzzyMatchEnabled)

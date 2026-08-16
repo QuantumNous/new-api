@@ -58,6 +58,21 @@ func withManualPrice(t *testing.T, model string, price float64) {
 	withManualEntry(t, modelPriceMap, model, price)
 }
 
+func withManualCompletionRatio(t *testing.T, model string, ratio float64) {
+	t.Helper()
+	withManualEntry(t, completionRatioMap, model, ratio)
+}
+
+func withManualCacheRatio(t *testing.T, model string, ratio float64) {
+	t.Helper()
+	withManualEntry(t, cacheRatioMap, model, ratio)
+}
+
+func withManualCreateCacheRatio(t *testing.T, model string, ratio float64) {
+	t.Helper()
+	withManualEntry(t, createCacheRatioMap, model, ratio)
+}
+
 const testCatalogDocument = `{
 	"auto-only-model": {
 		"input_cost_per_token": 0.000004,
@@ -71,11 +86,13 @@ const testCatalogDocument = `{
 	},
 	"manually-priced-model": {
 		"input_cost_per_token": 0.00009,
-		"output_cost_per_token": 0.0009
+		"output_cost_per_token": 0.0009,
+		"cache_read_input_token_cost": 0.000009,
+		"cache_creation_input_token_cost": 0.00018
 	}
 }`
 
-func TestManualRatioAlwaysWinsOverCatalog(t *testing.T) {
+func TestManualBaseRatioOnlyOverridesCatalogBaseRatio(t *testing.T) {
 	useTestCatalog(t, testCatalogDocument, enabledAutoPricing())
 	withManualRatio(t, "manually-priced-model", 1.5)
 
@@ -83,11 +100,15 @@ func TestManualRatioAlwaysWinsOverCatalog(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 1.5, ratio, "an administrator ratio must not be replaced by the catalog")
 
-	// The catalog publishes both a cache read and a cache creation cost for
-	// this model, but a manually priced model must keep the built-in defaults.
+	assert.Equal(t, 10.0, GetCompletionRatio("manually-priced-model"))
+
 	cacheRatio, cacheOK := GetCacheRatio("manually-priced-model")
-	assert.False(t, cacheOK)
-	assert.Equal(t, 1.0, cacheRatio)
+	require.True(t, cacheOK)
+	assert.Equal(t, 0.1, cacheRatio)
+
+	createCacheRatio, createCacheOK := GetCreateCacheRatio("manually-priced-model")
+	require.True(t, createCacheOK)
+	assert.Equal(t, 2.0, createCacheRatio)
 }
 
 func TestManualFixedPriceSuppressesCatalogRatio(t *testing.T) {
@@ -98,9 +119,16 @@ func TestManualFixedPriceSuppressesCatalogRatio(t *testing.T) {
 	// invent one and turn it into a token-billed model.
 	_, ok, _ := GetModelRatio("manually-priced-model")
 	assert.False(t, ok)
+	assert.Equal(t, 1.0, GetCompletionRatio("manually-priced-model"))
+	cacheRatio, cacheOK := GetCacheRatio("manually-priced-model")
+	assert.False(t, cacheOK)
+	assert.Equal(t, 1.0, cacheRatio)
+	createCacheRatio, createCacheOK := GetCreateCacheRatio("manually-priced-model")
+	assert.False(t, createCacheOK)
+	assert.Equal(t, 1.25, createCacheRatio)
 }
 
-func TestManualCompactWildcardSuppressesCatalogMultipliers(t *testing.T) {
+func TestManualCompactWildcardOnlyOverridesCatalogBaseRatio(t *testing.T) {
 	useTestCatalog(t, `{
 		"compact-model-openai-compact": {
 			"input_cost_per_token": 0.000002,
@@ -112,8 +140,22 @@ func TestManualCompactWildcardSuppressesCatalogMultipliers(t *testing.T) {
 	ratio, ok, _ := GetModelRatio("compact-model-openai-compact")
 	require.True(t, ok)
 	assert.Equal(t, 7.0, ratio)
-	// The catalog's completion ratio must not be paired with a manual ratio.
-	assert.Equal(t, 1.0, GetCompletionRatio("compact-model-openai-compact"))
+	assert.Equal(t, 9.0, GetCompletionRatio("compact-model-openai-compact"))
+}
+
+func TestManualFieldOverridesWinOverCatalogFields(t *testing.T) {
+	useTestCatalog(t, testCatalogDocument, enabledAutoPricing())
+	withManualCompletionRatio(t, "manually-priced-model", 3)
+	withManualCacheRatio(t, "manually-priced-model", 0.25)
+	withManualCreateCacheRatio(t, "manually-priced-model", 1.5)
+
+	assert.Equal(t, 3.0, GetCompletionRatio("manually-priced-model"))
+	cacheRatio, cacheOK := GetCacheRatio("manually-priced-model")
+	require.True(t, cacheOK)
+	assert.Equal(t, 0.25, cacheRatio)
+	createCacheRatio, createCacheOK := GetCreateCacheRatio("manually-priced-model")
+	require.True(t, createCacheOK)
+	assert.Equal(t, 1.5, createCacheRatio)
 }
 
 func TestCatalogPricesModelsWithoutManualConfig(t *testing.T) {
@@ -184,6 +226,35 @@ func TestBuiltInDefaultsAreUnaffectedByCatalog(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 1.25, ratio)
 	assert.Equal(t, 4.0, GetCompletionRatio("gpt-4o"))
+}
+
+func TestExactBuiltInModelsReceiveAutomaticCachePricing(t *testing.T) {
+	InitRatioSettings()
+	useTestCatalog(t, `{
+		"gpt-5.5": {
+			"input_cost_per_token": 0.000005,
+			"output_cost_per_token": 0.00003,
+			"cache_read_input_token_cost": 0.0000005
+		},
+		"gpt-5.6-sol": {
+			"input_cost_per_token": 0.000005,
+			"output_cost_per_token": 0.00003,
+			"cache_read_input_token_cost": 0.0000005
+		}
+	}`, enabledAutoPricing())
+
+	for _, name := range []string{"gpt-5.5", "gpt-5.6-sol"} {
+		ratio, ok, _ := GetModelRatio(name)
+		require.True(t, ok)
+		assert.Equal(t, 2.5, ratio, name)
+		cacheRatio, cacheOK := GetCacheRatio(name)
+		require.True(t, cacheOK, name)
+		assert.Equal(t, 0.1, cacheRatio, name)
+	}
+
+	createCacheRatio, createCacheOK := GetCreateCacheRatio("gpt-5.6-sol")
+	require.True(t, createCacheOK)
+	assert.Equal(t, 1.25, createCacheRatio)
 }
 
 func TestCatalogNeverLeaksIntoExportedManualMaps(t *testing.T) {
