@@ -98,6 +98,8 @@ func TestRelayTrafficPathOnlyIncludesRelayRoutes(t *testing.T) {
 	assert.True(t, isRelayTrafficPath("/mj/submit/imagine"))
 	assert.True(t, isRelayTrafficPath("/relay/mj/submit/imagine"))
 	assert.True(t, isRelayTrafficPath("/suno/submit/music"))
+	assert.False(t, isRelayTrafficPath("/api/mj"))
+	assert.False(t, isRelayTrafficPath("/api/mj/self"))
 	assert.False(t, isRelayTrafficPath("/api/next/dashboard/system-status"))
 	assert.False(t, isRelayTrafficPath("/v10/chat/completions"))
 	assert.False(t, isRelayTrafficPath("/assets/app.js"))
@@ -115,7 +117,7 @@ func TestRelayRequestMetricsCountsRelayTrafficOnly(t *testing.T) {
 	})
 
 	beforeRequest, beforeResponse := common.ApplicationTrafficSnapshot()
-	for _, path := range []string{"/v1/chat/completions", "/assets/app.js"} {
+	for _, path := range []string{"/v1/chat/completions", "/api/mj/self", "/assets/app.js"} {
 		request := httptest.NewRequest(http.MethodPost, path, strings.NewReader("relay request"))
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
@@ -142,30 +144,79 @@ func TestRelayRequestMetricsPreservesResponseControllerUnwrap(t *testing.T) {
 	assert.Equal(t, want, response.deadline)
 }
 
-func TestRelayRequestMetricsDoesNotChangeAPISuccessRate(t *testing.T) {
+func TestAPIRequestMetricsDoesNotChangeModelSuccessRate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	before := common.GetRequestSuccessRate()
+
 	apiRouter := gin.New()
 	apiRouter.Use(RecordRequestMetrics())
-	apiRouter.GET("/api/success", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"success": true})
+	apiRouter.GET("/api/data/self", func(c *gin.Context) {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
 	})
 	for i := 0; i < 20; i++ {
-		apiRouter.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/success", nil))
+		apiRouter.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/data/self", nil))
 	}
-	before := common.GetRequestSuccessRate()
-	require.NotNil(t, before)
+
+	assert.Equal(t, before, common.GetRequestSuccessRate())
+}
+
+func TestRelayRequestMetricsObservesOnlyRelayOutcomes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	outcomes := make([]bool, 0, 4)
 
 	relayRouter := gin.New()
-	relayRouter.Use(RecordRelayRequestMetrics())
-	relayRouter.GET("/v1/fail", func(c *gin.Context) {
+	relayRouter.Use(recordRequestMetrics(isRelayTrafficPath, func(success bool) {
+		outcomes = append(outcomes, success)
+	}))
+	relayRouter.GET("/v1/success", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"id": "response"})
+	})
+	relayRouter.GET("/v1/business-fail", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"success": false})
+	})
+	relayRouter.GET("/v1/http-fail", func(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "upstream failed"})
 	})
-	for i := 0; i < 10; i++ {
-		relayRouter.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/fail", nil))
+	relayRouter.GET("/v1/stream-fail", func(c *gin.Context) {
+		MarkRelayRequestFailed(c)
+		c.Data(http.StatusOK, "text/event-stream", []byte("data: {\"type\":\"upstream_error\"}\n\n"))
+	})
+	relayRouter.GET("/api/mj/self", func(c *gin.Context) {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+	})
+	relayRouter.GET("/assets/app.js", func(c *gin.Context) {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false})
+	})
+
+	for _, path := range []string{
+		"/v1/success",
+		"/v1/business-fail",
+		"/v1/http-fail",
+		"/v1/stream-fail",
+		"/api/mj/self",
+		"/assets/app.js",
+	} {
+		relayRouter.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
 	}
-	after := common.GetRequestSuccessRate()
-	require.NotNil(t, after)
-	assert.Equal(t, *before, *after)
+
+	assert.Equal(t, []bool{true, false, false, false}, outcomes)
+}
+
+func TestRelayRequestMetricsPopulatesModelSuccessRate(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(RecordRelayRequestMetrics())
+	router.GET("/v1/business-fail", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"success": false})
+	})
+
+	for i := 0; i < 15; i++ {
+		router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/business-fail", nil))
+	}
+
+	rate := common.GetRequestSuccessRate()
+	require.NotNil(t, rate)
+	assert.Less(t, *rate, 100.0)
 }
 
 type writeDeadlineRecorder struct {

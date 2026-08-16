@@ -76,8 +76,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	var (
 		newAPIError *types.NewAPIError
+		relayInfo   *relaycommon.RelayInfo
 		ws          *websocket.Conn
 	)
+	defer func() {
+		if newAPIError != nil {
+			middleware.MarkRelayRequestFailed(c)
+			return
+		}
+		if relayInfo == nil || relayInfo.StreamStatus == nil {
+			return
+		}
+		if !relayInfo.StreamStatus.IsNormalEnd() || relayInfo.StreamStatus.HasErrors() {
+			middleware.MarkRelayRequestFailed(c)
+		}
+	}()
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
 		var err error
@@ -120,7 +133,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return

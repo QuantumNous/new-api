@@ -10,18 +10,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const relayRequestFailedKey = "relay_request_metrics_failed"
+
+// MarkRelayRequestFailed overrides response-based inference when the relay
+// execution layer detects a failure after the HTTP response has started.
+func MarkRelayRequestFailed(c *gin.Context) {
+	c.Set(relayRequestFailedKey, true)
+}
+
 func RecordRequestMetrics() gin.HandlerFunc {
-	return recordRequestMetrics(nil, true)
+	return recordRequestMetrics(nil, nil)
 }
 
-// RecordRelayRequestMetrics records model and media relay traffic registered
-// outside the /api group without including static frontend assets or changing
-// the existing /api success-rate population.
+// RecordRelayRequestMetrics records traffic and outcomes for model and media
+// relay APIs registered outside the /api group, excluding static frontend assets.
 func RecordRelayRequestMetrics() gin.HandlerFunc {
-	return recordRequestMetrics(isRelayTrafficPath, false)
+	return recordRequestMetrics(isRelayTrafficPath, common.ObserveRequestOutcome)
 }
 
-func recordRequestMetrics(shouldRecord func(string) bool, observeOutcome bool) gin.HandlerFunc {
+func recordRequestMetrics(shouldRecord func(string) bool, observeOutcome func(bool)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if shouldRecord != nil && !shouldRecord(c.Request.URL.Path) {
 			c.Next()
@@ -37,7 +44,7 @@ func recordRequestMetrics(shouldRecord func(string) bool, observeOutcome bool) g
 		}
 
 		var responseBody *bytes.Buffer
-		if observeOutcome {
+		if observeOutcome != nil {
 			responseBody = bytes.NewBuffer(nil)
 		}
 		writer := &auditResponseWriter{
@@ -49,8 +56,12 @@ func recordRequestMetrics(shouldRecord func(string) bool, observeOutcome bool) g
 		c.Writer = writer
 		c.Next()
 
-		if observeOutcome {
-			common.ObserveRequestOutcome(auditResponseSuccess(writer.Status(), writer.body.Bytes()))
+		if observeOutcome != nil {
+			success := auditResponseSuccess(writer.Status(), writer.body.Bytes())
+			if c.GetBool(relayRequestFailedKey) {
+				success = false
+			}
+			observeOutcome(success)
 		}
 	}
 }
@@ -68,6 +79,10 @@ func (r *countingReadCloser) Read(p []byte) (int, error) {
 }
 
 func isRelayTrafficPath(path string) bool {
+	if path == "/api/mj" || strings.HasPrefix(path, "/api/mj/") {
+		return false
+	}
+
 	for _, prefix := range []string{"/v1", "/v1beta", "/pg", "/kling/v1", "/jimeng", "/mj", "/suno"} {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {
 			return true

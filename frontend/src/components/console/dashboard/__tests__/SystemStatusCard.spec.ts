@@ -114,7 +114,10 @@ describe('SystemStatusCard', () => {
     expect(memory!.find('.h-1').exists()).toBe(true)
     expect(disk!.find('.h-1').exists()).toBe(true)
     expect(bandwidth!.find('.h-1').exists()).toBe(false)
-    expect(bandwidth!.find('svg[aria-hidden="true"]').exists()).toBe(true)
+    expect(bandwidth!.find('.mt-auto svg[aria-hidden="true"]').exists()).toBe(
+      true
+    )
+    expect(bandwidth!.find('[data-bandwidth-icon]').exists()).toBe(true)
   })
 
   it('charts both bandwidth directions on one shared scale', () => {
@@ -127,7 +130,7 @@ describe('SystemStatusCard', () => {
 
     const spark = wrapper
       .findAll('.grid > .min-w-0')[2]!
-      .find('svg[aria-hidden="true"]')
+      .find('.mt-auto svg[aria-hidden="true"]')
     expect(spark.exists()).toBe(true)
     // One line per direction plus the shaded download area beneath them.
     expect(spark.findAll('path[fill="none"]')).toHaveLength(2)
@@ -179,10 +182,32 @@ describe('SystemStatusCard', () => {
 
     const cpuValue = wrapper.findAll('.grid > .min-w-0')[0]!.find('.mt-1 span')
     expect(wrapper.text()).toContain('4.6%')
-    expect(wrapper.text()).toContain('↑1.2 ↓6.6')
+    expect(wrapper.text()).toContain('↑1.2 Mbps')
+    expect(wrapper.text()).toContain('↓6.6 Mbps')
     expect(wrapper.text()).not.toContain('4.627766599')
     expect(cpuValue.classes()).toContain('whitespace-nowrap')
     expect(cpuValue.classes()).not.toContain('truncate')
+  })
+
+  it('formats each bandwidth direction with the smallest useful unit', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: {
+        metrics: {
+          ...metrics(),
+          bandwidth_up_mbps: 0.45,
+          bandwidth_down_mbps: 0.00042,
+        },
+      },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    const bandwidth = wrapper.findAll('.grid > .min-w-0')[2]!
+    expect(bandwidth.text()).toContain('↑450 Kbps')
+    expect(bandwidth.text()).toContain('↓420 bps')
+    expect(bandwidth.text()).not.toContain('Mbps')
+    expect(bandwidth.findAll('[data-bandwidth-direction]')).toHaveLength(2)
   })
 
   it('uses the Chinese app traffic label', async () => {

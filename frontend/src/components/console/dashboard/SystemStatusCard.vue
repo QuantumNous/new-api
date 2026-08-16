@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ArrowUpDown } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -79,13 +80,22 @@ function formatMetric(value: number): string {
   return String(Object.is(rounded, -0) ? 0 : rounded)
 }
 
+function formatBandwidth(valueMbps: number): string {
+  if (!Number.isFinite(valueMbps)) return '--'
+  const magnitude = Math.abs(valueMbps)
+  if (magnitude >= 1) return `${formatMetric(valueMbps)} Mbps`
+  if (magnitude >= 0.001) return `${formatMetric(valueMbps * 1_000)} Kbps`
+  return `${formatMetric(valueMbps * 1_000_000)} bps`
+}
+
 interface MetricTile {
   key: string
   label: string
   /** lucide 24×24 path data */
-  icon: string
+  icon?: string
   value: string
   unit: string
+  bandwidth?: { up: string; down: string }
   /** 0-100 usage against a ceiling; null when the metric has none */
   percent: number | null
   /** Shared-scale throughput history, for metrics with no ceiling */
@@ -111,6 +121,16 @@ const tiles = computed<MetricTile[]>(() => {
     m.disk_used_gb !== null
       ? Math.round((m.disk_used_gb / m.disk_total_gb) * 100)
       : null
+  const bandwidth =
+    m?.bandwidth_up_mbps !== null &&
+    m?.bandwidth_up_mbps !== undefined &&
+    m?.bandwidth_down_mbps !== null &&
+    m?.bandwidth_down_mbps !== undefined
+      ? {
+          up: formatBandwidth(m.bandwidth_up_mbps),
+          down: formatBandwidth(m.bandwidth_down_mbps),
+        }
+      : undefined
 
   const result: MetricTile[] = [
     {
@@ -149,21 +169,9 @@ const tiles = computed<MetricTile[]>(() => {
     {
       key: 'bandwidth',
       label: t('dashboard.systemStatus.bandwidth'),
-      icon: 'M12 19V5M5 12l7-7 7 7',
-      value:
-        m?.bandwidth_up_mbps !== null &&
-        m?.bandwidth_up_mbps !== undefined &&
-        m?.bandwidth_down_mbps !== null &&
-        m?.bandwidth_down_mbps !== undefined
-          ? `↑${formatMetric(m.bandwidth_up_mbps)} ↓${formatMetric(m.bandwidth_down_mbps)}`
-          : dash,
-      unit:
-        m?.bandwidth_up_mbps !== null &&
-        m?.bandwidth_up_mbps !== undefined &&
-        m?.bandwidth_down_mbps !== null &&
-        m?.bandwidth_down_mbps !== undefined
-          ? 'Mbps'
-          : '',
+      value: bandwidth ? '' : dash,
+      unit: '',
+      bandwidth,
       // Bandwidth has no ceiling to measure against, so instead of a bar it
       // charts recent throughput — download shaded, upload as a line.
       percent: null,
@@ -285,7 +293,15 @@ const successColor = computed(() => rateColor(successRate.value))
         <p
           class="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]"
         >
+          <ArrowUpDown
+            v-if="tile.key === 'bandwidth'"
+            :size="13"
+            :stroke-width="1.8"
+            aria-hidden="true"
+            data-bandwidth-icon
+          />
           <svg
+            v-else-if="tile.icon"
             width="13"
             height="13"
             viewBox="0 0 24 24"
@@ -299,19 +315,40 @@ const successColor = computed(() => rateColor(successRate.value))
           </svg>
           <span class="truncate">{{ tile.label }}</span>
         </p>
-        <p class="mt-1 flex items-baseline gap-1 pb-2">
-          <span
-            class="shrink-0 whitespace-nowrap text-base font-bold leading-tight tabular-nums tracking-tight"
-            :style="{ color: tile.color }"
-          >
-            {{ tile.value }}
-          </span>
-          <span
-            v-if="tile.unit"
-            class="shrink-0 whitespace-nowrap text-[10px] text-[var(--text-tertiary)]"
-          >
-            {{ tile.unit }}
-          </span>
+        <p
+          class="mt-1 flex items-baseline pb-2"
+          :class="tile.bandwidth ? 'flex-wrap gap-x-2 gap-y-0.5' : 'gap-1'"
+        >
+          <template v-if="tile.bandwidth">
+            <span
+              data-bandwidth-direction="up"
+              class="shrink-0 whitespace-nowrap text-sm font-bold leading-tight tabular-nums"
+              :style="{ color: tile.color }"
+            >
+              ↑{{ tile.bandwidth.up }}
+            </span>
+            <span
+              data-bandwidth-direction="down"
+              class="shrink-0 whitespace-nowrap text-sm font-bold leading-tight tabular-nums"
+              :style="{ color: tile.color }"
+            >
+              ↓{{ tile.bandwidth.down }}
+            </span>
+          </template>
+          <template v-else>
+            <span
+              class="shrink-0 whitespace-nowrap text-base font-bold leading-tight tabular-nums tracking-tight"
+              :style="{ color: tile.color }"
+            >
+              {{ tile.value }}
+            </span>
+            <span
+              v-if="tile.unit"
+              class="shrink-0 whitespace-nowrap text-[10px] text-[var(--text-tertiary)]"
+            >
+              {{ tile.unit }}
+            </span>
+          </template>
         </p>
         <!-- Throughput chart for the ceiling-less metric, a usage bar otherwise -->
         <div v-if="tile.series" class="mt-auto" aria-hidden="true">

@@ -14,12 +14,15 @@ async function expectMetricValuesToFit(card: Locator): Promise<void> {
       .nth(index)
       .evaluate((tile) => {
         const row = tile.querySelector('p.mt-1')
-        const lastValuePart = row?.lastElementChild
-        if (!row || !lastValuePart) return false
-        return (
-          lastValuePart.getBoundingClientRect().right <=
-          row.getBoundingClientRect().right + 0.5
-        )
+        if (!row) return false
+        const rowRect = row.getBoundingClientRect()
+        return [...row.children].every((part) => {
+          const partRect = part.getBoundingClientRect()
+          return (
+            partRect.left >= rowRect.left - 0.5 &&
+            partRect.right <= rowRect.right + 0.5
+          )
+        })
       })
     expect(fits).toBe(true)
   }
@@ -37,14 +40,16 @@ for (const theme of ['light', 'dark'] satisfies VisualTheme[]) {
     await expect(card).toBeVisible()
     await expect(card).toContainText('4.6%')
     await expect(card).toContainText('应用流量')
-    await expect(card).toContainText('↑1.2 ↓6.6')
+    await expect(card).toContainText('↑450 Kbps')
+    await expect(card).toContainText('↓420 bps')
     await expectMetricValuesToFit(card)
     await assertNoHorizontalOverflow(page)
 
     await page.setViewportSize({ width: 390, height: 844 })
     await card.scrollIntoViewIfNeeded()
     await expect(card).toContainText('4.6%')
-    await expect(card).toContainText('↑1.2 ↓6.6')
+    await expect(card).toContainText('↑450 Kbps')
+    await expect(card).toContainText('↓420 bps')
     await expectMetricValuesToFit(card)
     await assertNoHorizontalOverflow(page)
   })
