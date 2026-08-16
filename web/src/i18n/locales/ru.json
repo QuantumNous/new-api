@@ -5273,6 +5273,14 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Attach images": "Прикрепить изображения",
+    "Only image attachments are supported": "Поддерживаются только изображения",
+    "Generation mode": "Режим генерации",
+    "New chat": "Новый чат",
+    "Describe the image you want to generate": "Опишите изображение, которое нужно сгенерировать",
+    "Image generation failed": "Не удалось сгенерировать изображение",
+    "The model did not return an image": "Модель не вернула изображение",
+    "Attachment": "Вложение"
   }
 }

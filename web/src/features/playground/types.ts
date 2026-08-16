@@ -28,10 +28,17 @@ export interface MessageVersion {
   content: string
 }
 
+export interface MessageAttachment {
+  url: string
+  mediaType?: string
+  filename?: string
+}
+
 export interface Message {
   key: string
   from: MessageRole
   versions: MessageVersion[]
+  attachments?: MessageAttachment[]
   createdAt?: number
   startedAt?: number
   completedAt?: number
@@ -115,8 +122,27 @@ export interface ChatCompletionResponse {
   }
 }
 
+export interface ImageGenerationRequest {
+  model: string
+  group?: string
+  prompt: string
+  n?: number
+}
+
+export interface ImageGenerationResponse {
+  created?: number
+  data?: Array<{
+    url?: string
+    b64_json?: string
+    revised_prompt?: string
+  }>
+}
+
 // Configuration types
+export type PlaygroundMode = 'text' | 'image'
+
 export interface PlaygroundConfig {
+  mode: PlaygroundMode
   model: string
   group: string
   temperature: number

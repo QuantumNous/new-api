@@ -51,6 +51,7 @@ import { getMessageContentStyles } from '../../lib/message/message-styles'
 import type { Message } from '../../types'
 import { MessageError } from './message-error'
 import { MessageMetadata } from './message-metadata'
+import { PlaygroundMessageAttachments } from './playground-message-attachments'
 
 type PlaygroundMessageContentProps = {
   actions: ReactNode
@@ -80,6 +81,8 @@ export function PlaygroundMessageContent({
     sources,
   } = getMessageContentState(message, versionContent)
   const isError = isErrorMessage(message)
+  const attachments = message.attachments ?? []
+  const hasAttachments = attachments.length > 0
   const isMessageFinal =
     message.status !== MESSAGE_STATUS.LOADING &&
     message.status !== MESSAGE_STATUS.STREAMING
@@ -134,9 +137,13 @@ export function PlaygroundMessageContent({
         </>
       )}
 
-      {!isError && showMessageContent && (
+      {!isError && hasAttachments && (
+        <PlaygroundMessageAttachments attachments={attachments} />
+      )}
+
+      {!isError && (showMessageContent || hasAttachments) && (
         <>
-          {isSourceVisible ? (
+          {showMessageContent && isSourceVisible && (
             <CodeBlock
               code={versionContent}
               className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch]'
@@ -150,7 +157,8 @@ export function PlaygroundMessageContent({
             >
               <CodeBlockCopyButton />
             </CodeBlock>
-          ) : (
+          )}
+          {showMessageContent && !isSourceVisible && (
             <MessageContent
               variant='flat'
               className={cn(getMessageContentStyles())}

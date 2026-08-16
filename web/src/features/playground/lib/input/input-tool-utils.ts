@@ -16,45 +16,42 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  CameraIcon,
-  FileIcon,
-  ImageIcon,
-  ScreenShareIcon,
-  type LucideIcon,
-} from 'lucide-react'
+import type { PromptInputMessage } from '@/components/ai-elements/prompt-input'
 
-type AttachmentAction = {
-  action: string
-  icon: LucideIcon
-  label: string
-}
+import type { MessageAttachment } from '../../types'
 
-type InputToolNotice = {
-  description?: string
-  title: string
-}
-
-export const ATTACHMENT_ACTIONS = [
-  { action: 'upload-file', icon: FileIcon, label: 'Upload file' },
-  { action: 'upload-photo', icon: ImageIcon, label: 'Upload photo' },
-  {
-    action: 'take-screenshot',
-    icon: ScreenShareIcon,
-    label: 'Take screenshot',
-  },
-  { action: 'take-photo', icon: CameraIcon, label: 'Take photo' },
-] satisfies AttachmentAction[]
-
-export function getAttachmentActionNotice(action: string): InputToolNotice {
-  return {
-    description: action,
-    title: 'Feature in development',
+/**
+ * Convert prompt input files into message attachments. Only images are kept:
+ * models reached through the playground consume images as `image_url` parts and
+ * would silently ignore other file types.
+ */
+export function toImageAttachments(
+  files: PromptInputMessage['files']
+): MessageAttachment[] {
+  if (!files?.length) {
+    return []
   }
+
+  return files
+    .filter((file) => Boolean(file.url) && isImageAttachment(file.mediaType))
+    .map((file) => ({
+      url: file.url,
+      mediaType: file.mediaType,
+      filename: file.filename,
+    }))
 }
 
-export function getSearchActionNotice(): InputToolNotice {
-  return {
-    title: 'Search feature in development',
+export function countUnsupportedFiles(
+  files: PromptInputMessage['files']
+): number {
+  if (!files?.length) {
+    return 0
   }
+
+  return files.filter((file) => !file.url || !isImageAttachment(file.mediaType))
+    .length
+}
+
+function isImageAttachment(mediaType?: string): boolean {
+  return Boolean(mediaType?.startsWith('image/'))
 }

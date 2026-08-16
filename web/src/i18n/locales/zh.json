@@ -5273,6 +5273,14 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Attach images": "添加图片",
+    "Only image attachments are supported": "仅支持图片附件",
+    "Generation mode": "生成模式",
+    "New chat": "新对话",
+    "Describe the image you want to generate": "描述你想生成的图片",
+    "Image generation failed": "图像生成失败",
+    "The model did not return an image": "模型未返回图片",
+    "Attachment": "附件"
   }
 }

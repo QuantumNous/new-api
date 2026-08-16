@@ -35,6 +35,7 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -43,8 +44,20 @@ export const API_ENDPOINTS = {
 // only selected when the backend confirms it is available for the user.
 export const DEFAULT_GROUP = 'default' as const
 
+// Playground generation modes
+export const PLAYGROUND_MODES = {
+  TEXT: 'text',
+  IMAGE: 'image',
+} as const
+
+// Attachment limits for playground image inputs
+export const ATTACHMENT_ACCEPT = 'image/*' as const
+export const MAX_ATTACHMENTS = 5
+export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
+
 // Default configuration
 export const DEFAULT_CONFIG: PlaygroundConfig = {
+  mode: PLAYGROUND_MODES.TEXT,
   model: 'gpt-4o',
   group: DEFAULT_GROUP,
   temperature: 0.7,
@@ -80,6 +93,8 @@ export const ERROR_MESSAGES = {
   STREAM_START_ERROR: 'Error establishing connection',
   CONNECTION_CLOSED: 'Connection closed',
   INTERRUPTED: 'Generation was interrupted',
+  IMAGE_GENERATION_ERROR: 'Image generation failed',
+  IMAGE_EMPTY_RESULT: 'The model did not return an image',
 } as const
 
 // Message action button styles

@@ -21,6 +21,7 @@ import { nanoid } from 'nanoid'
 import { MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
 import type {
   Message,
+  MessageAttachment,
   MessageVersion,
   ChatCompletionMessage,
   ContentPart,
@@ -76,12 +77,14 @@ export function updateCurrentVersionContent(
  */
 export function createUserMessage(
   content: string,
-  createdAt: number = Date.now()
+  createdAt: number = Date.now(),
+  attachments: MessageAttachment[] = []
 ): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
     versions: [createMessageVersion(content)],
+    attachments: attachments.length > 0 ? attachments : undefined,
     createdAt,
   }
 }
@@ -150,13 +153,29 @@ export function getTextContent(content: string | ContentPart[]): string {
 }
 
 /**
- * Format message for API request
+ * Get image attachment URLs of a message
+ */
+export function getImageAttachmentUrls(message: Message): string[] {
+  return (message.attachments ?? [])
+    .filter(
+      (attachment) =>
+        !attachment.mediaType || attachment.mediaType.startsWith('image/')
+    )
+    .map((attachment) => attachment.url)
+}
+
+/**
+ * Format message for API request. Image attachments of user messages are sent
+ * as `image_url` content parts so vision models can read them.
  */
 export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
+  const imageUrls =
+    message.from === MESSAGE_ROLES.USER ? getImageAttachmentUrls(message) : []
+
   return {
     role: message.from,
-    content: currentVersion.content,
+    content: buildMessageContent(currentVersion.content, imageUrls),
   }
 }
 
@@ -169,6 +188,15 @@ export function isValidMessage(message: Message): boolean {
 
   // Exclude empty assistant messages (loading/streaming placeholders)
   if (message.from === MESSAGE_ROLES.ASSISTANT && !hasMessageContent(message)) {
+    return false
+  }
+
+  // Keep user messages that only carry attachments
+  if (
+    message.from === MESSAGE_ROLES.USER &&
+    !hasMessageContent(message) &&
+    !message.attachments?.length
+  ) {
     return false
   }
 

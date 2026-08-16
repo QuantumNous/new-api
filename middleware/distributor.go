@@ -84,8 +84,8 @@ func Distribute() func(c *gin.Context) {
 				}
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				// check path is /pg/chat/completions
-				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
+				// check path is a playground relay path
+				if isPlaygroundPath(c.Request.URL.Path) {
 					playgroundRequest := &dto.PlayGroundRequest{}
 					err = common.UnmarshalBodyReusable(c, playgroundRequest)
 					if err != nil {
@@ -168,6 +168,12 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+// isPlaygroundPath reports whether the request targets a playground relay route,
+// whose body carries an extra group field used for channel selection.
+func isPlaygroundPath(path string) bool {
+	return strings.HasPrefix(path, "/pg/")
 }
 
 // channelSupportsRequestPath reports whether a channel can serve the request path.
@@ -365,7 +371,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = c.Param("model")
 		}
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") {
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/images/generations") ||
+		strings.HasPrefix(c.Request.URL.Path, "/pg/images/generations") {
 		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "dall-e")
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits") {
 		//modelRequest.Model = common.GetStringIfEmpty(c.PostForm("model"), "gpt-image-1")
@@ -399,8 +406,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("relay_mode", relayMode)
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-		// playground chat completions
+	if isPlaygroundPath(c.Request.URL.Path) {
+		// playground relay requests carry model and group in the body
 		req, err := getModelFromRequest(c)
 		if err != nil {
 			return nil, false, err

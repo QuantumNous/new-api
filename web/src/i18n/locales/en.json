@@ -5273,6 +5273,14 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Attach images": "Attach images",
+    "Only image attachments are supported": "Only image attachments are supported",
+    "Generation mode": "Generation mode",
+    "New chat": "New chat",
+    "Describe the image you want to generate": "Describe the image you want to generate",
+    "Image generation failed": "Image generation failed",
+    "The model did not return an image": "The model did not return an image",
+    "Attachment": "Attachment"
   }
 }

@@ -25,6 +25,7 @@ export const MAX_LOADED_MESSAGES_CHARS = 120_000
 export const MAX_LOADED_MESSAGE_CHARS = 40_000
 
 export const playgroundConfigSchema = z.object({
+  mode: z.enum(['text', 'image']).optional(),
   model: z.string().optional(),
   group: z.string().optional(),
   temperature: z.number().optional(),
@@ -58,6 +59,12 @@ const messageVersionSchema = z.object({
   content: z.string(),
 })
 
+const attachmentSchema = z.object({
+  url: z.string(),
+  mediaType: z.string().optional(),
+  filename: z.string().optional(),
+})
+
 const sourceSchema = z.object({
   href: z.string(),
   title: z.string(),
@@ -75,6 +82,7 @@ const messageSchema = z.object({
   key: z.string(),
   from: messageRoleSchema,
   versions: z.array(messageVersionSchema).min(1),
+  attachments: z.array(attachmentSchema).optional(),
   createdAt: z.number().optional(),
   startedAt: z.number().optional(),
   completedAt: z.number().optional(),

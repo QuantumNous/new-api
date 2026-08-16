@@ -16,10 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export * from './use-playground-state'
-export * from './use-stream-request'
-export * from './use-chat-handler'
-export * from './use-image-handler'
-export * from './use-message-action-guard'
-export * from './use-playground-conversation'
-export * from './use-playground-options'
+import {
+  PromptInputAttachment,
+  PromptInputAttachments,
+  PromptInputHeader,
+  usePromptInputAttachments,
+} from '@/components/ai-elements/prompt-input'
+
+/**
+ * Renders pending attachment previews above the textarea. The header is only
+ * mounted when attachments exist so the input keeps its compact height.
+ */
+export function PlaygroundInputAttachments() {
+  const attachments = usePromptInputAttachments()
+
+  if (attachments.files.length === 0) {
+    return null
+  }
+
+  return (
+    <PromptInputHeader className='px-4 pt-3'>
+      <PromptInputAttachments>
+        {(attachment) => <PromptInputAttachment data={attachment} />}
+      </PromptInputAttachments>
+    </PromptInputHeader>
+  )
+}

@@ -94,6 +94,33 @@ function trimMessages(messages: Message[]): Message[] {
   return messages.slice(-MAX_STORED_MESSAGES)
 }
 
+/**
+ * Inline (data URL) attachments are dropped before persisting: a single
+ * screenshot easily exceeds the whole message storage budget, which would
+ * make the entire conversation unrecoverable on the next load. Remote URLs
+ * are cheap and kept.
+ */
+function stripInlineAttachments(messages: Message[]): Message[] {
+  return messages.map((message) => {
+    if (!message.attachments?.length) {
+      return message
+    }
+
+    const persistable = message.attachments.filter(
+      (attachment) => !attachment.url.startsWith('data:')
+    )
+
+    if (persistable.length === message.attachments.length) {
+      return message
+    }
+
+    return {
+      ...message,
+      attachments: persistable.length > 0 ? persistable : undefined,
+    }
+  })
+}
+
 function getMessageSize(message: Message): number {
   const versionsSize = message.versions.reduce(
     (total, version) => total + version.content.length,
@@ -374,7 +401,7 @@ export function loadMessages(): Message[] | null {
  */
 export function saveMessages(messages: Message[]): void {
   try {
-    const trimmed = trimMessages(messages)
+    const trimmed = stripInlineAttachments(trimMessages(messages))
     const parsed = messagesSchema.parse(trimmed) as Message[]
     writeStoredValue(STORAGE_KEYS.MESSAGES, parsed)
   } catch (error) {

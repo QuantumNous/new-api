@@ -5273,6 +5273,14 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Attach images": "Đính kèm hình ảnh",
+    "Only image attachments are supported": "Chỉ hỗ trợ tệp đính kèm là hình ảnh",
+    "Generation mode": "Chế độ tạo",
+    "New chat": "Cuộc trò chuyện mới",
+    "Describe the image you want to generate": "Mô tả hình ảnh bạn muốn tạo",
+    "Image generation failed": "Tạo hình ảnh thất bại",
+    "The model did not return an image": "Mô hình không trả về hình ảnh",
+    "Attachment": "Tệp đính kèm"
   }
 }

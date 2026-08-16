@@ -5273,6 +5273,14 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Attach images": "画像を添付",
+    "Only image attachments are supported": "画像の添付のみ対応しています",
+    "Generation mode": "生成モード",
+    "New chat": "新しいチャット",
+    "Describe the image you want to generate": "生成したい画像を説明してください",
+    "Image generation failed": "画像の生成に失敗しました",
+    "The model did not return an image": "モデルが画像を返しませんでした",
+    "Attachment": "添付ファイル"
   }
 }

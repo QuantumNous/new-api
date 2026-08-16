@@ -16,14 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useCallback } from 'react'
+
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { PlaygroundInput } from './components/input/playground-input'
+import { PLAYGROUND_MODES } from './constants'
 import {
   useChatHandler,
+  useImageHandler,
   usePlaygroundConversation,
   usePlaygroundOptions,
   usePlaygroundState,
 } from './hooks'
+import { getLastUserPrompt } from './lib'
+import type { Message } from './types'
 
 export function Playground() {
   const {
@@ -48,6 +54,29 @@ export function Playground() {
   })
 
   const {
+    generateImage,
+    stopGeneration: stopImageGeneration,
+    isGeneratingImage,
+  } = useImageHandler({
+    config,
+    onMessageUpdate: updateMessages,
+  })
+
+  const isImageMode = config.mode === PLAYGROUND_MODES.IMAGE
+
+  const sendConversation = useCallback(
+    (nextMessages: Message[]) => {
+      if (isImageMode) {
+        void generateImage(getLastUserPrompt(nextMessages))
+        return
+      }
+
+      sendChat(nextMessages)
+    },
+    [generateImage, isImageMode, sendChat]
+  )
+
+  const {
     editingMessageKey,
     handleSendMessage,
     handleRegenerateMessage,
@@ -58,13 +87,17 @@ export function Playground() {
   } = usePlaygroundConversation({
     messages,
     updateMessages,
-    sendChat,
+    sendChat: sendConversation,
   })
 
-  const handleClearMessages = () => {
+  const handleNewChat = () => {
     handleEditOpenChange(false)
+    stopGeneration()
+    stopImageGeneration()
     clearMessages()
   }
+
+  const isBusy = isGenerating || isGeneratingImage
 
   const { isLoadingModels } = usePlaygroundOptions({
     currentGroup: config.group,
@@ -84,8 +117,8 @@ export function Playground() {
           onRegenerateMessage={handleRegenerateMessage}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
-          onSelectPrompt={handleSendMessage}
-          isGenerating={isGenerating}
+          onSelectPrompt={(prompt) => handleSendMessage({ text: prompt })}
+          isGenerating={isBusy}
           editingKey={editingMessageKey}
           onCancelEdit={handleEditOpenChange}
           onSaveEdit={(newContent) => applyEdit(newContent, false)}
@@ -97,22 +130,22 @@ export function Playground() {
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           config={config}
-          disabled={isGenerating}
+          disabled={isBusy}
           groups={groups}
           groupValue={config.group}
-          isGenerating={isGenerating}
+          isGenerating={isBusy}
           isModelLoading={isLoadingModels}
           modelValue={config.model}
           models={models}
           onGroupChange={(value) => updateConfig('group', value)}
           onConfigChange={updateConfig}
-          onClearMessages={handleClearMessages}
+          onModeChange={(mode) => updateConfig('mode', mode)}
           onModelChange={(value) => updateConfig('model', value)}
+          onNewChat={handleNewChat}
           onParameterEnabledChange={updateParameterEnabled}
-          onStop={stopGeneration}
+          onStop={isImageMode ? stopImageGeneration : stopGeneration}
           onSubmit={handleSendMessage}
           parameterEnabled={parameterEnabled}
-          hasMessages={messages.length > 0}
         />
       </div>
     </div>

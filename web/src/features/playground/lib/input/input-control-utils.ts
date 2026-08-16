@@ -21,6 +21,7 @@ import type { GroupOption, ModelOption } from '../../types'
 type InputControlStateOptions = {
   disabled?: boolean
   groups: GroupOption[]
+  hasAttachments?: boolean
   hasStopHandler: boolean
   isGenerating?: boolean
   isModelLoading?: boolean
@@ -36,22 +37,32 @@ type InputControlState = {
 
 type SubmittableInputMessage = {
   text?: string | null
+  files?: unknown[]
 }
 
+/**
+ * Returns the text to submit, or `null` when the message cannot be submitted.
+ * A message with attachments but no text is submittable with empty text.
+ */
 export function getSubmittableInputText(
   message: SubmittableInputMessage,
   disabled?: boolean
 ): string | null {
-  if (disabled || !message.text?.trim()) {
+  if (disabled) {
     return null
   }
 
-  return message.text
+  if (message.text?.trim()) {
+    return message.text
+  }
+
+  return message.files?.length ? '' : null
 }
 
 export function getInputControlState({
   disabled,
   groups,
+  hasAttachments,
   hasStopHandler,
   isGenerating,
   isModelLoading,
@@ -59,9 +70,10 @@ export function getInputControlState({
   text,
 }: InputControlStateOptions): InputControlState {
   const hasModels = models.length > 0
+  const hasContent = text.trim().length > 0 || Boolean(hasAttachments)
 
   return {
-    canSubmit: !disabled && hasModels && text.trim().length > 0,
+    canSubmit: !disabled && hasModels && hasContent,
     isSelectorDisabled: disabled || isModelLoading || groups.length === 0,
     shouldShowStop: Boolean(isGenerating && hasStopHandler),
   }
