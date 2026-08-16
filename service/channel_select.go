@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -301,6 +302,11 @@ func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 	sawCandidates := false
 	var waitCandidate *model.Channel
 	waitCandidateRetry := retry
+	// Budget Redis slot-acquire attempts per selection pass so a fully
+	// saturated candidate set costs a bounded number of Redis scripts, not one
+	// per eligible channel. Exhausting the budget falls through to the wait
+	// path on the best candidate seen so far.
+	remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
 	for priorityRetry := retry; ; priorityRetry++ {
 		candidates, err := model.GetSatisfiedChannelCandidatesWithFilter(group, modelName, priorityRetry, buildEndpointChannelFilter(c, modelName))
 		if err != nil {
@@ -331,6 +337,16 @@ func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 			return nil, priorityRetry, err
 		}
 		for _, channel := range orderedCandidates {
+			if channel.GetMaxConcurrency() > 0 {
+				if remainingAttempts <= 0 {
+					if waitCandidate == nil {
+						waitCandidate = channel
+						waitCandidateRetry = priorityRetry
+					}
+					continue
+				}
+				remainingAttempts--
+			}
 			ok, err := AcquireChannelConcurrencyForContext(c, channel)
 			if err != nil {
 				return nil, priorityRetry, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", channel.Id, err)
@@ -399,6 +415,7 @@ func getRankedSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 	bestReadiness := buckets[0].readiness
 	var waitCandidate *model.Channel
 	waitCandidateRetry := buckets[0].retry
+	remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
 	for _, bucket := range buckets {
 		if bucket.readiness != bestReadiness {
 			break
@@ -408,6 +425,16 @@ func getRankedSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 			return nil, bucket.retry, err
 		}
 		for _, channel := range orderedCandidates {
+			if channel.GetMaxConcurrency() > 0 {
+				if remainingAttempts <= 0 {
+					if waitCandidate == nil {
+						waitCandidate = channel
+						waitCandidateRetry = bucket.retry
+					}
+					continue
+				}
+				remainingAttempts--
+			}
 			ok, err := AcquireChannelConcurrencyForContext(c, channel)
 			if err != nil {
 				return nil, bucket.retry, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", channel.Id, err)
