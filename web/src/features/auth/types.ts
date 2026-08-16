@@ -124,6 +124,9 @@ export interface SystemStatus {
     geetest_captcha_id?: string
     corptcha_check?: boolean
     corptcha_site_id?: string
+    captcha_login_enabled?: boolean
+    captcha_register_enabled?: boolean
+    captcha_reset_enabled?: boolean
     email_verification?: boolean
     self_use_mode_enabled?: boolean
     display_in_currency?: boolean
@@ -173,6 +176,9 @@ export interface SystemStatus {
   geetest_captcha_id?: string
   corptcha_check?: boolean
   corptcha_site_id?: string
+  captcha_login_enabled?: boolean
+  captcha_register_enabled?: boolean
+  captcha_reset_enabled?: boolean
   email_verification?: boolean
   self_use_mode_enabled?: boolean
   display_in_currency?: boolean

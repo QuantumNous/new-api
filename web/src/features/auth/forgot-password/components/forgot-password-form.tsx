@@ -50,6 +50,7 @@ export function ForgotPasswordForm({
 }: React.HTMLAttributes<HTMLFormElement>) {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
 
   const {
     provider: captchaProvider,
@@ -58,7 +59,7 @@ export function ForgotPasswordForm({
     setCaptchaToken,
     captcha,
     validateCaptcha,
-  } = useCaptcha()
+  } = useCaptcha('reset')
   const {
     secondsLeft,
     isActive,
@@ -80,8 +81,12 @@ export function ForgotPasswordForm({
       if (res?.success) {
         form.reset()
         startCountdown()
+        setCaptchaToken('')
+        setCaptchaWidgetKey((current) => current + 1)
         toast.success(t('Reset email sent, please check your inbox'))
       } else {
+        setCaptchaToken('')
+        setCaptchaWidgetKey((current) => current + 1)
         toast.error(res?.message || t('Failed to send reset email'))
       }
     } catch (_error) {
@@ -115,6 +120,7 @@ export function ForgotPasswordForm({
         {isCaptchaEnabled && (
           <div className='mt-2'>
             <Captcha
+              key={captchaWidgetKey}
               provider={captchaProvider}
               captchaKey={captchaSiteKey}
               purpose='reset'
