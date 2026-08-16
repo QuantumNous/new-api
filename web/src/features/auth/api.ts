@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import axios from 'axios'
 
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
+import { buildCaptchaParams, type CaptchaPayload } from '@/lib/captcha'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { getAffiliateCode } from './lib/storage'
@@ -42,9 +43,9 @@ import type {
 
 // User login with username and password
 export async function login(payload: LoginPayload) {
-  const turnstile = payload.turnstile ?? ''
+  const captchaParams = buildCaptchaParams(payload.captcha)
   const res = await api.post<LoginResponse>(
-    `/api/user/login?turnstile=${turnstile}`,
+    `/api/user/login${toQueryString(captchaParams)}`,
     {
       username: payload.username,
       password: payload.password,
@@ -52,6 +53,13 @@ export async function login(payload: LoginPayload) {
     { skipAuthRefresh: true }
   )
   return res.data
+}
+
+// 将校验参数拼接到查询串，保持与既有 turnstile 查询参数风格一致
+function toQueryString(params: Record<string, string>): string {
+  const entries = Object.entries(params)
+  if (entries.length === 0) return ''
+  return `?${new URLSearchParams(entries).toString()}`
 }
 
 // Two-factor authentication login
@@ -119,10 +127,10 @@ export async function logout(): Promise<ApiResponse> {
 // Send password reset email
 export async function sendPasswordResetEmail(
   email: string,
-  turnstile?: string
+  captcha?: CaptchaPayload
 ): Promise<ApiResponse> {
   const res = await api.get('/api/reset_password', {
-    params: { email, turnstile },
+    params: { email, ...buildCaptchaParams(captcha) },
   })
   return res.data
 }
@@ -182,8 +190,9 @@ export async function telegramLogin(
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  const res = await api.post(`/api/user/register`, payload, {
-    params: { turnstile: payload.turnstile ?? '' },
+  const { captcha, ...body } = payload
+  const res = await api.post(`/api/user/register`, body, {
+    params: buildCaptchaParams(captcha),
   })
   return res.data
 }
@@ -191,10 +200,10 @@ export async function register(payload: RegisterPayload): Promise<ApiResponse> {
 // Send email verification code
 export async function sendEmailVerification(
   email: string,
-  turnstile?: string
+  captcha?: CaptchaPayload
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
-    params: { email, turnstile },
+    params: { email, ...buildCaptchaParams(captcha) },
   })
   return res.data
 }

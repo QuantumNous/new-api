@@ -22,6 +22,7 @@ import {
   CardStaggerItem,
 } from '@/components/page-transition'
 import { useStatus } from '@/hooks/use-status'
+import type { CaptchaProvider } from '@/lib/captcha'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
@@ -41,10 +42,30 @@ export function Profile() {
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
 
   const checkinEnabled = status?.checkin_enabled === true
-  const turnstileEnabled = !!(
+  const isCorptchaEnabled = !!(
+    status?.corptcha_check && status?.corptcha_site_id
+  )
+  const isGeeTestEnabled = !!(
+    status?.geetest_check && status?.geetest_captcha_id
+  )
+  const isTurnstileEnabled = !!(
     status?.turnstile_check && status?.turnstile_site_key
   )
-  const turnstileSiteKey = status?.turnstile_site_key || ''
+  let captchaProvider: CaptchaProvider | null = null
+  if (isCorptchaEnabled) {
+    captchaProvider = 'corptcha'
+  } else if (isGeeTestEnabled) {
+    captchaProvider = 'geetest'
+  } else if (isTurnstileEnabled) {
+    captchaProvider = 'turnstile'
+  }
+  const captchaEnabled = captchaProvider !== null
+  const captchaSiteKey =
+    captchaProvider === 'corptcha'
+      ? status?.corptcha_site_id || ''
+      : captchaProvider === 'geetest'
+        ? status?.geetest_captcha_id || ''
+        : status?.turnstile_site_key || ''
   const canConfigureSidebar = permissions?.sidebar_settings !== false
 
   return (
@@ -75,8 +96,9 @@ export function Profile() {
                 {checkinEnabled && (
                   <CheckinCalendarCard
                     checkinEnabled={checkinEnabled}
-                    turnstileEnabled={turnstileEnabled}
-                    turnstileSiteKey={turnstileSiteKey}
+                    captchaEnabled={captchaEnabled}
+                    captchaProvider={captchaProvider}
+                    captchaSiteKey={captchaSiteKey}
                   />
                 )}
                 {canConfigureSidebar && <SidebarModulesCard />}

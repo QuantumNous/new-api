@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { buildCaptchaParams, type CaptchaPayload } from '@/lib/captcha'
 import type { CustomOAuthBinding } from '@/lib/oauth'
 import type { LoginSession } from '@/stores/auth-store'
 
@@ -101,11 +102,12 @@ export async function generateAccessToken(): Promise<ApiResponse<string>> {
  */
 export async function sendEmailVerification(
   email: string,
-  turnstileToken?: string
+  captcha?: CaptchaPayload
 ): Promise<ApiResponse> {
   const params = new URLSearchParams({ email })
-  if (turnstileToken) {
-    params.append('turnstile', turnstileToken)
+  const captchaParams = buildCaptchaParams(captcha)
+  for (const [key, value] of Object.entries(captchaParams)) {
+    params.append(key, value)
   }
   const res = await api.get(`/api/verification?${params}`)
   return res.data
@@ -211,11 +213,11 @@ export async function getCheckinStatus(
  * Perform daily checkin
  */
 export async function performCheckin(
-  turnstileToken?: string
+  captcha?: CaptchaPayload
 ): Promise<ApiResponse<CheckinResponse>> {
-  const url = turnstileToken
-    ? `/api/user/checkin?turnstile=${encodeURIComponent(turnstileToken)}`
-    : '/api/user/checkin'
+  const captchaParams = buildCaptchaParams(captcha)
+  const query = new URLSearchParams(captchaParams).toString()
+  const url = query ? `/api/user/checkin?${query}` : '/api/user/checkin'
   const res = await api.post(url)
   return res.data
 }

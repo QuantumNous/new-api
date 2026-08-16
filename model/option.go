@@ -44,6 +44,11 @@ func InitOptionMap() {
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
+	common.OptionMap["GeeTestCheckEnabled"] = strconv.FormatBool(common.GeeTestCheckEnabled)
+	common.OptionMap["CorptchaCheckEnabled"] = strconv.FormatBool(common.CorptchaCheckEnabled)
+	common.OptionMap["CaptchaLoginEnabled"] = strconv.FormatBool(common.CaptchaLoginEnabled)
+	common.OptionMap["CaptchaRegisterEnabled"] = strconv.FormatBool(common.CaptchaRegisterEnabled)
+	common.OptionMap["CaptchaResetEnabled"] = strconv.FormatBool(common.CaptchaResetEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
@@ -131,6 +136,10 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
+	common.OptionMap["GeeTestCaptchaId"] = ""
+	common.OptionMap["GeeTestCaptchaKey"] = ""
+	common.OptionMap["CorptchaSiteId"] = ""
+	common.OptionMap["CorptchaSecret"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
@@ -321,6 +330,16 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TelegramOAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
 			common.TurnstileCheckEnabled = boolValue
+		case "GeeTestCheckEnabled":
+			common.GeeTestCheckEnabled = boolValue
+		case "CorptchaCheckEnabled":
+			common.CorptchaCheckEnabled = boolValue
+		case "CaptchaLoginEnabled":
+			common.CaptchaLoginEnabled = boolValue
+		case "CaptchaRegisterEnabled":
+			common.CaptchaRegisterEnabled = boolValue
+		case "CaptchaResetEnabled":
+			common.CaptchaResetEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
@@ -527,6 +546,14 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
+	case "GeeTestCaptchaId":
+		common.GeeTestCaptchaId = value
+	case "GeeTestCaptchaKey":
+		common.GeeTestCaptchaKey = value
+	case "CorptchaSiteId":
+		common.CorptchaSiteId = value
+	case "CorptchaSecret":
+		common.CorptchaSecret = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":
