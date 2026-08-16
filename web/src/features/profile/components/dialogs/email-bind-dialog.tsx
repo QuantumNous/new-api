@@ -22,9 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
+import { Captcha } from '@/components/captcha'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import { useCountdown } from '@/hooks/use-countdown'
 
 import { sendEmailVerification, bindEmail } from '../../api'
@@ -51,6 +53,16 @@ export function EmailBindDialog({
   const [sendingCode, setSendingCode] = useState(false)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
+  const {
+    provider: captchaProvider,
+    isCaptchaEnabled,
+    captchaSiteKey,
+    captcha,
+    setCaptchaToken,
+    validateCaptcha,
+  } = useCaptcha('register')
+  const captchaReady = !isCaptchaEnabled || Boolean(captcha)
   const {
     secondsLeft,
     isActive,
@@ -65,15 +77,20 @@ export function EmailBindDialog({
       toast.error(t('Please enter a valid email address'))
       return
     }
+    if (!validateCaptcha()) return
 
     try {
       setSendingCode(true)
-      const response = await sendEmailVerification(email)
+      const response = await sendEmailVerification(email, captcha)
 
       if (response.success) {
         toast.success(t('Verification code sent! Please check your email.'))
         startCountdown()
+        setCaptchaToken('')
+        setCaptchaWidgetKey((current) => current + 1)
       } else {
+        setCaptchaToken('')
+        setCaptchaWidgetKey((current) => current + 1)
         toast.error(response.message || t('Failed to send verification code'))
       }
     } catch (_error) {
@@ -172,6 +189,18 @@ export function EmailBindDialog({
           />
         </div>
 
+        {isCaptchaEnabled && (
+          <div className='space-y-2'>
+            <Captcha
+              key={captchaWidgetKey}
+              provider={captchaProvider}
+              captchaKey={captchaSiteKey}
+              purpose='register'
+              onVerify={setCaptchaToken}
+            />
+          </div>
+        )}
+
         <div className='space-y-2'>
           <Label htmlFor='code'>{t('Verification Code')}</Label>
           <div className='flex gap-2'>
@@ -187,7 +216,7 @@ export function EmailBindDialog({
               type='button'
               variant='outline'
               onClick={handleSendCode}
-              disabled={sendingCode || isActive || !email}
+              disabled={sendingCode || isActive || !email || !captchaReady}
             >
               {isActive
                 ? `${secondsLeft}s`
