@@ -56,6 +56,31 @@ func TestValidateChannelProxy(t *testing.T) {
 	}
 }
 
+func TestChannelTestResponseRecorderLimitsStringWrites(t *testing.T) {
+	recorder := newChannelTestResponseRecorder(4)
+	written, err := recorder.WriteString("streamed")
+
+	require.NoError(t, err)
+	assert.Equal(t, len("streamed"), written)
+	assert.Equal(t, "stre", recorder.Body.String())
+	assert.True(t, recorder.exceeded)
+}
+
+func TestFetchModelsResponseBodyRejectsOversizedPayload(t *testing.T) {
+	payload := bytes.Repeat([]byte("x"), int(service.StrictSSRFProtectedResponseBodyLimitBytes)+1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(payload)
+	}))
+	t.Cleanup(server.Close)
+
+	body, err := getFetchModelsResponseBody(http.MethodGet, server.URL, nil, nil, fetchChannelModelsOptions{
+		HTTPClient: server.Client(),
+	})
+
+	require.ErrorContains(t, err, "model list response exceeds")
+	assert.Nil(t, body)
+}
+
 func TestValidateChannelRequiresNewAPIBaseURL(t *testing.T) {
 	tests := []struct {
 		name    string

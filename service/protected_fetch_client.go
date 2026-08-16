@@ -29,6 +29,7 @@ type ssrfProtectedRoundTripper struct {
 	dialContext   func(ctx context.Context, network, address string) (net.Conn, error)
 	getProtection func() (*common.SSRFProtection, bool, error)
 	proxy         func(*http.Request) (*url.URL, error)
+	maxBodyBytes  int64
 
 	mutex      sync.Mutex
 	transports map[string]*http.Transport
@@ -55,8 +56,46 @@ func currentFetchProtection() (*common.SSRFProtection, bool, error) {
 	return protection, true, nil
 }
 
+func strictFetchProtection() (*common.SSRFProtection, bool, error) {
+	return &common.SSRFProtection{
+		AllowPrivateIp:         false,
+		DomainFilterMode:       false,
+		IpFilterMode:           false,
+		ApplyIPFilterForDomain: true,
+	}, true, nil
+}
+
+func ValidateStrictSSRFProtectedFetchURL(urlStr string) error {
+	protection, _, _ := strictFetchProtection()
+	return protection.ValidateURL(urlStr)
+}
+
+func checkStrictProtectedFetchRedirect(req *http.Request, via []*http.Request) error {
+	if err := ValidateStrictSSRFProtectedFetchURL(req.URL.String()); err != nil {
+		return fmt.Errorf("redirect blocked: %v", err)
+	}
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
+	}
+	return nil
+}
+
 func newProtectedFetchHTTPClient() *http.Client {
 	return newProtectedFetchHTTPClientWithDialer(nil, nil, nil)
+}
+
+const StrictSSRFProtectedResponseBodyLimitBytes int64 = 8 << 20
+
+var strictSSRFProtectedHTTPClient = func() *http.Client {
+	noProxy := func(*http.Request) (*url.URL, error) { return nil, nil }
+	client := newProtectedFetchHTTPClientWithProxy(nil, nil, strictFetchProtection, noProxy)
+	client.Transport.(*ssrfProtectedRoundTripper).maxBodyBytes = StrictSSRFProtectedResponseBodyLimitBytes
+	client.CheckRedirect = checkStrictProtectedFetchRedirect
+	return client
+}()
+
+func GetStrictSSRFProtectedHTTPClient() *http.Client {
+	return strictSSRFProtectedHTTPClient
 }
 
 func newProtectedFetchHTTPClientWithDialer(resolver ssrfResolver, dialContext func(ctx context.Context, network, address string) (net.Conn, error), getProtection func() (*common.SSRFProtection, bool, error)) *http.Client {
@@ -101,15 +140,28 @@ func (t *ssrfProtectedRoundTripper) RoundTrip(req *http.Request) (*http.Response
 	if req == nil || req.URL == nil {
 		return nil, fmt.Errorf("invalid request")
 	}
-	if err := ValidateSSRFProtectedFetchURL(req.URL.String()); err != nil {
+	protection, enabled, err := t.getProtection()
+	if err != nil {
 		return nil, err
+	}
+	if enabled {
+		if err := protection.ValidateURL(req.URL.String()); err != nil {
+			return nil, err
+		}
 	}
 
 	proxyURL, err := t.proxy(req)
 	if err != nil {
 		return nil, err
 	}
-	return t.transportFor(proxyURL).RoundTrip(req)
+	response, err := t.transportFor(proxyURL).RoundTrip(req)
+	if err != nil {
+		return response, err
+	}
+	if response != nil && response.Body != nil && t.maxBodyBytes > 0 {
+		response.Body = http.MaxBytesReader(nil, response.Body, t.maxBodyBytes)
+	}
+	return response, nil
 }
 
 func (t *ssrfProtectedRoundTripper) CloseIdleConnections() {

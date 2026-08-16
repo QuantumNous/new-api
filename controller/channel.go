@@ -165,6 +165,10 @@ func GetAllChannels(c *gin.Context) {
 		}
 	}
 
+	if err := model.PopulateContributionChannelFlags(channelData); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	for _, datum := range channelData {
 		clearChannelInfo(datum)
 	}
@@ -378,6 +382,10 @@ func SearchChannels(c *gin.Context) {
 
 	pagedData := channelData[startIdx:endIdx]
 
+	if err := model.PopulateContributionChannelFlags(pagedData); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	for _, datum := range pagedData {
 		clearChannelInfo(datum)
 	}
@@ -406,6 +414,10 @@ func GetChannel(c *gin.Context) {
 		return
 	}
 	if channel != nil {
+		if err := model.PopulateContributionChannelFlags([]*model.Channel{channel}); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		clearChannelInfo(channel)
 	}
 	c.JSON(http.StatusOK, gin.H{

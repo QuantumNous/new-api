@@ -260,6 +260,14 @@ func migrateDB() error {
 
 	err := DB.AutoMigrate(
 		&Channel{},
+		&ChannelContribution{},
+		&ChannelContributionRevision{},
+		&ChannelContributionTestRun{},
+		&ChannelContributionTestResult{},
+		&ChannelContributionModelHealth{},
+		&ChannelContributionHealthState{},
+		&ChannelContributionRewardAccount{},
+		&ChannelContributionRewardLedger{},
 		&Token{},
 		&User{},
 		&UserSession{},
@@ -323,6 +331,14 @@ func migrateDBFast() error {
 		name  string
 	}{
 		{&Channel{}, "Channel"},
+		{&ChannelContribution{}, "ChannelContribution"},
+		{&ChannelContributionRevision{}, "ChannelContributionRevision"},
+		{&ChannelContributionTestRun{}, "ChannelContributionTestRun"},
+		{&ChannelContributionTestResult{}, "ChannelContributionTestResult"},
+		{&ChannelContributionModelHealth{}, "ChannelContributionModelHealth"},
+		{&ChannelContributionHealthState{}, "ChannelContributionHealthState"},
+		{&ChannelContributionRewardAccount{}, "ChannelContributionRewardAccount"},
+		{&ChannelContributionRewardLedger{}, "ChannelContributionRewardLedger"},
 		{&Token{}, "Token"},
 		{&User{}, "User"},
 		{&UserSession{}, "UserSession"},

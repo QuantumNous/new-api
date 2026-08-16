@@ -143,6 +143,9 @@ type RelayInfo struct {
 	SubscriptionAmountUsedAfterPreConsume int64
 	IsClaudeBetaQuery                     bool // /v1/messages?beta=true
 	IsChannelTest                         bool // channel test request
+	UseSSRFProtectedClient                bool // user-controlled upstream URL must use the protected outbound client
+	ContributionRewardBps                 int
+	ContributionRewardSnapshotted         bool
 	RetryIndex                            int
 	LastError                             *types.NewAPIError
 	RuntimeHeadersOverride                map[string]interface{}

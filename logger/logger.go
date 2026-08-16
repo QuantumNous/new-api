@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -86,6 +87,9 @@ func LogError(ctx context.Context, msg string) {
 }
 
 func LogDebug(ctx context.Context, msg string, args ...any) {
+	if ctx != nil && ctx.Value(constant.ContextKeySuppressUpstreamResponseLog) == true {
+		return
+	}
 	if common.DebugEnabled {
 		if len(args) > 0 {
 			msg = fmt.Sprintf(msg, args...)

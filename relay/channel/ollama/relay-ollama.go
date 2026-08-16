@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -332,9 +333,15 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 }
 
 func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
+	return FetchOllamaModelsWithClient(&http.Client{}, baseURL, apiKey)
+}
+
+func FetchOllamaModelsWithClient(client *http.Client, baseURL, apiKey string) ([]OllamaModel, error) {
+	if client == nil {
+		return nil, errors.New("HTTP client is required")
+	}
 	url := fmt.Sprintf("%s/api/tags", baseURL)
 
-	client := &http.Client{}
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %v", err)

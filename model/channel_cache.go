@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +21,7 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 // path-aware selection avoids re-parsing JSON per request. Refreshed on full sync.
 var channel2advancedCustomConfig map[int]*dto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
+var channelCacheGeneration uint64
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
@@ -40,30 +40,21 @@ func InitChannelCache() {
 			}
 		}
 	}
-	var abilities []*Ability
-	DB.Find(&abilities)
-	groups := make(map[string]bool)
-	for _, ability := range abilities {
-		groups[ability.Group] = true
-	}
 	newGroup2model2channels := make(map[string]map[string][]int)
-	for group := range groups {
-		newGroup2model2channels[group] = make(map[string][]int)
+	var abilities []Ability
+	if err := DB.Where("enabled = ?", true).Find(&abilities).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to load enabled abilities for channel cache: %v", err))
+		return
 	}
-	for _, channel := range channels {
-		if channel.Status != common.ChannelStatusEnabled {
+	for _, ability := range abilities {
+		channel := newChannelId2channel[ability.ChannelId]
+		if channel == nil || channel.Status != common.ChannelStatusEnabled {
 			continue // skip disabled channels
 		}
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
-			models := strings.Split(channel.Models, ",")
-			for _, model := range models {
-				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]int, 0)
-				}
-				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
-			}
+		if newGroup2model2channels[ability.Group] == nil {
+			newGroup2model2channels[ability.Group] = make(map[string][]int)
 		}
+		newGroup2model2channels[ability.Group][ability.Model] = append(newGroup2model2channels[ability.Group][ability.Model], channel.Id)
 	}
 
 	// sort by priority
@@ -94,6 +85,7 @@ func InitChannelCache() {
 	}
 	channelsIDM = newChannelId2channel
 	channel2advancedCustomConfig = newChannel2advancedCustomConfig
+	channelCacheGeneration++
 	channelSyncLock.Unlock()
 	// Lock ordering: InvalidatePricingCache acquires updatePricingLock, and
 	// GetPricing (holding updatePricingLock) nests channelSyncLock.RLock via
@@ -272,24 +264,62 @@ func CacheUpdateChannelStatus(id int, status int) {
 	if !common.MemoryCacheEnabled {
 		return
 	}
+	var abilities []Ability
+	if status == common.ChannelStatusEnabled {
+		if err := DB.Where("channel_id = ? AND enabled = ?", id, true).Find(&abilities).Error; err != nil {
+			common.SysError(fmt.Sprintf("failed to refresh channel routing abilities: channel_id=%d err=%v", id, err))
+			return
+		}
+	}
 	channelSyncLock.Lock()
-	defer channelSyncLock.Unlock()
 	if channel, ok := channelsIDM[id]; ok {
 		channel.Status = status
+		refreshChannelRoutingCacheLocked(channel, abilities)
 	}
-	if status != common.ChannelStatusEnabled {
-		// delete the channel from group2model2channels
-		for group, model2channels := range group2model2channels {
-			for model, channels := range model2channels {
-				for i, channelId := range channels {
-					if channelId == id {
-						// remove the channel from the slice
-						group2model2channels[group][model] = append(channels[:i], channels[i+1:]...)
-						break
-					}
+	channelCacheGeneration++
+	channelSyncLock.Unlock()
+	InvalidatePricingCache()
+}
+
+func refreshChannelRoutingCacheLocked(channel *Channel, abilities []Ability) {
+	if channel == nil {
+		return
+	}
+	if group2model2channels == nil {
+		group2model2channels = make(map[string]map[string][]int)
+	}
+	for group, model2channels := range group2model2channels {
+		for modelName, channelIds := range model2channels {
+			filtered := channelIds[:0]
+			for _, channelId := range channelIds {
+				if channelId != channel.Id {
+					filtered = append(filtered, channelId)
 				}
 			}
+			group2model2channels[group][modelName] = filtered
 		}
+	}
+	if channel.Status != common.ChannelStatusEnabled {
+		return
+	}
+
+	for _, ability := range abilities {
+		if group2model2channels[ability.Group] == nil {
+			group2model2channels[ability.Group] = make(map[string][]int)
+		}
+		channelIds := append(group2model2channels[ability.Group][ability.Model], channel.Id)
+		sort.Slice(channelIds, func(i, j int) bool {
+			left := channelsIDM[channelIds[i]]
+			right := channelsIDM[channelIds[j]]
+			if left == nil {
+				return false
+			}
+			if right == nil {
+				return true
+			}
+			return left.GetPriority() > right.GetPriority()
+		})
+		group2model2channels[ability.Group][ability.Model] = channelIds
 	}
 }
 
@@ -297,11 +327,17 @@ func CacheUpdateChannel(channel *Channel) {
 	if !common.MemoryCacheEnabled {
 		return
 	}
-	channelSyncLock.Lock()
 	if channel == nil {
-		channelSyncLock.Unlock()
 		return
 	}
+	var abilities []Ability
+	if channel.Status == common.ChannelStatusEnabled {
+		if err := DB.Where("channel_id = ? AND enabled = ?", channel.Id, true).Find(&abilities).Error; err != nil {
+			common.SysError(fmt.Sprintf("failed to refresh channel routing abilities: channel_id=%d err=%v", channel.Id, err))
+			return
+		}
+	}
+	channelSyncLock.Lock()
 
 	if channelsIDM == nil {
 		channelsIDM = make(map[int]*Channel)
@@ -310,6 +346,7 @@ func CacheUpdateChannel(channel *Channel) {
 		logger.LogDebug(nil, "CacheUpdateChannel before: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, oldChannel.ChannelInfo.MultiKeyPollingIndex)
 	}
 	channelsIDM[channel.Id] = channel
+	channelCacheGeneration++
 	if channel2advancedCustomConfig == nil {
 		channel2advancedCustomConfig = make(map[int]*dto.AdvancedCustomConfig)
 	}
@@ -319,6 +356,7 @@ func CacheUpdateChannel(channel *Channel) {
 			channel2advancedCustomConfig[channel.Id] = config
 		}
 	}
+	refreshChannelRoutingCacheLocked(channel, abilities)
 	logger.LogDebug(nil, "CacheUpdateChannel after: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
 	// Lock ordering: do NOT hold channelSyncLock while calling
 	// InvalidatePricingCache. GetPricing acquires updatePricingLock first and then

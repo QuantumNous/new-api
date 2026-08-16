@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -314,4 +317,30 @@ func TestProtectedFetchRoundTripperReusesTransportPerProxy(t *testing.T) {
 	require.NotSame(t, direct, proxied)
 	require.True(t, direct.ForceAttemptHTTP2)
 	require.False(t, direct.DisableKeepAlives)
+}
+
+func TestProtectedFetchRoundTripperLimitsResponseBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, strings.Repeat("x", 32))
+	}))
+	t.Cleanup(server.Close)
+
+	client := newProtectedFetchHTTPClientWithProxy(
+		nil,
+		nil,
+		func() (*common.SSRFProtection, bool, error) { return nil, false, nil },
+		func(*http.Request) (*url.URL, error) { return nil, nil },
+	)
+	roundTripper, ok := client.Transport.(*ssrfProtectedRoundTripper)
+	require.True(t, ok)
+	roundTripper.maxBodyBytes = 8
+
+	response, err := client.Get(server.URL)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = response.Body.Close() })
+	body, err := io.ReadAll(response.Body)
+	var maxBytesErr *http.MaxBytesError
+	require.ErrorAs(t, err, &maxBytesErr)
+	require.Equal(t, int64(8), maxBytesErr.Limit)
+	require.Equal(t, "xxxxxxxx", string(body))
 }

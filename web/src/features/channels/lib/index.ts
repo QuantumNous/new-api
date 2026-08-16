@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 // Re-export all library functions
 export * from './channel-actions'
 export * from './channel-field-update'
+export * from './contribution-channel-edit'
 export * from './advanced-custom'
 export * from './channel-form-errors'
 export * from './channel-form'
