@@ -27,6 +27,8 @@ import type {
   ChannelBalanceResponse,
   ChannelOpsResponse,
   ChannelTestResponse,
+  ClipboardChannelImportRequest,
+  ClipboardChannelImportResponse,
   CopyChannelParams,
   CopyChannelResponse,
   FetchModelsResponse,
@@ -121,6 +123,24 @@ export async function createChannel(
   data: AddChannelRequest
 ): Promise<{ success: boolean; message?: string }> {
   const res = await api.post('/api/channel', data, channelActionConfig())
+  return res.data
+}
+
+export async function importClipboardChannels(
+  data: ClipboardChannelImportRequest
+): Promise<ClipboardChannelImportResponse> {
+  const res = await api.post('/api/channel/import', data, channelActionConfig())
+  return res.data
+}
+
+export async function rollbackClipboardChannelImport(
+  batchId: string
+): Promise<{ success: boolean; message?: string; data?: number }> {
+  const res = await api.post(
+    '/api/channel/import/rollback',
+    { batch_id: batchId },
+    channelActionConfig()
+  )
   return res.data
 }
 

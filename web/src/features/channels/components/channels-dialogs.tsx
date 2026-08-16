@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useChannels } from './channels-provider'
 import { BalanceQueryDialog } from './dialogs/balance-query-dialog'
 import { ChannelTestDialog } from './dialogs/channel-test-dialog'
+import { ClipboardChannelImportDialog } from './dialogs/clipboard-channel-import-dialog'
 import { CopyChannelDialog } from './dialogs/copy-channel-dialog'
 import { EditTagDialog } from './dialogs/edit-tag-dialog'
 import { FetchModelsDialog } from './dialogs/fetch-models-dialog'
@@ -29,7 +30,14 @@ import { UpstreamUpdateDialog } from './dialogs/upstream-update-dialog'
 import { ChannelMutateDrawer } from './drawers/channel-mutate-drawer'
 
 export function ChannelsDialogs() {
-  const { open, setOpen, currentRow, upstream } = useChannels()
+  const {
+    open,
+    setOpen,
+    currentRow,
+    upstream,
+    clipboardImportText,
+    setClipboardImportText,
+  } = useChannels()
 
   return (
     <>
@@ -38,6 +46,13 @@ export function ChannelsDialogs() {
         open={open === 'create-channel' || open === 'update-channel'}
         onOpenChange={(v) => !v && setOpen(null)}
         currentRow={open === 'update-channel' ? currentRow : null}
+      />
+
+      <ClipboardChannelImportDialog
+        open={open === 'clipboard-import'}
+        onOpenChange={(v) => !v && setOpen(null)}
+        initialText={clipboardImportText}
+        onClearSensitiveText={() => setClipboardImportText('')}
       />
 
       {/* Test Channel Dialog */}

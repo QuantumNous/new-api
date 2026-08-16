@@ -63,6 +63,8 @@ export const channelSchema = z.object({
   param_override: z.string().nullish(),
   header_override: z.string().nullish(),
   remark: z.string().default(''),
+  expires_at: z.number().default(0),
+  import_source: z.string().default(''),
   max_input_tokens: z.number().default(0),
   channel_info: channelInfoSchema.default({
     is_multi_key: false,
@@ -376,4 +378,64 @@ export interface AddChannelRequest {
   multi_key_mode?: 'random' | 'polling'
   batch_add_set_key_prefix_2_name?: boolean
   channel: Partial<Channel>
+}
+
+export type ClipboardChannelImportStatus =
+  | 'created'
+  | 'existing'
+  | 'duplicate'
+  | 'needs_configuration'
+  | 'failed'
+
+export type ClipboardChannelImportItem = {
+  item_id: string
+  name?: string
+  base_url: string
+  keys: string[]
+}
+
+export type ClipboardChannelImportRequest = {
+  batch_id: string
+  name_prefix: string
+  type: number
+  group: string
+  tag: string
+  models: string[]
+  multi_key_mode: 'random' | 'polling'
+  expires_in_seconds: number
+  probe_models: boolean
+  retry_unverified?: boolean
+  items: ClipboardChannelImportItem[]
+}
+
+export type ClipboardChannelImportResult = {
+  item_id: string
+  status: ClipboardChannelImportStatus
+  channel_id?: number
+  name?: string
+  base_url?: string
+  key_count: number
+  skipped_duplicate_keys?: number
+  models?: string[]
+  enabled: boolean
+  expires_at?: number
+  message?: string
+  idempotent?: boolean
+}
+
+export type ClipboardChannelImportSummary = {
+  created: number
+  existing: number
+  duplicate: number
+  needs_configuration: number
+  failed: number
+}
+
+export type ClipboardChannelImportResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    results: ClipboardChannelImportResult[]
+    summary: ClipboardChannelImportSummary
+  }
 }

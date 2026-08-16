@@ -45,6 +45,7 @@ type DialogType =
   | 'tag-batch-edit'
   | 'edit-tag'
   | 'copy-channel'
+  | 'clipboard-import'
   | null
 
 type UpstreamUpdateState = ReturnType<typeof useChannelUpstreamUpdates>
@@ -64,6 +65,8 @@ type ChannelsContextType = {
   setBatchMode: (enabled: boolean) => void
   sensitiveVisible: boolean
   setSensitiveVisible: (visible: boolean) => void
+  clipboardImportText: string
+  setClipboardImportText: (text: string) => void
   upstream: UpstreamUpdateState
 }
 
@@ -91,6 +94,7 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
   })
   const [batchMode, setBatchMode] = useState(false)
   const [sensitiveVisible, setSensitiveVisible] = useState(true)
+  const [clipboardImportText, setClipboardImportText] = useState('')
 
   const queryClient = useQueryClient()
   const refreshChannels = useCallback(async () => {
@@ -117,6 +121,8 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
       setBatchMode,
       sensitiveVisible,
       setSensitiveVisible,
+      clipboardImportText,
+      setClipboardImportText,
       upstream,
     }),
     [
@@ -127,6 +133,7 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
       idSort,
       batchMode,
       sensitiveVisible,
+      clipboardImportText,
       upstream,
     ]
   )

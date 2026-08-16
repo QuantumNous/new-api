@@ -27,6 +27,11 @@ func TestChannelDeleteRoutesUseSensitiveWritePermission(t *testing.T) {
 	assertChannelRoutePermission(t, http.MethodPost, "/batch/tag", authz.ChannelWrite, controller.BatchSetChannelTag)
 }
 
+func TestChannelClipboardImportUsesSensitiveWritePermission(t *testing.T) {
+	assertChannelRoutePermission(t, http.MethodPost, "/import", authz.ChannelSensitiveWrite, controller.ImportClipboardChannels)
+	assertChannelRoutePermission(t, http.MethodPost, "/import/rollback", authz.ChannelSensitiveWrite, controller.RollbackClipboardChannelImport)
+}
+
 func TestChannelStatusRoutesRegisterWithoutConflict(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()

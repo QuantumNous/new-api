@@ -29,6 +29,7 @@ import {
   SortAsc,
   RefreshCw,
   ArrowUpFromLine,
+  ClipboardPaste,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -78,6 +79,7 @@ export function ChannelsPrimaryButtons() {
     batchMode,
     setBatchMode,
     upstream,
+    setClipboardImportText,
   } = useChannels()
   const queryClient = useQueryClient()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -102,6 +104,22 @@ export function ChannelsPrimaryButtons() {
 
   const handleBatchModeToggle = (checked: boolean) => {
     setBatchMode(checked)
+  }
+
+  const handleClipboardImport = async () => {
+    if (!canEditSensitive) return
+
+    let text = ''
+    try {
+      if (!navigator.clipboard?.readText) {
+        throw new Error('Clipboard API is unavailable')
+      }
+      text = await navigator.clipboard.readText()
+    } catch {
+      // The import dialog provides a manual paste fallback.
+    }
+    setClipboardImportText(text)
+    setOpen('clipboard-import')
   }
 
   return (
@@ -146,6 +164,28 @@ export function ChannelsPrimaryButtons() {
             onCheckedChange={handleIdSortToggle}
           />
         </div>
+
+        <Tooltip>
+          <TooltipTrigger render={<span className='inline-flex' />}>
+            <Button
+              onClick={handleClipboardImport}
+              size='sm'
+              variant='outline'
+              disabled={!canEditSensitive}
+              aria-label={t('Import from Clipboard')}
+            >
+              <ClipboardPaste className='h-4 w-4' />
+              <span className='max-lg:hidden'>
+                {t('Import from Clipboard')}
+              </span>
+            </Button>
+          </TooltipTrigger>
+          {!canEditSensitive && (
+            <TooltipContent>
+              {t('No permission to perform this action')}
+            </TooltipContent>
+          )}
+        </Tooltip>
 
         {/* Create Channel */}
         <Tooltip>

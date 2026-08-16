@@ -898,6 +898,8 @@ export function useChannelsColumns(
             CHANNEL_STATUS_CONFIG[
               status as keyof typeof CHANNEL_STATUS_CONFIG
             ] || CHANNEL_STATUS_CONFIG[0]
+          const isExpired =
+            channel.expires_at > 0 && channel.expires_at <= Date.now() / 1000
 
           const isMultiKey = isMultiKeyChannel(channel)
           const keySize = channel.channel_info?.multi_key_size ?? 0
@@ -905,10 +907,13 @@ export function useChannelsColumns(
             ? Object.keys(channel.channel_info.multi_key_status_list).length
             : 0
           const enabledCount = Math.max(0, keySize - disabledCount)
-          const label =
-            isMultiKey && keySize > 0
-              ? `${t(config.label)} (${enabledCount}/${keySize})`
-              : t(config.label)
+          let label = t(config.label)
+          if (isExpired) {
+            label = t('Expired')
+          } else if (isMultiKey && keySize > 0) {
+            label = `${label} (${enabledCount}/${keySize})`
+          }
+          const statusVariant = isExpired ? 'warning' : config.variant
 
           // Auto-disabled: show reason and time tooltip
           if (status === 3) {
@@ -935,7 +940,7 @@ export function useChannelsColumns(
                     <TooltipTrigger render={<span />}>
                       <StatusBadge
                         label={label}
-                        variant={config.variant}
+                        variant={statusVariant}
                         size='sm'
                         copyable={false}
                       />
@@ -963,7 +968,7 @@ export function useChannelsColumns(
           return (
             <StatusBadge
               label={label}
-              variant={config.variant}
+              variant={statusVariant}
               size='sm'
               copyable={false}
             />

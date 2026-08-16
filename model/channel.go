@@ -50,6 +50,10 @@ type Channel struct {
 	ParamOverride     *string `json:"param_override" gorm:"type:text"`
 	HeaderOverride    *string `json:"header_override" gorm:"type:text"`
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
+	ExpiresAt         int64   `json:"expires_at" gorm:"bigint;default:0;index"`
+	ImportSource      string  `json:"import_source,omitempty" gorm:"type:varchar(32);index"`
+	ImportID          *string `json:"-" gorm:"type:varchar(128)"`
+	ImportBatchID     *string `json:"-" gorm:"type:varchar(128);index"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 

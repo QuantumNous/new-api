@@ -20,8 +20,35 @@ import (
 func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(channelTestHandler{})
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
+	service.RegisterSystemTaskHandler(channelExpiryHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+}
+
+type channelExpiryHandler struct{}
+
+func (channelExpiryHandler) Type() string { return model.SystemTaskTypeChannelExpiry }
+
+func (channelExpiryHandler) Enabled() bool { return true }
+
+func (channelExpiryHandler) Interval() time.Duration { return time.Minute }
+
+func (channelExpiryHandler) NewPayload() any { return nil }
+
+func (channelExpiryHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	if ctx.Err() != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, ctx.Err())
+		return
+	}
+	disabled, err := model.DisableExpiredChannels(common.GetTimestamp())
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	if disabled > 0 {
+		model.InitChannelCache()
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, map[string]int{"disabled": disabled}, nil)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and

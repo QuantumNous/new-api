@@ -48,6 +48,8 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodGet, path: "/update_balance", permission: authz.ChannelOperate, handler: controller.UpdateAllChannelsBalance},
 	{method: http.MethodGet, path: "/update_balance/:id", permission: authz.ChannelOperate, handler: controller.UpdateChannelBalance},
 	{method: http.MethodPost, path: "/", permission: authz.ChannelSensitiveWrite, handler: controller.AddChannel},
+	{method: http.MethodPost, path: "/import", permission: authz.ChannelSensitiveWrite, handler: controller.ImportClipboardChannels},
+	{method: http.MethodPost, path: "/import/rollback", permission: authz.ChannelSensitiveWrite, handler: controller.RollbackClipboardChannelImport},
 	{method: http.MethodPut, path: "/", permission: authz.ChannelWrite, handler: controller.UpdateChannel},
 	{method: http.MethodPost, path: "/status/batch", permission: authz.ChannelOperate, handler: controller.BatchUpdateChannelStatus},
 	{method: http.MethodPost, path: "/:id/status", permission: authz.ChannelOperate, handler: controller.UpdateChannelStatus},
