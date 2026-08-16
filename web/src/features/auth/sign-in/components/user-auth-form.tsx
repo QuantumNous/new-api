@@ -413,7 +413,7 @@ export function UserAuthForm({
 
             {/* Turnstile */}
             {isTurnstileEnabled && (
-              <div className='mt-2'>
+              <div className='flex justify-center mt-2'>
                 <Turnstile
                   key={turnstileWidgetKey}
                   siteKey={turnstileSiteKey}
