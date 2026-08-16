@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -65,7 +66,8 @@ func CorptchaCheck(scene CaptchaScene) gin.HandlerFunc {
 		}
 		req.Header.Set("content-type", "application/json")
 		req.Header.Set("authorization", "Bearer "+common.CorptchaSecret)
-		rawRes, err := http.DefaultClient.Do(req)
+		client := &http.Client{Timeout: 5 * time.Second}
+		rawRes, err := client.Do(req)
 		if err != nil {
 			common.SysLog(err.Error())
 			c.JSON(http.StatusOK, gin.H{

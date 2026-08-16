@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -43,7 +44,8 @@ func GeeTestCheck() gin.HandlerFunc {
 		signToken := hex.EncodeToString(mac.Sum(nil))
 
 		validateURL := common.GeeTestApiServer + "/validate?captcha_id=" + url.QueryEscape(common.GeeTestCaptchaId)
-		rawRes, err := http.PostForm(validateURL, url.Values{
+		client := &http.Client{Timeout: 5 * time.Second}
+		rawRes, err := client.PostForm(validateURL, url.Values{
 			"lot_number":      {lotNumber},
 			"captcha_output":  {captchaOutput},
 			"pass_token":      {passToken},

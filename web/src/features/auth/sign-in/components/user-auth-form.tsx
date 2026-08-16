@@ -91,7 +91,7 @@ export function UserAuthForm({
     setCaptchaToken,
     captcha,
     validateCaptcha,
-  } = useCaptcha()
+  } = useCaptcha('login')
   const captchaReady = !isCaptchaEnabled || Boolean(captcha)
   const { handleLoginSuccess, redirectTo2FA } = useAuthRedirect()
   const setPending2FAFlowToken = useAuthStore(

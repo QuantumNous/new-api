@@ -77,7 +77,7 @@ export function SignUpForm({
     setCaptchaToken,
     captcha,
     validateCaptcha,
-  } = useCaptcha()
+  } = useCaptcha('register')
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
@@ -175,6 +175,8 @@ export function SignUpForm({
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {
+        setCaptchaToken('')
+        setCaptchaWidgetKey((current) => current + 1)
         toast.error(res?.message || t('Failed to create account'))
       }
     } catch {

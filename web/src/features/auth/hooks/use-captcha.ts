@@ -24,10 +24,17 @@ import { useStatus } from '@/hooks/use-status'
 import type { CaptchaPayload, CaptchaProvider } from '@/lib/captcha'
 
 /**
- * Hook for managing robot protection (Turnstile / GeeTest / Corptcha) verification.
- * 同一时刻仅启用一个渠道，按后端状态自动识别当前渠道。
+ * 人机验证的业务场景，对应后端场景开关。
+ * 登录 / 注册 / 重置密码分别受开关控制；签到等未列出的场景始终跟随渠道。
  */
-export function useCaptcha() {
+export type CaptchaScene = 'login' | 'register' | 'reset' | 'checkin'
+
+/**
+ * Hook for managing robot protection (Turnstile / GeeTest / Corptcha) verification.
+ * 同一时刻仅启用一个渠道，按后端状态自动识别当前渠道，
+ * 并根据业务场景开关（登录 / 注册 / 重置密码）决定是否真正启用。
+ */
+export function useCaptcha(scene?: CaptchaScene) {
   const { status } = useStatus()
   const [captchaToken, setCaptchaToken] = useState('')
 
@@ -48,6 +55,18 @@ export function useCaptcha() {
   } else if (isTurnstileEnabled) {
     provider = 'turnstile'
   }
+
+  // 场景开关与后端一致：关闭该场景时前端也不展示人机验证
+  let sceneEnabled = true
+  if (scene === 'login') {
+    sceneEnabled = status?.captcha_login_enabled ?? true
+  } else if (scene === 'register') {
+    sceneEnabled = status?.captcha_register_enabled ?? true
+  } else if (scene === 'reset') {
+    sceneEnabled = status?.captcha_reset_enabled ?? true
+  }
+  if (!sceneEnabled) provider = null
+
   const isCaptchaEnabled = provider !== null
   const captchaSiteKey =
     provider === 'corptcha'

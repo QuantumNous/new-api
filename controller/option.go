@@ -203,10 +203,10 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "TurnstileCheckEnabled":
-		if option.Value == "true" && common.TurnstileSiteKey == "" {
+		if option.Value == "true" && (common.TurnstileSiteKey == "" || common.TurnstileSecretKey == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
+				"message": "无法启用 Turnstile 校验，请先填写 Site Key 和 Secret Key！",
 			})
 
 			return
@@ -221,10 +221,10 @@ func UpdateOption(c *gin.Context) {
 			}
 		}
 	case "GeeTestCheckEnabled":
-		if option.Value == "true" && common.GeeTestCaptchaId == "" {
+		if option.Value == "true" && (common.GeeTestCaptchaId == "" || common.GeeTestCaptchaKey == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 GeeTest 校验，请先填入 GeeTest Captcha ID！",
+				"message": "无法启用 GeeTest 校验，请先填写 Captcha ID 和 Captcha Key！",
 			})
 
 			return
@@ -239,10 +239,10 @@ func UpdateOption(c *gin.Context) {
 			}
 		}
 	case "CorptchaCheckEnabled":
-		if option.Value == "true" && common.CorptchaSiteId == "" {
+		if option.Value == "true" && (common.CorptchaSiteId == "" || common.CorptchaSecret == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 Corptcha 校验，请先填入 Corptcha Site ID！",
+				"message": "无法启用 Corptcha 校验，请先填写 Site ID 和 Secret！",
 			})
 
 			return

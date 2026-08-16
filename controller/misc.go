@@ -76,6 +76,9 @@ func GetStatus(c *gin.Context) {
 		"geetest_captcha_id":          common.GeeTestCaptchaId,
 		"corptcha_check":              common.CorptchaCheckEnabled,
 		"corptcha_site_id":            common.CorptchaSiteId,
+		"captcha_login_enabled":       common.CaptchaLoginEnabled,
+		"captcha_register_enabled":    common.CaptchaRegisterEnabled,
+		"captcha_reset_enabled":       common.CaptchaResetEnabled,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
