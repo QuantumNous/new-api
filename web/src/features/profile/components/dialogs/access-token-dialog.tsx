@@ -16,13 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { RefreshCw, Loader2 } from 'lucide-react'
-import { useEffect } from 'react'
+import { KeyRound, Loader2, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CopyButton } from '@/components/copy-button'
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
@@ -42,77 +50,149 @@ export function AccessTokenDialog({
   onOpenChange,
 }: AccessTokenDialogProps) {
   const { t } = useTranslation()
-  const { token, generating, generate } = useAccessToken()
+  const { token, generating, generate, clearToken } = useAccessToken()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
-  // Auto-generate token when dialog opens if no token exists
-  useEffect(() => {
-    if (open && !token) {
-      generate()
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (generating) return
+
+    if (!nextOpen) {
+      setConfirmOpen(false)
+      clearToken()
     }
-  }, [open, token, generate])
+    onOpenChange(nextOpen)
+  }
+
+  const handleGenerate = async () => {
+    if (await generate()) {
+      setConfirmOpen(false)
+    }
+  }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={t('Access Token')}
-      description={t(
-        "Your system access token for API authentication. Keep it secure and don't share it with others."
-      )}
-      contentClassName='sm:max-w-md'
-      contentHeight='auto'
-      bodyClassName='space-y-4'
-      footer={
-        <>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => onOpenChange(false)}
-          >
-            {t('Close')}
-          </Button>
-          <Button
-            type='button'
-            onClick={generate}
-            disabled={generating}
-            className='gap-2'
-          >
-            {generating ? (
-              <Loader2 className='h-4 w-4 animate-spin' />
-            ) : (
-              <RefreshCw className='h-4 w-4' />
-            )}
-            {generating ? t('Generating...') : t('Regenerate')}
-          </Button>
-        </>
-      }
-    >
-      <div className='my-6 space-y-4'>
-        <div className='space-y-2'>
-          <Label htmlFor='token'>{t('Token')}</Label>
-          <div className='flex gap-2'>
-            <Input
-              id='token'
-              type='text'
-              value={token}
-              readOnly
-              className='font-mono text-xs'
-              placeholder={t('Click "Generate" to create a token')}
-            />
-            <CopyButton
-              value={token}
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={handleOpenChange}
+        title={t('Access Token')}
+        description={t(
+          "Your system access token for API authentication. Keep it secure and don't share it with others."
+        )}
+        contentClassName='sm:max-w-md'
+        contentHeight='auto'
+        bodyClassName='space-y-4'
+        footer={
+          <>
+            <Button
+              type='button'
               variant='outline'
-              className='size-9'
-              iconClassName='size-4'
-              tooltip={t('Copy token')}
-              aria-label={t('Copy token')}
-            />
-          </div>
-          <p className='text-muted-foreground text-xs'>
-            {t('Use this token for API authentication')}
-          </p>
+              onClick={() => handleOpenChange(false)}
+              disabled={generating}
+            >
+              {t('Close')}
+            </Button>
+            <Button
+              type='button'
+              onClick={() => setConfirmOpen(true)}
+              disabled={generating}
+              className='gap-2'
+            >
+              {generating ? (
+                <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+              ) : (
+                <RefreshCw className='h-4 w-4' aria-hidden='true' />
+              )}
+              {generating ? t('Generating...') : t('Regenerate')}
+            </Button>
+          </>
+        }
+      >
+        <div className='my-6'>
+          {token ? (
+            <div className='space-y-2'>
+              <Label htmlFor='token'>{t('Token')}</Label>
+              <div className='flex gap-2'>
+                <Input
+                  id='token'
+                  type='text'
+                  value={token}
+                  readOnly
+                  className='font-mono text-xs'
+                />
+                <CopyButton
+                  value={token}
+                  variant='outline'
+                  className='size-9'
+                  iconClassName='size-4'
+                  tooltip={t('Copy token')}
+                  aria-label={t('Copy token')}
+                />
+              </div>
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  "Save this token now. You won't be able to view it again after closing this dialog."
+                )}
+              </p>
+            </div>
+          ) : (
+            <Empty className='border py-8'>
+              <EmptyHeader>
+                <EmptyMedia variant='icon'>
+                  <KeyRound aria-hidden='true' />
+                </EmptyMedia>
+                <EmptyTitle>
+                  {t('Access tokens are shown only once')}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {t(
+                    'For security, existing access tokens cannot be displayed. Regenerate only when you need a new token.'
+                  )}
+                </EmptyDescription>
+                <EmptyDescription>
+                  {t(
+                    'Regenerating immediately invalidates any existing token.'
+                  )}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
         </div>
-      </div>
-    </Dialog>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={(nextOpen) => {
+          if (!generating) setConfirmOpen(nextOpen)
+        }}
+        title={t('Regenerate access token?')}
+        desc={
+          <div className='space-y-2'>
+            <p>
+              {t(
+                'This will immediately invalidate your existing access token. Any applications or scripts using it will stop working.'
+              )}
+            </p>
+            <p>
+              {t(
+                'The new token will only be shown once. Copy it and store it securely.'
+              )}
+            </p>
+          </div>
+        }
+        confirmText={
+          generating ? (
+            <>
+              <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+              {t('Generating...')}
+            </>
+          ) : (
+            t('Regenerate token')
+          )
+        }
+        destructive
+        isLoading={generating}
+        handleConfirm={handleGenerate}
+      />
+    </>
   )
 }

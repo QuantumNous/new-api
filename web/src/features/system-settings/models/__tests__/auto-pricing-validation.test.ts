@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { autoPricingFormSchema } from '../auto-pricing-form'
 
@@ -33,7 +32,7 @@ const validValues = {
 
 describe('auto pricing settings validation', () => {
   test('accepts the shipped defaults', () => {
-    assert.equal(autoPricingFormSchema.safeParse(validValues).success, true)
+    expect(autoPricingFormSchema.safeParse(validValues).success).toBe(true)
   })
 
   test('accepts an optional checksum URL when it is a valid URL or empty', () => {
@@ -42,7 +41,7 @@ describe('auto pricing settings validation', () => {
         ...validValues,
         hashUrl,
       })
-      assert.equal(result.success, true, `hashUrl ${JSON.stringify(hashUrl)}`)
+      expect(result.success, `hashUrl ${JSON.stringify(hashUrl)}`).toBe(true)
     }
   })
 
@@ -57,11 +56,10 @@ describe('auto pricing settings validation', () => {
         ...validValues,
         remoteUrl,
       })
-      assert.equal(
+      expect(
         result.success,
-        false,
         `remoteUrl ${JSON.stringify(remoteUrl)} must be rejected`
-      )
+      ).toBe(false)
     }
   })
 
@@ -74,11 +72,10 @@ describe('auto pricing settings validation', () => {
         ...validValues,
         checkIntervalMinutes,
       })
-      assert.equal(
+      expect(
         result.success,
-        false,
         `interval ${checkIntervalMinutes} must be rejected`
-      )
+      ).toBe(false)
     }
   })
 
@@ -87,9 +84,9 @@ describe('auto pricing settings validation', () => {
       ...validValues,
       checkIntervalMinutes: '120',
     })
-    assert.equal(result.success, true)
+    expect(result.success).toBe(true)
     if (result.success) {
-      assert.equal(result.data.checkIntervalMinutes, 120)
+      expect(result.data.checkIntervalMinutes).toBe(120)
     }
   })
 })
