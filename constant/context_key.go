@@ -68,6 +68,10 @@ const (
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
 
+	// ContextKeySuppressUpstreamResponseLog prevents user-controlled upstream
+	// response bodies from being written to debug and relay error logs.
+	ContextKeySuppressUpstreamResponseLog ContextKey = "suppress_upstream_response_log"
+
 	// ContextKeyAuditLogged marks that the current request has already recorded
 	// a manage/operation audit log inside the handler. When set, the admin-audit
 	// fallback in authHelper (finishAdminAudit) skips its record to avoid

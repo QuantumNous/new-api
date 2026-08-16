@@ -130,6 +130,12 @@ export function SidebarModulesSection({
       },
     },
     admin: {
+      channel_contribution: {
+        title: t('Channel Contributions'),
+        description: t(
+          'Review contributed channels and configure contribution policy.'
+        ),
+      },
       channel: {
         title: t('Channels'),
         description: t('Configure upstream providers and routing.'),

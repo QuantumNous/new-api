@@ -26,6 +26,7 @@ export type HeaderNavModulesConfig = {
   console: boolean
   pricing: HeaderNavAccessConfig
   rankings: HeaderNavAccessConfig
+  contribution: HeaderNavAccessConfig
   docs: boolean
   about: boolean
   [key: string]: boolean | HeaderNavAccessConfig
@@ -48,6 +49,10 @@ export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   rankings: {
     enabled: true,
     requireAuth: false,
+  },
+  contribution: {
+    enabled: true,
+    requireAuth: true,
   },
   docs: true,
   about: true,
@@ -80,6 +85,7 @@ export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {
     user: true,
     setting: true,
     subscription: true,
+    channel_contribution: true,
   },
 }
 
@@ -98,6 +104,7 @@ const cloneHeaderNavDefault = (): HeaderNavModulesConfig => ({
   ...HEADER_NAV_DEFAULT,
   pricing: { ...HEADER_NAV_DEFAULT.pricing },
   rankings: { ...HEADER_NAV_DEFAULT.rankings },
+  contribution: { ...HEADER_NAV_DEFAULT.contribution },
 })
 
 const parseAccessModule = (
@@ -146,6 +153,7 @@ export function parseHeaderNavModules(
       ...base,
       pricing: { ...base.pricing },
       rankings: { ...base.rankings },
+      contribution: { ...base.contribution },
     }
 
     Object.entries(parsed).forEach(([key, raw]) => {
@@ -155,6 +163,11 @@ export function parseHeaderNavModules(
       }
       if (key === 'rankings') {
         result.rankings = parseAccessModule(raw, base.rankings)
+        return
+      }
+      if (key === 'contribution') {
+        result.contribution = parseAccessModule(raw, base.contribution)
+        result.contribution.requireAuth = true
         return
       }
 

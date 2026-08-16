@@ -161,6 +161,7 @@ import {
   deduplicateKeys,
   getChannelTypeIcon,
   getKeyPromptForType,
+  hasDisallowedContributionChannelChanges,
   parseModelsString,
   formatModelsArray,
   extractRedirectModels,
@@ -666,6 +667,11 @@ export function ChannelMutateDrawer({
     queryFn: () => getChannel(channelId || 0),
     enabled: isEditing && Boolean(channelId),
   })
+  const isContributionChannel = Boolean(
+    currentRow?.is_contribution || channelData?.data?.is_contribution
+  )
+  const contributionConfigurationLocked = isEditing && isContributionChannel
+  const configurationLocked = sensitiveLocked || contributionConfigurationLocked
 
   // Fetch available groups
   const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
@@ -779,7 +785,7 @@ export function ChannelMutateDrawer({
     reset: resetDoubaoApiUnlock,
   } = useHiddenClickUnlock({
     requiredClicks: 10,
-    disabled: currentType !== 45 || sensitiveLocked,
+    disabled: currentType !== 45 || configurationLocked,
     onUnlock: () => {
       toast.info(t('Doubao custom API address editing unlocked'))
     },
@@ -1638,6 +1644,20 @@ export function ChannelMutateDrawer({
         return
       }
 
+      if (contributionConfigurationLocked) {
+        const dirtyFields = form.formState.dirtyFields as Partial<
+          Record<keyof ChannelFormValues, unknown>
+        >
+        if (hasDisallowedContributionChannelChanges(dirtyFields)) {
+          toast.error(
+            t(
+              'Contribution channel connection settings are read-only here. Submit sensitive changes through channel contribution review; only tag, priority, and weight can be edited.'
+            )
+          )
+          return
+        }
+      }
+
       if (sensitiveLocked) {
         const dirtyFields = form.formState.dirtyFields as Partial<
           Record<keyof ChannelFormValues, unknown>
@@ -1729,6 +1749,7 @@ export function ChannelMutateDrawer({
     },
     [
       isEditing,
+      contributionConfigurationLocked,
       sensitiveLocked,
       form,
       confirmMissingModelMappings,
@@ -1905,7 +1926,7 @@ export function ChannelMutateDrawer({
             </div>
           </SheetHeader>
 
-          {sensitiveLocked && (
+          {sensitiveLocked && !contributionConfigurationLocked && (
             <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
               <AlertDescription>
                 {t(
@@ -1913,6 +1934,16 @@ export function ChannelMutateDrawer({
                 )}{' '}
                 {t(
                   'You can still edit non-sensitive operations fields such as models, groups, priority, and weight.'
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {contributionConfigurationLocked && (
+            <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+              <AlertDescription>
+                {t(
+                  'Contribution channel connection settings are read-only here. Submit sensitive changes through channel contribution review; only tag, priority, and weight can be edited.'
                 )}
               </AlertDescription>
             </Alert>
@@ -1976,7 +2007,7 @@ export function ChannelMutateDrawer({
                       <ChannelBasicSection>
                         <div className='grid gap-4 sm:grid-cols-2'>
                           <fieldset
-                            disabled={sensitiveLocked}
+                            disabled={configurationLocked}
                             className='min-w-0 disabled:opacity-60'
                           >
                             <FormField
@@ -2016,13 +2047,14 @@ export function ChannelMutateDrawer({
                                       />
                                     </div>
                                   </FormControl>
-                                  {sensitiveLocked && (
-                                    <FormDescription>
-                                      {t(
-                                        'No permission to perform this action'
-                                      )}
-                                    </FormDescription>
-                                  )}
+                                  {sensitiveLocked &&
+                                    !contributionConfigurationLocked && (
+                                      <FormDescription>
+                                        {t(
+                                          'No permission to perform this action'
+                                        )}
+                                      </FormDescription>
+                                    )}
                                   <FormMessage />
                                 </FormItem>
                               )}
@@ -2039,6 +2071,7 @@ export function ChannelMutateDrawer({
                                   <Input
                                     placeholder={t(FIELD_PLACEHOLDERS.NAME)}
                                     {...field}
+                                    disabled={contributionConfigurationLocked}
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -2076,7 +2109,7 @@ export function ChannelMutateDrawer({
 
                         {currentType === 1 && (
                           <fieldset
-                            disabled={sensitiveLocked}
+                            disabled={configurationLocked}
                             className='disabled:opacity-60'
                           >
                             <FormField
@@ -2094,7 +2127,8 @@ export function ChannelMutateDrawer({
                                     />
                                   </FormControl>
                                   <FormDescription>
-                                    {sensitiveLocked
+                                    {sensitiveLocked &&
+                                    !contributionConfigurationLocked
                                       ? t(
                                           'No permission to perform this action'
                                         )
@@ -2123,17 +2157,18 @@ export function ChannelMutateDrawer({
                           </Alert>
                         )}
 
-                        {sensitiveLocked && (
-                          <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
-                            <AlertDescription>
-                              {t('No permission to perform this action')}
-                            </AlertDescription>
-                          </Alert>
-                        )}
+                        {sensitiveLocked &&
+                          !contributionConfigurationLocked && (
+                            <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                              <AlertDescription>
+                                {t('No permission to perform this action')}
+                              </AlertDescription>
+                            </Alert>
+                          )}
 
                         <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
                           <fieldset
-                            disabled={sensitiveLocked}
+                            disabled={configurationLocked}
                             className='space-y-4 disabled:opacity-60'
                           >
                             {/* Azure (type 3) */}
@@ -3099,7 +3134,7 @@ export function ChannelMutateDrawer({
                                           size='sm'
                                           onClick={handleRefreshCodexCredential}
                                           disabled={
-                                            sensitiveLocked ||
+                                            configurationLocked ||
                                             isCodexCredentialRefreshing
                                           }
                                         >
@@ -3255,7 +3290,10 @@ export function ChannelMutateDrawer({
                       className='scroll-mt-4'
                     >
                       <ChannelModelsSection>
-                        <div className='space-y-5'>
+                        <fieldset
+                          disabled={contributionConfigurationLocked}
+                          className='space-y-5 disabled:opacity-60'
+                        >
                           <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
                             <FormField
                               control={form.control}
@@ -3612,7 +3650,7 @@ export function ChannelMutateDrawer({
                               )}
                             />
                           </div>
-                        </div>
+                        </fieldset>
                       </ChannelModelsSection>
                     </div>
 
@@ -3706,6 +3744,7 @@ export function ChannelMutateDrawer({
                                         FIELD_PLACEHOLDERS.TEST_MODEL
                                       )}
                                       {...field}
+                                      disabled={contributionConfigurationLocked}
                                     />
                                   </FormControl>
                                   <FormDescription>
@@ -3730,6 +3769,7 @@ export function ChannelMutateDrawer({
                                   <FormControl>
                                     <Switch
                                       checked={field.value === 1}
+                                      disabled={contributionConfigurationLocked}
                                       onCheckedChange={(checked) =>
                                         field.onChange(checked ? 1 : 0)
                                       }
@@ -3786,6 +3826,9 @@ export function ChannelMutateDrawer({
                                         )}
                                         rows={2}
                                         {...field}
+                                        disabled={
+                                          contributionConfigurationLocked
+                                        }
                                       />
                                     </FormControl>
                                     <FormDescription>
@@ -3830,7 +3873,10 @@ export function ChannelMutateDrawer({
                                     <JsonEditor
                                       value={field.value || ''}
                                       onChange={field.onChange}
-                                      disabled={isSubmitting}
+                                      disabled={
+                                        contributionConfigurationLocked ||
+                                        isSubmitting
+                                      }
                                       keyPlaceholder='400'
                                       valuePlaceholder='500'
                                       keyLabel='Original Code'
@@ -3847,13 +3893,14 @@ export function ChannelMutateDrawer({
                               )}
                             />
 
-                            {sensitiveLocked && (
-                              <p className='text-muted-foreground text-xs'>
-                                {t('No permission to perform this action')}
-                              </p>
-                            )}
+                            {sensitiveLocked &&
+                              !contributionConfigurationLocked && (
+                                <p className='text-muted-foreground text-xs'>
+                                  {t('No permission to perform this action')}
+                                </p>
+                              )}
                             <fieldset
-                              disabled={sensitiveLocked}
+                              disabled={configurationLocked}
                               className='space-y-4 disabled:opacity-60'
                             >
                               <FormField
@@ -3935,7 +3982,7 @@ export function ChannelMutateDrawer({
                                         onBlur={field.onBlur}
                                         textareaRef={field.ref}
                                         disabled={
-                                          sensitiveLocked || isSubmitting
+                                          configurationLocked || isSubmitting
                                         }
                                         placeholder={t(
                                           'Override request parameters. Cannot override stream parameter.'
@@ -4019,7 +4066,7 @@ export function ChannelMutateDrawer({
                                         onBlur={field.onBlur}
                                         textareaRef={field.ref}
                                         disabled={
-                                          sensitiveLocked || isSubmitting
+                                          configurationLocked || isSubmitting
                                         }
                                         placeholder={t(
                                           'Enter JSON to override request headers'
@@ -4061,15 +4108,16 @@ export function ChannelMutateDrawer({
                             icon={<Settings className='h-4 w-4' />}
                             iconTone='chart-3'
                           />
-                          {sensitiveLocked && (
-                            <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
-                              <AlertDescription>
-                                {t('No permission to perform this action')}
-                              </AlertDescription>
-                            </Alert>
-                          )}
+                          {sensitiveLocked &&
+                            !contributionConfigurationLocked && (
+                              <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                <AlertDescription>
+                                  {t('No permission to perform this action')}
+                                </AlertDescription>
+                              </Alert>
+                            )}
                           <fieldset
-                            disabled={sensitiveLocked}
+                            disabled={configurationLocked}
                             className='space-y-4 disabled:opacity-60'
                           >
                             <div className='divide-border space-y-0 divide-y border-y'>
@@ -4389,7 +4437,7 @@ export function ChannelMutateDrawer({
                               iconTone='chart-4'
                             />
                             <fieldset
-                              disabled={sensitiveLocked}
+                              disabled={configurationLocked}
                               className='disabled:opacity-60'
                             >
                               <div className='divide-border space-y-0 divide-y border-y'>
@@ -4641,7 +4689,7 @@ export function ChannelMutateDrawer({
                               iconTone='info'
                             />
                             <fieldset
-                              disabled={sensitiveLocked}
+                              disabled={configurationLocked}
                               className='space-y-4 disabled:opacity-60'
                             >
                               <div className='divide-border space-y-0 divide-y border-y'>
@@ -4791,7 +4839,7 @@ export function ChannelMutateDrawer({
         </SheetContent>
       </Sheet>
 
-      {paramOverrideEditorOpen && !sensitiveLocked && (
+      {paramOverrideEditorOpen && !configurationLocked && (
         <ParamOverrideEditorDialog
           open={paramOverrideEditorOpen}
           value={form.watch('param_override') || ''}
@@ -4805,7 +4853,7 @@ export function ChannelMutateDrawer({
         />
       )}
 
-      {advancedCustomEditorOpen && !sensitiveLocked && (
+      {advancedCustomEditorOpen && !configurationLocked && (
         <AdvancedCustomEditorDialog
           open={advancedCustomEditorOpen}
           value={form.watch('advanced_custom') || ''}

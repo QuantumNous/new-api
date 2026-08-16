@@ -38,6 +38,17 @@ func (cm *ConfigManager) Get(name string) interface{} {
 	return cm.configs[name]
 }
 
+// Snapshot copies a registered configuration while holding the manager read lock.
+func (cm *ConfigManager) Snapshot(name string, destination any) error {
+	cm.mutex.RLock()
+	defer cm.mutex.RUnlock()
+	encoded, err := common.Marshal(cm.configs[name])
+	if err != nil {
+		return err
+	}
+	return common.Unmarshal(encoded, destination)
+}
+
 // LoadFromDB 从数据库加载配置
 func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 	cm.mutex.Lock()

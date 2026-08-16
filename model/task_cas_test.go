@@ -46,6 +46,14 @@ func TestMain(m *testing.M) {
 		&TwoFABackupCode{},
 		&Log{},
 		&Channel{},
+		&ChannelContribution{},
+		&ChannelContributionRevision{},
+		&ChannelContributionTestRun{},
+		&ChannelContributionTestResult{},
+		&ChannelContributionModelHealth{},
+		&ChannelContributionHealthState{},
+		&ChannelContributionRewardAccount{},
+		&ChannelContributionRewardLedger{},
 		&QuotaData{},
 		&Ability{},
 		&TopUp{},
@@ -79,6 +87,14 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM channels")
+		DB.Exec("DELETE FROM channel_contribution_model_healths")
+		DB.Exec("DELETE FROM channel_contribution_health_states")
+		DB.Exec("DELETE FROM channel_contribution_reward_ledgers")
+		DB.Exec("DELETE FROM channel_contribution_reward_accounts")
+		DB.Exec("DELETE FROM channel_contribution_test_results")
+		DB.Exec("DELETE FROM channel_contribution_test_runs")
+		DB.Exec("DELETE FROM channel_contribution_revisions")
+		DB.Exec("DELETE FROM channel_contributions")
 		DB.Exec("DELETE FROM quota_data")
 		DB.Exec("DELETE FROM abilities")
 		DB.Exec("DELETE FROM top_ups")

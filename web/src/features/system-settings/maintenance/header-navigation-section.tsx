@@ -55,6 +55,7 @@ const headerNavSchema = z.object({
   pricingRequireAuth: z.boolean(),
   rankingsEnabled: z.boolean(),
   rankingsRequireAuth: z.boolean(),
+  contributionEnabled: z.boolean(),
   docs: z.boolean(),
   about: z.boolean(),
 })
@@ -89,6 +90,10 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.rankings?.requireAuth === undefined
       ? HEADER_NAV_DEFAULT.rankings.requireAuth
       : Boolean(config.rankings.requireAuth),
+  contributionEnabled:
+    config.contribution?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.contribution.enabled
+      : Boolean(config.contribution.enabled),
   docs:
     config.docs === undefined ? HEADER_NAV_DEFAULT.docs : Boolean(config.docs),
   about:
@@ -131,6 +136,11 @@ export function HeaderNavigationSection({
         enabled: values.rankingsEnabled,
         requireAuth: values.rankingsRequireAuth,
       },
+      contribution: {
+        ...(config.contribution ?? HEADER_NAV_DEFAULT.contribution),
+        enabled: values.contributionEnabled,
+        requireAuth: true,
+      },
     }
 
     const serialized = serializeHeaderNavModules(payload)
@@ -162,6 +172,13 @@ export function HeaderNavigationSection({
       key: 'console',
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
+    },
+    {
+      key: 'contributionEnabled',
+      title: t('Channel Contributions'),
+      description: t(
+        'Authenticated channel contribution and reward workspace.'
+      ),
     },
     {
       key: 'docs',

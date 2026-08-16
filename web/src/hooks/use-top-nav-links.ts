@@ -39,6 +39,7 @@ export type TopNavLink = {
  *   console: true,
  *   pricing: { enabled: true, requireAuth: false },
  *   rankings: { enabled: true, requireAuth: false },
+ *   contribution: { enabled: true, requireAuth: true },
  *   docs: true,
  *   about: true
  * }
@@ -84,6 +85,21 @@ export function useTopNavLinks(): TopNavLink[] {
   if (rankings && typeof rankings === 'object' && rankings.enabled) {
     const requiresAuth = rankings.requireAuth && !isAuthed
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
+  }
+
+  // Contribution is always protected by the authenticated route. Omitting
+  // requiresAuth here avoids the public header countdown and redirects to
+  // sign-in immediately with the destination preserved.
+  const contribution = modules?.contribution
+  if (
+    contribution &&
+    typeof contribution === 'object' &&
+    contribution.enabled
+  ) {
+    links.push({
+      title: t('Channel Contributions'),
+      href: '/channel-contributions',
+    })
   }
 
   // Docs (supports external links)

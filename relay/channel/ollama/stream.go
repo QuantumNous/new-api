@@ -214,7 +214,7 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 	service.CloseResponseBodyGracefully(resp)
 	raw := string(body)
-	if common.DebugEnabled {
+	if common.DebugEnabled && c.Request.Context().Value(constant.ContextKeySuppressUpstreamResponseLog) != true {
 		println("ollama non-stream raw resp:", raw)
 	}
 

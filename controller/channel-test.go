@@ -41,6 +41,45 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+type channelTestOptions struct {
+	UseSSRFProtectedClient bool
+	SkipConsumeLog         bool
+	SkipPricingValidation  bool
+	GroupOverride          string
+}
+
+type channelTestResponseRecorder struct {
+	*httptest.ResponseRecorder
+	maxBytes int
+	exceeded bool
+}
+
+func newChannelTestResponseRecorder(maxBytes int) *channelTestResponseRecorder {
+	return &channelTestResponseRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		maxBytes:         maxBytes,
+	}
+}
+
+func (recorder *channelTestResponseRecorder) Write(data []byte) (int, error) {
+	remaining := recorder.maxBytes - recorder.Body.Len()
+	if remaining > 0 {
+		writeBytes := len(data)
+		if writeBytes > remaining {
+			writeBytes = remaining
+		}
+		_, _ = recorder.ResponseRecorder.Write(data[:writeBytes])
+	}
+	if len(data) > remaining {
+		recorder.exceeded = true
+	}
+	return len(data), nil
+}
+
+func (recorder *channelTestResponseRecorder) WriteString(data string) (int, error) {
+	return recorder.Write([]byte(data))
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -70,8 +109,15 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return testChannelWithOptions(ctx, channel, testUserID, testModel, endpointType, isStream, channelTestOptions{})
+}
+
+func testChannelWithOptions(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, options channelTestOptions) testResult {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if options.UseSSRFProtectedClient {
+		ctx = context.WithValue(ctx, constant.ContextKeySuppressUpstreamResponseLog, true)
 	}
 	tik := time.Now()
 	var unsupportedTestChannelTypes = []int{
@@ -89,7 +135,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			localErr: fmt.Errorf("%s channel test is not supported", channelTypeName),
 		}
 	}
-	w := httptest.NewRecorder()
+	w := newChannelTestResponseRecorder(int(service.StrictSSRFProtectedResponseBodyLimitBytes))
 	c, _ := gin.CreateTestContext(w)
 
 	testModel = strings.TrimSpace(testModel)
@@ -165,7 +211,11 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	c.Set("channel", channel.Type)
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(testUserID, false)
-	c.Set("group", group)
+	if strings.TrimSpace(options.GroupOverride) != "" {
+		group = strings.TrimSpace(options.GroupOverride)
+		common.SetContextKey(c, constant.ContextKeyUserGroup, group)
+	}
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, group)
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
 	if newAPIError != nil {
@@ -239,6 +289,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	info.IsChannelTest = true
+	info.UseSSRFProtectedClient = options.UseSSRFProtectedClient
 	info.InitChannelMeta(c)
 
 	err = attachTestBillingRequestInput(info, request)
@@ -286,12 +337,15 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	//logInfo.ApiKey = ""
 	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
 
-	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
-	if err != nil {
-		return testResult{
-			context:     c,
-			localErr:    err,
-			newAPIError: types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest)),
+	priceData := hosttypes.PriceData{}
+	if !options.SkipPricingValidation {
+		priceData, err = helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
+		if err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest)),
+			}
 		}
 	}
 
@@ -437,7 +491,11 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
-			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+			err := service.RelayErrorHandler(c.Request.Context(), httpResp, !options.UseSSRFProtectedClient)
+			logErr := error(err)
+			if options.UseSSRFProtectedClient {
+				logErr = sanitizeChannelCredentialError(err, channel.Key, channel.GetBaseURL())
+			}
 			common.SysError(fmt.Sprintf(
 				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
@@ -446,7 +504,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				testModel,
 				endpointType,
 				httpResp.StatusCode,
-				err,
+				logErr,
 			))
 			return testResult{
 				context:     c,
@@ -461,6 +519,14 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			context:     c,
 			localErr:    respErr,
 			newAPIError: respErr,
+		}
+	}
+	if w.exceeded {
+		err := fmt.Errorf("channel test response exceeds %d bytes", service.StrictSSRFProtectedResponseBodyLimitBytes)
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError),
 		}
 	}
 	usage, usageErr := coerceTestUsage(usageA, isStream, info.GetEstimatePromptTokens())
@@ -494,20 +560,24 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
-	model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
-		ChannelId:        channel.Id,
-		PromptTokens:     usage.PromptTokens,
-		CompletionTokens: usage.CompletionTokens,
-		ModelName:        info.OriginModelName,
-		TokenName:        "模型测试",
-		Quota:            quota,
-		Content:          "模型测试",
-		UseTimeSeconds:   int(consumedTime),
-		IsStream:         info.IsStream,
-		Group:            info.UsingGroup,
-		Other:            other,
-	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	if !options.SkipConsumeLog {
+		model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
+			ChannelId:        channel.Id,
+			PromptTokens:     usage.PromptTokens,
+			CompletionTokens: usage.CompletionTokens,
+			ModelName:        info.OriginModelName,
+			TokenName:        "模型测试",
+			Quota:            quota,
+			Content:          "模型测试",
+			UseTimeSeconds:   int(consumedTime),
+			IsStream:         info.IsStream,
+			Group:            info.UsingGroup,
+			Other:            other,
+		})
+	}
+	if !options.UseSSRFProtectedClient {
+		common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	}
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -1024,6 +1094,7 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 }
 
 func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*model.Channel {
+	channels = model.FilterNonContributionChannels(channels)
 	selected := make([]*model.Channel, 0, len(channels))
 	for _, channel := range channels {
 		if channel.Status == common.ChannelStatusManuallyDisabled {

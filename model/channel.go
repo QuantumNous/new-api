@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -56,7 +57,8 @@ type Channel struct {
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
 	// cache info
-	Keys []string `json:"-" gorm:"-"`
+	Keys           []string `json:"-" gorm:"-"`
+	IsContribution bool     `json:"is_contribution" gorm:"-"`
 }
 
 type ChannelInfo struct {
@@ -350,6 +352,10 @@ func (channel *Channel) Save() error {
 // Keeping this allowlist here prevents a stale channel snapshot from
 // overwriting credentials, accounting counters, or channel configuration.
 func (channel *Channel) saveStatusState() error {
+	return channel.saveStatusStateWithDB(DB)
+}
+
+func (channel *Channel) saveStatusStateWithDB(db *gorm.DB) error {
 	if channel.Id == 0 {
 		return errors.New("channel ID is 0")
 	}
@@ -360,7 +366,7 @@ func (channel *Channel) saveStatusState() error {
 	if channel.ChannelInfo.IsMultiKey {
 		updates["channel_info"] = channel.ChannelInfo
 	}
-	return DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
+	return db.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
 }
 
 func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
@@ -473,6 +479,10 @@ func BatchDeleteChannels(ids []int) (int64, error) {
 	}
 	var deletedCount int64
 	for _, chunk := range lo.Chunk(ids, 200) {
+		if err := markChannelContributionsDeletedTx(tx, chunk, common.GetTimestamp()); err != nil {
+			tx.Rollback()
+			return 0, err
+		}
 		result := tx.Where("id in (?)", chunk).Delete(&Channel{})
 		if result.Error != nil {
 			tx.Rollback()
@@ -540,6 +550,87 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
+	var activeContribution *ChannelContribution
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		contribution, err := lockActiveChannelContributionTx(tx, channel.Id)
+		if err != nil {
+			return err
+		}
+		activeContribution = contribution
+		if contribution == nil {
+			return nil
+		}
+		var existing Channel
+		if err := lockForUpdate(tx).Where("id = ?", channel.Id).First(&existing).Error; err != nil {
+			return err
+		}
+		if channel.Name == "" {
+			channel.Name = existing.Name
+		}
+		if channel.Type == 0 {
+			channel.Type = existing.Type
+		}
+		if channel.BaseURL == nil {
+			channel.BaseURL = existing.BaseURL
+		}
+		if channel.Key == "" {
+			channel.Key = existing.Key
+		}
+		if channel.Group == "" {
+			channel.Group = existing.Group
+		}
+		if channel.Models == "" {
+			channel.Models = existing.Models
+		}
+		if channel.ModelMapping == nil {
+			channel.ModelMapping = existing.ModelMapping
+		}
+		if channelContributionReviewedFieldsChanged(&existing, channel) {
+			return ErrChannelContributionRequiresReview
+		}
+		beforeStatus := existing.Status
+		updates := make(map[string]any, 4)
+		if channel.Status != 0 {
+			updates["status"] = channel.Status
+		}
+		if channel.Tag != nil {
+			updates["tag"] = *channel.Tag
+		}
+		if channel.Priority != nil {
+			updates["priority"] = *channel.Priority
+		}
+		if channel.Weight != nil {
+			updates["weight"] = *channel.Weight
+		}
+		if len(updates) > 0 {
+			if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.First(channel, "id = ?", channel.Id).Error; err != nil {
+			return err
+		}
+		if channel.Status != beforeStatus {
+			now := common.GetTimestamp()
+			if channel.Status == common.ChannelStatusManuallyDisabled {
+				if err := setLockedContributionHealthPausedTx(tx, contribution, channel.Id, true, now); err != nil {
+					return err
+				}
+			} else if beforeStatus == common.ChannelStatusManuallyDisabled {
+				if err := setLockedContributionHealthPausedTx(tx, contribution, channel.Id, false, now); err != nil {
+					return err
+				}
+			}
+		}
+		return channel.UpdateAbilities(tx)
+	}); err != nil {
+		return err
+	}
+	if activeContribution != nil {
+		CacheUpdateChannel(channel)
+		return nil
+	}
+
 	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
 	if channel.ChannelInfo.IsMultiKey {
 		var keyStr string
@@ -588,6 +679,54 @@ func (channel *Channel) Update() error {
 	return err
 }
 
+// UpdateChannelAtomically applies an update to the latest channel row while
+// preserving the review boundary for contributed channel configuration.
+func UpdateChannelAtomically(channelId int, apply func(*Channel) error) (*Channel, error) {
+	if channelId <= 0 || apply == nil {
+		return nil, errors.New("invalid channel update")
+	}
+	channel := &Channel{}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		contribution, err := lockActiveChannelContributionTx(tx, channelId)
+		if err != nil {
+			return err
+		}
+		if err := lockForUpdate(tx).Where("id = ?", channelId).First(channel).Error; err != nil {
+			return err
+		}
+		before := *channel
+		if err := apply(channel); err != nil {
+			return err
+		}
+		channel.Id = channelId
+		channel.Keys = nil
+		if contribution != nil && channelContributionReviewedFieldsChanged(&before, channel) {
+			return ErrChannelContributionRequiresReview
+		}
+		if err := tx.Model(&Channel{}).Where("id = ?", channelId).Select("*").Omit("id").Updates(channel).Error; err != nil {
+			return err
+		}
+		if contribution != nil && channel.Status != before.Status {
+			now := common.GetTimestamp()
+			if channel.Status == common.ChannelStatusManuallyDisabled {
+				if err := setLockedContributionHealthPausedTx(tx, contribution, channelId, true, now); err != nil {
+					return err
+				}
+			} else if before.Status == common.ChannelStatusManuallyDisabled {
+				if err := setLockedContributionHealthPausedTx(tx, contribution, channelId, false, now); err != nil {
+					return err
+				}
+			}
+		}
+		return channel.UpdateAbilities(tx)
+	})
+	if err != nil {
+		return nil, err
+	}
+	CacheUpdateChannel(channel)
+	return channel, nil
+}
+
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
 	err := DB.Model(channel).Select("response_time", "test_time").Updates(Channel{
 		TestTime:     common.GetTimestamp(),
@@ -609,16 +748,44 @@ func (channel *Channel) UpdateBalance(balance float64) {
 }
 
 func (channel *Channel) Delete() error {
-	var err error
-	err = DB.Delete(channel).Error
-	if err != nil {
-		return err
-	}
-	err = channel.DeleteAbilities()
-	return err
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := markChannelContributionsDeletedTx(tx, []int{channel.Id}, common.GetTimestamp()); err != nil {
+			return err
+		}
+		if err := tx.Delete(channel).Error; err != nil {
+			return err
+		}
+		return tx.Where("channel_id = ?", channel.Id).Delete(&Ability{}).Error
+	})
 }
 
 var channelStatusLock sync.Mutex
+
+var ErrChannelContributionRequiresReview = errors.New("channel contribution configuration changes require a new reviewed revision")
+
+func channelContributionReviewedFieldsChanged(before *Channel, after *Channel) bool {
+	if before == nil || after == nil {
+		return true
+	}
+	type reviewedFields struct {
+		Name         string
+		Type         int
+		BaseURL      *string
+		Key          string
+		Group        string
+		Models       string
+		ModelMapping *string
+	}
+	left := reviewedFields{
+		Name: before.Name, Type: before.Type, BaseURL: before.BaseURL, Key: before.Key,
+		Group: before.Group, Models: before.Models, ModelMapping: before.ModelMapping,
+	}
+	right := reviewedFields{
+		Name: after.Name, Type: after.Type, BaseURL: after.BaseURL, Key: after.Key,
+		Group: after.Group, Models: after.Models, ModelMapping: after.ModelMapping,
+	}
+	return !reflect.DeepEqual(left, right)
+}
 
 // channelPollingLocks stores locks for each channel.id to ensure thread-safe polling
 var channelPollingLocks sync.Map
@@ -720,6 +887,15 @@ func hasEnabledMultiKey(keys []string, statusList map[int]int) bool {
 }
 
 func UpdateChannelStatus(channelId int, usingKey string, status int, reason string) bool {
+	changed, err := UpdateChannelStatusWithError(channelId, usingKey, status, reason)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channelId, status, err))
+		return false
+	}
+	return changed
+}
+
+func UpdateChannelStatusWithError(channelId int, usingKey string, status int, reason string) (bool, error) {
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
 		defer channelStatusLock.Unlock()
@@ -732,85 +908,130 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	pollingLock.Lock()
 	defer pollingLock.Unlock()
 
-	if common.MemoryCacheEnabled {
-		channelCache, _ := CacheGetChannel(channelId)
-		if channelCache == nil {
-			return false
+	channel := &Channel{}
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		contribution, err := lockActiveChannelContributionTx(tx, channelId)
+		if err != nil {
+			return err
 		}
-		if channelCache.ChannelInfo.IsMultiKey {
-			beforeStatus := channelCache.Status
-			// 如果是多Key模式，更新缓存中的状态
-			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
-			if beforeStatus != channelCache.Status {
-				CacheUpdateChannelStatus(channelId, channelCache.Status)
-			}
-			//CacheUpdateChannel(channelCache)
-			//return true
-		} else {
-			// 如果缓存渠道存在，且状态已是目标状态，直接返回
-			if channelCache.Status == status {
-				return false
-			}
-			CacheUpdateChannelStatus(channelId, status)
+		if err := lockForUpdate(tx).Where("id = ?", channelId).First(channel).Error; err != nil {
+			return err
 		}
-	}
-
-	shouldUpdateAbilities := false
-	defer func() {
-		if shouldUpdateAbilities {
-			err := UpdateAbilityStatus(channelId, status == common.ChannelStatusEnabled)
-			if err != nil {
-				common.SysLog(fmt.Sprintf("failed to update ability status: channel_id=%d, error=%v", channelId, err))
-			}
-		}
-	}()
-	channel, err := GetChannelById(channelId, true)
-	if err != nil {
-		return false
-	} else {
-		if channel.Status == status {
-			return false
-		}
-
+		beforeStatus := channel.Status
 		if channel.ChannelInfo.IsMultiKey {
-			beforeStatus := channel.Status
-			handlerMultiKeyUpdate(channel, usingKey, status, reason)
-			if beforeStatus != channel.Status {
-				shouldUpdateAbilities = true
+			beforeInfo, err := common.Marshal(channel.ChannelInfo)
+			if err != nil {
+				return err
 			}
+			handlerMultiKeyUpdate(channel, usingKey, status, reason)
+			afterInfo, err := common.Marshal(channel.ChannelInfo)
+			if err != nil {
+				return err
+			}
+			changed = beforeStatus != channel.Status || string(beforeInfo) != string(afterInfo)
 		} else {
+			if channel.Status == status {
+				return nil
+			}
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
 			channel.Status = status
-			shouldUpdateAbilities = true
+			changed = true
 		}
-		err = channel.saveStatusState()
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
-			return false
+		if !changed {
+			return nil
 		}
+		if err := channel.saveStatusStateWithDB(tx); err != nil {
+			return err
+		}
+		if channel.Status != beforeStatus {
+			now := common.GetTimestamp()
+			if channel.Status == common.ChannelStatusManuallyDisabled {
+				if err := setLockedContributionHealthPausedTx(tx, contribution, channelId, true, now); err != nil {
+					return err
+				}
+			} else if beforeStatus == common.ChannelStatusManuallyDisabled {
+				if err := setLockedContributionHealthPausedTx(tx, contribution, channelId, false, now); err != nil {
+					return err
+				}
+			}
+			abilityEnabled := channel.Status == common.ChannelStatusEnabled
+			if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Update("enabled", abilityEnabled).Error; err != nil {
+				return err
+			}
+			if abilityEnabled {
+				if err := reapplyContributionHealthToAbilitiesTx(tx, []int{channelId}); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
 	}
-	return true
+	if changed {
+		CacheUpdateChannel(channel)
+	}
+	return changed, nil
 }
 
 func EnableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error
-	if err != nil {
-		return err
+	err := updateChannelStatusByTag(tag, common.ChannelStatusEnabled)
+	if err == nil {
+		InitChannelCache()
 	}
-	err = UpdateAbilityStatusByTag(tag, true)
 	return err
 }
 
 func DisableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusManuallyDisabled).Error
-	if err != nil {
-		return err
+	err := updateChannelStatusByTag(tag, common.ChannelStatusManuallyDisabled)
+	if err == nil {
+		InitChannelCache()
 	}
-	err = UpdateAbilityStatusByTag(tag, false)
 	return err
+}
+
+func updateChannelStatusByTag(tag string, status int) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := tx.Where("tag = ?", tag).Order("id ASC").Find(&channels).Error; err != nil {
+			return err
+		}
+		channelIds := make([]int, 0, len(channels))
+		for index := range channels {
+			channelIds = append(channelIds, channels[index].Id)
+		}
+		contributions, err := lockActiveChannelContributionsTx(tx, channelIds)
+		if err != nil {
+			return err
+		}
+		now := common.GetTimestamp()
+		for index := range channels {
+			channel := &channels[index]
+			beforeStatus := channel.Status
+			if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Update("status", status).Error; err != nil {
+				return err
+			}
+			paused := status == common.ChannelStatusManuallyDisabled
+			if paused || beforeStatus == common.ChannelStatusManuallyDisabled {
+				if err := setLockedContributionHealthPausedTx(tx, contributions[channel.Id], channel.Id, paused, now); err != nil {
+					return err
+				}
+			}
+			abilityEnabled := status == common.ChannelStatusEnabled
+			if err := tx.Model(&Ability{}).Where("channel_id = ?", channel.Id).Update("enabled", abilityEnabled).Error; err != nil {
+				return err
+			}
+		}
+		if status == common.ChannelStatusEnabled {
+			return reapplyContributionHealthToAbilitiesTx(tx, channelIds)
+		}
+		return nil
+	})
 }
 
 func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *string, group *string, priority *int64, weight *uint, paramOverride *string, headerOverride *string) error {
@@ -846,27 +1067,53 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 		updateData.HeaderOverride = headerOverride
 	}
 
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Updates(updateData).Error
-	if err != nil {
-		return err
-	}
-	if shouldReCreateAbilities {
-		channels, err := GetChannelsByTag(updatedTag, false, false)
-		if err == nil {
-			for _, channel := range channels {
-				err = channel.UpdateAbilities(nil)
-				if err != nil {
-					common.SysLog(fmt.Sprintf("failed to update abilities: channel_id=%d, tag=%s, error=%v", channel.Id, channel.GetTag(), err))
-				}
+	hasSensitiveUpdates := modelMapping != nil ||
+		(models != nil && *models != "") ||
+		(group != nil && *group != "") ||
+		paramOverride != nil ||
+		headerOverride != nil
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if hasSensitiveUpdates && tx.Migrator().HasTable(&ChannelContribution{}) {
+			var channelIds []int
+			if err := tx.Model(&Channel{}).Where("tag = ?", tag).Pluck("id", &channelIds).Error; err != nil {
+				return err
+			}
+			contributions, err := lockActiveChannelContributionsTx(tx, channelIds)
+			if err != nil {
+				return err
+			}
+			if len(contributions) > 0 {
+				return ErrChannelContributionRequiresReview
 			}
 		}
-	} else {
-		err := UpdateAbilityByTag(tag, newTag, priority, weight)
-		if err != nil {
+		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Updates(updateData).Error; err != nil {
 			return err
 		}
-	}
-	return nil
+		if shouldReCreateAbilities {
+			var channels []*Channel
+			if err := tx.Where("tag = ?", updatedTag).Find(&channels).Error; err != nil {
+				return err
+			}
+			for _, channel := range channels {
+				if err := channel.UpdateAbilities(tx); err != nil {
+					return fmt.Errorf("failed to update abilities: channel_id=%d, tag=%s: %w", channel.Id, channel.GetTag(), err)
+				}
+			}
+			return nil
+		}
+		ability := Ability{}
+		if newTag != nil {
+			ability.Tag = newTag
+		}
+		if priority != nil {
+			ability.Priority = priority
+		}
+		if weight != nil {
+			ability.Weight = *weight
+		}
+		return tx.Model(&Ability{}).Where("tag = ?", tag).Updates(ability).Error
+	})
 }
 
 func UpdateChannelUsedQuota(id int, quota int) {
@@ -885,13 +1132,37 @@ func updateChannelUsedQuota(id int, quota int) {
 }
 
 func DeleteChannelByStatus(status int64) (int64, error) {
-	result := DB.Where("status = ?", status).Delete(&Channel{})
-	return result.RowsAffected, result.Error
+	return deleteChannelsByStatuses([]int64{status})
 }
 
 func DeleteDisabledChannel() (int64, error) {
-	result := DB.Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).Delete(&Channel{})
-	return result.RowsAffected, result.Error
+	return deleteChannelsByStatuses([]int64{common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled})
+}
+
+func deleteChannelsByStatuses(statuses []int64) (int64, error) {
+	var deletedCount int64
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var ids []int
+		if err := tx.Model(&Channel{}).Where("status IN ?", statuses).Order("id ASC").Pluck("id", &ids).Error; err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		if err := markChannelContributionsDeletedTx(tx, ids, common.GetTimestamp()); err != nil {
+			return err
+		}
+		result := tx.Where("id IN ? AND status IN ?", ids, statuses).Delete(&Channel{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if err := tx.Where("channel_id IN ?", ids).Delete(&Ability{}).Error; err != nil {
+			return err
+		}
+		deletedCount = result.RowsAffected
+		return nil
+	})
+	return deletedCount, err
 }
 
 func GetPaginatedTags(offset int, limit int) ([]*string, error) {
