@@ -1,9 +1,9 @@
 FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
 
 WORKDIR /build/web
-COPY app/web/package.json app/web/bun.lock ./
+COPY apps/web/package.json apps/web/bun.lock ./
 RUN bun install --frozen-lockfile
-COPY ./app/web ./
+COPY ./apps/web ./
 COPY ./VERSION /build/VERSION
 RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
 
@@ -17,16 +17,16 @@ ENV GOEXPERIMENT=greenteagc
 ARG SINGBOX_TAGS="with_gvisor,with_wireguard,with_utls"
 WORKDIR /build
 
-ADD app/api/go.mod app/api/go.sum ./app/api/
+ADD apps/api/go.mod apps/api/go.sum ./apps/api/
 # relaykit is a local submodule referenced via replace; its go.mod must be
 # present for go mod download to resolve the main module graph.
 ADD modules/relaykit/go.mod ./modules/relaykit/go.mod
-RUN cd app/api && go mod download
+RUN cd apps/api && go mod download
 
 COPY . .
-# 方案 A：go:embed 只能引用包内路径，前端产物必须拷进 app/api 包内。
-COPY --from=builder /build/web/dist ./app/api/web/dist
-RUN cd app/api && go build -tags "${SINGBOX_TAGS}" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat /build/VERSION)'" -o /build/new-api
+# 方案 A：go:embed 只能引用包内路径，前端产物必须拷进 apps/api 包内。
+COPY --from=builder /build/web/dist ./apps/api/web/dist
+RUN cd apps/api && go build -tags "${SINGBOX_TAGS}" -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat /build/VERSION)'" -o /build/new-api
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 

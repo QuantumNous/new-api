@@ -33,24 +33,24 @@ jobs:
         env:
           CI: ""
         run: |
-          cd app/web
+          cd apps/web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
-          # 方案 A：go:embed 只能引用包内路径，产物需拷进 app/api。
-          mkdir -p app/api/web/dist
-          cp -r app/web/dist/. app/api/web/dist/
+          # 方案 A：go:embed 只能引用包内路径，产物需拷进 apps/api。
+          mkdir -p apps/api/web/dist
+          cp -r apps/web/dist/. apps/api/web/dist/
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend (amd64)
-        working-directory: app/api
+        working-directory: apps/api
         run: |
           go mod download
           go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION' -extldflags '-static'" -o ../../new-api-$VERSION
       - name: Build Backend (arm64)
-        working-directory: app/api
+        working-directory: apps/api
         run: |
           sudo apt-get update
           DEBIAN_FRONTEND=noninteractive sudo apt-get install -y gcc-aarch64-linux-gnu
@@ -88,19 +88,19 @@ jobs:
           CI: ""
           NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
-          cd app/web
+          cd apps/web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
-          # 方案 A：go:embed 只能引用包内路径，产物需拷进 app/api。
-          mkdir -p app/api/web/dist
-          cp -r app/web/dist/. app/api/web/dist/
+          # 方案 A：go:embed 只能引用包内路径，产物需拷进 apps/api。
+          mkdir -p apps/api/web/dist
+          cp -r apps/web/dist/. apps/api/web/dist/
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
-        working-directory: app/api
+        working-directory: apps/api
         run: |
           go mod download
           go build -ldflags "-X 'new-api/common.Version=$VERSION'" -o ../../new-api-macos-$VERSION
@@ -139,19 +139,19 @@ jobs:
         env:
           CI: ""
         run: |
-          cd app/web
+          cd apps/web
           bun install --frozen-lockfile
           DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$VERSION bun run build
           cd ../..
-          # 方案 A：go:embed 只能引用包内路径，产物需拷进 app/api。
-          mkdir -p app/api/web/dist
-          cp -r app/web/dist/. app/api/web/dist/
+          # 方案 A：go:embed 只能引用包内路径，产物需拷进 apps/api。
+          mkdir -p apps/api/web/dist
+          cp -r apps/web/dist/. apps/api/web/dist/
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: '>=1.25.1'
       - name: Build Backend
-        working-directory: app/api
+        working-directory: apps/api
         run: |
           go mod download
           go build -ldflags "-s -w -X 'new-api/common.Version=$VERSION'" -o ../../new-api-$VERSION.exe

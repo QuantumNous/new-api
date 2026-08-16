@@ -1,6 +1,6 @@
-WEB_DIR := "./app/web"
-API_DIR := "./app/api"
-API_EMBED_DIR := "./app/api/web/dist"
+WEB_DIR := "./apps/web"
+API_DIR := "./apps/api"
+API_EMBED_DIR := "./apps/api/web/dist"
 DEV_WEB_PORT := env_var_or_default("DEV_WEB_PORT", "5173")
 DEV_COMPOSE_FILE := "deploy/docker-compose.dev.yml"
 DEV_POSTGRES_SERVICE := "postgres"

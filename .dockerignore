@@ -7,7 +7,7 @@ justfile
 docs
 .eslintcache
 .gocache
-app/web/node_modules
-app/web/dist
-app/api/web/dist
+apps/web/node_modules
+apps/web/dist
+apps/api/web/dist
 !THIRD-PARTY-LICENSES.md

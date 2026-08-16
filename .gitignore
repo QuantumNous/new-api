@@ -8,9 +8,9 @@ upload
 build
 *.db-journal
 logs
-app/web/dist
-app/api/web/dist
-app/web/node_modules
+apps/web/dist
+apps/api/web/dist
+apps/web/node_modules
 .env
 one-api
 new-api
@@ -22,15 +22,15 @@ tiktoken_cache
 .gomodcache/
 .cache
 *.log
-app/web/.tanstack/
-app/web/dist-ssr
+apps/web/.tanstack/
+apps/web/dist-ssr
 *.local
 
 /data/
 .gocache-temp
 .gopath
 .test
-# go.work 定义 app/api 与 modules/relaykit 的 workspace，必须入库。
+# go.work 定义 apps/api 与 modules/relaykit 的 workspace，必须入库。
 # go.work.sum 是本地校验和缓存，继续忽略。
 go.work.sum
 todo/

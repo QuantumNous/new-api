@@ -1,6 +1,6 @@
 <div align="center">
 
-![new-api](/app/web/public/logo.png)
+![new-api](/apps/web/public/logo.png)
 
 # New API
 

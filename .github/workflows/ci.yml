@@ -31,18 +31,18 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version-file: app/api/go.mod
+          go-version-file: apps/api/go.mod
           cache-dependency-path: |
-            app/api/go.sum
+            apps/api/go.sum
             modules/relaykit/go.sum
 
       - name: Create frontend embed placeholder
         run: |
-          mkdir -p app/api/web/dist
-          touch app/api/web/dist/index.html
+          mkdir -p apps/api/web/dist
+          touch apps/api/web/dist/index.html
 
       - name: Vet api module
-        working-directory: app/api
+        working-directory: apps/api
         run: go vet -tags "${SINGBOX_TAGS}" ./...
 
       - name: Vet relaykit independently
@@ -50,7 +50,7 @@ jobs:
         run: go vet ./...
 
       - name: Build api module
-        working-directory: app/api
+        working-directory: apps/api
         run: go build -tags "${SINGBOX_TAGS}" ./...
 
       - name: Build relaykit independently
@@ -58,7 +58,7 @@ jobs:
         run: go build ./...
 
       - name: Test api module
-        working-directory: app/api
+        working-directory: apps/api
         run: GOWORK=off go test -tags "${SINGBOX_TAGS}" ./...
 
       - name: Test relaykit module
@@ -72,7 +72,7 @@ jobs:
     timeout-minutes: 10
     defaults:
       run:
-        working-directory: app/web
+        working-directory: apps/web
 
     steps:
       - name: Checkout

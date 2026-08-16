@@ -67,7 +67,7 @@ Modified in PR #57:
 - [ ] Run:
 
 ```bash
-git diff -- app/api/go.mod app/api/go.sum modules/relaykit/go.mod modules/relaykit/go.sum
+git diff -- apps/api/go.mod apps/api/go.sum modules/relaykit/go.mod modules/relaykit/go.sum
 go list -m github.com/sagernet/sing-box
 ```
 
@@ -75,7 +75,7 @@ Expected: only root module files differ; output contains `github.com/sagernet/si
 - [ ] Commit:
 
 ```bash
-git add app/api/go.mod app/api/go.sum && git commit -m "build: add sing-box dependency"
+git add apps/api/go.mod apps/api/go.sum && git commit -m "build: add sing-box dependency"
 ```
 
 ### Task 2: Register baseline protocols → verify: minimal direct Box construction passes under default and baseline tags

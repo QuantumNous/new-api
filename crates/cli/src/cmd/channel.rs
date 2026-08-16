@@ -3,8 +3,8 @@
 //! JSON-first; preserves explicit zero/false, distinct `setting`/`settings`
 //! JSON-string transport, never echoes secrets to stdout/stderr.
 //!
-//! Routes mirror `app/api/router/channel-router.go` and
-//! `app/web/src/features/channels/api.ts`.
+//! Routes mirror `apps/api/router/channel-router.go` and
+//! `apps/web/src/features/channels/api.ts`.
 
 use anyhow::Result;
 use clap::{Args, Subcommand};
