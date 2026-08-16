@@ -2,10 +2,10 @@
 // (model_prices_and_context_window.json) into Ren2Hub ratio units and resolves
 // a model name against it.
 //
-// This package is a fallback source only: setting/ratio_setting consults it
-// exclusively for models that have no manual ratio and no manual fixed price,
-// so administrator-configured pricing always wins. Nothing here writes back
-// into the manual ratio maps or Options.
+// This package is a field-level fallback source: matching manual token-pricing
+// fields win independently, while a manual fixed per-call price suppresses the
+// automatic token-pricing entry entirely. Nothing here writes back into the
+// manual ratio maps or Options.
 package autopricing
 
 import (
