@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"html"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 const MaxRequestBodyBytes int64 = 1 << 20
 
 const RequestIDHeader = "X-Request-ID"
+const CSPNonceContextKey = "Content-Security-Policy-Nonce"
 
 var requestIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,64}$`)
 
@@ -78,11 +80,13 @@ func requestBodyLimitMiddleware() gin.HandlerFunc {
 
 func securityHeadersMiddleware() gin.HandlerFunc {
 	return func(context *gin.Context) {
+		nonce := newCSPNonce()
 		context.Header("Cache-Control", "no-store")
-		context.Header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
+		context.Header("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'nonce-"+nonce+"'; script-src 'nonce-"+nonce+"'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
 		context.Header("Referrer-Policy", "no-referrer")
 		context.Header("X-Content-Type-Options", "nosniff")
 		context.Header("X-Frame-Options", "DENY")
+		context.Set(CSPNonceContextKey, nonce)
 		context.Next()
 	}
 }
@@ -102,4 +106,12 @@ func newRequestID() string {
 		return strings.Repeat("0", 32)
 	}
 	return hex.EncodeToString(bytes)
+}
+
+func newCSPNonce() string {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "AAAAAAAAAAAAAAAAAAAAAA"
+	}
+	return base64.RawStdEncoding.EncodeToString(bytes)
 }

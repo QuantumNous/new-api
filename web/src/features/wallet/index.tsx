@@ -76,9 +76,11 @@ export function Wallet(props: WalletProps) {
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
+  const [awaitingPayment, setAwaitingPayment] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const paymentStartQuotaRef = useRef<number | null>(null)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -110,24 +112,59 @@ export function Wallet(props: WalletProps) {
     useWaffoPancakePayment()
 
   // Fetch and refresh user data
-  const fetchUser = useCallback(async () => {
+  const fetchUser = useCallback(async (showLoading = true) => {
     try {
-      setUserLoading(true)
+      if (showLoading) setUserLoading(true)
       const response = await getSelf()
       if (response.success && response.data) {
-        setUser(response.data as UserWalletData)
+        const nextUser = response.data as UserWalletData
+        setUser(nextUser)
+        return nextUser
       }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to fetch user data:', error)
     } finally {
-      setUserLoading(false)
+      if (showLoading) setUserLoading(false)
     }
+    return null
   }, [])
 
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
+
+  useEffect(() => {
+    if (!awaitingPayment) return
+
+    const refreshPaymentState = async () => {
+      const nextUser = await fetchUser(false)
+      if (
+        nextUser &&
+        paymentStartQuotaRef.current !== null &&
+        nextUser.quota > paymentStartQuotaRef.current
+      ) {
+        setAwaitingPayment(false)
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshPaymentState()
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshPaymentState()
+    }, 3000)
+
+    window.addEventListener('focus', refreshPaymentState)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('focus', refreshPaymentState)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [awaitingPayment, fetchUser])
 
   useEffect(() => {
     if (props.initialShowHistory) {
@@ -207,6 +244,8 @@ export function Wallet(props: WalletProps) {
 
     if (success) {
       setConfirmDialogOpen(false)
+      paymentStartQuotaRef.current = user?.quota ?? null
+      setAwaitingPayment(true)
       await fetchUser()
     }
   }

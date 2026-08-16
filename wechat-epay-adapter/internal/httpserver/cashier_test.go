@@ -56,6 +56,9 @@ func TestCashierShowsQRCodeOnlyForPayableOrder(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code)
 	assert.Contains(t, response.Body.String(), "payment-code")
 	assert.Contains(t, response.Body.String(), "data:image/png;base64,")
+	assert.Contains(t, response.Body.String(), "请使用微信扫码完成支付")
+	assert.Contains(t, response.Body.String(), "checkStatus();")
+	assert.Contains(t, response.Body.String(), "setInterval(checkStatus, 2000)")
 	assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
 }
 
@@ -67,7 +70,7 @@ func TestCashierHidesQRCodeForNonPayableOrder(t *testing.T) {
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/cashier/"+token, nil))
 
 	require.Equal(t, http.StatusOK, response.Code)
-	assert.NotContains(t, response.Body.String(), "payment-code")
+	assert.NotContains(t, response.Body.String(), `<img id="payment-code"`)
 	assert.NotContains(t, response.Body.String(), "payment-code\" alt")
 }
 
