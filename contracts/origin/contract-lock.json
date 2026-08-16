@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "snapshot": "origin-codex-mvp-p0",
+  "snapshot_version": 2,
+  "source_repository": "git@github.com:shuohaowang/origin-contracts.git",
+  "source_commit": "dac91b87f58f10969dd5df4192debd8ae071f5bc",
+  "source_sha256": "8860b77a1f9d774f064e1e77d8414c463146d5df44d2134e1be4fdcc7c3fe5a1",
+  "contract_versions": {
+    "data_plane_control": "1.0.0",
+    "openai_compatible": "1.7.0-draft",
+    "catalog_event_id": "urn:origin-ai:event:catalog.execution-snapshot-published.v1",
+    "catalog_event_version": 1,
+    "usage_v1_event_id": "urn:origin-ai:event:metering.usage-recorded.v1",
+    "usage_v1_event_version": 1,
+    "usage_v1_decision": "preserved-byte-for-byte",
+    "usage_event_id": "urn:origin-ai:event:metering.usage-recorded.v2",
+    "usage_event_version": 2,
+    "control": "1.4.0-draft"
+  },
+  "files": {
+    "openapi/data-plane-control-v1.yaml": {
+      "source_path": "packages/contracts/openapi/data-plane-control-v1.yaml",
+      "sha256": "d2c48b25cdf5543ba15b949caada8b61bd608669e2665c679217d4b3dd7d3da9"
+    },
+    "openapi/openai-compatible-v1.yaml": {
+      "source_path": "packages/contracts/openapi/openai-compatible-v1.yaml",
+      "sha256": "d36224c25537790c64cefc7dd976834dfea41af953716f83245c416bd70de0fc"
+    },
+    "events/catalog.execution-snapshot-published.v1.schema.json": {
+      "source_path": "packages/contracts/events/catalog.execution-snapshot-published.v1.schema.json",
+      "sha256": "9b17128a88e89949d7dad2d34e681019a476c155f63394d11f4f19a27565aa73"
+    },
+    "events/metering.usage-recorded.v1.schema.json": {
+      "source_path": "packages/contracts/events/metering.usage-recorded.v1.schema.json",
+      "sha256": "b960ec3fea70cce8cec01e5b2ea7d448689f057715eb93bd73fb7396a3d13770"
+    },
+    "events/metering.usage-recorded.v2.schema.json": {
+      "source_path": "packages/contracts/events/metering.usage-recorded.v2.schema.json",
+      "sha256": "6236d98d5092b33b02fc412a683dac0dc0e71961cc597e1258639757d0c50c6b"
+    },
+    "examples/data-plane.admission.request.valid.json": {
+      "source_path": "packages/contracts/examples/data-plane.admission.request.valid.json",
+      "sha256": "8b9e818f150400422284877fadb111c556ab61e3280e6d0799e11a18612360ae"
+    },
+    "examples/data-plane.admission.request.invalid.json": {
+      "source_path": "packages/contracts/examples/data-plane.admission.request.invalid.json",
+      "sha256": "ae60c98ecdcd169bba8c9c6adbd67e13a76ca22aca6832e67d8697e501237eb7"
+    },
+    "examples/data-plane.admission.response.valid.json": {
+      "source_path": "packages/contracts/examples/data-plane.admission.response.valid.json",
+      "sha256": "c2b68dfe1b718dbfaae71b4b9f6a4be4b08f837a77e82be5ec196eab46a5d83b"
+    },
+    "examples/data-plane.admission.errors.valid.json": {
+      "source_path": "packages/contracts/examples/data-plane.admission.errors.valid.json",
+      "sha256": "bc720ca1cf04688f95332a325523a245c977189158b374836dfe14e33d60e405"
+    },
+    "examples/catalog.execution-snapshot-published.v1.valid.json": {
+      "source_path": "packages/contracts/examples/catalog.execution-snapshot-published.v1.valid.json",
+      "sha256": "ffed32d5eadefefa05823e80c835b847483fbac5253d10a86cccf72758a12459"
+    },
+    "examples/catalog.execution-snapshot-published.v1.invalid.json": {
+      "source_path": "packages/contracts/examples/catalog.execution-snapshot-published.v1.invalid.json",
+      "sha256": "6d90c247f7aa42e6f276ac240db06381d93862d674d4001cd1c3fc94ffcfb906"
+    },
+    "examples/metering.usage-recorded.v2.responses.valid.json": {
+      "source_path": "packages/contracts/examples/metering.usage-recorded.v2.responses.valid.json",
+      "sha256": "bcd0c251dd0aab402e596db0f89835743177ceadecbcda738471c2b5d8307ae6"
+    },
+    "examples/metering.usage-recorded.v2.responses-sse-missing.valid.json": {
+      "source_path": "packages/contracts/examples/metering.usage-recorded.v2.responses-sse-missing.valid.json",
+      "sha256": "43b1476ee52b0fd6cc31783ec0962573ca2255282385f81cf5ef0623d5af49f2"
+    },
+    "examples/metering.usage-recorded.v2.before-upstream.valid.json": {
+      "source_path": "packages/contracts/examples/metering.usage-recorded.v2.before-upstream.valid.json",
+      "sha256": "4162013d8b1fc30482922c806830396c0e6ef04847c054176c4d2f94572716fb"
+    },
+    "examples/metering.usage-recorded.v2.reconciled.valid.json": {
+      "source_path": "packages/contracts/examples/metering.usage-recorded.v2.reconciled.valid.json",
+      "sha256": "78280d2c132a3bc931f78d8ce32276d36cbaf132d08f42455ec702967fb20b46"
+    },
+    "examples/metering.usage-recorded.v2.invalid.json": {
+      "source_path": "packages/contracts/examples/metering.usage-recorded.v2.invalid.json",
+      "sha256": "ee53b2b13e8288de7977ef292075e372438e4dd508fa6e57c47daedc424f8a6e"
+    },
+    "openapi/control-v1.yaml": {
+      "source_path": "packages/contracts/openapi/control-v1.yaml",
+      "sha256": "5f4989b51c126476806b8845781cfc4d77f94bef7454b27aa1df507af87a23a3"
+    },
+    "examples/control.call-logs.settlement-statuses.valid.json": {
+      "source_path": "packages/contracts/examples/control.call-logs.settlement-statuses.valid.json",
+      "sha256": "089f58bf0463ab8f5d2138a5c50f909ee1f0495579195ea5c66699d66853f446"
+    },
+    "examples/control.call-logs.settlement-statuses.invalid.json": {
+      "source_path": "packages/contracts/examples/control.call-logs.settlement-statuses.invalid.json",
+      "sha256": "59a675536a94662a755858d19cb41f88dc8440eeb62a2702bf9c0c67115a62ec"
+    }
+  }
+}

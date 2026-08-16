@@ -1,0 +1,39 @@
+{
+  "event_id": "01980000-0000-7000-8000-000000000301",
+  "event_type": "catalog.execution_snapshot_published.v1",
+  "event_version": 1,
+  "occurred_at": "2026-08-14T05:00:00Z",
+  "produced_at": "2026-08-14T05:00:01Z",
+  "producer": "platform-service",
+  "partition_key": "catalog:execution",
+  "payload": {
+    "snapshot_version": 42,
+    "previous_snapshot_version": 41,
+    "full_snapshot": true,
+    "published_at": "2026-08-14T05:00:00Z",
+    "expires_at": "2026-08-14T05:15:00Z",
+    "routes": [
+      {
+        "route_id": "route_codex_responses_primary",
+        "platform_model": "origin-codex",
+        "operation": "responses",
+        "capabilities": {
+          "streaming": true,
+          "function_tools": true,
+          "reasoning": true,
+          "max_input_tokens": 200000,
+          "max_output_tokens": 100000
+        },
+        "approved_channel_id": "channel_beenex_primary",
+        "upstream_model_id": "beenex-codex-1",
+        "upstream_protocol": "openai_responses",
+        "status": "ACTIVE"
+      }
+    ],
+    "content_sha256": "9ce43d89939ec8d93f46bf11a5ac7cb56d221aafc88462009e5545fe9590d0b2"
+  },
+  "metadata": {
+    "environment": "test",
+    "region": "cn-east-1"
+  }
+}

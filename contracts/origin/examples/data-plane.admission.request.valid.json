@@ -1,0 +1,10 @@
+{
+  "request_id": "01980000-0000-7000-8000-000000000002",
+  "platform_model": "origin-codex",
+  "operation": "responses",
+  "catalog_version": 42,
+  "input_token_estimate": 1200,
+  "max_output_tokens": 4096,
+  "stream": true,
+  "requested_capabilities": ["streaming", "function_tools", "reasoning"]
+}

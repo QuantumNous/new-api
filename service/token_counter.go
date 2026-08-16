@@ -177,8 +177,18 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 }
 
 func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
-	// 是否统计token
-	if !constant.CountToken {
+	return estimateRequestToken(c, meta, info, constant.CountToken)
+}
+
+// EstimateRequiredRequestToken computes a safety estimate even when ordinary
+// new-api token counting is disabled. Origin admission must never silently
+// present zero risk merely because the legacy billing counter is off.
+func EstimateRequiredRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
+	return estimateRequestToken(c, meta, info, true)
+}
+
+func estimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo, enabled bool) (int, error) {
+	if !enabled {
 		return 0, nil
 	}
 

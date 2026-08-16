@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/origin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -46,6 +47,22 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if responsesResponse.Usage.InputTokensDetails != nil {
 			usage.PromptTokensDetails.CachedTokens = responsesResponse.Usage.InputTokensDetails.CachedTokens
 			usage.PromptTokensDetails.CacheWriteTokens = responsesResponse.Usage.InputTokensDetails.CacheWriteTokens
+		}
+		observeOriginResponsesUsage(c, &responsesResponse)
+	} else if _, ok := origin.ExecutionFromContext(c); ok {
+		origin.MarkUpstreamCompleted(c, responsesResponse.ID)
+	}
+	var responseStatus string
+	if len(responsesResponse.Status) > 0 {
+		if err := common.Unmarshal(responsesResponse.Status, &responseStatus); err == nil {
+			switch responseStatus {
+			case "failed":
+				origin.MarkUpstreamFailed(c, responsesResponse.ID)
+			case "incomplete":
+				if responsesResponse.IncompleteDetails != nil && responsesResponse.IncompleteDetails.Reason == "content_filter" {
+					origin.MarkUpstreamContentFilteredOutput(c, responsesResponse.ID)
+				}
+			}
 		}
 	}
 	// Count actual tool invocations from Output (not tool declarations).
@@ -112,6 +129,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
 						usage.PromptTokensDetails.CacheWriteTokens = streamResponse.Response.Usage.InputTokensDetails.CacheWriteTokens
 					}
+					observeOriginResponsesUsage(c, streamResponse.Response)
+				} else if _, ok := origin.ExecutionFromContext(c); ok {
+					origin.MarkUpstreamCompleted(c, streamResponse.Response.ID)
 				}
 				if !imageCommitted {
 					if relaycommon.IsNonBillableResponsesStatus(streamResponse.Response.Status) {
@@ -131,7 +151,25 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				imageCounter.Commit(info)
 				imageCommitted = true
 			}
-		case "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+		case "response.failed", "response.cancelled", "response.canceled":
+			if streamResponse.Response != nil {
+				observeOriginResponsesUsage(c, streamResponse.Response)
+				origin.MarkUpstreamFailed(c, streamResponse.Response.ID)
+			}
+			if !imageCommitted {
+				imageCounter.Reset()
+				imageCounter.Commit(info)
+				imageCommitted = true
+			}
+		case "response.incomplete":
+			if streamResponse.Response != nil {
+				observeOriginResponsesUsage(c, streamResponse.Response)
+				if streamResponse.Response.IncompleteDetails != nil && streamResponse.Response.IncompleteDetails.Reason == "content_filter" {
+					origin.MarkUpstreamContentFilteredOutput(c, streamResponse.Response.ID)
+				} else {
+					origin.MarkUpstreamCompleted(c, streamResponse.Response.ID)
+				}
+			}
 			if !imageCommitted {
 				imageCounter.Reset()
 				imageCounter.Commit(info)
@@ -175,4 +213,25 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func observeOriginResponsesUsage(c *gin.Context, response *dto.OpenAIResponsesResponse) {
+	if response == nil || response.Usage == nil {
+		return
+	}
+	cachedTokens := 0
+	if response.Usage.InputTokensDetails != nil {
+		cachedTokens = response.Usage.InputTokensDetails.CachedTokens
+	}
+	reasoningTokens := 0
+	if response.Usage.OutputTokensDetails != nil {
+		reasoningTokens = response.Usage.OutputTokensDetails.ReasoningTokens
+	}
+	origin.ObserveProviderUsage(c, origin.UsageObservation{
+		InputTokens:       response.Usage.InputTokens,
+		OutputTokens:      response.Usage.OutputTokens,
+		CachedTokens:      cachedTokens,
+		ReasoningTokens:   reasoningTokens,
+		ProviderRequestID: response.ID,
+	})
 }

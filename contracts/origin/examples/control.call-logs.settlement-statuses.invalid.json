@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "id": "0198f6a0-0000-7000-9000-000000000721",
+      "request_id": "0198f6a0-0000-7000-9000-000000000921",
+      "project_id": "0198f6a0-0000-7000-9000-000000000221",
+      "api_key_id": "0198f6a0-0000-7000-9000-000000000321",
+      "source": "api",
+      "operation": "responses_stream",
+      "platform_model": "codex-default",
+      "provider": null,
+      "provider_model": null,
+      "terminal_status": null,
+      "error_code": null,
+      "billable": false,
+      "usage_source": null,
+      "metering_items": [],
+      "input_tokens": "0",
+      "output_tokens": "0",
+      "amount": "0.000000",
+      "cash_amount": "0.000000",
+      "bonus_amount": "0.000000",
+      "occurred_at": "2026-08-15T01:10:00Z"
+    }
+  ],
+  "page": { "next_cursor": null, "has_more": false },
+  "request_id": "0198f6a0-0000-7000-9000-000000000998"
+}

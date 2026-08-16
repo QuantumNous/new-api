@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/origin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -72,6 +73,16 @@ func main() {
 		err := model.CloseDB()
 		if err != nil {
 			common.FatalLog("failed to close database: " + err.Error())
+		}
+	}()
+	originWorkers, err := origin.StartBackgroundWorkers(context.Background(), model.DB)
+	if err != nil {
+		common.FatalLog("failed to start Origin background workers: " + err.Error())
+		return
+	}
+	defer func() {
+		if err := originWorkers.Close(); err != nil {
+			common.SysError("failed to close Origin background workers: " + err.Error())
 		}
 	}()
 
@@ -295,6 +306,9 @@ func InitResources() error {
 	common.InitEnv()
 
 	logger.SetupLogger()
+	if err = origin.InitializeFromEnv(); err != nil {
+		return err
+	}
 
 	// Initialize model settings
 	ratio_setting.InitRatioSettings()

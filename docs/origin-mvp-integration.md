@@ -80,6 +80,24 @@ Origin Platform 仍是 Tenant、Project、Origin Key、PlatformModel 商品状�
 5. 执行本地 Mock BeeNex E2E：创建 Origin Key → Responses → usage → Charge/Ledger → 余额/调用记录。
 6. 真实 BeeNex 冒烟仅在另行明确授权模型、次数和预算后执行。
 
+## 受控版本配置
+
+本仓锁定的 `origin-contracts` v2 消费提交为 `dac91b87f58f10969dd5df4192debd8ae071f5bc`，聚合 SHA-256 为 `8860b77a1f9d774f064e1e77d8414c463146d5df44d2134e1be4fdcc7c3fe5a1`。历史 v1 聚合 SHA-256 保持为 `514738bbc49845da3161382fa79587df2f60c753700c3f360a5afb58c86186d6`。同步文件与逐文件哈希记录在 `contracts/origin/contract-lock.json`；控制面请求、catalog 和 usage 事件不得偏离该快照。
+
+Origin 集成默认关闭。只有 `ORIGIN_INTEGRATION_ENABLED=true` 时才启用，并要求以下配置完整有效，否则进程启动失败：
+
+- `ORIGIN_PLATFORM_BASE_URL`：Platform 的 HTTPS 根地址；
+- `ORIGIN_PLATFORM_CA_FILE`、`ORIGIN_PLATFORM_CLIENT_CERT_FILE`、`ORIGIN_PLATFORM_CLIENT_KEY_FILE`：Platform mTLS 信任根和客户端证书；
+- `ORIGIN_PLATFORM_TIMEOUT_MS`：控制面请求超时，默认 `2000`；
+- `ORIGIN_CHANNEL_BINDINGS`：catalog `approved_channel_id` 到本地 new-api 渠道整数 ID 的 JSON 对象；catalog 直接使用正整数字符串时可省略对应项；
+- `ORIGIN_KAFKA_BROKERS`：逗号分隔的 Kafka/Redpanda `host:port` 地址；
+- `ORIGIN_OUTBOX_BATCH_SIZE`、`ORIGIN_OUTBOX_POLL_INTERVAL_MS`、`ORIGIN_OUTBOX_LEASE_MS`、`ORIGIN_OUTBOX_MAX_ATTEMPTS`：usage outbox worker 参数，默认分别为 `100`、`1000`、`30000`、`10`；
+- `ORIGIN_ATTEMPT_LEASE_MS`、`ORIGIN_ATTEMPT_HEARTBEAT_MS`：上游 request attempt 的崩溃检测租约，默认分别为 `120000`、`30000`，heartbeat 必须小于 lease。
+
+每个 catalog 获批绑定必须指向状态启用、配置完整的内置 **New API** 渠道；BeeNex Base URL 必须是无 userinfo 的绝对 HTTPS URL，且 `TLS_INSECURE_SKIP_VERIFY` 不得启用。该校验在 admission 成功后、任何上游 attempt 和网络请求前执行，并在每次安全重试选取渠道时再次执行。Origin 请求不使用 new-api 用户模型限流、Token 额度或本地计费状态，相关权威判定由 Platform admission/reservation 提供。
+
+数据库自动迁移新增 `origin_request_attempts` 与 `origin_usage_outboxes`。前者在上游调用前记录 reservation、catalog Route 和尝试租约；后者与 attempt 终态在同一事务写入。Kafka 发布为持久化 outbox 上的至少一次投递，稳定 `event_id` 由 Platform 按锁定契约幂等消费。Kafka 不可用只会推进重试/DEAD 状态，不会删除 usage；DEAD 记录需在告警处理后显式恢复。
+
 ## 验收矩阵
 
 - 除出站请求中获批的平台模型名到上游模型名映射外，非流式请求与响应结构不做协议转换；

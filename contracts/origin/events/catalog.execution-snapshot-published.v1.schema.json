@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin-ai:event:catalog.execution-snapshot-published.v1",
+  "title": "catalog.execution_snapshot_published.v1",
+  "description": "Platform publication of the complete data-plane execution catalog. Consumers replace atomically, never merge as a delta, and fail closed on rollback, expiry, unknown Route, disabled Route or hash failure.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id", "event_type", "event_version", "occurred_at", "produced_at",
+    "producer", "partition_key", "payload", "metadata"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "catalog.execution_snapshot_published.v1" },
+    "event_version": { "const": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "produced_at": { "type": "string", "format": "date-time" },
+    "producer": { "const": "platform-service" },
+    "partition_key": { "const": "catalog:execution" },
+    "payload": { "$ref": "#/$defs/CatalogExecutionSnapshot" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "environment": { "type": "string", "maxLength": 40 },
+        "region": { "type": "string", "maxLength": 80 }
+      }
+    }
+  },
+  "$defs": {
+    "CatalogCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["streaming", "function_tools", "reasoning", "max_input_tokens", "max_output_tokens"],
+      "properties": {
+        "streaming": { "type": "boolean" },
+        "function_tools": { "type": "boolean" },
+        "reasoning": { "type": "boolean" },
+        "max_input_tokens": { "type": "integer", "minimum": 1 },
+        "max_output_tokens": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "CatalogExecutionRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "route_id", "platform_model", "operation", "capabilities", "approved_channel_id",
+        "upstream_model_id", "upstream_protocol", "status"
+      ],
+      "properties": {
+        "route_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "platform_model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "operation": { "const": "responses" },
+        "capabilities": { "$ref": "#/$defs/CatalogCapabilities" },
+        "approved_channel_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+        "upstream_model_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:/-]+$" },
+        "upstream_protocol": { "const": "openai_responses" },
+        "status": { "type": "string", "enum": ["ACTIVE", "DRAINING", "DISABLED"] }
+      }
+    },
+    "CatalogExecutionSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A complete replacement snapshot. snapshot_version is the catalog_version presented to admission and increases monotonically. previous_snapshot_version records the publisher lineage, not a delta dependency. Version gaps are allowed because every publication is complete; rollback, reuse of one version for different content, expiry or hash failure fails closed.",
+      "required": [
+        "snapshot_version", "previous_snapshot_version", "full_snapshot", "published_at",
+        "expires_at", "routes", "content_sha256"
+      ],
+      "properties": {
+        "snapshot_version": { "type": "integer", "format": "int64", "minimum": 1 },
+        "previous_snapshot_version": { "type": ["integer", "null"], "format": "int64", "minimum": 1 },
+        "full_snapshot": { "const": true },
+        "published_at": { "type": "string", "format": "date-time" },
+        "expires_at": { "type": "string", "format": "date-time" },
+        "routes": {
+          "type": "array",
+          "minItems": 0,
+          "items": { "$ref": "#/$defs/CatalogExecutionRoute" }
+        },
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of RFC 8785 canonical JSON for every payload field except content_sha256."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "event_id": "01980000-0000-7000-8000-000000000404",
+  "event_type": "metering.usage_recorded.v2",
+  "event_version": 2,
+  "occurred_at": "2026-08-14T05:10:00Z",
+  "produced_at": "2026-08-14T05:10:01Z",
+  "producer": "new-api",
+  "partition_key": "reservation:01980000-0000-7000-8000-000000000016",
+  "request_id": "01980000-0000-7000-8000-000000000012",
+  "request_attempt_id": "01980000-0000-7000-8000-000000000017",
+  "reservation_id": "01980000-0000-7000-8000-000000000016",
+  "outcome_version": 2,
+  "tenant_id": "01980000-0000-7000-8000-000000000003",
+  "project_id": "01980000-0000-7000-8000-000000000004",
+  "api_key_id": "01980000-0000-7000-8000-000000000005",
+  "source": "api",
+  "operation": "responses_stream",
+  "platform_model": "origin-codex",
+  "catalog_version": 42,
+  "route_id": "route_codex_responses_primary",
+  "upstream": {
+    "contact_state": "COMPLETED",
+    "provider": "beenex",
+    "upstream_model_id": "beenex-codex-1",
+    "provider_request_id": "resp_example_reconciled_001"
+  },
+  "terminal_status": "CLIENT_DISCONNECTED",
+  "started_at": "2026-08-14T05:00:00Z",
+  "completed_at": "2026-08-14T05:00:03Z",
+  "usage_status": "REPORTED",
+  "usage_source": "RECONCILED",
+  "items": [
+    { "meter_type": "INPUT_TOKEN", "quantity": "1200", "unit": "token", "source": "RECONCILED", "provider_value": "1200" },
+    { "meter_type": "OUTPUT_TOKEN", "quantity": "221", "unit": "token", "source": "RECONCILED", "provider_value": "221" }
+  ],
+  "reservation_action": "SETTLE",
+  "reconciliation": { "status": "RESOLVED", "reason": "MANUAL_REVIEW" },
+  "error_category": null
+}

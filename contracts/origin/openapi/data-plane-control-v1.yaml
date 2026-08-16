@@ -1,0 +1,302 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Origin Data-plane Control API",
+    "version": "1.0.0",
+    "description": "Locked P0 contract between the existing new-api Go data plane and Origin Platform. Platform remains authoritative for Origin Keys, projects, catalog, PriceBook, wallet, reservations, Charge and Ledger. The data plane forwards OpenAI Responses to BeeNex in the same protocol; this API never defines a Responses-to-Chat conversion."
+  },
+  "servers": [{ "url": "https://platform.internal" }],
+  "paths": {
+    "/internal/v1/admissions": {
+      "post": {
+        "operationId": "createAdmission",
+        "summary": "Atomically authenticate, authorize and reserve one model request",
+        "description": "new-api obtains one successful admission before contacting BeeNex. In one Platform transaction it validates the complete Origin Key, its tenant/project binding and state, model entitlement, the presented catalog version, wallet and quota, then creates one reservation. request_id and Idempotency-Key MUST be identical. Once a reservation is created or its transaction is in progress, a replay with the same canonical risk facts returns the original result or idempotency_request_in_progress; changed facts return idempotency_key_payload_conflict. A catalog_stale response is decided before reservation creation and catalog_stale does not claim the idempotency slot, so new-api may install a verified newer snapshot and retry once with the same request_id and its updated catalog_version. Prompt/input bodies, instructions, tool arguments, response bodies and provider credentials are forbidden. Network failure, timeout or an untrusted response fails closed and BeeNex MUST NOT be contacted.",
+        "security": [{ "GatewayMutualTLS": [], "OriginKeyBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" },
+          { "$ref": "#/components/parameters/RequestId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AdmissionRequest" },
+              "examples": {
+                "responses_sse": {
+                  "value": {
+                    "request_id": "01980000-0000-7000-8000-000000000002",
+                    "platform_model": "origin-codex",
+                    "operation": "responses",
+                    "catalog_version": 42,
+                    "input_token_estimate": 1200,
+                    "max_output_tokens": 4096,
+                    "stream": true,
+                    "requested_capabilities": ["streaming", "function_tools", "reasoning"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/AdmissionAccepted" },
+          "400": { "$ref": "#/components/responses/AdmissionBadRequest" },
+          "401": { "$ref": "#/components/responses/AdmissionUnauthenticated" },
+          "402": { "$ref": "#/components/responses/AdmissionPaymentRequired" },
+          "403": { "$ref": "#/components/responses/AdmissionForbidden" },
+          "404": { "$ref": "#/components/responses/AdmissionNotFound" },
+          "409": { "$ref": "#/components/responses/AdmissionConflict" },
+          "429": { "$ref": "#/components/responses/AdmissionQuotaRejected" },
+          "503": { "$ref": "#/components/responses/PlatformUnavailable" }
+        }
+      }
+    },
+    "/internal/v1/catalog/execution-snapshot": {
+      "get": {
+        "operationId": "getCatalogExecutionSnapshot",
+        "summary": "Fetch the complete published execution snapshot",
+        "description": "Every 200 response is the latest catalog.execution_snapshot_published.v1 full-snapshot event, never a delta. payload.snapshot_version is the catalog_version sent to admission. Platform allocates it monotonically and never reuses a published value for different content. Because each snapshot is complete, version gaps are allowed; new-api atomically installs any strictly newer valid snapshot, verifies content_sha256, and fails closed after expires_at. Admission returns catalog_stale before creating a reservation whenever the presented version is not currently approved; new-api may refresh and retry admission once with the same request_id. Version rollback, same-version different content, an unknown Route, disabled Route, expired snapshot or unverifiable content all fail closed.",
+        "security": [{ "GatewayMutualTLS": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/RequestId" },
+          { "$ref": "#/components/parameters/IfNoneMatch" }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/CatalogSnapshotOk" },
+          "304": { "$ref": "#/components/responses/CatalogSnapshotNotModified" },
+          "503": { "$ref": "#/components/responses/PlatformUnavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "GatewayMutualTLS": {
+        "type": "mutualTLS",
+        "description": "Authenticates the approved new-api service instance. Certificate identity is never accepted from a caller-supplied header."
+      },
+      "OriginKeyBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Origin-Key",
+        "description": "The complete sk-oa-... Origin Key is carried only in Authorization: Bearer. Intermediaries and applications MUST redact this header, MUST NOT copy it into bodies, logs, metrics, events or ordinary responses, and MUST remove it before the BeeNex request."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "UUID request identity. It MUST equal body.request_id. After reservation creation starts, the same key and canonical payload replay the first result or its in-progress state; any payload change returns idempotency_key_payload_conflict. catalog_stale is evaluated before and does not bind this key, allowing one retry with an updated catalog_version.",
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "RequestId": {
+        "name": "X-Request-Id",
+        "in": "header",
+        "required": true,
+        "description": "Correlation identifier. For admission it MUST equal body.request_id and Idempotency-Key.",
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "IfNoneMatch": {
+        "name": "If-None-Match",
+        "in": "header",
+        "required": false,
+        "description": "ETag from the previously verified full snapshot.",
+        "schema": { "type": "string", "minLength": 3, "maxLength": 96 }
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "Stable request correlation identifier",
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "RetryAfter": {
+        "description": "Whole seconds before a retry is permitted",
+        "schema": { "type": "integer", "minimum": 1 }
+      },
+      "ETag": {
+        "description": "Strong validator derived from the verified snapshot sha256",
+        "schema": { "type": "string", "minLength": 3, "maxLength": 96 }
+      },
+      "CatalogVersion": {
+        "description": "Monotonic catalog version carried by the response",
+        "schema": { "type": "integer", "format": "int64", "minimum": 1 }
+      }
+    },
+    "schemas": {
+      "AdmissionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "request_id", "platform_model", "operation", "catalog_version",
+          "input_token_estimate", "max_output_tokens", "stream", "requested_capabilities"
+        ],
+        "properties": {
+          "request_id": { "type": "string", "format": "uuid" },
+          "platform_model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
+          "operation": { "const": "responses" },
+          "catalog_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "input_token_estimate": { "type": "integer", "format": "int64", "minimum": 0, "maximum": 100000000 },
+          "max_output_tokens": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+          "stream": { "type": "boolean" },
+          "requested_capabilities": {
+            "type": "array",
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": { "type": "string", "enum": ["streaming", "function_tools", "reasoning"] }
+          }
+        }
+      },
+      "AdmissionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "request_id", "tenant_id", "project_id", "api_key_id", "reservation_id",
+          "approved_catalog_version", "route_id", "expires_at"
+        ],
+        "properties": {
+          "request_id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "project_id": { "type": "string", "format": "uuid" },
+          "api_key_id": { "type": "string", "format": "uuid" },
+          "reservation_id": { "type": "string", "format": "uuid" },
+          "approved_catalog_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "route_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+          "expires_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AdmissionErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_admission_request",
+          "origin_key_invalid",
+          "origin_key_disabled",
+          "origin_key_expired",
+          "origin_key_project_mismatch",
+          "model_not_available",
+          "model_access_denied",
+          "insufficient_balance",
+          "quota_exceeded",
+          "catalog_stale",
+          "idempotency_key_payload_conflict",
+          "idempotency_request_in_progress",
+          "platform_unavailable"
+        ]
+      },
+      "AdmissionError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "retryable"],
+        "properties": {
+          "code": { "$ref": "#/components/schemas/AdmissionErrorCode" },
+          "message": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Stable, non-reflective text. It MUST NOT echo Authorization, request body content, tool arguments or upstream response content." },
+          "retryable": { "type": "boolean" },
+          "retry_after_ms": { "type": ["integer", "null"], "minimum": 1 },
+          "current_catalog_version": { "type": ["integer", "null"], "format": "int64", "minimum": 1 }
+        }
+      },
+      "AdmissionErrorEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error", "request_id"],
+        "properties": {
+          "error": { "$ref": "#/components/schemas/AdmissionError" },
+          "request_id": { "type": "string", "format": "uuid" }
+        }
+      }
+    },
+    "responses": {
+      "AdmissionAccepted": {
+        "description": "Admission accepted and one ACTIVE reservation created or replayed",
+        "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/AdmissionResult" },
+            "example": {
+              "request_id": "01980000-0000-7000-8000-000000000002",
+              "tenant_id": "01980000-0000-7000-8000-000000000003",
+              "project_id": "01980000-0000-7000-8000-000000000004",
+              "api_key_id": "01980000-0000-7000-8000-000000000005",
+              "reservation_id": "01980000-0000-7000-8000-000000000006",
+              "approved_catalog_version": 42,
+              "route_id": "route_codex_responses_primary",
+              "expires_at": "2026-08-14T05:01:00Z"
+            }
+          }
+        }
+      },
+      "AdmissionBadRequest": {
+        "description": "Risk facts or correlation headers are invalid",
+        "x-origin-error-codes": ["invalid_admission_request"],
+        "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "AdmissionUnauthenticated": {
+        "description": "Origin Key is missing, malformed or invalid",
+        "x-origin-error-codes": ["origin_key_invalid"],
+        "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "AdmissionPaymentRequired": {
+        "description": "Authoritative wallet cannot cover the reservation",
+        "x-origin-error-codes": ["insufficient_balance"],
+        "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "AdmissionForbidden": {
+        "description": "Origin Key is disabled, expired or bound to another project, or the model is not permitted",
+        "x-origin-error-codes": ["origin_key_disabled", "origin_key_expired", "origin_key_project_mismatch", "model_access_denied"],
+        "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "AdmissionNotFound": {
+        "description": "Platform model is not currently saleable",
+        "x-origin-error-codes": ["model_not_available"],
+        "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "AdmissionConflict": {
+        "description": "Catalog is stale, idempotency payload conflicts, or the original request is still in progress",
+        "x-origin-error-codes": ["catalog_stale", "idempotency_key_payload_conflict", "idempotency_request_in_progress"],
+        "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "AdmissionQuotaRejected": {
+        "description": "Authoritative project or Key quota rejected the request",
+        "x-origin-error-codes": ["quota_exceeded"],
+        "headers": {
+          "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+          "Retry-After": { "$ref": "#/components/headers/RetryAfter" }
+        },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "PlatformUnavailable": {
+        "description": "Platform admission or catalog service is temporarily unavailable; callers fail closed",
+        "x-origin-error-codes": ["platform_unavailable"],
+        "headers": {
+          "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+          "Retry-After": { "$ref": "#/components/headers/RetryAfter" }
+        },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdmissionErrorEnvelope" } } }
+      },
+      "CatalogSnapshotOk": {
+        "description": "Complete, immutable execution snapshot",
+        "headers": {
+          "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+          "ETag": { "$ref": "#/components/headers/ETag" },
+          "X-Catalog-Version": { "$ref": "#/components/headers/CatalogVersion" }
+        },
+        "content": { "application/json": { "schema": { "$ref": "../events/catalog.execution-snapshot-published.v1.schema.json" } } }
+      },
+      "CatalogSnapshotNotModified": {
+        "description": "The caller already holds the current full snapshot",
+        "headers": {
+          "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+          "ETag": { "$ref": "#/components/headers/ETag" },
+          "X-Catalog-Version": { "$ref": "#/components/headers/CatalogVersion" }
+        }
+      }
+    }
+  }
+}

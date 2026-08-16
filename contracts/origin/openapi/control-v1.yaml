@@ -1,0 +1,4015 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Origin-ai Control API",
+    "version": "1.4.0-draft",
+    "description": "Customer control-plane contract. Browser authentication uses an opaque, revocable session cookie; client-supplied user identity headers are never trusted."
+  },
+  "servers": [
+    {
+      "url": "https://platform.example.com"
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/sms-challenges": {
+      "post": {
+        "operationId": "createSmsChallenge",
+        "summary": "Create a six-digit SMS challenge valid for five minutes",
+        "description": "The same phone is limited to one send per 60 seconds and ten sends per Asia/Shanghai day. The third request from one IP in a rolling minute requires a valid captcha token.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsChallengeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/SmsChallengeCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/registrations": {
+      "post": {
+        "operationId": "registerWithPhone",
+        "summary": "Verify a registration challenge and atomically initialize the personal tenant",
+        "description": "Idempotency scope is normalized phone hash + operation + Idempotency-Key. The sanitized business response is retained for at least 24 hours. API Key cleartext and the initial session token are returned only on the first successful response and are never stored in the idempotency record; replay returns the same business IDs and masked Key without secrets or Set-Cookie.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/RegistrationCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "post": {
+        "operationId": "createSession",
+        "summary": "Login with an SMS challenge or password",
+        "description": "Five consecutive password failures lock password login for 15 minutes. SMS login remains available while password login is locked.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/SessionCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "423": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitErrorResponse"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "revokeAllSessions",
+        "summary": "Logout all devices for the current user",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "All sessions revoked",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions/refresh": {
+      "post": {
+        "operationId": "refreshSession",
+        "summary": "Rotate the current opaque session token",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SessionCreated"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions/current": {
+      "delete": {
+        "operationId": "revokeCurrentSession",
+        "summary": "Logout the current device",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Current session revoked",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "summary": "Get the current session user and trusted tenant memberships",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/MeOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/me/security": {
+      "patch": {
+        "operationId": "updateCurrentUserSecurity",
+        "summary": "Set or replace the current user's password",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSecurityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/SecurityUpdated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants": {
+      "get": {
+        "operationId": "listTenants",
+        "summary": "List tenants visible through active memberships",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TenantListOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createEnterpriseTenant",
+        "summary": "Create an enterprise tenant with the current user as OWNER",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnterpriseTenantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/TenantCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}": {
+      "get": {
+        "operationId": "getTenant",
+        "summary": "Get a tenant visible through the current user's membership",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TenantOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/members": {
+      "get": {
+        "operationId": "listTenantMembers",
+        "summary": "List members; OWNER or ADMIN only",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/MemberListOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTenantInvitation",
+        "summary": "Create a phone-directed or link invitation valid for 72 hours",
+        "description": "Enterprise certification must be APPROVED. Idempotency scope is tenant + operation + Idempotency-Key.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/InvitationCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/members/{user_id}": {
+      "delete": {
+        "operationId": "removeTenantMember",
+        "summary": "Remove an enterprise member; OWNER or ADMIN only",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/UserIdPath"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member removed or already absent",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenant_id}/certification": {
+      "get": {
+        "operationId": "getTenantCertification",
+        "summary": "Get enterprise certification; OWNER or ADMIN only",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/CertificationOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "submitTenantCertification",
+        "summary": "Submit enterprise certification using an object-storage upload reference",
+        "description": "The business table stores only encrypted fields, hashes and the private object reference; file bytes never enter the request or business table.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertificationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/CertificationCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/tenant-invitations/{token}/accept": {
+      "post": {
+        "operationId": "acceptTenantInvitation",
+        "summary": "Accept a valid invitation after login or registration",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/InvitationTokenPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/MembershipAccepted"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/wallet": {
+      "get": {
+        "operationId": "getWalletOverview",
+        "summary": "Get wallet balance; OWNER or ADMIN only",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/WalletOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/wallet/ledger": {
+      "get": {
+        "operationId": "listWalletLedger",
+        "summary": "List user-readable wallet ledger entries; OWNER or ADMIN only",
+        "description": "Entries are ordered by occurred_at then id descending. from is inclusive and to is exclusive. Amounts are signed CNY decimal strings with six fractional digits; debits are negative. Reuse an opaque cursor with the same filters.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/FromQuery"
+          },
+          {
+            "$ref": "#/components/parameters/ToQuery"
+          },
+          {
+            "$ref": "#/components/parameters/LedgerTransactionTypeQuery"
+          },
+          {
+            "$ref": "#/components/parameters/CursorQuery"
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/WalletLedgerCollectionOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/call-logs": {
+      "get": {
+        "operationId": "listCallLogs",
+        "summary": "List metadata-only call charges visible to any active tenant member",
+        "description": "Results are ordered by occurred_at then id descending. from is inclusive and to is exclusive. request_id is an exact-match troubleshooting filter. settlement_status is the authoritative public settlement projection; clients must not infer it from amount, usage_source, billable or terminal_status. The response never includes prompts, completions, Authorization, API Key material, provider credentials or provider request IDs.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/FromQuery"
+          },
+          {
+            "$ref": "#/components/parameters/ToQuery"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/ApiKeyIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/PlatformModelQuery"
+          },
+          {
+            "$ref": "#/components/parameters/TerminalStatusQuery"
+          },
+          {
+            "$ref": "#/components/parameters/ErrorCodeQuery"
+          },
+          {
+            "$ref": "#/components/parameters/SourceQuery"
+          },
+          {
+            "$ref": "#/components/parameters/RequestIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/CursorQuery"
+          },
+          {
+            "$ref": "#/components/parameters/LimitQuery"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/CallLogCollectionOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "summary": "List projects visible to any active tenant member",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ProjectListOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create a project; OWNER or ADMIN only",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/ProjectCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}": {
+      "get": {
+        "operationId": "getProject",
+        "summary": "Get a project visible to any active tenant member",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ProjectOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProject",
+        "summary": "Update project metadata, status and amount limits; OWNER or ADMIN only",
+        "description": "Limits use integer micros. Null clears a limit, zero blocks subsequent calls. The default project can be renamed and limited but cannot be disabled.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ProjectOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProject",
+        "summary": "Soft-delete a non-default project after all of its Keys are deleted; OWNER or ADMIN only",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Project deleted or deletion replayed",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/keys": {
+      "get": {
+        "operationId": "listProjectKeys",
+        "summary": "List API Key names and status; secret is never returned",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ApiKeyListOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProjectKey",
+        "summary": "Create an API Key; OWNER or ADMIN only",
+        "description": "The cleartext secret is returned only on the first successful response and is never stored in the idempotency record. The API Key table stores public_id, HMAC and mask only. Every replay returns the same Key entity without cleartext and with secret_replayable=false.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/ApiKeyCreated"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/keys/{key_id}": {
+      "patch": {
+        "operationId": "updateProjectKey",
+        "summary": "Enable or disable an API Key; OWNER or ADMIN only",
+        "description": "Expired or deleted Keys cannot be enabled. Disable and delete become authoritative immediately in PostgreSQL and must reach gateway admission within 60 seconds.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/ApiKeyIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApiKeyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ApiKeyOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProjectKey",
+        "summary": "Soft-delete an API Key; OWNER or ADMIN only",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TenantSelectorHeader"
+          },
+          {
+            "$ref": "#/components/parameters/ProjectIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/ApiKeyIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "API Key deleted or deletion replayed",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/models": {
+      "get": {
+        "operationId": "listCatalogModels",
+        "summary": "List published platform models and capability summaries",
+        "responses": {
+          "200": {
+            "description": "Cursor-compatible resource collection",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "request_id"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "request_id": {
+                      "$ref": "#/components/schemas/RequestId"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/conversations": {
+      "get": {
+        "operationId": "listChatConversations",
+        "summary": "List conversations owned by the current user in the current tenant",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation list",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatConversationListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createChatConversation",
+        "summary": "Create a conversation in the current tenant default project",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatConversationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Conversation created",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatConversationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/chat/conversations/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getChatConversation",
+        "summary": "Get an owned conversation",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatConversationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "renameChatConversation",
+        "summary": "Rename an owned conversation",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameChatConversationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Conversation renamed",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatConversationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteChatConversation",
+        "summary": "Delete owned conversation content while retaining independent usage facts",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Conversation content deleted",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/chat/conversations/{id}/messages": {
+      "get": {
+        "operationId": "listChatMessages",
+        "summary": "List decrypted messages from an owned conversation",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cursor page of messages",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      },
+      "post": {
+        "operationId": "appendChatUserMessage",
+        "summary": "Persist an encrypted user message before Chat generation",
+        "description": "Identity and tenant come from the HttpOnly session. Only user content is accepted; role, usage, amount and request_id cannot be supplied by the browser. Idempotency scope is user + tenant + conversation + endpoint + key and is retained for at least 24 hours.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendChatMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Encrypted user message persisted",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/v1/chat/access-tokens": {
+      "post": {
+        "operationId": "createChatAccessToken",
+        "summary": "Issue a five-minute gateway token for browser Chat",
+        "description": "The token is derived only from the authenticated session and binds user, current tenant, enabled default project and source=CHAT. The request cannot select or override those claims.",
+        "security": [
+          {
+            "ControlSessionCookie": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/ChatAccessTokenCreated"
+          },
+          "401": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ControlSessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "origin_session",
+        "description": "Opaque 256-bit revocable session token. Set-Cookie is HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800. Only a SHA-256/HMAC token hash is stored. Each authenticated request slides expiry to seven days."
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "Stable request correlation identifier",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "SessionCookie": {
+        "description": "origin_session opaque token; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=604800",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "RetryAfter": {
+        "description": "Seconds until retry is permitted",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "parameters": {
+      "TenantSelectorHeader": {
+        "name": "X-Tenant-Id",
+        "in": "header",
+        "required": true,
+        "description": "Tenant selection hint only. The server resolves it through the authenticated session user's active membership and never treats it as proof of identity.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "FromQuery": {
+        "name": "from",
+        "in": "query",
+        "required": false,
+        "description": "Inclusive RFC3339 occurrence-time lower bound.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "ToQuery": {
+        "name": "to",
+        "in": "query",
+        "required": false,
+        "description": "Exclusive RFC3339 occurrence-time upper bound; must be later than from.",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "CursorQuery": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "Opaque Base64URL keyset cursor returned by page.next_cursor.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      },
+      "LimitQuery": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Page size.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "ProjectIdQuery": {
+        "name": "project_id",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "ApiKeyIdQuery": {
+        "name": "api_key_id",
+        "in": "query",
+        "required": false,
+        "description": "API Key identifier only; Key secret and mask are never returned.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "PlatformModelQuery": {
+        "name": "platform_model",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      },
+      "TerminalStatusQuery": {
+        "name": "terminal_status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "SUCCESS",
+            "CLIENT_DISCONNECTED",
+            "CONTENT_FILTERED_OUTPUT",
+            "UPSTREAM_ERROR",
+            "UPSTREAM_TIMEOUT",
+            "CONTENT_FILTERED_INPUT",
+            "GATEWAY_REJECTED"
+          ]
+        }
+      },
+      "ErrorCodeQuery": {
+        "name": "error_code",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Za-z0-9_.:-]+$"
+        }
+      },
+      "SourceQuery": {
+        "name": "source",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "api",
+            "chat"
+          ]
+        }
+      },
+      "RequestIdQuery": {
+        "name": "request_id",
+        "in": "query",
+        "required": false,
+        "description": "Exact request identifier lookup.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "LedgerTransactionTypeQuery": {
+        "name": "transaction_type",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "CHARGE",
+            "RECHARGE",
+            "BONUS_GRANT",
+            "BONUS_EXPIRE",
+            "REFUND",
+            "REVERSAL",
+            "ADJUSTMENT"
+          ]
+        }
+      },
+      "TenantIdPath": {
+        "name": "tenant_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "UserIdPath": {
+        "name": "user_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "InvitationTokenPath": {
+        "name": "token",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "IdempotencyKeyHeader": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "8-128 characters. Same scope/key/canonical payload replays the first business result; a different payload returns 409 idempotency_key_reused. Records and business effects share one PostgreSQL transaction and are retained at least 24 hours.",
+        "schema": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        }
+      },
+      "ProjectIdPath": {
+        "name": "project_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "ApiKeyIdPath": {
+        "name": "key_id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "responses": {
+      "ErrorResponse": {
+        "description": "Stable error envelope without stack, SQL, constraint, secret or sensitive input",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "RateLimitErrorResponse": {
+        "description": "Stable rate-limit error",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/RetryAfter"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "SmsChallengeCreated": {
+        "description": "Challenge accepted by the configured SMS Adapter",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SmsChallengeResponse"
+            }
+          }
+        }
+      },
+      "RegistrationCreated": {
+        "description": "Registration initialized and session established",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          },
+          "Set-Cookie": {
+            "$ref": "#/components/headers/SessionCookie"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RegisterResponse"
+            }
+          }
+        }
+      },
+      "SessionCreated": {
+        "description": "Session established or refreshed",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          },
+          "Set-Cookie": {
+            "$ref": "#/components/headers/SessionCookie"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SessionResponse"
+            }
+          }
+        }
+      },
+      "MeOk": {
+        "description": "Current user context",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MeResponse"
+            }
+          }
+        }
+      },
+      "SecurityUpdated": {
+        "description": "Password securely replaced",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SecurityResponse"
+            }
+          }
+        }
+      },
+      "TenantListOk": {
+        "description": "Visible tenant list",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TenantListResponse"
+            }
+          }
+        }
+      },
+      "TenantCreated": {
+        "description": "Enterprise tenant created",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TenantResponse"
+            }
+          }
+        }
+      },
+      "TenantOk": {
+        "description": "Tenant detail",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/TenantResponse"
+            }
+          }
+        }
+      },
+      "MemberListOk": {
+        "description": "Member list",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MemberListResponse"
+            }
+          }
+        }
+      },
+      "InvitationCreated": {
+        "description": "Invitation created",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InvitationResponse"
+            }
+          }
+        }
+      },
+      "MembershipAccepted": {
+        "description": "Invitation accepted or replayed",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MembershipResponse"
+            }
+          }
+        }
+      },
+      "CertificationOk": {
+        "description": "Certification state",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CertificationResponse"
+            }
+          }
+        }
+      },
+      "CertificationCreated": {
+        "description": "Certification submitted",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CertificationResponse"
+            }
+          }
+        }
+      },
+      "WalletOk": {
+        "description": "Wallet overview",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WalletResponse"
+            }
+          }
+        }
+      },
+      "CallLogCollectionOk": {
+        "description": "Metadata-only call-log page",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CallLogCollectionResponse"
+            }
+          }
+        }
+      },
+      "WalletLedgerCollectionOk": {
+        "description": "User-readable wallet-ledger page",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/WalletLedgerCollectionResponse"
+            }
+          }
+        }
+      },
+      "ProjectListOk": {
+        "description": "Project list",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProjectListResponse"
+            }
+          }
+        }
+      },
+      "ProjectCreated": {
+        "description": "Project created",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProjectResponse"
+            }
+          }
+        }
+      },
+      "ProjectOk": {
+        "description": "Project detail or updated state",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ProjectResponse"
+            }
+          }
+        }
+      },
+      "ApiKeyListOk": {
+        "description": "API Key list without secrets",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiKeyListResponse"
+            }
+          }
+        }
+      },
+      "ApiKeyCreated": {
+        "description": "API Key created or safely replayed",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CreateApiKeyResponse"
+            }
+          }
+        }
+      },
+      "ApiKeyOk": {
+        "description": "API Key updated state without cleartext",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiKeyResponse"
+            }
+          }
+        }
+      },
+      "ChatAccessTokenCreated": {
+        "description": "Short-lived browser Chat token issued",
+        "headers": {
+          "X-Request-Id": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ChatAccessTokenResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "RequestId": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "SmsChallengeRequest": {
+        "type": "object",
+        "required": [
+          "phone",
+          "purpose"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "phone": {
+            "$ref": "#/components/schemas/Phone"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "REGISTRATION",
+              "LOGIN"
+            ]
+          },
+          "captcha_token": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 512
+          }
+        }
+      },
+      "SmsChallengeResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "challenge_id",
+              "expires_at",
+              "cooldown_seconds"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "challenge_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "cooldown_seconds": {
+                "type": "integer",
+                "const": 60
+              }
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "challenge_id",
+          "code",
+          "agreements",
+          "registration_nonce"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "challenge_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "$ref": "#/components/schemas/OtpCode"
+          },
+          "agreements": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "$ref": "#/components/schemas/AgreementAcceptance"
+            }
+          },
+          "registration_nonce": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AgreementAcceptance": {
+        "type": "object",
+        "required": [
+          "type",
+          "version"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "terms",
+              "privacy"
+            ]
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        }
+      },
+      "CreateSessionRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "mode",
+              "challenge_id",
+              "code"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "SMS"
+              },
+              "challenge_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "code": {
+                "$ref": "#/components/schemas/OtpCode"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "mode",
+              "phone",
+              "password"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "PASSWORD"
+              },
+              "phone": {
+                "$ref": "#/components/schemas/Phone"
+              },
+              "password": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128,
+                "writeOnly": true
+              }
+            }
+          }
+        ]
+      },
+      "UpdateSecurityRequest": {
+        "type": "object",
+        "required": [
+          "new_password"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "new_password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "writeOnly": true,
+            "description": "Must contain characters from at least two of uppercase, lowercase, digit and symbol categories."
+          }
+        }
+      },
+      "CreateEnterpriseTenantRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "InvitationRequest": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "mode",
+              "target_phone"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "PHONE"
+              },
+              "target_phone": {
+                "$ref": "#/components/schemas/Phone"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "LINK"
+              }
+            }
+          }
+        ]
+      },
+      "CertificationRequest": {
+        "type": "object",
+        "required": [
+          "company_name",
+          "unified_social_credit_code",
+          "license_file_reference",
+          "legal_representative_name",
+          "contact_name",
+          "contact_phone"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "company_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "unified_social_credit_code": {
+            "type": "string",
+            "pattern": "^[0-9ABCDEFGHJKLMNPQRTUWXY]{18}$",
+            "writeOnly": true
+          },
+          "license_file_reference": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 256,
+            "description": "Opaque reference previously issued by the configured private object/file storage Adapter."
+          },
+          "legal_representative_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "writeOnly": true
+          },
+          "contact_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "writeOnly": true
+          },
+          "contact_phone": {
+            "$ref": "#/components/schemas/Phone"
+          }
+        }
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "UpdateProjectRequest": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ENABLED",
+              "DISABLED"
+            ]
+          },
+          "daily_limit_micros": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "monthly_limit_micros": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          }
+        }
+      },
+      "CreateApiKeyRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "UpdateApiKeyRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ENABLED",
+              "DISABLED"
+            ]
+          }
+        }
+      },
+      "Phone": {
+        "type": "string",
+        "pattern": "^1[3-9][0-9]{9}$",
+        "writeOnly": true
+      },
+      "OtpCode": {
+        "type": "string",
+        "pattern": "^[0-9]{6}$",
+        "writeOnly": true
+      },
+      "RegisterResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "user",
+              "current_tenant",
+              "wallet",
+              "default_project",
+              "api_key",
+              "session_expires_at"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "user": {
+                "$ref": "#/components/schemas/User"
+              },
+              "current_tenant": {
+                "$ref": "#/components/schemas/Tenant"
+              },
+              "wallet": {
+                "$ref": "#/components/schemas/Wallet"
+              },
+              "default_project": {
+                "$ref": "#/components/schemas/Project"
+              },
+              "api_key": {
+                "$ref": "#/components/schemas/ApiKeyCreation"
+              },
+              "session_expires_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "user",
+              "current_tenant",
+              "tenants",
+              "expires_at"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "user": {
+                "$ref": "#/components/schemas/User"
+              },
+              "current_tenant": {
+                "$ref": "#/components/schemas/Tenant"
+              },
+              "tenants": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Tenant"
+                }
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "MeResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "user",
+              "current_tenant",
+              "tenants"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "user": {
+                "$ref": "#/components/schemas/User"
+              },
+              "current_tenant": {
+                "$ref": "#/components/schemas/Tenant"
+              },
+              "tenants": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Tenant"
+                }
+              }
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "SecurityResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "password_set"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "password_set": {
+                "type": "boolean",
+                "const": true
+              }
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "TenantListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tenant"
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "TenantResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Tenant"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "MemberListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "InvitationResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Invitation"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "MembershipResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Member"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "CertificationResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Certification"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "WalletResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Wallet"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "Page": {
+        "type": "object",
+        "required": [
+          "next_cursor",
+          "has_more"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "has_more": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Quantity": {
+        "type": "string",
+        "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,9})?$"
+      },
+      "MoneyAmount": {
+        "type": "string",
+        "pattern": "^-?(0|[1-9][0-9]*)\\.[0-9]{6}$",
+        "description": "Exact CNY decimal amount derived from integer micros; never a JSON number."
+      },
+      "MeteringItem": {
+        "type": "object",
+        "required": [
+          "meter_type",
+          "quantity",
+          "unit"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "meter_type": {
+            "type": "string",
+            "enum": [
+              "INPUT_TOKEN",
+              "OUTPUT_TOKEN",
+              "CACHED_TOKEN",
+              "REASONING_TOKEN",
+              "IMAGE",
+              "AUDIO_SECOND",
+              "VIDEO_SECOND",
+              "REQUEST",
+              "CUSTOM"
+            ]
+          },
+          "quantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "token",
+              "image",
+              "second",
+              "request",
+              "custom"
+            ]
+          }
+        }
+      },
+      "CallLog": {
+        "type": "object",
+        "required": [
+          "id",
+          "request_id",
+          "project_id",
+          "api_key_id",
+          "source",
+          "operation",
+          "platform_model",
+          "provider",
+          "provider_model",
+          "terminal_status",
+          "settlement_status",
+          "error_code",
+          "billable",
+          "usage_source",
+          "metering_items",
+          "input_tokens",
+          "output_tokens",
+          "amount",
+          "cash_amount",
+          "bonus_amount",
+          "occurred_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "api_key_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "api",
+              "chat"
+            ]
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "chat",
+              "chat_stream",
+              "responses",
+              "responses_stream",
+              "embeddings",
+              "video_generation"
+            ]
+          },
+          "platform_model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Provider code when execution routing has been projected; null while the call is pending or the outcome is unresolved."
+          },
+          "provider_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Upstream model identifier when execution routing has been projected; null while the call is pending or the outcome is unresolved."
+          },
+          "terminal_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Terminal request outcome, or null while no terminal outcome is known. This field is not a settlement state.",
+            "enum": [
+              "SUCCESS",
+              "CLIENT_DISCONNECTED",
+              "CONTENT_FILTERED_OUTPUT",
+              "UPSTREAM_ERROR",
+              "UPSTREAM_TIMEOUT",
+              "CONTENT_FILTERED_INPUT",
+              "GATEWAY_REJECTED",
+              null
+            ]
+          },
+          "settlement_status": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Authoritative Platform settlement projection for every call log. PENDING means a reservation is still ACTIVE and all amount fields are provisional. SETTLED means the amount fields are final, including a legitimate zero charge. RELEASED means the reservation was safely released without charge. RECONCILIATION_REQUIRED means the outcome or usage is unresolved; amount fields are not final and must never be presented as a zero-cost success. Historical charge-backed rows without a reservation are SETTLED.",
+            "enum": [
+              "PENDING",
+              "SETTLED",
+              "RELEASED",
+              "RECONCILIATION_REQUIRED"
+            ]
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "billable": {
+            "type": "boolean"
+          },
+          "usage_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PROVIDER",
+              "LOCAL_ESTIMATE",
+              "RECONCILED",
+              null
+            ]
+          },
+          "metering_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MeteringItem"
+            }
+          },
+          "input_tokens": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "output_tokens": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MoneyAmount"
+          },
+          "cash_amount": {
+            "$ref": "#/components/schemas/MoneyAmount"
+          },
+          "bonus_amount": {
+            "$ref": "#/components/schemas/MoneyAmount"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WalletLedgerEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "transaction_type",
+          "reference_type",
+          "reference_id",
+          "reason_code",
+          "amount",
+          "cash_amount",
+          "bonus_amount",
+          "occurred_at",
+          "posted_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transaction_type": {
+            "type": "string",
+            "enum": [
+              "CHARGE",
+              "RECHARGE",
+              "BONUS_GRANT",
+              "BONUS_EXPIRE",
+              "REFUND",
+              "REVERSAL",
+              "ADJUSTMENT"
+            ]
+          },
+          "reference_type": {
+            "type": "string"
+          },
+          "reference_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/MoneyAmount"
+          },
+          "cash_amount": {
+            "$ref": "#/components/schemas/MoneyAmount"
+          },
+          "bonus_amount": {
+            "$ref": "#/components/schemas/MoneyAmount"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "posted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CallLogCollectionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "page",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CallLog"
+            }
+          },
+          "page": {
+            "$ref": "#/components/schemas/Page"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "WalletLedgerCollectionResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "page",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WalletLedgerEntry"
+            }
+          },
+          "page": {
+            "$ref": "#/components/schemas/Page"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ProjectListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Project"
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ProjectResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Project"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ApiKeyListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiKey"
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "CreateApiKeyResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ApiKeyCreation"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ApiKeyResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ApiKey"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "phone",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^1[3-9][0-9*]{9}$",
+            "description": "Masked phone only"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Tenant": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "role",
+          "certification_status",
+          "enterprise_capabilities_unlocked",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERSONAL",
+              "ENTERPRISE"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "ADMIN",
+              "MEMBER"
+            ]
+          },
+          "certification_status": {
+            "type": "string",
+            "enum": [
+              "NOT_SUBMITTED",
+              "PENDING_REVIEW",
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "enterprise_capabilities_unlocked": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Member": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "phone",
+          "role",
+          "status",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "phone": {
+            "type": "string",
+            "description": "Masked phone only"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "OWNER",
+              "ADMIN",
+              "MEMBER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "REMOVED"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Invitation": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "mode",
+          "token",
+          "expires_at",
+          "status"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "PHONE",
+              "LINK"
+            ]
+          },
+          "target_phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Masked phone only"
+          },
+          "token": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Returned only from invitation creation; only its hash is stored."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "ACCEPTED",
+              "EXPIRED",
+              "REVOKED"
+            ]
+          }
+        }
+      },
+      "Certification": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "company_name",
+          "unified_social_credit_code_masked",
+          "license_object_reference",
+          "status",
+          "submitted_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "company_name": {
+            "type": "string"
+          },
+          "unified_social_credit_code_masked": {
+            "type": "string"
+          },
+          "license_object_reference": {
+            "type": "string",
+            "description": "Private object identifier, never file content or a public URL."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING_REVIEW",
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "rejection_code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "IMAGE_UNCLEAR",
+              "INFORMATION_MISMATCH",
+              "ENTITY_ABNORMAL",
+              "DUPLICATE_ENTITY",
+              "OTHER",
+              null
+            ]
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Wallet": {
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "cash_balance_micros",
+          "grant_balance_micros",
+          "total_balance_micros",
+          "currency"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cash_balance_micros": {
+            "type": "integer"
+          },
+          "grant_balance_micros": {
+            "type": "integer"
+          },
+          "total_balance_micros": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string",
+            "const": "CNY"
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "name",
+          "description",
+          "is_default",
+          "status",
+          "daily_limit_micros",
+          "monthly_limit_micros",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ENABLED",
+              "DISABLED"
+            ]
+          },
+          "daily_limit_micros": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "monthly_limit_micros": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiKey": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "masked_key",
+          "status",
+          "created_at",
+          "expires_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "masked_key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ENABLED",
+              "DISABLED",
+              "EXPIRED",
+              "DELETED"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiKeyCreation": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiKey"
+          },
+          {
+            "type": "object",
+            "required": [
+              "secret_replayable",
+              "warning"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^sk-oa-[A-Za-z0-9]{40}$",
+                "readOnly": true,
+                "description": "Present only on the first successful creation response; always omitted from idempotent replay."
+              },
+              "secret_replayable": {
+                "type": "boolean",
+                "const": false,
+                "description": "Always false because API Key cleartext is never replayable."
+              },
+              "warning": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "error",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_request",
+          "invalid_phone",
+          "invalid_verification_code",
+          "verification_code_expired",
+          "verification_code_consumed",
+          "sms_send_too_frequent",
+          "sms_daily_limit_exceeded",
+          "captcha_required",
+          "captcha_invalid",
+          "ip_registration_limit_exceeded",
+          "sms_delivery_unavailable",
+          "agreements_required",
+          "phone_already_registered",
+          "invalid_credentials",
+          "password_not_set",
+          "password_policy_violation",
+          "password_login_locked",
+          "session_expired",
+          "unauthenticated",
+          "idempotency_key_required",
+          "invalid_idempotency_key",
+          "idempotency_key_reused",
+          "idempotency_request_in_progress",
+          "tenant_not_found",
+          "tenant_role_forbidden",
+          "enterprise_tenant_required",
+          "enterprise_certification_required",
+          "member_not_found",
+          "member_conflict",
+          "invitation_not_found",
+          "invitation_expired",
+          "invitation_phone_mismatch",
+          "invalid_credit_code",
+          "certification_conflict",
+          "credit_code_conflict",
+          "object_storage_unavailable",
+          "wallet_not_found",
+          "invalid_project_name",
+          "invalid_project_description",
+          "invalid_project_limit",
+          "project_name_conflict",
+          "project_not_found",
+          "project_limit_exceeded",
+          "default_project_immutable",
+          "project_has_keys",
+          "invalid_key_name",
+          "invalid_key_expiry",
+          "api_key_not_found",
+          "api_key_limit_exceeded",
+          "api_key_state_conflict",
+          "invalid_pagination_limit",
+          "invalid_cursor",
+          "invalid_time_range",
+          "invalid_query_filter",
+          "internal_error"
+        ]
+      },
+      "ChatAccessTokenResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChatAccessToken"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ChatAccessToken": {
+        "type": "object",
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^chat_session_v1\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$",
+            "writeOnly": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateChatConversationRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "current_model"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "current_model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "RenameChatConversationRequest": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      },
+      "ChatConversation": {
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "default_project_id",
+          "title",
+          "current_model",
+          "message_count",
+          "accumulated_amount_micros",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "default_project_id": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "current_model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "message_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500,
+            "readOnly": true
+          },
+          "accumulated_amount_micros": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "readOnly": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true
+          }
+        }
+      },
+      "ChatConversationResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChatConversation"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ChatConversationListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatConversation"
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": [
+          "id",
+          "role",
+          "content",
+          "status",
+          "created_at"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "SYSTEM",
+              "USER",
+              "ASSISTANT"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "request_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "prompt_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "completion_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "amount_micros": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "STREAMING",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED",
+              "FILTERED"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "AppendChatMessageRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100000
+          }
+        }
+      },
+      "ChatMessageResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ChatMessage"
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ChatMessageListResponse": {
+        "type": "object",
+        "required": [
+          "data",
+          "page",
+          "request_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          },
+          "page": {
+            "type": "object",
+            "required": [
+              "next_cursor",
+              "has_more"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "next_cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "has_more": {
+                "type": "boolean"
+              }
+            }
+          },
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      }
+    }
+  }
+}

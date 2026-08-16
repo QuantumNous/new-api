@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin-ai:event:metering.usage-recorded.v2",
+  "title": "metering.usage_recorded.v2",
+  "description": "new-api outcome evidence for one Platform reservation. Platform deduplicates exact replays by event_id and applies only increasing outcome_version per reservation. Same request_id/reservation_id/outcome_version with different canonical content is a conflict and must be quarantined, never charged twice. Prompt/input bodies, tool arguments, response bodies, Authorization and provider credentials are forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id", "event_type", "event_version", "occurred_at", "produced_at", "producer",
+    "partition_key", "request_id", "request_attempt_id", "reservation_id", "outcome_version",
+    "tenant_id", "project_id", "api_key_id", "source", "operation", "platform_model",
+    "catalog_version", "route_id", "upstream", "terminal_status", "started_at", "completed_at",
+    "usage_status", "usage_source", "items", "reservation_action", "reconciliation", "error_category"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "metering.usage_recorded.v2" },
+    "event_version": { "const": 2 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "produced_at": { "type": "string", "format": "date-time" },
+    "producer": { "const": "new-api" },
+    "partition_key": {
+      "type": "string",
+      "pattern": "^reservation:[0-9a-fA-F-]{36}$",
+      "description": "Must equal reservation:<reservation_id> so all outcome versions are ordered in one partition."
+    },
+    "request_id": { "type": "string", "format": "uuid" },
+    "request_attempt_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Stable identity of one new-api upstream attempt. Outbox replay retains it; a safe retry that actually starts a new attempt allocates a new value."
+    },
+    "reservation_id": { "type": "string", "format": "uuid" },
+    "outcome_version": {
+      "type": "integer",
+      "format": "int64",
+      "minimum": 1,
+      "description": "Monotonic version within reservation_id. Late lower versions are ignored after validation; gaps and conflicting same-version payloads are quarantined."
+    },
+    "tenant_id": { "type": "string", "format": "uuid" },
+    "project_id": { "type": "string", "format": "uuid" },
+    "api_key_id": { "type": "string", "format": "uuid" },
+    "source": { "const": "api" },
+    "operation": { "type": "string", "enum": ["responses", "responses_stream"] },
+    "platform_model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
+    "catalog_version": { "type": "integer", "format": "int64", "minimum": 1 },
+    "route_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
+    "upstream": { "$ref": "#/$defs/UpstreamEvidence" },
+    "terminal_status": {
+      "type": "string",
+      "enum": [
+        "SUCCESS", "CLIENT_DISCONNECTED", "CONTENT_FILTERED_OUTPUT", "UPSTREAM_ERROR",
+        "UPSTREAM_TIMEOUT", "CONTENT_FILTERED_INPUT", "GATEWAY_REJECTED"
+      ]
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "usage_status": { "type": "string", "enum": ["REPORTED", "MISSING", "NOT_APPLICABLE"] },
+    "usage_source": { "type": ["string", "null"], "enum": ["PROVIDER", "RECONCILED", null] },
+    "items": {
+      "type": "array",
+      "minItems": 0,
+      "items": { "$ref": "#/$defs/MeteringItem" }
+    },
+    "reservation_action": {
+      "type": "string",
+      "enum": ["SETTLE", "RELEASE", "RECONCILE"],
+      "description": "Requested Platform transition: ACTIVE/RECONCILIATION_REQUIRED to SETTLED, RELEASED or RECONCILIATION_REQUIRED. Platform remains authoritative and validates evidence before transition."
+    },
+    "reconciliation": { "$ref": "#/$defs/Reconciliation" },
+    "error_category": {
+      "type": ["string", "null"],
+      "maxLength": 80,
+      "pattern": "^[a-z0-9._:-]+$",
+      "description": "Stable category identifier only, never an upstream message or content excerpt."
+    }
+  },
+  "$defs": {
+    "UpstreamEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contact_state", "provider", "upstream_model_id", "provider_request_id"],
+      "properties": {
+        "contact_state": { "type": "string", "enum": ["NOT_CONTACTED", "CONTACTED", "OUTCOME_UNKNOWN", "COMPLETED"] },
+        "provider": { "const": "beenex" },
+        "upstream_model_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:/-]+$" },
+        "provider_request_id": { "type": ["string", "null"], "maxLength": 200, "pattern": "^[A-Za-z0-9._:-]+$" }
+      }
+    },
+    "MeteringItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["meter_type", "quantity", "unit", "source"],
+        "properties": {
+          "meter_type": { "type": "string", "enum": ["INPUT_TOKEN", "OUTPUT_TOKEN", "CACHED_TOKEN", "REASONING_TOKEN", "REQUEST"] },
+          "quantity": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+          "unit": { "type": "string", "enum": ["token", "request"] },
+          "source": { "type": "string", "enum": ["PROVIDER", "RECONCILED"] },
+          "provider_value": { "type": ["string", "null"], "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$" }
+        }
+    },
+    "Reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": {
+        "status": { "type": "string", "enum": ["NOT_REQUIRED", "REQUIRED", "IN_PROGRESS", "RESOLVED"] },
+        "reason": {
+          "type": ["string", "null"],
+          "enum": ["USAGE_MISSING", "CLIENT_DISCONNECTED", "UPSTREAM_OUTCOME_UNKNOWN", "PROVIDER_EVIDENCE_PENDING", "MANUAL_REVIEW", null]
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "reservation_action": { "const": "SETTLE" } } },
+      "then": {
+        "properties": {
+          "upstream": { "properties": { "contact_state": { "enum": ["CONTACTED", "COMPLETED"] } } },
+          "usage_status": { "const": "REPORTED" },
+          "usage_source": { "enum": ["PROVIDER", "RECONCILED"] },
+          "items": { "minItems": 1 },
+          "reconciliation": { "properties": { "status": { "enum": ["NOT_REQUIRED", "RESOLVED"] } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "reservation_action": { "const": "RELEASE" } } },
+      "then": {
+        "properties": {
+          "upstream": { "properties": { "contact_state": { "const": "NOT_CONTACTED" } } },
+          "usage_status": { "const": "NOT_APPLICABLE" },
+          "usage_source": { "const": null },
+          "items": { "maxItems": 0 },
+          "reconciliation": { "properties": { "status": { "enum": ["NOT_REQUIRED", "RESOLVED"] } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "reservation_action": { "const": "RECONCILE" } } },
+      "then": {
+        "properties": {
+          "upstream": { "properties": { "contact_state": { "enum": ["CONTACTED", "OUTCOME_UNKNOWN", "COMPLETED"] } } },
+          "usage_status": { "const": "MISSING" },
+          "usage_source": { "const": null },
+          "items": { "maxItems": 0 },
+          "reconciliation": {
+            "properties": {
+              "status": { "enum": ["REQUIRED", "IN_PROGRESS"] },
+              "reason": { "enum": ["USAGE_MISSING", "CLIENT_DISCONNECTED", "UPSTREAM_OUTCOME_UNKNOWN", "PROVIDER_EVIDENCE_PENDING", "MANUAL_REVIEW"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "reconciliation": { "properties": { "status": { "const": "NOT_REQUIRED" } } } } },
+      "then": { "properties": { "reconciliation": { "properties": { "reason": { "const": null } } } } }
+    }
+  ]
+}

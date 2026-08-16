@@ -1,0 +1,54 @@
+{
+  "invalid_admission_request": {
+    "error": { "code": "invalid_admission_request", "message": "Admission risk facts or correlation identifiers are invalid", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000100"
+  },
+  "origin_key_invalid": {
+    "error": { "code": "origin_key_invalid", "message": "Origin Key is invalid", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000101"
+  },
+  "origin_key_disabled": {
+    "error": { "code": "origin_key_disabled", "message": "Origin Key is disabled", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000102"
+  },
+  "origin_key_expired": {
+    "error": { "code": "origin_key_expired", "message": "Origin Key is expired", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000103"
+  },
+  "origin_key_project_mismatch": {
+    "error": { "code": "origin_key_project_mismatch", "message": "Origin Key is not valid for the resolved project", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000104"
+  },
+  "model_not_available": {
+    "error": { "code": "model_not_available", "message": "Platform model is not currently saleable", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000105"
+  },
+  "model_access_denied": {
+    "error": { "code": "model_access_denied", "message": "Project is not entitled to this model", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000106"
+  },
+  "insufficient_balance": {
+    "error": { "code": "insufficient_balance", "message": "Wallet cannot cover the reservation", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000107"
+  },
+  "quota_exceeded": {
+    "error": { "code": "quota_exceeded", "message": "Project quota rejected the request", "retryable": true, "retry_after_ms": 60000 },
+    "request_id": "01980000-0000-7000-8000-000000000108"
+  },
+  "catalog_stale": {
+    "error": { "code": "catalog_stale", "message": "Refresh the execution snapshot", "retryable": true, "current_catalog_version": 42 },
+    "request_id": "01980000-0000-7000-8000-000000000109"
+  },
+  "idempotency_key_payload_conflict": {
+    "error": { "code": "idempotency_key_payload_conflict", "message": "Idempotency key was reused with different risk facts", "retryable": false },
+    "request_id": "01980000-0000-7000-8000-000000000110"
+  },
+  "idempotency_request_in_progress": {
+    "error": { "code": "idempotency_request_in_progress", "message": "The original admission transaction is still in progress", "retryable": true, "retry_after_ms": 250 },
+    "request_id": "01980000-0000-7000-8000-000000000112"
+  },
+  "platform_unavailable": {
+    "error": { "code": "platform_unavailable", "message": "Platform is temporarily unavailable", "retryable": true, "retry_after_ms": 1000 },
+    "request_id": "01980000-0000-7000-8000-000000000111"
+  }
+}

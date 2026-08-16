@@ -1,14 +1,82 @@
 package channel
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/origin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+type requestContextRoundTripper func(*http.Request) (*http.Response, error)
+
+func (function requestContextRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	return function(request)
+}
+
+func TestDoRequestCancelsUpstreamWithClientRequestContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	clientContext, cancel := context.WithCancel(context.Background())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}")).WithContext(clientContext)
+	require.True(t, origin.SetCredential(c, "sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"))
+	service.InitHttpClient()
+	client := service.GetHttpClient()
+	previousTransport := client.Transport
+	upstreamCanceled := false
+	client.Transport = requestContextRoundTripper(func(request *http.Request) (*http.Response, error) {
+		select {
+		case <-request.Context().Done():
+			upstreamCanceled = true
+			return nil, request.Context().Err()
+		default:
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`)), Request: request}, nil
+		}
+	})
+	t.Cleanup(func() { client.Transport = previousTransport })
+	cancel()
+
+	upstreamRequest, requestErr := http.NewRequest(http.MethodPost, "https://beenex.invalid/v1/responses", nil)
+	require.NoError(t, requestErr)
+	_, err := DoRequest(c, upstreamRequest, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+
+	require.Error(t, err)
+	require.True(t, upstreamCanceled)
+}
+
+func TestDoRequestKeepsOrdinaryNewAPIRequestContextBehavior(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	clientContext, cancel := context.WithCancel(context.Background())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader("{}")).WithContext(clientContext)
+	service.InitHttpClient()
+	client := service.GetHttpClient()
+	previousTransport := client.Transport
+	upstreamCanceled := false
+	client.Transport = requestContextRoundTripper(func(request *http.Request) (*http.Response, error) {
+		upstreamCanceled = request.Context().Err() != nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`)), Request: request}, nil
+	})
+	t.Cleanup(func() { client.Transport = previousTransport })
+	cancel()
+
+	upstreamRequest, requestErr := http.NewRequest(http.MethodPost, "https://ordinary.invalid/v1/responses", strings.NewReader("{}"))
+	require.NoError(t, requestErr)
+	response, err := DoRequest(c, upstreamRequest, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	require.False(t, upstreamCanceled)
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()

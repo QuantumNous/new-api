@@ -563,7 +563,11 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 		return nil
 	}
 	headers := make(map[string]string, len(c.Request.Header))
+	isOriginRequest := common.GetContextKeyBool(c, constant.ContextKeyOriginIntegration)
 	for key := range c.Request.Header {
+		if isOriginRequest && (strings.EqualFold(key, "Authorization") || strings.EqualFold(key, "X-Api-Key") || strings.EqualFold(key, "X-Goog-Api-Key")) {
+			continue
+		}
 		value := strings.TrimSpace(c.Request.Header.Get(key))
 		if value == "" {
 			continue

@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/origin"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -392,6 +393,21 @@ func TokenAuth() func(c *gin.Context) {
 		parts := make([]string, 0)
 		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
 			key = strings.TrimSpace(key[7:])
+		}
+		if origin.Enabled() && strings.HasPrefix(key, "sk-oa-") {
+			c.Request.Header.Del("Authorization")
+			if !origin.SetCredential(c, key) {
+				abortWithOpenAiMessage(c, http.StatusUnauthorized, "invalid Origin Key")
+				return
+			}
+			defer origin.ClearCredential(c)
+			if c.Request.Method != http.MethodPost || c.Request.URL.Path != "/v1/responses" {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "Origin Key is only valid for POST /v1/responses", types.ErrorCodeAccessDenied)
+				return
+			}
+			origin.EnsureRequestID(c)
+			c.Next()
+			return
 		}
 		if key == "" || key == "midjourney-proxy" {
 			key = c.Request.Header.Get("mj-api-secret")

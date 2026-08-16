@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:origin-ai:event:metering.usage-recorded.v1",
+  "title": "metering.usage_recorded.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "occurred_at",
+    "request_id",
+    "tenant_id",
+    "project_id",
+    "api_key_id",
+    "source",
+    "operation",
+    "platform_model",
+    "provider",
+    "provider_model",
+    "provider_request_id",
+    "terminal_status",
+    "started_at",
+    "completed_at",
+    "usage_source",
+    "items",
+    "error_category"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "const": "metering.usage_recorded.v1" },
+    "event_version": { "const": 1 },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "request_id": { "type": "string", "format": "uuid" },
+    "tenant_id": { "type": "string", "format": "uuid" },
+    "project_id": { "type": "string", "format": "uuid" },
+    "api_key_id": { "type": "string", "format": "uuid" },
+    "source": { "type": "string", "enum": ["api", "chat"] },
+    "operation": { "type": "string", "enum": ["chat", "chat_stream", "responses", "responses_stream", "embeddings", "video_generation"] },
+    "platform_model": { "type": "string", "minLength": 1 },
+    "provider": { "type": "string", "minLength": 1 },
+    "provider_model": { "type": "string", "minLength": 1 },
+    "provider_request_id": { "type": ["string", "null"] },
+    "terminal_status": {
+      "type": "string",
+      "enum": [
+        "SUCCESS",
+        "CLIENT_DISCONNECTED",
+        "CONTENT_FILTERED_OUTPUT",
+        "UPSTREAM_ERROR",
+        "UPSTREAM_TIMEOUT",
+        "CONTENT_FILTERED_INPUT",
+        "GATEWAY_REJECTED"
+      ]
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "usage_source": {
+      "type": ["string", "null"],
+      "enum": ["PROVIDER", "LOCAL_ESTIMATE", "RECONCILED", null]
+    },
+    "items": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["meter_type", "quantity", "unit", "source"],
+        "properties": {
+          "meter_type": {
+            "type": "string",
+            "enum": [
+              "INPUT_TOKEN",
+              "OUTPUT_TOKEN",
+              "CACHED_TOKEN",
+              "REASONING_TOKEN",
+              "IMAGE",
+              "AUDIO_SECOND",
+              "VIDEO_SECOND",
+              "REQUEST",
+              "CUSTOM"
+            ]
+          },
+          "quantity": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+          "unit": { "type": "string", "enum": ["token", "image", "second", "request", "custom"] },
+          "source": { "type": "string", "enum": ["PROVIDER", "LOCAL_ESTIMATE", "RECONCILED"] },
+          "provider_value": { "type": ["string", "null"] },
+          "dimensions": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    },
+    "error_category": { "type": ["string", "null"] }
+  }
+}

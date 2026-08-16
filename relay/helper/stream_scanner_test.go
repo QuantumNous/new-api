@@ -2,6 +2,7 @@ package helper
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -13,13 +14,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/origin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOriginStreamScannerDoesNotLogEventPayload(t *testing.T) {
+	secretArguments := `tool-arguments-must-not-enter-logs`
+	c, resp, info := setupStreamTest(t, strings.NewReader("data: {\"type\":\"response.output_item.done\",\"arguments\":\""+secretArguments+"\"}\n\ndata: [DONE]\n\n"))
+	origin.SetExecution(c, origin.Execution{})
+	info.DisablePing = true
+
+	previousDebug := common.DebugEnabled
+	previousWriter := gin.DefaultErrorWriter
+	var logs bytes.Buffer
+	common.DebugEnabled = true
+	gin.DefaultErrorWriter = &logs
+	t.Cleanup(func() {
+		common.DebugEnabled = previousDebug
+		gin.DefaultErrorWriter = previousWriter
+	})
+
+	StreamScannerHandler(c, resp, info, func(string, *StreamResult) {})
+
+	assert.NotContains(t, logs.String(), secretArguments)
+}
 
 func init() {
 	gin.SetMode(gin.TestMode)

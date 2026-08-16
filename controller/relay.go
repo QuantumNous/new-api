@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/origin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -125,9 +127,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	isOriginRequest := origin.IsRequest(c)
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
-	needCountToken := constant.CountToken
+	needCountToken := constant.CountToken || isOriginRequest
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
 	if needSensitiveCheck || needCountToken {
@@ -145,7 +148,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}
 
-	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
+	var tokens int
+	if isOriginRequest {
+		tokens, err = service.EstimateRequiredRequestToken(c, meta, relayInfo)
+	} else {
+		tokens, err = service.EstimateRequestToken(c, meta, relayInfo)
+	}
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
 		return
@@ -153,26 +161,38 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
-		return
-	}
-
-	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
-	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+	if isOriginRequest {
+		responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
+		if !ok || relayFormat != types.RelayFormatOpenAIResponses {
+			newAPIError = types.NewErrorWithStatusCode(errors.New("Origin integration only supports OpenAI Responses"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+			return
+		}
+		newAPIError = prepareOriginExecution(c, relayInfo, responsesRequest, tokens)
 		if newAPIError != nil {
 			return
+		}
+	} else {
+		priceData, priceErr := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+		if priceErr != nil {
+			newAPIError = types.NewError(priceErr, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+			return
+		}
+
+		// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
+
+		if priceData.FreeModel {
+			logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
+		} else {
+			newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+			if newAPIError != nil {
+				return
+			}
 		}
 	}
 
 	defer func() {
 		// Only return quota if downstream failed and quota was actually pre-consumed
-		if newAPIError != nil {
+		if !isOriginRequest && newAPIError != nil {
 			newAPIError = service.NormalizeViolationFeeError(newAPIError)
 			if relayInfo.Billing != nil {
 				relayInfo.Billing.Refund(c)
@@ -193,16 +213,35 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
+		var originAttempt *model.OriginRequestAttempt
+		if isOriginRequest {
+			relayInfo.ReceivedResponseCount = 0
+			relayInfo.SendResponseCount = 0
+			relayInfo.StreamStatus = nil
+			var attemptErr error
+			originAttempt, attemptErr = createOriginAttempt(c, relayInfo, retryParam.GetRetry()+1)
+			if attemptErr != nil {
+				newAPIError = types.NewErrorWithStatusCode(errors.New("failed to persist Origin request attempt"), types.ErrorCodeUpdateDataError, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+				break
+			}
+		}
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			if isOriginRequest {
+				if finalizeErr := finalizeOriginAttempt(c, relayInfo, newAPIError); finalizeErr != nil {
+					logger.LogError(c, "failed to finalize Origin attempt before upstream")
+				}
+			}
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
-			newAPIError = billingErr
-			break
+		if !isOriginRequest {
+			if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
+				newAPIError = billingErr
+				break
+			}
 		}
 
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
@@ -213,9 +252,24 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			} else {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
+			if isOriginRequest {
+				if finalizeErr := finalizeOriginAttempt(c, relayInfo, newAPIError); finalizeErr != nil {
+					logger.LogError(c, "failed to finalize Origin attempt after request body failure")
+				}
+			}
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+
+		originalRequest := c.Request
+		stopAttemptLease := func() error { return nil }
+		cancelUpstream := func() {}
+		if isOriginRequest {
+			upstreamContext, cancel := context.WithCancel(c.Request.Context())
+			cancelUpstream = cancel
+			c.Request = c.Request.WithContext(upstreamContext)
+			stopAttemptLease = origin.MaintainRequestAttemptLease(upstreamContext, model.DB, originAttempt.ID, cancel)
+		}
 
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -226,6 +280,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = geminiRelayHandler(c, relayInfo)
 		default:
 			newAPIError = relayHandler(c, relayInfo)
+		}
+		cancelUpstream()
+		attemptLeaseErr := stopAttemptLease()
+		c.Request = originalRequest
+		if attemptLeaseErr != nil {
+			origin.MarkUpstreamOutcomeUnknown(c)
+			if !c.Writer.Written() {
+				newAPIError = types.NewErrorWithStatusCode(errors.New("Origin request attempt lease was lost"), types.ErrorCodeUpdateDataError, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+			}
+		}
+
+		if isOriginRequest {
+			if finalizeErr := finalizeOriginAttempt(c, relayInfo, newAPIError); finalizeErr != nil {
+				logger.LogError(c, "failed to finalize Origin request attempt")
+				if c.Writer.Written() {
+					newAPIError = nil
+					return
+				}
+				newAPIError = types.NewErrorWithStatusCode(errors.New("failed to persist Origin usage outcome"), types.ErrorCodeUpdateDataError, http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+			}
 		}
 
 		if newAPIError == nil {
@@ -298,6 +372,22 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+	if execution, ok := origin.ExecutionFromContext(c); ok {
+		channel, err := model.GetChannelById(execution.ChannelID, true)
+		if err != nil || channel == nil {
+			return nil, types.NewError(errors.New("approved Origin New API channel is unavailable"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		if validationErr := validateOriginApprovedChannel(channel); validationErr != nil {
+			return nil, validationErr
+		}
+		if setupErr := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName); setupErr != nil {
+			return nil, setupErr
+		}
+		common.SetContextKey(c, constant.ContextKeyChannelModelMapping, "")
+		common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{})
+		common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, map[string]any{})
+		return channel, nil
+	}
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
@@ -331,6 +421,11 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
 	if openaiErr == nil {
 		return false
+	}
+	if _, ok := origin.ExecutionFromContext(c); ok {
+		if c.Request.Context().Err() != nil || c.Writer.Written() {
+			return false
+		}
 	}
 	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		return false

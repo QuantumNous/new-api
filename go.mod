@@ -165,6 +165,7 @@ require (
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.32.0
 	github.com/QuantumNous/new-api/relaykit v0.0.0
+	github.com/segmentio/kafka-go v0.4.49
 )
 
 replace github.com/QuantumNous/new-api/relaykit => ./relaykit

@@ -179,7 +179,7 @@ docker run --name new-api -d --restart always \
 | ❓ FAQ | [FAQ](https://docs.newapi.pro/en/docs/support/faq) |
 | 💬 Community Interaction | [Communication Channels](https://docs.newapi.pro/en/docs/support/community-interaction) |
 
-> **Origin AI deployment note:** The Codex MVP uses the existing new-api Go backend with the built-in **New API** channel for same-protocol OpenAI Responses relay to BeeNex. It does not use the generic multi-format conversion features listed below. See the [Origin integration boundary](./docs/origin-mvp-integration.md).
+> **Origin AI deployment note:** The Codex MVP uses the existing new-api Go backend with the built-in **New API** channel for same-protocol OpenAI Responses relay to BeeNex. It does not use the generic multi-format conversion features listed below. See the [Origin integration boundary](./docs/origin-mvp-integration.md) and [execution plan](./ORIGIN_CODEX_MVP_PLAN.md).
 
 ---
 
