@@ -93,7 +93,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.UpdateSelf)
 				selfRoute.DELETE("/self", controller.DeleteSelf)
-				selfRoute.GET("/token", middleware.DisableCache(), controller.GenerateAccessToken)
+				selfRoute.GET("/token", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), controller.GenerateAccessToken)
 				selfRoute.GET("/passkey", controller.PasskeyStatus)
 				selfRoute.POST("/passkey/register/begin", middleware.DisableCache(), controller.PasskeyRegisterBegin)
 				selfRoute.POST("/passkey/register/finish", middleware.DisableCache(), controller.PasskeyRegisterFinish)
@@ -113,7 +113,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
 				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
-				selfRoute.POST("/aff_transfer", controller.TransferAffQuota)
+				selfRoute.POST("/aff_transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes
@@ -171,8 +171,9 @@ func SetApiRouter(router *gin.Engine) {
 				inviteRoute.GET("/self", controller.NextGetInvite)
 				// Dual endpoint with POST /api/user/aff_transfer; both delegate
 				// to user.TransferAffQuotaToQuota, so only the request/response
-				// shapes differ.
-				inviteRoute.POST("/transfer", controller.NextTransferInviteQuota)
+				// shapes differ. Reuse the same user limiter scope so callers
+				// cannot alternate between the React and Vue routes.
+				inviteRoute.POST("/transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.NextTransferInviteQuota)
 			}
 			activityRoute := nextRoute.Group("/activity")
 			{
