@@ -89,6 +89,61 @@ func TestUserUpdateDoesNotOverwriteConcurrentAccountingOrTokenChanges(t *testing
 	assert.Equal(t, "rotated-token", got.GetAccessToken())
 }
 
+func TestUsageAccountingSupportsSignedDirectAndBatchDeltas(t *testing.T) {
+	setupUserUpdateTestState(t)
+	resetBatchUpdateTestState(t)
+
+	user := User{
+		Id:           10,
+		Username:     "usage-adjustment-user",
+		Password:     "password",
+		Status:       common.UserStatusEnabled,
+		UsedQuota:    1000,
+		RequestCount: 3,
+	}
+	channel := Channel{
+		Id:        10,
+		Name:      "usage-adjustment-channel",
+		Key:       "sk-test",
+		Status:    common.ChannelStatusEnabled,
+		UsedQuota: 1000,
+	}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, DB.Create(&channel).Error)
+
+	UpdateUserUsedQuota(user.Id, -200)
+	UpdateUserUsedQuota(user.Id, 50)
+	UpdateChannelUsedQuota(channel.Id, -200)
+	UpdateChannelUsedQuota(channel.Id, 50)
+
+	var got User
+	require.NoError(t, DB.Select("used_quota", "request_count").First(&got, user.Id).Error)
+	assert.Equal(t, 850, got.UsedQuota)
+	assert.Equal(t, 3, got.RequestCount)
+	var gotChannel Channel
+	require.NoError(t, DB.Select("used_quota").First(&gotChannel, channel.Id).Error)
+	assert.Equal(t, int64(850), gotChannel.UsedQuota)
+
+	common.BatchUpdateEnabled = true
+	UpdateUserUsedQuota(user.Id, 400)
+	UpdateUserUsedQuota(user.Id, -100)
+	UpdateChannelUsedQuota(channel.Id, 400)
+	UpdateChannelUsedQuota(channel.Id, -100)
+
+	require.NoError(t, DB.Select("used_quota", "request_count").First(&got, user.Id).Error)
+	assert.Equal(t, 850, got.UsedQuota, "batch deltas must remain queued until flush")
+	assert.Equal(t, 3, got.RequestCount)
+	require.NoError(t, DB.Select("used_quota").First(&gotChannel, channel.Id).Error)
+	assert.Equal(t, int64(850), gotChannel.UsedQuota, "batch deltas must remain queued until flush")
+
+	batchUpdate()
+	require.NoError(t, DB.Select("used_quota", "request_count").First(&got, user.Id).Error)
+	assert.Equal(t, 1150, got.UsedQuota)
+	assert.Equal(t, 3, got.RequestCount)
+	require.NoError(t, DB.Select("used_quota").First(&gotChannel, channel.Id).Error)
+	assert.Equal(t, int64(1150), gotChannel.UsedQuota)
+}
+
 func TestUpdateUserAccessTokenOnlyUpdatesAccessToken(t *testing.T) {
 	setupUserUpdateTestState(t)
 
