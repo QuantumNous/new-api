@@ -86,7 +86,7 @@
 实现位置：`.githooks/github/issues.py` check_content（纯内容）+ run（API 检查 I-12/I-15 等）
 
 ### PR 规则（PR-01 ~ PR-12）
-- PR-10 关联机制：Part of/Related 是纯文本不产生关联（INFO）；Fixes #N 不存在 → WARN（死引用，需先建 issue）；Fixes #N 是 parent（epic）→ WARN（用 sub-issue 层级链）— run()
+
 - PR-01 标题英文（禁 CJK）— FAIL
 - PR-02 Conventional Commit 格式 — WARN
 - PR-03 必填 body 段完整性 — FAIL

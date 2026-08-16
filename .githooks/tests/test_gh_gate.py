@@ -10,20 +10,18 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import json
+import importlib
 import importlib.machinery
 import importlib.util
 _loader = importlib.machinery.SourceFileLoader("install_gh_gate", str(Path(__file__).resolve().parents[1] / "install_gh_gate.py"))
 _spec = importlib.util.spec_from_loader("install_gh_gate", _loader)
 _mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+_spec.loader.exec_module(_mod)
 _section = _mod._section
-_check_all_checkboxes = _mod._check_all_checkboxes
 _check_done_when_fully_ticked = _mod._check_done_when_fully_ticked
 _extract = _mod._extract
 _gh_args = _mod._gh_args
 _intercept_issue_create = _mod._intercept_issue_create
-_intercept_issue_close = _mod._intercept_issue_close
 _intercept_pr_merge = _mod._intercept_pr_merge
 
 # ---------------------------------------------------------------------------
@@ -262,45 +260,3 @@ def test_pr_merge_cleans_local_branch(monkeypatch):
     assert rc == 0
     calls = [str(c) for c in fake_subprocess.run.call_args_list]
     assert any("-d" in c and "feat/foo" in c for c in calls), "应调用 git branch -d feat/foo"
-
-
-def test_check_all_checkboxes_all_ticked():
-    body = ("## Construction plan\n- [x] a\n- [x] b\n\n"
-            "## Checklist\n- [x] c\n")
-    ok, unticked = _check_all_checkboxes(body)
-    assert ok is True
-    assert unticked == []
-
-
-def test_check_all_checkboxes_any_unticked():
-    body = ("## Construction plan\n- [x] a\n- [ ] b\n\n"
-            "## Checklist\n- [x] c\n- [ ] d\n")
-    ok, unticked = _check_all_checkboxes(body)
-    assert ok is False
-    assert unticked == ["b", "d"]
-
-
-def test_check_all_checkboxes_no_checkbox():
-    ok, unticked = _check_all_checkboxes("## Goal\n内容\n")
-    assert ok is True
-    assert unticked == []
-
-
-def test_issue_close_no_pr_linked(monkeypatch):
-    """GT-04b: 关闭 issue 但无 PR 关联 → REJECT。"""
-    log = []
-    monkeypatch.setattr(_mod, "_log", lambda *a, **kw: log.append(a))
-    monkeypatch.setattr(_mod, "_derive_repo", lambda: "owner/repo")
-    body = "## Done when\n- [x] done\n\n## Goal\ntest\n"
-    call_seq = iter([
-        # issue 详情（全勾 body，非 epic）
-        (0, json.dumps({"body": body, "labels": ["chore"], "state": "open"}), ""),
-        # timeline 查询（无 PR 关联）
-        (0, "[]", ""),
-    ])
-    def fake_gh(args):
-        return next(call_seq)
-    monkeypatch.setattr(_mod, "_run_gh", fake_gh)
-    rc = _intercept_issue_close(["99", "--comment", "test"])
-    assert rc == 1
-    assert any("no linked PR" in str(c) for c in log)

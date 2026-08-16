@@ -208,18 +208,11 @@ def aggregate_result(findings: list[Finding]) -> int:
 
 
 def print_findings(findings: list[Finding]) -> None:
-    """Print FAIL/WARN findings; suppress INFO unless no issues found."""
-    actionable = [f for f in findings if f.severity <= Severity.WARN]
-    if actionable:
-        for finding in sorted(
-            actionable, key=lambda f: (f.severity, f.rule_id, f.line_hint or 0)
-        ):
-            print(finding.format(), file=sys.stderr)
-        passed = sum(1 for f in findings if f.severity is Severity.INFO)
-        if passed:
-            print(f"({passed} checks passed)", file=sys.stderr)
-    else:
-        print(f"({len(findings)} checks passed)", file=sys.stderr)
+    """Stable, diff-friendly output ordering: severity first, then rule_id."""
+    for finding in sorted(
+        findings, key=lambda f: (f.severity, f.rule_id, f.line_hint or 0)
+    ):
+        print(finding.format(), file=sys.stderr)
     print(
         f"RESULT: {'FAIL' if aggregate_result(findings) else 'ALL PASS'}",
         file=sys.stderr,

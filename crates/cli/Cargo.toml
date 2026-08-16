@@ -1,0 +1,20 @@
+[package]
+name = "newapi-cli-lib"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "newapi_cli_lib"
+path = "src/lib.rs"
+
+[dependencies]
+clap = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+toml = { workspace = true }
+dirs = { workspace = true }
+
+[dev-dependencies]
+httpmock = "0.7"

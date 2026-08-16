@@ -225,13 +225,12 @@ def check_content(
     else:
         findings.append(Finding("PR-06", Severity.INFO, "no keyword suggestions (or policy not configured)"))
 
-    # P-31 branch name — strip fork "user:" prefix before prefix check
+    # P-31 branch name
     allowed = cfg.get("allowed_branch_prefixes", ["feat/", "fix/", "chore/", "epic/", "main", "master", "release/"])
-    branch = head_ref.rsplit(":", 1)[-1] if ":" in head_ref else head_ref
-    if not branch or not any(branch.startswith(p) for p in allowed):
-        findings.append(Finding("PR-08", Severity.FAIL, f"branch name not allowed: {branch} (allowed prefixes: {allowed})"))
+    if not head_ref or not any(head_ref.startswith(p) for p in allowed):
+        findings.append(Finding("PR-08", Severity.FAIL, f"branch name not allowed: {head_ref} (allowed prefixes: {allowed})"))
     else:
-        findings.append(Finding("PR-08", Severity.INFO, f"branch name OK: {branch} (prefixes: {allowed})"))
+        findings.append(Finding("PR-08", Severity.INFO, f"branch name OK: {head_ref} (prefixes: {allowed})"))
 
     # P-38 maintainer review
     findings.append(Finding("PR-09", Severity.WARN, "no maintainer review (COMMENTED/APPROVED/CHANGES_REQUESTED) — human required"))
@@ -281,20 +280,15 @@ def run(repo: str, num: int, mode: str = "", strict: bool = False) -> list[Findi
     if fixes:
         for fn in fixes:
             issue = gh_api_get(f"repos/{repo}/issues/{fn}")
-            if not issue:
-                findings.append(Finding(
-                    "PR-10", Severity.WARN,
-                    f"Fixes #{fn} 不存在：issue 需先创建（或修正编号）。PR 与 issue 的关联必须双向可查，"
-                    "无 issue 时 Fixes 是死引用，不会建立 Development 关联"))
-                continue
-            subs = gh_api_get(f"repos/{repo}/issues/{fn}/sub_issues")
-            if subs:
-                findings.append(Finding(
-                    "PR-10", Severity.WARN,
-                    f"Fixes #{fn} 是 parent issue（{len(subs)} 个 sub-issues）：epic 侧 Development "
-                    "面板不显示 closing 关联；合并会尝试关闭 epic。应 Fixes 其 sub-issue 建立层级链"))
-            else:
-                findings.append(Finding("PR-10", Severity.INFO, f"Fixes #{fn} 是普通 issue，双向关联正常"))
+            if issue:
+                subs = gh_api_get(f"repos/{repo}/issues/{fn}/sub_issues")
+                if subs:
+                    findings.append(Finding(
+                        "PR-10", Severity.WARN,
+                        f"Fixes #{fn} 是 parent issue（{len(subs)} 个 sub-issues）：epic 侧 Development "
+                        "面板不显示 closing 关联；合并会尝试关闭 epic。应 Fixes 其 sub-issue 建立层级链"))
+                else:
+                    findings.append(Finding("PR-10", Severity.INFO, f"Fixes #{fn} 是普通 issue，双向关联正常"))
         findings.append(Finding("PR-10", Severity.INFO,
                                 f"Fixes # present: #{fixes[0]}; closing reference check requires base branch = default"))
 

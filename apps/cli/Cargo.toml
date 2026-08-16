@@ -1,0 +1,14 @@
+[package]
+name = "newapi-cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "newapi-cli"
+path = "src/main.rs"
+
+[dependencies]
+newapi-cli-lib = { path = "../../crates/cli" }
+clap = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }

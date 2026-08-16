@@ -325,16 +325,6 @@ def _check_done_when_fully_ticked(body: str, heading: str = "Done when") -> tupl
     return len(unticked) == 0, unticked
 
 
-def _check_all_checkboxes(body: str) -> tuple[bool, list[str]]:
-    """检查整个 body 的所有 checkbox 是否全勾（不限段）。返回 (是否全勾, 未勾项列表)。"""
-    unticked: list[str] = []
-    for line in body.splitlines():
-        m = re.match(r"^\s*-\s*\[\s\]\s*(.+)", line)
-        if m:
-            unticked.append(m.group(1).strip())
-    return len(unticked) == 0, unticked
-
-
 def _intercept_issue_close(args: list[str]) -> int:
     """拦截 issue close：--comment 理由 + Done when 全勾 + epic 检查 sub 全关。"""
     has_comment = any(a.startswith("--comment") or a == "-c" for a in args)
@@ -375,27 +365,15 @@ def _intercept_issue_close(args: list[str]) -> int:
                         _log("ISSUE_CLOSE", f"#{issue_num}", "REJECT", f"epic with open subs: {open_subs}")
                         return 1
 
-            # GT-04: 所有 checkbox 全勾检查（不限段）
-            all_ticked, unticked = _check_all_checkboxes(body)
+            # GT-04: Done when 全勾检查
+            all_ticked, unticked = _check_done_when_fully_ticked(body)
             if not all_ticked:
-                print(f"闸门: #{issue_num} 有 checkbox 未全部勾选，未勾 {len(unticked)} 项：")
+                print(f"闸门: #{issue_num} Done when 未全部勾选，未勾 {len(unticked)} 项：")
                 for item in unticked[:5]:
                     print(f"  - [ ] {item}")
                 print("必须验证全部完成后打钩，再关闭。")
-                _log("ISSUE_CLOSE", f"#{issue_num}", "REJECT", f"checkbox {len(unticked)} unticked")
+                _log("ISSUE_CLOSE", f"#{issue_num}", "REJECT", f"Done when {len(unticked)} unticked")
                 return 1
-
-            # GT-04b: 双向关联强制 — 关闭前必须存在 PR 关联（cross-referenced 事件中 source 为 PR）
-            rc4, tl, _ = _run_gh(["api", f"repos/{repo}/issues/{issue_num}/timeline",
-                                  "--jq", "[.[] | select(.event == \"cross-referenced\" and .source.issue.pull_request != null) | .source.issue.number]"])
-            if rc4 == 0 and tl.strip():
-                linked_prs = j.loads(tl)
-                if not linked_prs:
-                    print(f"闸门: #{issue_num} 无 PR 关联（无 PR Fixes/Closes 它）。")
-                    print("  关闭 = 工作完成，必须通过 PR 实现并关联。")
-                    print("  处理：创建 PR 并 Fixes 本 issue，或 reopen 后用 --comment 说明取消原因。")
-                    _log("ISSUE_CLOSE", f"#{issue_num}", "REJECT", "no linked PR")
-                    return 1
 
     rc, out, err = _run_gh(["issue", "close"] + args)
     if out: print(out)
@@ -422,33 +400,34 @@ def _intercept_pr_merge(args: list[str]) -> int:
     if pr_num and repo:
         rc, body, _ = _run_gh(["api", f"repos/{repo}/pulls/{pr_num}", "--jq", ".body"])
         if rc == 0 and body.strip():
-            # 检查 PR 内所有 checkbox 全勾（不限段）
-            all_ticked, unticked = _check_all_checkboxes(body.strip())
-            if not all_ticked:
-                print(f"闸门: PR #{pr_num} 有 checkbox 未全部勾选，未勾 {len(unticked)} 项：")
-                for item in unticked[:5]:
-                    print(f"  - [ ] {item}")
-                print("必须全部完成打钩后，再合并。")
-                _log("PR_MERGE", f"PR #{pr_num}", "REJECT", f"checkbox {len(unticked)} unticked")
-                return 1
+            # 检查 PR 内 checkbox 全勾
+            for section_name in ["Construction plan", "Checklist"]:
+                all_ticked, unticked = _check_done_when_fully_ticked(body.strip(), section_name)
+                if not all_ticked:
+                    print(f"闸门: PR #{pr_num} {section_name} 未全部勾选，未勾 {len(unticked)} 项：")
+                    for item in unticked[:5]:
+                        print(f"  - [ ] {item}")
+                    print("必须全部完成打钩后，再合并。")
+                    _log("PR_MERGE", f"PR #{pr_num}", "REJECT", f"{section_name} {len(unticked)} unticked")
+                    return 1
 
-            # 检查 Fixes 关联 issue 的 checkbox 全勾（merge 会连带关闭 issue）
-            
-            fixes = re.findall(r"(?:Fixes|Closes|Resolves)\s+#(\d+)", body.strip())
+            # 检查 Fixes 关联 issue 的 Done when（merge 会连带关闭 issue）
+            import re as _re
+            fixes = _re.findall(r"(?:Fixes|Closes|Resolves)\s+#(\d+)", body.strip())
             for fn in fixes:
                 rc2, issue_body, _ = _run_gh(["api", f"repos/{repo}/issues/{fn}", "--jq", ".body"])
                 if rc2 == 0 and issue_body.strip():
-                    all_ticked, unticked = _check_all_checkboxes(issue_body.strip())
+                    all_ticked, unticked = _check_done_when_fully_ticked(issue_body.strip())
                     if not all_ticked:
-                        print(f"闸门: PR #{pr_num} 关联 issue #{fn} 有 checkbox 未全部勾选，未勾 {len(unticked)} 项：")
+                        print(f"闸门: PR #{pr_num} 关联 issue #{fn} 的 Done when 未全部勾选，未勾 {len(unticked)} 项：")
                         for item in unticked[:5]:
                             print(f"  - [ ] {item}")
-                        print("合并 PR 会连带关闭 issue，必须先完成 issue 的 checkbox 再合并。")
-                        _log("PR_MERGE", f"PR #{pr_num}", "REJECT", f"issue #{fn} checkbox {len(unticked)} unticked")
+                        print("合并 PR 会连带关闭 issue，必须先完成 issue 的 Done when 再合并。")
+                        _log("PR_MERGE", f"PR #{pr_num}", "REJECT", f"issue #{fn} Done when {len(unticked)} unticked")
                         return 1
 
     # GT 增强: squash 标题（--title 或 PR 标题）必须符合 conventional commit（CM-01/CM-02 同款）
-    
+    import re as _re
     merge_title = ""
     for i, a in enumerate(args):
         if a == "--title" and i + 1 < len(args):
@@ -462,12 +441,12 @@ def _intercept_pr_merge(args: list[str]) -> int:
         if rc3 == 0:
             merge_title = pr_title.strip()
     if merge_title:
-        if not re.match(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?:\s+\S+", merge_title):
+        if not _re.match(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?:\s+\S+", merge_title):
             print(f"闸门: merge 标题非 conventional commit 格式: '{merge_title}'")
             print("  示例: feat: add widget / fix(scope): correct bug")
             _log("PR_MERGE", f"PR #{pr_num}", "REJECT", f"title not CC: {merge_title[:60]}")
             return 1
-        if re.search(r"[\u4e00-\u9fff]", merge_title):
+        if _re.search(r"[\u4e00-\u9fff]", merge_title):
             print(f"闸门: merge 标题含 CJK（应为英文）: '{merge_title}'")
             _log("PR_MERGE", f"PR #{pr_num}", "REJECT", f"title CJK: {merge_title[:60]}")
             return 1

@@ -39,3 +39,6 @@ todo/
 __pycache__/
 *.pyc
 .wt/
+
+# Rust build artifacts
+/target

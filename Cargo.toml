@@ -1,11 +1,13 @@
-# Root workspace for the Rust gateway. Only the library crate lives here today;
-# binaries and HTTP layers arrive in later issues of the rewrite epic.
 [workspace]
 resolver = "2"
-members = ["apps/gateway"]
+edition = "2021"
+members = ["apps/cli", "crates/cli"]
 
-[workspace.package]
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
-publish = false
+[workspace.dependencies]
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+toml = "0.8"
+dirs = "5"

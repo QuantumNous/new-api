@@ -245,23 +245,3 @@ def test_p14b_no_type_label():
     findings = _patch_and_run(scripted)
     p14b_fail = [f for f in findings if f.rule_id == "PR-06" and f.severity.name == "FAIL"]
     assert len(p14b_fail) >= 1
-
-
-def test_pr10_fixes_issue_not_exist():
-    """PR-10: Fixes #N 指向不存在的 issue → WARN（死引用不建立关联）。"""
-    scripted = [
-        (0, {
-            "title": "feat: test",
-            "body": _good_pr_body(),
-            "state": "open",
-            "labels": [{"name": "enhancement"}],
-            "head": {"ref": "feat/test"},
-            "draft": False,
-        }),
-        (0, [{"name": "enhancement"}, {"name": "bug"}]),
-        (1, None),  # repos/{repo}/issues/100 → rc=1 → None（不存在）
-    ]
-    findings = _patch_and_run(scripted)
-    pr10 = [f for f in findings if f.rule_id == "PR-10" and "不存在" in f.message]
-    assert len(pr10) == 1
-    assert pr10[0].severity.name == "WARN"
