@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { afterEach, describe, test } from 'node:test'
+import { afterEach, assert, describe, test } from 'vitest'
 
 import { api } from '@/lib/http-client'
 

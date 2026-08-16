@@ -16,10 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { after, afterEach, describe, test } from 'node:test'
-
 import { Window } from 'happy-dom'
+import { afterAll, afterEach, assert, describe, test } from 'vitest'
 
 const domWindow = new Window()
 Object.defineProperty(domWindow, 'PointerEvent', {
@@ -143,7 +141,7 @@ afterEach(async () => {
   delete (window as unknown as Window & { turnstile?: unknown }).turnstile
 })
 
-after(() => {
+afterAll(() => {
   domWindow.close()
 })
 

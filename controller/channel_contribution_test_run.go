@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -18,15 +19,16 @@ import (
 )
 
 type channelContributionTestResultResponse struct {
-	Id           int64  `json:"id"`
-	Model        string `json:"model"`
-	EndpointType string `json:"endpoint_type"`
-	Stream       bool   `json:"stream"`
-	Mode         string `json:"mode"`
-	Success      bool   `json:"success"`
-	LatencyMs    int64  `json:"latency_ms"`
-	Error        string `json:"error"`
-	CreatedAt    int64  `json:"created_at"`
+	Id              int64  `json:"id"`
+	Model           string `json:"model"`
+	EndpointType    string `json:"endpoint_type"`
+	Stream          bool   `json:"stream"`
+	Mode            string `json:"mode"`
+	Success         bool   `json:"success"`
+	PriceConfigured bool   `json:"price_configured"`
+	LatencyMs       int64  `json:"latency_ms"`
+	Error           string `json:"error"`
+	CreatedAt       int64  `json:"created_at"`
 }
 
 type channelContributionTestRunResponse struct {
@@ -57,6 +59,7 @@ func buildChannelContributionTestRunResponse(run *model.ChannelContributionTestR
 	if err != nil {
 		return nil, err
 	}
+	pricingReady, _ := channelContributionPriceStatus(channelContributionModels(revision.Models))
 	response := &channelContributionTestRunResponse{
 		Id:             run.Id,
 		ContributionId: run.ContributionId,
@@ -65,7 +68,7 @@ func buildChannelContributionTestRunResponse(run *model.ChannelContributionTestR
 		ActorId:        run.ActorId,
 		ActorType:      run.ActorType,
 		Status:         run.Status,
-		PricingReady:   run.PricingReady,
+		PricingReady:   pricingReady,
 		Total:          run.Total,
 		Passed:         run.Passed,
 		Failed:         run.Failed,
@@ -89,15 +92,16 @@ func buildChannelContributionTestRunResponse(run *model.ChannelContributionTestR
 			mode = "stream"
 		}
 		response.Results = append(response.Results, channelContributionTestResultResponse{
-			Id:           result.Id,
-			Model:        result.Model,
-			EndpointType: result.EndpointType,
-			Stream:       result.Stream,
-			Mode:         mode,
-			Success:      result.Success,
-			LatencyMs:    result.LatencyMs,
-			Error:        result.Error,
-			CreatedAt:    result.CreatedAt,
+			Id:              result.Id,
+			Model:           result.Model,
+			EndpointType:    result.EndpointType,
+			Stream:          result.Stream,
+			Mode:            mode,
+			Success:         result.Success,
+			PriceConfigured: helper.HasModelBillingConfig(result.Model),
+			LatencyMs:       result.LatencyMs,
+			Error:           result.Error,
+			CreatedAt:       result.CreatedAt,
 		})
 	}
 	return response, nil

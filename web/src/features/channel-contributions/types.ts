@@ -65,6 +65,7 @@ export type ChannelContributionRawTestResult = {
   endpoint_type?: string
   stream: boolean
   success: boolean
+  price_configured?: boolean
   latency_ms?: number
   error?: string
 }

@@ -143,7 +143,11 @@ export function getTestRunResults(
       model: item.model,
       endpoint_type: item.endpoint_type,
       stream_required: !/embedding|rerank/i.test(item.endpoint_type ?? ''),
-      price_configured: run?.pricing_ready ?? run?.price_configured,
+      price_configured:
+        item.price_configured ?? run?.pricing_ready ?? run?.price_configured,
+    }
+    if (typeof item.price_configured === 'boolean') {
+      current.price_configured = item.price_configured
     }
     const probe: ChannelContributionProbeResult = {
       success: item.success,
@@ -186,9 +190,15 @@ export function testRunHasCompletePricing(
   if (typeof currentPriceConfigured === 'boolean') {
     return currentPriceConfigured
   }
+  const results = getTestRunResults(run)
+  if (
+    results.length > 0 &&
+    results.every((result) => typeof result.price_configured === 'boolean')
+  ) {
+    return results.every((result) => result.price_configured)
+  }
   if (typeof run?.pricing_ready === 'boolean') return run.pricing_ready
   if (typeof run?.price_configured === 'boolean') return run.price_configured
-  const results = getTestRunResults(run)
   return (
     results.length > 0 && results.every((result) => result.price_configured)
   )

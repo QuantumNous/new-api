@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { assert, describe, test } from 'vitest'
 
 import {
   canEditContribution,
@@ -126,6 +125,32 @@ describe('channel contribution readiness', () => {
       testRunPassed(successfulRun({ pricing_ready: true }), false),
       false
     )
+  })
+
+  test('uses live per-model system pricing instead of the run snapshot', () => {
+    const run = successfulRun({
+      pricing_ready: false,
+      results: [
+        {
+          model: 'priced-model',
+          endpoint_type: 'chat',
+          stream: false,
+          success: true,
+          price_configured: true,
+        },
+        {
+          model: 'priced-model',
+          endpoint_type: 'chat',
+          stream: true,
+          success: true,
+          price_configured: true,
+        },
+      ],
+    })
+    const results = getTestRunResults(run)
+
+    assert.equal(results[0]?.price_configured, true)
+    assert.equal(testRunPassed(run), true)
   })
 
   test('blocks editing while a pending revision exists and permits withdrawal until deletion', () => {
