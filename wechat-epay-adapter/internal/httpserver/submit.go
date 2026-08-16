@@ -22,6 +22,7 @@ type SubmitHandler struct {
 	partnerID       string
 	key             string
 	notifyURL       string
+	wechatNotifyURL string
 	maximumAmount   string
 	returnURLPolicy *order.ReturnURLPolicy
 	nativeOrders    *order.NativeOrderService
@@ -30,7 +31,8 @@ type SubmitHandler struct {
 func NewSubmitHandler(store *store.Store, appConfig config.Config, returnURLPolicy *order.ReturnURLPolicy, nativeOrders ...*order.NativeOrderService) *SubmitHandler {
 	handler := &SubmitHandler{
 		store: store, partnerID: appConfig.EpayPartnerID, key: appConfig.EpayKey,
-		notifyURL: appConfig.NewAPINotifyURL, maximumAmount: appConfig.MaxOrderAmountYuan, returnURLPolicy: returnURLPolicy,
+		notifyURL: appConfig.NewAPINotifyURL, wechatNotifyURL: appConfig.WechatNotifyURL,
+		maximumAmount: appConfig.MaxOrderAmountYuan, returnURLPolicy: returnURLPolicy,
 	}
 	if len(nativeOrders) > 0 {
 		handler.nativeOrders = nativeOrders[0]
@@ -112,7 +114,7 @@ func (handler *SubmitHandler) Handle(context *gin.Context) {
 		if handler.nativeOrders != nil {
 			if err := handler.nativeOrders.Create(context.Request.Context(), order.NativeOrderRecord{
 				ID: result.Order.ID, OutTradeNo: result.Order.OutTradeNo, Subject: result.Order.Subject,
-				AmountFen: result.Order.AmountFen, NotifyURL: result.Order.NotifyURL, ExpiresAt: result.Order.ExpiresAt,
+				AmountFen: result.Order.AmountFen, NotifyURL: handler.wechatNotifyURL, ExpiresAt: result.Order.ExpiresAt,
 				Status: result.Order.Status, Version: result.Order.Version, CreatedAt: result.Order.CreatedAt,
 			}); err != nil {
 				AbortErrorPage(context, http.StatusServiceUnavailable)
