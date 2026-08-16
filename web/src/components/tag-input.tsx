@@ -61,7 +61,7 @@ export function TagInput({
       e.preventDefault()
       addTag(inputValue)
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
-      removeTag(value[value.length - 1])
+      removeTag(value.at(-1) ?? '')
     }
   }
 

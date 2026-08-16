@@ -102,7 +102,7 @@ export function TwoFASetupDialog({
       } else {
         toast.error(response.message || t('Failed to enable 2FA'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to enable 2FA'))
     } finally {
       setLoading(false)

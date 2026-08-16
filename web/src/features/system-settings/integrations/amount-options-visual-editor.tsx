@@ -55,7 +55,7 @@ export function AmountOptionsVisualEditor({
   }, [value, t])
 
   const handleAdd = () => {
-    const amount = parseFloat(newAmount)
+    const amount = Number.parseFloat(newAmount)
     if (isNaN(amount) || amount <= 0) {
       return
     }
@@ -156,7 +156,7 @@ export function AmountOptionsVisualEditor({
             e.stopPropagation()
             handleAdd()
           }}
-          disabled={!newAmount || parseFloat(newAmount) <= 0}
+          disabled={!newAmount || Number.parseFloat(newAmount) <= 0}
           className='w-full sm:w-auto'
         >
           <Plus className='h-4 w-4 sm:mr-2' />
