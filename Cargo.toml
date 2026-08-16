@@ -1,0 +1,11 @@
+# Root workspace for the Rust gateway. Only the library crate lives here today;
+# binaries and HTTP layers arrive in later issues of the rewrite epic.
+[workspace]
+resolver = "2"
+members = ["apps/gateway"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false

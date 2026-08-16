@@ -44,7 +44,10 @@ type Model struct {
 	MatchedCount  int      `json:"matched_count,omitempty" gorm:"-"`
 }
 
-func (mi *Model) Insert() error {
+// insertWithTx creates the model row inside the given transaction. MutateGatewayRouting
+// owns the outer transaction so the model row and the routing revision bump commit
+// together.
+func (mi *Model) insertWithTx(tx *gorm.DB) error {
 	now := common.GetTimestamp()
 	mi.CreatedTime = now
 	mi.UpdatedTime = now
@@ -54,15 +57,24 @@ func (mi *Model) Insert() error {
 	originalSyncOfficial := mi.SyncOfficial
 
 	// 先创建记录（GORM 会对零值字段应用默认值）
-	if err := DB.Create(mi).Error; err != nil {
+	if err := tx.Create(mi).Error; err != nil {
 		return err
 	}
 
 	// 使用保存的原始值进行更新，确保零值能正确保存
-	return DB.Model(&Model{}).Where("id = ?", mi.Id).Updates(map[string]interface{}{
+	return tx.Model(&Model{}).Where("id = ?", mi.Id).Updates(map[string]interface{}{
 		"status":        originalStatus,
 		"sync_official": originalSyncOfficial,
 	}).Error
+}
+
+// Insert commits the model row under one MutateGatewayRouting revision so the
+// candidate-visible change commits atomically with the routing revision bump.
+func (mi *Model) Insert() error {
+	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		return mi.insertWithTx(tx)
+	})
+	return err
 }
 
 func IsModelNameDuplicated(id int, name string) (bool, error) {
@@ -74,16 +86,47 @@ func IsModelNameDuplicated(id int, name string) (bool, error) {
 	return cnt > 0, err
 }
 
-func (mi *Model) Update() error {
+// updateWithTx performs the model row mutation inside the given transaction.
+// MutateGatewayRouting owns the outer transaction so the update and the routing
+// revision bump commit together.
+func (mi *Model) updateWithTx(tx *gorm.DB) error {
 	mi.UpdatedTime = common.GetTimestamp()
 	// 使用 Select 强制更新所有字段，包括零值
-	return DB.Model(&Model{}).Where("id = ?", mi.Id).
+	return tx.Model(&Model{}).Where("id = ?", mi.Id).
 		Select("model_name", "description", "icon", "tags", "vendor_id", "endpoints", "status", "sync_official", "name_rule", "updated_time").
 		Updates(mi).Error
 }
 
+// Update commits the model mutation under one MutateGatewayRouting revision so
+// the candidate-visible change commits atomically with the routing revision bump.
+func (mi *Model) Update() error {
+	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		return mi.updateWithTx(tx)
+	})
+	return err
+}
+
+// deleteWithTx soft-deletes the model row inside the given transaction.
+// MutateGatewayRouting owns the outer transaction so the delete and the routing
+// revision bump commit together.
+func (mi *Model) deleteWithTx(tx *gorm.DB) error {
+	return tx.Delete(mi).Error
+}
+
+// Delete commits the model soft-delete under one MutateGatewayRouting revision so
+// the candidate-visible change commits atomically with the routing revision bump.
 func (mi *Model) Delete() error {
-	return DB.Delete(mi).Error
+	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		return mi.deleteWithTx(tx)
+	})
+	return err
+}
+
+func UpdateModelStatus(id int, status int) error {
+	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		return tx.Model(&Model{}).Where("id = ?", id).Update("status", status).Error
+	})
+	return err
 }
 
 func GetVendorModelCounts() (map[int64]int64, error) {

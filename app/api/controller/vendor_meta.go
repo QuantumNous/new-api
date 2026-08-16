@@ -116,7 +116,12 @@ func DeleteVendorMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := model.DB.Delete(&model.Vendor{}, id).Error; err != nil {
+	var existing model.Vendor
+	if err := model.DB.First(&existing, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := existing.Delete(); err != nil {
 		common.ApiError(c, err)
 		return
 	}

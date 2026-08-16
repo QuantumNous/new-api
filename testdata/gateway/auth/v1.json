@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "cases": [
+    {"case_id":"missing_token","synthetic_credential":"synthetic-missing_token","expected":{"decision":"deny","http_status":401,"error_class":"token_missing","identity":"absent"}},
+    {"case_id":"unknown_token","synthetic_credential":"synthetic-unknown_token","expected":{"decision":"deny","http_status":401,"error_class":"token_invalid","identity":"absent"}},
+    {"case_id":"disabled_token","synthetic_credential":"synthetic-disabled_token","expected":{"decision":"deny","http_status":401,"error_class":"token_invalid","identity":"absent"}},
+    {"case_id":"expired_token","synthetic_credential":"synthetic-expired_token","expected":{"decision":"deny","http_status":401,"error_class":"token_invalid","identity":"absent"}},
+    {"case_id":"exhausted_token","synthetic_credential":"synthetic-exhausted_token","expected":{"decision":"deny","http_status":401,"error_class":"token_invalid","identity":"absent"}},
+    {"case_id":"enabled_token_enabled_user","synthetic_credential":"synthetic-enabled_token_enabled_user","expected":{"decision":"allow","http_status":200,"error_class":"","identity":{"user_id":42,"group":"default"}}},
+    {"case_id":"disabled_user","synthetic_credential":"synthetic-disabled_user","expected":{"decision":"deny","http_status":401,"error_class":"user_disabled","identity":"absent"}},
+    {"case_id":"auth_fence_pending","synthetic_credential":"synthetic-auth_fence_pending","expected":{"decision":"deny","http_status":401,"error_class":"auth_fence_pending","identity":"absent"}},
+    {"case_id":"auth_fence_committed","synthetic_credential":"synthetic-auth_fence_committed","expected":{"decision":"deny","http_status":401,"error_class":"auth_fence_pending","identity":"absent"}},
+    {"case_id":"redis_disabled_db_fallback","synthetic_credential":"synthetic-redis_disabled_db_fallback","expected":{"decision":"allow","http_status":200,"error_class":"","identity":{"user_id":42,"group":"default"}}},
+    {"case_id":"redis_read_failure_db_fallback","synthetic_credential":"synthetic-redis_read_failure_db_fallback","expected":{"decision":"allow","http_status":200,"error_class":"","identity":{"user_id":42,"group":"default"}}}
+  ]
+}

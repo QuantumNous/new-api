@@ -293,6 +293,8 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&ProxyNode{},
+		&GatewayConfigRevision{},
+		&GatewayConfigOutbox{},
 	)
 	if err != nil {
 		return err
@@ -301,6 +303,9 @@ func migrateDB() error {
 		return err
 	}
 	if err := InitializeExternalIdentityClaims(); err != nil {
+		return err
+	}
+	if err := InitializeGatewayConfigRevision(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
@@ -354,6 +359,8 @@ func migrateDBFast() error {
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
 		{&ProxyNode{}, "ProxyNode"},
+		{&GatewayConfigRevision{}, "GatewayConfigRevision"},
+		{&GatewayConfigOutbox{}, "GatewayConfigOutbox"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -382,6 +389,9 @@ func migrateDBFast() error {
 		return err
 	}
 	if err := InitializeExternalIdentityClaims(); err != nil {
+		return err
+	}
+	if err := InitializeGatewayConfigRevision(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {

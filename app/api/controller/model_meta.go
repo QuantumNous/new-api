@@ -130,7 +130,7 @@ func UpdateModelMeta(c *gin.Context) {
 
 	if statusOnly {
 		// 只更新状态，防止误清空其他字段
-		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
+		if err := model.UpdateModelStatus(m.Id, m.Status); err != nil {
 			common.ApiError(c, err)
 			return
 		}
@@ -161,7 +161,12 @@ func DeleteModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := model.DB.Delete(&model.Model{}, id).Error; err != nil {
+	var existing model.Model
+	if err := model.DB.First(&existing, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := existing.Delete(); err != nil {
 		common.ApiError(c, err)
 		return
 	}

@@ -1,0 +1,27 @@
+[package]
+name = "gateway"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+name = "gateway"
+path = "src/lib.rs"
+
+[features]
+default = ["sqlite-bundled"]
+# Bundles libsqlite3-sys so integration tests run without a system libsqlite3.
+# CI matrices that ship libsqlite3 can build with `--no-default-features`; the
+# reader contract is identical either way.
+sqlite-bundled = ["sqlx/sqlite"]
+
+[dependencies]
+tokio = { version = "1", default-features = false, features = ["sync"] }
+sqlx = { version = "0.8", default-features = false, features = ["any", "runtime-tokio", "mysql", "postgres"] }
+serde = { version = "1", default-features = false, features = ["derive"] }
+serde_json = { version = "1", default-features = false }
+thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1", default-features = false, features = ["macros", "rt"] }

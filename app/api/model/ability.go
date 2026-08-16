@@ -238,6 +238,13 @@ func (channel *Channel) DeleteAbilities() error {
 	return DB.Where("channel_id = ?", channel.Id).Delete(&Ability{}).Error
 }
 
+func deleteAbilitiesWithTx(tx *gorm.DB, channelID int) error {
+	if tx == nil {
+		return errors.New("ability deletion requires a transaction")
+	}
+	return tx.Where("channel_id = ?", channelID).Delete(&Ability{}).Error
+}
+
 // UpdateAbilities updates abilities of this channel.
 // Make sure the channel is completed before calling this function.
 func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
@@ -311,14 +318,36 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 }
 
 func UpdateAbilityStatus(channelId int, status bool) error {
-	return DB.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
+	return updateAbilityStatusWithTx(DB, channelId, status)
 }
 
+// updateAbilityStatusWithTx is the tx-aware form of UpdateAbilityStatus. It
+// writes the enabled column for every ability row of the channel through the
+// given transaction so callers can commit it together with the channel status
+// and the gateway routing revision bump.
+func updateAbilityStatusWithTx(tx *gorm.DB, channelId int, status bool) error {
+	return tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
+}
+
+// updateAbilityStatusByTagWithTx is the tx-aware form of
+// UpdateAbilityStatusByTag. It flips the enabled column for every ability
+// row carrying the given tag inside the outer transaction so the channel
+// status update and the routing revision bump commit together.
+func updateAbilityStatusByTagWithTx(tx *gorm.DB, tag string, status bool) error {
+	return tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error
+}
+
+// UpdateAbilityStatusByTag remains the public convenience wrapper. It
+// delegates to the tx-aware form with the shared DB handle so callers that
+// are not inside a MutateGatewayRouting transaction keep working.
 func UpdateAbilityStatusByTag(tag string, status bool) error {
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error
+	return updateAbilityStatusByTagWithTx(DB, tag, status)
 }
 
-func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {
+// updateAbilityByTagWithTx is the tx-aware form of UpdateAbilityByTag. It
+// writes the tag/priority/weight columns for every ability row carrying the
+// given tag inside the outer transaction.
+func updateAbilityByTagWithTx(tx *gorm.DB, tag string, newTag *string, priority *int64, weight *uint) error {
 	ability := Ability{}
 	if newTag != nil {
 		ability.Tag = newTag
@@ -329,7 +358,35 @@ func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uin
 	if weight != nil {
 		ability.Weight = *weight
 	}
-	return DB.Model(&Ability{}).Where("tag = ?", tag).Updates(ability).Error
+	return tx.Model(&Ability{}).Where("tag = ?", tag).Updates(ability).Error
+}
+
+// UpdateAbilityByTag remains the public convenience wrapper. It delegates to
+// the tx-aware form with the shared DB handle.
+func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {
+	return updateAbilityByTagWithTx(DB, tag, newTag, priority, weight)
+}
+
+// deleteAbilitiesByChannelIDsWithTx deletes every ability row whose
+// channel_id is in ids inside the given transaction, so batch channel
+// deletion and the routing revision bump commit atomically.
+func deleteAbilitiesByChannelIDsWithTx(tx *gorm.DB, ids []int) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return tx.Where("channel_id in (?)", ids).Delete(&Ability{}).Error
+}
+
+// deleteAbilitiesByTagWithTx deletes every ability row carrying the given tag
+// inside the given transaction. Used when channels sharing a tag are removed.
+func deleteAbilitiesByTagWithTx(tx *gorm.DB, tag string) error {
+	return tx.Where("tag = ?", tag).Delete(&Ability{}).Error
+}
+
+// deleteAbilitiesByStatusWithTx deletes every ability row whose channel has
+// the given status, inside the given transaction.
+func deleteAbilitiesByStatusWithTx(tx *gorm.DB, status int64) error {
+	return tx.Where("channel_id IN (SELECT id FROM channels WHERE status = ?)", status).Delete(&Ability{}).Error
 }
 
 var fixLock = sync.Mutex{}

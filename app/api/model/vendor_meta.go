@@ -23,12 +23,23 @@ type Vendor struct {
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_vendor_name_delete_at,priority:2"`
 }
 
-// Insert 创建新的供应商记录
-func (v *Vendor) Insert() error {
+// insertWithTx creates the vendor row inside the given transaction.
+// MutateGatewayRouting owns the outer transaction so the vendor row and the
+// routing revision bump commit together.
+func (v *Vendor) insertWithTx(tx *gorm.DB) error {
 	now := common.GetTimestamp()
 	v.CreatedTime = now
 	v.UpdatedTime = now
-	return DB.Create(v).Error
+	return tx.Create(v).Error
+}
+
+// Insert 创建新的供应商记录，提交在一个 MutateGatewayRouting 事务中，
+// 使供应商行与路由修订号原子提交。
+func (v *Vendor) Insert() error {
+	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		return v.insertWithTx(tx)
+	})
+	return err
 }
 
 // IsVendorNameDuplicated 检查供应商名称是否重复（排除自身 ID）
@@ -41,15 +52,33 @@ func IsVendorNameDuplicated(id int, name string) (bool, error) {
 	return cnt > 0, err
 }
 
-// Update 更新供应商记录
-func (v *Vendor) Update() error {
+// updateWithTx 更新供应商记录到给定事务中。MutateGatewayRouting 持有外层
+// 事务，使更新与路由修订号原子提交。
+func (v *Vendor) updateWithTx(tx *gorm.DB) error {
 	v.UpdatedTime = common.GetTimestamp()
-	return DB.Save(v).Error
+	return tx.Save(v).Error
 }
 
-// Delete 软删除供应商
+// Update 更新供应商记录，提交在一个 MutateGatewayRouting 事务中。
+func (v *Vendor) Update() error {
+	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		return v.updateWithTx(tx)
+	})
+	return err
+}
+
+// deleteWithTx 软删除供应商到给定事务中。MutateGatewayRouting 持有外层
+// 事务，使删除与路由修订号原子提交。
+func (v *Vendor) deleteWithTx(tx *gorm.DB) error {
+	return tx.Delete(v).Error
+}
+
+// Delete 软删除供应商，提交在一个 MutateGatewayRouting 事务中。
 func (v *Vendor) Delete() error {
-	return DB.Delete(v).Error
+	_, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+		return v.deleteWithTx(tx)
+	})
+	return err
 }
 
 // GetVendorByID 根据 ID 获取供应商

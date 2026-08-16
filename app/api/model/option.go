@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +15,45 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
 )
+
+// GatewayRoutingOptionKeys is deliberately explicit. New settings must be
+// reviewed before they become part of the gateway snapshot contract.
+var GatewayRoutingOptionKeys = map[string]struct{}{
+	"ModelRatio": {}, "ModelPrice": {}, "CompletionRatio": {},
+	"CacheRatio": {}, "CreateCacheRatio": {}, "ImageRatio": {},
+	"AudioRatio": {}, "AudioCompletionRatio": {}, "GroupRatio": {},
+	"GroupGroupRatio": {}, "UserUsableGroups": {}, "AutoGroups": {},
+	"MaxTokenAutoGroups": {},
+}
+
+func IsGatewayRoutingOptionKey(key string) bool {
+	_, ok := GatewayRoutingOptionKeys[key]
+	return ok
+}
+
+func UpdateOptionWithTx(tx *gorm.DB, key, value string) error {
+	if tx == nil || strings.TrimSpace(key) == "" {
+		return gorm.ErrInvalidDB
+	}
+	if err := validateOptionValue(key, value); err != nil {
+		return err
+	}
+	option := Option{Key: key}
+	if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		return err
+	}
+	option.Value = value
+	return tx.Save(&option).Error
+}
+
+func GatewayRoutingOptionKeyList() []string {
+	keys := make([]string, 0, len(GatewayRoutingOptionKeys))
+	for key := range GatewayRoutingOptionKeys {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
@@ -220,18 +260,19 @@ func UpdateOption(key string, value string) error {
 	if err := validateOptionValue(key, value); err != nil {
 		return err
 	}
-	// Save to database first
-	option := Option{
-		Key: key,
+	if IsGatewayRoutingOptionKey(key) {
+		if _, err := MutateGatewayRouting(func(tx *gorm.DB) error {
+			return UpdateOptionWithTx(tx, key, value)
+		}); err != nil {
+			return err
+		}
+		return updateOptionMap(key, value)
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		return UpdateOptionWithTx(tx, key, value)
+	}); err != nil {
+		return err
+	}
 	return updateOptionMap(key, value)
 }
 
@@ -249,24 +290,30 @@ func UpdateOptionsBulk(values map[string]string) error {
 			return err
 		}
 	}
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		for k, v := range values {
-			option := Option{Key: k}
-			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
-				return err
-			}
-			option.Value = v
-			if err := tx.Save(&option).Error; err != nil {
+	mutate := func(tx *gorm.DB) error {
+		for key, value := range values {
+			if err := UpdateOptionWithTx(tx, key, value); err != nil {
 				return err
 			}
 		}
 		return nil
-	})
-	if err != nil {
+	}
+	if hasGatewayOption := func() bool {
+		for key := range values {
+			if IsGatewayRoutingOptionKey(key) {
+				return true
+			}
+		}
+		return false
+	}(); hasGatewayOption {
+		if _, err := MutateGatewayRouting(mutate); err != nil {
+			return err
+		}
+	} else if err := DB.Transaction(mutate); err != nil {
 		return err
 	}
-	for k, v := range values {
-		if err := updateOptionMap(k, v); err != nil {
+	for key, value := range values {
+		if err := updateOptionMap(key, value); err != nil {
 			return err
 		}
 	}

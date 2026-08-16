@@ -108,6 +108,11 @@ func main() {
 	model.GetPricing()
 
 	// 热更新配置
+	outboxCtx, stopOutboxPublisher := context.WithCancel(context.Background())
+	defer stopOutboxPublisher()
+	go service.RunGatewayConfigOutboxPublisher(outboxCtx)
+
+	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
 
 	// 周期性重载授权策略，保证多节点/多 master 部署下权限变更能传播到每个实例

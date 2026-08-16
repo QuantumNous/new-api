@@ -8,7 +8,6 @@ If --lang is omitted, runs all enabled languages.
 """
 from __future__ import annotations
 
-import glob
 import re
 import sys
 from pathlib import Path
@@ -42,9 +41,17 @@ def run_lang(lang: str, target: str = ".") -> list[Finding]:
     if not command:
         return [Finding(f"code-{lang}", Severity.WARN, f"{lang}: no command configured")]
     includes = cfg.get("paths_include", [])
-    if includes and not any(glob.glob(str(ROOT.parent / p), recursive=True) for p in includes):
-        return [Finding(f"code-{lang}", Severity.INFO, f"{lang}: no matching files (paths_include: {includes})")]
-
+    excludes = cfg.get("paths_exclude", [])
+    if includes:
+        pats = [p.removeprefix("**/") for p in includes]
+        found = any(
+            p.is_file()
+            and not (excludes and any(x in str(p) for x in excludes))
+            and any(p.match(pat) for pat in pats)
+            for p in ROOT.parent.rglob("*")
+        )
+        if not found:
+            return [Finding(f"code-{lang}", Severity.INFO, f"{lang}: no matching files (paths_include: {includes})")]
 
     cmd = [command] + list(args) + ([] if command == "cargo" else [target])
     try:
@@ -52,6 +59,15 @@ def run_lang(lang: str, target: str = ".") -> list[Finding]:
     except FileNotFoundError:
         findings.append(Finding(f"code-{lang}", Severity.WARN, f"{lang}: {command} not installed, skipped"))
         return findings
+    excludes = cfg.get("paths_exclude", [])
+    if excludes and output and rc != 0:
+        kept = [ln for ln in output.splitlines() if not any(p in ln for p in excludes)]
+        if not kept:
+            rc = 0
+            output = ""
+        else:
+            output = "\n".join(kept)
+
 
     if rc == 0:
         findings.append(Finding(f"code-{lang}", Severity.INFO, f"{lang}: {command} passed"))
