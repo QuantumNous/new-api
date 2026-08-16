@@ -39,6 +39,19 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type WorkerTestRequest = {
+  worker_url: string
+  worker_valid_key: string
+}
+
+export type WorkerTestResponse = {
+  success: boolean
+  message: string
+  data?: {
+    ip: string
+  }
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -351,6 +364,7 @@ export type OperationsSettings = {
   SMTPForceAuthLogin: boolean
   WorkerUrl: string
   WorkerValidKey: string
+  UserOutboundRequestsEnabled: boolean
   WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
   'performance_setting.disk_cache_enabled': boolean
