@@ -9,12 +9,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
 )
 
 // maskedSecret is the sentinel value substituted for sensitive fields in
@@ -724,14 +726,25 @@ func TestAllProxyNodes(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	passed := 0
+	// ponytail: bounded concurrency — 10 in flight. ProbeProxyNode has its own
+	// 15s timeout; errgroup propagates request cancellation so a disconnected
+	// client stops the remaining probes instead of draining them serially.
+	g, ctx := errgroup.WithContext(c.Request.Context())
+	g.SetLimit(10)
+	var passedAtomic atomic.Int64
 	for index := range nodes {
-		result, err := service.ProbeProxyNode(c.Request.Context(), &nodes[index])
-		if err == nil && result.Success {
-			passed++
-		}
+		node := &nodes[index]
+		g.Go(func() error {
+			result, err := service.ProbeProxyNode(ctx, node)
+			if err == nil && result.Success {
+				passedAtomic.Add(1)
+			}
+			return nil
+		})
 	}
-	common.ApiSuccess(c, gin.H{"passed": passed, "failed": len(nodes) - passed, "total": len(nodes)})
+	_ = g.Wait()
+	passed := passedAtomic.Load()
+	common.ApiSuccess(c, gin.H{"passed": passed, "failed": int64(len(nodes)) - passed, "total": len(nodes)})
 }
 
 func parseProxyNodeID(c *gin.Context) (uint, error) {

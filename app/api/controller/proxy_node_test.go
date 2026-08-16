@@ -190,3 +190,37 @@ func TestGetProxyNodeReturnsEditableLinkOnlyFromDetailEndpoint(t *testing.T) {
 	assert.Equal(t, "http://user:pass@example.com:8080", detail.Proxy)
 	assert.True(t, detail.Node.ProxyConfigured)
 }
+
+func TestAllProxyNodesProbesEnabledNodesAndReportsCounts(t *testing.T) {
+	setupProxyNodeControllerTest(t)
+	// Unreachable loopback port: probe fails fast and deterministically,
+	// no external network. 12 enabled nodes exercise bounded concurrency.
+	const enabledCount = 12
+	for i := 0; i < enabledCount; i++ {
+		_, err := service.CreateProxyNode(service.ProxyNodeInput{
+			Name: fmt.Sprintf("probe-%d", i), Enabled: true,
+			Proxy: "http://127.0.0.1:9", ScopeType: model.ProxyNodeScopeAll,
+		})
+		require.NoError(t, err)
+	}
+	// Disabled node must be excluded from the batch.
+	_, err := service.CreateProxyNode(service.ProxyNodeInput{
+		Name: "disabled", Enabled: false,
+		Proxy: "http://127.0.0.1:9", ScopeType: model.ProxyNodeScopeAll,
+	})
+	require.NoError(t, err)
+
+	ctx, recorder := proxyNodeContext(t, http.MethodPost, "/api/proxy/nodes/test-all", "")
+	TestAllProxyNodes(ctx)
+	response := decodeProxyNodeResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var counts struct {
+		Passed int `json:"passed"`
+		Failed int `json:"failed"`
+		Total  int `json:"total"`
+	}
+	require.NoError(t, common.Unmarshal(response.Data, &counts))
+	assert.Equal(t, enabledCount, counts.Total)
+	assert.Equal(t, 0, counts.Passed)
+	assert.Equal(t, enabledCount, counts.Failed)
+}
