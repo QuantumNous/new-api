@@ -29,7 +29,6 @@ import {
   Network,
   Radio,
   ServerCog,
-  Settings,
   Store,
   Ticket,
   User,
@@ -38,6 +37,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { getSystemSettingsThemeNavItems } from '@/components/layout/config/system-settings.config'
 import { type SidebarData } from '@/components/layout/types'
 import { useStatus } from '@/hooks/use-status'
 import { isPricingModuleEnabled } from '@/lib/nav-modules'
@@ -46,8 +46,8 @@ import { ROLE } from '@/lib/roles'
 /**
  * Root navigation groups for the application sidebar.
  *
- * These are shown when the URL does not match any nested sidebar view
- * registered in `layout/lib/sidebar-view-registry.ts`.
+ * The `admin` group is shown under the Admin workspace Tab; all other
+ * groups belong to the User workspace Tab (see `app-sidebar.tsx`).
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
@@ -171,12 +171,7 @@ export function useSidebarData(): SidebarData {
             icon: ServerCog,
             requiredRole: ROLE.SUPER_ADMIN,
           },
-          {
-            title: t('System Settings'),
-            url: '/system-settings/site',
-            activeUrls: ['/system-settings'],
-            icon: Settings,
-          },
+          ...getSystemSettingsThemeNavItems(t),
         ],
       },
     ],

@@ -34,23 +34,15 @@ export { Main } from './components/main'
 export { PageFooterPortal } from './components/page-footer'
 export { NavGroup } from './components/nav-group'
 export { SectionPageLayout } from './components/section-page-layout'
-export { SidebarViewHeader } from './components/sidebar-view-header'
 export { SystemBrand } from './components/system-brand'
 export { TopNav } from './components/top-nav'
 export { MobileDrawer } from './components/mobile-drawer'
 
 // Configuration
-export { SYSTEM_SETTINGS_VIEW } from './config/system-settings.config'
 export { defaultTopNavLinks } from './config/top-nav.config'
 
 // Constants
 export { MOBILE_DRAWER_ANIMATION, MOBILE_DRAWER_CONFIG } from './constants'
-
-// Sidebar view registry
-export {
-  getNavGroupsForPath,
-  resolveSidebarView,
-} from './lib/sidebar-view-registry'
 
 // Type exports (type-only to avoid conflicts with components above)
 export type {
@@ -60,8 +52,6 @@ export type {
   NavLink,
   ResolvedSidebarView,
   SidebarData,
-  SidebarView,
-  SidebarViewParent,
   TopNavLink,
 } from './types'
 export type { SectionPageLayoutProps } from './components/section-page-layout'

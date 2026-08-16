@@ -17,45 +17,113 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useLocation } from '@tanstack/react-router'
 
-import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarRail,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarView } from '@/hooks/use-sidebar-view'
 import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
+import { ROLE } from '@/lib/roles'
+import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
+import { checkIsActive } from '../lib/url-utils'
 import { NavGroup } from './nav-group'
-import { SidebarViewHeader } from './sidebar-view-header'
+
+export type SidebarTabMode = 'user' | 'admin'
 
 /**
  * Application sidebar.
  *
- * Adopts the Vercel / Cloudflare "drill-in" pattern: the URL drives
- * which sidebar *view* is rendered. Clicking a top-level entry like
- * `System Settings` swaps the sidebar to a contextual workspace —
- * with a `← Back to Dashboard` affordance — instead of stacking the
- * sub-navigation inside the root tree.
- *
- * Architecture:
- *   - View resolution + filtering: {@link useSidebarView}
- *   - View registry: `layout/lib/sidebar-view-registry.ts`
- *   - Per-view header: {@link SidebarViewHeader}
- *
- * Adding a new nested view only requires registering a {@link SidebarView}
- * in the registry; this component requires no changes.
+ * Renders the root navigation. When the logged-in user is
+ * Admin/SuperAdmin/Root, a top Tab switcher toggles between the User
+ * workspace (Chat, General, Personal) and the Admin workspace
+ * (Channels, Models, Users, Redemption, Subscriptions, Proxy,
+ * System Info, System Settings theme collapsibles).
  */
 export function AppSidebar() {
+  const { t } = useTranslation()
   const { collapsible, variant } = useLayout()
-  const { key, view, navGroups } = useSidebarView()
+  const { state, isMobile } = useSidebar()
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const { key, navGroups } = useSidebarView()
   const shouldReduce = useReducedMotion()
+
+  const userRole = useAuthStore((s) => s.auth.user?.role)
+  const isAdmin = (userRole ?? ROLE.GUEST) >= ROLE.ADMIN
+
+  const [activeTab, setActiveTab] = useState<SidebarTabMode>('user')
+
+  // Check if current location or view is inside admin workspace
+  const isAdminActive = useMemo(() => {
+    const adminGroup = navGroups.find((g) => g.id === 'admin')
+    if (!adminGroup) return false
+    return adminGroup.items.some((item) => checkIsActive(pathname, item))
+  }, [navGroups, pathname])
+
+  // Keep the selected workspace aligned with the current route.
+  useEffect(() => {
+    setActiveTab(isAdminActive ? 'admin' : 'user')
+  }, [isAdminActive])
+
+  // Filter groups depending on active tab when admin tabs are enabled
+  const displayedNavGroups = useMemo(() => {
+    if (!isAdmin) {
+      return navGroups
+    }
+    if (activeTab === 'admin') {
+      return navGroups.filter((g) => g.id === 'admin')
+    }
+    return navGroups.filter((g) => g.id !== 'admin')
+  }, [isAdmin, activeTab, navGroups])
+
+  const showTabs = isAdmin
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
-      {view && <SidebarViewHeader view={view} />}
+      {showTabs && (
+        <SidebarHeader
+          className={cn(
+            'p-2 pb-1 transition-opacity duration-200',
+            state === 'collapsed' && !isMobile && 'hidden'
+          )}
+        >
+          <Tabs
+            value={activeTab}
+            onValueChange={(val) => setActiveTab(val as SidebarTabMode)}
+            className='w-full'
+          >
+            <TabsList className='grid w-full grid-cols-2 bg-muted/60 p-1'>
+              <TabsTrigger
+                value='user'
+                className='text-xs font-medium data-active:bg-background data-active:shadow-sm'
+              >
+                {t('User')}
+              </TabsTrigger>
+              <TabsTrigger
+                value='admin'
+                className='text-xs font-medium data-active:bg-background data-active:shadow-sm'
+              >
+                {t('Admin')}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </SidebarHeader>
+      )}
 
       <SidebarContent className='py-2'>
         <AnimatePresence mode='wait' initial={false}>
           <motion.div
-            key={key}
+            key={`${key}-${activeTab}`}
             initial={
               shouldReduce ? false : MOTION_VARIANTS.sidebarSlide.initial
             }
@@ -64,7 +132,7 @@ export function AppSidebar() {
             transition={MOTION_TRANSITION.fast}
             className='flex flex-col'
           >
-            {navGroups.map((props) => (
+            {displayedNavGroups.map((props) => (
               <NavGroup key={props.id || props.title} {...props} />
             ))}
           </motion.div>

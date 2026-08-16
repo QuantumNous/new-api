@@ -35,74 +35,62 @@ import { getOperationsSectionNavItems } from '@/features/system-settings/operati
 import { getSecuritySectionNavItems } from '@/features/system-settings/security/section-registry.tsx'
 import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
 
-import type { NavGroup, SidebarView } from '../types'
+import type { NavCollapsible } from '../types'
 
 /**
- * Sidebar nav groups for the System Settings nested view.
+ * Theme-level System Settings collapsibles exposed directly under the
+ * Admin Tab. Each entry groups one logical domain (Site & Branding,
+ * Authentication, Billing & Payment, Models & Routing, Security & Limits,
+ * Console Content, Operations) and lists its leaf sections produced by
+ * the per-domain `section-registry.tsx` `getSectionNavItems` helpers.
  *
- * Kept as a single group because the workspace title in the sidebar
- * header already provides top-level context — the inner group label
- * scopes the items as "administration" actions.
+ * Reused by both the Admin Tab sidebar and the command palette so the
+ * sidebar and the `/system-settings` index stay aligned without
+ * duplicating labels.
  */
-function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
+export function getSystemSettingsThemeNavItems(t: TFunction): NavCollapsible[] {
   return [
     {
-      id: 'system-administration',
-      title: t('System Administration'),
-      items: [
-        {
-          title: t('Site & Branding'),
-          icon: Settings,
-          items: getSiteSectionNavItems(t),
-        },
-        {
-          title: t('Authentication'),
-          icon: Shield,
-          items: getAuthSectionNavItems(t),
-        },
-        {
-          title: t('Billing & Payment'),
-          icon: CreditCard,
-          items: getBillingSectionNavItems(t),
-        },
-        {
-          title: t('Models & Routing'),
-          icon: Box,
-          items: getModelsSectionNavItems(t),
-        },
-        {
-          title: t('Security & Limits'),
-          icon: ShieldAlert,
-          items: getSecuritySectionNavItems(t),
-        },
-        {
-          title: t('Console Content'),
-          icon: Layout,
-          items: getContentSectionNavItems(t),
-        },
-        {
-          title: t('Operations'),
-          icon: Wrench,
-          items: getOperationsSectionNavItems(t),
-        },
-      ],
+      title: t('Site & Branding'),
+      icon: Settings,
+      activeUrls: ['/system-settings/site'],
+      items: getSiteSectionNavItems(t),
+    },
+    {
+      title: t('Authentication'),
+      icon: Shield,
+      activeUrls: ['/system-settings/auth'],
+      items: getAuthSectionNavItems(t),
+    },
+    {
+      title: t('Billing & Payment'),
+      icon: CreditCard,
+      activeUrls: ['/system-settings/billing'],
+      items: getBillingSectionNavItems(t),
+    },
+    {
+      title: t('Models & Routing'),
+      icon: Box,
+      activeUrls: ['/system-settings/models'],
+      items: getModelsSectionNavItems(t),
+    },
+    {
+      title: t('Security & Limits'),
+      icon: ShieldAlert,
+      activeUrls: ['/system-settings/security'],
+      items: getSecuritySectionNavItems(t),
+    },
+    {
+      title: t('Console Content'),
+      icon: Layout,
+      activeUrls: ['/system-settings/content'],
+      items: getContentSectionNavItems(t),
+    },
+    {
+      title: t('Operations'),
+      icon: Wrench,
+      activeUrls: ['/system-settings/operations'],
+      items: getOperationsSectionNavItems(t),
     },
   ]
-}
-
-/**
- * Nested sidebar view for `/system-settings/*`.
- *
- * Activates the Vercel / Cloudflare-style drill-in sidebar:
- * the root navigation is replaced by the system administration
- * groups, with a "Back to Dashboard" affordance in the header.
- */
-export const SYSTEM_SETTINGS_VIEW: SidebarView = {
-  id: 'system-settings',
-  pathPattern: /^\/system-settings(\/|$)/,
-  parent: {
-    to: '/dashboard/overview',
-    label: 'Back to Dashboard',
-  },
-  getNavGroups: getSystemSettingsNavGroups,
 }
