@@ -92,6 +92,7 @@ import {
   channelsQueryKeys,
   formatResponseTime,
   handleTestChannel,
+  invalidateChannelMutationQueries,
 } from '../../lib'
 import type {
   Channel,
@@ -534,8 +535,7 @@ function ChannelTestDialogContent({
   const refreshChannelLists = useCallback(
     (patch?: ChannelTestCachePatch) => {
       updateChannelTestCache(patch)
-      void queryClient
-        .invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      void invalidateChannelMutationQueries(queryClient)
         .then(() => updateChannelTestCache(patch))
         .catch(() => undefined)
     },

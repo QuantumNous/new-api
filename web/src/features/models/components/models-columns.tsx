@@ -229,8 +229,12 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         if (!value || value.length === 0 || value.includes('all')) return true
         const status = row.getValue(id) as number
         const autoDisabledByRule = Boolean(row.original.auto_disabled_by_rule)
-        if (value.includes('auto-enabled')) return status === 1 && autoDisabledByRule
-        if (value.includes('auto-disabled')) return status !== 1 && autoDisabledByRule
+        if (value.includes('auto-enabled')) {
+          return status === 1 && autoDisabledByRule
+        }
+        if (value.includes('auto-disabled')) {
+          return status !== 1 && autoDisabledByRule
+        }
         if (value.includes('enabled')) return status === 1
         if (value.includes('disabled')) return status !== 1
         return false

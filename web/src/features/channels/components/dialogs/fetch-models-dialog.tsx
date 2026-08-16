@@ -43,7 +43,7 @@ import { fetchUpstreamModels, updateChannel } from '../../api'
 import {
   categorizeModels,
   categorizeModelsWithRedirect,
-  channelsQueryKeys,
+  invalidateChannelMutationQueries,
   normalizeModelName,
   parseModelsString,
 } from '../../lib'
@@ -180,7 +180,7 @@ export function FetchModelsDialog({
       })
       if (response.success) {
         toast.success(t('Models updated successfully'))
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        void invalidateChannelMutationQueries(queryClient)
         onOpenChange(false)
       } else {
         toast.error(response.message || t('Failed to update models'))

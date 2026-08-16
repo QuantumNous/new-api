@@ -33,9 +33,9 @@ import {
 } from '../constants'
 import { modelsQueryKeys, vendorsQueryKeys } from '../lib'
 import { DataTableBulkActions } from './data-table-bulk-actions'
+import { ModelsAvailabilitySwitches } from './models-availability-switches'
 import { useModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
-import { ModelsAvailabilitySwitches } from './models-availability-switches'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
@@ -190,9 +190,9 @@ export function ModelsTable() {
   ]
 
   return (
-    <div className='flex h-full min-h-0 flex-col gap-3'>
+    <div className='flex h-full min-h-0 min-w-0 flex-col gap-3'>
       <ModelsAvailabilitySwitches />
-      <div className='min-h-0 flex-1'>
+      <div className='min-h-0 min-w-0 flex-1'>
         <DataTablePage
           table={table}
           columns={columns}

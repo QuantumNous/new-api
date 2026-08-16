@@ -285,15 +285,22 @@ func updateOptionsBulk(values map[string]string, normalizeStoredModelAvailabilit
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if updatesModelAvailability {
+			if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+				if err := tx.Model(&Option{}).
+					Where(commonKeyCol+" = ?", "").
+					UpdateColumn("value", gorm.Expr("value")).Error; err != nil {
+					return err
+				}
+			}
 			delete(normalizedValues, automaticDisableModelOptionKey)
 			delete(normalizedValues, automaticEnableModelOptionKey)
 			disableValue := "false"
 			enableValue := "false"
 			var existingOptions []Option
-			if err := tx.Where("key IN ?", []string{
+			if err := lockForUpdate(tx).Where(commonKeyCol+" IN ?", []string{
 				automaticDisableModelOptionKey,
 				automaticEnableModelOptionKey,
-			}).Find(&existingOptions).Error; err != nil {
+			}).Order(commonKeyCol + " ASC").Find(&existingOptions).Error; err != nil {
 				return err
 			}
 			if len(existingOptions) == 0 && !updatesDisableModel && !updatesEnableModel {

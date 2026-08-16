@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type QueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
@@ -40,7 +40,7 @@ export async function handleDeleteVendor(
     if (response.success) {
       toast.success(i18next.t('Vendor deleted successfully'))
       queryClient?.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
-      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.all })
       onSuccess?.()
     } else {
       toast.error(response.message || i18next.t('Failed to delete vendor'))

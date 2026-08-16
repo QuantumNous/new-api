@@ -17,10 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { Dialog } from '@/components/dialog'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -28,6 +31,9 @@ import {
   updateSystemOption,
 } from '@/features/system-settings/api'
 import { getOptionValue } from '@/features/system-settings/hooks/use-system-options'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { modelsQueryKeys } from '../lib'
 
 type AutoModelOptions = {
@@ -43,21 +49,30 @@ const DEFAULT_AUTO_MODEL_OPTIONS: AutoModelOptions = {
 export function ModelsAvailabilitySwitches() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const isRoot = useAuthStore(
+    (state) => state.auth.user?.role === ROLE.SUPER_ADMIN
+  )
 
-  const { data, isLoading } = useQuery({
+  const optionsQuery = useQuery({
     queryKey: ['system-options'],
     queryFn: getSystemOptions,
+    enabled: isRoot,
+    retry: false,
     staleTime: 30 * 1000,
   })
 
   const serverValues = useMemo(
     () =>
-      getOptionValue(data?.data, DEFAULT_AUTO_MODEL_OPTIONS) as AutoModelOptions,
-    [data?.data]
+      getOptionValue(
+        optionsQuery.data?.data,
+        DEFAULT_AUTO_MODEL_OPTIONS
+      ) as AutoModelOptions,
+    [optionsQuery.data?.data]
   )
 
   const [disableEnabled, setDisableEnabled] = useState(false)
   const [enableEnabled, setEnableEnabled] = useState(false)
+  const [disableConfirmOpen, setDisableConfirmOpen] = useState(false)
 
   useEffect(() => {
     setDisableEnabled(serverValues.AutomaticDisableModelEnabled)
@@ -72,140 +87,161 @@ export function ModelsAvailabilitySwitches() {
     onSuccess: (resp, variables) => {
       if (!resp.success) {
         toast.error(resp.message || t('Failed to update setting'))
-        // rollback from server values on next effect; force local rollback now
-        setDisableEnabled(serverValues.AutomaticDisableModelEnabled)
-        setEnableEnabled(serverValues.AutomaticEnableModelEnabled)
         return
       }
       toast.success(t('Setting updated successfully'))
-      queryClient.invalidateQueries({ queryKey: ['system-options'] })
-      queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
-      // keep local state in sync with just-saved key
+      void queryClient.invalidateQueries({ queryKey: ['system-options'] })
+      void queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all })
+
+      const enabled = variables.value === true || variables.value === 'true'
       if (variables.key === 'AutomaticDisableModelEnabled') {
-        setDisableEnabled(variables.value === true || variables.value === 'true')
+        setDisableEnabled(enabled)
+        if (!enabled) setEnableEnabled(false)
       }
       if (variables.key === 'AutomaticEnableModelEnabled') {
-        setEnableEnabled(variables.value === true || variables.value === 'true')
+        setEnableEnabled(enabled)
       }
     },
-    onError: (error: Error, variables) => {
+    onError: (error: Error) => {
       toast.error(error.message || t('Failed to update setting'))
-      if (variables.key === 'AutomaticDisableModelEnabled') {
-        setDisableEnabled(serverValues.AutomaticDisableModelEnabled)
-      }
-      if (variables.key === 'AutomaticEnableModelEnabled') {
-        setEnableEnabled(serverValues.AutomaticEnableModelEnabled)
-      }
     },
   })
 
-  const saving = mutation.isPending || isLoading
+  const saving = mutation.isPending || optionsQuery.isFetching
+  const optionsLoadFailed =
+    optionsQuery.isError || optionsQuery.data?.success === false
 
-  const handleDisableChange = useCallback(
-    (checked: boolean) => {
-      const previousDisable = disableEnabled
-      const previousEnable = enableEnabled
-      setDisableEnabled(checked)
-      if (!checked) {
-        // Paired automation: turning disable off also turns enable off.
-        setEnableEnabled(false)
-      }
-      mutation.mutate(
-        {
-          key: 'AutomaticDisableModelEnabled',
-          value: checked,
-        },
-        {
-          onError: () => {
-            setDisableEnabled(previousDisable)
-            setEnableEnabled(previousEnable)
-          },
-          onSuccess: (resp) => {
-            if (!resp.success) {
-              setDisableEnabled(previousDisable)
-              setEnableEnabled(previousEnable)
-              return
-            }
-            if (!checked && previousEnable) {
-              // Persist paired off for enable; backend also enforces this.
-              mutation.mutate({
-                key: 'AutomaticEnableModelEnabled',
-                value: false,
-              })
-            }
-          },
-        }
-      )
-    },
-    [disableEnabled, enableEnabled, mutation]
-  )
+  const handleDisableChange = (checked: boolean) => {
+    if (checked) {
+      setDisableConfirmOpen(true)
+      return
+    }
+    mutation.mutate({
+      key: 'AutomaticDisableModelEnabled',
+      value: false,
+    })
+  }
 
-  const handleEnableChange = useCallback(
-    (checked: boolean) => {
-      // Enable is only meaningful while disable automation is on.
-      if (checked && !disableEnabled) {
-        setEnableEnabled(false)
-        return
-      }
-      const previous = enableEnabled
-      setEnableEnabled(checked)
-      mutation.mutate(
-        {
-          key: 'AutomaticEnableModelEnabled',
-          value: checked,
+  const handleEnableChange = (checked: boolean) => {
+    if (checked && !disableEnabled) return
+    mutation.mutate({
+      key: 'AutomaticEnableModelEnabled',
+      value: checked,
+    })
+  }
+
+  const handleConfirmDisable = () => {
+    mutation.mutate(
+      {
+        key: 'AutomaticDisableModelEnabled',
+        value: true,
+      },
+      {
+        onSuccess: (resp) => {
+          if (resp.success) setDisableConfirmOpen(false)
         },
-        {
-          onError: () => setEnableEnabled(previous),
-          onSuccess: (resp) => {
-            if (!resp.success) setEnableEnabled(previous)
-          },
-        }
-      )
-    },
-    [disableEnabled, enableEnabled, mutation]
-  )
+      }
+    )
+  }
+
+  if (!isRoot) return null
+
+  if (optionsLoadFailed) {
+    return (
+      <div
+        role='alert'
+        className='border-destructive/40 bg-destructive/5 text-destructive flex min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-sm'
+      >
+        <AlertCircle className='size-4 shrink-0' aria-hidden='true' />
+        <span className='min-w-0 flex-1'>{t('Failed to load')}</span>
+        <Button
+          variant='outline'
+          size='sm'
+          disabled={optionsQuery.isFetching}
+          onClick={() => void optionsQuery.refetch()}
+        >
+          <RefreshCw className='size-4' aria-hidden='true' />
+          {t('Retry')}
+        </Button>
+      </div>
+    )
+  }
 
   return (
-    <div
-      className='grid min-w-0 gap-3 sm:grid-cols-2'
-    >
-      <div className='flex min-w-0 items-center gap-2'>
-        <Label
-          htmlFor='auto-disable-models'
-          className='text-sm leading-snug font-medium'
-        >
-          {t('Auto-disable models with no available channels')}
-        </Label>
-        <Switch
-          id='auto-disable-models'
-          checked={disableEnabled}
-          disabled={saving}
-          onCheckedChange={handleDisableChange}
-          size='sm'
-        />
-      </div>
-
-      {disableEnabled ? (
+    <>
+      <div className='grid min-w-0 gap-3 sm:grid-cols-2'>
         <div className='flex min-w-0 items-center gap-2'>
           <Label
-            htmlFor='auto-enable-models'
-            className='text-sm leading-snug font-medium'
+            htmlFor='auto-disable-models'
+            className='min-w-0 flex-1 text-sm leading-snug font-medium'
           >
-            {t(
-              'Auto-enable models disabled by this setting when a channel recovers'
-            )}
+            {t('Auto-disable models with no available channels')}
           </Label>
           <Switch
-            id='auto-enable-models'
-            checked={enableEnabled}
+            id='auto-disable-models'
+            checked={disableEnabled}
             disabled={saving}
-            onCheckedChange={handleEnableChange}
+            onCheckedChange={handleDisableChange}
             size='sm'
+            className='shrink-0'
           />
         </div>
-      ) : (
-        <div className='hidden sm:block' aria-hidden='true' />
-      )}
-    </div>
+
+        {disableEnabled ? (
+          <div className='flex min-w-0 items-center gap-2'>
+            <Label
+              htmlFor='auto-enable-models'
+              className='min-w-0 flex-1 text-sm leading-snug font-medium'
+            >
+              {t(
+                'Auto-enable models disabled by this setting when a channel recovers'
+              )}
+            </Label>
+            <Switch
+              id='auto-enable-models'
+              checked={enableEnabled}
+              disabled={saving}
+              onCheckedChange={handleEnableChange}
+              size='sm'
+              className='shrink-0'
+            />
+          </div>
+        ) : (
+          <div className='hidden sm:block' aria-hidden='true' />
+        )}
+      </div>
+
+      <Dialog
+        open={disableConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && !mutation.isPending) setDisableConfirmOpen(false)
+        }}
+        title={t('Disable Models with No Channels?')}
+        description={t(
+          'Enabling this setting immediately disables all currently enabled models with no available channels. Turning it off later will not automatically re-enable those models. Continue?'
+        )}
+        contentHeight='auto'
+        footer={
+          <>
+            <Button
+              variant='outline'
+              disabled={mutation.isPending}
+              onClick={() => setDisableConfirmOpen(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              variant='destructive'
+              disabled={mutation.isPending}
+              onClick={handleConfirmDisable}
+            >
+              {t('Enable')}
+            </Button>
+          </>
+        }
+      >
+        {' '}
+      </Dialog>
+    </>
   )
 }

@@ -369,11 +369,14 @@ func UpdateOption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	service.MaybeSyncModelChannelAvailabilityAfterOptionChange(option.Key, option.Value.(string))
 	// 出于安全考虑只记录被修改的配置项名称，不记录配置值（可能含密钥等敏感信息）。
 	recordManageAudit(c, "option.update", map[string]interface{}{
 		"key": option.Key,
 	})
+	if err := service.MaybeSyncModelChannelAvailabilityAfterOptionChange(option.Key, option.Value.(string)); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

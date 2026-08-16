@@ -1,13 +1,17 @@
 package service
 
 import (
+	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func resetModelChannelAvailabilityFixtures(t *testing.T) {
@@ -96,6 +100,13 @@ func loadModel(t *testing.T, id int) model.Model {
 	return m
 }
 
+func requireModelChannelAvailabilitySync(t *testing.T, reason string) ModelChannelAvailabilityResult {
+	t.Helper()
+	result, err := SyncModelChannelAvailability(reason)
+	require.NoError(t, err)
+	return result
+}
+
 func TestSyncModelChannelAvailability_ExactMatchLastChannelFails(t *testing.T) {
 	resetModelChannelAvailabilityFixtures(t)
 	common.AutomaticDisableModelEnabled = true
@@ -104,7 +115,7 @@ func TestSyncModelChannelAvailability_ExactMatchLastChannelFails(t *testing.T) {
 	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
 
 	// still available
-	res := SyncModelChannelAvailability("test")
+	res := requireModelChannelAvailabilitySync(t, "test")
 	assert.Equal(t, 0, res.Disabled)
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
 
@@ -112,7 +123,7 @@ func TestSyncModelChannelAvailability_ExactMatchLastChannelFails(t *testing.T) {
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusManuallyDisabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", false).Error)
 
-	res = SyncModelChannelAvailability("last-channel-down")
+	res = requireModelChannelAvailabilitySync(t, "last-channel-down")
 	assert.Equal(t, 1, res.Disabled)
 	m := loadModel(t, 1)
 	assert.Equal(t, modelStatusDisabled, m.Status)
@@ -130,7 +141,7 @@ func TestSyncModelChannelAvailability_OtherChannelStillAvailable(t *testing.T) {
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusAutoDisabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", false).Error)
 
-	res := SyncModelChannelAvailability("other-channel-ok")
+	res := requireModelChannelAvailabilitySync(t, "other-channel-ok")
 	assert.Equal(t, 0, res.Disabled)
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
 }
@@ -146,7 +157,7 @@ func TestSyncModelChannelAvailability_SoftDeletedChannelNotAvailable(t *testing.
 	require.NoError(t, model.DB.Where("id = ?", 1).Delete(&model.Channel{}).Error)
 	require.NoError(t, model.DB.Where("channel_id = ?", 1).Delete(&model.Ability{}).Error)
 
-	res := SyncModelChannelAvailability("channel-deleted")
+	res := requireModelChannelAvailabilitySync(t, "channel-deleted")
 	assert.Equal(t, 1, res.Disabled)
 	assert.True(t, loadModel(t, 1).AutoDisabledByRule)
 }
@@ -164,7 +175,7 @@ func TestSyncModelChannelAvailability_ManualDisableProtected(t *testing.T) {
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusManuallyDisabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", false).Error)
 
-	res := SyncModelChannelAvailability("manual-disabled")
+	res := requireModelChannelAvailabilitySync(t, "manual-disabled")
 	assert.Equal(t, 0, res.Disabled)
 	assert.Equal(t, 0, res.Enabled)
 	m := loadModel(t, 1)
@@ -174,7 +185,7 @@ func TestSyncModelChannelAvailability_ManualDisableProtected(t *testing.T) {
 	// restore channel; still should not auto-enable manual disable
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusEnabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", true).Error)
-	res = SyncModelChannelAvailability("channel-recovered")
+	res = requireModelChannelAvailabilitySync(t, "channel-recovered")
 	assert.Equal(t, 0, res.Enabled)
 	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
 }
@@ -187,13 +198,13 @@ func TestSyncModelChannelAvailability_RecoverOnlyWhenEnableSwitchOn(t *testing.T
 	createChannelWithModels(t, 1, common.ChannelStatusEnabled, "gpt-4", true)
 	createMetaModel(t, 1, "gpt-4", modelStatusDisabled, model.NameRuleExact, true)
 
-	res := SyncModelChannelAvailability("enable-off")
+	res := requireModelChannelAvailabilitySync(t, "enable-off")
 	assert.Equal(t, 0, res.Enabled)
 	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
 	assert.True(t, loadModel(t, 1).AutoDisabledByRule)
 
 	common.AutomaticEnableModelEnabled = true
-	res = SyncModelChannelAvailability("enable-on")
+	res = requireModelChannelAvailabilitySync(t, "enable-on")
 	assert.Equal(t, 1, res.Enabled)
 	m := loadModel(t, 1)
 	assert.Equal(t, modelStatusEnabled, m.Status)
@@ -207,12 +218,12 @@ func TestSyncModelChannelAvailability_RulePrefixMatch(t *testing.T) {
 	createChannelWithModels(t, 1, common.ChannelStatusEnabled, "gpt-4-turbo", true)
 	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRulePrefix, false)
 
-	res := SyncModelChannelAvailability("prefix-ok")
+	res := requireModelChannelAvailabilitySync(t, "prefix-ok")
 	assert.Equal(t, 0, res.Disabled)
 
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusAutoDisabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", false).Error)
-	res = SyncModelChannelAvailability("prefix-down")
+	res = requireModelChannelAvailabilitySync(t, "prefix-down")
 	assert.Equal(t, 1, res.Disabled)
 }
 
@@ -224,12 +235,12 @@ func TestSyncModelChannelAvailability_RuleContainsAndSuffix(t *testing.T) {
 	createMetaModel(t, 1, "opus", modelStatusEnabled, model.NameRuleContains, false)
 	createMetaModel(t, 2, "-opus", modelStatusEnabled, model.NameRuleSuffix, false)
 
-	res := SyncModelChannelAvailability("rules-ok")
+	res := requireModelChannelAvailabilitySync(t, "rules-ok")
 	assert.Equal(t, 0, res.Disabled)
 
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusManuallyDisabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", false).Error)
-	res = SyncModelChannelAvailability("rules-down")
+	res = requireModelChannelAvailabilitySync(t, "rules-down")
 	assert.Equal(t, 2, res.Disabled)
 }
 
@@ -239,7 +250,7 @@ func TestSyncModelChannelAvailability_MainSwitchOffKeepsMarker(t *testing.T) {
 	common.AutomaticEnableModelEnabled = false
 
 	createMetaModel(t, 1, "gpt-4", modelStatusDisabled, model.NameRuleExact, true)
-	res := SyncModelChannelAvailability("both-off")
+	res := requireModelChannelAvailabilitySync(t, "both-off")
 	assert.True(t, res.Skipped)
 	m := loadModel(t, 1)
 	assert.Equal(t, modelStatusDisabled, m.Status)
@@ -251,18 +262,24 @@ func TestSyncModelChannelAvailability_IdempotentDisable(t *testing.T) {
 	common.AutomaticDisableModelEnabled = true
 
 	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
-	res1 := SyncModelChannelAvailability("first")
+	res1 := requireModelChannelAvailabilitySync(t, "first")
 	assert.Equal(t, 1, res1.Disabled)
-	res2 := SyncModelChannelAvailability("second")
+	res2 := requireModelChannelAvailabilitySync(t, "second")
 	assert.Equal(t, 0, res2.Disabled)
 	assert.True(t, loadModel(t, 1).AutoDisabledByRule)
 }
 
-func TestClearModelAutoDisabledByRule(t *testing.T) {
+func TestModelUpdateClearsAutoDisabledMarkerWithStatusChange(t *testing.T) {
 	resetModelChannelAvailabilityFixtures(t)
 	createMetaModel(t, 1, "gpt-4", modelStatusDisabled, model.NameRuleExact, true)
-	ClearModelAutoDisabledByRule(1)
-	assert.False(t, loadModel(t, 1).AutoDisabledByRule)
+
+	updated := loadModel(t, 1)
+	updated.Status = modelStatusEnabled
+	require.NoError(t, updated.Update())
+
+	persisted := loadModel(t, 1)
+	assert.Equal(t, modelStatusEnabled, persisted.Status)
+	assert.False(t, persisted.AutoDisabledByRule)
 }
 
 func TestMaybeSyncModelChannelAvailabilityAfterOptionChange(t *testing.T) {
@@ -270,10 +287,10 @@ func TestMaybeSyncModelChannelAvailabilityAfterOptionChange(t *testing.T) {
 	common.AutomaticDisableModelEnabled = true
 	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
 
-	MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "false")
+	require.NoError(t, MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "false"))
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
 
-	MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "true")
+	require.NoError(t, MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "true"))
 	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
 	assert.True(t, loadModel(t, 1).AutoDisabledByRule)
 }
@@ -285,7 +302,7 @@ func TestSyncModelChannelAvailability_AbilityDisabledChannelEnabledNotAvailable(
 	createChannelWithModels(t, 1, common.ChannelStatusEnabled, "gpt-4", false)
 	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
 
-	res := SyncModelChannelAvailability("ability-disabled")
+	res := requireModelChannelAvailabilitySync(t, "ability-disabled")
 	assert.Equal(t, 1, res.Disabled)
 }
 
@@ -299,13 +316,13 @@ func TestSyncModelChannelAvailability_ChannelLifecycleIntegration(t *testing.T) 
 	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
 	createMetaModel(t, 2, "gpt-4-", modelStatusEnabled, model.NameRulePrefix, false)
 
-	res := SyncModelChannelAvailability("channel.create")
+	res := requireModelChannelAvailabilitySync(t, "channel.create")
 	assert.Equal(t, 0, res.Disabled)
 
 	// edit models list removes exact model binding (channel.update models)
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("models", "gpt-4-turbo").Error)
 	require.NoError(t, model.DB.Where("channel_id = ? AND model = ?", 1, "gpt-4").Delete(&model.Ability{}).Error)
-	res = SyncModelChannelAvailability("channel.update")
+	res = requireModelChannelAvailabilitySync(t, "channel.update")
 	assert.Equal(t, 1, res.Disabled)
 	assert.True(t, loadModel(t, 1).AutoDisabledByRule)
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 2).Status) // prefix still matches gpt-4-turbo
@@ -313,28 +330,28 @@ func TestSyncModelChannelAvailability_ChannelLifecycleIntegration(t *testing.T) 
 	// status disable channel (channel.status_update / tag / batch)
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusManuallyDisabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", false).Error)
-	res = SyncModelChannelAvailability("channel.status_update")
+	res = requireModelChannelAvailabilitySync(t, "channel.status_update")
 	assert.Equal(t, 1, res.Disabled) // prefix model now also disabled
 	assert.True(t, loadModel(t, 2).AutoDisabledByRule)
 
 	// system auto enable channel recovery
 	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("status", common.ChannelStatusEnabled).Error)
 	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", 1).Update("enabled", true).Error)
-	res = SyncModelChannelAvailability("channel.auto_enable")
+	res = requireModelChannelAvailabilitySync(t, "channel.auto_enable")
 	assert.Equal(t, 1, res.Enabled) // only models with available exact names recover (prefix)
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 2).Status)
 	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status) // gpt-4 still no exact ability
 
 	// re-add ability for gpt-4 via recreate ability then recover
 	require.NoError(t, model.DB.Create(&model.Ability{Group: "default", Model: "gpt-4", ChannelId: 1, Enabled: true}).Error)
-	res = SyncModelChannelAvailability("channel.update")
+	res = requireModelChannelAvailabilitySync(t, "channel.update")
 	assert.Equal(t, 1, res.Enabled)
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
 
 	// delete channel
 	require.NoError(t, model.DB.Where("id = ?", 1).Delete(&model.Channel{}).Error)
 	require.NoError(t, model.DB.Where("channel_id = ?", 1).Delete(&model.Ability{}).Error)
-	res = SyncModelChannelAvailability("channel.delete")
+	res = requireModelChannelAvailabilitySync(t, "channel.delete")
 	assert.Equal(t, 2, res.Disabled)
 }
 
@@ -345,11 +362,11 @@ func TestSyncModelChannelAvailability_FullCalibrationOnSwitch(t *testing.T) {
 	createMetaModel(t, 2, "already-off", modelStatusDisabled, model.NameRuleExact, false)
 
 	common.AutomaticDisableModelEnabled = false
-	res := SyncModelChannelAvailability("before")
+	res := requireModelChannelAvailabilitySync(t, "before")
 	assert.True(t, res.Skipped)
 
 	common.AutomaticDisableModelEnabled = true
-	MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "true")
+	require.NoError(t, MaybeSyncModelChannelAvailabilityAfterOptionChange("AutomaticDisableModelEnabled", "true"))
 	m1 := loadModel(t, 1)
 	assert.Equal(t, modelStatusDisabled, m1.Status)
 	assert.True(t, m1.AutoDisabledByRule)
@@ -368,13 +385,13 @@ func TestSyncModelChannelAvailability_EnableRequiresDisableSwitch(t *testing.T) 
 	createChannelWithModels(t, 1, common.ChannelStatusEnabled, "gpt-4", true)
 	createMetaModel(t, 1, "gpt-4", modelStatusDisabled, model.NameRuleExact, true)
 
-	res := SyncModelChannelAvailability("enable-without-disable")
+	res := requireModelChannelAvailabilitySync(t, "enable-without-disable")
 	assert.True(t, res.Skipped)
 	assert.Equal(t, 0, res.Enabled)
 	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
 
 	common.AutomaticDisableModelEnabled = true
-	res = SyncModelChannelAvailability("enable-with-disable")
+	res = requireModelChannelAvailabilitySync(t, "enable-with-disable")
 	assert.Equal(t, 1, res.Enabled)
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
 }
@@ -386,13 +403,18 @@ func TestManualEnableModelsWithChannels_OnlyAutoDisabled(t *testing.T) {
 	createMetaModel(t, 1, "gpt-4", modelStatusDisabled, model.NameRuleExact, true)
 	// manually disabled with channels available
 	createMetaModel(t, 2, "claude-3", modelStatusDisabled, model.NameRuleExact, false)
+	// enabled with no channel; the manual enable action must not disable it.
+	createMetaModel(t, 3, "o3", modelStatusEnabled, model.NameRuleExact, false)
 
-	res := ManualEnableModelsWithChannels()
+	res, err := ManualEnableModelsWithChannels()
+	require.NoError(t, err)
+	assert.Equal(t, 0, res.Disabled)
 	assert.Equal(t, 1, res.Enabled)
 	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
 	assert.True(t, loadModel(t, 1).AutoDisabledByRule)
 	assert.Equal(t, modelStatusDisabled, loadModel(t, 2).Status)
 	assert.False(t, loadModel(t, 2).AutoDisabledByRule)
+	assert.Equal(t, modelStatusEnabled, loadModel(t, 3).Status)
 }
 
 func TestUpdateOptionPairsEnableOffWhenDisableOff(t *testing.T) {
@@ -459,4 +481,130 @@ func TestInitOptionMapNormalizesStoredModelAvailabilityPair(t *testing.T) {
 	require.Len(t, options, 2)
 	assert.Equal(t, "false", options[0].Value)
 	assert.Equal(t, "false", options[1].Value)
+}
+
+func TestSyncModelChannelAvailability_MultiKeyRequiresEnabledKey(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	common.AutomaticDisableModelEnabled = true
+	common.AutomaticEnableModelEnabled = true
+
+	channel := &model.Channel{
+		Id:     1,
+		Type:   1,
+		Key:    "key-a\nkey-b",
+		Status: common.ChannelStatusEnabled,
+		Name:   "multi-key-channel",
+		Models: "gpt-4",
+		Group:  "default",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:         true,
+			MultiKeySize:       2,
+			MultiKeyStatusList: map[int]int{0: 2, 1: 3},
+		},
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group: "default", Model: "gpt-4", ChannelId: channel.Id, Enabled: true,
+	}).Error)
+	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
+
+	result := requireModelChannelAvailabilitySync(t, "all-keys-disabled")
+	assert.Equal(t, 1, result.Disabled)
+	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
+
+	delete(channel.ChannelInfo.MultiKeyStatusList, 0)
+	require.NoError(t, channel.SaveChannelInfo())
+	result = requireModelChannelAvailabilitySync(t, "key-reenabled")
+	assert.Equal(t, 1, result.Enabled)
+	assert.Equal(t, modelStatusEnabled, loadModel(t, 1).Status)
+}
+
+func TestSyncModelChannelAvailability_MultiKeyBlankEntriesAreUnavailable(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	common.AutomaticDisableModelEnabled = true
+
+	channel := &model.Channel{
+		Id:     1,
+		Type:   1,
+		Key:    "   \n\t",
+		Status: common.ChannelStatusEnabled,
+		Name:   "blank-multi-key-channel",
+		Models: "gpt-4",
+		Group:  "default",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group: "default", Model: "gpt-4", ChannelId: channel.Id, Enabled: true,
+	}).Error)
+	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
+
+	result := requireModelChannelAvailabilitySync(t, "blank-keys")
+	assert.Equal(t, 1, result.Disabled)
+	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
+}
+
+func TestStartupCalibrationUsesPersistedOptions(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	common.AutomaticDisableModelEnabled = false
+	common.AutomaticEnableModelEnabled = false
+	require.NoError(t, model.DB.Create(&[]model.Option{
+		{Key: "AutomaticDisableModelEnabled", Value: "true"},
+		{Key: "AutomaticEnableModelEnabled", Value: "false"},
+	}).Error)
+	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
+
+	require.NoError(t, CalibrateModelChannelAvailabilityAtStartup())
+	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
+}
+
+func TestSyncModelChannelAvailability_ReturnsDatabaseError(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	common.AutomaticDisableModelEnabled = true
+
+	forcedErr := errors.New("forced database failure")
+	callbackName := "test:fail-model-availability-query"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		tx.AddError(forcedErr)
+	}))
+	t.Cleanup(func() { _ = model.DB.Callback().Query().Remove(callbackName) })
+
+	_, err := SyncModelChannelAvailability("database-error")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, forcedErr)
+}
+
+func TestSyncModelChannelAvailabilityAfterMutationRetriesWithoutFailingCommittedOperation(t *testing.T) {
+	resetModelChannelAvailabilityFixtures(t)
+	common.AutomaticDisableModelEnabled = true
+	createMetaModel(t, 1, "gpt-4", modelStatusEnabled, model.NameRuleExact, false)
+
+	var modelQueries atomic.Int32
+	forcedErr := errors.New("transient model query failure")
+	callbackName := "test:fail-first-model-availability-query"
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "models" && modelQueries.Add(1) == 1 {
+			tx.AddError(forcedErr)
+		}
+	}))
+	t.Cleanup(func() { _ = model.DB.Callback().Query().Remove(callbackName) })
+
+	result := SyncModelChannelAvailabilityAfterMutation("committed-model-create")
+	assert.Zero(t, result.Disabled)
+	assert.Equal(t, "gpt-4", loadModel(t, 1).ModelName)
+	retryDone := make(chan struct{})
+	go func() {
+		modelChannelAvailabilityRetryPending.Wait()
+		close(retryDone)
+	}()
+	select {
+	case <-retryDone:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for model availability retry")
+	}
+	assert.Equal(t, modelStatusDisabled, loadModel(t, 1).Status)
+	assert.GreaterOrEqual(t, modelQueries.Load(), int32(2))
 }

@@ -456,6 +456,10 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'model.update': 'Updated a model',
   'model.delete': 'Deleted a model',
   'model.sync_upstream': 'Synced upstream models',
+  'model.batch_status_update': 'Updated model statuses in batch',
+  'model.batch_disable_no_channels': 'Batch Disable Models with No Channels',
+  'model.batch_enable_with_channels':
+    'Batch Enable Models with Recovered Channels',
   // Deployments
   'deployment.create': 'Created a deployment',
   'deployment.update': 'Updated a deployment',

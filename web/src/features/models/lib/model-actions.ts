@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type QueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
 import {
   updateModelStatus,
+  batchUpdateModelStatus,
   deleteModel as deleteModelAPI,
   batchDisableModelsNoChannels,
   batchEnableModelsWithChannels,
@@ -43,8 +44,10 @@ export async function handleEnableModel(
   try {
     const response = await updateModelStatus(id, 1)
     if (response.success) {
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.all })
+    }
+    if (response.success && response.data?.status === 1) {
       toast.success(i18next.t('Model enabled successfully'))
-      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     } else {
       toast.error(response.message || i18next.t('Failed to enable model'))
@@ -67,8 +70,10 @@ export async function handleDisableModel(
   try {
     const response = await updateModelStatus(id, 0)
     if (response.success) {
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.all })
+    }
+    if (response.success && response.data?.status === 0) {
       toast.success(i18next.t('Model disabled successfully'))
-      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     } else {
       toast.error(response.message || i18next.t('Failed to disable model'))
@@ -112,7 +117,7 @@ export async function handleDeleteModel(
     const response = await deleteModelAPI(id)
     if (response.success) {
       toast.success(i18next.t('Model deleted successfully'))
-      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.all })
       onSuccess?.()
     } else {
       toast.error(response.message || i18next.t('Failed to delete model'))
@@ -160,7 +165,7 @@ export async function handleBatchDeleteModels(
           count: successCount,
         })
       )
-      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.all })
       onSuccess?.(successCount)
     }
 
@@ -192,19 +197,14 @@ export async function handleBatchEnableModels(
   }
 
   try {
-    const enablePromises = ids.map((id) => updateModelStatus(id, 1))
-    const results = await Promise.all(enablePromises)
-
-    let successCount = 0
-    let failedCount = 0
-
-    results.forEach((res) => {
-      if (res.success) {
-        successCount++
-      } else {
-        failedCount++
-      }
-    })
+    const response = await batchUpdateModelStatus(ids, 1)
+    if (!response.success) {
+      toast.error(response.message || i18next.t('Batch enable failed'))
+      return
+    }
+    queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.all })
+    const successCount = response.data?.updated ?? 0
+    const failedCount = response.data?.failed_ids.length ?? ids.length
 
     if (successCount > 0) {
       toast.success(
@@ -212,7 +212,6 @@ export async function handleBatchEnableModels(
           count: successCount,
         })
       )
-      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     }
 
@@ -240,19 +239,14 @@ export async function handleBatchDisableModels(
   }
 
   try {
-    const disablePromises = ids.map((id) => updateModelStatus(id, 0))
-    const results = await Promise.all(disablePromises)
-
-    let successCount = 0
-    let failedCount = 0
-
-    results.forEach((res) => {
-      if (res.success) {
-        successCount++
-      } else {
-        failedCount++
-      }
-    })
+    const response = await batchUpdateModelStatus(ids, 0)
+    if (!response.success) {
+      toast.error(response.message || i18next.t('Batch disable failed'))
+      return
+    }
+    queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.all })
+    const successCount = response.data?.updated ?? 0
+    const failedCount = response.data?.failed_ids.length ?? ids.length
 
     if (successCount > 0) {
       toast.success(
@@ -260,7 +254,6 @@ export async function handleBatchDisableModels(
           count: successCount,
         })
       )
-      queryClient?.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
       onSuccess?.()
     }
 
@@ -298,7 +291,7 @@ async function runBatchChannelAvailabilityAction(options: {
   catchMessageKey: string
   queryClient?: QueryClient
   onSuccess?: (count: number) => void
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     const response = await options.action()
     if (response.success) {
@@ -309,14 +302,17 @@ async function runBatchChannelAvailabilityAction(options: {
         toast.info(i18next.t(options.emptyMessageKey))
       }
       options.queryClient?.invalidateQueries({
-        queryKey: modelsQueryKeys.lists(),
+        queryKey: modelsQueryKeys.all,
       })
       options.onSuccess?.(count)
-    } else {
-      toast.error(response.message || i18next.t(options.failureMessageKey))
+      return true
     }
+
+    toast.error(response.message || i18next.t(options.failureMessageKey))
+    return false
   } catch (error: unknown) {
     toast.error((error as Error)?.message || i18next.t(options.catchMessageKey))
+    return false
   }
 }
 
@@ -326,8 +322,8 @@ async function runBatchChannelAvailabilityAction(options: {
 export async function handleBatchDisableModelsNoChannels(
   queryClient?: QueryClient,
   onSuccess?: (disabledCount: number) => void
-): Promise<void> {
-  await runBatchChannelAvailabilityAction({
+): Promise<boolean> {
+  return runBatchChannelAvailabilityAction({
     action: batchDisableModelsNoChannels,
     getCount: (data) => data?.disabled ?? 0,
     successMessageKey:
@@ -346,8 +342,8 @@ export async function handleBatchDisableModelsNoChannels(
 export async function handleBatchEnableModelsWithChannels(
   queryClient?: QueryClient,
   onSuccess?: (enabledCount: number) => void
-): Promise<void> {
-  await runBatchChannelAvailabilityAction({
+): Promise<boolean> {
+  return runBatchChannelAvailabilityAction({
     action: batchEnableModelsWithChannels,
     getCount: (data) => data?.enabled ?? 0,
     successMessageKey:

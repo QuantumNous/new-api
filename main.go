@@ -100,6 +100,10 @@ func main() {
 
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
+	if err := service.CalibrateModelChannelAvailabilityAtStartup(); err != nil {
+		common.FatalLog("failed to calibrate model channel availability at startup: " + err.Error())
+		return
+	}
 
 	// Warm pricing after channel cache initialization so Advanced Custom
 	// endpoint inference can read cached route settings on first request.

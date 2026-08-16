@@ -96,8 +96,23 @@ export async function updateModel(
 export async function updateModelStatus(
   id: number,
   status: number
-): Promise<{ success: boolean; message?: string }> {
+): Promise<{ success: boolean; message?: string; data?: Model }> {
   const res = await api.put('/api/models/?status_only=true', { id, status })
+  return res.data
+}
+
+/**
+ * Update up to 100 model statuses in one request and one reconciliation pass.
+ */
+export async function batchUpdateModelStatus(
+  ids: number[],
+  status: number
+): Promise<{
+  success: boolean
+  message?: string
+  data?: { updated: number; failed_ids: number[] }
+}> {
+  const res = await api.post('/api/models/batch_status', { ids, status })
   return res.data
 }
 

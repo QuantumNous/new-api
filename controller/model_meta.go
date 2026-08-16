@@ -2,16 +2,19 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GetAllModelsMeta 获取模型列表（分页）
@@ -111,11 +114,28 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	res := service.SyncModelChannelAvailability("model.create")
+	res := service.SyncModelChannelAvailabilityAfterMutation("model.create")
 	if !res.PricingRefreshed {
 		model.RefreshPricing()
 	}
+	if err := reloadModelMetaAfterMutation(&m); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, &m)
+}
+
+func reloadModelMetaAfterMutation(current *model.Model) error {
+	if current == nil || current.Id == 0 {
+		return nil
+	}
+	var persisted model.Model
+	if err := model.DB.First(&persisted, current.Id).Error; err != nil {
+		common.SysError(fmt.Sprintf("failed to reload model metadata after mutation: id=%d err=%v", current.Id, err))
+		return fmt.Errorf("reload model metadata after mutation: %w", err)
+	}
+	*current = persisted
+	return nil
 }
 
 // UpdateModelMeta 更新模型
@@ -134,18 +154,34 @@ func UpdateModelMeta(c *gin.Context) {
 
 	if statusOnly {
 		// 只更新状态，防止误清空其他字段
-		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Updates(map[string]interface{}{
+		updateResult := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Updates(map[string]interface{}{
 			"status":                m.Status,
 			"auto_disabled_by_rule": false,
 			"updated_time":          common.GetTimestamp(),
-		}).Error; err != nil {
-			common.ApiError(c, err)
+		})
+		if updateResult.Error != nil {
+			common.ApiError(c, updateResult.Error)
 			return
 		}
+		if updateResult.RowsAffected == 0 {
+			var count int64
+			if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Count(&count).Error; err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			if count == 0 {
+				common.ApiError(c, gorm.ErrRecordNotFound)
+				return
+			}
+		}
 		// Re-evaluate immediately so auto-disable can correct a manual enable without channels.
-		res := service.SyncModelChannelAvailability("model.status_update")
+		res := service.SyncModelChannelAvailabilityAfterMutation("model.status_update")
 		if !res.PricingRefreshed {
 			model.RefreshPricing()
+		}
+		if err := reloadModelMetaAfterMutation(&m); err != nil {
+			common.ApiError(c, err)
+			return
 		}
 		common.ApiSuccess(c, &m)
 		return
@@ -160,31 +196,92 @@ func UpdateModelMeta(c *gin.Context) {
 		return
 	}
 
-	// Preserve previous status to detect explicit status changes.
-	var prev model.Model
-	_ = model.DB.Select("id", "status", "model_name", "name_rule").Where("id = ?", m.Id).First(&prev).Error
-
 	if err := m.Update(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	// Admin explicitly changed status via metadata editor -> clear auto-disable marker.
-	// Other metadata edits do not clear the marker.
-	pricingRefreshed := false
-	if prev.Id != 0 && prev.Status != m.Status {
-		service.ClearModelAutoDisabledByRule(m.Id)
-		res := service.SyncModelChannelAvailability("model.status_update")
-		pricingRefreshed = res.PricingRefreshed
-	}
-	// Name/rule changes can alter availability matching.
-	if prev.Id == 0 || prev.ModelName != m.ModelName || prev.NameRule != m.NameRule {
-		res := service.SyncModelChannelAvailability("model.update")
-		pricingRefreshed = pricingRefreshed || res.PricingRefreshed
-	}
-	if !pricingRefreshed {
+	res := service.SyncModelChannelAvailabilityAfterMutation("model.update")
+	if !res.PricingRefreshed {
 		model.RefreshPricing()
 	}
+	if err := reloadModelMetaAfterMutation(&m); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, &m)
+}
+
+type batchUpdateModelStatusRequest struct {
+	Ids    []int `json:"ids"`
+	Status int   `json:"status"`
+}
+
+// BatchUpdateModelStatus updates selected models and reconciles channel
+// availability once for the whole batch.
+func BatchUpdateModelStatus(c *gin.Context) {
+	req := batchUpdateModelStatusRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 || (req.Status != 0 && req.Status != 1) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if len(req.Ids) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
+		return
+	}
+
+	ids := make([]int, 0, len(req.Ids))
+	seen := make(map[int]struct{}, len(req.Ids))
+	for _, id := range req.Ids {
+		if id <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	if err := model.DB.Model(&model.Model{}).
+		Where("id IN ?", ids).
+		Updates(map[string]interface{}{
+			"status":                req.Status,
+			"auto_disabled_by_rule": false,
+			"updated_time":          common.GetTimestamp(),
+		}).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	res := service.SyncModelChannelAvailabilityAfterMutation("model.status_update_batch")
+	if !res.PricingRefreshed {
+		model.RefreshPricing()
+	}
+
+	var persisted []model.Model
+	if err := model.DB.Select("id", "status").Where("id IN ?", ids).Find(&persisted).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	statusByID := make(map[int]int, len(persisted))
+	for i := range persisted {
+		statusByID[persisted[i].Id] = persisted[i].Status
+	}
+	updated := 0
+	failedIds := make([]int, 0)
+	for _, id := range ids {
+		if status, ok := statusByID[id]; ok && status == req.Status {
+			updated++
+			continue
+		}
+		failedIds = append(failedIds, id)
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"updated":    updated,
+		"failed_ids": failedIds,
+	})
 }
 
 // DeleteModelMeta 删除模型
@@ -199,7 +296,7 @@ func DeleteModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	res := service.SyncModelChannelAvailability("model.delete")
+	res := service.SyncModelChannelAvailabilityAfterMutation("model.delete")
 	if !res.PricingRefreshed {
 		model.RefreshPricing()
 	}
@@ -377,7 +474,11 @@ func enrichModels(models []*model.Model) {
 
 // BatchDisableModelsNoChannels 批量禁用无可用渠道的模型
 func BatchDisableModelsNoChannels(c *gin.Context) {
-	result := service.ManualDisableModelsWithoutChannels()
+	result, err := service.ManualDisableModelsWithoutChannels()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, gin.H{
 		"disabled": result.Disabled,
 		"enabled":  result.Enabled,
@@ -388,7 +489,11 @@ func BatchDisableModelsNoChannels(c *gin.Context) {
 
 // BatchEnableModelsWithChannels 批量启用：仅恢复被渠道可用性规则自动禁用、且现已有可用渠道的模型
 func BatchEnableModelsWithChannels(c *gin.Context) {
-	result := service.ManualEnableModelsWithChannels()
+	result, err := service.ManualEnableModelsWithChannels()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	common.ApiSuccess(c, gin.H{
 		"disabled": result.Disabled,
 		"enabled":  result.Enabled,

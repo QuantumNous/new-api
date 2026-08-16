@@ -417,7 +417,7 @@ export function UpstreamConflictDialog({
 
       if (response.success) {
         toast.success(t('Selected conflicts were overwritten successfully.'))
-        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.all })
         queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
         setUpstreamConflicts([])
         onOpenChange(false)

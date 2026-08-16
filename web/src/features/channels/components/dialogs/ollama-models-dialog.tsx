@@ -47,7 +47,7 @@ import {
   fetchUpstreamModels,
   updateChannel,
 } from '../../api'
-import { channelsQueryKeys, parseModelsString } from '../../lib'
+import { invalidateChannelMutationQueries, parseModelsString } from '../../lib'
 import {
   formatBytes,
   normalizeOllamaModels,
@@ -214,7 +214,7 @@ export function OllamaModelsDialog({
             ? t('Models updated successfully')
             : t('Models appended successfully')
         )
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        void invalidateChannelMutationQueries(queryClient)
       } else {
         toast.error(res.message || t('Failed to update models'))
       }
@@ -305,9 +305,7 @@ export function OllamaModelsDialog({
               setPullProgress(null)
               pullAbortRef.current = null
               await fetchOllamaModels()
-              queryClient.invalidateQueries({
-                queryKey: channelsQueryKeys.lists(),
-              })
+              await invalidateChannelMutationQueries(queryClient)
               return
             }
           } catch {
@@ -320,7 +318,7 @@ export function OllamaModelsDialog({
       setPullProgress(null)
       pullAbortRef.current = null
       await fetchOllamaModels()
-      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      await invalidateChannelMutationQueries(queryClient)
     } catch (err: unknown) {
       const isAbort =
         typeof err === 'object' &&
@@ -348,7 +346,7 @@ export function OllamaModelsDialog({
       if (payload?.success) {
         toast.success(t('Model deleted'))
         await fetchOllamaModels()
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+        await invalidateChannelMutationQueries(queryClient)
         setDeleteOpen(false)
         setDeleteTarget(null)
       } else {

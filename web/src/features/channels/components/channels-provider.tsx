@@ -27,7 +27,7 @@ import React, {
 } from 'react'
 
 import { useChannelUpstreamUpdates } from '../hooks/use-channel-upstream-updates'
-import { channelsQueryKeys } from '../lib'
+import { invalidateChannelMutationQueries } from '../lib'
 import type { Channel } from '../types'
 
 // ============================================================================
@@ -94,7 +94,7 @@ export function ChannelsProvider({ children }: { children: React.ReactNode }) {
 
   const queryClient = useQueryClient()
   const refreshChannels = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: channelsQueryKeys.all })
+    await invalidateChannelMutationQueries(queryClient)
   }, [queryClient])
   const upstream = useChannelUpstreamUpdates(refreshChannels)
 

@@ -457,7 +457,7 @@ func SyncUpstreamModels(c *gin.Context) {
 	}
 
 	if createdModels > 0 || updatedModels > 0 {
-		res := service.SyncModelChannelAvailability("model.sync_upstream")
+		res := service.SyncModelChannelAvailabilityAfterMutation("model.sync_upstream")
 		// Rebuild pricing for new/updated metadata unless sync already did.
 		if !res.PricingRefreshed {
 			model.RefreshPricing()

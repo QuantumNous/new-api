@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
   MoreHorizontal,
@@ -28,7 +29,6 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
@@ -41,21 +41,26 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import { useModels } from './models-provider'
 import {
   handleBatchDisableModelsNoChannels,
   handleBatchEnableModelsWithChannels,
 } from '../lib/model-actions'
+import { useModels } from './models-provider'
 
 type ConfirmAction = 'disable-no-channels' | 'enable-with-channels'
+
+type ConfirmDialogConfig = {
+  title: string
+  description: string
+  confirmLabel: string
+  variant: 'default' | 'destructive'
+}
 
 export function ModelsPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useModels()
   const queryClient = useQueryClient()
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(
-    null
-  )
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const [confirming, setConfirming] = useState(false)
 
   const handleCreateModel = () => {
@@ -79,37 +84,38 @@ export function ModelsPrimaryButtons() {
     setOpen('create-vendor') // Will be a separate vendors management dialog
   }
 
-  const confirmDialog =
-    confirmAction === 'disable-no-channels'
-      ? {
-          title: t('Disable Models with No Channels?'),
-          description: t(
-            'This will disable all currently enabled models that have no available channels. Continue?'
-          ),
-          confirmLabel: t('Disable'),
-          variant: 'destructive' as const,
-        }
-      : confirmAction === 'enable-with-channels'
-        ? {
-            title: t('Enable Models with Recovered Channels?'),
-            description: t(
-              'This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?'
-            ),
-            confirmLabel: t('Enable'),
-            variant: 'default' as const,
-          }
-        : null
+  let confirmDialog: ConfirmDialogConfig | null = null
+  if (confirmAction === 'disable-no-channels') {
+    confirmDialog = {
+      title: t('Disable Models with No Channels?'),
+      description: t(
+        'This will disable all currently enabled models that have no available channels. Continue?'
+      ),
+      confirmLabel: t('Disable'),
+      variant: 'destructive',
+    }
+  } else if (confirmAction === 'enable-with-channels') {
+    confirmDialog = {
+      title: t('Enable Models with Recovered Channels?'),
+      description: t(
+        'This will enable models that were auto-disabled by channel availability and now have recovered channels. Manually disabled models are not changed. Continue?'
+      ),
+      confirmLabel: t('Enable'),
+      variant: 'default',
+    }
+  }
 
   const handleConfirm = async () => {
     if (!confirmAction || confirming) return
     setConfirming(true)
     try {
+      let succeeded = false
       if (confirmAction === 'disable-no-channels') {
-        await handleBatchDisableModelsNoChannels(queryClient)
+        succeeded = await handleBatchDisableModelsNoChannels(queryClient)
       } else {
-        await handleBatchEnableModelsWithChannels(queryClient)
+        succeeded = await handleBatchEnableModelsWithChannels(queryClient)
       }
-      setConfirmAction(null)
+      if (succeeded) setConfirmAction(null)
     } finally {
       setConfirming(false)
     }
