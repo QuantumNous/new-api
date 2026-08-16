@@ -171,8 +171,9 @@ func SetApiRouter(router *gin.Engine) {
 				inviteRoute.GET("/self", controller.NextGetInvite)
 				// Dual endpoint with POST /api/user/aff_transfer; both delegate
 				// to user.TransferAffQuotaToQuota, so only the request/response
-				// shapes differ.
-				inviteRoute.POST("/transfer", controller.NextTransferInviteQuota)
+				// shapes differ. Reuse the same user limiter scope so callers
+				// cannot alternate between the React and Vue routes.
+				inviteRoute.POST("/transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.NextTransferInviteQuota)
 			}
 			activityRoute := nextRoute.Group("/activity")
 			{
