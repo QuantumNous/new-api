@@ -1009,6 +1009,35 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	return "", nil
 }
 
+// AdminDeleteSubscriptionPlan removes a plan. Plans that still have user
+// subscription records are kept so historical subscriptions never lose their
+// plan reference; those subscriptions have to be removed first.
+func AdminDeleteSubscriptionPlan(planId int) error {
+	if planId <= 0 {
+		return errors.New("invalid planId")
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var plan SubscriptionPlan
+		if err := lockForUpdate(tx).Where("id = ?", planId).First(&plan).Error; err != nil {
+			return err
+		}
+		var subscriptionCount int64
+		if err := tx.Model(&UserSubscription{}).
+			Where("plan_id = ?", planId).Count(&subscriptionCount).Error; err != nil {
+			return err
+		}
+		if subscriptionCount > 0 {
+			return errors.New("该订阅计划仍存在用户订阅记录，请先删除相关订阅")
+		}
+		return tx.Where("id = ?", planId).Delete(&SubscriptionPlan{}).Error
+	})
+	if err != nil {
+		return err
+	}
+	InvalidateSubscriptionPlanCache(planId)
+	return nil
+}
+
 func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64, advanceResetTime bool) error {
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")

@@ -84,6 +84,12 @@ export function PlaygroundInput(props: PlaygroundInputProps) {
   const [text, setText] = useState('')
   const isImageMode = props.config.mode === PLAYGROUND_MODES.IMAGE
 
+  const appendText = (snippet: string) => {
+    setText(
+      (current) => (current.trim() ? `${current.trim()}\n\n` : '') + snippet
+    )
+  }
+
   const handleSubmit = (message: PromptInputMessage) => {
     const submittableText = getSubmittableInputText(message, props.disabled)
 
@@ -154,6 +160,7 @@ export function PlaygroundInput(props: PlaygroundInputProps) {
               <PlaygroundInputTools
                 config={props.config}
                 disabled={props.disabled}
+                onAppendText={appendText}
                 onConfigChange={props.onConfigChange}
                 onModeChange={props.onModeChange}
                 onNewChat={props.onNewChat}

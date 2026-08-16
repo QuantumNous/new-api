@@ -5281,6 +5281,27 @@
     "Describe the image you want to generate": "描述你想生成的图片",
     "Image generation failed": "图像生成失败",
     "The model did not return an image": "模型未返回图片",
-    "Attachment": "附件"
+    "Attachment": "附件",
+    "Custom navigation": "自定义导航",
+    "Add custom buttons to the sidebar and header with localized names, icons and content.": "为侧边栏和顶部导航添加自定义按钮，可设置多语言名称、图标和内容。",
+    "No custom navigation items yet.": "暂无自定义导航项。",
+    "Add navigation item": "添加导航项",
+    "Identifier": "标识符",
+    "Placement": "显示位置",
+    "Sidebar category": "侧边栏分类",
+    "Content type": "内容类型",
+    "URL (iframe)": "URL（iframe）",
+    "HTML": "HTML",
+    "Markdown": "Markdown",
+    "Sidebar and header": "侧边栏和顶部导航",
+    "Save custom navigation": "保存自定义导航",
+    "Use lowercase letters, numbers and dashes for the identifier.": "标识符只能使用小写字母、数字和短横线。",
+    "Identifiers must be unique.": "标识符必须唯一。",
+    "Enter a name for at least one language.": "请至少为一种语言填写名称。",
+    "Content is required.": "内容不能为空。",
+    "Content is too long.": "内容过长。",
+    "Enter a valid http(s) URL.": "请输入有效的 http(s) 链接。",
+    "This page is not available.": "此页面不可用。",
+    "Not Found": "未找到"
   }
 }

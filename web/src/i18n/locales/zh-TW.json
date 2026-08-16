@@ -5281,6 +5281,27 @@
     "Describe the image you want to generate": "描述你想生成的圖片",
     "Image generation failed": "圖像生成失敗",
     "The model did not return an image": "模型未返回圖片",
-    "Attachment": "附件"
+    "Attachment": "附件",
+    "Custom navigation": "自訂導覽",
+    "Add custom buttons to the sidebar and header with localized names, icons and content.": "為側邊欄和頂部導覽新增自訂按鈕，可設定多語言名稱、圖示與內容。",
+    "No custom navigation items yet.": "尚無自訂導覽項目。",
+    "Add navigation item": "新增導覽項目",
+    "Identifier": "識別碼",
+    "Placement": "顯示位置",
+    "Sidebar category": "側邊欄分類",
+    "Content type": "內容類型",
+    "URL (iframe)": "URL（iframe）",
+    "HTML": "HTML",
+    "Markdown": "Markdown",
+    "Sidebar and header": "側邊欄與頂部導覽",
+    "Save custom navigation": "儲存自訂導覽",
+    "Use lowercase letters, numbers and dashes for the identifier.": "識別碼僅能使用小寫字母、數字與連字號。",
+    "Identifiers must be unique.": "識別碼必須唯一。",
+    "Enter a name for at least one language.": "請至少為一種語言填寫名稱。",
+    "Content is required.": "內容不可為空。",
+    "Content is too long.": "內容過長。",
+    "Enter a valid http(s) URL.": "請輸入有效的 http(s) 連結。",
+    "This page is not available.": "此頁面不可用。",
+    "Not Found": "未找到"
   }
 }

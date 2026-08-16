@@ -21,6 +21,9 @@ import { z } from 'zod'
 export const STORAGE_VERSION = 1
 export const MAX_STORED_MESSAGES = 100
 export const MAX_STORED_MESSAGES_BYTES = 1024 * 1024
+// Inline images live in their own storage entry, so they get their own budget.
+export const MAX_STORED_IMAGE_BYTES = 1536 * 1024
+export const MAX_STORED_IMAGES_BYTES = 4 * 1024 * 1024
 export const MAX_LOADED_MESSAGES_CHARS = 120_000
 export const MAX_LOADED_MESSAGE_CHARS = 40_000
 
@@ -97,3 +100,5 @@ const messageSchema = z.object({
 })
 
 export const messagesSchema = z.array(messageSchema)
+
+export const imageStoreSchema = z.record(z.string(), z.string())

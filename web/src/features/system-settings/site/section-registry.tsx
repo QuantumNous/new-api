@@ -23,6 +23,11 @@ import {
   serializeHeaderNavModules,
   serializeSidebarModulesAdmin,
 } from '../maintenance/config'
+import {
+  parseCustomNavItems,
+  serializeCustomNavItems,
+} from '../maintenance/custom-nav-config'
+import { CustomNavSection } from '../maintenance/custom-nav-section'
 import { HeaderNavigationSection } from '../maintenance/header-navigation-section'
 import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
@@ -83,6 +88,19 @@ const SITE_SECTIONS = [
         <SidebarModulesSection
           config={sidebarConfig}
           initialSerialized={sidebarSerialized}
+        />
+      )
+    },
+  },
+  {
+    id: 'custom-navigation',
+    titleKey: 'Custom navigation',
+    build: (settings: SiteSettings) => {
+      const customNavItems = parseCustomNavItems(settings.CustomNavItems)
+      return (
+        <CustomNavSection
+          items={customNavItems}
+          initialSerialized={serializeCustomNavItems(customNavItems)}
         />
       )
     },

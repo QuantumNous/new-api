@@ -5281,6 +5281,27 @@
     "Describe the image you want to generate": "Décrivez l'image que vous souhaitez générer",
     "Image generation failed": "La génération d'image a échoué",
     "The model did not return an image": "Le modèle n'a pas renvoyé d'image",
-    "Attachment": "Pièce jointe"
+    "Attachment": "Pièce jointe",
+    "Custom navigation": "Navigation personnalisée",
+    "Add custom buttons to the sidebar and header with localized names, icons and content.": "Ajoutez des boutons personnalisés à la barre latérale et à l'en-tête avec des noms localisés, des icônes et du contenu.",
+    "No custom navigation items yet.": "Aucun élément de navigation personnalisé.",
+    "Add navigation item": "Ajouter un élément de navigation",
+    "Identifier": "Identifiant",
+    "Placement": "Emplacement",
+    "Sidebar category": "Catégorie de la barre latérale",
+    "Content type": "Type de contenu",
+    "URL (iframe)": "URL (iframe)",
+    "HTML": "HTML",
+    "Markdown": "Markdown",
+    "Sidebar and header": "Barre latérale et en-tête",
+    "Save custom navigation": "Enregistrer la navigation personnalisée",
+    "Use lowercase letters, numbers and dashes for the identifier.": "Utilisez des lettres minuscules, des chiffres et des tirets pour l'identifiant.",
+    "Identifiers must be unique.": "Les identifiants doivent être uniques.",
+    "Enter a name for at least one language.": "Saisissez un nom pour au moins une langue.",
+    "Content is required.": "Le contenu est obligatoire.",
+    "Content is too long.": "Le contenu est trop long.",
+    "Enter a valid http(s) URL.": "Saisissez une URL http(s) valide.",
+    "This page is not available.": "Cette page n'est pas disponible.",
+    "Not Found": "Introuvable"
   }
 }

@@ -26,6 +26,13 @@ import {
 import { completeAssistantTiming } from '../message/message-timing-utils'
 import { hasMessageContent } from '../message/message-utils'
 import {
+  extractInlineImages,
+  type ImageStore,
+  resolveInlineImages,
+  stripImageRefs,
+} from './image-store'
+import {
+  imageStoreSchema,
   MAX_LOADED_MESSAGE_CHARS,
   MAX_LOADED_MESSAGES_CHARS,
   MAX_STORED_MESSAGES,
@@ -94,31 +101,31 @@ function trimMessages(messages: Message[]): Message[] {
   return messages.slice(-MAX_STORED_MESSAGES)
 }
 
-/**
- * Inline (data URL) attachments are dropped before persisting: a single
- * screenshot easily exceeds the whole message storage budget, which would
- * make the entire conversation unrecoverable on the next load. Remote URLs
- * are cheap and kept.
- */
-function stripInlineAttachments(messages: Message[]): Message[] {
-  return messages.map((message) => {
-    if (!message.attachments?.length) {
-      return message
+function readImageStore(): ImageStore {
+  try {
+    const saved = readStoredValue(STORAGE_KEYS.IMAGES)
+    if (!saved) return {}
+
+    return imageStoreSchema.parse(unwrapStoredValue(saved))
+  } catch {
+    localStorage.removeItem(STORAGE_KEYS.IMAGES)
+    return {}
+  }
+}
+
+function writeImageStore(images: ImageStore): boolean {
+  try {
+    if (Object.keys(images).length === 0) {
+      localStorage.removeItem(STORAGE_KEYS.IMAGES)
+      return true
     }
 
-    const persistable = message.attachments.filter(
-      (attachment) => !attachment.url.startsWith('data:')
-    )
-
-    if (persistable.length === message.attachments.length) {
-      return message
-    }
-
-    return {
-      ...message,
-      attachments: persistable.length > 0 ? persistable : undefined,
-    }
-  })
+    writeStoredValue(STORAGE_KEYS.IMAGES, images)
+    return true
+  } catch {
+    localStorage.removeItem(STORAGE_KEYS.IMAGES)
+    return false
+  }
 }
 
 function getMessageSize(message: Message): number {
@@ -370,7 +377,8 @@ export function loadMessages(): Message[] | null {
     const saved = readStoredMessagesValue()
     if (!saved) return null
 
-    const parsed = messagesSchema.parse(unwrapStoredValue(saved)) as Message[]
+    const stored = messagesSchema.parse(unwrapStoredValue(saved)) as Message[]
+    const parsed = resolveInlineImages(stored, readImageStore())
     const normalized = parsed.map(normalizeStoredMessageForLoad)
     const normalizedChanged = normalized.some(
       (message, index) => message !== parsed[index]
@@ -401,8 +409,12 @@ export function loadMessages(): Message[] | null {
  */
 export function saveMessages(messages: Message[]): void {
   try {
-    const trimmed = stripInlineAttachments(trimMessages(messages))
-    const parsed = messagesSchema.parse(trimmed) as Message[]
+    const extraction = extractInlineImages(trimMessages(messages))
+    const imagesStored = writeImageStore(extraction.images)
+    const persistable = imagesStored
+      ? extraction.messages
+      : stripImageRefs(extraction.messages)
+    const parsed = messagesSchema.parse(persistable) as Message[]
     writeStoredValue(STORAGE_KEYS.MESSAGES, parsed)
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -418,6 +430,7 @@ export function clearPlaygroundData(): void {
     localStorage.removeItem(STORAGE_KEYS.CONFIG)
     localStorage.removeItem(STORAGE_KEYS.PARAMETER_ENABLED)
     localStorage.removeItem(STORAGE_KEYS.MESSAGES)
+    localStorage.removeItem(STORAGE_KEYS.IMAGES)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to clear playground data:', error)

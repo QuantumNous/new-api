@@ -5281,6 +5281,27 @@
     "Describe the image you want to generate": "Mô tả hình ảnh bạn muốn tạo",
     "Image generation failed": "Tạo hình ảnh thất bại",
     "The model did not return an image": "Mô hình không trả về hình ảnh",
-    "Attachment": "Tệp đính kèm"
+    "Attachment": "Tệp đính kèm",
+    "Custom navigation": "Điều hướng tùy chỉnh",
+    "Add custom buttons to the sidebar and header with localized names, icons and content.": "Thêm các nút tùy chỉnh vào thanh bên và thanh tiêu đề với tên, biểu tượng và nội dung theo từng ngôn ngữ.",
+    "No custom navigation items yet.": "Chưa có mục điều hướng tùy chỉnh nào.",
+    "Add navigation item": "Thêm mục điều hướng",
+    "Identifier": "Định danh",
+    "Placement": "Vị trí",
+    "Sidebar category": "Danh mục thanh bên",
+    "Content type": "Loại nội dung",
+    "URL (iframe)": "URL (iframe)",
+    "HTML": "HTML",
+    "Markdown": "Markdown",
+    "Sidebar and header": "Thanh bên và thanh tiêu đề",
+    "Save custom navigation": "Lưu điều hướng tùy chỉnh",
+    "Use lowercase letters, numbers and dashes for the identifier.": "Định danh chỉ dùng chữ thường, số và dấu gạch ngang.",
+    "Identifiers must be unique.": "Định danh phải là duy nhất.",
+    "Enter a name for at least one language.": "Nhập tên cho ít nhất một ngôn ngữ.",
+    "Content is required.": "Nội dung là bắt buộc.",
+    "Content is too long.": "Nội dung quá dài.",
+    "Enter a valid http(s) URL.": "Nhập URL http(s) hợp lệ.",
+    "This page is not available.": "Trang này không khả dụng.",
+    "Not Found": "Không tìm thấy"
   }
 }

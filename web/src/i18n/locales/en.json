@@ -5281,6 +5281,27 @@
     "Describe the image you want to generate": "Describe the image you want to generate",
     "Image generation failed": "Image generation failed",
     "The model did not return an image": "The model did not return an image",
-    "Attachment": "Attachment"
+    "Attachment": "Attachment",
+    "Custom navigation": "Custom navigation",
+    "Add custom buttons to the sidebar and header with localized names, icons and content.": "Add custom buttons to the sidebar and header with localized names, icons and content.",
+    "No custom navigation items yet.": "No custom navigation items yet.",
+    "Add navigation item": "Add navigation item",
+    "Identifier": "Identifier",
+    "Placement": "Placement",
+    "Sidebar category": "Sidebar category",
+    "Content type": "Content type",
+    "URL (iframe)": "URL (iframe)",
+    "HTML": "HTML",
+    "Markdown": "Markdown",
+    "Sidebar and header": "Sidebar and header",
+    "Save custom navigation": "Save custom navigation",
+    "Use lowercase letters, numbers and dashes for the identifier.": "Use lowercase letters, numbers and dashes for the identifier.",
+    "Identifiers must be unique.": "Identifiers must be unique.",
+    "Enter a name for at least one language.": "Enter a name for at least one language.",
+    "Content is required.": "Content is required.",
+    "Content is too long.": "Content is too long.",
+    "Enter a valid http(s) URL.": "Enter a valid http(s) URL.",
+    "This page is not available.": "This page is not available.",
+    "Not Found": "Not Found"
   }
 }

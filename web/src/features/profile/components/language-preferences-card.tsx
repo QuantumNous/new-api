@@ -123,7 +123,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
           <Select
             items={INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
               value: language.code,
-              label: language.label,
+              label: `${language.flag} ${language.label}`,
             }))}
             value={currentLanguage}
             onValueChange={handleLanguageChange}
@@ -136,6 +136,9 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
               <SelectGroup>
                 {INTERFACE_LANGUAGE_OPTIONS.map((language) => (
                   <SelectItem key={language.code} value={language.code}>
+                    <span aria-hidden='true' className='me-2'>
+                      {language.flag}
+                    </span>
                     {language.label}
                   </SelectItem>
                 ))}

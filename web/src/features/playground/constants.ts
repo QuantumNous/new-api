@@ -81,6 +81,7 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
 // Storage keys
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
+  IMAGES: 'playground_images',
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
 } as const

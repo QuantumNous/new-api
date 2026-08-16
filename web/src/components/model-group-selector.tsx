@@ -596,10 +596,6 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     () => models.find((model) => model.value === selectedModel),
     [models, selectedModel]
   )
-  const currentGroup = useMemo(
-    () => groups.find((group) => group.value === selectedGroup),
-    [groups, selectedGroup]
-  )
   const filteredModels = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) {
@@ -675,9 +671,6 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       <CpuIcon className='text-muted-foreground size-4 shrink-0' />
       <span className='min-w-0 truncate text-xs'>
         {currentModel?.label || t('Model')}
-      </span>
-      <span className='bg-muted text-muted-foreground hidden max-w-20 shrink-0 rounded px-1.5 py-0.5 text-[10px] sm:inline-flex'>
-        {currentGroup?.label || t('Group')}
       </span>
       <ChevronsUpDown className='text-muted-foreground ml-auto size-3.5 shrink-0 opacity-60' />
     </Button>

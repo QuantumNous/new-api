@@ -16,13 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { PaperclipIcon, PlusIcon } from 'lucide-react'
+import { PlusIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
   PromptInputButton,
   PromptInputTools,
-  usePromptInputAttachments,
 } from '@/components/ai-elements/prompt-input'
 import {
   Tooltip,
@@ -36,6 +35,7 @@ import type {
   PlaygroundConfig,
   PlaygroundMode,
 } from '../../types'
+import { PlaygroundAttachmentMenu } from './playground-attachment-menu'
 import { PlaygroundModeToggle } from './playground-mode-toggle'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
 
@@ -46,6 +46,7 @@ type PlaygroundInputToolsProps = {
     key: K,
     value: PlaygroundConfig[K]
   ) => void
+  onAppendText: (snippet: string) => void
   onModeChange: (mode: PlaygroundMode) => void
   onNewChat?: () => void
   onParameterEnabledChange: (
@@ -57,30 +58,15 @@ type PlaygroundInputToolsProps = {
 
 export function PlaygroundInputTools(props: PlaygroundInputToolsProps) {
   const { t } = useTranslation()
-  const attachments = usePromptInputAttachments()
   const isImageMode = props.config.mode === PLAYGROUND_MODES.IMAGE
 
   return (
     <PromptInputTools className='bg-background/70 border-border/60 rounded-lg border p-1 shadow-xs'>
       {!isImageMode && (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <PromptInputButton
-                aria-label={t('Attach images')}
-                className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
-                disabled={props.disabled}
-                onClick={attachments.openFileDialog}
-                variant='ghost'
-              >
-                <PaperclipIcon size={16} />
-              </PromptInputButton>
-            }
-          />
-          <TooltipContent>
-            <p>{t('Attach images')}</p>
-          </TooltipContent>
-        </Tooltip>
+        <PlaygroundAttachmentMenu
+          disabled={props.disabled}
+          onAppendText={props.onAppendText}
+        />
       )}
 
       <PlaygroundModeToggle

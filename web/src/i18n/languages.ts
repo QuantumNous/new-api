@@ -17,17 +17,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const INTERFACE_LANGUAGE_OPTIONS = [
-  { code: 'zhCN', label: '简体中文' },
-  { code: 'en', label: 'English' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
-  { code: 'vi', label: 'Tiếng Việt' },
-  { code: 'zhTW', label: '繁體中文' },
+  { code: 'zhCN', flag: '🇨🇳', label: '简体中文' },
+  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+  { code: 'ru', flag: '🇷🇺', label: 'Русский' },
+  { code: 'ja', flag: '🇯🇵', label: '日本語' },
+  { code: 'vi', flag: '🇻🇳', label: 'Tiếng Việt' },
+  { code: 'zhTW', flag: '🇹🇼', label: '繁體中文' },
 ] as const
 
 export type InterfaceLanguageCode =
   (typeof INTERFACE_LANGUAGE_OPTIONS)[number]['code']
+
+/**
+ * Flag emoji for an interface language code. Falls back to a globe so the
+ * switcher always renders something meaningful for unknown codes.
+ */
+export function getInterfaceLanguageFlag(code?: string | null): string {
+  const normalized = normalizeInterfaceLanguage(code)
+  const option = INTERFACE_LANGUAGE_OPTIONS.find(
+    (lang) => lang.code === normalized
+  )
+  return option?.flag ?? '🌐'
+}
 
 export function normalizeInterfaceLanguage(value?: string | null): string {
   if (!value) return 'en'

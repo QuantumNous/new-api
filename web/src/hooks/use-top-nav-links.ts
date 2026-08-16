@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useCustomNavItems } from '@/hooks/use-custom-nav-items'
 import { useStatus } from '@/hooks/use-status'
 import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
@@ -47,6 +48,7 @@ export function useTopNavLinks(): TopNavLink[] {
   const { t } = useTranslation()
   const { status } = useStatus()
   const { auth } = useAuthStore()
+  const customNavItems = useCustomNavItems()
 
   // Parse HeaderNavModules
   const modules = useMemo(() => {
@@ -99,6 +101,12 @@ export function useTopNavLinks(): TopNavLink[] {
   if (modules?.about !== false) {
     links.push({ title: t('About'), href: '/about' })
   }
+
+  // Admin-configured custom entries
+  customNavItems.forEach((item) => {
+    if (item.placement !== 'header' && item.placement !== 'both') return
+    links.push({ title: item.label, href: item.url, requiresAuth: !isAuthed })
+  })
 
   return links
 }

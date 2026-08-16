@@ -34,6 +34,9 @@ function isPlaygroundMode(value: string): value is PlaygroundMode {
   return value === PLAYGROUND_MODES.TEXT || value === PLAYGROUND_MODES.IMAGE
 }
 
+const MODE_ITEM_CLASS =
+  'aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground aria-pressed:shadow-sm'
+
 export function PlaygroundModeToggle(props: PlaygroundModeToggleProps) {
   const { t } = useTranslation()
 
@@ -53,6 +56,7 @@ export function PlaygroundModeToggle(props: PlaygroundModeToggleProps) {
     >
       <ToggleGroupItem
         aria-label={t('Text')}
+        className={MODE_ITEM_CLASS}
         disabled={props.disabled}
         value={PLAYGROUND_MODES.TEXT}
       >
@@ -61,6 +65,7 @@ export function PlaygroundModeToggle(props: PlaygroundModeToggleProps) {
       </ToggleGroupItem>
       <ToggleGroupItem
         aria-label={t('Image')}
+        className={MODE_ITEM_CLASS}
         disabled={props.disabled}
         value={PLAYGROUND_MODES.IMAGE}
       >

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Languages, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
+  getInterfaceLanguageFlag,
   INTERFACE_LANGUAGE_OPTIONS,
   normalizeInterfaceLanguage,
 } from '@/i18n/languages'
@@ -58,7 +59,9 @@ export function LanguageSwitcher() {
       <DropdownMenuTrigger
         render={<Button variant='ghost' size='icon' className='h-9 w-9' />}
       >
-        <Languages className='size-[1.2rem]' />
+        <span aria-hidden='true' className='text-base leading-none'>
+          {getInterfaceLanguageFlag(currentLanguage)}
+        </span>
         <span className='sr-only'>{t('Change language')}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end'>
@@ -67,6 +70,9 @@ export function LanguageSwitcher() {
             key={lang.code}
             onClick={() => handleChangeLanguage(lang.code)}
           >
+            <span aria-hidden='true' className='me-2 text-base leading-none'>
+              {lang.flag}
+            </span>
             {lang.label}
             <Check
               size={14}

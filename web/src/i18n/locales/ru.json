@@ -5281,6 +5281,27 @@
     "Describe the image you want to generate": "Опишите изображение, которое нужно сгенерировать",
     "Image generation failed": "Не удалось сгенерировать изображение",
     "The model did not return an image": "Модель не вернула изображение",
-    "Attachment": "Вложение"
+    "Attachment": "Вложение",
+    "Custom navigation": "Пользовательская навигация",
+    "Add custom buttons to the sidebar and header with localized names, icons and content.": "Добавляйте пользовательские кнопки в боковую панель и заголовок с локализованными названиями, значками и содержимым.",
+    "No custom navigation items yet.": "Пользовательских элементов навигации пока нет.",
+    "Add navigation item": "Добавить элемент навигации",
+    "Identifier": "Идентификатор",
+    "Placement": "Расположение",
+    "Sidebar category": "Категория боковой панели",
+    "Content type": "Тип содержимого",
+    "URL (iframe)": "URL (iframe)",
+    "HTML": "HTML",
+    "Markdown": "Markdown",
+    "Sidebar and header": "Боковая панель и заголовок",
+    "Save custom navigation": "Сохранить пользовательскую навигацию",
+    "Use lowercase letters, numbers and dashes for the identifier.": "Используйте строчные буквы, цифры и дефисы в идентификаторе.",
+    "Identifiers must be unique.": "Идентификаторы должны быть уникальными.",
+    "Enter a name for at least one language.": "Укажите название хотя бы для одного языка.",
+    "Content is required.": "Содержимое обязательно.",
+    "Content is too long.": "Содержимое слишком длинное.",
+    "Enter a valid http(s) URL.": "Введите корректный http(s) URL.",
+    "This page is not available.": "Эта страница недоступна.",
+    "Not Found": "Не найдено"
   }
 }
