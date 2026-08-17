@@ -116,8 +116,11 @@ separate concern.
 - `Failed` sibling rows remain failed and continue to control aggregate status.
 - Rows with missing, selecting, rotating, unavailable, or mismatched targets are
   not promoted.
-- The existing active `asset_bindings` validation remains required before the
-  transactional activation is called.
+- Provider-backed paths still require the existing exact active
+  `asset_bindings` validation before transactional activation. Source-URL channels
+  have no `asset_bindings` row; they retain their existing source
+  recoverability, enabled-channel, and current-target validation as the proof
+  supplied to the same transactional activation.
 
 ## Code Shape
 
