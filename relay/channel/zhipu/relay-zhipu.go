@@ -199,9 +199,13 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		if err := scanner.Err(); err != nil {
 			common.SysLog("error reading stream: " + err.Error())
 		}
+		// Deliver the terminal signal reliably: a non-blocking send to an
+		// unbuffered channel drops the completion when the consumer is busy
+		// draining data/meta frames, leaving the stream hanging after EOF.
 		select {
 		case stopChan <- true:
-		default:
+		case <-c.Request.Context().Done():
+			return
 		}
 	}()
 	helper.SetEventStreamHeaders(c)
@@ -270,11 +274,13 @@ func zhipuHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respon
 	if fullTextResponse.Usage.TotalTokens == 0 &&
 		fullTextResponse.Usage.PromptTokens == 0 &&
 		fullTextResponse.Usage.CompletionTokens == 0 {
-		// F-55: fall back to the estimate when the upstream omits usage.
-		fullTextResponse.Usage = dto.Usage{
-			PromptTokens: info.GetEstimatePromptTokens(),
-			TotalTokens:  info.GetEstimatePromptTokens(),
+		// F-55: fall back to the estimate (prompt+completion+total) when the
+		// upstream omits usage, so generated output is not billed as zero.
+		var textBuilder strings.Builder
+		for _, choice := range zhipuResponse.Data.Choices {
+			textBuilder.WriteString(strings.Trim(choice.Content, "\""))
 		}
+		fullTextResponse.Usage = *service.ResponseText2Usage(c, textBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {

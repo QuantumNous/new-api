@@ -254,22 +254,6 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types
 	if handlerErr != nil {
 		return handlerErr, nil
 	}
-	if claudeInfo.Usage.TotalTokens == 0 &&
-		claudeInfo.Usage.PromptTokens == 0 &&
-		claudeInfo.Usage.CompletionTokens == 0 {
-		// F-63: fall back to the estimate when the upstream omits usage so
-		// Bedrock native (non-Claude-format) requests are not billed as zero.
-		var textBuilder strings.Builder
-		var parsed dto.ClaudeResponse
-		if err := common.Unmarshal(awsResp.Body, &parsed); err == nil {
-			for _, block := range parsed.Content {
-				if block.Text != nil && *block.Text != "" {
-					textBuilder.WriteString(*block.Text)
-				}
-			}
-		}
-		claudeInfo.Usage = service.ResponseText2Usage(c, textBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
-	}
 	return nil, claudeInfo.Usage
 }
 

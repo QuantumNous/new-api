@@ -238,6 +238,21 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
 	}
+	if claudeInfo.Usage.TotalTokens == 0 &&
+		claudeInfo.Usage.PromptTokens == 0 &&
+		claudeInfo.Usage.CompletionTokens == 0 {
+		// F-57: fall back to the estimate when the upstream omits usage so the
+		// response written to the client carries the same usage that
+		// settlement will bill (previously the fallback ran after the response
+		// was already serialized with zero usage).
+		var textBuilder strings.Builder
+		for _, block := range claudeResponse.Content {
+			if block.Text != nil && *block.Text != "" {
+				textBuilder.WriteString(*block.Text)
+			}
+		}
+		claudeInfo.Usage = service.ResponseText2Usage(c, textBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	var responseData []byte
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
@@ -283,22 +298,6 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody)
 	if handleErr != nil {
 		return nil, handleErr
-	}
-	if claudeInfo.Usage.TotalTokens == 0 &&
-		claudeInfo.Usage.PromptTokens == 0 &&
-		claudeInfo.Usage.CompletionTokens == 0 {
-		// F-57: fall back to the estimate when the upstream omits usage so
-		// non-stream Claude requests are not billed as zero.
-		var textBuilder strings.Builder
-		var parsed dto.ClaudeResponse
-		if err := common.Unmarshal(responseBody, &parsed); err == nil {
-			for _, block := range parsed.Content {
-				if block.Text != nil && *block.Text != "" {
-					textBuilder.WriteString(*block.Text)
-				}
-			}
-		}
-		claudeInfo.Usage = service.ResponseText2Usage(c, textBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 	return claudeInfo.Usage, nil
 }
