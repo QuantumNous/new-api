@@ -63,7 +63,7 @@ func (tracker *HealthTracker) SnapshotAt(channelID int, now time.Time) HealthSna
 	if failureRate >= .05 {
 		tier = HealthDegraded
 	}
-	if failureRate > .20 {
+	if failureRate > .05 {
 		tier = HealthOpen
 	}
 	return HealthSnapshot{Tier: tier, FailureRate: failureRate}

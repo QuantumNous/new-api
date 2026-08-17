@@ -25,6 +25,49 @@ func TestPlanChoosesCheapestCandidateMeetingQualityThreshold(t *testing.T) {
 	assert.Equal(t, 2, got.PolicyVersion)
 }
 
+func TestPlanPrefersStickyRouteOnlyWithinFifteenPercentOfCheapest(t *testing.T) {
+	base := PlanInput{
+		RequestedModel: "client-model", PolicyVersion: 2,
+		Features:         Features{Task: TaskGeneral, PromptTokens: 1_000, MaxOutputTokens: 100},
+		Requirements:     Requirements{Capabilities: map[Capability]bool{}},
+		QualityThreshold: .9, MaxAttempts: 3, MaxEndpointsPerModel: 2, MaxCostMultiplier: 2.5,
+		Candidates: []Candidate{
+			{Model: "cheapest", ChannelID: 1, InputPrice: 1, OutputPrice: 1, PredictedSuccess: .95},
+			{Model: "sticky", ChannelID: 2, InputPrice: 1.1, OutputPrice: 1.1, PredictedSuccess: .94},
+			{Model: "safest", ChannelID: 3, InputPrice: 5, OutputPrice: 5, PredictedSuccess: .99},
+		},
+		PreferredModel: "sticky", PreferredChannelID: 2,
+	}
+	plan, err := Plan(base)
+	require.NoError(t, err)
+	assert.Equal(t, "sticky", plan.Nodes[0].Model)
+
+	base.Candidates[1].InputPrice, base.Candidates[1].OutputPrice = 1.2, 1.2
+	plan, err = Plan(base)
+	require.NoError(t, err)
+	assert.Equal(t, "cheapest", plan.Nodes[0].Model)
+
+	base.Candidates[1].InputPrice, base.Candidates[1].OutputPrice = 1.1, 1.1
+	base.Candidates[1].HealthTier = HealthDegraded
+	plan, err = Plan(base)
+	require.NoError(t, err)
+	assert.Equal(t, "cheapest", plan.Nodes[0].Model)
+}
+
+func TestPlanDoesNotMoveCheapestFirstNodeWhenSuccessProbabilitiesTie(t *testing.T) {
+	plan, err := Plan(PlanInput{
+		RequestedModel: "requested", Features: Features{PromptTokens: 100}, Requirements: Requirements{Capabilities: map[Capability]bool{}},
+		QualityThreshold: .9, MaxAttempts: 3, MaxEndpointsPerModel: 2, MaxCostMultiplier: 2.5,
+		Candidates: []Candidate{
+			{Model: "cheap", ChannelID: 1, InputPrice: 1, PredictedSuccess: .95},
+			{Model: "middle", ChannelID: 2, InputPrice: 2, PredictedSuccess: .95},
+			{Model: "expensive", ChannelID: 3, InputPrice: 3, PredictedSuccess: .95},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "cheap", plan.Nodes[0].Model)
+}
+
 func TestPlanFiltersCapabilitiesAndContext(t *testing.T) {
 	got, err := Plan(PlanInput{
 		Requirements: Requirements{Capabilities: map[Capability]bool{CapabilityTools: true}, MinimumTier: 2, ContextNeeded: 900},

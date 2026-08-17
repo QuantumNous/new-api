@@ -18,6 +18,8 @@ type PlanInput struct {
 	MaxAttempts          int
 	MaxEndpointsPerModel int
 	MaxCostMultiplier    float64
+	PreferredModel       string
+	PreferredChannelID   int
 }
 
 type RouteNode = hosttypes.IntelligentRouteNode
@@ -73,6 +75,23 @@ func Plan(input PlanInput) (RoutePlan, error) {
 			return left.ChannelID < right.ChannelID
 		})
 	}
+	if input.PreferredModel != "" && len(qualified) > 1 {
+		cheapestCost := expectedCost(input.Features, qualified[0])
+		for _, candidate := range qualified[1:] {
+			cost := expectedCost(input.Features, candidate)
+			if cost.LessThan(cheapestCost) {
+				cheapestCost = cost
+			}
+		}
+		limit := cheapestCost.Mul(decimal.NewFromFloat(1.15))
+		for i, candidate := range qualified {
+			if candidate.Model == input.PreferredModel && candidate.ChannelID == input.PreferredChannelID && candidate.HealthTier != HealthDegraded && candidate.HealthTier != HealthOpen && !expectedCost(input.Features, candidate).GreaterThan(limit) {
+				copy(qualified[1:i+1], qualified[0:i])
+				qualified[0] = candidate
+				break
+			}
+		}
+	}
 	nodes := make([]RouteNode, 0, min(input.MaxAttempts, len(qualified)))
 	perModel := make(map[string]int)
 	seen := make(map[[2]interface{}]struct{})
@@ -91,8 +110,8 @@ func Plan(input PlanInput) (RoutePlan, error) {
 	if len(nodes) == 0 {
 		return RoutePlan{}, errors.New("route plan is empty")
 	}
-	strongest := 0
-	for i := range nodes {
+	strongest := len(nodes) - 1
+	for i := 0; i < len(nodes)-1; i++ {
 		if nodes[i].PredictedSuccess > nodes[strongest].PredictedSuccess {
 			strongest = i
 		}

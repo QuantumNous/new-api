@@ -55,3 +55,17 @@ func TestCatalogExcludesChannelsWithOpenHealthCircuit(t *testing.T) {
 	assert.Equal(t, 8, got[0].ChannelID)
 	assert.Equal(t, HealthHealthy, got[0].HealthTier)
 }
+
+func TestCatalogAssignsConservativeColdStartQualityPriorByTier(t *testing.T) {
+	config := routingsetting.Config{Models: []routingsetting.ModelPolicy{
+		{Model: "l0", Tier: 0, InputPrice: 1}, {Model: "l1", Tier: 1, InputPrice: 1},
+		{Model: "l2", Tier: 2, InputPrice: 1}, {Model: "l3", Tier: 3, InputPrice: 1},
+	}}
+	channel := &model.Channel{Id: 7, Status: common.ChannelStatusEnabled, Models: "l0,l1,l2,l3", Group: "default"}
+	got := NewCatalog(config, func(string, string) []*model.Channel { return []*model.Channel{channel} }).Build("default", "/v1/chat/completions")
+	require.Len(t, got, 4)
+	assert.InDelta(t, .88, got[0].PredictedSuccess, .0001)
+	assert.InDelta(t, .92, got[1].PredictedSuccess, .0001)
+	assert.InDelta(t, .96, got[2].PredictedSuccess, .0001)
+	assert.InDelta(t, .99, got[3].PredictedSuccess, .0001)
+}

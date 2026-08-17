@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	intelligentrouting "github.com/QuantumNous/new-api/service/intelligent_routing"
 
 	"github.com/gin-gonic/gin"
 )
@@ -341,6 +342,9 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		}
 		responseBody = geminiRespStr
 	}
+	if err = validateIntelligentRoutingResponse(info, responseBody); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
 	responseBody, err = normalizeOpenAIResponseModel(responseBody, info)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -362,4 +366,11 @@ func normalizeOpenAIResponseModel(body []byte, info *relaycommon.RelayInfo) ([]b
 	}
 	response["model"] = info.OriginModelName
 	return common.Marshal(response)
+}
+
+func validateIntelligentRoutingResponse(info *relaycommon.RelayInfo, body []byte) error {
+	if info == nil || info.IntelligentRoutePlan == nil || info.IntelligentRouteShadow {
+		return nil
+	}
+	return intelligentrouting.ValidateResponse(info.Request, info.RelayFormat, body)
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -156,7 +157,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 	routingConfig := routingsetting.Get()
-	if routingConfig.Enabled {
+	intelligentRoutingActive := routingConfig.Enabled && supportsIntelligentRouting(relayInfo.RelayFormat, relayInfo.RelayMode)
+	if intelligentRoutingActive {
 		if routingErr := buildShadowRoutePlan(c, relayInfo, tokens, nil); routingErr != nil {
 			relayInfo.IntelligentRouteError = routingErr.Error()
 			if routingConfig.ShadowOnly {
@@ -169,7 +171,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	var priceData hosttypes.PriceData
-	if routingConfig.Enabled && !routingConfig.ShadowOnly {
+	if intelligentRoutingActive && !routingConfig.ShadowOnly {
 		priceData, err = computeLiveRoutePricing(c, relayInfo, relayInfo.IntelligentRoutePlan, tokens, meta)
 	} else {
 		priceData, err = helper.ModelPriceHelper(c, relayInfo, tokens, meta)
@@ -212,25 +214,47 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.LastError = nil
 
 	maxRetries := common.RetryTimes
-	if routingConfig.Enabled && !routingConfig.ShadowOnly && relayInfo.IntelligentRoutePlan != nil {
+	var routeBudget *intelligentrouting.ExecutionBudget
+	if intelligentRoutingActive && !routingConfig.ShadowOnly && relayInfo.IntelligentRoutePlan != nil {
 		maxRetries = min(routingConfig.MaxAttempts, len(relayInfo.IntelligentRoutePlan.Nodes)) - 1
+		duration := routingConfig.NonStreamBudget
+		if relayInfo.IsStream {
+			duration = routingConfig.StreamFirstByteBudget
+		}
+		routeBudget = intelligentrouting.NewExecutionBudget(relayInfo.IntelligentRoutePlan.Nodes, routingConfig.MaxCostMultiplier, duration, time.Now())
 	}
 	for ; retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
+		var budgetNode *hosttypes.IntelligentRouteNode
+		attemptStarted := time.Now()
+		if routeBudget != nil {
+			index, allowed := routeBudget.SelectAttempt(relayInfo.IntelligentRoutePlan.Nodes, retryParam.GetRetry(), time.Now())
+			if !allowed {
+				break
+			}
+			retryParam.SetRetry(index)
+			budgetNode = &relayInfo.IntelligentRoutePlan.Nodes[index]
+		}
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
+			if budgetNode != nil {
+				recordIntelligentRouteAttempt(relayInfo, *budgetNode, retryParam.GetRetry(), attemptStarted, time.Now(), "rejected", channelErr.Error())
+			}
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
-			if routingConfig.Enabled && !routingConfig.ShadowOnly && retryParam.GetRetry() < maxRetries {
+			if intelligentRoutingActive && !routingConfig.ShadowOnly && retryParam.GetRetry() < maxRetries {
 				relayInfo.LastError = channelErr
 				continue
 			}
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		if routingConfig.Enabled && !routingConfig.ShadowOnly {
+		if intelligentRoutingActive && !routingConfig.ShadowOnly {
 			if _, pricingErr := helper.ModelPriceHelper(c, relayInfo, tokens, meta); pricingErr != nil {
 				newAPIError = types.NewError(pricingErr, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+				if budgetNode != nil {
+					recordIntelligentRouteAttempt(relayInfo, *budgetNode, retryParam.GetRetry(), attemptStarted, time.Now(), "rejected", newAPIError.Error())
+				}
 				if retryParam.GetRetry() < maxRetries {
 					relayInfo.LastError = newAPIError
 					continue
@@ -240,6 +264,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
+			if budgetNode != nil {
+				recordIntelligentRouteAttempt(relayInfo, *budgetNode, retryParam.GetRetry(), attemptStarted, time.Now(), "rejected", billingErr.Error())
+			}
 			break
 		}
 
@@ -251,9 +278,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			} else {
 				newAPIError = types.NewErrorWithStatusCode(bodyErr, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
+			if budgetNode != nil {
+				recordIntelligentRouteAttempt(relayInfo, *budgetNode, retryParam.GetRetry(), attemptStarted, time.Now(), "rejected", newAPIError.Error())
+			}
 			break
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
+		if budgetNode != nil {
+			routeBudget.Record(*budgetNode)
+		}
 
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -267,11 +300,23 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			if budgetNode != nil {
+				recordIntelligentRouteAttempt(relayInfo, *budgetNode, retryParam.GetRetry(), attemptStarted, time.Now(), "success", "")
+			}
 			recordIntelligentRouteHealth(&intelligentrouting.DefaultHealthTracker, relayInfo, true)
+			recordIntelligentRouteSuccess(&intelligentrouting.DefaultStickinessStore, relayInfo)
+			intelligentrouting.DefaultQualityTracker.Record(relayInfo.GetExecutionModelName(), intelligentrouting.TaskType(relayInfo.IntelligentRouteTask), true)
 			relayInfo.LastError = nil
 			return
 		}
 
+		if budgetNode != nil {
+			recordIntelligentRouteAttempt(relayInfo, *budgetNode, retryParam.GetRetry(), attemptStarted, time.Now(), "failed", newAPIError.Error())
+		}
+		if newAPIError.GetErrorCode() == types.ErrorCodeBadResponseBody {
+			intelligentrouting.DefaultStickinessStore.RecordValidationFailure(relayInfo.IntelligentRouteSessionKey)
+			intelligentrouting.DefaultQualityTracker.Record(relayInfo.GetExecutionModelName(), intelligentrouting.TaskType(relayInfo.IntelligentRouteTask), false)
+		}
 		recordIntelligentRouteHealth(&intelligentrouting.DefaultHealthTracker, relayInfo, false)
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
@@ -295,11 +340,49 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
+func supportsIntelligentRouting(relayFormat types.RelayFormat, relayMode int) bool {
+	switch relayFormat {
+	case types.RelayFormatOpenAI:
+		return relayMode == relayconstant.RelayModeChatCompletions
+	case types.RelayFormatOpenAIResponses:
+		return relayMode == relayconstant.RelayModeResponses
+	case types.RelayFormatOpenAIResponsesCompaction:
+		return relayMode == relayconstant.RelayModeResponsesCompact
+	default:
+		return false
+	}
+}
+
 func recordIntelligentRouteHealth(tracker *intelligentrouting.HealthTracker, info *relaycommon.RelayInfo, success bool) {
 	if tracker == nil || info == nil || info.IntelligentRoutePlan == nil || info.IntelligentRouteShadow || info.GetChannelID() == 0 {
 		return
 	}
 	tracker.Record(info.GetChannelID(), success)
+}
+
+func recordIntelligentRouteSuccess(store *intelligentrouting.StickinessStore, info *relaycommon.RelayInfo) {
+	if store == nil || info == nil || info.IntelligentRoutePlan == nil || info.IntelligentRouteShadow || info.IntelligentRouteSessionKey == "" || info.GetChannelID() == 0 {
+		return
+	}
+	store.Record(info.IntelligentRouteSessionKey, intelligentrouting.TaskType(info.IntelligentRouteTask), intelligentrouting.StickyRoute{
+		Model: info.GetExecutionModelName(), ChannelID: info.GetChannelID(),
+	})
+}
+
+func recordIntelligentRouteAttempt(info *relaycommon.RelayInfo, node hosttypes.IntelligentRouteNode, index int, startedAt, finishedAt time.Time, outcome, failureReason string) {
+	if info == nil || info.IntelligentRoutePlan == nil {
+		return
+	}
+	if len(failureReason) > 512 {
+		failureReason = failureReason[:512]
+	}
+	latency := finishedAt.Sub(startedAt).Milliseconds()
+	if latency < 0 {
+		latency = 0
+	}
+	info.IntelligentRouteAttempts = append(info.IntelligentRouteAttempts, hosttypes.IntelligentRouteAttempt{
+		Index: index, Model: node.Model, ChannelID: node.ChannelID, Outcome: outcome, FailureReason: failureReason, LatencyMS: latency,
+	})
 }
 
 func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource) error {
@@ -310,12 +393,18 @@ func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTok
 	})
 	requirements := intelligentrouting.DeriveRequirements(features)
 	candidates := intelligentrouting.NewCatalog(config, source).Build(info.TokenGroup, c.Request.URL.Path)
+	for i := range candidates {
+		candidates[i].PredictedSuccess = intelligentrouting.DefaultQualityTracker.Predict(candidates[i].Model, features.Task, candidates[i].PredictedSuccess)
+	}
+	sessionKey := intelligentrouting.ConversationKey(strconv.Itoa(info.UserId), c.GetHeader("X-Session-ID"), intelligentrouting.ConversationSeed(info.Request))
+	preferred, _ := intelligentrouting.DefaultStickinessStore.Get(sessionKey, features.Task)
 	plan, err := intelligentrouting.Plan(intelligentrouting.PlanInput{
 		RequestedModel: info.OriginModelName, PolicyVersion: config.PolicyVersion,
 		Features: features, Requirements: requirements, Candidates: candidates,
 		QualityThreshold: config.QualityThresholds[features.Task],
 		MaxAttempts:      config.MaxAttempts, MaxEndpointsPerModel: config.MaxEndpointsPerModel,
 		MaxCostMultiplier: config.MaxCostMultiplier,
+		PreferredModel:    preferred.Model, PreferredChannelID: preferred.ChannelID,
 	})
 	if err != nil {
 		intelligentrouting.DefaultMetrics.Observe(intelligentrouting.Observation{NoRoute: true, PlanningDuration: time.Since(startedAt)})
@@ -323,6 +412,8 @@ func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTok
 	}
 	info.IntelligentRoutePlan = &plan
 	info.IntelligentRouteShadow = config.ShadowOnly
+	info.IntelligentRouteSessionKey = sessionKey
+	info.IntelligentRouteTask = string(features.Task)
 	intelligentrouting.DefaultMetrics.Observe(intelligentrouting.Observation{CandidateTier: plan.Nodes[0].Tier, PlanningDuration: time.Since(startedAt)})
 	return nil
 }

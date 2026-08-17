@@ -127,6 +127,30 @@ func DeriveRequirements(features Features) Requirements {
 	return requirements
 }
 
+func ConversationSeed(request dto.Request) string {
+	switch value := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		for _, message := range value.Messages {
+			if message.Role != "user" {
+				continue
+			}
+			switch content := message.Content.(type) {
+			case string:
+				return strings.TrimSpace(content)
+			case []dto.MediaContent:
+				for _, item := range content {
+					if text := strings.TrimSpace(item.Text); text != "" {
+						return text
+					}
+				}
+			}
+		}
+	case *dto.OpenAIResponsesRequest:
+		return strings.TrimSpace(string(value.Input))
+	}
+	return ""
+}
+
 func classifyText(text string) (TaskType, int) {
 	lower := strings.ToLower(text)
 	checks := []struct {

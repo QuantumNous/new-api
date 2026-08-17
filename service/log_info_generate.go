@@ -155,6 +155,19 @@ func appendIntelligentRoutingAdminInfo(relayInfo *relaycommon.RelayInfo, adminIn
 		}
 		audit["candidates"] = candidates
 	}
+	if len(relayInfo.IntelligentRouteAttempts) > 0 {
+		attempts := make([]map[string]interface{}, 0, min(len(relayInfo.IntelligentRouteAttempts), 4))
+		for i, attempt := range relayInfo.IntelligentRouteAttempts {
+			if i == 4 {
+				break
+			}
+			attempts = append(attempts, map[string]interface{}{
+				"index": attempt.Index, "model": attempt.Model, "channel_id": attempt.ChannelID,
+				"outcome": attempt.Outcome, "failure_reason": attempt.FailureReason, "latency_ms": attempt.LatencyMS,
+			})
+		}
+		audit["attempts"] = attempts
+	}
 	adminInfo["intelligent_routing"] = audit
 }
 

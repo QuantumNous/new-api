@@ -43,6 +43,15 @@ func TestDeriveRequirementsCarriesProtocolConstraints(t *testing.T) {
 	assert.True(t, got.Capabilities[CapabilityVision])
 }
 
+func TestConversationSeedUsesFirstUserMessage(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{Messages: []dto.Message{
+		{Role: "system", Content: "be concise"},
+		{Role: "user", Content: "first question"},
+		{Role: "user", Content: "later question"},
+	}}
+	assert.Equal(t, "first question", ConversationSeed(request))
+}
+
 func requestWithText(text string) *dto.GeneralOpenAIRequest {
 	return &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: text}}}
 }

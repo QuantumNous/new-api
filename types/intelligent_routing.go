@@ -18,3 +18,12 @@ type IntelligentRoutePlan struct {
 	MaxAttempts       int
 	MaxCostMultiplier float64
 }
+
+type IntelligentRouteAttempt struct {
+	Index         int
+	Model         string
+	ChannelID     int
+	Outcome       string
+	FailureReason string
+	LatencyMS     int64
+}

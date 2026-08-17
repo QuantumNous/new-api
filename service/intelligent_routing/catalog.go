@@ -77,12 +77,16 @@ func (catalog Catalog) Build(group, requestPath string) []Candidate {
 				Model: modelName, ChannelID: channel.Id, Tier: policy.Tier,
 				InputPrice: policy.InputPrice, OutputPrice: policy.OutputPrice,
 				ContextLimit: policy.ContextLimit, Capabilities: capabilities,
-				ResponseTimeMS: channel.ResponseTime,
-				FailureRate:    health.FailureRate, HealthTier: health.Tier,
+				ResponseTimeMS: channel.ResponseTime, PredictedSuccess: coldStartQualityPrior(policy.Tier),
+				FailureRate: health.FailureRate, HealthTier: health.Tier,
 			})
 		}
 	}
 	return candidates
+}
+
+func coldStartQualityPrior(tier int) float64 {
+	return [...]float64{.88, .92, .96, .99}[tier]
 }
 
 func contains(values []string, target string) bool {

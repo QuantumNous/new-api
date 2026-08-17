@@ -30,3 +30,12 @@ func TestHealthTrackerOpensCircuitForRepeatedFailures(t *testing.T) {
 	}
 	assert.Equal(t, HealthOpen, tracker.SnapshotAt(9, now).Tier)
 }
+
+func TestHealthTrackerOpensBelowNinetyFivePercentSuccess(t *testing.T) {
+	var tracker HealthTracker
+	now := time.Unix(1000, 0)
+	for i := 0; i < 20; i++ {
+		tracker.RecordAt(11, i >= 2, now)
+	}
+	assert.Equal(t, HealthOpen, tracker.SnapshotAt(11, now).Tier)
+}
