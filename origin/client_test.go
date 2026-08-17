@@ -65,6 +65,76 @@ func TestControlClientSendsCompleteOriginKeyOnlyInAuthorization(t *testing.T) {
 	assert.Equal(t, "01980000-0000-7000-8000-000000000006", result.ReservationID)
 }
 
+func TestControlClientListsOriginModelsWithoutRequestBody(t *testing.T) {
+	const originKey = "sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"
+	const requestID = "01980000-0000-7000-8000-000000000030"
+	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		assert.Equal(t, http.MethodGet, request.Method)
+		assert.Equal(t, "/internal/v1/models", request.URL.Path)
+		assert.Equal(t, "Bearer "+originKey, request.Header.Get("Authorization"))
+		assert.Equal(t, requestID, request.Header.Get("X-Request-Id"))
+		assert.Empty(t, request.Header.Get("Idempotency-Key"))
+		assert.Nil(t, request.Body)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type":      []string{"application/json"},
+				"X-Request-Id":      []string{requestID},
+				"X-Catalog-Version": []string{"42"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{
+				"request_id":"01980000-0000-7000-8000-000000000030",
+				"tenant_id":"01980000-0000-7000-8000-000000000003",
+				"project_id":"01980000-0000-7000-8000-000000000004",
+				"api_key_id":"01980000-0000-7000-8000-000000000005",
+				"catalog_version":42,
+				"models":["origin-agent"]
+			}`)),
+		}, nil
+	})
+	client := NewControlClient("https://platform.internal", &http.Client{Transport: transport}, time.Second)
+
+	result, err := client.ListOriginModels(context.Background(), originKey, requestID)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"origin-agent"}, result.Models)
+}
+
+func TestControlClientRejectsUntrustedOriginModelLists(t *testing.T) {
+	const requestID = "01980000-0000-7000-8000-000000000030"
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "duplicate model", body: `{"request_id":"01980000-0000-7000-8000-000000000030","tenant_id":"01980000-0000-7000-8000-000000000003","project_id":"01980000-0000-7000-8000-000000000004","api_key_id":"01980000-0000-7000-8000-000000000005","catalog_version":42,"models":["origin-agent","origin-agent"]}`},
+		{name: "upstream model", body: `{"request_id":"01980000-0000-7000-8000-000000000030","tenant_id":"01980000-0000-7000-8000-000000000003","project_id":"01980000-0000-7000-8000-000000000004","api_key_id":"01980000-0000-7000-8000-000000000005","catalog_version":42,"models":["beenex/deepseek-v4-flash"]}`},
+		{name: "unknown field", body: `{"request_id":"01980000-0000-7000-8000-000000000030","tenant_id":"01980000-0000-7000-8000-000000000003","project_id":"01980000-0000-7000-8000-000000000004","api_key_id":"01980000-0000-7000-8000-000000000005","catalog_version":42,"models":["origin-agent"],"provider":"beenex"}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header: http.Header{
+						"Content-Type":      []string{"application/json"},
+						"X-Request-Id":      []string{requestID},
+						"X-Catalog-Version": []string{"42"},
+					},
+					Body: io.NopCloser(strings.NewReader(test.body)),
+				}, nil
+			})
+			client := NewControlClient("https://platform.internal", &http.Client{Transport: transport}, time.Second)
+
+			_, err := client.ListOriginModels(context.Background(), "sk-oa-redacted", requestID)
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrUntrustedPlatformResponse)
+			assert.NotContains(t, err.Error(), "beenex")
+		})
+	}
+}
+
 func TestControlClientRejectsAdmissionRedirectWithoutForwardingOriginKey(t *testing.T) {
 	requests := 0
 	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {

@@ -3,9 +3,9 @@
 package origin
 
 const (
-	ContractsSHA                             = "dac91b87f58f10969dd5df4192debd8ae071f5bc"
-	ContractsSourceSHA256                    = "8860b77a1f9d774f064e1e77d8414c463146d5df44d2134e1be4fdcc7c3fe5a1"
-	DataPlaneControlContractVersion          = "1.0.0"
+	ContractsSHA                             = "4911cd0ef45828f25d35e0015e980eb903d6f69f"
+	ContractsSourceSHA256                    = "c1b2c932bf7207adad8434f609a6ec8138a3d160bdd68a28f21bf164cd5f1e7d"
+	DataPlaneControlContractVersion          = "1.1.0"
 	CatalogExecutionSnapshotEventVersion     = 1
 	MeteringUsageEventVersion                = 2
 	CatalogExecutionSnapshotSchemaSourceHash = "9b17128a88e89949d7dad2d34e681019a476c155f63394d11f4f19a27565aa73"
@@ -32,6 +32,15 @@ type AdmissionResult struct {
 	ApprovedCatalogVersion int64  `json:"approved_catalog_version"`
 	RouteID                string `json:"route_id"`
 	ExpiresAt              string `json:"expires_at"`
+}
+
+type OriginModelList struct {
+	RequestID      string   `json:"request_id"`
+	TenantID       string   `json:"tenant_id"`
+	ProjectID      string   `json:"project_id"`
+	APIKeyID       string   `json:"api_key_id"`
+	CatalogVersion int64    `json:"catalog_version"`
+	Models         []string `json:"models"`
 }
 
 type AdmissionError struct {
