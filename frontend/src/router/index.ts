@@ -300,58 +300,68 @@ const router = createRouter({
         {
           path: 'system-settings',
           name: 'system-settings',
-          redirect: { name: 'system-settings-site' },
+          redirect: {
+            name: 'system-settings-site',
+            params: { section: 'system-info' },
+          },
           component: () => import('@/views/console/SystemSettingsView.vue'),
-          meta: { wide: true, feature: 'admin' },
+          meta: { wide: true, feature: 'admin', requiresRoot: true },
           children: [
             {
-              path: 'site',
+              path: 'site/:section?',
               name: 'system-settings-site',
               component: () =>
-                import('@/views/console/systemSettings/SiteSettingsView.vue'),
-              meta: { wide: true, feature: 'admin' },
+                import('@/components/console/systemSettings/SystemSettingsDomainView.vue'),
+              props: { domain: 'site' },
+              meta: { wide: true, feature: 'admin', requiresRoot: true },
             },
             {
-              path: 'auth',
+              path: 'auth/:section?',
               name: 'system-settings-auth',
               component: () =>
-                import('@/views/console/systemSettings/AuthSettingsView.vue'),
-              meta: { wide: true, feature: 'admin' },
+                import('@/components/console/systemSettings/SystemSettingsDomainView.vue'),
+              props: { domain: 'auth' },
+              meta: { wide: true, feature: 'admin', requiresRoot: true },
             },
             {
-              path: 'billing',
+              path: 'billing/:section?',
               name: 'system-settings-billing',
               component: () =>
-                import('@/views/console/systemSettings/BillingSettingsView.vue'),
-              meta: { wide: true, feature: 'admin' },
+                import('@/components/console/systemSettings/SystemSettingsDomainView.vue'),
+              props: { domain: 'billing' },
+              meta: { wide: true, feature: 'admin', requiresRoot: true },
             },
             {
-              path: 'models',
+              path: 'models/:section?',
               name: 'system-settings-models',
               component: () =>
-                import('@/views/console/systemSettings/ModelSettingsView.vue'),
-              meta: { wide: true, feature: 'admin' },
+                import('@/components/console/systemSettings/SystemSettingsDomainView.vue'),
+              props: { domain: 'models' },
+              meta: { wide: true, feature: 'admin', requiresRoot: true },
             },
             {
-              path: 'security',
+              path: 'security/:section?',
               name: 'system-settings-security',
               component: () =>
-                import('@/views/console/systemSettings/SecuritySettingsView.vue'),
-              meta: { wide: true, feature: 'admin' },
+                import('@/components/console/systemSettings/SystemSettingsDomainView.vue'),
+              props: { domain: 'security' },
+              meta: { wide: true, feature: 'admin', requiresRoot: true },
             },
             {
-              path: 'content',
+              path: 'content/:section?',
               name: 'system-settings-content',
               component: () =>
-                import('@/views/console/systemSettings/ContentSettingsView.vue'),
-              meta: { wide: true, feature: 'admin' },
+                import('@/components/console/systemSettings/SystemSettingsDomainView.vue'),
+              props: { domain: 'content' },
+              meta: { wide: true, feature: 'admin', requiresRoot: true },
             },
             {
-              path: 'operations',
+              path: 'operations/:section?',
               name: 'system-settings-operations',
               component: () =>
-                import('@/views/console/systemSettings/OperationsSettingsView.vue'),
-              meta: { wide: true, feature: 'admin' },
+                import('@/components/console/systemSettings/SystemSettingsDomainView.vue'),
+              props: { domain: 'operations' },
+              meta: { wide: true, feature: 'admin', requiresRoot: true },
             },
           ],
         },
