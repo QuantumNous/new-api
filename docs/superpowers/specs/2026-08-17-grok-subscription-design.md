@@ -28,7 +28,7 @@ NewAPI 当前的 xAI 渠道是官方 API Key 模式：凭证作为 Bearer API Ke
 | 语音 | TTS、STT、自定义声音 CRUD/试听、Realtime WebSocket |
 | 凭证存储 | `Channel.Key` 存版本化 OAuth JSON；不在其他字段复制 token |
 | 临时敏感输入 | 原始密码和 SSO Cookie 永不落库、永不写日志、永不进入任务或缓存持久化 |
-| PKCE 状态 | 使用 provider-neutral 的共享 `AuthFlow` 一次性状态机制，不新增仅适用于单节点的 Grok session map |
+| PKCE 状态 | 新增 Grok 专用、可跨节点的 `AuthFlow` 一次性状态表（不复用、也不迁移 Copilot 的 Redis+内存 fallback 或 Codex 的 gin session），不新增仅适用于单节点的 Grok session map |
 | 并发 | 完全复用 `Channel.MaxConcurrency` 与 `service/channel_concurrency.go`；默认仍为 `0`（不限并发） |
 | 刷新协调 | 只为凭证刷新增加独立的跨节点 lease；它不占用请求并发槽 |
 | 调度 | 复用现有 group、model、priority、weight、affinity、retry、cooldown 和 failover |
@@ -70,20 +70,24 @@ Client request
   -> existing response, task, billing, logging and failover lifecycle
 ```
 
-实现分四个工作流，但四个工作流都是本次功能的必交付范围：
+实现分四个工作流，并按两个可独立上线的里程碑组织：
 
 1. 渠道类型、凭证、AuthFlow、非秘密状态和刷新 lease。
 2. Responses、Chat、Claude、工具和搜索。
 3. 图片、视频、TTS、STT、自定义声音和 Realtime。
 4. 管理 UI、配额/能力状态、脱敏、回归和端到端验证。
 
-每个工作流独立测试和提交，最终只有在全部验收项通过后才视为功能完成。
+**里程碑 A（文本先行，可独立合并上线）= 工作流 1 + 工作流 2 + 工作流 4 中与文本相关的 UI/状态/脱敏/回归部分。** 一个只提供认证与文本能力（Responses/Chat/Claude/count-tokens/工具搜索）的 Grok Subscription 渠道本身即具备完整、可交付的产品价值，其验收对应第 19 节第 1、2、3、5、6（文本与流式部分）、7、8、9、10 条，不依赖任何媒体/语音能力。
+
+**里程碑 B（增量交付）= 工作流 3 + 工作流 4 中媒体相关部分**，即图片、视频（生成/编辑/扩展/状态/内容）、TTS/STT、自定义声音和 Realtime，对应第 19 节第 4 条及第 6 条媒体部分。
+
+每个工作流独立测试和提交。里程碑 A 达成其对应验收项即可合并上线，不被里程碑 B 阻塞；里程碑 B 的任一能力（如 Realtime、自定义声音）若延期或受阻，不影响已上线的文本能力。全部验收项通过时视为整体功能完成。
 
 ## 5. 渠道、模型与并发
 
 ### 5.1 独立渠道类型
 
-在本文基线分配下一个空闲值 `ChannelTypeGrokSubscription=113` 并把 `ChannelTypeDummy` 后移到 114；在 API type 枚举中同样把 `APITypeGrokSubscription=38` 插在当前 Dummy 前并将 Dummy 后移到 39。若实施前 main 又占用了这些值，只允许重新取当时 Dummy 前的下一个值，不能复用或改写已发布类型。新类型在渠道名称、图标、默认模型、adaptor 注册、渠道测试和前端类型元数据中登记。现有 `ChannelTypeXai` 不改。
+新渠道类型接管 `ChannelTypeDummy` 当前占用的 `113`，并把 `ChannelTypeDummy` 后移到 `114`（`constant/channel.go`；`ChannelTypeDummy` 一贯是「仅用于计数、其后不得新增渠道」的哨兵，下游自定义渠道从 100 起，这正是仓库 `constant/AGENTS.md` 要求的新增方式，因此 `113` 不是「空闲值」而是从 Dummy 手中接管）。API type 枚举同理：`APITypeGrokSubscription` 取当前 `APITypeDummy` 的值 `41`，`APITypeDummy` 后移到 `42`（`constant/api_type.go` 用 iota 连续赋值——注意 `38` 已被 `APITypeBlockRun` 占用，早先草稿里的「38」是读数错误，不可使用）。改动这两个哨兵位必须同步更新断言其相对位置的守卫测试 `constant/copilot_channel_test.go` 与 `constant/modelapi_seedance_channel_test.go`，否则编译测试即红。若实施前 main 又占用了这些值，只允许重新取当时 Dummy 前的下一个值，不能复用或改写已发布类型。新类型在渠道名称、图标、默认模型、adaptor 注册、渠道测试和前端类型元数据中登记。现有 `ChannelTypeXai` 不改。
 
 Grok Subscription 不接受任意自定义上游 Base URL。允许的目标由代码常量和严格 host/path 校验决定；渠道的 `Proxy` 仍可作为出站网络代理，并应用于 OAuth、刷新、SSO 转换和推理，以保持账号网络出口一致。
 
@@ -105,7 +109,9 @@ Grok Subscription 不接受任意自定义上游 Base URL。允许的目标由�
 
 文本、图片、视频、TTS、STT 和 Realtime 请求按客户端模型走既有 Ability 路由。自定义声音的列表/CRUD 等没有 model 的原生端点使用内部 capability selector，仍由现有 group/priority/weight/MaxConcurrency 选择 Grok Subscription 渠道；该 selector 不发送给上游，也不参与模型计费。
 
-模型列表支持通过固定 `/models` 上游读取并由现有“获取上游模型”流程同步。代码提供一组已知 Grok 默认模型以便首次创建，但数据库中的渠道模型列表仍是最终路由依据。
+这里有一个必须显式处理的泄漏面：NewAPI 的渠道选路由 `abilities` 表的 (group, model) 索引驱动，若为无 model 端点在 abilities 里塞入伪 model 行来复用调度，该伪 model 会被 `model/ability.go` 的 `GetEnabledModels()`（`SELECT DISTINCT model FROM abilities WHERE enabled`）取到并直接出现在**每个用户的 `/v1/models` 列表**里。因此内部 capability selector 的标识必须与对外可见模型隔离：要么不进 abilities 表、由独立的 capability 查询选渠道，要么用带保留前缀的标识并在 `GetEnabledModels`/模型列表出口显式过滤。无论哪种实现，验收必须断言这些内部标识不出现在任何面向用户的模型列表、计费和日志中。
+
+模型列表支持通过固定 `/models` 上游读取并由现有”获取上游模型”流程同步。代码提供一组已知 Grok 默认模型以便首次创建，但数据库中的渠道模型列表仍是最终路由依据。
 
 ## 6. 凭证和非秘密状态
 
@@ -180,7 +186,7 @@ Grok Subscription 不接受任意自定义上游 Base URL。允许的目标由�
 
 ### 7.1 PKCE 浏览器 OAuth
 
-共享 `AuthFlow` 保存 provider、管理员 ID、非空目标 channel ID、state hash、加密后的 PKCE verifier、redirect URI、创建时间和过期时间。它使用 provider-neutral 的数据库模型和事务式状态迁移，10 分钟过期；verifier 采用项目已有 authenticated-encryption/服务端 secret 模式加密。flow 必须可跨节点读取、一次性 owner-token claim，claim 后重新读取并校验 channel/admin/expiry，再在成功、失败终态或过期时删除。state 不匹配、flow 已消费和 callback 超时均拒绝交换。
+Grok `AuthFlow` 表保存 provider、管理员 ID、非空目标 channel ID、state hash、加密后的 PKCE verifier、redirect URI、创建时间和过期时间。它是本功能新增的独立数据库模型（字段设计留出 provider 列以便日后其它 provider 复用，但本次不迁移 Copilot/Codex 的现有 OAuth 状态机制，也不承担那两者的重构）；表结构走事务式状态迁移，10 分钟过期；verifier 采用项目已有 authenticated-encryption/服务端 secret 模式加密。flow 必须可跨节点读取、一次性 owner-token claim，claim 后重新读取并校验 channel/admin/expiry，再在成功、失败终态或过期时删除。state 不匹配、flow 已消费和 callback 超时均拒绝交换。
 
 管理 UI 先保存一个 `needs_auth` 渠道，再打开 authorize URL；管理员完成登录后把 callback URL、`code#state` 或等价授权结果粘回弹窗。服务端解析、交换并直接原子保存凭证，浏览器只收到授权状态和非秘密 metadata，任何新建或重授权路径都不把 Key/token 回显给浏览器。
 
@@ -199,6 +205,8 @@ SSO device flow 使用扩展 scope `openid profile email offline_access grok-cli
 密码登录通过管理员设置 `grok_password_auth_enabled` 控制，默认 `false`。只有该设置为 true 且服务端 YesCaptcha secret 可用时，capabilities API 才报告可用并在 UI 展示入口。
 
 流程针对已保存 channel 在固定 `accounts.x.ai/api/rpc` 上完成登录，得到短生命周期 SSO Cookie 后立即复用 7.3 转成 OAuth。Turnstile solver 只允许 `https://api.yescaptcha.com/createTask` 和 `https://api.yescaptcha.com/getTaskResult`。密码和中间 SSO 变量在请求结束前清零引用，不出现在 response、state、task、metric 或日志。solver host 不能由请求或渠道自定义；solver API key 只从服务端 secret 读取。
+
+**已知风险（产品决策，非工程可消除）**：密码登录本质是用第三方 CAPTCHA solver（YesCaptcha）自动化通过 x.ai 登录页的 Cloudflare Turnstile，属于对 xAI 官方登录流程的自动化访问，可能违反其服务条款，并可能触发账号侧风控（x.ai 对自动化行为的风控已知较严，历史上出现过自动化取得的会话被上游直接作废的情况）。本设计的工程防护（默认关闭、服务端 secret、固定两个 solver endpoint、凭证不落库不入日志）只降低泄漏面，不改变上述 ToS/账号存活风险。是否启用该入口由管理员在知悉此风险后自行决定；建议默认保持关闭，仅在确有必要且可接受账号被风控的场景下临时开启。
 
 ### 7.5 管理 API
 
@@ -263,7 +271,7 @@ CLI proxy 的特定兼容性 `403 Access denied` 允许一次严格受限的同�
 
 - 原请求目标精确为 `cli-chat-proxy.grok.com`，携带预期 CLI identity 和 Bearer OAuth；
 - 最多缓冲并恢复 64 KiB 的 403 body；更大或不可读 body 不回退；
-- body 在第 12 节更高优先级分类均未命中后，精确等价于 `{"error":"Access denied"}`，或同时满足 `code=permission_denied` 且 `error` 以前缀 `Access to the chat endpoint is denied. Please ensure you're using the correct credentials. If you believe this is a mistake, please` 开头；任意出现单词 `access`/`denied` 不算命中；
+- body 在第 12 节更高优先级分类均未命中后，按以下两条并列规则之一命中（与上游实际观察一致）：规范化（限长、去首尾空白、小写化）后命中连续子串 `access denied`；或结构化字段 `code=permission_denied` 且 `error` 字段以前缀 `Access to the chat endpoint is denied. Please ensure you're using the correct credentials. If you believe this is a mistake, please`（大小写不敏感）开头。子串规则本身较宽，但因第 12 节的 content-policy 与 account/entitlement 分类优先级更高、会先行拦截，策略类和账号类 403 不会落到这里被误判为兼容性回退；单独出现 `access` 或单独 `denied` 不构成连续子串，不算命中；
 - 请求 body 可重建，且尚未向客户端写出语义内容；
 - 整条请求生命周期尚未执行过该回退。
 
@@ -273,6 +281,12 @@ CLI proxy 的特定兼容性 `403 Access denied` 允许一次严格受限的同�
 
 Responses 是内部 canonical 文本协议。Chat 和 Claude 转换复用 NewAPI 已有包；Grok 在 Claude handler 中显式强制 Responses bridge，不依赖可变的全局转换策略。Grok 模块补 Grok 特有的字段白名单、工具类型、上游错误映射和 CLI headers，并显式加入 Responses capability allowlist。
 
+Responses 的渠道门禁在实现上有三处硬编码判断，新渠道要走通 Responses/compact 必须逐一登记，缺一处就会在选路或 handler 阶段被拒：
+
+- `service/channel_select.go` 的 `channelSupportsOpenAIResponses`（按 APIType 的 allowlist）——加入 `APITypeGrokSubscription`，否则 `/v1/responses` 请求在渠道选路阶段就被过滤掉；
+- `service/channel_select.go` 的 `channelSupportsRequestedEndpoint` 对 `EndpointTypeOpenAIResponseCompact` 的分支，以及 `relay/responses_handler.go` 里 `RelayModeResponsesCompact` 的 api-type 白名单——这两处目前**硬编码只放行 `APITypeOpenAI` 与 `APITypeCodex`**，都要加入 `APITypeGrokSubscription`。特别注意：不改这两处时 compact 请求同样会返回 400，但那是「渠道不支持该端点」的 400，不是下面要求的「compact 不支持流式」的 400——第 16 节测 `stream=true 稳定 400` 时必须断言错误来源，避免用错误 400 制造假阳性通过；
+- `common/endpoint_type.go` 的 `GetEndpointTypesByChannelType`——为 Grok 渠道类型返回含 `EndpointTypeOpenAIResponse` 的端点列表。
+
 `/v1/responses/compact` 不调用不存在的上游 compact path，而是 clean-room 构造一个服务端 summary 指令的普通、非流式 Responses turn。客户端显式传 `stream=true` 时稳定返回 400；省略或 false 时，服务端规范化输入、追加 summary item、要求 `reasoning.encrypted_content`、强制 `stream=false`/`store=false`，并在最终 sanitizer 删除顶层 `tools`、`tool_choice`、`parallel_tool_calls`、`max_tool_calls`、`tool_resources` 及其他工具配置，保证它们不发往上游；历史 input 中的 tool call/result 仍作为待总结内容保留。响应只在同时得到 encrypted reasoning 与合法 summary 时转换为 OpenAI compaction item，否则返回稳定错误且不伪造结果。summary 指令按本项目需求独立撰写，不复制 Sub2API 文本。
 
 function tools、`web_search`/兼容别名和 `x_search` 使用 typed DTO；客户端显式传入的 `0`、`false` 等可选标量必须通过指针字段保留。未知 tool type 或不被 Grok 支持的字段返回可定位的 400，不能静默删除并产生不同语义。
@@ -281,7 +295,9 @@ function tools、`web_search`/兼容别名和 `x_search` 使用 typed DTO；客�
 
 为防止共享订阅账号产生跨租户缓存身份，发送给上游的 cache identity 使用服务端 HMAC 对 channel、NewAPI user/token identity 和客户端 cache key 做命名空间化。原始用户 ID、token ID 和客户端 cache key 不发送给上游，也不进入日志。
 
-SSE 在写出任何语义内容前可以按既有 retry/failover 规则换渠道。实现必须使用请求级 `semantic_output_started` tracker，不能以 `gin.ResponseWriter.Written()` 或是否 flush 过 header 代替：SSE comment、空 event、heartbeat/keepalive 和单纯 header flush 不置位；Responses 的 text/reasoning/tool/usage/error，Chat delta/tool/usage/error，以及 Claude content/tool/usage/error 事件在写出前原子置位。一旦置位，不得切换到另一个 Grok 账号继续同一响应。上游中断按对应客户端协议发终止错误并结束计费生命周期。WebSocket 完成 upgrade 后同样固定 channel 到连接关闭。
+SSE 在写出任何语义内容前可以按既有 retry/failover 规则换渠道。这里与现有框架有一处必须显式处理的冲突：NewAPI 现有的重试门禁 `shouldRetry` 和错误写出 `writeRelayError`（均在 `controller/relay.go`）都用 `c.Writer.Written()` 判断「是否已开始响应」，而 SSE heartbeat/keepalive 会写出字节但不应阻止换渠道，即新判据比 `Written()` 更宽松。**本设计不修改共享的 `shouldRetry`/`writeRelayError`**，以保证第 19.8 条「现有 xAI 及其他渠道零回归」的承诺；取而代之，Grok 走独立重试判断：在 Grok 的 adaptor/handler 内维护请求级 `semantic_output_started` tracker，只用于 Grok 自身的换渠道决策。代价是「复用现有 retry/failover」在文本流式这一段对 Grok 是「Grok 专用判据 + 复用现有候选选择/cooldown/计费生命周期」，而非逐行复用 `shouldRetry`——实现与测试都按此理解。
+
+tracker 规则：不能以 `gin.ResponseWriter.Written()` 或是否 flush 过 header 代替；SSE comment、空 event、heartbeat/keepalive 和单纯 header flush 不置位；Responses 的 text/reasoning/tool/usage/error，Chat delta/tool/usage/error，以及 Claude content/tool/usage/error 事件在写出前原子置位。一旦置位，不得切换到另一个 Grok 账号继续同一响应。上游中断按对应客户端协议发终止错误并结束计费生命周期。WebSocket 完成 upgrade 后同样固定 channel 到连接关闭。
 
 ## 10. 图片、视频、语音和资源隔离
 
@@ -294,6 +310,8 @@ SSE 在写出任何语义内容前可以按既有 retry/failover 规则换渠道
 ### 10.2 视频
 
 视频创建、编辑和扩展都落到现有 Task 表和 task billing。对外 task ID 与上游 request ID 分离，Task private data 保存 origin channel 和上游 ID；状态及内容只能回到原 channel。内容 URL 使用 NewAPI proxy URL，不能暴露 `api.x.ai` 地址或 Bearer token。
+
+需要注意 Task 系统当前只提供 generate/fetch/remix 三类视频动作（`router/video-router.go`，`constant/task.go` 的 action 常量也只有 5 个，均无 edit/extend）：**视频 edits 与 extensions 是本设计新增的 task action，不是「复用现有动作」**，需新增路由、action 常量、上游请求构造与结算路径，并把它们绑定回 origin channel。Task 模型本身已具备 `PrivateData`（含 `SpecificChannelId`、`UpstreamTaskID` 等）和 `ChannelId` 索引，可承载绑定语义，无需改表结构；新增的是动作而非存储模型。此项属里程碑 B。
 
 视频创建、编辑和扩展与图片一样要求有效的正向 paid entitlement/billing 证据；没有证据时不向上游提交。已存在任务的状态和内容读取不受该写操作闸门影响，始终使用绑定的 origin channel，因此 entitlement 后续过期或变为 stale 时仍可查询和下载已创建结果。
 
@@ -331,7 +349,14 @@ limit/remaining 只接受非负十进制整数。reset 的整数值 `>=10^12` �
 
 信号不互相覆盖原始来源，派生状态遵循固定优先级：更新更晚的明确 denied/suspended/free 信号可以立即收紧能力；媒体 paid 只能由下述 fresh billing 正向证明；cooldown/reset 使用与当前模型匹配的最新 response headers；展示 tier 依次取 fresh billing canonical plan、JWT `tier`、header tier；本地 usage 只用于展示和保守保护，不能授予 entitlement。JWT `tier` 接受数值/数字字符串 `0..7` 和规范化字符串，其中 `0=free`、`1=supergrok`、`2=x_basic`、`3=x_premium`、`4=x_premium_plus`、`5=supergrok_heavy`、`6=supergrok_lite`、`7=supergrok_plus`；其他值保留为 unknown，不授予 paid。
 
-媒体正向证据是机器可判定的 `billing_probe` snapshot：`now-observed_at` 必须位于 `[-5m, 24h]`，不得含顶层/weekly/monthly 401 或 403，不得被更新更晚的 denied/free 信号否决，并至少包含一个 2xx billing window 及以下任一 authoritative paid 字段：非空的 `usage_percent`/`used_percent`、正数 `monthly_limit_cents`，或 canonical paid plan（`supergrok`、`supergrok_heavy`、`supergrok_lite`、`supergrok_plus`）。`free`、`x_basic`、单独的 header `entitlement=active`、JWT 非 Free tier、本地 usage 和模型 quota 大小都不能单独形成媒体正向证据。
+媒体正向证据是机器可判定的 `billing_probe` snapshot：`now-observed_at` 必须位于 `[-5m, 24h]`，不得含顶层/weekly/monthly 401 或 403，不得被更新更晚的 denied/free 信号否决，并至少包含一个 2xx billing window 及以下任一 authoritative paid 字段。注意 billing 探测有两个 path（月度 `/billing`、周度/credits `/billing?format=credits`，均在 CLI proxy base 上，官方/区域 api.x.ai host 不提供 billing），且**上游 wire 字段名与归一化后的字段名是两套，不能混用**：
+
+- 归一化 `usage_percent` 非空（上游 wire 名是 `creditUsagePercent`/`usagePercent`）；
+- 归一化 `used_percent` 非空（此值不是上游返回字段，而是 `includedUsed / monthlyLimit` 本地算出的派生值）；
+- 归一化 `monthly_limit_cents` 为正数（上游 wire 名是 `monthlyLimit`）；
+- 或 canonical paid plan——注意这里的 plan 名是 billing 命名空间的**空格大写**值 `SuperGrok`（monthlyLimit≈15000 分）或 `SuperGrok Heavy`（≈150000 分），由月度额度推出，只有这两个值；它与第 6 段 JWT tier 命名空间的 snake_case 名（`supergrok`/`supergrok_heavy`/`supergrok_lite`/`supergrok_plus`）是两回事，实现时不得把 tier 名当 plan 名去匹配。
+
+`free`、`x_basic`、单独的 header `entitlement=active`、JWT 非 Free tier、本地 usage 和模型 quota 大小都不能单独形成媒体正向证据。
 
 手动 quota refresh 只有在 billing probe 成功并通过上述校验时才更新 `observed_at`；失败时保留上一份 snapshot 和原时间并标记 probe error/stale，不能延长 24 小时授权。后台刷新规则相同。带有可用 quota/reset headers 的 429 可以更新 header snapshot，但不能延长媒体 billing 证据。
 
@@ -354,7 +379,7 @@ limit/remaining 只接受非负十进制整数。reset 的整数值 `>=10^12` �
 | --- | --- | --- |
 | 1 | content policy | marker 规范化后为 `content_filter`、`content_policy`、`content_policy_violation`、`content_moderation`、`cyber_policy`、`new_sensitive`；或 message 命中明确短语 `content policy violation/rejection/rejected`、`content moderation blocked/rejected`、`request/prompt/input blocked by/violates policy`、`image/text is sensitive`、`prohibited/forbidden content` |
 | 2 | account/entitlement/billing | marker 为 `account_suspended`、`account_disabled`、`user_suspended`、`user_disabled`、`subscription_required`、`entitlement_required`、`not_entitled`、`plan_required`、`insufficient_quota`；或 message 明确包含 account/user suspended/disabled、subscription/entitlement required、not entitled、payment required、spending limit、out of credits |
-| 3 | CLI compatibility | 仅匹配第 8.4 节两个固定 body shape；裸 `permission_denied` 不足以命中 |
+| 3 | CLI compatibility | 仅匹配第 8.4 节两条匹配规则（`access denied` 连续子串，或 `code=permission_denied` 且 `error` 命中固定长前缀）；裸 `permission_denied` 不足以命中 |
 | 4 | unknown 403 | 以上均未命中；不 refresh、不 official fallback、不 cooldown、不修改 channel 状态、不自动跨账号 failover；记录脱敏错误供管理员处理 |
 
 | 情况 | 行为 |
@@ -484,7 +509,7 @@ OAuth/SSO/password 输入只保存在 React 组件 state，不进入 localStorag
 
 - Router deploy：required；
 - Other deploy targets：`newapi-console` required，`newapi-web`/Terraform/Cloudflare not required；
-- 数据迁移：AutoMigrate 新增共享 AuthFlow、Grok state 和 Grok resource binding 表，旧渠道无数据变更；
+- 数据迁移：AutoMigrate 新增 Grok `AuthFlow`、Grok state 和 Grok resource binding 表，旧渠道无数据变更；Copilot/Codex 现有 OAuth 状态机制不动；
 - 密码认证默认关闭，无配置时不产生外部 CAPTCHA 调用；
 - 未创建/启用 Grok Subscription 渠道时，请求路径无行为变化。
 
