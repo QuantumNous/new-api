@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Plus, Trash2 } from 'lucide-vue-next'
+import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import FormField from '@/components/common/FormField.vue'
+import StatusChip from '@/components/common/StatusChip.vue'
 import TextInput from '@/components/common/TextInput.vue'
 import type { SystemSettingValue } from '@/composables/useSystemSettings'
 import type { SystemSettingField } from '@/constants/systemSettingsCatalog'
@@ -191,6 +193,18 @@ watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
     ]"
   >
     <div v-if="field.kind === 'json'" class="settings-json-editor">
+      <div class="mb-1.5 flex items-center justify-between">
+        <span class="font-mono text-xs text-[var(--text-tertiary)]"
+          >JSON Format</span
+        >
+        <button
+          type="button"
+          class="focus-ring text-xs font-semibold text-[var(--accent-text)] hover:underline"
+          @click="formatJson"
+        >
+          格式化 JSON
+        </button>
+      </div>
       <textarea
         :value="textValue"
         rows="8"
@@ -218,23 +232,25 @@ watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
         />
         <button
           type="button"
-          class="settings-structured-icon"
+          class="settings-structured-icon focus-ring"
           title="删除条目"
           aria-label="删除条目"
           @click="removeListEntry(index)"
         >
-          <Trash2 :size="15" aria-hidden="true" />
+          <Trash2 :size="14" aria-hidden="true" />
         </button>
       </div>
-      <button
+      <ConsoleButton
         type="button"
-        class="settings-structured-add"
+        size="sm"
+        variant="secondary"
+        class="mt-1 w-fit"
         title="添加条目"
-        aria-label="添加条目"
         @click="addListEntry"
       >
-        <Plus :size="16" aria-hidden="true" />
-      </button>
+        <Plus :size="14" class="mr-1" aria-hidden="true" />
+        添加条目
+      </ConsoleButton>
     </div>
 
     <div
@@ -264,55 +280,63 @@ watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
         />
         <button
           type="button"
-          class="settings-structured-icon"
+          class="settings-structured-icon focus-ring"
           title="删除条目"
           aria-label="删除条目"
           @click="removeMapEntry(index)"
         >
-          <Trash2 :size="15" aria-hidden="true" />
+          <Trash2 :size="14" aria-hidden="true" />
         </button>
       </div>
-      <button
+      <ConsoleButton
         type="button"
-        class="settings-structured-add"
+        size="sm"
+        variant="secondary"
+        class="mt-1 w-fit"
         title="添加条目"
-        aria-label="添加条目"
         @click="addMapEntry"
       >
-        <Plus :size="16" aria-hidden="true" />
-      </button>
+        <Plus :size="14" class="mr-1" aria-hidden="true" />
+        添加条目
+      </ConsoleButton>
     </div>
 
-    <textarea
+    <div
       v-else-if="field.kind === 'textarea' || field.kind === 'secret-textarea'"
-      v-model="textValue"
-      rows="5"
-      class="settings-textarea"
-      :autocomplete="field.kind === 'secret-textarea' ? 'new-password' : 'off'"
-    />
-
-    <p
-      v-if="field.kind === 'secret-textarea' && secretConfigured"
-      class="settings-secret-status"
+      class="space-y-1.5"
     >
-      已配置。留空不会覆盖现有凭据。
-    </p>
-
-    <select
-      v-else-if="field.kind === 'select'"
-      v-model="textValue"
-      class="settings-select"
-    >
-      <option
-        v-for="option in field.options"
-        :key="option.value"
-        :value="option.value"
+      <textarea
+        v-model="textValue"
+        rows="5"
+        class="settings-textarea"
+        :autocomplete="
+          field.kind === 'secret-textarea' ? 'new-password' : 'off'
+        "
+      />
+      <div
+        v-if="field.kind === 'secret-textarea' && secretConfigured"
+        class="mt-1 flex items-center gap-1.5"
       >
-        {{ option.label }}
-      </option>
-    </select>
+        <StatusChip tone="success" class="text-xs">已配置</StatusChip>
+        <span class="text-xs text-[var(--text-tertiary)]"
+          >留空不会覆盖现有凭据</span
+        >
+      </div>
+    </div>
 
-    <div v-else class="space-y-1">
+    <div v-else-if="field.kind === 'select'" class="relative">
+      <select v-model="textValue" class="settings-select focus-ring">
+        <option
+          v-for="option in field.options"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </select>
+    </div>
+
+    <div v-else class="space-y-1.5">
       <TextInput
         v-model="textValue"
         :type="
@@ -326,12 +350,15 @@ watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
         "
         :autocomplete="field.kind === 'secret' ? 'new-password' : 'off'"
       />
-      <p
+      <div
         v-if="field.kind === 'secret' && secretConfigured"
-        class="settings-secret-status"
+        class="mt-1 flex items-center gap-1.5"
       >
-        已配置。留空不会覆盖现有凭据。
-      </p>
+        <StatusChip tone="success" class="text-xs">已配置</StatusChip>
+        <span class="text-xs text-[var(--text-tertiary)]"
+          >留空不会覆盖现有凭据</span
+        >
+      </div>
     </div>
   </FormField>
 </template>
@@ -343,37 +370,39 @@ watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  border-bottom: 1px solid var(--border-subtle);
-  padding: 0.75rem 0;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-table-header);
+  transition: all 0.15s ease;
 }
-.settings-field-toggle:last-child {
-  border-bottom: 0;
+.settings-field-toggle:hover {
+  background: var(--surface-hover);
 }
 .settings-field-title {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
 }
-.settings-field-description,
-.settings-secret-status {
+.settings-field-description {
   margin-top: 0.25rem;
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--text-tertiary);
-}
-.settings-secret-status {
-  color: var(--signal);
 }
 .settings-textarea,
 .settings-json-textarea,
 .settings-select {
   width: 100%;
   border: 1.5px solid var(--border-default);
-  border-radius: var(--sketch-border-radius-sm);
-  background: transparent;
+  border-radius: 0.75rem;
+  background: var(--surface-solid);
   color: var(--text-primary);
   font: inherit;
   outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .settings-textarea,
 .settings-json-textarea {
@@ -383,12 +412,15 @@ watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
   line-height: 1.6;
 }
 .settings-json-textarea {
-  font-family: var(--font-mono, monospace);
-  font-size: 0.75rem;
+  font-family:
+    'Ren2JetBrainsMono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-size: 0.8125rem;
 }
 .settings-select {
   height: 2.75rem;
-  padding: 0 0.75rem;
+  padding: 0 0.875rem;
+  cursor: pointer;
 }
 .settings-textarea:focus,
 .settings-json-textarea:focus,
@@ -399,42 +431,36 @@ watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
 .settings-json-error {
   margin-top: 0.375rem;
   font-size: 0.75rem;
-  color: var(--danger);
+  color: var(--status-danger-text);
 }
 .settings-structured-editor {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.625rem;
 }
 .settings-structured-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.25rem;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
   gap: 0.5rem;
   align-items: center;
 }
 .settings-structured-pair {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.25rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
 }
-.settings-structured-icon,
-.settings-structured-add {
+.settings-structured-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
   border: 1px solid var(--border-default);
-  border-radius: var(--sketch-border-radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
+  border-radius: 0.625rem;
+  background: var(--surface-solid);
+  color: var(--text-tertiary);
+  transition: all 0.15s ease;
 }
-.settings-structured-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-}
-.settings-structured-add {
-  width: 2.25rem;
-  height: 2rem;
-}
-.settings-structured-icon:hover,
-.settings-structured-add:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+.settings-structured-icon:hover {
+  border-color: var(--status-danger);
+  color: var(--status-danger-text);
+  background: var(--status-danger-soft);
 }
 </style>

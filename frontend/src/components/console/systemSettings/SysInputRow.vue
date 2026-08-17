@@ -60,15 +60,17 @@ const model = defineModel<string>({ default: '' })
   min-height: 7rem;
   resize: vertical;
   border: 1.5px solid var(--border-default);
-  border-radius: var(--sketch-border-radius-sm);
-  background: transparent;
+  border-radius: 0.75rem;
+  background: var(--surface-solid);
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
   line-height: 1.6;
   color: var(--text-primary);
   font-family: inherit;
   outline: none;
-  transition: border-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 .sys-textarea::placeholder {
   color: var(--text-tertiary);

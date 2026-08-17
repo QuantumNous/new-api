@@ -32,8 +32,15 @@ const model = defineModel<boolean>({ default: false })
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  min-height: 3.75rem;
-  padding: 0.75rem 0;
+  min-height: 4rem;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-table-header);
+  transition: all 0.15s ease;
+}
+.settings-toggle-row:hover {
+  background: var(--surface-hover);
 }
 
 .settings-toggle-title {
@@ -43,7 +50,7 @@ const model = defineModel<boolean>({ default: false })
 }
 
 .settings-toggle-description {
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--text-tertiary);

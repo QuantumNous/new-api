@@ -138,29 +138,36 @@ onMounted(() => load())
 
 <template>
   <div v-if="domainConfig && activeSection" class="settings-domain-layout">
-    <nav class="settings-section-nav" :aria-label="domainConfig.titleKey">
-      <button
-        v-for="section in domainConfig.sections"
-        :key="section.id"
-        type="button"
-        class="settings-section-link focus-ring"
-        :class="section.id === activeSection.id ? 'is-active' : ''"
-        :aria-current="section.id === activeSection.id ? 'page' : undefined"
-        @click="toSection(section.id)"
-      >
-        {{ section.title }}
-      </button>
-    </nav>
+    <!-- Left Section Navigation Rail -->
+    <aside class="settings-section-aside">
+      <nav class="settings-section-nav" :aria-label="domainConfig.titleKey">
+        <button
+          v-for="section in domainConfig.sections"
+          :key="section.id"
+          type="button"
+          class="settings-section-link focus-ring"
+          :class="section.id === activeSection.id ? 'is-active' : ''"
+          :aria-current="section.id === activeSection.id ? 'page' : undefined"
+          @click="toSection(section.id)"
+        >
+          <span class="truncate">{{ section.title }}</span>
+        </button>
+      </nav>
+    </aside>
 
-    <div class="min-w-0">
+    <div class="min-w-0 flex-1">
       <header class="settings-section-heading">
-        <p class="text-xs font-semibold uppercase text-[var(--text-tertiary)]">
+        <span
+          class="inline-block rounded-md bg-[var(--accent-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--accent-text)]"
+        >
           {{ t(domainConfig.titleKey) }}
-        </p>
-        <h2 class="display-title text-2xl font-bold text-[var(--text-primary)]">
+        </span>
+        <h2
+          class="display-title mt-1.5 text-2xl font-bold text-[var(--text-primary)]"
+        >
           {{ activeSection.title }}
         </h2>
-        <p class="mt-2 max-w-2xl text-sm text-[var(--text-secondary)]">
+        <p class="mt-1 max-w-2xl text-xs text-[var(--text-secondary)]">
           {{ activeSection.description }}
         </p>
       </header>
@@ -208,50 +215,63 @@ onMounted(() => load())
 <style scoped>
 .settings-domain-layout {
   display: grid;
-  grid-template-columns: minmax(10rem, 12rem) minmax(0, 1fr);
-  gap: 2rem;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: start;
 }
-.settings-section-nav {
+.settings-section-aside {
   position: sticky;
   top: 1rem;
-  align-self: start;
+}
+.settings-section-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  border-left: 1px solid var(--border-subtle);
-  padding: 0.25rem 0 0.25rem 0.75rem;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border-radius: 1rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-solid);
+  box-shadow: var(--card-shadow);
 }
 .settings-section-link {
   min-height: 2.25rem;
   border: 0;
-  border-radius: var(--sketch-border-radius-sm);
+  border-radius: 0.625rem;
   background: transparent;
-  padding: 0.4rem 0.55rem;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  position: relative;
 }
 .settings-section-link:hover {
   color: var(--text-primary);
-  background: var(--surface-muted);
+  background: var(--surface-hover);
 }
 .settings-section-link.is-active {
-  color: var(--text-primary);
+  color: var(--accent-text);
+  font-weight: 700;
   background: var(--accent-soft);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.settings-section-link.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--accent);
 }
 .settings-section-heading {
   margin-bottom: 1.25rem;
 }
-.settings-section-heading h2 {
-  margin-top: 0.2rem;
-}
 .settings-fields-grid {
   display: grid;
-  gap: 1rem 1.25rem;
+  gap: 1.25rem 1.5rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .settings-fields-grid > :deep(.settings-field-toggle) {
@@ -266,18 +286,17 @@ onMounted(() => load())
 .settings-fields-grid > :deep(.settings-field-wide) {
   grid-column: 1 / -1;
 }
-@media (max-width: 767px) {
+@media (max-width: 860px) {
   .settings-domain-layout {
     display: block;
   }
-  .settings-section-nav {
+  .settings-section-aside {
     position: static;
+    margin-bottom: 1.25rem;
+  }
+  .settings-section-nav {
     flex-direction: row;
     overflow-x: auto;
-    margin: 0 -1rem 1.5rem;
-    border-left: 0;
-    border-bottom: 1px solid var(--border-subtle);
-    padding: 0 1rem 0.75rem;
     scrollbar-width: none;
   }
   .settings-section-nav::-webkit-scrollbar {
@@ -286,6 +305,9 @@ onMounted(() => load())
   .settings-section-link {
     flex: 0 0 auto;
     white-space: nowrap;
+  }
+  .settings-section-link.is-active::before {
+    display: none;
   }
   .settings-fields-grid {
     grid-template-columns: minmax(0, 1fr);

@@ -151,16 +151,28 @@ onMounted(loadStats)
 </script>
 
 <template>
-  <section class="settings-maintenance-actions">
-    <div class="settings-maintenance-header">
+  <section
+    class="settings-maintenance-actions mt-6 border-t border-dashed border-[var(--border-default)] pt-5 text-sm text-[var(--text-secondary)]"
+  >
+    <div class="flex items-center justify-between gap-4">
       <div>
-        <h3>运行状态与维护</h3>
-        <p v-if="loadingStats">正在获取最新运行状态。</p>
-        <p v-else-if="kind === 'channel-affinity'">
+        <h3 class="display-title text-sm font-bold text-[var(--text-primary)]">
+          运行状态与维护
+        </h3>
+        <p
+          v-if="loadingStats"
+          class="mt-0.5 text-xs text-[var(--text-tertiary)]"
+        >
+          正在获取最新运行状态…
+        </p>
+        <p
+          v-else-if="kind === 'channel-affinity'"
+          class="mt-0.5 text-xs text-[var(--text-tertiary)]"
+        >
           缓存 {{ affinityStats?.total ?? 0 }} 条，容量
           {{ affinityStats?.cache_capacity ?? 0 }}。
         </p>
-        <p v-else>
+        <p v-else class="mt-0.5 text-xs text-[var(--text-tertiary)]">
           缓存命中率 {{ cacheHitRate }}，日志文件
           {{ logFiles?.file_count ?? 0 }} 个。
         </p>
@@ -175,53 +187,116 @@ onMounted(loadStats)
       </ConsoleButton>
     </div>
 
-    <dl
+    <!-- KPI Metric Cards Grid -->
+    <div
       v-if="kind === 'channel-affinity' && affinityStats"
-      class="settings-maintenance-stats"
+      class="my-4 grid grid-cols-2 gap-3 sm:grid-cols-3"
     >
-      <div>
-        <dt>缓存条目</dt>
-        <dd>{{ affinityStats.total }}</dd>
+      <div
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3.5"
+      >
+        <div class="text-xs font-medium text-[var(--text-tertiary)]">
+          缓存条目
+        </div>
+        <div
+          class="mt-1 font-mono text-xl font-bold text-[var(--text-primary)]"
+        >
+          {{ affinityStats.total }}
+        </div>
       </div>
-      <div>
-        <dt>未知条目</dt>
-        <dd>{{ affinityStats.unknown }}</dd>
+      <div
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3.5"
+      >
+        <div class="text-xs font-medium text-[var(--text-tertiary)]">
+          未知条目
+        </div>
+        <div
+          class="mt-1 font-mono text-xl font-bold text-[var(--text-primary)]"
+        >
+          {{ affinityStats.unknown }}
+        </div>
       </div>
-      <div>
-        <dt>缓存算法</dt>
-        <dd>{{ affinityStats.cache_algo || '—' }}</dd>
+      <div
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3.5"
+      >
+        <div class="text-xs font-medium text-[var(--text-tertiary)]">
+          缓存算法
+        </div>
+        <div
+          class="mt-1 font-mono text-base font-bold text-[var(--text-primary)]"
+        >
+          {{ affinityStats.cache_algo || '—' }}
+        </div>
       </div>
-    </dl>
-    <dl v-else-if="performanceStats" class="settings-maintenance-stats">
-      <div>
-        <dt>磁盘缓存</dt>
-        <dd>{{ formatBytes(performanceStats.disk_cache_info.total_size) }}</dd>
+    </div>
+
+    <div
+      v-else-if="performanceStats"
+      class="my-4 grid grid-cols-2 gap-3 sm:grid-cols-4"
+    >
+      <div
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3.5"
+      >
+        <div class="text-xs font-medium text-[var(--text-tertiary)]">
+          磁盘缓存
+        </div>
+        <div
+          class="mt-1 font-mono text-lg font-bold text-[var(--text-primary)]"
+        >
+          {{ formatBytes(performanceStats.disk_cache_info.total_size) }}
+        </div>
       </div>
-      <div>
-        <dt>当前内存</dt>
-        <dd>{{ formatBytes(performanceStats.memory_stats.alloc) }}</dd>
+      <div
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3.5"
+      >
+        <div class="text-xs font-medium text-[var(--text-tertiary)]">
+          当前内存
+        </div>
+        <div
+          class="mt-1 font-mono text-lg font-bold text-[var(--text-primary)]"
+        >
+          {{ formatBytes(performanceStats.memory_stats.alloc) }}
+        </div>
       </div>
-      <div>
-        <dt>Goroutine</dt>
-        <dd>{{ performanceStats.memory_stats.num_goroutine }}</dd>
+      <div
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3.5"
+      >
+        <div class="text-xs font-medium text-[var(--text-tertiary)]">
+          Goroutine
+        </div>
+        <div
+          class="mt-1 font-mono text-lg font-bold text-[var(--text-primary)]"
+        >
+          {{ performanceStats.memory_stats.num_goroutine }}
+        </div>
       </div>
-      <div>
-        <dt>日志占用</dt>
-        <dd>{{ formatBytes(logFiles?.total_size) }}</dd>
+      <div
+        class="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3.5"
+      >
+        <div class="text-xs font-medium text-[var(--text-tertiary)]">
+          日志占用
+        </div>
+        <div
+          class="mt-1 font-mono text-lg font-bold text-[var(--text-primary)]"
+        >
+          {{ formatBytes(logFiles?.total_size) }}
+        </div>
       </div>
-    </dl>
+    </div>
 
     <template v-if="kind === 'channel-affinity'">
-      <ConsoleButton
-        variant="secondary"
-        size="sm"
-        @click="pendingAction = 'clear-affinity'"
-      >
-        清空亲和性缓存
-      </ConsoleButton>
+      <div class="mt-4 flex flex-wrap gap-2.5">
+        <ConsoleButton
+          variant="secondary"
+          size="sm"
+          @click="pendingAction = 'clear-affinity'"
+        >
+          清空亲和性缓存
+        </ConsoleButton>
+      </div>
     </template>
     <template v-else>
-      <div class="settings-maintenance-controls">
+      <div class="mt-4 flex flex-wrap gap-2.5">
         <ConsoleButton
           variant="secondary"
           size="sm"
@@ -240,8 +315,17 @@ onMounted(loadStats)
           执行垃圾回收
         </ConsoleButton>
       </div>
-      <div class="settings-log-cleanup">
-        <select v-model="logCleanupMode" aria-label="日志清理方式">
+      <div
+        class="mt-4 flex flex-wrap items-center gap-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/30 p-3"
+      >
+        <span class="text-xs font-medium text-[var(--text-secondary)]"
+          >日志清理：</span
+        >
+        <select
+          v-model="logCleanupMode"
+          class="focus-ring h-8 rounded-lg border border-[var(--border-default)] bg-[var(--surface-solid)] px-2.5 text-xs text-[var(--text-primary)]"
+          aria-label="日志清理方式"
+        >
           <option value="by_count">保留最新文件数</option>
           <option value="by_days">按保留天数清理</option>
         </select>
@@ -249,6 +333,7 @@ onMounted(loadStats)
           v-model.number="logCleanupValue"
           type="number"
           min="1"
+          class="focus-ring h-8 w-20 rounded-lg border border-[var(--border-default)] bg-[var(--surface-solid)] px-2.5 text-xs text-[var(--text-primary)]"
           aria-label="日志保留值"
         />
         <ConsoleButton
@@ -273,65 +358,3 @@ onMounted(loadStats)
     @confirm="runAction"
   />
 </template>
-
-<style scoped>
-.settings-maintenance-actions {
-  margin-top: 1.5rem;
-  border-top: 1px dashed var(--border-default);
-  padding-top: 1rem;
-  color: var(--text-secondary);
-  font-size: 0.8125rem;
-}
-.settings-maintenance-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-.settings-maintenance-header h3 {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.settings-maintenance-header p {
-  margin-top: 0.25rem;
-}
-.settings-maintenance-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin: 1rem 0;
-}
-.settings-maintenance-stats dt {
-  font-size: 0.6875rem;
-  color: var(--text-tertiary);
-}
-.settings-maintenance-stats dd {
-  margin-top: 0.125rem;
-  overflow-wrap: anywhere;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.settings-maintenance-controls,
-.settings-log-cleanup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-.settings-log-cleanup select,
-.settings-log-cleanup input {
-  min-width: 8rem;
-  height: 2rem;
-  border: 1px solid var(--border-default);
-  border-radius: var(--sketch-border-radius-sm);
-  background: transparent;
-  padding: 0 0.5rem;
-  color: var(--text-primary);
-}
-@media (max-width: 767px) {
-  .settings-maintenance-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-</style>

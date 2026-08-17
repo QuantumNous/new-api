@@ -6,6 +6,7 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import FormField from '@/components/common/FormField.vue'
+import StatusChip from '@/components/common/StatusChip.vue'
 import TextInput from '@/components/common/TextInput.vue'
 import { useToast } from '@/composables/useToast'
 
@@ -237,16 +238,9 @@ onMounted(loadProviders)
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <span
-            class="text-xs"
-            :class="
-              provider.enabled
-                ? 'text-[var(--signal)]'
-                : 'text-[var(--text-tertiary)]'
-            "
-          >
+          <StatusChip :tone="provider.enabled ? 'success' : 'neutral'">
             {{ provider.enabled ? '已启用' : '已停用' }}
-          </span>
+          </StatusChip>
           <ConsoleButton variant="ghost" size="sm" @click="openEdit(provider)"
             >编辑</ConsoleButton
           >

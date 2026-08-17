@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Standard card wrapper for a system settings section.
- * Renders a labelled heading, content slot, and a save bar.
+ * Renders a labelled heading, content slot, and a sticky save bar.
  * Matches the Desert-Ledger / One-Night dual-theme token system.
  */
 import { useI18n } from 'vue-i18n'
@@ -24,32 +24,41 @@ const { t } = useI18n()
 
 <template>
   <section
-    class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] pencil-surface"
-    style="box-shadow: var(--card-shadow)"
+    class="overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+    data-handdrawn="surface"
   >
     <!-- Header -->
-    <header class="border-b border-[var(--border-subtle)] px-6 py-5">
-      <h3 class="text-base font-semibold text-[var(--text-primary)]">
+    <header
+      class="border-b border-[var(--border-subtle)] bg-[var(--surface-table-header)]/40 px-6 py-5"
+    >
+      <h3 class="display-title text-base font-bold text-[var(--text-primary)]">
         {{ title }}
       </h3>
-      <p v-if="description" class="mt-0.5 text-sm text-[var(--text-tertiary)]">
+      <p v-if="description" class="mt-1 text-xs text-[var(--text-secondary)]">
         {{ description }}
       </p>
     </header>
 
     <!-- Body -->
-    <div class="px-6 py-5">
+    <div class="px-6 py-6">
       <slot />
     </div>
 
-    <!-- Save bar -->
+    <!-- Sticky Save bar -->
     <footer
-      class="flex items-center gap-4 border-t border-[var(--border-subtle)] bg-[var(--surface-table-header)] px-6 py-3"
+      class="sticky bottom-0 z-10 flex items-center justify-between gap-4 border-t border-[var(--border-subtle)] bg-[var(--surface-table-header)]/90 px-6 py-3.5 backdrop-blur-md"
     >
-      <span v-if="dirty" class="text-xs text-[var(--text-tertiary)]">
-        {{ t('common.unsavedChanges') }}
-      </span>
-      <span class="flex-1" />
+      <div class="flex items-center gap-2">
+        <span
+          v-if="dirty"
+          class="inline-flex items-center gap-1.5 rounded-md bg-[var(--status-warning-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--status-warning-text)]"
+        >
+          <span
+            class="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--status-warning)]"
+          />
+          {{ t('common.unsavedChanges') }}
+        </span>
+      </div>
       <ConsoleButton
         variant="primary"
         size="sm"

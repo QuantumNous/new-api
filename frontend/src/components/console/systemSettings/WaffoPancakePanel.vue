@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '@/api/console'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import FormField from '@/components/common/FormField.vue'
+import StatusChip from '@/components/common/StatusChip.vue'
 import TextInput from '@/components/common/TextInput.vue'
 import { useSystemSettings } from '@/composables/useSystemSettings'
 import { useToast } from '@/composables/useToast'
@@ -157,9 +158,12 @@ onMounted(async () => {
           type="password"
           autocomplete="new-password"
         />
-        <p v-if="privateKeyConfigured" class="waffo-hint">
-          已配置。留空会保留现有私钥。
-        </p>
+        <div v-if="privateKeyConfigured" class="mt-1 flex items-center gap-1.5">
+          <StatusChip tone="success" class="text-xs">已配置</StatusChip>
+          <span class="text-xs text-[var(--text-tertiary)]"
+            >留空会保留现有私钥</span
+          >
+        </div>
       </FormField>
       <FormField label="返回地址" class="sm:col-span-2">
         <TextInput v-model="form.returnUrl" type="url" autocomplete="off" />
