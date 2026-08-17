@@ -14,7 +14,7 @@ export function ContactPage(props: Props) {
   return (
     <SiteShell locale={props.locale} pathname="/contact">
       <main className="relative overflow-x-hidden pt-16">
-        <HomeSupport copy={home.support} />
+        <HomeSupport copy={home.support} headingLevel={1} />
       </main>
     </SiteShell>
   );

@@ -3,6 +3,7 @@ import { DEFAULT_LOCALE, LOCALES, type Locale, localeAlternates, localeLanguageT
 
 export const SITE_ORIGIN = "https://flatkey.ai";
 export const SITE_NAME = "flatkey.ai";
+export const DEFAULT_SOCIAL_IMAGE = `${SITE_ORIGIN}/flatkey-logo-light.png`;
 
 export type SeoInput = {
   title: string;
@@ -26,6 +27,7 @@ export function buildMetadata(input: SeoInput): Metadata {
   const canonicalPath = input.unlocalized ? input.pathname : localizePath(input.pathname, locale);
   const canonical = `${SITE_ORIGIN}${canonicalPath}`;
   const title = input.title;
+  const socialImage = input.image ?? DEFAULT_SOCIAL_IMAGE;
 
   return {
     title,
@@ -58,13 +60,13 @@ export function buildMetadata(input: SeoInput): Metadata {
       url: canonical,
       siteName: SITE_NAME,
       type: "website",
-      images: input.image ? [{ url: input.image }] : undefined,
+      images: [{ url: socialImage }],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description: input.description,
-      images: input.image ? [input.image] : undefined,
+      images: [socialImage],
     },
   };
 }

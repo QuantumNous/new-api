@@ -13,14 +13,23 @@ describe("rewriteBlogHref", () => {
     );
   });
 
-  test("keeps non-localized and external links unchanged", () => {
-    expect(rewriteBlogHref("/dashboard", "zh")).toBe("/dashboard");
+  test("rewrites console-owned paths to the console origin", () => {
+    expect(rewriteBlogHref("/dashboard", "zh")).toBe("https://console.flatkey.ai/dashboard");
+    expect(rewriteBlogHref("/login?redirect=%2Fdashboard#top", "zh")).toBe(
+      "https://console.flatkey.ai/sign-in?redirect=%2Fdashboard#top"
+    );
+    expect(rewriteBlogHref("https://flatkey.ai/sign-up?invite=abc", "ja")).toBe(
+      "https://console.flatkey.ai/sign-up?invite=abc"
+    );
+  });
+
+  test("keeps external links and anchors unchanged", () => {
     expect(rewriteBlogHref("https://example.com/blog/post", "zh")).toBe("https://example.com/blog/post");
     expect(rewriteBlogHref("#section-1", "zh")).toBe("#section-1");
   });
 
   test("normalizes quoted internal and external links before rewriting", () => {
-    expect(rewriteBlogHref('\\"/setup\\"', "ja")).toBe("/ja/setup");
+    expect(rewriteBlogHref('\\"/setup\\"', "ja")).toBe("https://console.flatkey.ai/sign-up?redirect=%2Fkeys");
     expect(rewriteBlogHref('\\"https://flatkey.ai/pricing?tab=image\\"', "vi")).toBe(
       "https://flatkey.ai/vi/pricing?tab=image"
     );
@@ -38,7 +47,7 @@ describe("sanitizeBlogHtml", () => {
     );
 
     expect(html).toContain('href="/zh/pricing"');
-    expect(html).toContain('href="https://flatkey.ai/zh/sign-up"');
+    expect(html).toContain('href="https://console.flatkey.ai/sign-up"');
   });
 
   test("normalizes malformed quoted href, rel, and target values", () => {
@@ -48,9 +57,17 @@ describe("sanitizeBlogHtml", () => {
       "vi"
     );
 
-    expect(html).toContain('href="/vi/sign-up"');
+    expect(html).toContain('href="https://console.flatkey.ai/sign-up"');
     expect(html).toContain('rel="noopener"');
     expect(html).toContain('target="_blank"');
     expect(html).toContain('href="https://ai.google.dev/gemini-api/docs/image-generation"');
+  });
+
+  test("demotes article body h1 headings so the page keeps one H1", () => {
+    const html = sanitizeBlogHtml("<h1>Imported article title</h1><h2>Section</h2>");
+
+    expect(html).not.toContain("<h1");
+    expect(html).toContain('<h2 id="imported-article-title">Imported article title</h2>');
+    expect(html).toContain('<h2 id="section">Section</h2>');
   });
 });
