@@ -83,6 +83,12 @@ type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
 
+// ArkVideoConverter returns a Volcengine Ark-compatible video task response
+// for the native /api/v3/contents/generations/tasks route.
+type ArkVideoConverter interface {
+	ConvertToArkVideo(originTask *model.Task) ([]byte, error)
+}
+
 // NativeVideoConverter returns a provider-native video task response. It is
 // used by providers such as xAI whose /v1/videos contract differs from the
 // OpenAI-compatible /openai/v1/videos contract.

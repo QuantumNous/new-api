@@ -25,8 +25,6 @@ import (
 	"github.com/samber/lo"
 )
 
-const arkContentGenerationTasksPath = "/api/v3/contents/generations/tasks"
-
 // ============================
 // Request / Response structures
 // ============================
@@ -230,7 +228,7 @@ func hasUsableContent(content []ContentItem) bool {
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return strings.TrimRight(a.baseURL, "/") + arkContentGenerationTasksPath, nil
+	return strings.TrimRight(a.baseURL, "/") + constant.ArkContentGenerationTasksPath, nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -313,6 +311,10 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 		return
 	}
+	if strings.HasPrefix(c.Request.URL.Path, constant.ArkContentGenerationTasksPath) {
+		c.JSON(http.StatusOK, responsePayload{ID: info.PublicTaskID})
+		return dResp.ID, responseBody, nil
+	}
 
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
@@ -331,7 +333,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s%s/%s", strings.TrimRight(baseUrl, "/"), arkContentGenerationTasksPath, taskID)
+	uri := fmt.Sprintf("%s%s/%s", strings.TrimRight(baseUrl, "/"), constant.ArkContentGenerationTasksPath, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -484,4 +486,52 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	return common.Marshal(openAIVideo)
+}
+
+func (a *TaskAdaptor) ConvertToArkVideo(originTask *model.Task) ([]byte, error) {
+	dResp := make(map[string]any)
+	if len(bytes.TrimSpace(originTask.Data)) > 0 {
+		if err := common.Unmarshal(originTask.Data, &dResp); err != nil {
+			return nil, errors.Wrap(err, "unmarshal doubao task data failed")
+		}
+	}
+
+	dResp["id"] = originTask.TaskID
+	if taskModel, _ := dResp["model"].(string); strings.TrimSpace(taskModel) == "" {
+		dResp["model"] = originTask.Properties.OriginModelName
+	}
+	status, _ := dResp["status"].(string)
+	if strings.TrimSpace(status) == "" {
+		switch originTask.Status {
+		case model.TaskStatusNotStart, model.TaskStatusSubmitted, model.TaskStatusQueued:
+			status = "queued"
+		case model.TaskStatusInProgress:
+			status = "running"
+		case model.TaskStatusSuccess:
+			status = "succeeded"
+		case model.TaskStatusFailure:
+			status = "failed"
+		default:
+			status = "unknown"
+		}
+		dResp["status"] = status
+	}
+	if _, ok := dResp["created_at"]; !ok {
+		dResp["created_at"] = originTask.CreatedAt
+	}
+	if _, ok := dResp["updated_at"]; !ok {
+		dResp["updated_at"] = originTask.UpdatedAt
+	}
+	if status == "failed" && strings.TrimSpace(originTask.FailReason) != "" {
+		errorPayload, _ := dResp["error"].(map[string]any)
+		if errorPayload == nil {
+			errorPayload = make(map[string]any)
+		}
+		if message, _ := errorPayload["message"].(string); strings.TrimSpace(message) == "" {
+			errorPayload["message"] = originTask.FailReason
+		}
+		dResp["error"] = errorPayload
+	}
+
+	return common.Marshal(dResp)
 }
