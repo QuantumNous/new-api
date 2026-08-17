@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sort"
 
+	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/shopspring/decimal"
 )
 
@@ -19,22 +20,8 @@ type PlanInput struct {
 	MaxCostMultiplier    float64
 }
 
-type RouteNode struct {
-	Model            string
-	ChannelID        int
-	Tier             int
-	PredictedSuccess float64
-	ExpectedCost     decimal.Decimal
-	ReasonCodes      []string
-}
-
-type RoutePlan struct {
-	RequestedModel    string
-	PolicyVersion     int
-	Nodes             []RouteNode
-	MaxAttempts       int
-	MaxCostMultiplier float64
-}
+type RouteNode = hosttypes.IntelligentRouteNode
+type RoutePlan = hosttypes.IntelligentRoutePlan
 
 func Plan(input PlanInput) (RoutePlan, error) {
 	if input.MaxAttempts < 1 || input.MaxEndpointsPerModel < 1 || input.MaxCostMultiplier < 1 {

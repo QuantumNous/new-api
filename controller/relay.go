@@ -23,7 +23,9 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	intelligentrouting "github.com/QuantumNous/new-api/service/intelligent_routing"
 	"github.com/QuantumNous/new-api/setting"
+	routingsetting "github.com/QuantumNous/new-api/setting/intelligent_routing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -152,6 +154,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	relayInfo.SetEstimatePromptTokens(tokens)
+	if config := routingsetting.Get(); config.Enabled && config.ShadowOnly {
+		if routingErr := buildShadowRoutePlan(c, relayInfo, tokens, nil); routingErr != nil {
+			relayInfo.IntelligentRouteError = routingErr.Error()
+			logger.LogWarn(c, "intelligent routing shadow plan failed: "+routingErr.Error())
+		}
+	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
 	if err != nil {
@@ -253,6 +261,27 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource) error {
+	config := routingsetting.Get()
+	features := intelligentrouting.ExtractFeatures(intelligentrouting.Input{
+		Request: info.Request, RelayFormat: info.RelayFormat, PromptTokens: promptTokens, RequestPath: c.Request.URL.Path,
+	})
+	requirements := intelligentrouting.DeriveRequirements(features)
+	candidates := intelligentrouting.NewCatalog(config, source).Build(info.TokenGroup, c.Request.URL.Path)
+	plan, err := intelligentrouting.Plan(intelligentrouting.PlanInput{
+		RequestedModel: info.OriginModelName, PolicyVersion: config.PolicyVersion,
+		Features: features, Requirements: requirements, Candidates: candidates,
+		QualityThreshold: config.QualityThresholds[features.Task],
+		MaxAttempts:      config.MaxAttempts, MaxEndpointsPerModel: config.MaxEndpointsPerModel,
+		MaxCostMultiplier: config.MaxCostMultiplier,
+	})
+	if err != nil {
+		return err
+	}
+	info.IntelligentRoutePlan = &plan
+	return nil
 }
 
 var upgrader = websocket.Upgrader{
