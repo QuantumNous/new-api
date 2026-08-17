@@ -28,22 +28,35 @@ func ListEnabledChannelsForRouting(group, requestPath string) []*Channel {
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 	modelChannels := group2model2channels[group]
-	seen := make(map[int]struct{})
-	result := make([]*Channel, 0)
-	for modelName, channelIDs := range modelChannels {
-		for _, channelID := range filterChannelsByRequestPathAndModel(channelIDs, requestPath, modelName) {
-			if _, ok := seen[channelID]; ok {
-				continue
-			}
-			channel, ok := channelsIDM[channelID]
-			if !ok || channel == nil || channel.Status != common.ChannelStatusEnabled {
-				continue
-			}
-			copy := *channel
-			copy.Keys = append([]string(nil), channel.Keys...)
-			result = append(result, &copy)
-			seen[channelID] = struct{}{}
+	channelModels := collectRoutingChannelModels(modelChannels, requestPath, filterChannelsByRequestPathAndModel)
+	channelIDs := make([]int, 0, len(channelModels))
+	for channelID := range channelModels {
+		channelIDs = append(channelIDs, channelID)
+	}
+	sort.Ints(channelIDs)
+	result := make([]*Channel, 0, len(channelIDs))
+	for _, channelID := range channelIDs {
+		channel, ok := channelsIDM[channelID]
+		if !ok || channel == nil || channel.Status != common.ChannelStatusEnabled {
+			continue
 		}
+		copy := *channel
+		copy.Keys = append([]string(nil), channel.Keys...)
+		copy.Models = strings.Join(channelModels[channelID], ",")
+		result = append(result, &copy)
+	}
+	return result
+}
+
+func collectRoutingChannelModels(modelChannels map[string][]int, requestPath string, filter func([]int, string, string) []int) map[int][]string {
+	result := make(map[int][]string)
+	for modelName, channelIDs := range modelChannels {
+		for _, channelID := range filter(channelIDs, requestPath, modelName) {
+			result[channelID] = append(result[channelID], modelName)
+		}
+	}
+	for channelID := range result {
+		sort.Strings(result[channelID])
 	}
 	return result
 }

@@ -68,6 +68,37 @@ func TestPlanDoesNotMoveCheapestFirstNodeWhenSuccessProbabilitiesTie(t *testing.
 	assert.Equal(t, "cheap", plan.Nodes[0].Model)
 }
 
+func TestPlanReservesHighestSuccessCandidateEvenWhenOutsideCheapAttemptWindow(t *testing.T) {
+	plan, err := Plan(PlanInput{
+		RequestedModel: "requested", Features: Features{PromptTokens: 100}, Requirements: Requirements{Capabilities: map[Capability]bool{}},
+		QualityThreshold: .9, MaxAttempts: 4, MaxEndpointsPerModel: 2, MaxCostMultiplier: 2.5,
+		Candidates: []Candidate{
+			{Model: "cheap-1", ChannelID: 1, InputPrice: 1, PredictedSuccess: .91},
+			{Model: "cheap-2", ChannelID: 2, InputPrice: 2, PredictedSuccess: .92},
+			{Model: "cheap-3", ChannelID: 3, InputPrice: 3, PredictedSuccess: .93},
+			{Model: "cheap-4", ChannelID: 4, InputPrice: 4, PredictedSuccess: .94},
+			{Model: "safest", ChannelID: 5, InputPrice: 100, PredictedSuccess: .99},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, plan.Nodes, 4)
+	assert.Equal(t, "safest", plan.Nodes[3].Model)
+}
+
+func TestPlanIncludesEndpointFailureRiskInExpectedCost(t *testing.T) {
+	plan, err := Plan(PlanInput{
+		Features: Features{PromptTokens: 1_000}, Requirements: Requirements{Capabilities: map[Capability]bool{}},
+		QualityThreshold: .9, MaxAttempts: 3, MaxEndpointsPerModel: 2, MaxCostMultiplier: 2.5,
+		Candidates: []Candidate{
+			{Model: "flaky", ChannelID: 1, InputPrice: 1, PredictedSuccess: .95, FailureRate: .5},
+			{Model: "healthy", ChannelID: 2, InputPrice: 1.2, PredictedSuccess: .95},
+			{Model: "safest", ChannelID: 3, InputPrice: 5, PredictedSuccess: .99},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "healthy", plan.Nodes[0].Model)
+}
+
 func TestPlanFiltersCapabilitiesAndContext(t *testing.T) {
 	got, err := Plan(PlanInput{
 		Requirements: Requirements{Capabilities: map[Capability]bool{CapabilityTools: true}, MinimumTier: 2, ContextNeeded: 900},
@@ -92,5 +123,18 @@ func TestPlanFallsBackToHighestSuccessWhenNoneMeetThreshold(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Nodes, 1)
+	assert.Equal(t, "reliable", got.Nodes[0].Model)
+}
+
+func TestPlanOrdersAllFallbackCandidatesByDescendingSuccess(t *testing.T) {
+	got, err := Plan(PlanInput{
+		Requirements: Requirements{Capabilities: map[Capability]bool{}},
+		Candidates: []Candidate{
+			{Model: "cheap", ChannelID: 1, PredictedSuccess: .6, InputPrice: 1},
+			{Model: "reliable", ChannelID: 2, PredictedSuccess: .8, InputPrice: 3},
+		}, QualityThreshold: .9, MaxAttempts: 2, MaxEndpointsPerModel: 1, MaxCostMultiplier: 2.5,
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Nodes, 2)
 	assert.Equal(t, "reliable", got.Nodes[0].Model)
 }

@@ -356,7 +356,7 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 }
 
 func normalizeOpenAIResponseModel(body []byte, info *relaycommon.RelayInfo) ([]byte, error) {
-	if info == nil || (info.RelayFormat != types.RelayFormatOpenAI && info.RelayFormat != types.RelayFormatOpenAIResponses) || info.ExecutionModelName == "" ||
+	if info == nil || (info.RelayFormat != types.RelayFormatOpenAI && info.RelayFormat != types.RelayFormatOpenAIResponses && info.RelayFormat != types.RelayFormatOpenAIResponsesCompaction) || info.ExecutionModelName == "" ||
 		info.ExecutionModelName == info.OriginModelName || info.OriginModelName == "" {
 		return body, nil
 	}

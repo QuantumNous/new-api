@@ -48,7 +48,8 @@ func Plan(input PlanInput) (RoutePlan, error) {
 			qualified = append(qualified, candidate)
 		}
 	}
-	if len(qualified) == 0 {
+	fallbackByQuality := len(qualified) == 0
+	if fallbackByQuality {
 		qualified = eligible
 		sort.SliceStable(qualified, func(i, j int) bool {
 			if qualified[i].PredictedSuccess != qualified[j].PredictedSuccess {
@@ -75,7 +76,7 @@ func Plan(input PlanInput) (RoutePlan, error) {
 			return left.ChannelID < right.ChannelID
 		})
 	}
-	if input.PreferredModel != "" && len(qualified) > 1 {
+	if !fallbackByQuality && input.PreferredModel != "" && len(qualified) > 1 {
 		cheapestCost := expectedCost(input.Features, qualified[0])
 		for _, candidate := range qualified[1:] {
 			cost := expectedCost(input.Features, candidate)
@@ -92,34 +93,59 @@ func Plan(input PlanInput) (RoutePlan, error) {
 			}
 		}
 	}
+	if fallbackByQuality {
+		nodes := make([]RouteNode, 0, min(input.MaxAttempts, len(qualified)))
+		perModel := make(map[string]int)
+		seen := make(map[[2]interface{}]struct{})
+		for _, candidate := range qualified {
+			key := [2]interface{}{candidate.Model, candidate.ChannelID}
+			if _, ok := seen[key]; ok || perModel[candidate.Model] >= input.MaxEndpointsPerModel {
+				continue
+			}
+			nodes = append(nodes, routeNode(input.Features, candidate))
+			seen[key] = struct{}{}
+			perModel[candidate.Model]++
+			if len(nodes) == input.MaxAttempts {
+				break
+			}
+		}
+		if len(nodes) == 0 {
+			return RoutePlan{}, errors.New("route plan is empty")
+		}
+		return RoutePlan{RequestedModel: input.RequestedModel, PolicyVersion: input.PolicyVersion, Nodes: nodes, MaxAttempts: input.MaxAttempts, MaxCostMultiplier: input.MaxCostMultiplier}, nil
+	}
+	strongest := len(qualified) - 1
+	for i := 0; i < len(qualified)-1; i++ {
+		if qualified[i].PredictedSuccess > qualified[strongest].PredictedSuccess {
+			strongest = i
+		}
+	}
 	nodes := make([]RouteNode, 0, min(input.MaxAttempts, len(qualified)))
 	perModel := make(map[string]int)
 	seen := make(map[[2]interface{}]struct{})
-	for _, candidate := range qualified {
+	for i, candidate := range qualified {
+		if i == strongest || len(nodes) == input.MaxAttempts-1 {
+			continue
+		}
 		key := [2]interface{}{candidate.Model, candidate.ChannelID}
-		if _, ok := seen[key]; ok || perModel[candidate.Model] >= input.MaxEndpointsPerModel {
+		modelLimit := input.MaxEndpointsPerModel
+		if candidate.Model == qualified[strongest].Model {
+			modelLimit--
+		}
+		if _, ok := seen[key]; ok || perModel[candidate.Model] >= modelLimit {
 			continue
 		}
 		nodes = append(nodes, routeNode(input.Features, candidate))
 		seen[key] = struct{}{}
 		perModel[candidate.Model]++
-		if len(nodes) == input.MaxAttempts {
-			break
-		}
+	}
+	strongestCandidate := qualified[strongest]
+	strongestKey := [2]interface{}{strongestCandidate.Model, strongestCandidate.ChannelID}
+	if _, ok := seen[strongestKey]; !ok && perModel[strongestCandidate.Model] < input.MaxEndpointsPerModel {
+		nodes = append(nodes, routeNode(input.Features, strongestCandidate))
 	}
 	if len(nodes) == 0 {
 		return RoutePlan{}, errors.New("route plan is empty")
-	}
-	strongest := len(nodes) - 1
-	for i := 0; i < len(nodes)-1; i++ {
-		if nodes[i].PredictedSuccess > nodes[strongest].PredictedSuccess {
-			strongest = i
-		}
-	}
-	if strongest != len(nodes)-1 {
-		node := nodes[strongest]
-		copy(nodes[strongest:], nodes[strongest+1:])
-		nodes[len(nodes)-1] = node
 	}
 	return RoutePlan{RequestedModel: input.RequestedModel, PolicyVersion: input.PolicyVersion, Nodes: nodes, MaxAttempts: input.MaxAttempts, MaxCostMultiplier: input.MaxCostMultiplier}, nil
 }
@@ -136,7 +162,15 @@ func supports(candidate Candidate, required map[Capability]bool) bool {
 func expectedCost(features Features, candidate Candidate) decimal.Decimal {
 	input := decimal.NewFromInt(int64(features.PromptTokens)).Mul(decimal.NewFromFloat(candidate.InputPrice))
 	output := decimal.NewFromInt(int64(features.MaxOutputTokens)).Mul(decimal.NewFromFloat(candidate.OutputPrice))
-	return input.Add(output).Div(decimal.NewFromInt(1_000_000))
+	base := input.Add(output).Div(decimal.NewFromInt(1_000_000))
+	failureRate := candidate.FailureRate
+	if failureRate < 0 {
+		failureRate = 0
+	}
+	if failureRate > .99 {
+		failureRate = .99
+	}
+	return base.Div(decimal.NewFromFloat(1 - failureRate))
 }
 
 func routeNode(features Features, candidate Candidate) RouteNode {

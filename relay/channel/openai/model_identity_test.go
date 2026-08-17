@@ -38,3 +38,10 @@ func TestNormalizeResponsesAPIModelUsesRequestedIdentity(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"model":"requested","output":[]}`, string(got))
 }
+
+func TestNormalizeResponsesCompactionModelUsesRequestedIdentity(t *testing.T) {
+	info := &relaycommon.RelayInfo{OriginModelName: "requested", ExecutionModelName: "cheap", RelayFormat: types.RelayFormatOpenAIResponsesCompaction}
+	got, err := normalizeOpenAIResponseModel([]byte(`{"model":"cheap","output":[]}`), info)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"model":"requested","output":[]}`, string(got))
+}
