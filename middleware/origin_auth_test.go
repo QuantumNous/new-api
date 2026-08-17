@@ -36,6 +36,9 @@ func TestTokenAuthKeepsCompleteOriginKeyAndRemovesAuthorizationHeader(t *testing
 	router.ServeHTTP(response, request)
 
 	assert.Equal(t, http.StatusNoContent, response.Code)
+	requestID := response.Header().Get("X-Request-Id")
+	assert.NotEmpty(t, requestID)
+	assert.Equal(t, requestID, response.Header().Get("X-Oneapi-Request-Id"))
 	require.NotNil(t, handledContext)
 	_, credentialRetained := origin.Credential(handledContext)
 	assert.False(t, credentialRetained)

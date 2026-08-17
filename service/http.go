@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,13 @@ func CloseResponseBodyGracefully(httpResponse *http.Response) {
 // into the Gin context for later logging.
 func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 	if strings.EqualFold(k, "Content-Length") {
+		return false
+	}
+	if c != nil && common.GetContextKeyBool(c, constant.ContextKeyOriginIntegration) &&
+		(strings.EqualFold(k, "X-Request-Id") || strings.EqualFold(k, "Request-Id")) {
+		if len(v) > 0 {
+			c.Set(common.UpstreamRequestIdKey, v[0])
+		}
 		return false
 	}
 	if strings.EqualFold(k, common.RequestIdKey) {
