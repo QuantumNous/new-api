@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,12 +97,35 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	// Mezon đồng (MMN chain) top-up is a manual claim flow, not a gateway.
+	enableMezon := complianceConfirmed && IsMezonTopUpEnabled()
+	if enableMezon {
+		payMethods = append(payMethods, map[string]string{
+			"name":  "Mezon Đồng",
+			"type":  model.PaymentMethodMezon,
+			"color": "#7C3AED",
+		})
+	}
+
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_mezon_topup":               enableMezon,
+		"mezon_treasury_address": func() string {
+			if enableMezon {
+				return setting.MezonPayment.TreasuryAddress
+			}
+			return ""
+		}(),
+		"mezon_explorer_url": func() string {
+			if enableMezon {
+				return strings.TrimSuffix(strings.TrimRight(setting.MezonPayment.IndexerBase, "/"), "/indexer-api")
+			}
+			return ""
+		}(),
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,

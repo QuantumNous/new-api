@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -30,6 +31,7 @@ const (
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodBalance      = "balance"
+	PaymentMethodMezon        = "mezon"
 )
 
 const (
@@ -39,6 +41,7 @@ const (
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
 	PaymentProviderBalance      = "balance"
+	PaymentProviderMezon        = "mezon"
 )
 
 var (
@@ -140,6 +143,24 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 		return nil
 	}
 	return topUp
+}
+
+// GetMezonClaimedHashes returns the set of Mezon transaction hashes that have
+// already been redeemed by a given user. Stored as "mezon:<hash>" in trade_no.
+func GetMezonClaimedHashes(userId int) (map[string]bool, error) {
+	var tradeNos []string
+	err := DB.Model(&TopUp{}).
+		Where("user_id = ? AND trade_no LIKE ?", userId, "mezon:%").
+		Pluck("trade_no", &tradeNos).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]bool, len(tradeNos))
+	for _, tn := range tradeNos {
+		hash := strings.TrimPrefix(tn, "mezon:")
+		result[hash] = true
+	}
+	return result, nil
 }
 
 func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
@@ -364,6 +385,32 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 // searchTopUpCountHardLimit 搜索充值记录时 COUNT 的安全上限，
 // 防止对超大表执行无界 COUNT 触发 DoS。
 const searchTopUpCountHardLimit = 10000
+
+// MezonTopUpReportRow is one row of the admin Mezon đồng monthly report.
+type MezonTopUpReportRow struct {
+	Id           int64
+	UserId       int
+	Username     string
+	DisplayName  string
+	Email        string
+	TradeNo      string
+	Dong         int64
+	CompleteTime int64
+}
+
+// GetMezonTopUpReport returns successful Mezon đồng top-ups whose completion
+// time falls in [startTime, endTime), joined with the topping-up user,
+// ordered chronologically for statement-style export.
+func GetMezonTopUpReport(startTime, endTime int64) (rows []*MezonTopUpReportRow, err error) {
+	err = DB.Table("top_ups").
+		Select("top_ups.id, top_ups.user_id, users.username, users.display_name, users.email, top_ups.trade_no, top_ups.amount as dong, top_ups.complete_time").
+		Joins("LEFT JOIN users ON users.id = top_ups.user_id").
+		Where("top_ups.payment_method = ? AND top_ups.status = ? AND top_ups.complete_time >= ? AND top_ups.complete_time < ?",
+			PaymentMethodMezon, common.TopUpStatusSuccess, startTime, endTime).
+		Order("top_ups.complete_time asc, top_ups.id asc").
+		Scan(&rows).Error
+	return rows, err
+}
 
 // SearchUserTopUps 按订单号搜索某用户的充值记录
 func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {

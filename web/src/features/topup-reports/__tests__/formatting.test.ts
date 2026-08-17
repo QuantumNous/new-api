@@ -16,15 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// ============================================================================
-// Wallet Hooks Exports
-// ============================================================================
+import assert from 'node:assert/strict'
+import { describe, test } from 'node:test'
 
-export * from './use-topup-info'
-export * from './use-payment'
-export * from './use-affiliate'
-export * from './use-redemption'
-export * from './use-creem-payment'
-export * from './use-waffo-payment'
-export * from './use-waffo-pancake-payment'
-export * from './use-mezon-payment'
+import { formatDong, parseReportMonth } from '../lib'
+
+describe('Mezon top-up report formatting', () => {
+  test('parses the selected calendar month for the API query', () => {
+    assert.deepEqual(parseReportMonth('2026-08'), { year: 2026, month: 8 })
+  })
+
+  test('formats the total đồng amount with locale separators', () => {
+    assert.equal(formatDong(1250000, 'en-US'), '1,250,000')
+  })
+})

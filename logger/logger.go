@@ -138,7 +138,8 @@ func LogQuota(quota int) string {
 			rate = 1
 		}
 		v := usd * rate
-		return fmt.Sprintf("%s%.6f 额度", symbol, v)
+		// Custom symbols render after the amount (e.g. "100.000000 mzđ")
+		return fmt.Sprintf("%.6f %s 额度", v, symbol)
 	case operation_setting.QuotaDisplayTypeTokens:
 		return fmt.Sprintf("%d 点额度", quota)
 	default: // USD
@@ -164,7 +165,8 @@ func FormatQuota(quota int) string {
 			rate = 1
 		}
 		v := usd * rate
-		return fmt.Sprintf("%s%.6f", symbol, v)
+		// Custom symbols render after the amount (e.g. "100.000000 mzđ")
+		return fmt.Sprintf("%.6f %s", v, symbol)
 	case operation_setting.QuotaDisplayTypeTokens:
 		return fmt.Sprintf("%d", quota)
 	default:

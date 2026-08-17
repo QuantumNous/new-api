@@ -159,6 +159,20 @@ const (
 	MsgPaymentPriceIdNotConfig   = "payment.price_id_not_configured"
 	MsgPaymentCreemNotConfig     = "payment.creem_not_configured"
 	MsgPaymentComplianceRequired = "payment.compliance_required"
+
+	// Mezon đồng (MMN chain) top-up messages
+	MsgPaymentMezonDisabled       = "payment.mezon_disabled"
+	MsgPaymentMezonInvalidHash    = "payment.mezon_invalid_hash"
+	MsgPaymentMezonNotBound       = "payment.mezon_not_bound"
+	MsgPaymentMezonIndexerError   = "payment.mezon_indexer_error"
+	MsgPaymentMezonTxNotFound     = "payment.mezon_tx_not_found"
+	MsgPaymentMezonTxNotSuccess   = "payment.mezon_tx_not_success"
+	MsgPaymentMezonWrongRecipient = "payment.mezon_wrong_recipient"
+	MsgPaymentMezonWrongSender    = "payment.mezon_wrong_sender"
+	MsgPaymentMezonTxTooOld       = "payment.mezon_tx_too_old"
+	MsgPaymentMezonInvalidAmount  = "payment.mezon_invalid_amount"
+	MsgPaymentMezonAmountTooLarge = "payment.mezon_amount_too_large"
+	MsgPaymentMezonTxUsed         = "payment.mezon_tx_used"
 )
 
 // Topup related messages

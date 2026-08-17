@@ -61,6 +61,36 @@ export type WaffoPancakePaymentResponse = ApiResponse<
 >
 
 /**
+ * Mezon đồng top-up claim response data
+ */
+export interface MezonPaymentResult {
+  /** Quota credited to the account */
+  quota_added: number
+  /** Transferred đồng amount redeemed */
+  dong: number
+  /** Credited mzđ amount (1:1 with dong) */
+  mzd?: number
+}
+export type MezonPaymentResponse = ApiResponse<MezonPaymentResult>
+
+/**
+ * Mezon transaction from the indexer (user → treasury)
+ */
+export interface MezonTransaction {
+  /** Transaction hash */
+  hash: string
+  /** Raw on-chain value (6 decimals) */
+  value: string
+  /** Whole đồng amount */
+  dong: number
+  /** Block timestamp in seconds */
+  timestamp: number
+  /** Whether this tx has already been claimed */
+  claimed: boolean
+}
+export type MezonTransactionsResponse = ApiResponse<MezonTransaction[]>
+
+/**
  * Creem product configuration
  */
 export interface CreemProduct {
@@ -152,6 +182,12 @@ export interface TopupInfo {
   waffo_pancake_min_topup?: number
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
+  /** Whether Mezon đồng (MMN chain) top-up is enabled */
+  enable_mezon_topup?: boolean
+  /** On-chain wallet that receives Mezon đồng top-up transfers */
+  mezon_treasury_address?: string
+  /** Base URL of the Mezon đồng explorer (e.g. https://dong.mezon.ai) */
+  mezon_explorer_url?: string
   /** Whether compliance confirmation has been completed */
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */

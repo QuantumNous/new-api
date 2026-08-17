@@ -154,6 +154,12 @@ export function SidebarModulesSection({
         title: t('Subscription Management'),
         description: t('Manage subscription plans and pricing.'),
       },
+      topup: {
+        title: t('Mezon Top-up Reports'),
+        description: t(
+          'Monthly Mezon đồng top-up report export (JSON/PDF).'
+        ),
+      },
     },
   }
   const formDefaults = useMemo(() => config, [config])

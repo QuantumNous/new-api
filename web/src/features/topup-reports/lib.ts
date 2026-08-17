@@ -16,15 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// ============================================================================
-// Wallet Hooks Exports
-// ============================================================================
+import dayjs from 'dayjs'
 
-export * from './use-topup-info'
-export * from './use-payment'
-export * from './use-affiliate'
-export * from './use-redemption'
-export * from './use-creem-payment'
-export * from './use-waffo-payment'
-export * from './use-waffo-pancake-payment'
-export * from './use-mezon-payment'
+export function getCurrentReportMonth(): string {
+  return dayjs().format('YYYY-MM')
+}
+
+export function parseReportMonth(value: string): {
+  year: number
+  month: number
+} {
+  const [year, month] = value.split('-').map(Number)
+  return { year, month }
+}
+
+export function formatDong(amount: number, locale?: string): string {
+  return new Intl.NumberFormat(locale).format(amount)
+}
