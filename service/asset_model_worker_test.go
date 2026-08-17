@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -698,6 +699,71 @@ func TestAssetModelWorkerActivationRecoveryRetriesAfterDBErrorWithCurrentLease(t
 	require.Equal(t, model.AssetModelReadinessStatusActive, row.Status)
 }
 
+func TestPrepareAssetModelReadinessActivatesExactProviderBindingSet(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &scriptedAssetModelMaterializer{})
+	asset, scope, targets := seedAtomicAssetModelReadinessSet(t, "ast_atomic_provider", constant.ChannelTypeTechMobiVideo)
+	driverTarget := targets["seedance-2.0"]
+	siblingTarget := targets["seedance2.0-pro"]
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       driverTarget.ChannelId,
+		BindingScope:    driverTarget.BindingScope,
+		Status:          model.AssetStatusActive,
+		UpstreamAssetId: "upstream-shared",
+		CreatedAt:       90,
+		UpdatedAt:       90,
+	}).Error)
+
+	driver := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	claimed, err := model.ClaimAssetModelReadinessLease(driver.Id, "node-a", 100, 160)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	driver = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+
+	err = PrepareAssetModelReadiness(context.Background(), driver, "node-a", time.Unix(100, 0))
+	require.NoError(t, err)
+
+	driver = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	sibling := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance2.0-pro")
+	require.Equal(t, model.AssetModelReadinessStatusActive, driver.Status)
+	require.Equal(t, model.AssetModelReadinessStatusActive, sibling.Status)
+	require.Equal(t, siblingTarget.Generation, sibling.TargetGeneration)
+	require.Equal(t, siblingTarget.ChannelId, sibling.ChannelId)
+	require.Equal(t, siblingTarget.BindingScope, sibling.BindingScope)
+}
+
+func TestPrepareAssetModelReadinessActivatesExactSourceURLBindingSetWithoutAssetBindingRow(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset, scope, targets := seedAtomicAssetModelReadinessSet(t, "ast_atomic_source_url", constant.ChannelTypeModelAPISeedance)
+	driverTarget := targets["seedance-2.0"]
+	siblingTarget := targets["seedance2.0-pro"]
+	require.Equal(t, assetModelSourceURLBindingScopeModelAPI, driverTarget.BindingScope)
+	require.Equal(t, assetModelSourceURLBindingScopeModelAPI, siblingTarget.BindingScope)
+
+	driver := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	claimed, err := model.ClaimAssetModelReadinessLease(driver.Id, "node-a", 100, 160)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	driver = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+
+	err = PrepareAssetModelReadiness(context.Background(), driver, "node-a", time.Unix(100, 0))
+	require.NoError(t, err)
+
+	driver = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	sibling := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance2.0-pro")
+	require.Equal(t, model.AssetModelReadinessStatusActive, driver.Status)
+	require.Equal(t, model.AssetModelReadinessStatusActive, sibling.Status)
+	require.Equal(t, siblingTarget.Generation, sibling.TargetGeneration)
+	require.Equal(t, siblingTarget.ChannelId, sibling.ChannelId)
+	require.Equal(t, siblingTarget.BindingScope, sibling.BindingScope)
+	var bindingCount int64
+	require.NoError(t, model.DB.Model(&model.AssetBinding{}).Where("asset_id = ?", asset.Id).Count(&bindingCount).Error)
+	require.Zero(t, bindingCount)
+}
+
 func TestAssetModelWorkerExpiredLeaseAndGenerationDriftCannotActivate(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
@@ -972,6 +1038,60 @@ func seedAssetModelWorkerReadiness(t *testing.T, publicID string, keys string) (
 	require.NotNil(t, target)
 	require.NoError(t, model.EnsureAssetModelReadiness(asset.Id, scope.ScopeKey, scope.ModelNames, 90))
 	return asset, scope, *target
+}
+
+func seedAtomicAssetModelReadinessSet(t *testing.T, publicID string, channelType int) (model.Asset, AssetModelScope, map[string]model.AssetModelCoverageTarget) {
+	t.Helper()
+	asset := insertMaterializeAsset(t, publicID)
+	priority := int64(80)
+	weight := uint(50)
+	modelNames := []string{"seedance-2.0", "seedance2.0-pro"}
+	mapping := `{"seedance-2.0":"doubao/seedance-pro","seedance2.0-pro":"doubao/seedance-pro"}`
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:           180,
+		Type:         channelType,
+		Key:          "provider-key-a",
+		Status:       common.ChannelStatusEnabled,
+		Name:         "asset-atomic-channel",
+		Group:        "default",
+		Models:       strings.Join(modelNames, ","),
+		Priority:     &priority,
+		Weight:       &weight,
+		ModelMapping: &mapping,
+		ChannelInfo:  model.ChannelInfo{IsMultiKey: false},
+	}).Error)
+	for _, modelName := range modelNames {
+		require.NoError(t, model.DB.Create(&model.Ability{
+			Group:     "default",
+			Model:     modelName,
+			ChannelId: 180,
+			Enabled:   true,
+			Priority:  &priority,
+			Weight:    weight,
+		}).Error)
+	}
+	scope := AssetModelScope{ScopeKey: "scope-" + publicID, Groups: []string{"default"}, ModelNames: modelNames}
+	targets := make(map[string]model.AssetModelCoverageTarget, len(modelNames))
+	for _, modelName := range modelNames {
+		target, err := ensureAssetModelCoverageTargetAt(scope, modelName, "owner", 90)
+		require.NoError(t, err)
+		require.NotNil(t, target)
+		targets[modelName] = *target
+	}
+	require.Equal(t, targets["seedance-2.0"].ChannelId, targets["seedance2.0-pro"].ChannelId)
+	require.Equal(t, targets["seedance-2.0"].BindingScope, targets["seedance2.0-pro"].BindingScope)
+	require.NoError(t, model.EnsureAssetModelReadiness(asset.Id, scope.ScopeKey, scope.ModelNames, 90))
+	for modelName, target := range targets {
+		require.NoError(t, model.DB.Model(&model.AssetModelReadiness{}).
+			Where("asset_id = ? AND scope_key = ? AND model_name = ?", asset.Id, scope.ScopeKey, modelName).
+			Updates(map[string]any{
+				"target_generation": target.Generation,
+				"channel_id":        target.ChannelId,
+				"binding_scope":     target.BindingScope,
+				"updated_at":        int64(90),
+			}).Error)
+	}
+	return asset, scope, targets
 }
 
 func requireAssetModelReadinessRow(t *testing.T, assetID int64, scope AssetModelScope, modelName string) model.AssetModelReadiness {
