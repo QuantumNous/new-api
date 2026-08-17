@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   getOAuthSessionStorage,
@@ -40,15 +39,14 @@ const bindState = 'bind-state'
 describe('resolveOAuthCallbackMode', () => {
   test('matching provider and state mark is treated as a bind flow', () => {
     const storage = fakeStorage()
-    assert.equal(markOAuthBindPopup(storage, 'oidc', bindState), true)
+    expect(markOAuthBindPopup(storage, 'oidc', bindState)).toBe(true)
 
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: openOpener,
         storage,
-      }),
-      'bind'
-    )
+      })
+    ).toBe('bind')
   })
 
   // Regression: a tab opened from an external link (Slack, e-mail, another
@@ -58,75 +56,69 @@ describe('resolveOAuthCallbackMode', () => {
   test('login redirect in a tab with a foreign opener stays a login flow', () => {
     const storage = fakeStorage()
 
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: openOpener,
         storage,
-      }),
-      'login'
-    )
+      })
+    ).toBe('login')
   })
 
   test('bind marker for another provider does not hijack this callback', () => {
     const storage = fakeStorage()
     markOAuthBindPopup(storage, 'github', bindState)
 
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: openOpener,
         storage,
-      }),
-      'login'
-    )
+      })
+    ).toBe('login')
   })
 
   test('stale bind marker does not hijack a later callback', () => {
     const storage = fakeStorage()
     markOAuthBindPopup(storage, 'oidc', 'previous-state')
 
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: openOpener,
         storage,
-      }),
-      'login'
-    )
+      })
+    ).toBe('login')
   })
 
   test('bind marker without an opener falls back to login', () => {
     const storage = fakeStorage()
     markOAuthBindPopup(storage, 'oidc', bindState)
 
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: null,
         storage,
-      }),
-      'login'
-    )
+      })
+    ).toBe('login')
   })
 
   test('closed opener falls back to login', () => {
     const storage = fakeStorage()
     markOAuthBindPopup(storage, 'oidc', bindState)
 
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: { closed: true },
         storage,
-      }),
-      'login'
-    )
+      })
+    ).toBe('login')
   })
 
   test('missing storage degrades to login instead of throwing', () => {
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: openOpener,
         storage: null,
-      }),
-      'login'
-    )
+      })
+    ).toBe('login')
   })
 
   test('storage read failure degrades to login instead of throwing', () => {
@@ -137,13 +129,12 @@ describe('resolveOAuthCallbackMode', () => {
       setItem: () => undefined,
     }
 
-    assert.equal(
+    expect(
       resolveOAuthCallbackMode('oidc', bindState, {
         opener: openOpener,
         storage,
-      }),
-      'login'
-    )
+      })
+    ).toBe('login')
   })
 })
 
@@ -155,7 +146,7 @@ describe('OAuth bind popup storage', () => {
       },
     }
 
-    assert.equal(getOAuthSessionStorage(owner), null)
+    expect(getOAuthSessionStorage(owner)).toBe(null)
   })
 
   test('marking reports unavailable or unwritable storage', () => {
@@ -166,9 +157,9 @@ describe('OAuth bind popup storage', () => {
       },
     }
 
-    assert.equal(markOAuthBindPopup(null, 'oidc', bindState), false)
-    assert.equal(markOAuthBindPopup(storage, 'oidc', bindState), false)
-    assert.equal(
+    expect(markOAuthBindPopup(null, 'oidc', bindState)).toBe(false)
+    expect(markOAuthBindPopup(storage, 'oidc', bindState)).toBe(false)
+    expect(
       markOAuthBindPopup(
         {
           getItem: () => null,
@@ -176,8 +167,7 @@ describe('OAuth bind popup storage', () => {
         },
         'oidc',
         bindState
-      ),
-      false
-    )
+      )
+    ).toBe(false)
   })
 })
