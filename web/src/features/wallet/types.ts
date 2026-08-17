@@ -134,6 +134,8 @@ export interface TopupInfo {
   amount_options: number[]
   /** Discount rates by amount */
   discount: Record<number, number>
+  /** Whether range-based discount is enabled (apply highest tier not exceeding the amount) */
+  enable_range_discount: boolean
   /** Optional topup link for purchasing codes */
   topup_link?: string
   /** Whether Creem topup is enabled */

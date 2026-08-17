@@ -43,6 +43,7 @@ import {
   getPaymentIcon,
   getMinTopupAmount,
   calculatePresetPricing,
+  getAmountDiscount,
 } from '../lib'
 import type {
   PaymentMethod,
@@ -230,8 +231,13 @@ export function RechargeFormCard({
                     {presetAmounts.map((preset) => {
                       const discount =
                         preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
+                        (topupInfo
+                          ? getAmountDiscount(
+                              preset.value,
+                              topupInfo.discount || {},
+                              Boolean(topupInfo.enable_range_discount)
+                            )
+                          : 1.0)
                       const {
                         displayValue,
                         actualPrice,

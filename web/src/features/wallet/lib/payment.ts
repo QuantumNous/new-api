@@ -184,11 +184,49 @@ export function generatePresetAmounts(minAmount: number): PresetAmount[] {
 }
 
 /**
+ * Resolve the effective discount rate for a given topup amount.
+ *
+ * Mirrors backend `PaymentSetting.GetAmountDiscount`:
+ * - exact match wins when configured with a positive value
+ * - otherwise, when range discount is enabled, the highest tier whose
+ *   threshold does not exceed the amount is applied
+ * - falls back to 1.0 (no discount)
+ */
+export function getAmountDiscount(
+  amount: number,
+  discounts: Record<number, number>,
+  enableRangeDiscount: boolean
+): number {
+  if (!discounts) {
+    return 1.0
+  }
+  const exact = discounts[amount]
+  if (exact !== undefined && exact > 0) {
+    return exact
+  }
+  if (!enableRangeDiscount) {
+    return 1.0
+  }
+  let discount = 1.0
+  let bestKey = 0
+  for (const [keyStr, value] of Object.entries(discounts)) {
+    const key = Number(keyStr)
+    if (!Number.isFinite(key) || !Number.isFinite(value)) continue
+    if (key <= amount && value > 0 && key > bestKey) {
+      bestKey = key
+      discount = value
+    }
+  }
+  return discount
+}
+
+/**
  * Merge custom preset amounts with discounts
  */
 export function mergePresetAmounts(
   amountOptions: number[],
-  discounts: Record<number, number>
+  discounts: Record<number, number>,
+  enableRangeDiscount: boolean = false
 ): PresetAmount[] {
   if (!amountOptions || amountOptions.length === 0) {
     return []
@@ -196,6 +234,6 @@ export function mergePresetAmounts(
 
   return amountOptions.map((amount) => ({
     value: amount,
-    discount: discounts[amount] || 1.0,
+    discount: getAmountDiscount(amount, discounts, enableRangeDiscount),
   }))
 }

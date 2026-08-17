@@ -46,6 +46,7 @@ import {
   getDefaultPaymentType,
   getMinTopupAmount,
   dispatchSelectedPayment,
+  getAmountDiscount,
 } from './lib'
 import type {
   UserWalletData,
@@ -272,7 +273,14 @@ export function Wallet(props: WalletProps) {
 
   // Get discount rate for current topup amount
   const getDiscountRate = useCallback(() => {
-    return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
+    if (!topupInfo) {
+      return DEFAULT_DISCOUNT_RATE
+    }
+    return getAmountDiscount(
+      topupAmount,
+      topupInfo.discount || {},
+      Boolean(topupInfo.enable_range_discount)
+    )
   }, [topupInfo, topupAmount])
 
   const handleSubscriptionAvailabilityChange = useCallback(

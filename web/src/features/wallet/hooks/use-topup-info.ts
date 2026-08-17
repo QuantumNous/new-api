@@ -199,7 +199,8 @@ export function useTopupInfo() {
       if (processedData.amount_options.length > 0) {
         const customPresets = mergePresetAmounts(
           processedData.amount_options,
-          processedData.discount || {}
+          processedData.discount || {},
+          Boolean(processedData.enable_range_discount)
         )
         setPresetAmounts(customPresets)
       } else {
