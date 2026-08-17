@@ -60,8 +60,10 @@ func RecordChannelErrorAndShouldDisable(channelID int, userID int) bool {
 	s.users[userID] = struct{}{}
 	s.count++
 	if s.count >= channelDisableErrorThreshold && len(s.users) >= channelDisableMinDistinctUsers {
-		channelErrorStreaks.Delete(channelID)
-		return true
+		// Only delete the streak if it is still the live entry: a concurrent
+		// ClearChannelErrorStreak plus a new error may have replaced it, and
+		// deleting the new streak would discard fresh error events.
+		return channelErrorStreaks.CompareAndDelete(channelID, s)
 	}
 	return false
 }

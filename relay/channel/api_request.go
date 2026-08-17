@@ -26,6 +26,32 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// limitReadCloser caps how many bytes can be read from an upstream response
+// body and fails closed: reads past the limit return an error instead of a
+// silent truncation, and Close is delegated to the wrapped body so transport
+// resources are released (F-36).
+type limitReadCloser struct {
+	rc  io.ReadCloser
+	n   int64
+	max int64
+}
+
+func (l *limitReadCloser) Read(p []byte) (int, error) {
+	if l.n >= l.max {
+		return 0, fmt.Errorf("upstream response body exceeds %d bytes", l.max)
+	}
+	if int64(len(p)) > l.max-l.n {
+		p = p[:l.max-l.n]
+	}
+	n, err := l.rc.Read(p)
+	l.n += int64(n)
+	return n, err
+}
+
+func (l *limitReadCloser) Close() error {
+	return l.rc.Close()
+}
+
 // ApplyUpstreamBodyMetadata restores metadata that net/http cannot infer from
 // a ReplayableBody. Callers must pass the original body because NewRequest
 // hides its dynamic type behind req.Body's io.ReadCloser wrapper.
@@ -547,7 +573,10 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 		if maxBytes <= 0 {
 			maxBytes = 64 << 20
 		}
-		resp.Body = io.NopCloser(io.LimitReader(resp.Body, maxBytes+1))
+		// Fail closed on oversized bodies (ReadAll past the limit returns a
+		// distinct error instead of a silent truncation) and delegate Close to
+		// the original body so transport resources are released.
+		resp.Body = &limitReadCloser{rc: resp.Body, max: maxBytes}
 	}
 	if common2.DebugEnabled {
 		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)

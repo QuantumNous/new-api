@@ -8,8 +8,9 @@ import (
 
 // MaxPageSize caps the page_size accepted from query parameters. List
 // endpoints use PageSize directly as SQL LIMIT; an unbounded value would let a
-// single request pull every matching row into memory (F-37).
-const MaxPageSize = 1000
+// single request pull every matching row into memory (F-37). GetPageQuery
+// clamps every page size to this value.
+const MaxPageSize = 100
 
 // MaxPage caps the page number so (page-1)*pageSize cannot overflow into a
 // negative SQL OFFSET (F-37 hardening).
@@ -98,8 +99,8 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 		pageInfo.Page = 1
 	}
 
-	if pageInfo.PageSize > 100 {
-		pageInfo.PageSize = 100
+	if pageInfo.PageSize > MaxPageSize {
+		pageInfo.PageSize = MaxPageSize
 	}
 
 	return pageInfo

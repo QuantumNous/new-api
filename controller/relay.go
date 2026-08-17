@@ -230,8 +230,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
-			if relayInfo.ChannelMeta != nil {
-				service.ClearChannelErrorStreak(relayInfo.ChannelMeta.ChannelId)
+			if channel != nil {
+				service.ClearChannelErrorStreak(channel.Id)
 			}
 			return
 		}
@@ -562,6 +562,9 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			if channel != nil {
+				service.ClearChannelErrorStreak(channel.Id)
+			}
 			break
 		}
 

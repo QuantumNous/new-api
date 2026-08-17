@@ -227,6 +227,11 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	case <-c.Done():
 	}
 
+	// Close both connections so whichever reader is still blocked in
+	// ReadMessage unblocks promptly instead of waiting out the read deadline.
+	_ = clientConn.Close()
+	_ = targetConn.Close()
+
 	if usage.TotalTokens != 0 {
 		_ = preConsumeUsage(c, info, usage, sumUsage)
 	}
