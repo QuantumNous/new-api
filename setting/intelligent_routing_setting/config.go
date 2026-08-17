@@ -11,6 +11,7 @@ type TaskType string
 
 const (
 	TaskTranslation TaskType = "translation"
+	TaskSummary     TaskType = "summary"
 	TaskGeneral     TaskType = "general"
 	TaskExtraction  TaskType = "extraction"
 	TaskCode        TaskType = "code"
@@ -70,7 +71,7 @@ func Normalize(input Config) (Config, error) {
 		return Config{}, errors.New("invalid intelligent routing budget")
 	}
 	defaults := map[TaskType]float64{
-		TaskTranslation: .88, TaskGeneral: .90, TaskCode: .93, TaskExtraction: .94,
+		TaskTranslation: .88, TaskSummary: .88, TaskGeneral: .90, TaskCode: .93, TaskExtraction: .94,
 		TaskReasoning: .95, TaskJSON: .97, TaskTool: .98,
 	}
 	for task, value := range input.QualityThresholds {
