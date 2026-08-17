@@ -33,6 +33,9 @@ func shouldClaudeUseResponsesBridge(info *relaycommon.RelayInfo) bool {
 	if info.ApiType == constant.APITypeCodex {
 		return true
 	}
+	if info.ChannelType == constant.ChannelTypeCopilot {
+		return false
+	}
 
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled ||
 		info.ChannelSetting.PassThroughBodyEnabled {
@@ -93,9 +96,6 @@ func applyClaudeChannelSystemPrompt(c *gin.Context, info *relaycommon.RelayInfo,
 func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 
 	info.InitChannelMeta(c)
-	if err := rejectCopilotNonChatFormat(info, "/v1/messages"); err != nil {
-		return err
-	}
 
 	claudeReq, ok := info.Request.(*dto.ClaudeRequest)
 

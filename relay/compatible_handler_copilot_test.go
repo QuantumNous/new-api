@@ -42,11 +42,11 @@ func TestCopilotDisallowsChatCompletionsViaResponses(t *testing.T) {
 	}
 }
 
-func TestCopilotRejectsNativeClaudeAndGeminiFormats(t *testing.T) {
+func TestCopilotRejectsGeminiFormats(t *testing.T) {
 	info := copilotRelayInfo()
 	info.ChannelSetting = dto.ChannelSettings{PassThroughBodyEnabled: true}
 
-	for _, endpoint := range []string{"/v1/messages", "Gemini", "Gemini embedding"} {
+	for _, endpoint := range []string{"Gemini", "Gemini embedding"} {
 		err := rejectCopilotNonChatFormat(info, endpoint)
 		if err == nil {
 			t.Fatalf("Copilot accepted %s with pass-through enabled", endpoint)
@@ -59,7 +59,7 @@ func TestCopilotRejectsNativeClaudeAndGeminiFormats(t *testing.T) {
 		}
 	}
 
-	if err := rejectCopilotNonChatFormat(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}, "/v1/messages"); err != nil {
+	if err := rejectCopilotNonChatFormat(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenAI}}, "Gemini"); err != nil {
 		t.Fatalf("non-Copilot channel rejected: %v", err)
 	}
 }

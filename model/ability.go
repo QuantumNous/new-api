@@ -412,6 +412,9 @@ func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 			}
 			abilitySet[key] = struct{}{}
 			enabled := channel.Status == common.ChannelStatusEnabled
+			if channel.Type == constant.ChannelTypeCopilot && strings.TrimSpace(channel.Key) == "" {
+				enabled = false
+			}
 			if governance.Disabled {
 				enabled = false
 			}
