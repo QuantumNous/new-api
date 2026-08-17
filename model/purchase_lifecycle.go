@@ -434,10 +434,7 @@ func insertPurchaseLifecycleEventForTopUp(tx *gorm.DB, topUp *TopUp, transition 
 	if err != nil {
 		return false, err
 	}
-	scopeID := tradeNo
-	if scopeID == "" {
-		scopeID = fmt.Sprintf("%s:%d", purchaseLifecycleTopUpTable, sourceID)
-	}
+	scopeID := purchaseLifecycleEventScopeID(tradeNo, purchaseLifecycleTopUpTable, sourceID)
 	availableAt := occurredAt
 	if eventType == RecallLifecycleTriggerPaymentPending {
 		availableAt = topUp.CreateTime + int64(recallLifecyclePaymentPendingDelay.Seconds())
@@ -492,10 +489,7 @@ func insertPurchaseLifecycleEventForSubscriptionOrder(tx *gorm.DB, order *Subscr
 	if err != nil {
 		return false, err
 	}
-	scopeID := tradeNo
-	if scopeID == "" {
-		scopeID = fmt.Sprintf("%s:%d", purchaseLifecycleSubscriptionTable, sourceID)
-	}
+	scopeID := purchaseLifecycleEventScopeID(tradeNo, purchaseLifecycleSubscriptionTable, sourceID)
 	availableAt := occurredAt
 	if eventType == RecallLifecycleTriggerPaymentPending {
 		availableAt = order.CreateTime + int64(recallLifecyclePaymentPendingDelay.Seconds())
@@ -562,9 +556,22 @@ func validateSubscriptionPurchaseSuccessScopeTx(tx *gorm.DB, order *Subscription
 
 func subscriptionOrderLifecycleCycleKey(orderID int, tradeNo string) string {
 	if normalized := strings.TrimSpace(tradeNo); normalized != "" {
-		return "subscription_order:" + normalized
+		cycleKey := "subscription_order:" + normalized
+		if len(cycleKey) <= quotaLifecycleCycleKeyMaxLength {
+			return cycleKey
+		}
 	}
 	return fmt.Sprintf("subscription_orders:%d", orderID)
+}
+
+func purchaseLifecycleEventScopeID(tradeNo string, sourceTable string, sourceID int64) string {
+	scopeID := strings.TrimSpace(tradeNo)
+	if scopeID == "" || len(scopeID) > recallLifecycleScopeIDMaxLen {
+		if strings.TrimSpace(sourceTable) != "" && sourceID > 0 {
+			return fmt.Sprintf("%s:%d", strings.TrimSpace(sourceTable), sourceID)
+		}
+	}
+	return scopeID
 }
 
 func subscriptionOrderLifecycleSuccessCause(order *SubscriptionOrder) string {
