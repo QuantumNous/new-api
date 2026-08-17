@@ -17,6 +17,10 @@ type ControlPlane interface {
 	FetchCatalog(context.Context, string, string) (CatalogFetchResult, error)
 }
 
+type ModelDiscoveryControlPlane interface {
+	ListOriginModels(context.Context, string, string) (OriginModelList, error)
+}
+
 type AdmissionInput struct {
 	RequestID          string
 	PlatformModel      string
@@ -42,6 +46,14 @@ func NewManager(control ControlPlane, catalog *CatalogView, now func() time.Time
 		now = time.Now
 	}
 	return &Manager{control: control, catalog: catalog, now: now}
+}
+
+func (manager *Manager) ListModels(ctx context.Context, originKey, requestID string) (OriginModelList, error) {
+	control, ok := manager.control.(ModelDiscoveryControlPlane)
+	if !ok || control == nil {
+		return OriginModelList{}, ErrPlatformUnavailable
+	}
+	return control.ListOriginModels(ctx, originKey, requestID)
 }
 
 func (manager *Manager) Admit(ctx context.Context, originKey string, input AdmissionInput) (AdmissionGrant, error) {

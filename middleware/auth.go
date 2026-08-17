@@ -367,6 +367,26 @@ func TokenAuth() func(c *gin.Context) {
 			}
 			c.Request.Header.Set("Authorization", "Bearer "+key)
 		}
+		if origin.Enabled() {
+			for _, header := range []string{"x-api-key", "x-goog-api-key"} {
+				alternativeKey, _ := authorizationToken(c.Request.Header.Get(header))
+				if strings.HasPrefix(alternativeKey, "sk-oa-") {
+					c.Request.Header.Del(header)
+					origin.EnsureRequestID(c)
+					abortWithOpenAiMessage(c, http.StatusUnauthorized, "Origin Key must use Authorization: Bearer")
+					return
+				}
+			}
+			if strings.HasPrefix(strings.TrimSpace(c.Query("key")), "sk-oa-") {
+				query := c.Request.URL.Query()
+				query.Del("key")
+				c.Request.URL.RawQuery = query.Encode()
+				c.Request.RequestURI = c.Request.URL.RequestURI()
+				origin.EnsureRequestID(c)
+				abortWithOpenAiMessage(c, http.StatusUnauthorized, "Origin Key must not be sent in the URL")
+				return
+			}
+		}
 		// 检查path包含/v1/messages 或 /v1/models
 		if strings.Contains(c.Request.URL.Path, "/v1/messages") || strings.Contains(c.Request.URL.Path, "/v1/models") {
 			anthropicKey := c.Request.Header.Get("x-api-key")
@@ -401,8 +421,10 @@ func TokenAuth() func(c *gin.Context) {
 				return
 			}
 			defer origin.ClearCredential(c)
-			if c.Request.Method != http.MethodPost || c.Request.URL.Path != "/v1/responses" {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "Origin Key is only valid for POST /v1/responses", types.ErrorCodeAccessDenied)
+			isResponses := c.Request.Method == http.MethodPost && c.Request.URL.Path == "/v1/responses"
+			isModelDiscovery := c.Request.Method == http.MethodGet && c.Request.URL.Path == "/v1/models"
+			if !isResponses && !isModelDiscovery {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "Origin Key is only valid for POST /v1/responses or GET /v1/models", types.ErrorCodeAccessDenied)
 				return
 			}
 			origin.EnsureRequestID(c)

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Origin Data-plane Control API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Locked P0 contract between the existing new-api Go data plane and Origin Platform. Platform remains authoritative for Origin Keys, projects, catalog, PriceBook, wallet, reservations, Charge and Ledger. The data plane forwards OpenAI Responses to BeeNex in the same protocol; this API never defines a Responses-to-Chat conversion."
   },
   "servers": [{ "url": "https://platform.internal" }],
@@ -65,6 +65,22 @@
         "responses": {
           "200": { "$ref": "#/components/responses/CatalogSnapshotOk" },
           "304": { "$ref": "#/components/responses/CatalogSnapshotNotModified" },
+          "503": { "$ref": "#/components/responses/PlatformUnavailable" }
+        }
+      }
+    },
+    "/internal/v1/models": {
+      "get": {
+        "operationId": "listOriginModels",
+        "summary": "Authenticate one Origin Key and list its currently saleable platform models",
+        "description": "new-api uses this non-billing endpoint only for OpenAI-compatible model discovery. Platform validates the complete Origin Key, tenant/project state and responses scope, then returns distinct ACTIVE platform model names from the latest unexpired execution snapshot that have an effective authoritative PriceBook for the Key tenant. It MUST NOT create a reservation, inspect wallet balance, mutate quota or expose provider/channel/upstream model information. Network failure, timeout or an untrusted response fails closed.",
+        "security": [{ "GatewayMutualTLS": [], "OriginKeyBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/OriginModelsOk" },
+          "400": { "$ref": "#/components/responses/AdmissionBadRequest" },
+          "401": { "$ref": "#/components/responses/AdmissionUnauthenticated" },
+          "403": { "$ref": "#/components/responses/AdmissionForbidden" },
           "503": { "$ref": "#/components/responses/PlatformUnavailable" }
         }
       }
@@ -164,6 +180,24 @@
           "approved_catalog_version": { "type": "integer", "format": "int64", "minimum": 1 },
           "route_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
           "expires_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OriginModelList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["request_id", "tenant_id", "project_id", "api_key_id", "catalog_version", "models"],
+        "properties": {
+          "request_id": { "type": "string", "format": "uuid" },
+          "tenant_id": { "type": "string", "format": "uuid" },
+          "project_id": { "type": "string", "format": "uuid" },
+          "api_key_id": { "type": "string", "format": "uuid" },
+          "catalog_version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "models": {
+            "type": "array",
+            "maxItems": 1000,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" }
+          }
         }
       },
       "AdmissionErrorCode": {
@@ -288,6 +322,26 @@
           "X-Catalog-Version": { "$ref": "#/components/headers/CatalogVersion" }
         },
         "content": { "application/json": { "schema": { "$ref": "../events/catalog.execution-snapshot-published.v1.schema.json" } } }
+      },
+      "OriginModelsOk": {
+        "description": "Origin Key identity and distinct saleable platform model names; never provider or upstream identifiers",
+        "headers": {
+          "X-Request-Id": { "$ref": "#/components/headers/RequestId" },
+          "X-Catalog-Version": { "$ref": "#/components/headers/CatalogVersion" }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/OriginModelList" },
+            "example": {
+              "request_id": "01980000-0000-7000-8000-000000000030",
+              "tenant_id": "01980000-0000-7000-8000-000000000003",
+              "project_id": "01980000-0000-7000-8000-000000000004",
+              "api_key_id": "01980000-0000-7000-8000-000000000005",
+              "catalog_version": 42,
+              "models": ["origin-agent"]
+            }
+          }
+        }
       },
       "CatalogSnapshotNotModified": {
         "description": "The caller already holds the current full snapshot",

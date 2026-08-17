@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "snapshot": "origin-codex-mvp-p0",
-  "snapshot_version": 2,
+  "snapshot_version": 3,
   "source_repository": "git@github.com:shuohaowang/origin-contracts.git",
-  "source_commit": "dac91b87f58f10969dd5df4192debd8ae071f5bc",
-  "source_sha256": "8860b77a1f9d774f064e1e77d8414c463146d5df44d2134e1be4fdcc7c3fe5a1",
+  "source_commit": "4911cd0ef45828f25d35e0015e980eb903d6f69f",
+  "source_sha256": "c1b2c932bf7207adad8434f609a6ec8138a3d160bdd68a28f21bf164cd5f1e7d",
   "contract_versions": {
-    "data_plane_control": "1.0.0",
+    "data_plane_control": "1.1.0",
     "openai_compatible": "1.7.0-draft",
     "catalog_event_id": "urn:origin-ai:event:catalog.execution-snapshot-published.v1",
     "catalog_event_version": 1,
@@ -20,7 +20,7 @@
   "files": {
     "openapi/data-plane-control-v1.yaml": {
       "source_path": "packages/contracts/openapi/data-plane-control-v1.yaml",
-      "sha256": "d2c48b25cdf5543ba15b949caada8b61bd608669e2665c679217d4b3dd7d3da9"
+      "sha256": "de2cb8478135644c513445d515a5e5f48526e69ee62f3c35f01764bf72be4106"
     },
     "openapi/openai-compatible-v1.yaml": {
       "source_path": "packages/contracts/openapi/openai-compatible-v1.yaml",
@@ -81,6 +81,14 @@
     "examples/metering.usage-recorded.v2.invalid.json": {
       "source_path": "packages/contracts/examples/metering.usage-recorded.v2.invalid.json",
       "sha256": "ee53b2b13e8288de7977ef292075e372438e4dd508fa6e57c47daedc424f8a6e"
+    },
+    "examples/data-plane.models.valid.json": {
+      "source_path": "packages/contracts/examples/data-plane.models.valid.json",
+      "sha256": "220dde0866661708ff20cd24fe339c13a3dde0bb759d9be59c7a3875d307dce5"
+    },
+    "examples/data-plane.models.invalid.json": {
+      "source_path": "packages/contracts/examples/data-plane.models.invalid.json",
+      "sha256": "e0311bff26965d22d30fc20b20908c9bde0f35f0603c74dad57d8954b955f025"
     },
     "openapi/control-v1.yaml": {
       "source_path": "packages/contracts/openapi/control-v1.yaml",

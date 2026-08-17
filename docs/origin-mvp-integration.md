@@ -23,7 +23,8 @@ Origin 对 new-api 的使用方式是在现有项目上维护受控版本：保�
 | 职责 | 现有代码 |
 |---|---|
 | 暴露 `POST /v1/responses` | `router/relay-router.go` |
-| 客户 Token 鉴权；后续接入 Origin Key 的补丁点 | `middleware/auth.go` |
+| 暴露权威 `GET /v1/models` | `router/relay-router.go`、`controller/origin_models.go` |
+| 客户 Token 与 Origin Key 鉴权桥接 | `middleware/auth.go` |
 | 选择渠道并校验模型权限 | `middleware/distributor.go` |
 | 请求入口、重试和额度流程 | `controller/relay.go` |
 | 使用内置 **New API** 同协议渠道请求 BeeNex | `relay/channel/newapi/adaptor.go` |
@@ -71,6 +72,8 @@ BeeNex 已原生支持 OpenAI Responses。Origin 受控版本不得新增 BeeNex
 
 Origin Platform 仍是 Tenant、Project、Origin Key、PlatformModel 商品状态、PriceBook、Wallet、Charge 和 Ledger 的唯一权威。现有 new-api 的用户、Token、额度、计费和控制台仍是上游项目能力，但不是 Origin 客户或财务事实源。
 
+Origin Key 只接受 `Authorization: Bearer`。`GET /v1/models` 会把完整 Key 经 mTLS 转交 Platform 的 `/internal/v1/models` 权威校验，并只把平台模型名转换为 OpenAI `object=list`；它不读取 new-api 本地 Ability、不创建 reservation、不选择 BeeNex 渠道，也不暴露 provider、channel 或 upstream model。放在 query、`x-api-key` 或 `x-goog-api-key` 中的 Origin Key 会被清除并拒绝，避免进入 URL 或替代凭据日志。
+
 ## MVP 实施顺序
 
 1. 为非流式 Responses、SSE、function tools、usage、未知字段保留和禁止 Responses-over-Chat 建立契约测试。
@@ -82,7 +85,7 @@ Origin Platform 仍是 Tenant、Project、Origin Key、PlatformModel 商品状�
 
 ## 受控版本配置
 
-本仓锁定的 `origin-contracts` v2 消费提交为 `dac91b87f58f10969dd5df4192debd8ae071f5bc`，聚合 SHA-256 为 `8860b77a1f9d774f064e1e77d8414c463146d5df44d2134e1be4fdcc7c3fe5a1`。历史 v1 聚合 SHA-256 保持为 `514738bbc49845da3161382fa79587df2f60c753700c3f360a5afb58c86186d6`。同步文件与逐文件哈希记录在 `contracts/origin/contract-lock.json`；控制面请求、catalog 和 usage 事件不得偏离该快照。
+本仓锁定的 `origin-contracts` v3 消费提交为 `4911cd0ef45828f25d35e0015e980eb903d6f69f`，聚合 SHA-256 为 `c1b2c932bf7207adad8434f609a6ec8138a3d160bdd68a28f21bf164cd5f1e7d`。历史 v1/v2 聚合 SHA-256 分别保持为 `514738bbc49845da3161382fa79587df2f60c753700c3f360a5afb58c86186d6` 和 `8860b77a1f9d774f064e1e77d8414c463146d5df44d2134e1be4fdcc7c3fe5a1`。同步文件与逐文件哈希记录在 `contracts/origin/contract-lock.json`；模型发现、admission、catalog 和 usage 事件不得偏离该快照。
 
 Origin 集成默认关闭。只有 `ORIGIN_INTEGRATION_ENABLED=true` 时才启用，并要求以下配置完整有效，否则进程启动失败：
 
@@ -103,6 +106,7 @@ Origin 集成默认关闭。只有 `ORIGIN_INTEGRATION_ENABLED=true` 时才启�
 - 除出站请求中获批的平台模型名到上游模型名映射外，非流式请求与响应结构不做协议转换；
 - SSE 事件类型、顺序、JSON、tool arguments 和 usage 保持兼容；
 - 有效、停用、过期和跨项目 Origin Key 均按 Origin 契约处理；
+- `GET /v1/models` 只显示 Platform 权威返回的平台模型名，且不创建 reservation、修改 Wallet 或访问 BeeNex；
 - 余额不足或项目限额不允许时不得联系 BeeNex；
 - 只能在首个事件前安全重试；客户断开连接会取消上游请求；
 - usage 缺失进入待对账状态，绝不能静默记为零成本成功；

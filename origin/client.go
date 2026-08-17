@@ -110,6 +110,48 @@ func (client *ControlClient) CreateAdmission(ctx context.Context, originKey stri
 	return result, nil
 }
 
+func (client *ControlClient) ListOriginModels(ctx context.Context, originKey, requestID string) (OriginModelList, error) {
+	if _, err := uuid.Parse(requestID); err != nil {
+		return OriginModelList{}, errors.New("invalid Origin model discovery request id")
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, client.timeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(
+		requestCtx, http.MethodGet, client.baseURL+"/internal/v1/models", nil)
+	if err != nil {
+		return OriginModelList{}, fmt.Errorf("create Origin model discovery request: %w", err)
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Authorization", "Bearer "+originKey)
+	request.Header.Set("X-Request-Id", requestID)
+
+	response, err := client.client.Do(request)
+	if err != nil {
+		return OriginModelList{}, fmt.Errorf("%w: %w", ErrPlatformUnavailable, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return OriginModelList{}, decodeControlError(response, requestID)
+	}
+	version, parseErr := strconv.ParseInt(response.Header.Get("X-Catalog-Version"), 10, 64)
+	if !isJSONContentType(response.Header.Get("Content-Type")) ||
+		response.Header.Get("X-Request-Id") != requestID || parseErr != nil || version < 1 {
+		return OriginModelList{}, ErrUntrustedPlatformResponse
+	}
+	responseBody, err := readPlatformResponseBody(response.Body)
+	if err != nil {
+		return OriginModelList{}, ErrUntrustedPlatformResponse
+	}
+	var result OriginModelList
+	if err := common.DecodeJsonStrict(bytes.NewReader(responseBody), &result); err != nil {
+		return OriginModelList{}, fmt.Errorf("%w: invalid model discovery body", ErrUntrustedPlatformResponse)
+	}
+	if err := validateOriginModelList(result, requestID, version); err != nil {
+		return OriginModelList{}, fmt.Errorf("%w: invalid model discovery result", ErrUntrustedPlatformResponse)
+	}
+	return result, nil
+}
+
 func (client *ControlClient) FetchCatalog(ctx context.Context, requestID, etag string) (CatalogFetchResult, error) {
 	if _, err := uuid.Parse(requestID); err != nil {
 		return CatalogFetchResult{}, errors.New("invalid Origin catalog request id")
@@ -183,6 +225,28 @@ func validateAdmissionResult(result AdmissionResult, input AdmissionRequest) err
 	}
 	if _, err := time.Parse(time.RFC3339, result.ExpiresAt); err != nil {
 		return errors.New("invalid admission expiry")
+	}
+	return nil
+}
+
+func validateOriginModelList(result OriginModelList, requestID string, catalogVersion int64) error {
+	for _, value := range []string{result.RequestID, result.TenantID, result.ProjectID, result.APIKeyID} {
+		if _, err := uuid.Parse(value); err != nil {
+			return errors.New("invalid model discovery identity")
+		}
+	}
+	if result.RequestID != requestID || result.CatalogVersion != catalogVersion || len(result.Models) > 1000 {
+		return errors.New("model discovery correlation mismatch")
+	}
+	seen := make(map[string]struct{}, len(result.Models))
+	for _, model := range result.Models {
+		if len(model) > 120 || !catalogIdentifierPattern.MatchString(model) {
+			return errors.New("invalid platform model")
+		}
+		if _, duplicate := seen[model]; duplicate {
+			return errors.New("duplicate platform model")
+		}
+		seen[model] = struct{}{}
 	}
 	return nil
 }

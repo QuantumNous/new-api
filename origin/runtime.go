@@ -121,6 +121,7 @@ func EnsureRequestID(c *gin.Context) string {
 		c.Request = c.Request.WithContext(ctx)
 	}
 	c.Header(common.RequestIdKey, requestID)
+	c.Header("X-Request-Id", requestID)
 	return requestID
 }
 
