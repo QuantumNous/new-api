@@ -25,11 +25,13 @@ func resetCopilotDeviceTestState(t *testing.T) {
 	oldUpdater := modelUpdateCopilotCredential
 	oldRedisEnabled := common.RedisEnabled
 	oldRedis := common.RDB
+	oldMemoryFallbackEnabled := copilotDeviceMemoryFallbackEnabled
 	oldClientID := system_setting.GetCopilotSettings().ClientID
 	system_setting.GetCopilotSettings().ClientID = "copilot-test-client-id"
 	mini := miniredis.RunT(t)
 	common.RedisEnabled = true
 	common.RDB = redis.NewClient(&redis.Options{Addr: mini.Addr()})
+	copilotDeviceMemoryFallbackEnabled = false
 	copilotDeviceMemoryStore.Lock()
 	copilotDeviceMemoryStore.sessions = make(map[string]copilotDeviceSession)
 	copilotDeviceMemoryStore.claims = make(map[string]time.Time)
@@ -41,6 +43,7 @@ func resetCopilotDeviceTestState(t *testing.T) {
 		modelUpdateCopilotCredential = oldUpdater
 		common.RedisEnabled = oldRedisEnabled
 		common.RDB = oldRedis
+		copilotDeviceMemoryFallbackEnabled = oldMemoryFallbackEnabled
 		system_setting.GetCopilotSettings().ClientID = oldClientID
 	})
 }
@@ -236,6 +239,7 @@ func TestCopilotDeviceFlowRequiresConfiguredClientID(t *testing.T) {
 func TestCopilotDeviceFlowFallsBackToProcessLocalSessionWithoutRedis(t *testing.T) {
 	resetCopilotDeviceTestState(t)
 	common.RedisEnabled = false
+	copilotDeviceMemoryFallbackEnabled = true
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"device_code":"device","user_code":"CODE","verification_uri":"https://github.com/login/device","expires_in":600,"interval":1}`))
 	}))
@@ -247,6 +251,50 @@ func TestCopilotDeviceFlowFallsBackToProcessLocalSessionWithoutRedis(t *testing.
 	_, found, err := loadCopilotDeviceSession(context.Background(), flow.FlowID)
 	require.NoError(t, err)
 	require.True(t, found)
+}
+
+func TestCopilotDeviceFlowRequiresSharedStoreByDefaultWithoutRedis(t *testing.T) {
+	resetCopilotDeviceTestState(t)
+	common.RedisEnabled = false
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	copilotDeviceStartEndpoint = server.URL
+
+	_, err := StartCopilotDeviceFlow(context.Background(), 7, 112, "")
+	require.EqualError(t, err, "Copilot Device Flow requires Redis or explicit single-instance memory fallback")
+	require.Zero(t, requests.Load())
+}
+
+func TestCopilotDeviceMemoryFallbackCleansAllExpiredEntries(t *testing.T) {
+	resetCopilotDeviceTestState(t)
+	common.RedisEnabled = false
+	copilotDeviceMemoryFallbackEnabled = true
+	now := time.Now()
+	liveSession := copilotDeviceSession{DeviceCode: "live", ExpiresAt: now.Add(time.Minute).Unix()}
+
+	copilotDeviceMemoryStore.Lock()
+	copilotDeviceMemoryStore.sessions["expired-requested"] = copilotDeviceSession{DeviceCode: "expired", ExpiresAt: now.Add(-time.Minute).Unix()}
+	copilotDeviceMemoryStore.sessions["expired-abandoned"] = copilotDeviceSession{DeviceCode: "expired", ExpiresAt: now.Add(-time.Minute).Unix()}
+	copilotDeviceMemoryStore.sessions["live"] = liveSession
+	copilotDeviceMemoryStore.claims["expired-requested"] = now.Add(time.Minute)
+	copilotDeviceMemoryStore.claims["expired-claim"] = now.Add(-time.Minute)
+	copilotDeviceMemoryStore.claims["live"] = now.Add(time.Minute)
+	copilotDeviceMemoryStore.Unlock()
+
+	loaded, found, err := loadCopilotDeviceSession(context.Background(), "live")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Equal(t, liveSession, loaded)
+
+	copilotDeviceMemoryStore.Lock()
+	defer copilotDeviceMemoryStore.Unlock()
+	require.Equal(t, map[string]copilotDeviceSession{"live": liveSession}, copilotDeviceMemoryStore.sessions)
+	require.Contains(t, copilotDeviceMemoryStore.claims, "live")
+	require.Len(t, copilotDeviceMemoryStore.claims, 1)
 }
 
 func TestCopilotDeviceFlowKeepsCredentialWhenSessionCleanupFails(t *testing.T) {

@@ -28,10 +28,11 @@ const (
 )
 
 var (
-	copilotDeviceStartEndpoint = "https://github.com/login/device/code"
-	copilotDeviceTokenEndpoint = "https://github.com/login/oauth/access_token"
+	copilotDeviceStartEndpoint         = "https://github.com/login/device/code"
+	copilotDeviceTokenEndpoint         = "https://github.com/login/oauth/access_token"
+	copilotDeviceMemoryFallbackEnabled = common.GetEnvOrDefaultBool("COPILOT_DEVICE_MEMORY_FALLBACK_ENABLED", false)
 	// Redis is required for multi-node coordination. This store lets single-instance
-	// development and staging environments complete a Device Flow without Redis.
+	// development and staging environments explicitly opt in when Redis is absent.
 	copilotDeviceMemoryStore = struct {
 		sync.Mutex
 		sessions map[string]copilotDeviceSession
@@ -84,6 +85,9 @@ func StartCopilotDeviceFlow(ctx context.Context, adminID int, channelID int, pro
 	clientID := copilotDeviceClientID()
 	if clientID == "" {
 		return nil, errors.New("Copilot Device Flow is not configured; configure the Copilot Client ID")
+	}
+	if err := ensureCopilotDeviceStoreAvailable(); err != nil {
+		return nil, err
 	}
 	client, err := copilotHTTPClient(proxyURL, copilotDeviceTimeout)
 	if err != nil {
@@ -287,9 +291,13 @@ func claimCopilotDeviceFlow(ctx context.Context, flowID string) (release func(),
 		}
 		return release, ok, nil
 	}
+	if err := ensureCopilotDeviceStoreAvailable(); err != nil {
+		return nil, false, err
+	}
 	copilotDeviceMemoryStore.Lock()
 	defer copilotDeviceMemoryStore.Unlock()
 	now := time.Now()
+	cleanupExpiredCopilotDeviceMemoryLocked(now)
 	if expiresAt, exists := copilotDeviceMemoryStore.claims[flowID]; exists && expiresAt.After(now) {
 		return func() {}, false, nil
 	}
@@ -317,7 +325,11 @@ func saveCopilotDeviceSession(flowID string, session copilotDeviceSession) error
 		}
 		return nil
 	}
+	if err := ensureCopilotDeviceStoreAvailable(); err != nil {
+		return err
+	}
 	copilotDeviceMemoryStore.Lock()
+	cleanupExpiredCopilotDeviceMemoryLocked(time.Now())
 	copilotDeviceMemoryStore.sessions[flowID] = session
 	copilotDeviceMemoryStore.Unlock()
 	return nil
@@ -326,6 +338,9 @@ func saveCopilotDeviceSession(flowID string, session copilotDeviceSession) error
 func deleteCopilotDeviceFlow(ctx context.Context, flowID string) error {
 	if copilotDeviceRedisAvailable() {
 		return common.RDB.Del(ctx, copilotDeviceSessionKey(flowID)).Err()
+	}
+	if err := ensureCopilotDeviceStoreAvailable(); err != nil {
+		return err
 	}
 	copilotDeviceMemoryStore.Lock()
 	delete(copilotDeviceMemoryStore.sessions, flowID)
@@ -345,8 +360,12 @@ func consumeCopilotDeviceFlow(ctx context.Context, flowID string) error {
 		}
 		return nil
 	}
+	if err := ensureCopilotDeviceStoreAvailable(); err != nil {
+		return err
+	}
 	copilotDeviceMemoryStore.Lock()
 	defer copilotDeviceMemoryStore.Unlock()
+	cleanupExpiredCopilotDeviceMemoryLocked(time.Now())
 	if _, found := copilotDeviceMemoryStore.sessions[flowID]; !found {
 		return errors.New("copilot device authorization session was already consumed")
 	}
@@ -383,17 +402,39 @@ func loadCopilotDeviceSession(ctx context.Context, flowID string) (copilotDevice
 		}
 		return session, true, nil
 	}
-	copilotDeviceMemoryStore.Lock()
-	session, found := copilotDeviceMemoryStore.sessions[flowID]
-	if found && session.ExpiresAt <= time.Now().Unix() {
-		delete(copilotDeviceMemoryStore.sessions, flowID)
-		found = false
+	if err := ensureCopilotDeviceStoreAvailable(); err != nil {
+		return session, false, err
 	}
-	copilotDeviceMemoryStore.Unlock()
+	copilotDeviceMemoryStore.Lock()
+	defer copilotDeviceMemoryStore.Unlock()
+	cleanupExpiredCopilotDeviceMemoryLocked(time.Now())
+	session, found := copilotDeviceMemoryStore.sessions[flowID]
 	return session, found, nil
 }
 
 func copilotDeviceRedisAvailable() bool { return common.RedisEnabled && common.RDB != nil }
+
+func ensureCopilotDeviceStoreAvailable() error {
+	if copilotDeviceRedisAvailable() || copilotDeviceMemoryFallbackEnabled {
+		return nil
+	}
+	return errors.New("Copilot Device Flow requires Redis or explicit single-instance memory fallback")
+}
+
+func cleanupExpiredCopilotDeviceMemoryLocked(now time.Time) {
+	nowUnix := now.Unix()
+	for flowID, session := range copilotDeviceMemoryStore.sessions {
+		if session.ExpiresAt <= nowUnix {
+			delete(copilotDeviceMemoryStore.sessions, flowID)
+			delete(copilotDeviceMemoryStore.claims, flowID)
+		}
+	}
+	for flowID, expiresAt := range copilotDeviceMemoryStore.claims {
+		if !expiresAt.After(now) {
+			delete(copilotDeviceMemoryStore.claims, flowID)
+		}
+	}
+}
 
 func copilotHTTPClient(proxyURL string, timeout time.Duration) (*http.Client, error) {
 	base, err := GetHttpClientWithProxy(strings.TrimSpace(proxyURL))

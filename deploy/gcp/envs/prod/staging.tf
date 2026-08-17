@@ -333,6 +333,10 @@ resource "google_cloud_run_v2_service" "staging" {
         value = "true"
       }
       env {
+        name  = "COPILOT_DEVICE_MEMORY_FALLBACK_ENABLED"
+        value = "true" // staging 固定单实例；生产默认 false，必须使用 Redis
+      }
+      env {
         name  = "ASSET_STORAGE_BUCKET"
         value = google_storage_bucket.flatkey_assets_staging[0].name
       }
