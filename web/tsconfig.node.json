@@ -20,5 +20,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["rsbuild.config.ts"]
+  "include": ["rsbuild.config.ts", "vitest.config.ts"]
 }
