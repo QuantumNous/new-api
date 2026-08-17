@@ -14,9 +14,14 @@ withDefaults(
 </script>
 
 <template>
-  <div class="mb-6 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
+  <div
+    class="mb-6 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+  >
     <Breadcrumb :crumbs="crumbs" spacing="" class="shrink-0" />
-    <div v-if="$slots.action" class="min-w-0 lg:ml-auto lg:flex-1">
+    <div
+      v-if="$slots.action"
+      class="flex min-w-0 items-center sm:ml-auto sm:justify-end"
+    >
       <slot name="action" />
     </div>
   </div>

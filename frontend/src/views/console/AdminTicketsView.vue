@@ -7,7 +7,9 @@ import { ArrowLeft, RefreshCw, UserRoundCheck } from 'lucide-vue-next'
 import { api } from '@/api/console'
 import { ApiError, type PageResult } from '@/api/types'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
+import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TicketImageLightbox from '@/components/console/tickets/TicketImageLightbox.vue'
@@ -369,406 +371,436 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
 </script>
 
 <template>
-  <div
-    class="flex h-[calc(100dvh-11.75rem)] min-h-[560px] overflow-hidden border-y border-[var(--border-subtle)] bg-[var(--surface-solid)] lg:h-[calc(100dvh-8rem)]"
-  >
-    <aside
-      class="min-w-0 flex-col border-r border-[var(--border-subtle)] lg:flex lg:w-[360px] lg:shrink-0"
-      :class="selectedID ? 'hidden' : 'flex w-full'"
-      :aria-label="t('tickets.admin.queue')"
+  <div class="space-y-4">
+    <!-- Top Breadcrumb & Status summary -->
+    <PageBreadcrumb
+      :crumbs="[t('tickets.breadcrumb.0'), t('tickets.admin.title')]"
     >
-      <header class="border-b border-[var(--border-subtle)] px-4 py-3">
-        <div class="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h1
-              class="display-title text-lg font-bold text-[var(--text-primary)]"
-            >
-              {{ t('tickets.admin.title') }}
-            </h1>
-            <p class="text-xs text-[var(--text-tertiary)]">
-              {{ t('tickets.admin.queueSummary', ticketQueue.summary) }}
-            </p>
-          </div>
+      <template #action>
+        <div class="flex items-center gap-2.5">
+          <span class="hidden text-xs text-[var(--text-tertiary)] sm:inline">
+            {{ t('tickets.admin.queueSummary', ticketQueue.summary) }}
+          </span>
           <button
             type="button"
-            class="flex h-9 w-9 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-ring"
+            class="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] text-[var(--text-secondary)] shadow-[var(--card-shadow)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] focus-ring"
             :aria-label="t('common.refresh')"
             @click="loadQueue"
           >
-            <RefreshCw :size="16" aria-hidden="true" />
+            <RefreshCw
+              :size="15"
+              :class="{ 'animate-spin': queueLoading }"
+              aria-hidden="true"
+            />
           </button>
         </div>
+      </template>
+    </PageBreadcrumb>
 
-        <div
-          class="mb-3 grid grid-cols-4 gap-1 rounded-lg bg-[var(--surface-muted)] p-1"
-        >
-          <button
-            v-for="tab in statusTabs"
-            :key="tab.value"
-            type="button"
-            class="min-w-0 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-ring"
-            :class="
-              status === tab.value
-                ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
-                : 'text-[var(--text-secondary)]'
-            "
-            @click="status = tab.value"
-          >
-            <span class="block truncate">{{ tab.label }}</span>
-          </button>
-        </div>
-
-        <SearchInput
-          v-model="keyword"
-          :placeholder="t('tickets.admin.searchPlaceholder')"
-          :aria-label="t('tickets.admin.searchPlaceholder')"
-          name="admin-ticket-search"
-          class="mb-2 w-full"
-        />
-        <div class="grid grid-cols-3 gap-2">
-          <FilterSelect
-            v-model="category"
-            :options="categoryOptions"
-            :label="t('tickets.create.categoryLabel')"
-            size="sm"
-          />
-          <FilterSelect
-            v-model="priority"
-            :options="priorityOptions"
-            :label="t('tickets.create.priorityLabel')"
-            size="sm"
-          />
-          <FilterSelect
-            v-model="assignee"
-            :options="assigneeOptions"
-            :label="t('tickets.admin.assignee')"
-            size="sm"
-          />
-        </div>
-      </header>
-
-      <div class="subtle-scroll min-h-0 flex-1 overflow-y-auto">
-        <div v-if="queueLoading" class="space-y-1 p-2">
-          <div
-            v-for="index in 7"
-            :key="index"
-            class="h-24 animate-pulse rounded-md bg-[var(--surface-muted)]"
-          />
-        </div>
-        <div
-          v-else-if="queueFailed"
-          class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
-        >
-          <p class="text-sm text-[var(--text-secondary)]">
-            {{ t('tickets.listLoadFailed') }}
-          </p>
-          <ConsoleButton size="sm" variant="secondary" @click="loadQueue">
-            {{ t('common.retry') }}
-          </ConsoleButton>
-        </div>
-        <div
-          v-else-if="tickets.length === 0"
-          class="flex h-full items-center justify-center px-6 text-center text-sm text-[var(--text-tertiary)]"
-        >
-          {{ t('tickets.admin.emptyQueue') }}
-        </div>
-        <template v-else>
-          <button
-            v-for="item in tickets"
-            :key="item.id"
-            type="button"
-            class="w-full border-b border-[var(--border-subtle)] px-4 py-3 text-left transition-colors hover:bg-[var(--surface-muted)] focus-ring"
-            :class="item.id === selectedID ? 'bg-[var(--accent-soft)]' : ''"
-            @click="selectTicket(item.id)"
-          >
-            <div class="mb-1.5 flex items-start justify-between gap-3">
-              <span
-                class="min-w-0 truncate text-sm font-semibold text-[var(--text-primary)]"
-              >
-                {{ item.title }}
-              </span>
-              <StatusChip :tone="ticketStatusTone[item.status]">
-                {{ t(`tickets.status.${item.status}`) }}
-              </StatusChip>
-            </div>
-            <div
-              class="mb-2 flex items-center gap-2 text-xs text-[var(--text-secondary)]"
-            >
-              <span class="truncate">{{
-                item.user.display_name || item.user.username
-              }}</span>
-              <span aria-hidden="true">·</span>
-              <span>{{ t(`tickets.category.${item.category}`) }}</span>
-              <span aria-hidden="true">·</span>
-              <span>{{ t(`tickets.priority.${item.priority}`) }}</span>
-            </div>
-            <div
-              class="flex items-center justify-between gap-2 text-xs text-[var(--text-tertiary)]"
-            >
-              <span class="truncate">
-                {{ item.assignee_name || t('tickets.admin.unassigned') }}
-              </span>
-              <time>{{ relativeTime(item.updated, locale) }}</time>
-            </div>
-          </button>
-        </template>
-      </div>
-
-      <footer
-        v-if="total > pageSize"
-        class="flex items-center justify-between border-t border-[var(--border-subtle)] px-4 py-2 text-xs text-[var(--text-secondary)]"
-      >
-        <button
-          type="button"
-          class="px-2 py-1 disabled:opacity-40"
-          :disabled="page <= 1"
-          @click="page -= 1"
-        >
-          {{ t('common.prevPage') }}
-        </button>
-        <span>{{ page }} / {{ pageCount }}</span>
-        <button
-          type="button"
-          class="px-2 py-1 disabled:opacity-40"
-          :disabled="page >= pageCount"
-          @click="page += 1"
-        >
-          {{ t('common.nextPage') }}
-        </button>
-      </footer>
-    </aside>
-
-    <section
-      class="min-w-0 flex-1 flex-col lg:flex"
-      :class="selectedID ? 'flex' : 'hidden'"
-      :aria-label="t('tickets.admin.workspace')"
+    <div
+      class="flex h-[calc(100dvh-13.5rem)] min-h-[580px] overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] shadow-[var(--card-shadow)]"
+      data-handdrawn="surface"
     >
-      <div
-        v-if="!selectedID"
-        class="hidden h-full items-center justify-center text-sm text-[var(--text-tertiary)] lg:flex"
+      <aside
+        class="min-w-0 flex-col border-r border-[var(--border-subtle)] lg:flex lg:w-[360px] lg:shrink-0"
+        :class="selectedID ? 'hidden' : 'flex w-full'"
+        :aria-label="t('tickets.admin.queue')"
       >
-        {{ t('tickets.admin.selectHint') }}
-      </div>
-      <div
-        v-else-if="detailLoading"
-        class="flex h-full items-center justify-center text-sm text-[var(--text-tertiary)]"
-      >
-        {{ t('common.loading') }}
-      </div>
-      <div
-        v-else-if="detailFailed || !ticket"
-        class="flex h-full flex-col items-center justify-center gap-3"
-      >
-        <p class="text-sm text-[var(--text-secondary)]">
-          {{ t('common.failed') }}
-        </p>
-        <ConsoleButton
-          size="sm"
-          variant="secondary"
-          @click="loadDetail(selectedID)"
-        >
-          {{ t('common.retry') }}
-        </ConsoleButton>
-      </div>
-      <div v-else class="flex min-h-0 flex-1 flex-col">
-        <header
-          class="border-b border-[var(--border-subtle)] px-4 py-3 sm:px-5"
-        >
-          <div class="flex items-start gap-3">
-            <button
-              type="button"
-              class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-ring lg:hidden"
-              :aria-label="t('tickets.detail.backToList')"
-              @click="showQueue"
-            >
-              <ArrowLeft :size="17" aria-hidden="true" />
-            </button>
-            <div class="min-w-0 flex-1">
-              <div class="mb-1 flex flex-wrap items-center gap-2">
-                <span class="font-mono text-xs text-[var(--text-tertiary)]"
-                  >#TK-{{ ticket.id }}</span
-                >
-                <StatusChip :tone="ticketStatusTone[ticket.status]">
-                  {{ t(`tickets.status.${ticket.status}`) }}
-                </StatusChip>
-              </div>
-              <h2
-                class="display-title truncate text-lg font-bold text-[var(--text-primary)]"
+        <header class="border-b border-[var(--border-subtle)] px-4 py-3">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h1
+                class="display-title text-base font-bold text-[var(--text-primary)]"
               >
-                {{ ticket.title }}
-              </h2>
+                {{ t('tickets.admin.queue') }}
+              </h1>
+              <p class="text-xs text-[var(--text-tertiary)]">
+                {{ t('tickets.admin.queueSummary', ticketQueue.summary) }}
+              </p>
             </div>
+          </div>
+
+          <div
+            class="mb-3 grid grid-cols-4 gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-1"
+          >
+            <button
+              v-for="tab in statusTabs"
+              :key="tab.value"
+              type="button"
+              class="min-w-0 rounded-lg px-2 py-1.5 text-xs font-medium transition-all focus-ring"
+              :class="
+                status === tab.value
+                  ? 'bg-[var(--surface-solid)] text-[var(--accent-text)] font-semibold shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              "
+              @click="status = tab.value"
+            >
+              <span class="block truncate">{{ tab.label }}</span>
+            </button>
+          </div>
+
+          <SearchInput
+            v-model="keyword"
+            :placeholder="t('tickets.admin.searchPlaceholder')"
+            :aria-label="t('tickets.admin.searchPlaceholder')"
+            name="admin-ticket-search"
+            class="mb-2 w-full"
+          />
+          <div class="grid grid-cols-3 gap-2">
+            <FilterSelect
+              v-model="category"
+              :options="categoryOptions"
+              :label="t('tickets.create.categoryLabel')"
+              size="sm"
+            />
+            <FilterSelect
+              v-model="priority"
+              :options="priorityOptions"
+              :label="t('tickets.create.priorityLabel')"
+              size="sm"
+            />
+            <FilterSelect
+              v-model="assignee"
+              :options="assigneeOptions"
+              :label="t('tickets.admin.assignee')"
+              size="sm"
+            />
           </div>
         </header>
 
-        <div class="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div class="flex min-h-0 flex-col">
+        <div class="subtle-scroll min-h-0 flex-1 overflow-y-auto">
+          <div v-if="queueLoading" class="space-y-1 p-2">
             <div
-              class="subtle-scroll min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6"
-            >
-              <TicketThreadMessage
-                v-for="message in messages"
-                :key="message.id"
-                :message="message"
-                viewer="support"
-                @image-click="openLightbox"
-              />
-            </div>
-            <div class="border-t border-[var(--border-subtle)] p-4 sm:px-6">
-              <TicketReplyBox
-                v-if="ticket.status !== 'closed'"
-                ref="replyBox"
-                :submitting="mutating"
-                :readonly="!canReply"
-                @submit="sendReply"
-              />
-              <p v-else class="text-sm text-[var(--text-secondary)]">
-                {{ t('tickets.detail.closedHint') }}
-              </p>
-            </div>
+              v-for="index in 7"
+              :key="index"
+              class="h-24 animate-pulse rounded-md bg-[var(--surface-muted)]"
+            />
           </div>
-
-          <aside
-            class="subtle-scroll overflow-y-auto border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4 lg:border-l lg:border-t-0"
+          <div
+            v-else-if="queueFailed"
+            class="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
           >
-            <section class="border-b border-[var(--border-subtle)] pb-4">
-              <h3
-                class="mb-3 text-xs font-semibold uppercase text-[var(--text-tertiary)]"
-              >
-                {{ t('tickets.admin.requester') }}
-              </h3>
-              <p class="font-medium text-[var(--text-primary)]">
-                {{ ticket.user.display_name || ticket.user.username }}
-              </p>
-              <p class="mt-1 break-all text-xs text-[var(--text-secondary)]">
-                {{ ticket.user.email || '-' }}
-              </p>
-            </section>
-
-            <section class="border-b border-[var(--border-subtle)] py-4">
-              <div class="mb-2 flex items-center justify-between gap-2">
-                <h3
-                  class="text-xs font-semibold uppercase text-[var(--text-tertiary)]"
-                >
-                  {{ t('tickets.admin.assignee') }}
-                </h3>
-                <button
-                  v-if="canManage && ticket.assignee_id !== auth.user?.id"
-                  type="button"
-                  class="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent-text)] hover:underline"
-                  @click="takeTicket"
-                >
-                  <UserRoundCheck :size="14" aria-hidden="true" />
-                  {{ t('tickets.admin.take') }}
-                </button>
-              </div>
-              <FilterSelect
-                v-model="assignmentValue"
-                :options="assignmentOptions"
-                :label="t('tickets.admin.assignee')"
-                :disabled="agentsLoading || !canManage"
-                size="sm"
-              />
-              <ConsoleButton
-                v-if="canManage"
-                class="mt-2"
-                size="sm"
-                variant="secondary"
-                block
-                :loading="mutating"
-                @click="saveAssignment()"
-              >
-                {{ t('common.save') }}
-              </ConsoleButton>
-            </section>
-
-            <section
-              class="border-b border-[var(--border-subtle)] py-4 text-sm"
+            <p class="text-sm text-[var(--text-secondary)]">
+              {{ t('tickets.listLoadFailed') }}
+            </p>
+            <ConsoleButton size="sm" variant="secondary" @click="loadQueue">
+              {{ t('common.retry') }}
+            </ConsoleButton>
+          </div>
+          <div
+            v-else-if="tickets.length === 0"
+            class="flex h-full items-center justify-center p-6"
+          >
+            <EmptyState
+              :title="t('tickets.emptyTitle')"
+              :hint="t('tickets.admin.emptyQueue')"
+            />
+          </div>
+          <template v-else>
+            <button
+              v-for="item in tickets"
+              :key="item.id"
+              type="button"
+              class="relative w-full border-b border-[var(--border-subtle)] px-4 py-3 text-left transition-colors hover:bg-[var(--surface-hover)] focus-ring"
+              :class="
+                item.id === selectedID
+                  ? 'bg-[var(--accent-soft)]/60 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-[var(--accent)]'
+                  : ''
+              "
+              @click="selectTicket(item.id)"
             >
-              <h3
-                class="mb-3 text-xs font-semibold uppercase text-[var(--text-tertiary)]"
+              <div class="mb-1.5 flex items-start justify-between gap-3">
+                <span
+                  class="min-w-0 truncate text-sm font-semibold text-[var(--text-primary)]"
+                >
+                  {{ item.title }}
+                </span>
+                <StatusChip :tone="ticketStatusTone[item.status]">
+                  {{ t(`tickets.status.${item.status}`) }}
+                </StatusChip>
+              </div>
+              <div
+                class="mb-2 flex items-center gap-2 text-xs text-[var(--text-secondary)]"
               >
-                {{ t('tickets.admin.details') }}
-              </h3>
-              <dl class="space-y-2">
-                <div class="flex justify-between gap-3">
-                  <dt class="text-[var(--text-tertiary)]">
-                    {{ t('tickets.create.categoryLabel') }}
-                  </dt>
-                  <dd class="text-[var(--text-primary)]">
-                    {{ t(`tickets.category.${ticket.category}`) }}
-                  </dd>
-                </div>
-                <div class="flex justify-between gap-3">
-                  <dt class="text-[var(--text-tertiary)]">
-                    {{ t('tickets.create.priorityLabel') }}
-                  </dt>
-                  <dd class="text-[var(--text-primary)]">
-                    {{ t(`tickets.priority.${ticket.priority}`) }}
-                  </dd>
-                </div>
-                <div v-if="ticket.model_id">
-                  <dt class="text-xs text-[var(--text-tertiary)]">
-                    {{ t('tickets.admin.modelId') }}
-                  </dt>
-                  <dd
-                    class="mt-1 break-all font-mono text-xs text-[var(--text-primary)]"
-                  >
-                    {{ ticket.model_id }}
-                  </dd>
-                </div>
-                <div v-if="ticket.request_id">
-                  <dt class="text-xs text-[var(--text-tertiary)]">
-                    {{ t('tickets.admin.requestId') }}
-                  </dt>
-                  <dd
-                    class="mt-1 break-all font-mono text-xs text-[var(--text-primary)]"
-                  >
-                    {{ ticket.request_id }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-xs text-[var(--text-tertiary)]">
-                    {{ t('tickets.colCreated') }}
-                  </dt>
-                  <dd class="mt-1 text-xs text-[var(--text-primary)]">
-                    {{ formatTime(ticket.created) }}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            <section v-if="canManage" class="pt-4">
-              <ConsoleButton
-                v-if="ticket.status !== 'closed'"
-                variant="danger"
-                size="sm"
-                block
-                :loading="mutating"
-                @click="changeStatus('closed')"
+                <span class="truncate">{{
+                  item.user.display_name || item.user.username
+                }}</span>
+                <span aria-hidden="true">·</span>
+                <span>{{ t(`tickets.category.${item.category}`) }}</span>
+                <span aria-hidden="true">·</span>
+                <span>{{ t(`tickets.priority.${item.priority}`) }}</span>
+              </div>
+              <div
+                class="flex items-center justify-between gap-2 text-xs text-[var(--text-tertiary)]"
               >
-                {{ t('tickets.closeTicket') }}
-              </ConsoleButton>
-              <ConsoleButton
-                v-else
-                variant="secondary"
-                size="sm"
-                block
-                :loading="mutating"
-                @click="changeStatus('open')"
-              >
-                {{ t('tickets.reopenTicket') }}
-              </ConsoleButton>
-            </section>
-          </aside>
+                <span class="truncate">
+                  {{ item.assignee_name || t('tickets.admin.unassigned') }}
+                </span>
+                <time>{{ relativeTime(item.updated, locale) }}</time>
+              </div>
+            </button>
+          </template>
         </div>
-      </div>
-    </section>
 
-    <TicketImageLightbox
-      :open="lightbox.open"
-      :url="lightbox.url"
-      @close="lightbox.open = false"
-    />
+        <footer
+          v-if="total > pageSize"
+          class="flex items-center justify-between border-t border-[var(--border-subtle)] px-4 py-2 text-xs text-[var(--text-secondary)]"
+        >
+          <button
+            type="button"
+            class="px-2 py-1 disabled:opacity-40"
+            :disabled="page <= 1"
+            @click="page -= 1"
+          >
+            {{ t('common.prevPage') }}
+          </button>
+          <span>{{ page }} / {{ pageCount }}</span>
+          <button
+            type="button"
+            class="px-2 py-1 disabled:opacity-40"
+            :disabled="page >= pageCount"
+            @click="page += 1"
+          >
+            {{ t('common.nextPage') }}
+          </button>
+        </footer>
+      </aside>
+
+      <section
+        class="min-w-0 flex-1 flex-col lg:flex"
+        :class="selectedID ? 'flex' : 'hidden'"
+        :aria-label="t('tickets.admin.workspace')"
+      >
+        <div
+          v-if="!selectedID"
+          class="hidden h-full items-center justify-center lg:flex"
+        >
+          <EmptyState
+            :title="t('tickets.admin.workspace')"
+            :hint="t('tickets.admin.selectHint')"
+          />
+        </div>
+        <div
+          v-else-if="detailLoading"
+          class="flex h-full items-center justify-center text-sm text-[var(--text-tertiary)]"
+        >
+          {{ t('common.loading') }}
+        </div>
+        <div
+          v-else-if="detailFailed || !ticket"
+          class="flex h-full flex-col items-center justify-center gap-3"
+        >
+          <p class="text-sm text-[var(--text-secondary)]">
+            {{ t('common.failed') }}
+          </p>
+          <ConsoleButton
+            size="sm"
+            variant="secondary"
+            @click="loadDetail(selectedID)"
+          >
+            {{ t('common.retry') }}
+          </ConsoleButton>
+        </div>
+        <div v-else class="flex min-h-0 flex-1 flex-col">
+          <header
+            class="border-b border-[var(--border-subtle)] px-4 py-3 sm:px-5"
+          >
+            <div class="flex items-start gap-3">
+              <button
+                type="button"
+                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-ring lg:hidden"
+                :aria-label="t('tickets.detail.backToList')"
+                @click="showQueue"
+              >
+                <ArrowLeft :size="17" aria-hidden="true" />
+              </button>
+              <div class="min-w-0 flex-1">
+                <div class="mb-1 flex flex-wrap items-center gap-2">
+                  <span class="font-mono text-xs text-[var(--text-tertiary)]"
+                    >#TK-{{ ticket.id }}</span
+                  >
+                  <StatusChip :tone="ticketStatusTone[ticket.status]">
+                    {{ t(`tickets.status.${ticket.status}`) }}
+                  </StatusChip>
+                </div>
+                <h2
+                  class="display-title truncate text-lg font-bold text-[var(--text-primary)]"
+                >
+                  {{ ticket.title }}
+                </h2>
+              </div>
+            </div>
+          </header>
+
+          <div class="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div class="flex min-h-0 flex-col">
+              <div
+                class="subtle-scroll min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-5 sm:px-6"
+              >
+                <TicketThreadMessage
+                  v-for="message in messages"
+                  :key="message.id"
+                  :message="message"
+                  viewer="support"
+                  @image-click="openLightbox"
+                />
+              </div>
+              <div class="border-t border-[var(--border-subtle)] p-4 sm:px-6">
+                <TicketReplyBox
+                  v-if="ticket.status !== 'closed'"
+                  ref="replyBox"
+                  :submitting="mutating"
+                  :readonly="!canReply"
+                  @submit="sendReply"
+                />
+                <p v-else class="text-sm text-[var(--text-secondary)]">
+                  {{ t('tickets.detail.closedHint') }}
+                </p>
+              </div>
+            </div>
+
+            <aside
+              class="subtle-scroll overflow-y-auto border-t border-[var(--border-subtle)] bg-[var(--surface-muted)]/50 p-4 lg:border-l lg:border-t-0"
+            >
+              <section class="border-b border-[var(--border-subtle)] pb-4">
+                <h3
+                  class="mb-3 text-xs font-semibold uppercase text-[var(--text-tertiary)]"
+                >
+                  {{ t('tickets.admin.requester') }}
+                </h3>
+                <p class="font-medium text-[var(--text-primary)]">
+                  {{ ticket.user.display_name || ticket.user.username }}
+                </p>
+                <p class="mt-1 break-all text-xs text-[var(--text-secondary)]">
+                  {{ ticket.user.email || '-' }}
+                </p>
+              </section>
+
+              <section class="border-b border-[var(--border-subtle)] py-4">
+                <div class="mb-2 flex items-center justify-between gap-2">
+                  <h3
+                    class="text-xs font-semibold uppercase text-[var(--text-tertiary)]"
+                  >
+                    {{ t('tickets.admin.assignee') }}
+                  </h3>
+                  <button
+                    v-if="canManage && ticket.assignee_id !== auth.user?.id"
+                    type="button"
+                    class="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent-text)] hover:underline"
+                    @click="takeTicket"
+                  >
+                    <UserRoundCheck :size="14" aria-hidden="true" />
+                    {{ t('tickets.admin.take') }}
+                  </button>
+                </div>
+                <FilterSelect
+                  v-model="assignmentValue"
+                  :options="assignmentOptions"
+                  :label="t('tickets.admin.assignee')"
+                  :disabled="agentsLoading || !canManage"
+                  size="sm"
+                />
+                <ConsoleButton
+                  v-if="canManage"
+                  class="mt-2"
+                  size="sm"
+                  variant="secondary"
+                  block
+                  :loading="mutating"
+                  @click="saveAssignment()"
+                >
+                  {{ t('common.save') }}
+                </ConsoleButton>
+              </section>
+
+              <section
+                class="border-b border-[var(--border-subtle)] py-4 text-sm"
+              >
+                <h3
+                  class="mb-3 text-xs font-semibold uppercase text-[var(--text-tertiary)]"
+                >
+                  {{ t('tickets.admin.details') }}
+                </h3>
+                <dl class="space-y-2">
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-[var(--text-tertiary)]">
+                      {{ t('tickets.create.categoryLabel') }}
+                    </dt>
+                    <dd class="text-[var(--text-primary)]">
+                      {{ t(`tickets.category.${ticket.category}`) }}
+                    </dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-[var(--text-tertiary)]">
+                      {{ t('tickets.create.priorityLabel') }}
+                    </dt>
+                    <dd class="text-[var(--text-primary)]">
+                      {{ t(`tickets.priority.${ticket.priority}`) }}
+                    </dd>
+                  </div>
+                  <div v-if="ticket.model_id">
+                    <dt class="text-xs text-[var(--text-tertiary)]">
+                      {{ t('tickets.admin.modelId') }}
+                    </dt>
+                    <dd
+                      class="mt-1 break-all font-mono text-xs text-[var(--text-primary)]"
+                    >
+                      {{ ticket.model_id }}
+                    </dd>
+                  </div>
+                  <div v-if="ticket.request_id">
+                    <dt class="text-xs text-[var(--text-tertiary)]">
+                      {{ t('tickets.admin.requestId') }}
+                    </dt>
+                    <dd
+                      class="mt-1 break-all font-mono text-xs text-[var(--text-primary)]"
+                    >
+                      {{ ticket.request_id }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-xs text-[var(--text-tertiary)]">
+                      {{ t('tickets.colCreated') }}
+                    </dt>
+                    <dd class="mt-1 text-xs text-[var(--text-primary)]">
+                      {{ formatTime(ticket.created) }}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section v-if="canManage" class="pt-4">
+                <ConsoleButton
+                  v-if="ticket.status !== 'closed'"
+                  variant="danger"
+                  size="sm"
+                  block
+                  :loading="mutating"
+                  @click="changeStatus('closed')"
+                >
+                  {{ t('tickets.closeTicket') }}
+                </ConsoleButton>
+                <ConsoleButton
+                  v-else
+                  variant="secondary"
+                  size="sm"
+                  block
+                  :loading="mutating"
+                  @click="changeStatus('open')"
+                >
+                  {{ t('tickets.reopenTicket') }}
+                </ConsoleButton>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <TicketImageLightbox
+        :open="lightbox.open"
+        :url="lightbox.url"
+        @close="lightbox.open = false"
+      />
+    </div>
   </div>
 </template>
