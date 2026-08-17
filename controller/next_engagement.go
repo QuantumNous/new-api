@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -27,27 +26,35 @@ type nextNewcomerTask struct {
 }
 
 func ensureNextInviteCode(user *model.User) error {
-	if user.AffCode != "" {
-		return nil
+	code, err := model.EnsureAffiliateCode(user.Id)
+	if err == nil {
+		user.AffCode = code
 	}
-	for attempt := 0; attempt < 5; attempt++ {
-		code := common.GetRandomString(8)
-		result := model.DB.Model(&model.User{}).
-			Where("id = ? AND aff_code = ''", user.Id).
-			Update("aff_code", code)
-		if result.Error == nil && result.RowsAffected == 1 {
-			user.AffCode = code
-			return nil
-		}
-		if result.Error != nil && !strings.Contains(strings.ToLower(result.Error.Error()), "unique") {
-			return result.Error
-		}
+	return err
+}
+
+func ValidateInviteCode(c *gin.Context) {
+	var request struct {
+		Code string `json:"code"`
 	}
-	return errors.New("failed to generate a unique invite code")
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.Code) == "" {
+		nextBusinessError(c, "邀请码不能为空", "VALIDATION_ERROR")
+		return
+	}
+	if err := model.ValidateAffiliateCode(request.Code); err != nil {
+		nextBusinessError(c, err.Error(), "INVALID_INVITE_CODE")
+		return
+	}
+	common.ApiSuccess(c, gin.H{"valid": true, "attribution_days": 30})
 }
 
 func NextGetInvite(c *gin.Context) {
-	user, err := model.GetUserById(c.GetInt("id"), true)
+	userId := c.GetInt("id")
+	if _, err := model.ThawAffiliateQuota(userId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	user, err := model.GetUserById(userId, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -64,18 +71,48 @@ func NextGetInvite(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	type inviteeRewardRow struct {
+		InviteeId   int
+		RewardTotal int64
+		LastPaidAt  int64
+	}
+	rewardRows := make([]inviteeRewardRow, 0)
+	if err := model.DB.Model(&model.AffiliateLedger{}).
+		Select("invitee_id, COALESCE(SUM(reward_quota), 0) AS reward_total, MAX(created_at) AS last_paid_at").
+		Where("user_id = ? AND action = ?", user.Id, model.AffiliateActionAccrue).
+		Group("invitee_id").Find(&rewardRows).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	rewardByInvitee := make(map[int]inviteeRewardRow, len(rewardRows))
+	for _, row := range rewardRows {
+		rewardByInvitee[row.InviteeId] = row
+	}
 	records := make([]gin.H, 0, len(invitees))
 	for _, invitee := range invitees {
+		reward := rewardByInvitee[invitee.Id]
 		records = append(records, gin.H{
 			"id": invitee.Id, "invitee": invitee.Username,
-			"created": invitee.CreatedAt,
+			"created": invitee.CreatedAt, "paid": reward.RewardTotal > 0,
+			"reward_total": reward.RewardTotal, "last_paid_at": reward.LastPaidAt,
 		})
 	}
 
 	now := time.Now()
 	monthCounts := make(map[string]int)
+	monthRewards := make(map[string]int64)
 	for _, invitee := range invitees {
 		monthCounts[time.Unix(invitee.CreatedAt, 0).Format("2006-01")]++
+	}
+	var accruals []model.AffiliateLedger
+	if err := model.DB.Select("reward_quota", "created_at").
+		Where("user_id = ? AND action = ?", user.Id, model.AffiliateActionAccrue).
+		Find(&accruals).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	for _, accrual := range accruals {
+		monthRewards[time.Unix(accrual.CreatedAt, 0).Format("2006-01")] += accrual.RewardQuota
 	}
 	series := make([]gin.H, 0, 6)
 	cumulative := len(invitees)
@@ -92,13 +129,33 @@ func NextGetInvite(c *gin.Context) {
 		} else {
 			cumulative += newCount
 		}
-		series = append(series, gin.H{"month": month, "new_count": newCount, "cumulative": cumulative})
+		series = append(series, gin.H{"month": month, "new_count": newCount, "cumulative": cumulative, "reward": monthRewards[month]})
+	}
+	var remainingInvites any
+	if user.AffInviteLimit != nil {
+		remaining := *user.AffInviteLimit - len(invitees)
+		if remaining < 0 {
+			remaining = 0
+		}
+		remainingInvites = remaining
 	}
 
 	common.ApiSuccess(c, gin.H{
 		"code": user.AffCode, "invited": len(invitees),
-		"reward_per_invite": common.QuotaForInviter,
+		"code_enabled": user.AffCodeEnabled, "invite_limit": user.AffInviteLimit,
+		"remaining_invites":      remainingInvites,
+		"effective_rate_bps":     model.EffectiveAffiliateRateBps(user),
+		"effective_rate_percent": float64(model.EffectiveAffiliateRateBps(user)) / 100,
+		"available_reward":       user.AffQuota, "frozen_reward": user.AffFrozenQuota,
+		"total_reward":      user.AffHistoryQuota,
+		"reward_per_invite": 0,
 		"reward_total":      user.AffHistoryQuota, "transferable": user.AffQuota,
+		"policy": gin.H{
+			"enabled": common.AffiliateEnabled, "activated_at": common.AffiliateActivatedAt,
+			"registration_required": common.AffiliateRegistrationRequired,
+			"freeze_hours":          common.AffiliateFreezeHours, "duration_days": common.AffiliateDurationDays,
+			"per_invitee_cap": common.AffiliatePerInviteeCap, "cash_withdrawal": false,
+		},
 		"monthly_series": series, "records": records,
 	})
 }
@@ -114,16 +171,20 @@ func NextTransferInviteQuota(c *gin.Context) {
 		nextBusinessError(c, "invalid transfer amount", "VALIDATION_ERROR")
 		return
 	}
+	transferred, balance, err := model.TransferAffiliateQuota(c.GetInt("id"), request.Amount)
+	if err != nil {
+		nextBusinessError(c, err.Error(), "TRANSFER_FAILED")
+		return
+	}
 	user, err := model.GetUserById(c.GetInt("id"), true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if err := user.TransferAffQuotaToQuota(request.Amount); err != nil {
-		nextBusinessError(c, err.Error(), "TRANSFER_FAILED")
-		return
-	}
-	common.ApiSuccess(c, gin.H{"message": "已转入账户余额"})
+	common.ApiSuccess(c, gin.H{
+		"message": "已转入账户余额", "transferred": transferred,
+		"balance": balance, "remaining_reward": user.AffQuota,
+	})
 }
 
 func nextStreaks(records []model.Checkin, now time.Time) (current, best int) {
@@ -258,6 +319,10 @@ func nextActivityPayload(user *model.User) (gin.H, error) {
 			},
 		})
 	}
+	invitedCount, err := model.CountInvitedUsers(model.DB, user.Id)
+	if err != nil {
+		return nil, err
+	}
 	activities = append(activities,
 		gin.H{
 			"id": nextNewcomerActivityID, "kind": "newcomer", "title": "新人礼包", "tagline": "完成新手任务后领取奖励",
@@ -266,10 +331,14 @@ func nextActivityPayload(user *model.User) (gin.H, error) {
 			"newcomer": gin.H{"tasks": tasks, "claimed": newcomerClaimed},
 		},
 		gin.H{
-			"id": 4, "kind": "invite", "title": "邀请奖励", "tagline": "邀请新用户获得固定额度奖励",
+			"id": 4, "kind": "invite", "title": "邀请返利", "tagline": "受邀用户真实付费后按比例获得返利",
 			"status": "ongoing", "gradient": "signal", "start": user.CreatedAt, "end": now.AddDate(10, 0, 0).Unix(),
-			"icon":   "M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM19 8v6M22 11h-6",
-			"invite": gin.H{"invited": user.AffCount, "reward_total": user.AffHistoryQuota, "reward_per_invite": common.QuotaForInviter},
+			"icon": "M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM19 8v6M22 11h-6",
+			"invite": gin.H{
+				"invited": invitedCount, "reward_total": user.AffHistoryQuota,
+				"available_reward": user.AffQuota, "frozen_reward": user.AffFrozenQuota,
+				"effective_rate_percent": float64(model.EffectiveAffiliateRateBps(user)) / 100,
+			},
 		},
 	)
 	claimable := 0
@@ -291,7 +360,12 @@ func nextActivityPayload(user *model.User) (gin.H, error) {
 }
 
 func NextGetActivities(c *gin.Context) {
-	user, err := model.GetUserById(c.GetInt("id"), true)
+	userId := c.GetInt("id")
+	if _, err := model.ThawAffiliateQuota(userId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	user, err := model.GetUserById(userId, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return

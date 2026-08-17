@@ -38,7 +38,12 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { register, wechatLoginByCode } from '@/features/auth/api'
+import {
+  createOAuthFlow,
+  register,
+  validateAffiliateCode,
+  wechatLoginByCode,
+} from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
@@ -46,6 +51,7 @@ import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
+  clearAffiliateCode,
   getAffiliateCode,
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
@@ -65,6 +71,8 @@ export function SignUpForm({
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [affiliateCode, setAffiliateCode] = useState(getAffiliateCode())
+  const [affiliateValidating, setAffiliateValidating] = useState(false)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
@@ -107,6 +115,10 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
+  const affiliateRequired = Boolean(
+    status?.affiliate_registration_required ??
+    status?.data?.affiliate_registration_required
+  )
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   const wechatQrCodeUrl = useMemo(() => {
@@ -133,10 +145,49 @@ export function SignUpForm({
 
   useEffect(() => {
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
-    if (aff) {
-      saveAffiliateCode(aff)
+    if (!aff) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const response = await validateAffiliateCode(aff)
+        if (cancelled || !response.success) return
+        saveAffiliateCode(aff)
+        setAffiliateCode(aff)
+      } catch {
+        // Invalid links never overwrite a previously validated attribution.
+      }
+    })()
+    return () => {
+      cancelled = true
     }
   }, [])
+
+  async function validateCurrentAffiliateCode(): Promise<boolean> {
+    const code = affiliateCode.trim()
+    if (!code) {
+      if (affiliateRequired) {
+        toast.error(t('Invitation code is required'))
+        return false
+      }
+      return true
+    }
+    setAffiliateValidating(true)
+    try {
+      const response = await validateAffiliateCode(code)
+      if (!response.success) {
+        toast.error(response.message || t('Invalid invitation code'))
+        return false
+      }
+      saveAffiliateCode(code)
+      setAffiliateCode(code)
+      return true
+    } catch {
+      toast.error(t('Invalid invitation code'))
+      return false
+    } finally {
+      setAffiliateValidating(false)
+    }
+  }
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
@@ -157,6 +208,7 @@ export function SignUpForm({
     }
 
     if (!validateTurnstile()) return
+    if (!(await validateCurrentAffiliateCode())) return
 
     setIsLoading(true)
     try {
@@ -165,11 +217,12 @@ export function SignUpForm({
         password: data.password,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
-        aff_code: getAffiliateCode(),
+        aff_code: affiliateCode.trim() || undefined,
         turnstile: turnstileToken,
       })
 
       if (res?.success) {
+        clearAffiliateCode()
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {
@@ -214,7 +267,8 @@ export function SignUpForm({
 
     setIsWeChatSubmitting(true)
     try {
-      const res = await wechatLoginByCode(wechatCode)
+      const state = await createOAuthFlow('wechat', 'login')
+      const res = await wechatLoginByCode(wechatCode, state)
       if (res?.success && isAuthBundle(res.data)) {
         await handleLoginSuccess(res.data)
         toast.success(t('Signed in via WeChat'))
@@ -261,6 +315,23 @@ export function SignUpForm({
             </FormItem>
           )}
         />
+
+        <FormItem>
+          <FormLabel>{t('Invitation code')}</FormLabel>
+          <FormControl>
+            <Input
+              value={affiliateCode}
+              onChange={(event) => setAffiliateCode(event.target.value)}
+              placeholder={
+                affiliateRequired
+                  ? t('Invitation code is required')
+                  : t('Invitation code (optional)')
+              }
+              autoComplete='off'
+              required={affiliateRequired}
+            />
+          </FormControl>
+        </FormItem>
 
         {/* Password Field */}
         <FormField
@@ -370,11 +441,14 @@ export function SignUpForm({
           className='mt-2 w-full justify-center gap-2'
           disabled={
             isLoading ||
+            affiliateValidating ||
             (requiresLegalConsent && !agreedToLegal) ||
             !turnstileReady
           }
         >
-          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
+          {isLoading || affiliateValidating ? (
+            <Loader2 className='h-4 w-4 animate-spin' />
+          ) : null}
           {t('Create account')}
         </Button>
 

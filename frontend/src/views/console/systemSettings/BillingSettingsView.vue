@@ -15,7 +15,6 @@ const { settings, load, saveOptions } = useSystemSettings()
 const quota = reactive({
   QuotaForNewUser: 0,
   PreConsumedQuota: 500000,
-  QuotaForInviter: 0,
   QuotaForInvitee: 0,
   TopUpLink: '',
   'general_setting.docs_link': '',
@@ -27,7 +26,6 @@ const quotaDirty = computed(() => {
   return (
     quota.QuotaForNewUser !== s.QuotaForNewUser ||
     quota.PreConsumedQuota !== s.PreConsumedQuota ||
-    quota.QuotaForInviter !== s.QuotaForInviter ||
     quota.QuotaForInvitee !== s.QuotaForInvitee ||
     quota.TopUpLink !== s.TopUpLink ||
     quota['general_setting.docs_link'] !== s['general_setting.docs_link'] ||
@@ -43,8 +41,6 @@ async function saveQuota() {
     patch.QuotaForNewUser = quota.QuotaForNewUser
   if (quota.PreConsumedQuota !== s.PreConsumedQuota)
     patch.PreConsumedQuota = quota.PreConsumedQuota
-  if (quota.QuotaForInviter !== s.QuotaForInviter)
-    patch.QuotaForInviter = quota.QuotaForInviter
   if (quota.QuotaForInvitee !== s.QuotaForInvitee)
     patch.QuotaForInvitee = quota.QuotaForInvitee
   if (quota.TopUpLink !== s.TopUpLink) patch.TopUpLink = quota.TopUpLink
@@ -67,6 +63,65 @@ const checkin = reactive({
   'checkin_setting.min_quota': 100,
   'checkin_setting.max_quota': 500,
 })
+
+const affiliate = reactive({
+  AffiliateEnabled: false,
+  AffiliateRegistrationRequired: false,
+  AffiliateRebateRateBps: 1000,
+  AffiliateFreezeHours: 168,
+  AffiliateDurationDays: 0,
+  AffiliatePerInviteeCap: 100,
+  AffiliateActivatedAt: 0,
+})
+const affiliateSaving = reactive({ value: false })
+const affiliateDirty = computed(() => {
+  const s = settings.value
+  return (
+    affiliate.AffiliateEnabled !== s.AffiliateEnabled ||
+    affiliate.AffiliateRegistrationRequired !==
+      s.AffiliateRegistrationRequired ||
+    affiliate.AffiliateRebateRateBps !== s.AffiliateRebateRateBps ||
+    affiliate.AffiliateFreezeHours !== s.AffiliateFreezeHours ||
+    affiliate.AffiliateDurationDays !== s.AffiliateDurationDays ||
+    affiliate.AffiliatePerInviteeCap !== s.AffiliatePerInviteeCap
+  )
+})
+async function saveAffiliate() {
+  affiliateSaving.value = true
+  const s = settings.value
+  const patch: Record<string, boolean | number> = {}
+  if (affiliate.AffiliateEnabled !== s.AffiliateEnabled)
+    patch.AffiliateEnabled = affiliate.AffiliateEnabled
+  if (
+    affiliate.AffiliateRegistrationRequired !== s.AffiliateRegistrationRequired
+  )
+    patch.AffiliateRegistrationRequired =
+      affiliate.AffiliateRegistrationRequired
+  if (affiliate.AffiliateRebateRateBps !== s.AffiliateRebateRateBps)
+    patch.AffiliateRebateRateBps = affiliate.AffiliateRebateRateBps
+  if (affiliate.AffiliateFreezeHours !== s.AffiliateFreezeHours)
+    patch.AffiliateFreezeHours = affiliate.AffiliateFreezeHours
+  if (affiliate.AffiliateDurationDays !== s.AffiliateDurationDays)
+    patch.AffiliateDurationDays = affiliate.AffiliateDurationDays
+  if (affiliate.AffiliatePerInviteeCap !== s.AffiliatePerInviteeCap)
+    patch.AffiliatePerInviteeCap = affiliate.AffiliatePerInviteeCap
+  const ok = await saveOptions(patch)
+  if (ok) {
+    await load(true)
+    const next = settings.value
+    Object.assign(affiliate, {
+      AffiliateEnabled: next.AffiliateEnabled,
+      AffiliateRegistrationRequired: next.AffiliateRegistrationRequired,
+      AffiliateRebateRateBps: next.AffiliateRebateRateBps,
+      AffiliateFreezeHours: next.AffiliateFreezeHours,
+      AffiliateDurationDays: next.AffiliateDurationDays,
+      AffiliatePerInviteeCap: next.AffiliatePerInviteeCap,
+      AffiliateActivatedAt: next.AffiliateActivatedAt,
+    })
+    toast.success(t('systemSettings.saved'))
+  }
+  affiliateSaving.value = false
+}
 const checkinSaving = reactive({ value: false })
 const checkinDirty = computed(() => {
   const s = settings.value
@@ -97,7 +152,6 @@ onMounted(async () => {
   Object.assign(quota, {
     QuotaForNewUser: s.QuotaForNewUser,
     PreConsumedQuota: s.PreConsumedQuota,
-    QuotaForInviter: s.QuotaForInviter,
     QuotaForInvitee: s.QuotaForInvitee,
     TopUpLink: s.TopUpLink,
     'general_setting.docs_link': s['general_setting.docs_link'],
@@ -108,6 +162,15 @@ onMounted(async () => {
     'checkin_setting.enabled': s['checkin_setting.enabled'],
     'checkin_setting.min_quota': s['checkin_setting.min_quota'],
     'checkin_setting.max_quota': s['checkin_setting.max_quota'],
+  })
+  Object.assign(affiliate, {
+    AffiliateEnabled: s.AffiliateEnabled,
+    AffiliateRegistrationRequired: s.AffiliateRegistrationRequired,
+    AffiliateRebateRateBps: s.AffiliateRebateRateBps,
+    AffiliateFreezeHours: s.AffiliateFreezeHours,
+    AffiliateDurationDays: s.AffiliateDurationDays,
+    AffiliatePerInviteeCap: s.AffiliatePerInviteeCap,
+    AffiliateActivatedAt: s.AffiliateActivatedAt,
   })
 })
 
@@ -147,13 +210,6 @@ function fromStr(v: string, key: string) {
           @update:model-value="fromStr($event, 'PreConsumedQuota')"
         />
         <SysInputRow
-          :label="t('systemSettings.billing.inviterReward')"
-          :description="t('systemSettings.billing.inviterRewardDesc')"
-          :model-value="asStr(quota.QuotaForInviter)"
-          type="number"
-          @update:model-value="fromStr($event, 'QuotaForInviter')"
-        />
-        <SysInputRow
           :label="t('systemSettings.billing.inviteeReward')"
           :description="t('systemSettings.billing.inviteeRewardDesc')"
           :model-value="asStr(quota.QuotaForInvitee)"
@@ -182,6 +238,75 @@ function fromStr(v: string, key: string) {
           v-model="quota['quota_setting.enable_free_model_pre_consume']"
           :label="t('systemSettings.billing.freeModelPreConsume')"
           :description="t('systemSettings.billing.freeModelPreConsumeDesc')"
+        />
+      </div>
+    </SysSettingsFormCard>
+
+    <SysSettingsFormCard
+      :title="t('systemSettings.billing.affiliateProgram')"
+      :saving="affiliateSaving.value"
+      :dirty="affiliateDirty"
+      @save="saveAffiliate"
+    >
+      <div class="divide-y divide-[var(--border-subtle)]">
+        <SysToggleRow
+          v-model="affiliate.AffiliateEnabled"
+          :disabled="affiliate.AffiliateActivatedAt > 0"
+          :label="t('systemSettings.billing.affiliateEnabled')"
+          :description="t('systemSettings.billing.affiliateEnabledDesc')"
+        />
+        <SysToggleRow
+          v-model="affiliate.AffiliateRegistrationRequired"
+          :label="t('systemSettings.billing.affiliateRegistrationRequired')"
+          :description="
+            t('systemSettings.billing.affiliateRegistrationRequiredDesc')
+          "
+        />
+      </div>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <SysInputRow
+          :label="t('systemSettings.billing.affiliateRate')"
+          :description="t('systemSettings.billing.affiliateRateDesc')"
+          :model-value="String(affiliate.AffiliateRebateRateBps)"
+          type="number"
+          @update:model-value="
+            affiliate.AffiliateRebateRateBps = Number($event) || 0
+          "
+        />
+        <SysInputRow
+          :label="t('systemSettings.billing.affiliateFreeze')"
+          :model-value="String(affiliate.AffiliateFreezeHours)"
+          type="number"
+          @update:model-value="
+            affiliate.AffiliateFreezeHours = Number($event) || 0
+          "
+        />
+        <SysInputRow
+          :label="t('systemSettings.billing.affiliateDuration')"
+          :description="t('systemSettings.billing.affiliateDurationDesc')"
+          :model-value="String(affiliate.AffiliateDurationDays)"
+          type="number"
+          @update:model-value="
+            affiliate.AffiliateDurationDays = Number($event) || 0
+          "
+        />
+        <SysInputRow
+          :label="t('systemSettings.billing.affiliateCap')"
+          :model-value="String(affiliate.AffiliatePerInviteeCap)"
+          type="number"
+          @update:model-value="
+            affiliate.AffiliatePerInviteeCap = Number($event) || 0
+          "
+        />
+        <SysInputRow
+          class="sm:col-span-2"
+          :label="t('systemSettings.billing.affiliateActivatedAt')"
+          :model-value="
+            affiliate.AffiliateActivatedAt
+              ? new Date(affiliate.AffiliateActivatedAt * 1000).toLocaleString()
+              : t('systemSettings.billing.notActivated')
+          "
+          readonly
         />
       </div>
     </SysSettingsFormCard>

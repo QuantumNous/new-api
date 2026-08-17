@@ -134,6 +134,13 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["AffiliateEnabled"] = strconv.FormatBool(common.AffiliateEnabled)
+	common.OptionMap["AffiliateRegistrationRequired"] = strconv.FormatBool(common.AffiliateRegistrationRequired)
+	common.OptionMap["AffiliateRebateRateBps"] = strconv.Itoa(common.AffiliateRebateRateBps)
+	common.OptionMap["AffiliateFreezeHours"] = strconv.Itoa(common.AffiliateFreezeHours)
+	common.OptionMap["AffiliateDurationDays"] = strconv.Itoa(common.AffiliateDurationDays)
+	common.OptionMap["AffiliatePerInviteeCap"] = strconv.FormatFloat(common.AffiliatePerInviteeCap, 'f', -1, 64)
+	common.OptionMap["AffiliateActivatedAt"] = strconv.FormatInt(common.AffiliateActivatedAt, 10)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -322,7 +329,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
+	if strings.HasSuffix(key, "Enabled") || key == "AffiliateRegistrationRequired" || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" || key == "SMTPInsecureSkipVerify" {
 		boolValue := value == "true"
 		switch key {
 		case "PasswordRegisterEnabled":
@@ -343,6 +350,10 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TurnstileCheckEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
+		case "AffiliateEnabled":
+			common.AffiliateEnabled = boolValue
+		case "AffiliateRegistrationRequired":
+			common.AffiliateRegistrationRequired = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
@@ -553,6 +564,16 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "AffiliateRebateRateBps":
+		common.AffiliateRebateRateBps, _ = strconv.Atoi(value)
+	case "AffiliateFreezeHours":
+		common.AffiliateFreezeHours, _ = strconv.Atoi(value)
+	case "AffiliateDurationDays":
+		common.AffiliateDurationDays, _ = strconv.Atoi(value)
+	case "AffiliatePerInviteeCap":
+		common.AffiliatePerInviteeCap, _ = strconv.ParseFloat(value, 64)
+	case "AffiliateActivatedAt":
+		common.AffiliateActivatedAt, _ = strconv.ParseInt(value, 10, 64)
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

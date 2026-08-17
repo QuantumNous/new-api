@@ -25,9 +25,16 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 
 const STORAGE_KEYS = {
-  AFFILIATE: 'aff',
+  AFFILIATE: 'ren2hub.affiliate-attribution.v1',
   STATUS: 'status',
 } as const
+
+const AFFILIATE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+interface StoredAffiliateAttribution {
+  code: string
+  expiresAt: number
+}
 
 // ============================================================================
 // Affiliate Code Storage
@@ -39,10 +46,23 @@ const STORAGE_KEYS = {
 export function getAffiliateCode(): string {
   if (typeof window === 'undefined') return ''
   try {
-    return window.localStorage.getItem(STORAGE_KEYS.AFFILIATE) ?? ''
+    const raw = window.localStorage.getItem(STORAGE_KEYS.AFFILIATE)
+    if (!raw) return ''
+    const value = JSON.parse(raw) as Partial<StoredAffiliateAttribution>
+    if (
+      typeof value.code !== 'string' ||
+      value.code.length === 0 ||
+      typeof value.expiresAt !== 'number' ||
+      value.expiresAt <= Date.now()
+    ) {
+      clearAffiliateCode()
+      return ''
+    }
+    return value.code
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to get affiliate code:', error)
+    clearAffiliateCode()
     return ''
   }
 }
@@ -53,9 +73,26 @@ export function getAffiliateCode(): string {
 export function saveAffiliateCode(code: string): void {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(STORAGE_KEYS.AFFILIATE, code)
+    const normalized = code.trim()
+    if (!normalized) return
+    const value: StoredAffiliateAttribution = {
+      code: normalized,
+      expiresAt: Date.now() + AFFILIATE_TTL_MS,
+    }
+    window.localStorage.setItem(STORAGE_KEYS.AFFILIATE, JSON.stringify(value))
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save affiliate code:', error)
+  }
+}
+
+export function clearAffiliateCode(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(STORAGE_KEYS.AFFILIATE)
+    window.localStorage.removeItem('aff')
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to clear affiliate code:', error)
   }
 }

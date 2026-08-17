@@ -105,6 +105,11 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	) {
 		return
 	}
+	affiliateBaseQuota, err := model.SnapshotAffiliateBaseQuota(chargedMoney, setting.StripeUnitPrice)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	reference := fmt.Sprintf("new-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "ref_" + common.Sha1([]byte(reference))
@@ -117,14 +122,15 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	}
 
 	topUp := &model.TopUp{
-		UserId:          id,
-		Amount:          req.Amount,
-		Money:           chargedMoney,
-		TradeNo:         referenceId,
-		PaymentMethod:   model.PaymentMethodStripe,
-		PaymentProvider: model.PaymentProviderStripe,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:             id,
+		Amount:             req.Amount,
+		Money:              chargedMoney,
+		TradeNo:            referenceId,
+		PaymentMethod:      model.PaymentMethodStripe,
+		PaymentProvider:    model.PaymentProviderStripe,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+		AffiliateBaseQuota: affiliateBaseQuota,
 	}
 	err = topUp.Insert()
 	if err != nil {

@@ -49,7 +49,6 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
 	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": fmt.Sprintf("%.2f", payMoney)})
 }
 
@@ -376,17 +375,23 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
 	}
+	affiliateBaseQuota, err := model.SnapshotAffiliateBaseQuota(payMoney, setting.WaffoPancakeUnitPrice)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	tradeNo := fmt.Sprintf("WAFFO_PANCAKE-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
 	topUp := &model.TopUp{
-		UserId:          id,
-		Amount:          normalizeWaffoPancakeTopUpAmount(req.Amount),
-		Money:           payMoney,
-		TradeNo:         tradeNo,
-		PaymentMethod:   model.PaymentMethodWaffoPancake,
-		PaymentProvider: model.PaymentProviderWaffoPancake,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:             id,
+		Amount:             normalizeWaffoPancakeTopUpAmount(req.Amount),
+		Money:              payMoney,
+		TradeNo:            tradeNo,
+		PaymentMethod:      model.PaymentMethodWaffoPancake,
+		PaymentProvider:    model.PaymentProviderWaffoPancake,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+		AffiliateBaseQuota: affiliateBaseQuota,
 	}
 	if err := topUp.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo Pancake 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, tradeNo, req.Amount, err.Error()))

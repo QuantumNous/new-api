@@ -45,6 +45,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
+		apiRouter.POST("/next/invite/validate", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ValidateInviteCode)
 		// OAuth routes - specific routes must come before :provider wildcard
 		apiRouter.POST("/oauth/state", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TryUserAuth(), anonymousRequestBodyLimit, controller.GenerateOAuthCode)
 		apiRouter.POST("/oauth/email/bind", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.EmailBind)
@@ -228,6 +229,17 @@ func SetApiRouter(router *gin.Engine) {
 				adminUserRoute.POST("/status/batch", controller.NextAdminUserStatusBatch)
 				adminUserRoute.POST("/delete/batch", controller.NextDeleteAdminUsersBatch)
 				adminUserRoute.POST("/:id/status", controller.NextAdminUserStatus)
+			}
+			affiliateRoute := nextAdminRoute.Group("/affiliate")
+			{
+				affiliateRoute.GET("/overview", controller.NextGetAffiliateOverview)
+				affiliateRoute.GET("/users", controller.NextListAffiliateUsers)
+				affiliateRoute.GET("/users/:id", controller.NextGetAffiliateUser)
+				affiliateRoute.PATCH("/users/:id", controller.NextUpdateAffiliateUser)
+				affiliateRoute.POST("/users/:id/reset-code", controller.NextResetAffiliateCode)
+				affiliateRoute.GET("/relationships", controller.NextListAffiliateRelationships)
+				affiliateRoute.GET("/ledgers", controller.NextListAffiliateLedgers)
+				affiliateRoute.GET("/transfers", controller.NextListAffiliateTransfers)
 			}
 			adminChannelRoute := nextAdminRoute.Group("/channels")
 			{

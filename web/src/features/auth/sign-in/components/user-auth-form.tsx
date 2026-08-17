@@ -40,12 +40,18 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { login, wechatLoginByCode } from '@/features/auth/api'
+import {
+  createOAuthFlow,
+  login,
+  validateAffiliateCode,
+  wechatLoginByCode,
+} from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+import { saveAffiliateCode } from '@/features/auth/lib/storage'
 import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
 import type { AuthFormProps } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
@@ -127,6 +133,23 @@ export function UserAuthForm({
     detectPasskeySupport()
       .then(setPasskeySupported)
       .catch(() => setPasskeySupported(false))
+  }, [])
+
+  useEffect(() => {
+    const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
+    if (!aff) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const response = await validateAffiliateCode(aff)
+        if (!cancelled && response.success) saveAffiliateCode(aff)
+      } catch {
+        // Invalid links do not replace the last validated attribution.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const form = useForm<z.infer<typeof loginFormSchema>>({
@@ -222,7 +245,8 @@ export function UserAuthForm({
 
     setIsWeChatSubmitting(true)
     try {
-      const res = await wechatLoginByCode(wechatCode)
+      const state = await createOAuthFlow('wechat', 'login')
+      const res = await wechatLoginByCode(wechatCode, state)
       if (res?.success && isAuthBundle(res.data)) {
         await handleLoginSuccess(res.data, redirectTo)
         toast.success(t('Signed in via WeChat'))

@@ -27,10 +27,10 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatQuota } from '@/lib/format'
 
-import type { UserWalletData } from '../types'
+import type { AffiliateInfo } from '../types'
 
 interface AffiliateRewardsCardProps {
-  user: UserWalletData | null
+  affiliate: AffiliateInfo | null
   affiliateLink: string
   onTransfer: () => void
   complianceConfirmed?: boolean
@@ -38,7 +38,7 @@ interface AffiliateRewardsCardProps {
 }
 
 export function AffiliateRewardsCard({
-  user,
+  affiliate,
   affiliateLink,
   onTransfer,
   complianceConfirmed = true,
@@ -60,7 +60,7 @@ export function AffiliateRewardsCard({
     )
   }
 
-  const hasRewards = (user?.aff_quota ?? 0) > 0
+  const hasRewards = (affiliate?.available_reward ?? 0) > 0
 
   return (
     <Card data-card-hover='false' className='bg-muted/20 py-0'>
@@ -75,17 +75,19 @@ export function AffiliateRewardsCard({
             </h3>
             <p className='text-muted-foreground line-clamp-1 text-xs'>
               {t(
-                'Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.'
+                'Earn a rebate after invited users complete real payments. Rewards can only be transferred to your Ren2Hub balance.'
               )}
             </p>
           </div>
         </div>
 
-        <div className='grid grid-cols-3 gap-1.5 text-center'>
+        <div className='grid grid-cols-2 gap-2 text-center sm:grid-cols-5'>
           {[
-            [t('Pending'), formatQuota(user?.aff_quota ?? 0)],
-            [t('Total Earned'), formatQuota(user?.aff_history_quota ?? 0)],
-            [t('Invites'), String(user?.aff_count ?? 0)],
+            [t('Available'), formatQuota(affiliate?.available_reward ?? 0)],
+            [t('Frozen'), formatQuota(affiliate?.frozen_reward ?? 0)],
+            [t('Total Earned'), formatQuota(affiliate?.total_reward ?? 0)],
+            [t('Rate'), `${affiliate?.effective_rate_percent ?? 0}%`],
+            [t('Invites'), String(affiliate?.invited ?? 0)],
           ].map(([label, value]) => (
             <div key={label}>
               <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>

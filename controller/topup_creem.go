@@ -108,6 +108,11 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "用户不存在"})
 		return
 	}
+	affiliateBaseQuota, err := model.SnapshotAffiliateBaseQuota(selectedProduct.Price, 1)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	// 生成唯一的订单引用ID
 	reference := fmt.Sprintf("creem-api-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
@@ -115,14 +120,15 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 
 	// 先创建订单记录，使用产品配置的金额和充值额度
 	topUp := &model.TopUp{
-		UserId:          id,
-		Amount:          selectedProduct.Quota, // 充值额度
-		Money:           selectedProduct.Price, // 支付金额
-		TradeNo:         referenceId,
-		PaymentMethod:   model.PaymentMethodCreem,
-		PaymentProvider: model.PaymentProviderCreem,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:             id,
+		Amount:             selectedProduct.Quota, // 充值额度
+		Money:              selectedProduct.Price, // 支付金额
+		TradeNo:            referenceId,
+		PaymentMethod:      model.PaymentMethodCreem,
+		PaymentProvider:    model.PaymentProviderCreem,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+		AffiliateBaseQuota: affiliateBaseQuota,
 	}
 	err = topUp.Insert()
 	if err != nil {

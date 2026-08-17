@@ -72,7 +72,7 @@ onMounted(load)
     </PageHero>
 
     <!-- stat cards -->
-    <div class="mb-5 grid gap-4 sm:grid-cols-3">
+    <div class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <ConsoleCard>
         <p class="text-xs text-[var(--text-tertiary)]">
           {{ t('invite.invitedCount') }}
@@ -110,13 +110,29 @@ onMounted(load)
 
       <ConsoleCard>
         <p class="text-xs text-[var(--text-tertiary)]">
-          {{ t('invite.rewardPerInvite') }}
+          {{ t('invite.rebateRate') }}
         </p>
         <p class="mt-1.5 text-2xl font-bold text-[var(--accent-text)]">
-          {{ info ? formatQuota(info.reward_per_invite) : '--' }}
+          {{ info ? `${info.effective_rate_percent}%` : '--' }}
         </p>
         <p class="mt-1 text-xs text-[var(--text-tertiary)]">
-          {{ t('invite.rewardPerInviteHint') }}
+          {{ t('invite.rebateRateHint') }}
+        </p>
+      </ConsoleCard>
+
+      <ConsoleCard>
+        <p class="text-xs text-[var(--text-tertiary)]">
+          {{ t('invite.frozenReward') }}
+        </p>
+        <p class="mt-1.5 text-2xl font-bold text-[var(--text-primary)]">
+          {{ info ? formatQuota(info.frozen_reward) : '--' }}
+        </p>
+        <p class="mt-1 text-xs text-[var(--text-tertiary)]">
+          {{
+            t('invite.frozenRewardHint', {
+              hours: info?.policy.freeze_hours ?? 0,
+            })
+          }}
         </p>
       </ConsoleCard>
     </div>
@@ -126,7 +142,7 @@ onMounted(load)
       <InviteAffiliateCard
         :code="info?.code ?? ''"
         :invite-link="inviteLink"
-        :reward-per-invite="info?.reward_per_invite ?? 0"
+        :rate-percent="info?.effective_rate_percent ?? 0"
         @copy-code="copyCode"
         @copy-link="copyLink"
         @share-x="shareX"
@@ -191,6 +207,16 @@ onMounted(load)
                 </span>
               </div>
               <div class="text-right">
+                <div class="mb-1 flex items-center justify-end gap-2">
+                  <StatusChip :tone="record.paid ? 'success' : 'neutral'">
+                    {{ record.paid ? t('invite.paid') : t('invite.unpaid') }}
+                  </StatusChip>
+                  <span
+                    class="text-xs font-medium text-[var(--text-secondary)]"
+                  >
+                    {{ formatQuota(record.reward_total) }}
+                  </span>
+                </div>
                 <p class="text-xs text-[var(--text-tertiary)]">
                   {{ formatDate(record.created) }}
                 </p>
@@ -224,6 +250,7 @@ onMounted(load)
       <InviteRewardCard
         v-if="info"
         :transferable="info.transferable"
+        :frozen="info.frozen_reward"
         :reward-total="info.reward_total"
         :invited="info.invited"
         :readonly="readOnly"
@@ -255,7 +282,7 @@ onMounted(load)
           <p class="mt-1.5 text-xs leading-relaxed text-[var(--text-tertiary)]">
             {{
               t(`invite.howStep${n}Desc`, {
-                reward: formatQuota(info?.reward_per_invite ?? 0),
+                reward: `${info?.effective_rate_percent ?? 0}%`,
               })
             }}
           </p>
@@ -294,7 +321,7 @@ onMounted(load)
           <p class="pb-4 text-sm leading-relaxed text-[var(--text-tertiary)]">
             {{
               t(`invite.faqA${n}`, {
-                reward: formatQuota(info?.reward_per_invite ?? 0),
+                reward: `${info?.effective_rate_percent ?? 0}%`,
               })
             }}
           </p>

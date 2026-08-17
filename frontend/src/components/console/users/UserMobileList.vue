@@ -5,6 +5,7 @@ import {
   Pencil,
   Power,
   PowerOff,
+  Share2,
   Trash2,
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
@@ -42,6 +43,7 @@ defineProps<{
   editUser: (user: AdminUser) => void
   toggleStatus: (user: AdminUser) => Promise<boolean>
   adjustQuota: (user: AdminUser) => void
+  configureAffiliate: (user: AdminUser) => void
   deleteUser: (user: AdminUser) => void
 }>()
 
@@ -180,6 +182,13 @@ const { t, locale } = useI18n()
             @click="adjustQuota(user)"
           >
             <Coins :size="16" />
+          </IconButton>
+          <IconButton
+            :label="t('users.configureAffiliate')"
+            :disabled="!canManage(user) || isRowBusy(user.id)"
+            @click="configureAffiliate(user)"
+          >
+            <Share2 :size="16" />
           </IconButton>
           <IconButton
             :label="

@@ -76,6 +76,13 @@ export interface BillingSettings {
   PreConsumedQuota: number
   QuotaForInviter: number
   QuotaForInvitee: number
+  AffiliateEnabled: boolean
+  AffiliateRegistrationRequired: boolean
+  AffiliateRebateRateBps: number
+  AffiliateFreezeHours: number
+  AffiliateDurationDays: number
+  AffiliatePerInviteeCap: number
+  AffiliateActivatedAt: number
   TopUpLink: string
   QuotaPerUnit: number
   USDExchangeRate: number
@@ -232,6 +239,13 @@ export const SYSTEM_SETTINGS_DEFAULTS: AllSystemSettings = {
   PreConsumedQuota: 500000,
   QuotaForInviter: 0,
   QuotaForInvitee: 0,
+  AffiliateEnabled: false,
+  AffiliateRegistrationRequired: false,
+  AffiliateRebateRateBps: 1000,
+  AffiliateFreezeHours: 168,
+  AffiliateDurationDays: 0,
+  AffiliatePerInviteeCap: 100,
+  AffiliateActivatedAt: 0,
   TopUpLink: '',
   QuotaPerUnit: 500000,
   USDExchangeRate: 1,

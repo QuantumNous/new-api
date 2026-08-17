@@ -81,20 +81,26 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 			return
 		}
 	}
+	affiliateBaseQuota, err := model.SnapshotAffiliateBaseQuota(plan.PriceAmount, 1)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	reference := "sub-creem-ref-" + randstr.String(6)
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference+time.Now().String()+user.Username))
 
 	// create pending order first
 	order := &model.SubscriptionOrder{
-		UserId:          userId,
-		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
-		TradeNo:         referenceId,
-		PaymentMethod:   model.PaymentMethodCreem,
-		PaymentProvider: model.PaymentProviderCreem,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:             userId,
+		PlanId:             plan.Id,
+		Money:              plan.PriceAmount,
+		TradeNo:            referenceId,
+		PaymentMethod:      model.PaymentMethodCreem,
+		PaymentProvider:    model.PaymentProviderCreem,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+		AffiliateBaseQuota: affiliateBaseQuota,
 	}
 	if err := order.Insert(); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})

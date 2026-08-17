@@ -282,6 +282,7 @@ func migrateDB() error {
 		&TwoFABackupCode{},
 		&Checkin{},
 		&SubscriptionOrder{},
+		&AffiliateLedger{},
 		&UserSubscription{},
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
@@ -304,6 +305,12 @@ func migrateDB() error {
 		return err
 	}
 	if err := InitializeExternalIdentityClaims(); err != nil {
+		return err
+	}
+	if err := BackfillAffiliateCodeEnabled(); err != nil {
+		return err
+	}
+	if err := InitializeAffiliateLedger(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
@@ -349,6 +356,7 @@ func migrateDBFast() error {
 		{&TwoFABackupCode{}, "TwoFABackupCode"},
 		{&Checkin{}, "Checkin"},
 		{&SubscriptionOrder{}, "SubscriptionOrder"},
+		{&AffiliateLedger{}, "AffiliateLedger"},
 		{&UserSubscription{}, "UserSubscription"},
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
@@ -389,6 +397,12 @@ func migrateDBFast() error {
 		return err
 	}
 	if err := InitializeExternalIdentityClaims(); err != nil {
+		return err
+	}
+	if err := BackfillAffiliateCodeEnabled(); err != nil {
+		return err
+	}
+	if err := InitializeAffiliateLedger(); err != nil {
 		return err
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {

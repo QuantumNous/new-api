@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import PasswordStrengthMeter from '@/components/auth/PasswordStrengthMeter.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
@@ -11,17 +11,59 @@ import AuthLayout from '@/components/layout/AuthLayout.vue'
 import { authApi } from '@/api/auth'
 import { ApiError } from '@/api/types'
 import { useToast } from '@/composables/useToast'
+import { useAppStore } from '@/stores/app'
+import {
+  clearAffiliateAttribution,
+  getAffiliateAttribution,
+  storeAffiliateAttribution,
+} from '@/utils/affiliate'
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
+const app = useAppStore()
 
 const username = ref('')
 const email = ref('')
 const password = ref('')
 const confirm = ref('')
+const affiliateCode = ref('')
+const affiliateValidating = ref(false)
 const loading = ref(false)
-const errors = reactive({ username: '', email: '', password: '', confirm: '' })
+const errors = reactive({
+  username: '',
+  email: '',
+  password: '',
+  confirm: '',
+  affiliate: '',
+})
+const affiliateRequired = computed(() => app.affiliateRegistrationRequired)
+
+async function validateAffiliateCode(): Promise<boolean> {
+  errors.affiliate = ''
+  const code = affiliateCode.value.trim()
+  if (!code) {
+    if (affiliateRequired.value) {
+      errors.affiliate = t('auth.inviteCodeRequired')
+      return false
+    }
+    return true
+  }
+  affiliateValidating.value = true
+  try {
+    await authApi.validateAffiliate(code)
+    affiliateCode.value = code
+    storeAffiliateAttribution(code)
+    return true
+  } catch (error) {
+    errors.affiliate =
+      error instanceof ApiError ? error.message : t('auth.inviteCodeInvalid')
+    return false
+  } finally {
+    affiliateValidating.value = false
+  }
+}
 
 // Mirrors the backend's minimal rules so obvious mistakes fail before the
 // request instead of as an opaque server error.
@@ -30,6 +72,7 @@ function validate(): boolean {
   errors.email = ''
   errors.password = ''
   errors.confirm = ''
+  errors.affiliate = ''
   let valid = true
   if (!username.value.trim()) {
     errors.username = t('auth.usernameRequired')
@@ -47,18 +90,24 @@ function validate(): boolean {
     errors.confirm = t('auth.mismatch')
     valid = false
   }
+  if (affiliateRequired.value && !affiliateCode.value.trim()) {
+    errors.affiliate = t('auth.inviteCodeRequired')
+    valid = false
+  }
   return valid
 }
 
 async function submit() {
-  if (loading.value || !validate()) return
+  if (loading.value || !validate() || !(await validateAffiliateCode())) return
   loading.value = true
   try {
     await authApi.register({
       username: username.value.trim(),
       email: email.value.trim(),
       password: password.value,
+      aff_code: affiliateCode.value.trim() || undefined,
     })
+    clearAffiliateAttribution()
     toast.success(t('toast.registerSuccess'))
     await router.push({ name: 'sign-in' })
   } catch (error) {
@@ -67,6 +116,17 @@ async function submit() {
     loading.value = false
   }
 }
+
+onMounted(async () => {
+  await app.initialize()
+  const queryCode = typeof route.query.aff === 'string' ? route.query.aff : ''
+  const storedCode = getAffiliateAttribution()
+  affiliateCode.value = queryCode.trim() || storedCode
+  if (queryCode.trim() && !(await validateAffiliateCode()) && storedCode) {
+    affiliateCode.value = storedCode
+    errors.affiliate = ''
+  }
+})
 </script>
 
 <template>
@@ -142,8 +202,34 @@ async function submit() {
           {{ errors.confirm }}
         </span>
       </FormField>
+      <FormField
+        :label="t('auth.inviteCode')"
+        :hint="
+          affiliateRequired
+            ? t('auth.inviteCodeRequiredHint')
+            : t('auth.inviteCodeOptionalHint')
+        "
+      >
+        <TextInput
+          v-model="affiliateCode"
+          :placeholder="t('auth.inviteCodePlaceholder')"
+          autocomplete="off"
+          @blur="validateAffiliateCode"
+        />
+        <span
+          v-if="errors.affiliate"
+          class="mt-1.5 block text-xs text-[var(--status-danger-text)]"
+        >
+          {{ errors.affiliate }}
+        </span>
+      </FormField>
 
-      <ConsoleButton type="submit" size="lg" block :loading="loading">
+      <ConsoleButton
+        type="submit"
+        size="lg"
+        block
+        :loading="loading || affiliateValidating"
+      >
         {{ t('auth.continue') }}
       </ConsoleButton>
     </form>

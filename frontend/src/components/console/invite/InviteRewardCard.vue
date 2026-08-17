@@ -9,6 +9,7 @@ import { formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
 
 const props = defineProps<{
   transferable: number
+  frozen: number
   rewardTotal: number
   invited: number
   readonly?: boolean
@@ -43,6 +44,14 @@ const canTransfer = computed(
         </dt>
         <dd class="font-medium text-[var(--text-primary)]">
           {{ formatQuota(currentBalance) }}
+        </dd>
+      </div>
+      <div class="flex items-center justify-between">
+        <dt class="text-[var(--text-tertiary)]">
+          {{ t('invite.frozenReward') }}
+        </dt>
+        <dd class="font-medium text-[var(--text-primary)]">
+          {{ formatQuota(frozen) }}
         </dd>
       </div>
       <div

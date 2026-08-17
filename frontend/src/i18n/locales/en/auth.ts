@@ -36,6 +36,14 @@ export default {
     resetSent: 'Reset link sent. Check your inbox.',
     mismatch: 'Passwords do not match',
     usernameRequired: 'Username is required',
+    inviteCode: 'Invite code',
+    inviteCodePlaceholder: 'Enter invite code',
+    inviteCodeRequired: 'A valid invite code is required',
+    inviteCodeInvalid: 'Invite code is invalid',
+    inviteCodeRequiredHint:
+      'Registration currently requires a valid invite code',
+    inviteCodeOptionalHint:
+      'Optional. Used for rebate attribution after signup',
     emailInvalid: 'Enter a valid email address',
     passwordTooShort: 'Password must be at least 8 characters',
     brandSlogan: 'One Key, All Models',

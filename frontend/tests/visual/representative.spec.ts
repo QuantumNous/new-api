@@ -28,6 +28,7 @@ interface Scenario {
 const darkScenarios: Scenario[] = [
   { name: 'home', path: '/' },
   { name: 'login', path: '/auth/sign-in', authenticated: false },
+  { name: 'sign-up', path: '/auth/sign-up', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
   {
     name: 'dashboard-stats',
@@ -61,12 +62,19 @@ const darkScenarios: Scenario[] = [
   },
   { name: 'lab-chat', path: '/lab/chat' },
   { name: 'activity', path: '/console/activity' },
+  { name: 'invite', path: '/console/invite' },
+  {
+    name: 'users-affiliate-modal',
+    path: '/console/users',
+    openModalByButton: '配置邀请码',
+  },
   { name: 'farm', path: '/console/farm' },
 ]
 
 const lightScenarios: Scenario[] = [
   { name: 'home', path: '/' },
   { name: 'login', path: '/auth/sign-in', authenticated: false },
+  { name: 'sign-up', path: '/auth/sign-up', authenticated: false },
   { name: 'dashboard', path: '/console/dashboard' },
   {
     name: 'dashboard-stats',
@@ -84,6 +92,13 @@ const lightScenarios: Scenario[] = [
   { name: 'subscription', path: '/console/subscription' },
   { name: 'plan-management', path: '/console/plan-management' },
   { name: 'logs', path: '/console/logs' },
+  { name: 'activity', path: '/console/activity' },
+  { name: 'invite', path: '/console/invite' },
+  {
+    name: 'users-affiliate-modal',
+    path: '/console/users',
+    openModalByButton: '配置邀请码',
+  },
 ]
 
 async function auditScenario(
@@ -200,7 +215,14 @@ test('light mobile dashboard-auto-route', async ({ page }) => {
   await auditScenario('light', 'mobile', scenario, page)
 })
 
-for (const name of ['dashboard', 'dashboard-stats'] as const) {
+for (const name of [
+  'dashboard',
+  'dashboard-stats',
+  'sign-up',
+  'activity',
+  'invite',
+  'users-affiliate-modal',
+] as const) {
   test(`light mobile ${name}`, async ({ page }) => {
     const scenario = lightScenarios.find((item) => item.name === name)!
     await auditScenario('light', 'mobile', scenario, page)

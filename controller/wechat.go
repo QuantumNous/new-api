@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -60,6 +61,25 @@ func WeChatAuth(c *gin.Context) {
 		return
 	}
 	code := c.Query("code")
+	state := strings.TrimSpace(c.Query("state"))
+	affiliateCode := ""
+	if state != "" {
+		pendingFlow, err := model.GetAuthFlow(state, model.AuthFlowMatch{
+			Purpose:  model.AuthFlowPurposeOAuth,
+			Provider: "wechat",
+			Intent:   model.AuthFlowIntentLogin,
+		})
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "登录状态无效或已过期"})
+			return
+		}
+		var payload oauthFlowPayload
+		if err := common.UnmarshalJsonStr(pendingFlow.Payload, &payload); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		affiliateCode = payload.AffiliateCode
+	}
 	wechatId, err := getWeChatIdByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -67,6 +87,16 @@ func WeChatAuth(c *gin.Context) {
 			"success": false,
 		})
 		return
+	}
+	if state != "" {
+		if _, err := model.ConsumeAuthFlow(state, model.AuthFlowMatch{
+			Purpose:  model.AuthFlowPurposeOAuth,
+			Provider: "wechat",
+			Intent:   model.AuthFlowIntentLogin,
+		}); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "登录状态无效或已过期"})
+			return
+		}
 	}
 	user := model.User{
 		WeChatId: wechatId,
@@ -94,7 +124,7 @@ func WeChatAuth(c *gin.Context) {
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 
-			if err := user.Insert(0); err != nil {
+			if _, err := model.CreateUserWithAffiliate(&user, affiliateCode, common.AffiliateRegistrationRequired); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),

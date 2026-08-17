@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -142,11 +143,14 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
-	case "QuotaForInviter", "QuotaForInvitee":
+	case "QuotaForInviter", "QuotaForInvitee", "AffiliateEnabled":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
 			return
 		}
+	case "AffiliateActivatedAt":
+		common.ApiErrorMsg(c, "邀请返利激活时间不允许直接修改")
+		return
 	default:
 		if isPaymentComplianceOptionKey(option.Key) {
 			common.ApiErrorMsg(c, "合规确认字段不允许通过通用设置接口修改")
@@ -154,6 +158,58 @@ func UpdateOption(c *gin.Context) {
 		}
 	}
 	switch option.Key {
+	case "AffiliateEnabled":
+		enabled, parseErr := strconv.ParseBool(option.Value.(string))
+		if parseErr != nil {
+			common.ApiErrorMsg(c, "邀请返利开关参数无效")
+			return
+		}
+		if err := model.SetAffiliateProgramEnabled(enabled); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		recordManageAudit(c, "option.update", map[string]interface{}{"key": option.Key})
+		common.ApiSuccess(c, nil)
+		return
+	case "AffiliateRegistrationRequired":
+		if option.Value == "true" {
+			if common.AffiliateActivatedAt <= 0 {
+				common.ApiErrorMsg(c, "请先激活邀请返利计划")
+				return
+			}
+			hasSeed, seedErr := model.HasActiveAffiliateSeed()
+			if seedErr != nil {
+				common.ApiError(c, seedErr)
+				return
+			}
+			if !hasSeed {
+				common.ApiErrorMsg(c, "至少需要一个有效的管理员或根用户邀请码")
+				return
+			}
+		}
+	case "AffiliateRebateRateBps":
+		value, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || value < 0 || value > 10000 {
+			common.ApiErrorMsg(c, "返利比例必须在 0 到 10000 基点之间")
+			return
+		}
+	case "AffiliateFreezeHours", "AffiliateDurationDays":
+		value, parseErr := strconv.Atoi(option.Value.(string))
+		if parseErr != nil || value < 0 {
+			common.ApiErrorMsg(c, "邀请返利周期不能为负数")
+			return
+		}
+	case "AffiliatePerInviteeCap":
+		value, parseErr := strconv.ParseFloat(option.Value.(string), 64)
+		if parseErr != nil || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			common.ApiErrorMsg(c, "单个受邀用户返利上限必须是非负有限数值")
+			return
+		}
+	case "QuotaForInviter":
+		if common.AffiliateActivatedAt > 0 && isPositiveOptionValue(option.Value.(string)) {
+			common.ApiErrorMsg(c, "邀请返利计划激活后固定邀请人奖励已废弃")
+			return
+		}
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

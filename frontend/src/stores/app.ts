@@ -104,6 +104,9 @@ export const useAppStore = defineStore('app', () => {
   const registerEnabled = computed(() =>
     parseBoolean(status.value.register_enabled, true)
   )
+  const affiliateRegistrationRequired = computed(() =>
+    parseBoolean(status.value.affiliate_registration_required, false)
+  )
   const modelCountLabel = computed(() =>
     modelCount.value === null ? '--' : String(modelCount.value)
   )
@@ -258,6 +261,7 @@ export const useAppStore = defineStore('app', () => {
     showDocs,
     showAbout,
     registerEnabled,
+    affiliateRegistrationRequired,
     userAgreementEnabled,
     privacyPolicyEnabled,
     modelCountLabel,
