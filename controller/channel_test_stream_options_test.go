@@ -8,15 +8,29 @@ import (
 	"github.com/QuantumNous/new-api/model"
 )
 
-// TestBuildTestRequest_UsesNativeAnthropicRequestOnlyForCopilot guards the
-// channel-test fix without changing other channels' existing test requests.
-func TestBuildTestRequest_UsesNativeAnthropicRequestOnlyForCopilot(t *testing.T) {
-	req := buildTestRequest(
-		"claude-opus-4.8",
-		string(constant.EndpointTypeAnthropic),
-		&model.Channel{Type: constant.ChannelTypeCopilot},
-		true,
-	)
+// TestBuildTestRequest_UsesNativeAnthropicRequest guards the channel-test fix:
+// /v1/messages must always use the native Claude DTO, including passthrough
+// channels such as BlockRun.
+func TestBuildTestRequest_UsesNativeAnthropicRequest(t *testing.T) {
+	channelTypes := []int{
+		constant.ChannelTypeCopilot,
+		constant.ChannelTypeBlockRun,
+		constant.ChannelTypeAnthropic,
+		constant.ChannelTypeAws,
+	}
+	for _, channelType := range channelTypes {
+		req := buildTestRequest(
+			"claude-opus-4.8",
+			string(constant.EndpointTypeAnthropic),
+			&model.Channel{Type: channelType},
+			true,
+		)
+		if _, ok := req.(*dto.ClaudeRequest); !ok {
+			t.Fatalf("channel type %d: expected *dto.ClaudeRequest, got %T", channelType, req)
+		}
+	}
+
+	req := buildTestRequest("claude-opus-4.8", string(constant.EndpointTypeAnthropic), nil, true)
 	claudeReq, ok := req.(*dto.ClaudeRequest)
 	if !ok {
 		t.Fatalf("expected *dto.ClaudeRequest, got %T", req)
@@ -29,16 +43,6 @@ func TestBuildTestRequest_UsesNativeAnthropicRequestOnlyForCopilot(t *testing.T)
 	}
 	if len(claudeReq.Messages) != 1 || claudeReq.Messages[0].Role != "user" || claudeReq.Messages[0].Content != "hi" {
 		t.Fatalf("unexpected Anthropic messages: %+v", claudeReq.Messages)
-	}
-
-	otherReq := buildTestRequest(
-		"claude-sonnet-4-6",
-		string(constant.EndpointTypeAnthropic),
-		&model.Channel{Type: constant.ChannelTypeAnthropic},
-		true,
-	)
-	if _, ok := otherReq.(*dto.GeneralOpenAIRequest); !ok {
-		t.Fatalf("non-Copilot Anthropic test request changed type: got %T", otherReq)
 	}
 }
 
