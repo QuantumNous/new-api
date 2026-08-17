@@ -55,6 +55,7 @@ import {
   formatUptimePct,
   getSuccessRateTextClass,
 } from '@/features/performance-metrics/lib/format'
+import { useModelStatus } from '@/features/status/api'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
@@ -79,6 +80,7 @@ import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
+import { ModelProbeStatus } from './model-status-strip'
 
 // ----------------------------------------------------------------------------
 // Local UI helpers
@@ -529,6 +531,10 @@ function ModelHeader(props: { model: PricingModel }) {
   const modelIconKey = model.icon || model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 20) : null
   const description = model.description || model.vendor_description || null
+  const statusQuery = useModelStatus()
+  const modelStatus = statusQuery.data?.data?.models.find(
+    (entry) => entry.name === model.model_name
+  )
 
   return (
     <header className='pb-4'>
@@ -545,6 +551,7 @@ function ModelHeader(props: { model: PricingModel }) {
           successTooltip={t('Copied!')}
           aria-label={t('Copy model name')}
         />
+        <ModelProbeStatus probe={modelStatus?.probe} className='ml-1' />
       </div>
       <div className='mt-1 flex flex-wrap items-center gap-1.5 text-xs'>
         {model.vendor_name && (
