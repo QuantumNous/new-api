@@ -565,6 +565,22 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
+	if err := channel.update(false); err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
+}
+
+func (channel *Channel) UpdateWithMaxConcurrency() error {
+	if err := channel.update(true); err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
+}
+
+func (channel *Channel) update(forceMaxConcurrency bool) error {
 	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
 	if channel.ChannelInfo.IsMultiKey {
 		var keyStr string
@@ -603,6 +619,20 @@ func (channel *Channel) Update() error {
 			}
 		}
 	}
+	if forceMaxConcurrency {
+		return DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(channel).Updates(channel).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(channel).Update("max_concurrency", channel.MaxConcurrency).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(channel).First(channel, "id = ?", channel.Id).Error; err != nil {
+				return err
+			}
+			return channel.UpdateAbilities(tx)
+		})
+	}
 	var err error
 	err = DB.Model(channel).Updates(channel).Error
 	if err != nil {
@@ -613,7 +643,6 @@ func (channel *Channel) Update() error {
 	if err != nil {
 		return err
 	}
-	publishChannelsChanged()
 	return nil
 }
 
