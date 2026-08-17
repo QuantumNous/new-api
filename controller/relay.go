@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,20 +167,24 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
-		return
-	}
-
-	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
-	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
-		if newAPIError != nil {
+	// Compact pricing depends on the selected channel's model mapping. Defer
+	// pricing and pre-consume until the attempt model has been resolved.
+	if relayInfo.RelayMode != relayconstant.RelayModeResponsesCompact {
+		priceData, priceErr := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+		if priceErr != nil {
+			newAPIError = types.NewError(priceErr, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 			return
+		}
+
+		// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
+
+		if priceData.FreeModel {
+			logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
+		} else {
+			newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+			if newAPIError != nil {
+				return
+			}
 		}
 	}
 
@@ -197,23 +202,55 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	retryParam := &service.RetryParam{
 		Ctx:         c,
 		TokenGroup:  relayInfo.TokenGroup,
-		ModelName:   relayInfo.OriginModelName,
+		ModelName:   relayInfo.BillingModelName(),
 		RequestPath: c.Request.URL.Path,
 		Retry:       common.GetPointer(0),
 	}
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
+	compactRetry := newCompactRetryState(relayInfo)
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
-		relayInfo.RetryIndex = retryParam.GetRetry()
+	for {
+		if compactRetry == nil {
+			if retryParam.GetRetry() > common.RetryTimes {
+				break
+			}
+		} else {
+			compactRetry.prepare(retryParam, relayInfo)
+		}
+		if compactRetry == nil {
+			relayInfo.RetryIndex = retryParam.GetRetry()
+		} else {
+			relayInfo.RetryIndex = len(c.GetStringSlice("use_channel"))
+		}
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			if compactRetry != nil && compactRetry.switchToBase(c, relayInfo) {
+				continue
+			}
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
+		if compactRetry != nil {
+			addUsedCompactChannel(c, channel.Id)
+			compactRetry.recordAttempt()
+			relayInfo.InitChannelMeta(c)
+			if err := helper.ConfigureCompactAttempt(c, relayInfo); err != nil {
+				newAPIError = types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+				break
+			}
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, relayInfo.BillingModelName())
+			if _, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta); err != nil {
+				newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+				break
+			}
+			if billingErr := service.PrepareBillingForSelectedModel(c, relayInfo); billingErr != nil {
+				newAPIError = billingErr
+				break
+			}
+		} else if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
 		}
@@ -249,11 +286,28 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
-		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+		modelSemanticError := compactRetry != nil && compactRetry.stage == relaycommon.CompactAttemptExact && isCompactModelSemanticError(newAPIError)
+		channelError := types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan())
+		if modelSemanticError {
+			channelError.AutoBan = false
+		}
+		processChannelError(c, *channelError, newAPIError)
+
+		if compactRetry != nil {
+			retryClassBudget := compactRetry.remainingAttempts()
+			if retryClassBudget < 1 {
+				retryClassBudget = 1
+			}
+			if compactRetry.advance(c, relayInfo, newAPIError, shouldRetry(c, newAPIError, retryClassBudget)) {
+				continue
+			}
+			break
+		}
 
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		retryParam.IncreaseRetry()
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -279,6 +333,12 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
+}
+
+func addUsedCompactChannel(c *gin.Context, channelID int) {
+	usedChannels := c.GetStringSlice("compact_stage_channels")
+	usedChannels = append(usedChannels, strconv.Itoa(channelID))
+	c.Set("compact_stage_channels", usedChannels)
 }
 
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
@@ -310,6 +370,117 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	return meta
 }
 
+type compactRetryState struct {
+	stage         relaycommon.CompactAttemptStage
+	exactBudget   int
+	baseBudget    int
+	exactAttempts int
+	baseAttempts  int
+}
+
+func newCompactRetryState(info *relaycommon.RelayInfo) *compactRetryState {
+	if info == nil || info.RelayMode != relayconstant.RelayModeResponsesCompact {
+		return nil
+	}
+	totalAttempts := common.RetryTimes + 1
+	if totalAttempts < 1 {
+		totalAttempts = 1
+	}
+	stage := info.CompactAttemptStage
+	if stage == relaycommon.CompactAttemptNone {
+		stage = relaycommon.CompactAttemptExact
+	}
+	return &compactRetryState{
+		stage:       stage,
+		exactBudget: (2*totalAttempts + 2) / 3,
+		baseBudget:  (totalAttempts + 2) / 3,
+	}
+}
+
+func (s *compactRetryState) prepare(param *service.RetryParam, info *relaycommon.RelayInfo) {
+	info.CompactAttemptStage = s.stage
+	info.UpstreamAttemptModel = ""
+	info.IsModelMapped = false
+	if s.stage == relaycommon.CompactAttemptExact {
+		param.SetRetry(s.exactAttempts)
+		maxRetries := s.exactBudget - 1
+		param.MaxRetries = &maxRetries
+	} else {
+		param.SetRetry(s.baseAttempts)
+		maxRetries := s.baseBudget - 1
+		param.MaxRetries = &maxRetries
+	}
+}
+
+func (s *compactRetryState) recordAttempt() {
+	if s.stage == relaycommon.CompactAttemptExact {
+		s.exactAttempts++
+		return
+	}
+	s.baseAttempts++
+}
+
+func (s *compactRetryState) remainingAttempts() int {
+	if s.stage == relaycommon.CompactAttemptExact {
+		return s.exactBudget - s.exactAttempts
+	}
+	return s.baseBudget - s.baseAttempts
+}
+
+func (s *compactRetryState) switchToBase(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if s.stage != relaycommon.CompactAttemptExact || s.baseAttempts >= s.baseBudget {
+		return false
+	}
+	s.stage = relaycommon.CompactAttemptBase
+	info.CompactAttemptStage = s.stage
+	info.UpstreamAttemptModel = ""
+	service.SetCompactStage(c, s.stage)
+	service.ResetCompactAutoGroupSelection(c)
+	c.Set("compact_stage_channels", []string{})
+	return true
+}
+
+func (s *compactRetryState) advance(c *gin.Context, info *relaycommon.RelayInfo, apiErr *types.NewAPIError, retryable bool) bool {
+	if s.stage == relaycommon.CompactAttemptExact && isCompactModelSemanticError(apiErr) {
+		return s.switchToBase(c, info)
+	}
+	if !retryable {
+		return false
+	}
+	if s.remainingAttempts() > 0 {
+		return true
+	}
+	return s.switchToBase(c, info)
+}
+
+func isCompactModelSemanticError(apiErr *types.NewAPIError) bool {
+	if apiErr == nil {
+		return false
+	}
+	openAIError := apiErr.ToOpenAIError()
+	code := strings.ToLower(strings.TrimSpace(fmt.Sprint(openAIError.Code)))
+	switch code {
+	case "model_not_found", "unsupported_model", "model_not_supported", "invalid_model", "unknown_model":
+		return true
+	}
+	if strings.EqualFold(strings.TrimSpace(openAIError.Param), "model") {
+		return true
+	}
+	if apiErr.StatusCode != http.StatusBadRequest && apiErr.StatusCode != http.StatusNotFound && apiErr.StatusCode != http.StatusUnprocessableEntity {
+		return false
+	}
+	message := strings.ToLower(openAIError.Message + " " + apiErr.Error())
+	if !strings.Contains(message, "model") {
+		return false
+	}
+	for _, marker := range []string{"unknown model", "unsupported model", "invalid model", "model not found", "model does not exist", "model is not available"} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
@@ -324,6 +495,31 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		if _, specific := c.Get("specific_channel_id"); specific {
+			channel, err := model.CacheGetChannel(info.ChannelId)
+			if err != nil {
+				return nil, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+			}
+			if newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.BillingModelName()); newAPIError != nil {
+				return nil, newAPIError
+			}
+			return channel, nil
+		}
+		channel, selectGroup, err := service.CacheGetRandomSatisfiedCompactChannel(retryParam, info.RequestedModel, info.CompactAttemptStage)
+		if err != nil {
+			return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的 compact 可用渠道失败（retry）: %s", selectGroup, info.RequestedModel, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		if channel == nil {
+			return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的 compact 可用渠道不存在（retry）", selectGroup, info.RequestedModel), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
+		if newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.BillingModelName()); newAPIError != nil {
+			return nil, newAPIError
+		}
+		return channel, nil
+	}
+
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())

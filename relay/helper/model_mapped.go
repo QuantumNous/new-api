@@ -1,78 +1,75 @@
 package helper
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/QuantumNous/new-api/pkg/modelmapping"
 	"github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 )
+
+func ConfigureCompactAttempt(c *gin.Context, info *common.RelayInfo) error {
+	if info == nil || info.RelayMode != relayconstant.RelayModeResponsesCompact {
+		return nil
+	}
+	if info.ChannelMeta == nil {
+		info.InitChannelMeta(c)
+	}
+
+	mapping, err := modelmapping.Parse(c.GetString("model_mapping"))
+	if err != nil {
+		return err
+	}
+	var resolution modelmapping.CompactResolution
+	switch info.CompactAttemptStage {
+	case common.CompactAttemptExact:
+		resolution, err = modelmapping.ResolveCompactExact(info.RequestedModel, mapping)
+	case common.CompactAttemptBase:
+		resolution, err = modelmapping.ResolveCompactBase(info.RequestedModel, mapping)
+	default:
+		return fmt.Errorf("compact attempt stage is not configured")
+	}
+	if err != nil {
+		return err
+	}
+
+	info.LogicalBillingModel = resolution.LogicalBillingModel
+	info.UpstreamAttemptModel = resolution.UpstreamModel
+	info.UpstreamModelName = resolution.UpstreamModel
+	info.IsModelMapped = resolution.Mapped
+	return nil
+}
 
 func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Request) error {
 	if info.ChannelMeta == nil {
 		info.ChannelMeta = &common.ChannelMeta{}
 	}
-
-	isResponsesCompact := info.RelayMode == relayconstant.RelayModeResponsesCompact
-	originModelName := info.OriginModelName
-	mappingModelName := originModelName
-	if isResponsesCompact && strings.HasSuffix(originModelName, ratio_setting.CompactModelSuffix) {
-		mappingModelName = strings.TrimSuffix(originModelName, ratio_setting.CompactModelSuffix)
-	}
-
-	// map model name
-	modelMapping := c.GetString("model_mapping")
-	if modelMapping != "" && modelMapping != "{}" {
-		modelMap := make(map[string]string)
-		err := json.Unmarshal([]byte(modelMapping), &modelMap)
-		if err != nil {
-			return fmt.Errorf("unmarshal_model_mapping_failed")
-		}
-
-		// 支持链式模型重定向，最终使用链尾的模型
-		currentModel := mappingModelName
-		visitedModels := map[string]bool{
-			currentModel: true,
-		}
-		for {
-			if mappedModel, exists := modelMap[currentModel]; exists && mappedModel != "" {
-				// 模型重定向循环检测，避免无限循环
-				if visitedModels[mappedModel] {
-					if mappedModel == currentModel {
-						if currentModel == info.OriginModelName {
-							info.IsModelMapped = false
-							return nil
-						} else {
-							info.IsModelMapped = true
-							break
-						}
-					}
-					return errors.New("model_mapping_contains_cycle")
-				}
-				visitedModels[mappedModel] = true
-				currentModel = mappedModel
-				info.IsModelMapped = true
-			} else {
-				break
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		if info.UpstreamAttemptModel == "" {
+			if err := ConfigureCompactAttempt(c, info); err != nil {
+				return err
 			}
 		}
-		if info.IsModelMapped {
-			info.UpstreamModelName = currentModel
+		info.UpstreamModelName = info.UpstreamAttemptModel
+		if request != nil {
+			request.SetModelName(info.UpstreamAttemptModel)
 		}
+		return nil
 	}
 
-	if isResponsesCompact {
-		finalUpstreamModelName := mappingModelName
-		if info.IsModelMapped && info.UpstreamModelName != "" {
-			finalUpstreamModelName = info.UpstreamModelName
-		}
-		info.UpstreamModelName = finalUpstreamModelName
-		info.OriginModelName = ratio_setting.WithCompactModelSuffix(finalUpstreamModelName)
+	mapping, err := modelmapping.Parse(c.GetString("model_mapping"))
+	if err != nil {
+		return err
+	}
+	upstreamModel, mapped, err := modelmapping.Resolve(info.OriginModelName, mapping)
+	if err != nil {
+		return err
+	}
+	if mapped {
+		info.UpstreamModelName = upstreamModel
+		info.IsModelMapped = true
 	}
 	if request != nil {
 		request.SetModelName(info.UpstreamModelName)

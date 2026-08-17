@@ -658,7 +658,7 @@ func GetUserModels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    service.GetGroupsEnabledModels(groupsToQuery),
+		"data":    service.ExpandCompactPermissionModels(service.GetGroupsEnabledModels(groupsToQuery)),
 	})
 }
 

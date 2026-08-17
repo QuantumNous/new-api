@@ -272,3 +272,98 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	require.Nil(t, info.Billing)
 }
+
+func TestCompactPricingUsesOneInheritedBaseMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedPrices := ratio_setting.ModelPrice2JSONString()
+	savedRatios := ratio_setting.ModelRatio2JSONString()
+	savedCompletionRatios := ratio_setting.CompletionRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(savedCompletionRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"compact-base":2}`))
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"compact-base":3}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName:     "compact-base",
+		RequestedModel:      "compact-base",
+		LogicalBillingModel: "compact-base-openai-compact",
+		UserGroup:           "default",
+		UsingGroup:          "default",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.False(t, priceData.UsePrice)
+	require.Equal(t, 2.0, priceData.ModelRatio)
+	require.Equal(t, 3.0, priceData.CompletionRatio)
+	require.Equal(t, "compact-base", info.PricingModelName)
+	require.Equal(t, "compact_base_manual", info.ModelPricingSource)
+}
+
+func TestCompactPricingWildcardPrecedesBaseFixedPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedPrices := ratio_setting.ModelPrice2JSONString()
+	savedRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"*-openai-compact":0.1,"compact-base":0.2}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName:     "compact-base",
+		LogicalBillingModel: "compact-base-openai-compact",
+		UserGroup:           "default",
+		UsingGroup:          "default",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, 0.1, priceData.ModelPrice)
+	require.Equal(t, ratio_setting.CompactWildcardModelKey, info.PricingModelName)
+	require.Equal(t, "compact_wildcard_manual", info.ModelPricingSource)
+}
+
+func TestCompactPricingInheritsBaseTieredExpressionAsSingleMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"compact-tiered-base":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"compact-tiered-base":"tier(\"base\", p * 2 + c * 8)"}`,
+	}))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName:     "compact-tiered-base",
+		LogicalBillingModel: "compact-tiered-base-openai-compact",
+		UserGroup:           "default",
+		UsingGroup:          "default",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{MaxTokens: 100})
+	require.NoError(t, err)
+	require.False(t, priceData.UsePrice)
+	require.NotNil(t, info.TieredBillingSnapshot)
+	require.Equal(t, "compact-tiered-base-openai-compact", info.TieredBillingSnapshot.ModelName)
+	require.Equal(t, "compact-tiered-base", info.PricingModelName)
+	require.Equal(t, "compact_base_manual", info.ModelPricingSource)
+}

@@ -265,6 +265,49 @@ func TestGetUserModelsExpandsAutoGroupsInConfiguredOrder(t *testing.T) {
 	assert.Equal(t, "zz-default-model", models[2])
 }
 
+func TestGetUserModelsAddsCompactPermissionVariantWithoutChangingStandardDiscovery(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1004,
+		Username: "compact-permission-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     704,
+		Type:   constant.ChannelTypeOpenAI,
+		Name:   "compact-openai",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "zz-compact-capable",
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "zz-compact-capable",
+		ChannelId: 704,
+		Enabled:   true,
+	}).Error)
+	model.InvalidatePricingCache()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?group=default", nil)
+	ctx.Set("id", 1004)
+	GetUserModels(ctx)
+
+	models := decodeUserModelsResponse(t, recorder)
+	require.ElementsMatch(t, []string{"zz-compact-capable", "zz-compact-capable-openai-compact"}, models)
+
+	standardRecorder := httptest.NewRecorder()
+	standardCtx, _ := gin.CreateTestContext(standardRecorder)
+	standardCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	standardCtx.Set("id", 1004)
+	ListModels(standardCtx, constant.ChannelTypeOpenAI)
+	require.Equal(t, map[string]struct{}{"zz-compact-capable": {}}, decodeListModelsResponse(t, standardRecorder))
+}
+
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{

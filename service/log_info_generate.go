@@ -83,9 +83,19 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	if relayInfo.ReasoningEffort != "" {
 		other["reasoning_effort"] = relayInfo.ReasoningEffort
 	}
+	if relayInfo.LogicalBillingModel != "" {
+		other["requested_model_name"] = relayInfo.RequestedModel
+		other["logical_model_name"] = relayInfo.LogicalBillingModel
+		other["upstream_model_name"] = relayInfo.ActualUpstreamModelName()
+		other["compact_attempt_stage"] = relayInfo.CompactAttemptStage
+		other["model_pricing_source"] = relayInfo.ModelPricingSource
+		other["pricing_model_name"] = relayInfo.PricingModelName
+	}
 	if relayInfo.IsModelMapped {
 		other["is_model_mapped"] = true
-		other["upstream_model_name"] = relayInfo.UpstreamModelName
+		if relayInfo.LogicalBillingModel == "" {
+			other["upstream_model_name"] = relayInfo.UpstreamModelName
+		}
 	}
 
 	isSystemPromptOverwritten := common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride)

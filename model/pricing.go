@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/pricing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -112,7 +114,14 @@ func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCusto
 		return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 	}
 	if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
-		return config.SupportedEndpointTypesForModel(ability.Model)
+		endpoints := config.SupportedEndpointTypesForModel(ability.Model)
+		if strings.HasSuffix(ability.Model, ratio_setting.CompactModelSuffix) {
+			if slices.Contains(endpoints, constant.EndpointTypeOpenAIResponseCompact) {
+				return []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}
+			}
+			return []constant.EndpointType{}
+		}
+		return endpoints
 	}
 	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 }
@@ -376,35 +385,36 @@ func updatePricing() {
 				pricing.OwnerBy = vendor.Name
 			}
 		}
-		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
+		pricingModel, _ := pricing_setting.ResolveModel(model)
+		modelPrice, findPrice := ratio_setting.GetModelPrice(pricingModel, false)
 		if findPrice {
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {
-			modelRatio, _, _ := ratio_setting.GetModelRatio(model)
+			modelRatio, _, _ := ratio_setting.GetModelRatio(pricingModel)
 			pricing.ModelRatio = modelRatio
-			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
+			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(pricingModel)
 			pricing.QuotaType = 0
 		}
-		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
+		if cacheRatio, ok := ratio_setting.GetCacheRatio(pricingModel); ok {
 			pricing.CacheRatio = &cacheRatio
 		}
-		if createCacheRatio, ok := ratio_setting.GetCreateCacheRatio(model); ok {
+		if createCacheRatio, ok := ratio_setting.GetCreateCacheRatio(pricingModel); ok {
 			pricing.CreateCacheRatio = &createCacheRatio
 		}
-		if imageRatio, ok := ratio_setting.GetImageRatio(model); ok {
+		if imageRatio, ok := ratio_setting.GetImageRatio(pricingModel); ok {
 			pricing.ImageRatio = &imageRatio
 		}
-		if ratio_setting.ContainsAudioRatio(model) {
-			audioRatio := ratio_setting.GetAudioRatio(model)
+		if ratio_setting.ContainsAudioRatio(pricingModel) {
+			audioRatio := ratio_setting.GetAudioRatio(pricingModel)
 			pricing.AudioRatio = &audioRatio
 		}
-		if ratio_setting.ContainsAudioCompletionRatio(model) {
-			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
+		if ratio_setting.ContainsAudioCompletionRatio(pricingModel) {
+			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(pricingModel)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
 		}
-		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
-			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
+		if billingMode := billing_setting.GetBillingMode(pricingModel); billingMode == "tiered_expr" {
+			if expr, ok := billing_setting.GetBillingExpr(pricingModel); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
 			}

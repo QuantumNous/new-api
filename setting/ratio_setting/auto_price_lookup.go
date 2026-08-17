@@ -58,3 +58,19 @@ func autoPricingEntry(name string) (autopricing.Entry, bool) {
 	}
 	return autopricing.Resolve(name, setting.FuzzyMatchEnabled)
 }
+
+func HasAutoPricingEntry(name string) bool {
+	name = FormatMatchingModelName(name)
+	_, ok := autoPricingEntry(name)
+	return ok
+}
+
+func HasExactAutoPricingEntry(name string) bool {
+	name = FormatMatchingModelName(name)
+	setting := GetAutoPricingSetting()
+	if !setting.Enabled || hasManualFixedPrice(name) {
+		return false
+	}
+	_, ok := autopricing.Resolve(name, false)
+	return ok
+}

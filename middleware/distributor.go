@@ -15,6 +15,7 @@ import (
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -39,6 +40,13 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		isCompactRequest := strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact")
+		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses") && !isCompactRequest &&
+			strings.HasSuffix(modelRequest.Model, ratio_setting.CompactModelSuffix) {
+			abortWithOpenAiMessage(c, http.StatusBadRequest, "Models ending in -openai-compact must use /v1/responses/compact")
+			return
+		}
+		compactRequestedModel := strings.TrimSuffix(modelRequest.Model, ratio_setting.CompactModelSuffix)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -53,6 +61,14 @@ func Distribute() func(c *gin.Context) {
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
+			}
+			if isCompactRequest {
+				stage := service.SpecificChannelCompactStage(channel, compactRequestedModel)
+				if stage == relaycommon.CompactAttemptNone {
+					abortWithOpenAiMessage(c, http.StatusBadRequest, "The specified channel does not support /v1/responses/compact")
+					return
+				}
+				service.SetCompactStage(c, stage)
 			}
 		} else {
 			// Select a channel for the user
@@ -102,44 +118,61 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
-					affinityUsable := false
-					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
-						channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) {
-						if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetRequestAutoGroups(c, userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									affinityUsable = true
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
+				if !isCompactRequest {
+					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+						affinityUsable := false
+						preferred, err := model.CacheGetChannel(preferredChannelID)
+						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
+							channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) {
+							if usingGroup == "auto" {
+								userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+								autoGroups := service.GetRequestAutoGroups(c, userGroup)
+								for _, g := range autoGroups {
+									if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+										selectGroup = g
+										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+										channel = preferred
+										affinityUsable = true
+										service.MarkChannelAffinityUsed(c, g, preferred.Id)
+										break
+									}
 								}
+							} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+								channel = preferred
+								selectGroup = usingGroup
+								affinityUsable = true
+								service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							affinityUsable = true
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
-					}
-					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
-						service.ClearCurrentChannelAffinityCache(c)
+						if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+							service.ClearCurrentChannelAffinityCache(c)
+						}
 					}
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+					retryParam := &service.RetryParam{
 						Ctx:         c,
 						ModelName:   modelRequest.Model,
 						TokenGroup:  usingGroup,
 						RequestPath: c.Request.URL.Path,
 						Retry:       common.GetPointer(0),
-					})
+					}
+					if isCompactRequest {
+						channel, selectGroup, err = service.CacheGetRandomSatisfiedCompactChannel(retryParam, compactRequestedModel, relaycommon.CompactAttemptExact)
+						if err == nil && channel == nil {
+							service.ResetCompactAutoGroupSelection(c)
+							retryParam.SetRetry(0)
+							channel, selectGroup, err = service.CacheGetRandomSatisfiedCompactChannel(retryParam, compactRequestedModel, relaycommon.CompactAttemptBase)
+							if channel != nil {
+								service.SetCompactStage(c, relaycommon.CompactAttemptBase)
+							}
+						} else if channel != nil {
+							service.SetCompactStage(c, relaycommon.CompactAttemptExact)
+						}
+					} else {
+						channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(retryParam)
+					}
 					if err != nil {
 						showGroup := usingGroup
 						if usingGroup == "auto" {

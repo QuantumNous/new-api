@@ -80,6 +80,14 @@ type TokenCountMeta struct {
 	estimatePromptTokens int
 }
 
+type CompactAttemptStage string
+
+const (
+	CompactAttemptNone  CompactAttemptStage = ""
+	CompactAttemptExact CompactAttemptStage = "exact"
+	CompactAttemptBase  CompactAttemptStage = "base"
+)
+
 type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
@@ -98,6 +106,12 @@ type RelayInfo struct {
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string
+	RequestedModel         string
+	LogicalBillingModel    string
+	UpstreamAttemptModel   string
+	CompactAttemptStage    CompactAttemptStage
+	PricingModelName       string
+	ModelPricingSource     string
 	RequestURLPath         string
 	RequestHeaders         map[string]string
 	ShouldIncludeUsage     bool
@@ -261,6 +275,10 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "IsPlayground: %t, ", info.IsPlayground)
 	fmt.Fprintf(b, "RequestURLPath: %q, ", info.RequestURLPath)
 	fmt.Fprintf(b, "OriginModelName: %q, ", info.OriginModelName)
+	if info.LogicalBillingModel != "" {
+		fmt.Fprintf(b, "LogicalBillingModel: %q, ", info.LogicalBillingModel)
+		fmt.Fprintf(b, "UpstreamAttemptModel: %q, ", info.UpstreamAttemptModel)
+	}
 	fmt.Fprintf(b, "EstimatePromptTokens: %d, ", info.estimatePromptTokens)
 	fmt.Fprintf(b, "ShouldIncludeUsage: %t, ", info.ShouldIncludeUsage)
 	fmt.Fprintf(b, "DisablePing: %t, ", info.DisablePing)
@@ -536,6 +554,12 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 			estimatePromptTokens: common.GetContextKeyInt(c, constant.ContextKeyEstimatedTokens),
 		},
 	}
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		info.LogicalBillingModel = info.OriginModelName
+		info.RequestedModel = strings.TrimSuffix(info.OriginModelName, "-openai-compact")
+		info.OriginModelName = info.RequestedModel
+		info.CompactAttemptStage = CompactAttemptStage(common.GetContextKeyString(c, constant.ContextKeyCompactStage))
+	}
 
 	if info.RelayMode == relayconstant.RelayModeUnknown {
 		info.RelayMode = c.GetInt("relay_mode")
@@ -737,6 +761,26 @@ func (info *RelayInfo) GetOriginModelName() string {
 		return ""
 	}
 	return info.OriginModelName
+}
+
+func (info *RelayInfo) BillingModelName() string {
+	if info == nil {
+		return ""
+	}
+	if info.LogicalBillingModel != "" {
+		return info.LogicalBillingModel
+	}
+	return info.OriginModelName
+}
+
+func (info *RelayInfo) ActualUpstreamModelName() string {
+	if info == nil {
+		return ""
+	}
+	if info.UpstreamAttemptModel != "" {
+		return info.UpstreamAttemptModel
+	}
+	return info.GetUpstreamModelName()
 }
 
 func (info *RelayInfo) GetUpstreamModelName() string {

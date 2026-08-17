@@ -179,15 +179,24 @@ func TestPricingNativeChannelEndpointTypesUnchanged(t *testing.T) {
 	insertPricingEndpointChannel(t, 201, constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{})
 	insertPricingEndpointChannel(t, 202, constant.ChannelTypeGemini, dto.ChannelOtherSettings{})
 	insertPricingEndpointChannel(t, 203, constant.ChannelTypeAnthropic, dto.ChannelOtherSettings{})
+	insertPricingEndpointChannel(t, 204, constant.ChannelTypeOpenRouter, dto.ChannelOtherSettings{})
 	insertPricingEndpointAbility(t, 201, "gpt-4o")
+	insertPricingEndpointAbility(t, 201, "gpt-4o-openai-compact")
 	insertPricingEndpointAbility(t, 202, "gemini-2.5-flash")
 	insertPricingEndpointAbility(t, 203, "claude-3-5-sonnet")
+	insertPricingEndpointAbility(t, 204, "legacy-openrouter-openai-compact")
 
 	byModel := pricingEndpointTypesByModel(t)
 
-	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAI}, byModel["gpt-4o"])
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeOpenAIResponseCompact,
+	}, byModel["gpt-4o"])
+	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}, byModel["gpt-4o-openai-compact"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeGemini, constant.EndpointTypeOpenAI}, byModel["gemini-2.5-flash"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}, byModel["claude-3-5-sonnet"])
+	assert.Empty(t, byModel["legacy-openrouter-openai-compact"])
 }
 
 func TestInitChannelCacheInvalidatesPricingCache(t *testing.T) {

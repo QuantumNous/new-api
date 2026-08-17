@@ -1,6 +1,7 @@
 package service
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -119,6 +120,31 @@ func GetGroupsEnabledModels(groups []string) []string {
 		}
 	}
 	return models
+}
+
+func ExpandCompactPermissionModels(models []string) []string {
+	model.GetPricing()
+	seen := make(map[string]struct{}, len(models)*2)
+	expanded := make([]string, 0, len(models)*2)
+	for _, modelName := range models {
+		if _, ok := seen[modelName]; !ok {
+			seen[modelName] = struct{}{}
+			expanded = append(expanded, modelName)
+		}
+		if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
+			continue
+		}
+		if !slices.Contains(model.GetModelSupportEndpointTypes(modelName), constant.EndpointTypeOpenAIResponseCompact) {
+			continue
+		}
+		compactModel := ratio_setting.WithCompactModelSuffix(modelName)
+		if _, ok := seen[compactModel]; ok {
+			continue
+		}
+		seen[compactModel] = struct{}{}
+		expanded = append(expanded, compactModel)
+	}
+	return expanded
 }
 
 // GetUserGroupRatio 获取用户使用某个分组的倍率
