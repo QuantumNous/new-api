@@ -25,6 +25,7 @@ import type {
   BatchSetTagParams,
   Channel,
   ChannelBalanceResponse,
+  ChannelModelCost,
   ChannelOpsResponse,
   ChannelTestResponse,
   CopyChannelParams,
@@ -644,5 +645,46 @@ export async function getPrefillGroups(
   data?: Array<{ id: number; name: string; items: string | string[] }>
 }> {
   const res = await api.get('/api/prefill_group', { params: { type } })
+  return res.data
+}
+
+/**
+ * Get channel profit summary for all time (admin only).
+ * Used by the channel list to show per-channel profit.
+ */
+export async function getChannelProfitSummary(): Promise<{
+  success: boolean
+  data: {
+    by_channel: Array<{
+      channel_id: number
+      revenue: number
+      cost: number
+      profit: number
+      profit_rate: number
+      count: number
+      cost_enabled?: boolean
+    }>
+  }
+}> {
+  const res = await api.get('/api/data/channel_profit')
+  return res.data
+}
+
+/**
+ * Sync channel cost model prices from the channel's own upstream.
+ * Returns the cost price table for the models already added to this channel.
+ */
+export async function syncChannelCostPrices(
+  channelId: number
+): Promise<{
+  success: boolean
+  message?: string
+  data?: {
+    model_prices: Record<string, ChannelModelCost>
+  }
+}> {
+  const res = await api.post('/api/channel/cost_prices/sync', {
+    channel_id: channelId,
+  })
   return res.data
 }

@@ -71,6 +71,7 @@ export const channelSchema = z.object({
     multi_key_mode: 'random',
   }),
   settings: z.string().default('{}'), // other_settings JSON
+  cost_config: z.string().nullish().default(''),
 })
 
 export type Channel = z.infer<typeof channelSchema>
@@ -109,6 +110,29 @@ export interface ChannelOtherSettings {
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
   advanced_custom?: AdvancedCustomConfig
+}
+
+export type ChannelCostMode = 'discount' | 'fixed'
+
+// 单个模型在该渠道的成本价（复用模型 ratio 体系，与上游定价同步返回格式一致）。
+export interface ChannelModelCost {
+  model_ratio?: number
+  model_price?: number
+  completion_ratio?: number
+  cache_ratio?: number
+  create_cache_ratio?: number
+  image_ratio?: number
+  audio_ratio?: number
+  audio_completion_ratio?: number
+}
+
+export interface ChannelCostSettings {
+  enabled?: boolean
+  mode?: ChannelCostMode
+  discount?: number
+  fixed_price?: number
+  // 渠道独立的模型成本价格表（仅该渠道已添加的模型），从该渠道上游同步
+  model_prices?: Record<string, ChannelModelCost>
 }
 
 export interface AdvancedCustomConfig {

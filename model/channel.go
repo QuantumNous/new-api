@@ -52,6 +52,8 @@ type Channel struct {
 	Remark            *string `json:"remark" gorm:"type:varchar(255)" validate:"max=255"`
 	// add after v0.8.5
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
+	// 渠道调用成本配置（JSON，见 dto.ChannelCostSettings）
+	CostConfig string `json:"cost_config" gorm:"type:text"`
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
@@ -1035,6 +1037,37 @@ func (channel *Channel) SetOtherSettings(setting dto.ChannelOtherSettings) {
 		return
 	}
 	channel.OtherSettings = string(settingBytes)
+}
+
+// GetCostSettings 解析渠道调用成本配置；非法 JSON 回退为空配置（等价未启用）。
+func (channel *Channel) GetCostSettings() dto.ChannelCostSettings {
+	settings := dto.ChannelCostSettings{}
+	if channel.CostConfig != "" {
+		err := common.UnmarshalJsonStr(channel.CostConfig, &settings)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to unmarshal cost config: channel_id=%d, error=%v", channel.Id, err))
+		}
+	}
+	return settings
+}
+
+// SetCostSettings 序列化渠道调用成本配置。
+func (channel *Channel) SetCostSettings(settings dto.ChannelCostSettings) {
+	settingsBytes, err := common.Marshal(settings)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to marshal cost config: channel_id=%d, error=%v", channel.Id, err))
+		return
+	}
+	channel.CostConfig = string(settingsBytes)
+}
+
+// ValidateCostSettings 校验渠道调用成本配置（Add/Update 时调用）。
+func (channel *Channel) ValidateCostSettings() error {
+	if channel.CostConfig == "" {
+		return nil
+	}
+	settings := channel.GetCostSettings()
+	return settings.Validate()
 }
 
 func (channel *Channel) GetParamOverride() map[string]interface{} {

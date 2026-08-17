@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -77,6 +78,7 @@ type Log struct {
 	Ip                string `json:"ip" gorm:"index;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
+	CostQuota         float64  `json:"cost_quota" gorm:"type:double;default:0"` // 本次调用成本（额度单位，与 Quota 同量纲，可为小数）
 	Other             string `json:"other"`
 }
 
@@ -251,7 +253,7 @@ func RecordOperationAuditLog(logUserId int, content string, ip string, action st
 	}
 }
 
-func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
+func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string, creditedQuota int, money float64) {
 	username, _ := GetUsernameById(userId, false)
 	adminInfo := map[string]interface{}{
 		"server_ip":               common.GetIp(),
@@ -264,6 +266,9 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	other := map[string]interface{}{
 		"admin_info": adminInfo,
 	}
+	// 充值本身不产生营收（Quota 恒 0）；折扣让利（CostQuota）计入成本，
+	// 由用户后续调用时通过渠道成本差价赚回，从而得到真实净利润。
+	concession := CalculateTopupConcession(money, operation_setting.Price, common.QuotaPerUnit, creditedQuota)
 	log := &Log{
 		UserId:    userId,
 		Username:  username,
@@ -271,6 +276,8 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 		Type:      LogTypeTopup,
 		Content:   content,
 		Ip:        callerIp,
+		Quota:     0,
+		CostQuota: concession,
 		Other:     common.MapToJsonStr(other),
 	}
 	err := createLog(log)
@@ -350,6 +357,11 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	otherStr := common.MapToJsonStr(params.Other)
+	if params.Other == nil {
+		params.Other = make(map[string]interface{})
+	}
+	costQuota := resolveChannelCost(params)
+	otherStr = common.MapToJsonStr(params.Other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -381,6 +393,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		}(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
+		CostQuota:         costQuota,
 		Other:             otherStr,
 	}
 	err := createLog(log)
@@ -428,6 +441,18 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		}
 	}
 	createdAt := common.GetTimestamp()
+	if params.Other == nil {
+		params.Other = make(map[string]interface{})
+	}
+	consumeParams := RecordConsumeLogParams{
+		ChannelId: params.ChannelId,
+		ModelName: params.ModelName,
+		Quota:     params.Quota,
+		Group:     params.Group,
+		Other:     params.Other,
+	}
+	costQuota := resolveChannelCost(consumeParams)
+	otherStr := common.MapToJsonStr(params.Other)
 	log := &Log{
 		UserId:    params.UserId,
 		Username:  username,
@@ -440,7 +465,8 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		ChannelId: params.ChannelId,
 		TokenId:   params.TokenId,
 		Group:     params.Group,
-		Other:     common.MapToJsonStr(params.Other),
+		CostQuota: costQuota,
+		Other:     otherStr,
 	}
 	err := createLog(log)
 	if err != nil {

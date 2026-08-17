@@ -408,7 +408,24 @@ func migrateClickHouseLogDB() error {
 	if err := LOG_DB.Exec(clickHouseLogCreateTableSQL(ttlDays)).Error; err != nil {
 		return err
 	}
+	if err := ensureClickHouseLogCostQuotaColumn(); err != nil {
+		return err
+	}
 	return syncClickHouseLogTTL(ttlDays)
+}
+
+// ensureClickHouseLogCostQuotaColumn 为旧表幂等补充/校正 cost_quota 列。
+// 成本可能为小数（如 9.5 quota），必须用 Float64；旧实现误建为 Int32 会截断小数，
+// 因此已存在该列时也执行 MODIFY 校正类型。
+func ensureClickHouseLogCostQuotaColumn() error {
+	var createTableSQL string
+	if err := LOG_DB.Raw("SHOW CREATE TABLE logs").Scan(&createTableSQL).Error; err != nil {
+		return err
+	}
+	if strings.Contains(createTableSQL, "cost_quota") {
+		return LOG_DB.Exec("ALTER TABLE logs MODIFY COLUMN cost_quota Float64 DEFAULT 0").Error
+	}
+	return LOG_DB.Exec("ALTER TABLE logs ADD COLUMN cost_quota Float64 DEFAULT 0").Error
 }
 
 func clickHouseLogTTLDays() int {
@@ -456,6 +473,7 @@ CREATE TABLE IF NOT EXISTS logs (
 	ip String DEFAULT '',
 	request_id String DEFAULT '',
 	upstream_request_id String DEFAULT '',
+	cost_quota Float64 DEFAULT 0,
 	other String DEFAULT ''
 )
 ENGINE = MergeTree()

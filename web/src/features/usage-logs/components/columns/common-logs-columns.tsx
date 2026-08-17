@@ -531,6 +531,46 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </button>
           )
         },
+      },
+      {
+        id: 'cost_quota',
+        header: t('Cost'),
+        cell: function CostCell({ row }) {
+          const log = row.original
+          if (!isDisplayableLogType(log.type)) return null
+
+          return (
+            <span className='font-mono text-xs tabular-nums'>
+              {formatLogQuota(log.cost_quota ?? 0)}
+            </span>
+          )
+        },
+        enableSorting: false,
+      },
+      {
+        id: 'profit',
+        header: t('Profit'),
+        cell: function ProfitCell({ row }) {
+          const log = row.original
+          if (!isDisplayableLogType(log.type)) return null
+
+          const profit = log.quota - (log.cost_quota ?? 0)
+          let profitClass = 'text-muted-foreground'
+          if (profit > 0) profitClass = 'text-success'
+          else if (profit < 0) profitClass = 'text-destructive'
+          return (
+            <span
+              className={cn(
+                'font-mono text-xs font-medium tabular-nums',
+                profitClass
+              )}
+            >
+              {profit > 0 ? '+' : ''}
+              {formatLogQuota(profit)}
+            </span>
+          )
+        },
+        enableSorting: false,
       }
     )
   }

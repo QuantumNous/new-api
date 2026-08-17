@@ -141,6 +141,7 @@ const paymentSchema = z.object({
       })
     }
   }),
+  EnableRangeDiscount: z.boolean(),
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
@@ -427,6 +428,7 @@ export function PaymentSettingsSection({
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
       AmountDiscount: values.AmountDiscount.trim(),
+      EnableRangeDiscount: values.EnableRangeDiscount,
       StripeApiSecret: values.StripeApiSecret.trim(),
       StripeWebhookSecret: values.StripeWebhookSecret.trim(),
       StripePriceId: values.StripePriceId.trim(),
@@ -471,6 +473,7 @@ export function PaymentSettingsSection({
       PayMethods: initialRef.current.PayMethods.trim(),
       AmountOptions: initialRef.current.AmountOptions.trim(),
       AmountDiscount: initialRef.current.AmountDiscount.trim(),
+      EnableRangeDiscount: initialRef.current.EnableRangeDiscount,
       StripeApiSecret: initialRef.current.StripeApiSecret.trim(),
       StripeWebhookSecret: initialRef.current.StripeWebhookSecret.trim(),
       StripePriceId: initialRef.current.StripePriceId.trim(),
@@ -559,6 +562,13 @@ export function PaymentSettingsSection({
       updates.push({
         key: 'payment_setting.amount_discount',
         value: sanitized.AmountDiscount,
+      })
+    }
+
+    if (sanitized.EnableRangeDiscount !== initial.EnableRangeDiscount) {
+      updates.push({
+        key: 'payment_setting.enable_range_discount',
+        value: sanitized.EnableRangeDiscount,
       })
     }
 
@@ -1128,6 +1138,31 @@ export function PaymentSettingsSection({
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='EnableRangeDiscount'
+                    render={({ field }) => (
+                      <SettingsSwitchItem>
+                        <SettingsSwitchContent>
+                          <FormLabel>
+                            {t('Enable range discount')}
+                          </FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Apply the highest tier discount not exceeding the recharge amount (e.g. with 20/0.9 and 50/0.8, charging 35 uses 0.9 and 60 uses 0.8)'
+                            )}
+                          </FormDescription>
+                        </SettingsSwitchContent>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </SettingsSwitchItem>
                     )}
                   />
                 </div>

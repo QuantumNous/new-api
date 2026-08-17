@@ -27,7 +27,7 @@ import {
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../constants'
-import type { Channel } from '../types'
+import type { Channel, ChannelCostSettings } from '../types'
 import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   advancedCustomConfigUsesRelativeUpstreamPath,
@@ -282,6 +282,12 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // Channel call cost settings (serialized to cost_config)
+    cost_enabled: z.boolean().optional(),
+    cost_mode: z.enum(['discount', 'fixed']).optional(),
+    cost_discount: z.number().optional(),
+    cost_fixed_price: z.number().optional(),
+    cost_model_prices: z.record(z.string(), z.any()).optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -393,6 +399,26 @@ export const channelFormSchema = z
         ERROR_MESSAGES.INVALID_HTTP1_WITH_SHARDS
       )
     }
+
+    if (data.cost_enabled) {
+      if (data.cost_mode === 'discount') {
+        if (!data.cost_discount || data.cost_discount <= 0) {
+          addRequiredIssue(
+            ctx,
+            'cost_discount',
+            'Discount ratio must be greater than 0'
+          )
+        }
+      } else {
+        if ((data.cost_fixed_price ?? 0) < 0) {
+          addRequiredIssue(
+            ctx,
+            'cost_fixed_price',
+            'Fixed price cannot be negative'
+          )
+        }
+      }
+    }
   })
 
 export type ChannelFormValues = z.infer<typeof channelFormSchema>
@@ -454,6 +480,11 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   advanced_custom: '',
+  cost_enabled: false,
+  cost_mode: 'discount',
+  cost_discount: 1,
+  cost_fixed_price: 0,
+  cost_model_prices: {},
 }
 
 // ============================================================================
@@ -552,6 +583,17 @@ export function transformChannelToFormDefaults(
     }
   }
 
+  // Parse channel call cost settings from cost_config
+  let costConfig: ChannelCostSettings = {}
+  if (channel.cost_config?.trim()) {
+    try {
+      costConfig = JSON.parse(channel.cost_config)
+    } catch {
+      costConfig = {}
+    }
+  }
+  const costModelPrices = costConfig.model_prices ?? {}
+
   return {
     name: channel.name || '',
     type: channel.type,
@@ -597,6 +639,11 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     advanced_custom: advancedCustom,
+    cost_enabled: costConfig.enabled ?? false,
+    cost_mode: costConfig.mode ?? 'discount',
+    cost_discount: costConfig.discount ?? 1,
+    cost_fixed_price: costConfig.fixed_price ?? 0,
+    cost_model_prices: costModelPrices,
   }
 }
 
@@ -773,6 +820,28 @@ function normalizeBaseUrl(value: string | undefined): string {
 }
 
 /**
+ * Build the cost_config JSON string from form cost settings.
+ * Returns an empty string when cost accounting is disabled, which the
+ * empty-string-to-null cleanup in the payload builders turns into null.
+ */
+function buildCostConfigJSON(formData: ChannelFormValues): string {
+  if (!formData.cost_enabled) return ''
+  const modelPrices = Object.fromEntries(
+    Object.entries(formData.cost_model_prices ?? {}).filter(
+      ([, mc]) => mc && (Number(mc.model_ratio) > 0 || Number(mc.model_price) > 0)
+    )
+  )
+  const settings: ChannelCostSettings = {
+    enabled: true,
+    mode: formData.cost_mode ?? 'discount',
+    discount: formData.cost_discount ?? 1,
+    fixed_price: formData.cost_fixed_price ?? 0,
+    ...(Object.keys(modelPrices).length > 0 ? { model_prices: modelPrices } : {}),
+  }
+  return JSON.stringify(settings)
+}
+
+/**
  * Transform form data to API payload for creating channel
  */
 export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
@@ -805,6 +874,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
+    cost_config: buildCostConfigJSON(formData),
   }
 
   // Clean up empty strings to null for optional fields
@@ -852,6 +922,7 @@ export function transformFormDataToUpdatePayload(
     header_override: formData.header_override || null,
     settings: buildSettingsJSON(formData),
     other: formData.other || '',
+    cost_config: buildCostConfigJSON(formData),
   }
 
   // Only include key if it was changed (not empty)

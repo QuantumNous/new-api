@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import {
   AlertTriangle,
@@ -38,6 +38,7 @@ import { ProviderBadge } from '@/components/provider-badge'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -53,9 +54,11 @@ import {
   getCurrencyLabel,
 } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
 import { truncateText } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
-import { getCodexUsage } from '../api'
+import { getChannelProfitSummary, getCodexUsage } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatRelativeTime,
@@ -76,7 +79,7 @@ import {
   type TagRow,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
-import type { Channel } from '../types'
+import type { Channel, ChannelCostSettings } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { useChannels } from './channels-provider'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -103,6 +106,78 @@ function parseIonetMeta(otherInfo: string | null | undefined): null | {
     return null
   }
   return null
+}
+
+/**
+ * Parse channel call cost configuration from cost_config JSON.
+ * Returns null when the field is empty or contains invalid JSON.
+ */
+function parseCostSettings(channel: Channel): ChannelCostSettings | null {
+  if (!channel.cost_config?.trim()) {
+    return null
+  }
+  try {
+    return JSON.parse(channel.cost_config) as ChannelCostSettings
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Badge showing the channel call cost configuration
+ */
+function CostConfigBadge({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
+  const settings = parseCostSettings(channel)
+  if (!settings?.enabled) {
+    return <Badge variant='secondary'>{t('Not configured')}</Badge>
+  }
+  if (settings.mode === 'fixed') {
+    return (
+      <Badge variant='outline'>
+        {t('Fixed')} ${settings.fixed_price ?? 0}/call
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant='outline'>
+      {t('Discount')} ×{settings.discount ?? 1}
+    </Badge>
+  )
+}
+
+/**
+ * Channel call cost cell: cost config badge plus admin-only profit summary
+ */
+function ChannelCostCell({ channel }: { channel: Channel }) {
+  const userRole = useAuthStore((s) => s.auth.user?.role)
+  const { t } = useTranslation()
+  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const { data } = useQuery({
+    queryKey: ['channel-profit-summary'],
+    queryFn: getChannelProfitSummary,
+    enabled: isAdmin,
+  })
+  const row = data?.data.by_channel.find(
+    (item) => item.channel_id === channel.id
+  )
+  let profitClass: string | undefined
+  if (row) {
+    if (row.profit > 0) profitClass = 'text-success text-xs'
+    else if (row.profit < 0) profitClass = 'text-destructive text-xs'
+    else profitClass = 'text-muted-foreground text-xs'
+  }
+  return (
+    <div className='flex flex-col gap-1'>
+      <CostConfigBadge channel={channel} />
+      {isAdmin && row && (
+        <span className={profitClass}>
+          {t('Profit')}: {row.profit >= 0 ? '+' : ''}
+          {row.profit.toLocaleString()}
+        </span>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -552,10 +627,13 @@ export function useChannelsColumns(
   const { sensitiveVisible } = useChannels()
   const enableSelection = options.enableSelection ?? true
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const userRole = useAuthStore((s) => s.auth.user?.role)
+  const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
   // The column definitions only depend on the translation function, the active
-  // locale, and sensitive-data visibility. Memoizing keeps the array (and every
-  // cell renderer reference) stable across unrelated re-renders, so react-table
-  // does not invalidate the whole row model on each parent render.
+  // locale, sensitive-data visibility, and admin status. Memoizing keeps the
+  // array (and every cell renderer reference) stable across unrelated
+  // re-renders, so react-table does not invalidate the whole row model on each
+  // parent render.
   return useMemo<ColumnDef<Channel>[]>(
     () => [
       // Checkbox column
@@ -1096,6 +1174,18 @@ export function useChannelsColumns(
         size: 180,
       },
 
+      // Call Cost column (admin only)
+      ...(isAdmin
+        ? [
+            {
+              id: 'cost',
+              header: t('Cost'),
+              cell: ({ row }) => <ChannelCostCell channel={row.original} />,
+              enableSorting: false,
+            } satisfies ColumnDef<Channel>,
+          ]
+        : []),
+
       // Response Time column
       {
         accessorKey: 'response_time',
@@ -1184,6 +1274,6 @@ export function useChannelsColumns(
         meta: { pinned: 'right' as const },
       },
     ],
-    [enableSelection, t, locale, sensitiveVisible]
+    [enableSelection, t, locale, sensitiveVisible, isAdmin]
   )
 }

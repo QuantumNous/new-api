@@ -535,6 +535,11 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	// 校验渠道调用成本配置
+	if err := channel.ValidateCostSettings(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -41,6 +41,7 @@ import {
   Route,
   Settings,
   SlidersHorizontal,
+  Percent,
   Wand2,
 } from 'lucide-react'
 import {
@@ -135,6 +136,7 @@ import {
   getGroups,
   getPrefillGroups,
   refreshCodexCredential,
+  syncChannelCostPrices,
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
@@ -190,6 +192,8 @@ import {
   ChannelApiAccessSection,
   ChannelAuthSection,
   ChannelBasicSection,
+  ChannelCostPriceTable,
+  ChannelCostSection,
   ChannelEditorLoadingState,
   ChannelModelsSection,
 } from './sections'
@@ -247,12 +251,14 @@ const CHANNEL_EDITOR_SECTION_IDS = {
   identity: 'channel-section-identity',
   credentials: 'channel-section-credentials',
   models: 'channel-section-models',
+  cost: 'channel-section-cost',
   advanced: 'channel-section-advanced',
 } as const
 const CHANNEL_EDITOR_MAIN_SECTION_IDS = [
   CHANNEL_EDITOR_SECTION_IDS.identity,
   CHANNEL_EDITOR_SECTION_IDS.credentials,
   CHANNEL_EDITOR_SECTION_IDS.models,
+  CHANNEL_EDITOR_SECTION_IDS.cost,
   CHANNEL_EDITOR_SECTION_IDS.advanced,
 ]
 const ADVANCED_SETTINGS_SECTION_IDS = {
@@ -622,6 +628,7 @@ export function ChannelMutateDrawer({
   )
   const canRevealChannelKey = currentUser?.role === ROLE.SUPER_ADMIN
   const [fetchModelsDialogOpen, setFetchModelsDialogOpen] = useState(false)
+  const [isCostPricesSyncing, setIsCostPricesSyncing] = useState(false)
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
@@ -770,6 +777,9 @@ export function ChannelMutateDrawer({
   const currentUpstreamModelUpdateIgnoredModels = form.watch(
     'upstream_model_update_ignored_models'
   )
+  const currentCostEnabled = form.watch('cost_enabled')
+  const currentCostMode = form.watch('cost_mode')
+  const currentCostModelPrices = form.watch('cost_model_prices')
   const shouldPreviewUnsavedModels =
     !isEditing ||
     (currentType === CHANNEL_TYPE_ADVANCED_CUSTOM && canEditSensitive)
@@ -1123,6 +1133,14 @@ export function ChannelMutateDrawer({
       icon: <Boxes className='h-4 w-4' aria-hidden='true' />,
     },
     {
+      id: CHANNEL_EDITOR_SECTION_IDS.cost,
+      title: t('Call Cost'),
+      description: getSectionStatusLabel('idle', t),
+      statusLabel: getSectionStatusLabel('idle', t),
+      status: 'idle' as const,
+      icon: <Percent className='h-4 w-4' aria-hidden='true' />,
+    },
+    {
       id: CHANNEL_EDITOR_SECTION_IDS.advanced,
       title: t('Advanced Settings'),
       description: advancedSummary,
@@ -1456,6 +1474,33 @@ export function ChannelMutateDrawer({
 
     setFetchModelsDialogOpen(true)
   }, [isEditing, canEditSensitive, form, t])
+
+  const handleSyncCostPrices = useCallback(async () => {
+    if (!channelId) {
+      toast.error(t('Save the channel first, then sync upstream cost prices.'))
+      return
+    }
+    setIsCostPricesSyncing(true)
+    try {
+      const res = await syncChannelCostPrices(channelId)
+      if (!res.success) {
+        throw new Error(res.message || t('Failed to sync cost prices'))
+      }
+      const prices = res.data?.model_prices ?? {}
+      form.setValue('cost_model_prices', prices, { shouldDirty: true })
+      toast.success(
+        t('Synced {{count}} model cost prices from upstream', {
+          count: Object.keys(prices).length,
+        })
+      )
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Sync cost prices failed')
+      )
+    } finally {
+      setIsCostPricesSyncing(false)
+    }
+  }, [channelId, form, t])
 
   const formPreviewFetcher = useCallback(async (): Promise<string[]> => {
     if (!canEditSensitive) {
@@ -3614,6 +3659,206 @@ export function ChannelMutateDrawer({
                           </div>
                         </div>
                       </ChannelModelsSection>
+                    </div>
+
+                    {/* ── Call Cost ── */}
+                    <div
+                      id={CHANNEL_EDITOR_SECTION_IDS.cost}
+                      className='scroll-mt-4'
+                    >
+                      <ChannelCostSection>
+                        <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
+                          <div className='grid gap-4'>
+                            <FormField
+                              control={form.control}
+                              name='cost_enabled'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>
+                                      {t('Enable Cost Accounting')}
+                                    </FormLabel>
+                                    <FormDescription>
+                                      {t(
+                                        'Record channel call cost and profit in logs (admin only).'
+                                      )}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            {currentCostEnabled && (
+                              <>
+                                <FormField
+                                  control={form.control}
+                                  name='cost_mode'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>{t('Cost Mode')}</FormLabel>
+                                      <Select
+                                        items={[
+                                          {
+                                            value: 'discount',
+                                            label: t('Discount'),
+                                          },
+                                          {
+                                            value: 'fixed',
+                                            label: t('Fixed Price'),
+                                          },
+                                        ]}
+                                        onValueChange={field.onChange}
+                                        value={field.value}
+                                      >
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent
+                                          alignItemWithTrigger={false}
+                                        >
+                                          <SelectGroup>
+                                            <SelectItem value='discount'>
+                                              {t('Discount')}
+                                            </SelectItem>
+                                            <SelectItem value='fixed'>
+                                              {t('Fixed Price')}
+                                            </SelectItem>
+                                          </SelectGroup>
+                                        </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+
+                                {currentCostMode === 'discount' ? (
+                                  <FormField
+                                    control={form.control}
+                                    name='cost_discount'
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>
+                                          {t('Discount Ratio')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='number'
+                                            step='0.01'
+                                            min='0.01'
+                                            placeholder='1.0'
+                                            {...field}
+                                            onChange={(e) =>
+                                              field.onChange(
+                                                Number(e.target.value)
+                                              )
+                                            }
+                                          />
+                                        </FormControl>
+                                        <FormDescription>
+                                          {t(
+                                            'Cost = model price × discount ratio (group ratio excluded).'
+                                          )}
+                                        </FormDescription>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                ) : (
+                                  <FormField
+                                    control={form.control}
+                                    name='cost_fixed_price'
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>
+                                          {t('Fixed Price')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='number'
+                                            step='0.0001'
+                                            min='0'
+                                            placeholder='0.001'
+                                            {...field}
+                                            onChange={(e) =>
+                                              field.onChange(
+                                                Number(e.target.value)
+                                              )
+                                            }
+                                          />
+                                        </FormControl>
+                                        <FormDescription>
+                                          {t(
+                                            'Fixed cost per call in USD.'
+                                          )}
+                                        </FormDescription>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                )}
+                              </>
+                            )}
+
+                            {currentCostMode === 'discount' && (
+                              <div className='space-y-3'>
+                                <div>
+                                  <p className='text-sm font-medium'>
+                                    {t('Model Cost Price Table')}
+                                  </p>
+                                  <p className='text-muted-foreground text-xs'>
+                                    {t(
+                                      'Each channel keeps its own cost price table, synced from its own upstream (models added to this channel only).'
+                                    )}
+                                  </p>
+                                </div>
+                                <ChannelCostPriceTable
+                                  prices={currentCostModelPrices ?? {}}
+                                />
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  className='w-fit'
+                                  onClick={handleSyncCostPrices}
+                                  disabled={isCostPricesSyncing || !isEditing}
+                                >
+                                  {isCostPricesSyncing ? (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <RefreshCw className='mr-2 h-4 w-4' />
+                                  )}
+                                  {t('Sync Cost Prices from Upstream')}
+                                </Button>
+                                {!isEditing && (
+                                  <span className='text-muted-foreground block text-xs'>
+                                    {t(
+                                      'Save the channel first to enable upstream cost price sync.'
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            <Alert>
+                              <AlertDescription className='flex flex-col gap-1'>
+                                <span>
+                                  {t(
+                                    'Cost = model cost price × discount ratio. Models without a synced cost price fall back to the global model price with the discount ratio applied.'
+                                  )}
+                                </span>
+                              </AlertDescription>
+                            </Alert>
+                          </div>
+                        </div>
+                      </ChannelCostSection>
                     </div>
 
                     <div

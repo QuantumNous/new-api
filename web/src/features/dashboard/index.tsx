@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { ROLE } from '@/lib/roles'
+import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -113,6 +114,12 @@ const LazyFlowCharts = lazy(() =>
   }))
 )
 
+const LazyProfitSection = lazy(() =>
+  import('./components/profit/profit-section').then((m) => ({
+    default: m.ProfitSection,
+  }))
+)
+
 function LogStatCardsFallback() {
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -189,6 +196,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   users: {
     titleKey: 'User Analytics',
   },
+  profit: {
+    titleKey: 'Profit Analysis',
+  },
 }
 
 export function Dashboard() {
@@ -243,12 +253,26 @@ export function Dashboard() {
     []
   )
 
+  const profitFilters = useMemo(() => {
+    const timeRange = computeTimeRange(
+      getDefaultDays(modelFilters.time_granularity),
+      modelFilters.start_timestamp,
+      modelFilters.end_timestamp
+    )
+    return {
+      start_timestamp: timeRange.start_timestamp,
+      end_timestamp: timeRange.end_timestamp,
+    }
+  }, [modelFilters])
+
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          ((section !== 'users' && section !== 'profit') || isAdmin)
       ),
     [isAdmin]
   )
@@ -397,6 +421,13 @@ export function Dashboard() {
                   filters={userChartsFilters}
                   onFiltersChange={setUserChartsFilters}
                 />
+              </Suspense>
+            </FadeIn>
+          )}
+          {activeSection === 'profit' && (
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyProfitSection filters={profitFilters} />
               </Suspense>
             </FadeIn>
           )}

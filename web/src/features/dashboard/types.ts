@@ -272,3 +272,36 @@ export interface FAQItem {
   question: string
   answer: string
 }
+
+// ============================================================================
+// Channel Profit Analysis Types
+// ============================================================================
+
+export interface ChannelProfitSummary {
+  revenue: number
+  cost: number
+  profit: number
+  profit_rate: number
+  count: number
+  topup_concession: number
+  topup_count: number
+  topup_profit: number
+}
+
+export interface ChannelProfitRow {
+  channel_id: number
+  channel_name?: string
+  model_name?: string
+  revenue: number
+  cost: number
+  profit: number
+  profit_rate: number
+  count: number
+  cost_enabled?: boolean
+}
+
+export interface ChannelProfitData {
+  summary: ChannelProfitSummary
+  by_channel: ChannelProfitRow[]
+  by_model: ChannelProfitRow[]
+}

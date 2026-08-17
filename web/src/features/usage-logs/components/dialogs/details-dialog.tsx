@@ -49,6 +49,7 @@ import {
   UserCog,
   Info,
   LogIn,
+  Coins,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -168,6 +169,13 @@ function DetailSection(props: {
 function formatRatio(ratio: number | undefined): string {
   if (ratio == null) return '-'
   return ratio.toFixed(4)
+}
+
+function formatRatioCompact(ratio: number | undefined): string {
+  if (ratio == null || !Number.isFinite(ratio)) return '-'
+  return ratio % 1 === 0
+    ? String(ratio)
+    : ratio.toFixed(4).replace(/\.?0+$/, '')
 }
 
 function getUsageBillingPathLabel(
@@ -500,6 +508,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const showAdminIp =
     !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
   const adminInfo = other?.admin_info
+  const channelCost = props.isAdmin ? adminInfo?.channel_cost : undefined
+  const channelCostProfit = channelCost?.profit ?? 0
+  let channelCostProfitClass: string | undefined
+  if (channelCostProfit > 0) channelCostProfitClass = 'text-success'
+  else if (channelCostProfit < 0) channelCostProfitClass = 'text-destructive'
   const topupAuditFields =
     isTopup && props.isAdmin && adminInfo
       ? ([
@@ -1069,6 +1082,58 @@ export function DetailsDialog(props: DetailsDialogProps) {
             other={other}
             isAdmin={props.isAdmin}
           />
+        )}
+
+        {/* Channel call cost snapshot (admin only) */}
+        {channelCost && (
+          <DetailSection
+            icon={<Coins className='size-3.5' aria-hidden='true' />}
+            iconTone='chart-2'
+            label={t('Channel Cost')}
+          >
+            <DetailRow
+              label={t('Mode')}
+              value={
+                channelCost.mode === 'fixed' ? t('Fixed') : t('Discount')
+              }
+            />
+            {channelCost.mode === 'discount' &&
+              channelCost.discount != null && (
+                <DetailRow
+                  label={t('Discount Ratio')}
+                  value={`×${formatRatioCompact(channelCost.discount)}`}
+                  mono
+                />
+              )}
+            {channelCost.mode === 'fixed' &&
+              channelCost.fixed_price != null && (
+                <DetailRow
+                  label={t('Fixed Price')}
+                  value={`${formatBillingCurrencyFromUSD(
+                    channelCost.fixed_price,
+                    { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
+                  )}/call`}
+                  mono
+                />
+              )}
+            <DetailRow
+              label={t('Cost')}
+              value={formatLogQuota(channelCost.cost ?? 0)}
+              mono
+            />
+            <DetailRow
+              label={t('Profit')}
+              value={
+                <span
+                  className={cn(channelCostProfitClass)}
+                >
+                  {channelCostProfit > 0 ? '+' : ''}
+                  {formatLogQuota(channelCostProfit)}
+                </span>
+              }
+              mono
+            />
+          </DetailSection>
         )}
 
         {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}

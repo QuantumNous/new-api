@@ -578,6 +578,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logPlanTitle string
 	var logMoney float64
 	var logPaymentMethod string
+	var logPlanQuota int64
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
@@ -631,6 +632,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		logPlanTitle = plan.Title
 		logMoney = order.Money
 		logPaymentMethod = order.PaymentMethod
+		logPlanQuota = plan.TotalAmount
 		return nil
 	})
 	if err != nil {
@@ -641,7 +643,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	}
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
-		RecordLog(logUserId, LogTypeTopup, msg)
+		// 订阅与充值口径一致：平台实收折合额度 vs 送出的套餐配额，超出部分即让利（成本），
+		// 由订阅用户后续调用时通过渠道成本差价赚回。无限配额（TotalAmount=0）无法量化，不记。
+		RecordTopupLog(logUserId, msg, "", logPaymentMethod, "", int(logPlanQuota), logMoney)
 	}
 	return nil
 }
@@ -761,6 +765,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var logPlanTitle string
 	var logMoney float64
 	var chargedQuota int
+	var logPlanQuota int64
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
@@ -821,6 +826,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 
 		logPlanTitle = plan.Title
 		logMoney = plan.PriceAmount
+		logPlanQuota = plan.TotalAmount
 		chargedQuota = requiredQuota
 		if subscription.PrevUserGroup != "" {
 			upgradeGroup = strings.TrimSpace(subscription.UpgradeGroup)
@@ -840,7 +846,8 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		refreshSubscriptionUserGroupCache(userId, "subscription balance purchase")
 	}
 	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
-	RecordLog(userId, LogTypeTopup, msg)
+	// 余额订阅同样按"实收折合 vs 送出套餐配额"记让利（无折扣时实收 = PriceAmount×QuotaPerUnit）。
+	RecordTopupLog(userId, msg, "", PaymentMethodBalance, "", int(logPlanQuota), logMoney)
 	return nil
 }
 

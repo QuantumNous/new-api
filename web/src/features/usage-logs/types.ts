@@ -142,6 +142,15 @@ export interface LogOtherData {
       original: number
       clamped: number
     }
+    // Channel call cost snapshot (admin only): mode/discount/fixed_price plus
+    // the computed cost and profit (profit = quota - cost) in quota units.
+    channel_cost?: {
+      mode?: string
+      discount?: number
+      fixed_price?: number
+      cost?: number
+      profit?: number
+    }
   }
   // Language-independent operation descriptor (audit/login logs).
   // Frontend renders localized content from action + params via i18n templates.
