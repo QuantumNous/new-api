@@ -22,6 +22,7 @@ import (
 
 	blockrunSDK "github.com/BlockRunAI/blockrun-llm-go"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"gorm.io/gorm"
 )
 
@@ -939,8 +940,15 @@ type PatchChannel struct {
 
 func UpdateChannel(c *gin.Context) {
 	channel := PatchChannel{}
-	err := c.ShouldBindJSON(&channel)
+	err := c.ShouldBindBodyWith(&channel, binding.JSON)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	var presence struct {
+		MaxConcurrency *int `json:"max_concurrency"`
+	}
+	if err = c.ShouldBindBodyWith(&presence, binding.JSON); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -1082,7 +1090,11 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
-	err = channel.Update()
+	if presence.MaxConcurrency != nil {
+		err = channel.UpdateWithMaxConcurrency()
+	} else {
+		err = channel.Update()
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
