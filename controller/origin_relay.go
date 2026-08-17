@@ -21,7 +21,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func prepareOriginExecution(c *gin.Context, info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest, inputTokens int) *types.NewAPIError {
+func prepareOriginExecution(c *gin.Context, info *relaycommon.RelayInfo, request dto.Request, inputTokens int) *types.NewAPIError {
 	credential, ok := origin.Credential(c)
 	if !ok || info == nil || request == nil {
 		return types.NewErrorWithStatusCode(errors.New("Origin request context is incomplete"), types.ErrorCodeAccessDenied, http.StatusUnauthorized, types.ErrOptionWithSkipRetry())
@@ -31,20 +31,34 @@ func prepareOriginExecution(c *gin.Context, info *relaycommon.RelayInfo, request
 	if manager == nil {
 		return types.NewErrorWithStatusCode(errors.New("Origin Platform is unavailable"), types.ErrorCode("platform_unavailable"), http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
 	}
+	operation := ""
 	maxOutputTokens := 0
-	if request.MaxOutputTokens != nil {
-		maxOutputTokens = int(*request.MaxOutputTokens)
+	capabilities := origin.RequestedCapabilities{Streaming: info.IsStream}
+	switch value := request.(type) {
+	case *dto.OpenAIResponsesRequest:
+		operation = "responses"
+		if value.MaxOutputTokens != nil {
+			maxOutputTokens = int(*value.MaxOutputTokens)
+		}
+		capabilities.FunctionTools = len(value.Tools) > 0
+		capabilities.Reasoning = value.Reasoning != nil
+	case *dto.ClaudeRequest:
+		operation = "messages"
+		if value.MaxTokens != nil {
+			maxOutputTokens = int(*value.MaxTokens)
+		}
+		capabilities.FunctionTools = len(value.GetTools()) > 0
+		capabilities.Reasoning = value.Thinking != nil
+	default:
+		return types.NewErrorWithStatusCode(errors.New("Origin integration does not support this protocol"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	}
 	grant, err := manager.Admit(c.Request.Context(), credential, origin.AdmissionInput{
 		RequestID:          info.RequestId,
 		PlatformModel:      info.OriginModelName,
+		Operation:          operation,
 		InputTokenEstimate: inputTokens,
 		MaxOutputTokens:    maxOutputTokens,
-		Capabilities: origin.RequestedCapabilities{
-			Streaming:     info.IsStream,
-			FunctionTools: len(request.Tools) > 0,
-			Reasoning:     request.Reasoning != nil,
-		},
+		Capabilities:       capabilities,
 	})
 	if err != nil {
 		return originRelayError(err)
@@ -67,7 +81,7 @@ func prepareOriginExecution(c *gin.Context, info *relaycommon.RelayInfo, request
 	common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{})
 	common.SetContextKey(c, constant.ContextKeyChannelHeaderOverride, map[string]any{})
 	info.DisablePing = true
-	info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+	info.FinalRequestRelayFormat = info.RelayFormat
 	origin.SetExecution(c, origin.Execution{Grant: grant, ChannelID: channelID})
 	return nil
 }
@@ -133,6 +147,7 @@ func createOriginAttempt(c *gin.Context, info *relaycommon.RelayInfo, attemptNum
 		CatalogVersion:  execution.Grant.Admission.ApprovedCatalogVersion,
 		RouteID:         execution.Grant.Route.RouteID,
 		PlatformModel:   execution.Grant.Route.PlatformModel,
+		Operation:       execution.Grant.Route.Operation,
 		UpstreamModelID: execution.Grant.Route.UpstreamModelID,
 		ChannelID:       execution.ChannelID,
 		AttemptNumber:   attemptNumber,

@@ -42,12 +42,27 @@ func (control *originE2EControl) CreateAdmission(_ context.Context, _ string, re
 		RequestID: request.RequestID, TenantID: "01980000-0000-7000-8000-000000000003",
 		ProjectID: "01980000-0000-7000-8000-000000000004", APIKeyID: "01980000-0000-7000-8000-000000000005",
 		ReservationID: "01980000-0000-7000-8000-000000000006", ApprovedCatalogVersion: request.CatalogVersion,
-		RouteID: "route_codex_responses_primary", ExpiresAt: "2026-08-14T05:10:00Z",
+		RouteID: map[string]string{
+			"responses": "route_codex_responses_primary",
+			"messages":  "route_agent_messages_primary",
+		}[request.Operation], ExpiresAt: "2026-08-14T05:10:00Z",
 	}, nil
 }
 
 func (control *originE2EControl) FetchCatalog(context.Context, string, string) (origin.CatalogFetchResult, error) {
 	return origin.CatalogFetchResult{}, errors.New("unexpected catalog fetch")
+}
+
+func (control *originE2EControl) ListOriginModels(_ context.Context, _ string, requestID, operation string) (origin.OriginModelList, error) {
+	models := []string{"origin-codex"}
+	if operation == "messages" {
+		models = []string{"origin-agent"}
+	}
+	return origin.OriginModelList{
+		RequestID: requestID, TenantID: "01980000-0000-7000-8000-000000000003",
+		ProjectID: "01980000-0000-7000-8000-000000000004", APIKeyID: "01980000-0000-7000-8000-000000000005",
+		CatalogVersion: 42, Models: models,
+	}, nil
 }
 
 func (control *originE2EControl) admissionRequests() []origin.AdmissionRequest {
@@ -133,6 +148,7 @@ func setupOriginE2ERouter(t *testing.T, control *originE2EControl, transport htt
 	var event origin.CatalogExecutionSnapshotPublishedV1
 	require.NoError(t, common.Unmarshal(raw, &event))
 	event.Payload.Routes[0].ApprovedChannelID = "7"
+	event.Payload.Routes[1].ApprovedChannelID = "7"
 	event.Payload.ContentSHA256, err = origin.CanonicalSnapshotHash(event.Payload)
 	require.NoError(t, err)
 	raw, err = common.Marshal(event)
@@ -169,6 +185,10 @@ func setupOriginE2ERouter(t *testing.T, control *originE2EControl, transport htt
 	router.POST("/v1/responses", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
 		Relay(c, types.RelayFormatOpenAIResponses)
 	})
+	router.POST("/v1/messages", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
+		Relay(c, types.RelayFormatClaude)
+	})
+	router.POST("/v1/messages/count_tokens", middleware.TokenAuth(), CountOriginMessageTokens)
 	return router, channel
 }
 
@@ -177,6 +197,15 @@ func originResponsesRequest(t *testing.T, body string) *http.Request {
 	request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
 	request.Header.Set("Authorization", "Bearer sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd")
 	request.Header.Set("Content-Type", "application/json")
+	return request
+}
+
+func originMessagesRequest(t *testing.T, path, body string) *http.Request {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("anthropic-version", "2023-06-01")
 	return request
 }
 
@@ -225,6 +254,177 @@ func TestOriginResponsesE2EPreservesUnknownFieldsToolsUsageAndMapsModelOnce(t *t
 	assert.Equal(t, "SETTLE", usageEvent.ReservationAction)
 	assert.Equal(t, "REPORTED", usageEvent.UsageStatus)
 	assert.Len(t, usageEvent.Items, 4)
+}
+
+func TestOriginMessagesE2EUsesNativeProtocolAdmissionAndAuthoritativeUsage(t *testing.T) {
+	control := &originE2EControl{}
+	var upstreamBody string
+	var upstreamAuthorization string
+	var upstreamAPIKey string
+	transport := originRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body, err := io.ReadAll(request.Body)
+		require.NoError(t, err)
+		upstreamBody = string(body)
+		upstreamAuthorization = request.Header.Get("Authorization")
+		upstreamAPIKey = request.Header.Get("x-api-key")
+		response := `{"id":"msg_beenex_1","type":"message","role":"assistant","model":"beenex-claude-1","content":[{"type":"tool_use","id":"tool_1","name":"lookup","input":{"city":"杭州"}},{"type":"thinking","thinking":"summary","signature":"sig"}],"stop_reason":"tool_use","usage":{"input_tokens":10,"cache_creation_input_tokens":4,"cache_read_input_tokens":3,"output_tokens":5}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}, "X-Request-Id": []string{"msg_beenex_1"}},
+			Body:       io.NopCloser(strings.NewReader(response)), Request: request,
+		}, nil
+	})
+	router, _ := setupOriginE2ERouter(t, control, transport, 0)
+	body := `{"model":"origin-agent","messages":[{"role":"user","content":"hello"}],"max_tokens":256,"tools":[{"name":"lookup","description":"Lookup","input_schema":{"type":"object"}}],"thinking":{"type":"enabled","budget_tokens":1024}}`
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, originMessagesRequest(t, "/v1/messages", body))
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "Bearer server-side-beenex-key", upstreamAuthorization)
+	assert.Equal(t, "server-side-beenex-key", upstreamAPIKey)
+	assert.NotContains(t, upstreamAuthorization+upstreamAPIKey+upstreamBody, "sk-oa-")
+	assert.Contains(t, upstreamBody, `"model":"beenex-claude-1"`)
+	assert.NotContains(t, upstreamBody, `"model":"origin-agent"`)
+	assert.Contains(t, recorder.Body.String(), `"id":"msg_beenex_1"`)
+	assert.Contains(t, recorder.Body.String(), `"type":"thinking"`)
+	assert.Contains(t, recorder.Body.String(), `"model":"origin-agent"`)
+	assert.NotContains(t, recorder.Body.String(), "beenex-claude-1")
+
+	admissions := control.admissionRequests()
+	require.Len(t, admissions, 1)
+	assert.Equal(t, "messages", admissions[0].Operation)
+	assert.ElementsMatch(t, []string{"function_tools", "reasoning"}, admissions[0].RequestedCapabilities)
+	assert.False(t, admissions[0].Stream)
+
+	var attempt model.OriginRequestAttempt
+	require.NoError(t, model.DB.First(&attempt).Error)
+	assert.Equal(t, "messages", attempt.Operation)
+	assert.Equal(t, "beenex-claude-1", attempt.UpstreamModelID)
+	assert.Equal(t, model.OriginAttemptSucceeded, attempt.Status)
+	var outbox model.OriginUsageOutbox
+	require.NoError(t, model.DB.First(&outbox).Error)
+	var event origin.MeteringUsageRecordedV2
+	require.NoError(t, common.Unmarshal([]byte(outbox.Payload), &event))
+	assert.Equal(t, "messages", event.Operation)
+	assert.Equal(t, "SETTLE", event.ReservationAction)
+	quantities := map[string]string{}
+	for _, item := range event.Items {
+		quantities[item.MeterType] = item.Quantity
+	}
+	assert.Equal(t, "14", quantities["INPUT_TOKEN"])
+	assert.Equal(t, "5", quantities["OUTPUT_TOKEN"])
+	assert.Equal(t, "3", quantities["CACHED_TOKEN"])
+}
+
+func TestOriginMessagesSSEPreservesClaudeEventsAndEmitsMessagesStreamUsage(t *testing.T) {
+	control := &originE2EControl{}
+	transport := originRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		stream := "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_stream_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"beenex-claude-1\",\"content\":[],\"usage\":{\"input_tokens\":10,\"cache_creation_input_tokens\":4,\"cache_read_input_tokens\":3,\"output_tokens\":0}}}\n\n" +
+			"data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"tool_1\",\"name\":\"lookup\",\"input\":{}}}\n\n" +
+			"data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"city\\\":\\\"杭州\\\"}\"}}\n\n" +
+			"data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"},\"usage\":{\"output_tokens\":5}}\n\n" +
+			"data: {\"type\":\"message_stop\"}\n\n"
+		return &http.Response{
+			StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader(stream)), Request: request,
+		}, nil
+	})
+	router, _ := setupOriginE2ERouter(t, control, transport, 0)
+	recorder := httptest.NewRecorder()
+	body := `{"model":"origin-agent","messages":[{"role":"user","content":"hello"}],"max_tokens":256,"stream":true,"tools":[{"name":"lookup","input_schema":{"type":"object"}}]}`
+
+	router.ServeHTTP(recorder, originMessagesRequest(t, "/v1/messages", body))
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"type":"message_start"`)
+	assert.Contains(t, recorder.Body.String(), `"model":"origin-agent"`)
+	assert.NotContains(t, recorder.Body.String(), "beenex-claude-1")
+	assert.Contains(t, recorder.Body.String(), `"type":"input_json_delta"`)
+	assert.Contains(t, recorder.Body.String(), `"type":"message_stop"`)
+	admissions := control.admissionRequests()
+	require.Len(t, admissions, 1)
+	assert.Equal(t, "messages", admissions[0].Operation)
+	assert.True(t, admissions[0].Stream)
+	var outbox model.OriginUsageOutbox
+	require.NoError(t, model.DB.First(&outbox).Error)
+	var event origin.MeteringUsageRecordedV2
+	require.NoError(t, common.Unmarshal([]byte(outbox.Payload), &event))
+	assert.Equal(t, "messages_stream", event.Operation)
+	assert.Equal(t, "SETTLE", event.ReservationAction)
+}
+
+func TestOriginMessagesAdmissionFailureUsesAnthropicEnvelopeAndNeverContactsUpstream(t *testing.T) {
+	control := &originE2EControl{rejected: &origin.ControlError{Status: http.StatusForbidden, Code: "origin_key_scope_denied"}}
+	upstreamCalls := 0
+	transport := originRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		upstreamCalls++
+		return nil, errors.New("must not be called")
+	})
+	router, _ := setupOriginE2ERouter(t, control, transport, 0)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, originMessagesRequest(t, "/v1/messages", `{"model":"origin-agent","messages":[{"role":"user","content":"hello"}],"max_tokens":32}`))
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Zero(t, upstreamCalls)
+	assert.JSONEq(t, `{"type":"error","error":{"type":"permission_error","message":"Origin admission rejected: origin_key_scope_denied (request id: `+recorder.Header().Get("X-Request-Id")+`)"},"request_id":"`+recorder.Header().Get("X-Request-Id")+`"}`, recorder.Body.String())
+}
+
+func TestOriginCountTokensVerifiesMessagesModelWithoutAdmissionUpstreamOrUsage(t *testing.T) {
+	control := &originE2EControl{}
+	upstreamCalls := 0
+	transport := originRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		upstreamCalls++
+		return nil, errors.New("must not be called")
+	})
+	router, _ := setupOriginE2ERouter(t, control, transport, 0)
+	recorder := httptest.NewRecorder()
+	body := `{"model":"origin-agent","messages":[{"role":"user","content":"hello"}],"tools":[{"name":"lookup","input_schema":{"type":"object"}}]}`
+
+	router.ServeHTTP(recorder, originMessagesRequest(t, "/v1/messages/count_tokens", body))
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Positive(t, recorder.Body.String())
+	assert.Contains(t, recorder.Body.String(), `"input_tokens":`)
+	assert.Zero(t, upstreamCalls)
+	assert.Empty(t, control.admissionRequests())
+	var attempts int64
+	require.NoError(t, model.DB.Model(&model.OriginRequestAttempt{}).Count(&attempts).Error)
+	assert.Zero(t, attempts)
+	var outboxes int64
+	require.NoError(t, model.DB.Model(&model.OriginUsageOutbox{}).Count(&outboxes).Error)
+	assert.Zero(t, outboxes)
+}
+
+func TestOriginMessagesRejectsUnknownFieldsAndOriginKeyInBodyBeforeAdmission(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "unknown field", body: `{"model":"origin-agent","messages":[{"role":"user","content":"hello"}],"max_tokens":32,"unsupported_option":true}`},
+		{name: "Origin Key in body", body: `{"model":"origin-agent","messages":[{"role":"user","content":"sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd"}],"max_tokens":32}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			control := &originE2EControl{}
+			upstreamCalls := 0
+			transport := originRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+				upstreamCalls++
+				return nil, errors.New("must not be called")
+			})
+			router, _ := setupOriginE2ERouter(t, control, transport, 0)
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, originMessagesRequest(t, "/v1/messages", test.body))
+
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), `"type":"invalid_request_error"`)
+			assert.NotContains(t, recorder.Body.String(), "sk-oa-")
+			assert.Zero(t, upstreamCalls)
+			assert.Empty(t, control.admissionRequests())
+		})
+	}
 }
 
 func TestOriginResponsesFailedOutcomeSettlesReportedUsageAsFailure(t *testing.T) {

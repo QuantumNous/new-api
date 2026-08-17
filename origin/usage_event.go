@@ -44,9 +44,16 @@ func BuildUsageEvent(eventID string, outcomeVersion int64, attempt model.OriginR
 		return MeteringUsageRecordedV2{}, errors.New("invalid Origin usage error category")
 	}
 
-	operation := "responses"
+	baseOperation := attempt.Operation
+	if baseOperation == "" {
+		baseOperation = "responses"
+	}
+	if baseOperation != "responses" && baseOperation != "messages" {
+		return MeteringUsageRecordedV2{}, errors.New("invalid Origin usage operation")
+	}
+	operation := baseOperation
 	if stream {
-		operation = "responses_stream"
+		operation += "_stream"
 	}
 	event := MeteringUsageRecordedV2{
 		EventID:          eventID,

@@ -352,6 +352,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		isAnthropicMessagesPath := c.Request.URL.Path == "/v1/messages" || c.Request.URL.Path == "/v1/messages/count_tokens"
 		// 先检测是否为ws
 		if c.Request.Header.Get("Sec-WebSocket-Protocol") != "" {
 			// Sec-WebSocket-Protocol: realtime, openai-insecure-api-key.sk-xxx, openai-beta.realtime-v1
@@ -373,7 +374,11 @@ func TokenAuth() func(c *gin.Context) {
 				if strings.HasPrefix(alternativeKey, "sk-oa-") {
 					c.Request.Header.Del(header)
 					origin.EnsureRequestID(c)
-					abortWithOpenAiMessage(c, http.StatusUnauthorized, "Origin Key must use Authorization: Bearer")
+					if isAnthropicMessagesPath {
+						abortWithOriginMessage(c, http.StatusUnauthorized, "authentication_error", "Origin Key must use Authorization: Bearer")
+					} else {
+						abortWithOpenAiMessage(c, http.StatusUnauthorized, "Origin Key must use Authorization: Bearer")
+					}
 					return
 				}
 			}
@@ -383,7 +388,11 @@ func TokenAuth() func(c *gin.Context) {
 				c.Request.URL.RawQuery = query.Encode()
 				c.Request.RequestURI = c.Request.URL.RequestURI()
 				origin.EnsureRequestID(c)
-				abortWithOpenAiMessage(c, http.StatusUnauthorized, "Origin Key must not be sent in the URL")
+				if isAnthropicMessagesPath {
+					abortWithOriginMessage(c, http.StatusUnauthorized, "authentication_error", "Origin Key must not be sent in the URL")
+				} else {
+					abortWithOpenAiMessage(c, http.StatusUnauthorized, "Origin Key must not be sent in the URL")
+				}
 				return
 			}
 		}
@@ -417,14 +426,20 @@ func TokenAuth() func(c *gin.Context) {
 		if origin.Enabled() && strings.HasPrefix(key, "sk-oa-") {
 			c.Request.Header.Del("Authorization")
 			if !origin.SetCredential(c, key) {
-				abortWithOpenAiMessage(c, http.StatusUnauthorized, "invalid Origin Key")
+				origin.EnsureRequestID(c)
+				if isAnthropicMessagesPath {
+					abortWithOriginMessage(c, http.StatusUnauthorized, "authentication_error", "invalid Origin Key")
+				} else {
+					abortWithOpenAiMessage(c, http.StatusUnauthorized, "invalid Origin Key")
+				}
 				return
 			}
 			defer origin.ClearCredential(c)
 			isResponses := c.Request.Method == http.MethodPost && c.Request.URL.Path == "/v1/responses"
+			isMessages := c.Request.Method == http.MethodPost && isAnthropicMessagesPath
 			isModelDiscovery := c.Request.Method == http.MethodGet && c.Request.URL.Path == "/v1/models"
-			if !isResponses && !isModelDiscovery {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "Origin Key is only valid for POST /v1/responses or GET /v1/models", types.ErrorCodeAccessDenied)
+			if !isResponses && !isMessages && !isModelDiscovery {
+				abortWithOpenAiMessage(c, http.StatusForbidden, "Origin Key is only valid for POST /v1/responses, POST /v1/messages, POST /v1/messages/count_tokens, or GET /v1/models", types.ErrorCodeAccessDenied)
 				return
 			}
 			origin.EnsureRequestID(c)

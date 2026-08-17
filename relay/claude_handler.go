@@ -2,6 +2,7 @@ package relay
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/origin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -34,6 +36,9 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	request, err := common.DeepCopy(claudeReq)
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to ClaudeRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	if execution, isOriginRequest := origin.ExecutionFromContext(c); isOriginRequest {
+		return originClaudeMessagesHelper(c, info, request, execution)
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)
@@ -226,5 +231,68 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+	return nil
+}
+
+func originClaudeMessagesHelper(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest, execution origin.Execution) *types.NewAPIError {
+	info.UpstreamModelName = execution.Grant.Route.UpstreamModelID
+	info.IsModelMapped = info.OriginModelName != info.UpstreamModelName
+	request.SetModelName(info.UpstreamModelName)
+
+	adaptor := GetAdaptor(info.ApiType)
+	if adaptor == nil {
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+	}
+	adaptor.Init(info)
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+	}
+	rawBody, err := storage.Bytes()
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+	}
+	jsonData, err := origin.RewriteMessagesModel(rawBody, info.UpstreamModelName)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	requestBody, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	defer closer.Close()
+
+	response, err := adaptor.DoRequest(c, info, requestBody)
+	if err != nil {
+		origin.MarkUpstreamOutcomeUnknown(c)
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+	httpResponse, ok := response.(*http.Response)
+	if !ok || httpResponse == nil {
+		return types.NewError(errors.New("Origin Messages upstream returned no response"), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	}
+	providerRequestID := httpResponse.Header.Get("X-Request-Id")
+	if providerRequestID == "" {
+		providerRequestID = httpResponse.Header.Get("Request-Id")
+	}
+	origin.MarkUpstreamContacted(c, providerRequestID)
+	info.IsStream = info.IsStream || strings.HasPrefix(httpResponse.Header.Get("Content-Type"), "text/event-stream")
+	if httpResponse.StatusCode != http.StatusOK {
+		return service.RelayErrorHandler(c.Request.Context(), httpResponse, false)
+	}
+
+	if _, relayErr := adaptor.DoResponse(c, httpResponse, info); relayErr != nil {
+		return relayErr
+	}
+	if info.IsStream {
+		if info.ReceivedResponseCount == 0 {
+			return types.NewErrorWithStatusCode(errors.New("Origin upstream stream ended before the first event"), types.ErrorCodeEmptyResponse, http.StatusBadGateway)
+		}
+		if info.StreamStatus != nil && info.StreamStatus.IsNormalEnd() {
+			origin.MarkUpstreamCompleted(c, providerRequestID)
+		}
+	} else {
+		origin.MarkUpstreamCompleted(c, providerRequestID)
+	}
 	return nil
 }

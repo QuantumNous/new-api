@@ -1,0 +1,101 @@
+name: Publish Origin runtime image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, tag, or branch to publish for the Origin test release
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sha: ${{ steps.revision.outputs.sha }}
+    env:
+      GOWORK: "off"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          ref: ${{ inputs.ref || github.sha }}
+
+      - id: revision
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            relaykit/go.sum
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: "1.3.14"
+
+      - name: Verify backend and independent relaykit module
+        run: |
+          mkdir -p web/dist
+          touch web/dist/index.html
+          go vet ./...
+          go build ./...
+          make test
+          (cd relaykit && go vet ./... && go build ./...)
+
+      - name: Verify frontend
+        working-directory: web
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun test
+          bun run build
+
+  image:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.verify.outputs.sha }}
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/shuohaowang/new-api:${{ needs.verify.outputs.sha }}
+          labels: org.opencontainers.image.revision=${{ needs.verify.outputs.sha }}
+          cache-from: type=gha,scope=origin-runtime
+          cache-to: type=gha,mode=max,scope=origin-runtime
+          provenance: mode=max
+          sbom: true
+
+      - name: Publish immutable image summary
+        run: |
+          echo "### Origin New API image" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${{ needs.verify.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: \`ghcr.io/shuohaowang/new-api:${{ needs.verify.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+

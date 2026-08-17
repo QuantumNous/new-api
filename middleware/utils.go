@@ -26,6 +26,20 @@ func abortWithOpenAiMessage(c *gin.Context, statusCode int, message string, code
 	logger.LogError(c.Request.Context(), fmt.Sprintf("user %d | %s", userId, message))
 }
 
+func abortWithOriginMessage(c *gin.Context, statusCode int, errorType, message string) {
+	requestID := c.GetString(common.RequestIdKey)
+	c.JSON(statusCode, gin.H{
+		"type": "error",
+		"error": gin.H{
+			"type":    errorType,
+			"message": common.MessageWithRequestId(message, requestID),
+		},
+		"request_id": requestID,
+	})
+	c.Abort()
+	logger.LogError(c.Request.Context(), fmt.Sprintf("Origin request rejected: %s", errorType))
+}
+
 func abortWithMidjourneyMessage(c *gin.Context, statusCode int, code int, description string) {
 	c.JSON(statusCode, gin.H{
 		"description": description,

@@ -38,7 +38,7 @@ func (control *originModelsControl) FetchCatalog(
 }
 
 func (control *originModelsControl) ListOriginModels(
-	_ context.Context, originKey, requestID string,
+	_ context.Context, originKey, requestID, _ string,
 ) (origin.OriginModelList, error) {
 	control.originKey = originKey
 	control.requestID = requestID

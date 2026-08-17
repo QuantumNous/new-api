@@ -44,6 +44,53 @@ func TestTokenAuthKeepsCompleteOriginKeyAndRemovesAuthorizationHeader(t *testing
 	assert.False(t, credentialRetained)
 }
 
+func TestTokenAuthAllowsOriginKeyForAnthropicMessagesEndpoints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	restore := origin.ConfigureForTest(true, nil)
+	t.Cleanup(restore)
+
+	for _, path := range []string{"/v1/messages", "/v1/messages/count_tokens"} {
+		t.Run(path, func(t *testing.T) {
+			router := gin.New()
+			router.POST(path, TokenAuth(), func(c *gin.Context) {
+				key, ok := origin.Credential(c)
+				require.True(t, ok)
+				assert.Equal(t, originAuthTestKey, key)
+				assert.Empty(t, c.Request.Header.Get("Authorization"))
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, path, nil)
+			request.Header.Set("Authorization", "Bearer "+originAuthTestKey)
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusNoContent, response.Code)
+			assert.NotEmpty(t, response.Header().Get("X-Request-Id"))
+		})
+	}
+}
+
+func TestTokenAuthRejectsOriginKeyInAnthropicHeaderWithAnthropicEnvelope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	restore := origin.ConfigureForTest(true, nil)
+	t.Cleanup(restore)
+	router := gin.New()
+	router.POST("/v1/messages", TokenAuth(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	request.Header.Set("x-api-key", originAuthTestKey)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
+	assert.Empty(t, request.Header.Get("x-api-key"))
+	assert.JSONEq(t, `{"type":"error","error":{"type":"authentication_error","message":"Origin Key must use Authorization: Bearer (request id: `+response.Header().Get("X-Request-Id")+`)"},"request_id":"`+response.Header().Get("X-Request-Id")+`"}`, response.Body.String())
+	assert.NotContains(t, response.Body.String(), originAuthTestKey)
+}
+
 func TestTokenAuthRejectsMalformedOriginKeyWithoutDatabaseLookup(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	restore := origin.ConfigureForTest(true, nil)

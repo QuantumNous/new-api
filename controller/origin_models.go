@@ -24,7 +24,7 @@ func ListOriginModels(c *gin.Context) {
 		writeOriginModelsError(c, http.StatusServiceUnavailable, "platform_unavailable", "Origin Platform is unavailable")
 		return
 	}
-	result, err := manager.ListModels(c.Request.Context(), originKey, requestID)
+	result, err := manager.ListModels(c.Request.Context(), originKey, requestID, c.Query("operation"))
 	if err != nil {
 		var controlError *origin.ControlError
 		switch {

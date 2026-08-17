@@ -99,10 +99,18 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
 			case types.RelayFormatClaude:
-				c.JSON(newAPIError.StatusCode, gin.H{
-					"type":  "error",
-					"error": newAPIError.ToClaudeError(),
-				})
+				if origin.IsRequest(c) {
+					c.JSON(newAPIError.StatusCode, gin.H{
+						"type":       "error",
+						"error":      originClaudeError(newAPIError),
+						"request_id": requestId,
+					})
+				} else {
+					c.JSON(newAPIError.StatusCode, gin.H{
+						"type":  "error",
+						"error": newAPIError.ToClaudeError(),
+					})
+				}
 			default:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"error": newAPIError.ToOpenAIError(),
@@ -116,6 +124,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// Map "request body too large" to 413 so clients can handle it correctly
 		if common.IsRequestBodyTooLargeError(err) || errors.Is(err, common.ErrRequestBodyTooLarge) {
 			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusRequestEntityTooLarge, types.ErrOptionWithSkipRetry())
+		} else if origin.IsRequest(c) && relayFormat == types.RelayFormatClaude {
+			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		} else {
 			newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest)
 		}
@@ -128,6 +138,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 	isOriginRequest := origin.IsRequest(c)
+	if isOriginRequest && relayFormat == types.RelayFormatClaude {
+		claudeRequest, ok := request.(*dto.ClaudeRequest)
+		originKey, hasOriginKey := origin.Credential(c)
+		if !ok || !hasOriginKey || claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 || c.GetHeader("anthropic-version") != "2023-06-01" ||
+			validateOriginMessagesBody(c, false, originKey) != nil {
+			newAPIError = types.NewErrorWithStatusCode(errors.New("invalid Origin Messages request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			return
+		}
+	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken || isOriginRequest
@@ -162,12 +181,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.SetEstimatePromptTokens(tokens)
 
 	if isOriginRequest {
-		responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
-		if !ok || relayFormat != types.RelayFormatOpenAIResponses {
-			newAPIError = types.NewErrorWithStatusCode(errors.New("Origin integration only supports OpenAI Responses"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		validOriginFormat := relayFormat == types.RelayFormatOpenAIResponses || relayFormat == types.RelayFormatClaude
+		if !validOriginFormat {
+			newAPIError = types.NewErrorWithStatusCode(errors.New("Origin integration only supports Responses or Messages"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 			return
 		}
-		newAPIError = prepareOriginExecution(c, relayInfo, responsesRequest, tokens)
+		newAPIError = prepareOriginExecution(c, relayInfo, request, tokens)
 		if newAPIError != nil {
 			return
 		}
@@ -327,6 +346,25 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func originClaudeError(err *types.NewAPIError) types.ClaudeError {
+	errorType := "api_error"
+	switch err.StatusCode {
+	case http.StatusBadRequest:
+		errorType = "invalid_request_error"
+	case http.StatusUnauthorized:
+		errorType = "authentication_error"
+	case http.StatusForbidden:
+		errorType = "permission_error"
+	case http.StatusNotFound:
+		errorType = "not_found_error"
+	case http.StatusTooManyRequests:
+		errorType = "rate_limit_error"
+	case http.StatusServiceUnavailable:
+		errorType = "overloaded_error"
+	}
+	return types.ClaudeError{Type: errorType, Message: err.MaskSensitiveError()}
 }
 
 var upgrader = websocket.Upgrader{

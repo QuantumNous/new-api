@@ -18,12 +18,13 @@ type ControlPlane interface {
 }
 
 type ModelDiscoveryControlPlane interface {
-	ListOriginModels(context.Context, string, string) (OriginModelList, error)
+	ListOriginModels(context.Context, string, string, string) (OriginModelList, error)
 }
 
 type AdmissionInput struct {
 	RequestID          string
 	PlatformModel      string
+	Operation          string
 	InputTokenEstimate int
 	MaxOutputTokens    int
 	Capabilities       RequestedCapabilities
@@ -48,12 +49,12 @@ func NewManager(control ControlPlane, catalog *CatalogView, now func() time.Time
 	return &Manager{control: control, catalog: catalog, now: now}
 }
 
-func (manager *Manager) ListModels(ctx context.Context, originKey, requestID string) (OriginModelList, error) {
+func (manager *Manager) ListModels(ctx context.Context, originKey, requestID, operation string) (OriginModelList, error) {
 	control, ok := manager.control.(ModelDiscoveryControlPlane)
 	if !ok || control == nil {
 		return OriginModelList{}, ErrPlatformUnavailable
 	}
-	return control.ListOriginModels(ctx, originKey, requestID)
+	return control.ListOriginModels(ctx, originKey, requestID, operation)
 }
 
 func (manager *Manager) Admit(ctx context.Context, originKey string, input AdmissionInput) (AdmissionGrant, error) {
@@ -95,7 +96,10 @@ func (manager *Manager) admissionRequest(input AdmissionInput) (AdmissionRequest
 	if _, err := uuid.Parse(input.RequestID); err != nil || input.InputTokenEstimate < 0 || input.MaxOutputTokens < 0 {
 		return AdmissionRequest{}, errors.New("invalid Origin admission input")
 	}
-	route, err := manager.catalog.ApprovedRoute(input.PlatformModel, input.Capabilities, input.InputTokenEstimate, input.MaxOutputTokens)
+	if input.Operation != "responses" && input.Operation != "messages" {
+		return AdmissionRequest{}, errors.New("invalid Origin operation")
+	}
+	route, err := manager.catalog.ApprovedRoute(input.PlatformModel, input.Operation, input.Capabilities, input.InputTokenEstimate, input.MaxOutputTokens)
 	if err != nil {
 		return AdmissionRequest{}, err
 	}
@@ -116,7 +120,7 @@ func (manager *Manager) admissionRequest(input AdmissionInput) (AdmissionRequest
 	return AdmissionRequest{
 		RequestID:             input.RequestID,
 		PlatformModel:         input.PlatformModel,
-		Operation:             "responses",
+		Operation:             input.Operation,
 		CatalogVersion:        manager.catalog.Version(),
 		InputTokenEstimate:    int64(input.InputTokenEstimate),
 		MaxOutputTokens:       maxOutputTokens,
@@ -134,7 +138,9 @@ func (manager *Manager) validateGrant(input AdmissionInput, request AdmissionReq
 		return AdmissionGrant{}, ErrUntrustedPlatformResponse
 	}
 	route, err := manager.catalog.RouteByID(result.RouteID)
-	if err != nil || route.PlatformModel != input.PlatformModel || route.Operation != "responses" || route.UpstreamProtocol != "openai_responses" {
+	if err != nil || route.PlatformModel != input.PlatformModel || route.Operation != input.Operation ||
+		input.Operation == "responses" && route.UpstreamProtocol != "openai_responses" ||
+		input.Operation == "messages" && route.UpstreamProtocol != "anthropic_messages" {
 		return AdmissionGrant{}, ErrUntrustedPlatformResponse
 	}
 	if input.Capabilities.Streaming && !route.Capabilities.Streaming ||

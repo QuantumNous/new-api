@@ -70,6 +70,7 @@ func TestManagerRefreshesCatalogOnceAndRetriesAdmissionWithSameRequestID(t *test
 	grant, err := manager.Admit(context.Background(), "sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd", AdmissionInput{
 		RequestID:          requestID,
 		PlatformModel:      "origin-codex",
+		Operation:          "responses",
 		InputTokenEstimate: 1200,
 		MaxOutputTokens:    4096,
 		Capabilities: RequestedCapabilities{
@@ -105,6 +106,7 @@ func TestManagerRejectsRefreshFailureWithoutSecondAdmission(t *testing.T) {
 	_, err = manager.Admit(context.Background(), "sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd", AdmissionInput{
 		RequestID:          "01980000-0000-7000-8000-000000000002",
 		PlatformModel:      "origin-codex",
+		Operation:          "responses",
 		InputTokenEstimate: 1,
 		MaxOutputTokens:    1,
 	})
@@ -138,10 +140,39 @@ func TestManagerRejectsAdmissionRouteThatIsNotInApprovedSnapshot(t *testing.T) {
 	_, err = manager.Admit(context.Background(), "sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd", AdmissionInput{
 		RequestID:          requestID,
 		PlatformModel:      "origin-codex",
+		Operation:          "responses",
 		InputTokenEstimate: 1,
 		MaxOutputTokens:    1,
 	})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUntrustedPlatformResponse)
+}
+
+func TestManagerAdmitsNativeMessagesAgainstAnthropicRoute(t *testing.T) {
+	now := time.Date(2026, 8, 14, 5, 5, 0, 0, time.UTC)
+	view := NewCatalogView(func() time.Time { return now })
+	raw, err := os.ReadFile("../contracts/origin/examples/catalog.execution-snapshot-published.v1.valid.json")
+	require.NoError(t, err)
+	require.NoError(t, view.Install(raw, `"catalog-42"`))
+	requestID := "01980000-0000-7000-8000-000000000012"
+	fake := &fakeControlPlane{admissionResults: []AdmissionResult{{
+		RequestID: requestID, TenantID: "01980000-0000-7000-8000-000000000003",
+		ProjectID: "01980000-0000-7000-8000-000000000004", APIKeyID: "01980000-0000-7000-8000-000000000005",
+		ReservationID: "01980000-0000-7000-8000-000000000006", ApprovedCatalogVersion: 42,
+		RouteID: "route_agent_messages_primary", ExpiresAt: "2026-08-14T05:10:00Z",
+	}}}
+	manager := NewManager(fake, view, func() time.Time { return now })
+
+	grant, err := manager.Admit(context.Background(), "sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd", AdmissionInput{
+		RequestID: requestID, PlatformModel: "origin-agent", Operation: "messages",
+		InputTokenEstimate: 100, MaxOutputTokens: 1024,
+		Capabilities: RequestedCapabilities{Streaming: true, FunctionTools: true, Reasoning: true},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "anthropic_messages", grant.Route.UpstreamProtocol)
+	require.Len(t, fake.admissionRequests, 1)
+	assert.Equal(t, "messages", fake.admissionRequests[0].Operation)
+	assert.ElementsMatch(t, []string{"streaming", "function_tools", "reasoning"}, fake.admissionRequests[0].RequestedCapabilities)
 }

@@ -41,6 +41,7 @@ type OriginRequestAttempt struct {
 	CatalogVersion  int64      `gorm:"not null"`
 	RouteID         string     `gorm:"type:varchar(160);not null"`
 	PlatformModel   string     `gorm:"type:varchar(120);not null"`
+	Operation       string     `gorm:"type:varchar(24);not null;default:responses"`
 	UpstreamModelID string     `gorm:"type:varchar(160);not null"`
 	ChannelID       int        `gorm:"not null"`
 	AttemptNumber   int        `gorm:"not null"`

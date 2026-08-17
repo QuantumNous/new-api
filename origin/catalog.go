@@ -94,7 +94,7 @@ func (view *CatalogView) ETag() string {
 	return state.etag
 }
 
-func (view *CatalogView) ApprovedRoute(model string, requested RequestedCapabilities, inputTokens, outputTokens int) (CatalogExecutionRoute, error) {
+func (view *CatalogView) ApprovedRoute(model, operation string, requested RequestedCapabilities, inputTokens, outputTokens int) (CatalogExecutionRoute, error) {
 	state := view.state.Load()
 	if state == nil {
 		return CatalogExecutionRoute{}, ErrCatalogUnavailable
@@ -105,7 +105,7 @@ func (view *CatalogView) ApprovedRoute(model string, requested RequestedCapabili
 	}
 	modelFound := false
 	for _, route := range state.event.Payload.Routes {
-		if route.PlatformModel != model || route.Operation != "responses" {
+		if route.PlatformModel != model || route.Operation != operation {
 			continue
 		}
 		modelFound = true
@@ -179,10 +179,12 @@ func validateCatalogEvent(event CatalogExecutionSnapshotPublishedV1, now time.Ti
 	}
 	seenRoutes := make(map[string]struct{}, len(payload.Routes))
 	for _, route := range payload.Routes {
+		protocolMatchesOperation := route.Operation == "responses" && route.UpstreamProtocol == "openai_responses" ||
+			route.Operation == "messages" && route.UpstreamProtocol == "anthropic_messages"
 		if len(route.RouteID) > 160 || len(route.PlatformModel) > 120 || len(route.ApprovedChannelID) > 160 || len(route.UpstreamModelID) > 160 ||
 			!catalogIdentifierPattern.MatchString(route.RouteID) || !catalogIdentifierPattern.MatchString(route.PlatformModel) ||
 			!catalogIdentifierPattern.MatchString(route.ApprovedChannelID) || !upstreamModelPattern.MatchString(route.UpstreamModelID) ||
-			route.Operation != "responses" || route.UpstreamProtocol != "openai_responses" ||
+			!protocolMatchesOperation ||
 			(route.Status != "ACTIVE" && route.Status != "DRAINING" && route.Status != "DISABLED") ||
 			route.Capabilities.MaxInputTokens < 1 || route.Capabilities.MaxOutputTokens < 1 {
 			return errors.New("invalid Origin catalog route")

@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/origin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -29,6 +30,7 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	}
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+		origin.MarkUpstreamContentFilteredOutput(c, "")
 	}
 }
 
@@ -100,7 +102,18 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		maybeMarkClaudeRefusal(c, *claudeResponse.Delta.StopReason)
 	}
 	if info.RelayFormat == types.RelayFormatClaude {
+		if execution, ok := origin.ExecutionFromContext(c); ok && claudeResponse.Type == "message_start" && claudeResponse.Message != nil {
+			rewritten, rewriteErr := origin.RewriteMessagesResponseModel([]byte(data), execution.Grant.Route.PlatformModel)
+			if rewriteErr != nil {
+				return types.NewError(rewriteErr, types.ErrorCodeBadResponseBody)
+			}
+			data = string(rewritten)
+			claudeResponse.Message.Model = execution.Grant.Route.PlatformModel
+		}
 		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
+		if claudeResponse.Type == "message_delta" && claudeResponse.Usage != nil {
+			observeOriginClaudeUsage(c, claudeInfo.Usage, claudeInfo.ResponseId)
+		}
 
 		if claudeResponse.Type == "message_start" {
 			// message_start, 获取usage
@@ -215,6 +228,13 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 }
 
 func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, httpResp *http.Response, data []byte) *types.NewAPIError {
+	if execution, ok := origin.ExecutionFromContext(c); ok {
+		var err error
+		data, err = origin.RewriteMessagesResponseModel(data, execution.Grant.Route.PlatformModel)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+	}
 	var claudeResponse dto.ClaudeResponse
 	err := common.Unmarshal(data, &claudeResponse)
 	if err != nil {
@@ -237,6 +257,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+		observeOriginClaudeUsage(c, claudeInfo.Usage, claudeResponse.Id)
 	}
 	var responseData []byte
 	switch info.RelayFormat {
@@ -265,6 +286,22 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	return nil
 }
 
+func observeOriginClaudeUsage(c *gin.Context, usage *dto.Usage, providerRequestID string) {
+	if _, ok := origin.ExecutionFromContext(c); !ok || usage == nil {
+		return
+	}
+	cacheCreationTokens := usage.PromptTokensDetails.CacheCreationTokensTotal()
+	if usage.PromptTokens < 0 || usage.CompletionTokens < 0 || usage.PromptTokensDetails.CachedTokens < 0 || cacheCreationTokens < 0 {
+		return
+	}
+	origin.ObserveProviderUsage(c, origin.UsageObservation{
+		InputTokens:       usage.PromptTokens + cacheCreationTokens,
+		OutputTokens:      usage.CompletionTokens,
+		CachedTokens:      usage.PromptTokensDetails.CachedTokens,
+		ProviderRequestID: providerRequestID,
+	})
+}
+
 func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
@@ -279,7 +316,9 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	logger.LogDebug(c, "responseBody: %s", responseBody)
+	if _, isOriginRequest := origin.ExecutionFromContext(c); !isOriginRequest {
+		logger.LogDebug(c, "responseBody: %s", responseBody)
+	}
 	handleErr := HandleClaudeResponseData(c, info, claudeInfo, resp, responseBody)
 	if handleErr != nil {
 		return nil, handleErr

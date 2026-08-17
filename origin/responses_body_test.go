@@ -45,3 +45,21 @@ func TestRewriteResponsesModelRejectsDuplicateModelFields(t *testing.T) {
 
 	require.Error(t, err)
 }
+
+func TestRewriteMessagesResponseModelRestoresPlatformModelForJSONAndSSEEvent(t *testing.T) {
+	nonStream, err := RewriteMessagesResponseModel(
+		[]byte(`{"id":"msg_1","type":"message","model":"beenex-claude-1","content":[]}`),
+		"origin-agent",
+	)
+	require.NoError(t, err)
+	assert.Contains(t, string(nonStream), `"model":"origin-agent"`)
+	assert.NotContains(t, string(nonStream), "beenex-claude-1")
+
+	messageStart, err := RewriteMessagesResponseModel(
+		[]byte(`{"type":"message_start","message":{"id":"msg_1","model":"beenex-claude-1","content":[]}}`),
+		"origin-agent",
+	)
+	require.NoError(t, err)
+	assert.Contains(t, string(messageStart), `"model":"origin-agent"`)
+	assert.NotContains(t, string(messageStart), "beenex-claude-1")
+}

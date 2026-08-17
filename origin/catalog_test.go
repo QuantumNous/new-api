@@ -18,7 +18,7 @@ func TestCatalogInstallsVerifiedFullSnapshotAtomically(t *testing.T) {
 	view := NewCatalogView(clock)
 
 	require.NoError(t, view.Install(raw, `"catalog-42"`))
-	route, err := view.ApprovedRoute("origin-codex", RequestedCapabilities{
+	route, err := view.ApprovedRoute("origin-codex", "responses", RequestedCapabilities{
 		Streaming:     true,
 		FunctionTools: true,
 		Reasoning:     true,
@@ -29,6 +29,38 @@ func TestCatalogInstallsVerifiedFullSnapshotAtomically(t *testing.T) {
 	assert.Equal(t, "route_codex_responses_primary", route.RouteID)
 	assert.Equal(t, "beenex-codex-1", route.UpstreamModelID)
 	assert.Equal(t, `"catalog-42"`, view.ETag())
+}
+
+func TestCatalogSelectsMessagesRouteByPlatformModelAndOperation(t *testing.T) {
+	raw, err := os.ReadFile("../contracts/origin/examples/catalog.execution-snapshot-published.v1.valid.json")
+	require.NoError(t, err)
+	view := NewCatalogView(func() time.Time { return time.Date(2026, 8, 14, 5, 5, 0, 0, time.UTC) })
+	require.NoError(t, view.Install(raw, `"catalog-42"`))
+
+	route, err := view.ApprovedRoute("origin-agent", "messages", RequestedCapabilities{
+		Streaming: true, FunctionTools: true, Reasoning: true,
+	}, 1200, 4096)
+
+	require.NoError(t, err)
+	assert.Equal(t, "route_agent_messages_primary", route.RouteID)
+	assert.Equal(t, "anthropic_messages", route.UpstreamProtocol)
+	_, err = view.ApprovedRoute("origin-agent", "responses", RequestedCapabilities{}, 1, 1)
+	assert.ErrorIs(t, err, ErrCatalogModelUnknown)
+}
+
+func TestCatalogRejectsOperationProtocolMismatch(t *testing.T) {
+	raw, err := os.ReadFile("../contracts/origin/examples/catalog.execution-snapshot-published.v1.valid.json")
+	require.NoError(t, err)
+	var event CatalogExecutionSnapshotPublishedV1
+	require.NoError(t, common.Unmarshal(raw, &event))
+	event.Payload.Routes[1].UpstreamProtocol = "openai_responses"
+	event.Payload.ContentSHA256, err = CanonicalSnapshotHash(event.Payload)
+	require.NoError(t, err)
+	invalid, err := common.Marshal(event)
+	require.NoError(t, err)
+	view := NewCatalogView(func() time.Time { return time.Date(2026, 8, 14, 5, 5, 0, 0, time.UTC) })
+
+	assert.Error(t, view.Install(invalid, `"catalog-42"`))
 }
 
 func TestCatalogRejectsUnknownFieldsAndExpiredSnapshot(t *testing.T) {
@@ -83,11 +115,11 @@ func TestCatalogFailsClosedForUnknownModelDisabledRouteAndCapabilityOverflow(t *
 	})
 	require.NoError(t, view.Install(raw, `"catalog-42"`))
 
-	_, err = view.ApprovedRoute("unknown-model", RequestedCapabilities{}, 1, 1)
+	_, err = view.ApprovedRoute("unknown-model", "responses", RequestedCapabilities{}, 1, 1)
 	assert.ErrorIs(t, err, ErrCatalogModelUnknown)
-	_, err = view.ApprovedRoute("origin-codex", RequestedCapabilities{}, 200001, 1)
+	_, err = view.ApprovedRoute("origin-codex", "responses", RequestedCapabilities{}, 200001, 1)
 	assert.ErrorIs(t, err, ErrCatalogCapabilityDenied)
-	_, err = view.ApprovedRoute("origin-codex", RequestedCapabilities{}, 1, 100001)
+	_, err = view.ApprovedRoute("origin-codex", "responses", RequestedCapabilities{}, 1, 100001)
 	assert.ErrorIs(t, err, ErrCatalogCapabilityDenied)
 }
 

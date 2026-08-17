@@ -110,14 +110,21 @@ func (client *ControlClient) CreateAdmission(ctx context.Context, originKey stri
 	return result, nil
 }
 
-func (client *ControlClient) ListOriginModels(ctx context.Context, originKey, requestID string) (OriginModelList, error) {
+func (client *ControlClient) ListOriginModels(ctx context.Context, originKey, requestID, operation string) (OriginModelList, error) {
 	if _, err := uuid.Parse(requestID); err != nil {
 		return OriginModelList{}, errors.New("invalid Origin model discovery request id")
 	}
+	if operation != "" && operation != "responses" && operation != "messages" {
+		return OriginModelList{}, errors.New("invalid Origin model discovery operation")
+	}
 	requestCtx, cancel := context.WithTimeout(ctx, client.timeout)
 	defer cancel()
+	endpoint := client.baseURL + "/internal/v1/models"
+	if operation != "" {
+		endpoint += "?operation=" + operation
+	}
 	request, err := http.NewRequestWithContext(
-		requestCtx, http.MethodGet, client.baseURL+"/internal/v1/models", nil)
+		requestCtx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return OriginModelList{}, fmt.Errorf("create Origin model discovery request: %w", err)
 	}
@@ -197,7 +204,7 @@ func (client *ControlClient) FetchCatalog(ctx context.Context, requestID, etag s
 }
 
 func validateAdmissionRequest(input AdmissionRequest) error {
-	if _, err := uuid.Parse(input.RequestID); err != nil || input.Operation != "responses" ||
+	if _, err := uuid.Parse(input.RequestID); err != nil || (input.Operation != "responses" && input.Operation != "messages") ||
 		len(input.PlatformModel) > 120 || !catalogIdentifierPattern.MatchString(input.PlatformModel) || input.CatalogVersion < 1 ||
 		input.InputTokenEstimate < 0 || input.InputTokenEstimate > 100000000 ||
 		input.MaxOutputTokens < 1 || input.MaxOutputTokens > 1000000 || len(input.RequestedCapabilities) > 3 {

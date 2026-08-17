@@ -39,6 +39,7 @@ func originAttemptFixture() OriginRequestAttempt {
 		CatalogVersion:  42,
 		RouteID:         "route_codex_responses_primary",
 		PlatformModel:   "origin-codex",
+		Operation:       "responses",
 		UpstreamModelID: "beenex-codex-1",
 		ChannelID:       7,
 		AttemptNumber:   1,
@@ -79,6 +80,20 @@ func TestFinalizeOriginAttemptAndOutboxAreOneTransaction(t *testing.T) {
 	var storedOutbox OriginUsageOutbox
 	require.NoError(t, db.First(&storedOutbox, "id = ?", outbox.ID).Error)
 	assert.Equal(t, OriginOutboxPending, storedOutbox.Status)
+}
+
+func TestOriginAttemptMigrationBackfillsLegacyRowsAsResponses(t *testing.T) {
+	db := setupOriginOutboxTestDB(t)
+	attempt := originAttemptFixture()
+	require.NoError(t, CreateOriginRequestAttempt(db, &attempt))
+	require.NoError(t, db.Migrator().DropColumn(&OriginRequestAttempt{}, "Operation"))
+	require.False(t, db.Migrator().HasColumn(&OriginRequestAttempt{}, "Operation"))
+
+	require.NoError(t, db.AutoMigrate(&OriginRequestAttempt{}))
+
+	var stored OriginRequestAttempt
+	require.NoError(t, db.First(&stored, "id = ?", attempt.ID).Error)
+	assert.Equal(t, "responses", stored.Operation)
 }
 
 func TestFinalizeOriginAttemptRollsBackWhenOutboxInsertFails(t *testing.T) {

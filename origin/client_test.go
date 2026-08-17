@@ -94,7 +94,28 @@ func TestControlClientListsOriginModelsWithoutRequestBody(t *testing.T) {
 	})
 	client := NewControlClient("https://platform.internal", &http.Client{Transport: transport}, time.Second)
 
-	result, err := client.ListOriginModels(context.Background(), originKey, requestID)
+	result, err := client.ListOriginModels(context.Background(), originKey, requestID, "")
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"origin-agent"}, result.Models)
+}
+
+func TestControlClientScopesOriginModelDiscoveryToMessages(t *testing.T) {
+	const requestID = "01980000-0000-7000-8000-000000000030"
+	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		assert.Equal(t, "messages", request.URL.Query().Get("operation"))
+		assert.NotContains(t, request.URL.RawQuery, "sk-oa-")
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"}, "X-Request-Id": []string{requestID}, "X-Catalog-Version": []string{"42"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"request_id":"01980000-0000-7000-8000-000000000030","tenant_id":"01980000-0000-7000-8000-000000000003","project_id":"01980000-0000-7000-8000-000000000004","api_key_id":"01980000-0000-7000-8000-000000000005","catalog_version":42,"models":["origin-agent"]}`)),
+		}, nil
+	})
+	client := NewControlClient("https://platform.internal", &http.Client{Transport: transport}, time.Second)
+
+	result, err := client.ListOriginModels(context.Background(), "sk-oa-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcd", requestID, "messages")
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"origin-agent"}, result.Models)
@@ -126,7 +147,7 @@ func TestControlClientRejectsUntrustedOriginModelLists(t *testing.T) {
 			})
 			client := NewControlClient("https://platform.internal", &http.Client{Transport: transport}, time.Second)
 
-			_, err := client.ListOriginModels(context.Background(), "sk-oa-redacted", requestID)
+			_, err := client.ListOriginModels(context.Background(), "sk-oa-redacted", requestID, "")
 
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrUntrustedPlatformResponse)

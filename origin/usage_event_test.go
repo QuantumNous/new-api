@@ -20,9 +20,27 @@ func usageAttemptFixture() model.OriginRequestAttempt {
 		CatalogVersion:  42,
 		RouteID:         "route_codex_responses_primary",
 		PlatformModel:   "origin-codex",
+		Operation:       "responses",
 		UpstreamModelID: "beenex-codex-1",
 		StartedAt:       time.Date(2026, 8, 14, 5, 0, 0, 0, time.UTC),
 	}
+}
+
+func TestBuildUsageEventUsesPersistedMessagesOperation(t *testing.T) {
+	attempt := usageAttemptFixture()
+	attempt.Operation = "messages"
+	now := time.Date(2026, 8, 14, 5, 0, 3, 0, time.UTC)
+
+	event, err := BuildUsageEvent(
+		"01980000-0000-7000-8000-000000000405", 1, attempt,
+		AttemptOutcome{TerminalStatus: "SUCCESS", ContactState: "COMPLETED", Usage: &UsageObservation{InputTokens: 14, OutputTokens: 5, CachedTokens: 3}},
+		now, now, true,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, "messages_stream", event.Operation)
+	assert.Equal(t, "14", event.Items[0].Quantity)
+	assert.Equal(t, "3", event.Items[2].Quantity)
 }
 
 func TestBuildUsageEventSettlesReportedNonStreamingUsage(t *testing.T) {
