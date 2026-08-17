@@ -82,8 +82,25 @@ func (p *RetryParam) ResetRetryNextTry() {
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	return CacheGetRandomSatisfiedChannelWithFilter(param, nil)
+}
+
+// CacheGetRandomSatisfiedChannelWithFilter is the normal channel selector with
+// an optional capability filter. The existing selector delegates here so
+// ordinary requests retain exactly the same behavior.
+func CacheGetRandomSatisfiedChannelWithFilter(param *RetryParam, filter model.ChannelCandidateFilter) (*model.Channel, string, error) {
 	return cacheGetRandomSatisfiedChannel(param, func(group string, retry int) (*model.Channel, error) {
-		return model.GetRandomSatisfiedChannel(group, param.ModelName, retry, param.RequestPath)
+		if filter == nil {
+			return model.GetRandomSatisfiedChannel(group, param.ModelName, retry, param.RequestPath)
+		}
+		return model.GetRandomSatisfiedChannelForModels(
+			group,
+			[]string{param.ModelName},
+			retry,
+			param.RequestPath,
+			param.ModelName,
+			filter,
+		)
 	})
 }
 

@@ -205,6 +205,21 @@ func (c *AdvancedCustomConfig) SupportsPathForModel(requestPath string, model st
 	return ok
 }
 
+// SupportsNativeResponsesForModel reports whether an Advanced Custom route
+// accepts the OpenAI Responses wire format without a protocol converter.
+// Empty converter values are normalized to "none" by the adaptor.
+func (c *AdvancedCustomConfig) SupportsNativeResponsesForModel(model string) bool {
+	if c == nil {
+		return false
+	}
+	route, ok := c.MatchPathForModel(advancedCustomEndpointPathOpenAIResponses, model)
+	if !ok {
+		return false
+	}
+	converter := strings.TrimSpace(route.Converter)
+	return converter == "" || strings.EqualFold(converter, advancedCustomConverterNone)
+}
+
 func (c *AdvancedCustomConfig) SupportedEndpointTypesForModel(model string) []types.EndpointType {
 	if c == nil {
 		return nil

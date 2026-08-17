@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -859,14 +860,14 @@ type OpenAIResponsesRequest struct {
 	Include json.RawMessage `json:"include,omitempty"`
 	// 在后台运行推理，暂时还不支持依赖的接口
 	// Background         json.RawMessage `json:"background,omitempty"`
-	Conversation       json.RawMessage `json:"conversation,omitempty"`
-	ContextManagement  json.RawMessage `json:"context_management,omitempty"`
-	Instructions       json.RawMessage `json:"instructions,omitempty"`
-	MaxOutputTokens    *uint           `json:"max_output_tokens,omitempty"`
-	TopLogProbs        *int            `json:"top_logprobs,omitempty"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
-	Moderation         json.RawMessage `json:"moderation,omitempty"`
-	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
+	Conversation      json.RawMessage `json:"conversation,omitempty"`
+	ContextManagement json.RawMessage `json:"context_management,omitempty"`
+	Instructions      json.RawMessage `json:"instructions,omitempty"`
+	MaxOutputTokens   *uint           `json:"max_output_tokens,omitempty"`
+	TopLogProbs       *int            `json:"top_logprobs,omitempty"`
+	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	Moderation        json.RawMessage `json:"moderation,omitempty"`
+	ParallelToolCalls json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	// FrequencyPenalty/PresencePenalty are not part of the official OpenAI
 	// Responses API; they are forwarded verbatim for OpenAI-compatible upstreams
 	// (e.g. vLLM) that accept them.
@@ -905,6 +906,49 @@ type OpenAIResponsesRequest struct {
 	ThinkingBudget json.RawMessage `json:"thinking_budget,omitempty"`
 	// perplexity
 	Preset json.RawMessage `json:"preset,omitempty"`
+}
+
+// HasCompactionTrigger reports whether the Responses input contains the
+// remote-compaction marker used by Codex and the Responses API. The marker is
+// intentionally inspected without normalizing or rewriting the input because
+// native Responses upstreams must receive it unchanged.
+func (r OpenAIResponsesRequest) HasCompactionTrigger() bool {
+	return r.hasInputItemType("compaction_trigger")
+}
+
+// HasCompactionItem reports whether input contains the encrypted compaction
+// state returned by a previous Responses call. It must be forwarded unchanged.
+func (r OpenAIResponsesRequest) HasCompactionItem() bool {
+	return r.hasInputItemType("compaction")
+}
+
+func (r OpenAIResponsesRequest) hasInputItemType(wanted string) bool {
+	if len(r.Input) == 0 || kitutil.GetJsonType(r.Input) != "array" {
+		return false
+	}
+	var items []map[string]json.RawMessage
+	if err := kitutil.Unmarshal(r.Input, &items); err != nil {
+		return false
+	}
+	for _, item := range items {
+		var itemType string
+		if raw, ok := item["type"]; ok && kitutil.Unmarshal(raw, &itemType) == nil &&
+			strings.EqualFold(strings.TrimSpace(itemType), wanted) {
+			return true
+		}
+	}
+	return false
+}
+
+// RequiresNativeResponses reports whether the request uses protocol state
+// that cannot be represented by Chat Completions or other converted APIs.
+func (r OpenAIResponsesRequest) RequiresNativeResponses() bool {
+	return r.HasCompactionTrigger() || r.HasCompactionItem() || rawResponsesJSONPresent(r.ContextManagement)
+}
+
+func rawResponsesJSONPresent(raw json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return len(trimmed) > 0 && !bytes.Equal(trimmed, []byte("null"))
 }
 
 func (r OpenAIResponsesRequest) MarshalJSON() ([]byte, error) {

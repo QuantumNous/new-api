@@ -153,6 +153,28 @@ func channelSupportsCompactEndpoint(channel *model.Channel, requestedModel strin
 	}
 }
 
+// ChannelSupportsNativeResponses reports whether a channel can receive the
+// OpenAI Responses wire format without translating it to another protocol.
+// Remote compaction state is meaningful only on these channels.
+func ChannelSupportsNativeResponses(channel *model.Channel, requestedModel string) bool {
+	if channel == nil {
+		return false
+	}
+	switch channel.Type {
+	case constant.ChannelTypeOpenAI,
+		constant.ChannelTypeAzure,
+		constant.ChannelTypeCodex,
+		constant.ChannelTypeNewAPI,
+		constant.ChannelTypeSub2API:
+		return true
+	case constant.ChannelTypeAdvancedCustom:
+		config := channel.GetOtherSettings().AdvancedCustom
+		return config != nil && config.SupportsNativeResponsesForModel(requestedModel)
+	default:
+		return false
+	}
+}
+
 func SetCompactStage(c *gin.Context, stage relaycommon.CompactAttemptStage) {
 	c.Set(string(constant.ContextKeyCompactStage), string(stage))
 }

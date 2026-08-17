@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -75,6 +76,20 @@ func compactRequestDebugSummary(info *relaycommon.RelayInfo, jsonData []byte) st
 		info.LogicalBillingModel,
 		info.ActualUpstreamModelName(),
 		info.CompactAttemptStage,
+	)
+}
+
+func remoteCompactionRequestDebugSummary(info *relaycommon.RelayInfo, jsonData []byte) string {
+	var request dto.OpenAIResponsesRequest
+	_ = common.Unmarshal(jsonData, &request)
+	return fmt.Sprintf(
+		"body_bytes=%d context_management=%t compaction_trigger=%t compaction_item=%t requested_model=%q upstream_model=%q",
+		len(jsonData),
+		request.RequiresNativeResponses() && len(request.ContextManagement) > 0,
+		request.HasCompactionTrigger(),
+		request.HasCompactionItem(),
+		info.OriginModelName,
+		info.ActualUpstreamModelName(),
 	)
 }
 
@@ -168,6 +183,8 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 		if info.RelayMode == relayconstant.RelayModeResponsesCompact {
 			logger.LogDebug(c, "compact request metadata: %s", compactRequestDebugSummary(info, jsonData))
+		} else if common.GetContextKeyBool(c, constant.ContextKeyResponsesNativeRequired) {
+			logger.LogDebug(c, "remote compaction request metadata: %s", remoteCompactionRequestDebugSummary(info, jsonData))
 		} else {
 			logger.LogDebug(c, "requestBody: %s", jsonData)
 		}

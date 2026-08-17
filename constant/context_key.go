@@ -10,6 +10,10 @@ const (
 	ContextKeyOriginalModel    ContextKey = "original_model"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 	ContextKeyCompactStage     ContextKey = "compact_stage"
+	// ContextKeyResponsesNativeRequired marks Responses requests that carry
+	// server-side/remote compaction semantics and therefore cannot be routed
+	// through a Chat/Gemini/Claude converter.
+	ContextKeyResponsesNativeRequired ContextKey = "responses_native_required"
 
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"

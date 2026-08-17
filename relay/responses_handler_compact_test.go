@@ -73,6 +73,34 @@ func TestCompactRequestDebugSummaryContainsNoBodyValues(t *testing.T) {
 	require.NotContains(t, summary, "secret-cache-key")
 }
 
+func TestRemoteCompactionRequestDebugSummaryContainsNoBodyValues(t *testing.T) {
+	jsonData := []byte(`{
+		"model":"gpt-5",
+		"input":[{"type":"input_text","text":"secret-input"},{"type":"compaction_trigger","encrypted_content":"secret-ciphertext"}],
+		"context_management":{"compact_threshold":1000},
+		"instructions":"secret-instructions",
+		"prompt_cache_key":"secret-cache-key"
+	}`)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gpt-5-upstream",
+		},
+	}
+
+	summary := remoteCompactionRequestDebugSummary(info, jsonData)
+	require.Contains(t, summary, "body_bytes=")
+	require.Contains(t, summary, "context_management=true")
+	require.Contains(t, summary, "compaction_trigger=true")
+	require.Contains(t, summary, "compaction_item=false")
+	require.Contains(t, summary, `requested_model="gpt-5"`)
+	require.Contains(t, summary, `upstream_model="gpt-5-upstream"`)
+	require.NotContains(t, summary, "secret-input")
+	require.NotContains(t, summary, "secret-ciphertext")
+	require.NotContains(t, summary, "secret-instructions")
+	require.NotContains(t, summary, "secret-cache-key")
+}
+
 func mapKeys(values map[string]json.RawMessage) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {

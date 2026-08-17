@@ -15,6 +15,8 @@ const (
 	responsesInputTypeFunctionCallOutput = "function_call_output"
 	responsesInputTypeCustomToolCall     = "custom_tool_call"
 	responsesInputTypeCustomToolOutput   = "custom_tool_call_output"
+	responsesInputTypeCompactionTrigger  = "compaction_trigger"
+	responsesInputTypeCompaction         = "compaction"
 )
 
 const (
@@ -22,6 +24,8 @@ const (
 	ResponsesInputTypeFunctionCallOutput = responsesInputTypeFunctionCallOutput
 	ResponsesInputTypeCustomToolCall     = responsesInputTypeCustomToolCall
 	ResponsesInputTypeCustomToolOutput   = responsesInputTypeCustomToolOutput
+	ResponsesInputTypeCompactionTrigger  = responsesInputTypeCompactionTrigger
+	ResponsesInputTypeCompaction         = responsesInputTypeCompaction
 )
 
 func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
@@ -108,6 +112,12 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 }
 
 func validateResponsesRequestChatUnsupportedFields(req *dto.OpenAIResponsesRequest) error {
+	if req.HasCompactionTrigger() {
+		return errors.New("responses compaction_trigger requires a native Responses upstream")
+	}
+	if req.HasCompactionItem() {
+		return errors.New("responses compaction item requires a native Responses upstream")
+	}
 	unsupported := make([]string, 0, 4)
 	if rawJSONPresent(req.Conversation) {
 		unsupported = append(unsupported, "conversation")
@@ -192,6 +202,10 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 		content := responseToolOutputToChatContent(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
+	case responsesInputTypeCompactionTrigger:
+		return nil, errors.New("responses compaction requires a native Responses upstream")
+	case responsesInputTypeCompaction:
+		return nil, errors.New("responses compaction item requires a native Responses upstream")
 	}
 
 	role := strings.TrimSpace(kitutil.Interface2String(item["role"]))

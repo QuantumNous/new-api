@@ -544,11 +544,23 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return channel, nil
 	}
 
-	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
+	var channel *model.Channel
+	var selectGroup string
+	var err error
+	if common.GetContextKeyBool(c, constant.ContextKeyResponsesNativeRequired) {
+		channel, selectGroup, err = service.CacheGetRandomSatisfiedChannelWithFilter(retryParam, func(candidate *model.Channel, _ map[string]bool) bool {
+			return service.ChannelSupportsNativeResponses(candidate, info.OriginModelName)
+		})
+	} else {
+		channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(retryParam)
+	}
 	if err != nil {
 		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, info.OriginModelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 	if channel == nil {
+		if common.GetContextKeyBool(c, constant.ContextKeyResponsesNativeRequired) {
+			return nil, types.NewError(errors.New("remote Responses compaction requires an available native Responses channel"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
 		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, info.OriginModelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
 

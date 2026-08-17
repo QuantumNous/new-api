@@ -37,6 +37,65 @@ func TestAdvancedCustomCompactRequiresExplicitRoute(t *testing.T) {
 	require.True(t, channelSupportsCompactEndpoint(channel, "gpt-5"))
 }
 
+func TestNativeResponsesCapability(t *testing.T) {
+	require.True(t, ChannelSupportsNativeResponses(&model.Channel{Type: constant.ChannelTypeOpenAI}, "gpt-5"))
+	require.False(t, ChannelSupportsNativeResponses(&model.Channel{Type: constant.ChannelTypeGemini}, "gpt-5"))
+
+	channel := &model.Channel{Type: constant.ChannelTypeAdvancedCustom}
+	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{{
+			IncomingPath: "/v1/responses",
+			UpstreamPath: "/responses",
+			Converter:    "none",
+			Models:       []string{"gpt-5"},
+		}},
+	}})
+	require.True(t, ChannelSupportsNativeResponses(channel, "gpt-5"))
+
+	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{{
+			IncomingPath: "/v1/responses",
+			UpstreamPath: "/chat/completions",
+			Converter:    "openai_responses_to_openai_chat_completions",
+			Models:       []string{"gpt-5"},
+		}},
+	}})
+	require.False(t, ChannelSupportsNativeResponses(channel, "gpt-5"))
+}
+
+func TestNativeResponsesChannelSelectionFiltersConvertedChannels(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "remote-compaction-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2205, "default", modelName)
+	createChannelSelectAutoGroupsChannel(t, db, 2206, "default", modelName)
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2206).Update("type", constant.ChannelTypeGemini).Error)
+	model.InitChannelCache()
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	retry := 0
+	param := &RetryParam{
+		Ctx:         ctx,
+		TokenGroup:  "default",
+		ModelName:   modelName,
+		RequestPath: "/v1/responses",
+		Retry:       &retry,
+	}
+	selected, _, err := CacheGetRandomSatisfiedChannelWithFilter(param, func(channel *model.Channel, _ map[string]bool) bool {
+		return ChannelSupportsNativeResponses(channel, modelName)
+	})
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	require.Equal(t, 2205, selected.Id)
+
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2205).Update("type", constant.ChannelTypeGemini).Error)
+	model.InitChannelCache()
+	selected, _, err = CacheGetRandomSatisfiedChannelWithFilter(param, func(channel *model.Channel, _ map[string]bool) bool {
+		return ChannelSupportsNativeResponses(channel, modelName)
+	})
+	require.NoError(t, err)
+	require.Nil(t, selected)
+}
+
 func TestCompactChannelSelectionExcludesUsedSingleKeyChannel(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
 	const (

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -41,6 +42,10 @@ func Distribute() func(c *gin.Context) {
 			return
 		}
 		isCompactRequest := strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact")
+		requiresNativeResponses := !isCompactRequest &&
+			relayconstant.Path2RelayMode(c.Request.URL.Path) == relayconstant.RelayModeResponses &&
+			requestRequiresNativeResponses(c)
+		common.SetContextKey(c, constant.ContextKeyResponsesNativeRequired, requiresNativeResponses)
 		compactRequestedModel := strings.TrimSuffix(modelRequest.Model, ratio_setting.CompactModelSuffix)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
@@ -55,6 +60,10 @@ func Distribute() func(c *gin.Context) {
 			}
 			if channel.Status != common.ChannelStatusEnabled {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
+				return
+			}
+			if requiresNativeResponses && !service.ChannelSupportsNativeResponses(channel, modelRequest.Model) {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, "remote Responses compaction requires a native Responses channel")
 				return
 			}
 			if isCompactRequest {
@@ -118,7 +127,8 @@ func Distribute() func(c *gin.Context) {
 						affinityUsable := false
 						preferred, err := model.CacheGetChannel(preferredChannelID)
 						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled &&
-							channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) {
+							channelSupportsRequestPath(preferred, c.Request.URL.Path, modelRequest.Model) &&
+							(!requiresNativeResponses || service.ChannelSupportsNativeResponses(preferred, modelRequest.Model)) {
 							if usingGroup == "auto" {
 								userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 								autoGroups := service.GetRequestAutoGroups(c, userGroup)
@@ -166,7 +176,13 @@ func Distribute() func(c *gin.Context) {
 							service.SetCompactStage(c, relaycommon.CompactAttemptExact)
 						}
 					} else {
-						channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(retryParam)
+						if requiresNativeResponses {
+							channel, selectGroup, err = service.CacheGetRandomSatisfiedChannelWithFilter(retryParam, func(candidate *model.Channel, _ map[string]bool) bool {
+								return service.ChannelSupportsNativeResponses(candidate, modelRequest.Model)
+							})
+						} else {
+							channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(retryParam)
+						}
 					}
 					if err != nil {
 						showGroup := usingGroup
@@ -183,6 +199,10 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if channel == nil {
+						if requiresNativeResponses {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, "remote Responses compaction requires an available native Responses channel", types.ErrorCodeModelNotFound)
+							return
+						}
 						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
 						return
 					}
@@ -196,6 +216,29 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+// requestRequiresNativeResponses inspects only the protocol markers needed for
+// routing. It never rewrites the body; later validation and relay handling read
+// the same replayable storage. Invalid field shapes are left to the normal
+// request validator so this probe cannot change error semantics.
+func requestRequiresNativeResponses(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return false
+	}
+	body, err := storage.Bytes()
+	if err != nil {
+		return false
+	}
+	var request dto.OpenAIResponsesRequest
+	if err := json.Unmarshal(body, &request); err != nil {
+		return false
+	}
+	return request.RequiresNativeResponses()
 }
 
 // channelSupportsRequestPath reports whether a channel can serve the request path.
