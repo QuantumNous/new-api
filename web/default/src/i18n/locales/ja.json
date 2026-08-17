@@ -6603,6 +6603,7 @@
     "Your GitHub Copilot OAuth App Client ID": "GitHub Copilot OAuth App の Client ID",
     "Used only to start GitHub Copilot Device Flow. No client secret is required.": "GitHub Copilot デバイスフローの開始にのみ使用します。Client Secret は不要です。",
     "Authorize with GitHub": "GitHub で認証",
-    "GitHub Copilot channels support one credential only": "GitHub Copilot チャネルは 1 つの認証情報のみをサポートします"
+    "GitHub Copilot channels support one credential only": "GitHub Copilot チャネルは 1 つの認証情報のみをサポートします",
+    "Cooling": "クールダウン"
   }
 }

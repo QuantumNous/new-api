@@ -327,6 +327,7 @@ export const getChannelsColumns = ({
   setCurrentMultiKeyChannel,
   openUpstreamUpdateModal,
   detectChannelUpstreamUpdates,
+  concurrencyStatus = {},
 }) => {
   return [
     {
@@ -691,8 +692,36 @@ export const getChannelsColumns = ({
           return <span className='text-gray-400'>-</span>;
         }
 
+        const status = concurrencyStatus[record.id];
+        let badge = null;
+        if (record.max_concurrency > 0 && status) {
+          const active = status.active || 0;
+          const waiting = status.waiting || 0;
+          const max = status.max_concurrency || record.max_concurrency;
+          let badgeColor = 'grey';
+          if (active >= max) {
+            badgeColor = 'red';
+          } else if (active > 0) {
+            badgeColor = 'amber';
+          }
+          badge = (
+            <div style={{ marginBottom: 4 }}>
+              <Tag color={badgeColor} shape='circle' size='small'>
+                {active}/{max}
+                {waiting > 0 ? ` +${waiting}${t('等待')}` : ''}
+              </Tag>
+              {status.cooling_down && (
+                <Tag color='blue' shape='circle' size='small'>
+                  {t('冷却中')}
+                </Tag>
+              )}
+            </div>
+          );
+        }
+
         return (
           <div>
+            {badge}
             <InputNumber
               style={{ width: 90 }}
               name='max_concurrency'

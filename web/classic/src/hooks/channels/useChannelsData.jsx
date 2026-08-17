@@ -53,6 +53,9 @@ export const useChannelsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [channelCount, setChannelCount] = useState(0);
   const [groupOptions, setGroupOptions] = useState([]);
+  // Live concurrency counters keyed by channel id, polled only while the
+  // current page contains channels with a concurrency limit.
+  const [concurrencyStatus, setConcurrencyStatus] = useState({});
 
   // UI states
   const [showEdit, setShowEdit] = useState(false);
@@ -168,6 +171,54 @@ export const useChannelsData = () => {
     loadChannelModels().then();
     fetchGlobalPassThroughEnabled().then();
   }, []);
+
+  // Poll live concurrency counters for bounded channels on the current page.
+  // No bounded channel on the page → no polling, zero extra load.
+  useEffect(() => {
+    const collectBoundedIds = () => {
+      const ids = [];
+      for (const row of channels) {
+        if (row.children !== undefined) {
+          for (const child of row.children) {
+            if (child.max_concurrency > 0) ids.push(child.id);
+          }
+        } else if (row.max_concurrency > 0) {
+          ids.push(row.id);
+        }
+      }
+      return ids;
+    };
+
+    const boundedIds = collectBoundedIds();
+    if (boundedIds.length === 0) {
+      setConcurrencyStatus({});
+      return;
+    }
+
+    let cancelled = false;
+    const fetchStatus = async () => {
+      try {
+        const res = await API.get(
+          `/api/channel/concurrency?ids=${boundedIds.join(',')}`,
+        );
+        if (cancelled || !res?.data?.success) return;
+        const next = {};
+        for (const item of res.data.data || []) {
+          next[item.channel_id] = item;
+        }
+        setConcurrencyStatus(next);
+      } catch (e) {
+        // Polling is best-effort; keep the last snapshot on failure.
+      }
+    };
+
+    fetchStatus();
+    const timer = setInterval(fetchStatus, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [channels]);
 
   // Column visibility management
   const getDefaultColumnVisibility = () => {
@@ -1160,6 +1211,7 @@ export const useChannelsData = () => {
     statusFilter,
     compactMode,
     globalPassThroughEnabled,
+    concurrencyStatus,
 
     // UI states
     showEdit,

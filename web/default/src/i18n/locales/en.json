@@ -6603,6 +6603,7 @@
     "Your GitHub Copilot OAuth App Client ID": "Your GitHub Copilot OAuth App Client ID",
     "Used only to start GitHub Copilot Device Flow. No client secret is required.": "Used only to start GitHub Copilot Device Flow. No client secret is required.",
     "Authorize with GitHub": "Authorize with GitHub",
-    "GitHub Copilot channels support one credential only": "GitHub Copilot channels support one credential only"
+    "GitHub Copilot channels support one credential only": "GitHub Copilot channels support one credential only",
+    "Cooling": "Cooling"
   }
 }

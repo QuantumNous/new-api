@@ -132,6 +132,26 @@ export async function searchChannels(
   return res.data
 }
 
+export interface ChannelConcurrencyStatus {
+  channel_id: number
+  max_concurrency: number
+  active: number
+  waiting: number
+  cooling_down: boolean
+}
+
+/**
+ * Get live concurrency counters for bounded channels (table polling)
+ */
+export async function getChannelConcurrencyStatus(
+  ids: number[]
+): Promise<{ success: boolean; data: ChannelConcurrencyStatus[] }> {
+  const res = await api.get('/api/channel/concurrency', {
+    params: { ids: ids.join(',') },
+  })
+  return res.data
+}
+
 /**
  * Get single channel by ID
  */

@@ -6603,6 +6603,7 @@
     "Your GitHub Copilot OAuth App Client ID": "Client ID OAuth App GitHub Copilot của bạn",
     "Used only to start GitHub Copilot Device Flow. No client secret is required.": "Chỉ dùng để bắt đầu luồng thiết bị GitHub Copilot. Không cần client secret.",
     "Authorize with GitHub": "Ủy quyền bằng GitHub",
-    "GitHub Copilot channels support one credential only": "Kênh GitHub Copilot chỉ hỗ trợ một thông tin xác thực"
+    "GitHub Copilot channels support one credential only": "Kênh GitHub Copilot chỉ hỗ trợ một thông tin xác thực",
+    "Cooling": "đang nghỉ"
   }
 }
