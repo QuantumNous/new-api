@@ -71,7 +71,11 @@ def run_lang(lang: str, target: str = ".") -> list[Finding]:
 
     if rc == 0:
         findings.append(Finding(f"code-{lang}", Severity.INFO, f"{lang}: {command} passed"))
-    elif rc == 127 or "not found" in output.lower() or "No such file" in output.lower():
+    elif rc == 127 or output.lower().startswith("command not found") or "no such file or directory" in output.lower():
+        # rc==127 is the shell's "command not found" signal. The substring
+        # checks are deliberately narrow (startswith/full phrase) — a broad
+        # "not found" match would misfire on lint output that happens to
+        # contain those words (e.g. rustfmt diff shown via "…not found…" in source).
         findings.append(Finding(f"code-{lang}", Severity.WARN, f"{lang}: {command} not installed, skipped"))
     else:
         # Truncate long output

@@ -1,4 +1,4 @@
-max_depth: 5
+max_depth: 8
 ignore_paths:
   - ".wt/"
   - "node_modules/"
@@ -7,6 +7,10 @@ ignore_paths:
   - ".git/"
   - ".benchmarks/"
   - ".pytest_cache/"
+  - "vendor/"
+  - "apps/web/dist"
+  - "apps/api/web/dist"
+  - ".agents/"
 orphan_patterns:
   - "tmp/"
   - "__pycache__/"

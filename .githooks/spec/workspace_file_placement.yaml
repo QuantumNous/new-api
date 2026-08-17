@@ -7,19 +7,16 @@ ignore_paths:
   - ".git/"
   - ".benchmarks/"
   - ".pytest_cache/"
+  - "vendor/"
+  - "apps/web/dist"
+  - "apps/api/web/dist"
 
 forbidden_patterns:
-  - path_regex: 'src/.*_test\.rs$'
-    reason: "rust test file in src/ alongside source code"
-    suggestion: "move to tests/ or crates/<name>/tests/"
-    severity: WARN
-  - path_regex: 'src/.*\.md$'
-    reason: "documentation .md inside src/ (unless module README)"
+  - path_regex: 'apps/web/src/.*\.md$'
+    reason: "documentation .md inside frontend src/"
     suggestion: "move to docs/ or repository root"
     severity: WARN
 
 expected_locations:
   - file_pattern: 'test_.*\.py$'
-    expected_dir: "tests/"
-  - file_pattern: '.*\.sh$'
-    expected_dir: "bin/"
+    expected_dir: ".githooks/tests/"

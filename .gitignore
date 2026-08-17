@@ -37,6 +37,7 @@ todo/
 .codegraph/
 .code-review-graph/
 __pycache__/
+.pytest_cache/
 *.pyc
 .wt/
 

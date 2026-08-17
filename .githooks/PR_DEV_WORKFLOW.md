@@ -34,8 +34,8 @@ scope → 隔离 → 实现 → 验证 → 审查 → 合并 → 清理
 ### 本地审查（CRG + ocr）
 
 ```bash
-python .githooks/dev/ocr_review.py              # 终端输出 CRG 影响 + ocr 发现
-python .githooks/dev/ocr_review.py --post-inline  # 提交到 PR Files changed
+gate review              # 终端输出 CRG 影响 + ocr 发现
+gate review --post-inline  # 提交到 PR Files changed
 ```
 
 ### 审查评论格式（spec/github_reviews.yaml）

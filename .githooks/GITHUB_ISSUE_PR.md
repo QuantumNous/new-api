@@ -16,7 +16,7 @@
 
 ```bash
 # 安装拦截门（如有更新）
-python .githooks/install_gh_gate.py --install
+gate init
 
 # 创建 issue（自动走校验，FAIL 拒绝）
 gh issue create --title "<中文标题>" --body "<模板正文>" --label <epic|sub|bug|enhancement|chore>
@@ -44,19 +44,25 @@ Fixes #152        # sub-issue
 
 **issue 创建顺序**：issue 先建、PR 后建为标准流程（创建 PR 时 Fixes 立即关联）；PR 先建、issue 后建需编辑一次 PR body 触发重新扫描。
 
+**epic 级 PR（integrate PR）**：epic 本身的整合 PR 不能直接 `Fixes epic`（会关闭 epic）。两种正确定义：
+1. **层级链**（推荐）：integrate PR `Fixes` 一个 epic 的 sub-issue，通过 sub-issue → epic 链路关联（如 `Fixes #152`，#152 是 epic #150 的 sub）
+2. **UI link**：PR 页面 Development 面板手动关联 epic（epic 侧显示）
+
+一个 epic 可以有多个 PR（integrate PR + 各 sub-issue 的 sub PR）；每个 PR 各 Fixes 一个自己的主 issue。
+
 ## 创建后校验
 
 ```bash
-python .githooks/github/issues.py <owner/repo> <#N>
-python .githooks/github/pull_requests.py <owner/repo> <#N>
+gate issue <owner/repo> <#N>
+gate pr <owner/repo> <#N>
 python .githooks/hooks/merge <owner/repo> <#N> --dry-run
 ```
 
 ## 本地审查
 
 ```bash
-python .githooks/dev/ocr_review.py                     # CRG 结构分析 + ocr AI 审查
-python .githooks/dev/ocr_review.py --post-inline       # 审查结果→PR inline review
+gate review                     # CRG 结构分析 + ocr AI 审查
+gate review --post-inline       # 审查结果→PR inline review
 ```
 
 ## 参考

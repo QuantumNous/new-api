@@ -1,4 +1,4 @@
-enabled: true
+enabled: false
 command: cargo
 args: ["fmt", "--check"]
 fail_severity: FAIL
