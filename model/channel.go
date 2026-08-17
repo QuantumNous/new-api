@@ -646,6 +646,26 @@ func UpdateChannelKey(id int, key string) error {
 	return nil
 }
 
+func UpdateChannelKeyForType(id int, channelType int, key string) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Channel{}).Where("id = ? AND type = ?", id, channelType).Update("key", key)
+		if result.Error != nil {
+			return result.Error
+		}
+
+		var channel Channel
+		if err := tx.Where("id = ? AND type = ?", id, channelType).First(&channel).Error; err != nil {
+			return err
+		}
+		return channel.UpdateAbilities(tx)
+	})
+	if err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
+}
+
 func (channel *Channel) Delete() error {
 	var err error
 	err = DB.Delete(channel).Error

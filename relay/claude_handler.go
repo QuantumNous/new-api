@@ -33,6 +33,9 @@ func shouldClaudeUseResponsesBridge(info *relaycommon.RelayInfo) bool {
 	if info.ApiType == constant.APITypeCodex {
 		return true
 	}
+	if info.ChannelType == constant.ChannelTypeCopilot {
+		return false
+	}
 
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled ||
 		info.ChannelSetting.PassThroughBodyEnabled {

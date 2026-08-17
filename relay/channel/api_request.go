@@ -337,13 +337,20 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
-	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
-	// 这样可以覆盖默认的 Authorization header 设置
-	headerOverride, err := processHeaderOverride(info, c)
-	if err != nil {
-		return nil, err
+	// Copilot's channel key is a high-value GitHub credential, not an upstream
+	// API key. Header overrides run after adaptor authentication and support the
+	// {api_key} placeholder, so applying them here could disclose that credential
+	// or replace the short-lived Copilot authorization token. Keep overrides off
+	// for this channel until it has an explicit safe allowlist.
+	if info.ApiType != rootconstant.APITypeCopilot {
+		// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
+		// 这样可以覆盖默认的 Authorization header 设置
+		headerOverride, err := processHeaderOverride(info, c)
+		if err != nil {
+			return nil, err
+		}
+		applyHeaderOverrideToRequest(req, headerOverride)
 	}
-	applyHeaderOverrideToRequest(req, headerOverride)
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
