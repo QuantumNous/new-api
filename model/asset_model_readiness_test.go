@@ -307,10 +307,11 @@ func TestActivateAssetModelReadinessBindingSetCASActivatesExactCurrentBindingSet
 
 func TestActivateAssetModelReadinessBindingSetCASStaleDriverChangesNothing(t *testing.T) {
 	tests := []struct {
-		name       string
-		mutate     func(*AssetModelReadinessTransition)
-		targetHook func(*AssetModelCoverageTarget)
-		driverHook func(*AssetModelReadiness)
+		name                           string
+		mutate                         func(*AssetModelReadinessTransition)
+		targetHook                     func(*AssetModelCoverageTarget)
+		driverHook                     func(*AssetModelReadiness)
+		expectedDriverTargetGeneration int64
 	}{
 		{
 			name: "lease owner mismatch",
@@ -322,6 +323,12 @@ func TestActivateAssetModelReadinessBindingSetCASStaleDriverChangesNothing(t *te
 			name: "attempt mismatch",
 			mutate: func(transition *AssetModelReadinessTransition) {
 				transition.ExpectedAttemptCount = 2
+			},
+		},
+		{
+			name: "expected lease expiry mismatch",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.ExpectedLeaseExpiresAt = 201
 			},
 		},
 		{
@@ -337,6 +344,13 @@ func TestActivateAssetModelReadinessBindingSetCASStaleDriverChangesNothing(t *te
 			},
 		},
 		{
+			name: "stored driver target generation mismatch",
+			driverHook: func(row *AssetModelReadiness) {
+				row.TargetGeneration = 10
+			},
+			expectedDriverTargetGeneration: 10,
+		},
+		{
 			name: "current driving target not active",
 			targetHook: func(target *AssetModelCoverageTarget) {
 				target.Status = AssetModelTargetStatusRotating
@@ -347,6 +361,10 @@ func TestActivateAssetModelReadinessBindingSetCASStaleDriverChangesNothing(t *te
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			openAssetModelReadinessTestDB(t)
+			expectedDriverTargetGeneration := tt.expectedDriverTargetGeneration
+			if expectedDriverTargetGeneration == 0 {
+				expectedDriverTargetGeneration = 11
+			}
 			seedAssetModelBindingSetReadiness(t, 41, "scope-a", "driver", 11, 131, "binding-a", AssetModelReadinessStatusProcessing, func(row *AssetModelReadiness) {
 				row.LeaseOwner = "worker-a"
 				row.AttemptCount = 1
@@ -372,6 +390,79 @@ func TestActivateAssetModelReadinessBindingSetCASStaleDriverChangesNothing(t *te
 			if tt.mutate != nil {
 				tt.mutate(&transition)
 			}
+
+			count, err := ActivateAssetModelReadinessBindingSetCAS(transition)
+			require.NoError(t, err)
+			require.Equal(t, int64(0), count)
+
+			driver := requireOneReadiness(t, 41, "scope-a", "driver")
+			require.Equal(t, AssetModelReadinessStatusProcessing, driver.Status)
+			require.Equal(t, "worker-a", driver.LeaseOwner)
+			require.Equal(t, 1, driver.AttemptCount)
+			require.Equal(t, int64(200), driver.LeaseExpiresAt)
+			require.Equal(t, expectedDriverTargetGeneration, driver.TargetGeneration)
+			sibling := requireOneReadiness(t, 41, "scope-a", "sibling")
+			require.Equal(t, AssetModelReadinessStatusPending, sibling.Status)
+			require.Equal(t, "", sibling.LeaseOwner)
+			require.Equal(t, int64(0), sibling.LeaseExpiresAt)
+		})
+	}
+}
+
+func TestActivateAssetModelReadinessBindingSetCASInvalidInputNoOp(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*AssetModelReadinessTransition)
+	}{
+		{
+			name: "asset id not positive",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.AssetId = 0
+			},
+		},
+		{
+			name: "blank scope after trim",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.ScopeKey = " \t "
+			},
+		},
+		{
+			name: "blank model after trim",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.ModelName = " \n "
+			},
+		},
+		{
+			name: "blank owner after trim",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.LeaseOwner = "   "
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			openAssetModelReadinessTestDB(t)
+			seedAssetModelBindingSetReadiness(t, 41, "scope-a", "driver", 11, 131, "binding-a", AssetModelReadinessStatusProcessing, func(row *AssetModelReadiness) {
+				row.LeaseOwner = "worker-a"
+				row.AttemptCount = 1
+				row.LeaseExpiresAt = 200
+			})
+			seedAssetModelBindingSetReadiness(t, 41, "scope-a", "sibling", 11, 131, "binding-a", AssetModelReadinessStatusPending, nil)
+
+			transition := AssetModelReadinessTransition{
+				AssetId:                41,
+				ScopeKey:               "scope-a",
+				ModelName:              "driver",
+				TargetGeneration:       11,
+				ChannelId:              131,
+				BindingScope:           "binding-a",
+				LeaseOwner:             "worker-a",
+				ExpectedAttemptCount:   1,
+				ExpectedLeaseExpiresAt: 200,
+				Now:                    100,
+			}
+			tt.mutate(&transition)
 
 			count, err := ActivateAssetModelReadinessBindingSetCAS(transition)
 			require.NoError(t, err)
