@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"strings"
@@ -105,13 +106,20 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 }
 
 func sendEmailNotify(userEmail string, data dto.Notify) error {
-	// make email content
+	content := renderEmailNotifyContent(data)
+	return common.SendEmail(data.Title, userEmail, content)
+}
+
+func renderEmailNotifyContent(data dto.Notify) string {
 	content := data.Content
 	// 处理占位符
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
-	return common.SendEmail(data.Title, userEmail, content)
+	if data.Type == dto.NotifyTypeTicketUpdate {
+		return html.EscapeString(content)
+	}
+	return content
 }
 
 func sendBarkNotify(barkURL string, data dto.Notify) error {

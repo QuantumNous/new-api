@@ -90,7 +90,9 @@ function resetForm(provider?: CustomOAuthProvider) {
 async function loadProviders() {
   loading.value = true
   try {
-    const data = await api.get<CustomOAuthProvider[]>('/api/custom-oauth-provider/')
+    const data = await api.get<CustomOAuthProvider[]>(
+      '/api/custom-oauth-provider/'
+    )
     providers.value = Array.isArray(data) ? data : []
   } catch (error) {
     toast.error(error instanceof Error ? error.message : String(error))
@@ -209,22 +211,51 @@ onMounted(loadProviders)
       <ConsoleButton size="sm" @click="openCreate">新增提供商</ConsoleButton>
     </div>
 
-    <div v-if="loading" class="py-4 text-sm text-[var(--text-tertiary)]">加载中…</div>
-    <div v-else-if="providers.length === 0" class="py-4 text-sm text-[var(--text-tertiary)]">
+    <div v-if="loading" class="py-4 text-sm text-[var(--text-tertiary)]">
+      加载中…
+    </div>
+    <div
+      v-else-if="providers.length === 0"
+      class="py-4 text-sm text-[var(--text-tertiary)]"
+    >
       尚未配置自定义 OAuth 提供商。
     </div>
     <div v-else class="custom-oauth-list">
-      <article v-for="provider in providers" :key="provider.id" class="custom-oauth-row">
+      <article
+        v-for="provider in providers"
+        :key="provider.id"
+        class="custom-oauth-row"
+      >
         <div class="min-w-0">
-          <p class="font-semibold text-[var(--text-primary)]">{{ provider.name }}</p>
-          <p class="mt-0.5 truncate font-mono text-xs text-[var(--text-tertiary)]">{{ provider.slug }}</p>
+          <p class="font-semibold text-[var(--text-primary)]">
+            {{ provider.name }}
+          </p>
+          <p
+            class="mt-0.5 truncate font-mono text-xs text-[var(--text-tertiary)]"
+          >
+            {{ provider.slug }}
+          </p>
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xs" :class="provider.enabled ? 'text-[var(--signal)]' : 'text-[var(--text-tertiary)]'">
+          <span
+            class="text-xs"
+            :class="
+              provider.enabled
+                ? 'text-[var(--signal)]'
+                : 'text-[var(--text-tertiary)]'
+            "
+          >
             {{ provider.enabled ? '已启用' : '已停用' }}
           </span>
-          <ConsoleButton variant="ghost" size="sm" @click="openEdit(provider)">编辑</ConsoleButton>
-          <ConsoleButton variant="danger" size="sm" @click="deleteTarget = provider">删除</ConsoleButton>
+          <ConsoleButton variant="ghost" size="sm" @click="openEdit(provider)"
+            >编辑</ConsoleButton
+          >
+          <ConsoleButton
+            variant="danger"
+            size="sm"
+            @click="deleteTarget = provider"
+            >删除</ConsoleButton
+          >
         </div>
       </article>
     </div>
@@ -240,13 +271,25 @@ onMounted(loadProviders)
       <FormField label="名称"><TextInput v-model="form.name" /></FormField>
       <FormField label="Slug"><TextInput v-model="form.slug" /></FormField>
       <FormField label="图标名称"><TextInput v-model="form.icon" /></FormField>
-      <FormField label="Client ID"><TextInput v-model="form.client_id" /></FormField>
+      <FormField label="Client ID"
+        ><TextInput v-model="form.client_id"
+      /></FormField>
       <FormField label="Client Secret">
-        <TextInput v-model="form.client_secret" type="password" autocomplete="new-password" />
+        <TextInput
+          v-model="form.client_secret"
+          type="password"
+          autocomplete="new-password"
+        />
       </FormField>
-      <FormField label="授权端点" class="sm:col-span-2"><TextInput v-model="form.authorization_endpoint" type="url" /></FormField>
-      <FormField label="Token 端点" class="sm:col-span-2"><TextInput v-model="form.token_endpoint" type="url" /></FormField>
-      <FormField label="用户信息端点" class="sm:col-span-2"><TextInput v-model="form.user_info_endpoint" type="url" /></FormField>
+      <FormField label="授权端点" class="sm:col-span-2"
+        ><TextInput v-model="form.authorization_endpoint" type="url"
+      /></FormField>
+      <FormField label="Token 端点" class="sm:col-span-2"
+        ><TextInput v-model="form.token_endpoint" type="url"
+      /></FormField>
+      <FormField label="用户信息端点" class="sm:col-span-2"
+        ><TextInput v-model="form.user_info_endpoint" type="url"
+      /></FormField>
       <FormField label="Scopes"><TextInput v-model="form.scopes" /></FormField>
       <FormField label="Well-Known 地址">
         <div class="flex gap-2">
@@ -261,10 +304,18 @@ onMounted(loadProviders)
           </ConsoleButton>
         </div>
       </FormField>
-      <FormField label="用户 ID 字段"><TextInput v-model="form.user_id_field" /></FormField>
-      <FormField label="用户名字段"><TextInput v-model="form.username_field" /></FormField>
-      <FormField label="显示名字段"><TextInput v-model="form.display_name_field" /></FormField>
-      <FormField label="邮箱字段"><TextInput v-model="form.email_field" /></FormField>
+      <FormField label="用户 ID 字段"
+        ><TextInput v-model="form.user_id_field"
+      /></FormField>
+      <FormField label="用户名字段"
+        ><TextInput v-model="form.username_field"
+      /></FormField>
+      <FormField label="显示名字段"
+        ><TextInput v-model="form.display_name_field"
+      /></FormField>
+      <FormField label="邮箱字段"
+        ><TextInput v-model="form.email_field"
+      /></FormField>
       <FormField label="客户端认证方式">
         <select v-model.number="form.auth_style" class="custom-oauth-select">
           <option :value="0">自动</option>
@@ -272,19 +323,37 @@ onMounted(loadProviders)
           <option :value="2">Basic Auth Header</option>
         </select>
       </FormField>
-      <FormField label="访问拒绝消息"><TextInput v-model="form.access_denied_message" /></FormField>
+      <FormField label="访问拒绝消息"
+        ><TextInput v-model="form.access_denied_message"
+      /></FormField>
       <FormField label="访问策略 JSON" class="sm:col-span-2">
-        <textarea v-model="form.access_policy" rows="4" class="custom-oauth-textarea" spellcheck="false" />
+        <textarea
+          v-model="form.access_policy"
+          rows="4"
+          class="custom-oauth-textarea"
+          spellcheck="false"
+        />
       </FormField>
-      <div class="flex items-center justify-between border-t border-[var(--border-subtle)] pt-3 sm:col-span-2">
-        <span class="text-sm font-semibold text-[var(--text-primary)]">启用提供商</span>
+      <div
+        class="flex items-center justify-between border-t border-[var(--border-subtle)] pt-3 sm:col-span-2"
+      >
+        <span class="text-sm font-semibold text-[var(--text-primary)]"
+          >启用提供商</span
+        >
         <ConsoleToggle v-model="form.enabled" label="启用提供商" />
       </div>
     </div>
     <template #footer>
       <div class="flex justify-end gap-3">
-        <ConsoleButton variant="secondary" :disabled="saving" @click="dialogOpen = false">取消</ConsoleButton>
-        <ConsoleButton :loading="saving" @click="saveProvider">保存提供商</ConsoleButton>
+        <ConsoleButton
+          variant="secondary"
+          :disabled="saving"
+          @click="dialogOpen = false"
+          >取消</ConsoleButton
+        >
+        <ConsoleButton :loading="saving" @click="saveProvider"
+          >保存提供商</ConsoleButton
+        >
       </div>
     </template>
   </ConsoleModal>

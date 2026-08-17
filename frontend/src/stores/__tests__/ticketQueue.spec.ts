@@ -52,4 +52,19 @@ describe('ticket queue summary refresh', () => {
     expect(consoleApi.get).not.toHaveBeenCalled()
     expect(store.summary).toEqual({ pending: 0, unassigned: 0, mine: 0 })
   })
+
+  it('records refresh failures without replacing the last known summary', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const store = useTicketQueueStore()
+    await store.refresh()
+    consoleApi.get.mockRejectedValueOnce(new Error('network unavailable'))
+
+    await store.refresh()
+
+    expect(store.summary).toEqual({ pending: 3, unassigned: 2, mine: 1 })
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to refresh ticket queue summary',
+      expect.any(Error)
+    )
+  })
 })

@@ -47,7 +47,10 @@ function updateJson(value: string) {
 
 function formatJson() {
   try {
-    emit('update:modelValue', JSON.stringify(JSON.parse(textValue.value), null, 2))
+    emit(
+      'update:modelValue',
+      JSON.stringify(JSON.parse(textValue.value), null, 2)
+    )
     jsonError.value = ''
   } catch {
     jsonError.value = '请输入有效的 JSON 数据。'
@@ -58,9 +61,14 @@ function parseStructuredValue() {
   const value = String(props.modelValue ?? '')
   if (!['list', 'key-value', 'ratio'].includes(props.field.kind)) return
   try {
-    const parsed = JSON.parse(value || (props.field.kind === 'list' ? '[]' : '{}'))
+    const parsed = JSON.parse(
+      value || (props.field.kind === 'list' ? '[]' : '{}')
+    )
     if (props.field.kind === 'list') {
-      if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === 'string')) {
+      if (
+        !Array.isArray(parsed) ||
+        !parsed.every((item) => typeof item === 'string')
+      ) {
         throw new Error('列表只能包含文本项')
       }
       listEntries.value = parsed
@@ -71,7 +79,9 @@ function parseStructuredValue() {
       const entries = Object.entries(parsed)
       if (
         props.field.kind === 'ratio' &&
-        entries.some(([, entry]) => typeof entry !== 'number' || !Number.isFinite(entry))
+        entries.some(
+          ([, entry]) => typeof entry !== 'number' || !Number.isFinite(entry)
+        )
       ) {
         throw new Error('倍率值必须是有限数字')
       }
@@ -81,13 +91,17 @@ function parseStructuredValue() {
       ) {
         throw new Error('键值表的值必须是文本')
       }
-      mapEntries.value = entries.map(([key, entry]) => ({ key, value: String(entry) }))
+      mapEntries.value = entries.map(([key, entry]) => ({
+        key,
+        value: String(entry),
+      }))
     }
     structuredError.value = ''
   } catch (error) {
     listEntries.value = []
     mapEntries.value = []
-    structuredError.value = error instanceof Error ? error.message : '配置格式不正确'
+    structuredError.value =
+      error instanceof Error ? error.message : '配置格式不正确'
   }
 }
 
@@ -129,22 +143,27 @@ function addListEntry() {
   emitList()
 }
 
+function removeListEntry(index: number) {
+  listEntries.value.splice(index, 1)
+  emitList()
+}
+
 function addMapEntry() {
   mapEntries.value.push({ key: '', value: '' })
 }
 
-watch(
-  () => [props.field.kind, props.modelValue],
-  parseStructuredValue,
-  { immediate: true }
-)
+function removeMapEntry(index: number) {
+  mapEntries.value.splice(index, 1)
+  emitMap()
+}
+
+watch(() => [props.field.kind, props.modelValue], parseStructuredValue, {
+  immediate: true,
+})
 </script>
 
 <template>
-  <div
-    v-if="field.kind === 'boolean'"
-    class="settings-field-toggle"
-  >
+  <div v-if="field.kind === 'boolean'" class="settings-field-toggle">
     <div class="min-w-0 flex-1">
       <p class="settings-field-title">{{ field.label }}</p>
       <p v-if="field.description" class="settings-field-description">
@@ -184,8 +203,14 @@ watch(
     </div>
 
     <div v-else-if="field.kind === 'list'" class="settings-structured-editor">
-      <p v-if="structuredError" class="settings-json-error">{{ structuredError }}</p>
-      <div v-for="(_, index) in listEntries" :key="index" class="settings-structured-row">
+      <p v-if="structuredError" class="settings-json-error">
+        {{ structuredError }}
+      </p>
+      <div
+        v-for="(_, index) in listEntries"
+        :key="index"
+        class="settings-structured-row"
+      >
         <TextInput
           v-model="listEntries[index]"
           autocomplete="off"
@@ -196,7 +221,7 @@ watch(
           class="settings-structured-icon"
           title="删除条目"
           aria-label="删除条目"
-          @click="listEntries.splice(index, 1); emitList()"
+          @click="removeListEntry(index)"
         >
           <Trash2 :size="15" aria-hidden="true" />
         </button>
@@ -212,9 +237,18 @@ watch(
       </button>
     </div>
 
-    <div v-else-if="field.kind === 'key-value' || field.kind === 'ratio'" class="settings-structured-editor">
-      <p v-if="structuredError" class="settings-json-error">{{ structuredError }}</p>
-      <div v-for="(_, index) in mapEntries" :key="index" class="settings-structured-row settings-structured-pair">
+    <div
+      v-else-if="field.kind === 'key-value' || field.kind === 'ratio'"
+      class="settings-structured-editor"
+    >
+      <p v-if="structuredError" class="settings-json-error">
+        {{ structuredError }}
+      </p>
+      <div
+        v-for="(_, index) in mapEntries"
+        :key="index"
+        class="settings-structured-row settings-structured-pair"
+      >
         <TextInput
           v-model="mapEntries[index].key"
           placeholder="键名"
@@ -233,7 +267,7 @@ watch(
           class="settings-structured-icon"
           title="删除条目"
           aria-label="删除条目"
-          @click="mapEntries.splice(index, 1); emitMap()"
+          @click="removeMapEntry(index)"
         >
           <Trash2 :size="15" aria-hidden="true" />
         </button>
@@ -269,7 +303,11 @@ watch(
       v-model="textValue"
       class="settings-select"
     >
-      <option v-for="option in field.options" :key="option.value" :value="option.value">
+      <option
+        v-for="option in field.options"
+        :key="option.value"
+        :value="option.value"
+      >
         {{ option.label }}
       </option>
     </select>
@@ -277,10 +315,21 @@ watch(
     <div v-else class="space-y-1">
       <TextInput
         v-model="textValue"
-        :type="field.kind === 'secret' ? 'password' : field.kind === 'number' ? 'number' : field.kind === 'url' ? 'url' : 'text'"
+        :type="
+          field.kind === 'secret'
+            ? 'password'
+            : field.kind === 'number'
+              ? 'number'
+              : field.kind === 'url'
+                ? 'url'
+                : 'text'
+        "
         :autocomplete="field.kind === 'secret' ? 'new-password' : 'off'"
       />
-      <p v-if="field.kind === 'secret' && secretConfigured" class="settings-secret-status">
+      <p
+        v-if="field.kind === 'secret' && secretConfigured"
+        class="settings-secret-status"
+      >
         已配置。留空不会覆盖现有凭据。
       </p>
     </div>

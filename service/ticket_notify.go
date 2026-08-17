@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	serviceauthz "github.com/QuantumNous/new-api/service/authz"
 	"github.com/bytedance/gopkg/util/gopool"
 )
 
@@ -22,14 +23,15 @@ func NotifyNewTicket(ticket model.Ticket) {
 func NotifyTicketUserReply(ticket model.Ticket) {
 	gopool.Go(func() {
 		if ticket.AssigneeID == nil {
-			NotifyRootUser(
-				dto.NotifyTypeTicketUpdate,
-				fmt.Sprintf("Ticket #%d needs a reply", ticket.ID),
-				fmt.Sprintf("The user added a message to an unassigned ticket: %s", ticket.Title),
-			)
+			notifyRootAboutTicketReply(ticket)
 			return
 		}
-		notifyTicketUser(*ticket.AssigneeID, ticket.ID, "Ticket user replied", ticket.Title)
+		agent, ok := getEligibleTicketAgent(*ticket.AssigneeID)
+		if !ok {
+			notifyRootAboutTicketReply(ticket)
+			return
+		}
+		notifyLoadedTicketUser(agent, ticket.ID, "Ticket user replied", ticket.Title)
 	})
 }
 
@@ -41,8 +43,33 @@ func NotifyTicketSupportReply(ticket model.Ticket) {
 
 func NotifyTicketAssignment(ticket model.Ticket, assigneeID int) {
 	gopool.Go(func() {
-		notifyTicketUser(assigneeID, ticket.ID, "Ticket assigned to you", ticket.Title)
+		agent, ok := getEligibleTicketAgent(assigneeID)
+		if !ok {
+			return
+		}
+		notifyLoadedTicketUser(agent, ticket.ID, "Ticket assigned to you", ticket.Title)
 	})
+}
+
+func notifyRootAboutTicketReply(ticket model.Ticket) {
+	NotifyRootUser(
+		dto.NotifyTypeTicketUpdate,
+		fmt.Sprintf("Ticket #%d needs a reply", ticket.ID),
+		fmt.Sprintf("The user added a message to an unassigned ticket: %s", ticket.Title),
+	)
+}
+
+func getEligibleTicketAgent(userID int) (*model.User, bool) {
+	user, err := model.GetUserById(userID, false)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to load ticket agent %d for notification: %s", userID, err.Error()))
+		return nil, false
+	}
+	if user.Status != common.UserStatusEnabled || !serviceauthz.Can(user.Id, user.Role, serviceauthz.TicketReply) {
+		common.SysLog(fmt.Sprintf("ticket agent %d is no longer eligible for notifications", userID))
+		return nil, false
+	}
+	return user, true
 }
 
 func notifyTicketUser(userID, ticketID int, subject, title string) {
@@ -51,6 +78,10 @@ func notifyTicketUser(userID, ticketID int, subject, title string) {
 		common.SysLog(fmt.Sprintf("failed to load ticket notification user %d: %s", userID, err.Error()))
 		return
 	}
+	notifyLoadedTicketUser(user, ticketID, subject, title)
+}
+
+func notifyLoadedTicketUser(user *model.User, ticketID int, subject, title string) {
 	data := dto.NewNotify(
 		dto.NotifyTypeTicketUpdate,
 		fmt.Sprintf("%s (#%d)", subject, ticketID),
@@ -58,6 +89,6 @@ func notifyTicketUser(userID, ticketID int, subject, title string) {
 		nil,
 	)
 	if err := NotifyUser(user.Id, user.Email, user.GetSetting(), data); err != nil {
-		common.SysLog(fmt.Sprintf("failed to notify user %d for ticket %d: %s", userID, ticketID, err.Error()))
+		common.SysLog(fmt.Sprintf("failed to notify user %d for ticket %d: %s", user.Id, ticketID, err.Error()))
 	}
 }

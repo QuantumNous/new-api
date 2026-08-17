@@ -666,7 +666,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
                 v-model="assignmentValue"
                 :options="assignmentOptions"
                 :label="t('tickets.admin.assignee')"
-                :disabled="agentsLoading"
+                :disabled="agentsLoading || !canManage"
                 size="sm"
               />
               <ConsoleButton
@@ -708,7 +708,9 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
                   </dd>
                 </div>
                 <div v-if="ticket.model_id">
-                  <dt class="text-xs text-[var(--text-tertiary)]">Model ID</dt>
+                  <dt class="text-xs text-[var(--text-tertiary)]">
+                    {{ t('tickets.admin.modelId') }}
+                  </dt>
                   <dd
                     class="mt-1 break-all font-mono text-xs text-[var(--text-primary)]"
                   >
@@ -717,7 +719,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
                 </div>
                 <div v-if="ticket.request_id">
                   <dt class="text-xs text-[var(--text-tertiary)]">
-                    Request ID
+                    {{ t('tickets.admin.requestId') }}
                   </dt>
                   <dd
                     class="mt-1 break-all font-mono text-xs text-[var(--text-primary)]"

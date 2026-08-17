@@ -435,6 +435,8 @@ export default {
       take: 'Take',
       assigneeSaved: 'Assignee updated',
       details: 'Ticket details',
+      modelId: 'Model ID',
+      requestId: 'Request ID',
       pendingCount: '{count} pending tickets',
     },
     created: 'Ticket created successfully',

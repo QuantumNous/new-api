@@ -30,11 +30,7 @@ const props = defineProps<{
 }>()
 
 type Action =
-  | 'clear-affinity'
-  | 'clear-cache'
-  | 'reset-stats'
-  | 'gc'
-  | 'cleanup-logs'
+  'clear-affinity' | 'clear-cache' | 'reset-stats' | 'gc' | 'cleanup-logs'
 
 const toast = useToast()
 const pendingAction = ref<Action | null>(null)
@@ -49,13 +45,22 @@ const logCleanupValue = ref(30)
 const actionText = computed(() => {
   switch (pendingAction.value) {
     case 'clear-affinity':
-      return { title: '清空渠道亲和性缓存', message: '现有用户的渠道绑定将被移除。' }
+      return {
+        title: '清空渠道亲和性缓存',
+        message: '现有用户的渠道绑定将被移除。',
+      }
     case 'clear-cache':
       return { title: '清理磁盘缓存', message: '将删除不活跃的磁盘缓存文件。' }
     case 'reset-stats':
-      return { title: '重置缓存统计', message: '将重置磁盘缓存的命中与未命中统计。' }
+      return {
+        title: '重置缓存统计',
+        message: '将重置磁盘缓存的命中与未命中统计。',
+      }
     case 'gc':
-      return { title: '执行垃圾回收', message: '将立即执行 Go 运行时垃圾回收。' }
+      return {
+        title: '执行垃圾回收',
+        message: '将立即执行 Go 运行时垃圾回收。',
+      }
     case 'cleanup-logs':
       return {
         title: '清理日志文件',
@@ -152,40 +157,83 @@ onMounted(loadStats)
         <h3>运行状态与维护</h3>
         <p v-if="loadingStats">正在获取最新运行状态。</p>
         <p v-else-if="kind === 'channel-affinity'">
-          缓存 {{ affinityStats?.total ?? 0 }} 条，容量 {{ affinityStats?.cache_capacity ?? 0 }}。
+          缓存 {{ affinityStats?.total ?? 0 }} 条，容量
+          {{ affinityStats?.cache_capacity ?? 0 }}。
         </p>
         <p v-else>
-          缓存命中率 {{ cacheHitRate }}，日志文件 {{ logFiles?.file_count ?? 0 }} 个。
+          缓存命中率 {{ cacheHitRate }}，日志文件
+          {{ logFiles?.file_count ?? 0 }} 个。
         </p>
       </div>
-      <ConsoleButton variant="ghost" size="sm" :loading="loadingStats" @click="loadStats">
+      <ConsoleButton
+        variant="ghost"
+        size="sm"
+        :loading="loadingStats"
+        @click="loadStats"
+      >
         刷新
       </ConsoleButton>
     </div>
 
-    <dl v-if="kind === 'channel-affinity' && affinityStats" class="settings-maintenance-stats">
-      <div><dt>缓存条目</dt><dd>{{ affinityStats.total }}</dd></div>
-      <div><dt>未知条目</dt><dd>{{ affinityStats.unknown }}</dd></div>
-      <div><dt>缓存算法</dt><dd>{{ affinityStats.cache_algo || '—' }}</dd></div>
+    <dl
+      v-if="kind === 'channel-affinity' && affinityStats"
+      class="settings-maintenance-stats"
+    >
+      <div>
+        <dt>缓存条目</dt>
+        <dd>{{ affinityStats.total }}</dd>
+      </div>
+      <div>
+        <dt>未知条目</dt>
+        <dd>{{ affinityStats.unknown }}</dd>
+      </div>
+      <div>
+        <dt>缓存算法</dt>
+        <dd>{{ affinityStats.cache_algo || '—' }}</dd>
+      </div>
     </dl>
     <dl v-else-if="performanceStats" class="settings-maintenance-stats">
-      <div><dt>磁盘缓存</dt><dd>{{ formatBytes(performanceStats.disk_cache_info.total_size) }}</dd></div>
-      <div><dt>当前内存</dt><dd>{{ formatBytes(performanceStats.memory_stats.alloc) }}</dd></div>
-      <div><dt>Goroutine</dt><dd>{{ performanceStats.memory_stats.num_goroutine }}</dd></div>
-      <div><dt>日志占用</dt><dd>{{ formatBytes(logFiles?.total_size) }}</dd></div>
+      <div>
+        <dt>磁盘缓存</dt>
+        <dd>{{ formatBytes(performanceStats.disk_cache_info.total_size) }}</dd>
+      </div>
+      <div>
+        <dt>当前内存</dt>
+        <dd>{{ formatBytes(performanceStats.memory_stats.alloc) }}</dd>
+      </div>
+      <div>
+        <dt>Goroutine</dt>
+        <dd>{{ performanceStats.memory_stats.num_goroutine }}</dd>
+      </div>
+      <div>
+        <dt>日志占用</dt>
+        <dd>{{ formatBytes(logFiles?.total_size) }}</dd>
+      </div>
     </dl>
 
     <template v-if="kind === 'channel-affinity'">
-      <ConsoleButton variant="secondary" size="sm" @click="pendingAction = 'clear-affinity'">
+      <ConsoleButton
+        variant="secondary"
+        size="sm"
+        @click="pendingAction = 'clear-affinity'"
+      >
         清空亲和性缓存
       </ConsoleButton>
     </template>
     <template v-else>
       <div class="settings-maintenance-controls">
-        <ConsoleButton variant="secondary" size="sm" @click="pendingAction = 'clear-cache'">
+        <ConsoleButton
+          variant="secondary"
+          size="sm"
+          @click="pendingAction = 'clear-cache'"
+        >
           清理磁盘缓存
         </ConsoleButton>
-        <ConsoleButton variant="secondary" size="sm" @click="pendingAction = 'reset-stats'">
+        <ConsoleButton
+          variant="secondary"
+          size="sm"
+          @click="pendingAction = 'reset-stats'"
+        >
           重置统计
         </ConsoleButton>
         <ConsoleButton variant="ghost" size="sm" @click="pendingAction = 'gc'">
@@ -197,7 +245,12 @@ onMounted(loadStats)
           <option value="by_count">保留最新文件数</option>
           <option value="by_days">按保留天数清理</option>
         </select>
-        <input v-model.number="logCleanupValue" type="number" min="1" aria-label="日志保留值" />
+        <input
+          v-model.number="logCleanupValue"
+          type="number"
+          min="1"
+          aria-label="日志保留值"
+        />
         <ConsoleButton
           variant="danger"
           size="sm"

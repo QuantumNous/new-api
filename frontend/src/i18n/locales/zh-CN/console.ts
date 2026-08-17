@@ -430,6 +430,8 @@ export default {
       take: '领取',
       assigneeSaved: '负责人已更新',
       details: '工单信息',
+      modelId: '模型 ID',
+      requestId: '请求 ID',
       pendingCount: '{count} 个待处理工单',
     },
     created: '工单创建成功',

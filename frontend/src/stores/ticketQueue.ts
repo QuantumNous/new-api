@@ -30,7 +30,9 @@ export const useTicketQueueStore = defineStore('ticket-queue', () => {
       .then((value) => {
         summary.value = value
       })
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        console.error('Failed to refresh ticket queue summary', error)
+      })
       .finally(() => {
         refreshing = null
       })

@@ -66,7 +66,9 @@ const dirty = computed(() => {
       !String(next ?? '').trim()
     )
       return false
-    return serialize(next) !== serialize(readField(field.key, field.defaultValue))
+    return (
+      serialize(next) !== serialize(readField(field.key, field.defaultValue))
+    )
   })
 })
 
@@ -106,7 +108,9 @@ async function saveSection() {
         return
       }
     }
-    if (serialize(next) !== serialize(readField(field.key, field.defaultValue))) {
+    if (
+      serialize(next) !== serialize(readField(field.key, field.defaultValue))
+    ) {
       patch[field.key] = next
     }
   }
@@ -227,7 +231,9 @@ onMounted(() => load())
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-tertiary);
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
 }
 .settings-section-link:hover {
   color: var(--text-primary);

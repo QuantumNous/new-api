@@ -16,7 +16,7 @@ func useTicketTestDB(t *testing.T) *gorm.DB {
 	previousType := common.MainDatabaseType()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&User{}, &Ticket{}, &TicketMessage{}, &TicketAttachment{}))
+	require.NoError(t, db.AutoMigrate(&User{}, &Option{}, &Ticket{}, &TicketMessage{}, &TicketAttachment{}))
 	DB = db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	t.Cleanup(func() {
@@ -24,6 +24,71 @@ func useTicketTestDB(t *testing.T) *gorm.DB {
 		common.SetMainDatabaseType(previousType)
 	})
 	return db
+}
+
+type legacyTicketMessage struct {
+	ID        int    `gorm:"primaryKey"`
+	TicketID  int    `gorm:"index"`
+	AuthorID  int    `gorm:"index"`
+	Content   string `gorm:"type:text"`
+	CreatedAt int64  `gorm:"autoCreateTime;index"`
+}
+
+func (legacyTicketMessage) TableName() string { return "ticket_messages" }
+
+func TestBackfillTicketMessageRolesMigratesLegacyAttributionOnce(t *testing.T) {
+	previousDB := DB
+	previousType := common.MainDatabaseType()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Option{}, &Ticket{}, &legacyTicketMessage{}))
+	DB = db
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	t.Cleanup(func() {
+		DB = previousDB
+		common.SetMainDatabaseType(previousType)
+	})
+
+	ticket := Ticket{UserID: 7, Title: "Legacy roles", Status: TicketStatusOpen}
+	require.NoError(t, db.Create(&ticket).Error)
+	legacyUser := legacyTicketMessage{TicketID: ticket.ID, AuthorID: ticket.UserID, Content: "user message"}
+	legacySupport := legacyTicketMessage{TicketID: ticket.ID, AuthorID: 20, Content: "support reply"}
+	require.NoError(t, db.Create(&legacyUser).Error)
+	require.NoError(t, db.Create(&legacySupport).Error)
+
+	require.NoError(t, db.AutoMigrate(&TicketMessage{}))
+	explicitSupport := TicketMessage{
+		TicketID: ticket.ID,
+		AuthorID: ticket.UserID,
+		Role:     TicketMessageRoleSupport,
+		Content:  "explicit support reply",
+	}
+	require.NoError(t, db.Create(&explicitSupport).Error)
+
+	var before []TicketMessage
+	require.NoError(t, db.Order("id ASC").Find(&before).Error)
+	require.Len(t, before, 3)
+	assert.Equal(t, TicketMessageRoleUser, before[0].Role)
+	assert.Equal(t, TicketMessageRoleUser, before[1].Role)
+	assert.Equal(t, TicketMessageRoleSupport, before[2].Role)
+
+	require.NoError(t, BackfillTicketMessageRoles())
+	var after []TicketMessage
+	require.NoError(t, db.Order("id ASC").Find(&after).Error)
+	require.Len(t, after, 3)
+	assert.Equal(t, TicketMessageRoleUser, after[0].Role)
+	assert.Equal(t, TicketMessageRoleSupport, after[1].Role)
+	assert.Equal(t, TicketMessageRoleSupport, after[2].Role)
+
+	var marker Option
+	require.NoError(t, db.Where(commonKeyCol+" = ?", ticketMessageRoleMigrationMarker).First(&marker).Error)
+	assert.Equal(t, "done", marker.Value)
+
+	require.NoError(t, db.Model(&TicketMessage{}).Where("id = ?", legacySupport.ID).Update("role", TicketMessageRoleUser).Error)
+	require.NoError(t, BackfillTicketMessageRoles())
+	var unchanged TicketMessage
+	require.NoError(t, db.First(&unchanged, legacySupport.ID).Error)
+	assert.Equal(t, TicketMessageRoleUser, unchanged.Role)
 }
 
 func TestSupportReplySetsRoleStatusAndAutomaticallyAssigns(t *testing.T) {

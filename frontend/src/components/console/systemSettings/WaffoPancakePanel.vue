@@ -56,7 +56,11 @@ function syncForm() {
 }
 
 function ensureProductBelongsToStore() {
-  if (!selectedStore.value?.onetimeProducts.some((item) => item.id === form.productId)) {
+  if (
+    !selectedStore.value?.onetimeProducts.some(
+      (item) => item.id === form.productId
+    )
+  ) {
     form.productId = ''
   }
 }
@@ -192,13 +196,21 @@ onMounted(async () => {
           @change="ensureProductBelongsToStore"
         >
           <option value="">选择店铺</option>
-          <option v-for="store in catalog.stores" :key="store.id" :value="store.id">
+          <option
+            v-for="store in catalog.stores"
+            :key="store.id"
+            :value="store.id"
+          >
             {{ store.name }} ({{ store.id }})
           </option>
         </select>
       </FormField>
       <FormField label="一次性产品">
-        <select v-model="form.productId" class="waffo-select" :disabled="!selectedStore">
+        <select
+          v-model="form.productId"
+          class="waffo-select"
+          :disabled="!selectedStore"
+        >
           <option value="">选择产品</option>
           <option
             v-for="product in selectedStore?.onetimeProducts ?? []"

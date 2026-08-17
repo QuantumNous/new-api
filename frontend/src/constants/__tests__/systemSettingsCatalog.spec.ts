@@ -22,7 +22,9 @@ describe('system settings catalog', () => {
 
   it('maps each option key to one visible administration section', () => {
     const keys = SYSTEM_SETTINGS_DOMAINS.flatMap((domain) =>
-      domain.sections.flatMap((section) => section.fields.map((field) => field.key))
+      domain.sections.flatMap((section) =>
+        section.fields.map((field) => field.key)
+      )
     )
 
     expect(new Set(keys).size).toBe(keys.length)
@@ -33,16 +35,21 @@ describe('system settings catalog', () => {
   })
 
   it('uses structured editors for pricing, lists, and Waffo Pancake setup', () => {
-    const sections = SYSTEM_SETTINGS_DOMAINS.flatMap((domain) => domain.sections)
+    const sections = SYSTEM_SETTINGS_DOMAINS.flatMap(
+      (domain) => domain.sections
+    )
     const pricing = sections.find((section) => section.id === 'pricing')
     const ssrf = sections.find((section) => section.id === 'ssrf')
-    const waffoPancake = sections.find((section) => section.id === 'waffo-pancake')
-
-    expect(pricing?.fields.find((field) => field.key === 'ModelRatio')?.kind).toBe(
-      'ratio'
+    const waffoPancake = sections.find(
+      (section) => section.id === 'waffo-pancake'
     )
+
     expect(
-      ssrf?.fields.find((field) => field.key === 'fetch_setting.domain_list')?.kind
+      pricing?.fields.find((field) => field.key === 'ModelRatio')?.kind
+    ).toBe('ratio')
+    expect(
+      ssrf?.fields.find((field) => field.key === 'fetch_setting.domain_list')
+        ?.kind
     ).toBe('list')
     expect(waffoPancake?.integration).toBe('waffo-pancake')
   })

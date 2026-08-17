@@ -117,7 +117,9 @@ export function useSystemSettings() {
       const nextRaw = { ..._rawOptions.value }
       for (const [key, value] of entries) {
         nextRaw[key] = String(value)
-        if (Object.prototype.hasOwnProperty.call(SYSTEM_SETTINGS_DEFAULTS, key)) {
+        if (
+          Object.prototype.hasOwnProperty.call(SYSTEM_SETTINGS_DEFAULTS, key)
+        ) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ;(_settings.value as any)[key] = value
         }
@@ -131,7 +133,10 @@ export function useSystemSettings() {
     }
   }
 
-  function rawValue(key: string, fallback: SystemSettingValue = ''): SystemSettingValue {
+  function rawValue(
+    key: string,
+    fallback: SystemSettingValue = ''
+  ): SystemSettingValue {
     const value = _rawOptions.value[key]
     if (value === undefined) return fallback
     if (typeof fallback === 'boolean') return value === 'true' || value === '1'

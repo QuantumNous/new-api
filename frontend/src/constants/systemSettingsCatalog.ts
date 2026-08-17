@@ -1,13 +1,7 @@
 import type { SystemSettingValue } from '@/composables/useSystemSettings'
 
 export type SystemSettingsDomainId =
-  | 'site'
-  | 'auth'
-  | 'billing'
-  | 'models'
-  | 'security'
-  | 'content'
-  | 'operations'
+  'site' | 'auth' | 'billing' | 'models' | 'security' | 'content' | 'operations'
 
 export type SystemSettingFieldKind =
   | 'boolean'
@@ -38,10 +32,7 @@ export interface SystemSettingsSection {
   description: string
   fields: readonly SystemSettingField[]
   integration?:
-    | 'custom-oauth'
-    | 'performance'
-    | 'channel-affinity'
-    | 'waffo-pancake'
+    'custom-oauth' | 'performance' | 'channel-affinity' | 'waffo-pancake'
 }
 
 export interface SystemSettingsDomain {
@@ -56,17 +47,35 @@ const text = (
   label: string,
   defaultValue = '',
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'text', defaultValue })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'text',
+  defaultValue,
+})
 const url = (
   key: string,
   label: string,
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'url', defaultValue: '' })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'url',
+  defaultValue: '',
+})
 const secret = (
   key: string,
   label: string,
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'secret', defaultValue: '' })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'secret',
+  defaultValue: '',
+})
 const secretTextarea = (
   key: string,
   label: string,
@@ -83,49 +92,98 @@ const number = (
   label: string,
   defaultValue = 0,
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'number', defaultValue })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'number',
+  defaultValue,
+})
 const toggle = (
   key: string,
   label: string,
   defaultValue = false,
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'boolean', defaultValue })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'boolean',
+  defaultValue,
+})
 const textarea = (
   key: string,
   label: string,
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'textarea', defaultValue: '' })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'textarea',
+  defaultValue: '',
+})
 const json = (
   key: string,
   label: string,
   defaultValue = '{}',
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'json', defaultValue })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'json',
+  defaultValue,
+})
 const list = (
   key: string,
   label: string,
   defaultValue = '[]',
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'list', defaultValue })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'list',
+  defaultValue,
+})
 const keyValue = (
   key: string,
   label: string,
   defaultValue = '{}',
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'key-value', defaultValue })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'key-value',
+  defaultValue,
+})
 const ratio = (
   key: string,
   label: string,
   defaultValue = '{}',
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'ratio', defaultValue })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'ratio',
+  defaultValue,
+})
 const select = (
   key: string,
   label: string,
   defaultValue: string,
   options: ReadonlyArray<{ value: string; label: string }>,
   description?: string
-): SystemSettingField => ({ key, label, description, kind: 'select', defaultValue, options })
+): SystemSettingField => ({
+  key,
+  label,
+  description,
+  kind: 'select',
+  defaultValue,
+  options,
+})
 
 export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
   {
@@ -139,7 +197,11 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
         description: '站点名称、公开地址、品牌内容与法律文本。',
         fields: [
           text('SystemName', '系统名称'),
-          url('ServerAddress', '服务器地址', '用于 OAuth 回调、Webhook 与外部集成。'),
+          url(
+            'ServerAddress',
+            '服务器地址',
+            '用于 OAuth 回调、Webhook 与外部集成。'
+          ),
           url('Logo', 'Logo 地址'),
           textarea('Footer', '页脚内容'),
           textarea('About', '关于页面内容'),
@@ -181,7 +243,11 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
           toggle('EmailVerificationEnabled', '要求邮箱验证'),
           toggle('EmailDomainRestrictionEnabled', '限制注册邮箱域名'),
           toggle('EmailAliasRestrictionEnabled', '禁止邮箱别名'),
-          textarea('EmailDomainWhitelist', '邮箱域名白名单', '以逗号或换行分隔。'),
+          textarea(
+            'EmailDomainWhitelist',
+            '邮箱域名白名单',
+            '以逗号或换行分隔。'
+          ),
         ],
       },
       {
@@ -273,19 +339,31 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
           number('QuotaForInvitee', '被邀请人奖励'),
           url('TopUpLink', '外部充值链接'),
           url('general_setting.docs_link', '文档链接'),
-          toggle('quota_setting.enable_free_model_pre_consume', '免费模型预扣配额'),
+          toggle(
+            'quota_setting.enable_free_model_pre_consume',
+            '免费模型预扣配额'
+          ),
           number('QuotaPerUnit', '每单位配额', 500000),
           number('USDExchangeRate', '美元汇率', 1),
           toggle('DisplayInCurrencyEnabled', '以货币显示配额'),
           toggle('DisplayTokenStatEnabled', '显示 Token 统计'),
-          select('general_setting.quota_display_type', '配额显示类型', 'quota', [
-            { value: 'quota', label: '配额' },
-            { value: 'USD', label: '美元' },
-            { value: 'TOKENS', label: 'Token' },
-            { value: 'custom', label: '自定义货币' },
-          ]),
+          select(
+            'general_setting.quota_display_type',
+            '配额显示类型',
+            'quota',
+            [
+              { value: 'quota', label: '配额' },
+              { value: 'USD', label: '美元' },
+              { value: 'TOKENS', label: 'Token' },
+              { value: 'custom', label: '自定义货币' },
+            ]
+          ),
           text('general_setting.custom_currency_symbol', '自定义货币符号', '¤'),
-          number('general_setting.custom_currency_exchange_rate', '自定义货币汇率', 1),
+          number(
+            'general_setting.custom_currency_exchange_rate',
+            '自定义货币汇率',
+            1
+          ),
         ],
       },
       {
@@ -385,7 +463,11 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
           textarea('AutomaticDisableStatusCodes', '自动禁用状态码范围'),
           textarea('AutomaticRetryStatusCodes', '自动重试状态码范围'),
           toggle('monitor_setting.auto_test_channel_enabled', '自动测试渠道'),
-          number('monitor_setting.auto_test_channel_minutes', '自动测试间隔（分钟）', 60),
+          number(
+            'monitor_setting.auto_test_channel_minutes',
+            '自动测试间隔（分钟）',
+            60
+          ),
           toggle('global.pass_through_request_enabled', '透传请求模式'),
           toggle('general_setting.ping_interval_enabled', '启用心跳检测'),
           number('general_setting.ping_interval_seconds', '心跳间隔（秒）', 60),
@@ -397,8 +479,15 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
         description: '同一用户优先复用成功渠道，并可查看或清空缓存。',
         fields: [
           toggle('channel_affinity_setting.enabled', '启用渠道亲和性'),
-          toggle('channel_affinity_setting.switch_on_success', '成功后更新绑定'),
-          number('channel_affinity_setting.default_ttl_seconds', '绑定有效期（秒）', 3600),
+          toggle(
+            'channel_affinity_setting.switch_on_success',
+            '成功后更新绑定'
+          ),
+          number(
+            'channel_affinity_setting.default_ttl_seconds',
+            '绑定有效期（秒）',
+            3600
+          ),
         ],
         integration: 'channel-affinity',
       },
@@ -462,21 +551,35 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
         title: 'SSRF 防护',
         description: '域名、IP 和端口访问规则。',
         fields: [
-          toggle('fetch_setting.enable_ssrf_protection', '启用 SSRF 防护', true),
+          toggle(
+            'fetch_setting.enable_ssrf_protection',
+            '启用 SSRF 防护',
+            true
+          ),
           toggle('fetch_setting.allow_private_ip', '允许私有 IP'),
           toggle('fetch_setting.domain_filter_mode', '域名白名单模式'),
           toggle('fetch_setting.ip_filter_mode', 'IP 白名单模式'),
           list('fetch_setting.domain_list', '域名规则', '[]'),
           list('fetch_setting.ip_list', 'IP / CIDR 规则', '[]'),
-          list('fetch_setting.allowed_ports', '允许端口', '["80", "443", "8080", "8443"]'),
-          toggle('fetch_setting.apply_ip_filter_for_domain', '对域名解析结果应用 IP 规则', true),
+          list(
+            'fetch_setting.allowed_ports',
+            '允许端口',
+            '["80", "443", "8080", "8443"]'
+          ),
+          toggle(
+            'fetch_setting.apply_ip_filter_for_domain',
+            '对域名解析结果应用 IP 规则',
+            true
+          ),
         ],
       },
       {
         id: 'token-limits',
         title: 'Token 限制',
         description: '用户 API Token 创建限制。',
-        fields: [number('token_setting.max_user_tokens', '每位用户最大 Token 数')],
+        fields: [
+          number('token_setting.max_user_tokens', '每位用户最大 Token 数'),
+        ],
       },
     ],
   },
@@ -570,7 +673,11 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
         fields: [
           number('QuotaRemindThreshold', '配额提醒阈值', 1000),
           toggle('perf_metrics_setting.enabled', '启用性能指标', true),
-          number('perf_metrics_setting.flush_interval', '指标落盘间隔（分钟）', 5),
+          number(
+            'perf_metrics_setting.flush_interval',
+            '指标落盘间隔（分钟）',
+            5
+          ),
           select('perf_metrics_setting.bucket_time', '指标聚合粒度', 'hour', [
             { value: 'minute', label: '分钟' },
             { value: '5min', label: '5 分钟' },
@@ -586,7 +693,10 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
         fields: [
           url('WorkerUrl', 'Worker URL'),
           secret('WorkerValidKey', 'Worker 验证密钥'),
-          toggle('WorkerAllowHttpImageRequestEnabled', '允许 Worker 请求 HTTP 图片'),
+          toggle(
+            'WorkerAllowHttpImageRequestEnabled',
+            '允许 Worker 请求 HTTP 图片'
+          ),
         ],
       },
       {
@@ -595,13 +705,33 @@ export const SYSTEM_SETTINGS_DOMAINS: readonly SystemSettingsDomain[] = [
         description: '请求体磁盘缓存和资源阈值保护。',
         fields: [
           toggle('performance_setting.disk_cache_enabled', '启用磁盘缓存'),
-          number('performance_setting.disk_cache_threshold_mb', '磁盘缓存阈值（MB）', 10),
-          number('performance_setting.disk_cache_max_size_mb', '最大缓存（MB）', 1024),
+          number(
+            'performance_setting.disk_cache_threshold_mb',
+            '磁盘缓存阈值（MB）',
+            10
+          ),
+          number(
+            'performance_setting.disk_cache_max_size_mb',
+            '最大缓存（MB）',
+            1024
+          ),
           text('performance_setting.disk_cache_path', '缓存目录'),
           toggle('performance_setting.monitor_enabled', '启用资源监控'),
-          number('performance_setting.monitor_cpu_threshold', 'CPU 阈值（%）', 90),
-          number('performance_setting.monitor_memory_threshold', '内存阈值（%）', 90),
-          number('performance_setting.monitor_disk_threshold', '磁盘阈值（%）', 95),
+          number(
+            'performance_setting.monitor_cpu_threshold',
+            'CPU 阈值（%）',
+            90
+          ),
+          number(
+            'performance_setting.monitor_memory_threshold',
+            '内存阈值（%）',
+            90
+          ),
+          number(
+            'performance_setting.monitor_disk_threshold',
+            '磁盘阈值（%）',
+            95
+          ),
         ],
         integration: 'performance',
       },
