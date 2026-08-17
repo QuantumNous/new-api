@@ -1,5 +1,11 @@
 package xai
 
+const (
+	xAIImageGenerationsPath = "/v1/images/generations"
+	xAIImageEditsPath       = "/v1/images/edits"
+	maxXAIImageCount        = 10
+)
+
 var ModelList = []string{
 	// language models
 	"grok-4-1-fast-reasoning",
@@ -22,6 +28,7 @@ var ModelList = []string{
 	// grok-3-mini reasoning effort variants
 	"grok-3-mini-high", "grok-3-mini-low",
 	// image generation models
+	"grok-imagine-image-2.0",
 	"grok-imagine-image-pro",
 	"grok-imagine-image",
 	"grok-2-image-1212",
