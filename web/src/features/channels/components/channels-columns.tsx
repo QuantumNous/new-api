@@ -149,33 +149,44 @@ function CostConfigBadge({ channel }: { channel: Channel }) {
 /**
  * Channel call cost cell: cost config badge plus admin-only profit summary
  */
-function ChannelCostCell({ channel }: { channel: Channel }) {
+function ChannelCostCell({ channel }: { channel: Channel | TagRow }) {
   const userRole = useAuthStore((s) => s.auth.user?.role)
   const { t } = useTranslation()
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
-  const settings = parseCostSettings(channel)
-  const costEnabled = Boolean(settings?.enabled)
+  const isTagRow = isTagAggregateRow(channel)
   const { data } = useQuery({
     queryKey: ['channel-profit-summary'],
     queryFn: getChannelProfitSummary,
     enabled: isAdmin,
   })
-  const row = data?.data.by_channel.find(
-    (item) => item.channel_id === channel.id
-  )
+  const byChannel = data?.data.by_channel ?? []
+  // 标签分组行：成本是否启用由组内任一子渠道决定，利润为组内各渠道利润之和。
+  const costEnabled = isTagRow
+    ? channel.children.some((c) => parseCostSettings(c)?.enabled)
+    : Boolean(parseCostSettings(channel)?.enabled)
+  let profit: number | undefined
+  if (isTagRow) {
+    const childIds = new Set(channel.children.map((c) => c.id))
+    const sum = byChannel
+      .filter((item) => childIds.has(item.channel_id))
+      .reduce((acc, item) => acc + item.profit, 0)
+    profit = sum
+  } else {
+    profit = byChannel.find((item) => item.channel_id === channel.id)?.profit
+  }
   let profitClass: string | undefined
-  if (row) {
-    if (row.profit > 0) profitClass = 'text-success text-xs'
-    else if (row.profit < 0) profitClass = 'text-destructive text-xs'
+  if (profit != null) {
+    if (profit > 0) profitClass = 'text-success text-xs'
+    else if (profit < 0) profitClass = 'text-destructive text-xs'
     else profitClass = 'text-muted-foreground text-xs'
   }
   return (
     <div className='flex flex-col gap-1'>
       <CostConfigBadge channel={channel} />
-      {isAdmin && costEnabled && row && (
+      {isAdmin && costEnabled && profit != null && (
         <span className={profitClass}>
-          {t('Profit')}: {row.profit >= 0 ? '+' : ''}
-          {formatLogQuota(row.profit)}
+          {t('Profit')}: {profit >= 0 ? '+' : ''}
+          {formatLogQuota(profit)}
         </span>
       )}
     </div>

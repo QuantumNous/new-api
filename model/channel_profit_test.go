@@ -68,13 +68,29 @@ func insertTopupProfitLog(t *testing.T, createdAt int64, concession float64) {
 
 func TestSumChannelProfit(t *testing.T) {
 	setupLogDBForProfitTest(t)
-	insertProfitLog(t, 1000, 100, 60, 1, "gpt-4o")
-	insertProfitLog(t, 1001, 200, 150, 1, "gpt-4o")
-	insertProfitLog(t, 1002, 300, 100, 2, "claude")
-	insertProfitLog(t, 2000, 500, 0, 2, "claude") // 时间范围外
-	insertTopupProfitLog(t, 1100, 5000000)         // 充值让利：计入总成本与 TopupConcession
 
-	summary, byChannel, byModel, err := SumChannelProfit(900, 1500, 0, "")
+	// 主库准备渠道：渠道 10、11 启用成本核算，渠道 12 未启用。
+	if err := DB.AutoMigrate(&Channel{}); err != nil {
+		t.Fatalf("migrate channel db: %v", err)
+	}
+	for _, ch := range []*Channel{
+		{Id: 10, Name: "ch10", CostConfig: `{"enabled":true,"mode":"discount","discount":1}`},
+		{Id: 11, Name: "ch11", CostConfig: `{"enabled":true,"mode":"discount","discount":1}`},
+		{Id: 12, Name: "ch12"},
+	} {
+		if err := DB.Save(ch).Error; err != nil {
+			t.Fatalf("save channel: %v", err)
+		}
+	}
+
+	insertProfitLog(t, 1000, 100, 60, 10, "gpt-4o")
+	insertProfitLog(t, 1001, 200, 150, 10, "gpt-4o")
+	insertProfitLog(t, 1002, 300, 100, 11, "claude")
+	insertProfitLog(t, 1003, 999, 0, 12, "uncosted") // 未启用成本渠道：收入直接丢弃
+	insertProfitLog(t, 2000, 500, 0, 11, "claude")   // 时间范围外
+	insertTopupProfitLog(t, 1100, 5000000)           // 充值让利：计入总成本与 TopupConcession
+
+	summary, byChannel, byModel, trend, err := SumChannelProfit(900, 1500, 0, "", 3600)
 	if err != nil {
 		t.Fatalf("SumChannelProfit: %v", err)
 	}
@@ -89,25 +105,20 @@ func TestSumChannelProfit(t *testing.T) {
 	}
 	var channel1 *ChannelProfitRow
 	for i := range byChannel {
-		if byChannel[i].ChannelID == 1 {
+		if byChannel[i].ChannelID == 10 {
 			channel1 = &byChannel[i]
 		}
 	}
 	if channel1 == nil || channel1.Revenue != 300 {
-		t.Fatalf("channel1 row = %+v, want revenue=300", byChannel)
+		t.Fatalf("channel10 row = %+v, want revenue=300", byChannel)
 	}
-	// 按模型聚合应包含充值的空模型名行（图表展示为"充值"）。
-	if len(byModel) != 3 {
-		t.Fatalf("byModel len = %d, want 3", len(byModel))
+	// 按模型聚合仅统计调用日志（不再包含充值的空模型行）。
+	if len(byModel) != 2 {
+		t.Fatalf("byModel len = %d, want 2", len(byModel))
 	}
-	var topupRow *ChannelProfitRow
-	for i := range byModel {
-		if byModel[i].ModelName == "" {
-			topupRow = &byModel[i]
-		}
-	}
-	if topupRow == nil || topupRow.Revenue != 0 || topupRow.Cost != 5000000 {
-		t.Fatalf("topup row = %+v, want revenue=0 cost=5000000", byModel)
+	// 趋势按小时桶：三条启用成本渠道的调用都落在同一桶。
+	if len(trend) != 1 || trend[0].Revenue != 600 || trend[0].Count != 3 {
+		t.Fatalf("trend = %+v, want single bucket revenue=600 count=3", trend)
 	}
 }
 

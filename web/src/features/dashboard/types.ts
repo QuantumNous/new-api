@@ -305,4 +305,14 @@ export interface ChannelProfitData {
   summary: ChannelProfitSummary
   by_channel: ChannelProfitRow[]
   by_model: ChannelProfitRow[]
+  trend?: ChannelProfitTrend[]
+}
+
+export interface ChannelProfitTrend {
+  bucket: number
+  revenue: number
+  cost: number
+  profit: number
+  profit_rate: number
+  count: number
 }

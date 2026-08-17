@@ -58,9 +58,6 @@ func (s *ChannelCostSettings) Validate() error {
 			if mc.ModelPrice > 0 && mc.ModelRatio > 0 {
 				return fmt.Errorf("模型 %s 的 model_price 与 model_ratio 不能同时配置", model)
 			}
-			if mc.ModelPrice <= 0 && mc.ModelRatio <= 0 {
-				return fmt.Errorf("模型 %s 的成本价格未配置（model_price 或 model_ratio 至少其一）", model)
-			}
 			if mc.CompletionRatio < 0 || mc.CacheRatio < 0 || mc.CreateCacheRatio < 0 ||
 				mc.ImageRatio < 0 || mc.AudioRatio < 0 || mc.AudioCompletionRatio < 0 {
 				return fmt.Errorf("模型 %s 的倍率不能为负数", model)

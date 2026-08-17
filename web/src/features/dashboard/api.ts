@@ -103,6 +103,7 @@ export async function getChannelProfit(params: {
   end_timestamp?: number
   channel_id?: number
   model_name?: string
+  granularity?: 'hour' | 'day' | 'week'
 }) {
   const res = await api.get<{ success: boolean; data: ChannelProfitData }>(
     '/api/data/channel_profit',

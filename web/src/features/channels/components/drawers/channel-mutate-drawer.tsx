@@ -3815,12 +3815,19 @@ export function ChannelMutateDrawer({
                                   </p>
                                   <p className='text-muted-foreground text-xs'>
                                     {t(
-                                      'Each channel keeps its own cost price table, synced from its own upstream (models added to this channel only).'
+                                      'Sync from upstream or configure manually. Models left without a cost price fall back to the global model price with the discount ratio applied.'
                                     )}
                                   </p>
                                 </div>
                                 <ChannelCostPriceTable
                                   prices={currentCostModelPrices ?? {}}
+                                  onChange={(prices) =>
+                                    form.setValue(
+                                      'cost_model_prices',
+                                      prices,
+                                      { shouldDirty: true }
+                                    )
+                                  }
                                 />
                                 <Button
                                   type='button'

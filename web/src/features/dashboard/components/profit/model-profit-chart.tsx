@@ -22,14 +22,15 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
-import { formatQuota } from '@/lib/format'
+import { getDashboardChartColors } from '@/features/dashboard/lib/charts'
+import type {
+  ChannelProfitRow,
+  ChannelProfitTrend,
+} from '@/features/dashboard/types'
+import { formatLogQuota } from '@/lib/format'
+import { formatChartTime, type TimeGranularity } from '@/lib/time'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
-
-import type { ChannelProfitRow } from '@/features/dashboard/types'
-
-const PROFIT_POSITIVE_COLOR = '#5AD8A6'
-const PROFIT_NEGATIVE_COLOR = '#E8684A'
 
 type ProfitChartType = 'bar' | 'area' | 'pie'
 
@@ -45,90 +46,121 @@ const CHART_OPTIONS: { value: ProfitChartType; labelKey: string }[] = [
   { value: 'pie', labelKey: 'Pie Chart' },
 ]
 
-export function ModelProfitChart(props: { rows?: ChannelProfitRow[] }) {
+export function ModelProfitChart(props: {
+  rows?: ChannelProfitRow[]
+  trend?: ChannelProfitTrend[]
+  granularity?: TimeGranularity
+}) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
   const [chartType, setChartType] = useState<ProfitChartType>('bar')
+  const granularity = props.granularity ?? 'day'
 
   const spec = useMemo(() => {
     const rows = props.rows ?? []
+    const trend = props.trend ?? []
     const topupLabel = t('Topup')
+
+    const common = {
+      background: { fill: 'transparent' },
+      animation: true,
+      legends: { visible: false },
+    }
+
+    if (chartType === 'area') {
+      // 利润趋势：按时间桶聚合，展示随时间的利润变化。
+      const values = trend.map((item) => ({
+        Time: formatChartTime(item.bucket, granularity),
+        Profit: item.profit,
+        rawProfit: item.profit,
+      }))
+      return {
+        ...common,
+        type: 'area',
+        data: [{ id: 'profitTrendData', values }],
+        xField: 'Time',
+        yField: 'Profit',
+        title: {
+          visible: true,
+          text: t('Profit Trend'),
+          ...(values.length === 0 && { subtext: t('No data available') }),
+        },
+        point: { visible: false },
+        area: {
+          style: { fillOpacity: 0.15, curveType: 'monotone' },
+        },
+        line: {
+          style: { lineWidth: 2, curveType: 'monotone' },
+        },
+        tooltip: {
+          mark: {
+            content: [
+              {
+                key: t('Profit'),
+                value: (datum: Record<string, unknown>) =>
+                  formatLogQuota(Number(datum?.rawProfit ?? 0)),
+              },
+            ],
+          },
+        },
+      }
+    }
+
+    // 按模型利润（柱状 / 饼图）。
     const values = rows.map((row) => ({
       Model: row.model_name || topupLabel,
       Profit: row.profit,
       ProfitAbs: Math.abs(row.profit),
     }))
-    const colorMap: Record<string, string> = {}
-    for (const row of rows) {
-      colorMap[row.model_name || topupLabel] =
-        row.profit >= 0 ? PROFIT_POSITIVE_COLOR : PROFIT_NEGATIVE_COLOR
+    const models = values.map((v) => v.Model)
+    const palette = getDashboardChartColors(models.length)
+    const modelColor = {
+      type: 'ordinal' as const,
+      domain: models,
+      range: palette,
     }
-    const common = {
-      data: [{ id: 'modelProfitData', values }],
-      legends: { visible: false },
-      tooltip: {
-        mark: {
-          content: [
-            {
-              key: (datum: Record<string, unknown>) => datum?.Model,
-              value: (datum: Record<string, unknown>) =>
-                formatQuota(Number(datum?.Profit ?? 0)),
-            },
-          ],
-        },
-      },
-      background: { fill: 'transparent' },
-      animation: true,
-    }
+    const noDataText = values.length === 0 ? t('No data available') : undefined
+
     if (chartType === 'pie') {
       return {
         ...common,
         type: 'pie',
+        data: [{ id: 'modelProfitData', values }],
         categoryField: 'Model',
         valueField: 'ProfitAbs',
         title: {
           visible: true,
           text: t('By Model'),
-          ...(values.length === 0 && { subtext: t('No data available') }),
+          ...(noDataText && { subtext: noDataText }),
         },
-        color: { specified: colorMap },
+        color: modelColor,
         label: {
           visible: true,
           style: { fontSize: 11 },
-          formatMethod: (value: number) => formatQuota(value),
+          formatMethod: (value: number) => formatLogQuota(value),
         },
         pie: {
           state: { hover: { stroke: '#000', lineWidth: 1 } },
         },
+        tooltip: {
+          mark: {
+            content: [
+              {
+                key: (datum: Record<string, unknown>) => datum?.Model,
+                value: (datum: Record<string, unknown>) =>
+                  formatLogQuota(Number(datum?.Profit ?? 0)),
+              },
+            ],
+          },
+        },
       }
     }
-    if (chartType === 'area') {
-      return {
-        ...common,
-        type: 'area',
-        xField: 'Model',
-        yField: 'Profit',
-        direction: 'horizontal',
-        title: {
-          visible: true,
-          text: t('By Model'),
-          ...(values.length === 0 && { subtext: t('No data available') }),
-        },
-        color: { specified: colorMap },
-        label: {
-          visible: true,
-          style: { fontSize: 11 },
-          formatMethod: (value: number) => formatQuota(value),
-        },
-        axes: [
-          { orient: 'left', type: 'band' },
-          { orient: 'bottom', type: 'linear', visible: false },
-        ],
-      }
-    }
+
+    // 柱状图：每个模型一色。
     return {
       ...common,
       type: 'bar',
+      data: [{ id: 'modelProfitData', values }],
       xField: 'Profit',
       yField: 'Model',
       seriesField: 'Model',
@@ -136,9 +168,9 @@ export function ModelProfitChart(props: { rows?: ChannelProfitRow[] }) {
       title: {
         visible: true,
         text: t('By Model'),
-        ...(values.length === 0 && { subtext: t('No data available') }),
+        ...(noDataText && { subtext: noDataText }),
       },
-      color: { specified: colorMap },
+      color: modelColor,
       bar: {
         state: { hover: { stroke: '#000', lineWidth: 1 } },
       },
@@ -146,16 +178,32 @@ export function ModelProfitChart(props: { rows?: ChannelProfitRow[] }) {
         visible: true,
         position: 'outside',
         style: { fontSize: 11 },
-        formatMethod: (value: number) => formatQuota(value),
+        formatMethod: (value: number) => formatLogQuota(value),
       },
       axes: [
         { orient: 'left', type: 'band' },
         { orient: 'bottom', type: 'linear', visible: false },
       ],
+      tooltip: {
+        mark: {
+          content: [
+            {
+              key: (datum: Record<string, unknown>) => datum?.Model,
+              value: (datum: Record<string, unknown>) =>
+                formatLogQuota(Number(datum?.Profit ?? 0)),
+            },
+          ],
+        },
+      },
     }
-  }, [props.rows, chartType, t])
+  }, [props.rows, props.trend, chartType, granularity, t])
 
-  const chartKey = [chartType, props.rows?.length ?? 0, resolvedTheme].join('-')
+  const chartKey = [
+    chartType,
+    props.rows?.length ?? 0,
+    props.trend?.length ?? 0,
+    resolvedTheme,
+  ].join('-')
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -164,7 +212,9 @@ export function ModelProfitChart(props: { rows?: ChannelProfitRow[] }) {
           <IconBadge tone='chart-2' size='sm'>
             <BarChart3 />
           </IconBadge>
-          <div className='text-sm font-semibold'>{t('By Model')}</div>
+          <div className='text-sm font-semibold'>
+            {chartType === 'area' ? t('Profit Trend') : t('By Model')}
+          </div>
         </div>
 
         <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>

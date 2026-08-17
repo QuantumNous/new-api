@@ -11,13 +11,24 @@ import (
 )
 
 // GetChannelProfit 返回渠道利润分析数据（管理员）。
+// granularity 支持 hour/day/week，用于利润趋势按时间桶聚合。
 func GetChannelProfit(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	channelID, _ := strconv.Atoi(c.Query("channel_id"))
 	modelName := c.Query("model_name")
 
-	summary, byChannel, byModel, err := model.SumChannelProfit(startTimestamp, endTimestamp, channelID, modelName)
+	var granularity int64
+	switch c.DefaultQuery("granularity", "day") {
+	case "hour":
+		granularity = 3600
+	case "week":
+		granularity = 604800
+	default:
+		granularity = 86400
+	}
+
+	summary, byChannel, byModel, trend, err := model.SumChannelProfit(startTimestamp, endTimestamp, channelID, modelName, granularity)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -69,6 +80,18 @@ func GetChannelProfit(c *gin.Context) {
 	}
 
 	revenueTotal := float64(summary.Revenue)
+	trendRows := make([]gin.H, 0, len(trend))
+	for _, row := range trend {
+		revenue := float64(row.Revenue)
+		trendRows = append(trendRows, gin.H{
+			"bucket":     row.Bucket,
+			"revenue":    revenue,
+			"cost":       row.Cost,
+			"profit":     revenue - row.Cost,
+			"profit_rate": profitRate(revenue, row.Cost),
+			"count":      row.Count,
+		})
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -86,6 +109,7 @@ func GetChannelProfit(c *gin.Context) {
 			},
 			"by_channel": channelRows,
 			"by_model":   modelRows,
+			"trend":      trendRows,
 		},
 	})
 }

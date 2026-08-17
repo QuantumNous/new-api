@@ -31,16 +31,47 @@ type ChannelProfitRow struct {
 	Count     int64   `json:"count" gorm:"column:count"`
 }
 
+// ChannelProfitTrend 按时间桶的利润趋势点。
+type ChannelProfitTrend struct {
+	Bucket  int64   `json:"bucket" gorm:"column:bucket"`
+	Revenue int64   `json:"revenue" gorm:"column:revenue"`
+	Cost    float64 `json:"cost" gorm:"column:cost"`
+	Count   int64   `json:"count" gorm:"column:count"`
+}
+
+// getCostEnabledChannelIDs 返回启用成本核算的渠道 ID 集合。
+// 未启用成本的渠道不产生成本记录，其收入不应计入利润统计，聚合时直接丢弃。
+func getCostEnabledChannelIDs() ([]int, error) {
+	var channels []*Channel
+	if err := DB.Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	ids := make([]int, 0, len(channels))
+	for _, ch := range channels {
+		if ch.GetCostSettings().Enabled {
+			ids = append(ids, ch.Id)
+		}
+	}
+	return ids, nil
+}
+
 // SumChannelProfit 从日志聚合利润数据。
 // 纳入调用日志（LogTypeConsume）与充值日志（LogTypeTopup）：
 //   - 调用日志：quota 为用户实扣（营收），cost_quota 为渠道成本（支出）；
+//     仅统计启用成本核算渠道的调用日志，未启用成本渠道的历史收入直接丢弃；
 //   - 充值日志：quota 恒为 0（充值本身不产生营收），cost_quota 为折扣让利额度（支出），
 //     该让利在用户后续调用时由渠道成本差价赚回，因此计入总成本即可得到真实净利润。
 //
-// startTimestamp/endTimestamp 为 0 表示不限；channelID 为 0 表示不限；modelName 为空表示不限。
-func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, modelName string) (ChannelProfitSummary, []ChannelProfitRow, []ChannelProfitRow, error) {
-	build := func(logTypes []int) *gorm.DB {
-		tx := LOG_DB.Table("logs").Where("type IN ?", logTypes)
+// startTimestamp/endTimestamp 为 0 表示不限；channelID 为 0 表示不限；modelName 为空表示不限；
+// granularity 为时间桶步长（秒），>0 时返回按桶聚合的利润趋势。
+func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, modelName string, granularity int64) (ChannelProfitSummary, []ChannelProfitRow, []ChannelProfitRow, []ChannelProfitTrend, error) {
+	costEnabledIDs, err := getCostEnabledChannelIDs()
+	if err != nil {
+		return ChannelProfitSummary{}, nil, nil, nil, err
+	}
+
+	build := func() *gorm.DB {
+		tx := LOG_DB.Table("logs")
 		if startTimestamp != 0 {
 			tx = tx.Where("created_at >= ?", startTimestamp)
 		}
@@ -56,34 +87,60 @@ func SumChannelProfit(startTimestamp int64, endTimestamp int64, channelID int, m
 		return tx
 	}
 
-	profitLogTypes := []int{LogTypeConsume, LogTypeTopup}
+	// profitLogs 限定利润统计范围：充值日志全部纳入，调用日志仅启用成本渠道。
+	profitLogs := func() *gorm.DB {
+		tx := build()
+		if len(costEnabledIDs) == 0 {
+			return tx.Where("type = ?", LogTypeTopup)
+		}
+		return tx.Where("type = ? OR (type = ? AND channel_id IN ?)", LogTypeTopup, LogTypeConsume, costEnabledIDs)
+	}
+	// consumeLogs 仅统计启用成本渠道的调用日志。
+	consumeLogs := func() *gorm.DB {
+		tx := build().Where("type = ?", LogTypeConsume)
+		if len(costEnabledIDs) == 0 {
+			return tx.Where("1 = 0")
+		}
+		return tx.Where("channel_id IN ?", costEnabledIDs)
+	}
 
 	var summary ChannelProfitSummary
-	if err := build(profitLogTypes).Select("COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").Scan(&summary).Error; err != nil {
-		return summary, nil, nil, err
+	if err := profitLogs().Select("COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").Scan(&summary).Error; err != nil {
+		return summary, nil, nil, nil, err
 	}
 
 	var byChannel []ChannelProfitRow
-	if err := build(profitLogTypes).Select("channel_id, COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").
+	if err := profitLogs().Select("channel_id, COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").
 		Where("channel_id != 0").Group("channel_id").Scan(&byChannel).Error; err != nil {
-		return summary, nil, nil, err
+		return summary, nil, nil, nil, err
 	}
 
+	// 按模型聚合仅统计调用日志（充值日志无模型概念，避免空模型行）。
 	var byModel []ChannelProfitRow
-	if err := build(profitLogTypes).Select("model_name, COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").
+	if err := consumeLogs().Select("model_name, COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count").
 		Group("model_name").Scan(&byModel).Error; err != nil {
-		return summary, nil, nil, err
+		return summary, nil, nil, nil, err
 	}
 
 	// 充值让利单独汇总（供"充值让利"卡片与图表"充值"行展示）。
 	var topup ChannelProfitSummary
-	if err := build([]int{LogTypeTopup}).Select("COALESCE(SUM(cost_quota), 0) AS topup_concession, COUNT(*) AS topup_count").Scan(&topup).Error; err != nil {
-		return summary, nil, nil, err
+	if err := build().Where("type = ?", LogTypeTopup).Select("COALESCE(SUM(cost_quota), 0) AS topup_concession, COUNT(*) AS topup_count").Scan(&topup).Error; err != nil {
+		return summary, nil, nil, nil, err
 	}
 	summary.TopupConcession = topup.TopupConcession
 	summary.TopupCount = topup.TopupCount
 
-	return summary, byChannel, byModel, nil
+	// 调用侧利润趋势（仅启用成本渠道的调用日志，按时间桶聚合）。
+	var trend []ChannelProfitTrend
+	if granularity > 0 {
+		if err := consumeLogs().
+			Select("(created_at / ?) * ? AS bucket, COALESCE(SUM(quota), 0) AS revenue, COALESCE(SUM(cost_quota), 0) AS cost, COUNT(*) AS count", granularity, granularity).
+			Group("bucket").Order("bucket").Scan(&trend).Error; err != nil {
+			return summary, nil, nil, nil, err
+		}
+	}
+
+	return summary, byChannel, byModel, trend, nil
 }
 
 // CalculateTopupConcession 计算一笔充值的折扣让利额度（平台因折扣多送出的额度）。
@@ -239,6 +296,14 @@ func CalculateModelCost(mc dto.ChannelModelCost, discount float64, promptTokens 
 	return result
 }
 
+// channelModelCostValid 判断一个渠道模型成本配置是否已配置有效定价。
+// 留空（所有定价字段为 0）视为未配置，调用时回退全局模型定价。
+func channelModelCostValid(mc dto.ChannelModelCost) bool {
+	return mc.ModelPrice > 0 || mc.ModelRatio > 0 || mc.CompletionRatio > 0 ||
+		mc.CacheRatio > 0 || mc.CreateCacheRatio > 0 || mc.ImageRatio > 0 ||
+		mc.AudioRatio > 0 || mc.AudioCompletionRatio > 0
+}
+
 // readOtherFloat 从日志 Other map 中读取 float64 字段。
 func readOtherFloat(other map[string]interface{}, key string) float64 {
 	if v, ok := other[key]; ok {
@@ -329,7 +394,10 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 	case dto.ChannelCostModeFixed:
 		cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
 	default:
-		if mc, ok := settings.ModelPrices[params.ModelName]; ok {
+		// 渠道成本价格表含该模型且已配置定价 → 用渠道价格表全倍率精确计算；
+		// 否则（未同步 / 留空未配置）回退全局模型标价 × 渠道折扣系数。
+		mc, ok := settings.ModelPrices[params.ModelName]
+		if ok && channelModelCostValid(mc) {
 			if readOtherString(params.Other, "billing_mode") == "tiered_expr" {
 				// tiered_expr 无法用渠道价格表还原，回退反推（decimal 精确计算）
 				cost = CalculateChannelCost(&settings, params.Quota, groupRatio)
@@ -337,7 +405,7 @@ func resolveChannelCost(params RecordConsumeLogParams) float64 {
 				cost = CalculateModelCost(mc, settings.Discount, params.PromptTokens, params.CompletionTokens, params.Other)
 			}
 		} else {
-			// 未同步该模型的渠道成本：以日志中的全局模型标价（乘算）回退，避免从用户费用反推的除法误差。
+			// 未同步/留空该模型的渠道成本：以日志中的全局模型标价（乘算）回退，避免从用户费用反推的除法误差。
 			// 全局标价与渠道标价同构，成本 = 全局标价 × 渠道折扣系数，与系统计费算法一致。
 			mc := globalModelCostFromOther(params.Other)
 			if mc.ModelRatio > 0 || mc.ModelPrice > 0 {

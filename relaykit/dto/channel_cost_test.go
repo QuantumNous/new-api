@@ -24,10 +24,10 @@ func TestChannelCostSettingsValidate(t *testing.T) {
 			Enabled: true, Mode: ChannelCostModeDiscount, Discount: 1,
 			ModelPrices: map[string]ChannelModelCost{"gpt-4o": {ModelPrice: 0.01, ModelRatio: 1}},
 		}, true},
-		{"model_prices neither invalid", ChannelCostSettings{
+		{"model_prices empty entry valid (fallback)", ChannelCostSettings{
 			Enabled: true, Mode: ChannelCostModeDiscount, Discount: 1,
 			ModelPrices: map[string]ChannelModelCost{"gpt-4o": {}},
-		}, true},
+		}, false},
 		{"model_prices negative ratio invalid", ChannelCostSettings{
 			Enabled: true, Mode: ChannelCostModeDiscount, Discount: 1,
 			ModelPrices: map[string]ChannelModelCost{"gpt-4o": {ModelRatio: 1, CompletionRatio: -1}},
