@@ -267,10 +267,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 
 		if newAPIError == nil {
+			recordIntelligentRouteHealth(&intelligentrouting.DefaultHealthTracker, relayInfo, true)
 			relayInfo.LastError = nil
 			return
 		}
 
+		recordIntelligentRouteHealth(&intelligentrouting.DefaultHealthTracker, relayInfo, false)
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
 
@@ -291,6 +293,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func recordIntelligentRouteHealth(tracker *intelligentrouting.HealthTracker, info *relaycommon.RelayInfo, success bool) {
+	if tracker == nil || info == nil || info.IntelligentRoutePlan == nil || info.IntelligentRouteShadow || info.GetChannelID() == 0 {
+		return
+	}
+	tracker.Record(info.GetChannelID(), success)
 }
 
 func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource) error {

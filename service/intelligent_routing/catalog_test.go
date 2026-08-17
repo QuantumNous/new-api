@@ -2,6 +2,7 @@ package intelligent_routing
 
 import (
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -34,4 +35,23 @@ func TestCatalogReturnsIndependentCandidateValues(t *testing.T) {
 	first := catalog.Build("default", "/v1/chat/completions")
 	channel.ResponseTime = 900
 	assert.Equal(t, 20, first[0].ResponseTimeMS)
+}
+
+func TestCatalogExcludesChannelsWithOpenHealthCircuit(t *testing.T) {
+	config := routingsetting.Config{Models: []routingsetting.ModelPolicy{{Model: "cheap", InputPrice: 1, OutputPrice: 2}}}
+	channels := []*model.Channel{
+		{Id: 7, Status: common.ChannelStatusEnabled, Models: "cheap", Group: "default"},
+		{Id: 8, Status: common.ChannelStatusEnabled, Models: "cheap", Group: "default"},
+	}
+	var health HealthTracker
+	now := time.Unix(1000, 0)
+	for i := 0; i < 20; i++ {
+		health.RecordAt(7, false, now)
+		health.RecordAt(8, true, now)
+	}
+	catalog := NewCatalogWithHealth(config, func(string, string) []*model.Channel { return channels }, &health, func() time.Time { return now })
+	got := catalog.Build("default", "/v1/chat/completions")
+	require.Len(t, got, 1)
+	assert.Equal(t, 8, got[0].ChannelID)
+	assert.Equal(t, HealthHealthy, got[0].HealthTier)
 }

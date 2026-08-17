@@ -10,6 +10,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	intelligentrouting "github.com/QuantumNous/new-api/service/intelligent_routing"
 	routingsetting "github.com/QuantumNous/new-api/setting/intelligent_routing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
@@ -68,4 +69,18 @@ func TestApplyIntelligentRouteNodeSwitchesExecutionWithoutChangingRequestedModel
 	assert.Equal(t, "cheap", info.GetExecutionModelName())
 	assert.Equal(t, "cheap", request.Model)
 	assert.Equal(t, 7, info.ChannelId)
+}
+
+func TestRecordIntelligentRouteHealthTracksOnlyLiveSelectedChannel(t *testing.T) {
+	var tracker intelligentrouting.HealthTracker
+	info := &relaycommon.RelayInfo{IntelligentRoutePlan: &hosttypes.IntelligentRoutePlan{}, IntelligentRouteShadow: false, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7}}
+	recordIntelligentRouteHealth(&tracker, info, false)
+	for i := 1; i < 20; i++ {
+		tracker.Record(7, false)
+	}
+	assert.Equal(t, intelligentrouting.HealthOpen, tracker.Snapshot(7).Tier)
+
+	shadow := &relaycommon.RelayInfo{IntelligentRoutePlan: &hosttypes.IntelligentRoutePlan{}, IntelligentRouteShadow: true, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8}}
+	recordIntelligentRouteHealth(&tracker, shadow, false)
+	assert.Equal(t, intelligentrouting.HealthProbation, tracker.Snapshot(8).Tier)
 }
