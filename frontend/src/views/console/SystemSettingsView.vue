@@ -31,37 +31,39 @@ onMounted(() => load())
 
 <template>
   <div data-handdrawn-page="system-settings" class="space-y-6">
-    <!-- Breadcrumb & Top Bar -->
+    <!-- Breadcrumb with compact right-aligned domain switcher -->
     <PageBreadcrumb
       :crumbs="[
         t('systemSettings.breadcrumb[0]'),
         t('systemSettings.breadcrumb[1]'),
       ]"
-    />
-
-    <!-- Top domain pill tab bar -->
-    <div
-      class="subtle-scroll flex items-center gap-1.5 overflow-x-auto rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-1.5 shadow-[var(--card-shadow)]"
-      role="tablist"
-      :aria-label="t('systemSettings.title')"
-      data-handdrawn="tabs"
     >
-      <RouterLink
-        v-for="tab in tabs"
-        :key="tab.key"
-        :to="{ name: tab.key, params: { section: tab.section } }"
-        role="tab"
-        :aria-selected="activeTab === tab.key"
-        class="shrink-0 rounded-xl px-4 py-2 text-sm font-medium transition-all focus-ring"
-        :class="
-          activeTab === tab.key
-            ? 'bg-[var(--accent-soft)] font-semibold text-[var(--accent-text)] shadow-xs'
-            : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
-        "
-      >
-        <span>{{ tab.label }}</span>
-      </RouterLink>
-    </div>
+      <template #action>
+        <div class="subtle-scroll max-w-full overflow-x-auto sm:ml-auto">
+          <nav
+            class="flex w-max items-center gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-1 shadow-[var(--card-shadow)]"
+            role="tablist"
+            :aria-label="t('systemSettings.title')"
+          >
+            <RouterLink
+              v-for="tab in tabs"
+              :key="tab.key"
+              :to="{ name: tab.key, params: { section: tab.section } }"
+              role="tab"
+              :aria-selected="activeTab === tab.key"
+              class="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all sm:text-sm focus-ring"
+              :class="
+                activeTab === tab.key
+                  ? 'bg-[var(--accent-soft)] font-semibold text-[var(--accent-text)] shadow-xs'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
+              "
+            >
+              <span>{{ tab.label }}</span>
+            </RouterLink>
+          </nav>
+        </div>
+      </template>
+    </PageBreadcrumb>
 
     <!-- Content -->
     <main class="min-w-0">

@@ -150,28 +150,17 @@ onMounted(() => load())
           :aria-current="section.id === activeSection.id ? 'page' : undefined"
           @click="toSection(section.id)"
         >
+          <span
+            v-if="section.id === activeSection.id"
+            class="settings-active-bar"
+            aria-hidden="true"
+          />
           <span class="truncate">{{ section.title }}</span>
         </button>
       </nav>
     </aside>
 
     <div class="min-w-0 flex-1">
-      <header class="settings-section-heading">
-        <span
-          class="inline-block rounded-md bg-[var(--accent-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--accent-text)]"
-        >
-          {{ t(domainConfig.titleKey) }}
-        </span>
-        <h2
-          class="display-title mt-1.5 text-2xl font-bold text-[var(--text-primary)]"
-        >
-          {{ activeSection.title }}
-        </h2>
-        <p class="mt-1 max-w-2xl text-xs text-[var(--text-secondary)]">
-          {{ activeSection.description }}
-        </p>
-      </header>
-
       <SysSettingsFormCard
         :title="activeSection.title"
         :description="activeSection.description"
@@ -215,7 +204,7 @@ onMounted(() => load())
 <style scoped>
 .settings-domain-layout {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   gap: 1.75rem;
   align-items: start;
 }
@@ -226,25 +215,27 @@ onMounted(() => load())
 .settings-section-nav {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.25rem;
   padding: 0.5rem;
-  border-radius: 1rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--border-subtle);
   background: var(--surface-solid);
   box-shadow: var(--card-shadow);
 }
 .settings-section-link {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   border: 0;
-  border-radius: 0.625rem;
+  border-radius: 0.75rem;
   background: transparent;
-  padding: 0.5rem 0.75rem;
+  padding: 0.625rem 0.875rem;
   text-align: left;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   transition: all 0.15s ease;
-  position: relative;
 }
 .settings-section-link:hover {
   color: var(--text-primary);
@@ -254,20 +245,13 @@ onMounted(() => load())
   color: var(--accent-text);
   font-weight: 700;
   background: var(--accent-soft);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-.settings-section-link.is-active::before {
-  content: '';
-  position: absolute;
-  left: 0.25rem;
-  top: 0.5rem;
-  bottom: 0.5rem;
-  width: 3px;
+.settings-active-bar {
+  width: 3.5px;
+  height: 1.125rem;
   border-radius: 9999px;
   background: var(--accent);
-}
-.settings-section-heading {
-  margin-bottom: 1.25rem;
+  flex-shrink: 0;
 }
 .settings-fields-grid {
   display: grid;
@@ -305,9 +289,6 @@ onMounted(() => load())
   .settings-section-link {
     flex: 0 0 auto;
     white-space: nowrap;
-  }
-  .settings-section-link.is-active::before {
-    display: none;
   }
   .settings-fields-grid {
     grid-template-columns: minmax(0, 1fr);
