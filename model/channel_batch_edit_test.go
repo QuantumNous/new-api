@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -158,4 +159,31 @@ func TestEditChannelsByIdsWeightOnlyUsesTargetedUpdate(t *testing.T) {
 	require.NoError(t, DB.First(&after, "channel_id = ? AND model = ?", 104, "a-model").Error)
 	// weight=0 must be written (map-based Updates, not skipped as a struct zero-value)
 	require.Equal(t, uint(0), after.Weight)
+}
+
+func TestUpdateCodexFingerprintModeByIdsOffRemovesSettingKey(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+
+	setting := `{"force_format":true,"codex_fingerprint_mode":"session"}`
+	channel := &Channel{
+		Id:      105,
+		Type:    constant.ChannelTypeCodex,
+		Key:     "test-key",
+		Name:    "codex-channel",
+		Status:  common.ChannelStatusEnabled,
+		Models:  "gpt-5.4",
+		Group:   "default",
+		Setting: &setting,
+	}
+	require.NoError(t, DB.Create(channel).Error)
+
+	require.NoError(t, UpdateCodexFingerprintModeByIds([]int{channel.Id}, "off"))
+
+	var updated Channel
+	require.NoError(t, DB.First(&updated, channel.Id).Error)
+	require.NotNil(t, updated.Setting)
+	var decoded map[string]any
+	require.NoError(t, common.Unmarshal([]byte(*updated.Setting), &decoded))
+	require.Equal(t, true, decoded["force_format"])
+	require.NotContains(t, decoded, "codex_fingerprint_mode")
 }

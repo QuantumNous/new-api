@@ -175,9 +175,9 @@ func TestChannelConcurrencyLoadsIncludeActiveWaitingAndCooldown(t *testing.T) {
 		require.NoError(t, ReleaseChannelConcurrency(ctx, lease))
 	}()
 
-	waiting, err := incrementChannelConcurrencyWaiting(ctx, channel.Id, channel.GetMaxConcurrency())
+	registered, err := incrementChannelConcurrencyWaiting(ctx, channel.Id, channel.GetMaxConcurrency())
 	require.NoError(t, err)
-	require.Equal(t, 1, waiting)
+	require.True(t, registered)
 	t.Cleanup(func() {
 		require.NoError(t, decrementChannelConcurrencyWaiting(ctx, channel.Id))
 	})
@@ -486,9 +486,9 @@ func TestAcquireChannelConcurrencyWithWaitReturnsFullWhenQueueFull(t *testing.T)
 		require.NoError(t, ReleaseChannelConcurrency(ctx, heldLease))
 	}()
 
-	waiting, err := incrementChannelConcurrencyWaiting(ctx, channel.Id, channel.GetMaxConcurrency())
+	registered, err := incrementChannelConcurrencyWaiting(ctx, channel.Id, channel.GetMaxConcurrency())
 	require.NoError(t, err)
-	require.Equal(t, 1, waiting)
+	require.True(t, registered)
 	defer func() {
 		require.NoError(t, decrementChannelConcurrencyWaiting(ctx, channel.Id))
 	}()

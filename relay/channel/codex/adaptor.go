@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -42,6 +43,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if err := ValidateCodexImageRequest(request); err != nil {
 		return nil, err
 	}
+	setFingerprintIDs(c, resolveFingerprintIDs(info, clientSessionID(c)))
 
 	action := "generate"
 	var inputImages []string
@@ -89,8 +91,8 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	ids := resolveFingerprintIDs(info, clientSessionID(c))
 	if ids != nil {
 		applyFingerprintBody(body, ids)
-		setFingerprintIDs(c, ids)
 	}
+	setFingerprintIDs(c, ids)
 	return body, nil
 }
 
@@ -124,12 +126,13 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 
 	// 按真实 Codex 后端约束过滤字段；compact 还会移除其端点不接受的 tool-limit 字段。
 	applyCodexConstraintsToMap(body, info, isCompact)
+	var ids *codexFingerprintIDs
 	if !isCompact {
-		ids := resolveFingerprintIDs(info, clientSessionID(c))
-		if ids != nil {
-			applyFingerprintBody(body, ids)
-			setFingerprintIDs(c, ids)
-		}
+		ids = resolveFingerprintIDs(info, clientSessionID(c))
+	}
+	setFingerprintIDs(c, ids)
+	if ids != nil {
+		applyFingerprintBody(body, ids)
 	}
 
 	if isCompact {
@@ -155,6 +158,36 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if codexPassThroughBodyEnabled(info) &&
+		(info.RelayMode == relayconstant.RelayModeResponses || info.RelayMode == relayconstant.RelayModeResponsesCompact) {
+		info.UpstreamRequestBodySize = 0
+		var ids *codexFingerprintIDs
+		if info.RelayMode != relayconstant.RelayModeResponsesCompact {
+			ids = resolveFingerprintIDs(info, clientSessionID(c))
+		}
+		setFingerprintIDs(c, ids)
+		if info.RelayMode == relayconstant.RelayModeResponses && ids != nil {
+			if requestBody == nil {
+				return nil, errors.New("codex channel: pass-through request body is nil")
+			}
+			rawBody, err := io.ReadAll(requestBody)
+			if err != nil {
+				return nil, fmt.Errorf("read codex pass-through request body: %w", err)
+			}
+			rewrittenBody, _, err := applyFingerprintBodyRaw(rawBody, ids)
+			if err != nil {
+				return nil, err
+			}
+			body, size, closer, err := relaycommon.NewOutboundJSONBody(rewrittenBody)
+			if err != nil {
+				return nil, fmt.Errorf("store rewritten codex pass-through request body: %w", err)
+			}
+			defer closer.Close()
+			rewrittenBody = nil
+			info.UpstreamRequestBodySize = size
+			requestBody = body
+		}
+	}
 	resp, err := channel.DoApiRequest(a, c, info, requestBody)
 	if err != nil {
 		return resp, err
@@ -173,6 +206,16 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		}
 	}
 	return resp, err
+}
+
+func codexPassThroughBodyEnabled(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
+		return true
+	}
+	return info.ChannelMeta != nil && info.ChannelSetting.PassThroughBodyEnabled
 }
 
 // sanitizeCodexImageErrorResponse 读取并落日志上游错误体(仅服务端)，随后把响应体替换为

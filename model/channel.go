@@ -995,6 +995,9 @@ func UpdateCodexFingerprintModeByIds(ids []int, mode string) error {
 	if len(ids) == 0 {
 		return nil
 	}
+	if strings.EqualFold(strings.TrimSpace(mode), "off") {
+		mode = ""
+	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var channels []Channel
 		if err := tx.Where("id IN ?", ids).Find(&channels).Error; err != nil {

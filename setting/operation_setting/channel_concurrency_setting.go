@@ -8,16 +8,20 @@ import (
 )
 
 const (
-	defaultChannelConcurrencySlotTTLMinutes = 30
-	defaultChannelConcurrencyWaitTimeoutMS  = 5000
-	defaultChannelConcurrencyWaitIntervalMS = 100
-	defaultChannelConcurrencyCooldownSecs   = 30
+	defaultChannelConcurrencySlotTTLMinutes     = 30
+	defaultChannelConcurrencyWaitTimeoutMS      = 5000
+	defaultChannelConcurrencyWaitIntervalMS     = 100
+	defaultChannelConcurrencyCooldownSecs       = 30
+	defaultChannelConcurrencyLoadCacheTTLMS     = 200
+	defaultChannelConcurrencyMaxAcquireAttempts = 8
 
 	maxChannelConcurrencySlotTTLMinutes       = 24 * 60
 	maxChannelConcurrencyWaitTimeoutMS        = 60 * 1000
 	maxChannelConcurrencyWaitIntervalMS       = 5 * 1000
 	maxChannelConcurrencyCooldownSeconds      = 60 * 60
 	maxChannelConcurrencyMaxWaitingPerChannel = 10000
+	maxChannelConcurrencyLoadCacheTTLMS       = 5000
+	maxChannelConcurrencyMaxAcquireAttempts   = 100
 )
 
 type ChannelConcurrencySetting struct {
@@ -28,6 +32,9 @@ type ChannelConcurrencySetting struct {
 	MaxWaitingPerChannel int  `json:"max_waiting_per_channel"`
 	CooldownEnabled      bool `json:"cooldown_enabled"`
 	CooldownSeconds      int  `json:"cooldown_seconds"`
+	LoadCacheEnabled     bool `json:"load_cache_enabled"`
+	LoadCacheTTLMS       int  `json:"load_cache_ttl_ms"`
+	MaxAcquireAttempts   int  `json:"max_acquire_attempts"`
 }
 
 var channelConcurrencySetting = ChannelConcurrencySetting{
@@ -38,6 +45,9 @@ var channelConcurrencySetting = ChannelConcurrencySetting{
 	MaxWaitingPerChannel: 0,
 	CooldownEnabled:      true,
 	CooldownSeconds:      defaultChannelConcurrencyCooldownSecs,
+	LoadCacheEnabled:     true,
+	LoadCacheTTLMS:       defaultChannelConcurrencyLoadCacheTTLMS,
+	MaxAcquireAttempts:   defaultChannelConcurrencyMaxAcquireAttempts,
 }
 
 var channelConcurrencySettingMu sync.RWMutex
@@ -139,4 +149,30 @@ func GetChannelConcurrencyCooldown() time.Duration {
 		return time.Duration(defaultChannelConcurrencyCooldownSecs) * time.Second
 	}
 	return time.Duration(channelConcurrencySetting.CooldownSeconds) * time.Second
+}
+
+// GetChannelConcurrencyLoadCacheTTL returns the short TTL used to cache channel
+// load snapshots for routing decisions. Zero means the cache is disabled and
+// every selection reads Redis directly.
+func GetChannelConcurrencyLoadCacheTTL() time.Duration {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if !channelConcurrencySetting.LoadCacheEnabled {
+		return 0
+	}
+	if channelConcurrencySetting.LoadCacheTTLMS <= 0 || channelConcurrencySetting.LoadCacheTTLMS > maxChannelConcurrencyLoadCacheTTLMS {
+		return time.Duration(defaultChannelConcurrencyLoadCacheTTLMS) * time.Millisecond
+	}
+	return time.Duration(channelConcurrencySetting.LoadCacheTTLMS) * time.Millisecond
+}
+
+// GetChannelConcurrencyMaxAcquireAttempts caps how many Redis slot-acquire
+// attempts a single selection pass may spend inside one priority bucket.
+func GetChannelConcurrencyMaxAcquireAttempts() int {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	if channelConcurrencySetting.MaxAcquireAttempts <= 0 || channelConcurrencySetting.MaxAcquireAttempts > maxChannelConcurrencyMaxAcquireAttempts {
+		return defaultChannelConcurrencyMaxAcquireAttempts
+	}
+	return channelConcurrencySetting.MaxAcquireAttempts
 }

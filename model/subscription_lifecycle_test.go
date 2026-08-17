@@ -103,6 +103,65 @@ func TestSubscriptionLifecycleSuccessReplayCreatesEntitlementCycleAndEventOnce(t
 	require.EqualValues(t, 1, topups)
 }
 
+func TestSubscriptionLifecycleSuccessFallsBackToOrderIDCycleWhenTradeNoExceedsLimit(t *testing.T) {
+	setupSubscriptionLifecycleTestDB(t, 1)
+	plan := createSubscriptionLifecyclePlan(t, "sub-life-long-cycle")
+	user := createLifecycleQuotaTestUser(t, "sub-life-long-cycle", 0, 100)
+	tradeNo := "sub-life-long-cycle-" + strings.Repeat("x", 50)
+	order := insertSubscriptionLifecycleOrder(t, user.Id, plan.Id, tradeNo, common.TopUpStatusPending, 1_700_103_900, 0)
+
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, `{"provider":"stripe"}`, PaymentProviderStripe, PaymentMethodStripe))
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, `{"provider":"stripe","replay":true}`, PaymentProviderStripe, PaymentMethodStripe))
+
+	stored := GetSubscriptionOrderByTradeNo(order.TradeNo)
+	require.NotNil(t, stored)
+	require.Equal(t, common.TopUpStatusSuccess, stored.Status)
+	requireSubscriptionLifecycleEventCount(t, order.TradeNo, RecallLifecycleTriggerPaymentSucceeded, 1)
+
+	var subs []UserSubscription
+	require.NoError(t, DB.Where("user_id = ? AND plan_id = ?", user.Id, plan.Id).Find(&subs).Error)
+	require.Len(t, subs, 1)
+
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeSubscription, fmt.Sprint(subs[0].Id))
+	wantCycle := fmt.Sprintf("subscription_orders:%d", order.Id)
+	require.Equal(t, wantCycle, state.Cycle)
+	require.Equal(t, wantCycle, state.Source)
+	require.LessOrEqual(t, len(state.Cycle), 64)
+	require.LessOrEqual(t, len(state.Source), 64)
+}
+
+func TestSubscriptionLifecycleSuccessReplayUsesSourceFallbackWhenTradeNoExceedsRecallKeyLimit(t *testing.T) {
+	setupSubscriptionLifecycleTestDB(t, 1)
+	plan := createSubscriptionLifecyclePlan(t, "sub-life-long-recall-key")
+	user := createLifecycleQuotaTestUser(t, "sub-life-long-recall-key", 0, 100)
+	tradeNo := strings.Repeat("x", 129)
+	order := insertSubscriptionLifecycleOrder(t, user.Id, plan.Id, tradeNo, common.TopUpStatusPending, 1_700_104_100, 0)
+
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, `{"provider":"stripe"}`, PaymentProviderStripe, PaymentMethodStripe))
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, `{"provider":"stripe","replay":true}`, PaymentProviderStripe, PaymentMethodStripe))
+
+	event := requireSubscriptionLifecycleEventBySource(t, user.Id, RecallLifecycleTriggerPaymentSucceeded, int64(order.Id))
+	require.Equal(t, fmt.Sprintf("subscription_orders:%d", order.Id), event.ScopeId)
+	require.LessOrEqual(t, len(event.ScopeId), 128)
+	require.LessOrEqual(t, len(event.BusinessKey), recallLifecycleBusinessKeyMaxLen)
+	require.Contains(t, event.BusinessKey, fmt.Sprintf("v1|payment_succeeded|subscription|source:subscription_orders:%d", order.Id))
+
+	var count int64
+	require.NoError(t, DB.Model(&RecallLifecycleEvent{}).
+		Where("user_id = ? AND event_type = ? AND scope_type = ? AND scope_id = ?",
+			user.Id, RecallLifecycleTriggerPaymentSucceeded, PurchaseLifecycleKindSubscription, fmt.Sprintf("subscription_orders:%d", order.Id)).
+		Count(&count).Error)
+	require.EqualValues(t, 1, count)
+
+	var subs []UserSubscription
+	require.NoError(t, DB.Where("user_id = ? AND plan_id = ?", user.Id, plan.Id).Find(&subs).Error)
+	require.Len(t, subs, 1)
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeSubscription, fmt.Sprint(subs[0].Id))
+	require.Equal(t, fmt.Sprintf("subscription_orders:%d", order.Id), state.Cycle)
+	require.Equal(t, fmt.Sprintf("subscription_orders:%d", order.Id), state.Source)
+	require.EqualValues(t, subs[0].AmountTotal, state.Balance)
+}
+
 func TestSubscriptionLifecycleSuccessRequiresWinnerScopeAndRollsBack(t *testing.T) {
 	setupSubscriptionLifecycleTestDB(t, 1)
 	plan := createSubscriptionLifecyclePlan(t, "sub-life-missing-scope")

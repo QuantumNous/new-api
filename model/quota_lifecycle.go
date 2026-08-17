@@ -15,6 +15,9 @@ const (
 	QuotaLifecycleScopeToken        = "token"
 	QuotaLifecycleScopeWallet       = "wallet"
 	QuotaLifecycleScopeSubscription = "subscription"
+	// Keep generated keys within the legacy bound even though the schema now
+	// accepts 255 characters for compatibility with already persisted values.
+	quotaLifecycleCycleKeyMaxLength = 64
 )
 
 const (
@@ -32,10 +35,10 @@ type QuotaLifecycleState struct {
 	UserId       int    `json:"user_id" gorm:"not null;uniqueIndex:idx_quota_lifecycle_scope,priority:1;index"`
 	ScopeType    string `json:"scope_type" gorm:"type:varchar(32);not null;uniqueIndex:idx_quota_lifecycle_scope,priority:2"`
 	ScopeId      string `json:"scope_id" gorm:"type:varchar(128);not null;uniqueIndex:idx_quota_lifecycle_scope,priority:3"`
-	Cycle        string `json:"cycle" gorm:"type:varchar(64);not null;index"`
+	Cycle        string `json:"cycle" gorm:"type:varchar(255);not null;index"`
 	Balance      int64  `json:"balance" gorm:"not null;default:0"`
 	Threshold    int64  `json:"threshold" gorm:"not null;default:0"`
-	Source       string `json:"source" gorm:"type:varchar(64);not null"`
+	Source       string `json:"source" gorm:"type:varchar(255);not null"`
 	SourceData   string `json:"source_data" gorm:"type:text;not null"`
 	StateVersion int64  `json:"state_version" gorm:"not null;default:1"`
 	CreatedAt    int64  `json:"created_at" gorm:"autoCreateTime"`
@@ -195,7 +198,10 @@ func ApplyWalletTopUpSuccessMutationTx(tx *gorm.DB, userID int, delta int64, top
 
 func walletTopUpCycleKey(topUpID int, tradeNo string) string {
 	if normalized := strings.TrimSpace(tradeNo); normalized != "" {
-		return "topup:" + normalized
+		cycleKey := "topup:" + normalized
+		if len(cycleKey) <= quotaLifecycleCycleKeyMaxLength {
+			return cycleKey
+		}
 	}
 	return fmt.Sprintf("topups:%d", topUpID)
 }

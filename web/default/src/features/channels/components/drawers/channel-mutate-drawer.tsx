@@ -2259,22 +2259,53 @@ export function ChannelMutateDrawer({
                           name='codex_fingerprint_mode'
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>{t('Codex Fingerprint Convergence')}</FormLabel>
-                              <Select items={[
-                                { label: t('Off (passthrough)'), value: 'off' },
-                                { label: t('Device only'), value: 'device' },
-                                { label: t('Device + Session (recommended)'), value: 'session' },
-                                { label: t('Full convergence'), value: 'full' },
-                              ]} value={field.value || 'session'} onValueChange={field.onChange}>
-                                <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                              <FormLabel>
+                                {t('Codex Fingerprint Convergence')}
+                              </FormLabel>
+                              <Select
+                                items={[
+                                  {
+                                    label: t('Off (passthrough, default)'),
+                                    value: 'off',
+                                  },
+                                  { label: t('Device only'), value: 'device' },
+                                  {
+                                    label: t('Device + Session'),
+                                    value: 'session',
+                                  },
+                                  {
+                                    label: t('Full convergence'),
+                                    value: 'full',
+                                  },
+                                ]}
+                                value={field.value || 'off'}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
                                 <SelectContent>
-                                  <SelectItem value='off'>{t('Off (passthrough)')}</SelectItem>
-                                  <SelectItem value='device'>{t('Device only')}</SelectItem>
-                                  <SelectItem value='session'>{t('Device + Session (recommended)')}</SelectItem>
-                                  <SelectItem value='full'>{t('Full convergence')}</SelectItem>
+                                  <SelectItem value='off'>
+                                    {t('Off (passthrough, default)')}
+                                  </SelectItem>
+                                  <SelectItem value='device'>
+                                    {t('Device only')}
+                                  </SelectItem>
+                                  <SelectItem value='session'>
+                                    {t('Device + Session')}
+                                  </SelectItem>
+                                  <SelectItem value='full'>
+                                    {t('Full convergence')}
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
-                              <FormDescription>{t('Converge Codex device and session identifiers for shared OAuth accounts')}</FormDescription>
+                              <FormDescription>
+                                {t(
+                                  'Default is off. Enable convergence only after measuring your accounts; some accounts reported reduced quota after enabling it.'
+                                )}
+                              </FormDescription>
                             </FormItem>
                           )}
                         />

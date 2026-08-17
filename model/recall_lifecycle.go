@@ -35,6 +35,7 @@ const (
 	recallLifecycleRegistrationUnusedDelay           = 7 * 24 * time.Hour
 	recallLifecyclePaymentPendingDelay               = 24 * time.Hour
 	recallContinuousTriggerSlotDefaultScanPeriod     = 60
+	recallLifecycleScopeIDMaxLen                     = 128
 	recallLifecycleBusinessKeyMaxLen                 = 160
 	OptionKeyRecallLifecycleEventCollectionStartedAt = "recall_campaign_setting.lifecycle_event_collection_started_at"
 )
@@ -206,7 +207,13 @@ func NewRecallLifecyclePurchaseOccurrence(trigger string, purchaseKind string, t
 		return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence requires purchase kind")
 	}
 	if tradeNo != "" {
-		return newRecallLifecycleOccurrence(fmt.Sprintf("v1|%s|%s|trade:%s", trigger, purchaseKind, tradeNo)), nil
+		tradeCanonical := fmt.Sprintf("v1|%s|%s|trade:%s", trigger, purchaseKind, tradeNo)
+		if len(tradeCanonical) <= recallLifecycleBusinessKeyMaxLen {
+			return newRecallLifecycleOccurrence(tradeCanonical), nil
+		}
+		if sourceTable == "" || sourceID <= 0 {
+			return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence trade key exceeds %d characters and requires stable source reference", recallLifecycleBusinessKeyMaxLen)
+		}
 	}
 	if sourceTable == "" || sourceID <= 0 {
 		return RecallLifecycleOccurrence{}, fmt.Errorf("purchase lifecycle occurrence requires trade number or stable source reference")

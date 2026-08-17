@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/tidwall/gjson"
 )
@@ -18,9 +19,16 @@ func copilotRelayInfo() *relaycommon.RelayInfo {
 }
 
 func TestCopilotAlwaysUsesConvertedTextRequest(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = true
+	t.Cleanup(func() {
+		settings.PassThroughRequestEnabled = previous
+	})
+
 	info := copilotRelayInfo()
 	info.ChannelSetting = dto.ChannelSettings{PassThroughBodyEnabled: true}
-	if shouldPassThroughTextRequest(info, true) {
+	if shouldPassThroughTextRequest(info) {
 		t.Fatal("Copilot must ignore global and channel body pass-through")
 	}
 
@@ -28,7 +36,7 @@ func TestCopilotAlwaysUsesConvertedTextRequest(t *testing.T) {
 		ChannelType:    constant.ChannelTypeOpenAI,
 		ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: true},
 	}}
-	if !shouldPassThroughTextRequest(openAIInfo, false) {
+	if !shouldPassThroughTextRequest(openAIInfo) {
 		t.Fatal("non-Copilot channel pass-through behavior changed")
 	}
 }

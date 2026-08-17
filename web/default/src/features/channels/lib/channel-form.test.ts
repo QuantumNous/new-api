@@ -3,6 +3,7 @@ import type { Channel } from '../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   channelFormSchema,
+  hasAdvancedSettingsValues,
   inspectSolanaPrivateKey,
   resolveBlockRunCreateBaseURL,
   resolveBlockRunPaymentChainChange,
@@ -147,6 +148,72 @@ describe('GitHub Copilot credential mode', () => {
     expect(single.success).toBe(true)
     expect(batch.success).toBe(false)
     expect(multiToSingle.success).toBe(false)
+  })
+})
+
+describe('Codex fingerprint convergence settings', () => {
+  test('defaults new and missing Codex fingerprint modes to off', () => {
+    expect(CHANNEL_FORM_DEFAULT_VALUES.codex_fingerprint_mode).toBe('off')
+
+    const defaults = transformChannelToFormDefaults({
+      ...baseChannel,
+      type: 57,
+      setting: '{}',
+    })
+
+    expect(defaults.codex_fingerprint_mode).toBe('off')
+  })
+
+  test('falls back to off for invalid persisted Codex fingerprint modes', () => {
+    const defaults = transformChannelToFormDefaults({
+      ...baseChannel,
+      type: 57,
+      setting: JSON.stringify({ codex_fingerprint_mode: 'legacy-session' }),
+    })
+
+    expect(defaults.codex_fingerprint_mode).toBe('off')
+  })
+
+  test('removes the persisted Codex fingerprint mode when off is selected', () => {
+    const payload = transformFormDataToUpdatePayload(
+      {
+        ...codexFormValues,
+        codex_fingerprint_mode: 'off',
+      },
+      57
+    )
+
+    expect(JSON.parse(payload.setting || '{}')).not.toHaveProperty(
+      'codex_fingerprint_mode'
+    )
+  })
+
+  test('persists explicit Codex fingerprint convergence modes', () => {
+    for (const mode of ['device', 'session', 'full'] as const) {
+      const payload = transformFormDataToCreatePayload({
+        ...codexFormValues,
+        codex_fingerprint_mode: mode,
+      })
+
+      expect(JSON.parse(payload.channel.setting || '{}')).toMatchObject({
+        codex_fingerprint_mode: mode,
+      })
+    }
+  })
+
+  test('treats explicit convergence modes as advanced settings', () => {
+    expect(
+      hasAdvancedSettingsValues({
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        codex_fingerprint_mode: 'session',
+      })
+    ).toBe(true)
+    expect(
+      hasAdvancedSettingsValues({
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        codex_fingerprint_mode: 'off',
+      })
+    ).toBe(false)
   })
 })
 

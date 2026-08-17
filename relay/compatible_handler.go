@@ -23,11 +23,17 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-func shouldPassThroughTextRequest(info *relaycommon.RelayInfo, globalEnabled bool) bool {
-	if info != nil && info.ChannelType == constant.ChannelTypeCopilot {
+func shouldPassThroughTextRequest(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
 		return false
 	}
-	return globalEnabled || (info != nil && info.ChannelSetting.PassThroughBodyEnabled)
+	if info.ChannelType == constant.ChannelTypeCopilot {
+		return false
+	}
+	if info.RelayMode == relayconstant.RelayModeChatCompletions && info.ApiType == constant.APITypeCodex {
+		return false
+	}
+	return model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled
 }
 
 func allowsChatCompletionsViaResponses(info *relaycommon.RelayInfo) bool {
@@ -101,11 +107,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 	adaptor.Init(info)
 
-	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
+	passThroughRequest := shouldPassThroughTextRequest(info)
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
 		allowsChatCompletionsViaResponses(info) &&
-		!passThroughGlobal &&
-		!info.ChannelSetting.PassThroughBodyEnabled &&
+		!passThroughRequest &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
 		applySystemPromptIfNeeded(c, info, request)
 		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
@@ -125,8 +130,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 
 	var requestBody io.Reader
-
-	if shouldPassThroughTextRequest(info, passThroughGlobal) {
+	if passThroughRequest {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())

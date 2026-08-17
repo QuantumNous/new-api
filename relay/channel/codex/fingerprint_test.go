@@ -1,13 +1,61 @@
 package codex
 
 import (
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
+
+func TestFingerprintModeDefaultsToOffUnlessExplicitlyEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		info *relaycommon.RelayInfo
+	}{
+		{
+			name: "missing channel metadata",
+			info: &relaycommon.RelayInfo{},
+		},
+		{
+			name: "empty mode",
+			info: &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelSetting: dto.ChannelSettings{}}},
+		},
+		{
+			name: "invalid mode",
+			info: &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "shared"}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, fingerprintOff, fingerprintMode(tt.info))
+			if tt.info.ChannelMeta != nil {
+				require.Nil(t, resolveFingerprintIDs(tt.info, "client-session"))
+			}
+		})
+	}
+}
+
+func TestFingerprintSessionModeExplicitlyConvergesIDs(t *testing.T) {
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 42, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
+	a := resolveFingerprintIDs(info, "client-a")
+	b := resolveFingerprintIDs(info, "client-b")
+
+	require.NotNil(t, a)
+	require.Equal(t, a.installationID, b.installationID)
+	require.Equal(t, a.sessionID, b.sessionID)
+	require.NotEqual(t, a.threadID, b.threadID)
+}
 
 func TestFingerprintModes(t *testing.T) {
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 42, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
@@ -26,6 +74,20 @@ func TestFingerprintModes(t *testing.T) {
 	require.Nil(t, resolveFingerprintIDs(info, "client-a"))
 }
 
+func TestFingerprintIDsUsesClearedStagingForNextAttempt(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("session-id", "client")
+	onInfo := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
+	offInfo := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "off"}}}
+
+	setFingerprintIDs(c, resolveFingerprintIDs(onInfo, clientSessionID(c)))
+	require.NotNil(t, fingerprintIDs(c, onInfo))
+
+	setFingerprintIDs(c, nil)
+	require.Nil(t, fingerprintIDs(c, offInfo))
+}
+
 func TestFingerprintHeadersAndBodyShareIDs(t *testing.T) {
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
 	ids := resolveFingerprintIDs(info, "client")
@@ -39,12 +101,13 @@ func TestFingerprintHeadersAndBodyShareIDs(t *testing.T) {
 	require.Equal(t, ids.turnID, metadata["turn_id"])
 }
 
-func TestFingerprintBodyPreservesNonObjectMetadata(t *testing.T) {
+func TestFingerprintBodyReplacesNonObjectMetadata(t *testing.T) {
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
 	ids := resolveFingerprintIDs(info, "client")
 	body := map[string]any{"client_metadata": "opaque"}
-	require.False(t, applyFingerprintBody(body, ids))
-	require.Equal(t, "opaque", body["client_metadata"])
+	require.True(t, applyFingerprintBody(body, ids))
+	metadata := body["client_metadata"].(map[string]any)
+	require.Equal(t, ids.installationID, metadata["x-codex-installation-id"])
 }
 
 func TestFingerprintDeviceRewritesTurnMetadata(t *testing.T) {
@@ -54,4 +117,257 @@ func TestFingerprintDeviceRewritesTurnMetadata(t *testing.T) {
 	require.True(t, applyFingerprintBody(body, ids))
 	metadata := body["client_metadata"].(map[string]any)
 	require.Contains(t, metadata["x-codex-turn-metadata"], ids.installationID)
+}
+
+func TestFingerprintPassThroughRawBodySharesHeaderIDsAndPreservesFields(t *testing.T) {
+	service.InitHttpClient()
+	var upstreamBody []byte
+	var upstreamHeader http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHeader = r.Header.Clone()
+		var err error
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("session-id", "client-session")
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:      11,
+			ChannelBaseUrl: server.URL,
+			ApiKey:         `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session", PassThroughBodyEnabled: true},
+		},
+	}
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(`{"model":"gpt-5","client_metadata":{"kept":"yes"},"unrelated":1}`))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	httpResp, ok := resp.(*http.Response)
+	require.True(t, ok)
+	_ = httpResp.Body.Close()
+
+	var body map[string]any
+	require.NoError(t, common.Unmarshal(upstreamBody, &body))
+	require.Equal(t, float64(1), body["unrelated"])
+	metadata := body["client_metadata"].(map[string]any)
+	require.Equal(t, "yes", metadata["kept"])
+	require.Equal(t, upstreamHeader.Get("session-id"), metadata["session_id"])
+	require.Equal(t, upstreamHeader.Get("x-client-request-id"), metadata["thread_id"])
+}
+
+func TestFingerprintConvertedChatWithPassThroughReusesStagedIDs(t *testing.T) {
+	service.InitHttpClient()
+	var upstreamBody []byte
+	var upstreamHeader http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHeader = r.Header.Clone()
+		var err error
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Request.Header.Set("session-id", "client-session")
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:      16,
+			ChannelBaseUrl: server.URL,
+			ApiKey:         `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting: dto.ChannelSettings{
+				CodexFingerprintMode:   "session",
+				PassThroughBodyEnabled: true,
+			},
+		},
+	}
+	adaptor := &Adaptor{}
+	converted, err := adaptor.ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model:    "gpt-5",
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	require.NoError(t, err)
+	stagedBefore := fingerprintIDs(c, info)
+	require.NotNil(t, stagedBefore)
+
+	payload, err := common.Marshal(converted)
+	require.NoError(t, err)
+	resp, err := adaptor.DoRequest(c, info, strings.NewReader(string(payload)))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+
+	require.True(t, gjson.GetBytes(upstreamBody, "input").Exists())
+	require.False(t, gjson.GetBytes(upstreamBody, "messages").Exists())
+	require.Same(t, stagedBefore, fingerprintIDs(c, info))
+	require.Equal(t, stagedBefore.sessionID, gjson.GetBytes(upstreamBody, "client_metadata.session_id").String())
+	require.Equal(t, stagedBefore.threadID, gjson.GetBytes(upstreamBody, "client_metadata.thread_id").String())
+	require.Equal(t, stagedBefore.turnID, gjson.GetBytes(upstreamBody, "client_metadata.turn_id").String())
+	require.Equal(t, stagedBefore.sessionID, upstreamHeader.Get("session-id"))
+	require.Equal(t, stagedBefore.threadID, upstreamHeader.Get("x-client-request-id"))
+}
+
+func TestFingerprintPassThroughOffClearsStaleBodySize(t *testing.T) {
+	service.InitHttpClient()
+	var upstreamBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:               relayconstant.RelayModeResponses,
+		UpstreamRequestBodySize: 4096,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: server.URL,
+			ApiKey:         `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting: dto.ChannelSettings{
+				CodexFingerprintMode:   "off",
+				PassThroughBodyEnabled: true,
+			},
+		},
+	}
+	rawBody := `{"model":"gpt-5","input":"unchanged"}`
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, common.ReaderOnly(strings.NewReader(rawBody)))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+	require.Equal(t, rawBody, string(upstreamBody))
+}
+
+func TestFingerprintCompactSkipsConvergence(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+	c.Request.Header.Set("session-id", "client-session")
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponsesCompact,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:         `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"},
+		},
+	}
+
+	out, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{Model: "gpt-5"})
+	require.NoError(t, err)
+	body := out.(map[string]any)
+	require.NotContains(t, body, "client_metadata")
+	require.Nil(t, fingerprintIDs(c, info))
+
+	header := http.Header{}
+	require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
+	require.Empty(t, header.Get("x-codex-installation-id"))
+	require.Empty(t, header.Get("session-id"))
+	require.Empty(t, header.Get("x-client-request-id"))
+}
+
+func TestFingerprintCompactPassThroughLeavesBodyAndHeadersUnchanged(t *testing.T) {
+	service.InitHttpClient()
+	var upstreamBody []byte
+	var upstreamHeader http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHeader = r.Header.Clone()
+		var err error
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+	c.Request.Header.Set("session-id", "client-session")
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeResponsesCompact,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:      14,
+			ChannelBaseUrl: server.URL,
+			ApiKey:         `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session", PassThroughBodyEnabled: true},
+		},
+	}
+	rawBody := `{"model":"gpt-5","client_metadata":{"session_id":"client-value"}}`
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(rawBody))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+	require.JSONEq(t, rawBody, string(upstreamBody))
+	require.Empty(t, upstreamHeader.Get("x-codex-installation-id"))
+	require.Empty(t, upstreamHeader.Get("session-id"))
+	require.Empty(t, upstreamHeader.Get("x-client-request-id"))
+}
+
+func TestFingerprintRawBodyReplacesNonObjectMetadata(t *testing.T) {
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelId:      12,
+		ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"},
+	}}
+	ids := resolveFingerprintIDs(info, "client-session")
+	require.NotNil(t, ids)
+
+	rewritten, changed, err := applyFingerprintBodyRaw(
+		[]byte(`{"client_metadata":"opaque","unrelated":"kept"}`),
+		ids,
+	)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	var body map[string]any
+	require.NoError(t, common.Unmarshal(rewritten, &body))
+	require.Equal(t, "kept", body["unrelated"])
+	metadata, ok := body["client_metadata"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, ids.sessionID, metadata["session_id"])
+	require.Equal(t, ids.turnID, metadata["turn_id"])
+}
+
+func TestFingerprintRawBodyPreservesUnrelatedMetadataEncoding(t *testing.T) {
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelId:      15,
+		ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"},
+	}}
+	ids := resolveFingerprintIDs(info, "client-session")
+	require.NotNil(t, ids)
+	body := []byte(`{"client_metadata":{"large_integer":9007199254740993,"escaped":"\u0061","nested":{"kept":true}}}`)
+
+	rewritten, changed, err := applyFingerprintBodyRaw(body, ids)
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, "9007199254740993", gjson.GetBytes(rewritten, "client_metadata.large_integer").Raw)
+	require.Contains(t, string(rewritten), `"escaped":"\u0061"`)
+	require.True(t, gjson.GetBytes(rewritten, "client_metadata.nested.kept").Bool())
+}
+
+func TestFingerprintRawBodyLeavesNonObjectRootsUntouched(t *testing.T) {
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ChannelId:      13,
+		ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"},
+	}}
+	ids := resolveFingerprintIDs(info, "client-session")
+	require.NotNil(t, ids)
+
+	for _, body := range [][]byte{nil, []byte(`[1,2,3]`), []byte(`"plain"`), []byte(`not-json`)} {
+		rewritten, changed, err := applyFingerprintBodyRaw(body, ids)
+		require.NoError(t, err)
+		require.False(t, changed)
+		require.Equal(t, body, rewritten)
+	}
 }

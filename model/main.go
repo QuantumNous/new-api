@@ -266,6 +266,11 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Widen lifecycle keys before the regular model migration so existing
+	// MySQL/PostgreSQL databases can persist the full lifecycle key contract.
+	if err := migrateQuotaLifecycleStateCycleColumns(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(migrationModelValues(orderedMigrationModels())...)
 	if err != nil {
@@ -436,6 +441,12 @@ func migrateDBFast() error {
 		if err != nil {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
+	}
+	// SQLite's AutoMigrate normally widens this table, but keep the explicit
+	// compatibility migration on the startup path for legacy databases whose
+	// schema metadata still reports the old varchar(64) columns.
+	if err := migrateQuotaLifecycleStateCycleColumns(); err != nil {
+		return err
 	}
 	if err := migrateAssetBindingScopeIndex(); err != nil {
 		return err
@@ -1045,6 +1056,92 @@ func migrateTokenModelLimitsToText() error {
 		common.SysLog(fmt.Sprintf("Successfully migrated %s.%s to text", tableName, columnName))
 	}
 	return nil
+}
+
+// migrateQuotaLifecycleStateCycleColumns widens the lifecycle key columns for
+// existing databases. SQLite's regular AutoMigrate path normally handles the
+// change, while this explicit call covers legacy schema metadata that remains
+// narrow. The migration is idempotent and never narrows a column reported as
+// already-wide text or character-varying data.
+func migrateQuotaLifecycleStateCycleColumns() error {
+	if DB == nil || !DB.Migrator().HasTable(&QuotaLifecycleState{}) {
+		return nil
+	}
+
+	columnTypes, err := DB.Migrator().ColumnTypes(&QuotaLifecycleState{})
+	if err != nil {
+		return fmt.Errorf("failed to inspect quota lifecycle state columns: %w", err)
+	}
+
+	for _, fieldName := range []string{"Cycle", "Source"} {
+		columnName := strings.ToLower(fieldName)
+		var current gorm.ColumnType
+		for _, columnType := range columnTypes {
+			if strings.EqualFold(columnType.Name(), columnName) {
+				current = columnType
+				break
+			}
+		}
+		if current == nil || quotaLifecycleStateColumnIsWideEnough(current) {
+			continue
+		}
+		if err := DB.Migrator().AlterColumn(&QuotaLifecycleState{}, fieldName); err != nil {
+			return fmt.Errorf("failed to widen quota_lifecycle_states.%s to varchar(255): %w", columnName, err)
+		}
+	}
+	return nil
+}
+
+func quotaLifecycleStateColumnIsWideEnough(columnType gorm.ColumnType) bool {
+	if declaredType, ok := columnType.ColumnType(); ok {
+		declaredType = strings.ToLower(strings.TrimSpace(declaredType))
+		if length, ok := quotaLifecycleColumnTypeLength(declaredType); ok {
+			return length < 0 || length >= 255
+		}
+		switch declaredType {
+		case "text", "tinytext", "mediumtext", "longtext", "clob":
+			return true
+		case "varchar", "character varying":
+			if length, ok := columnType.Length(); ok {
+				return length < 0 || length >= 255
+			}
+			return false
+		}
+	}
+
+	databaseType := strings.ToLower(strings.TrimSpace(columnType.DatabaseTypeName()))
+	if length, ok := columnType.Length(); ok {
+		if length < 0 || length >= 255 {
+			return true
+		}
+	}
+	switch databaseType {
+	case "text", "tinytext", "mediumtext", "longtext", "clob":
+		return true
+	}
+	if databaseType == "varchar" || databaseType == "character varying" {
+		// A driver may omit the declared length (for example, MySQL's
+		// database/sql driver), so be conservative and widen it.
+		return false
+	}
+	normalizedType := strings.ReplaceAll(databaseType, " ", "")
+	return normalizedType == "varchar(255)" || normalizedType == "charactervarying(255)"
+}
+
+func quotaLifecycleColumnTypeLength(columnType string) (int64, bool) {
+	open := strings.IndexByte(columnType, '(')
+	if open < 0 {
+		return 0, false
+	}
+	close := strings.IndexByte(columnType[open+1:], ')')
+	if close < 0 {
+		return 0, false
+	}
+	length, err := strconv.ParseInt(strings.TrimSpace(columnType[open+1:open+1+close]), 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return length, true
 }
 
 // migrateSubscriptionPlanPriceAmount migrates price_amount column from float/double to decimal(10,6)
