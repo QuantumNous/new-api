@@ -29,6 +29,9 @@ export const BLOCKRUN_SOLANA_API_URL = 'https://sol.blockrun.ai/api'
 
 export type BlockRunPaymentChain = 'base' | 'solana'
 
+const CODEX_FINGERPRINT_MODES = ['off', 'device', 'session', 'full'] as const
+type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
+
 const BASE58_ALPHABET =
   '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 const BASE58_INDEX = new Map(
@@ -237,6 +240,12 @@ function isCodexCredential(value: string | undefined): boolean {
   }
 }
 
+function normalizeCodexFingerprintMode(value: unknown): CodexFingerprintMode {
+  return CODEX_FINGERPRINT_MODES.includes(value as CodexFingerprintMode)
+    ? (value as CodexFingerprintMode)
+    : 'off'
+}
+
 function isVertexJsonKey(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -331,7 +340,7 @@ export const channelFormSchema = z
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     image_carrier_model: z.string().optional(),
-    codex_fingerprint_mode: z.enum(['off', 'device', 'session', 'full']).optional(),
+    codex_fingerprint_mode: z.enum(CODEX_FINGERPRINT_MODES).optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -482,7 +491,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   system_prompt: '',
   system_prompt_override: false,
   image_carrier_model: '',
-  codex_fingerprint_mode: 'session',
+  codex_fingerprint_mode: 'off',
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -514,7 +523,17 @@ export function transformChannelToFormDefaults(
   channel: Channel
 ): ChannelFormValues {
   // Parse channel extra settings from setting field
-  let extraSettings = {
+  let extraSettings: {
+    force_format: boolean
+    thinking_to_content: boolean
+    proxy: string
+    pass_through_body_enabled: boolean
+    return_source_url: boolean
+    system_prompt: string
+    system_prompt_override: boolean
+    image_carrier_model: string
+    codex_fingerprint_mode: CodexFingerprintMode
+  } = {
     force_format: false,
     thinking_to_content: false,
     proxy: '',
@@ -523,7 +542,7 @@ export function transformChannelToFormDefaults(
     system_prompt: '',
     system_prompt_override: false,
     image_carrier_model: '',
-    codex_fingerprint_mode: 'session' as const,
+    codex_fingerprint_mode: 'off' as const,
   }
 
   if (channel.setting) {
@@ -538,9 +557,9 @@ export function transformChannelToFormDefaults(
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         image_carrier_model: parsed.image_carrier_model || '',
-        codex_fingerprint_mode: ['off', 'device', 'session', 'full'].includes(parsed.codex_fingerprint_mode)
-          ? parsed.codex_fingerprint_mode
-          : 'session',
+        codex_fingerprint_mode: normalizeCodexFingerprintMode(
+          parsed.codex_fingerprint_mode
+        ),
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -654,7 +673,7 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj = {
+  const settingObj: Record<string, unknown> = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.type === 111 ? '' : formData.proxy || '',
@@ -665,7 +684,12 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     image_carrier_model: formData.image_carrier_model || '',
-    codex_fingerprint_mode: formData.codex_fingerprint_mode || 'session',
+  }
+  const codexFingerprintMode = normalizeCodexFingerprintMode(
+    formData.codex_fingerprint_mode
+  )
+  if (codexFingerprintMode !== 'off') {
+    settingObj.codex_fingerprint_mode = codexFingerprintMode
   }
   return JSON.stringify(settingObj)
 }
@@ -685,6 +709,7 @@ export function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.force_format ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
+    normalizeCodexFingerprintMode(values.codex_fingerprint_mode) !== 'off' ||
     (values.type === 105 && values.return_source_url) ||
     values.system_prompt_override ||
     values.claude_beta_query ||
