@@ -1,0 +1,257 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Origin Anthropic-compatible Messages API",
+    "version": "1.0.0-draft",
+    "description": "Origin customer contract for Claude Code and Anthropic Messages clients. Platform model names remain stable while Provider, channel and upstream model identities remain private. Origin Key authentication uses Authorization Bearer; an Origin Key in x-api-key, a URL or a body is rejected."
+  },
+  "servers": [{ "url": "https://api.origin-ai.example" }],
+  "security": [{ "originKeyBearer": [] }],
+  "paths": {
+    "/v1/messages": {
+      "post": {
+        "operationId": "createMessage",
+        "summary": "Create one Anthropic Messages response",
+        "description": "One successful Platform admission and reservation is required before contacting the approved upstream. stream=false emits one MessageResponse; stream=true emits only the frozen Anthropic SSE event sequence. Unknown body fields and unsupported beta features fail closed.",
+        "parameters": [
+          { "$ref": "#/components/parameters/AnthropicVersion" },
+          { "$ref": "#/components/parameters/AnthropicBeta" },
+          { "$ref": "#/components/parameters/RequestId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessageCreateRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Anthropic Message JSON or SSE stream",
+            "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/MessageResponse" } },
+              "text/event-stream": {
+                "schema": { "$ref": "#/components/schemas/MessageStreamEvent" },
+                "x-origin-ai-event-sequence": [
+                  "message_start", "content_block_start*", "content_block_delta*", "content_block_stop*",
+                  "message_delta", "message_stop"
+                ]
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "502": { "$ref": "#/components/responses/UpstreamError" },
+          "503": { "$ref": "#/components/responses/Unavailable" },
+          "504": { "$ref": "#/components/responses/Timeout" }
+        }
+      }
+    },
+    "/v1/messages/count_tokens": {
+      "post": {
+        "operationId": "countMessageTokens",
+        "summary": "Estimate input tokens without contacting the model provider",
+        "description": "Authenticates the Origin Key and verifies that the platform model is currently saleable, then performs a local conservative estimate. It creates no reservation, usage event, Charge or Ledger entry and never contacts BeeNex.",
+        "x-origin-ai-billing": "not-billable",
+        "parameters": [
+          { "$ref": "#/components/parameters/AnthropicVersion" },
+          { "$ref": "#/components/parameters/AnthropicBeta" },
+          { "$ref": "#/components/parameters/RequestId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CountTokensRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Conservative local input token estimate",
+            "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CountTokensResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "originKeyBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Origin-Key",
+        "description": "Complete sk-oa-... Origin Key. It must not be sent in x-api-key, query parameters, logs, analytics or request bodies."
+      }
+    },
+    "parameters": {
+      "AnthropicVersion": {
+        "name": "anthropic-version",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "const": "2023-06-01" }
+      },
+      "AnthropicBeta": {
+        "name": "anthropic-beta",
+        "in": "header",
+        "required": false,
+        "description": "Comma-separated bounded feature identifiers. Unsupported identifiers return parameter_not_supported and are not forwarded.",
+        "schema": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^[A-Za-z0-9._-]+(,[ ]?[A-Za-z0-9._-]+)*$" }
+      },
+      "RequestId": {
+        "name": "X-Request-Id",
+        "in": "header",
+        "required": false,
+        "schema": { "type": "string", "format": "uuid" }
+      }
+    },
+    "headers": {
+      "RequestId": { "description": "Stable request correlation identifier", "schema": { "type": "string", "format": "uuid" } }
+    },
+    "schemas": {
+      "CacheControl": {
+        "type": "object", "additionalProperties": false, "required": ["type"],
+        "properties": { "type": { "const": "ephemeral" }, "ttl": { "type": "string", "enum": ["5m", "1h"] } }
+      },
+      "TextBlock": {
+        "type": "object", "additionalProperties": false, "required": ["type", "text"],
+        "properties": { "type": { "const": "text" }, "text": { "type": "string", "maxLength": 10000000 }, "cache_control": { "$ref": "#/components/schemas/CacheControl" } }
+      },
+      "ToolUseBlock": {
+        "type": "object", "additionalProperties": false, "required": ["type", "id", "name", "input"],
+        "properties": {
+          "type": { "const": "tool_use" }, "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 }, "input": { "type": "object" },
+          "cache_control": { "$ref": "#/components/schemas/CacheControl" }
+        }
+      },
+      "ToolResultBlock": {
+        "type": "object", "additionalProperties": false, "required": ["type", "tool_use_id", "content"],
+        "properties": {
+          "type": { "const": "tool_result" }, "tool_use_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "content": { "oneOf": [{ "type": "string", "maxLength": 10000000 }, { "type": "array", "maxItems": 1000, "items": { "$ref": "#/components/schemas/TextBlock" } }] },
+          "is_error": { "type": "boolean" }, "cache_control": { "$ref": "#/components/schemas/CacheControl" }
+        }
+      },
+      "ThinkingBlock": {
+        "type": "object", "additionalProperties": false, "required": ["type", "thinking", "signature"],
+        "properties": { "type": { "const": "thinking" }, "thinking": { "type": "string", "maxLength": 10000000 }, "signature": { "type": "string", "maxLength": 1000000 } }
+      },
+      "RedactedThinkingBlock": {
+        "type": "object", "additionalProperties": false, "required": ["type", "data"],
+        "properties": { "type": { "const": "redacted_thinking" }, "data": { "type": "string", "maxLength": 10000000 } }
+      },
+      "ContentBlock": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/TextBlock" }, { "$ref": "#/components/schemas/ToolUseBlock" },
+          { "$ref": "#/components/schemas/ToolResultBlock" }, { "$ref": "#/components/schemas/ThinkingBlock" },
+          { "$ref": "#/components/schemas/RedactedThinkingBlock" }
+        ]
+      },
+      "Message": {
+        "type": "object", "additionalProperties": false, "required": ["role", "content"],
+        "properties": {
+          "role": { "type": "string", "enum": ["user", "assistant"] },
+          "content": { "oneOf": [{ "type": "string", "maxLength": 10000000 }, { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/components/schemas/ContentBlock" } }] }
+        }
+      },
+      "ToolInputSchema": {
+        "type": "object", "description": "JSON Schema object for tool input", "additionalProperties": true
+      },
+      "Tool": {
+        "type": "object", "additionalProperties": false, "required": ["name", "input_schema"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 }, "description": { "type": "string", "maxLength": 100000 },
+          "input_schema": { "$ref": "#/components/schemas/ToolInputSchema" }, "cache_control": { "$ref": "#/components/schemas/CacheControl" }
+        }
+      },
+      "ToolChoice": {
+        "type": "object", "additionalProperties": false, "required": ["type"],
+        "properties": { "type": { "type": "string", "enum": ["auto", "any", "tool", "none"] }, "name": { "type": "string", "minLength": 1, "maxLength": 200 }, "disable_parallel_tool_use": { "type": "boolean" } }
+      },
+      "ThinkingConfig": {
+        "type": "object", "additionalProperties": false, "required": ["type"],
+        "properties": { "type": { "type": "string", "enum": ["enabled", "disabled", "adaptive"] }, "budget_tokens": { "type": "integer", "minimum": 1024, "maximum": 1000000 }, "display": { "type": "string", "enum": ["summarized", "omitted"] } }
+      },
+      "SystemBlock": {
+        "type": "object", "additionalProperties": false, "required": ["type", "text"],
+        "properties": { "type": { "const": "text" }, "text": { "type": "string", "maxLength": 10000000 }, "cache_control": { "$ref": "#/components/schemas/CacheControl" } }
+      },
+      "MessageCreateRequest": {
+        "type": "object", "additionalProperties": false, "required": ["model", "max_tokens", "messages"],
+        "properties": {
+          "model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
+          "max_tokens": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+          "messages": { "type": "array", "minItems": 1, "maxItems": 100000, "items": { "$ref": "#/components/schemas/Message" } },
+          "system": { "oneOf": [{ "type": "string", "maxLength": 10000000 }, { "type": "array", "maxItems": 1000, "items": { "$ref": "#/components/schemas/SystemBlock" } }] },
+          "stream": { "type": "boolean", "default": false }, "stop_sequences": { "type": "array", "maxItems": 1000, "items": { "type": "string", "maxLength": 10000 } },
+          "temperature": { "type": "number", "minimum": 0, "maximum": 1 }, "top_p": { "type": "number", "minimum": 0, "maximum": 1 }, "top_k": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+          "tools": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/components/schemas/Tool" } }, "tool_choice": { "$ref": "#/components/schemas/ToolChoice" },
+          "thinking": { "$ref": "#/components/schemas/ThinkingConfig" },
+          "metadata": { "type": "object", "additionalProperties": false, "properties": { "user_id": { "type": "string", "maxLength": 256 } } },
+          "service_tier": { "type": "string", "enum": ["auto", "standard_only"] }
+        }
+      },
+      "MessageUsage": {
+        "type": "object", "additionalProperties": false, "required": ["input_tokens", "output_tokens"],
+        "properties": {
+          "input_tokens": { "type": "integer", "minimum": 0 }, "output_tokens": { "type": "integer", "minimum": 0 },
+          "cache_creation_input_tokens": { "type": "integer", "minimum": 0 }, "cache_read_input_tokens": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "MessageResponse": {
+        "type": "object", "additionalProperties": false, "required": ["id", "type", "role", "content", "model", "stop_reason", "stop_sequence", "usage"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 256 }, "type": { "const": "message" }, "role": { "const": "assistant" },
+          "content": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/components/schemas/ContentBlock" } },
+          "model": { "type": "string", "minLength": 1, "maxLength": 160 }, "stop_reason": { "type": ["string", "null"], "enum": ["end_turn", "max_tokens", "stop_sequence", "tool_use", "pause_turn", "refusal", null] },
+          "stop_sequence": { "type": ["string", "null"], "maxLength": 10000 }, "usage": { "$ref": "#/components/schemas/MessageUsage" }
+        }
+      },
+      "MessageStreamEvent": {
+        "type": "object", "additionalProperties": false, "required": ["type"],
+        "properties": {
+          "type": { "type": "string", "enum": ["message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop", "ping", "error"] },
+          "index": { "type": "integer", "minimum": 0 }, "message": { "$ref": "#/components/schemas/MessageResponse" }, "content_block": { "$ref": "#/components/schemas/ContentBlock" },
+          "delta": { "type": "object" }, "usage": { "$ref": "#/components/schemas/MessageUsage" }, "error": { "$ref": "#/components/schemas/ErrorDetail" }
+        }
+      },
+      "CountTokensRequest": {
+        "type": "object", "additionalProperties": false, "required": ["model", "messages"],
+        "properties": {
+          "model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
+          "messages": { "type": "array", "minItems": 1, "maxItems": 100000, "items": { "$ref": "#/components/schemas/Message" } },
+          "system": { "oneOf": [{ "type": "string", "maxLength": 10000000 }, { "type": "array", "maxItems": 1000, "items": { "$ref": "#/components/schemas/SystemBlock" } }] },
+          "tools": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/components/schemas/Tool" } }, "tool_choice": { "$ref": "#/components/schemas/ToolChoice" }, "thinking": { "$ref": "#/components/schemas/ThinkingConfig" }
+        }
+      },
+      "CountTokensResponse": {
+        "type": "object", "additionalProperties": false, "required": ["input_tokens"], "properties": { "input_tokens": { "type": "integer", "minimum": 0 } }
+      },
+      "ErrorCode": {
+        "type": "string", "enum": ["invalid_request_error", "authentication_error", "permission_error", "not_found_error", "rate_limit_error", "api_error", "overloaded_error"]
+      },
+      "ErrorDetail": {
+        "type": "object", "additionalProperties": false, "required": ["type", "message"],
+        "properties": { "type": { "$ref": "#/components/schemas/ErrorCode" }, "message": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      },
+      "ErrorEnvelope": {
+        "type": "object", "additionalProperties": false, "required": ["type", "error", "request_id"],
+        "properties": { "type": { "const": "error" }, "error": { "$ref": "#/components/schemas/ErrorDetail" }, "request_id": { "type": "string", "format": "uuid" } }
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid or unsupported request", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "Unauthenticated": { "description": "Origin Key invalid", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "Forbidden": { "description": "Origin Key or model operation forbidden", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "NotFound": { "description": "Platform model unavailable", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "RateLimited": { "description": "Quota or rate limit rejected", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "UpstreamError": { "description": "Sanitized upstream failure", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "Unavailable": { "description": "Platform or metering unavailable", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } },
+      "Timeout": { "description": "Upstream timeout", "headers": { "X-Request-Id": { "$ref": "#/components/headers/RequestId" } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } } } }
+    }
+  }
+}

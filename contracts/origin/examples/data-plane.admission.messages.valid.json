@@ -1,0 +1,10 @@
+{
+  "request_id": "01980000-0000-7000-8000-000000000012",
+  "platform_model": "origin-agent",
+  "operation": "messages",
+  "catalog_version": 43,
+  "input_token_estimate": 900,
+  "max_output_tokens": 4096,
+  "stream": true,
+  "requested_capabilities": ["streaming", "function_tools", "reasoning"]
+}

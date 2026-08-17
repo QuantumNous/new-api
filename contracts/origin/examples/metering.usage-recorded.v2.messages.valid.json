@@ -1,0 +1,40 @@
+{
+  "event_id": "01980000-0000-7000-8000-000000000411",
+  "event_type": "metering.usage_recorded.v2",
+  "event_version": 2,
+  "occurred_at": "2026-08-17T06:00:02Z",
+  "produced_at": "2026-08-17T06:00:03Z",
+  "producer": "new-api",
+  "partition_key": "reservation:01980000-0000-7000-8000-000000000016",
+  "request_id": "01980000-0000-7000-8000-000000000012",
+  "request_attempt_id": "01980000-0000-7000-8000-000000000017",
+  "reservation_id": "01980000-0000-7000-8000-000000000016",
+  "outcome_version": 1,
+  "tenant_id": "01980000-0000-7000-8000-000000000013",
+  "project_id": "01980000-0000-7000-8000-000000000014",
+  "api_key_id": "01980000-0000-7000-8000-000000000015",
+  "source": "api",
+  "operation": "messages_stream",
+  "platform_model": "origin-agent",
+  "catalog_version": 43,
+  "route_id": "route_agent_messages_primary",
+  "upstream": {
+    "contact_state": "COMPLETED",
+    "provider": "beenex",
+    "upstream_model_id": "beenex-claude-1",
+    "provider_request_id": "msg_example_stream_001"
+  },
+  "terminal_status": "SUCCESS",
+  "started_at": "2026-08-17T06:00:00Z",
+  "completed_at": "2026-08-17T06:00:02Z",
+  "usage_status": "REPORTED",
+  "usage_source": "PROVIDER",
+  "items": [
+    { "meter_type": "INPUT_TOKEN", "quantity": "900", "unit": "token", "source": "PROVIDER", "provider_value": "900" },
+    { "meter_type": "OUTPUT_TOKEN", "quantity": "240", "unit": "token", "source": "PROVIDER", "provider_value": "240" },
+    { "meter_type": "CACHED_TOKEN", "quantity": "120", "unit": "token", "source": "PROVIDER", "provider_value": "120" }
+  ],
+  "reservation_action": "SETTLE",
+  "reconciliation": { "status": "NOT_REQUIRED", "reason": null },
+  "error_category": null
+}

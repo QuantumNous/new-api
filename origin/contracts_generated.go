@@ -3,13 +3,14 @@
 package origin
 
 const (
-	ContractsSHA                             = "4911cd0ef45828f25d35e0015e980eb903d6f69f"
-	ContractsSourceSHA256                    = "c1b2c932bf7207adad8434f609a6ec8138a3d160bdd68a28f21bf164cd5f1e7d"
-	DataPlaneControlContractVersion          = "1.1.0"
+	ContractsSHA                             = "1e34df23e450e9a2326772b3fea4e5c923d621be"
+	ContractsSourceSHA256                    = "8207d66fc947531556f8f67fab921ee07023c7f85d78e7f897b232499ee71b8e"
+	DataPlaneControlContractVersion          = "1.2.0"
+	AnthropicCompatibleContractVersion       = "1.0.0-draft"
 	CatalogExecutionSnapshotEventVersion     = 1
 	MeteringUsageEventVersion                = 2
-	CatalogExecutionSnapshotSchemaSourceHash = "9b17128a88e89949d7dad2d34e681019a476c155f63394d11f4f19a27565aa73"
-	MeteringUsageSchemaSourceHash            = "6236d98d5092b33b02fc412a683dac0dc0e71961cc597e1258639757d0c50c6b"
+	CatalogExecutionSnapshotSchemaSourceHash = "8eb5f7f381a46cefa9f2b04cee59005769b4f40544d2d7eec13cb91e21ea5096"
+	MeteringUsageSchemaSourceHash            = "7b6778982727a15a02a7d7b79c823352f61aeac40f0009ff5d1a5810ddf9758b"
 )
 
 type AdmissionRequest struct {

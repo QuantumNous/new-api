@@ -2897,6 +2897,8 @@
               "chat_stream",
               "responses",
               "responses_stream",
+              "messages",
+              "messages_stream",
               "embeddings",
               "video_generation"
             ]

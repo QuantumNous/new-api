@@ -50,11 +50,11 @@
       "properties": {
         "route_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
         "platform_model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
-        "operation": { "const": "responses" },
+        "operation": { "type": "string", "enum": ["responses", "messages"] },
         "capabilities": { "$ref": "#/$defs/CatalogCapabilities" },
         "approved_channel_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
         "upstream_model_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:/-]+$" },
-        "upstream_protocol": { "const": "openai_responses" },
+        "upstream_protocol": { "type": "string", "enum": ["openai_responses", "anthropic_messages"] },
         "status": { "type": "string", "enum": ["ACTIVE", "DRAINING", "DISABLED"] }
       }
     },

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGeneratedOriginContractsMatchPinnedV3Bundle(t *testing.T) {
+func TestGeneratedOriginContractsMatchPinnedV4Bundle(t *testing.T) {
 	type lockedFile struct {
 		SourcePath string `json:"source_path"`
 		SHA256     string `json:"sha256"`
@@ -29,11 +29,15 @@ func TestGeneratedOriginContractsMatchPinnedV3Bundle(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, common.Unmarshal(raw, &lock))
 
-	assert.Equal(t, 3, lock.SnapshotVersion)
+	assert.Equal(t, 4, lock.SnapshotVersion)
 	assert.Equal(t, ContractsSHA, lock.SourceCommit)
 	assert.Equal(t, ContractsSourceSHA256, lock.SourceSHA256)
 	assert.Equal(t, DataPlaneControlContractVersion, lock.ContractVersion["data_plane_control"])
-	require.Len(t, lock.Files, 21)
+	assert.Equal(t, AnthropicCompatibleContractVersion, lock.ContractVersion["anthropic_compatible"])
+	require.Len(t, lock.Files, 24)
+	assert.Contains(t, lock.Files, "openapi/anthropic-compatible-v1.yaml")
+	assert.Contains(t, lock.Files, "examples/data-plane.admission.messages.valid.json")
+	assert.Contains(t, lock.Files, "examples/metering.usage-recorded.v2.messages.valid.json")
 	assert.Contains(t, lock.Files, "examples/data-plane.models.valid.json")
 	assert.Contains(t, lock.Files, "examples/data-plane.models.invalid.json")
 

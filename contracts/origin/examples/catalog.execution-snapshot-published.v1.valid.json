@@ -28,9 +28,25 @@
         "upstream_model_id": "beenex-codex-1",
         "upstream_protocol": "openai_responses",
         "status": "ACTIVE"
+      },
+      {
+        "route_id": "route_agent_messages_primary",
+        "platform_model": "origin-agent",
+        "operation": "messages",
+        "capabilities": {
+          "streaming": true,
+          "function_tools": true,
+          "reasoning": true,
+          "max_input_tokens": 200000,
+          "max_output_tokens": 100000
+        },
+        "approved_channel_id": "channel_beenex_primary",
+        "upstream_model_id": "beenex-claude-1",
+        "upstream_protocol": "anthropic_messages",
+        "status": "ACTIVE"
       }
     ],
-    "content_sha256": "9ce43d89939ec8d93f46bf11a5ac7cb56d221aafc88462009e5545fe9590d0b2"
+    "content_sha256": "401ae865a2365eac4ddc14598252b4b5025e7007c9a30a74bdf9b9a194ab1a14"
   },
   "metadata": {
     "environment": "test",

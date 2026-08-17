@@ -1,9 +1,9 @@
 {
   "snapshot": "origin-codex-mvp-p0",
-  "snapshot_version": 3,
-  "source_sha256": "c1b2c932bf7207adad8434f609a6ec8138a3d160bdd68a28f21bf164cd5f1e7d",
+  "snapshot_version": 4,
+  "source_sha256": "8207d66fc947531556f8f67fab921ee07023c7f85d78e7f897b232499ee71b8e",
   "contract_versions": {
-    "data_plane_control": "1.1.0",
+    "data_plane_control": "1.2.0",
     "openai_compatible": "1.7.0-draft",
     "catalog_event_id": "urn:origin-ai:event:catalog.execution-snapshot-published.v1",
     "catalog_event_version": 1,
@@ -12,12 +12,13 @@
     "usage_v1_decision": "preserved-byte-for-byte",
     "usage_event_id": "urn:origin-ai:event:metering.usage-recorded.v2",
     "usage_event_version": 2,
-    "control": "1.4.0-draft"
+    "control": "1.4.0-draft",
+    "anthropic_compatible": "1.0.0-draft"
   },
   "files": [
     {
       "path": "packages/contracts/openapi/data-plane-control-v1.yaml",
-      "sha256": "de2cb8478135644c513445d515a5e5f48526e69ee62f3c35f01764bf72be4106"
+      "sha256": "3339f712a08dd6ecb4bd610924d523e976ba1c5c3c934830c3d73433e2ac1de0"
     },
     {
       "path": "packages/contracts/openapi/openai-compatible-v1.yaml",
@@ -25,7 +26,7 @@
     },
     {
       "path": "packages/contracts/events/catalog.execution-snapshot-published.v1.schema.json",
-      "sha256": "9b17128a88e89949d7dad2d34e681019a476c155f63394d11f4f19a27565aa73"
+      "sha256": "8eb5f7f381a46cefa9f2b04cee59005769b4f40544d2d7eec13cb91e21ea5096"
     },
     {
       "path": "packages/contracts/events/metering.usage-recorded.v1.schema.json",
@@ -33,7 +34,7 @@
     },
     {
       "path": "packages/contracts/events/metering.usage-recorded.v2.schema.json",
-      "sha256": "6236d98d5092b33b02fc412a683dac0dc0e71961cc597e1258639757d0c50c6b"
+      "sha256": "7b6778982727a15a02a7d7b79c823352f61aeac40f0009ff5d1a5810ddf9758b"
     },
     {
       "path": "packages/contracts/examples/data-plane.admission.request.valid.json",
@@ -53,7 +54,7 @@
     },
     {
       "path": "packages/contracts/examples/catalog.execution-snapshot-published.v1.valid.json",
-      "sha256": "ffed32d5eadefefa05823e80c835b847483fbac5253d10a86cccf72758a12459"
+      "sha256": "debacc26367c56da0ea0212b425cec91411c352b430a20ec1cd3b1ac1e2e8f70"
     },
     {
       "path": "packages/contracts/examples/catalog.execution-snapshot-published.v1.invalid.json",
@@ -80,6 +81,18 @@
       "sha256": "ee53b2b13e8288de7977ef292075e372438e4dd508fa6e57c47daedc424f8a6e"
     },
     {
+      "path": "packages/contracts/openapi/anthropic-compatible-v1.yaml",
+      "sha256": "7eb44812dcac154f202bf86cd6b3392093f81f081c9581bb7d7da54d9da0a27f"
+    },
+    {
+      "path": "packages/contracts/examples/data-plane.admission.messages.valid.json",
+      "sha256": "028e2435edfbe852cd1356586b40f52a9a51bbc15717ac1d2cde338f6469d83d"
+    },
+    {
+      "path": "packages/contracts/examples/metering.usage-recorded.v2.messages.valid.json",
+      "sha256": "5a10c8a49a3fe91bc36b51f60e1ed5649970b17343e95cb6c5d6cfb7476ecb53"
+    },
+    {
       "path": "packages/contracts/examples/data-plane.models.valid.json",
       "sha256": "220dde0866661708ff20cd24fe339c13a3dde0bb759d9be59c7a3875d307dce5"
     },
@@ -89,7 +102,7 @@
     },
     {
       "path": "packages/contracts/openapi/control-v1.yaml",
-      "sha256": "5f4989b51c126476806b8845781cfc4d77f94bef7454b27aa1df507af87a23a3"
+      "sha256": "8b38587bc961ffb1502727a8553a64ff7083af82322c76812114a688e7a91b8f"
     },
     {
       "path": "packages/contracts/examples/control.call-logs.settlement-statuses.valid.json",

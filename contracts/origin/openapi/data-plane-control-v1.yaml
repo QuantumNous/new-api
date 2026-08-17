@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Origin Data-plane Control API",
-    "version": "1.1.0",
-    "description": "Locked P0 contract between the existing new-api Go data plane and Origin Platform. Platform remains authoritative for Origin Keys, projects, catalog, PriceBook, wallet, reservations, Charge and Ledger. The data plane forwards OpenAI Responses to BeeNex in the same protocol; this API never defines a Responses-to-Chat conversion."
+    "version": "1.2.0",
+    "description": "Locked contract between the existing new-api Go data plane and Origin Platform. Platform remains authoritative for Origin Keys, projects, catalog, PriceBook, wallet, reservations, Charge and Ledger. The data plane forwards OpenAI Responses and Anthropic Messages to BeeNex in their native protocols; this API never defines a cross-protocol conversion."
   },
   "servers": [{ "url": "https://platform.internal" }],
   "paths": {
@@ -30,6 +30,18 @@
                     "operation": "responses",
                     "catalog_version": 42,
                     "input_token_estimate": 1200,
+                    "max_output_tokens": 4096,
+                    "stream": true,
+                    "requested_capabilities": ["streaming", "function_tools", "reasoning"]
+                  }
+                },
+                "messages_sse": {
+                  "value": {
+                    "request_id": "01980000-0000-7000-8000-000000000012",
+                    "platform_model": "origin-agent",
+                    "operation": "messages",
+                    "catalog_version": 43,
+                    "input_token_estimate": 900,
                     "max_output_tokens": 4096,
                     "stream": true,
                     "requested_capabilities": ["streaming", "function_tools", "reasoning"]
@@ -73,9 +85,12 @@
       "get": {
         "operationId": "listOriginModels",
         "summary": "Authenticate one Origin Key and list its currently saleable platform models",
-        "description": "new-api uses this non-billing endpoint only for OpenAI-compatible model discovery. Platform validates the complete Origin Key, tenant/project state and responses scope, then returns distinct ACTIVE platform model names from the latest unexpired execution snapshot that have an effective authoritative PriceBook for the Key tenant. It MUST NOT create a reservation, inspect wallet balance, mutate quota or expose provider/channel/upstream model information. Network failure, timeout or an untrusted response fails closed.",
+        "description": "new-api uses this non-billing endpoint for model discovery and count_tokens authorization. Platform validates the complete Origin Key and tenant/project state, then returns distinct ACTIVE platform model names from the latest unexpired execution snapshot that have at least one authorized native operation and an effective authoritative PriceBook for the Key tenant. It MUST NOT create a reservation, inspect wallet balance, mutate quota or expose provider/channel/upstream model information. Network failure, timeout or an untrusted response fails closed.",
         "security": [{ "GatewayMutualTLS": [], "OriginKeyBearer": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+        "parameters": [
+          { "$ref": "#/components/parameters/RequestId" },
+          { "$ref": "#/components/parameters/NativeOperationQuery" }
+        ],
         "responses": {
           "200": { "$ref": "#/components/responses/OriginModelsOk" },
           "400": { "$ref": "#/components/responses/AdmissionBadRequest" },
@@ -114,6 +129,13 @@
         "description": "Correlation identifier. For admission it MUST equal body.request_id and Idempotency-Key.",
         "schema": { "type": "string", "format": "uuid" }
       },
+      "NativeOperationQuery": {
+        "name": "operation",
+        "in": "query",
+        "required": false,
+        "description": "Optional native operation authorization filter. Claude count_tokens sends messages; public model discovery may omit it to request the authorized union.",
+        "schema": { "type": "string", "enum": ["responses", "messages"] }
+      },
       "IfNoneMatch": {
         "name": "If-None-Match",
         "in": "header",
@@ -151,7 +173,7 @@
         "properties": {
           "request_id": { "type": "string", "format": "uuid" },
           "platform_model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
-          "operation": { "const": "responses" },
+          "operation": { "type": "string", "enum": ["responses", "messages"] },
           "catalog_version": { "type": "integer", "format": "int64", "minimum": 1 },
           "input_token_estimate": { "type": "integer", "format": "int64", "minimum": 0, "maximum": 100000000 },
           "max_output_tokens": { "type": "integer", "minimum": 1, "maximum": 1000000 },

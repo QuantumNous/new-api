@@ -41,7 +41,7 @@
     "project_id": { "type": "string", "format": "uuid" },
     "api_key_id": { "type": "string", "format": "uuid" },
     "source": { "const": "api" },
-    "operation": { "type": "string", "enum": ["responses", "responses_stream"] },
+    "operation": { "type": "string", "enum": ["responses", "responses_stream", "messages", "messages_stream"] },
     "platform_model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[A-Za-z0-9._:-]+$" },
     "catalog_version": { "type": "integer", "format": "int64", "minimum": 1 },
     "route_id": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[A-Za-z0-9._:-]+$" },
