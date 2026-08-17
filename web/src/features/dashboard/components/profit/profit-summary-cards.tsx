@@ -61,11 +61,14 @@ export function ProfitSummaryCards(props: {
   const { t } = useTranslation()
   const { summary, loading } = props
   const profit = summary ? summary.profit : 0
+  const costEnabled = Boolean(summary?.cost_enabled)
   let profitTone: ProfitCardTone = 'default'
-  if (profit > 0) {
-    profitTone = 'success'
-  } else if (profit < 0) {
-    profitTone = 'danger'
+  if (costEnabled) {
+    if (profit > 0) {
+      profitTone = 'success'
+    } else if (profit < 0) {
+      profitTone = 'danger'
+    }
   }
   const topupConcession = summary ? summary.topup_concession : 0
 
@@ -78,14 +81,16 @@ export function ProfitSummaryCards(props: {
       />
       <ProfitCard
         label={t('Total Cost')}
-        value={summary ? formatQuota(summary.cost) : '-'}
+        value={summary ? (costEnabled ? formatQuota(summary.cost) : '-') : '-'}
         loading={loading}
       />
       <ProfitCard
         label={t('Total Profit')}
         value={
           summary
-            ? (profit >= 0 ? '+' : '') + formatQuota(profit)
+            ? costEnabled
+              ? (profit >= 0 ? '+' : '') + formatQuota(profit)
+              : '-'
             : '-'
         }
         tone={profitTone}
@@ -94,7 +99,11 @@ export function ProfitSummaryCards(props: {
       <ProfitCard
         label={t('Profit Rate')}
         value={
-          summary ? `${(summary.profit_rate * 100).toFixed(1)}%` : '-'
+          summary
+            ? costEnabled
+              ? `${(summary.profit_rate * 100).toFixed(1)}%`
+              : '-'
+            : '-'
         }
         loading={loading}
       />

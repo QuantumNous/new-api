@@ -286,6 +286,7 @@ export interface ChannelProfitSummary {
   topup_concession: number
   topup_count: number
   topup_profit: number
+  cost_enabled?: boolean
 }
 
 export interface ChannelProfitRow {

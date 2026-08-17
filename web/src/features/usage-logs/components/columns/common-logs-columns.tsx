@@ -40,7 +40,7 @@ import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
-import { LOG_TYPE_ALL_VALUE } from '../../constants'
+import { LOG_TYPE_ALL_VALUE, LOG_TYPE_ENUM } from '../../constants'
 import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
@@ -539,6 +539,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
           const log = row.original
           if (!isDisplayableLogType(log.type)) return null
 
+          // 未启用成本（无渠道成本快照）时成本未记录，不展示。
+          if (
+            log.type === LOG_TYPE_ENUM.CONSUME &&
+            !parseLogOther(log.other)?.admin_info?.channel_cost
+          ) {
+            return <span className='text-muted-foreground'>-</span>
+          }
+
           return (
             <span className='font-mono text-xs tabular-nums'>
               {formatLogQuota(log.cost_quota ?? 0)}
@@ -553,6 +561,14 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         cell: function ProfitCell({ row }) {
           const log = row.original
           if (!isDisplayableLogType(log.type)) return null
+
+          // 未启用成本（无渠道成本快照）的调用无利润可言，不展示。
+          if (
+            log.type === LOG_TYPE_ENUM.CONSUME &&
+            !parseLogOther(log.other)?.admin_info?.channel_cost
+          ) {
+            return <span className='text-muted-foreground'>-</span>
+          }
 
           const profit = log.quota - (log.cost_quota ?? 0)
           let profitClass = 'text-muted-foreground'

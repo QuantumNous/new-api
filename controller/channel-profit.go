@@ -31,12 +31,16 @@ func GetChannelProfit(c *gin.Context) {
 	}
 
 	channelRows := make([]gin.H, 0, len(byChannel))
+	costEnabledCount := 0
 	for _, row := range byChannel {
 		channelName := ""
 		costEnabled := false
 		if ch, err := model.CacheGetChannel(row.ChannelID); err == nil {
 			channelName = ch.Name
 			costEnabled = ch.GetCostSettings().Enabled
+		}
+		if costEnabled {
+			costEnabledCount++
 		}
 		revenue := float64(row.Revenue)
 		channelRows = append(channelRows, gin.H{
@@ -70,14 +74,15 @@ func GetChannelProfit(c *gin.Context) {
 		"message": "",
 		"data": gin.H{
 			"summary": gin.H{
-				"revenue":           revenueTotal,
-				"cost":              summary.Cost,
-				"profit":            revenueTotal - summary.Cost,
-				"profit_rate":       profitRate(revenueTotal, summary.Cost),
-				"count":             summary.Count,
-				"topup_concession":  summary.TopupConcession,
-				"topup_count":       summary.TopupCount,
-				"topup_profit":      -summary.TopupConcession,
+				"revenue":          revenueTotal,
+				"cost":             summary.Cost,
+				"profit":           revenueTotal - summary.Cost,
+				"profit_rate":      profitRate(revenueTotal, summary.Cost),
+				"count":            summary.Count,
+				"topup_concession": summary.TopupConcession,
+				"topup_count":      summary.TopupCount,
+				"topup_profit":     -summary.TopupConcession,
+				"cost_enabled":     costEnabledCount > 0,
 			},
 			"by_channel": channelRows,
 			"by_model":   modelRows,

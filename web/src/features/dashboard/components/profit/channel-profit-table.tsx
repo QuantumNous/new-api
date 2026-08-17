@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { PanelWrapper } from '@/features/dashboard/components/ui/panel-wrapper'
-import { formatQuota } from '@/lib/format'
+import { formatLogQuota, formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { ChannelProfitRow } from '@/features/dashboard/types'
@@ -64,20 +64,23 @@ export function ChannelProfitTable(props: {
                   {formatQuota(row.revenue)}
                 </td>
                 <td className='px-3 py-2 tabular-nums'>
-                  {formatQuota(row.cost)}
+                  {row.cost_enabled ? formatLogQuota(row.cost) : '-'}
                 </td>
                 <td
                   className={cn(
                     'px-3 py-2 tabular-nums',
-                    row.profit > 0 && 'text-success',
-                    row.profit < 0 && 'text-destructive'
+                    row.cost_enabled && row.profit > 0 && 'text-success',
+                    row.cost_enabled && row.profit < 0 && 'text-destructive'
                   )}
                 >
-                  {row.profit >= 0 ? '+' : ''}
-                  {formatQuota(row.profit)}
+                  {row.cost_enabled
+                    ? `${row.profit >= 0 ? '+' : ''}${formatLogQuota(row.profit)}`
+                    : '-'}
                 </td>
                 <td className='px-3 py-2 tabular-nums'>
-                  {(row.profit_rate * 100).toFixed(1)}%
+                  {row.cost_enabled
+                    ? `${(row.profit_rate * 100).toFixed(1)}%`
+                    : '-'}
                 </td>
                 <td className='px-3 py-2'>
                   {row.cost_enabled ? (

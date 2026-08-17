@@ -53,7 +53,7 @@ import {
   formatQuotaWithCurrency,
   getCurrencyLabel,
 } from '@/lib/currency'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { truncateText } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
@@ -153,6 +153,8 @@ function ChannelCostCell({ channel }: { channel: Channel }) {
   const userRole = useAuthStore((s) => s.auth.user?.role)
   const { t } = useTranslation()
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const settings = parseCostSettings(channel)
+  const costEnabled = Boolean(settings?.enabled)
   const { data } = useQuery({
     queryKey: ['channel-profit-summary'],
     queryFn: getChannelProfitSummary,
@@ -170,10 +172,10 @@ function ChannelCostCell({ channel }: { channel: Channel }) {
   return (
     <div className='flex flex-col gap-1'>
       <CostConfigBadge channel={channel} />
-      {isAdmin && row && (
+      {isAdmin && costEnabled && row && (
         <span className={profitClass}>
           {t('Profit')}: {row.profit >= 0 ? '+' : ''}
-          {row.profit.toLocaleString()}
+          {formatLogQuota(row.profit)}
         </span>
       )}
     </div>
