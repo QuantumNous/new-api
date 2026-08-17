@@ -6580,6 +6580,7 @@
     "Step 2 · Copy the image generation setup": "ステップ 2 · 画像生成のセットアップをコピーする",
     "Paste the next line into your terminal to integrate Flatkey in seconds.": "次の行をターミナルに貼り付ければ、数秒で Flatkey を導入できます。",
     "Copy the command below and paste it into your terminal.": "下のコマンドをコピーして、ターミナルに貼り付けてください。",
-    "Run this command in your terminal to connect your account.": "このコマンドをターミナルで実行して、アカウントを接続します。"
+    "Run this command in your terminal to connect your account.": "このコマンドをターミナルで実行して、アカウントを接続します。",
+    "Cooling": "クールダウン"
   }
 }

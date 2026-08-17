@@ -6580,6 +6580,7 @@
     "Step 2 · Copy the image generation setup": "Шаг 2 · Скопируйте настройку генерации изображений",
     "Paste the next line into your terminal to integrate Flatkey in seconds.": "Вставьте следующую строку в терминал, чтобы подключить Flatkey за считаные секунды.",
     "Copy the command below and paste it into your terminal.": "Скопируйте команду ниже и вставьте её в терминал.",
-    "Run this command in your terminal to connect your account.": "Выполните эту команду в терминале, чтобы подключить аккаунт."
+    "Run this command in your terminal to connect your account.": "Выполните эту команду в терминале, чтобы подключить аккаунт.",
+    "Cooling": "охлаждение"
   }
 }

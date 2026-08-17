@@ -6580,6 +6580,7 @@
     "Step 2 · Copy the image generation setup": "Étape 2 · Copiez la configuration de génération d'images",
     "Paste the next line into your terminal to integrate Flatkey in seconds.": "Collez la ligne suivante dans votre terminal pour intégrer Flatkey en quelques secondes.",
     "Copy the command below and paste it into your terminal.": "Copiez la commande ci-dessous et collez-la dans votre terminal.",
-    "Run this command in your terminal to connect your account.": "Exécutez cette commande dans votre terminal pour connecter votre compte."
+    "Run this command in your terminal to connect your account.": "Exécutez cette commande dans votre terminal pour connecter votre compte.",
+    "Cooling": "refroidissement"
   }
 }
