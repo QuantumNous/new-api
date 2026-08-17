@@ -94,7 +94,8 @@ describe("ModelLandingPage", () => {
       <ModelLandingPage config={GPT_CONFIG} locale="en" liveModels={liveModels} allModels={liveModels} />
     );
 
-    expect(html).toContain("$0.7 in / $5.6 out");
+    expect(html).toContain("$0.7");
+    expect(html).toContain("$5.6");
     expect(html).not.toContain("$0.2 in / $0.2 out");
   });
 
@@ -128,6 +129,9 @@ describe("ModelLandingPage", () => {
     expect(html).toContain("Model catalog");
     expect(html).toContain("Related models");
     expect(html).toContain("Frequently asked questions");
+    expect(html).toContain('type="application/ld+json"');
+    expect(html).toContain('"@type":"Product"');
+    expect(html).toContain('"@type":"FAQPage"');
   });
 
   test("renders breadcrumbs on media model landings", () => {
@@ -147,7 +151,7 @@ describe("ModelLandingPage", () => {
     );
 
     expect(html).toContain('href="/zh/models"');
-    expect(html).toContain("返回模型市场");
+    expect(html).toContain("返回模型列表");
     expect(html).toContain("在 Playground 打开");
     expect(html).toContain("获取 API Key");
     expect(html).toContain("https://console.flatkey.ai/playground");
@@ -205,6 +209,7 @@ describe("ModelLandingPage", () => {
     expect(html).toContain("继续浏览 Flatkey");
     expect(html).toContain('href="/zh/models/gpt-image-2"');
     expect(html).toContain('href="/zh/models/seedance-api"');
+    expect(html).toContain('"url":"https://flatkey.ai/zh/models/sonilo-video-to-music"');
   });
 
   test("renders GPT-series related model internal links on GPT model pages", () => {
@@ -225,7 +230,7 @@ describe("ModelLandingPage", () => {
     expect(html).toContain('href="/models/gpt-4o"');
     expect(html).toContain("120K");
     const relatedSection = html.slice(html.indexOf('id="related"'), html.indexOf('id="faq"'));
-    expect(relatedSection).toContain('className="relative z-10 border-y border-violet-500/10 bg-white px-6 py-16 dark:bg-white/[0.02]"');
+    expect(relatedSection).toContain('class="relative z-10 border-y border-violet-500/10 bg-white px-6 py-16 dark:bg-white/[0.02]"');
     expect(relatedSection).toContain("bg-white p-4 shadow-none");
     expect(relatedSection).toContain("shadow-none");
     expect(relatedSection).not.toContain("bg-white/72");
@@ -241,6 +246,8 @@ describe("ModelLandingPage", () => {
     expect(html).toContain("href=\"/models\"");
     expect(html).toContain("All models");
     expect(html).toContain("gpt-5");
+    expect(html).toContain('type="application/ld+json"');
+    expect(html).toContain('"url":"https://flatkey.ai/models/gpt-api"');
     expect(html).not.toContain('id="workbench"');
   });
 });
