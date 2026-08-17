@@ -1,0 +1,109 @@
+package xai
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestGetRequestURLUsesOfficialXAIImageEndpoints(t *testing.T) {
+	tests := []struct {
+		name      string
+		relayMode int
+		inputPath string
+		want      string
+	}{
+		{
+			name:      "generation",
+			relayMode: relayconstant.RelayModeImagesGenerations,
+			inputPath: "/custom/images/generate",
+			want:      "https://api.x.ai/v1/images/generations",
+		},
+		{
+			name:      "edit legacy alias",
+			relayMode: relayconstant.RelayModeImagesEdits,
+			inputPath: "/v1/edits",
+			want:      "https://api.x.ai/v1/images/edits",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:    &relaycommon.ChannelMeta{ChannelBaseUrl: "https://api.x.ai/"},
+				RelayMode:      test.relayMode,
+				RequestURLPath: test.inputPath,
+			}
+
+			requestURL, err := (&Adaptor{}).GetRequestURL(info)
+
+			require.NoError(t, err)
+			assert.Equal(t, test.want, requestURL)
+		})
+	}
+}
+
+func TestConvertImageRequestPreservesOfficialXAIEditPayload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+	context.Request.Header.Set("Content-Type", "application/json")
+	imageCount := uint(2)
+	request := dto.ImageRequest{
+		Model:          "grok-imagine-image-2.0",
+		Prompt:         "Render this as a pencil sketch",
+		N:              &imageCount,
+		ResponseFormat: "url",
+		Quality:        "medium",
+		Image:          json.RawMessage(`{"type":"image_url","url":"https://example.com/source.png"}`),
+		Extra: map[string]json.RawMessage{
+			"aspect_ratio": json.RawMessage(`"16:9"`),
+			"resolution":   json.RawMessage(`"2k"`),
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertImageRequest(context, &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}, request)
+
+	require.NoError(t, err)
+	requestBody, err := common.Marshal(converted)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{
+		"model":"grok-imagine-image-2.0",
+		"prompt":"Render this as a pencil sketch",
+		"n":2,
+		"response_format":"url",
+		"quality":"medium",
+		"aspect_ratio":"16:9",
+		"resolution":"2k",
+		"image":{"type":"image_url","url":"https://example.com/source.png"}
+	}`, string(requestBody))
+}
+
+func TestConvertImageRequestRejectsMultipartXAIEdit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+	context.Request.Header.Set("Content-Type", "multipart/form-data; boundary=test")
+
+	_, err := (&Adaptor{}).ConvertImageRequest(context, &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}, dto.ImageRequest{
+		Model:  "grok-imagine-image-2.0",
+		Prompt: "Edit the image",
+		Image:  json.RawMessage(`{"type":"image_url","url":"https://example.com/source.png"}`),
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "application/json")
+}
+
+func TestModelListIncludesLatestXAIImageModel(t *testing.T) {
+	assert.Contains(t, ModelList, "grok-imagine-image-2.0")
+}

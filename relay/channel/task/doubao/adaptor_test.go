@@ -22,9 +22,19 @@ func newDoubaoTestContext(body string) (*gin.Context, *relaycommon.RelayInfo) {
 	context.Request = request
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "doubao-seedance-2-5-260628",
+		ChannelMeta:     &relaycommon.ChannelMeta{},
 		TaskRelayInfo:   &relaycommon.TaskRelayInfo{},
 	}
 	return context, info
+}
+
+func TestBuildRequestURLUsesArkContentGenerationTasksEndpoint(t *testing.T) {
+	adaptor := &TaskAdaptor{baseURL: "https://ark.cn-beijing.volces.com/"}
+
+	requestURL, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{})
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks", requestURL)
 }
 
 func TestValidateAndConvertArkTopLevelFields(t *testing.T) {

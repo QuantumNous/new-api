@@ -38,11 +38,29 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if info != nil && info.RelayMode == constant.RelayModeImagesEdits {
+		if c == nil || c.Request == nil || !strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Content-Type")), "application/json") {
+			return nil, errors.New("xAI image edits require application/json")
+		}
+		if len(request.Image) == 0 && len(request.Images) == 0 {
+			return nil, errors.New("xAI image edits require image or images")
+		}
+	}
+
+	imageCount := int(lo.FromPtrOr(request.N, uint(1)))
+	if imageCount > maxXAIImageCount {
+		return nil, errors.New("xAI image requests support at most 10 images")
+	}
 	xaiRequest := ImageRequest{
 		Model:          request.Model,
 		Prompt:         request.Prompt,
-		N:              int(lo.FromPtrOr(request.N, uint(1))),
+		N:              imageCount,
 		ResponseFormat: request.ResponseFormat,
+		Quality:        request.Quality,
+		AspectRatio:    request.Extra["aspect_ratio"],
+		Resolution:     request.Extra["resolution"],
+		Image:          request.Image,
+		Images:         request.Images,
 	}
 	return xaiRequest, nil
 }
@@ -51,6 +69,13 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	baseURL := strings.TrimRight(info.ChannelBaseUrl, "/")
+	switch info.RelayMode {
+	case constant.RelayModeImagesGenerations:
+		return baseURL + xAIImageGenerationsPath, nil
+	case constant.RelayModeImagesEdits:
+		return baseURL + xAIImageEditsPath, nil
+	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
 }
 

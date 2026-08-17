@@ -25,6 +25,8 @@ import (
 	"github.com/samber/lo"
 )
 
+const arkContentGenerationTasksPath = "/api/v3/contents/generations/tasks"
+
 // ============================
 // Request / Response structures
 // ============================
@@ -228,7 +230,7 @@ func hasUsableContent(content []ContentItem) bool {
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	return strings.TrimRight(a.baseURL, "/") + arkContentGenerationTasksPath, nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -329,7 +331,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	uri := fmt.Sprintf("%s%s/%s", strings.TrimRight(baseUrl, "/"), arkContentGenerationTasksPath, taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
