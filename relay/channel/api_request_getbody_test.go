@@ -334,6 +334,21 @@ func writeH2TestResponse(framer *http2.Framer, streamID uint32) error {
 	return framer.WriteData(streamID, true, []byte(`{}`))
 }
 
+func writeH2TestPingBarrier(framer *http2.Framer, data [8]byte) error {
+	if err := framer.WritePing(false, data); err != nil {
+		return err
+	}
+	for {
+		frame, err := framer.ReadFrame()
+		if err != nil {
+			return err
+		}
+		if ack, ok := frame.(*http2.PingFrame); ok && ack.Flags.Has(http2.FlagPingAck) && ack.Data == data {
+			return nil
+		}
+	}
+}
+
 func awaitH2ServerResult(t *testing.T, resultCh <-chan h2ServerResult) h2ServerResult {
 	t.Helper()
 	select {
@@ -380,6 +395,10 @@ func runResetOnFirstStreamServer(ln net.Listener, expectRetry bool) <-chan h2Ser
 					return
 				}
 				if !expectRetry {
+					if err := writeH2TestPingBarrier(framer, [8]byte{'r', 'e', 's', 'e', 't'}); err != nil {
+						res.err = err
+						return
+					}
 					break attempts
 				}
 				continue
@@ -400,6 +419,12 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 		res := h2ServerResult{}
 		defer func() { resCh <- res }()
 
+		var drainingConn net.Conn
+		defer func() {
+			if drainingConn != nil {
+				drainingConn.Close()
+			}
+		}()
 		for attempt := 0; attempt < 2; attempt++ {
 			conn, framer, err := acceptH2TestConnection(ln)
 			if err != nil {
@@ -417,15 +442,26 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 
 			if attempt == 0 {
 				err = framer.WriteGoAway(0, http2.ErrCodeNo, nil)
-				conn.Close()
 				if err != nil {
+					conn.Close()
 					res.err = err
 					return
 				}
+				// Keep the first connection alive until the transport opens the
+				// replacement connection. That proves GOAWAY was consumed and avoids
+				// racing the frame with an immediate Windows TCP reset.
+				drainingConn = conn
 				continue
+			}
+			if drainingConn != nil {
+				drainingConn.Close()
+				drainingConn = nil
 			}
 
 			err = writeH2TestResponse(framer, streamID)
+			if err == nil {
+				err = writeH2TestPingBarrier(framer, [8]byte{'r', 'e', 's', 'p'})
+			}
 			conn.Close()
 			if err != nil {
 				res.err = err
