@@ -38,15 +38,30 @@ func TestCompactRetryBudgetAndStageTransition(t *testing.T) {
 	}, http.StatusBadRequest)
 	require.True(t, state.advance(ctx, info, modelError, false))
 	require.Equal(t, relaycommon.CompactAttemptBase, state.stage)
+	require.Equal(t, 4, state.baseBudget)
 	require.Empty(t, ctx.GetStringSlice("compact_stage_channels"))
 	groupIndex, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroupIndex)
 	require.True(t, exists)
 	require.Equal(t, 0, groupIndex)
 
-	state.recordAttempt()
-	require.True(t, state.advance(ctx, info, types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError), true))
-	state.recordAttempt()
-	require.False(t, state.advance(ctx, info, types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError), true))
+	for attempt := 1; attempt <= state.baseBudget; attempt++ {
+		state.recordAttempt()
+		continued := state.advance(ctx, info, types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, http.StatusInternalServerError), true)
+		require.Equal(t, attempt < state.baseBudget, continued)
+	}
+}
+
+func TestCompactRetryTransfersAllExactBudgetWhenStartingAtBase(t *testing.T) {
+	originalRetryTimes := common.RetryTimes
+	common.RetryTimes = 3
+	t.Cleanup(func() { common.RetryTimes = originalRetryTimes })
+
+	state := newCompactRetryState(&relaycommon.RelayInfo{
+		RelayMode:           relayconstant.RelayModeResponsesCompact,
+		CompactAttemptStage: relaycommon.CompactAttemptBase,
+	})
+	require.Equal(t, 3, state.exactBudget)
+	require.Equal(t, 5, state.baseBudget)
 }
 
 func TestCompactModelSemanticErrorDoesNotMatchOrdinaryParameter400(t *testing.T) {

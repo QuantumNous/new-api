@@ -390,11 +390,15 @@ func newCompactRetryState(info *relaycommon.RelayInfo) *compactRetryState {
 	if stage == relaycommon.CompactAttemptNone {
 		stage = relaycommon.CompactAttemptExact
 	}
-	return &compactRetryState{
+	state := &compactRetryState{
 		stage:       stage,
 		exactBudget: (2*totalAttempts + 2) / 3,
 		baseBudget:  (totalAttempts + 2) / 3,
 	}
+	if stage == relaycommon.CompactAttemptBase {
+		state.baseBudget += state.exactBudget
+	}
+	return state
 }
 
 func (s *compactRetryState) prepare(param *service.RetryParam, info *relaycommon.RelayInfo) {
@@ -430,6 +434,9 @@ func (s *compactRetryState) remainingAttempts() int {
 func (s *compactRetryState) switchToBase(c *gin.Context, info *relaycommon.RelayInfo) bool {
 	if s.stage != relaycommon.CompactAttemptExact || s.baseAttempts >= s.baseBudget {
 		return false
+	}
+	if unusedExact := s.exactBudget - s.exactAttempts; unusedExact > 0 {
+		s.baseBudget += unusedExact
 	}
 	s.stage = relaycommon.CompactAttemptBase
 	info.CompactAttemptStage = s.stage
