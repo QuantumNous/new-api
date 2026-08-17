@@ -37,6 +37,17 @@ func TestCopilotAbilityStaysDisabledUntilCredentialIsStored(t *testing.T) {
 	require.NoError(t, DB.Where("channel_id = ?", channel.Id).First(&ability).Error)
 	require.True(t, ability.Enabled)
 
+	partialChannel := Channel{
+		Id:     channel.Id,
+		Type:   constant.ChannelTypeCopilot,
+		Models: channel.Models,
+		Group:  channel.Group,
+		Status: common.ChannelStatusEnabled,
+	}
+	require.NoError(t, partialChannel.UpdateAbilities(nil))
+	require.NoError(t, DB.Where("channel_id = ?", channel.Id).First(&ability).Error)
+	require.True(t, ability.Enabled)
+
 	var stored Channel
 	require.NoError(t, DB.First(&stored, channel.Id).Error)
 	require.Equal(t, "gho_test", stored.Key)

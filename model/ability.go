@@ -394,6 +394,25 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+	copilotCredentialMissing := false
+	if channel.Type == constant.ChannelTypeCopilot {
+		credential := strings.TrimSpace(channel.Key)
+		if credential == "" && channel.Id > 0 {
+			useDB := DB
+			if tx != nil {
+				useDB = tx
+			}
+			if useDB != nil {
+				var stored Channel
+				err := useDB.Select("key").Where("id = ? AND type = ?", channel.Id, constant.ChannelTypeCopilot).First(&stored).Error
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, err
+				}
+				credential = strings.TrimSpace(stored.Key)
+			}
+		}
+		copilotCredentialMissing = credential == ""
+	}
 	governanceByModel, err := channel.codexAbilityGovernanceByModel(tx, models_)
 	if err != nil {
 		return nil, err
@@ -412,7 +431,7 @@ func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 			}
 			abilitySet[key] = struct{}{}
 			enabled := channel.Status == common.ChannelStatusEnabled
-			if channel.Type == constant.ChannelTypeCopilot && strings.TrimSpace(channel.Key) == "" {
+			if copilotCredentialMissing {
 				enabled = false
 			}
 			if governance.Disabled {
