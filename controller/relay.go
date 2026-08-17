@@ -27,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	routingsetting "github.com/QuantumNous/new-api/setting/intelligent_routing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
@@ -154,14 +155,25 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	relayInfo.SetEstimatePromptTokens(tokens)
-	if config := routingsetting.Get(); config.Enabled && config.ShadowOnly {
+	routingConfig := routingsetting.Get()
+	if routingConfig.Enabled {
 		if routingErr := buildShadowRoutePlan(c, relayInfo, tokens, nil); routingErr != nil {
 			relayInfo.IntelligentRouteError = routingErr.Error()
-			logger.LogWarn(c, "intelligent routing shadow plan failed: "+routingErr.Error())
+			if routingConfig.ShadowOnly {
+				logger.LogWarn(c, "intelligent routing shadow plan failed: "+routingErr.Error())
+			} else {
+				newAPIError = types.NewError(routingErr, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+				return
+			}
 		}
 	}
 
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	var priceData hosttypes.PriceData
+	if routingConfig.Enabled && !routingConfig.ShadowOnly {
+		priceData, err = computeLiveRoutePricing(c, relayInfo, relayInfo.IntelligentRoutePlan, tokens, meta)
+	} else {
+		priceData, err = helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+	}
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 		return
@@ -199,15 +211,33 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	relayInfo.RetryIndex = 0
 	relayInfo.LastError = nil
 
-	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
+	maxRetries := common.RetryTimes
+	if routingConfig.Enabled && !routingConfig.ShadowOnly && relayInfo.IntelligentRoutePlan != nil {
+		maxRetries = min(routingConfig.MaxAttempts, len(relayInfo.IntelligentRoutePlan.Nodes)) - 1
+	}
+	for ; retryParam.GetRetry() <= maxRetries; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
+			if routingConfig.Enabled && !routingConfig.ShadowOnly && retryParam.GetRetry() < maxRetries {
+				relayInfo.LastError = channelErr
+				continue
+			}
 			break
 		}
 		addUsedChannel(c, channel.Id)
+		if routingConfig.Enabled && !routingConfig.ShadowOnly {
+			if _, pricingErr := helper.ModelPriceHelper(c, relayInfo, tokens, meta); pricingErr != nil {
+				newAPIError = types.NewError(pricingErr, types.ErrorCodeModelPriceError, types.ErrOptionWithSkipRetry())
+				if retryParam.GetRetry() < maxRetries {
+					relayInfo.LastError = newAPIError
+					continue
+				}
+				break
+			}
+		}
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
 			break
@@ -246,7 +276,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 
-		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
+		if !shouldRetry(c, newAPIError, maxRetries-retryParam.GetRetry()) {
 			break
 		}
 	}
@@ -283,8 +313,34 @@ func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTok
 		return err
 	}
 	info.IntelligentRoutePlan = &plan
+	info.IntelligentRouteShadow = config.ShadowOnly
 	intelligentrouting.DefaultMetrics.Observe(intelligentrouting.Observation{CandidateTier: plan.Nodes[0].Tier, PlanningDuration: time.Since(startedAt)})
 	return nil
+}
+
+func computeLiveRoutePricing(c *gin.Context, info *relaycommon.RelayInfo, plan *hosttypes.IntelligentRoutePlan, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
+	if plan == nil || len(plan.Nodes) == 0 {
+		return hosttypes.PriceData{}, errors.New("live route plan is empty")
+	}
+	maxPreConsume := 0
+	for _, node := range plan.Nodes {
+		info.SetExecutionModelName(node.Model)
+		priceData, err := helper.ModelPriceHelper(c, info, promptTokens, meta)
+		if err != nil {
+			return hosttypes.PriceData{}, fmt.Errorf("price live route model %s: %w", node.Model, err)
+		}
+		if priceData.QuotaToPreConsume > maxPreConsume {
+			maxPreConsume = priceData.QuotaToPreConsume
+		}
+	}
+	info.SetExecutionModelName(plan.Nodes[0].Model)
+	firstPrice, err := helper.ModelPriceHelper(c, info, promptTokens, meta)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
+	firstPrice.QuotaToPreConsume = maxPreConsume
+	info.PriceData = firstPrice
+	return firstPrice, nil
 }
 
 var upgrader = websocket.Upgrader{
@@ -330,6 +386,23 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+	routingConfig := routingsetting.Get()
+	if routingConfig.Enabled && !routingConfig.ShadowOnly && info.IntelligentRoutePlan != nil {
+		index := retryParam.GetRetry()
+		if index < 0 || index >= len(info.IntelligentRoutePlan.Nodes) {
+			return nil, types.NewError(errors.New("intelligent route attempts exhausted"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		node := info.IntelligentRoutePlan.Nodes[index]
+		channel, err := model.CacheGetChannel(node.ChannelID)
+		if err != nil || channel == nil {
+			return nil, types.NewError(fmt.Errorf("intelligent route channel %d unavailable: %v", node.ChannelID, err), types.ErrorCodeGetChannelFailed)
+		}
+		if setupErr := applyIntelligentRouteNode(c, info, channel, node); setupErr != nil {
+			return nil, setupErr
+		}
+		info.IntelligentRouteAttempt = index
+		return channel, nil
+	}
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
@@ -358,6 +431,15 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 		return nil, newAPIError
 	}
 	return channel, nil
+}
+
+func applyIntelligentRouteNode(c *gin.Context, info *relaycommon.RelayInfo, channel *model.Channel, node hosttypes.IntelligentRouteNode) *types.NewAPIError {
+	if setupErr := middleware.SetupContextForSelectedChannel(c, channel, node.Model); setupErr != nil {
+		return setupErr
+	}
+	info.InitChannelMeta(c)
+	info.SetExecutionModelName(node.Model)
+	return nil
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {

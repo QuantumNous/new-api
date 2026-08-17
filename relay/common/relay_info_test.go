@@ -45,6 +45,21 @@ func TestRelayInfoGetFinalRequestRelayFormatNilReceiver(t *testing.T) {
 	require.Equal(t, types.RelayFormat(""), info.GetFinalRequestRelayFormat())
 }
 
+func TestRelayInfoExecutionModelPreservesRequestedIdentity(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{Model: "requested-model"}
+	info := &RelayInfo{OriginModelName: "requested-model", Request: request, ChannelMeta: &ChannelMeta{}}
+	info.SetExecutionModelName("cheap-model")
+	assert.Equal(t, "requested-model", info.OriginModelName)
+	assert.Equal(t, "cheap-model", info.GetExecutionModelName())
+	assert.Equal(t, "cheap-model", info.GetBillingModelName())
+	assert.Equal(t, "cheap-model", request.Model)
+}
+
+func TestRelayInfoBillingModelFallsBackToRequestedModel(t *testing.T) {
+	info := &RelayInfo{OriginModelName: "requested-model"}
+	assert.Equal(t, "requested-model", info.GetBillingModelName())
+}
+
 func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
 	var info *RelayInfo
 	var meta convmeta.Meta = info

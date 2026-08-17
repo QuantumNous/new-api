@@ -128,8 +128,10 @@ func appendIntelligentRoutingAdminInfo(relayInfo *relaycommon.RelayInfo, adminIn
 		return
 	}
 	audit := map[string]interface{}{
-		"shadow":          true,
+		"shadow":          relayInfo.IntelligentRouteShadow,
 		"requested_model": relayInfo.OriginModelName,
+		"execution_model": relayInfo.GetExecutionModelName(),
+		"attempt_index":   relayInfo.IntelligentRouteAttempt,
 	}
 	if relayInfo.IntelligentRouteError != "" {
 		audit["error"] = relayInfo.IntelligentRouteError

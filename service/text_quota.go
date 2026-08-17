@@ -230,7 +230,7 @@ func composeTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary textQuotaS
 // the result with tiered billing, affinity observation and logging.
 func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage) textQuotaSummary {
 	summary := textQuotaSummary{
-		ModelName:            relayInfo.OriginModelName,
+		ModelName:            relayInfo.GetBillingModelName(),
 		TokenName:            ctx.GetString("token_name"),
 		UseTimeSeconds:       time.Now().Unix() - relayInfo.StartTime.Unix(),
 		CompletionRatio:      relayInfo.PriceData.CompletionRatio,

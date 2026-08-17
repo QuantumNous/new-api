@@ -272,3 +272,17 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	require.Nil(t, info.Billing)
 }
+
+func TestModelPriceHelperUsesExecutionModelForBilling(t *testing.T) {
+	saved := ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(saved)) })
+	prices, err := common.Marshal(map[string]float64{"requested-model": 1, "cheap-model": 0.25})
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(string(prices)))
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{OriginModelName: "requested-model", ExecutionModelName: "cheap-model", UserGroup: "default", UsingGroup: "default"}
+	priceData, err := ModelPriceHelper(ctx, info, 100, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.Equal(t, 0.25, priceData.ModelPrice)
+	require.Equal(t, "requested-model", info.OriginModelName)
+}

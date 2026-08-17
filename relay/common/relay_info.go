@@ -98,6 +98,7 @@ type RelayInfo struct {
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string
+	ExecutionModelName     string
 	RequestURLPath         string
 	RequestHeaders         map[string]string
 	ShouldIncludeUsage     bool
@@ -149,9 +150,11 @@ type RelayInfo struct {
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
 
-	PriceData             hosttypes.PriceData
-	IntelligentRoutePlan  *hosttypes.IntelligentRoutePlan
-	IntelligentRouteError string
+	PriceData               hosttypes.PriceData
+	IntelligentRoutePlan    *hosttypes.IntelligentRoutePlan
+	IntelligentRouteError   string
+	IntelligentRouteShadow  bool
+	IntelligentRouteAttempt int
 
 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
 	// int32 bound (or NaN fallback) while computing this request's charge.
@@ -739,6 +742,33 @@ func (info *RelayInfo) GetOriginModelName() string {
 		return ""
 	}
 	return info.OriginModelName
+}
+
+func (info *RelayInfo) SetExecutionModelName(modelName string) {
+	if info == nil {
+		return
+	}
+	info.ExecutionModelName = modelName
+	if info.ChannelMeta != nil {
+		info.ChannelMeta.UpstreamModelName = modelName
+	}
+	if info.Request != nil {
+		info.Request.SetModelName(modelName)
+	}
+}
+
+func (info *RelayInfo) GetExecutionModelName() string {
+	if info == nil {
+		return ""
+	}
+	if info.ExecutionModelName != "" {
+		return info.ExecutionModelName
+	}
+	return info.OriginModelName
+}
+
+func (info *RelayInfo) GetBillingModelName() string {
+	return info.GetExecutionModelName()
 }
 
 func (info *RelayInfo) GetUpstreamModelName() string {

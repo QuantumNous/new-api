@@ -14,7 +14,7 @@ import (
 
 func TestGenerateTextOtherInfoAddsAdminOnlyIntelligentRoutingAudit(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	info := &relaycommon.RelayInfo{OriginModelName: "client-model", ChannelMeta: &relaycommon.ChannelMeta{}, IntelligentRoutePlan: &hosttypes.IntelligentRoutePlan{
+	info := &relaycommon.RelayInfo{OriginModelName: "client-model", IntelligentRouteShadow: true, ChannelMeta: &relaycommon.ChannelMeta{}, IntelligentRoutePlan: &hosttypes.IntelligentRoutePlan{
 		PolicyVersion: 3, RequestedModel: "client-model",
 		Nodes: []hosttypes.IntelligentRouteNode{{Model: "cheap", ChannelID: 7, PredictedSuccess: .92, ExpectedCost: decimal.RequireFromString("0.001"), ReasonCodes: []string{"lowest_expected_cost"}}},
 	}}

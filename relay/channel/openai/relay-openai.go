@@ -24,6 +24,17 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	if data == "" {
 		return nil
 	}
+	if info != nil && info.ExecutionModelName != "" && info.ExecutionModelName != info.OriginModelName && info.RelayFormat == types.RelayFormatOpenAI {
+		var response dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(data, &response); err == nil {
+			response.Model = info.OriginModelName
+			normalized, err := common.Marshal(response)
+			if err != nil {
+				return err
+			}
+			data = string(normalized)
+		}
+	}
 
 	if !forceFormat && !thinkToContent {
 		return helper.StringData(c, data)
@@ -330,8 +341,25 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		}
 		responseBody = geminiRespStr
 	}
+	responseBody, err = normalizeOpenAIResponseModel(responseBody, info)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	return &simpleResponse.Usage, nil
+}
+
+func normalizeOpenAIResponseModel(body []byte, info *relaycommon.RelayInfo) ([]byte, error) {
+	if info == nil || (info.RelayFormat != types.RelayFormatOpenAI && info.RelayFormat != types.RelayFormatOpenAIResponses) || info.ExecutionModelName == "" ||
+		info.ExecutionModelName == info.OriginModelName || info.OriginModelName == "" {
+		return body, nil
+	}
+	var response map[string]interface{}
+	if err := common.Unmarshal(body, &response); err != nil {
+		return nil, err
+	}
+	response["model"] = info.OriginModelName
+	return common.Marshal(response)
 }
