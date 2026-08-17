@@ -337,9 +337,9 @@ func testChannelWithOptions(channel *model.Channel, testUserID int, testModel st
 	adaptor.Init(info)
 
 	var convertedRequest any
-	// Native Anthropic requests share relay modes with other endpoints, so their
-	// converter must be selected by relay format before the relay-mode switch.
-	if info.RelayFormat == types.RelayFormatClaude {
+	// Copilot's native Anthropic request shares relay modes with other endpoints,
+	// so select its converter before the relay-mode switch.
+	if info.RelayFormat == types.RelayFormatClaude && channel != nil && channel.Type == constant.ChannelTypeCopilot {
 		if claudeReq, ok := request.(*dto.ClaudeRequest); ok {
 			convertedRequest, err = adaptor.ConvertClaudeRequest(c, info, claudeReq)
 		} else {
@@ -935,12 +935,15 @@ func buildTestRequestWithOptions(model string, endpointType string, channel *mod
 				Input: json.RawMessage(testResponsesInput),
 			}
 		case constant.EndpointTypeAnthropic:
-			return &dto.ClaudeRequest{
-				Model:     model,
-				Messages:  []dto.ClaudeMessage{{Role: "user", Content: prompt}},
-				MaxTokens: lo.ToPtr(uint(maxTokens)),
-				Stream:    lo.ToPtr(isStream),
+			if channel != nil && channel.Type == constant.ChannelTypeCopilot {
+				return &dto.ClaudeRequest{
+					Model:     model,
+					Messages:  []dto.ClaudeMessage{{Role: "user", Content: prompt}},
+					MaxTokens: lo.ToPtr(uint(maxTokens)),
+					Stream:    lo.ToPtr(isStream),
+				}
 			}
+			fallthrough
 		case constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
 			requestMaxTokens := maxTokens

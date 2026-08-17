@@ -5,13 +5,18 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 )
 
-// TestBuildTestRequest_UsesNativeAnthropicRequest guards the channel-test fix:
-// /v1/messages must use ClaudeRequest so the channel test invokes the native
-// Claude converter instead of the OpenAI chat converter.
-func TestBuildTestRequest_UsesNativeAnthropicRequest(t *testing.T) {
-	req := buildTestRequest("claude-opus-4.8", string(constant.EndpointTypeAnthropic), nil, true)
+// TestBuildTestRequest_UsesNativeAnthropicRequestOnlyForCopilot guards the
+// channel-test fix without changing other channels' existing test requests.
+func TestBuildTestRequest_UsesNativeAnthropicRequestOnlyForCopilot(t *testing.T) {
+	req := buildTestRequest(
+		"claude-opus-4.8",
+		string(constant.EndpointTypeAnthropic),
+		&model.Channel{Type: constant.ChannelTypeCopilot},
+		true,
+	)
 	claudeReq, ok := req.(*dto.ClaudeRequest)
 	if !ok {
 		t.Fatalf("expected *dto.ClaudeRequest, got %T", req)
@@ -24,6 +29,16 @@ func TestBuildTestRequest_UsesNativeAnthropicRequest(t *testing.T) {
 	}
 	if len(claudeReq.Messages) != 1 || claudeReq.Messages[0].Role != "user" || claudeReq.Messages[0].Content != "hi" {
 		t.Fatalf("unexpected Anthropic messages: %+v", claudeReq.Messages)
+	}
+
+	otherReq := buildTestRequest(
+		"claude-sonnet-4-6",
+		string(constant.EndpointTypeAnthropic),
+		&model.Channel{Type: constant.ChannelTypeAnthropic},
+		true,
+	)
+	if _, ok := otherReq.(*dto.GeneralOpenAIRequest); !ok {
+		t.Fatalf("non-Copilot Anthropic test request changed type: got %T", otherReq)
 	}
 }
 

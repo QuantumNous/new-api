@@ -990,14 +990,16 @@ func UpdateChannel(c *gin.Context) {
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
 	}
-	finalValidationChannel := validationChannel
-	finalValidationChannel.ChannelInfo = channel.ChannelInfo
-	if err := validateChannel(&finalValidationChannel, false); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
+	if validationChannel.Type == constant.ChannelTypeCopilot {
+		finalValidationChannel := validationChannel
+		finalValidationChannel.ChannelInfo = channel.ChannelInfo
+		if err := validateChannel(&finalValidationChannel, false); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑
