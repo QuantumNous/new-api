@@ -226,6 +226,85 @@ func ActivateAssetModelReadinessCAS(transition AssetModelReadinessTransition) (b
 	return finishAssetModelReadinessCAS(transition, AssetModelReadinessStatusActive, "", 0)
 }
 
+func ActivateAssetModelReadinessBindingSetCAS(transition AssetModelReadinessTransition) (int64, error) {
+	transition.ScopeKey = strings.TrimSpace(transition.ScopeKey)
+	transition.ModelName = strings.TrimSpace(transition.ModelName)
+	transition.LeaseOwner = strings.TrimSpace(transition.LeaseOwner)
+	if DB == nil ||
+		transition.AssetId <= 0 ||
+		transition.ScopeKey == "" ||
+		transition.ModelName == "" ||
+		transition.LeaseOwner == "" {
+		return 0, nil
+	}
+
+	var activated int64
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var targets []AssetModelCoverageTarget
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("scope_key = ? AND status = ? AND channel_id = ? AND binding_scope = ?",
+				transition.ScopeKey, AssetModelTargetStatusActive, transition.ChannelId, transition.BindingScope).
+			Order("model_name ASC").
+			Find(&targets).Error; err != nil {
+			return err
+		}
+
+		foundDriver := false
+		for _, target := range targets {
+			if target.ModelName == transition.ModelName && target.Generation == transition.TargetGeneration {
+				foundDriver = true
+				break
+			}
+		}
+		if !foundDriver {
+			return nil
+		}
+
+		ok, err := finishAssetModelReadinessCASWithDB(tx, transition, AssetModelReadinessStatusActive, "", 0)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		activated = 1
+
+		for _, target := range targets {
+			if target.ModelName == transition.ModelName {
+				continue
+			}
+			result := tx.Model(&AssetModelReadiness{}).
+				Where("asset_id = ? AND scope_key = ? AND model_name = ?",
+					transition.AssetId, transition.ScopeKey, target.ModelName).
+				Where("target_generation = ? AND channel_id = ? AND binding_scope = ?",
+					target.Generation, target.ChannelId, target.BindingScope).
+				Where("status IN ?", []string{
+					AssetModelReadinessStatusPending,
+					AssetModelReadinessStatusProcessing,
+					AssetModelReadinessStatusRetryWaiting,
+				}).
+				Updates(map[string]any{
+					"status":           AssetModelReadinessStatusActive,
+					"error_class":      "",
+					"next_retry_at":    int64(0),
+					"lease_owner":      "",
+					"lease_expires_at": int64(0),
+					"updated_at":       transition.Now,
+				})
+			if result.Error != nil {
+				return result.Error
+			}
+			activated += result.RowsAffected
+		}
+
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return activated, nil
+}
+
 func FailAssetModelReadinessCAS(transition AssetModelReadinessTransition, errorClass string) (bool, error) {
 	return finishAssetModelReadinessCAS(transition, AssetModelReadinessStatusFailed, sanitizeAssetModelErrorClass(errorClass), 0)
 }
@@ -351,10 +430,14 @@ func RotateAssetModelTargetCAS(scopeKey, modelName string, expectedGeneration in
 }
 
 func finishAssetModelReadinessCAS(transition AssetModelReadinessTransition, status string, errorClass string, nextRetryAt int64) (bool, error) {
+	return finishAssetModelReadinessCASWithDB(DB, transition, status, errorClass, nextRetryAt)
+}
+
+func finishAssetModelReadinessCASWithDB(db *gorm.DB, transition AssetModelReadinessTransition, status string, errorClass string, nextRetryAt int64) (bool, error) {
 	transition.ScopeKey = strings.TrimSpace(transition.ScopeKey)
 	transition.ModelName = strings.TrimSpace(transition.ModelName)
 	transition.LeaseOwner = strings.TrimSpace(transition.LeaseOwner)
-	if DB == nil ||
+	if db == nil ||
 		transition.AssetId <= 0 ||
 		transition.ScopeKey == "" ||
 		transition.ModelName == "" ||
@@ -362,7 +445,7 @@ func finishAssetModelReadinessCAS(transition AssetModelReadinessTransition, stat
 		return false, nil
 	}
 
-	result := DB.Model(&AssetModelReadiness{}).
+	result := db.Model(&AssetModelReadiness{}).
 		Where("asset_id = ? AND scope_key = ? AND model_name = ?", transition.AssetId, transition.ScopeKey, transition.ModelName).
 		Where("status = ? AND lease_owner = ? AND attempt_count = ? AND lease_expires_at = ? AND lease_expires_at > ?",
 			AssetModelReadinessStatusProcessing, transition.LeaseOwner, transition.ExpectedAttemptCount, transition.ExpectedLeaseExpiresAt, transition.Now).

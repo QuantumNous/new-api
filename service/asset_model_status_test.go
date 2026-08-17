@@ -144,6 +144,39 @@ func TestReconcileAssetForScopeUsesStrictPublicStatusByDefault(t *testing.T) {
 	require.Equal(t, []string{"seedance-2.0-fast"}, result.AvailableModels)
 }
 
+func TestReconcileAssetForScopeReturnsAtomicBindingSetAfterOneActivation(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &scriptedAssetModelMaterializer{})
+	asset, scope, targets := seedAtomicAssetModelReadinessSet(t, "ast_atomic_status", constant.ChannelTypeTechMobiVideo)
+
+	driver := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	claimed, err := model.ClaimAssetModelReadinessLease(driver.Id, "node-a", 100, 160)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	driver = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
+	siblingTarget := targets["seedance2.0-pro"]
+	require.Equal(t, driver.ChannelId, siblingTarget.ChannelId)
+	require.Equal(t, driver.BindingScope, siblingTarget.BindingScope)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       driver.ChannelId,
+		BindingScope:    driver.BindingScope,
+		Status:          model.AssetStatusActive,
+		UpstreamAssetId: "upstream-shared",
+	}).Error)
+
+	activated, err := model.ActivateAssetModelReadinessBindingSetCAS(assetModelReadinessTransition(driver, "node-a", 100))
+	require.NoError(t, err)
+
+	result, err := ReconcileAssetForScope(context.Background(), asset.UserId, asset.PublicId, scope)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(2), activated)
+	require.Equal(t, model.AssetStatusActive, result.Status)
+	require.ElementsMatch(t, []string{"seedance-2.0", "seedance2.0-pro"}, result.AvailableModels)
+}
+
 func TestReconcileAssetForScopeReturnsActiveBindingLookupError(t *testing.T) {
 	newAssetStatusTestDB(t)
 	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &recordingAssetMaterializer{})

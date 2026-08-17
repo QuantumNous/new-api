@@ -589,7 +589,7 @@ func finishAssetModelReadinessActive(row model.AssetModelReadiness, owner string
 			Elapsed:    time.Duration(nowUnix-row.AttemptStartedAt) * time.Second,
 		})
 	}
-	_, err := model.ActivateAssetModelReadinessCAS(assetModelReadinessTransition(row, owner, nowUnix))
+	_, err := model.ActivateAssetModelReadinessBindingSetCAS(assetModelReadinessTransition(row, owner, nowUnix))
 	return err
 }
 
