@@ -4,8 +4,11 @@ export interface UserInfo {
   display_name: string
   email: string
   role: number
+  status: number
   quota: number
   used_quota: number
+  request_count: number
+  created_at: number
   group?: string
   github_id?: string
   discord_id?: string

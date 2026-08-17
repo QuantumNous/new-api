@@ -36,8 +36,11 @@ const bundle: AuthBundle = {
     display_name: 'Demo',
     email: 'demo@example.com',
     role: 10,
+    status: 1,
     quota: 100,
     used_quota: 5,
+    request_count: 12,
+    created_at: 1_700_000_000,
   },
 }
 
@@ -55,6 +58,18 @@ describe('authentication response boundary', () => {
       session: { sid: 'session-1' },
     })
   })
+
+  it.each(['status', 'request_count', 'created_at'] as const)(
+    'rejects bundles missing required user field %s',
+    (field) => {
+      expect(
+        parseAuthBundle({
+          ...bundle,
+          user: { ...bundle.user, [field]: undefined },
+        })
+      ).toBeNull()
+    }
+  )
 
   it('parses only complete two-factor challenges', () => {
     expect(

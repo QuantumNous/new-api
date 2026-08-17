@@ -1916,6 +1916,7 @@ export default {
     currentTier: 'Current Tier',
     accountStatus: 'Status',
     normal: 'Active',
+    disabled: 'Disabled',
     lastActive: 'Last Active',
     dailyCheckin: 'Daily Income',
     accountStats: 'Account Overview',

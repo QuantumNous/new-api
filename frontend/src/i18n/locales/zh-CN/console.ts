@@ -1862,6 +1862,7 @@ export default {
     currentTier: '当前段位',
     accountStatus: '账户状态',
     normal: '正常',
+    disabled: '已禁用',
     lastActive: '最后活跃',
     dailyCheckin: '每日入账',
     accountStats: '账户概览',

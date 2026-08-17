@@ -3,6 +3,7 @@ import { expect, type ConsoleMessage, type Page } from '@playwright/test'
 export type VisualTheme = 'light' | 'dark'
 
 const FIXED_NOW = new Date('2026-07-27T12:00:00+08:00').getTime()
+const DAY_MS = 86_400_000
 
 const VISUAL_USER = {
   id: 1,
@@ -10,12 +11,14 @@ const VISUAL_USER = {
   display_name: 'Visual Root',
   email: 'visual-root@ren2hub.dev',
   role: 100,
+  status: 1,
   quota: 5_201_314,
   used_quota: 2_985_211,
+  request_count: 32_132,
+  created_at: Math.floor((FIXED_NOW - 37 * DAY_MS) / 1000),
   group: 'vip',
 }
 
-const DAY_MS = 86_400_000
 const VISUAL_START_TIME = Math.floor(
   (FIXED_NOW - (37 * DAY_MS + 12 * 3_600_000 + 34 * 60_000 + 56_000)) / 1000
 )

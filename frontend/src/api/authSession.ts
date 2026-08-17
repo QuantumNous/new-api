@@ -45,8 +45,11 @@ function isUserInfo(value: unknown): value is UserInfo {
     typeof value.display_name === 'string' &&
     typeof value.email === 'string' &&
     isFiniteNumber(value.role) &&
+    isFiniteNumber(value.status) &&
     isFiniteNumber(value.quota) &&
-    isFiniteNumber(value.used_quota)
+    isFiniteNumber(value.used_quota) &&
+    isFiniteNumber(value.request_count) &&
+    isFiniteNumber(value.created_at)
   )
 }
 

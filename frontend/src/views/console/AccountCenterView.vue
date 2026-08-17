@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
@@ -13,7 +13,6 @@ import {
 import PageHero from '@/components/console/PageHero.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { adminUserRoleTone } from '@/constants/adminUsers'
-import { useDashboard } from '@/composables/useDashboard'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useAuthStore } from '@/stores/auth'
 import { formatCompact, formatDate, formatQuota } from '@/utils/format'
@@ -22,12 +21,7 @@ import AccountSettingsView from '@/views/console/AccountSettingsView.vue'
 const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
-const { stats, load: loadDashboard } = useDashboard()
 const { disabled: farmDisabled } = useFeatureAccess('farm', 'disabled')
-
-onMounted(() => {
-  void loadDashboard()
-})
 
 const initial = computed(() =>
   (auth.user?.display_name || auth.user?.username || 'U')
@@ -47,11 +41,25 @@ const roleName = computed(() => {
 })
 
 const roleChipTone = computed(() => adminUserRoleTone(auth.user?.role ?? 0))
-const joinedDays = 35
-const joinDate = computed(() => {
-  const timestamp = Math.floor(Date.now() / 1000) - joinedDays * 86_400
-  return formatDate(timestamp)
+const accountStatus = computed(() =>
+  auth.user?.status === 1 ? t('profile.normal') : t('profile.disabled')
+)
+const accountStatusTone = computed<'success' | 'danger'>(() =>
+  auth.user?.status === 1 ? 'success' : 'danger'
+)
+const validCreatedAt = computed<number | null>(() => {
+  const createdAt = auth.user?.created_at
+  const now = Math.floor(Date.now() / 1000)
+  if (!createdAt || createdAt > now) return null
+  return createdAt
 })
+const joinedDays = computed<number | null>(() => {
+  if (validCreatedAt.value === null) return null
+  return Math.floor((Date.now() / 1000 - validCreatedAt.value) / 86_400)
+})
+const joinDate = computed(() =>
+  validCreatedAt.value === null ? '—' : formatDate(validCreatedAt.value)
+)
 
 const tier = computed(() => {
   const used = auth.user?.used_quota ?? 0
@@ -97,6 +105,7 @@ const tier = computed(() => {
 
 const accountStats = computed(() => [
   {
+    key: 'balance',
     label: t('profile.balance'),
     value: formatQuota(auth.user?.quota ?? 0),
     destination: t('nav.wallet'),
@@ -104,6 +113,7 @@ const accountStats = computed(() => [
     icon: WalletCards,
   },
   {
+    key: 'usage',
     label: t('profile.totalUsage'),
     value: formatQuota(auth.user?.used_quota ?? 0),
     destination: t('nav.logs'),
@@ -111,8 +121,9 @@ const accountStats = computed(() => [
     icon: BarChart3,
   },
   {
+    key: 'requests',
     label: t('profile.apiRequests'),
-    value: formatCompact(stats.value?.total_requests ?? 0),
+    value: formatCompact(auth.user?.request_count ?? 0),
     destination: t('nav.logs'),
     route: 'logs',
     icon: Activity,
@@ -171,17 +182,13 @@ const accountStats = computed(() => [
               <Award :size="13" aria-hidden="true" />
               {{ tier.name }}
             </span>
-            <span
-              class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
-              style="
-                background: var(--status-success-soft);
-                color: var(--status-success-text);
-              "
+            <StatusChip
+              data-testid="profile-account-status"
+              :tone="accountStatusTone"
             >
-              <span class="size-1.5 rounded-full bg-[var(--status-success)]" />
               {{ t('profile.accountStatus') }} &middot;
-              {{ t('profile.normal') }}
-            </span>
+              {{ accountStatus }}
+            </StatusChip>
           </div>
         </div>
 
@@ -192,7 +199,10 @@ const accountStats = computed(() => [
             <dt class="text-[11px] text-[var(--text-tertiary)]">
               {{ t('profile.joinDate') }}
             </dt>
-            <dd class="mt-1 text-sm font-semibold text-[var(--text-primary)]">
+            <dd
+              class="mt-1 text-sm font-semibold text-[var(--text-primary)]"
+              data-testid="profile-join-date"
+            >
               {{ joinDate }}
             </dd>
           </div>
@@ -200,16 +210,24 @@ const accountStats = computed(() => [
             <dt class="text-[11px] text-[var(--text-tertiary)]">
               {{ t('profile.memberDuration') }}
             </dt>
-            <dd class="mt-1 text-sm font-semibold text-[var(--text-primary)]">
-              {{ t('profile.days', { n: joinedDays }) }}
+            <dd
+              class="mt-1 text-sm font-semibold text-[var(--text-primary)]"
+              data-testid="profile-member-duration"
+            >
+              {{
+                joinedDays === null ? '—' : t('profile.days', { n: joinedDays })
+              }}
             </dd>
           </div>
           <div>
             <dt class="text-[11px] text-[var(--text-tertiary)]">
               {{ t('profile.totalCalls') }}
             </dt>
-            <dd class="mt-1 text-sm font-semibold text-[var(--text-primary)]">
-              {{ formatCompact(stats?.total_requests ?? 0) }}
+            <dd
+              class="mt-1 text-sm font-semibold text-[var(--text-primary)]"
+              data-testid="profile-total-calls"
+            >
+              {{ formatCompact(auth.user?.request_count ?? 0) }}
             </dd>
           </div>
           <div>
@@ -287,7 +305,8 @@ const accountStats = computed(() => [
     >
       <button
         v-for="stat in accountStats"
-        :key="stat.label"
+        :key="stat.key"
+        :data-testid="`profile-stat-${stat.key}`"
         type="button"
         class="pencil-surface group min-h-32 rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-5 py-5 text-left shadow-[var(--card-shadow)] transition-all hover:border-[var(--border-strong)] hover:shadow-[var(--card-shadow-hover)] focus-ring sm:px-6"
         data-handdrawn="surface"
