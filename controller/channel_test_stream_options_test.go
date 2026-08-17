@@ -1,12 +1,53 @@
 package controller
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 )
+
+func TestSafelyConvertClaudeChannelTestRequest(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		want := struct{ Model string }{Model: "claude-opus-4.8"}
+		got, err := safelyConvertClaudeChannelTestRequest(func() (any, error) {
+			return want, nil
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != want {
+			t.Fatalf("converted request = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("error", func(t *testing.T) {
+		wantErr := errors.New("conversion failed")
+		got, err := safelyConvertClaudeChannelTestRequest(func() (any, error) {
+			return nil, wantErr
+		})
+		if got != nil {
+			t.Fatalf("converted request = %#v, want nil", got)
+		}
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("error = %v, want %v", err, wantErr)
+		}
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		got, err := safelyConvertClaudeChannelTestRequest(func() (any, error) {
+			panic("sensitive adaptor panic")
+		})
+		if got != nil {
+			t.Fatalf("converted request = %#v, want nil", got)
+		}
+		if err == nil || err.Error() != "channel does not support the Anthropic endpoint" {
+			t.Fatalf("error = %v, want controlled unsupported error", err)
+		}
+	})
+}
 
 // TestBuildTestRequest_UsesNativeAnthropicRequest guards the channel-test fix:
 // /v1/messages must always use the native Claude DTO, including passthrough

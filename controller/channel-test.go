@@ -55,6 +55,16 @@ type channelTestOptions struct {
 	Context      context.Context
 }
 
+func safelyConvertClaudeChannelTestRequest(convert func() (any, error)) (converted any, err error) {
+	defer func() {
+		if recover() != nil {
+			converted = nil
+			err = errors.New("channel does not support the Anthropic endpoint")
+		}
+	}()
+	return convert()
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	// Codex upstream only accepts the Responses protocol. An Anthropic channel
@@ -341,7 +351,9 @@ func testChannelWithOptions(channel *model.Channel, testUserID int, testModel st
 	// their converter by relay format before the relay-mode switch.
 	if info.RelayFormat == types.RelayFormatClaude {
 		if claudeReq, ok := request.(*dto.ClaudeRequest); ok {
-			convertedRequest, err = adaptor.ConvertClaudeRequest(c, info, claudeReq)
+			convertedRequest, err = safelyConvertClaudeChannelTestRequest(func() (any, error) {
+				return adaptor.ConvertClaudeRequest(c, info, claudeReq)
+			})
 		} else {
 			err = errors.New("invalid claude request type")
 		}
