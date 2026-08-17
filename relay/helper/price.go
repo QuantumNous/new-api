@@ -73,7 +73,10 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
 	billingModel := info.BillingModelName()
-	pricingModel, pricingSource := pricing_setting.ResolveModel(billingModel)
+	pricingModel, pricingSource := billingModel, "direct"
+	if info.LogicalBillingModel != "" {
+		pricingModel, pricingSource = pricing_setting.ResolveModel(billingModel)
+	}
 	info.PricingModelName = pricingModel
 	info.ModelPricingSource = pricingSource
 	modelPrice, usePrice := ratio_setting.GetModelPrice(pricingModel, false)
@@ -260,17 +263,16 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 }
 
 func HasModelBillingConfig(modelName string) bool {
-	pricingModel, _ := pricing_setting.ResolveModel(modelName)
-	if _, ok := ratio_setting.GetModelPrice(pricingModel, false); ok {
+	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
 	}
-	if _, ok, _ := ratio_setting.GetModelRatio(pricingModel); ok {
+	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
 		return true
 	}
-	if billing_setting.GetBillingMode(pricingModel) != billing_setting.BillingModeTieredExpr {
+	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {
 		return false
 	}
-	expr, ok := billing_setting.GetBillingExpr(pricingModel)
+	expr, ok := billing_setting.GetBillingExpr(modelName)
 	return ok && strings.TrimSpace(expr) != ""
 }
 

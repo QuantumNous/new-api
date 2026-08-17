@@ -193,10 +193,14 @@ func TestPricingNativeChannelEndpointTypesUnchanged(t *testing.T) {
 		constant.EndpointTypeOpenAIResponse,
 		constant.EndpointTypeOpenAIResponseCompact,
 	}, byModel["gpt-4o"])
-	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}, byModel["gpt-4o-openai-compact"])
+	assert.Equal(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeOpenAIResponseCompact,
+	}, byModel["gpt-4o-openai-compact"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeGemini, constant.EndpointTypeOpenAI}, byModel["gemini-2.5-flash"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}, byModel["claude-3-5-sonnet"])
-	assert.Empty(t, byModel["legacy-openrouter-openai-compact"])
+	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAI}, byModel["legacy-openrouter-openai-compact"])
 }
 
 func TestInitChannelCacheInvalidatesPricingCache(t *testing.T) {

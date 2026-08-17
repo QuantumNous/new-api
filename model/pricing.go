@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"sync"
@@ -12,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
-	"github.com/QuantumNous/new-api/setting/pricing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -114,14 +112,7 @@ func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCusto
 		return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 	}
 	if config := advancedCustomConfigs[ability.ChannelId]; config != nil {
-		endpoints := config.SupportedEndpointTypesForModel(ability.Model)
-		if strings.HasSuffix(ability.Model, ratio_setting.CompactModelSuffix) {
-			if slices.Contains(endpoints, constant.EndpointTypeOpenAIResponseCompact) {
-				return []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}
-			}
-			return []constant.EndpointType{}
-		}
-		return endpoints
+		return config.SupportedEndpointTypesForModel(ability.Model)
 	}
 	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 }
@@ -385,7 +376,7 @@ func updatePricing() {
 				pricing.OwnerBy = vendor.Name
 			}
 		}
-		pricingModel, _ := pricing_setting.ResolveModel(model)
+		pricingModel := model
 		modelPrice, findPrice := ratio_setting.GetModelPrice(pricingModel, false)
 		if findPrice {
 			pricing.ModelPrice = modelPrice

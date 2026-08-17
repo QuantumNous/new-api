@@ -50,3 +50,21 @@ func TestModelMappedHelperSendsBaseOnCompactFallback(t *testing.T) {
 	require.Equal(t, "real", info.UpstreamAttemptModel)
 	require.Equal(t, "real-openai-compact", info.LogicalBillingModel)
 }
+
+func TestModelMappedHelperTreatsCompactSuffixAsRegularResponsesModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("model_mapping", `{"gpt-5-openai-compact":"upstream-regular-model"}`)
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeResponses,
+		OriginModelName: "gpt-5-openai-compact",
+		ChannelMeta:     &relaycommon.ChannelMeta{},
+	}
+	request := &dto.OpenAIResponsesRequest{Model: "gpt-5-openai-compact"}
+
+	require.NoError(t, ModelMappedHelper(ctx, info, request))
+	require.Equal(t, "upstream-regular-model", request.Model)
+	require.Equal(t, "upstream-regular-model", info.UpstreamModelName)
+	require.Empty(t, info.LogicalBillingModel)
+	require.Empty(t, info.UpstreamAttemptModel)
+}

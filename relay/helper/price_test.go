@@ -367,3 +367,48 @@ func TestCompactPricingInheritsBaseTieredExpressionAsSingleMode(t *testing.T) {
 	require.Equal(t, "compact-tiered-base", info.PricingModelName)
 	require.Equal(t, "compact_base_manual", info.ModelPricingSource)
 }
+
+func TestRegularResponsesCompactSuffixUsesDirectPricingIdentity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedPrices := ratio_setting.ModelPrice2JSONString()
+	savedRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{
+		"regular-base":0.2,
+		"regular-base-openai-compact":0.3,
+		"*-openai-compact":0.1
+	}`))
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "regular-base-openai-compact",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, 0.3, priceData.ModelPrice)
+	require.Equal(t, "regular-base-openai-compact", info.PricingModelName)
+	require.Equal(t, "direct", info.ModelPricingSource)
+}
+
+func TestRegularCompactSuffixDoesNotInheritBaseBillingAvailability(t *testing.T) {
+	savedPrices := ratio_setting.ModelPrice2JSONString()
+	savedRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+	})
+
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"ordinary-only-base":0.2}`))
+	require.False(t, HasModelBillingConfig("ordinary-only-base-openai-compact"))
+}

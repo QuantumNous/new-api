@@ -41,11 +41,6 @@ func Distribute() func(c *gin.Context) {
 			return
 		}
 		isCompactRequest := strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact")
-		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses") && !isCompactRequest &&
-			strings.HasSuffix(modelRequest.Model, ratio_setting.CompactModelSuffix) {
-			abortWithOpenAiMessage(c, http.StatusBadRequest, "Models ending in -openai-compact must use /v1/responses/compact")
-			return
-		}
 		compactRequestedModel := strings.TrimSuffix(modelRequest.Model, ratio_setting.CompactModelSuffix)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
