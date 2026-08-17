@@ -8,23 +8,19 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, RouterView, RouterLink } from 'vue-router'
 import { useSystemSettings } from '@/composables/useSystemSettings'
+import { SYSTEM_SETTINGS_DOMAINS } from '@/constants/systemSettingsCatalog'
 
 const { t } = useI18n()
 const route = useRoute()
 const { load } = useSystemSettings()
 
-const tabs = computed(() => [
-  { key: 'system-settings-site', label: t('systemSettings.tabs.site') },
-  { key: 'system-settings-auth', label: t('systemSettings.tabs.auth') },
-  { key: 'system-settings-billing', label: t('systemSettings.tabs.billing') },
-  { key: 'system-settings-models', label: t('systemSettings.tabs.models') },
-  { key: 'system-settings-security', label: t('systemSettings.tabs.security') },
-  { key: 'system-settings-content', label: t('systemSettings.tabs.content') },
-  {
-    key: 'system-settings-operations',
-    label: t('systemSettings.tabs.operations'),
-  },
-])
+const tabs = computed(() =>
+  SYSTEM_SETTINGS_DOMAINS.map((domain) => ({
+    key: `system-settings-${domain.id}`,
+    label: t(domain.titleKey),
+    section: domain.defaultSection,
+  }))
+)
 
 const activeTab = computed(() => String(route.name ?? ''))
 
@@ -62,7 +58,7 @@ onMounted(() => load())
       <RouterLink
         v-for="tab in tabs"
         :key="tab.key"
-        :to="{ name: tab.key }"
+        :to="{ name: tab.key, params: { section: tab.section } }"
         role="tab"
         :aria-selected="activeTab === tab.key"
         class="sys-tab shrink-0 relative pb-3 text-sm font-medium transition-colors focus-ring"

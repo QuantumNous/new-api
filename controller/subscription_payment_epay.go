@@ -62,6 +62,11 @@ func SubscriptionRequestEpay(c *gin.Context) {
 			return
 		}
 	}
+	affiliateBaseQuota, err := model.SnapshotAffiliateBaseQuota(plan.PriceAmount, 1)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
@@ -85,14 +90,15 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	}
 
 	order := &model.SubscriptionOrder{
-		UserId:          userId,
-		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
-		TradeNo:         tradeNo,
-		PaymentMethod:   req.PaymentMethod,
-		PaymentProvider: model.PaymentProviderEpay,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:             userId,
+		PlanId:             plan.Id,
+		Money:              plan.PriceAmount,
+		TradeNo:            tradeNo,
+		PaymentMethod:      req.PaymentMethod,
+		PaymentProvider:    model.PaymentProviderEpay,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+		AffiliateBaseQuota: affiliateBaseQuota,
 	}
 	if err := order.Insert(); err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")

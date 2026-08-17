@@ -10,18 +10,17 @@ beforeAll(async () => {
 })
 
 describe('InviteAffiliateCard', () => {
-  it('shows the fixed registration reward without a fake QR or rebate rate', () => {
+  it('shows the effective rebate rate without a fake QR code', () => {
     const wrapper = mount(InviteAffiliateCard, {
       props: {
         code: 'INVITE01',
         inviteLink: 'https://example.test/auth/sign-up?aff=INVITE01',
-        rewardPerInvite: 500_000,
+        ratePercent: 10,
       },
       global: { plugins: [i18n] },
     })
 
-    expect(wrapper.text()).toContain('$1.00')
-    expect(wrapper.text()).not.toContain('%')
+    expect(wrapper.text()).toContain('10%')
     expect(wrapper.find('[role="img"]').exists()).toBe(false)
   })
 })

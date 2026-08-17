@@ -32,8 +32,11 @@ const bundle: AuthBundle = {
     display_name: 'Demo',
     email: 'demo@example.com',
     role: 10,
+    status: 1,
     quota: 100,
     used_quota: 5,
+    request_count: 12,
+    created_at: 1_700_000_000,
   },
 }
 

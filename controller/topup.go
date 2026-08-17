@@ -235,6 +235,10 @@ func createEpayTopUpOrder(c *gin.Context, userID int, amount int64, method strin
 	if payMoney < 0.01 {
 		return nil, &epayOrderError{Code: "VALIDATION_ERROR", Message: "充值金额过低"}
 	}
+	affiliateBaseQuota, err := model.SnapshotAffiliateBaseQuota(payMoney, operation_setting.Price)
+	if err != nil {
+		return nil, &epayOrderError{Code: "INTERNAL_ERROR", Message: err.Error()}
+	}
 
 	client := GetEpayClient()
 	if client == nil {
@@ -264,14 +268,15 @@ func createEpayTopUpOrder(c *gin.Context, userID int, amount int64, method strin
 		storedAmount = dAmount.Div(dQuotaPerUnit).IntPart()
 	}
 	topUp := &model.TopUp{
-		UserId:          userID,
-		Amount:          storedAmount,
-		Money:           payMoney,
-		TradeNo:         tradeNo,
-		PaymentMethod:   method,
-		PaymentProvider: model.PaymentProviderEpay,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
+		UserId:             userID,
+		Amount:             storedAmount,
+		Money:              payMoney,
+		TradeNo:            tradeNo,
+		PaymentMethod:      method,
+		PaymentProvider:    model.PaymentProviderEpay,
+		CreateTime:         time.Now().Unix(),
+		Status:             common.TopUpStatusPending,
+		AffiliateBaseQuota: affiliateBaseQuota,
 	}
 	if err := topUp.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 创建充值订单失败 user_id=%d trade_no=%s payment_method=%s amount=%d error=%q", userID, tradeNo, method, amount, err.Error()))

@@ -1,19 +1,51 @@
 package model
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func enableAffiliatePaymentTest(t *testing.T) {
+	t.Helper()
+	previousEnabled := common.AffiliateEnabled
+	previousActivatedAt := common.AffiliateActivatedAt
+	previousRate := common.AffiliateRebateRateBps
+	previousFreeze := common.AffiliateFreezeHours
+	previousCap := common.AffiliatePerInviteeCap
+	previousQuotaPerUnit := common.QuotaPerUnit
+	previousPayment := *operation_setting.GetPaymentSetting()
+	common.AffiliateEnabled = true
+	common.AffiliateActivatedAt = time.Now().Add(-time.Minute).Unix()
+	common.AffiliateRebateRateBps = 1000
+	common.AffiliateFreezeHours = 0
+	common.AffiliatePerInviteeCap = 100
+	common.QuotaPerUnit = 500_000
+	payment := operation_setting.GetPaymentSetting()
+	payment.ComplianceConfirmed = true
+	payment.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	t.Cleanup(func() {
+		common.AffiliateEnabled = previousEnabled
+		common.AffiliateActivatedAt = previousActivatedAt
+		common.AffiliateRebateRateBps = previousRate
+		common.AffiliateFreezeHours = previousFreeze
+		common.AffiliatePerInviteeCap = previousCap
+		common.QuotaPerUnit = previousQuotaPerUnit
+		*operation_setting.GetPaymentSetting() = previousPayment
+	})
+}
 
 func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) *User {
 	t.Helper()
 	user := &User{
 		Id:       id,
-		Username: "payment_guard_user",
+		Username: fmt.Sprintf("payment_guard_user_%d", id),
 		Status:   common.UserStatusEnabled,
 		Quota:    quota,
 	}
@@ -352,4 +384,68 @@ func TestRechargeEpayEnforcesFinalWalletQuotaLimit(t *testing.T) {
 			assert.Equal(t, tc.wantStatus, getTopUpStatusForPaymentGuardTest(t, order.TradeNo))
 		})
 	}
+}
+
+func TestRechargeEpayCommitsAffiliateRewardExactlyOnce(t *testing.T) {
+	truncateTables(t)
+	enableAffiliatePaymentTest(t)
+
+	inviter := insertUserForPaymentGuardTest(t, 601, 0)
+	require.NoError(t, DB.Model(inviter).Updates(map[string]any{
+		"aff_code": "PAYMENT-INVITER", "aff_code_enabled": true,
+	}).Error)
+	invitee := insertUserForPaymentGuardTest(t, 602, 0)
+	require.NoError(t, DB.Model(invitee).Update("inviter_id", inviter.Id).Error)
+	order := createEpayTestOrder(t, invitee.Id, "EPAYAFFILIATEONCE", PaymentProviderEpay, common.TopUpStatusPending)
+	require.NoError(t, DB.Model(&order).Update("affiliate_base_quota", 1_000_000).Error)
+
+	alreadyDone, err := RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	assert.False(t, alreadyDone)
+	assert.Equal(t, 1_000_000, getUserQuotaForPaymentGuardTest(t, invitee.Id))
+
+	require.NoError(t, DB.First(inviter, inviter.Id).Error)
+	assert.Equal(t, 100_000, inviter.AffQuota)
+	assert.Equal(t, 100_000, inviter.AffHistoryQuota)
+	var ledgerCount int64
+	require.NoError(t, DB.Model(&AffiliateLedger{}).Where("source_event_key = ?", "topup:"+strconv.Itoa(order.Id)).Count(&ledgerCount).Error)
+	assert.EqualValues(t, 1, ledgerCount)
+
+	alreadyDone, err = RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	assert.True(t, alreadyDone)
+	require.NoError(t, DB.Model(&AffiliateLedger{}).Where("source_event_key = ?", "topup:"+strconv.Itoa(order.Id)).Count(&ledgerCount).Error)
+	assert.EqualValues(t, 1, ledgerCount)
+}
+
+func TestSubscriptionAffiliateRewardExcludesBalancePurchases(t *testing.T) {
+	truncateTables(t)
+	enableAffiliatePaymentTest(t)
+
+	inviter := insertUserForPaymentGuardTest(t, 701, 0)
+	require.NoError(t, DB.Model(inviter).Updates(map[string]any{
+		"aff_code": "SUB-INVITER", "aff_code_enabled": true,
+	}).Error)
+	invitee := insertUserForPaymentGuardTest(t, 702, 5_000_000)
+	require.NoError(t, DB.Model(invitee).Update("inviter_id", inviter.Id).Error)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 703)
+	order := &SubscriptionOrder{
+		UserId: invitee.Id, PlanId: plan.Id, Money: plan.PriceAmount,
+		TradeNo: "SUBAFFILIATEEXTERNAL", PaymentMethod: PaymentMethodStripe,
+		PaymentProvider: PaymentProviderStripe, Status: common.TopUpStatusPending,
+		CreateTime: common.GetTimestamp(), AffiliateBaseQuota: 500_000,
+	}
+	require.NoError(t, order.Insert())
+
+	require.NoError(t, CompleteSubscriptionOrder(order.TradeNo, "", PaymentProviderStripe, ""))
+	require.NoError(t, DB.First(inviter, inviter.Id).Error)
+	assert.Equal(t, 50_000, inviter.AffQuota)
+	var beforeBalance int64
+	require.NoError(t, DB.Model(&AffiliateLedger{}).Where("action = ?", AffiliateActionAccrue).Count(&beforeBalance).Error)
+	assert.EqualValues(t, 1, beforeBalance)
+
+	require.NoError(t, PurchaseSubscriptionWithBalance(invitee.Id, plan.Id))
+	var afterBalance int64
+	require.NoError(t, DB.Model(&AffiliateLedger{}).Where("action = ?", AffiliateActionAccrue).Count(&afterBalance).Error)
+	assert.Equal(t, beforeBalance, afterBalance)
 }

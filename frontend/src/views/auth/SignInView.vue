@@ -13,6 +13,7 @@ import { useToast } from '@/composables/useToast'
 import { ApiError } from '@/api/types'
 import { sanitizeRedirect } from '@/router'
 import { useAppStore } from '@/stores'
+import { clearAffiliateAttribution } from '@/utils/affiliate'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -57,6 +58,7 @@ async function submit() {
         return
       }
     }
+    clearAffiliateAttribution()
     toast.success(t('auth.loginSuccess'))
     const redirect = sanitizeRedirect(route.query.redirect)
     await router.push(redirect || { name: 'dashboard' })

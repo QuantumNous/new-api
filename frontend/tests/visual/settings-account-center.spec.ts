@@ -86,6 +86,19 @@ for (const theme of ['light', 'dark'] as VisualTheme[]) {
       await expect(
         page.getByRole('heading', { name: '账号设置', exact: true })
       ).toBeVisible()
+      await expect(page.getByTestId('profile-join-date')).toHaveText(
+        '2026-06-20'
+      )
+      await expect(page.getByTestId('profile-member-duration')).toHaveText(
+        '37 天'
+      )
+      await expect(page.getByTestId('profile-total-calls')).toHaveText('32.1K')
+      await expect(page.getByTestId('profile-account-status')).toContainText(
+        '账户状态 · 正常'
+      )
+      await expect(page.getByTestId('profile-stat-requests')).toContainText(
+        '32.1K'
+      )
       await expect(
         page.getByRole('heading', { name: '登录与账户', exact: true })
       ).toBeVisible()

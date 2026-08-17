@@ -165,6 +165,31 @@ export interface AdminUserPage {
   status_counts: Record<string, number>
 }
 
+export interface AdminAffiliateUser {
+  id: number
+  username: string
+  status: AdminUserStatus
+  code: string
+  code_enabled: boolean
+  code_custom: boolean
+  rate_bps: number | null
+  effective_rate_bps: number
+  invite_limit: number | null
+  invited_count: number
+  available_reward: number
+  frozen_reward: number
+  total_reward: number
+}
+
+export interface AdminAffiliateUserUpdateInput {
+  code?: string
+  code_enabled?: boolean
+  rate_bps?: number
+  clear_rate?: boolean
+  invite_limit?: number
+  clear_invite_limit?: boolean
+}
+
 /* ---------------- administrator orders ---------------- */
 
 /**
@@ -266,7 +291,7 @@ export interface AdminOrderStats {
 }
 
 export type LogType =
-  'consume' | 'topup' | 'refund' | 'manage' | 'error' | 'system'
+  'consume' | 'topup' | 'refund' | 'manage' | 'error' | 'system' | 'login'
 
 export type LogRequestMode = 'stream' | 'sync'
 
@@ -298,6 +323,36 @@ export interface LogItem {
   tps: number // tokens per second (0 表示不适用)
   content: string
   created: number
+}
+
+export type OperationLogKind = 'manage' | 'system' | 'login'
+
+export interface OperationLogActor {
+  id: number
+  username: string
+  role: number | null
+  auth_method: string
+}
+
+export interface OperationLogRequest {
+  method: string
+  route: string
+  path: string
+  status: number | null
+  success: boolean | null
+}
+
+export interface OperationLogItem extends Record<string, unknown> {
+  id: number
+  created_at: number
+  kind: OperationLogKind
+  action: string
+  params: Record<string, unknown>
+  content: string
+  actor: OperationLogActor
+  ip: string
+  user_agent: string
+  request: OperationLogRequest | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -573,20 +628,42 @@ export interface InviteRecord {
   id: number
   invitee: string
   created: number
+  paid: boolean
+  reward_total: number
+  last_paid_at: number
 }
 
 export interface InviteMonthPoint {
   month: string
   new_count: number
   cumulative: number
+  reward: number
+}
+
+export interface InvitePolicy {
+  enabled: boolean
+  activated_at: number
+  registration_required: boolean
+  freeze_hours: number
+  duration_days: number
+  per_invitee_cap: number
+  cash_withdrawal: false
 }
 
 export interface InviteInfo {
   code: string
   invited: number
-  reward_per_invite: number
   reward_total: number // lifetime reward quota earned
   transferable: number // reward quota available to move into balance
+  available_reward: number
+  frozen_reward: number
+  total_reward: number
+  effective_rate_bps: number
+  effective_rate_percent: number
+  code_enabled: boolean
+  invite_limit: number | null
+  remaining_invites: number | null
+  policy: InvitePolicy
   monthly_series: InviteMonthPoint[]
   records: InviteRecord[]
 }
@@ -713,7 +790,9 @@ export interface NewcomerPayload {
 export interface InviteActivityPayload {
   invited: number
   reward_total: number
-  reward_per_invite: number
+  available_reward: number
+  frozen_reward: number
+  effective_rate_percent: number
 }
 
 export type Activity = ActivityBase &

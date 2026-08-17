@@ -40,8 +40,11 @@ beforeEach(async () => {
     display_name: 'User',
     email: 'user@example.com',
     role: 1,
+    status: 1,
     quota: 100,
     used_quota: 0,
+    request_count: 0,
+    created_at: 1_700_000_000,
   })
   auth.checked = true
 
@@ -106,6 +109,33 @@ describe('capability route guard', () => {
     await router.push('/console/models')
 
     expect(router.currentRoute.value.name).toBe('models')
+  })
+
+  it('redirects non-admin users away from operation logs', async () => {
+    await router.push('/console/logs/operations')
+
+    expect(router.currentRoute.value.name).toBe('dashboard')
+  })
+
+  it('keeps system settings root-only even for ordinary administrators', async () => {
+    const auth = useAuthStore()
+    auth.persist({
+      id: 2,
+      username: 'admin',
+      display_name: 'Admin',
+      email: 'admin@example.com',
+      role: 10,
+      status: 1,
+      quota: 100,
+      used_quota: 0,
+      request_count: 0,
+      created_at: 1_700_000_000,
+    })
+    auth.checked = true
+
+    await router.push('/console/system-settings/site')
+
+    expect(router.currentRoute.value.name).toBe('dashboard')
   })
 
   it('redirects every deferred module when its capability is disabled', async () => {

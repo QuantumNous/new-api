@@ -18,8 +18,11 @@ describe('subscription store cache and identity boundaries', () => {
       display_name: 'Alice',
       email: 'alice@example.com',
       role: 1,
+      status: 1,
       quota: 0,
       used_quota: 0,
+      request_count: 0,
+      created_at: 1_700_000_000,
     })
     const store = useSubscriptionStore()
     const loader = vi.fn(async () => ({
@@ -44,8 +47,11 @@ describe('subscription store cache and identity boundaries', () => {
       display_name: 'Alice',
       email: 'alice@example.com',
       role: 1,
+      status: 1,
       quota: 0,
       used_quota: 0,
+      request_count: 0,
+      created_at: 1_700_000_000,
     })
     const store = useSubscriptionStore()
     await store.load(7, async () => ({
@@ -60,8 +66,11 @@ describe('subscription store cache and identity boundaries', () => {
       display_name: 'Bob',
       email: 'bob@example.com',
       role: 1,
+      status: 1,
       quota: 0,
       used_quota: 0,
+      request_count: 0,
+      created_at: 1_700_000_000,
     })
     await nextTick()
 

@@ -7,7 +7,7 @@ import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import type { InviteInfo } from '@/types/console'
-import { formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
+import { QUOTA_PER_DOLLAR } from '@/utils/format'
 import { safeExternalUrl } from '@/utils/safeUrl'
 
 export function useInvite() {
@@ -58,7 +58,7 @@ export function useInvite() {
 
   function shareText() {
     return t('invite.shareText', {
-      reward: formatQuota(info.value?.reward_per_invite ?? 0),
+      reward: `${info.value?.effective_rate_percent ?? 0}%`,
     })
   }
 

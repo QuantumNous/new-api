@@ -23,8 +23,9 @@ import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getSelf } from '@/lib/api'
 
-import { getAffiliateCode, transferAffiliateQuota } from '../api'
+import { getAffiliateInfo, transferAffiliateQuota } from '../api'
 import { generateAffiliateLink } from '../lib'
+import type { AffiliateInfo } from '../types'
 
 // ============================================================================
 // Affiliate Hook
@@ -33,6 +34,7 @@ import { generateAffiliateLink } from '../lib'
 export function useAffiliate() {
   const [affiliateCode, setAffiliateCode] = useState<string>('')
   const [affiliateLink, setAffiliateLink] = useState<string>('')
+  const [affiliateInfo, setAffiliateInfo] = useState<AffiliateInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [transferring, setTransferring] = useState(false)
   const { copyToClipboard } = useCopyToClipboard()
@@ -41,11 +43,12 @@ export function useAffiliate() {
   const fetchAffiliateCode = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await getAffiliateCode()
+      const response = await getAffiliateInfo()
 
       if (response.success && response.data) {
-        setAffiliateCode(response.data)
-        const link = generateAffiliateLink(response.data)
+        setAffiliateInfo(response.data)
+        setAffiliateCode(response.data.code)
+        const link = generateAffiliateLink(response.data.code)
         setAffiliateLink(link)
       }
     } catch (error) {
@@ -62,26 +65,30 @@ export function useAffiliate() {
   }, [affiliateLink, copyToClipboard])
 
   // Transfer affiliate quota to balance
-  const transferQuota = useCallback(async (quota: number): Promise<boolean> => {
-    try {
-      setTransferring(true)
-      const response = await transferAffiliateQuota({ quota })
+  const transferQuota = useCallback(
+    async (quota: number): Promise<boolean> => {
+      try {
+        setTransferring(true)
+        const response = await transferAffiliateQuota({ quota })
 
-      if (response.success) {
-        toast.success(response.message || i18next.t('Transfer successful'))
-        await getSelf()
-        return true
+        if (response.success) {
+          toast.success(response.message || i18next.t('Transfer successful'))
+          await getSelf()
+          await fetchAffiliateCode()
+          return true
+        }
+
+        toast.error(response.message || i18next.t('Transfer failed'))
+        return false
+      } catch {
+        toast.error(i18next.t('Transfer failed'))
+        return false
+      } finally {
+        setTransferring(false)
       }
-
-      toast.error(response.message || i18next.t('Transfer failed'))
-      return false
-    } catch (_error) {
-      toast.error(i18next.t('Transfer failed'))
-      return false
-    } finally {
-      setTransferring(false)
-    }
-  }, [])
+    },
+    [fetchAffiliateCode]
+  )
 
   useEffect(() => {
     fetchAffiliateCode()
@@ -90,6 +97,7 @@ export function useAffiliate() {
   return {
     affiliateCode,
     affiliateLink,
+    affiliateInfo,
     loading,
     transferring,
     copyAffiliateLink,

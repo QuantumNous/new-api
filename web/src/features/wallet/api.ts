@@ -29,7 +29,7 @@ import type {
   AmountResponse,
   PaymentResponse,
   StripePaymentResponse,
-  AffiliateCodeResponse,
+  AffiliateInfoResponse,
   AffiliateTransferResponse,
   BillingHistoryResponse,
   CompleteOrderRequest,
@@ -184,8 +184,8 @@ export async function requestWaffoPancakePayment(
 /**
  * Get affiliate code
  */
-export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {
-  const res = await api.get('/api/user/aff')
+export async function getAffiliateInfo(): Promise<AffiliateInfoResponse> {
+  const res = await api.get('/api/next/invite/self')
   return res.data
 }
 
@@ -195,7 +195,9 @@ export async function getAffiliateCode(): Promise<AffiliateCodeResponse> {
 export async function transferAffiliateQuota(
   request: AffiliateTransferRequest
 ): Promise<AffiliateTransferResponse> {
-  const res = await api.post('/api/user/aff_transfer', request)
+  const res = await api.post('/api/next/invite/transfer', {
+    amount: request.quota,
+  })
   return res.data
 }
 

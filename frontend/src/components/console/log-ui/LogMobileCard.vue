@@ -30,6 +30,7 @@ const typeTone: Record<
   manage: 'info',
   error: 'danger',
   system: 'info',
+  login: 'info',
 }
 
 const typeLabelKey: Record<LogType, string> = {
@@ -39,6 +40,7 @@ const typeLabelKey: Record<LogType, string> = {
   manage: 'logs.typeManage',
   error: 'logs.typeError',
   system: 'logs.typeSystem',
+  login: 'logs.typeLogin',
 }
 </script>
 

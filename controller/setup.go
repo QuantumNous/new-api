@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type Setup struct {
@@ -99,16 +100,24 @@ func PostSetup(c *gin.Context) {
 			})
 			return
 		}
-		rootUser := model.User{
-			Username:    req.Username,
-			Password:    hashedPassword,
-			Role:        common.RoleRootUser,
-			Status:      common.UserStatusEnabled,
-			DisplayName: "Root User",
-			AccessToken: nil,
-			Quota:       100000000,
-		}
-		err = model.DB.Create(&rootUser).Error
+		err = model.DB.Transaction(func(tx *gorm.DB) error {
+			affCode, err := model.GenerateUniqueAffiliateCodeTx(tx)
+			if err != nil {
+				return err
+			}
+			rootUser := model.User{
+				Username:       req.Username,
+				Password:       hashedPassword,
+				Role:           common.RoleRootUser,
+				Status:         common.UserStatusEnabled,
+				DisplayName:    "Root User",
+				AccessToken:    nil,
+				Quota:          100000000,
+				AffCode:        affCode,
+				AffCodeEnabled: true,
+			}
+			return tx.Create(&rootUser).Error
+		})
 		if err != nil {
 			c.JSON(200, gin.H{
 				"success": false,

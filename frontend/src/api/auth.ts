@@ -50,8 +50,17 @@ export const authApi = {
     })
     return parseAuthBundle(value) ?? invalidAuthResponse('/api/user/login/2fa')
   },
-  register: (payload: { username: string; email: string; password: string }) =>
-    api.post<{ message: string }>('/api/user/register', payload),
+  register: (payload: {
+    username: string
+    email: string
+    password: string
+    aff_code?: string
+  }) => api.post<{ message: string }>('/api/user/register', payload),
+  validateAffiliate: (code: string) =>
+    api.post<{ valid: boolean; attribution_days: number }>(
+      '/api/next/invite/validate',
+      { code }
+    ),
   resetPassword: (email: string) =>
     api.get<unknown>('/api/reset_password', { email }),
   refreshSession,

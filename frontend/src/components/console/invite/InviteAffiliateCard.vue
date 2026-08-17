@@ -4,12 +4,10 @@ import { useI18n } from 'vue-i18n'
 
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import IconButton from '@/components/common/IconButton.vue'
-import { formatQuota } from '@/utils/format'
-
 defineProps<{
   code: string
   inviteLink: string
-  rewardPerInvite: number
+  ratePercent: number
 }>()
 
 const emit = defineEmits<{
@@ -39,7 +37,7 @@ const { t } = useI18n()
       <span class="text-[var(--accent-text)]">
         {{
           t('invite.affiliateHeadlineAccent', {
-            reward: formatQuota(rewardPerInvite),
+            reward: `${ratePercent}%`,
           })
         }}
       </span>

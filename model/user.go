@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -101,6 +100,11 @@ type User struct {
 	AffCount         int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
 	AffQuota         int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota  int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	AffFrozenQuota   int                        `json:"aff_frozen_quota" gorm:"type:int;default:0;column:aff_frozen_quota"`
+	AffRebateRateBps *int                       `json:"aff_rebate_rate_bps,omitempty" gorm:"type:int;column:aff_rebate_rate_bps"`
+	AffCodeEnabled   bool                       `json:"aff_code_enabled" gorm:"column:aff_code_enabled"`
+	AffCodeCustom    bool                       `json:"aff_code_custom" gorm:"column:aff_code_custom"`
+	AffInviteLimit   *int                       `json:"aff_invite_limit,omitempty" gorm:"type:int;column:aff_invite_limit"`
 	InviterId        int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	DeletedAt        gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId        string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
@@ -532,7 +536,6 @@ func HardDeleteUserById(id int) error {
 
 func inviteUser(inviterId int) error {
 	result := DB.Model(&User{}).Where("id = ?", inviterId).Updates(map[string]interface{}{
-		"aff_count":   gorm.Expr("aff_count + ?", 1),
 		"aff_quota":   gorm.Expr("aff_quota + ?", common.QuotaForInviter),
 		"aff_history": gorm.Expr("aff_history + ?", common.QuotaForInviter),
 	})
@@ -546,40 +549,13 @@ func inviteUser(inviterId int) error {
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
-	// 检查quota是否小于最小额度
-	if float64(quota) < common.QuotaPerUnit {
-		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(common.QuotaFromFloat(common.QuotaPerUnit)))
-	}
-
-	// 开始数据库事务
-	tx := DB.Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-	defer tx.Rollback() // 确保在函数退出时事务能回滚
-
-	// 加锁查询用户以确保数据一致性
-	err := lockForUpdate(tx).First(user, user.Id).Error
+	_, balance, err := TransferAffiliateQuota(user.Id, quota)
 	if err != nil {
 		return err
 	}
-
-	// 再次检查用户的AffQuota是否足够
-	if user.AffQuota < quota {
-		return errors.New("邀请额度不足！")
-	}
-
-	// 更新用户额度
+	user.Quota = balance
 	user.AffQuota -= quota
-	user.Quota += quota
-
-	// 保存用户状态
-	if err := tx.Save(user).Error; err != nil {
-		return err
-	}
-
-	// 提交事务
-	return tx.Commit().Error
+	return nil
 }
 
 func (user *User) prepareForInsert(tx *gorm.DB) error {
@@ -639,17 +615,7 @@ func (user *User) Insert(inviterId int) error {
 			if err := user.prepareForInsert(tx); err != nil {
 				return err
 			}
-			user.Quota = common.QuotaForNewUser
-			user.AffCode = common.GetRandomString(4)
-
-			// 初始化用户设置，包括默认的边栏配置
-			if user.Setting == "" {
-				defaultSetting := dto.UserSetting{}
-				// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
-				user.SetSetting(defaultSetting)
-			}
-
-			return tx.Create(user).Error
+			return user.insertPreparedWithTx(tx, inviterId)
 		})
 	}); err != nil {
 		return err
@@ -676,16 +642,22 @@ func (user *User) finishInsert(inviterId int) {
 	}
 
 	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+		RecordSystemAuditLog(user.Id, "Granted new user registration quota", "", "user.registration_bonus", map[string]interface{}{
+			"quota": common.QuotaForNewUser,
+		}, nil)
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			RecordSystemAuditLog(user.Id, "Granted invitee quota", "", "user.invitee_bonus", map[string]interface{}{
+				"quota":      common.QuotaForInvitee,
+				"inviter_id": inviterId,
+			}, nil)
 		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+		if common.AffiliateActivatedAt == 0 && common.QuotaForInviter > 0 {
+			RecordSystemAuditLog(inviterId, "Granted inviter quota", "", "user.inviter_bonus", map[string]interface{}{
+				"quota":           common.QuotaForInviter,
+				"invited_user_id": user.Id,
+			}, nil)
 			_ = inviteUser(inviterId)
 		}
 	}
@@ -703,17 +675,67 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		if err := user.prepareForInsert(tx); err != nil {
 			return err
 		}
-		user.Quota = common.QuotaForNewUser
-		user.AffCode = common.GetRandomString(4)
-
-		// 初始化用户设置
-		if user.Setting == "" {
-			defaultSetting := dto.UserSetting{}
-			user.SetSetting(defaultSetting)
-		}
-
-		return tx.Create(user).Error
+		return user.insertPreparedWithTx(tx, inviterId)
 	})
+}
+
+func (user *User) insertPreparedWithTx(tx *gorm.DB, inviterId int) error {
+	quota := common.QuotaForNewUser
+	if inviterId > 0 && operation_setting.IsPaymentComplianceConfirmed() && common.QuotaForInvitee > 0 {
+		if int64(quota)+int64(common.QuotaForInvitee) >= int64(common.MaxQuota) {
+			return ErrTopUpQuotaLimitExceeded
+		}
+		quota += common.QuotaForInvitee
+	}
+	code, err := GenerateUniqueAffiliateCodeTx(tx)
+	if err != nil {
+		return err
+	}
+	user.Quota = quota
+	user.InviterId = inviterId
+	user.AffCode = code
+	user.AffCodeEnabled = true
+
+	if user.Setting == "" {
+		user.SetSetting(dto.UserSetting{})
+	}
+	if err := tx.Create(user).Error; err != nil {
+		return err
+	}
+	if inviterId > 0 {
+		return tx.Model(&User{}).Where("id = ?", inviterId).
+			Update("aff_count", gorm.Expr("aff_count + ?", 1)).Error
+	}
+	return nil
+}
+
+func CreateUserWithAffiliateTx(tx *gorm.DB, user *User, rawCode string, required bool) (int, error) {
+	inviter, err := ResolveAffiliateInviterTx(tx, rawCode, required)
+	if err != nil {
+		return 0, err
+	}
+	inviterId := 0
+	if inviter != nil {
+		inviterId = inviter.Id
+	}
+	if err := user.InsertWithTx(tx, inviterId); err != nil {
+		return 0, err
+	}
+	return inviterId, nil
+}
+
+func CreateUserWithAffiliate(user *User, rawCode string, required bool) (int, error) {
+	inviterId := 0
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		inviterId, err = CreateUserWithAffiliateTx(tx, user, rawCode, required)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	user.finishInsert(inviterId)
+	return inviterId, nil
 }
 
 // FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
@@ -733,15 +755,22 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	}
 
 	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+		RecordSystemAuditLog(user.Id, "Granted new user registration quota", "", "user.registration_bonus", map[string]interface{}{
+			"quota": common.QuotaForNewUser,
+		}, nil)
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			RecordSystemAuditLog(user.Id, "Granted invitee quota", "", "user.invitee_bonus", map[string]interface{}{
+				"quota":      common.QuotaForInvitee,
+				"inviter_id": inviterId,
+			}, nil)
 		}
-		if common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+		if common.AffiliateActivatedAt == 0 && common.QuotaForInviter > 0 {
+			RecordSystemAuditLog(inviterId, "Granted inviter quota", "", "user.inviter_bonus", map[string]interface{}{
+				"quota":           common.QuotaForInviter,
+				"invited_user_id": user.Id,
+			}, nil)
 			_ = inviteUser(inviterId)
 		}
 	}

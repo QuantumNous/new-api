@@ -11,6 +11,7 @@ import {
   Power,
   PowerOff,
   RefreshCw,
+  Share2,
   Trash2,
   X,
 } from 'lucide-vue-next'
@@ -29,6 +30,7 @@ import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import Breadcrumb from '@/components/console/Breadcrumb.vue'
+import UserAffiliateModal from '@/components/console/users/UserAffiliateModal.vue'
 import UserAvatar from '@/components/console/users/UserAvatar.vue'
 import UserFormModal from '@/components/console/users/UserFormModal.vue'
 import UserInviteCell from '@/components/console/users/UserInviteCell.vue'
@@ -100,6 +102,7 @@ const {
 const formOpen = ref(false)
 const editing = ref<AdminUser | null>(null)
 const quotaTarget = ref<AdminUser | null>(null)
+const affiliateTarget = ref<AdminUser | null>(null)
 const deleting = ref<DeleteTarget | null>(null)
 const selectedIds = ref<number[]>([])
 const storedVisibleFields = useStorage<string[]>(
@@ -207,8 +210,8 @@ const allColumns = computed<
     width: '150px',
     optional: 'createdTime',
   },
-  // Four 32px icon buttons + gaps + the cell's px-3 padding.
-  { key: 'actions', label: t('users.actions'), width: '166px', align: 'right' },
+  // Five 32px icon buttons + gaps + the cell's px-3 padding.
+  { key: 'actions', label: t('users.actions'), width: '202px', align: 'right' },
 ])
 
 const columns = computed<TableColumn[]>(() =>
@@ -301,6 +304,11 @@ function saveForm(
 function openQuota(user: AdminUser) {
   if (!canManage(user) || !canMutate.value) return
   quotaTarget.value = user
+}
+
+function openAffiliate(user: AdminUser) {
+  if (!canManage(user) || !canMutate.value) return
+  affiliateTarget.value = user
 }
 
 function saveQuota(delta: number): Promise<boolean> {
@@ -657,6 +665,16 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
                 <Coins v-else :size="15" />
               </IconButton>
               <IconButton
+                :label="t('users.configureAffiliate')"
+                :disabled="
+                  !canManage(row as AdminUser) ||
+                  isRowBusy((row as AdminUser).id)
+                "
+                @click="openAffiliate(row as AdminUser)"
+              >
+                <Share2 :size="15" />
+              </IconButton>
+              <IconButton
                 :label="
                   (row as AdminUser).status === 1
                     ? t('users.disableUser')
@@ -750,6 +768,7 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
             :toggle-status="toggleStatus"
             :edit-user="openEdit"
             :adjust-quota="openQuota"
+            :configure-affiliate="openAffiliate"
             :delete-user="requestDelete"
           />
           <TablePagination
@@ -775,6 +794,13 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
       :target="quotaTarget"
       :save="saveQuota"
       @close="quotaTarget = null"
+    />
+
+    <UserAffiliateModal
+      :open="affiliateTarget !== null"
+      :target="affiliateTarget"
+      @saved="load({ background: true })"
+      @close="affiliateTarget = null"
     />
 
     <ConfirmDialog

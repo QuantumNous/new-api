@@ -197,10 +197,20 @@ onMounted(load)
                 class="flex flex-1 items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
               >
                 <span class="text-sm text-[var(--text-secondary)]">{{
-                  t('activity.invite.rewardPerInvite')
+                  t('activity.invite.effectiveRate')
                 }}</span>
                 <span class="font-semibold text-[var(--text-primary)]">{{
-                  formatQuota(inviteAct.invite.reward_per_invite)
+                  `${inviteAct.invite.effective_rate_percent}%`
+                }}</span>
+              </div>
+              <div
+                class="flex flex-1 items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
+              >
+                <span class="text-sm text-[var(--text-secondary)]">{{
+                  t('activity.invite.frozenReward')
+                }}</span>
+                <span class="font-semibold text-[var(--text-primary)]">{{
+                  formatQuota(inviteAct.invite.frozen_reward)
                 }}</span>
               </div>
             </div>

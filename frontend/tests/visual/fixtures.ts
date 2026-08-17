@@ -3,6 +3,7 @@ import { expect, type ConsoleMessage, type Page } from '@playwright/test'
 export type VisualTheme = 'light' | 'dark'
 
 const FIXED_NOW = new Date('2026-07-27T12:00:00+08:00').getTime()
+const DAY_MS = 86_400_000
 
 const VISUAL_USER = {
   id: 1,
@@ -10,12 +11,14 @@ const VISUAL_USER = {
   display_name: 'Visual Root',
   email: 'visual-root@ren2hub.dev',
   role: 100,
+  status: 1,
   quota: 5_201_314,
   used_quota: 2_985_211,
+  request_count: 32_132,
+  created_at: Math.floor((FIXED_NOW - 37 * DAY_MS) / 1000),
   group: 'vip',
 }
 
-const DAY_MS = 86_400_000
 const VISUAL_START_TIME = Math.floor(
   (FIXED_NOW - (37 * DAY_MS + 12 * 3_600_000 + 34 * 60_000 + 56_000)) / 1000
 )
@@ -246,6 +249,7 @@ export async function configureStablePage(
         logo: '',
         docs_link: 'https://docs.example.test',
         register_enabled: true,
+        affiliate_registration_required: false,
         HeaderNavModules: { docs: true, pricing: { enabled: true } },
         next_frontend_enabled: true,
         frontend_capabilities: {
@@ -464,6 +468,115 @@ export async function configureStablePage(
       },
     ],
     [
+      '/api/next/admin/operation-logs',
+      {
+        page: 1,
+        page_size: 10,
+        total: 4,
+        items: [
+          {
+            id: 101,
+            created_at: Math.floor((FIXED_NOW - 12 * 60_000) / 1000),
+            kind: 'manage',
+            action: 'user.update',
+            params: {
+              username:
+                'administrator.with.an.extremely.long.account.name@example.test',
+              changed_fields: ['status', 'group', 'quota'],
+            },
+            content: 'Updated user account',
+            actor: {
+              id: 1,
+              username:
+                'administrator.with.an.extremely.long.account.name@example.test',
+              role: 100,
+              auth_method: 'session',
+            },
+            ip: '203.0.113.25',
+            user_agent:
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Visual Audit Browser',
+            request: {
+              method: 'PUT',
+              route:
+                '/api/next/admin/users/:id/configuration/with/a/very/long/route/segment',
+              path: '/api/next/admin/users/42/configuration',
+              status: 200,
+              success: true,
+            },
+          },
+          {
+            id: 100,
+            created_at: Math.floor((FIXED_NOW - 32 * 60_000) / 1000),
+            kind: 'manage',
+            action: 'channel.update',
+            params: { id: 7, name: 'OpenAI Route 1' },
+            content: 'Updated channel OpenAI Route 1',
+            actor: {
+              id: 1,
+              username: 'visual.root',
+              role: 100,
+              auth_method: 'session',
+            },
+            ip: '198.51.100.9',
+            user_agent: 'Playwright',
+            request: {
+              method: 'PUT',
+              route: '/api/channel/',
+              path: '/api/channel/',
+              status: 500,
+              success: false,
+            },
+          },
+          {
+            id: 99,
+            created_at: Math.floor((FIXED_NOW - 65 * 60_000) / 1000),
+            kind: 'system',
+            action: 'user.2fa_enable',
+            params: { method: 'totp' },
+            content: 'Enabled two-factor authentication',
+            actor: {
+              id: 42,
+              username: 'security.user',
+              role: 1,
+              auth_method: '2fa',
+            },
+            ip: '2001:db8:4::21',
+            user_agent: 'Mobile Safari',
+            request: {
+              method: 'POST',
+              route: '/api/user/2fa/enable',
+              path: '/api/user/2fa/enable',
+              status: 200,
+              success: true,
+            },
+          },
+          {
+            id: 98,
+            created_at: Math.floor((FIXED_NOW - 95 * 60_000) / 1000),
+            kind: 'login',
+            action: 'login',
+            params: { method: 'password' },
+            content: 'Account signed in successfully',
+            actor: {
+              id: 27,
+              username: 'member.user',
+              role: null,
+              auth_method: 'password',
+            },
+            ip: '192.0.2.81',
+            user_agent: 'Chrome',
+            request: {
+              method: 'POST',
+              route: '/api/user/login',
+              path: '/api/user/login',
+              status: 200,
+              success: true,
+            },
+          },
+        ],
+      },
+    ],
+    [
       '/api/next/activity/self',
       {
         activities: [
@@ -550,7 +663,9 @@ export async function configureStablePage(
             invite: {
               invited: 6,
               reward_total: 300_000,
-              reward_per_invite: 50_000,
+              available_reward: 120_000,
+              frozen_reward: 80_000,
+              effective_rate_percent: 10,
             },
           },
         ],
@@ -564,12 +679,47 @@ export async function configureStablePage(
     [
       '/api/next/admin/users',
       {
-        items: [],
-        total: 0,
+        items: [
+          {
+            id: 42,
+            username: 'visual.member',
+            display_name: 'Visual Member',
+            email: 'visual.member@example.test',
+            role: 1,
+            status: 1,
+            quota: 2_500_000,
+            used_quota: 650_000,
+            request_count: 128,
+            invited_count: 3,
+            affiliate_quota: 120_000,
+            inviter_id: 0,
+            created_time: Math.floor((FIXED_NOW - 90 * DAY_MS) / 1000),
+            last_login_time: Math.floor((FIXED_NOW - DAY_MS) / 1000),
+          },
+        ],
+        total: 1,
         page: 1,
         page_size: 20,
-        role_counts: {},
-        status_counts: {},
+        role_counts: { '1': 1 },
+        status_counts: { '1': 1 },
+      },
+    ],
+    [
+      '/api/next/admin/affiliate/users/42',
+      {
+        id: 42,
+        username: 'visual.member',
+        status: 1,
+        code: 'VISUALMEMBER',
+        code_enabled: true,
+        code_custom: true,
+        rate_bps: 1250,
+        effective_rate_bps: 1250,
+        invite_limit: 20,
+        invited_count: 3,
+        available_reward: 120_000,
+        frozen_reward: 80_000,
+        total_reward: 300_000,
       },
     ],
     [
@@ -805,19 +955,38 @@ export async function configureStablePage(
       {
         code: 'VISUAL2026',
         invited: 6,
-        reward_per_invite: 50_000,
         reward_total: 300_000,
         transferable: 120_000,
+        available_reward: 120_000,
+        frozen_reward: 80_000,
+        total_reward: 300_000,
+        effective_rate_bps: 1000,
+        effective_rate_percent: 10,
+        code_enabled: true,
+        invite_limit: 20,
+        remaining_invites: 14,
+        policy: {
+          enabled: true,
+          activated_at: Math.floor((FIXED_NOW - 30 * DAY_MS) / 1000),
+          registration_required: false,
+          freeze_hours: 168,
+          duration_days: 0,
+          per_invitee_cap: 100,
+          cash_withdrawal: false,
+        },
         monthly_series: [
-          { month: '2026-05', new_count: 1, cumulative: 3 },
-          { month: '2026-06', new_count: 2, cumulative: 5 },
-          { month: '2026-07', new_count: 1, cumulative: 6 },
+          { month: '2026-05', new_count: 1, cumulative: 3, reward: 60_000 },
+          { month: '2026-06', new_count: 2, cumulative: 5, reward: 140_000 },
+          { month: '2026-07', new_count: 1, cumulative: 6, reward: 100_000 },
         ],
         records: [
           {
             id: 2,
             invitee: 'visual.friend',
             created: Math.floor((FIXED_NOW - 12 * DAY_MS) / 1000),
+            paid: true,
+            reward_total: 100_000,
+            last_paid_at: Math.floor((FIXED_NOW - 2 * DAY_MS) / 1000),
           },
         ],
       },

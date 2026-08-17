@@ -56,6 +56,16 @@ func sanitizeClickHouseLikePattern(input string) (string, error) {
 	return input, nil
 }
 
+func buildLiteralLogContainsCondition(column string, keyword string) (string, string) {
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+		return column + " LIKE ?", "%" + replacer.Replace(keyword) + "%"
+	}
+
+	replacer := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_")
+	return column + " LIKE ? ESCAPE '!'", "%" + replacer.Replace(keyword) + "%"
+}
+
 type Log struct {
 	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
 	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1;index:idx_user_created_at,priority:1"`
@@ -267,6 +277,31 @@ func RecordLoginLog(userId int, username string, content string, ip string, acti
 	}
 	if err := createLog(log); err != nil {
 		common.SysLog("failed to record login log: " + err.Error())
+	}
+}
+
+// RecordSystemAuditLog records a structured account/system event. auditInfo is
+// optional because model-originated events such as registration rewards have no
+// HTTP request context.
+func RecordSystemAuditLog(userId int, content string, ip string, action string, params map[string]interface{}, auditInfo map[string]interface{}) {
+	username, _ := GetUsernameById(userId, false)
+	other := map[string]interface{}{
+		"op": buildOpField(action, params),
+	}
+	if len(auditInfo) > 0 {
+		other["audit_info"] = auditInfo
+	}
+	log := &Log{
+		UserId:    userId,
+		Username:  username,
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeSystem,
+		Content:   content,
+		Ip:        ip,
+		Other:     common.MapToJsonStr(other),
+	}
+	if err := createLog(log); err != nil {
+		common.SysLog("failed to record system audit log: " + err.Error())
 	}
 }
 
@@ -513,6 +548,46 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			NodeName:  nodeName,
 		})
 	}
+}
+
+func GetOperationLogs(logTypes []int, keyword string, startTimestamp int64, endTimestamp int64, startIdx int, num int) (logs []*Log, total int64, err error) {
+	if len(logTypes) == 0 {
+		logTypes = []int{LogTypeManage, LogTypeSystem, LogTypeLogin}
+	}
+
+	tx := LOG_DB.Where("logs.type IN ?", logTypes)
+	if keyword != "" {
+		columns := []string{"logs.username", "logs.content", "logs.ip", "logs.other"}
+		conditions := make([]string, 0, len(columns))
+		args := make([]interface{}, 0, len(columns))
+		for _, column := range columns {
+			condition, pattern := buildLiteralLogContainsCondition(column, keyword)
+			conditions = append(conditions, condition)
+			args = append(args, pattern)
+		}
+		tx = tx.Where("("+strings.Join(conditions, " OR ")+")", args...)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+
+	if err = tx.Model(&Log{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	order := "logs.created_at desc, logs.id desc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("logs.")
+	}
+	if err = tx.Order(order).Limit(num).Offset(startIdx).Find(&logs).Error; err != nil {
+		return nil, 0, err
+	}
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		assignDisplayLogIds(logs, startIdx)
+	}
+	return logs, total, nil
 }
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {

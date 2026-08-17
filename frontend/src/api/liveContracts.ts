@@ -2,6 +2,8 @@ import type {
   DrawingLogItem,
   LogItem,
   LogType,
+  OperationLogItem,
+  OperationLogKind,
   RelayTaskLogItem,
   TokenSummary,
 } from '@/types/console'
@@ -271,6 +273,7 @@ const LOG_TYPES: Record<number, LogType> = {
   4: 'system',
   5: 'error',
   6: 'refund',
+  7: 'login',
 }
 
 function parseLogOther(value: unknown, endpoint: string): LogItem['other'] {
@@ -325,6 +328,80 @@ function parseLog(value: unknown, endpoint: string): LogItem {
 export function parseLogPage(value: unknown): PageResult<LogItem> {
   const endpoint = '/api/log/self'
   return parsePage(value, endpoint, parseLog)
+}
+
+const OPERATION_LOG_KINDS = new Set<OperationLogKind>([
+  'manage',
+  'system',
+  'login',
+])
+
+function optionalOperationString(value: unknown, endpoint: string): string {
+  if (value === undefined || value === null) return ''
+  return requiredString(value, endpoint)
+}
+
+function optionalOperationInteger(
+  value: unknown,
+  endpoint: string
+): number | null {
+  if (value === undefined || value === null) return null
+  return requiredInteger(value, endpoint)
+}
+
+function optionalOperationBoolean(
+  value: unknown,
+  endpoint: string
+): boolean | null {
+  if (value === undefined || value === null) return null
+  if (typeof value !== 'boolean') invalidResponse(endpoint)
+  return value
+}
+
+function parseOperationLog(value: unknown, endpoint: string): OperationLogItem {
+  if (!isRecord(value) || !isRecord(value.actor)) invalidResponse(endpoint)
+  const kind = requiredString(value.kind, endpoint) as OperationLogKind
+  if (!OPERATION_LOG_KINDS.has(kind)) invalidResponse(endpoint)
+
+  const params = value.params ?? {}
+  if (!isRecord(params)) invalidResponse(endpoint)
+
+  let request: OperationLogItem['request'] = null
+  if (value.request !== undefined && value.request !== null) {
+    if (!isRecord(value.request)) invalidResponse(endpoint)
+    request = {
+      method: optionalOperationString(value.request.method, endpoint),
+      route: optionalOperationString(value.request.route, endpoint),
+      path: optionalOperationString(value.request.path, endpoint),
+      status: optionalOperationInteger(value.request.status, endpoint),
+      success: optionalOperationBoolean(value.request.success, endpoint),
+    }
+  }
+
+  return {
+    id: requiredInteger(value.id, endpoint),
+    created_at: requiredInteger(value.created_at, endpoint),
+    kind,
+    action: optionalOperationString(value.action, endpoint),
+    params: { ...params },
+    content: requiredString(value.content, endpoint),
+    actor: {
+      id: requiredInteger(value.actor.id, endpoint),
+      username: requiredString(value.actor.username, endpoint),
+      role: optionalOperationInteger(value.actor.role, endpoint),
+      auth_method: optionalOperationString(value.actor.auth_method, endpoint),
+    },
+    ip: optionalOperationString(value.ip, endpoint),
+    user_agent: optionalOperationString(value.user_agent, endpoint),
+    request,
+  }
+}
+
+export function parseOperationLogPage(
+  value: unknown
+): PageResult<OperationLogItem> {
+  const endpoint = '/api/next/admin/operation-logs'
+  return parsePage(value, endpoint, parseOperationLog)
 }
 
 function parseDrawingLog(value: unknown, endpoint: string): DrawingLogItem {

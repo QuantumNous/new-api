@@ -44,12 +44,20 @@ func GenerateOAuthCode(c *gin.Context) {
 	request.Provider = strings.TrimSpace(request.Provider)
 	request.Intent = strings.TrimSpace(request.Intent)
 	request.Aff = strings.TrimSpace(request.Aff)
-	if oauth.GetProvider(request.Provider) == nil ||
+	isNonStandardLoginProvider := request.Provider == "wechat"
+	if (!isNonStandardLoginProvider && oauth.GetProvider(request.Provider) == nil) ||
 		(request.Intent != model.AuthFlowIntentLogin && request.Intent != model.AuthFlowIntentBind) ||
+		(isNonStandardLoginProvider && request.Intent != model.AuthFlowIntentLogin) ||
 		len(request.Aff) > 32 ||
 		(request.Intent == model.AuthFlowIntentBind && request.Aff != "") {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	if request.Aff != "" {
+		if err := model.ValidateAffiliateCode(request.Aff); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	userID := 0
 	sessionID := ""
@@ -361,20 +369,17 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-	// Handle affiliate code
-	inviterId := 0
-	if affiliateCode != "" {
-		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
-	}
-
 	// Use transaction to ensure user creation and OAuth binding are atomic
+	inviterId := 0
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
 		// Custom provider: create user and binding in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
+			resolvedInviterId, err := model.CreateUserWithAffiliateTx(tx, user, affiliateCode, common.AffiliateRegistrationRequired)
+			if err != nil {
 				return err
 			}
+			inviterId = resolvedInviterId
 
 			// Create OAuth binding
 			binding := &model.UserOAuthBinding{
@@ -398,9 +403,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Built-in provider: create user and update provider ID in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
+			resolvedInviterId, err := model.CreateUserWithAffiliateTx(tx, user, affiliateCode, common.AffiliateRegistrationRequired)
+			if err != nil {
 				return err
 			}
+			inviterId = resolvedInviterId
 
 			// Set the provider user ID on the user model and update
 			provider.SetProviderUserID(user, oauthUser.ProviderUserID)
