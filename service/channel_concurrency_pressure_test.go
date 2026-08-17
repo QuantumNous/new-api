@@ -309,3 +309,76 @@ func TestWithChannelConcurrencyJitterStaysWithinBounds(t *testing.T) {
 		require.Less(t, jittered, interval)
 	}
 }
+
+func TestOrderCandidatesRefreshesWhenCachedCooldownFiltersEveryone(t *testing.T) {
+	resetChannelConcurrencyForTest()
+	_, mr, restore := useCountingRedisChannelConcurrencyForTest(t)
+	defer restore()
+	restoreSetting := useChannelConcurrencySettingForTest(t, operation_setting.ChannelConcurrencySetting{
+		SlotTTLMinutes:   1,
+		WaitEnabled:      true,
+		WaitTimeoutMS:    5000,
+		WaitIntervalMS:   100,
+		CooldownEnabled:  true,
+		CooldownSeconds:  30,
+		LoadCacheEnabled: true,
+		LoadCacheTTLMS:   5000,
+	})
+	defer restoreSetting()
+
+	channel := &model.Channel{Id: 601, MaxConcurrency: 2}
+	candidates := []*model.Channel{channel}
+	ctx := context.Background()
+
+	// Populate the snapshot cache while the channel is cooling down.
+	require.NoError(t, MarkChannelConcurrencyCooldown(ctx, channel.Id, time.Minute, "test"))
+	ordered, err := orderChannelCandidatesByConcurrencyLoad(nil, candidates)
+	require.NoError(t, err)
+	require.Empty(t, ordered)
+
+	// Cooldown expires inside the cache window; the stale cached CoolingDown
+	// flag must trigger one fresh re-read instead of filtering the recovered
+	// channel for the rest of the TTL.
+	mr.Del(channelConcurrencyCooldownRedisKey(channel.Id))
+	ordered, err = orderChannelCandidatesByConcurrencyLoad(nil, candidates)
+	require.NoError(t, err)
+	require.Len(t, ordered, 1)
+	require.Equal(t, channel.Id, ordered[0].Id)
+}
+
+func TestFetchLoadsDegradesWhenFetchSlotsSaturated(t *testing.T) {
+	resetChannelConcurrencyForTest()
+	_, _, restore := useCountingRedisChannelConcurrencyForTest(t)
+	defer restore()
+	restoreSetting := useChannelConcurrencySettingForTest(t, operation_setting.ChannelConcurrencySetting{
+		SlotTTLMinutes:   1,
+		WaitEnabled:      true,
+		WaitTimeoutMS:    5000,
+		WaitIntervalMS:   100,
+		CooldownEnabled:  true,
+		CooldownSeconds:  30,
+		LoadCacheEnabled: false,
+	})
+	defer restoreSetting()
+
+	prevTimeout := channelConcurrencyLoadFetchTimeout
+	channelConcurrencyLoadFetchTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { channelConcurrencyLoadFetchTimeout = prevTimeout })
+
+	// Occupy every fetch slot so the next fetch cannot start.
+	for i := 0; i < cap(channelConcurrencyLoadFetchSlots); i++ {
+		channelConcurrencyLoadFetchSlots <- struct{}{}
+	}
+	t.Cleanup(func() {
+		for i := 0; i < cap(channelConcurrencyLoadFetchSlots); i++ {
+			<-channelConcurrencyLoadFetchSlots
+		}
+	})
+
+	// GetChannelConcurrencyLoads must degrade to the memory fallback (loads
+	// with zero counters) rather than block indefinitely or error out.
+	loads, err := GetChannelConcurrencyLoads(context.Background(), []*model.Channel{{Id: 602, MaxConcurrency: 3}})
+	require.NoError(t, err)
+	require.Equal(t, 3, loads[602].MaxConcurrency)
+	require.Equal(t, 0, loads[602].Active)
+}

@@ -137,9 +137,6 @@ const (
 	// 3*channelConcurrencyLoadBatchSize+1 commands regardless of how many
 	// bounded channels a model's candidate set contains.
 	channelConcurrencyLoadBatchSize = 50
-	// channelConcurrencyLoadFetchTimeout detaches load reads from the caller's
-	// request context so one cancelled request cannot fail a shared fetch.
-	channelConcurrencyLoadFetchTimeout = 3 * time.Second
 	// channelConcurrencyLoadCacheMaxEntries caps the snapshot cache; entries
 	// are keyed by the candidate-set fingerprint, so cardinality tracks the
 	// number of distinct (group, model) candidate sets, not request volume.
@@ -150,6 +147,18 @@ const (
 	// Redis would amplify pressure, and the slot TTL is the final backstop.
 	channelConcurrencyGhostCleanupTimeout = 500 * time.Millisecond
 )
+
+// channelConcurrencyLoadFetchTimeout detaches load reads from the caller's
+// request context so one cancelled request cannot fail a shared fetch. It also
+// bounds the wait for a fetch slot below. Variable for tests.
+var channelConcurrencyLoadFetchTimeout = 3 * time.Second
+
+// channelConcurrencyLoadFetchSlots caps concurrent Redis load fetches across
+// all candidate-set fingerprints. Singleflight already collapses callers per
+// fingerprint; this bounds the aggregate when many distinct fingerprints miss
+// their cache windows at once, so detached fetches cannot pile up during a
+// Redis latency spike. Saturation degrades to the memory-ordering fallback.
+var channelConcurrencyLoadFetchSlots = make(chan struct{}, 2)
 
 type cachedChannelConcurrencyLoads struct {
 	loads     map[int]ChannelConcurrencyLoad
@@ -291,6 +300,19 @@ func tryAcquireChannelConcurrencyWithToken(ctx context.Context, channel *model.C
 }
 
 func GetChannelConcurrencyLoads(ctx context.Context, channels []*model.Channel) (map[int]ChannelConcurrencyLoad, error) {
+	return getChannelConcurrencyLoads(ctx, channels, true)
+}
+
+// GetChannelConcurrencyLoadsFresh bypasses the snapshot cache (sub2api's
+// GetAccountsLoadBatchFresh pattern). Selection uses it as a one-shot fallback
+// when cached CoolingDown filtered out every candidate, so a just-recovered
+// channel becomes selectable without waiting out the cache window. The fresh
+// result also refreshes the cache so later readers converge immediately.
+func GetChannelConcurrencyLoadsFresh(ctx context.Context, channels []*model.Channel) (map[int]ChannelConcurrencyLoad, error) {
+	return getChannelConcurrencyLoads(ctx, channels, false)
+}
+
+func getChannelConcurrencyLoads(ctx context.Context, channels []*model.Channel, allowCache bool) (map[int]ChannelConcurrencyLoad, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -315,7 +337,7 @@ func GetChannelConcurrencyLoads(ctx context.Context, channels []*model.Channel) 
 	}
 
 	if common.RedisEnabled && common.RDB != nil {
-		redisLoads, err := getCachedRedisChannelConcurrencyLoads(ctx, bounded)
+		redisLoads, err := getCachedRedisChannelConcurrencyLoads(ctx, bounded, allowCache)
 		if err == nil {
 			for channelID, load := range redisLoads {
 				loads[channelID] = load
@@ -332,10 +354,18 @@ func GetChannelConcurrencyLoads(ctx context.Context, channels []*model.Channel) 
 // candidate sets: a short-TTL snapshot serves ordering hints (never slot
 // ownership — acquire stays authoritative), and singleflight collapses
 // concurrent misses to one Redis fetch per candidate-set fingerprint.
-func getCachedRedisChannelConcurrencyLoads(ctx context.Context, bounded map[int]ChannelConcurrencyLoad) (map[int]ChannelConcurrencyLoad, error) {
+func getCachedRedisChannelConcurrencyLoads(ctx context.Context, bounded map[int]ChannelConcurrencyLoad, allowCache bool) (map[int]ChannelConcurrencyLoad, error) {
 	ttl := operation_setting.GetChannelConcurrencyLoadCacheTTL()
 	if ttl <= 0 {
 		return fetchRedisChannelConcurrencyLoads(bounded)
+	}
+	if !allowCache {
+		fetched, err := fetchRedisChannelConcurrencyLoads(bounded)
+		if err != nil {
+			return nil, err
+		}
+		storeChannelConcurrencyLoadCache(channelConcurrencyLoadCacheKey(bounded), fetched, time.Now().Add(ttl))
+		return fetched, nil
 	}
 
 	key := channelConcurrencyLoadCacheKey(bounded)
@@ -379,6 +409,13 @@ func getCachedRedisChannelConcurrencyLoads(ctx context.Context, bounded map[int]
 func fetchRedisChannelConcurrencyLoads(bounded map[int]ChannelConcurrencyLoad) (map[int]ChannelConcurrencyLoad, error) {
 	fetchCtx, cancel := context.WithTimeout(context.Background(), channelConcurrencyLoadFetchTimeout)
 	defer cancel()
+
+	select {
+	case channelConcurrencyLoadFetchSlots <- struct{}{}:
+		defer func() { <-channelConcurrencyLoadFetchSlots }()
+	case <-fetchCtx.Done():
+		return nil, fmt.Errorf("channel concurrency load fetch slots saturated: %w", fetchCtx.Err())
+	}
 
 	channelIDs := make([]int, 0, len(bounded))
 	for channelID := range bounded {

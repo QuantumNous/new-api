@@ -481,6 +481,29 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		return nil, err
 	}
 
+	ordered, sawCoolingDown, err := orderChannelCandidatesWithLoads(candidates, loads)
+	if err != nil {
+		return nil, err
+	}
+	if len(ordered) == 0 && sawCoolingDown {
+		// Every candidate was filtered by a cached CoolingDown flag. Cooldowns
+		// flip within the cache window (acquire rejects cooled-down channels in
+		// real time regardless), so before declaring the set unavailable,
+		// re-read once bypassing the cache to pick up just-recovered channels.
+		freshLoads, freshErr := GetChannelConcurrencyLoadsFresh(ctx, candidates)
+		if freshErr != nil {
+			return nil, freshErr
+		}
+		ordered, _, err = orderChannelCandidatesWithLoads(candidates, freshLoads)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ordered, nil
+}
+
+func orderChannelCandidatesWithLoads(candidates []*model.Channel, loads map[int]ChannelConcurrencyLoad) ([]*model.Channel, bool, error) {
+	sawCoolingDown := false
 	loadedCandidates := make([]channelCandidateLoad, 0, len(candidates))
 	for _, candidate := range candidates {
 		if candidate == nil {
@@ -488,6 +511,7 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		}
 		load := loads[candidate.Id]
 		if load.CoolingDown {
+			sawCoolingDown = true
 			continue
 		}
 		loadedCandidates = append(loadedCandidates, channelCandidateLoad{
@@ -516,7 +540,7 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		for len(bucket) > 0 {
 			channel, err := model.SelectWeightedRandomChannel(bucket)
 			if err != nil {
-				return nil, err
+				return nil, sawCoolingDown, err
 			}
 			if channel == nil {
 				break
@@ -526,7 +550,7 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		}
 		i = j
 	}
-	return ordered, nil
+	return ordered, sawCoolingDown, nil
 }
 
 func removeChannelCandidate(candidates []*model.Channel, channelID int) []*model.Channel {
