@@ -337,80 +337,90 @@ func testChannelWithOptions(channel *model.Channel, testUserID int, testModel st
 	adaptor.Init(info)
 
 	var convertedRequest any
-	// 根据 RelayMode 选择正确的转换函数
-	switch info.RelayMode {
-	case relayconstant.RelayModeEmbeddings:
-		// Embedding 请求 - request 已经是正确的类型
-		if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
-			convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *embeddingReq)
+	// Native Anthropic requests share relay modes with other endpoints, so their
+	// converter must be selected by relay format before the relay-mode switch.
+	if info.RelayFormat == types.RelayFormatClaude {
+		if claudeReq, ok := request.(*dto.ClaudeRequest); ok {
+			convertedRequest, err = adaptor.ConvertClaudeRequest(c, info, claudeReq)
 		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid embedding request type"),
-				newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
-			}
+			err = errors.New("invalid claude request type")
 		}
-	case relayconstant.RelayModeImagesGenerations:
-		// 图像生成请求 - request 已经是正确的类型
-		if imageReq, ok := request.(*dto.ImageRequest); ok {
-			convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid image request type"),
-				newAPIError: types.NewError(errors.New("invalid image request type"), types.ErrorCodeConvertRequestFailed),
+	} else {
+		// 根据 RelayMode 选择正确的转换函数
+		switch info.RelayMode {
+		case relayconstant.RelayModeEmbeddings:
+			// Embedding 请求 - request 已经是正确的类型
+			if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
+				convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *embeddingReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid embedding request type"),
+					newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
+				}
 			}
-		}
-	case relayconstant.RelayModeRerank:
-		// Rerank 请求 - request 已经是正确的类型
-		if rerankReq, ok := request.(*dto.RerankRequest); ok {
-			convertedRequest, err = adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid rerank request type"),
-				newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
+		case relayconstant.RelayModeImagesGenerations:
+			// 图像生成请求 - request 已经是正确的类型
+			if imageReq, ok := request.(*dto.ImageRequest); ok {
+				convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid image request type"),
+					newAPIError: types.NewError(errors.New("invalid image request type"), types.ErrorCodeConvertRequestFailed),
+				}
 			}
-		}
-	case relayconstant.RelayModeResponses:
-		// Response 请求 - request 已经是正确的类型
-		if responseReq, ok := request.(*dto.OpenAIResponsesRequest); ok {
-			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *responseReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid response request type"),
-				newAPIError: types.NewError(errors.New("invalid response request type"), types.ErrorCodeConvertRequestFailed),
+		case relayconstant.RelayModeRerank:
+			// Rerank 请求 - request 已经是正确的类型
+			if rerankReq, ok := request.(*dto.RerankRequest); ok {
+				convertedRequest, err = adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid rerank request type"),
+					newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
+				}
 			}
-		}
-	case relayconstant.RelayModeResponsesCompact:
-		// Response compaction request - convert to OpenAIResponsesRequest before adapting
-		switch req := request.(type) {
-		case *dto.OpenAIResponsesCompactionRequest:
-			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
-				Model:              req.Model,
-				Input:              req.Input,
-				Instructions:       req.Instructions,
-				PreviousResponseID: req.PreviousResponseID,
-			})
-		case *dto.OpenAIResponsesRequest:
-			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *req)
+		case relayconstant.RelayModeResponses:
+			// Response 请求 - request 已经是正确的类型
+			if responseReq, ok := request.(*dto.OpenAIResponsesRequest); ok {
+				convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *responseReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid response request type"),
+					newAPIError: types.NewError(errors.New("invalid response request type"), types.ErrorCodeConvertRequestFailed),
+				}
+			}
+		case relayconstant.RelayModeResponsesCompact:
+			// Response compaction request - convert to OpenAIResponsesRequest before adapting
+			switch req := request.(type) {
+			case *dto.OpenAIResponsesCompactionRequest:
+				convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+					Model:              req.Model,
+					Input:              req.Input,
+					Instructions:       req.Instructions,
+					PreviousResponseID: req.PreviousResponseID,
+				})
+			case *dto.OpenAIResponsesRequest:
+				convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *req)
+			default:
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid response compaction request type"),
+					newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
+				}
+			}
 		default:
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid response compaction request type"),
-				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
-	default:
-		// Chat/Completion 等其他请求类型
-		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
-			convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, generalReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid general request type"),
-				newAPIError: types.NewError(errors.New("invalid general request type"), types.ErrorCodeConvertRequestFailed),
+			// Chat/Completion 等其他请求类型
+			if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
+				convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, generalReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid general request type"),
+					newAPIError: types.NewError(errors.New("invalid general request type"), types.ErrorCodeConvertRequestFailed),
+				}
 			}
 		}
 	}
@@ -924,7 +934,14 @@ func buildTestRequestWithOptions(model string, endpointType string, channel *mod
 				Model: model,
 				Input: json.RawMessage(testResponsesInput),
 			}
-		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
+		case constant.EndpointTypeAnthropic:
+			return &dto.ClaudeRequest{
+				Model:     model,
+				Messages:  []dto.ClaudeMessage{{Role: "user", Content: prompt}},
+				MaxTokens: lo.ToPtr(uint(maxTokens)),
+				Stream:    lo.ToPtr(isStream),
+			}
+		case constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
 			requestMaxTokens := maxTokens
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
