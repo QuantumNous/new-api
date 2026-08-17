@@ -83,6 +83,14 @@ For commercial licensing, please contact support@quantumnous.com
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* Landing-page-only purple palette (Mezon-inspired). Scoped so the global
+   * `--primary` (dashboard, sidebar, charts) stays untouched. */
+  --color-landing-primary: var(--landing-primary);
+  --color-landing-primary-strong: var(--landing-primary-strong);
+  --color-landing-accent: var(--landing-accent);
+  --color-landing-accent-hot: var(--landing-accent-hot);
+  --color-landing-tint: var(--landing-tint);
+  --color-landing-on-primary: var(--landing-on-primary);
 
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
@@ -176,6 +184,13 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 16%,
     var(--background)
   );
+  /* Landing-page purple palette (Mezon #6B5FE0 / #7979ed / #7E00FF). */
+  --landing-primary: oklch(0.565 0.165 282);
+  --landing-primary-strong: oklch(0.52 0.19 275);
+  --landing-accent: oklch(0.62 0.15 285);
+  --landing-accent-hot: oklch(0.55 0.26 293);
+  --landing-tint: oklch(0.9 0.045 280);
+  --landing-on-primary: oklch(1 0 0);
 }
 
 .dark {
@@ -244,4 +259,11 @@ For commercial licensing, please contact support@quantumnous.com
     var(--foreground) 24%,
     var(--background)
   );
+  /* Landing-page purple palette, brightened for dark surfaces. */
+  --landing-primary: oklch(0.68 0.18 280);
+  --landing-primary-strong: oklch(0.72 0.16 285);
+  --landing-accent: oklch(0.68 0.16 285);
+  --landing-accent-hot: oklch(0.62 0.24 293);
+  --landing-tint: oklch(0.3 0.05 285 / 45%);
+  --landing-on-primary: oklch(1 0 0);
 }

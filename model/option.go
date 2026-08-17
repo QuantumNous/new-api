@@ -116,6 +116,10 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["MezonPaymentEnabled"] = strconv.FormatBool(setting.MezonPayment.Enabled)
+	common.OptionMap["MezonTreasuryAddress"] = setting.MezonPayment.TreasuryAddress
+	common.OptionMap["MezonIndexerBase"] = setting.MezonPayment.IndexerBase
+	common.OptionMap["MezonChainId"] = setting.MezonPayment.ChainId
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -441,6 +445,14 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "StripeMinTopUp":
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
+	case "MezonPaymentEnabled":
+		setting.MezonPayment.Enabled = value == "true"
+	case "MezonTreasuryAddress":
+		setting.MezonPayment.TreasuryAddress = value
+	case "MezonIndexerBase":
+		setting.MezonPayment.IndexerBase = value
+	case "MezonChainId":
+		setting.MezonPayment.ChainId = value
 	case "StripePromotionCodesEnabled":
 		setting.StripePromotionCodesEnabled = value == "true"
 	case "CreemApiKey":

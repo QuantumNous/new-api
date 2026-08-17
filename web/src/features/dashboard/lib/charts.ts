@@ -58,10 +58,13 @@ function renderQuotaCompat(rawQuota: number, digits = 4): string {
   const symbol = 'symbol' in meta ? meta.symbol : '$'
   const value = usd * rate
   const fixed = value.toFixed(digits)
+  // Custom symbols render after the amount (e.g. "100.00 mzđ")
+  const suffix = meta.kind === 'custom'
+  const format = (num: string) => (suffix ? `${num} ${symbol}` : symbol + num)
   if (parseFloat(fixed) === 0 && rawQuota > 0 && value > 0) {
-    return symbol + Math.pow(10, -digits).toFixed(digits)
+    return format(Math.pow(10, -digits).toFixed(digits))
   }
-  return symbol + fixed
+  return format(fixed)
 }
 
 /**

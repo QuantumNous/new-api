@@ -1,0 +1,98 @@
+# Production deployment for llm.mrdnd.dev (fresh install)
+# Image is built from the dnd288/new-api fork and pushed to registry.mrdnd.dev.
+# TLS/routing is handled by the existing Traefik on the VPS via labels below.
+#
+# First-time setup on the VPS:
+#   1. Copy this directory to the VPS (e.g. /opt/new-api)
+#   2. Fill in secrets in .env (copy .env.example)
+#   3. docker login registry.mrdnd.dev
+#   4. Adjust TRAEFIK_NETWORK / TRAEFIK_CERTRESOLVER in .env to match your
+#      existing Traefik setup
+#   5. docker compose --env-file .env up -d
+#
+# After first login (root / 123456 — change immediately), set in admin panel:
+#   Settings -> General -> Server Address: https://llm.mrdnd.dev
+#   Mezon OAuth redirect URI:            https://llm.mrdnd.dev/oauth/mezon
+
+services:
+  new-api:
+    image: ${IMAGE:-registry.mrdnd.dev/new-api:latest}
+    container_name: new-api
+    restart: unless-stopped
+    networks:
+      - internal
+      - ${TRAEFIK_NETWORK:-traefik}
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-traefik}
+      traefik.http.routers.new-api.rule: Host(`llm.mrdnd.dev`)
+      traefik.http.routers.new-api.entrypoints: ${TRAEFIK_ENTRYPOINT:-websecure}
+      traefik.http.routers.new-api.tls: "true"
+      traefik.http.routers.new-api.tls.certresolver: ${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      traefik.http.services.new-api.loadbalancer.server.port: "3000"
+    environment:
+      SQL_DSN: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_CONN_STRING: redis://:${REDIS_PASSWORD}@redis:6379
+      SESSION_SECRET: ${SESSION_SECRET}
+      CRYPTO_SECRET: ${CRYPTO_SECRET}
+      # ERROR_LOG_ENABLED: "true"
+      # TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - new-api-data:/data
+      - new-api-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/status >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: new-api-postgres
+    restart: unless-stopped
+    networks:
+      - internal
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # No host port published — only reachable inside the compose network.
+
+  redis:
+    image: redis:7-alpine
+    container_name: new-api-redis
+    restart: unless-stopped
+    networks:
+      - internal
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+networks:
+  internal:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true
+
+volumes:
+  new-api-data:
+  new-api-logs:
+  postgres-data:
+  redis-data:

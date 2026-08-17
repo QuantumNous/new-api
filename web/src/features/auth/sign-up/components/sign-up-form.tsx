@@ -189,15 +189,6 @@ export function SignUpForm({
     }
   }
 
-  const handleOpenWeChatDialog = () => {
-    if (requiresLegalConsent && !agreedToLegal) {
-      toast.error(legalConsentErrorMessage)
-      return
-    }
-
-    setIsWeChatDialogOpen(true)
-  }
-
   const handleWeChatDialogChange = (open: boolean) => {
     setIsWeChatDialogOpen(open)
     if (!open) {
@@ -382,8 +373,6 @@ export function SignUpForm({
           <OAuthProviders
             status={status}
             disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
-            onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}
-            isWeChatLoading={isWeChatSubmitting}
             className='pt-2'
           />
         )}

@@ -21,6 +21,7 @@ import { parseCurrencyDisplayType } from '@/lib/currency'
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
+import { MezonPaymentSettingsSection } from '../integrations/mezon-payment-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
@@ -184,6 +185,23 @@ const BILLING_SECTIONS = [
             settings['payment_setting.compliance_terms_version'] ?? '',
           confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
           confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'mezon',
+    titleKey: 'Mezon Payment',
+    build: (settings: BillingSettings) => (
+      <MezonPaymentSettingsSection
+        defaultValues={{
+          MezonPaymentEnabled: settings.MezonPaymentEnabled ?? false,
+          MezonTreasuryAddress: settings.MezonTreasuryAddress ?? '',
+          MezonIndexerBase:
+            settings.MezonIndexerBase || 'https://dong.mezon.ai/indexer-api',
+          MezonChainId: settings.MezonChainId || '1337',
+          customCurrencyExchangeRate:
+            settings['general_setting.custom_currency_exchange_rate'] ?? 1,
         }}
       />
     ),

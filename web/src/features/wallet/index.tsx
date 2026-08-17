@@ -41,6 +41,7 @@ import {
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  useMezonPayment,
 } from './hooks'
 import {
   getDefaultPaymentType,
@@ -108,6 +109,7 @@ export function Wallet(props: WalletProps) {
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
+  const { claiming: mezonClaiming, claimMezonTopup } = useMezonPayment()
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
@@ -231,6 +233,15 @@ export function Wallet(props: WalletProps) {
     return success
   }
 
+  // Handle Mezon đồng claim
+  const handleMezonClaim = async (txHash: string) => {
+    const success = await claimMezonTopup(txHash)
+    if (success) {
+      await fetchUser()
+    }
+    return success
+  }
+
   // Handle Creem product selection
   const handleCreemProductSelect = (product: CreemProduct) => {
     setSelectedCreemProduct(product)
@@ -328,6 +339,11 @@ export function Wallet(props: WalletProps) {
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
                   }
+                  enableMezonTopup={topupInfo?.enable_mezon_topup}
+                  mezonTreasuryAddress={topupInfo?.mezon_treasury_address}
+                  mezonExplorerUrl={topupInfo?.mezon_explorer_url}
+                  onMezonClaim={handleMezonClaim}
+                  mezonClaiming={mezonClaiming}
                 />
               </div>
 
