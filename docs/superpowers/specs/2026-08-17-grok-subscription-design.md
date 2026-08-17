@@ -87,7 +87,7 @@ Client request
 
 ### 5.1 独立渠道类型
 
-新渠道类型接管 `ChannelTypeDummy` 当前占用的 `113`，并把 `ChannelTypeDummy` 后移到 `114`（`constant/channel.go`；`ChannelTypeDummy` 一贯是「仅用于计数、其后不得新增渠道」的哨兵，下游自定义渠道从 100 起，这正是仓库 `constant/AGENTS.md` 要求的新增方式，因此 `113` 不是「空闲值」而是从 Dummy 手中接管）。API type 枚举同理：`APITypeGrokSubscription` 取当前 `APITypeDummy` 的值 `41`，`APITypeDummy` 后移到 `42`（`constant/api_type.go` 用 iota 连续赋值——注意 `38` 已被 `APITypeBlockRun` 占用，早先草稿里的「38」是读数错误，不可使用）。改动这两个哨兵位必须同步更新断言其相对位置的守卫测试 `constant/copilot_channel_test.go` 与 `constant/modelapi_seedance_channel_test.go`，否则编译测试即红。若实施前 main 又占用了这些值，只允许重新取当时 Dummy 前的下一个值，不能复用或改写已发布类型。新类型在渠道名称、图标、默认模型、adaptor 注册、渠道测试和前端类型元数据中登记。现有 `ChannelTypeXai` 不改。
+新渠道类型接管 `ChannelTypeDummy` 当前占用的 `113`，并把 `ChannelTypeDummy` 后移到 `114`（`constant/channel.go`；`ChannelTypeDummy` 一贯是「仅用于计数、其后不得新增渠道」的哨兵，下游自定义渠道从 100 起，这正是仓库 `constant/AGENTS.md` 要求的新增方式，因此 `113` 不是「空闲值」而是从 Dummy 手中接管）。API type 枚举同理：`APITypeGrokSubscription` 取当前 `APITypeDummy` 的值 `38`，`APITypeDummy` 后移到 `39`（`constant/api_type.go` 用 iota 连续赋值——经编译器实测确认 `APITypeBlockRun=35`、`APITypeElevenLabs=36`、`APITypeCopilot=37`、`APITypeDummy=38`，因此接管值就是 `38`；实现时以 iota 位置为准，不要硬编码字面量）。改动这两个哨兵位必须同步更新断言其相对位置的守卫测试 `constant/copilot_channel_test.go` 与 `constant/modelapi_seedance_channel_test.go`，否则编译测试即红。若实施前 main 又占用了这些值，只允许重新取当时 Dummy 前的下一个值，不能复用或改写已发布类型。新类型在渠道名称、图标、默认模型、adaptor 注册、渠道测试和前端类型元数据中登记。现有 `ChannelTypeXai` 不改。
 
 Grok Subscription 不接受任意自定义上游 Base URL。允许的目标由代码常量和严格 host/path 校验决定；渠道的 `Proxy` 仍可作为出站网络代理，并应用于 OAuth、刷新、SSO 转换和推理，以保持账号网络出口一致。
 
