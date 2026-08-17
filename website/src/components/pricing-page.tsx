@@ -880,10 +880,9 @@ export function getPricingPlans(locale: Locale): PricingPlan[] {
 
 export function parsePricingSearch(searchParams?: Record<string, string | string[] | undefined>): PricingSearch {
   return {
-    q: parseParam(searchParams?.q),
     vendor: parseParam(searchParams?.vendor),
     endpoint: parseParam(searchParams?.endpoint),
-    quota: parseParam(searchParams?.quota),
+    pricing: parseParam(searchParams?.pricing) ?? parseParam(searchParams?.quota),
   };
 }
 
@@ -966,7 +965,7 @@ export async function ModelsPage(props: PricingPageProps) {
             WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
           }}
         />
-        <div className="relative mx-auto w-full max-w-[1800px] px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8">
+        <div className="fk-site-frame relative pt-16 pb-8 sm:pt-20 sm:pb-10">
           <header className="mx-auto mb-6 max-w-3xl pt-5 text-center sm:mb-10 sm:pt-10">
             <p className="mx-auto mb-4 inline-flex items-center gap-2 rounded-full border border-violet-400/35 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold tracking-[0.18em] text-violet-700 uppercase shadow-[0_0_28px_rgba(168,85,247,0.14)] dark:border-violet-300/25 dark:bg-violet-300/10 dark:text-violet-200">
               <span className="size-1.5 rounded-full bg-violet-500 shadow-[0_0_12px_rgba(168,85,247,0.9)] dark:bg-violet-300" />

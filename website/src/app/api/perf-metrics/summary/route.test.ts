@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { GET } from "./route";
 
 describe("perf metrics summary proxy", () => {
-  test("defaults omitted group to the merged all-groups scope", async () => {
+  test("omits group when using the merged all-groups scope", async () => {
     const originalFetch = globalThis.fetch;
     let requestedUrl = "";
     globalThis.fetch = ((url: string | URL) => {
@@ -16,7 +16,8 @@ describe("perf metrics summary proxy", () => {
       const response = await GET(request);
 
       expect(response.status).toBe(200);
-      expect(requestedUrl).toContain("group=all");
+      expect(requestedUrl).toContain("hours=24");
+      expect(requestedUrl).not.toContain("group=");
     } finally {
       globalThis.fetch = originalFetch;
     }

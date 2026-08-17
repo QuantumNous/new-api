@@ -12,6 +12,12 @@ variable "uptime_host" {
   description = "FQDN to probe for the uptime check (typically the API domain)"
 }
 
+variable "certificate_hosts" {
+  type        = set(string)
+  description = "Production HTTPS hosts whose served certificates are monitored for expiry."
+  default     = []
+}
+
 variable "alert_email" {
   type        = string
   description = "Legacy single email to notify. Prefer alert_emails for multiple recipients."

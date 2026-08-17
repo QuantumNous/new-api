@@ -3484,6 +3484,33 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+
+                        {currentType === 105 && (
+                          <FormField
+                            control={form.control}
+                            name='return_source_url'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>
+                                    {t('Return Source URL')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        )}
                       </div>
 
                       {currentType !== 111 && (

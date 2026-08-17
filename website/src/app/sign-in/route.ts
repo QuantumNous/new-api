@@ -1,6 +1,5 @@
-import { NextResponse } from "next/server";
-import { consoleUrl } from "@/lib/origins";
+import { redirectToGoogleSignIn } from "../sign-in-redirect";
 
 export function GET(request: Request) {
-  return NextResponse.redirect(consoleUrl("/sign-in", new URL(request.url).search), 301);
+  return redirectToGoogleSignIn(request);
 }

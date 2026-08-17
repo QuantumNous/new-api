@@ -119,8 +119,17 @@ export function getMixpanelConsentStatus(): MixpanelConsentStatus {
 export function shouldEnableMixpanel(): boolean {
   return (
     Boolean(MIXPANEL_TOKEN) &&
+    !isStagingAnalyticsHost() &&
     !isRecallClaimAnalyticsBlocked() &&
     getMixpanelConsentStatus() === 'granted'
+  )
+}
+
+export function isStagingAnalyticsHost(): boolean {
+  if (typeof window === 'undefined') return false
+  const hostname = window.location?.hostname || ''
+  return (
+    hostname === 'staging-console.flatkey.ai' || hostname.startsWith('staging-')
   )
 }
 

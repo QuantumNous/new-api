@@ -105,6 +105,10 @@ resource "google_secret_manager_secret_version" "staging_sql_dsn" {
     module.cloud_sql.connection_name,
     local.staging_db_name,
   )
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
 }
 
 resource "google_secret_manager_secret" "staging_session_secret" {
@@ -385,6 +389,8 @@ resource "google_cloud_run_v2_service" "staging" {
     ignore_changes = [
       template[0].containers[0].env,
       template[0].containers[0].image,
+      template[0].containers[0].liveness_probe,
+      template[0].containers[0].startup_probe,
       template[0].revision,
       client,
       client_version,
@@ -502,6 +508,8 @@ resource "google_cloud_run_v2_service" "staging_web" {
     ignore_changes = [
       template[0].containers[0].env,
       template[0].containers[0].image,
+      template[0].containers[0].liveness_probe,
+      template[0].containers[0].startup_probe,
       template[0].revision,
       client,
       client_version,

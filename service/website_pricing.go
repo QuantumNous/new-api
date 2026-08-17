@@ -20,9 +20,22 @@ const websitePricingV2Group = "plg"
 type WebsitePricePair struct {
 	Configured string `json:"configured"`
 	PLG        string `json:"plg"`
+	From       bool   `json:"from,omitempty"`
 }
 
 type WebsiteDisplayPrices struct {
+	Second      *WebsitePricePair `json:"second,omitempty"`
+	Input       *WebsitePricePair `json:"input,omitempty"`
+	Output      *WebsitePricePair `json:"output,omitempty"`
+	Cache       *WebsitePricePair `json:"cache,omitempty"`
+	CreateCache *WebsitePricePair `json:"create_cache,omitempty"`
+	Image       *WebsitePricePair `json:"image,omitempty"`
+	AudioInput  *WebsitePricePair `json:"audio_input,omitempty"`
+	AudioOutput *WebsitePricePair `json:"audio_output,omitempty"`
+	Request     *WebsitePricePair `json:"request,omitempty"`
+}
+
+type WebsitePricingPrices struct {
 	Input       *WebsitePricePair `json:"input"`
 	Output      *WebsitePricePair `json:"output"`
 	Cache       *WebsitePricePair `json:"cache"`
@@ -35,7 +48,7 @@ type WebsiteDisplayPrices struct {
 type WebsitePricingModel struct {
 	ModelName     string               `json:"model_name"`
 	BillingKind   string               `json:"billing_kind"`
-	Prices        WebsiteDisplayPrices `json:"prices"`
+	Prices        WebsitePricingPrices `json:"prices"`
 	FeaturedOrder *int                 `json:"featured_order,omitempty"`
 }
 
@@ -47,11 +60,17 @@ type WebsitePricingV2 struct {
 	Models        []WebsitePricingModel `json:"models"`
 }
 
+type WebsiteDisplayPricing struct {
+	BillingKind string               `json:"billing_kind"`
+	Prices      WebsiteDisplayPrices `json:"prices"`
+}
+
 type websitePricingSource interface {
 	BillingMode(string) string
 	EffectiveGroupRatio(string) types.GroupRatioInfo
 	HasGroup(string) bool
 	QuotaPerUnit() float64
+	VideoPriceRules() []billing_setting.VideoPriceRule
 }
 
 type liveWebsitePricingSource struct{}
@@ -70,6 +89,122 @@ func (liveWebsitePricingSource) HasGroup(group string) bool {
 }
 
 func (liveWebsitePricingSource) QuotaPerUnit() float64 { return common.QuotaPerUnit }
+
+func (liveWebsitePricingSource) VideoPriceRules() []billing_setting.VideoPriceRule {
+	return billing_setting.GetVideoPriceRules()
+}
+
+func BuildWebsiteDisplayPricing(
+	pricing []model.Pricing,
+	group string,
+) (map[string]WebsiteDisplayPricing, error) {
+	return buildWebsiteDisplayPricing(pricing, group, liveWebsitePricingSource{})
+}
+
+func buildWebsiteDisplayPricing(
+	pricing []model.Pricing,
+	group string,
+	source websitePricingSource,
+) (map[string]WebsiteDisplayPricing, error) {
+	if group != websitePricingV2Group {
+		return nil, fmt.Errorf("unsupported website pricing group %q", group)
+	}
+	if !source.HasGroup(group) {
+		return nil, errors.New("public website group is not configured")
+	}
+	quotaPerUnit := source.QuotaPerUnit()
+	if !validWebsitePrice(quotaPerUnit) || quotaPerUnit == 0 {
+		return nil, errors.New("quota per unit must be a positive finite number")
+	}
+
+	displayPricing := make(map[string]WebsiteDisplayPricing, len(pricing))
+	videoRules := source.VideoPriceRules()
+	for _, item := range pricing {
+		if !websiteModelVisibleToGroup(item, group) {
+			continue
+		}
+		ratioInfo := source.EffectiveGroupRatio(item.ModelName)
+		if !validWebsitePrice(ratioInfo.GroupRatio) {
+			return nil, fmt.Errorf("invalid group ratio for model %q", item.ModelName)
+		}
+
+		row := WebsiteDisplayPricing{}
+		secondPrice, hasSecondPrice, secondErr := websiteDisplaySecondPrice(item.ModelName, videoRules, ratioInfo.GroupRatio)
+		if secondErr != nil {
+			return nil, fmt.Errorf("invalid per-second price for model %q: %w", item.ModelName, secondErr)
+		}
+		if hasSecondPrice {
+			row.BillingKind = "per_second"
+			row.Prices.Second = secondPrice
+			displayPricing[item.ModelName] = row
+			continue
+		}
+		switch source.BillingMode(item.ModelName) {
+		case billing_setting.BillingModeTieredExpr:
+			// Expression-priced models have no single display price; leave them
+			// out of the display map so the site keeps its legacy
+			// dynamic-pricing presentation instead of a misleading flat rate.
+			continue
+		default:
+			if item.QuotaType == 1 {
+				row.BillingKind = "request"
+				requestPrice, err := websitePricePair(item.ModelPrice, ratioInfo.GroupRatio)
+				if err != nil {
+					return nil, fmt.Errorf("invalid request price for model %q: %w", item.ModelName, err)
+				}
+				row.Prices.Request = requestPrice
+				displayPricing[item.ModelName] = row
+				continue
+			}
+			row.BillingKind = "token"
+			if !validWebsitePrice(item.ModelRatio) {
+				return nil, fmt.Errorf("invalid model ratio for model %q", item.ModelName)
+			}
+			if !validWebsitePrice(item.CompletionRatio) {
+				return nil, fmt.Errorf("invalid completion ratio for model %q", item.ModelName)
+			}
+			if err := validateWebsiteOptionalRatios(item); err != nil {
+				return nil, fmt.Errorf("invalid optional ratio for model %q: %w", item.ModelName, err)
+			}
+			input := decimal.NewFromInt(1_000_000).
+				Mul(decimal.NewFromFloat(item.ModelRatio)).
+				Div(decimal.NewFromFloat(quotaPerUnit)).InexactFloat64()
+			if !validWebsitePrice(input) {
+				return nil, fmt.Errorf("invalid input price for model %q", item.ModelName)
+			}
+			var err error
+			if row.Prices.Input, err = websitePricePair(input, ratioInfo.GroupRatio); err != nil {
+				return nil, fmt.Errorf("invalid input price for model %q: %w", item.ModelName, err)
+			}
+			if row.Prices.Output, err = websiteScaledPricePair(input, ratioInfo.GroupRatio, item.CompletionRatio); err != nil {
+				return nil, fmt.Errorf("invalid output price for model %q: %w", item.ModelName, err)
+			}
+			if row.Prices.Cache, err = websiteOptionalPricePair(input, item.CacheRatio, ratioInfo.GroupRatio); err != nil {
+				return nil, fmt.Errorf("invalid cache price for model %q: %w", item.ModelName, err)
+			}
+			if row.Prices.CreateCache, err = websiteOptionalPricePair(input, item.CreateCacheRatio, ratioInfo.GroupRatio); err != nil {
+				return nil, fmt.Errorf("invalid cache creation price for model %q: %w", item.ModelName, err)
+			}
+			if row.Prices.Image, err = websiteOptionalPricePair(input, item.ImageRatio, ratioInfo.GroupRatio); err != nil {
+				return nil, fmt.Errorf("invalid image price for model %q: %w", item.ModelName, err)
+			}
+			if row.Prices.AudioInput, err = websiteOptionalPricePair(input, item.AudioRatio, ratioInfo.GroupRatio); err != nil {
+				return nil, fmt.Errorf("invalid audio input price for model %q: %w", item.ModelName, err)
+			}
+			if item.AudioCompletionRatio != nil {
+				audioRatio := 1.0
+				if item.AudioRatio != nil {
+					audioRatio = *item.AudioRatio
+				}
+				if row.Prices.AudioOutput, err = websiteScaledPricePair(input, ratioInfo.GroupRatio, audioRatio, *item.AudioCompletionRatio); err != nil {
+					return nil, fmt.Errorf("invalid audio output price for model %q: %w", item.ModelName, err)
+				}
+			}
+		}
+		displayPricing[item.ModelName] = row
+	}
+	return displayPricing, nil
+}
 
 func BuildWebsitePricingV2(
 	pricing []model.Pricing,
@@ -186,6 +321,33 @@ func buildWebsitePricingV2(
 		GeneratedAt:   generatedAt.Unix(),
 		Models:        models,
 	}, nil
+}
+
+func websiteDisplaySecondPrice(modelName string, rules []billing_setting.VideoPriceRule, groupRatio float64) (*WebsitePricePair, bool, error) {
+	var (
+		bestPrice float64
+		found     bool
+		valid     int
+	)
+	for _, rule := range rules {
+		if rule.Model != modelName || !validWebsitePrice(rule.PricePerSecond) || rule.PricePerSecond <= 0 {
+			continue
+		}
+		valid++
+		if !found || rule.PricePerSecond < bestPrice {
+			bestPrice = rule.PricePerSecond
+			found = true
+		}
+	}
+	if !found {
+		return nil, false, nil
+	}
+	price, err := websitePricePair(bestPrice, groupRatio)
+	if err != nil {
+		return nil, false, err
+	}
+	price.From = valid > 1
+	return price, true, nil
 }
 
 func featuredOrderOrMax(order *int) int {

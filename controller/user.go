@@ -27,6 +27,8 @@ import (
 )
 
 const maxAdsAttributionLength = 4096
+const consoleSessionHintCookieName = "flatkey_console_session_hint"
+const consoleSessionHintMaxAge = 60 * 60 * 24 * 30
 
 var allowedAdsAttributionKeys = map[string]struct{}{
 	"aff": {}, "fbclid": {}, "gad_campaignid": {}, "gad_source": {},
@@ -165,8 +167,7 @@ func primaryAcceptLanguage(header string) string {
 	return first
 }
 
-// setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
+func setupLoginSession(user *model.User, c *gin.Context, isNewUser ...bool) (map[string]any, error) {
 	model.UpdateUserLastLoginAt(user.Id)
 	if ip := c.ClientIP(); ip != "" && ip != user.LastLoginIp {
 		model.UpdateUserLastLoginIp(user.Id, ip)
@@ -182,9 +183,9 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	session.Set("group", user.Group)
 	err := session.Save()
 	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
-		return
+		return nil, err
 	}
+	setConsoleSessionHintCookie(c, true)
 	data := map[string]any{
 		"id":            user.Id,
 		"username":      user.Username,
@@ -199,6 +200,16 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	// normal logins (back-compat).
 	if len(isNewUser) > 0 && isNewUser[0] {
 		data["is_new_user"] = true
+	}
+	return data, nil
+}
+
+// setup session & cookies and then return user info
+func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
+	data, err := setupLoginSession(user, c, isNewUser...)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
@@ -218,10 +229,50 @@ func Logout(c *gin.Context) {
 		})
 		return
 	}
+	setConsoleSessionHintCookie(c, false)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
 	})
+}
+
+func setConsoleSessionHintCookie(c *gin.Context, enabled bool) {
+	maxAge := consoleSessionHintMaxAge
+	value := "1"
+	if !enabled {
+		maxAge = -1
+		value = ""
+	}
+	for _, domain := range sharedCookieHintDomainsForRequest(c) {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     consoleSessionHintCookieName,
+			Value:    value,
+			Path:     "/",
+			Domain:   domain,
+			MaxAge:   maxAge,
+			HttpOnly: false,
+			Secure:   common.SessionCookieSecure,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+}
+
+func sharedCookieHintDomainsForRequest(c *gin.Context) []string {
+	if configured := strings.TrimSpace(common.CookieSessionDomain); configured != "" {
+		return []string{"", configured}
+	}
+	host := strings.TrimSpace(c.Request.Host)
+	if host == "" {
+		return []string{""}
+	}
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	host = strings.ToLower(host)
+	if host == "flatkey.ai" || strings.HasSuffix(host, ".flatkey.ai") {
+		return []string{"", ".flatkey.ai"}
+	}
+	return []string{""}
 }
 
 // ensureDefaultUserToken idempotently creates the initial API key for a newly

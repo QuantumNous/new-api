@@ -4,7 +4,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "flatkey - One key. More models. More tools. Lower costs.",
   description:
-    "flatkey routes your requests to official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs, with 300+ frontier models and 1,000+ AI tools behind one key.",
+    "flatkey routes your requests to official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs, with 100+ frontier models and 1,000+ AI tools behind one key.",
   pathname: "/",
 });
 

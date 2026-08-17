@@ -233,7 +233,7 @@ func buildTokenForInsert(c *gin.Context, token model.Token, key string) (model.T
 		token.Group = plgGroup
 		token.CrossGroupRetry = false
 	}
-	return model.Token{
+	cleanToken := model.Token{
 		UserId:                c.GetInt("id"),
 		Name:                  token.Name,
 		Key:                   key,
@@ -249,12 +249,31 @@ func buildTokenForInsert(c *gin.Context, token model.Token, key string) (model.T
 		AllowIps:              token.AllowIps,
 		Group:                 token.Group,
 		CrossGroupRetry:       token.CrossGroupRetry,
-		Source:                token.Source,
-		DeviceIdHash:          token.DeviceIdHash,
-		ClientName:            token.ClientName,
-		ClientVersion:         token.ClientVersion,
-		LastUsedClientAt:      token.LastUsedClientAt,
-	}, nil
+	}
+	return cleanToken, nil
+}
+
+func buildCLITokenForInsert(c *gin.Context, token model.Token, key string) (model.Token, error) {
+	cleanToken, err := buildTokenForInsert(c, token, key)
+	if err != nil {
+		return model.Token{}, err
+	}
+	// CLI metadata is trusted only because this helper is called by the
+	// dedicated server-side device authorization flow. Public token creation
+	// deliberately drops these client-controlled model fields.
+	cleanToken.Source = token.Source
+	cleanToken.DeviceIdHash = token.DeviceIdHash
+	cleanToken.ClientName = token.ClientName
+	cleanToken.ClientVersion = token.ClientVersion
+	cleanToken.LastUsedClientAt = token.LastUsedClientAt
+	return cleanToken, nil
+}
+
+func tokenActivationEventName(token *model.Token) string {
+	if token != nil && token.Source == model.TokenSourceCLI {
+		return "cli_key_created"
+	}
+	return "api_key_created"
 }
 
 func applyInitialTokenDefaults(c *gin.Context, token *model.Token) error {
@@ -308,6 +327,7 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	sendActivationEvent(c, tokenActivationEventName(&cleanToken), map[string]any{"key_type": "manual"})
 	// Return the freshly minted key once (OpenRouter-style reveal). It is masked on every
 	// subsequent list/get, so this is the only chance for the client to surface it in full.
 	// `key` is the raw key; the frontend prepends the `sk-` prefix.
@@ -356,6 +376,9 @@ func EnsureInitialToken(c *gin.Context) {
 		}
 		common.ApiError(c, err)
 		return
+	}
+	if created && createdToken != nil {
+		sendActivationEvent(c, tokenActivationEventName(createdToken), map[string]any{"key_type": "initial"})
 	}
 	data := gin.H{
 		"created": created,

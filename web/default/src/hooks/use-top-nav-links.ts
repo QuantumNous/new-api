@@ -82,6 +82,19 @@ export function buildTopNavLinks(
   return links
 }
 
+/** The console header carries a single entry: Docs. */
+export function buildConsoleTopNavLinks(
+  translate: (key: string) => string
+): TopNavLink[] {
+  return [
+    {
+      title: translate('Docs'),
+      href: OFFICIAL_DOCUMENTATION_URL,
+      external: true,
+    },
+  ]
+}
+
 /**
  * Generate top navigation links based on HeaderNavModules configuration from backend /api/status
  * Backend format example (stringified JSON):
@@ -95,6 +108,9 @@ export function buildTopNavLinks(
  * the standalone documentation site. Pricing retains its existing
  * enable/require-auth controls. Rankings config is still parsed from shared
  * status but is not emitted by console top navigation.
+ *
+ * Public pages (PublicHeader / PublicNavigation) consume this hook; the
+ * authenticated console header uses useConsoleTopNavLinks instead.
  */
 export function useTopNavLinks(): TopNavLink[] {
   const { t, i18n } = useTranslation()
@@ -114,4 +130,13 @@ export function useTopNavLinks(): TopNavLink[] {
     modules,
     isAuthed: !!auth?.user,
   })
+}
+
+/**
+ * Console top navigation: a single Docs link to the standalone documentation
+ * site. Public-page navigation keeps the full useTopNavLinks set.
+ */
+export function useConsoleTopNavLinks(): TopNavLink[] {
+  const { t } = useTranslation()
+  return useMemo(() => buildConsoleTopNavLinks(t), [t])
 }

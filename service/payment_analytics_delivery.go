@@ -27,14 +27,22 @@ func deliverPaymentAnalyticsEvent(config GAConfig, event model.PaymentAnalyticsO
 		"item_id": event.ItemId, "item_name": event.ItemName,
 		"item_category": event.ProductType, "price": event.Value, "quantity": 1,
 	}}
-	return SendGAEventWithConfig(config, GAEvent{
-		Name: "purchase", ClientID: event.ClientId, SessionID: event.SessionId,
-		TimestampMicros: occurredAt * int64(time.Second/time.Microsecond),
-		Params: map[string]any{
-			"transaction_id": event.TransactionId, "value": event.Value, "currency": event.Currency,
-			"items": items, "payment_provider": event.PaymentProvider,
-			"payment_method": event.PaymentMethod, "product_type": event.ProductType,
-		},
+	params := map[string]any{
+		"transaction_id": event.TransactionId, "value": event.Value, "currency": event.Currency,
+		"items": items, "payment_provider": event.PaymentProvider,
+		"payment_method": event.PaymentMethod, "product_type": event.ProductType,
+	}
+	eventName := "topup_success"
+	switch event.ProductType {
+	case "subscription", "subscription_renewal":
+		eventName = "subscription_success"
+	}
+	base := GAEvent{ClientID: event.ClientId, SessionID: event.SessionId,
+		TimestampMicros: occurredAt * int64(time.Second/time.Microsecond), Params: params}
+	return sendGAEventsWithConfig(config, []GAEvent{
+		{Name: "purchase", ClientID: base.ClientID, SessionID: base.SessionID, TimestampMicros: base.TimestampMicros, Params: base.Params},
+		{Name: eventName, ClientID: base.ClientID, SessionID: base.SessionID, TimestampMicros: base.TimestampMicros, Params: base.Params},
+		{Name: "payment_success", ClientID: base.ClientID, SessionID: base.SessionID, TimestampMicros: base.TimestampMicros, Params: base.Params},
 	})
 }
 

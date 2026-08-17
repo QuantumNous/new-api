@@ -198,7 +198,15 @@
           }
         }
 
-        if (containsRecallClaim(w.location.href, 0) || hasStoredRecallClaim())
+        var hostname = w.location && w.location.hostname
+        var isStaging =
+          hostname === 'staging-console.flatkey.ai' ||
+          (typeof hostname === 'string' && hostname.indexOf('staging-') === 0)
+        if (
+          isStaging ||
+          containsRecallClaim(w.location.href, 0) ||
+          hasStoredRecallClaim()
+        )
           return
 
         function loadContainer(id) {

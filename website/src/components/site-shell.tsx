@@ -14,7 +14,8 @@ type Props = {
 };
 
 export function SiteShell(props: Props) {
-  const languageCookieDomain = process.env.COOKIE_SESSION_DOMAIN?.trim() || undefined;
+  const languageCookieDomain =
+    process.env.COOKIE_SESSION_DOMAIN?.trim() || undefined;
 
   return (
     <>
@@ -25,7 +26,9 @@ export function SiteShell(props: Props) {
         expandNavigationAtTablet={props.expandNavigationAtTablet}
         hideLanguageSwitcher={props.hideLanguageSwitcher}
       />
-      <main>{props.children}</main>
+      <div className="fk-site-main fk-new-home" data-route={props.pathname}>
+        {props.children}
+      </div>
       <SiteFooter locale={props.locale} />
     </>
   );

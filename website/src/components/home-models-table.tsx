@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DailyHealthBars } from "@/components/home-health-bars";
-import { ModelLogo } from "@/components/pricing-model-browser";
+import { HomeModelLogo } from "@/components/home-model-logo";
 import type { HomeCopy } from "@/lib/home-copy";
 import {
   fetchHealthSummary,
@@ -105,9 +105,14 @@ export function HomeModelsTable(props: Props) {
                   <tr key={row.name} className="border-b border-violet-500/8 transition-colors last:border-b-0 hover:bg-violet-500/4">
                     <td className="max-w-[280px] px-5 py-3">
                       <div className="flex items-center gap-2.5">
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-500/15 bg-violet-500/6">
-                          <ModelLogo iconKey={row.iconKey} fallback={row.name.charAt(0).toUpperCase()} size={18} />
-                        </span>
+                        <HomeModelLogo
+                          iconKey={row.iconKey}
+                          modelName={row.name}
+                          vendor={row.vendor}
+                          fallback={row.name.charAt(0)}
+                          surfaceSize={28}
+                          imageSize={18}
+                        />
                         <span className="min-w-0">
                           <span className="block truncate font-mono text-[13px] font-semibold tracking-tight">{row.name}</span>
                           <span className="text-muted-foreground/70 block text-[11px]">{row.vendor}</span>

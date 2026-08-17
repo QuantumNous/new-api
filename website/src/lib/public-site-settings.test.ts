@@ -3,6 +3,7 @@ import {
   DOCS_LINK_REVALIDATE_SECONDS,
   DOCS_LINK_TIMEOUT_MS,
   getDocsUrl,
+  getPublicSiteSettings,
   normalizeDocsUrl,
 } from "./public-site-settings";
 
@@ -59,6 +60,59 @@ describe("getDocsUrl", () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(DOCS_LINK_REVALIDATE_SECONDS).toBe(60);
     expect(DOCS_LINK_TIMEOUT_MS).toBe(3000);
+  });
+
+  test("reads Google One Tap settings from the public status response", async () => {
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              docs_link: "https://docs.example.com/start",
+              google_client_id: " google-client.apps.googleusercontent.com ",
+              google_oauth: true,
+            },
+          }),
+        ),
+      )) as typeof fetch;
+
+    await expect(getPublicSiteSettings()).resolves.toEqual({
+      docsUrl: "https://docs.example.com/start",
+      googleOneTap: {
+        clientId: "google-client.apps.googleusercontent.com",
+        enabled: true,
+      },
+    });
+  });
+
+  test("disables Google One Tap when OAuth is off or the client id is missing", async () => {
+    for (const data of [
+      {
+        google_client_id: "google-client.apps.googleusercontent.com",
+        google_oauth: false,
+      },
+      { google_client_id: "", google_oauth: true },
+      { google_oauth: true },
+    ]) {
+      globalThis.fetch = (() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              success: true,
+              data,
+            }),
+          ),
+        )) as typeof fetch;
+
+      await expect(getPublicSiteSettings()).resolves.toEqual({
+        docsUrl: null,
+        googleOneTap: {
+          clientId: data.google_client_id?.trim() || null,
+          enabled: false,
+        },
+      });
+    }
   });
 
   test("returns null for non-2xx, failed envelopes, invalid payloads, and request errors", async () => {

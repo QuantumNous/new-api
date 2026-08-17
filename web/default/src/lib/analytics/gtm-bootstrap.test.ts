@@ -38,15 +38,16 @@ function runBootstrap(href: string, storedValues: Record<string, string> = {}) {
       },
     },
   }
+  const parsedURL = new URL(href)
   const window = {
-    location: { href },
+    location: { href, hostname: parsedURL.hostname },
     sessionStorage: {
       getItem: (key: string) => sessionValues.get(key) ?? null,
       removeItem: (key: string) => sessionValues.delete(key),
     },
   } as {
     dataLayer?: unknown[]
-    location: { href: string }
+    location: { href: string; hostname: string }
     sessionStorage: {
       getItem: (key: string) => string | null
       removeItem: (key: string) => boolean
@@ -77,6 +78,13 @@ function deeplyNestedRecallURL(): string {
 }
 
 describe('GTM bootstrap recall claim isolation', () => {
+  test('does not load GTM on the staging console', () => {
+    const result = runBootstrap('https://staging-console.flatkey.ai/sign-in')
+
+    expect(result.window.dataLayer).toBeUndefined()
+    expect(result.insertedScripts).toHaveLength(0)
+  })
+
   test('does not create dataLayer or load GTM for a direct recall claim', () => {
     const result = runBootstrap(
       'https://console.example.com/sign-in?recall_claim=signed-secret'

@@ -29,8 +29,16 @@ export function formatJsonForTextarea(value: string) {
   }
 }
 
-export function normalizeJsonString(value: string) {
-  const trimmed = value.trim()
+/**
+ * Guards against an option key the backend has not written yet.
+ *
+ * Callers read these straight out of the settings map, so a key that has never
+ * been saved -- which is every deployment's state before a feature first writes
+ * one -- arrives as undefined. An unguarded trim() there throws during render
+ * and takes down the whole settings page.
+ */
+export function normalizeJsonString(value: string | undefined | null) {
+  const trimmed = (value ?? '').trim()
   if (!trimmed) {
     return ''
   }

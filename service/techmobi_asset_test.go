@@ -479,13 +479,14 @@ func TestTechMobiAssetMaterializerTreatsProcessingResponseAsRetryable(t *testing
 	require.NotContains(t, err.Error(), "req-processing")
 }
 
-func TestTechMobiAssetMaterializerProcessingWithAssetURLIsRetryable(t *testing.T) {
+func TestTechMobiAssetMaterializerProcessingWithAssetURLIsUsable(t *testing.T) {
 	result, err := createTechMobiAssetWithUploadResponse(t, `{"status":"Processing","assetUrl":"asset://upstream-processing"}`)
 
-	require.Error(t, err)
-	require.Empty(t, result.UpstreamAssetID)
-	require.True(t, IsRetryableAssetMaterializeError(err))
-	require.Equal(t, AssetMaterializeErrorProcessing, AssetMaterializeErrorClass(err))
+	if err != nil {
+		t.Fatalf("expected nil error, got class %s: %v", AssetMaterializeErrorClass(err), err)
+	}
+	require.Equal(t, "asset://upstream-processing", result.UpstreamAssetID)
+	require.Equal(t, model.AssetStatusActive, result.Status)
 }
 
 func TestTechMobiAssetMaterializerProcessingMissingAssetURLIsRetryable(t *testing.T) {
@@ -541,18 +542,18 @@ func createTechMobiAssetWithUploadResponse(t *testing.T, uploadBody string) (Ass
 	})
 }
 
-func TestTechMobiAssetMaterializerGetAssetDoesNotInferReadinessFromOpaqueURL(t *testing.T) {
+func TestTechMobiAssetMaterializerGetAssetReturnsActiveForValidHandle(t *testing.T) {
 	result, err := (techMobiAssetBindingMaterializer{}).GetAsset(
 		context.Background(),
 		AssetMaterializeInput{},
 		"asset://asset-opaque-123",
 	)
 
-	require.Error(t, err)
-	require.Empty(t, result.UpstreamAssetID)
-	require.Empty(t, result.Status)
-	require.True(t, IsRetryableAssetMaterializeError(err))
-	require.Equal(t, AssetMaterializeErrorProcessing, AssetMaterializeErrorClass(err))
+	if err != nil {
+		t.Fatalf("expected nil error, got class %s: %v", AssetMaterializeErrorClass(err), err)
+	}
+	require.Equal(t, "asset://asset-opaque-123", result.UpstreamAssetID)
+	require.Equal(t, model.AssetStatusActive, result.Status)
 }
 
 func TestTechMobiAssetMaterializerIsRegistered(t *testing.T) {

@@ -199,6 +199,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    return_source_url: false,
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -521,6 +522,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    return_source_url: false,
     system_prompt: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
@@ -872,6 +874,7 @@ const EditChannelModal = (props) => {
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          data.return_source_url = parsedSettings.return_source_url || false;
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -881,6 +884,7 @@ const EditChannelModal = (props) => {
           data.thinking_to_content = false;
           data.proxy = '';
           data.pass_through_body_enabled = false;
+          data.return_source_url = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
         }
@@ -889,6 +893,7 @@ const EditChannelModal = (props) => {
         data.thinking_to_content = false;
         data.proxy = '';
         data.pass_through_body_enabled = false;
+        data.return_source_url = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
       }
@@ -998,6 +1003,7 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        return_source_url: data.return_source_url,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1041,6 +1047,7 @@ const EditChannelModal = (props) => {
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
+        data.return_source_url ||
         data.force_format ||
         data.claude_beta_query ||
         data.system_prompt_override;
@@ -1392,6 +1399,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      return_source_url: false,
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1762,6 +1770,11 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.type === 111 ? '' : localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
+      // 仅 TechMobi 视频渠道（type 105）后端才会读取该开关
+      return_source_url:
+        localInputs.type === 105
+          ? localInputs.return_source_url || false
+          : false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
     };
@@ -1843,6 +1856,7 @@ const EditChannelModal = (props) => {
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
+    delete localInputs.return_source_url;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.is_enterprise_account;
@@ -2749,6 +2763,21 @@ const EditChannelModal = (props) => {
                     }
                     extraText={t('启用请求体透传功能')}
                   />
+
+                  {inputs.type === 105 && (
+                    <Form.Switch
+                      field='return_source_url'
+                      label={t('直接返回上游视频链接')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('return_source_url', value)
+                      }
+                      extraText={t(
+                        '开启后成功任务直接返回上游原始视频 URL，不再转存 GCS；会暴露上游主机名，链接有效期由上游决定',
+                      )}
+                    />
+                  )}
 
                   {inputs.type !== 111 && (
                     <Form.Input

@@ -301,10 +301,10 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       secondary: "查看定价",
       hero: {
         badge: "兼容多模型，面向企业级场景",
-        titleLine1: "所有模型。",
-        titleLine2: "一个密钥。统一费率。",
+        titleLine1: "所有模型",
+        titleLine2: "一个密钥 统一费率",
         toolsLabel: "兼容你正在使用的工具",
-        toolsDescription: "支持一键配置，并完美适配 NewAPI 多协议配置。",
+        toolsDescription: "支持一键配置，并完美适配 NewAPI 多协议配置",
         moreApps: "更多应用",
       },
       stats: {
@@ -418,8 +418,8 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       serviceLevelAgreement: "服务等级协议",
       refundPolicy: "退款政策",
       supportEmail: "支持：support@flatkey.ai",
-      defaultCopyright: "保留所有权利。",
-      projectAttributionSuffix: "AI API 网关与模型运营平台。",
+      defaultCopyright: "保留所有权利",
+      projectAttributionSuffix: "AI API 网关与模型运营平台",
     },
   },
   es: {

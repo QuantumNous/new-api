@@ -43,8 +43,9 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
         {props.plans.map((plan) => (
           <article
             key={plan.name}
+            id={plan.action === "contact" ? "enterprise" : undefined}
             className={[
-              "relative flex min-h-[440px] flex-col rounded-2xl border bg-white/78 p-6 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.68)] backdrop-blur-sm dark:bg-white/[0.055] dark:shadow-[0_24px_80px_-56px_rgba(124,58,237,0.95)]",
+              "relative flex min-h-[440px] scroll-mt-28 flex-col rounded-2xl border bg-white/78 p-6 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.68)] backdrop-blur-sm dark:bg-white/[0.055] dark:shadow-[0_24px_80px_-56px_rgba(124,58,237,0.95)]",
               plan.featured ? "border-violet-500/45 ring-2 ring-violet-500/12 dark:border-violet-300/45 dark:ring-violet-300/15" : "border-violet-500/14 dark:border-white/10",
             ].join(" ")}
           >

@@ -17,7 +17,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+
+const LOCALES = ['en', 'es', 'fr', 'ja', 'pt', 'ru', 'vi', 'zh'] as const
+
+// Product names stay identical in every language by design; they are also
+// registered in scripts/sync-i18n.mjs BRAND_AND_LITERAL_KEYS.
+const BRAND_KEYS = new Set(['Flatkey CLI', 'Codex & Claude Code'])
+
+function readLocale(locale: string): Record<string, string> {
+  const file = JSON.parse(
+    readFileSync(
+      new URL(`../../../../i18n/locales/${locale}.json`, import.meta.url),
+      'utf8'
+    )
+  ) as { translation: Record<string, string> }
+  return file.translation
+}
+
+/** Every t('...') / t("...") literal used by the overview components. */
+function collectOverviewKeys(): string[] {
+  const dir = new URL('./', import.meta.url)
+  const keys = new Set<string>()
+
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.tsx')) continue
+    const source = readFileSync(new URL(name, dir), 'utf8')
+    for (const match of source.matchAll(
+      /\bt\(\s*(['"])((?:\\.|(?!\1)[^\\])*)\1/g
+    )) {
+      keys.add(match[2].replace(/\\'/g, "'").replace(/\\"/g, '"'))
+    }
+  }
+
+  return [...keys]
+}
 
 const legacyBannerKeys = [
   'Only {{balance}} left — keep using Claude / GPT?',
@@ -37,20 +71,55 @@ describe('subscription dashboard messaging', () => {
     expect(dashboardSource).not.toContain('TopupBonusBanner')
     expect(existsSync(legacyBannerUrl)).toBe(false)
 
-    for (const locale of ['en', 'es', 'fr', 'ja', 'pt', 'ru', 'vi', 'zh']) {
-      const localeFile = JSON.parse(
-        readFileSync(
-          new URL(`../../../../i18n/locales/${locale}.json`, import.meta.url),
-          'utf8'
-        )
-      ) as { translation: Record<string, string> }
+    for (const locale of LOCALES) {
+      const translation = readLocale(locale)
 
       for (const key of legacyBannerKeys) {
         expect(
-          Object.prototype.hasOwnProperty.call(localeFile.translation, key),
+          Object.prototype.hasOwnProperty.call(translation, key),
           `${locale} should not retain legacy low-balance top-up copy: ${key}`
         ).toBe(false)
       }
     }
   })
+})
+
+describe('overview integration copy', () => {
+  const overviewKeys = collectOverviewKeys()
+
+  test('finds the overview copy it is meant to guard', () => {
+    expect(overviewKeys.length).toBeGreaterThan(20)
+    expect(overviewKeys).toContain('Your AI gateway')
+    expect(overviewKeys).toContain('Step 1 · Choose an API key')
+  })
+
+  for (const locale of LOCALES) {
+    test(`${locale} defines every overview key`, () => {
+      const translation = readLocale(locale)
+
+      for (const key of overviewKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translation, key),
+          `${locale} is missing overview copy: ${key}`
+        ).toBe(true)
+      }
+    })
+  }
+
+  // Guards the failure mode this repo hits repeatedly: a key is added to every
+  // file but non-English values are left as the English source string.
+  for (const locale of LOCALES.filter((l) => l !== 'en')) {
+    test(`${locale} actually translates overview copy`, () => {
+      const english = readLocale('en')
+      const translation = readLocale(locale)
+
+      for (const key of overviewKeys) {
+        if (BRAND_KEYS.has(key)) continue
+        expect(
+          translation[key] !== english[key],
+          `${locale} left overview copy untranslated: ${key}`
+        ).toBe(true)
+      }
+    })
+  }
 })

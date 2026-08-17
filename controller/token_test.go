@@ -89,6 +89,60 @@ type legacyToken struct {
 	DeletedAt             gorm.DeletedAt `gorm:"index"`
 }
 
+func TestTokenActivationEventNameUsesTrustedSourceNotDisplayName(t *testing.T) {
+	require.Equal(t, "api_key_created", tokenActivationEventName(&model.Token{Name: "Flatkey CLI"}))
+	require.Equal(t, "cli_key_created", tokenActivationEventName(&model.Token{
+		Name:   "renamed cli key",
+		Source: model.TokenSourceCLI,
+	}))
+}
+
+func TestBuildTokenForInsertDropsUntrustedCliMetadata(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 12)
+	ctx, _ := newAuthenticatedContext(t, http.MethodPost, "/api/token/", nil, 12)
+
+	token, err := buildTokenForInsert(ctx, model.Token{
+		Name:             "Flatkey CLI",
+		Source:           model.TokenSourceCLI,
+		DeviceIdHash:     "forged-device",
+		ClientName:       "forged-client",
+		ClientVersion:    "9.9.9",
+		LastUsedClientAt: 123,
+	}, "generated-key")
+
+	require.NoError(t, err)
+	require.Empty(t, token.Source)
+	require.Empty(t, token.DeviceIdHash)
+	require.Empty(t, token.ClientName)
+	require.Empty(t, token.ClientVersion)
+	require.Zero(t, token.LastUsedClientAt)
+	require.Equal(t, "api_key_created", tokenActivationEventName(&token))
+}
+
+func TestBuildTokenForInsertPreservesTrustedCliMetadata(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 13)
+	ctx, _ := newAuthenticatedContext(t, http.MethodPost, "/api/token/", nil, 13)
+
+	token, err := buildCLITokenForInsert(ctx, model.Token{
+		Name:             "Flatkey CLI",
+		Source:           model.TokenSourceCLI,
+		DeviceIdHash:     "trusted-device",
+		ClientName:       "flatkey-cli",
+		ClientVersion:    "1.2.3",
+		LastUsedClientAt: 456,
+	}, "generated-key")
+
+	require.NoError(t, err)
+	require.Equal(t, model.TokenSourceCLI, token.Source)
+	require.Equal(t, "trusted-device", token.DeviceIdHash)
+	require.Equal(t, "flatkey-cli", token.ClientName)
+	require.Equal(t, "1.2.3", token.ClientVersion)
+	require.Equal(t, int64(456), token.LastUsedClientAt)
+	require.Equal(t, "cli_key_created", tokenActivationEventName(&token))
+}
+
 func (legacyToken) TableName() string {
 	return "tokens"
 }

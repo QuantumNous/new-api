@@ -134,6 +134,22 @@ var _ interface {
 	SecondBillingRatios() (map[string]float64, error)
 } = (*TaskAdaptor)(nil)
 
+// service's perCallTaskBillingAdjuster is unexported, so assert the method set.
+// Without this a typo'd name would compile and silently keep the reservation.
+var _ interface {
+	AdjustPerCallBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int
+} = (*TaskAdaptor)(nil)
+
+// AdjustPerCallBillingOnComplete implements service's perCallTaskBillingAdjuster.
+//
+// xAI prices by output resolution but accepts no resolution parameter, so the
+// reservation cannot know what tier it is paying for. The upstream reports the
+// exact charge on completion; settling against it tracks the published price
+// through any tier, discount, or repricing without a config change.
+func (a *TaskAdaptor) AdjustPerCallBillingOnComplete(task *model.Task, _ *relaycommon.TaskInfo) int {
+	return completedQuota(task)
+}
+
 // SecondBillingRatios implements the relay's secondBillingAdaptor interface.
 func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
 	if a.secondBillingErr != nil {
@@ -424,7 +440,19 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 
-	return map[string]float64{"seconds": float64(seconds)}
+	multiplier := float64(seconds)
+	if info != nil {
+		if worst, ok := worstCaseRatePerSecond(info.OriginModelName); ok {
+			if configured := info.PriceData.ModelPrice; configured > 0 && worst > configured {
+				// Reserve at the tier the model could actually produce, not the
+				// tier the configured rate assumes. Settlement refunds down to
+				// the cost the upstream reports, so over-reserving is visible
+				// and self-correcting; under-reserving is not.
+				multiplier = float64(seconds) * (worst / configured)
+			}
+		}
+	}
+	return map[string]float64{"seconds": multiplier}
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {

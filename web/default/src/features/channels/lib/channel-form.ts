@@ -327,6 +327,7 @@ export const channelFormSchema = z
     thinking_to_content: z.boolean().optional(),
     proxy: z.string().optional(),
     pass_through_body_enabled: z.boolean().optional(),
+    return_source_url: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     image_carrier_model: z.string().optional(),
@@ -489,6 +490,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   thinking_to_content: false,
   proxy: '',
   pass_through_body_enabled: false,
+  return_source_url: false,
   system_prompt: '',
   system_prompt_override: false,
   image_carrier_model: '',
@@ -529,6 +531,7 @@ export function transformChannelToFormDefaults(
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    return_source_url: false,
     system_prompt: '',
     system_prompt_override: false,
     image_carrier_model: '',
@@ -543,6 +546,7 @@ export function transformChannelToFormDefaults(
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
+        return_source_url: parsed.return_source_url || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         image_carrier_model: parsed.image_carrier_model || '',
@@ -667,6 +671,9 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.type === 111 ? '' : formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
+    // Only TechMobi video channels (type 105) honor this switch server-side
+    return_source_url:
+      formData.type === 105 ? formData.return_source_url || false : false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     image_carrier_model: formData.image_carrier_model || '',
@@ -690,6 +697,7 @@ export function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.force_format ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
+    (values.type === 105 && values.return_source_url) ||
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||

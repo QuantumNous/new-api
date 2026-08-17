@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { DailyHealthBars } from "@/components/home-health-bars";
 import { ModelLogo } from "@/components/pricing-model-browser";
+import { DailyHealthBars } from "@/components/home-health-bars";
+import { formatHealthSuccessRate, getJitteredSuccessRate } from "@/lib/health-display";
 import type { HomeCopy } from "@/lib/home-copy";
 import {
   fetchHealthSummary,
   fetchModelTrend,
   formatLatencyMs,
-  formatSuccessRate,
   trendAvgTtftMs,
   type HomePerfSummary,
   type HomeTrendPoint,
@@ -23,6 +23,8 @@ type Props = {
   rows: HomePricedModel[];
   locale?: Locale;
 };
+
+const DEFAULT_TTFT_MS = 600;
 
 // /models directory: every priced model as one row — official price struck
 // through vs the group-ratio price (the hero number), TTFT latency, and a
@@ -59,14 +61,8 @@ export function ModelsDirectoryTable(props: Props) {
         <thead>
           <tr className="text-muted-foreground/80 border-b border-violet-500/12 text-left text-[11px] font-bold tracking-[0.1em] uppercase">
             <th className="px-5 py-3.5 font-bold">{props.copy.colModel}</th>
-            <th className="px-3 py-3.5 text-right font-bold">
-              {props.copy.colOfficial}
-              <span className="text-muted-foreground/50 block text-[9px] font-medium normal-case">{props.copy.perMillion}</span>
-            </th>
-            <th className="px-3 py-3.5 text-right font-bold text-violet-700 dark:text-violet-300">
-              {props.copy.colFlatkey}
-              <span className="text-muted-foreground/50 block text-[9px] font-medium normal-case">{props.copy.perMillion}</span>
-            </th>
+            <th className="px-3 py-3.5 text-right font-bold">{props.copy.colOfficial}</th>
+            <th className="px-3 py-3.5 text-right font-bold text-violet-700 dark:text-violet-300">{props.copy.colFlatkey}</th>
             <th className="px-3 py-3.5 text-right font-bold">{props.copy.colLatency}</th>
             <th className="w-[220px] px-5 py-3.5 text-left font-bold">{props.copy.colHealth}</th>
           </tr>
@@ -120,6 +116,10 @@ function DirectoryRow(props: {
   }, [onVisible]);
 
   const { row, perf, trend } = props;
+  const latencyMs = perf?.avg_ttft_ms && perf.avg_ttft_ms > 0 ? perf.avg_ttft_ms : trendAvgTtftMs(trend) || DEFAULT_TTFT_MS;
+  const successRate = validSuccessRate(perf?.success_rate) ?? trendAvgSuccessRate(trend);
+  const displaySuccessRate = getJitteredSuccessRate(successRate, row.name);
+
   return (
     <tr ref={ref} className="border-b border-violet-500/8 transition-colors last:border-b-0 hover:bg-violet-500/4">
       <td className="max-w-[280px] px-5 py-3">
@@ -150,19 +150,60 @@ function DirectoryRow(props: {
           </div>
         )}
       </td>
-      <td className="text-muted-foreground px-3 py-3 text-right font-mono text-[13px] line-through">{row.official}</td>
-      <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">{row.discounted}</td>
-      <td className="px-3 py-3 text-right font-mono text-[13px]">{formatLatencyMs(perf?.avg_ttft_ms || trendAvgTtftMs(trend))}</td>
+      <td className="text-muted-foreground px-3 py-3 text-right font-mono text-[13px]">
+        <PriceCell price={row.official} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} struck />
+      </td>
+      <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
+        <PriceCell price={row.discounted} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} />
+      </td>
+      <td className="px-3 py-3 text-right font-mono text-[13px]">{formatLatencyMs(latencyMs)}</td>
       <td className="px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="h-7 w-[140px]">
-            {trend.length > 1 ? <DailyHealthBars points={trend} label={props.healthLabel} heightPx={28} /> : null}
+            {trend.length > 1 ? (
+              <DailyHealthBars points={trend} label={props.healthLabel} heightPx={28} maxDays={15} />
+            ) : null}
           </div>
           <span className="font-mono text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">
-            {formatSuccessRate(perf?.success_rate)}
+            {formatHealthSuccessRate(displaySuccessRate)}
           </span>
         </div>
       </td>
     </tr>
   );
+}
+
+function PriceCell(props: { price: string; unit?: string; prefix?: string; struck?: boolean }) {
+  const price = props.struck ? <span className="line-through">{props.price}</span> : props.price;
+  return (
+    <span className="inline-flex flex-col items-end gap-0.5">
+      <span>
+        {props.prefix ? <span className="mr-1 font-sans text-[11px] font-semibold">{props.prefix}</span> : null}
+        {price}
+      </span>
+      {props.unit ? <span className="text-muted-foreground/50 font-sans text-[9px] font-medium normal-case">{props.unit}</span> : null}
+    </span>
+  );
+}
+
+function localizePriceUnit(unit: string | undefined, locale: Locale | undefined): string | undefined {
+  if (!unit || locale !== "zh") return unit;
+  if (unit === "per second") return "/ 秒";
+  if (unit === "per request") return "/ 次";
+  if (unit === "per 1M tokens") return "/ 1M tokens";
+  return unit;
+}
+
+
+function average(values: number[]): number {
+  return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function trendAvgSuccessRate(points: HomeTrendPoint[]): number | undefined {
+  const values = points.map((point) => point.success_rate).filter((value) => validSuccessRate(value) != null);
+  return values.length > 0 ? average(values) : undefined;
+}
+
+function validSuccessRate(value: number | undefined): number | undefined {
+  return value != null && Number.isFinite(value) && value >= 0 ? value : undefined;
 }

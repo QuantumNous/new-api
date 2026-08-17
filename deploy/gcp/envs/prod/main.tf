@@ -107,7 +107,8 @@ module "cloud_sql" {
 
   # 2c/4GB -> 4c/16GB (2026-06-12): logs analytics queries thrash the buffer
   # pool; changing tier restarts the ZONAL instance (~2-5 min downtime).
-  tier = "db-custom-4-16384"
+  tier         = "db-custom-4-16384"
+  disk_size_gb = var.cloud_sql_disk_size_gb
 
   depends_on = [module.apis]
 }
@@ -145,6 +146,10 @@ resource "google_secret_manager_secret_version" "sql_dsn" {
     module.cloud_sql.connection_name,
     module.cloud_sql.database_name,
   )
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
 }
 
 resource "google_secret_manager_secret" "redis_url" {
@@ -483,6 +488,7 @@ module "monitoring" {
   project_id               = var.project_id
   region                   = var.region
   uptime_host              = local.uptime_host
+  certificate_hosts        = toset(var.lb_domains)
   alert_email              = var.alert_email
   alert_emails             = var.alert_emails
   router_service_name      = var.router_service_name

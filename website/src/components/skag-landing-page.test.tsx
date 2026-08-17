@@ -43,25 +43,27 @@ describe("SkagLandingPage", () => {
     const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("chinese-ai-models-api", "pt")} />);
 
     for (const text of [
-      "Modelos Chineses de IA",
-      "Obter sua chave de API para modelos chineses",
-      "Ver preços ao vivo",
-      "/pt/pricing",
+      "Modelos chineses de IA",
+      "Crie sua chave de API grátis",
+      "Preços de referência",
+      "US$ por 1 milhão de tokens",
       "DeepSeek",
       "Qwen",
       "GLM",
       "Kimi",
       "Seedance",
-      "deepseek-v4-flash",
     ]) {
       expect(html).toContain(text);
     }
+    expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).not.toContain("curl");
   });
 
   test("uses the shared site shell so paid-search pages retain the homepage navigation", () => {
     const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api", "pt")} />);
 
-    for (const text of ["Produtos", "Desenvolvedores", "Recursos", "Português", "Começar grátis"]) {
+    for (const text of ["Produto", "Recursos", "Português", "Começar grátis"]) {
       expect(html).toContain(text);
     }
   });
@@ -87,5 +89,43 @@ describe("SkagLandingPage", () => {
       expect(html).not.toContain("from openai import OpenAI");
       expect(html).toContain("max-w-6xl");
     }
+  });
+
+  test("renders the Portuguese GPT page with current model coverage and one primary CTA", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("gpt-api", "pt")} />);
+
+    for (const text of [
+      "API GPT",
+      "GPT-5.6 Sol",
+      "GPT-5.5",
+      "GPT Image 2",
+      "OpenAI",
+      "gpt-5.5",
+      "Obter chave da API GPT",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).toContain("max-w-6xl");
+  });
+
+  test("renders the Portuguese Claude page with current model coverage and one primary CTA", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("claude-api", "pt")} />);
+
+    for (const text of [
+      "API Claude",
+      "Claude Opus 5",
+      "Claude Sonnet 5",
+      "Claude Haiku 4.5",
+      "OpenAI",
+      "claude-sonnet-5",
+      "Obter chave da API Claude",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).not.toContain("Ver preços ao vivo");
+    expect(html).not.toContain("from openai import OpenAI");
+    expect(html).toContain("max-w-6xl");
   });
 });

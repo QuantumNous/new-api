@@ -123,8 +123,7 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
   return (
     <div className='space-y-5'>
       <div>
-        <div className='text-sm font-semibold'>{t('Choose an amount')}</div>
-        <p className='text-muted-foreground mt-1 text-xs'>
+        <p className='text-muted-foreground text-xs'>
           {t('The amount you pay is added to your balance at face value.')}
         </p>
       </div>
@@ -232,7 +231,7 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
           ? t('Top up {{amount}}', {
               amount: `$${formatNumber(selected.value)}`,
             })
-          : t('Choose an amount')}
+          : t('Top up balance')}
       </Button>
     </div>
   )
