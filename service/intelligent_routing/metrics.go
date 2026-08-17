@@ -29,6 +29,8 @@ type Metrics struct {
 	totalDuration time.Duration
 }
 
+var DefaultMetrics Metrics
+
 func (metrics *Metrics) Observe(observation Observation) {
 	metrics.mu.Lock()
 	defer metrics.mu.Unlock()

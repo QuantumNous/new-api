@@ -264,6 +264,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 }
 
 func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource) error {
+	startedAt := time.Now()
 	config := routingsetting.Get()
 	features := intelligentrouting.ExtractFeatures(intelligentrouting.Input{
 		Request: info.Request, RelayFormat: info.RelayFormat, PromptTokens: promptTokens, RequestPath: c.Request.URL.Path,
@@ -278,9 +279,11 @@ func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTok
 		MaxCostMultiplier: config.MaxCostMultiplier,
 	})
 	if err != nil {
+		intelligentrouting.DefaultMetrics.Observe(intelligentrouting.Observation{NoRoute: true, PlanningDuration: time.Since(startedAt)})
 		return err
 	}
 	info.IntelligentRoutePlan = &plan
+	intelligentrouting.DefaultMetrics.Observe(intelligentrouting.Observation{CandidateTier: plan.Nodes[0].Tier, PlanningDuration: time.Since(startedAt)})
 	return nil
 }
 

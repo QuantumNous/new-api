@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/QuantumNous/new-api/setting/config"
 )
 
 type TaskType string
@@ -43,9 +45,13 @@ type Config struct {
 }
 
 var current atomic.Pointer[Config]
+var registeredConfig Config
 
 func init() {
-	_ = Update(Config{})
+	normalized, _ := Normalize(Config{})
+	registeredConfig = normalized
+	current.Store(&normalized)
+	config.GlobalConfig.Register("intelligent_routing_setting", &registeredConfig)
 }
 
 func Normalize(input Config) (Config, error) {
@@ -100,7 +106,12 @@ func Update(input Config) error {
 		return err
 	}
 	current.Store(&normalized)
+	registeredConfig = clone(normalized)
 	return nil
+}
+
+func UpdateAndSync() error {
+	return Update(registeredConfig)
 }
 
 func Get() Config {
