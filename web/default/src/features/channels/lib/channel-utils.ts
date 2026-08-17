@@ -115,6 +115,7 @@ export function getChannelTypeIcon(type: number): string {
     47: 'Xinference', // Xinference
     53: 'OpenAI', // Submodel
     100: 'OpenAI', // BlockRun (multi-provider gateway, generic icon)
+    112: 'Github', // GitHub Copilot
 
     // AI Proxy services
     10: 'OpenAI', // AI Proxy

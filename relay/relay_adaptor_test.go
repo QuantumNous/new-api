@@ -5,12 +5,20 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/relay/channel/copilot"
 	"github.com/QuantumNous/new-api/relay/channel/task/byteplus"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
 	"github.com/QuantumNous/new-api/relay/channel/task/modelapiseedance"
 	"github.com/QuantumNous/new-api/relay/channel/task/sonilo"
 )
+
+func TestGetAdaptorCopilot(t *testing.T) {
+	adaptor := GetAdaptor(constant.APITypeCopilot)
+	if _, ok := adaptor.(*copilot.Adaptor); !ok {
+		t.Fatalf("adaptor type = %T, want *copilot.Adaptor", adaptor)
+	}
+}
 
 func TestGetTaskAdaptor_JimengProxy(t *testing.T) {
 	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeJimengProxy)))

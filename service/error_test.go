@@ -182,6 +182,16 @@ func TestScrubWhitelabelError(t *testing.T) {
 		require.Equal(t, benign, e.ToOpenAIError().Message)
 	})
 
+	t.Run("copilot branded upstream is scrubbed but local unsupported stays clear", func(t *testing.T) {
+		branded := plain("GitHub Copilot upstream api.githubcopilot.com rejected the request")
+		ScrubWhitelabelError(context.Background(), branded, constant.ChannelTypeCopilot)
+		require.Equal(t, whitelabelGenericErrorMessage, branded.ToOpenAIError().Message)
+
+		local := types.NewErrorWithStatusCode(errors.New("Copilot only supports /v1/chat/completions"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		ScrubWhitelabelError(context.Background(), local, constant.ChannelTypeCopilot)
+		require.Equal(t, "Copilot only supports /v1/chat/completions", local.ToOpenAIError().Message)
+	})
+
 	t.Run("non-whitelabel channel never scrubbed", func(t *testing.T) {
 		e := plain(leak)
 		ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeOpenAI)

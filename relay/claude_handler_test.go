@@ -70,6 +70,30 @@ func TestShouldClaudeUseResponsesBridgeHonorsPassThroughForOtherChannels(t *test
 	require.False(t, shouldClaudeUseResponsesBridge(info))
 }
 
+func TestShouldClaudeUseResponsesBridgeUsesNativeCopilotMessages(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previousPassThrough := settings.PassThroughRequestEnabled
+	previousPolicy := settings.ChatCompletionsToResponsesPolicy
+	settings.PassThroughRequestEnabled = false
+	settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{
+		Enabled:      true,
+		ChannelTypes: []int{constant.ChannelTypeCopilot},
+	}
+	t.Cleanup(func() {
+		settings.PassThroughRequestEnabled = previousPassThrough
+		settings.ChatCompletionsToResponsesPolicy = previousPolicy
+	})
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiType:     constant.APITypeCopilot,
+			ChannelType: constant.ChannelTypeCopilot,
+		},
+	}
+
+	require.False(t, shouldClaudeUseResponsesBridge(info))
+}
+
 func TestShouldClaudeUseResponsesBridgeForCodexDespiteChannelPassThrough(t *testing.T) {
 	settings := model_setting.GetGlobalSettings()
 	previous := settings.PassThroughRequestEnabled

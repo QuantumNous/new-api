@@ -52,6 +52,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Gemini',
   'Gemini Image 4K',
   'GitHub',
+  'GitHub Copilot',
   'Google',
   'Jimeng',
   'JustSong',

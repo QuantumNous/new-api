@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/cloudflare"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
+	"github.com/QuantumNous/new-api/relay/channel/copilot"
 	"github.com/QuantumNous/new-api/relay/channel/coze"
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/dify"
@@ -163,6 +164,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &codex.Adaptor{}
 	case constant.APITypeBlockRun:
 		return &blockrun.Adaptor{}
+	case constant.APITypeCopilot:
+		return &copilot.Adaptor{}
 	}
 	return nil
 }

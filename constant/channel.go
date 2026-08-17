@@ -71,7 +71,8 @@ const (
 	ChannelTypeSonilo           = 109 // Sonilo async video-to-music API; whitelabel
 	ChannelTypeMiniMaxH3        = 110 // MiniMax H3 async video API
 	ChannelTypeModelAPISeedance = 111 // ModelAPI Seedance 2.5 async video API; whitelabel
-	ChannelTypeDummy            = 112 // this one is only for count, do not add any channel after this
+	ChannelTypeCopilot          = 112 // GitHub Copilot Chat Completions API
+	ChannelTypeDummy            = 113 // this one is only for count, do not add any channel after this
 )
 
 var ChannelBaseURLs = []string{
@@ -152,6 +153,7 @@ var ChannelBaseURLs = []string{
 	"https://api.sonilo.com",                  // 109 Sonilo
 	"https://api.minimax.io",                  // 110 MiniMaxH3
 	"https://api.modelapi.co",                 // 111 ModelAPISeedance
+	"https://api.githubcopilot.com",           // 112 Copilot
 }
 
 var ChannelTypeNames = map[int]string{
@@ -222,6 +224,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeSonilo:           "Sonilo",
 	ChannelTypeMiniMaxH3:        "MiniMaxH3",
 	ChannelTypeModelAPISeedance: "ModelAPISeedance",
+	ChannelTypeCopilot:          "Copilot",
 }
 
 func GetChannelTypeName(channelType int) string {
