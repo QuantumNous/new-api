@@ -110,6 +110,7 @@ type RelayInfo struct {
 	LogicalBillingModel    string
 	UpstreamAttemptModel   string
 	CompactAttemptStage    CompactAttemptStage
+	CompactResponseObject  string
 	PricingModelName       string
 	ModelPricingSource     string
 	RequestURLPath         string

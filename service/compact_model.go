@@ -1,7 +1,6 @@
 package service
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -13,19 +12,38 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const compactAttemptedKeysContextKey = "compact_attempted_key_indexes"
+
+type CompactAttemptedKeyIndexes map[int]map[int]struct{}
+
+func SetCompactAttemptedKeyIndexes(c *gin.Context, attempted CompactAttemptedKeyIndexes) {
+	if c == nil {
+		return
+	}
+	c.Set(compactAttemptedKeysContextKey, attempted)
+}
+
+func GetCompactAttemptedKeyIndexes(c *gin.Context, channelID int) map[int]struct{} {
+	if c == nil {
+		return nil
+	}
+	value, ok := c.Get(compactAttemptedKeysContextKey)
+	if !ok {
+		return nil
+	}
+	attempted, ok := value.(CompactAttemptedKeyIndexes)
+	if !ok {
+		return nil
+	}
+	return attempted[channelID]
+}
+
 func CacheGetRandomSatisfiedCompactChannel(
 	param *RetryParam,
 	requestedModel string,
 	stage relaycommon.CompactAttemptStage,
 ) (*model.Channel, string, error) {
 	logicalModel := ratio_setting.WithCompactModelSuffix(requestedModel)
-	usedChannels := make(map[int]int)
-	for _, rawID := range param.Ctx.GetStringSlice("compact_stage_channels") {
-		channelID, err := strconv.Atoi(rawID)
-		if err == nil {
-			usedChannels[channelID]++
-		}
-	}
 	param.ModelName = logicalModel
 	return cacheGetRandomSatisfiedChannel(param, func(group string, _ int) (*model.Channel, error) {
 		return model.GetRandomSatisfiedChannelForModels(
@@ -38,11 +56,13 @@ func CacheGetRandomSatisfiedCompactChannel(
 				if !compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, stage) {
 					return false
 				}
-				usedCount := usedChannels[channel.Id]
-				if usedCount == 0 {
-					return true
+				attempted := GetCompactAttemptedKeyIndexes(param.Ctx, channel.Id)
+				for _, keyIndex := range channel.GetEnabledKeyIndexes() {
+					if _, used := attempted[keyIndex]; !used {
+						return true
+					}
 				}
-				return channel.ChannelInfo.IsMultiKey && usedCount < len(channel.GetKeys())
+				return false
 			},
 		)
 	})

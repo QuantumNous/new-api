@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -234,8 +233,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		addUsedChannel(c, channel.Id)
 		if compactRetry != nil {
-			addUsedCompactChannel(c, channel.Id)
-			compactRetry.recordAttempt()
+			compactRetry.recordAttempt(c, channel.Id)
 			relayInfo.InitChannelMeta(c)
 			if err := helper.ConfigureCompactAttempt(c, relayInfo); err != nil {
 				newAPIError = types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
@@ -335,12 +333,6 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	c.Set("use_channel", useChannel)
 }
 
-func addUsedCompactChannel(c *gin.Context, channelID int) {
-	usedChannels := c.GetStringSlice("compact_stage_channels")
-	usedChannels = append(usedChannels, strconv.Itoa(channelID))
-	c.Set("compact_stage_channels", usedChannels)
-}
-
 func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 	if request == nil {
 		return &types.TokenCountMeta{}
@@ -376,6 +368,7 @@ type compactRetryState struct {
 	baseBudget    int
 	exactAttempts int
 	baseAttempts  int
+	attemptedKeys map[relaycommon.CompactAttemptStage]service.CompactAttemptedKeyIndexes
 }
 
 func newCompactRetryState(info *relaycommon.RelayInfo) *compactRetryState {
@@ -394,6 +387,10 @@ func newCompactRetryState(info *relaycommon.RelayInfo) *compactRetryState {
 		stage:       stage,
 		exactBudget: (2*totalAttempts + 2) / 3,
 		baseBudget:  (totalAttempts + 2) / 3,
+		attemptedKeys: map[relaycommon.CompactAttemptStage]service.CompactAttemptedKeyIndexes{
+			relaycommon.CompactAttemptExact: {},
+			relaycommon.CompactAttemptBase:  {},
+		},
 	}
 	if stage == relaycommon.CompactAttemptBase {
 		state.baseBudget += state.exactBudget
@@ -405,6 +402,7 @@ func (s *compactRetryState) prepare(param *service.RetryParam, info *relaycommon
 	info.CompactAttemptStage = s.stage
 	info.UpstreamAttemptModel = ""
 	info.IsModelMapped = false
+	service.SetCompactAttemptedKeyIndexes(param.Ctx, s.attemptedKeys[s.stage])
 	if s.stage == relaycommon.CompactAttemptExact {
 		param.SetRetry(s.exactAttempts)
 		maxRetries := s.exactBudget - 1
@@ -416,7 +414,16 @@ func (s *compactRetryState) prepare(param *service.RetryParam, info *relaycommon
 	}
 }
 
-func (s *compactRetryState) recordAttempt() {
+func (s *compactRetryState) recordAttempt(c *gin.Context, channelID int) {
+	keyIndex := 0
+	if common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey) {
+		keyIndex = common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+	}
+	channels := s.attemptedKeys[s.stage]
+	if channels[channelID] == nil {
+		channels[channelID] = make(map[int]struct{})
+	}
+	channels[channelID][keyIndex] = struct{}{}
 	if s.stage == relaycommon.CompactAttemptExact {
 		s.exactAttempts++
 		return
@@ -443,7 +450,7 @@ func (s *compactRetryState) switchToBase(c *gin.Context, info *relaycommon.Relay
 	info.UpstreamAttemptModel = ""
 	service.SetCompactStage(c, s.stage)
 	service.ResetCompactAutoGroupSelection(c)
-	c.Set("compact_stage_channels", []string{})
+	service.SetCompactAttemptedKeyIndexes(c, s.attemptedKeys[s.stage])
 	return true
 }
 
@@ -470,17 +477,27 @@ func isCompactModelSemanticError(apiErr *types.NewAPIError) bool {
 	case "model_not_found", "unsupported_model", "model_not_supported", "invalid_model", "unknown_model":
 		return true
 	}
-	if strings.EqualFold(strings.TrimSpace(openAIError.Param), "model") {
-		return true
-	}
 	if apiErr.StatusCode != http.StatusBadRequest && apiErr.StatusCode != http.StatusNotFound && apiErr.StatusCode != http.StatusUnprocessableEntity {
 		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(openAIError.Param), "model") {
+		return true
 	}
 	message := strings.ToLower(openAIError.Message + " " + apiErr.Error())
 	if !strings.Contains(message, "model") {
 		return false
 	}
-	for _, marker := range []string{"unknown model", "unsupported model", "invalid model", "model not found", "model does not exist", "model is not available"} {
+	for _, marker := range []string{
+		"unknown model",
+		"unsupported model",
+		"invalid model",
+		"no such model",
+		"not found",
+		"does not exist",
+		"not available",
+		"not supported",
+		"unavailable",
+	} {
 		if strings.Contains(message, marker) {
 			return true
 		}

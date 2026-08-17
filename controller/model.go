@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -152,6 +153,10 @@ func getPreferredModelOwners(modelNames []string, groups []string) map[string]st
 }
 
 func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.OpenAIModels {
+	return buildOpenAIModelWithEndpointTypes(modelName, ownerByModel, model.GetModelSupportEndpointTypes(modelName))
+}
+
+func buildOpenAIModelWithEndpointTypes(modelName string, ownerByModel map[string]string, endpointTypes []constant.EndpointType) dto.OpenAIModels {
 	var oaiModel dto.OpenAIModels
 	if staticModel, ok := openAIModelsMap[modelName]; ok {
 		oaiModel = staticModel
@@ -166,8 +171,43 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 	if owner, ok := ownerByModel[modelName]; ok && owner != "" {
 		oaiModel.OwnedBy = owner
 	}
-	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	oaiModel.SupportedEndpointTypes = endpointTypes
 	return oaiModel
+}
+
+func tokenAllowsModel(tokenModelLimit map[string]bool, modelName string) bool {
+	return tokenModelLimit[modelName] || tokenModelLimit[ratio_setting.FormatMatchingModelName(modelName)]
+}
+
+func projectModelEndpointTypesForToken(modelName string, tokenModelLimit map[string]bool, modelLimitEnabled bool) ([]constant.EndpointType, bool) {
+	endpointTypes := model.GetModelSupportEndpointTypes(modelName)
+	if !modelLimitEnabled {
+		return endpointTypes, true
+	}
+	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
+		return endpointTypes, tokenAllowsModel(tokenModelLimit, modelName)
+	}
+
+	baseAllowed := tokenAllowsModel(tokenModelLimit, modelName)
+	compactAllowed := slices.Contains(endpointTypes, constant.EndpointTypeOpenAIResponseCompact) &&
+		tokenAllowsModel(tokenModelLimit, ratio_setting.WithCompactModelSuffix(modelName))
+	if !baseAllowed && !compactAllowed {
+		return nil, false
+	}
+
+	projected := make([]constant.EndpointType, 0, len(endpointTypes))
+	for _, endpointType := range endpointTypes {
+		if endpointType == constant.EndpointTypeOpenAIResponseCompact {
+			if compactAllowed {
+				projected = append(projected, endpointType)
+			}
+			continue
+		}
+		if baseAllowed {
+			projected = append(projected, endpointType)
+		}
+	}
+	return projected, true
 }
 
 type modelListGroups struct {
@@ -240,17 +280,21 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 	models := service.GetGroupsEnabledModels(ownerGroups)
+	endpointTypesByModel := make(map[string][]constant.EndpointType, len(models))
 	for _, modelName := range models {
-		if modelLimitEnable {
-			matchingName := ratio_setting.FormatMatchingModelName(modelName)
-			if !tokenModelLimit[modelName] && !tokenModelLimit[matchingName] {
-				continue
-			}
+		endpointTypes := model.GetModelSupportEndpointTypes(modelName)
+		visible := !modelLimitEnable || tokenAllowsModel(tokenModelLimit, modelName)
+		if modelType == constant.ChannelTypeOpenAI {
+			endpointTypes, visible = projectModelEndpointTypesForToken(modelName, tokenModelLimit, modelLimitEnable)
+		}
+		if !visible {
+			continue
 		}
 		if !acceptUnsetRatioModel && !helper.HasModelBillingConfig(modelName) {
 			continue
 		}
 		userModelNames = append(userModelNames, modelName)
+		endpointTypesByModel[modelName] = endpointTypes
 	}
 
 	ownerByModel := map[string]string{}
@@ -259,7 +303,7 @@ func ListModels(c *gin.Context, modelType int) {
 	}
 	userOpenAiModels := make([]dto.OpenAIModels, 0, len(userModelNames))
 	for _, modelName := range userModelNames {
-		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))
+		userOpenAiModels = append(userOpenAiModels, buildOpenAIModelWithEndpointTypes(modelName, ownerByModel, endpointTypesByModel[modelName]))
 	}
 
 	switch modelType {

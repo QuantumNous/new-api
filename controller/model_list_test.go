@@ -308,6 +308,143 @@ func TestGetUserModelsAddsCompactPermissionVariantWithoutChangingStandardDiscove
 	require.Equal(t, map[string]struct{}{"zz-compact-capable": {}}, decodeListModelsResponse(t, standardRecorder))
 }
 
+func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     705,
+		Type:   constant.ChannelTypeOpenAI,
+		Name:   "compact-token-projection",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "zz-compact-token-model",
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "zz-compact-token-model",
+		ChannelId: 705,
+		Enabled:   true,
+	}).Error)
+	model.InitChannelCache()
+	model.InvalidatePricingCache()
+	model.GetPricing()
+
+	tests := []struct {
+		name      string
+		limit     map[string]bool
+		endpoints []constant.EndpointType
+		visible   bool
+	}{
+		{
+			name:  "base only",
+			limit: map[string]bool{"zz-compact-token-model": true},
+			endpoints: []constant.EndpointType{
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+			},
+			visible: true,
+		},
+		{
+			name:      "compact only",
+			limit:     map[string]bool{"zz-compact-token-model-openai-compact": true},
+			endpoints: []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact},
+			visible:   true,
+		},
+		{
+			name: "base and compact",
+			limit: map[string]bool{
+				"zz-compact-token-model":                true,
+				"zz-compact-token-model-openai-compact": true,
+			},
+			endpoints: []constant.EndpointType{
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+				constant.EndpointTypeOpenAIResponseCompact,
+			},
+			visible: true,
+		},
+		{name: "no permission", limit: map[string]bool{}, visible: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+			common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+			common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+			common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, test.limit)
+
+			ListModels(ctx, constant.ChannelTypeOpenAI)
+			payload := decodeListModelsPayload(t, recorder)
+			if !test.visible {
+				require.Empty(t, payload.Data)
+				return
+			}
+			require.Len(t, payload.Data, 1)
+			require.Equal(t, "zz-compact-token-model", payload.Data[0].Id)
+			require.Equal(t, test.endpoints, payload.Data[0].SupportedEndpointTypes)
+		})
+	}
+}
+
+func TestTokenModelPermissionNormalizationKeepsCompactWildcardIsolated(t *testing.T) {
+	baseModel := "gemini-2.5-flash-thinking-1024"
+	compactModel := ratio_setting.WithCompactModelSuffix(baseModel)
+	baseLimit := map[string]bool{"gemini-2.5-flash-thinking-*": true}
+	compactLimit := map[string]bool{"gemini-2.5-flash-thinking-*-openai-compact": true}
+
+	require.True(t, tokenAllowsModel(baseLimit, baseModel))
+	require.False(t, tokenAllowsModel(baseLimit, compactModel))
+	require.True(t, tokenAllowsModel(compactLimit, compactModel))
+	require.False(t, tokenAllowsModel(compactLimit, baseModel))
+}
+
+func TestListModelsDoesNotProjectCompactPermissionIntoAnthropicList(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     706,
+		Type:   constant.ChannelTypeOpenAI,
+		Name:   "compact-anthropic-projection",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "zz-compact-anthropic-model",
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "zz-compact-anthropic-model",
+		ChannelId: 706,
+		Enabled:   true,
+	}).Error)
+	model.InitChannelCache()
+	model.InvalidatePricingCache()
+	model.GetPricing()
+
+	list := func(limit map[string]bool) []dto.AnthropicModel {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+		common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
+		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, limit)
+		ListModels(ctx, constant.ChannelTypeAnthropic)
+
+		var payload struct {
+			Data []dto.AnthropicModel `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+		return payload.Data
+	}
+
+	require.Empty(t, list(map[string]bool{
+		"zz-compact-anthropic-model-openai-compact": true,
+	}))
+	models := list(map[string]bool{"zz-compact-anthropic-model": true})
+	require.Len(t, models, 1)
+	require.Equal(t, "zz-compact-anthropic-model", models[0].ID)
+}
+
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{

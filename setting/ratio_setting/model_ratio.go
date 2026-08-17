@@ -712,6 +712,10 @@ func GetAudioCompletionRatioCopy() map[string]float64 {
 
 // 转换模型名，减少渠道必须配置各种带参数模型
 func FormatMatchingModelName(name string) string {
+	hasCompactSuffix := strings.HasSuffix(name, CompactModelSuffix)
+	if hasCompactSuffix {
+		name = strings.TrimSuffix(name, CompactModelSuffix)
+	}
 
 	if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
 		name = handleThinkingBudgetModel(name, "gemini-2.5-flash-lite", "gemini-2.5-flash-lite-thinking-*")
@@ -726,6 +730,9 @@ func FormatMatchingModelName(name string) string {
 	}
 	if strings.HasPrefix(name, "gpt-4o-gizmo") {
 		name = "gpt-4o-gizmo-*"
+	}
+	if hasCompactSuffix {
+		name = WithCompactModelSuffix(name)
 	}
 	return name
 }

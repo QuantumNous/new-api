@@ -115,6 +115,9 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	if isLocalCountTokens {
 		adminInfo["local_count_tokens"] = isLocalCountTokens
 	}
+	if relayInfo.CompactResponseObject != "" {
+		adminInfo["compact_response_object"] = relayInfo.CompactResponseObject
+	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
 

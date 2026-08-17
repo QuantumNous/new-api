@@ -2,7 +2,6 @@ package service
 
 import (
 	"net/http/httptest"
-	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -61,7 +60,9 @@ func TestCompactChannelSelectionExcludesUsedSingleKeyChannel(t *testing.T) {
 	require.NotNil(t, selected)
 	require.Equal(t, channelID, selected.Id)
 
-	ctx.Set("compact_stage_channels", []string{strconv.Itoa(channelID)})
+	SetCompactAttemptedKeyIndexes(ctx, CompactAttemptedKeyIndexes{
+		channelID: {0: {}},
+	})
 	selected, _, err = CacheGetRandomSatisfiedCompactChannel(param, modelName, relaycommon.CompactAttemptBase)
 	require.NoError(t, err)
 	require.Nil(t, selected)
@@ -75,8 +76,13 @@ func TestCompactChannelSelectionAllowsEachMultiKeyOncePerStage(t *testing.T) {
 	)
 	createChannelSelectAutoGroupsChannel(t, db, channelID, "default", modelName)
 	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", channelID).Updates(map[string]any{
-		"key":          "key-one\nkey-two",
-		"channel_info": model.ChannelInfo{IsMultiKey: true},
+		"key": "key-one\nkey-disabled\nkey-three",
+		"channel_info": model.ChannelInfo{
+			IsMultiKey: true,
+			MultiKeyStatusList: map[int]int{
+				1: common.ChannelStatusAutoDisabled,
+			},
+		},
 	}).Error)
 	model.InitChannelCache()
 
@@ -89,13 +95,17 @@ func TestCompactChannelSelectionAllowsEachMultiKeyOncePerStage(t *testing.T) {
 		Retry:       &retry,
 	}
 
-	ctx.Set("compact_stage_channels", []string{strconv.Itoa(channelID)})
+	SetCompactAttemptedKeyIndexes(ctx, CompactAttemptedKeyIndexes{
+		channelID: {0: {}},
+	})
 	selected, _, err := CacheGetRandomSatisfiedCompactChannel(param, modelName, relaycommon.CompactAttemptBase)
 	require.NoError(t, err)
 	require.NotNil(t, selected)
 	require.Equal(t, channelID, selected.Id)
 
-	ctx.Set("compact_stage_channels", []string{strconv.Itoa(channelID), strconv.Itoa(channelID)})
+	SetCompactAttemptedKeyIndexes(ctx, CompactAttemptedKeyIndexes{
+		channelID: {0: {}, 2: {}},
+	})
 	selected, _, err = CacheGetRandomSatisfiedCompactChannel(param, modelName, relaycommon.CompactAttemptBase)
 	require.NoError(t, err)
 	require.Nil(t, selected)

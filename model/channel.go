@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"slices"
 	"strings"
 	"sync"
 
@@ -214,8 +215,43 @@ func (channel *Channel) GetKeys() []string {
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
+	return channel.GetNextEnabledKeyExcluding(nil)
+}
+
+func (channel *Channel) enabledKeyIndexes(keys []string) []int {
+	statusList := channel.ChannelInfo.MultiKeyStatusList
+	enabledIdx := make([]int, 0, len(keys))
+	for i := range keys {
+		status := common.ChannelStatusEnabled
+		if statusList != nil {
+			if configured, ok := statusList[i]; ok {
+				status = configured
+			}
+		}
+		if status == common.ChannelStatusEnabled {
+			enabledIdx = append(enabledIdx, i)
+		}
+	}
+	return enabledIdx
+}
+
+func (channel *Channel) GetEnabledKeyIndexes() []int {
+	if !channel.ChannelInfo.IsMultiKey {
+		return []int{0}
+	}
+	keys := channel.GetKeys()
+	lock := GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
+	return channel.enabledKeyIndexes(keys)
+}
+
+func (channel *Channel) GetNextEnabledKeyExcluding(excluded map[int]struct{}) (string, int, *types.NewAPIError) {
 	// If not in multi-key mode, return the original key string directly.
 	if !channel.ChannelInfo.IsMultiKey {
+		if _, skip := excluded[0]; skip {
+			return "", 0, types.NewError(errors.New("no untried enabled keys"), types.ErrorCodeChannelNoAvailableKey)
+		}
 		return channel.Key, 0, nil
 	}
 
@@ -230,36 +266,27 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	statusList := channel.ChannelInfo.MultiKeyStatusList
-	// helper to get key status, default to enabled when missing
-	getStatus := func(idx int) int {
-		if statusList == nil {
-			return common.ChannelStatusEnabled
-		}
-		if status, ok := statusList[idx]; ok {
-			return status
-		}
-		return common.ChannelStatusEnabled
-	}
-
-	// Collect indexes of enabled keys
-	enabledIdx := make([]int, 0, len(keys))
-	for i := range keys {
-		if getStatus(i) == common.ChannelStatusEnabled {
-			enabledIdx = append(enabledIdx, i)
-		}
-	}
+	enabledIdx := channel.enabledKeyIndexes(keys)
 	// If no specific status list or none enabled, return an explicit error so caller can
 	// properly handle a channel with no available keys (e.g. mark channel disabled).
 	// Returning the first key here caused requests to keep using an already-disabled key.
 	if len(enabledIdx) == 0 {
 		return "", 0, types.NewError(errors.New("no enabled keys"), types.ErrorCodeChannelNoAvailableKey)
 	}
+	remainingIdx := make([]int, 0, len(enabledIdx))
+	for _, idx := range enabledIdx {
+		if _, skip := excluded[idx]; !skip {
+			remainingIdx = append(remainingIdx, idx)
+		}
+	}
+	if len(remainingIdx) == 0 {
+		return "", 0, types.NewError(errors.New("no untried enabled keys"), types.ErrorCodeChannelNoAvailableKey)
+	}
 
 	switch channel.ChannelInfo.MultiKeyMode {
 	case constant.MultiKeyModeRandom:
 		// Randomly pick one enabled key
-		selectedIdx := enabledIdx[rand.Intn(len(enabledIdx))]
+		selectedIdx := remainingIdx[rand.Intn(len(remainingIdx))]
 		return keys[selectedIdx], selectedIdx, nil
 	case constant.MultiKeyModePolling:
 		// Use channel-specific lock to ensure thread-safe polling
@@ -285,17 +312,20 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		}
 		for i := 0; i < len(keys); i++ {
 			idx := (start + i) % len(keys)
-			if getStatus(idx) == common.ChannelStatusEnabled {
+			if _, skip := excluded[idx]; skip {
+				continue
+			}
+			if slices.Contains(enabledIdx, idx) {
 				// update polling index for next call (point to the next position)
 				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
 				return keys[idx], idx, nil
 			}
 		}
 		// Fallback – should not happen, but return first enabled key
-		return keys[enabledIdx[0]], enabledIdx[0], nil
+		return keys[remainingIdx[0]], remainingIdx[0], nil
 	default:
 		// Unknown mode, default to first enabled key (or original key string)
-		return keys[enabledIdx[0]], enabledIdx[0], nil
+		return keys[remainingIdx[0]], remainingIdx[0], nil
 	}
 }
 

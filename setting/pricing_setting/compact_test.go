@@ -3,10 +3,63 @@ package pricing_setting
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/autopricing"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/require"
 )
+
+func replaceManualModelPrices(t *testing.T, prices string) {
+	t.Helper()
+	saved, err := common.Marshal(ratio_setting.GetModelPriceCopy())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(string(saved)))
+	})
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(prices))
+}
+
+func TestResolveModelCompactWildcardPrecedesNormalizedBaseWildcard(t *testing.T) {
+	replaceManualModelPrices(t, `{
+		"gemini-2.5-flash-thinking-*": 0.2,
+		"*-openai-compact": 0.1
+	}`)
+
+	pricingModel, source := ResolveModel("gemini-2.5-flash-thinking-1024-openai-compact")
+	require.Equal(t, ratio_setting.CompactWildcardModelKey, pricingModel)
+	require.Equal(t, "compact_wildcard_manual", source)
+}
+
+func TestResolveModelUsesNormalizedExactCompactPrice(t *testing.T) {
+	replaceManualModelPrices(t, `{
+		"gemini-2.5-flash-thinking-*-openai-compact": 0.3,
+		"*-openai-compact": 0.1
+	}`)
+
+	modelName := "gemini-2.5-flash-thinking-1024-openai-compact"
+	pricingModel, source := ResolveModel(modelName)
+	require.Equal(t, "gemini-2.5-flash-thinking-*-openai-compact", pricingModel)
+	require.Equal(t, "compact_exact_manual", source)
+}
+
+func TestResolveModelUsesNormalizedExactCompactTieredPrice(t *testing.T) {
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"gemini-2.5-flash-thinking-*-openai-compact":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"gemini-2.5-flash-thinking-*-openai-compact":"p + c"}`,
+	}))
+
+	pricingModel, source := ResolveModel("gemini-2.5-flash-thinking-1024-openai-compact")
+	require.Equal(t, "gemini-2.5-flash-thinking-*-openai-compact", pricingModel)
+	require.Equal(t, "compact_exact_manual", source)
+}
 
 func TestResolveModelFallsBackToBaseAutomaticPricing(t *testing.T) {
 	saved := map[string]string{}

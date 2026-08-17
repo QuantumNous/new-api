@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,64 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+var responsesCompactAllowedFields = []string{
+	"model",
+	"input",
+	"instructions",
+	"previous_response_id",
+	"prompt_cache_key",
+	"prompt_cache_options",
+	"prompt_cache_retention",
+	"service_tier",
+}
+
+func responsesCompactUpstreamRequest(req *dto.OpenAIResponsesCompactionRequest) *dto.OpenAIResponsesRequest {
+	return &dto.OpenAIResponsesRequest{
+		Model:                req.Model,
+		Input:                req.Input,
+		Instructions:         req.Instructions,
+		PreviousResponseID:   req.PreviousResponseID,
+		ServiceTier:          req.ServiceTier,
+		PromptCacheKey:       req.PromptCacheKey,
+		PromptCacheOptions:   req.PromptCacheOptions,
+		PromptCacheRetention: req.PromptCacheRetention,
+	}
+}
+
+func filterResponsesCompactRequestFields(jsonData []byte) ([]byte, error) {
+	var payload map[string]json.RawMessage
+	if err := common.Unmarshal(jsonData, &payload); err != nil {
+		return nil, err
+	}
+	filtered := make(map[string]json.RawMessage, len(responsesCompactAllowedFields))
+	for _, field := range responsesCompactAllowedFields {
+		if value, ok := payload[field]; ok {
+			filtered[field] = value
+		}
+	}
+	return common.Marshal(filtered)
+}
+
+func compactRequestDebugSummary(info *relaycommon.RelayInfo, jsonData []byte) string {
+	var payload map[string]json.RawMessage
+	present := make([]string, 0, len(responsesCompactAllowedFields))
+	if err := common.Unmarshal(jsonData, &payload); err == nil {
+		for _, field := range responsesCompactAllowedFields {
+			if _, ok := payload[field]; ok {
+				present = append(present, field)
+			}
+		}
+	}
+	return fmt.Sprintf(
+		"body_bytes=%d fields=%s logical_model=%q upstream_model=%q stage=%q",
+		len(jsonData),
+		strings.Join(present, ","),
+		info.LogicalBillingModel,
+		info.ActualUpstreamModelName(),
+		info.CompactAttemptStage,
+	)
+}
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -41,17 +100,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		// prompt_cache_options, prompt_cache_retention, service_tier.
 		// Undocumented Codex-parity fields (tools, reasoning, text) are parsed
 		// for client compatibility but intentionally not sent upstream.
-		responsesReq = &dto.OpenAIResponsesRequest{
-			Model:                req.Model,
-			Input:                req.Input,
-			Instructions:         req.Instructions,
-			PreviousResponseID:   req.PreviousResponseID,
-			ParallelToolCalls:    req.ParallelToolCalls,
-			ServiceTier:          req.ServiceTier,
-			PromptCacheKey:       req.PromptCacheKey,
-			PromptCacheOptions:   req.PromptCacheOptions,
-			PromptCacheRetention: req.PromptCacheRetention,
-		}
+		responsesReq = responsesCompactUpstreamRequest(req)
 	default:
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest or dto.OpenAIResponsesCompactionRequest, got %T", info.Request),
@@ -110,8 +159,18 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 				return newAPIErrorFromParamOverride(err)
 			}
 		}
+		if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+			jsonData, err = filterResponsesCompactRequestFields(jsonData)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+		}
 
-		logger.LogDebug(c, "requestBody: %s", jsonData)
+		if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+			logger.LogDebug(c, "compact request metadata: %s", compactRequestDebugSummary(info, jsonData))
+		} else {
+			logger.LogDebug(c, "requestBody: %s", jsonData)
+		}
 		body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
