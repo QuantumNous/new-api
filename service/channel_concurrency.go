@@ -353,30 +353,31 @@ func getChannelConcurrencyLoads(ctx context.Context, channels []*model.Channel, 
 // getCachedRedisChannelConcurrencyLoads coalesces load reads for identical
 // candidate sets: a short-TTL snapshot serves ordering hints (never slot
 // ownership — acquire stays authoritative), and singleflight collapses
-// concurrent misses to one Redis fetch per candidate-set fingerprint.
+// concurrent misses to one Redis fetch per candidate-set fingerprint. Fresh
+// reads (allowCache=false) skip the snapshot lookup but still coalesce under
+// their own singleflight key and refresh the shared cache on success.
 func getCachedRedisChannelConcurrencyLoads(ctx context.Context, bounded map[int]ChannelConcurrencyLoad, allowCache bool) (map[int]ChannelConcurrencyLoad, error) {
 	ttl := operation_setting.GetChannelConcurrencyLoadCacheTTL()
 	if ttl <= 0 {
 		return fetchRedisChannelConcurrencyLoads(bounded)
 	}
-	if !allowCache {
-		fetched, err := fetchRedisChannelConcurrencyLoads(bounded)
-		if err != nil {
-			return nil, err
-		}
-		storeChannelConcurrencyLoadCache(channelConcurrencyLoadCacheKey(bounded), fetched, time.Now().Add(ttl))
-		return fetched, nil
-	}
 
 	key := channelConcurrencyLoadCacheKey(bounded)
-	if cached, ok := lookupChannelConcurrencyLoadCache(key, time.Now()); ok {
-		return cached, nil
+	groupKey := key
+	if allowCache {
+		if cached, ok := lookupChannelConcurrencyLoadCache(key, time.Now()); ok {
+			return cached, nil
+		}
+	} else {
+		groupKey = "fresh:" + key
 	}
 
-	resultCh := channelConcurrencyLoadGroup.DoChan(key, func() (any, error) {
+	resultCh := channelConcurrencyLoadGroup.DoChan(groupKey, func() (any, error) {
 		now := time.Now()
-		if cached, ok := lookupChannelConcurrencyLoadCache(key, now); ok {
-			return cached, nil
+		if allowCache {
+			if cached, ok := lookupChannelConcurrencyLoadCache(key, now); ok {
+				return cached, nil
+			}
 		}
 		fetched, err := fetchRedisChannelConcurrencyLoads(bounded)
 		if err != nil {

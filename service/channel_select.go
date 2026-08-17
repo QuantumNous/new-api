@@ -490,9 +490,12 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		// flip within the cache window (acquire rejects cooled-down channels in
 		// real time regardless), so before declaring the set unavailable,
 		// re-read once bypassing the cache to pick up just-recovered channels.
+		// The fresh read degrades to memory internally on Redis failure and a
+		// confirmation pass must never be a harder failure than the read it
+		// confirms, so any residual error keeps the filtered result instead.
 		freshLoads, freshErr := GetChannelConcurrencyLoadsFresh(ctx, candidates)
 		if freshErr != nil {
-			return nil, freshErr
+			return ordered, nil
 		}
 		ordered, _, err = orderChannelCandidatesWithLoads(candidates, freshLoads)
 		if err != nil {

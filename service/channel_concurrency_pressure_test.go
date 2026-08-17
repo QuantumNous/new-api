@@ -346,6 +346,41 @@ func TestOrderCandidatesRefreshesWhenCachedCooldownFiltersEveryone(t *testing.T)
 	require.Equal(t, channel.Id, ordered[0].Id)
 }
 
+func TestFreshLoadReadsCoalesceUnderSingleflight(t *testing.T) {
+	resetChannelConcurrencyForTest()
+	hook, _, restore := useCountingRedisChannelConcurrencyForTest(t)
+	defer restore()
+	restoreSetting := useChannelConcurrencySettingForTest(t, operation_setting.ChannelConcurrencySetting{
+		SlotTTLMinutes:   1,
+		WaitEnabled:      true,
+		WaitTimeoutMS:    5000,
+		WaitIntervalMS:   100,
+		CooldownEnabled:  true,
+		CooldownSeconds:  30,
+		LoadCacheEnabled: true,
+		LoadCacheTTLMS:   1000,
+	})
+	defer restoreSetting()
+
+	channels := []*model.Channel{{Id: 603, MaxConcurrency: 4}}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			loads, err := GetChannelConcurrencyLoadsFresh(context.Background(), channels)
+			require.NoError(t, err)
+			require.Len(t, loads, 1)
+		}()
+	}
+	wg.Wait()
+
+	// A stampede of fresh reads over one candidate set must coalesce into few
+	// fetches (bounded by singleflight round turnover), not one per caller.
+	require.LessOrEqual(t, countRedisCommands(hook.Commands(), "time"), 3)
+}
+
 func TestFetchLoadsDegradesWhenFetchSlotsSaturated(t *testing.T) {
 	resetChannelConcurrencyForTest()
 	_, _, restore := useCountingRedisChannelConcurrencyForTest(t)
