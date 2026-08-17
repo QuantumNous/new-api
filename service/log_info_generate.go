@@ -107,6 +107,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, adminInfo)
+	appendIntelligentRoutingAdminInfo(relayInfo, adminInfo)
 
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
@@ -116,6 +117,43 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+func appendIntelligentRoutingAdminInfo(relayInfo *relaycommon.RelayInfo, adminInfo map[string]interface{}) {
+	if relayInfo == nil || adminInfo == nil {
+		return
+	}
+	plan := relayInfo.IntelligentRoutePlan
+	if plan == nil && relayInfo.IntelligentRouteError == "" {
+		return
+	}
+	audit := map[string]interface{}{
+		"shadow":          true,
+		"requested_model": relayInfo.OriginModelName,
+	}
+	if relayInfo.IntelligentRouteError != "" {
+		audit["error"] = relayInfo.IntelligentRouteError
+	}
+	if plan != nil {
+		audit["policy_version"] = plan.PolicyVersion
+		candidates := make([]map[string]interface{}, 0, len(plan.Nodes))
+		for i, node := range plan.Nodes {
+			if i == 4 {
+				break
+			}
+			reasons := node.ReasonCodes
+			if len(reasons) > 8 {
+				reasons = reasons[:8]
+			}
+			candidates = append(candidates, map[string]interface{}{
+				"model": node.Model, "channel_id": node.ChannelID, "tier": node.Tier,
+				"predicted_success": node.PredictedSuccess, "expected_cost": node.ExpectedCost.String(),
+				"reason_codes": reasons,
+			})
+		}
+		audit["candidates"] = candidates
+	}
+	adminInfo["intelligent_routing"] = audit
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
