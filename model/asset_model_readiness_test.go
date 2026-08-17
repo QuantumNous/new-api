@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -216,6 +217,226 @@ func TestAssetModelReadinessCASFencingRetryActiveFailedAndReset(t *testing.T) {
 	row = requireOneReadiness(t, 9, "scope", "model")
 	require.Equal(t, AssetModelReadinessStatusFailed, row.Status)
 	require.Equal(t, "fatal_provider", row.ErrorClass)
+}
+
+func TestActivateAssetModelReadinessBindingSetCASActivatesExactCurrentBindingSet(t *testing.T) {
+	openAssetModelReadinessTestDB(t)
+
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "driver", 11, 131, "binding-a", AssetModelReadinessStatusProcessing, func(row *AssetModelReadiness) {
+		row.LeaseOwner = "worker-a"
+		row.AttemptCount = 1
+		row.LeaseExpiresAt = 200
+		row.ErrorClass = "stale_error"
+		row.NextRetryAt = 150
+	})
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "pending-sibling", 11, 131, "binding-a", AssetModelReadinessStatusPending, func(row *AssetModelReadiness) {
+		row.ErrorClass = "pending_error"
+		row.NextRetryAt = 170
+	})
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "retry-sibling", 11, 131, "binding-a", AssetModelReadinessStatusRetryWaiting, func(row *AssetModelReadiness) {
+		row.ErrorClass = "retry_error"
+		row.NextRetryAt = 180
+	})
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "processing-sibling", 11, 131, "binding-a", AssetModelReadinessStatusProcessing, func(row *AssetModelReadiness) {
+		row.LeaseOwner = "worker-b"
+		row.AttemptCount = 2
+		row.AttemptStartedAt = 90
+		row.LeaseExpiresAt = 250
+		row.ErrorClass = "processing_error"
+		row.NextRetryAt = 190
+	})
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "failed-sibling", 11, 131, "binding-a", AssetModelReadinessStatusFailed, func(row *AssetModelReadiness) {
+		row.ErrorClass = "fatal"
+	})
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "other-channel", 11, 132, "binding-a", AssetModelReadinessStatusPending, nil)
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "other-binding", 11, 131, "binding-b", AssetModelReadinessStatusPending, nil)
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "stale-generation", 11, 131, "binding-a", AssetModelReadinessStatusPending, nil)
+	require.NoError(t, DB.Model(&AssetModelReadiness{}).
+		Where("asset_id = ? AND scope_key = ? AND model_name = ?", 41, "scope-a", "stale-generation").
+		UpdateColumn("target_generation", int64(10)).Error)
+	seedAssetModelBindingSetReadiness(t, 41, "scope-b", "other-scope", 11, 131, "binding-a", AssetModelReadinessStatusPending, nil)
+	seedAssetModelBindingSetReadiness(t, 42, "scope-a", "other-asset", 11, 131, "binding-a", AssetModelReadinessStatusPending, nil)
+
+	count, err := ActivateAssetModelReadinessBindingSetCAS(AssetModelReadinessTransition{
+		AssetId:                41,
+		ScopeKey:               " scope-a ",
+		ModelName:              " driver ",
+		TargetGeneration:       11,
+		ChannelId:              131,
+		BindingScope:           "binding-a",
+		LeaseOwner:             " worker-a ",
+		ExpectedAttemptCount:   1,
+		ExpectedLeaseExpiresAt: 200,
+		Now:                    100,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(4), count)
+
+	for _, modelName := range []string{"driver", "pending-sibling", "retry-sibling", "processing-sibling"} {
+		row := requireOneReadiness(t, 41, "scope-a", modelName)
+		require.Equal(t, AssetModelReadinessStatusActive, row.Status, modelName)
+		require.Equal(t, "", row.ErrorClass, modelName)
+		require.Equal(t, int64(0), row.NextRetryAt, modelName)
+		require.Equal(t, "", row.LeaseOwner, modelName)
+		require.Equal(t, int64(0), row.LeaseExpiresAt, modelName)
+		require.Equal(t, int64(100), row.UpdatedAt, modelName)
+	}
+	processingSibling := requireOneReadiness(t, 41, "scope-a", "processing-sibling")
+	require.Equal(t, 2, processingSibling.AttemptCount)
+	require.Equal(t, int64(90), processingSibling.AttemptStartedAt)
+
+	failed := requireOneReadiness(t, 41, "scope-a", "failed-sibling")
+	require.Equal(t, AssetModelReadinessStatusFailed, failed.Status)
+	require.Equal(t, "fatal", failed.ErrorClass)
+	for _, control := range []struct {
+		assetID   int64
+		scopeKey  string
+		modelName string
+	}{
+		{41, "scope-a", "other-channel"},
+		{41, "scope-a", "other-binding"},
+		{41, "scope-a", "stale-generation"},
+		{41, "scope-b", "other-scope"},
+		{42, "scope-a", "other-asset"},
+	} {
+		row := requireOneReadiness(t, control.assetID, control.scopeKey, control.modelName)
+		require.Equal(t, AssetModelReadinessStatusPending, row.Status, control.modelName)
+		require.Equal(t, int64(10), row.UpdatedAt, control.modelName)
+	}
+}
+
+func TestActivateAssetModelReadinessBindingSetCASStaleDriverChangesNothing(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(*AssetModelReadinessTransition)
+		targetHook func(*AssetModelCoverageTarget)
+		driverHook func(*AssetModelReadiness)
+	}{
+		{
+			name: "lease owner mismatch",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.LeaseOwner = "worker-b"
+			},
+		},
+		{
+			name: "attempt mismatch",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.ExpectedAttemptCount = 2
+			},
+		},
+		{
+			name: "expired equal lease",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.Now = transition.ExpectedLeaseExpiresAt
+			},
+		},
+		{
+			name: "transition target generation mismatch",
+			mutate: func(transition *AssetModelReadinessTransition) {
+				transition.TargetGeneration = 10
+			},
+		},
+		{
+			name: "current driving target not active",
+			targetHook: func(target *AssetModelCoverageTarget) {
+				target.Status = AssetModelTargetStatusRotating
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			openAssetModelReadinessTestDB(t)
+			seedAssetModelBindingSetReadiness(t, 41, "scope-a", "driver", 11, 131, "binding-a", AssetModelReadinessStatusProcessing, func(row *AssetModelReadiness) {
+				row.LeaseOwner = "worker-a"
+				row.AttemptCount = 1
+				row.LeaseExpiresAt = 200
+				if tt.driverHook != nil {
+					tt.driverHook(row)
+				}
+			}, tt.targetHook)
+			seedAssetModelBindingSetReadiness(t, 41, "scope-a", "sibling", 11, 131, "binding-a", AssetModelReadinessStatusPending, nil)
+
+			transition := AssetModelReadinessTransition{
+				AssetId:                41,
+				ScopeKey:               "scope-a",
+				ModelName:              "driver",
+				TargetGeneration:       11,
+				ChannelId:              131,
+				BindingScope:           "binding-a",
+				LeaseOwner:             "worker-a",
+				ExpectedAttemptCount:   1,
+				ExpectedLeaseExpiresAt: 200,
+				Now:                    100,
+			}
+			if tt.mutate != nil {
+				tt.mutate(&transition)
+			}
+
+			count, err := ActivateAssetModelReadinessBindingSetCAS(transition)
+			require.NoError(t, err)
+			require.Equal(t, int64(0), count)
+
+			driver := requireOneReadiness(t, 41, "scope-a", "driver")
+			require.Equal(t, AssetModelReadinessStatusProcessing, driver.Status)
+			require.Equal(t, "worker-a", driver.LeaseOwner)
+			require.Equal(t, 1, driver.AttemptCount)
+			require.Equal(t, int64(200), driver.LeaseExpiresAt)
+			sibling := requireOneReadiness(t, 41, "scope-a", "sibling")
+			require.Equal(t, AssetModelReadinessStatusPending, sibling.Status)
+			require.Equal(t, "", sibling.LeaseOwner)
+			require.Equal(t, int64(0), sibling.LeaseExpiresAt)
+		})
+	}
+}
+
+func TestActivateAssetModelReadinessBindingSetCASRollsBackOnSiblingUpdateError(t *testing.T) {
+	openAssetModelReadinessTestDB(t)
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "driver", 11, 131, "binding-a", AssetModelReadinessStatusProcessing, func(row *AssetModelReadiness) {
+		row.LeaseOwner = "worker-a"
+		row.AttemptCount = 1
+		row.LeaseExpiresAt = 200
+	})
+	seedAssetModelBindingSetReadiness(t, 41, "scope-a", "sibling", 11, 131, "binding-a", AssetModelReadinessStatusPending, nil)
+
+	sentinel := errors.New("sentinel sibling update")
+	updateCount := 0
+	callbackName := "asset_model_readiness_sibling_update_error"
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Schema == nil || tx.Statement.Schema.Name != "AssetModelReadiness" {
+			return
+		}
+		updateCount++
+		if updateCount == 2 {
+			tx.AddError(sentinel)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	count, err := ActivateAssetModelReadinessBindingSetCAS(AssetModelReadinessTransition{
+		AssetId:                41,
+		ScopeKey:               "scope-a",
+		ModelName:              "driver",
+		TargetGeneration:       11,
+		ChannelId:              131,
+		BindingScope:           "binding-a",
+		LeaseOwner:             "worker-a",
+		ExpectedAttemptCount:   1,
+		ExpectedLeaseExpiresAt: 200,
+		Now:                    100,
+	})
+	require.ErrorIs(t, err, sentinel)
+	require.Equal(t, int64(0), count)
+
+	driver := requireOneReadiness(t, 41, "scope-a", "driver")
+	require.Equal(t, AssetModelReadinessStatusProcessing, driver.Status)
+	require.Equal(t, "worker-a", driver.LeaseOwner)
+	require.Equal(t, int64(200), driver.LeaseExpiresAt)
+	sibling := requireOneReadiness(t, 41, "scope-a", "sibling")
+	require.Equal(t, AssetModelReadinessStatusPending, sibling.Status)
+	require.Equal(t, "", sibling.LeaseOwner)
 }
 
 func TestAssetModelReadinessSameOwnerReclaimRequiresFreshAttemptFence(t *testing.T) {
@@ -468,4 +689,41 @@ func requireOneReadiness(t *testing.T, assetID int64, scopeKey string, modelName
 	require.NoError(t, err)
 	require.Len(t, rows, 1, fmt.Sprintf("readiness row %d/%s/%s", assetID, scopeKey, modelName))
 	return rows[0]
+}
+
+func seedAssetModelBindingSetReadiness(t *testing.T, assetID int64, scopeKey string, modelName string, generation int64, channelID int, bindingScope string, readinessStatus string, readinessHook func(*AssetModelReadiness), targetHooks ...func(*AssetModelCoverageTarget)) {
+	t.Helper()
+
+	target := AssetModelCoverageTarget{
+		ScopeKey:     scopeKey,
+		ModelName:    modelName,
+		Generation:   generation,
+		Status:       AssetModelTargetStatusActive,
+		ChannelId:    channelID,
+		BindingScope: bindingScope,
+		CreatedAt:    10,
+		UpdatedAt:    10,
+	}
+	for _, hook := range targetHooks {
+		if hook != nil {
+			hook(&target)
+		}
+	}
+	require.NoError(t, DB.Create(&target).Error)
+
+	readiness := AssetModelReadiness{
+		AssetId:          assetID,
+		ScopeKey:         scopeKey,
+		ModelName:        modelName,
+		TargetGeneration: generation,
+		ChannelId:        channelID,
+		BindingScope:     bindingScope,
+		Status:           readinessStatus,
+		CreatedAt:        10,
+		UpdatedAt:        10,
+	}
+	if readinessHook != nil {
+		readinessHook(&readiness)
+	}
+	require.NoError(t, DB.Create(&readiness).Error)
 }
