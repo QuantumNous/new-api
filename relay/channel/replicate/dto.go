@@ -1,9 +1,12 @@
 package replicate
 
+import "encoding/json"
+
 type PredictionResponse struct {
-	Status string           `json:"status"`
-	Output any              `json:"output"`
-	Error  *PredictionError `json:"error"`
+	ID     string          `json:"id"`
+	Status string          `json:"status"`
+	Output any             `json:"output"`
+	Error  json.RawMessage `json:"error"`
 }
 
 type PredictionError struct {
