@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -301,6 +302,11 @@ func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 	sawCandidates := false
 	var waitCandidate *model.Channel
 	waitCandidateRetry := retry
+	// Budget Redis slot-acquire attempts per selection pass so a fully
+	// saturated candidate set costs a bounded number of Redis scripts, not one
+	// per eligible channel. Exhausting the budget falls through to the wait
+	// path on the best candidate seen so far.
+	remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
 	for priorityRetry := retry; ; priorityRetry++ {
 		candidates, err := model.GetSatisfiedChannelCandidatesWithFilter(group, modelName, priorityRetry, buildEndpointChannelFilter(c, modelName))
 		if err != nil {
@@ -331,6 +337,16 @@ func getRandomSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 			return nil, priorityRetry, err
 		}
 		for _, channel := range orderedCandidates {
+			if channel.GetMaxConcurrency() > 0 {
+				if remainingAttempts <= 0 {
+					if waitCandidate == nil {
+						waitCandidate = channel
+						waitCandidateRetry = priorityRetry
+					}
+					continue
+				}
+				remainingAttempts--
+			}
 			ok, err := AcquireChannelConcurrencyForContext(c, channel)
 			if err != nil {
 				return nil, priorityRetry, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", channel.Id, err)
@@ -399,6 +415,7 @@ func getRankedSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 	bestReadiness := buckets[0].readiness
 	var waitCandidate *model.Channel
 	waitCandidateRetry := buckets[0].retry
+	remainingAttempts := operation_setting.GetChannelConcurrencyMaxAcquireAttempts()
 	for _, bucket := range buckets {
 		if bucket.readiness != bestReadiness {
 			break
@@ -408,6 +425,16 @@ func getRankedSatisfiedChannelWithConcurrency(c *gin.Context, group string, mode
 			return nil, bucket.retry, err
 		}
 		for _, channel := range orderedCandidates {
+			if channel.GetMaxConcurrency() > 0 {
+				if remainingAttempts <= 0 {
+					if waitCandidate == nil {
+						waitCandidate = channel
+						waitCandidateRetry = bucket.retry
+					}
+					continue
+				}
+				remainingAttempts--
+			}
 			ok, err := AcquireChannelConcurrencyForContext(c, channel)
 			if err != nil {
 				return nil, bucket.retry, fmt.Errorf("acquire channel concurrency for channel #%d failed: %w", channel.Id, err)
@@ -454,6 +481,32 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		return nil, err
 	}
 
+	ordered, sawCoolingDown, err := orderChannelCandidatesWithLoads(candidates, loads)
+	if err != nil {
+		return nil, err
+	}
+	if len(ordered) == 0 && sawCoolingDown {
+		// Every candidate was filtered by a cached CoolingDown flag. Cooldowns
+		// flip within the cache window (acquire rejects cooled-down channels in
+		// real time regardless), so before declaring the set unavailable,
+		// re-read once bypassing the cache to pick up just-recovered channels.
+		// The fresh read degrades to memory internally on Redis failure and a
+		// confirmation pass must never be a harder failure than the read it
+		// confirms, so any residual error keeps the filtered result instead.
+		freshLoads, freshErr := GetChannelConcurrencyLoadsFresh(ctx, candidates)
+		if freshErr != nil {
+			return ordered, nil
+		}
+		ordered, _, err = orderChannelCandidatesWithLoads(candidates, freshLoads)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ordered, nil
+}
+
+func orderChannelCandidatesWithLoads(candidates []*model.Channel, loads map[int]ChannelConcurrencyLoad) ([]*model.Channel, bool, error) {
+	sawCoolingDown := false
 	loadedCandidates := make([]channelCandidateLoad, 0, len(candidates))
 	for _, candidate := range candidates {
 		if candidate == nil {
@@ -461,6 +514,7 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		}
 		load := loads[candidate.Id]
 		if load.CoolingDown {
+			sawCoolingDown = true
 			continue
 		}
 		loadedCandidates = append(loadedCandidates, channelCandidateLoad{
@@ -489,7 +543,7 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		for len(bucket) > 0 {
 			channel, err := model.SelectWeightedRandomChannel(bucket)
 			if err != nil {
-				return nil, err
+				return nil, sawCoolingDown, err
 			}
 			if channel == nil {
 				break
@@ -499,7 +553,7 @@ func orderChannelCandidatesByConcurrencyLoad(c *gin.Context, candidates []*model
 		}
 		i = j
 	}
-	return ordered, nil
+	return ordered, sawCoolingDown, nil
 }
 
 func removeChannelCandidate(candidates []*model.Channel, channelID int) []*model.Channel {
