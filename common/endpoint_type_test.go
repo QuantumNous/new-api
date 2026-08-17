@@ -62,3 +62,13 @@ func TestGetEndpointTypesByChannelType_ModelAPISeedance(t *testing.T) {
 		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAIVideo, got)
 	}
 }
+
+func TestGrokSubscriptionEndpointTypes(t *testing.T) {
+	got := GetEndpointTypesByChannelType(constant.ChannelTypeGrokSubscription, "grok-4")
+	if !containsEndpointType(got, constant.EndpointTypeOpenAIResponse) {
+		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAIResponse, got)
+	}
+	if !containsEndpointType(got, constant.EndpointTypeOpenAI) {
+		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAI, got)
+	}
+}
