@@ -131,6 +131,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				imageCounter.Commit(info)
 				imageCommitted = true
 			}
+			// Responses SSE has no "data: [DONE]" sentinel: after this event the
+			// upstream simply idles until it closes the socket. Mark completion here,
+			// otherwise the end reason is decided by a race between upstream EOF and
+			// the client closing its connection right after the final event, which
+			// mislabels finished streams as client_gone (#6649).
+			sr.Done()
 		case "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
 			if !imageCommitted {
 				imageCounter.Reset()
