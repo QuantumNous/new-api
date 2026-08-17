@@ -50,7 +50,7 @@ export function HowItWorks() {
   ]
 
   return (
-    <section className='border-border/40 relative z-10 border-t px-6 py-24 md:py-32'>
+    <section className='border-landing-primary/10 relative z-10 border-t px-6 py-24 md:py-32'>
       <div className='mx-auto max-w-6xl'>
         <AnimateInView className='mb-16 text-center md:mb-20'>
           <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
@@ -61,7 +61,12 @@ export function HowItWorks() {
           </h2>
         </AnimateInView>
 
-        <div className='grid gap-8 md:grid-cols-3 md:gap-12'>
+        <div className='relative grid gap-8 md:grid-cols-3 md:gap-12'>
+          {/* Dashed connector between steps (desktop only) */}
+          <div
+            aria-hidden
+            className='border-landing-primary/25 absolute top-8 right-[16%] left-[16%] hidden border-t border-dashed md:block'
+          />
           {steps.map((step, i) => (
             <AnimateInView
               key={step.num}
@@ -70,10 +75,10 @@ export function HowItWorks() {
               className='relative flex flex-col items-center text-center'
             >
               <div className='relative mb-6'>
-                <div className='text-muted-foreground border-border/50 bg-muted/30 flex size-16 items-center justify-center rounded-2xl border transition-colors'>
+                <div className='text-muted-foreground border-border/50 bg-muted/30 hover:border-landing-primary/40 hover:text-landing-primary flex size-16 items-center justify-center rounded-2xl border transition-colors'>
                   {step.icon}
                 </div>
-                <div className='bg-foreground text-background absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full text-xs font-bold'>
+                <div className='bg-landing-primary text-landing-on-primary ring-landing-primary/15 absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full text-xs font-bold ring-4'>
                   {step.num}
                 </div>
               </div>

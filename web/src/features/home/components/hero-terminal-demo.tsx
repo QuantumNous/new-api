@@ -20,7 +20,7 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
-type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet'
+type AccentTone = 'violet' | 'purple' | 'blurple' | 'lilac'
 
 interface ApiDemoConfig {
   id: string
@@ -44,29 +44,29 @@ const ACCENT_CLASSES: Record<
     badge: string
   }
 > = {
-  emerald: {
-    activeText: 'text-emerald-600 dark:text-emerald-400',
-    activeBorder: 'border-emerald-500 dark:border-emerald-400',
-    badge:
-      'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400',
-  },
-  amber: {
-    activeText: 'text-amber-600 dark:text-amber-400',
-    activeBorder: 'border-amber-500 dark:border-amber-400',
-    badge:
-      'bg-amber-500/10 text-amber-600 dark:bg-amber-400/10 dark:text-amber-400',
-  },
-  blue: {
-    activeText: 'text-blue-600 dark:text-blue-400',
-    activeBorder: 'border-blue-500 dark:border-blue-400',
-    badge:
-      'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400',
-  },
   violet: {
     activeText: 'text-violet-600 dark:text-violet-400',
     activeBorder: 'border-violet-500 dark:border-violet-400',
     badge:
       'bg-violet-500/10 text-violet-600 dark:bg-violet-400/10 dark:text-violet-400',
+  },
+  purple: {
+    activeText: 'text-landing-primary-strong dark:text-landing-primary',
+    activeBorder: 'border-landing-primary-strong dark:border-landing-primary',
+    badge:
+      'bg-landing-primary/10 text-landing-primary-strong dark:bg-landing-primary/15 dark:text-landing-primary',
+  },
+  blurple: {
+    activeText: 'text-indigo-600 dark:text-indigo-400',
+    activeBorder: 'border-indigo-500 dark:border-indigo-400',
+    badge:
+      'bg-indigo-500/10 text-indigo-600 dark:bg-indigo-400/10 dark:text-indigo-400',
+  },
+  lilac: {
+    activeText: 'text-fuchsia-600 dark:text-fuchsia-400',
+    activeBorder: 'border-fuchsia-500 dark:border-fuchsia-400',
+    badge:
+      'bg-fuchsia-500/10 text-fuchsia-600 dark:bg-fuchsia-400/10 dark:text-fuchsia-400',
   },
 }
 
@@ -92,7 +92,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<tokens>'],
     tokens: 27,
     latency: 142,
-    accent: 'emerald',
+    accent: 'violet',
   },
   {
     id: 'responses',
@@ -110,7 +110,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<tokens>'],
     tokens: 31,
     latency: 168,
-    accent: 'amber',
+    accent: 'purple',
   },
   {
     id: 'claude',
@@ -134,7 +134,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<in>', '<out>'],
     tokens: 29,
     latency: 156,
-    accent: 'blue',
+    accent: 'blurple',
   },
   {
     id: 'gemini',
@@ -157,7 +157,7 @@ const API_DEMOS: ApiDemoConfig[] = [
     responseHighlights: ['<text>', '<tokens>'],
     tokens: 25,
     latency: 93,
-    accent: 'violet',
+    accent: 'lilac',
   },
 ]
 
@@ -211,8 +211,8 @@ export function HeroTerminalDemo(props: HeroTerminalDemoProps) {
       <div
         className={cn(
           'overflow-hidden rounded-2xl border backdrop-blur-sm',
-          'border-border/60 bg-white/95 shadow-[0_20px_50px_-25px_rgba(15,23,42,0.18)]',
-          'dark:border-white/[0.06] dark:bg-[#0b0f17]/95 dark:shadow-[0_20px_60px_-25px_rgba(0,0,0,0.7)]'
+          'border-landing-primary/15 bg-white/95 shadow-[0_20px_50px_-25px_oklch(0.565_0.165_282/0.30)]',
+          'dark:border-landing-primary/15 dark:bg-[#202020]/95 dark:shadow-[0_20px_60px_-25px_oklch(0.55_0.26_293/0.35)]'
         )}
       >
         {/* Tab strip */}
@@ -512,19 +512,25 @@ function Command(props: { children: ReactNode }) {
 
 function Flag(props: { children: ReactNode }) {
   return (
-    <span className='text-blue-600 dark:text-blue-400'>{props.children}</span>
+    <span className='text-landing-primary-strong dark:text-landing-primary'>
+      {props.children}
+    </span>
   )
 }
 
 function Key(props: { children: ReactNode }) {
   return (
-    <span className='text-sky-700 dark:text-sky-300'>{props.children}</span>
+    <span className='text-violet-700 dark:text-violet-300'>
+      {props.children}
+    </span>
   )
 }
 
 function StringText(props: { children: ReactNode }) {
   return (
-    <span className='text-amber-700 dark:text-amber-300'>{props.children}</span>
+    <span className='text-foreground/70 dark:text-foreground/80'>
+      {props.children}
+    </span>
   )
 }
 
