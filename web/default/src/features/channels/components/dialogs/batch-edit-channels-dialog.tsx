@@ -25,9 +25,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog } from '@/components/dialog'
 import { MultiSelect } from '@/components/multi-select'
 import { getGroups } from '../../api'
@@ -54,7 +60,9 @@ export function BatchEditChannelsDialog({
   const [groups, setGroups] = useState<string[]>([])
   const [priority, setPriority] = useState('')
   const [weight, setWeight] = useState('')
-  const [codexFingerprintMode, setCodexFingerprintMode] = useState<'off' | 'device' | 'session' | 'full' | ''>('')
+  const [codexFingerprintMode, setCodexFingerprintMode] = useState<
+    'off' | 'device' | 'session' | 'full' | ''
+  >('')
 
   const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
     queryKey: ['groups'],
@@ -64,7 +72,10 @@ export function BatchEditChannelsDialog({
   const groupOptions = useMemo(() => {
     if (!groupsData?.data) return []
     const allGroups = new Set([...groupsData.data, ...groups])
-    return Array.from(allGroups).map((group) => ({ value: group, label: group }))
+    return Array.from(allGroups).map((group) => ({
+      value: group,
+      label: group,
+    }))
   }, [groupsData, groups])
 
   const handleSave = async () => {
@@ -105,7 +116,8 @@ export function BatchEditChannelsDialog({
       }
       payload.weight = n
     }
-    if (codexFingerprintMode) payload.codex_fingerprint_mode = codexFingerprintMode
+    if (codexFingerprintMode)
+      payload.codex_fingerprint_mode = codexFingerprintMode
 
     setIsSaving(true)
     try {
@@ -144,7 +156,9 @@ export function BatchEditChannelsDialog({
             {t('Cancel')}
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : null}
+            {isSaving ? (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            ) : null}
             {isSaving ? t('Saving...') : t('Save Changes')}
           </Button>
         </>
@@ -228,16 +242,29 @@ export function BatchEditChannelsDialog({
 
         <div className='space-y-2'>
           <Label>{t('Codex Fingerprint Convergence')}</Label>
-          <Select value={codexFingerprintMode} onValueChange={(value) => setCodexFingerprintMode(value as typeof codexFingerprintMode)}>
-            <SelectTrigger><SelectValue placeholder={t('Leave empty to keep current')} /></SelectTrigger>
+          <Select
+            value={codexFingerprintMode}
+            onValueChange={(value) =>
+              setCodexFingerprintMode(value as typeof codexFingerprintMode)
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={t('Leave empty to keep current')} />
+            </SelectTrigger>
             <SelectContent>
-              <SelectItem value='off'>{t('Off (passthrough)')}</SelectItem>
+              <SelectItem value='off'>
+                {t('Off (passthrough, default)')}
+              </SelectItem>
               <SelectItem value='device'>{t('Device only')}</SelectItem>
-              <SelectItem value='session'>{t('Device + Session (recommended)')}</SelectItem>
+              <SelectItem value='session'>{t('Device + Session')}</SelectItem>
               <SelectItem value='full'>{t('Full convergence')}</SelectItem>
             </SelectContent>
           </Select>
-          <p className='text-muted-foreground text-xs'>{t('Applies only to selected Codex channels')}</p>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Default is off. Enable convergence only after measuring your accounts; some accounts reported reduced quota after enabling it.'
+            )}
+          </p>
         </div>
       </div>
     </Dialog>

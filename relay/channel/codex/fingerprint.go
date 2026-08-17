@@ -11,6 +11,8 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const fingerprintContextKey = "codex_fingerprint_ids"
@@ -26,7 +28,7 @@ func clientSessionID(c *gin.Context) string {
 }
 
 func setFingerprintIDs(c *gin.Context, ids *codexFingerprintIDs) {
-	if c != nil && ids != nil {
+	if c != nil {
 		c.Set(fingerprintContextKey, ids)
 	}
 }
@@ -54,15 +56,15 @@ type codexFingerprintIDs struct {
 }
 
 func fingerprintMode(info *relaycommon.RelayInfo) string {
-	if info.ChannelMeta == nil {
-		return fingerprintSession
+	if info == nil || info.ChannelMeta == nil {
+		return fingerprintOff
 	}
 	mode := strings.ToLower(strings.TrimSpace(info.ChannelSetting.CodexFingerprintMode))
 	switch mode {
 	case fingerprintOff, fingerprintDevice, fingerprintSession, fingerprintFull:
 		return mode
 	default:
-		return fingerprintSession
+		return fingerprintOff
 	}
 }
 
@@ -149,23 +151,81 @@ func applyFingerprintBody(body map[string]any, ids *codexFingerprintIDs) bool {
 	if body == nil || ids == nil {
 		return false
 	}
-	metadata, ok := body["client_metadata"].(map[string]any)
-	if body["client_metadata"] != nil && !ok {
-		return false
-	}
+	metadata, _ := body["client_metadata"].(map[string]any)
 	if metadata == nil {
 		metadata = map[string]any{}
 	}
-	metadata["x-codex-installation-id"] = ids.installationID
-	if ids.mode != fingerprintDevice {
-		metadata["session_id"] = ids.sessionID
-		metadata["thread_id"] = ids.threadID
-		metadata["turn_id"] = ids.turnID
-		metadata["x-codex-window-id"] = ids.windowID
+	if !applyFingerprintMetadata(metadata, ids) {
+		return false
+	}
+	body["client_metadata"] = metadata
+	return true
+}
+
+func applyFingerprintMetadata(metadata map[string]any, ids *codexFingerprintIDs) bool {
+	if metadata == nil || ids == nil {
+		return false
+	}
+	for _, field := range fingerprintMetadataFields(ids) {
+		metadata[field.name] = field.value
 	}
 	if raw, ok := metadata["x-codex-turn-metadata"].(string); ok {
 		metadata["x-codex-turn-metadata"] = rewriteTurnMetadata(raw, ids)
 	}
-	body["client_metadata"] = metadata
 	return true
+}
+
+type fingerprintMetadataField struct {
+	name  string
+	value string
+}
+
+func fingerprintMetadataFields(ids *codexFingerprintIDs) []fingerprintMetadataField {
+	if ids == nil {
+		return nil
+	}
+	fields := []fingerprintMetadataField{{name: "x-codex-installation-id", value: ids.installationID}}
+	if ids.mode != fingerprintDevice {
+		fields = append(fields,
+			fingerprintMetadataField{name: "session_id", value: ids.sessionID},
+			fingerprintMetadataField{name: "thread_id", value: ids.threadID},
+			fingerprintMetadataField{name: "turn_id", value: ids.turnID},
+			fingerprintMetadataField{name: "x-codex-window-id", value: ids.windowID},
+		)
+	}
+	return fields
+}
+
+func applyFingerprintBodyRaw(body []byte, ids *codexFingerprintIDs) ([]byte, bool, error) {
+	if len(body) == 0 || ids == nil {
+		return body, false, nil
+	}
+	root := gjson.ParseBytes(body)
+	if !gjson.ValidBytes(body) || !root.IsObject() {
+		return body, false, nil
+	}
+
+	rewritten := body
+	if existing := gjson.GetBytes(body, "client_metadata"); !existing.IsObject() {
+		var err error
+		rewritten, err = sjson.SetRawBytes(rewritten, "client_metadata", []byte(`{}`))
+		if err != nil {
+			return body, false, fmt.Errorf("initialize converged client_metadata: %w", err)
+		}
+	}
+	for _, field := range fingerprintMetadataFields(ids) {
+		var err error
+		rewritten, err = sjson.SetBytes(rewritten, "client_metadata."+field.name, field.value)
+		if err != nil {
+			return body, false, fmt.Errorf("splice converged client_metadata: %w", err)
+		}
+	}
+	if raw := gjson.GetBytes(rewritten, "client_metadata.x-codex-turn-metadata"); raw.Type == gjson.String {
+		var err error
+		rewritten, err = sjson.SetBytes(rewritten, "client_metadata.x-codex-turn-metadata", rewriteTurnMetadata(raw.String(), ids))
+		if err != nil {
+			return body, false, fmt.Errorf("splice converged turn metadata: %w", err)
+		}
+	}
+	return rewritten, true, nil
 }
