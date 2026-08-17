@@ -219,6 +219,18 @@ func SetApiRouter(router *gin.Engine) {
 			adminDashboardRoute := nextAdminRoute.Group("/dashboard")
 			adminDashboardRoute.GET("/routes", middleware.RequirePermission(authz.ChannelRead), controller.NextGetAdminDashboardRoutes)
 
+			adminTicketRoute := nextAdminRoute.Group("/tickets")
+			{
+				adminTicketRoute.GET("", middleware.RequirePermission(authz.TicketRead), controller.NextListAdminTickets)
+				adminTicketRoute.GET("/summary", middleware.RequirePermission(authz.TicketRead), controller.NextGetAdminTicketSummary)
+				adminTicketRoute.GET("/agents", middleware.RequirePermission(authz.TicketManage), controller.NextListAdminTicketAgents)
+				adminTicketRoute.GET("/attachments/:attachment_id", middleware.RequirePermission(authz.TicketRead), controller.NextDownloadAdminTicketAttachment)
+				adminTicketRoute.GET("/:id", middleware.RequirePermission(authz.TicketRead), controller.NextGetAdminTicket)
+				adminTicketRoute.POST("/:id/messages", middleware.CriticalRateLimit(), middleware.RequirePermission(authz.TicketReply), controller.NextAddAdminTicketMessage)
+				adminTicketRoute.PATCH("/:id/status", middleware.RequirePermission(authz.TicketManage), controller.NextUpdateAdminTicketStatus)
+				adminTicketRoute.PATCH("/:id/assignee", middleware.RequirePermission(authz.TicketManage), controller.NextAssignAdminTicket)
+			}
+
 			adminUserRoute := nextAdminRoute.Group("/users")
 			{
 				adminUserRoute.GET("", controller.NextListAdminUsers)

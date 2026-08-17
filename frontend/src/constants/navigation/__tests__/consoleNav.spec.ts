@@ -14,6 +14,7 @@ describe('console navigation', () => {
 
     expect(adminGroup?.items.map((item) => item.name)).toEqual([
       'channel-management',
+      'ticket-management',
       'user-management',
       'redemption-management',
       'plan-management',
@@ -27,6 +28,13 @@ describe('console navigation', () => {
       })
     )
     expect(adminGroup?.items[1]).toEqual(
+      expect.objectContaining({
+        name: 'ticket-management',
+        route: 'ticket-management',
+        permission: { resource: 'ticket', action: 'read' },
+      })
+    )
+    expect(adminGroup?.items[2]).toEqual(
       expect.objectContaining({
         name: 'user-management',
         route: 'users',
@@ -100,6 +108,10 @@ describe('console navigation', () => {
     expect(getConsoleRouteAccessMeta('channels')).toEqual({
       requiresAdmin: true,
       requiresPermission: { resource: 'channel', action: 'read' },
+    })
+    expect(getConsoleRouteAccessMeta('ticket-management')).toEqual({
+      requiresAdmin: true,
+      requiresPermission: { resource: 'ticket', action: 'read' },
     })
     expect(getConsoleRouteAccessMeta('models')).toEqual({})
   })

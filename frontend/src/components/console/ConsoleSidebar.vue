@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 
@@ -10,11 +10,16 @@ import {
 import { useSidebarCollapsed } from '@/composables/useSidebarCollapsed'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
+import { useTicketQueueStore } from '@/stores/ticketQueue'
 
 const { t } = useI18n()
 const route = useRoute()
 const app = useAppStore()
 const auth = useAuthStore()
+const ticketQueue = useTicketQueueStore()
+
+onMounted(ticketQueue.start)
+onBeforeUnmount(ticketQueue.stop)
 
 const visibleNavGroups = computed(() =>
   getAccessibleConsoleNavGroups({
@@ -195,6 +200,26 @@ defineExpose({ collapsed })
 
               <span v-if="!collapsed" class="min-w-0 flex-1 truncate text-left">
                 {{ t(item.labelKey) }}
+              </span>
+
+              <span
+                v-if="
+                  item.name === 'ticket-management' &&
+                  ticketQueue.summary.pending > 0
+                "
+                class="flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[var(--status-danger)] px-1.5 text-[10px] font-semibold leading-5 text-[var(--text-inverse)]"
+                :class="collapsed ? 'absolute right-1 top-1' : ''"
+                :aria-label="
+                  t('tickets.admin.pendingCount', {
+                    count: ticketQueue.summary.pending,
+                  })
+                "
+              >
+                {{
+                  ticketQueue.summary.pending > 99
+                    ? '99+'
+                    : ticketQueue.summary.pending
+                }}
               </span>
 
               <span

@@ -16,6 +16,14 @@ const content = ref('')
 const showUploader = ref(false)
 const uploader = ref<InstanceType<typeof TicketImageUploader> | null>(null)
 
+function reset() {
+  content.value = ''
+  uploader.value?.reset()
+  showUploader.value = false
+}
+
+defineExpose({ reset })
+
 function send() {
   const text = content.value.trim()
   if (!text || props.submitting || props.readonly) return
@@ -23,9 +31,6 @@ function send() {
     content: text,
     attachments: uploader.value?.getFiles() ?? [],
   })
-  content.value = ''
-  uploader.value?.reset()
-  showUploader.value = false
 }
 </script>
 

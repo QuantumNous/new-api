@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 
 import { getAccessibleConsoleNavGroups } from '@/constants/navigation/consoleNav'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
+import { useTicketQueueStore } from '@/stores/ticketQueue'
 
 const { t } = useI18n()
 const route = useRoute()
 const auth = useAuthStore()
 const app = useAppStore()
+const ticketQueue = useTicketQueueStore()
 const activeItem = ref<HTMLElement | null>(null)
+
+onMounted(ticketQueue.start)
+onBeforeUnmount(ticketQueue.stop)
 
 const allItems = computed(() =>
   getAccessibleConsoleNavGroups({
@@ -97,6 +102,21 @@ watch(
         <path :d="item.icon" />
       </svg>
       {{ t(item.labelKey) }}
+      <span
+        v-if="
+          item.name === 'ticket-management' && ticketQueue.summary.pending > 0
+        "
+        class="flex min-w-5 items-center justify-center rounded-full bg-[var(--status-danger)] px-1 text-[10px] font-semibold leading-5 text-[var(--text-inverse)]"
+        :aria-label="
+          t('tickets.admin.pendingCount', {
+            count: ticketQueue.summary.pending,
+          })
+        "
+      >
+        {{
+          ticketQueue.summary.pending > 99 ? '99+' : ticketQueue.summary.pending
+        }}
+      </span>
     </component>
   </nav>
 </template>

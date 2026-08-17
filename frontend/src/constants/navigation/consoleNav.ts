@@ -134,6 +134,14 @@ export const consoleNavGroups: ConsoleNavGroup[] = [
         icon: 'M4 6h16M4 12h16M4 18h16M7 3v6M17 9v6M10 15v6',
       },
       {
+        name: 'ticket-management',
+        labelKey: 'nav.ticketManagement',
+        route: 'ticket-management',
+        feature: 'admin',
+        permission: { resource: 'ticket', action: 'read' },
+        icon: 'M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a2.5 2.5 0 0 0 0 5V16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.5a2.5 2.5 0 0 0 0-5V8ZM13 6v2m0 8v2m0-7v2',
+      },
+      {
         name: 'user-management',
         labelKey: 'nav.userManagement',
         route: 'users',

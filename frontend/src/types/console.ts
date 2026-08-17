@@ -622,12 +622,33 @@ export interface TicketItem {
   priority: TicketPriority
   status: TicketStatus
   reply_count: number
+  message_count: number
   last_reply_role: 'user' | 'support'
   model_id?: string
   request_id?: string
   created: number
   updated: number
   messages: TicketMessage[]
+}
+
+export interface TicketAgent {
+  id: number
+  username: string
+  display_name: string
+  email?: string
+}
+
+export interface AdminTicketItem extends Omit<TicketItem, 'messages'> {
+  assignee_id: number | null
+  assignee_name?: string
+  assigned_at: number
+  user: TicketAgent
+}
+
+export interface TicketQueueSummary {
+  pending: number
+  unassigned: number
+  mine: number
 }
 
 /* ---------------- activity center ---------------- */

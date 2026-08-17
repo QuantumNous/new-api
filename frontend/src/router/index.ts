@@ -196,6 +196,17 @@ const router = createRouter({
           },
         },
         {
+          path: 'ticket-management/:id?',
+          name: 'ticket-management',
+          component: () => import('@/views/console/AdminTicketsView.vue'),
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            feature: 'admin',
+            ...getConsoleRouteAccessMeta('ticket-management'),
+          },
+        },
+        {
           path: 'users',
           name: 'users',
           component: () => import('@/views/console/UsersView.vue'),
