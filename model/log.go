@@ -78,7 +78,7 @@ type Log struct {
 	Ip                string `json:"ip" gorm:"index;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
-	CostQuota         float64  `json:"cost_quota" gorm:"type:double;default:0"` // 本次调用成本（额度单位，与 Quota 同量纲，可为小数）
+	CostQuota         float64  `json:"cost_quota" gorm:"default:0"` // 本次调用成本（额度单位，与 Quota 同量纲，可为小数）
 	Other             string `json:"other"`
 }
 
