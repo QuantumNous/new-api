@@ -7,68 +7,106 @@ import type { TicketMessage } from '@/types/console'
 import { relativeTime } from '@/utils/format'
 import { safeImageUrl } from '@/utils/safeUrl'
 
-const props = defineProps<{ message: TicketMessage }>()
+interface MessageImageState {
+  source: string
+  url: string
+  loading: boolean
+  failed: boolean
+}
+
+const props = withDefaults(
+  defineProps<{
+    message: TicketMessage
+    viewer?: 'user' | 'support'
+  }>(),
+  { viewer: 'user' }
+)
 defineEmits<{ 'image-click': [url: string] }>()
 
 const { t, locale } = useI18n()
-const safeImages = ref<string[]>([])
-let imageController: AbortController | null = null
+const imageStates = ref<MessageImageState[]>([])
+const imageControllers = new Set<AbortController>()
+let imageGeneration = 0
 
 function clearImages() {
-  for (const image of safeImages.value) URL.revokeObjectURL(image)
-  safeImages.value = []
+  imageGeneration += 1
+  for (const controller of imageControllers) controller.abort()
+  imageControllers.clear()
+  for (const image of imageStates.value) {
+    if (image.url) URL.revokeObjectURL(image.url)
+  }
+  imageStates.value = []
+}
+
+async function loadImage(image: MessageImageState, generation: number) {
+  if (image.url) URL.revokeObjectURL(image.url)
+  image.url = ''
+  image.loading = true
+  image.failed = false
+  const controller = new AbortController()
+  imageControllers.add(controller)
+  try {
+    const blob = await api.getBlob(image.source, { signal: controller.signal })
+    const objectUrl = URL.createObjectURL(blob)
+    if (
+      controller.signal.aborted ||
+      generation !== imageGeneration ||
+      !imageStates.value.includes(image)
+    ) {
+      URL.revokeObjectURL(objectUrl)
+      return
+    }
+    image.url = safeImageUrl(objectUrl) ?? ''
+    image.failed = !image.url
+  } catch {
+    if (!controller.signal.aborted && generation === imageGeneration) {
+      image.failed = true
+    }
+  } finally {
+    imageControllers.delete(controller)
+    if (generation === imageGeneration) image.loading = false
+  }
+}
+
+function retryImage(image: MessageImageState) {
+  void loadImage(image, imageGeneration)
 }
 
 watch(
   () => props.message.images,
-  async (images) => {
-    imageController?.abort()
+  (images) => {
     clearImages()
-    if (!images.length) return
-    const controller = new AbortController()
-    imageController = controller
-    const loaded = await Promise.all(
-      images.map(async (image) => {
-        try {
-          const blob = await api.getBlob(image, { signal: controller.signal })
-          return URL.createObjectURL(blob)
-        } catch {
-          return null
-        }
-      })
-    )
-    if (controller.signal.aborted || imageController !== controller) {
-      for (const image of loaded) if (image) URL.revokeObjectURL(image)
-      return
-    }
-    safeImages.value = loaded
-      .map((image) => safeImageUrl(image))
-      .filter((image): image is string => Boolean(image))
+    const generation = imageGeneration
+    imageStates.value = images.map((source) => ({
+      source,
+      url: '',
+      loading: true,
+      failed: false,
+    }))
+    for (const image of imageStates.value) void loadImage(image, generation)
   },
   { immediate: true }
 )
 
-onBeforeUnmount(() => {
-  imageController?.abort()
-  clearImages()
+onBeforeUnmount(clearImages)
+
+const isOwn = computed(() => props.message.role === props.viewer)
+const authorLabel = computed(() => {
+  if (isOwn.value) return ''
+  if (props.message.role === 'support') {
+    if (props.viewer === 'user') return t('tickets.detail.dept.support')
+    return t(`tickets.detail.dept.${props.message.department ?? 'support'}`)
+  }
+  return t('tickets.admin.requester')
 })
-
-const isSupport = computed(() => props.message.role === 'support')
-
-/**
- * Bubble skin. Support speaks on paper (muted surface + ink border), the user
- * speaks in accent ink. Both sides borrow the hand-drawn radius so the thread
- * reads like a pasted-in note rather than a chat widget.
- */
 const bubbleClass = computed(() =>
-  isSupport.value
-    ? 'border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-primary)]'
-    : 'bg-[var(--accent)] text-[var(--accent-contrast)]'
+  isOwn.value
+    ? 'bg-[var(--accent)] text-[var(--accent-contrast)]'
+    : 'border border-[var(--border-subtle)] bg-[var(--surface-muted)] text-[var(--text-primary)]'
 )
 </script>
 
 <template>
-  <!-- system notes render as a centered divider line -->
   <div
     v-if="message.role === 'system'"
     class="flex items-center justify-center gap-3 py-1"
@@ -82,20 +120,17 @@ const bubbleClass = computed(() =>
     <span class="h-px flex-1 bg-[var(--dec-gold-line)]" />
   </div>
 
-  <div v-else class="flex" :class="isSupport ? '' : 'flex-row-reverse'">
-    <!-- bubble (avatars intentionally omitted; role is conveyed by side + name) -->
-    <div class="min-w-0 max-w-[80%]">
+  <div v-else class="flex" :class="isOwn ? 'flex-row-reverse' : ''">
+    <div class="min-w-0 max-w-[86%] sm:max-w-[80%]">
       <div
         class="mb-1 flex items-baseline gap-2"
-        :class="isSupport ? '' : 'flex-row-reverse'"
+        :class="isOwn ? 'flex-row-reverse' : ''"
       >
-        <!-- Support replies are labeled by department; the user's own name is
-             intentionally hidden, leaving only the timestamp. -->
         <span
-          v-if="isSupport"
+          v-if="authorLabel"
           class="display-title text-sm font-semibold text-[var(--text-secondary)]"
         >
-          {{ t(`tickets.detail.dept.${message.department ?? 'support'}`) }}
+          {{ authorLabel }}
         </span>
         <time class="text-xs text-[var(--text-tertiary)]">
           {{ relativeTime(message.created, locale) }}
@@ -108,15 +143,35 @@ const bubbleClass = computed(() =>
       >
         <p class="whitespace-pre-wrap break-words">{{ message.content }}</p>
 
-        <div v-if="safeImages.length" class="mt-2.5 grid grid-cols-2 gap-2">
+        <div v-if="imageStates.length" class="mt-2.5 grid grid-cols-2 gap-2">
           <button
-            v-for="(img, idx) in safeImages"
-            :key="idx"
+            v-for="(image, index) in imageStates"
+            :key="`${image.source}-${index}`"
             type="button"
-            class="sketch-sm aspect-video overflow-hidden border border-[var(--border-subtle)] bg-[var(--surface-solid)] transition-transform motion-safe:hover:scale-[1.02]"
-            @click="$emit('image-click', img)"
+            class="sketch-sm aspect-video overflow-hidden border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+            :class="
+              image.url
+                ? 'transition-transform motion-safe:hover:scale-[1.02]'
+                : 'flex items-center justify-center px-3 text-center text-xs text-[var(--status-danger-text)]'
+            "
+            :disabled="image.loading"
+            @click="
+              image.url ? $emit('image-click', image.url) : retryImage(image)
+            "
           >
-            <img :src="img" alt="" class="h-full w-full object-cover" />
+            <img
+              v-if="image.url"
+              :src="image.url"
+              alt=""
+              class="h-full w-full object-cover"
+            />
+            <span v-else-if="image.loading" class="text-[var(--text-tertiary)]">
+              {{ t('common.loading') }}
+            </span>
+            <span v-else>
+              {{ t('tickets.upload.loadFailed') }} ·
+              {{ t('tickets.upload.retry') }}
+            </span>
           </button>
         </div>
       </div>

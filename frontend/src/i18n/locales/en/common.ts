@@ -16,6 +16,7 @@ export default {
     disabled: 'Disabled',
     viewMore: 'View more',
     loading: 'Loading…',
+    refresh: 'Refresh',
     retry: 'Retry',
     appError: {
       label: 'Application error',

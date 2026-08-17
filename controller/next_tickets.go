@@ -16,6 +16,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -40,6 +41,7 @@ type nextTicketDTO struct {
 	Priority      string `json:"priority"`
 	Status        string `json:"status"`
 	ReplyCount    int    `json:"reply_count"`
+	MessageCount  int    `json:"message_count"`
 	LastReplyRole string `json:"last_reply_role"`
 	ModelID       string `json:"model_id,omitempty"`
 	RequestID     string `json:"request_id,omitempty"`
@@ -81,17 +83,17 @@ func nextTicketNotFound(c *gin.Context) {
 	nextBusinessError(c, "ticket not found", "NOT_FOUND")
 }
 
-func nextTicketRole(ticket *model.Ticket, message model.TicketMessage) string {
-	if message.AuthorID == ticket.UserID {
-		return "user"
+func nextTicketRole(message model.TicketMessage) string {
+	if message.Role == model.TicketMessageRoleSupport {
+		return model.TicketMessageRoleSupport
 	}
-	return "support"
+	return model.TicketMessageRoleUser
 }
 
 func buildNextTicketDTO(ticket *model.Ticket, messages []model.TicketMessage) nextTicketDTO {
-	lastRole := "user"
+	lastRole := model.TicketMessageRoleUser
 	if len(messages) > 0 {
-		lastRole = nextTicketRole(ticket, messages[len(messages)-1])
+		lastRole = nextTicketRole(messages[len(messages)-1])
 	}
 	return nextTicketDTO{
 		ID:            ticket.ID,
@@ -100,6 +102,7 @@ func buildNextTicketDTO(ticket *model.Ticket, messages []model.TicketMessage) ne
 		Priority:      ticket.Priority,
 		Status:        ticket.Status,
 		ReplyCount:    len(messages),
+		MessageCount:  len(messages),
 		LastReplyRole: lastRole,
 		ModelID:       ticket.ModelID,
 		RequestID:     ticket.RequestID,
@@ -108,14 +111,31 @@ func buildNextTicketDTO(ticket *model.Ticket, messages []model.TicketMessage) ne
 	}
 }
 
-func buildNextTicketMessages(ticket *model.Ticket, messages []model.TicketMessage, attachments []model.TicketAttachment) []nextTicketMessageDTO {
+func buildNextTicketSummaryDTO(summary *model.TicketSummary) nextTicketDTO {
+	return nextTicketDTO{
+		ID:            summary.ID,
+		Title:         summary.Title,
+		Category:      summary.Category,
+		Priority:      summary.Priority,
+		Status:        summary.Status,
+		ReplyCount:    summary.MessageCount,
+		MessageCount:  summary.MessageCount,
+		LastReplyRole: summary.LastReplyRole,
+		ModelID:       summary.ModelID,
+		RequestID:     summary.RequestID,
+		Created:       summary.CreatedAt,
+		Updated:       summary.UpdatedAt,
+	}
+}
+
+func buildNextTicketMessages(messages []model.TicketMessage, attachments []model.TicketAttachment, attachmentBase string) []nextTicketMessageDTO {
 	imagesByMessage := make(map[int][]string)
 	for _, attachment := range attachments {
-		imagesByMessage[attachment.MessageID] = append(imagesByMessage[attachment.MessageID], fmt.Sprintf("/api/next/tickets/attachments/%d", attachment.ID))
+		imagesByMessage[attachment.MessageID] = append(imagesByMessage[attachment.MessageID], fmt.Sprintf("%s/%d", attachmentBase, attachment.ID))
 	}
 	items := make([]nextTicketMessageDTO, 0, len(messages))
 	for _, message := range messages {
-		role := nextTicketRole(ticket, message)
+		role := nextTicketRole(message)
 		item := nextTicketMessageDTO{
 			ID:      message.ID,
 			Role:    role,
@@ -141,10 +161,26 @@ func validateNextTicketFields(title, category, priority, content string) error {
 	if content == "" || len([]rune(content)) > 2000 {
 		return errors.New("ticket content is required and must not exceed 2000 characters")
 	}
-	validCategory := category == "billing" || category == "api" || category == "model" || category == "account" || category == "other"
-	validPriority := priority == "low" || priority == "normal" || priority == "high"
-	if !validCategory || !validPriority {
+	if !validNextTicketCategory(category) || !validNextTicketPriority(priority) {
 		return errors.New("invalid ticket category or priority")
+	}
+	return nil
+}
+
+func validNextTicketCategory(value string) bool {
+	return value == "billing" || value == "api" || value == "model" || value == "account" || value == "other"
+}
+
+func validNextTicketPriority(value string) bool {
+	return value == "low" || value == "normal" || value == "high"
+}
+
+func validateNextTicketReferences(modelID, requestID string) error {
+	if len([]rune(modelID)) > 128 {
+		return errors.New("model id must not exceed 128 characters")
+	}
+	if len([]rune(requestID)) > 128 {
+		return errors.New("request id must not exceed 128 characters")
 	}
 	return nil
 }
@@ -230,19 +266,19 @@ func NextListTickets(c *gin.Context) {
 	if value, err := strconv.Atoi(c.Query("page_size")); err == nil && value > 0 && value <= 100 {
 		pageSize = value
 	}
-	tickets, total, err := model.ListUserTickets(c.GetInt("id"), c.Query("keyword"), c.Query("status"), page, pageSize)
+	status := strings.TrimSpace(c.Query("status"))
+	if status != "" && !model.IsTicketStatus(status) {
+		nextBusinessError(c, "invalid ticket status", "VALIDATION_ERROR")
+		return
+	}
+	tickets, total, err := model.ListUserTickets(c.GetInt("id"), c.Query("keyword"), status, page, pageSize)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	items := make([]nextTicketDTO, 0, len(tickets))
 	for index := range tickets {
-		messages, err := model.ListTicketMessages(tickets[index].ID)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		items = append(items, buildNextTicketDTO(&tickets[index], messages))
+		items = append(items, buildNextTicketSummaryDTO(&tickets[index]))
 	}
 	common.ApiSuccess(c, gin.H{"items": items, "total": total, "page": page, "page_size": pageSize})
 }
@@ -263,6 +299,12 @@ func NextCreateTicket(c *gin.Context) {
 		nextBusinessError(c, err.Error(), "VALIDATION_ERROR")
 		return
 	}
+	modelID := strings.TrimSpace(c.PostForm("model_id"))
+	requestID := strings.TrimSpace(c.PostForm("request_id"))
+	if err := validateNextTicketReferences(modelID, requestID); err != nil {
+		nextBusinessError(c, err.Error(), "VALIDATION_ERROR")
+		return
+	}
 	attachments, paths, err := saveNextTicketAttachments(form.File["attachments"])
 	if err != nil {
 		nextBusinessError(c, err.Error(), "VALIDATION_ERROR")
@@ -274,14 +316,15 @@ func NextCreateTicket(c *gin.Context) {
 		Title:     title,
 		Category:  category,
 		Priority:  priority,
-		ModelID:   strings.TrimSpace(c.PostForm("model_id")),
-		RequestID: strings.TrimSpace(c.PostForm("request_id")),
+		ModelID:   modelID,
+		RequestID: requestID,
 	}
 	if _, err := model.CreateTicket(ticket, content, userID, attachments); err != nil {
 		removeNextTicketFiles(paths)
 		common.ApiError(c, err)
 		return
 	}
+	service.NotifyNewTicket(*ticket)
 	messages, err := model.ListTicketMessages(ticket.ID)
 	if err != nil {
 		common.ApiError(c, err)
@@ -316,7 +359,7 @@ func NextGetTicket(c *gin.Context) {
 	}
 	common.ApiSuccess(c, gin.H{
 		"ticket":   buildNextTicketDTO(ticket, messages),
-		"messages": buildNextTicketMessages(ticket, messages, attachments),
+		"messages": buildNextTicketMessages(messages, attachments, "/api/next/tickets/attachments"),
 	})
 }
 
@@ -335,7 +378,7 @@ func NextAddTicketMessage(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if ticket.Status == "closed" {
+	if ticket.Status == model.TicketStatusClosed {
 		nextBusinessError(c, "closed tickets cannot receive replies", "TICKET_CLOSED")
 		return
 	}
@@ -356,7 +399,7 @@ func NextAddTicketMessage(c *gin.Context) {
 		nextBusinessError(c, err.Error(), "VALIDATION_ERROR")
 		return
 	}
-	message, err := model.AddTicketMessage(ticketID, userID, content, attachments)
+	message, updatedTicket, err := model.AddTicketMessage(ticketID, userID, content, attachments)
 	if errors.Is(err, model.ErrTicketClosed) {
 		removeNextTicketFiles(paths)
 		nextBusinessError(c, "closed tickets cannot receive replies", "TICKET_CLOSED")
@@ -372,12 +415,13 @@ func NextAddTicketMessage(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	service.NotifyTicketUserReply(*updatedTicket)
 	storedAttachments, err := model.ListTicketAttachments(ticketID)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	items := buildNextTicketMessages(ticket, []model.TicketMessage{*message}, storedAttachments)
+	items := buildNextTicketMessages([]model.TicketMessage{*message}, storedAttachments, "/api/next/tickets/attachments")
 	common.ApiSuccess(c, gin.H{"message": items[0]})
 }
 

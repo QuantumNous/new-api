@@ -18,6 +18,7 @@ import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useToast } from '@/composables/useToast'
 import { ticketStatusTone } from '@/constants/console'
+import { useTicketQueueStore } from '@/stores/ticketQueue'
 import { formatTime } from '@/utils/format'
 
 type TicketMeta = Omit<TicketItem, 'messages'>
@@ -26,6 +27,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const ticketQueue = useTicketQueueStore()
 const { readOnly } = useFeatureAccess('tickets', 'disabled')
 
 const ticket = ref<TicketMeta | null>(null)
@@ -36,6 +38,7 @@ const loadFailed = ref(false)
 const submitting = ref(false)
 const confirmClose = ref(false)
 const lightbox = ref({ open: false, url: '' })
+const replyBox = ref<InstanceType<typeof TicketReplyBox> | null>(null)
 const detailRequest = useLatestRequest()
 // Mutations (reply / status change) have their own guard so a route change
 // mid-flight can't apply a reply to the wrong ticket.
@@ -100,8 +103,11 @@ async function sendReply(payload: { content: string; attachments: File[] }) {
     messages.value.push(data.message)
     ticket.value.status = 'open'
     ticket.value.reply_count = messages.value.length
+    ticket.value.message_count = messages.value.length
     ticket.value.updated = data.message.created
+    replyBox.value?.reset()
     toast.success(t('tickets.replied'))
+    void ticketQueue.refresh()
   } catch (error) {
     if (sequence === mutationSequence) {
       toast.error(error instanceof ApiError ? error.message : String(error))
@@ -126,6 +132,7 @@ async function changeStatus(next: 'open' | 'closed') {
     toast.success(
       next === 'closed' ? t('tickets.closed') : t('tickets.reopened')
     )
+    void ticketQueue.refresh()
     // Refresh the thread to pick up the system note the backend appended.
     await load(id)
   } catch (error) {
@@ -280,6 +287,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
             v-for="msg in messages"
             :key="msg.id"
             :message="msg"
+            viewer="user"
             @image-click="openLightbox"
           />
         </div>
@@ -288,6 +296,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
       <!-- reply / closed banner -->
       <ConsoleCard v-if="ticket.status !== 'closed'">
         <TicketReplyBox
+          ref="replyBox"
           :submitting="submitting"
           :readonly="readOnly"
           @submit="sendReply"

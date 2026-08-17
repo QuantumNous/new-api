@@ -16,6 +16,7 @@ export default {
     disabled: '禁用',
     viewMore: '查看更多',
     loading: '加载中…',
+    refresh: '刷新',
     retry: '重试',
     appError: {
       label: '应用错误',

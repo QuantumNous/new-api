@@ -25,8 +25,15 @@ const props = withDefaults(
     direction?: 'down' | 'up'
     /** control height — 'md' (default 40px) or 'sm' (36px, denser toolbars) */
     size?: 'sm' | 'md'
+    disabled?: boolean
   }>(),
-  { placeholder: '', prefixLabel: '', direction: 'down', size: 'md' }
+  {
+    placeholder: '',
+    prefixLabel: '',
+    direction: 'down',
+    size: 'md',
+    disabled: false,
+  }
 )
 
 const root = ref<HTMLElement | null>(null)
@@ -83,6 +90,7 @@ function scrollActiveIntoView() {
 }
 
 function openMenu() {
+  if (props.disabled) return
   open.value = true
   const cur = allOptions.value.findIndex((o) => o.value === model.value)
   activeIndex.value = cur >= 0 ? cur : 0
@@ -95,6 +103,7 @@ function closeMenu() {
 }
 
 function toggle() {
+  if (props.disabled) return
   if (open.value) closeMenu()
   else openMenu()
 }
@@ -170,8 +179,9 @@ onClickOutside(root, closeMenu)
     <button
       :id="triggerId"
       type="button"
-      class="pencil-control flex h-full w-full items-center gap-2 rounded-xl border px-4 text-left text-sm text-[var(--text-primary)] transition-colors focus-ring"
+      class="pencil-control flex h-full w-full items-center gap-2 rounded-xl border px-4 text-left text-sm text-[var(--text-primary)] transition-colors focus-ring disabled:cursor-not-allowed disabled:opacity-50"
       data-handdrawn="control"
+      :disabled="disabled"
       :class="
         open
           ? 'border-[var(--border-strong)] bg-[var(--surface-solid)]'

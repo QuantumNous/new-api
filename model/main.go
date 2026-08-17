@@ -385,6 +385,9 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	if err := BackfillTicketMessageRoles(); err != nil {
+		return fmt.Errorf("failed to backfill ticket message roles: %v", err)
+	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err
 	}

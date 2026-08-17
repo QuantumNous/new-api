@@ -50,7 +50,11 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	assert.True(t, Can(2, common.RoleAdminUser, ChannelOperate))
 	assert.True(t, Can(2, common.RoleAdminUser, ChannelWrite))
 	assert.False(t, Can(2, common.RoleAdminUser, ChannelSensitiveWrite))
+	assert.True(t, Can(2, common.RoleAdminUser, TicketRead))
+	assert.True(t, Can(2, common.RoleAdminUser, TicketReply))
+	assert.True(t, Can(2, common.RoleAdminUser, TicketManage))
 	assert.False(t, Can(3, common.RoleCommonUser, ChannelRead))
+	assert.False(t, Can(3, common.RoleCommonUser, TicketRead))
 }
 
 func TestInitOnSlaveOnlyLoadsPolicies(t *testing.T) {
@@ -105,6 +109,11 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionSensitiveWrite: true,
 			ActionSecretView:     false,
 		},
+		ResourceTicket: {
+			ActionRead:   true,
+			ActionReply:  true,
+			ActionManage: true,
+		},
 	}, ExplicitUserPermissions(42))
 	assert.Equal(t, PermissionsMap{
 		ResourceChannel: {
@@ -132,6 +141,11 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionWrite:          true,
 			ActionSensitiveWrite: false,
 			ActionSecretView:     false,
+		},
+		ResourceTicket: {
+			ActionRead:   true,
+			ActionReply:  true,
+			ActionManage: true,
 		},
 	}, ExplicitUserPermissions(42))
 	assert.Empty(t, ExplicitUserOverrides(42))

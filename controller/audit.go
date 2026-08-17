@@ -44,6 +44,9 @@ var auditContentTemplates = map[string]string{
 	"channel.multi_key_manage":   "Multi-key management ${action} on channel (ID: ${id})",
 	"channel.upstream_apply":     "Applied upstream model changes to channel (ID: ${id})",
 	"channel.upstream_apply_all": "Applied upstream model changes to ${count} channels",
+	"ticket.reply":               "Replied to ticket ${ticket_id}",
+	"ticket.status_update":       "Changed ticket ${ticket_id} status to ${status}",
+	"ticket.assign":              "Changed ticket ${ticket_id} assignee",
 
 	"redemption.create": "Created ${count} redemption codes named ${name} (${quota} each)",
 

@@ -20,6 +20,7 @@ import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { ticketStatusTone } from '@/constants/console'
+import { useTicketQueueStore } from '@/stores/ticketQueue'
 import { relativeTime } from '@/utils/format'
 
 // The list endpoint omits the message thread from each row.
@@ -28,6 +29,7 @@ type TicketRow = Omit<TicketItem, 'messages'>
 const { t, locale } = useI18n()
 const router = useRouter()
 const toast = useToast()
+const ticketQueue = useTicketQueueStore()
 const { readOnly } = useFeatureAccess('tickets', 'disabled')
 
 const rows = ref<TicketRow[]>([])
@@ -35,6 +37,7 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 const loading = ref(true)
+const loadFailed = ref(false)
 const keyword = ref('')
 const status = ref('')
 const formOpen = ref(false)
@@ -59,6 +62,7 @@ const listRequest = useLatestRequest()
 
 async function load() {
   loading.value = true
+  loadFailed.value = false
   const result = await listRequest.run((signal) =>
     api.get<PageResult<TicketRow>>(
       '/api/next/tickets',
@@ -74,6 +78,7 @@ async function load() {
   if (result.stale) return
   loading.value = false
   if (!result.ok) {
+    loadFailed.value = true
     toast.error(
       result.error instanceof ApiError
         ? result.error.message
@@ -101,6 +106,11 @@ watch(page, load)
 
 function openDetail(id: number) {
   router.push({ name: 'ticket-detail', params: { id } })
+}
+
+function handleSaved() {
+  reload()
+  void ticketQueue.refresh()
 }
 
 onMounted(load)
@@ -144,6 +154,17 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
             {{ t('tickets.newTicket') }}
           </ConsoleButton>
         </div>
+      </div>
+
+      <div
+        v-if="loadFailed"
+        class="flex items-center justify-between gap-3 border-y border-[var(--status-danger)] bg-[var(--status-danger-soft)] px-4 py-3 text-sm text-[var(--status-danger-text)]"
+        role="alert"
+      >
+        <span>{{ t('tickets.listLoadFailed') }}</span>
+        <ConsoleButton size="sm" variant="secondary" @click="load">
+          {{ t('common.retry') }}
+        </ConsoleButton>
       </div>
 
       <DataTable
@@ -223,7 +244,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
       :open="formOpen"
       :readonly="readOnly"
       @close="formOpen = false"
-      @saved="reload"
+      @saved="handleSaved"
     />
   </div>
 </template>

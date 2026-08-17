@@ -66,14 +66,14 @@ function validate(): boolean {
   if (!title) {
     errors.title = t('tickets.create.titleRequired')
     valid = false
-  } else if (title.length > 100) {
+  } else if (Array.from(title).length > 100) {
     errors.title = t('tickets.create.titleLength')
     valid = false
   }
   if (!content) {
     errors.content = t('tickets.create.contentRequired')
     valid = false
-  } else if (content.length > 2000) {
+  } else if (Array.from(content).length > 2000) {
     errors.content = t('tickets.create.contentLength')
     valid = false
   }
