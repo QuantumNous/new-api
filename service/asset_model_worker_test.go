@@ -702,7 +702,8 @@ func TestAssetModelWorkerActivationRecoveryRetriesAfterDBErrorWithCurrentLease(t
 func TestPrepareAssetModelReadinessActivatesExactProviderBindingSet(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
-	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, &scriptedAssetModelMaterializer{})
+	materializer := &scriptedAssetModelMaterializer{}
+	registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
 	asset, scope, targets := seedAtomicAssetModelReadinessSet(t, "ast_atomic_provider", constant.ChannelTypeTechMobiVideo)
 	driverTarget := targets["seedance-2.0"]
 	siblingTarget := targets["seedance2.0-pro"]
@@ -724,6 +725,7 @@ func TestPrepareAssetModelReadinessActivatesExactProviderBindingSet(t *testing.T
 
 	err = PrepareAssetModelReadiness(context.Background(), driver, "node-a", time.Unix(100, 0))
 	require.NoError(t, err)
+	require.EqualValues(t, 0, atomic.LoadInt64(&materializer.createCalls))
 
 	driver = requireAssetModelReadinessRow(t, asset.Id, scope, "seedance-2.0")
 	sibling := requireAssetModelReadinessRow(t, asset.Id, scope, "seedance2.0-pro")
