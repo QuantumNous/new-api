@@ -23,6 +23,31 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 var channel2advancedCustomConfig map[int]*dto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
+// ListEnabledChannelsForRouting returns detached channel values for route planning.
+func ListEnabledChannelsForRouting(group, requestPath string) []*Channel {
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+	modelChannels := group2model2channels[group]
+	seen := make(map[int]struct{})
+	result := make([]*Channel, 0)
+	for modelName, channelIDs := range modelChannels {
+		for _, channelID := range filterChannelsByRequestPathAndModel(channelIDs, requestPath, modelName) {
+			if _, ok := seen[channelID]; ok {
+				continue
+			}
+			channel, ok := channelsIDM[channelID]
+			if !ok || channel == nil || channel.Status != common.ChannelStatusEnabled {
+				continue
+			}
+			copy := *channel
+			copy.Keys = append([]string(nil), channel.Keys...)
+			result = append(result, &copy)
+			seen[channelID] = struct{}{}
+		}
+	}
+	return result
+}
+
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
