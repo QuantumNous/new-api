@@ -385,6 +385,27 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		return
 	}
 
+	isArkVideoAPI := strings.HasPrefix(c.Request.URL.Path, constant.ArkContentGenerationTasksPath+"/")
+	if isArkVideoAPI {
+		adaptor := GetTaskAdaptor(originTask.Platform)
+		if adaptor == nil {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("invalid channel id: %d", originTask.ChannelId), "invalid_channel_id", http.StatusBadRequest)
+			return
+		}
+		converter, ok := adaptor.(channel.ArkVideoConverter)
+		if !ok {
+			taskResp = service.TaskErrorWrapperLocal(fmt.Errorf("not_implemented:%s", originTask.Platform), "not_implemented", http.StatusNotImplemented)
+			return
+		}
+		arkData, err := converter.ConvertToArkVideo(originTask)
+		if err != nil {
+			taskResp = service.TaskErrorWrapper(err, "convert_to_ark_video_failed", http.StatusInternalServerError)
+			return
+		}
+		respBody = arkData
+		return
+	}
+
 	isOpenAIVideoAPI := strings.HasPrefix(c.Request.RequestURI, "/v1/videos/") ||
 		strings.HasPrefix(c.Request.RequestURI, "/openai/v1/videos/")
 

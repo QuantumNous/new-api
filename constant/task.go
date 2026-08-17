@@ -2,6 +2,8 @@ package constant
 
 type TaskPlatform string
 
+const ArkContentGenerationTasksPath = "/api/v3/contents/generations/tasks"
+
 const (
 	TaskPlatformSuno       TaskPlatform = "suno"
 	TaskPlatformMidjourney              = "mj"

@@ -1,6 +1,8 @@
 package doubao
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,6 +37,80 @@ func TestBuildRequestURLUsesArkContentGenerationTasksEndpoint(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks", requestURL)
+}
+
+func TestDoResponseUsesArkCreateTaskContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, constant.ArkContentGenerationTasksPath, nil)
+	response := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"id":"upstream-task"}`)),
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:   &relaycommon.ChannelMeta{},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"},
+	}
+
+	upstreamTaskID, taskData, taskErr := (&TaskAdaptor{}).DoResponse(context, response, info)
+
+	require.Nil(t, taskErr)
+	assert.Equal(t, "upstream-task", upstreamTaskID)
+	assert.JSONEq(t, `{"id":"upstream-task"}`, string(taskData))
+	assert.JSONEq(t, `{"id":"task_public"}`, recorder.Body.String())
+}
+
+func TestConvertToArkVideoUsesPublicTaskIDAndNativeStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		task       model.Task
+		wantStatus string
+		wantURL    string
+	}{
+		{
+			name: "queued task before first poll",
+			task: model.Task{
+				TaskID:    "task_public",
+				Status:    model.TaskStatusQueued,
+				CreatedAt: 100,
+				UpdatedAt: 110,
+				Properties: model.Properties{
+					OriginModelName: "doubao-seedance-2-0-260128",
+				},
+				Data: []byte(`{"id":"upstream-task"}`),
+			},
+			wantStatus: "queued",
+		},
+		{
+			name: "completed task after polling",
+			task: model.Task{
+				TaskID: "task_public",
+				Status: model.TaskStatusSuccess,
+				Data: []byte(`{
+					"id":"upstream-task",
+					"model":"doubao-seedance-2-0-260128",
+					"status":"succeeded",
+					"content":{"video_url":"https://example.com/video.mp4"}
+				}`),
+			},
+			wantStatus: "succeeded",
+			wantURL:    "https://example.com/video.mp4",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			data, err := (&TaskAdaptor{}).ConvertToArkVideo(&test.task)
+
+			require.NoError(t, err)
+			var response responseTask
+			require.NoError(t, common.Unmarshal(data, &response))
+			assert.Equal(t, "task_public", response.ID)
+			assert.Equal(t, test.wantStatus, response.Status)
+			assert.Equal(t, test.wantURL, response.Content.VideoURL)
+		})
+	}
 }
 
 func TestValidateAndConvertArkTopLevelFields(t *testing.T) {

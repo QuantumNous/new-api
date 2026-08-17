@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 
@@ -31,6 +32,18 @@ func SetVideoRouter(router *gin.Engine) {
 		videoV1Router.GET("/video/generations/:task_id", controller.RelayTaskFetch)
 		videoV1Router.POST("/videos/:video_id/remix", controller.RelayTask)
 	}
+
+	// Volcengine Ark-compatible routes. Requests use the provider's native
+	// content-generation contract while still going through local auth,
+	// channel selection, billing, and public task ID handling.
+	arkVideoRouter := router.Group(constant.ArkContentGenerationTasksPath)
+	arkVideoRouter.Use(middleware.RouteTag("relay"))
+	arkVideoRouter.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		arkVideoRouter.POST("", controller.RelayTask)
+		arkVideoRouter.GET("/:task_id", controller.RelayTaskFetch)
+	}
+
 	// Native video routes. xAI channels preserve the CLIProxyAPI /v1/videos
 	// request and response contract; other channels retain their existing format.
 	{
