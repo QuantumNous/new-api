@@ -185,6 +185,18 @@ const router = createRouter({
           },
         },
         {
+          path: 'logs/operations',
+          name: 'logs-operations',
+          component: () => import('@/views/console/OperationLogsView.vue'),
+          meta: {
+            wide: true,
+            noPageScroll: true,
+            requiresAdmin: true,
+            feature: 'logs',
+            nav: 'logs',
+          },
+        },
+        {
           path: 'channels',
           name: 'channels',
           component: () => import('@/views/console/ChannelsView.vue'),

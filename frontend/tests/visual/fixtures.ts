@@ -468,6 +468,115 @@ export async function configureStablePage(
       },
     ],
     [
+      '/api/next/admin/operation-logs',
+      {
+        page: 1,
+        page_size: 10,
+        total: 4,
+        items: [
+          {
+            id: 101,
+            created_at: Math.floor((FIXED_NOW - 12 * 60_000) / 1000),
+            kind: 'manage',
+            action: 'user.update',
+            params: {
+              username:
+                'administrator.with.an.extremely.long.account.name@example.test',
+              changed_fields: ['status', 'group', 'quota'],
+            },
+            content: 'Updated user account',
+            actor: {
+              id: 1,
+              username:
+                'administrator.with.an.extremely.long.account.name@example.test',
+              role: 100,
+              auth_method: 'session',
+            },
+            ip: '203.0.113.25',
+            user_agent:
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Visual Audit Browser',
+            request: {
+              method: 'PUT',
+              route:
+                '/api/next/admin/users/:id/configuration/with/a/very/long/route/segment',
+              path: '/api/next/admin/users/42/configuration',
+              status: 200,
+              success: true,
+            },
+          },
+          {
+            id: 100,
+            created_at: Math.floor((FIXED_NOW - 32 * 60_000) / 1000),
+            kind: 'manage',
+            action: 'channel.update',
+            params: { id: 7, name: 'OpenAI Route 1' },
+            content: 'Updated channel OpenAI Route 1',
+            actor: {
+              id: 1,
+              username: 'visual.root',
+              role: 100,
+              auth_method: 'session',
+            },
+            ip: '198.51.100.9',
+            user_agent: 'Playwright',
+            request: {
+              method: 'PUT',
+              route: '/api/channel/',
+              path: '/api/channel/',
+              status: 500,
+              success: false,
+            },
+          },
+          {
+            id: 99,
+            created_at: Math.floor((FIXED_NOW - 65 * 60_000) / 1000),
+            kind: 'system',
+            action: 'user.2fa_enable',
+            params: { method: 'totp' },
+            content: 'Enabled two-factor authentication',
+            actor: {
+              id: 42,
+              username: 'security.user',
+              role: 1,
+              auth_method: '2fa',
+            },
+            ip: '2001:db8:4::21',
+            user_agent: 'Mobile Safari',
+            request: {
+              method: 'POST',
+              route: '/api/user/2fa/enable',
+              path: '/api/user/2fa/enable',
+              status: 200,
+              success: true,
+            },
+          },
+          {
+            id: 98,
+            created_at: Math.floor((FIXED_NOW - 95 * 60_000) / 1000),
+            kind: 'login',
+            action: 'login',
+            params: { method: 'password' },
+            content: 'Account signed in successfully',
+            actor: {
+              id: 27,
+              username: 'member.user',
+              role: null,
+              auth_method: 'password',
+            },
+            ip: '192.0.2.81',
+            user_agent: 'Chrome',
+            request: {
+              method: 'POST',
+              route: '/api/user/login',
+              path: '/api/user/login',
+              status: 200,
+              success: true,
+            },
+          },
+        ],
+      },
+    ],
+    [
       '/api/next/activity/self',
       {
         activities: [

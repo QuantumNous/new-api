@@ -291,7 +291,7 @@ export interface AdminOrderStats {
 }
 
 export type LogType =
-  'consume' | 'topup' | 'refund' | 'manage' | 'error' | 'system'
+  'consume' | 'topup' | 'refund' | 'manage' | 'error' | 'system' | 'login'
 
 export type LogRequestMode = 'stream' | 'sync'
 
@@ -323,6 +323,36 @@ export interface LogItem {
   tps: number // tokens per second (0 表示不适用)
   content: string
   created: number
+}
+
+export type OperationLogKind = 'manage' | 'system' | 'login'
+
+export interface OperationLogActor {
+  id: number
+  username: string
+  role: number | null
+  auth_method: string
+}
+
+export interface OperationLogRequest {
+  method: string
+  route: string
+  path: string
+  status: number | null
+  success: boolean | null
+}
+
+export interface OperationLogItem extends Record<string, unknown> {
+  id: number
+  created_at: number
+  kind: OperationLogKind
+  action: string
+  params: Record<string, unknown>
+  content: string
+  actor: OperationLogActor
+  ip: string
+  user_agent: string
+  request: OperationLogRequest | null
 }
 
 /* ------------------------------------------------------------------ */

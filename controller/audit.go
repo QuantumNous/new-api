@@ -16,19 +16,25 @@ import (
 // action 的 params 填充。本地化展示文案在前端 i18n 模板中维护，本表是语言中立的
 // 英文基线——调用方因此无需在每个埋点处手写句子（避免与 params 重复书写同一份值）。
 var auditContentTemplates = map[string]string{
-	"user.create":           "Created user ${username} (role ${role})",
-	"user.update":           "Updated user ${username} (ID: ${id})",
-	"user.delete":           "Deleted user ${username} (ID: ${id})",
-	"user.manage":           "Performed ${action} on user ${username} (ID: ${id})",
-	"user.quota_add":        "Increased user quota by ${quota}",
-	"user.quota_subtract":   "Decreased user quota by ${quota}",
-	"user.quota_override":   "Overrode user quota from ${from} to ${to}",
-	"user.binding_clear":    "Cleared ${bindingType} binding for user ${username}",
-	"user.2fa_disable":      "Force-disabled two-factor authentication for the user",
-	"user.passkey_register": "Registered a passkey",
-	"user.passkey_delete":   "Deleted a passkey",
-	"user.reset_passkey":    "Reset the user passkey",
-	"option.update":         "Updated system setting ${key}",
+	"user.create":                      "Created user ${username} (role ${role})",
+	"user.update":                      "Updated user ${username} (ID: ${id})",
+	"user.delete":                      "Deleted user ${username} (ID: ${id})",
+	"user.manage":                      "Performed ${action} on user ${username} (ID: ${id})",
+	"user.quota_add":                   "Increased user quota by ${quota}",
+	"user.quota_subtract":              "Decreased user quota by ${quota}",
+	"user.quota_override":              "Overrode user quota from ${from} to ${to}",
+	"user.binding_clear":               "Cleared ${bindingType} binding for user ${username}",
+	"user.2fa_disable":                 "Force-disabled two-factor authentication for the user",
+	"user.passkey_register":            "Registered a passkey",
+	"user.passkey_delete":              "Deleted a passkey",
+	"user.reset_passkey":               "Reset the user passkey",
+	"user.checkin":                     "Completed daily check-in and received ${quota} quota",
+	"user.security_verify":             "Completed security verification via ${method}",
+	"user.2fa_setup_start":             "Started two-factor authentication setup",
+	"user.2fa_enable":                  "Enabled two-factor authentication",
+	"user.2fa_self_disable":            "Disabled two-factor authentication",
+	"user.2fa_backup_codes_regenerate": "Regenerated two-factor authentication backup codes",
+	"option.update":                    "Updated system setting ${key}",
 
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
 	"channel.update":             "Updated channel ${name} (ID: ${id})",
@@ -88,6 +94,28 @@ func markAuditLogged(c *gin.Context) {
 	common.SetContextKey(c, constant.ContextKeyAuditLogged, true)
 }
 
+func successfulAuditInfo(c *gin.Context) map[string]interface{} {
+	status := c.Writer.Status()
+	if status <= 0 {
+		status = 200
+	}
+	info := map[string]interface{}{
+		"method":     c.Request.Method,
+		"route":      c.FullPath(),
+		"path":       c.Request.URL.Path,
+		"status":     status,
+		"success":    true,
+		"user_agent": c.Request.UserAgent(),
+	}
+	if c.GetInt("id") > 0 {
+		info["auth_method"] = auditAuthMethod(c)
+		if role, ok := c.Get("role"); ok {
+			info["actor_role"] = role
+		}
+	}
+	return info
+}
+
 // recordManageAudit 记录一条由操作者本人归属的管理/高危审计日志（资源类操作：
 // 渠道 / 系统设置 / 兑换码等）。content 由 action+params 自动渲染。
 func recordManageAudit(c *gin.Context, action string, params map[string]interface{}) {
@@ -104,12 +132,16 @@ func recordManageAuditFor(c *gin.Context, targetUserId int, action string, param
 	if _, ok := params["target_user_id"]; !ok && targetUserId > 0 && targetUserId != operatorUserId {
 		params["target_user_id"] = targetUserId
 	}
-	model.RecordOperationAuditLog(operatorUserId, auditContentEN(action, params), c.ClientIP(), action, params, auditOperatorInfo(c), nil)
+	model.RecordOperationAuditLog(operatorUserId, auditContentEN(action, params), c.ClientIP(), action, params, auditOperatorInfo(c), successfulAuditInfo(c))
 	markAuditLogged(c)
 }
 
 // recordUserSecurityAudit 记录普通用户自己的安全敏感操作（如 passkey 绑定/解绑）。
 // 这类日志没有管理员操作者，不写 admin_info；同时不依赖 AdminAuth/RootAuth 的兜底。
 func recordUserSecurityAudit(c *gin.Context, userId int, action string, params map[string]interface{}) {
-	model.RecordOperationAuditLog(userId, auditContentEN(action, params), c.ClientIP(), action, params, nil, nil)
+	model.RecordOperationAuditLog(userId, auditContentEN(action, params), c.ClientIP(), action, params, nil, successfulAuditInfo(c))
+}
+
+func recordUserSystemAudit(c *gin.Context, userId int, action string, params map[string]interface{}) {
+	model.RecordSystemAuditLog(userId, auditContentEN(action, params), c.ClientIP(), action, params, successfulAuditInfo(c))
 }

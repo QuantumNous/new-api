@@ -4,6 +4,7 @@ import {
   parseDrawingLogPage,
   parseLogPage,
   parseLogStat,
+  parseOperationLogPage,
   parsePerfMetricsSummary,
   parsePricingModels,
   parseRedeemedQuota,
@@ -237,6 +238,121 @@ describe('live API contracts', () => {
         items: [{ id: 1, type: 2 }],
       })
     )
+  })
+
+  it('parses successful login records in the ordinary user log contract', () => {
+    const page = parseLogPage({
+      page: 1,
+      page_size: 20,
+      total: 1,
+      items: [
+        {
+          id: 12,
+          type: 7,
+          token_name: '',
+          model_name: '',
+          channel_name: '',
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          quota: 0,
+          use_time: 0,
+          is_stream: false,
+          content: 'Logged in',
+          created_at: 1_700_000_000,
+        },
+      ],
+    })
+
+    expect(page.items[0]).toMatchObject({
+      id: 12,
+      type: 'login',
+      content: 'Logged in',
+      created: 1_700_000_000,
+    })
+  })
+
+  it('parses the operation log DTO and rejects raw or malformed shapes', () => {
+    const page = parseOperationLogPage({
+      page: 2,
+      page_size: 20,
+      total: 21,
+      items: [
+        {
+          id: 45,
+          created_at: 1_700_000_000,
+          kind: 'manage',
+          action: 'user.update',
+          params: { username: 'alice', changed_fields: ['status'] },
+          content: 'Updated user alice',
+          actor: {
+            id: 7,
+            username: 'admin',
+            role: 10,
+            auth_method: 'session',
+          },
+          ip: '203.0.113.2',
+          user_agent: 'Test Browser',
+          request: {
+            method: 'PUT',
+            route: '/api/user/:id',
+            path: '/api/user/9',
+            status: 200,
+            success: true,
+          },
+        },
+      ],
+    })
+
+    expect(page).toMatchObject({ page: 2, pageSize: 20, total: 21 })
+    expect(page.items[0]).toEqual({
+      id: 45,
+      created_at: 1_700_000_000,
+      kind: 'manage',
+      action: 'user.update',
+      params: { username: 'alice', changed_fields: ['status'] },
+      content: 'Updated user alice',
+      actor: {
+        id: 7,
+        username: 'admin',
+        role: 10,
+        auth_method: 'session',
+      },
+      ip: '203.0.113.2',
+      user_agent: 'Test Browser',
+      request: {
+        method: 'PUT',
+        route: '/api/user/:id',
+        path: '/api/user/9',
+        status: 200,
+        success: true,
+      },
+    })
+    expectInvalidResponse(() =>
+      parseOperationLogPage({
+        page: 1,
+        page_size: 20,
+        total: 1,
+        items: [{ id: 1, kind: 'consume', actor: {} }],
+      })
+    )
+    const extraFields = parseOperationLogPage({
+      page: 1,
+      page_size: 20,
+      total: 1,
+      items: [
+        {
+          id: 1,
+          created_at: 1,
+          kind: 'system',
+          action: '',
+          params: {},
+          content: 'legacy',
+          actor: { id: 1, username: 'user' },
+          other: '{"password":"must-not-cross-the-contract"}',
+        },
+      ],
+    })
+    expect(extraFields.items[0]).not.toHaveProperty('other')
   })
 
   it('parses drawing logs, defaults optional fields, and keeps unknown statuses', () => {

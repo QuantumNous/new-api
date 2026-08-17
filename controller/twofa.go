@@ -117,7 +117,7 @@ func Setup2FA(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "开始设置两步验证")
+	recordUserSystemAudit(c, userId, "user.2fa_setup_start", nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -199,7 +199,7 @@ func Enable2FA(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "成功启用两步验证")
+	recordUserSystemAudit(c, userId, "user.2fa_enable", nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -282,7 +282,7 @@ func Disable2FA(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "禁用两步验证")
+	recordUserSystemAudit(c, userId, "user.2fa_self_disable", nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -412,7 +412,7 @@ func RegenerateBackupCodes(c *gin.Context) {
 	}
 
 	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, "重新生成两步验证备用码")
+	recordUserSystemAudit(c, userId, "user.2fa_backup_codes_regenerate", nil)
 
 	data := authRotationData(bundle)
 	data["backup_codes"] = backupCodes

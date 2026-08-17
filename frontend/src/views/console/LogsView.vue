@@ -186,6 +186,7 @@ const typeOptions = computed(() => [
   { value: 'manage', label: t('logs.typeManage'), tone: 'info' as const },
   { value: 'error', label: t('logs.typeError'), tone: 'danger' as const },
   { value: 'system', label: t('logs.typeSystem'), tone: 'info' as const },
+  { value: 'login', label: t('logs.typeLogin'), tone: 'info' as const },
 ])
 
 // ---------- columns (dynamic, driven by visibleCols) ----------
@@ -236,6 +237,7 @@ const typeTone: Record<
   manage: 'info',
   error: 'danger',
   system: 'info',
+  login: 'info',
 }
 
 const typeLabelKey: Record<LogType, string> = {
@@ -245,6 +247,7 @@ const typeLabelKey: Record<LogType, string> = {
   manage: 'logs.typeManage',
   error: 'logs.typeError',
   system: 'logs.typeSystem',
+  login: 'logs.typeLogin',
 }
 
 // ---------- data fetching ----------
@@ -257,6 +260,7 @@ function currentParams() {
     system: 4,
     error: 5,
     refund: 6,
+    login: 7,
   }
   const requestedStart = startDate.value
     ? Math.floor(new Date(startDate.value).getTime() / 1000)

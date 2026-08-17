@@ -388,7 +388,9 @@ func NextCheckin(c *gin.Context) {
 		nextBusinessError(c, err.Error(), "CHECKIN_FAILED")
 		return
 	}
-	model.RecordLog(c.GetInt("id"), model.LogTypeSystem, fmt.Sprintf("用户签到，获得额度 %d", checkin.QuotaAwarded))
+	recordUserSystemAudit(c, c.GetInt("id"), "user.checkin", map[string]interface{}{
+		"quota": checkin.QuotaAwarded,
+	})
 	now := time.Now()
 	records, recordsErr := model.GetUserCheckinRecords(c.GetInt("id"), "1970-01-01", now.Format("2006-01-02"))
 	streak := 0

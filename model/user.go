@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
@@ -643,14 +642,22 @@ func (user *User) finishInsert(inviterId int) {
 	}
 
 	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+		RecordSystemAuditLog(user.Id, "Granted new user registration quota", "", "user.registration_bonus", map[string]interface{}{
+			"quota": common.QuotaForNewUser,
+		}, nil)
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			RecordSystemAuditLog(user.Id, "Granted invitee quota", "", "user.invitee_bonus", map[string]interface{}{
+				"quota":      common.QuotaForInvitee,
+				"inviter_id": inviterId,
+			}, nil)
 		}
 		if common.AffiliateActivatedAt == 0 && common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			RecordSystemAuditLog(inviterId, "Granted inviter quota", "", "user.inviter_bonus", map[string]interface{}{
+				"quota":           common.QuotaForInviter,
+				"invited_user_id": user.Id,
+			}, nil)
 			_ = inviteUser(inviterId)
 		}
 	}
@@ -748,14 +755,22 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 	}
 
 	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+		RecordSystemAuditLog(user.Id, "Granted new user registration quota", "", "user.registration_bonus", map[string]interface{}{
+			"quota": common.QuotaForNewUser,
+		}, nil)
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			RecordSystemAuditLog(user.Id, "Granted invitee quota", "", "user.invitee_bonus", map[string]interface{}{
+				"quota":      common.QuotaForInvitee,
+				"inviter_id": inviterId,
+			}, nil)
 		}
 		if common.AffiliateActivatedAt == 0 && common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			RecordSystemAuditLog(inviterId, "Granted inviter quota", "", "user.inviter_bonus", map[string]interface{}{
+				"quota":           common.QuotaForInviter,
+				"invited_user_id": user.Id,
+			}, nil)
 			_ = inviteUser(inviterId)
 		}
 	}

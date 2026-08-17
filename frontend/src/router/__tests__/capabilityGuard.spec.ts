@@ -111,6 +111,12 @@ describe('capability route guard', () => {
     expect(router.currentRoute.value.name).toBe('models')
   })
 
+  it('redirects non-admin users away from operation logs', async () => {
+    await router.push('/console/logs/operations')
+
+    expect(router.currentRoute.value.name).toBe('dashboard')
+  })
+
   it('redirects every deferred module when its capability is disabled', async () => {
     publicApi.status.mockResolvedValue({
       frontend_capabilities: {

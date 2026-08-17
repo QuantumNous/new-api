@@ -177,11 +177,12 @@ func finishAdminAudit(c *gin.Context, writer *auditResponseWriter) {
 		"auth_method":    auditAuthMethod(c),
 	}
 	auditInfo := map[string]interface{}{
-		"method":  method,
-		"route":   route,
-		"path":    c.Request.URL.Path,
-		"status":  status,
-		"success": success,
+		"method":     method,
+		"route":      route,
+		"path":       c.Request.URL.Path,
+		"status":     status,
+		"success":    success,
+		"user_agent": c.Request.UserAgent(),
 	}
 	if len(routeParams) > 0 {
 		auditInfo["params"] = routeParams

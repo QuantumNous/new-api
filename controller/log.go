@@ -29,6 +29,200 @@ type userLogDTO struct {
 	Other            json.RawMessage `json:"other,omitempty"`
 }
 
+type operationLogActorDTO struct {
+	Id         int    `json:"id"`
+	Username   string `json:"username"`
+	Role       *int   `json:"role,omitempty"`
+	AuthMethod string `json:"auth_method,omitempty"`
+}
+
+type operationLogRequestDTO struct {
+	Method  string `json:"method,omitempty"`
+	Route   string `json:"route,omitempty"`
+	Path    string `json:"path,omitempty"`
+	Status  *int   `json:"status,omitempty"`
+	Success *bool  `json:"success,omitempty"`
+}
+
+type operationLogDTO struct {
+	Id        int                     `json:"id"`
+	CreatedAt int64                   `json:"created_at"`
+	Kind      string                  `json:"kind"`
+	Action    string                  `json:"action,omitempty"`
+	Params    map[string]interface{}  `json:"params,omitempty"`
+	Content   string                  `json:"content"`
+	Actor     operationLogActorDTO    `json:"actor"`
+	Ip        string                  `json:"ip,omitempty"`
+	UserAgent string                  `json:"user_agent,omitempty"`
+	Request   *operationLogRequestDTO `json:"request,omitempty"`
+}
+
+func operationLogMap(value interface{}) map[string]interface{} {
+	result, _ := value.(map[string]interface{})
+	return result
+}
+
+func operationLogString(value interface{}) string {
+	result, _ := value.(string)
+	return result
+}
+
+func operationLogInt(value interface{}) *int {
+	var result int
+	switch typed := value.(type) {
+	case int:
+		result = typed
+	case int64:
+		result = int(typed)
+	case float64:
+		result = int(typed)
+	case json.Number:
+		parsed, err := strconv.Atoi(typed.String())
+		if err != nil {
+			return nil
+		}
+		result = parsed
+	case string:
+		parsed, err := strconv.Atoi(typed)
+		if err != nil {
+			return nil
+		}
+		result = parsed
+	default:
+		return nil
+	}
+	return &result
+}
+
+func operationLogBool(value interface{}) *bool {
+	result, ok := value.(bool)
+	if !ok {
+		return nil
+	}
+	return &result
+}
+
+func operationLogKind(logType int) string {
+	switch logType {
+	case model.LogTypeManage:
+		return "manage"
+	case model.LogTypeSystem:
+		return "system"
+	case model.LogTypeLogin:
+		return "login"
+	default:
+		return "unknown"
+	}
+}
+
+func operationLogSensitiveKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	if strings.Contains(normalized, "password") || strings.Contains(normalized, "secret") {
+		return true
+	}
+	if normalized == "token" || strings.HasSuffix(normalized, "_token") {
+		return true
+	}
+	switch normalized {
+	case "api_key", "apikey", "authorization", "cookie", "set_cookie":
+		return true
+	default:
+		return false
+	}
+}
+
+func sanitizeOperationLogValue(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		result := make(map[string]interface{}, len(typed))
+		for key, nested := range typed {
+			if !operationLogSensitiveKey(key) {
+				result[key] = sanitizeOperationLogValue(nested)
+			}
+		}
+		return result
+	case []interface{}:
+		result := make([]interface{}, len(typed))
+		for index, nested := range typed {
+			result[index] = sanitizeOperationLogValue(nested)
+		}
+		return result
+	default:
+		return value
+	}
+}
+
+func sanitizeOperationLogParams(value interface{}) map[string]interface{} {
+	params := operationLogMap(value)
+	if params == nil {
+		return nil
+	}
+	return sanitizeOperationLogValue(params).(map[string]interface{})
+}
+
+func buildOperationLogDTO(log *model.Log) operationLogDTO {
+	other, _ := common.StrToMap(log.Other)
+	op := operationLogMap(other["op"])
+	adminInfo := operationLogMap(other["admin_info"])
+	auditInfo := operationLogMap(other["audit_info"])
+
+	actorId := log.UserId
+	if value := operationLogInt(adminInfo["admin_id"]); value != nil {
+		actorId = *value
+	}
+	actorUsername := log.Username
+	if value := operationLogString(adminInfo["admin_username"]); value != "" {
+		actorUsername = value
+	}
+	authMethod := operationLogString(adminInfo["auth_method"])
+	if authMethod == "" {
+		authMethod = operationLogString(auditInfo["auth_method"])
+	}
+	if authMethod == "" && log.Type == model.LogTypeLogin {
+		authMethod = operationLogString(other["login_method"])
+	}
+	actorRole := operationLogInt(adminInfo["admin_role"])
+	if actorRole == nil {
+		actorRole = operationLogInt(auditInfo["actor_role"])
+	}
+	if actorRole == nil && log.Type == model.LogTypeLogin {
+		actorRole = operationLogInt(other["user_role"])
+	}
+	userAgent := operationLogString(other["user_agent"])
+	if userAgent == "" {
+		userAgent = operationLogString(auditInfo["user_agent"])
+	}
+
+	var request *operationLogRequestDTO
+	if len(auditInfo) > 0 {
+		request = &operationLogRequestDTO{
+			Method:  operationLogString(auditInfo["method"]),
+			Route:   operationLogString(auditInfo["route"]),
+			Path:    operationLogString(auditInfo["path"]),
+			Status:  operationLogInt(auditInfo["status"]),
+			Success: operationLogBool(auditInfo["success"]),
+		}
+	}
+
+	return operationLogDTO{
+		Id:        log.Id,
+		CreatedAt: log.CreatedAt,
+		Kind:      operationLogKind(log.Type),
+		Action:    operationLogString(op["action"]),
+		Params:    sanitizeOperationLogParams(op["params"]),
+		Content:   log.Content,
+		Actor: operationLogActorDTO{
+			Id:         actorId,
+			Username:   actorUsername,
+			Role:       actorRole,
+			AuthMethod: authMethod,
+		},
+		Ip:        log.Ip,
+		UserAgent: userAgent,
+		Request:   request,
+	}
+}
+
 func buildUserLogDTOs(logs []*model.Log) []userLogDTO {
 	result := make([]userLogDTO, 0, len(logs))
 	for _, log := range logs {
@@ -106,6 +300,59 @@ func GetUserLogs(c *gin.Context) {
 	pageInfo.SetItems(buildUserLogDTOs(logs))
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func GetOperationLogs(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	kind := strings.TrimSpace(c.DefaultQuery("kind", "all"))
+	logTypes := []int{model.LogTypeManage, model.LogTypeSystem, model.LogTypeLogin}
+	switch kind {
+	case "", "all":
+	case "manage":
+		logTypes = []int{model.LogTypeManage}
+	case "system":
+		logTypes = []int{model.LogTypeSystem}
+	case "login":
+		logTypes = []int{model.LogTypeLogin}
+	default:
+		common.ApiErrorMsg(c, "invalid operation log kind")
+		return
+	}
+
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if len(keyword) > 128 {
+		common.ApiErrorMsg(c, "keyword is too long")
+		return
+	}
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if startTimestamp > 0 && endTimestamp > 0 && startTimestamp > endTimestamp {
+		common.ApiErrorMsg(c, "invalid date range")
+		return
+	}
+
+	logs, total, err := model.GetOperationLogs(
+		logTypes,
+		keyword,
+		startTimestamp,
+		endTimestamp,
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	items := make([]operationLogDTO, 0, len(logs))
+	for _, log := range logs {
+		if log != nil {
+			items = append(items, buildOperationLogDTO(log))
+		}
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
 }
 
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。
