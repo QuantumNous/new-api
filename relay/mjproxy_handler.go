@@ -267,7 +267,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		PromptEn:    "",
 		// F-64: mask upstream-controlled text before persistence; task fetch
 		// replays these fields to the client verbatim.
-		Description: common.MaskSensitiveInfo(midjResponse.Description),
+		Description: common.MaskSensitiveKeys(midjResponse.Description),
 		State:       "",
 		SubmitTime:  info.StartTime.UnixNano() / int64(time.Millisecond),
 		StartTime:   time.Now().UnixNano() / int64(time.Millisecond),
@@ -325,8 +325,8 @@ func RelayMidjourneyTaskImageSeed(c *gin.Context) *dto.MidjourneyResponse {
 		return service.MidjourneyErrorWrapper(constant.MjRequestError, "unmarshal_response_body_failed")
 	}
 	// F-64: the marshaled upstream response is copied to the client verbatim;
-	// apply the same key-masking used by the OpenAI/Claude error paths.
-	respBody = []byte(common.MaskSensitiveInfo(string(respBody)))
+	// use credential-only masking so image/resource URLs survive.
+	respBody = []byte(common.MaskSensitiveKeys(string(respBody)))
 	service.IOCopyBytesGracefully(c, nil, respBody)
 	return nil
 }
@@ -584,7 +584,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		Prompt:      midjRequest.Prompt,
 		PromptEn:    "",
 		// F-64: mask upstream-controlled text before persistence.
-		Description: common.MaskSensitiveInfo(midjResponse.Description),
+		Description: common.MaskSensitiveKeys(midjResponse.Description),
 		State:       "",
 		SubmitTime:  time.Now().UnixNano() / int64(time.Millisecond),
 		StartTime:   0,
@@ -610,7 +610,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		//非1-提交成功,21-任务已存在和22-排队中，则记录错误原因
 		// F-64: upstream error bodies may echo the channel key (mj-api-secret);
 		// mask before persistence so /task/:id/fetch cannot replay it.
-		midjourneyTask.FailReason = common.MaskSensitiveInfo(midjResponse.Description)
+		midjourneyTask.FailReason = common.MaskSensitiveKeys(midjResponse.Description)
 		consumeQuota = false
 	}
 
@@ -657,7 +657,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	//resp.Body = io.NopCloser(bytes.NewBuffer(responseBody))
 	// F-64: raw upstream body is relayed verbatim; mask it before writing so an
 	// upstream that echoes mj-api-secret (or any channel key) cannot leak it.
-	responseBody = []byte(common.MaskSensitiveInfo(string(responseBody)))
+	responseBody = []byte(common.MaskSensitiveKeys(string(responseBody)))
 	bodyReader := io.NopCloser(bytes.NewBuffer(responseBody))
 
 	//for k, v := range resp.Header {

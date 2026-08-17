@@ -104,7 +104,9 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	responseBody = []byte(common.MaskSensitiveInfo(string(responseBody)))
+	// F-65/F-6826: credential-only masking for successful bodies so resource
+	// URLs in search results are preserved while channel keys are masked.
+	responseBody = []byte(common.MaskSensitiveKeys(string(responseBody)))
 	c.Writer.WriteHeader(httpResp.StatusCode)
 	if _, err := c.Writer.Write(responseBody); err != nil {
 		return types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())

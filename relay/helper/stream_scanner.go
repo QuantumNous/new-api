@@ -164,6 +164,12 @@ func MaskStreamErrorData(data string) string {
 				if err := json.Unmarshal(raw, &obj); err == nil {
 					objChanged := false
 					for k, v := range obj {
+						// Never rewrite assistant content fields: masking is for
+						// error metadata, and re-marshalling a completion chunk
+						// can corrupt valid output (F-6826).
+						if k == "content" || k == "delta" || k == "text" || k == "input_text" {
+							continue
+						}
 						nv, ch := walk(v)
 						if ch {
 							obj[k] = nv

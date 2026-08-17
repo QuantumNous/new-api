@@ -15,23 +15,23 @@ var (
 
 	// maskBareKeyPattern masks bare upstream API key formats that providers may
 	// echo in error messages (sk-..., gsk_..., hf_..., xai-..., AIza...).
-	maskBareKeyPattern = regexp.MustCompile(`(?i)(sk-[A-Za-z0-9_\-]{8,}|gsk_[A-Za-z0-9_\-]{8,}|hf_[A-Za-z0-9_\-]{8,}|xai-[A-Za-z0-9_\-]{8,}|AIza[A-Za-z0-9_\-]{8,})`)
+	maskBareKeyPattern = regexp.MustCompile(`(?i)(\bsk-[A-Za-z0-9_\-]{8,}|\bgsk_[A-Za-z0-9_\-]{8,}|\bhf_[A-Za-z0-9_\-]{8,}|\bxai-[A-Za-z0-9_\-]{8,}|\bAIza[A-Za-z0-9_\-]{8,})`)
 
 	// maskMoreKeyPrefixPattern covers additional provider key prefixes that
 	// F-13's bare pattern missed (Perplexity, NVIDIA NIM, Replicate, personal
 	// access tokens, GitHub tokens, GitLab tokens).
-	maskMoreKeyPrefixPattern = regexp.MustCompile(`(?i)(pplx-[A-Za-z0-9_\-]{8,}|nvapi-[A-Za-z0-9_\-]{8,}|r8_[A-Za-z0-9_\-]{8,}|pat_[A-Za-z0-9_\-]{8,}|rt_[A-Za-z0-9_\-]{8,}|ghp_[A-Za-z0-9_\-]{8,}|gho_[A-Za-z0-9_\-]{8,}|github_pat_[A-Za-z0-9_\-]{8,}|glpat-[A-Za-z0-9_\-]{8,})`)
+	maskMoreKeyPrefixPattern = regexp.MustCompile(`(?i)(\bpplx-[A-Za-z0-9_\-]{8,}|\bnvapi-[A-Za-z0-9_\-]{8,}|\br8_[A-Za-z0-9_\-]{8,}|\bpat_[A-Za-z0-9_\-]{8,}|\brt_[A-Za-z0-9_\-]{8,}|\bghp_[A-Za-z0-9_\-]{8,}|\bgho_[A-Za-z0-9_\-]{8,}|\bgithub_pat_[A-Za-z0-9_\-]{8,}|\bglpat-[A-Za-z0-9_\-]{8,})`)
 
 	// maskJwtPattern masks JWT-shaped credentials (header.payload.signature).
-	maskJwtPattern = regexp.MustCompile(`(?i)eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+`)
+	maskJwtPattern = regexp.MustCompile(`(?i)\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+`)
 
 	// maskKeyValuePattern masks prefix-less long values adjacent to credential
 	// field names (api_key:/token:/secret:/authorization:/password:/credential:),
 	// which covers providers that issue prefix-less keys (Cohere, Cloudflare...).
-	maskKeyValuePattern = regexp.MustCompile(`(?i)(['"]?(?:api[_-]?key|key|token|secret|authorization|password|credential)['"]?\s*[:=]\s*['"]?)([A-Za-z0-9_\-\.]{12,})(['"]?)`)
+	maskKeyValuePattern = regexp.MustCompile(`(?i)((?:\\?["'])?\b(?:api[_-]?key|key|token|secret|authorization|password|credential)(?:\\?["'])?\s*[:=]\s*(?:\\?["'])?)([A-Za-z0-9_\-\.]{12,})(?:\\?["'])?`)
 
 	// maskBearerPattern masks "Bearer <credential>" tokens.
-	maskBearerPattern = regexp.MustCompile(`(?i)(bearer\s+)([A-Za-z0-9_\-\.]{12,})`)
+	maskBearerPattern = regexp.MustCompile(`(?i)(\bbearer\s+)([A-Za-z0-9_\-\.]{12,})`)
 
 	// maskInvalidKeyPattern masks prefix-less values after "invalid/bad/wrong/
 	// unauthorized/incorrect key <value>" phrasing (no colon).
@@ -46,7 +46,7 @@ var (
 	// service-account credential fields (private_key, client_secret, client_id)
 	// and handles JSON-escaped quotes (\"field\":\"value\") inside nested
 	// strings — the base key-value pattern misses both.
-	maskServiceAccountFieldPattern = regexp.MustCompile(`(?i)((?:\\?["'])?(?:private[_-]?key|client[_-]?secret|client[_-]?id)(?:\\?["'])?\s*[:=]\s*(?:\\?["'])?)([A-Za-z0-9_\-\.]{12,})(?:\\?["'])?`)
+	maskServiceAccountFieldPattern = regexp.MustCompile(`(?i)((?:\\?["'])?\b(?:private[_-]?key|client[_-]?secret|client[_-]?id)(?:\\?["'])?\s*[:=]\s*(?:\\?["'])?)([A-Za-z0-9_\-\.]{12,})(?:\\?["'])?`)
 )
 
 // maskHostTail returns the tail parts of a domain/host that should be preserved.
@@ -220,5 +220,15 @@ func MaskSensitiveKeys(str string) string {
 	str = maskKeyValuePattern.ReplaceAllString(str, "${1}***${3}")
 	str = maskBearerPattern.ReplaceAllString(str, "${1}***")
 	str = maskInvalidKeyPattern.ReplaceAllString(str, "${1} key ***")
+	str = maskServiceAccountFieldPattern.ReplaceAllString(str, "${1}***")
+	// F-67: PEM private key blocks (Vertex service-account keys and similar
+	// channel credentials) must never be echoed to clients even when the
+	// surrounding JSON field names were masked.
+	str = maskPemBlockPattern.ReplaceAllStringFunc(str, func(block string) string {
+		if len(block) > 30 {
+			return block[:20] + "***[REDACTED PEM]***"
+		}
+		return "***[REDACTED PEM]***"
+	})
 	return str
 }

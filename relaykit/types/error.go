@@ -203,13 +203,15 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
 		// F-20a: upstreams may echo the channel key in non-message fields
-		// (code/type/param/metadata). Mask the serialized error as a whole so
-		// every field is covered, not just Message.
-		if raw, err := json.Marshal(result); err == nil {
-			var masked OpenAIError
-			if err := json.Unmarshal([]byte(kitutil.MaskSensitiveInfo(string(raw))), &masked); err == nil {
-				result = masked
-			}
+		// (code/type/param). Mask Message with URL/domain masking and the
+		// remaining string fields with credential-only masking so enum-like
+		// values are never mangled. String masking cannot fail; if the code
+		// field is not a string it cannot carry a credential and is kept.
+		result.Message = kitutil.MaskSensitiveInfo(result.Message)
+		result.Type = kitutil.MaskSensitiveKeys(result.Type)
+		result.Param = kitutil.MaskSensitiveKeys(result.Param)
+		if s, ok := result.Code.(string); ok {
+			result.Code = kitutil.MaskSensitiveKeys(s)
 		}
 	}
 	if result.Message == "" {
@@ -239,12 +241,8 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 		}
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
-		if raw, err := json.Marshal(result); err == nil {
-			var masked ClaudeError
-			if err := json.Unmarshal([]byte(kitutil.MaskSensitiveInfo(string(raw))), &masked); err == nil {
-				result = masked
-			}
-		}
+		result.Message = kitutil.MaskSensitiveInfo(result.Message)
+		result.Type = kitutil.MaskSensitiveKeys(result.Type)
 	}
 	if result.Message == "" {
 		result.Message = string(e.errorType)
