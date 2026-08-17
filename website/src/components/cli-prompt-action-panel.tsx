@@ -241,8 +241,8 @@ export function CliPromptActionPanel(props: Props) {
   const copy = copyByLocale[props.locale];
   const [prompt, setPrompt] = useState(props.defaultPrompt);
   const [copied, setCopied] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const portalRoot = typeof document === "undefined" ? null : document.body;
   const modelOptions = props.kind === "image" ? imageModelOptions : videoModelOptions;
   const [selectedModel, setSelectedModel] = useState(modelOptions.includes(props.model) ? props.model : modelOptions[0]);
   const [selectedSize, setSelectedSize] = useState(props.kind === "image" ? "1024x1024" : props.ratio === "9:16" ? "9:16" : "16:9");
@@ -279,10 +279,6 @@ export function CliPromptActionPanel(props: Props) {
   };
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
     if (!showCreateDialog) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -292,7 +288,7 @@ export function CliPromptActionPanel(props: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [showCreateDialog]);
 
-  const createDialog = showCreateDialog && mounted
+  const createDialog = showCreateDialog && portalRoot
     ? createPortal(
         <div
           className="fixed inset-0 z-[1000] flex items-center justify-center bg-[#0B0B0F]/42 px-4 py-6 backdrop-blur-sm"
@@ -353,7 +349,7 @@ export function CliPromptActionPanel(props: Props) {
             </div>
           </div>
         </div>,
-        document.body
+        portalRoot
       )
     : null;
 

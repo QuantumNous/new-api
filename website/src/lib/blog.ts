@@ -1,6 +1,6 @@
 import sanitizeHtml from "sanitize-html";
 import { DEFAULT_LOCALE, localizePath, stripLocale, type Locale, withIdFallback } from "@/lib/locales";
-import { APP_CONSOLE_ORIGIN } from "@/lib/origins";
+import { APP_CONSOLE_ORIGIN, consoleUrl } from "@/lib/origins";
 
 const API_BASE_URL = APP_CONSOLE_ORIGIN;
 const BLOGGER_API_URL =
@@ -25,6 +25,15 @@ const INTERNAL_PUBLIC_PATH_PREFIXES = [
   "/terms",
   "/use-case",
 ] as const;
+const CONSOLE_PUBLIC_PATH_ALIASES: Record<string, string> = {
+  "/console": "/dashboard",
+  "/dashboard": "/dashboard",
+  "/login": "/sign-in",
+  "/sign-in": "/sign-in",
+  "/sign-up": "/sign-up",
+  "/signup": "/sign-up",
+};
+const CONSOLE_SETUP_PATHS = new Set(["/setup", "/onboarding"]);
 export const BLOG_PAGE_SIZE = 18;
 export type BlogEntityId = string | number;
 
@@ -301,6 +310,10 @@ export function sanitizeBlogHtml(html: string, locale: Locale = DEFAULT_LOCALE):
     },
     allowedSchemes: ["http", "https", "mailto"],
     transformTags: {
+      h1: (tagName, attribs) => ({
+        tagName: "h2",
+        attribs,
+      }),
       a: (tagName, attribs) => ({
         tagName,
         attribs: rewriteBlogAnchorAttributes(attribs, locale),
@@ -332,6 +345,9 @@ export function rewriteBlogHref(href: string | undefined, locale: Locale = DEFAU
     if (isAbsolute && hostname !== "flatkey.ai" && hostname !== "www.flatkey.ai") {
       return value;
     }
+
+    const consoleUrlValue = rewriteConsolePublicPath(url.pathname, url.search, url.hash);
+    if (consoleUrlValue) return consoleUrlValue;
 
     const normalizedPath = localizeInternalPublicPath(url.pathname, locale);
     if (!normalizedPath) return value;
@@ -453,6 +469,25 @@ function localizeInternalPublicPath(pathname: string, locale: Locale): string | 
     return null;
   }
   return localizePath(stripped, locale);
+}
+
+function rewriteConsolePublicPath(pathname: string, search: string, hash: string): string | null {
+  const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const stripped = stripLocale(normalized) || "/";
+  if (CONSOLE_SETUP_PATHS.has(stripped)) {
+    const params = new URLSearchParams(search);
+    if (!params.has("redirect")) params.set("redirect", "/keys");
+    return `${consoleUrl("/sign-up", params.toString())}${hash}`;
+  }
+
+  for (const [sourcePrefix, targetPrefix] of Object.entries(CONSOLE_PUBLIC_PATH_ALIASES)) {
+    if (stripped === sourcePrefix || stripped.startsWith(`${sourcePrefix}/`)) {
+      const suffix = stripped.slice(sourcePrefix.length);
+      return `${consoleUrl(`${targetPrefix}${suffix}`, search)}${hash}`;
+    }
+  }
+
+  return null;
 }
 
 function shouldLocalizeInternalPublicPath(pathname: string): boolean {

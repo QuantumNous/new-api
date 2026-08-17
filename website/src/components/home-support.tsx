@@ -30,6 +30,7 @@ function openLiveChat() {
 
 type Props = {
   copy: HomeCopy["support"];
+  headingLevel?: 1 | 2;
 };
 
 // Official X logo mark (lucide has no up-to-date X icon).
@@ -41,7 +42,8 @@ function XLogo(props: { className?: string }) {
   );
 }
 
-export function HomeSupport({ copy }: Props) {
+export function HomeSupport({ copy, headingLevel = 2 }: Props) {
+  const Heading = headingLevel === 1 ? "h1" : "h2";
   const cardClass =
     "group flex flex-col items-start rounded-2xl border border-violet-500/16 bg-white/62 p-7 text-left shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm transition-colors duration-300 hover:border-violet-500/28 hover:bg-white/78 md:p-8 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]";
   const iconClass =
@@ -53,7 +55,7 @@ export function HomeSupport({ copy }: Props) {
       <div className="mx-auto max-w-6xl">
         <div className="mb-12 max-w-2xl">
           <p className="text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase">{copy.eyebrow}</p>
-          <h2 className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">{copy.title}</h2>
+          <Heading className="text-2xl leading-tight font-bold tracking-tight md:text-3xl">{copy.title}</Heading>
           <p className="text-muted-foreground mt-4 text-sm leading-relaxed md:text-base">{copy.description}</p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">

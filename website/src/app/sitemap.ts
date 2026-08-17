@@ -9,9 +9,10 @@ import { getSkagLandingLocales, SKAG_LANDING_SLUGS, skagLandingPath } from "@/li
 import { getToolsAdLandingPathnames } from "@/lib/tools-ad-landing";
 import { TOOLS_LANDING_PATH } from "@/lib/tools-landing";
 import { APIFY_ALTERNATIVE_PATH } from "@/lib/tools-conquest-landing";
-import { getPricingData, getTopVendors, getVendorName } from "@/lib/pricing";
+import { getPricingData } from "@/lib/pricing";
 
 const base = "https://flatkey.ai";
+const REDIRECT_MODEL_LANDING_PATHS = new Set(["/models/gpt-api", "/models/claude-api"]);
 
 function entry(
   pathname: string,
@@ -26,23 +27,6 @@ function entry(
     priority,
     alternates: {
       languages: Object.fromEntries(locales.map((locale) => [localeLanguageTag(locale), `${base}${localizePath(pathname, locale)}`])),
-    },
-  }));
-}
-
-function queryEntry(
-  pathname: string,
-  query: string,
-  priority: number,
-  changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]
-) {
-  return LOCALES.map((locale) => ({
-    url: `${base}${localizePath(pathname, locale)}?${query}`,
-    lastModified: new Date(),
-    changeFrequency,
-    priority,
-    alternates: {
-      languages: Object.fromEntries(LOCALES.map((locale) => [localeLanguageTag(locale), `${base}${localizePath(pathname, locale)}?${query}`])),
     },
   }));
 }
@@ -80,7 +64,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entry("/sla", 0.3, "yearly"),
     ...entry("/refund-policy", 0.3, "yearly"),
   ];
-  const modelLandingEntries = getModelLandingPathnames().flatMap((pathname) => entry(pathname, 0.82, "daily"));
+  const modelLandingEntries = getModelLandingPathnames()
+    .filter((pathname) => !REDIRECT_MODEL_LANDING_PATHS.has(pathname))
+    .flatMap((pathname) => entry(pathname, 0.82, "daily"));
   const skagLandingEntries = SKAG_LANDING_SLUGS.flatMap((slug) =>
     entry(skagLandingPath(slug), 0.8, "weekly", getSkagLandingLocales(slug))
   );
@@ -129,14 +115,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       };
     });
   });
-  const pricingModels = pricing.models.map((model) => ({
-    ...model,
-    vendor_name: getVendorName(model, pricing.vendors),
-  }));
-  const vendorEntries = getTopVendors(pricingModels, 18).flatMap((vendor) =>
-    queryEntry("/models", `vendor=${encodeURIComponent(vendor)}`, 0.72, "daily")
-  );
-
   return [
     ...staticEntries,
     ...marketEntries,
@@ -144,7 +122,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...skagLandingEntries,
     ...toolsAdLandingEntries,
     ...modelPublicEntries,
-    ...vendorEntries,
     ...categoryEntries,
     ...postEntries,
   ];

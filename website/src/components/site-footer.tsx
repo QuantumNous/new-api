@@ -184,7 +184,7 @@ function FooterColumn(props: { links: FooterLink[]; locale: Locale; title: strin
           ) : (
             <Link
               key={link.href}
-              href={link.href === "/llms.txt" ? link.href : localizePath(link.href, props.locale)}
+              href={link.href === "/llms.txt" ? link.href : localizeFooterPath(link.href, props.locale)}
               className="text-[15px] font-semibold text-[#0B0B0F] no-underline hover:text-[#4C1D95]"
             >
               {link.label}
@@ -194,6 +194,11 @@ function FooterColumn(props: { links: FooterLink[]; locale: Locale; title: strin
       </div>
     </div>
   );
+}
+
+function localizeFooterPath(href: string, locale: Locale): string {
+  if (href === "/careers" && locale !== "zh") return "/careers";
+  return localizePath(href, locale);
 }
 
 export function SiteFooter(props: SiteFooterProps) {
