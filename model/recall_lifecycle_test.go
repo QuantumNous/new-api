@@ -193,6 +193,10 @@ func TestLifecycleCanonicalOccurrenceBuildersUseExactVersionedFormats(t *testing
 	_, err := NewRecallLifecyclePurchaseOccurrence(RecallLifecycleTriggerPaymentPending, "topup", "", "", 0, 42)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "trade number or stable source reference")
+
+	_, err = NewRecallLifecyclePurchaseOccurrence(RecallLifecycleTriggerPaymentPending, "topup", strings.Repeat("x", recallLifecycleBusinessKeyMaxLen), "", 0, 42)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "requires stable source reference")
 }
 
 func TestLifecycleOccurrenceBuildersRejectUnsupportedTriggerFamilies(t *testing.T) {

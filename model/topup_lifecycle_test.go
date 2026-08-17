@@ -240,6 +240,85 @@ func TestTopUpLifecycleMissingTradeNumberUsesStableSourceFallback(t *testing.T) 
 	require.Equal(t, 400, walletQuotaForTest(t, user.Id))
 }
 
+func TestTopUpLifecycleSuccessFallsBackToTopUpIDCycleWhenTradeNoExceedsLimit(t *testing.T) {
+	setupTopUpLifecycleTestDB(t, 1)
+	user := createLifecycleQuotaTestUser(t, "topup-long-cycle", 0, 100)
+	tradeNo := "topup-long-cycle-" + strings.Repeat("x", 50)
+	topUp := insertTopUpLifecycleOrder(t, user.Id, tradeNo, PaymentProviderStripe, common.TopUpStatusPending, 1_700_005_500, 0)
+
+	transition := PurchaseLifecycleTransition{
+		Kind:       PurchaseLifecycleKindTopUp,
+		SourceID:   int64(topUp.Id),
+		TradeNo:    tradeNo,
+		UserID:     user.Id,
+		FromStatus: []string{common.TopUpStatusPending},
+		ToStatus:   common.TopUpStatusSuccess,
+		OccurredAt: 1_700_005_600,
+		Credit:     400,
+		SourceRef:  "provider.long_trade_no",
+	}
+	applied, err := transitionTopUpLifecycleForTest(transition)
+	require.NoError(t, err)
+	require.True(t, applied)
+
+	transition.SourceRef += ".replay"
+	applied, err = transitionTopUpLifecycleForTest(transition)
+	require.NoError(t, err)
+	require.False(t, applied)
+
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeWallet, fmt.Sprint(user.Id))
+	wantCycle := fmt.Sprintf("topups:%d", topUp.Id)
+	require.Equal(t, wantCycle, state.Cycle)
+	require.Equal(t, wantCycle, state.Source)
+	require.Equal(t, 400, walletQuotaForTest(t, user.Id))
+	requireTopUpLifecycleEventCount(t, tradeNo, RecallLifecycleTriggerPaymentSucceeded, 1)
+}
+
+func TestTopUpLifecycleSuccessReplayUsesSourceFallbackWhenTradeNoExceedsRecallKeyLimit(t *testing.T) {
+	setupTopUpLifecycleTestDB(t, 1)
+	user := createLifecycleQuotaTestUser(t, "topup-long-recall-key", 0, 100)
+	tradeNo := strings.Repeat("x", 129)
+	topUp := insertTopUpLifecycleOrder(t, user.Id, tradeNo, PaymentProviderStripe, common.TopUpStatusPending, 1_700_005_700, 0)
+
+	transition := PurchaseLifecycleTransition{
+		Kind:       PurchaseLifecycleKindTopUp,
+		SourceID:   int64(topUp.Id),
+		TradeNo:    tradeNo,
+		UserID:     user.Id,
+		FromStatus: []string{common.TopUpStatusPending},
+		ToStatus:   common.TopUpStatusSuccess,
+		OccurredAt: 1_700_005_800,
+		Credit:     400,
+		SourceRef:  "provider.long_trade_no",
+	}
+	applied, err := transitionTopUpLifecycleForTest(transition)
+	require.NoError(t, err)
+	require.True(t, applied)
+
+	transition.SourceRef += ".replay"
+	applied, err = transitionTopUpLifecycleForTest(transition)
+	require.NoError(t, err)
+	require.False(t, applied)
+
+	event := requireTopUpLifecycleEventBySource(t, user.Id, RecallLifecycleTriggerPaymentSucceeded, int64(topUp.Id))
+	require.Equal(t, fmt.Sprintf("top_ups:%d", topUp.Id), event.ScopeId)
+	require.LessOrEqual(t, len(event.ScopeId), 128)
+	require.LessOrEqual(t, len(event.BusinessKey), recallLifecycleBusinessKeyMaxLen)
+	require.Contains(t, event.BusinessKey, fmt.Sprintf("v1|payment_succeeded|topup|source:top_ups:%d", topUp.Id))
+
+	var count int64
+	require.NoError(t, DB.Model(&RecallLifecycleEvent{}).
+		Where("user_id = ? AND event_type = ? AND scope_type = ? AND scope_id = ?",
+			user.Id, RecallLifecycleTriggerPaymentSucceeded, PurchaseLifecycleKindTopUp, fmt.Sprintf("top_ups:%d", topUp.Id)).
+		Count(&count).Error)
+	require.EqualValues(t, 1, count)
+
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeWallet, fmt.Sprint(user.Id))
+	require.Equal(t, fmt.Sprintf("topups:%d", topUp.Id), state.Cycle)
+	require.Equal(t, fmt.Sprintf("topups:%d", topUp.Id), state.Source)
+	require.Equal(t, 400, walletQuotaForTest(t, user.Id))
+}
+
 func TestTopUpLifecycleCASLoserDoesNotEmitEventOrCredit(t *testing.T) {
 	setupTopUpLifecycleTestDB(t, 1)
 	user := createLifecycleQuotaTestUser(t, "topup-cas-loser", 0, 100)

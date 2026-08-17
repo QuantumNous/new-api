@@ -531,6 +531,24 @@ func TestApplyWalletTopUpSuccessMutationTxUsesTopUpIDCycleFallback(t *testing.T)
 	requireLifecycleState(t, user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id), "topups:77", 120, 100)
 }
 
+func TestApplyWalletTopUpSuccessMutationTxFallsBackToTopUpIDWhenTradeNoExceedsLimit(t *testing.T) {
+	setupLifecycleQuotaMutationTestDB(t, 1)
+
+	user := createLifecycleQuotaTestUser(t, "wallet-topup-long-cycle", 20, 100)
+	tradeNo := "wallet-topup-long-cycle-" + strings.Repeat("x", 50)
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		_, applyErr := ApplyWalletTopUpSuccessMutationTx(tx, user.Id, 100, 88, tradeNo)
+		return applyErr
+	})
+
+	require.NoError(t, err)
+	state := lifecycleStateForTest(t, user.Id, QuotaLifecycleScopeWallet, strconv.Itoa(user.Id))
+	require.Equal(t, "topups:88", state.Cycle)
+	require.Equal(t, "topups:88", state.Source)
+	require.LessOrEqual(t, len(state.Cycle), 64)
+	require.LessOrEqual(t, len(state.Source), 64)
+}
+
 func TestLifecycleQuotaWalletAdaptersCommitSynchronouslyWhenBatchEnabled(t *testing.T) {
 	setupLifecycleQuotaMutationTestDB(t, 1)
 	common.BatchUpdateEnabled = true
