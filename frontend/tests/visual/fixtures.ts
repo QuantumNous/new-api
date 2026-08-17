@@ -48,6 +48,21 @@ const VISUAL_USAGE_ROWS = VISUAL_DISTRIBUTION.slice(-30).map(
   })
 )
 
+const VISUAL_TOKEN_TREND = VISUAL_DISTRIBUTION.slice(-30).map((point) => {
+  const input = Math.round(point.tokens * 0.34)
+  const output = Math.round(point.tokens * 0.18)
+  const cacheCreate = Math.round(point.tokens * 0.08)
+  const cacheRead = point.tokens - input - output - cacheCreate
+  return {
+    date: point.date,
+    input,
+    output,
+    cache_create: cacheCreate,
+    cache_read: cacheRead,
+    hit_rate: Math.round((cacheRead / (input + cacheRead)) * 1000) / 10,
+  }
+})
+
 const VISUAL_STATS = {
   kpi: {
     totalTokens: VISUAL_DISTRIBUTION.slice(-30).reduce(
@@ -359,6 +374,7 @@ export async function configureStablePage(
     ],
     ['/api/data/self', VISUAL_USAGE_ROWS],
     ['/api/next/dashboard/distribution', VISUAL_DISTRIBUTION],
+    ['/api/next/dashboard/token-trend', VISUAL_TOKEN_TREND],
     ['/api/next/dashboard/stats', VISUAL_STATS],
     [
       '/api/next/dashboard/system-status',

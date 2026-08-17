@@ -143,10 +143,8 @@ export default {
       cacheCreate: '缓存写入',
       cacheRead: '缓存读取',
       hitRate: '缓存命中率',
-      actual: '实际',
-      standard: '标准',
       avgHitRate: '平均命中',
-      saved: '累计节省',
+      emptyHint: '最近 30 天暂无 Token 使用记录',
     },
     systemStatus: {
       title: '系统状态',

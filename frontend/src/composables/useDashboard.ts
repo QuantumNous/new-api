@@ -48,8 +48,6 @@ export interface TokenTrendPoint {
   cache_create: number
   cache_read: number
   hit_rate: number
-  actual: number
-  standard: number
 }
 
 export interface SystemMetrics {
@@ -104,12 +102,17 @@ export function useDashboard() {
       {
         const endTimestamp = Math.floor(Date.now() / 1000)
         const startTimestamp = endTimestamp - 29 * 86_400
-        const usage = parseUsageRows(
-          await api.get<unknown>('/api/data/self', {
+        const [usageResponse, trendResponse] = await Promise.all([
+          api.get<unknown>('/api/data/self', {
             start_timestamp: startTimestamp,
             end_timestamp: endTimestamp,
-          })
-        )
+          }),
+          api.get<TokenTrendPoint[]>('/api/next/dashboard/token-trend', {
+            range: '30d',
+            tz_offset: String(-new Date().getTimezoneOffset()),
+          }),
+        ])
+        const usage = parseUsageRows(usageResponse)
         const previousResult = await Promise.allSettled([
           api.get<unknown>('/api/data/self', {
             start_timestamp: startTimestamp - 30 * 86_400,
@@ -187,7 +190,7 @@ export function useDashboard() {
         flow.value = [...dayRows.values()].sort((a, b) =>
           a.date.localeCompare(b.date)
         )
-        tokenTrend.value = []
+        tokenTrend.value = trendResponse
         await loadSystem()
         limits.value = null
         discounts.value = null

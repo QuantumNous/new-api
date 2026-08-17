@@ -5,8 +5,9 @@ import { useI18n } from 'vue-i18n'
 import { useEChart } from '@/charts/useEChart'
 import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import type { TokenTrendPoint } from '@/composables/useDashboard'
-import { formatCompact, formatQuota } from '@/utils/format'
+import { formatCompact } from '@/utils/format'
 import { escapeHtml } from '@/utils/html'
 
 const props = defineProps<{
@@ -17,16 +18,29 @@ const props = defineProps<{
 const { t } = useI18n()
 const el = ref<HTMLElement | null>(null)
 
+const hasData = computed(() =>
+  props.points.some(
+    (point) =>
+      point.input > 0 ||
+      point.output > 0 ||
+      point.cache_create > 0 ||
+      point.cache_read > 0
+  )
+)
+
 /** Window-wide cache hit rate, shown next to the title. */
 const avgHitRate = computed(() => {
-  if (!props.points.length) return 0
-  const sum = props.points.reduce((acc, p) => acc + p.hit_rate, 0)
-  return Math.round((sum / props.points.length) * 10) / 10
+  const totals = props.points.reduce(
+    (acc, point) => ({
+      input: acc.input + point.input,
+      cacheRead: acc.cacheRead + point.cache_read,
+    }),
+    { input: 0, cacheRead: 0 }
+  )
+  const readableInput = totals.input + totals.cacheRead
+  if (readableInput === 0) return 0
+  return Math.round((totals.cacheRead / readableInput) * 1000) / 10
 })
-
-const totalSaved = computed(() =>
-  props.points.reduce((acc, p) => acc + (p.standard - p.actual), 0)
-)
 
 interface TooltipParam {
   dataIndex: number
@@ -105,8 +119,6 @@ useEChart(
         textStyle: { color: p.textPrimary, fontSize: 12 },
         formatter: (params: TooltipParam[]) => {
           if (!params.length) return ''
-          const point = props.points[params[0]!.dataIndex]
-          if (!point) return ''
           const rows = params
             .map((s) => {
               const value =
@@ -123,10 +135,6 @@ useEChart(
           return `<div style="min-width:186px">
             <div style="font-weight:700;margin-bottom:2px">${escapeHtml(params[0]!.axisValueLabel)}</div>
             ${rows}
-            <div style="margin-top:7px;padding-top:6px;border-top:1px solid ${p.borderSubtle};font-weight:600">
-              ${escapeHtml(t('dashboard.tokenTrend.actual'))}: ${escapeHtml(formatQuota(point.actual))}
-              <span style="color:${p.textTertiary};font-weight:400"> | ${escapeHtml(t('dashboard.tokenTrend.standard'))}: ${escapeHtml(formatQuota(point.standard))}</span>
-            </div>
           </div>`
         },
       },
@@ -194,20 +202,18 @@ useEChart(
 </script>
 
 <template>
-  <ConsoleCard :title="t('dashboard.tokenTrend.title')" stretch>
+  <ConsoleCard
+    :title="t('dashboard.tokenTrend.title')"
+    stretch
+    data-token-trend-card
+  >
     <template #action>
-      <div class="flex items-center gap-3 text-xs">
+      <div v-if="hasData" class="flex items-center gap-3 text-xs">
         <span class="text-[var(--text-tertiary)]">
           {{ t('dashboard.tokenTrend.avgHitRate') }}
           <span class="font-semibold text-[var(--support)]"
             >{{ avgHitRate }}%</span
           >
-        </span>
-        <span class="text-[var(--text-tertiary)]">
-          {{ t('dashboard.tokenTrend.saved') }}
-          <span class="font-semibold text-[var(--status-success-text)]">{{
-            formatQuota(totalSaved)
-          }}</span>
         </span>
       </div>
     </template>
@@ -215,6 +221,12 @@ useEChart(
     <div
       v-if="loading"
       class="h-80 grow animate-pulse rounded-xl bg-[var(--surface-muted)]"
+    />
+    <EmptyState
+      v-else-if="!hasData"
+      class="grow"
+      :title="t('dashboard.stats.noData')"
+      :hint="t('dashboard.tokenTrend.emptyHint')"
     />
     <div
       v-else

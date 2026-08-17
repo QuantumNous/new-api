@@ -108,6 +108,98 @@ func TestNextDashboardStatsUseClientTimezoneForDayAndHourBuckets(t *testing.T) {
 	assert.Equal(t, int64(20), stats.Flow[1].Consume)
 }
 
+func TestNextDashboardTokenTrendAggregatesRealTokenBreakdown(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	timestamp := func(value string) int64 {
+		parsed, err := time.Parse(time.RFC3339, value)
+		require.NoError(t, err)
+		return parsed.Unix()
+	}
+	require.NoError(t, db.Create(&[]model.Log{
+		{
+			UserId: 21, CreatedAt: timestamp("2026-08-01T01:00:00Z"), Type: model.LogTypeConsume,
+			PromptTokens: 100, CompletionTokens: 20,
+			Other: `{"cache_tokens":30,"cache_write_tokens":10,"input_tokens_total":100}`,
+		},
+		{
+			UserId: 21, CreatedAt: timestamp("2026-08-01T02:00:00Z"), Type: model.LogTypeConsume,
+			PromptTokens: 5, CompletionTokens: -2, Other: `{`,
+		},
+		{
+			UserId: 21, CreatedAt: timestamp("2026-08-01T02:30:00Z"), Type: model.LogTypeConsume,
+			PromptTokens: 7,
+		},
+		{
+			UserId: 21, CreatedAt: timestamp("2026-08-02T01:00:00Z"), Type: model.LogTypeConsume,
+			PromptTokens: 50, CompletionTokens: 25,
+			Other: `{"usage_semantic":"anthropic","cache_tokens":100,"cache_write_tokens":20}`,
+		},
+		{
+			UserId: 21, CreatedAt: timestamp("2026-08-02T02:00:00Z"), Type: model.LogTypeConsume,
+			PromptTokens: 40, CompletionTokens: 10,
+			Other: `{"cache_tokens":5,"cache_creation_tokens":99,"cache_creation_tokens_5m":7,"cache_creation_tokens_1h":3}`,
+		},
+		{
+			UserId: 21, CreatedAt: timestamp("2026-08-02T03:00:00Z"), Type: model.LogTypeConsume,
+			PromptTokens: -10, CompletionTokens: -5,
+			Other: `{"cache_tokens":-9,"cache_write_tokens":-4}`,
+		},
+		{
+			UserId: 21, CreatedAt: timestamp("2026-08-02T04:00:00Z"), Type: model.LogTypeError,
+			PromptTokens: 999, CompletionTokens: 999,
+		},
+		{
+			UserId: 22, CreatedAt: timestamp("2026-08-01T01:00:00Z"), Type: model.LogTypeConsume,
+			PromptTokens: 999, CompletionTokens: 999,
+		},
+	}).Error)
+	require.NoError(t, db.Model(&model.Log{}).
+		Where("user_id = ? AND created_at = ?", 21, timestamp("2026-08-01T02:30:00Z")).
+		Update("other", nil).Error)
+
+	points := decodeNextResponse[[]nextDashboardTokenTrendPoint](t, performNextDashboardGet(
+		t,
+		"/api/next/dashboard/token-trend?range=custom&start=2026-08-01&end=2026-08-02&tz_offset=0",
+		21,
+		common.RoleCommonUser,
+		NextGetDashboardTokenTrend,
+	))
+	require.Len(t, points, 2)
+	assert.Equal(t, nextDashboardTokenTrendPoint{
+		Date: "2026-08-01", Input: 72, Output: 20, CacheCreate: 10, CacheRead: 30, HitRate: 29.4,
+	}, points[0])
+	assert.Equal(t, nextDashboardTokenTrendPoint{
+		Date: "2026-08-02", Input: 75, Output: 35, CacheCreate: 30, CacheRead: 105, HitRate: 58.3,
+	}, points[1])
+}
+
+func TestNextDashboardTokenTrendUsesClientTimezoneAndFillsEmptyDays(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	timestamp := func(value string) int64 {
+		parsed, err := time.Parse(time.RFC3339, value)
+		require.NoError(t, err)
+		return parsed.Unix()
+	}
+	require.NoError(t, db.Create(&[]model.Log{
+		{UserId: 23, CreatedAt: timestamp("2026-08-01T15:30:00Z"), Type: model.LogTypeConsume, PromptTokens: 10},
+		{UserId: 23, CreatedAt: timestamp("2026-08-01T16:30:00Z"), Type: model.LogTypeConsume, PromptTokens: 20},
+	}).Error)
+
+	points := decodeNextResponse[[]nextDashboardTokenTrendPoint](t, performNextDashboardGet(
+		t,
+		"/api/next/dashboard/token-trend?range=custom&start=2026-08-01&end=2026-08-03&tz_offset=480",
+		23,
+		common.RoleCommonUser,
+		NextGetDashboardTokenTrend,
+	))
+	require.Len(t, points, 3)
+	assert.Equal(t, "2026-08-01", points[0].Date)
+	assert.Equal(t, int64(10), points[0].Input)
+	assert.Equal(t, "2026-08-02", points[1].Date)
+	assert.Equal(t, int64(20), points[1].Input)
+	assert.Equal(t, nextDashboardTokenTrendPoint{Date: "2026-08-03"}, points[2])
+}
+
 func TestNextDashboardDistributionUsesCurrentUserLogs(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	now := time.Now().UTC().Add(-time.Hour).Truncate(time.Hour)

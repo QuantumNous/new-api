@@ -32,20 +32,67 @@ const palette = {
 
 beforeAll(() => loadMessageDomain('console'))
 
+function trendPoint(overrides: Partial<TokenTrendPoint> = {}): TokenTrendPoint {
+  return {
+    date: '2026-08-01',
+    input: 1,
+    output: 2,
+    cache_create: 3,
+    cache_read: 4,
+    hit_rate: 80,
+    ...overrides,
+  }
+}
+
 describe('TokenTrendCard', () => {
+  it('keeps the chart unmounted while loading', () => {
+    const wrapper = mount(TokenTrendCard, {
+      props: { points: [], loading: true },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.find('.animate-pulse').exists()).toBe(true)
+    expect(wrapper.find('[role="img"]').exists()).toBe(false)
+  })
+
+  it('shows an explicit empty state instead of mounting an empty chart', () => {
+    const wrapper = mount(TokenTrendCard, {
+      props: {
+        points: [
+          trendPoint({
+            input: 0,
+            output: 0,
+            cache_create: 0,
+            cache_read: 0,
+            hit_rate: 0,
+          }),
+        ],
+      },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.text()).toContain('No data')
+    expect(wrapper.find('[role="img"]').exists()).toBe(false)
+  })
+
+  it('calculates the window hit rate weighted by readable input tokens', () => {
+    const wrapper = mount(TokenTrendCard, {
+      props: {
+        points: [
+          trendPoint({ input: 900, cache_read: 100, hit_rate: 10 }),
+          trendPoint({ input: 0, cache_read: 10, hit_rate: 100 }),
+        ],
+      },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.text()).toContain('10.9%')
+    expect(wrapper.find('[role="img"]').exists()).toBe(true)
+  })
+
   it('escapes all API-derived text inserted into the HTML tooltip', () => {
-    const point = {
-      date: '2026-08-01',
-      input: 1,
-      output: 2,
-      cache_create: 3,
-      cache_read: 4,
-      hit_rate: 50,
-      actual: 5,
-      standard: 6,
-    } as TokenTrendPoint
     mount(TokenTrendCard, {
-      props: { points: [point] },
+      props: { points: [trendPoint({ hit_rate: 50 })] },
       global: { plugins: [i18n] },
     })
 

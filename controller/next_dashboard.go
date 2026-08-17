@@ -67,6 +67,15 @@ type nextDashboardDistributionPoint struct {
 	Tokens   int64  `json:"tokens"`
 }
 
+type nextDashboardTokenTrendPoint struct {
+	Date        string  `json:"date"`
+	Input       int64   `json:"input"`
+	Output      int64   `json:"output"`
+	CacheCreate int64   `json:"cache_create"`
+	CacheRead   int64   `json:"cache_read"`
+	HitRate     float64 `json:"hit_rate"`
+}
+
 type nextDashboardBandwidthSeries struct {
 	Up   []float64 `json:"up"`
 	Down []float64 `json:"down"`
@@ -266,6 +275,44 @@ func NextGetDashboardDistribution(c *gin.Context) {
 		points = append(points, nextDashboardDistributionPoint{
 			Date: dashboardDayLabel(day), Requests: item.Requests, Consume: item.Quota, Tokens: item.Tokens,
 		})
+	}
+	common.ApiSuccess(c, points)
+}
+
+func NextGetDashboardTokenTrend(c *gin.Context) {
+	offset, location, ok := dashboardTimezoneOffset(c)
+	if !ok {
+		return
+	}
+	startTimestamp, endTimestamp, ok := parseDashboardRange(c, time.Now(), location)
+	if !ok {
+		return
+	}
+	usage, err := model.GetUserDashboardUsage(c.GetInt("id"), startTimestamp, endTimestamp, offset)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	offsetSeconds := int64(offset) * 60
+	firstDay := startTimestamp + offsetSeconds
+	firstDay -= firstDay % dashboardDaySeconds
+	lastTimestamp := endTimestamp - 1 + offsetSeconds
+	lastDay := lastTimestamp - lastTimestamp%dashboardDaySeconds
+	points := make([]nextDashboardTokenTrendPoint, 0, (lastDay-firstDay)/dashboardDaySeconds+1)
+	for dayStart := firstDay; dayStart <= lastDay; dayStart += dashboardDaySeconds {
+		point := nextDashboardTokenTrendPoint{Date: dashboardDayLabel(dayStart)}
+		if item := usage.Daily[dayStart]; item != nil {
+			point.Input = item.InputTokens
+			point.Output = item.OutputTokens
+			point.CacheCreate = item.CacheCreateTokens
+			point.CacheRead = item.CacheReadTokens
+			readableInput := float64(point.Input) + float64(point.CacheRead)
+			if readableInput > 0 {
+				point.HitRate = math.Round(float64(point.CacheRead)/readableInput*1000) / 10
+			}
+		}
+		points = append(points, point)
 	}
 	common.ApiSuccess(c, points)
 }

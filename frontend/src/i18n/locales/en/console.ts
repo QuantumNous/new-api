@@ -143,10 +143,8 @@ export default {
       cacheCreate: 'Cache Creation',
       cacheRead: 'Cache Read',
       hitRate: 'Cache Hit Rate',
-      actual: 'Actual',
-      standard: 'Standard',
       avgHitRate: 'Avg hit',
-      saved: 'Saved',
+      emptyHint: 'No token usage recorded in the last 30 days',
     },
     systemStatus: {
       title: 'System status',
