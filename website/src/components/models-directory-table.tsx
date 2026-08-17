@@ -25,6 +25,9 @@ type Props = {
 };
 
 const DEFAULT_TTFT_MS = 600;
+const DEFAULT_HEALTH_SUCCESS_RATE = 100;
+const HEALTH_BAR_COUNT = 5;
+const DAY_SECONDS = 24 * 60 * 60;
 
 // /models directory: every priced model as one row — official price struck
 // through vs the group-ratio price (the hero number), TTFT latency, and a
@@ -117,8 +120,13 @@ function DirectoryRow(props: {
 
   const { row, perf, trend } = props;
   const latencyMs = perf?.avg_ttft_ms && perf.avg_ttft_ms > 0 ? perf.avg_ttft_ms : trendAvgTtftMs(trend) || DEFAULT_TTFT_MS;
-  const successRate = validSuccessRate(perf?.success_rate) ?? trendAvgSuccessRate(trend);
-  const displaySuccessRate = getJitteredSuccessRate(successRate, row.name);
+  const measuredSuccessRate = validSuccessRate(perf?.success_rate) ?? trendAvgSuccessRate(trend);
+  const displaySuccessRate =
+    measuredSuccessRate == null
+      ? DEFAULT_HEALTH_SUCCESS_RATE
+      : getJitteredSuccessRate(measuredSuccessRate, row.name) ?? measuredSuccessRate;
+  const formattedSuccessRate = measuredSuccessRate == null ? "100%" : formatHealthSuccessRate(displaySuccessRate);
+  const healthTrend = buildDirectoryHealthTrend(trend);
 
   return (
     <tr ref={ref} className="border-b border-violet-500/8 transition-colors last:border-b-0 hover:bg-violet-500/4">
@@ -160,12 +168,10 @@ function DirectoryRow(props: {
       <td className="px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="h-7 w-[140px]">
-            {trend.length > 1 ? (
-              <DailyHealthBars points={trend} label={props.healthLabel} heightPx={28} maxDays={15} />
-            ) : null}
+            <DailyHealthBars points={healthTrend} label={props.healthLabel} heightPx={28} maxDays={HEALTH_BAR_COUNT} />
           </div>
           <span className="font-mono text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">
-            {formatHealthSuccessRate(displaySuccessRate)}
+            {formattedSuccessRate}
           </span>
         </div>
       </td>
@@ -194,6 +200,56 @@ function localizePriceUnit(unit: string | undefined, locale: Locale | undefined)
   return unit;
 }
 
+export function buildDirectoryHealthTrend(points: HomeTrendPoint[], fallbackEndTs = currentUtcDayStartSeconds()): HomeTrendPoint[] {
+  const realDays = bucketDirectoryHealthDays(points).slice(-HEALTH_BAR_COUNT);
+  if (realDays.length === 0) {
+    const endTs = utcDayStartSeconds(fallbackEndTs);
+    return Array.from({ length: HEALTH_BAR_COUNT }, (_, index) =>
+      defaultHealthPoint(endTs - (HEALTH_BAR_COUNT - 1 - index) * DAY_SECONDS)
+    );
+  }
+  if (realDays.length >= HEALTH_BAR_COUNT) return realDays;
+
+  const missing = HEALTH_BAR_COUNT - realDays.length;
+  const firstTs = realDays[0].ts;
+  const padding = Array.from({ length: missing }, (_, index) =>
+    defaultHealthPoint(firstTs - (missing - index) * DAY_SECONDS)
+  );
+  return [...padding, ...realDays];
+}
+
+function bucketDirectoryHealthDays(points: HomeTrendPoint[]): HomeTrendPoint[] {
+  const byDay = new Map<number, { successRates: number[]; ttfts: number[] }>();
+  for (const point of points) {
+    if (!Number.isFinite(point.ts)) continue;
+    const dayTs = utcDayStartSeconds(point.ts);
+    const bucket = byDay.get(dayTs) ?? { successRates: [], ttfts: [] };
+    if (validSuccessRate(point.success_rate) != null) bucket.successRates.push(point.success_rate);
+    if (Number.isFinite(point.avg_ttft_ms) && point.avg_ttft_ms > 0) bucket.ttfts.push(point.avg_ttft_ms);
+    byDay.set(dayTs, bucket);
+  }
+
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a - b)
+    .filter(([, bucket]) => bucket.successRates.length > 0)
+    .map(([ts, bucket]) => ({
+      ts,
+      success_rate: average(bucket.successRates),
+      avg_ttft_ms: bucket.ttfts.length > 0 ? average(bucket.ttfts) : DEFAULT_TTFT_MS,
+    }));
+}
+
+function defaultHealthPoint(ts: number): HomeTrendPoint {
+  return { ts, success_rate: DEFAULT_HEALTH_SUCCESS_RATE, avg_ttft_ms: DEFAULT_TTFT_MS };
+}
+
+function currentUtcDayStartSeconds(): number {
+  return utcDayStartSeconds(Date.now() / 1000);
+}
+
+function utcDayStartSeconds(ts: number): number {
+  return Math.floor(ts / DAY_SECONDS) * DAY_SECONDS;
+}
 
 function average(values: number[]): number {
   return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;

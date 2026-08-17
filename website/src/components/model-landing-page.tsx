@@ -68,6 +68,7 @@ import {
   type PricingModel,
 } from "@/lib/pricing";
 import type { RankedModel, RankingsData } from "@/lib/rankings-live";
+import { buildModelSchema, stringifyJsonLd } from "@/lib/schema";
 
 type Props = {
   config: ModelConfig;
@@ -239,6 +240,18 @@ function FlatkeyModelDetailPage(props: {
   const releasedAt = formatModelDate(model?.availability_detected_at ?? model?.availability_checked_at);
   const contextValue = inferContextValue(model);
   const modelDescription = buildModelDescription(props.config, model, props.t);
+  const faqItems = buildModelFaq(props.config, props.t);
+  const schema = buildModelSchema({
+    locale: props.locale,
+    modelName: props.config.displayName,
+    vendorName: providerName,
+    description: modelDescription,
+    inputPriceUsd: model
+      ? discountedPriceUsd(getOfficialPriceUsd(model) * getBestGroupRatio(model, props.groupRatio))
+      : parsePrice(priceRows.rows[0]?.flatkey ?? `${props.config.flatkeyPrice} ${props.t(props.config.priceUnit)}`) ?? Number.NaN,
+    pagePath: localizePath(`/models/${props.config.slug}`, props.locale),
+    faq: faqItems.map((item) => ({ q: item.question, a: item.answer })),
+  });
   const rankingRow = findRankingRow(props.rankings?.models ?? [], props.config.modelId);
 
   const [health, setHealth] = useState<{
@@ -274,6 +287,7 @@ function FlatkeyModelDetailPage(props: {
 
   return (
     <SiteShell locale={props.locale} pathname={`/models/${props.config.slug}`}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(schema) }} />
       <main className="home-landing relative overflow-x-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] text-[#0B0B0F] dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)] dark:text-white">
         <div
           aria-hidden
@@ -584,7 +598,7 @@ function FlatkeyModelDetailPage(props: {
               description={props.t("Use the pricing section above for current Flatkey prices from our pricing API.")}
             />
             <div className="mt-6 divide-y divide-violet-500/12 rounded-2xl border border-violet-500/16 bg-white/72 px-5 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm dark:bg-white/[0.04]">
-              {buildModelFaq(props.config, props.t).map((item) => (
+              {faqItems.map((item) => (
                 <details key={item.question} className="group py-4">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold">
                     {item.question}
@@ -1089,10 +1103,10 @@ function TextModelGuide(props: {
                 {props.t("{{model}} pricing FAQ", { model: props.config.displayName })}
               </h2>
               <div className="mt-5 grid gap-3">
-                {props.config.faq.map((item) => (
+                {buildModelFaq(props.config, props.t).map((item) => (
                   <details key={item.question} className="rounded-xl border border-[#0B0B0F14] bg-white px-4 py-3 text-sm">
-                    <summary className="cursor-pointer font-extrabold">{props.t(item.question)}</summary>
-                    <p className="mt-2 leading-6 text-[#706a74]">{props.t(item.answer)}</p>
+                    <summary className="cursor-pointer font-extrabold">{item.question}</summary>
+                    <p className="mt-2 leading-6 text-[#706a74]">{item.answer}</p>
                   </details>
                 ))}
               </div>
