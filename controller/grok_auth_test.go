@@ -1,13 +1,16 @@
 package controller
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -55,7 +59,7 @@ func setGrokCipherKey(t *testing.T) {
 	t.Setenv("GROK_CREDENTIAL_CIPHER_KEY", base64.StdEncoding.EncodeToString(key))
 }
 
-func TestGrokPKCEStartProducesChallenge(t *testing.T) {
+func TestGrokAuthPKCEStartProducesChallenge(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 
@@ -97,7 +101,7 @@ func TestGrokPKCEStartProducesChallenge(t *testing.T) {
 	require.Equal(t, base64.RawURLEncoding.EncodeToString(vsum[:]), q.Get("code_challenge"), "code_challenge must be S256(verifier)")
 }
 
-func TestGrokPKCEStartRejectsInvalidArgs(t *testing.T) {
+func TestGrokAuthPKCEStartRejectsInvalidArgs(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	if _, err := GrokPKCEStart(0, "https://newapi.example/callback"); err == nil {
@@ -109,7 +113,7 @@ func TestGrokPKCEStartRejectsInvalidArgs(t *testing.T) {
 }
 
 // TestGrokPKCEStartRequiresCipherKey 守护 fail-closed：cipher key 未配置时绝不落库（verifier 无加密手段）。
-func TestGrokPKCEStartRequiresCipherKey(t *testing.T) {
+func TestGrokAuthPKCEStartRequiresCipherKey(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	t.Setenv("GROK_CREDENTIAL_CIPHER_KEY", "")
 	if _, err := GrokPKCEStart(42, "https://newapi.example/callback"); err == nil {
@@ -181,7 +185,7 @@ func getGrokChannelKey(t *testing.T, channelID int) string {
 	return ch.Key
 }
 
-func TestGrokPKCECompleteHappyPath(t *testing.T) {
+func TestGrokAuthPKCECompleteHappyPath(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	ch := seedGrokChannel(t)
@@ -225,7 +229,7 @@ func TestGrokPKCECompleteHappyPath(t *testing.T) {
 
 // TestGrokPKCECompleteStateMismatchBurnsFlow 守护防重放：state 不符必须 consume flow 且报 400 语义错误，
 // 错误信息不含 state/code 明文。
-func TestGrokPKCECompleteStateMismatchBurnsFlow(t *testing.T) {
+func TestGrokAuthPKCECompleteStateMismatchBurnsFlow(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	ch := seedGrokChannel(t)
@@ -257,7 +261,7 @@ func TestGrokPKCECompleteStateMismatchBurnsFlow(t *testing.T) {
 }
 
 // TestGrokPKCECompleteGrantRejectedSetsNeedsReauth：token endpoint 拒绝 → needs_reauth + 脱敏错误。
-func TestGrokPKCECompleteGrantRejectedSetsNeedsReauth(t *testing.T) {
+func TestGrokAuthPKCECompleteGrantRejectedSetsNeedsReauth(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	ch := seedGrokChannel(t)
@@ -289,7 +293,7 @@ func TestGrokPKCECompleteGrantRejectedSetsNeedsReauth(t *testing.T) {
 	require.Empty(t, getGrokChannelKey(t, ch.Id))
 }
 
-func TestGrokPKCECompleteRejectsInvalidArgs(t *testing.T) {
+func TestGrokAuthPKCECompleteRejectsInvalidArgs(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
@@ -309,7 +313,7 @@ func TestGrokPKCECompleteRejectsInvalidArgs(t *testing.T) {
 }
 
 // TestGrokPKCECompleteUnknownFlow：未知/过期 flow 报可区分错误，不触网。
-func TestGrokPKCECompleteUnknownFlow(t *testing.T) {
+func TestGrokAuthPKCECompleteUnknownFlow(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
@@ -324,7 +328,7 @@ func TestGrokPKCECompleteUnknownFlow(t *testing.T) {
 
 // ---- import 段 ----
 
-func TestGrokImportRefreshTokenHappyPath(t *testing.T) {
+func TestGrokAuthImportRefreshTokenHappyPath(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	ch := seedGrokChannel(t)
@@ -356,7 +360,7 @@ func TestGrokImportRefreshTokenHappyPath(t *testing.T) {
 
 // TestGrokImportInvalidGrantNeedsReauth：invalid_grant → needs_reauth + 脱敏错误，
 // refresh_token 明文绝不出现在任何错误串。
-func TestGrokImportInvalidGrantNeedsReauth(t *testing.T) {
+func TestGrokAuthImportInvalidGrantNeedsReauth(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	ch := seedGrokChannel(t)
@@ -385,7 +389,7 @@ func TestGrokImportInvalidGrantNeedsReauth(t *testing.T) {
 	require.Empty(t, getGrokChannelKey(t, ch.Id), "rejected import must not write Channel.Key")
 }
 
-func TestGrokImportRejectsInvalidArgs(t *testing.T) {
+func TestGrokAuthImportRejectsInvalidArgs(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
@@ -399,4 +403,236 @@ func TestGrokImportRejectsInvalidArgs(t *testing.T) {
 	if err := GrokImportRefreshToken(42, "  "); err == nil {
 		t.Fatalf("blank refresh token must be rejected")
 	}
+}
+
+// ---- 段4：refresh 编排 + handlers ----
+
+func TestGrokAuthRefreshChannelCredentialSuccess(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+	// 预置既有凭证 + 既有状态行（quota 快照须在刷新后保留）。
+	oldCred := groksubscription.Credential{Version: 1, Type: "grok_subscription", AccessToken: "old-at", RefreshToken: "old-rt", TokenType: "Bearer", ExpiresAt: time.Now().Unix() + 60}
+	serialized, err := oldCred.Serialize()
+	require.NoError(t, err)
+	require.NoError(t, model.UpdateChannelKeyForType(ch.Id, constant.ChannelTypeGrokSubscription, serialized))
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{ChannelID: ch.Id, AuthStatus: model.GrokAuthStatusActive, QuotaSnapshot: `{"remaining":42}`}))
+
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		form := readGrokForm(t, req)
+		require.Equal(t, "refresh_token", form.Get("grant_type"))
+		require.Equal(t, "old-rt", form.Get("refresh_token"))
+		return grokJSONResponse(200, `{"access_token":"new-at","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+
+	require.NoError(t, GrokRefreshChannelCredential(context.Background(), ch.Id))
+
+	key := getGrokChannelKey(t, ch.Id)
+	cred, err := groksubscription.ParseCredential(key)
+	require.NoError(t, err)
+	require.Equal(t, "new-at", cred.AccessToken)
+	require.Equal(t, "old-rt", cred.RefreshToken, "upstream omitting refresh must preserve old one")
+
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusActive, st.AuthStatus)
+	require.Equal(t, `{"remaining":42}`, st.QuotaSnapshot, "quota snapshot must survive refresh status update")
+}
+
+func TestGrokAuthRefreshChannelCredentialFailureSetsNeedsReauth(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+	// 凭证不可刷新 → Refresh 失败 → needs_reauth。
+	oldCred := groksubscription.Credential{Version: 1, Type: "grok_subscription", AccessToken: "old-at", TokenType: "Bearer", ExpiresAt: time.Now().Unix() + 60}
+	serialized, err := oldCred.Serialize()
+	require.NoError(t, err)
+	require.NoError(t, model.UpdateChannelKeyForType(ch.Id, constant.ChannelTypeGrokSubscription, serialized))
+
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("non-refreshable credential must not hit token endpoint")
+		return nil, nil
+	}))
+	defer restore()
+
+	err = GrokRefreshChannelCredential(context.Background(), ch.Id)
+	require.Error(t, err)
+	require.ErrorIs(t, err, groksubscription.ErrNotRefreshable)
+
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusNeedsReauth, st.AuthStatus)
+}
+
+// ---- handlers ----
+
+type grokAuthHandlerResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		AuthorizeURL  string `json:"authorize_url"`
+		FlowID        string `json:"flow_id"`
+		Status        string `json:"status"`
+		QuotaSnapshot string `json:"quota_snapshot"`
+	} `json:"data"`
+}
+
+func newGrokAuthRequestContext(t *testing.T, body string) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/grok/test", strings.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	return ctx, recorder
+}
+
+func decodeGrokAuthResponse(t *testing.T, recorder *httptest.ResponseRecorder) grokAuthHandlerResponse {
+	t.Helper()
+	var resp grokAuthHandlerResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &resp))
+	return resp
+}
+
+func TestGrokAuthPKCEStartHandler(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	// 缺参 → 400 + no-store。
+	ctx, rec := newGrokAuthRequestContext(t, `{"redirect_uri":"https://x/cb"}`)
+	GrokPKCEStartHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+
+	// 成功 → 200，data 带 authorize_url/flow_id，no-store。
+	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`,"redirect_uri":"https://newapi.example/callback"}`)
+	GrokPKCEStartHandler(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	resp := decodeGrokAuthResponse(t, rec)
+	require.True(t, resp.Success)
+	require.Contains(t, resp.Data.AuthorizeURL, "code_challenge=")
+	require.Contains(t, resp.Data.AuthorizeURL, "code_challenge_method=S256")
+	require.NotEmpty(t, resp.Data.FlowID)
+
+	// 渠道不存在 → 400。
+	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":99999,"redirect_uri":"https://x/cb"}`)
+	GrokPKCEStartHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestGrokAuthPKCECompleteHandler(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	// 缺参 → 400 + no-store。
+	ctx, rec := newGrokAuthRequestContext(t, `{"code":"c","state":"s"}`)
+	GrokPKCECompleteHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+
+	// state 不符 → 400，错误不含 code/state 明文。
+	start, err := GrokPKCEStart(ch.Id, "https://newapi.example/callback")
+	require.NoError(t, err)
+	ctx, rec = newGrokAuthRequestContext(t, `{"flow_id":"`+start.FlowID+`","code":"auth-code-xyz","state":"attacker-state"}`)
+	GrokPKCECompleteHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	resp := decodeGrokAuthResponse(t, rec)
+	require.False(t, resp.Success)
+	require.NotContains(t, rec.Body.String(), "auth-code-xyz")
+	require.NotContains(t, rec.Body.String(), "attacker-state")
+
+	// 成功 → 200 + status active。
+	start2, err := GrokPKCEStart(ch.Id, "https://newapi.example/callback")
+	require.NoError(t, err)
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		return grokJSONResponse(200, `{"access_token":"at-h","refresh_token":"rt-h","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+	ctx, rec = newGrokAuthRequestContext(t, `{"flow_id":"`+start2.FlowID+`","code":"auth-code-xyz","state":"`+start2.State+`"}`)
+	GrokPKCECompleteHandler(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp = decodeGrokAuthResponse(t, rec)
+	require.True(t, resp.Success)
+	require.Equal(t, model.GrokAuthStatusActive, resp.Data.Status)
+}
+
+func TestGrokAuthImportHandler(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	// 缺参 → 400 + no-store。
+	ctx, rec := newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`}`)
+	GrokImportHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+
+	// 成功 → 200 + status active。
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		return grokJSONResponse(200, `{"access_token":"at-i","refresh_token":"rt-i","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`,"refresh_token":"imported-rt-secret"}`)
+	GrokImportHandler(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp := decodeGrokAuthResponse(t, rec)
+	require.True(t, resp.Success)
+	require.Equal(t, model.GrokAuthStatusActive, resp.Data.Status)
+
+	// invalid_grant → 400 + status needs_reauth，错误不含 refresh token 明文。
+	restore2 := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		return grokJSONResponse(400, `{"error":"invalid_grant"}`), nil
+	}))
+	defer restore2()
+	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`,"refresh_token":"another-rt-secret"}`)
+	GrokImportHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	require.NotContains(t, rec.Body.String(), "another-rt-secret")
+	resp = decodeGrokAuthResponse(t, rec)
+	require.False(t, resp.Success)
+	require.Equal(t, model.GrokAuthStatusNeedsReauth, resp.Data.Status)
+}
+
+func TestGrokAuthRefreshHandler(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	// 缺参 → 400 + no-store。
+	ctx, rec := newGrokAuthRequestContext(t, `{}`)
+	GrokRefreshHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+
+	// 渠道不存在 → 400 脱敏。
+	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":99999}`)
+	GrokRefreshHandler(ctx)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	resp := decodeGrokAuthResponse(t, rec)
+	require.False(t, resp.Success)
+
+	// 成功 → 200 + status active + quota 快照。
+	oldCred := groksubscription.Credential{Version: 1, Type: "grok_subscription", AccessToken: "old-at", RefreshToken: "old-rt", TokenType: "Bearer", ExpiresAt: time.Now().Unix() + 60}
+	serialized, err := oldCred.Serialize()
+	require.NoError(t, err)
+	require.NoError(t, model.UpdateChannelKeyForType(ch.Id, constant.ChannelTypeGrokSubscription, serialized))
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{ChannelID: ch.Id, AuthStatus: model.GrokAuthStatusActive, QuotaSnapshot: `{"remaining":7}`}))
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		return grokJSONResponse(200, `{"access_token":"new-at2","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`}`)
+	GrokRefreshHandler(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	resp = decodeGrokAuthResponse(t, rec)
+	require.True(t, resp.Success)
+	require.Equal(t, model.GrokAuthStatusActive, resp.Data.Status)
+	require.Equal(t, `{"remaining":7}`, resp.Data.QuotaSnapshot)
 }

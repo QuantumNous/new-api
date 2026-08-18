@@ -367,6 +367,12 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/fetch_models", middleware.RootAuth(), controller.FetchModels)
 			channelRoute.POST("/codex/oauth/start", controller.StartCodexOAuth)
 			channelRoute.POST("/codex/oauth/complete", controller.CompleteCodexOAuth)
+			// Grok 订阅渠道认证端点（设计 §13）：静态段与 /:id/ 参数段并存，
+			// 照 Codex 静态路由（/codex/oauth/*）的相对位置注册，位于 /:id/... 之前。
+			channelRoute.POST("/grok/pkce/start", controller.GrokPKCEStartHandler)
+			channelRoute.POST("/grok/pkce/complete", controller.GrokPKCECompleteHandler)
+			channelRoute.POST("/grok/import", controller.GrokImportHandler)
+			channelRoute.POST("/grok/refresh", controller.GrokRefreshHandler)
 			channelRoute.POST("/:id/codex/oauth/start", controller.StartCodexOAuthForChannel)
 			channelRoute.POST("/:id/codex/oauth/complete", controller.CompleteCodexOAuthForChannel)
 			channelRoute.POST("/:id/copilot/device/start", controller.StartCopilotDeviceFlow)

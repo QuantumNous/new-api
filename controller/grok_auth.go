@@ -11,12 +11,14 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 )
 
 // Grok 认证服务端编排（设计 §7、§12；Task 18）。
@@ -273,4 +275,197 @@ func GrokImportRefreshToken(channelID int, refreshToken string) error {
 		return err
 	}
 	return upsertGrokAuthStatus(channelID, model.GrokAuthStatusActive, true, "")
+}
+
+// ---- refresh 编排 ----
+
+// grokChannelCredentialStore 把 model 的 Channel.Key 适配为 CredentialStore。
+// revision 是实例内 Load 计数；CAS 走 model.CompareAndSwapChannelKey 的旧值比对
+// （设计 §7.2 / Task 9 的 key-CAS 积木，避免给 Channel 表加 revision 列）。
+// 每次刷新新建实例：Load→CAS 固定发生在同一次 Refresh 调用内，无跨请求共享状态。
+type grokChannelCredentialStore struct {
+	keys      map[int]string
+	revisions map[int]int
+}
+
+func newGrokChannelCredentialStore() *grokChannelCredentialStore {
+	return &grokChannelCredentialStore{keys: map[int]string{}, revisions: map[int]int{}}
+}
+
+func (s *grokChannelCredentialStore) Load(ctx context.Context, channelID int) (string, int, error) {
+	ch, err := model.GetChannelById(channelID, true)
+	if err != nil {
+		return "", 0, err
+	}
+	s.revisions[channelID]++
+	s.keys[channelID] = ch.Key
+	return ch.Key, s.revisions[channelID], nil
+}
+
+func (s *grokChannelCredentialStore) CompareAndSwap(ctx context.Context, channelID, expectedRevision int, newKey string) (bool, error) {
+	if s.revisions[channelID] != expectedRevision {
+		return false, nil
+	}
+	oldKey, ok := s.keys[channelID]
+	if !ok {
+		return false, nil
+	}
+	return model.CompareAndSwapChannelKey(channelID, constant.ChannelTypeGrokSubscription, oldKey, newKey)
+}
+
+// GrokRefreshChannelCredential 刷新渠道既有凭证（Task 8 Refresher 的 Task 18 接线），
+// 成功置 active，失败（不可刷新 / 上游拒绝 / CAS 冲突）置 needs_reauth（渠道仍在时）。
+func GrokRefreshChannelCredential(ctx context.Context, channelID int) error {
+	refresher := groksubscription.NewRefresher(newGrokChannelCredentialStore(), grokAuthHTTPDoer, time.Now().Unix)
+	if _, err := refresher.Refresh(ctx, channelID); err != nil {
+		// 渠道已不存在的 Load 失败不落状态行；其余失败统一 needs_reauth（设计 §6.3）。
+		if _, loadErr := model.GetChannelById(channelID, false); loadErr == nil {
+			recordGrokNeedsReauth(channelID, err)
+		}
+		return err
+	}
+	return upsertGrokAuthStatus(channelID, model.GrokAuthStatusActive, true, "")
+}
+
+// ---- 管理 API handlers ----
+
+// grokAuthNoStore 所有 Grok 认证端点统一禁缓存（凭证/授权 URL 绝不落中间层缓存）。
+func grokAuthNoStore(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+}
+
+type grokPKCEStartAPIRequest struct {
+	ChannelID   int    `json:"channel_id"`
+	RedirectURI string `json:"redirect_uri"`
+}
+
+type grokPKCECompleteAPIRequest struct {
+	FlowID string `json:"flow_id"`
+	Code   string `json:"code"`
+	State  string `json:"state"`
+}
+
+type grokImportAPIRequest struct {
+	ChannelID    int    `json:"channel_id"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type grokRefreshAPIRequest struct {
+	ChannelID int `json:"channel_id"`
+}
+
+// requireGrokChannel 校验渠道存在且为 Grok Subscription 类型；不满足时已写响应并返回 false。
+func requireGrokChannel(c *gin.Context, channelID int) bool {
+	ch, err := model.GetChannelById(channelID, false)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel not found"})
+		return false
+	}
+	if ch.Type != constant.ChannelTypeGrokSubscription {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel type is not Grok subscription"})
+		return false
+	}
+	return true
+}
+
+func GrokPKCEStartHandler(c *gin.Context) {
+	grokAuthNoStore(c)
+	var req grokPKCEStartAPIRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.ChannelID <= 0 || strings.TrimSpace(req.RedirectURI) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id and redirect_uri are required"})
+		return
+	}
+	if !requireGrokChannel(c, req.ChannelID) {
+		return
+	}
+	start, err := GrokPKCEStart(req.ChannelID, req.RedirectURI)
+	if err != nil {
+		// 错误均为脱敏类别（invalid args / rng / cipher 未配置 / 落库失败），不含 verifier。
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"authorize_url": start.AuthorizeURL,
+			"flow_id":       start.FlowID,
+		},
+	})
+}
+
+func GrokPKCECompleteHandler(c *gin.Context) {
+	grokAuthNoStore(c)
+	var req grokPKCECompleteAPIRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.FlowID == "" || req.Code == "" || req.State == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "flow_id, code and state are required"})
+		return
+	}
+	if err := GrokPKCEComplete(req.FlowID, req.Code, req.State, ""); err != nil {
+		if errors.Is(err, errGrokStateMismatch) {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "state mismatch"})
+			return
+		}
+		body := gin.H{"success": false, "message": err.Error()}
+		var rejected *groksubscription.GrantRejectedError
+		if errors.As(err, &rejected) {
+			body["data"] = gin.H{"status": model.GrokAuthStatusNeedsReauth}
+		}
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"status": model.GrokAuthStatusActive}})
+}
+
+func GrokImportHandler(c *gin.Context) {
+	grokAuthNoStore(c)
+	var req grokImportAPIRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.ChannelID <= 0 || strings.TrimSpace(req.RefreshToken) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id and refresh_token are required"})
+		return
+	}
+	if !requireGrokChannel(c, req.ChannelID) {
+		return
+	}
+	if err := GrokImportRefreshToken(req.ChannelID, req.RefreshToken); err != nil {
+		body := gin.H{"success": false, "message": err.Error()}
+		var rejected *groksubscription.GrantRejectedError
+		if errors.As(err, &rejected) {
+			body["data"] = gin.H{"status": model.GrokAuthStatusNeedsReauth}
+		}
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"status": model.GrokAuthStatusActive}})
+}
+
+func GrokRefreshHandler(c *gin.Context) {
+	grokAuthNoStore(c)
+	var req grokRefreshAPIRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.ChannelID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id is required"})
+		return
+	}
+	if !requireGrokChannel(c, req.ChannelID) {
+		return
+	}
+	if err := GrokRefreshChannelCredential(c.Request.Context(), req.ChannelID); err != nil {
+		body := gin.H{"success": false, "message": err.Error()}
+		var rejected *groksubscription.GrantRejectedError
+		if errors.As(err, &rejected) {
+			body["data"] = gin.H{"status": model.GrokAuthStatusNeedsReauth}
+		}
+		c.JSON(http.StatusBadRequest, body)
+		return
+	}
+	quotaSnapshot := ""
+	if st, err := model.GetGrokChannelState(req.ChannelID); err == nil && st != nil {
+		quotaSnapshot = st.QuotaSnapshot
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"status":         model.GrokAuthStatusActive,
+			"quota_snapshot": quotaSnapshot,
+		},
+	})
 }
