@@ -973,7 +973,7 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 //   - model_mapping 单独变更不影响 abilities。
 //
 // 重建失败仅记日志、不回滚（与 EditChannelByTag 一致）。
-func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority *int64, weight *uint) error {
+func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority *int64, weight *uint, maxConcurrency *int) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -1003,6 +1003,14 @@ func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority 
 	err := DB.Model(&Channel{}).Where("id IN ?", ids).Updates(updateData).Error
 	if err != nil {
 		return err
+	}
+	// Updates(struct) skips zero values, so max_concurrency = 0 (clear the
+	// limit) must go through a map update.
+	if maxConcurrency != nil {
+		if err := DB.Model(&Channel{}).Where("id IN ?", ids).
+			Update("max_concurrency", *maxConcurrency).Error; err != nil {
+			return err
+		}
 	}
 	if shouldReCreateAbilities {
 		channels, err := GetChannelsByIds(ids)

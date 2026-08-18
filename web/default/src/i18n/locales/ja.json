@@ -6604,6 +6604,8 @@
     "Used only to start GitHub Copilot Device Flow. No client secret is required.": "GitHub Copilot デバイスフローの開始にのみ使用します。Client Secret は不要です。",
     "Authorize with GitHub": "GitHub で認証",
     "GitHub Copilot channels support one credential only": "GitHub Copilot チャネルは 1 つの認証情報のみをサポートします",
-    "Cooling": "クールダウン"
+    "Cooling": "クールダウン",
+    "Max concurrency must be a non-negative integer": "最大同時実行数は 0 以上の整数で入力してください",
+    "0 removes the limit": "0 で制限を解除"
   }
 }

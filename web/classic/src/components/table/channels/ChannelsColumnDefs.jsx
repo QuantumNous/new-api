@@ -705,22 +705,29 @@ export const getChannelsColumns = ({
             badgeColor = 'amber';
           }
           badge = (
-            <div style={{ marginBottom: 4 }}>
+            <>
               <Tag color={badgeColor} shape='circle' size='small'>
                 {active}/{max}
-                {waiting > 0 ? ` +${waiting}${t('等待')}` : ''}
+                {waiting > 0 ? ` +${waiting}` : ''}
               </Tag>
               {status.cooling_down && (
                 <Tag color='blue' shape='circle' size='small'>
                   {t('冷却中')}
                 </Tag>
               )}
-            </div>
+            </>
           );
         }
 
         return (
-          <div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              flexWrap: 'nowrap',
+            }}
+          >
             {badge}
             <InputNumber
               style={{ width: 90 }}

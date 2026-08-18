@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
@@ -248,6 +249,44 @@ func TestShouldMarkChannelConcurrencyCooldownExcludesQuota429(t *testing.T) {
 	require.True(t, shouldMarkChannelConcurrencyCooldown(
 		types.NewOpenAIError(errors.New(""), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests),
 	))
+}
+
+func TestShouldMarkChannelConcurrencyCooldownRespectsTriggerSwitches(t *testing.T) {
+	original := operation_setting.GetChannelConcurrencySetting()
+	t.Cleanup(func() {
+		operation_setting.SetChannelConcurrencySettingForTest(original)
+	})
+
+	status429 := types.NewOpenAIError(errors.New("rate limit exceeded"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests)
+	keywordOnly := types.NewOpenAIError(errors.New("upstream overloaded, retry later"), types.ErrorCodeBadResponseStatusCode, http.StatusServiceUnavailable)
+
+	// Defaults: 429 triggers, keyword-only does not.
+	setting := original
+	setting.CooldownEnabled = true
+	setting.CooldownOnStatus429 = true
+	setting.CooldownOnMessageMatch = false
+	operation_setting.SetChannelConcurrencySettingForTest(setting)
+	require.True(t, shouldMarkChannelConcurrencyCooldown(status429))
+	require.False(t, shouldMarkChannelConcurrencyCooldown(keywordOnly))
+
+	// Keyword opt-in enables message-based cooldown for non-429 errors.
+	setting.CooldownOnMessageMatch = true
+	operation_setting.SetChannelConcurrencySettingForTest(setting)
+	require.True(t, shouldMarkChannelConcurrencyCooldown(keywordOnly))
+
+	// 429 trigger off: even a real 429 does not cool the channel down.
+	setting.CooldownOnStatus429 = false
+	setting.CooldownOnMessageMatch = false
+	operation_setting.SetChannelConcurrencySettingForTest(setting)
+	require.False(t, shouldMarkChannelConcurrencyCooldown(status429))
+
+	// Master switch off overrides every trigger.
+	setting.CooldownEnabled = false
+	setting.CooldownOnStatus429 = true
+	setting.CooldownOnMessageMatch = true
+	operation_setting.SetChannelConcurrencySettingForTest(setting)
+	require.False(t, shouldMarkChannelConcurrencyCooldown(status429))
+	require.False(t, shouldMarkChannelConcurrencyCooldown(keywordOnly))
 }
 
 func TestGetChannelSkipsCoolingDownChannel(t *testing.T) {

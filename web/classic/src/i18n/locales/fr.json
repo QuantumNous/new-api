@@ -4069,7 +4069,6 @@
     "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Définissez le crédit bonus pour différents montants de recharge. Les clés sont les montants, les valeurs sont les bonus, par exemple : {\"20\": 5, \"50\": 15}",
     "赠送额度": "Crédit bonus",
     "到账额度": "Crédit du portefeuille",
-    "等待": "attente",
     "冷却中": "refroidissement"
   }
 }

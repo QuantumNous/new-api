@@ -4680,7 +4680,6 @@
     "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Defina crédito bônus para diferentes valores de recarga. As chaves são valores de recarga e os valores são bônus, por exemplo: {\"20\": 5, \"50\": 15}",
     "赠送额度": "Crédito bônus",
     "到账额度": "Crédito na carteira",
-    "等待": "espera",
     "冷却中": "resfriando"
   }
 }

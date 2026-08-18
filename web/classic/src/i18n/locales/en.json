@@ -4049,7 +4049,6 @@
     "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Set bonus credit for different top-up amounts. Keys are top-up amounts and values are bonus amounts, for example: {\"20\": 5, \"50\": 15}",
     "赠送额度": "Bonus credit",
     "到账额度": "Wallet credit",
-    "等待": "waiting",
     "冷却中": "cooling"
   }
 }
