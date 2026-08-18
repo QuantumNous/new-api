@@ -58,3 +58,20 @@ func TestParseWebSearchAliasNormalized(t *testing.T) {
 		t.Fatalf("alias must normalize to web_search, got %+v", tool)
 	}
 }
+
+func TestParseWebSearchRejectsUnknownField(t *testing.T) {
+	// 已知 type 内的未知字段必须被 DisallowUnknownFields 拒绝——这是 strict 解析的存在理由，
+	// 保证不静默丢弃 Grok 不支持的字段（回归护栏：删掉 strict 时本例应 FAIL）。
+	raw := `{"type":"web_search","web_search":{"unknown_field":1}}`
+	if _, err := ParseTool([]byte(raw)); err == nil {
+		t.Fatalf("unknown field in web_search config must be rejected by strict unmarshal, not silently dropped")
+	}
+}
+
+func TestParseFunctionNullBodyRejected(t *testing.T) {
+	// 显式 null 的 function body 经 isJSONNull 视为不存在，返回可定位错误而非空 DTO。
+	raw := `{"type":"function","function":null}`
+	if _, err := ParseTool([]byte(raw)); err == nil {
+		t.Fatalf("null function body must be rejected with locatable error, not treated as valid empty function")
+	}
+}
