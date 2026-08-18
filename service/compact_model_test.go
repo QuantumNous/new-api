@@ -24,6 +24,21 @@ func TestCompactChannelStageCapabilities(t *testing.T) {
 	require.False(t, compactChannelSupportsStage(unsupported, map[string]bool{"gpt-5-openai-compact": true}, "gpt-5", "gpt-5-openai-compact", relaycommon.CompactAttemptExact))
 }
 
+func TestNonGPTCompactChannelUsesOnlyBaseAbility(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeOpenAI, Models: "claude-3-5-sonnet-openai-compact"}
+	require.Equal(t, relaycommon.CompactAttemptNone, SpecificChannelCompactStage(channel, "claude-3-5-sonnet-openai-compact"))
+
+	channel.Models = "claude-3-5-sonnet"
+	require.Equal(t, relaycommon.CompactAttemptBase, SpecificChannelCompactStage(channel, "claude-3-5-sonnet-openai-compact"))
+	require.False(t, compactChannelSupportsStage(
+		channel,
+		map[string]bool{"claude-3-5-sonnet-openai-compact": true},
+		"claude-3-5-sonnet",
+		"claude-3-5-sonnet",
+		relaycommon.CompactAttemptExact,
+	))
+}
+
 func TestAdvancedCustomCompactRequiresExplicitRoute(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeAdvancedCustom}
 	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{
@@ -172,7 +187,7 @@ func TestCompactChannelSelectionAllowsEachMultiKeyOncePerStage(t *testing.T) {
 
 func TestCompactAutoGroupCanRestartFromFirstGroupForBaseStage(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
-	const modelName = "compact-auto-stage-model"
+	const modelName = "gpt-compact-auto-stage-model"
 	createChannelSelectAutoGroupsChannel(t, db, 2203, "vip", modelName)
 	createChannelSelectAutoGroupsChannel(t, db, 2204, "default", modelName)
 	model.InitChannelCache()

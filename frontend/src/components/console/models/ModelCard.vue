@@ -48,12 +48,6 @@ const billingLabel = computed(() => t(`models.billing.${props.model.billing}`))
 const typeLabel = computed(() => t(`models.type.${props.model.type}`))
 const tierCount = computed(() => props.model.price.tiers?.length ?? 0)
 
-/** Channels shown inline; the rest collapse to a "+N" chip. */
-const shownChannels = computed(() => props.model.channels.slice(0, 2))
-const extraChannels = computed(() =>
-  Math.max(0, props.model.channels.length - 2)
-)
-
 async function copyName() {
   await copy(props.model.name)
   toast.success(t('models.copied', { name: props.model.name }))
@@ -237,15 +231,11 @@ async function copyName() {
       </div>
     </div>
 
-    <!-- footer: type + channels -->
+    <!-- footer: model type -->
     <div
       class="mt-3 flex items-center gap-2 text-xs text-[var(--text-tertiary)]"
     >
       <StatusChip :tone="typeTone[model.type]">{{ typeLabel }}</StatusChip>
-      <span class="ml-auto min-w-0 truncate text-right" data-model-channels>
-        {{ t('models.channels') }} {{ shownChannels.join(' · ')
-        }}<span v-if="extraChannels"> +{{ extraChannels }}</span>
-      </span>
     </div>
   </article>
 
@@ -254,7 +244,7 @@ async function copyName() {
     v-else
     class="group flex items-center gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 transition duration-200 ease-out hover:border-[var(--accent)] hover:shadow-[var(--card-shadow-hover)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-0.5"
   >
-    <!-- name + channels -->
+    <!-- name + description -->
     <div class="min-w-0 flex-1">
       <button
         type="button"
@@ -265,8 +255,7 @@ async function copyName() {
         <span class="truncate">{{ model.name }}</span>
       </button>
       <p class="truncate text-xs text-[var(--text-tertiary)]">
-        {{ shownChannels.join(' · ')
-        }}<span v-if="extraChannels"> +{{ extraChannels }}</span>
+        {{ model.tagline }}
       </p>
     </div>
     <!-- billing + type chips -->

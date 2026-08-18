@@ -13,7 +13,8 @@ func ResolveModel(modelName string) (string, string) {
 	}
 
 	normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
-	baseModel := strings.TrimSuffix(normalizedModel, ratio_setting.CompactModelSuffix)
+	isVirtualCompact := ratio_setting.IsVirtualCompactModelName(normalizedModel)
+	baseModel := ratio_setting.CompactBaseModelName(normalizedModel)
 	manualPrice := ratio_setting.GetModelPriceCopy()
 	manualRatio := ratio_setting.GetModelRatioCopy()
 	hasManual := func(name string) bool {
@@ -25,6 +26,16 @@ func ResolveModel(modelName string) (string, string) {
 		}
 		_, ok := manualRatio[name]
 		return ok
+	}
+
+	if !isVirtualCompact {
+		if hasManual(baseModel) {
+			return baseModel, "compact_base_manual"
+		}
+		if ratio_setting.HasAutoPricingEntry(baseModel) {
+			return baseModel, "compact_base_auto"
+		}
+		return baseModel, "compact_base_unconfigured"
 	}
 
 	if hasManual(normalizedModel) {

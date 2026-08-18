@@ -22,7 +22,6 @@ export type ModelMarketSort = 'default' | 'latency' | 'tps' | 'price' | 'health'
 
 export interface ModelMarketCatalog {
   models: MarketModel[]
-  channels: string[]
   vendors: string[]
 }
 
@@ -30,7 +29,6 @@ export interface VendorGroup {
   vendor: string
   tagline: string
   models: MarketModel[]
-  channelCount: number
   healthy: number // health >= 95
   degraded: number // 80..94
   down: number // < 80
@@ -89,12 +87,10 @@ export function buildLiveModelCatalog(
       latency: metrics ? Math.max(0, metrics.avg_latency_ms / 1000) : 0,
       tps: metrics ? Math.max(0, metrics.avg_tps) : 0,
       health: metrics ? Math.min(100, Math.max(0, metrics.success_rate)) : 0,
-      channels: [],
     }
   })
   return {
     models,
-    channels: [],
     vendors: [...new Set(models.map((model) => model.vendor))],
   }
 }
@@ -127,7 +123,6 @@ export function useModelMarket() {
   const catalog = ref<ModelMarketCatalog | null>(null)
 
   const keyword = ref('')
-  const channel = ref('')
   const vendor = ref('')
   const type = ref('')
   const sort = ref<ModelMarketSort>('default')
@@ -176,7 +171,6 @@ export function useModelMarket() {
         !m.vendor.toLowerCase().includes(kw)
       )
         return false
-      if (channel.value && !m.channels.includes(channel.value)) return false
       if (vendor.value && m.vendor !== vendor.value) return false
       if (type.value && m.type !== type.value) return false
       return true
@@ -217,7 +211,6 @@ export function useModelMarket() {
           vendor: v,
           tagline: vendorMeta[v] ?? '',
           models,
-          channelCount: new Set(models.flatMap((m) => m.channels)).size,
           healthy: models.filter((m) => m.health >= 95).length,
           degraded: models.filter((m) => m.health >= 80 && m.health < 95)
             .length,
@@ -229,14 +222,12 @@ export function useModelMarket() {
   const resultCount = computed(() => filtered.value.length)
   const hasResults = computed(() => resultCount.value > 0)
 
-  const channelOptions = computed(() => catalog.value?.channels ?? [])
   const vendorOptions = computed(() => catalog.value?.vendors ?? [])
 
   return {
     loading,
     catalog,
     keyword,
-    channel,
     vendor,
     type,
     sort,
@@ -245,7 +236,6 @@ export function useModelMarket() {
     groups,
     resultCount,
     hasResults,
-    channelOptions,
     vendorOptions,
     load,
   }

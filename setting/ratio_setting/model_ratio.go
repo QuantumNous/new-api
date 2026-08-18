@@ -714,7 +714,7 @@ func GetAudioCompletionRatioCopy() map[string]float64 {
 func FormatMatchingModelName(name string) string {
 	hasCompactSuffix := strings.HasSuffix(name, CompactModelSuffix)
 	if hasCompactSuffix {
-		name = strings.TrimSuffix(name, CompactModelSuffix)
+		name = CompactBaseModelName(name)
 	}
 
 	if strings.HasPrefix(name, "gemini-2.5-flash-lite") {
@@ -731,7 +731,7 @@ func FormatMatchingModelName(name string) string {
 	if strings.HasPrefix(name, "gpt-4o-gizmo") {
 		name = "gpt-4o-gizmo-*"
 	}
-	if hasCompactSuffix {
+	if hasCompactSuffix && IsGPTCompactBaseModel(name) {
 		name = WithCompactModelSuffix(name)
 	}
 	return name

@@ -621,7 +621,6 @@ export interface MarketModel {
   latency: number // seconds, snapshot
   tps: number // tokens/s, snapshot (0 = n/a)
   health: number // 0-100 → drives the health meter + tone
-  channels: string[]
 }
 
 export interface InviteRecord {

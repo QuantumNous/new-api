@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
@@ -381,7 +382,12 @@ func newCompactRetryState(info *relaycommon.RelayInfo) *compactRetryState {
 	}
 	stage := info.CompactAttemptStage
 	if stage == relaycommon.CompactAttemptNone {
-		stage = relaycommon.CompactAttemptExact
+		stage = relaycommon.CompactAttemptBase
+		if ratio_setting.IsGPTCompactBaseModel(info.RequestedModel) {
+			stage = relaycommon.CompactAttemptExact
+		}
+	} else if !ratio_setting.IsGPTCompactBaseModel(info.RequestedModel) {
+		stage = relaycommon.CompactAttemptBase
 	}
 	state := &compactRetryState{
 		stage:       stage,

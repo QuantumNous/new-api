@@ -51,6 +51,7 @@ describe('live model market adapter', () => {
     )
 
     expect(catalog.vendors).toEqual(['OpenAI', '平台'])
+    expect(catalog).not.toHaveProperty('channels')
     expect(catalog.models[0]).toMatchObject({
       type: 'chat',
       billing: 'token',

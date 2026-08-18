@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -74,8 +75,12 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
 	billingModel := info.BillingModelName()
 	pricingModel, pricingSource := billingModel, "direct"
-	if info.LogicalBillingModel != "" {
-		pricingModel, pricingSource = pricing_setting.ResolveModel(billingModel)
+	pricingLookupModel := billingModel
+	if info.RelayMode == relayconstant.RelayModeResponsesCompact && !strings.HasSuffix(pricingLookupModel, ratio_setting.CompactModelSuffix) {
+		pricingLookupModel += ratio_setting.CompactModelSuffix
+	}
+	if info.LogicalBillingModel != "" || strings.HasSuffix(pricingLookupModel, ratio_setting.CompactModelSuffix) {
+		pricingModel, pricingSource = pricing_setting.ResolveModel(pricingLookupModel)
 	}
 	info.PricingModelName = pricingModel
 	info.ModelPricingSource = pricingSource
@@ -263,16 +268,17 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 }
 
 func HasModelBillingConfig(modelName string) bool {
-	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+	pricingModel, _ := pricing_setting.ResolveModel(modelName)
+	if _, ok := ratio_setting.GetModelPrice(pricingModel, false); ok {
 		return true
 	}
-	if _, ok, _ := ratio_setting.GetModelRatio(modelName); ok {
+	if _, ok, _ := ratio_setting.GetModelRatio(pricingModel); ok {
 		return true
 	}
-	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {
+	if billing_setting.GetBillingMode(pricingModel) != billing_setting.BillingModeTieredExpr {
 		return false
 	}
-	expr, ok := billing_setting.GetBillingExpr(modelName)
+	expr, ok := billing_setting.GetBillingExpr(pricingModel)
 	return ok && strings.TrimSpace(expr) != ""
 }
 
@@ -286,16 +292,17 @@ func HasModelBillingConfig(modelName string) bool {
 // variant name must not silently move a manually priced base model onto
 // catalog pricing.
 func HasExplicitModelBillingConfig(modelName string) bool {
-	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
+	pricingModel, _ := pricing_setting.ResolveModel(modelName)
+	if _, ok := ratio_setting.GetModelPrice(pricingModel, false); ok {
 		return true
 	}
-	if ratio_setting.HasManualModelRatio(modelName) || operation_setting.SelfUseModeEnabled {
+	if ratio_setting.HasManualModelRatio(pricingModel) || operation_setting.SelfUseModeEnabled {
 		return true
 	}
-	if billing_setting.GetBillingMode(modelName) != billing_setting.BillingModeTieredExpr {
+	if billing_setting.GetBillingMode(pricingModel) != billing_setting.BillingModeTieredExpr {
 		return false
 	}
-	expr, ok := billing_setting.GetBillingExpr(modelName)
+	expr, ok := billing_setting.GetBillingExpr(pricingModel)
 	return ok && strings.TrimSpace(expr) != ""
 }
 

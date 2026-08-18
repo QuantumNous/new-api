@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -291,9 +292,10 @@ func TestCompactPricingUsesOneInheritedBaseMode(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Set("group", "default")
 	info := &relaycommon.RelayInfo{
+		RelayMode:           relayconstant.RelayModeResponsesCompact,
 		OriginModelName:     "compact-base",
 		RequestedModel:      "compact-base",
-		LogicalBillingModel: "compact-base-openai-compact",
+		LogicalBillingModel: "compact-base",
 		UserGroup:           "default",
 		UsingGroup:          "default",
 	}
@@ -317,13 +319,14 @@ func TestCompactPricingWildcardPrecedesBaseFixedPrice(t *testing.T) {
 	})
 
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
-	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"*-openai-compact":0.1,"compact-base":0.2}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"gpt-*-openai-compact":0.1,"gpt-compact-base":0.2}`))
 
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Set("group", "default")
 	info := &relaycommon.RelayInfo{
-		OriginModelName:     "compact-base",
-		LogicalBillingModel: "compact-base-openai-compact",
+		RelayMode:           relayconstant.RelayModeResponsesCompact,
+		OriginModelName:     "gpt-compact-base",
+		LogicalBillingModel: "gpt-compact-base-openai-compact",
 		UserGroup:           "default",
 		UsingGroup:          "default",
 	}
@@ -353,8 +356,9 @@ func TestCompactPricingInheritsBaseTieredExpressionAsSingleMode(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Set("group", "default")
 	info := &relaycommon.RelayInfo{
+		RelayMode:           relayconstant.RelayModeResponsesCompact,
 		OriginModelName:     "compact-tiered-base",
-		LogicalBillingModel: "compact-tiered-base-openai-compact",
+		LogicalBillingModel: "compact-tiered-base",
 		UserGroup:           "default",
 		UsingGroup:          "default",
 	}
@@ -363,12 +367,12 @@ func TestCompactPricingInheritsBaseTieredExpressionAsSingleMode(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, priceData.UsePrice)
 	require.NotNil(t, info.TieredBillingSnapshot)
-	require.Equal(t, "compact-tiered-base-openai-compact", info.TieredBillingSnapshot.ModelName)
+	require.Equal(t, "compact-tiered-base", info.TieredBillingSnapshot.ModelName)
 	require.Equal(t, "compact-tiered-base", info.PricingModelName)
 	require.Equal(t, "compact_base_manual", info.ModelPricingSource)
 }
 
-func TestRegularResponsesCompactSuffixUsesDirectPricingIdentity(t *testing.T) {
+func TestRegularResponsesNonGPTCompactSuffixUsesBasePricingIdentity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	savedPrices := ratio_setting.ModelPrice2JSONString()
 	savedRatios := ratio_setting.ModelRatio2JSONString()
@@ -395,12 +399,12 @@ func TestRegularResponsesCompactSuffixUsesDirectPricingIdentity(t *testing.T) {
 	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{})
 	require.NoError(t, err)
 	require.True(t, priceData.UsePrice)
-	require.Equal(t, 0.3, priceData.ModelPrice)
-	require.Equal(t, "regular-base-openai-compact", info.PricingModelName)
-	require.Equal(t, "direct", info.ModelPricingSource)
+	require.Equal(t, 0.2, priceData.ModelPrice)
+	require.Equal(t, "regular-base", info.PricingModelName)
+	require.Equal(t, "compact_base_manual", info.ModelPricingSource)
 }
 
-func TestRegularCompactSuffixDoesNotInheritBaseBillingAvailability(t *testing.T) {
+func TestRegularNonGPTCompactSuffixInheritsBaseBillingAvailability(t *testing.T) {
 	savedPrices := ratio_setting.ModelPrice2JSONString()
 	savedRatios := ratio_setting.ModelRatio2JSONString()
 	t.Cleanup(func() {
@@ -410,5 +414,5 @@ func TestRegularCompactSuffixDoesNotInheritBaseBillingAvailability(t *testing.T)
 
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
 	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"ordinary-only-base":0.2}`))
-	require.False(t, HasModelBillingConfig("ordinary-only-base-openai-compact"))
+	require.True(t, HasModelBillingConfig("ordinary-only-base-openai-compact"))
 }

@@ -176,7 +176,7 @@ func buildOpenAIModelWithEndpointTypes(modelName string, ownerByModel map[string
 }
 
 func tokenAllowsModel(tokenModelLimit map[string]bool, modelName string) bool {
-	return tokenModelLimit[modelName] || tokenModelLimit[ratio_setting.FormatMatchingModelName(modelName)]
+	return tokenModelLimit[ratio_setting.FormatMatchingModelName(modelName)]
 }
 
 func projectModelEndpointTypesForToken(modelName string, tokenModelLimit map[string]bool, modelLimitEnabled bool) ([]constant.EndpointType, bool) {

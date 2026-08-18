@@ -28,7 +28,7 @@ func TestModelMappedHelperSendsExactCompactModel(t *testing.T) {
 	require.NoError(t, ModelMappedHelper(ctx, info, request))
 	require.Equal(t, "real-openai-compact", request.Model)
 	require.Equal(t, "real-openai-compact", info.UpstreamAttemptModel)
-	require.Equal(t, "real-openai-compact", info.LogicalBillingModel)
+	require.Equal(t, "gpt-5-openai-compact", info.LogicalBillingModel)
 }
 
 func TestModelMappedHelperSendsBaseOnCompactFallback(t *testing.T) {
@@ -48,7 +48,25 @@ func TestModelMappedHelperSendsBaseOnCompactFallback(t *testing.T) {
 	require.NoError(t, ModelMappedHelper(ctx, info, request))
 	require.Equal(t, "real", request.Model)
 	require.Equal(t, "real", info.UpstreamAttemptModel)
-	require.Equal(t, "real-openai-compact", info.LogicalBillingModel)
+	require.Equal(t, "gpt-5-openai-compact", info.LogicalBillingModel)
+}
+
+func TestModelMappedHelperUsesBaseIdentityForNonGPTCompact(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("model_mapping", `{"claude-3-5-sonnet-openai-compact":"suffix-upstream","claude-3-5-sonnet":"base-upstream"}`)
+	info := &relaycommon.RelayInfo{
+		RelayMode:           relayconstant.RelayModeResponsesCompact,
+		RequestedModel:      "claude-3-5-sonnet",
+		LogicalBillingModel: "claude-3-5-sonnet",
+		CompactAttemptStage: relaycommon.CompactAttemptExact,
+		ChannelMeta:         &relaycommon.ChannelMeta{},
+	}
+	request := &dto.OpenAIResponsesRequest{Model: "claude-3-5-sonnet-openai-compact"}
+
+	require.NoError(t, ModelMappedHelper(ctx, info, request))
+	require.Equal(t, "base-upstream", request.Model)
+	require.Equal(t, "claude-3-5-sonnet", info.LogicalBillingModel)
 }
 
 func TestModelMappedHelperTreatsCompactSuffixAsRegularResponsesModel(t *testing.T) {

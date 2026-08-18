@@ -25,7 +25,6 @@ const tieredModel: MarketModel = {
   latency: 1.78,
   tps: 62.4,
   health: 98,
-  channels: ['平台', '云枢智算'],
 }
 
 beforeAll(async () => {
@@ -62,9 +61,7 @@ describe('ModelCard billing metadata', () => {
     expect(wrapper.get('[data-model-divider]').classes()).toContain(
       'border-[var(--border-default)]'
     )
-    expect(wrapper.get('[data-model-channels]').classes()).toEqual(
-      expect.arrayContaining(['ml-auto', 'text-right'])
-    )
+    expect(wrapper.find('[data-model-channels]').exists()).toBe(false)
   })
 
   it('hides the tier count for non-tiered pricing', () => {

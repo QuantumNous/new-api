@@ -130,17 +130,17 @@ func TestManualFixedPriceSuppressesCatalogRatio(t *testing.T) {
 
 func TestManualCompactWildcardOnlyOverridesCatalogBaseRatio(t *testing.T) {
 	useTestCatalog(t, `{
-		"compact-model-openai-compact": {
+		"gpt-compact-model-openai-compact": {
 			"input_cost_per_token": 0.000002,
 			"output_cost_per_token": 0.000018
 		}
 	}`, enabledAutoPricing())
 	withManualRatio(t, CompactWildcardModelKey, 7)
 
-	ratio, ok, _ := GetModelRatio("compact-model-openai-compact")
+	ratio, ok, _ := GetModelRatio("gpt-compact-model-openai-compact")
 	require.True(t, ok)
 	assert.Equal(t, 7.0, ratio)
-	assert.Equal(t, 9.0, GetCompletionRatio("compact-model-openai-compact"))
+	assert.Equal(t, 9.0, GetCompletionRatio("gpt-compact-model-openai-compact"))
 }
 
 func TestManualFieldOverridesWinOverCatalogFields(t *testing.T) {

@@ -9,6 +9,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
@@ -51,6 +53,79 @@ func TestDistributeAllowsCompactSuffixOnRegularResponsesEndpoint(t *testing.T) {
 
 	require.Equal(t, http.StatusNoContent, recorder.Code)
 	require.True(t, called)
+}
+
+func TestDistributeNonGPTCompactUsesBaseSpecificChannel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousDB := model.DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Channel{}))
+	model.DB = db
+	t.Cleanup(func() { model.DB = previousDB })
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     4,
+		Type:   constant.ChannelTypeOpenAI,
+		Status: common.ChannelStatusEnabled,
+		Name:   "non-gpt-compact-base",
+		Key:    "test-key",
+		Models: "claude-3-5-sonnet",
+		Group:  "default",
+	}).Error)
+
+	called := false
+	router := gin.New()
+	router.POST("/v1/responses/compact", func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, "4")
+		c.Next()
+	}, Distribute(), func(c *gin.Context) {
+		called = true
+		require.Equal(t, "claude-3-5-sonnet", common.GetContextKeyString(c, constant.ContextKeyOriginalModel))
+		require.Equal(t, relaycommon.CompactAttemptBase, service.CompactStageFromContext(c))
+		c.Status(http.StatusNoContent)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/responses/compact", strings.NewReader(`{"model":"claude-3-5-sonnet-openai-compact","input":"hello"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNoContent, recorder.Code)
+	require.True(t, called)
+}
+
+func TestDistributeNonGPTCompactRejectsSuffixOnlySpecificChannel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousDB := model.DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Channel{}))
+	model.DB = db
+	t.Cleanup(func() { model.DB = previousDB })
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     5,
+		Type:   constant.ChannelTypeOpenAI,
+		Status: common.ChannelStatusEnabled,
+		Name:   "non-gpt-compact-suffix-only",
+		Key:    "test-key",
+		Models: "claude-3-5-sonnet-openai-compact",
+		Group:  "default",
+	}).Error)
+
+	router := gin.New()
+	router.POST("/v1/responses/compact", func(c *gin.Context) {
+		common.SetContextKey(c, constant.ContextKeyTokenSpecificChannelId, "5")
+		c.Next()
+	}, Distribute(), func(c *gin.Context) {
+		t.Fatal("suffix-only non-GPT channel must not reach relay")
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/v1/responses/compact", strings.NewReader(`{"model":"claude-3-5-sonnet-openai-compact","input":"hello"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
 }
 
 func TestDistributeRejectsRemoteCompactionOnNonNativeSpecificChannel(t *testing.T) {

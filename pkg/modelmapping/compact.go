@@ -52,6 +52,10 @@ func Resolve(modelName string, mapping map[string]string) (string, bool, error) 
 }
 
 func ResolveCompactExact(requestedModel string, mapping map[string]string) (CompactResolution, error) {
+	requestedModel = ratio_setting.CompactBaseModelName(requestedModel)
+	if !ratio_setting.IsGPTCompactBaseModel(requestedModel) {
+		return ResolveCompactBase(requestedModel, mapping)
+	}
 	logicalModel := ratio_setting.WithCompactModelSuffix(requestedModel)
 	if _, ok := mapping[logicalModel]; ok {
 		upstreamModel, mapped, err := Resolve(logicalModel, mapping)
@@ -60,7 +64,7 @@ func ResolveCompactExact(requestedModel string, mapping map[string]string) (Comp
 		}
 		return CompactResolution{
 			UpstreamModel:       upstreamModel,
-			LogicalBillingModel: ratio_setting.WithCompactModelSuffix(strings.TrimSuffix(upstreamModel, ratio_setting.CompactModelSuffix)),
+			LogicalBillingModel: logicalModel,
 			Mapped:              mapped || upstreamModel != requestedModel,
 		}, nil
 	}
@@ -73,7 +77,7 @@ func ResolveCompactExact(requestedModel string, mapping map[string]string) (Comp
 		if strings.HasSuffix(mappedModel, ratio_setting.CompactModelSuffix) {
 			return CompactResolution{
 				UpstreamModel:           mappedModel,
-				LogicalBillingModel:     mappedModel,
+				LogicalBillingModel:     logicalModel,
 				Mapped:                  mapped,
 				BaseMappingTargetsExact: true,
 			}, nil
@@ -88,6 +92,7 @@ func ResolveCompactExact(requestedModel string, mapping map[string]string) (Comp
 }
 
 func ResolveCompactBase(requestedModel string, mapping map[string]string) (CompactResolution, error) {
+	requestedModel = ratio_setting.CompactBaseModelName(requestedModel)
 	mappedModel, mapped, err := Resolve(requestedModel, mapping)
 	if err != nil {
 		return CompactResolution{}, err
@@ -95,7 +100,7 @@ func ResolveCompactBase(requestedModel string, mapping map[string]string) (Compa
 	upstreamModel := strings.TrimSuffix(mappedModel, ratio_setting.CompactModelSuffix)
 	return CompactResolution{
 		UpstreamModel:       upstreamModel,
-		LogicalBillingModel: ratio_setting.WithCompactModelSuffix(upstreamModel),
+		LogicalBillingModel: ratio_setting.WithCompactModelSuffix(requestedModel),
 		Mapped:              mapped || upstreamModel != requestedModel,
 	}, nil
 }

@@ -281,11 +281,17 @@ func TestGetUserModelsAddsCompactPermissionVariantWithoutChangingStandardDiscove
 		Name:   "compact-openai",
 		Status: common.ChannelStatusEnabled,
 		Group:  "default",
-		Models: "zz-compact-capable",
+		Models: "gpt-zz-compact-capable,gemini-zz-compact-capable",
 	}).Error)
 	require.NoError(t, db.Create(&model.Ability{
 		Group:     "default",
-		Model:     "zz-compact-capable",
+		Model:     "gpt-zz-compact-capable",
+		ChannelId: 704,
+		Enabled:   true,
+	}).Error)
+	require.NoError(t, db.Create(&model.Ability{
+		Group:     "default",
+		Model:     "gemini-zz-compact-capable",
 		ChannelId: 704,
 		Enabled:   true,
 	}).Error)
@@ -298,14 +304,21 @@ func TestGetUserModelsAddsCompactPermissionVariantWithoutChangingStandardDiscove
 	GetUserModels(ctx)
 
 	models := decodeUserModelsResponse(t, recorder)
-	require.ElementsMatch(t, []string{"zz-compact-capable", "zz-compact-capable-openai-compact"}, models)
+	require.ElementsMatch(t, []string{
+		"gpt-zz-compact-capable",
+		"gpt-zz-compact-capable-openai-compact",
+		"gemini-zz-compact-capable",
+	}, models)
 
 	standardRecorder := httptest.NewRecorder()
 	standardCtx, _ := gin.CreateTestContext(standardRecorder)
 	standardCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 	standardCtx.Set("id", 1004)
 	ListModels(standardCtx, constant.ChannelTypeOpenAI)
-	require.Equal(t, map[string]struct{}{"zz-compact-capable": {}}, decodeListModelsResponse(t, standardRecorder))
+	require.Equal(t, map[string]struct{}{
+		"gpt-zz-compact-capable":    {},
+		"gemini-zz-compact-capable": {},
+	}, decodeListModelsResponse(t, standardRecorder))
 }
 
 func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
@@ -317,11 +330,11 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 		Name:   "compact-token-projection",
 		Status: common.ChannelStatusEnabled,
 		Group:  "default",
-		Models: "zz-compact-token-model",
+		Models: "gpt-zz-compact-token-model",
 	}).Error)
 	require.NoError(t, db.Create(&model.Ability{
 		Group:     "default",
-		Model:     "zz-compact-token-model",
+		Model:     "gpt-zz-compact-token-model",
 		ChannelId: 705,
 		Enabled:   true,
 	}).Error)
@@ -337,7 +350,7 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 	}{
 		{
 			name:  "base only",
-			limit: map[string]bool{"zz-compact-token-model": true},
+			limit: map[string]bool{"gpt-zz-compact-token-model": true},
 			endpoints: []constant.EndpointType{
 				constant.EndpointTypeOpenAI,
 				constant.EndpointTypeOpenAIResponse,
@@ -346,15 +359,15 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 		},
 		{
 			name:      "compact only",
-			limit:     map[string]bool{"zz-compact-token-model-openai-compact": true},
+			limit:     map[string]bool{"gpt-zz-compact-token-model-openai-compact": true},
 			endpoints: []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact},
 			visible:   true,
 		},
 		{
 			name: "base and compact",
 			limit: map[string]bool{
-				"zz-compact-token-model":                true,
-				"zz-compact-token-model-openai-compact": true,
+				"gpt-zz-compact-token-model":                true,
+				"gpt-zz-compact-token-model-openai-compact": true,
 			},
 			endpoints: []constant.EndpointType{
 				constant.EndpointTypeOpenAI,
@@ -382,21 +395,21 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 				return
 			}
 			require.Len(t, payload.Data, 1)
-			require.Equal(t, "zz-compact-token-model", payload.Data[0].Id)
+			require.Equal(t, "gpt-zz-compact-token-model", payload.Data[0].Id)
 			require.Equal(t, test.endpoints, payload.Data[0].SupportedEndpointTypes)
 		})
 	}
 }
 
-func TestTokenModelPermissionNormalizationKeepsCompactWildcardIsolated(t *testing.T) {
+func TestTokenModelPermissionNormalizationUsesBaseForNonGPTCompact(t *testing.T) {
 	baseModel := "gemini-2.5-flash-thinking-1024"
-	compactModel := ratio_setting.WithCompactModelSuffix(baseModel)
+	compactModel := baseModel + ratio_setting.CompactModelSuffix
 	baseLimit := map[string]bool{"gemini-2.5-flash-thinking-*": true}
 	compactLimit := map[string]bool{"gemini-2.5-flash-thinking-*-openai-compact": true}
 
 	require.True(t, tokenAllowsModel(baseLimit, baseModel))
-	require.False(t, tokenAllowsModel(baseLimit, compactModel))
-	require.True(t, tokenAllowsModel(compactLimit, compactModel))
+	require.True(t, tokenAllowsModel(baseLimit, compactModel))
+	require.False(t, tokenAllowsModel(compactLimit, compactModel))
 	require.False(t, tokenAllowsModel(compactLimit, baseModel))
 }
 

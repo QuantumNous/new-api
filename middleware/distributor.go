@@ -46,7 +46,8 @@ func Distribute() func(c *gin.Context) {
 			relayconstant.Path2RelayMode(c.Request.URL.Path) == relayconstant.RelayModeResponses &&
 			requestRequiresNativeResponses(c)
 		common.SetContextKey(c, constant.ContextKeyResponsesNativeRequired, requiresNativeResponses)
-		compactRequestedModel := strings.TrimSuffix(modelRequest.Model, ratio_setting.CompactModelSuffix)
+		compactRequestedModel := ratio_setting.CompactBaseModelName(modelRequest.Model)
+		compactPermissionModel := ratio_setting.WithCompactModelSuffix(compactRequestedModel)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -90,7 +91,11 @@ func Distribute() func(c *gin.Context) {
 				if !ok {
 					tokenModelLimit = map[string]bool{}
 				}
-				matchName := ratio_setting.FormatMatchingModelName(modelRequest.Model) // match gpts & thinking-*
+				permissionModel := modelRequest.Model
+				if isCompactRequest {
+					permissionModel = compactPermissionModel
+				}
+				matchName := ratio_setting.FormatMatchingModelName(permissionModel) // match gpts & thinking-*
 				if _, ok := tokenModelLimit[matchName]; !ok {
 					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
 					return
@@ -164,16 +169,24 @@ func Distribute() func(c *gin.Context) {
 						Retry:       common.GetPointer(0),
 					}
 					if isCompactRequest {
-						channel, selectGroup, err = service.CacheGetRandomSatisfiedCompactChannel(retryParam, compactRequestedModel, relaycommon.CompactAttemptExact)
+						initialStage := relaycommon.CompactAttemptBase
+						if ratio_setting.IsGPTCompactBaseModel(compactRequestedModel) {
+							initialStage = relaycommon.CompactAttemptExact
+						}
+						channel, selectGroup, err = service.CacheGetRandomSatisfiedCompactChannel(retryParam, compactRequestedModel, initialStage)
 						if err == nil && channel == nil {
-							service.ResetCompactAutoGroupSelection(c)
-							retryParam.SetRetry(0)
-							channel, selectGroup, err = service.CacheGetRandomSatisfiedCompactChannel(retryParam, compactRequestedModel, relaycommon.CompactAttemptBase)
-							if channel != nil {
+							if initialStage == relaycommon.CompactAttemptBase {
 								service.SetCompactStage(c, relaycommon.CompactAttemptBase)
+							} else {
+								service.ResetCompactAutoGroupSelection(c)
+								retryParam.SetRetry(0)
+								channel, selectGroup, err = service.CacheGetRandomSatisfiedCompactChannel(retryParam, compactRequestedModel, relaycommon.CompactAttemptBase)
+								if channel != nil {
+									service.SetCompactStage(c, relaycommon.CompactAttemptBase)
+								}
 							}
 						} else if channel != nil {
-							service.SetCompactStage(c, relaycommon.CompactAttemptExact)
+							service.SetCompactStage(c, initialStage)
 						}
 					} else {
 						if requiresNativeResponses {
@@ -210,7 +223,11 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		selectedModel := modelRequest.Model
+		if isCompactRequest {
+			selectedModel = compactPermissionModel
+		}
+		SetupContextForSelectedChannel(c, channel, selectedModel)
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)

@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -194,13 +195,65 @@ func TestPricingNativeChannelEndpointTypesUnchanged(t *testing.T) {
 		constant.EndpointTypeOpenAIResponseCompact,
 	}, byModel["gpt-4o"])
 	assert.Equal(t, []constant.EndpointType{
-		constant.EndpointTypeOpenAI,
-		constant.EndpointTypeOpenAIResponse,
 		constant.EndpointTypeOpenAIResponseCompact,
 	}, byModel["gpt-4o-openai-compact"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeGemini, constant.EndpointTypeOpenAI}, byModel["gemini-2.5-flash"])
 	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}, byModel["claude-3-5-sonnet"])
-	assert.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAI}, byModel["legacy-openrouter-openai-compact"])
+	assert.NotContains(t, byModel, "legacy-openrouter-openai-compact")
+}
+
+func TestPricingAddsGPTCompactVariantWithBaseMetadataAndResolvedPrice(t *testing.T) {
+	resetPricingEndpointTestTables(t)
+	savedPrices := ratio_setting.ModelPrice2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{
+		"gpt-*-openai-compact": 0.1,
+		"gpt-pricing-base": 0.2,
+		"claude-pricing-base": 0.3,
+		"claude-pricing-base-openai-compact": 0.4
+	}`))
+
+	require.NoError(t, DB.Create(&Vendor{Id: 90, Name: "OpenAI Test", Status: 1}).Error)
+	require.NoError(t, DB.Create(&Model{
+		ModelName:   "gpt-pricing-base",
+		Description: "base description",
+		Icon:        "OpenAI",
+		Tags:        "chat",
+		VendorID:    90,
+		Status:      1,
+		NameRule:    NameRuleExact,
+	}).Error)
+	insertPricingEndpointChannel(t, 205, constant.ChannelTypeOpenAI, dto.ChannelOtherSettings{})
+	insertPricingEndpointAbility(t, 205, "gpt-pricing-base")
+	require.NoError(t, DB.Create(&Ability{Group: "vip", Model: "gpt-pricing-base-openai-compact", ChannelId: 205, Enabled: true}).Error)
+	insertPricingEndpointAbility(t, 205, "claude-pricing-base-openai-compact")
+
+	InitChannelCache()
+	pricings := GetPricing()
+	compactCount := 0
+	var compact Pricing
+	for _, pricing := range pricings {
+		switch pricing.ModelName {
+		case "gpt-pricing-base-openai-compact":
+			compactCount++
+			compact = pricing
+		case "claude-pricing-base-openai-compact":
+			t.Fatal("non-GPT compact suffix must not be published")
+		}
+	}
+
+	require.Equal(t, 1, compactCount)
+	require.Equal(t, "base description", compact.Description)
+	require.Equal(t, "OpenAI", compact.Icon)
+	require.Equal(t, "chat", compact.Tags)
+	require.Equal(t, 90, compact.VendorID)
+	require.Equal(t, "OpenAI Test", compact.OwnerBy)
+	require.ElementsMatch(t, []string{"default", "vip"}, compact.EnableGroup)
+	require.Equal(t, []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}, compact.SupportedEndpointTypes)
+	require.Equal(t, 1, compact.QuotaType)
+	require.Equal(t, 0.1, compact.ModelPrice)
 }
 
 func TestInitChannelCacheInvalidatesPricingCache(t *testing.T) {

@@ -51,11 +51,6 @@ const { t } = useI18n()
             group.models.length
           }}</span>
           {{ t('models.modelUnit') }}
-          <span class="mx-1 text-[var(--border-default)]">·</span>
-          <span class="display-number text-[var(--text-primary)]">{{
-            group.channelCount
-          }}</span>
-          {{ t('models.channelUnit') }}
         </p>
         <p class="mt-0.5 flex items-center justify-end gap-2 text-xs">
           <span

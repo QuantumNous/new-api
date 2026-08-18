@@ -240,7 +240,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 
 	request := buildTestRequest(testModel, endpointType, channel, isStream)
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
-		requestedModel := strings.TrimSuffix(testModel, ratio_setting.CompactModelSuffix)
+		requestedModel := ratio_setting.CompactBaseModelName(testModel)
 		stage := service.SpecificChannelCompactStage(channel, requestedModel)
 		if stage == relaycommon.CompactAttemptNone {
 			err := fmt.Errorf("channel does not support /v1/responses/compact for model %s", requestedModel)

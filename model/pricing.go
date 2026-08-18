@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/pricing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -261,6 +263,9 @@ func updatePricing() {
 	modelGroupsMap := make(map[string]*types.Set[string])
 
 	for _, ability := range enableAbilities {
+		if strings.HasSuffix(ability.Model, ratio_setting.CompactModelSuffix) && !ratio_setting.IsVirtualCompactModelName(ability.Model) {
+			continue
+		}
 		groups, ok := modelGroupsMap[ability.Model]
 		if !ok {
 			groups = types.NewSet[string]()
@@ -275,6 +280,9 @@ func updatePricing() {
 
 	// 先根据已有能力填充原生端点
 	for _, ability := range enableAbilities {
+		if strings.HasSuffix(ability.Model, ratio_setting.CompactModelSuffix) && !ratio_setting.IsVirtualCompactModelName(ability.Model) {
+			continue
+		}
 		endpoints := modelSupportEndpointsStr[ability.Model]
 		channelTypes := getPricingEndpointTypesForAbility(ability, advancedCustomConfigs)
 		for _, channelType := range channelTypes {
@@ -313,6 +321,35 @@ func updatePricing() {
 			supportedEndpoints = append(supportedEndpoints, endpointType)
 		}
 		modelSupportEndpointTypes[model] = supportedEndpoints
+	}
+
+	compactBaseModels := make([]string, 0)
+	for modelName, endpoints := range modelSupportEndpointTypes {
+		if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) ||
+			!ratio_setting.IsGPTCompactBaseModel(modelName) ||
+			!slices.Contains(endpoints, constant.EndpointTypeOpenAIResponseCompact) {
+			continue
+		}
+		compactBaseModels = append(compactBaseModels, modelName)
+	}
+	for _, baseModel := range compactBaseModels {
+		compactModel := ratio_setting.WithCompactModelSuffix(baseModel)
+		compactGroups, ok := modelGroupsMap[compactModel]
+		if !ok {
+			compactGroups = types.NewSet[string]()
+			modelGroupsMap[compactModel] = compactGroups
+		}
+		if baseGroups := modelGroupsMap[baseModel]; baseGroups != nil {
+			for _, group := range baseGroups.Items() {
+				compactGroups.Add(group)
+			}
+		}
+		modelSupportEndpointTypes[compactModel] = []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}
+	}
+	for modelName := range modelGroupsMap {
+		if ratio_setting.IsVirtualCompactModelName(modelName) {
+			modelSupportEndpointTypes[modelName] = []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}
+		}
 	}
 
 	// 构建全局 supportedEndpointMap（默认 + 自定义覆盖）
@@ -363,7 +400,11 @@ func updatePricing() {
 		}
 
 		// 补充模型元数据（描述、标签、供应商、状态）
-		if meta, ok := metaMap[model]; ok {
+		metaModel := model
+		if ratio_setting.IsVirtualCompactModelName(model) {
+			metaModel = ratio_setting.CompactBaseModelName(model)
+		}
+		if meta, ok := metaMap[metaModel]; ok {
 			// 若模型被禁用(status!=1)，则直接跳过，不返回给前端
 			if meta.Status != 1 {
 				continue
@@ -376,7 +417,7 @@ func updatePricing() {
 				pricing.OwnerBy = vendor.Name
 			}
 		}
-		pricingModel := model
+		pricingModel, _ := pricing_setting.ResolveModel(model)
 		modelPrice, findPrice := ratio_setting.GetModelPrice(pricingModel, false)
 		if findPrice {
 			pricing.ModelPrice = modelPrice
@@ -415,7 +456,7 @@ func updatePricing() {
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+		pricingMap[0].PricingVersion = "9d55bf3091fd32ca67f92e684279179a483381146b895b10d2f8ecf721f8fd7d"
 	}
 
 	// 刷新缓存映射，供高并发快速查询

@@ -21,6 +21,7 @@ func TestCompactRetryBudgetAndStageTransition(t *testing.T) {
 
 	info := &relaycommon.RelayInfo{
 		RelayMode:           relayconstant.RelayModeResponsesCompact,
+		RequestedModel:      "gpt-5",
 		CompactAttemptStage: relaycommon.CompactAttemptExact,
 	}
 	state := newCompactRetryState(info)

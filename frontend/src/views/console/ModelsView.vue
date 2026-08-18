@@ -26,7 +26,6 @@ const { copy } = useClipboard()
 const {
   loading,
   keyword,
-  channel,
   vendor,
   type,
   sort,
@@ -34,7 +33,6 @@ const {
   groups,
   resultCount,
   hasResults,
-  channelOptions,
   vendorOptions,
   load,
 } = useModelMarket()
@@ -49,11 +47,6 @@ const typeOptions = computed(() => [
   { value: 'audio', label: t('models.type.audio') },
   { value: 'video', label: t('models.type.video') },
   { value: 'rerank', label: t('models.type.rerank') },
-])
-
-const channelSelectOptions = computed(() => [
-  { value: '', label: t('models.allChannels') },
-  ...channelOptions.value.map((c) => ({ value: c, label: c })),
 ])
 
 const vendorSelectOptions = computed(() => [
@@ -101,13 +94,6 @@ onMounted(load)
           class="w-full sm:w-64"
         />
         <div class="flex flex-1 flex-wrap items-center gap-3">
-          <FilterSelect
-            v-if="channelOptions.length > 0"
-            v-model="channel"
-            :options="channelSelectOptions"
-            :label="t('models.channelFilter')"
-            class="min-w-[140px] flex-1 sm:flex-none sm:w-40"
-          />
           <FilterSelect
             v-model="vendor"
             :options="vendorSelectOptions"
@@ -384,24 +370,6 @@ onMounted(load)
                 </tr>
               </tbody>
             </table>
-          </div>
-        </div>
-
-        <!-- channels -->
-        <div>
-          <h3 class="mb-2 text-sm font-semibold text-[var(--text-primary)]">
-            {{
-              t('models.channelTitle', { count: detailModel.channels.length })
-            }}
-          </h3>
-          <div class="flex flex-wrap gap-2">
-            <span
-              v-for="c in detailModel.channels"
-              :key="c"
-              class="rounded-lg bg-[var(--surface-muted)] px-3 py-1.5 text-xs text-[var(--text-secondary)]"
-            >
-              {{ c }}
-            </span>
           </div>
         </div>
       </div>

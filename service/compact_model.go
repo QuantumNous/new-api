@@ -43,6 +43,10 @@ func CacheGetRandomSatisfiedCompactChannel(
 	requestedModel string,
 	stage relaycommon.CompactAttemptStage,
 ) (*model.Channel, string, error) {
+	requestedModel = ratio_setting.CompactBaseModelName(requestedModel)
+	if !ratio_setting.IsGPTCompactBaseModel(requestedModel) {
+		stage = relaycommon.CompactAttemptBase
+	}
 	logicalModel := ratio_setting.WithCompactModelSuffix(requestedModel)
 	param.ModelName = logicalModel
 	return cacheGetRandomSatisfiedChannel(param, func(group string, _ int) (*model.Channel, error) {
@@ -69,6 +73,7 @@ func CacheGetRandomSatisfiedCompactChannel(
 }
 
 func PreferredChannelCompactStage(channel *model.Channel, group, requestedModel string) relaycommon.CompactAttemptStage {
+	requestedModel = ratio_setting.CompactBaseModelName(requestedModel)
 	if channel == nil || !channelSupportsCompactEndpoint(channel, requestedModel) {
 		return relaycommon.CompactAttemptNone
 	}
@@ -79,7 +84,7 @@ func PreferredChannelCompactStage(channel *model.Channel, group, requestedModel 
 		logicalModel:   exactAbility,
 		requestedModel: baseAbility,
 	}
-	if compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
+	if ratio_setting.IsGPTCompactBaseModel(requestedModel) && compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
 		return relaycommon.CompactAttemptExact
 	}
 	if compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptBase) {
@@ -89,6 +94,7 @@ func PreferredChannelCompactStage(channel *model.Channel, group, requestedModel 
 }
 
 func SpecificChannelCompactStage(channel *model.Channel, requestedModel string) relaycommon.CompactAttemptStage {
+	requestedModel = ratio_setting.CompactBaseModelName(requestedModel)
 	if channel == nil || !channelSupportsCompactEndpoint(channel, requestedModel) {
 		return relaycommon.CompactAttemptNone
 	}
@@ -97,10 +103,13 @@ func SpecificChannelCompactStage(channel *model.Channel, requestedModel string) 
 	for _, modelName := range strings.Split(channel.Models, ",") {
 		abilityModels[strings.TrimSpace(modelName)] = true
 	}
-	if compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
+	if ratio_setting.IsGPTCompactBaseModel(requestedModel) && compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
 		return relaycommon.CompactAttemptExact
 	}
-	return relaycommon.CompactAttemptBase
+	if compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptBase) {
+		return relaycommon.CompactAttemptBase
+	}
+	return relaycommon.CompactAttemptNone
 }
 
 func compactChannelSupportsStage(
@@ -115,6 +124,9 @@ func compactChannelSupportsStage(
 	}
 	switch stage {
 	case relaycommon.CompactAttemptExact:
+		if !ratio_setting.IsGPTCompactBaseModel(requestedModel) {
+			return false
+		}
 		if abilityModels[logicalModel] || abilityModels[ratio_setting.FormatMatchingModelName(logicalModel)] {
 			return true
 		}
