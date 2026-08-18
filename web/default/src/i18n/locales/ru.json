@@ -6606,6 +6606,21 @@
     "GitHub Copilot channels support one credential only": "Каналы GitHub Copilot поддерживают только одни учётные данные",
     "Cooling": "охлаждение",
     "Max concurrency must be a non-negative integer": "Максимальная конкурентность должна быть неотрицательным целым",
-    "0 removes the limit": "0 снимает лимит"
+    "0 removes the limit": "0 снимает лимит",
+    "Channel Concurrency Limits": "Лимиты конкурентности каналов",
+    "Controls queueing and cooldown for channels with a max concurrency; channels without a limit are unaffected": "Управляет очередью и охлаждением каналов с лимитом; каналы без лимита не затрагиваются",
+    "Queue when concurrency is full": "Очередь при заполнении",
+    "When a bounded channel is saturated, hold the request briefly for a freed slot instead of failing immediately": "При насыщении канала запрос кратко ждёт слот вместо немедленного отказа",
+    "Queue timeout (ms)": "Тайм-аут очереди (мс)",
+    "Max waiting per channel (0 = same as its concurrency limit)": "Макс. ожидающих на канал (0 = равно лимиту)",
+    "Enable channel cooldown": "Включить охлаждение канала",
+    "Temporarily exclude a bounded channel from selection after upstream rate-limit signals": "Временно исключает канал из выбора после сигналов лимита от апстрима",
+    "Cooldown duration (seconds)": "Длительность охлаждения (сек)",
+    "Cool down on upstream HTTP 429": "Охлаждать при HTTP 429",
+    "Trigger cooldown only when the upstream explicitly returns HTTP 429": "Охлаждение только при явном HTTP 429 от апстрима",
+    "Cool down on rate-limit keywords in error messages (prone to false positives)": "Охлаждать по ключевым словам (риск ложных срабатываний)",
+    "Also trigger cooldown when error messages merely mention rate-limit-like keywords; fuzzy matching, off by default": "Срабатывает по упоминанию ключевых слов; нечёткое сопоставление, по умолчанию выкл.",
+    "Load snapshot cache (reduces Redis pressure)": "Кэш снимков нагрузки (снижает нагрузку на Redis)",
+    "Cache channel load snapshots briefly for routing decisions; disable only to debug routing with live reads": "Кратко кэширует снимки нагрузки для маршрутизации; отключайте только для отладки"
   }
 }

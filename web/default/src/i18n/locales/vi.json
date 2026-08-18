@@ -6606,6 +6606,21 @@
     "GitHub Copilot channels support one credential only": "Kênh GitHub Copilot chỉ hỗ trợ một thông tin xác thực",
     "Cooling": "đang nghỉ",
     "Max concurrency must be a non-negative integer": "Số đồng thời tối đa phải là số nguyên không âm",
-    "0 removes the limit": "0 để bỏ giới hạn"
+    "0 removes the limit": "0 để bỏ giới hạn",
+    "Channel Concurrency Limits": "Giới hạn đồng thời kênh",
+    "Controls queueing and cooldown for channels with a max concurrency; channels without a limit are unaffected": "Điều khiển xếp hàng và nghỉ cho kênh có giới hạn; kênh không giới hạn không bị ảnh hưởng",
+    "Queue when concurrency is full": "Xếp hàng khi đầy",
+    "When a bounded channel is saturated, hold the request briefly for a freed slot instead of failing immediately": "Khi kênh giới hạn đầy, giữ yêu cầu chờ slot trống thay vì thất bại ngay",
+    "Queue timeout (ms)": "Hết hạn xếp hàng (ms)",
+    "Max waiting per channel (0 = same as its concurrency limit)": "Tối đa chờ mỗi kênh (0 = bằng giới hạn)",
+    "Enable channel cooldown": "Bật nghỉ kênh",
+    "Temporarily exclude a bounded channel from selection after upstream rate-limit signals": "Tạm loại kênh khỏi lựa chọn sau tín hiệu giới hạn từ upstream",
+    "Cooldown duration (seconds)": "Thời gian nghỉ (giây)",
+    "Cool down on upstream HTTP 429": "Nghỉ khi upstream trả 429",
+    "Trigger cooldown only when the upstream explicitly returns HTTP 429": "Chỉ nghỉ khi upstream trả rõ HTTP 429",
+    "Cool down on rate-limit keywords in error messages (prone to false positives)": "Nghỉ khi lỗi chứa từ khóa giới hạn (dễ nhầm)",
+    "Also trigger cooldown when error messages merely mention rate-limit-like keywords; fuzzy matching, off by default": "Nghỉ cả khi lỗi chỉ nhắc từ khóa; so khớp mờ, mặc định tắt",
+    "Load snapshot cache (reduces Redis pressure)": "Bộ đệm ảnh chụp tải (giảm áp lực Redis)",
+    "Cache channel load snapshots briefly for routing decisions; disable only to debug routing with live reads": "Đệm ngắn ảnh chụp tải cho định tuyến; chỉ tắt khi cần gỡ lỗi đọc trực tiếp"
   }
 }

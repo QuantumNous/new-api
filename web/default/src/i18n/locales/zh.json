@@ -6606,6 +6606,21 @@
     "GitHub Copilot channels support one credential only": "GitHub Copilot 渠道仅支持一个凭据",
     "Cooling": "冷却中",
     "Max concurrency must be a non-negative integer": "最大并发数必须为非负整数",
-    "0 removes the limit": "0 表示不限制"
+    "0 removes the limit": "0 表示不限制",
+    "Channel Concurrency Limits": "渠道并发限制",
+    "Controls queueing and cooldown for channels with a max concurrency; channels without a limit are unaffected": "控制配置了最大并发数的渠道的排队与冷却行为，对未设置并发上限的渠道无影响",
+    "Queue when concurrency is full": "并发满时允许排队",
+    "When a bounded channel is saturated, hold the request briefly for a freed slot instead of failing immediately": "限并发渠道打满时，短暂等待空槽而不是立即失败",
+    "Queue timeout (ms)": "排队超时（毫秒）",
+    "Max waiting per channel (0 = same as its concurrency limit)": "每渠道排队上限（0 = 等于该渠道并发上限）",
+    "Enable channel cooldown": "启用渠道冷却",
+    "Temporarily exclude a bounded channel from selection after upstream rate-limit signals": "上游出现限流信号后，将该渠道临时移出候选",
+    "Cooldown duration (seconds)": "冷却时长（秒）",
+    "Cool down on upstream HTTP 429": "上游返回 429 时触发冷却",
+    "Trigger cooldown only when the upstream explicitly returns HTTP 429": "仅在上游明确返回 HTTP 429 时触发冷却",
+    "Cool down on rate-limit keywords in error messages (prone to false positives)": "错误消息含限流关键词时触发冷却（易误伤）",
+    "Also trigger cooldown when error messages merely mention rate-limit-like keywords; fuzzy matching, off by default": "错误消息仅提到疑似限流关键词也触发冷却；模糊匹配，默认关闭",
+    "Load snapshot cache (reduces Redis pressure)": "负载快照缓存（降低 Redis 压力）",
+    "Cache channel load snapshots briefly for routing decisions; disable only to debug routing with live reads": "为路由决策短暂缓存渠道负载快照；仅在需要实时读排查路由时关闭"
   }
 }

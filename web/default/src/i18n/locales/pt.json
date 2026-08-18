@@ -6606,6 +6606,21 @@
     "GitHub Copilot channels support one credential only": "Os canais do GitHub Copilot aceitam apenas uma credencial",
     "Cooling": "resfriando",
     "Max concurrency must be a non-negative integer": "A concorrência máxima deve ser um inteiro não negativo",
-    "0 removes the limit": "0 remove o limite"
+    "0 removes the limit": "0 remove o limite",
+    "Channel Concurrency Limits": "Limites de concorrência de canais",
+    "Controls queueing and cooldown for channels with a max concurrency; channels without a limit are unaffected": "Controla fila e resfriamento de canais com limite; canais sem limite não são afetados",
+    "Queue when concurrency is full": "Enfileirar quando cheio",
+    "When a bounded channel is saturated, hold the request briefly for a freed slot instead of failing immediately": "Quando um canal limitado satura, aguarda brevemente um slot livre em vez de falhar",
+    "Queue timeout (ms)": "Tempo limite da fila (ms)",
+    "Max waiting per channel (0 = same as its concurrency limit)": "Máx. em espera por canal (0 = igual ao limite)",
+    "Enable channel cooldown": "Ativar resfriamento",
+    "Temporarily exclude a bounded channel from selection after upstream rate-limit signals": "Exclui temporariamente o canal da seleção após sinais de limite do upstream",
+    "Cooldown duration (seconds)": "Duração do resfriamento (s)",
+    "Cool down on upstream HTTP 429": "Resfriar em HTTP 429 do upstream",
+    "Trigger cooldown only when the upstream explicitly returns HTTP 429": "Resfriar apenas com HTTP 429 explícito",
+    "Cool down on rate-limit keywords in error messages (prone to false positives)": "Resfriar por palavras-chave (propenso a falsos positivos)",
+    "Also trigger cooldown when error messages merely mention rate-limit-like keywords; fuzzy matching, off by default": "Dispara também por mera menção de palavras-chave; correspondência difusa, desativado por padrão",
+    "Load snapshot cache (reduces Redis pressure)": "Cache de snapshot de carga (reduz pressão no Redis)",
+    "Cache channel load snapshots briefly for routing decisions; disable only to debug routing with live reads": "Faz cache breve de snapshots de carga; desative apenas para depurar leituras ao vivo"
   }
 }
