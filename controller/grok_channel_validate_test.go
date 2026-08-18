@@ -41,3 +41,14 @@ func TestValidateChannelGrokAcceptsVersionedKey(t *testing.T) {
 		t.Fatalf("valid versioned Grok key must pass, got %v", err)
 	}
 }
+
+// TestValidateChannelGrokRejectsNonVersionedKeyOnEdit 锁定设计决策:版本化校验块
+// 故意置于 isAdd 分支之外,使编辑(isAdd=false)时提供的非法 Key 同样被拒。
+// 若将来有人把校验块误挪进 isAdd 分支,本测试会转红(现有 4 个测试都不会)。
+func TestValidateChannelGrokRejectsNonVersionedKeyOnEdit(t *testing.T) {
+	ch := &model.Channel{Type: constant.ChannelTypeGrokSubscription, Key: `{"access_token":"at"}`}
+	ch.Models = "grok-4"
+	if err := validateChannel(ch, false); err == nil { // isAdd=false → 编辑路径
+		t.Fatalf("Grok non-versioned key on edit must be rejected (validation block must cover edit path)")
+	}
+}
