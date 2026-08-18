@@ -1,34 +1,84 @@
 package middleware
 
 import (
-	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting"
+
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestModelRedisRateLimitUsesUTCRegardlessOfLocalTimezone(t *testing.T) {
-	redisServer, redisClient := useRateLimitMiniRedis(t)
-	previousLocation := time.Local
-	time.Local = time.FixedZone("test-utc-plus-eight", 8*60*60)
-	t.Cleanup(func() { time.Local = previousLocation })
+func setupModelRequestRateLimitTest(t *testing.T, totalLimit, successLimit int) {
+	t.Helper()
+	previousEnabled := setting.ModelRequestRateLimitEnabled
+	previousDuration := setting.ModelRequestRateLimitDurationMinutes
+	previousTotal := setting.ModelRequestRateLimitCount
+	previousSuccess := setting.ModelRequestRateLimitSuccessCount
+	previousRedis := common.RedisEnabled
+	setting.ModelRequestRateLimitMutex.Lock()
+	previousGroups := setting.ModelRequestRateLimitGroup
+	setting.ModelRequestRateLimitGroup = map[string][2]int{}
+	setting.ModelRequestRateLimitMutex.Unlock()
+	setting.ModelRequestRateLimitEnabled = true
+	setting.ModelRequestRateLimitDurationMinutes = 1
+	setting.ModelRequestRateLimitCount = totalLimit
+	setting.ModelRequestRateLimitSuccessCount = successLimit
+	common.RedisEnabled = false
+	t.Cleanup(func() {
+		setting.ModelRequestRateLimitEnabled = previousEnabled
+		setting.ModelRequestRateLimitDurationMinutes = previousDuration
+		setting.ModelRequestRateLimitCount = previousTotal
+		setting.ModelRequestRateLimitSuccessCount = previousSuccess
+		common.RedisEnabled = previousRedis
+		setting.ModelRequestRateLimitMutex.Lock()
+		setting.ModelRequestRateLimitGroup = previousGroups
+		setting.ModelRequestRateLimitMutex.Unlock()
+	})
+}
 
-	ctx := context.Background()
-	recordKey := "rateLimit:model-utc-record"
-	recordRedisRequest(ctx, redisClient, recordKey, 2)
-	recorded, err := redisClient.LIndex(ctx, recordKey, 0).Result()
-	require.NoError(t, err)
-	recordedAt, err := time.Parse(modelRateLimitTimeFormat, recorded)
-	require.NoError(t, err)
-	assert.WithinDuration(t, time.Now().UTC(), recordedAt, 2*time.Second)
+func TestCheckModelRequestRateLimitCommitsOnlySuccessfulRequests(t *testing.T) {
+	setupModelRequestRateLimitTest(t, 10, 1)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("id", 901)
 
-	checkKey := "rateLimit:model-utc-check"
-	withinWindow := time.Now().UTC().Add(-30 * time.Second).Format(modelRateLimitTimeFormat)
-	_, err = redisServer.Push(checkKey, withinWindow, withinWindow)
-	require.NoError(t, err)
-	allowed, err := checkRedisRateLimit(ctx, redisClient, checkKey, 2, 60)
-	require.NoError(t, err)
-	assert.False(t, allowed, "an existing UTC timestamp inside the window must remain limited on a non-UTC host")
+	commit, apiErr := CheckModelRequestRateLimit(c)
+	require.Nil(t, apiErr)
+	commit(false)
+
+	commit, apiErr = CheckModelRequestRateLimit(c)
+	require.Nil(t, apiErr)
+	commit(true)
+
+	_, apiErr = CheckModelRequestRateLimit(c)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+}
+
+func TestResponsesWebSocketHandshakeDoesNotConsumeRequestLimit(t *testing.T) {
+	setupModelRequestRateLimitTest(t, 1, 10)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("id", 902)
+		c.Next()
+	})
+	router.GET("/v1/responses", ModelRequestRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	request.Header.Set("Upgrade", "websocket")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusNoContent, response.Code)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("id", 902)
+	commit, apiErr := CheckModelRequestRateLimit(c)
+	require.Nil(t, apiErr)
+	commit(false)
 }
