@@ -409,6 +409,8 @@ func orderedMigrationModels() []migrationModel {
 		{&AdsPilotProposal{}, "AdsPilotProposal"},
 		{&AdsPilotMeta{}, "AdsPilotMeta"},
 		{&PromptLibraryItem{}, "PromptLibraryItem"},
+		{&GrokAuthFlow{}, "GrokAuthFlow"},
+		{&GrokChannelState{}, "GrokChannelState"},
 	}
 }
 
