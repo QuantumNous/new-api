@@ -16,6 +16,10 @@ const (
 // GrokChannelState 是按 channel_id 唯一的非秘密状态快照（设计 §6.3）。
 // 严禁存放 access_token / refresh_token / pkce_verifier / 密码 / SSO cookie。
 // 秘密只存在于加密后的 Channel.Key（凭证 JSON）与 GrokAuthFlow.EncryptedVerifier。
+//
+// 日志安全：本表虽为非秘密快照，但 LastError 会承载上游刷新失败的原始报文片段（Task 8 写入），
+// 可能夹带上游返回的敏感字符串。调用方记录日志时切勿用 %+v/%v 打印整个 GrokChannelState，
+// 只打印明确非敏感字段（如 ChannelID / AuthStatus / LastRefreshAt）。
 type GrokChannelState struct {
 	ChannelID             int    `json:"channel_id" gorm:"primaryKey"`
 	AuthStatus            string `json:"auth_status" gorm:"type:varchar(32);index"`
@@ -32,7 +36,7 @@ type GrokChannelState struct {
 
 func (GrokChannelState) TableName() string { return "grok_channel_states" }
 
-// UpsertGrokChannelState 按 channel_id 插入或整体覆盖（保持唯一一行）。
+// UpsertGrokChannelState 按 channel_id 插入或覆盖（created_at 除外，保持首次写入值；见测试 TestGrokChannelStateUpsertPreservesCreatedAt）。
 func UpsertGrokChannelState(st *GrokChannelState) error {
 	if st == nil || st.ChannelID <= 0 {
 		return errors.New("grok channel state: invalid channel id")

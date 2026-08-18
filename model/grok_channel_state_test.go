@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -87,5 +88,76 @@ func TestGrokTablesRegisteredForMigration(t *testing.T) {
 		if !names[want] {
 			t.Fatalf("migration model %q not registered", want)
 		}
+	}
+}
+
+// TestGrokChannelStateUpsertPreservesCreatedAt 守护 Task 5 坑域的正确性不变量：
+// OnConflict{UpdateAll} 的 DO UPDATE 不得覆盖 created_at。用一个明显不同的哨兵 created_at
+// 做二次 upsert —— 若 GORM（或将来对 UpdateAll 的改动）错误地把 created_at 纳入 DO UPDATE，
+// 哨兵 111111 会出现在读回结果里，断言即失败。distinct 哨兵保证本测试非空洞。
+func TestGrokChannelStateUpsertPreservesCreatedAt(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	first := &GrokChannelState{ChannelID: 77, AuthStatus: GrokAuthStatusActive}
+	if err := UpsertGrokChannelState(first); err != nil {
+		t.Fatalf("first upsert err %v", err)
+	}
+	got1, err := GetGrokChannelState(77)
+	if err != nil {
+		t.Fatalf("get after insert err %v", err)
+	}
+	original := got1.CreatedAt
+	if original == 0 {
+		t.Fatalf("created_at must be set on insert")
+	}
+	second := &GrokChannelState{ChannelID: 77, AuthStatus: GrokAuthStatusNeedsReauth, CreatedAt: 111111}
+	if err := UpsertGrokChannelState(second); err != nil {
+		t.Fatalf("second upsert err %v", err)
+	}
+	got2, err := GetGrokChannelState(77)
+	if err != nil {
+		t.Fatalf("get after update err %v", err)
+	}
+	if got2.CreatedAt != original {
+		t.Fatalf("created_at must be preserved on upsert-update: got %d, want %d (sentinel 111111 must NOT overwrite)", got2.CreatedAt, original)
+	}
+	if got2.AuthStatus != GrokAuthStatusNeedsReauth {
+		t.Fatalf("auth_status must update to needs_reauth, got %q", got2.AuthStatus)
+	}
+}
+
+// TestUpsertGrokChannelStateRejectsInvalidInputs 覆盖 fail-closed 入口（对齐兄弟文件
+// grok_auth_flow_test.go 的 TestGrokAuthFlowRejectsInvalidInputs 范式）。
+func TestUpsertGrokChannelStateRejectsInvalidInputs(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	if err := UpsertGrokChannelState(nil); err == nil {
+		t.Fatalf("UpsertGrokChannelState(nil) must return error")
+	}
+	if err := UpsertGrokChannelState(&GrokChannelState{ChannelID: 0}); err == nil {
+		t.Fatalf("UpsertGrokChannelState with ChannelID<=0 must return error")
+	}
+	if err := UpsertGrokChannelState(&GrokChannelState{ChannelID: -3}); err == nil {
+		t.Fatalf("UpsertGrokChannelState with negative ChannelID must return error")
+	}
+}
+
+// TestGetGrokChannelStateNotFound 未命中须透传 gorm.ErrRecordNotFound，供调用方 errors.Is 区分。
+func TestGetGrokChannelStateNotFound(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	if _, err := GetGrokChannelState(4242); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("missing state must return ErrRecordNotFound, got %v", err)
+	}
+}
+
+// TestDeleteGrokChannelState 删除后再取须为 NotFound（渠道删除级联清理路径）。
+func TestDeleteGrokChannelState(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	if err := UpsertGrokChannelState(&GrokChannelState{ChannelID: 88, AuthStatus: GrokAuthStatusActive}); err != nil {
+		t.Fatalf("upsert err %v", err)
+	}
+	if err := DeleteGrokChannelState(88); err != nil {
+		t.Fatalf("delete err %v", err)
+	}
+	if _, err := GetGrokChannelState(88); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("after delete, get must return ErrRecordNotFound, got %v", err)
 	}
 }
