@@ -49,6 +49,14 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		promptLibraryRoute := apiRouter.Group("/prompt-library")
 		{
+			promptLibraryAdminRoute := promptLibraryRoute.Group("/admin")
+			promptLibraryAdminRoute.Use(middleware.AdminAuth())
+			{
+				promptLibraryAdminRoute.GET("", controller.ListPromptLibraryAdmin)
+				promptLibraryAdminRoute.POST("", controller.CreatePromptLibraryAdmin)
+				promptLibraryAdminRoute.PUT("/:id", controller.UpdatePromptLibraryAdmin)
+				promptLibraryAdminRoute.DELETE("/:id", controller.DeletePromptLibraryAdmin)
+			}
 			promptLibraryRoute.GET("", controller.ListPromptLibrary)
 			promptLibraryRoute.GET("/:slug", controller.GetPromptLibraryItem)
 			promptLibraryImportRoute := promptLibraryRoute.Group("")
