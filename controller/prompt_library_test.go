@@ -126,7 +126,9 @@ func setupPromptLibraryPublicTest(t *testing.T) *gin.Engine {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.PromptLibraryItem{}))
+	prevDB := model.DB
 	model.DB = db
+	t.Cleanup(func() { model.DB = prevDB })
 
 	seed := func(slug, category string, enabled bool) {
 		item := model.PromptLibraryItem{
@@ -196,4 +198,38 @@ func TestListPromptLibraryPublicRejectsBadCategory(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library?category=nope", nil))
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestGetPromptLibraryItemPublicNormalizesLiteralNullColumns(t *testing.T) {
+	r := setupPromptLibraryPublicTest(t)
+	// The import path marshals absent optional fields (title/summary/tags/output)
+	// via common.Marshal(nil), which stores the literal string "null".
+	item := model.PromptLibraryItem{
+		Slug: "pub-null", Category: "image", Model: "gpt-image-2", Prompt: "prompt of pub-null",
+		TitleJSON:      `{"en":"pub-null"}`,
+		SummaryJSON:    "null",
+		TagsJSON:       "null",
+		OutputJSON:     "null",
+		ArtifactJSON:   `{"kind":"image","url":"https://example.com/pub-null.png"}`,
+		SourceJSON:     `{"label":"@a","platform":"X","url":"https://x.com/a/status/1"}`,
+		SourcePlatform: "X", SourceURL: "https://x.com/a/status/1",
+		Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(&item).Error)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library/pub-null", nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Item map[string]any `json:"item"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, map[string]any{"en": "pub-null"}, response.Data.Item["title"])
+	require.Equal(t, map[string]any{}, response.Data.Item["summary"]) // literal "null" column -> {}
+	require.Equal(t, []any{}, response.Data.Item["tags"])             // literal "null" column -> []
+	require.Equal(t, map[string]any{}, response.Data.Item["output"])  // literal "null" column -> {}
 }

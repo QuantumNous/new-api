@@ -56,7 +56,8 @@ type promptLibraryPublicItem struct {
 	Summary        any      `json:"summary"`
 	Tags           []string `json:"tags"`
 	Title          any      `json:"title"`
-	UpdatedAt      string   `json:"updatedAt"`
+	// staging contract keeps key "updatedAt" (lone camelCase) carrying the source capture date; may be empty
+	UpdatedAt string `json:"updatedAt"`
 }
 
 func ImportPromptLibrary(c *gin.Context) {
@@ -289,7 +290,7 @@ func normalizePromptLibraryPublicItem(item model.PromptLibraryItem) (promptLibra
 		return promptLibraryPublicItem{}, err
 	}
 	tags := make([]string, 0)
-	if strings.TrimSpace(item.TagsJSON) != "" {
+	if trimmedTags := strings.TrimSpace(item.TagsJSON); trimmedTags != "" && trimmedTags != "null" {
 		if err := common.UnmarshalJsonStr(item.TagsJSON, &tags); err != nil {
 			return promptLibraryPublicItem{}, err
 		}
@@ -318,6 +319,10 @@ func unmarshalPromptLibraryField(value string, fallback any) (any, error) {
 	var decoded any
 	if err := common.UnmarshalJsonStr(value, &decoded); err != nil {
 		return nil, err
+	}
+	if decoded == nil {
+		// import path stores literal "null" for absent optional fields
+		return fallback, nil
 	}
 	return decoded, nil
 }
