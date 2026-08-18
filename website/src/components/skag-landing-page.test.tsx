@@ -72,9 +72,20 @@ describe("SkagLandingPage", () => {
     const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api", "pt")} />);
 
     expect(html).toContain("Obter chave da API DeepSeek");
+    expect(html).toContain("bg-white text-slate-950");
     expect(html).not.toContain("Ver preços ao vivo");
     expect(html).not.toContain("from openai import OpenAI");
     expect(html).toContain("max-w-6xl");
+  });
+
+  test("limits the DeepSeek language switcher to translated locales", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api", "pt")} />);
+
+    expect(html).toContain("English");
+    expect(html).toContain("Português");
+    for (const label of ["中文", "Español", "Français", "Русский", "日本語", "Tiếng Việt", "Deutsch", "Bahasa Indonesia"]) {
+      expect(html).not.toContain(label);
+    }
   });
 
   test("keeps Kimi and Qwen Portuguese pages compact with only their primary CTA", () => {
