@@ -3,6 +3,8 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var modelRateLimitTestUserSequence atomic.Int64
 
 func setupModelRequestRateLimitTest(t *testing.T, totalLimit, successLimit int) {
 	t.Helper()
@@ -42,21 +46,79 @@ func setupModelRequestRateLimitTest(t *testing.T, totalLimit, successLimit int) 
 }
 
 func TestCheckModelRequestRateLimitCommitsOnlySuccessfulRequests(t *testing.T) {
-	setupModelRequestRateLimitTest(t, 10, 1)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Set("id", 901)
+	for _, backend := range []string{"memory", "redis"} {
+		t.Run(backend, func(t *testing.T) {
+			setupModelRequestRateLimitTest(t, 0, 1)
+			if backend == "redis" {
+				useRateLimitMiniRedis(t)
+			}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Set("id", 900+int(modelRateLimitTestUserSequence.Add(1)))
 
-	commit, apiErr := CheckModelRequestRateLimit(c)
-	require.Nil(t, apiErr)
-	commit(false)
+			commit, apiErr := CheckModelRequestRateLimit(c)
+			require.Nil(t, apiErr)
+			commit(false)
 
-	commit, apiErr = CheckModelRequestRateLimit(c)
-	require.Nil(t, apiErr)
-	commit(true)
+			commit, apiErr = CheckModelRequestRateLimit(c)
+			require.Nil(t, apiErr)
+			commit(true)
 
-	_, apiErr = CheckModelRequestRateLimit(c)
-	require.NotNil(t, apiErr)
-	assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+			_, apiErr = CheckModelRequestRateLimit(c)
+			require.NotNil(t, apiErr)
+			assert.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+		})
+	}
+}
+
+func TestCheckModelRequestRateLimitReservesSuccessSlotsAtomically(t *testing.T) {
+	const (
+		requestCount = 16
+		successLimit = 3
+	)
+	for _, backend := range []string{"memory", "redis"} {
+		t.Run(backend, func(t *testing.T) {
+			setupModelRequestRateLimitTest(t, 0, successLimit)
+			if backend == "redis" {
+				useRateLimitMiniRedis(t)
+			}
+
+			start := make(chan struct{})
+			commits := make(chan ModelRequestRateLimitCommit, requestCount)
+			statuses := make(chan int, requestCount)
+			var allowed atomic.Int64
+			var waitGroup sync.WaitGroup
+			userID := 900 + int(modelRateLimitTestUserSequence.Add(1))
+			waitGroup.Add(requestCount)
+			for range requestCount {
+				go func() {
+					defer waitGroup.Done()
+					<-start
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Set("id", userID)
+					commit, apiErr := CheckModelRequestRateLimit(c)
+					if apiErr != nil {
+						statuses <- apiErr.StatusCode
+						return
+					}
+					allowed.Add(1)
+					commits <- commit
+				}()
+			}
+			close(start)
+			waitGroup.Wait()
+			close(commits)
+			close(statuses)
+
+			assert.Equal(t, int64(successLimit), allowed.Load())
+			assert.Len(t, statuses, requestCount-successLimit)
+			for status := range statuses {
+				assert.Equal(t, http.StatusTooManyRequests, status)
+			}
+			for commit := range commits {
+				commit(true)
+			}
+		})
+	}
 }
 
 func TestResponsesWebSocketHandshakeDoesNotConsumeRequestLimit(t *testing.T) {

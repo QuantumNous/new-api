@@ -40,10 +40,26 @@ func TestApplyResponsesUsageCopiesTokenDetails(t *testing.T) {
 	assert.Equal(t, 7, dst.CompletionTokens)
 	assert.Equal(t, 18, dst.TotalTokens)
 	require.NotNil(t, dst.InputTokensDetails)
+	assert.NotSame(t, src.InputTokensDetails, dst.InputTokensDetails)
 	assert.Equal(t, *src.InputTokensDetails, dst.PromptTokensDetails)
 	assert.Equal(t, *src.OutputTokensDetails, dst.CompletionTokenDetails)
 	require.NotNil(t, dst.OutputTokensDetails)
+	assert.NotSame(t, src.OutputTokensDetails, dst.OutputTokensDetails)
 	assert.Equal(t, *src.OutputTokensDetails, *dst.OutputTokensDetails)
+	assert.Equal(t, "openai", dst.UsageSemantic)
+	assert.Equal(t, "upstream", dst.UsageSource)
+}
+
+func TestApplyResponsesUsagePreservesExistingMetadataWhenSourceOmitsIt(t *testing.T) {
+	dst := &dto.Usage{
+		PromptCacheHitTokens: 5,
+		UsageSemantic:        "openai",
+		UsageSource:          "upstream",
+	}
+
+	ApplyResponsesUsage(dst, &dto.Usage{TotalTokens: 9})
+
+	assert.Equal(t, 5, dst.PromptCacheHitTokens)
 	assert.Equal(t, "openai", dst.UsageSemantic)
 	assert.Equal(t, "upstream", dst.UsageSource)
 }

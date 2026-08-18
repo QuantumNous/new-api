@@ -31,6 +31,9 @@ import (
 const (
 	responsesWSEventTypeResponseCreate = "response.create"
 	responsesWSV2BetaHeaderValue       = "responses_websockets=2026-02-06"
+	responsesWSWriteWait               = 10 * time.Second
+	responsesWSPongWait                = 60 * time.Second
+	responsesWSPingPeriod              = responsesWSPongWait * 9 / 10
 )
 
 type responsesWSCreateEvent struct {
@@ -52,6 +55,8 @@ type responsesWSErrorEvent struct {
 }
 
 type responsesWSCallState struct {
+	mu         sync.Mutex
+	finished   bool
 	info       *relaycommon.RelayInfo
 	usage      *dto.Usage
 	outputText strings.Builder
@@ -69,6 +74,8 @@ type responsesWSSession struct {
 	lockedChannel  *appmodel.Channel
 	nextEventIndex int
 	closeOnce      sync.Once
+	keepaliveOnce  sync.Once
+	done           chan struct{}
 
 	clientWriteMu sync.Mutex
 	targetWriteMu sync.Mutex
@@ -80,11 +87,20 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn) *types.New
 	session := &responsesWSSession{
 		c:      c,
 		client: client,
+		done:   make(chan struct{}),
 	}
 	defer session.closeTarget()
 	defer session.failCurrent()
+	defer session.stopKeepalive()
+	if err := configureResponsesWSConnection(client); err != nil {
+		return types.NewError(err, types.ErrorCodeBadRequestBody, types.ErrOptionWithSkipRetry())
+	}
+	session.startKeepalive()
 
 	for {
+		if err := client.SetReadDeadline(time.Now().Add(responsesWSPongWait)); err != nil {
+			return types.NewError(err, types.ErrorCodeBadRequestBody, types.ErrOptionWithSkipRetry())
+		}
 		messageType, message, err := client.ReadMessage()
 		if err != nil {
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -123,6 +139,62 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn) *types.New
 			session.sendError(eventID, err)
 		}
 	}
+}
+
+func configureResponsesWSConnection(conn *websocket.Conn) error {
+	if conn == nil {
+		return errors.New("responses websocket connection is nil")
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(responsesWSPongWait)); err != nil {
+		return err
+	}
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(responsesWSPongWait))
+	})
+	return nil
+}
+
+func (s *responsesWSSession) startKeepalive() {
+	if s == nil || s.client == nil || s.done == nil {
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(responsesWSPingPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.done:
+				return
+			case now := <-ticker.C:
+				deadline := now.Add(responsesWSWriteWait)
+				if err := s.client.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+					s.failCurrent()
+					s.closeTarget()
+					_ = s.client.Close()
+					return
+				}
+				target := s.getTarget()
+				if target == nil {
+					continue
+				}
+				if err := target.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
+					s.failCurrent()
+					s.closeTarget()
+					_ = s.client.Close()
+					return
+				}
+			}
+		}
+	}()
+}
+
+func (s *responsesWSSession) stopKeepalive() {
+	if s == nil || s.done == nil {
+		return
+	}
+	s.keepaliveOnce.Do(func() {
+		close(s.done)
+	})
 }
 
 func responsesWSEventType(message []byte) (string, error) {
@@ -338,7 +410,8 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 			return types.NewErrorWithStatusCode(errors.New("another response.create is already in progress on this websocket connection"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
 		}
 		if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
-			s.finishCall(state, false)
+			state.refund(s.c)
+			s.clearCurrent(state)
 			s.closeTarget()
 			apiErr = types.NewError(err, types.ErrorCodeBadResponse)
 			var shouldRetry bool
@@ -505,7 +578,7 @@ func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage) ([
 }
 
 func removeResponsesWSTransportFields(jsonData []byte) ([]byte, error) {
-	var data map[string]any
+	var data map[string]common.RawMessage
 	if err := common.Unmarshal(jsonData, &data); err != nil {
 		return jsonData, err
 	}
@@ -544,6 +617,9 @@ func dialResponsesWebSocketUpstream(c *gin.Context, adaptor relaychannel.Adaptor
 		statusCode := http.StatusInternalServerError
 		if resp != nil {
 			statusCode = resp.StatusCode
+			if resp.Body != nil {
+				_ = resp.Body.Close()
+			}
 		}
 		return nil, types.NewErrorWithStatusCode(fmt.Errorf("dial failed to %s: %w", relaycommon.SanitizeURLForLog(fullRequestURL), err), types.ErrorCodeDoRequestFailed, statusCode)
 	}
@@ -577,6 +653,12 @@ func (s *responsesWSSession) startTargetReader() {
 	}
 	go func() {
 		for {
+			if err := target.SetReadDeadline(time.Now().Add(responsesWSPongWait)); err != nil {
+				logger.LogError(s.c, "responses websocket upstream read deadline failed: "+err.Error())
+				s.failCurrent()
+				_ = s.client.Close()
+				return
+			}
 			messageType, message, err := target.ReadMessage()
 			if err != nil {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -602,12 +684,18 @@ func (s *responsesWSSession) observeUpstreamMessage(message []byte) {
 	if state == nil {
 		return
 	}
-	state.info.SetFirstResponseTime()
 
 	var streamResponse dto.ResponsesStreamResponse
 	if err := common.Unmarshal(message, &streamResponse); err != nil {
 		return
 	}
+	state.mu.Lock()
+	if state.finished {
+		state.mu.Unlock()
+		return
+	}
+	state.info.SetFirstResponseTime()
+	state.mu.Unlock()
 
 	switch streamResponse.Type {
 	case "response.completed", "response.done", "response.incomplete":
@@ -616,9 +704,18 @@ func (s *responsesWSSession) observeUpstreamMessage(message []byte) {
 	case "response.failed", "response.error", "response.cancelled", "response.canceled":
 		s.finishCall(state, false)
 	case "response.output_text.delta":
-		state.outputText.WriteString(streamResponse.Delta)
+		state.mu.Lock()
+		if !state.finished {
+			state.outputText.WriteString(streamResponse.Delta)
+		}
+		state.mu.Unlock()
 	case dto.ResponsesOutputTypeItemDone:
 		if streamResponse.Item != nil {
+			state.mu.Lock()
+			defer state.mu.Unlock()
+			if state.finished {
+				return
+			}
 			switch streamResponse.Item.Type {
 			case dto.BuildInCallWebSearchCall:
 				state.info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
@@ -637,6 +734,11 @@ func (s *responsesWSSession) observeUpstreamMessage(message []byte) {
 
 func (s *responsesWSSession) applyTerminalResponseUsage(state *responsesWSCallState, response *dto.OpenAIResponsesResponse) {
 	if state == nil || response == nil {
+		return
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.finished {
 		return
 	}
 	if response.Usage != nil {
@@ -659,7 +761,10 @@ func (s *responsesWSSession) finishCall(state *responsesWSCallState, success boo
 	}
 	state.finishOnce.Do(func() {
 		defer s.clearCurrent(state)
+		state.mu.Lock()
+		state.finished = true
 		if !success {
+			state.mu.Unlock()
 			state.refund(s.c)
 			if state.commitRate != nil {
 				state.commitRate(false)
@@ -667,29 +772,25 @@ func (s *responsesWSSession) finishCall(state *responsesWSCallState, success boo
 			return
 		}
 
-		finalizeResponsesWSUsage(state)
+		if state.usage != nil && state.info != nil {
+			if state.usage.CompletionTokens == 0 {
+				if output := state.outputText.String(); output != "" {
+					state.usage.CompletionTokens = service.CountTextToken(output, state.info.UpstreamModelName)
+				}
+			}
+			if state.usage.PromptTokens == 0 && state.usage.CompletionTokens != 0 {
+				state.usage.PromptTokens = state.info.GetEstimatePromptTokens()
+			}
+			if state.usage.TotalTokens == 0 {
+				state.usage.TotalTokens = state.usage.PromptTokens + state.usage.CompletionTokens
+			}
+		}
+		state.mu.Unlock()
 		service.PostTextConsumeQuota(s.c, state.info, state.usage, nil)
 		if state.commitRate != nil {
 			state.commitRate(true)
 		}
 	})
-}
-
-func finalizeResponsesWSUsage(state *responsesWSCallState) {
-	if state == nil || state.usage == nil || state.info == nil {
-		return
-	}
-	if state.usage.CompletionTokens == 0 {
-		if output := state.outputText.String(); output != "" {
-			state.usage.CompletionTokens = service.CountTextToken(output, state.info.UpstreamModelName)
-		}
-	}
-	if state.usage.PromptTokens == 0 && state.usage.CompletionTokens != 0 {
-		state.usage.PromptTokens = state.info.GetEstimatePromptTokens()
-	}
-	if state.usage.TotalTokens == 0 {
-		state.usage.TotalTokens = state.usage.PromptTokens + state.usage.CompletionTokens
-	}
 }
 
 func (state *responsesWSCallState) refund(c *gin.Context) {
@@ -740,6 +841,9 @@ func (s *responsesWSSession) failCurrent() {
 func (s *responsesWSSession) writeClient(messageType int, message []byte) error {
 	s.clientWriteMu.Lock()
 	defer s.clientWriteMu.Unlock()
+	if err := s.client.SetWriteDeadline(time.Now().Add(responsesWSWriteWait)); err != nil {
+		return err
+	}
 	return s.client.WriteMessage(messageType, message)
 }
 
@@ -758,6 +862,7 @@ func (s *responsesWSSession) getTarget() *websocket.Conn {
 func (s *responsesWSSession) setTarget(target *websocket.Conn) {
 	s.targetWriteMu.Lock()
 	defer s.targetWriteMu.Unlock()
+	_ = configureResponsesWSConnection(target)
 	s.target = target
 }
 
@@ -766,6 +871,9 @@ func (s *responsesWSSession) writeTarget(messageType int, message []byte) error 
 	defer s.targetWriteMu.Unlock()
 	if s.target == nil {
 		return errors.New("responses websocket upstream is not connected")
+	}
+	if err := s.target.SetWriteDeadline(time.Now().Add(responsesWSWriteWait)); err != nil {
+		return err
 	}
 	return s.target.WriteMessage(messageType, message)
 }

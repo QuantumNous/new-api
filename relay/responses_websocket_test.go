@@ -150,6 +150,8 @@ func TestResponsesWSInvalidRequestErrorUsesBadRequestStatus(t *testing.T) {
 func TestRemoveResponsesWSTransportFields(t *testing.T) {
 	payload := []byte(`{
 		"model": "gpt-5.3-codex-spark",
+		"seed": 9007199254740993,
+		"temperature": 0.1234567890123456789,
 		"stream": true,
 		"background": true,
 		"stream_options": {"include_usage": true},
@@ -158,12 +160,14 @@ func TestRemoveResponsesWSTransportFields(t *testing.T) {
 
 	got, err := removeResponsesWSTransportFields(payload)
 	require.NoError(t, err)
-	var data map[string]any
+	var data map[string]common.RawMessage
 	require.NoError(t, common.Unmarshal(got, &data))
 	for _, key := range []string{"stream", "background", "stream_options"} {
 		assert.NotContains(t, data, key)
 	}
-	assert.Equal(t, false, data["store"])
+	assert.JSONEq(t, "false", string(data["store"]))
+	assert.Equal(t, "9007199254740993", string(data["seed"]))
+	assert.Equal(t, "0.1234567890123456789", string(data["temperature"]))
 }
 
 func TestToWebSocketURL(t *testing.T) {
@@ -338,6 +342,7 @@ func newTestWebSocketPair(t *testing.T) (*websocket.Conn, *websocket.Conn, func(
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			assert.NoError(t, err)
+			close(serverConnCh)
 			return
 		}
 		serverConnCh <- conn
@@ -347,6 +352,7 @@ func newTestWebSocketPair(t *testing.T) (*websocket.Conn, *websocket.Conn, func(
 	target, _, err := websocket.DefaultDialer.Dial(targetURL, nil)
 	require.NoError(t, err)
 	serverConn := <-serverConnCh
+	require.NotNil(t, serverConn)
 	cleanup := func() {
 		_ = target.Close()
 		_ = serverConn.Close()
