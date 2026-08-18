@@ -241,7 +241,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
-	body, err := a.TaskAdaptor.BuildRequestBody(c, info)
+	body, err := a.TaskAdaptor.BuildRequestBodyWithoutAssetRewrite(c, info)
 	if err != nil {
 		return nil, err
 	}

@@ -26,7 +26,7 @@ func ResolveAssetSourceURLRewriteMap(ctx context.Context, userID int, references
 	if !references.strictCoverage || references.target == nil || strings.TrimSpace(references.scope.ScopeKey) == "" {
 		return nil, ErrAssetSourceURLUnavailable
 	}
-	if channel == nil || !AssetModelChannelUsesSourceURL(channel.Type) || channel.Status != common.ChannelStatusEnabled {
+	if channel == nil || !AssetModelChannelUsesSourceURLForChannel(channel) || channel.Status != common.ChannelStatusEnabled {
 		return nil, ErrAssetSourceURLUnavailable
 	}
 	originModel = strings.TrimSpace(originModel)

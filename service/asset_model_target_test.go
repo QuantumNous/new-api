@@ -351,6 +351,32 @@ func TestResolveAssetModelTargetOptionsReloadsStoredCredentialIndex(t *testing.T
 	require.Equal(t, 1, index)
 }
 
+func TestSeedanceProxyCapabilityRejectsAudioRegardlessOfLegacyChannelType(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeBytePlus,
+		Key:           "seedance-key",
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid","group_id":"grp_shared_aigc"}}`,
+	}
+
+	require.True(t, channelCanConsumeAssetType(channel, "Image"))
+	require.True(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+}
+
+func TestExplicitSeedanceProxyOverridesModelAPISourceURLCapability(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeModelAPISeedance,
+		Key:           "seedance-key",
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid","group_id":"grp_shared_aigc"}}`,
+	}
+
+	require.True(t, AssetModelChannelUsesSourceURL(channel.Type), "the legacy type still uses source URLs when no explicit provider is configured")
+	require.False(t, AssetModelChannelUsesSourceURLForChannel(channel))
+	materializer, err := assetMaterializerForChannel(channel)
+	require.NoError(t, err)
+	require.IsType(t, seedanceProxyAssetBindingMaterializer{}, materializer)
+}
+
 type assetModelTargetChannelSeed struct {
 	ID          int
 	ChannelType int

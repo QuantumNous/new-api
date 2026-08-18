@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -236,6 +237,84 @@ func TestBuildRequestBody_EndToEnd(t *testing.T) {
 	}
 	if body.Watermark == nil || bool(*body.Watermark) {
 		t.Errorf("watermark = %v, want explicit false survives decode", body.Watermark)
+	}
+}
+
+func TestBuildRequestBody_RewritesExactAssetUrlsAndPreservesText(t *testing.T) {
+	a := &TaskAdaptor{baseURL: "https://ark.example"}
+	c := newJSONCtx(`{
+		"model":"doubao-seedance-2-0-260128",
+		"content":[
+			{"type":"text","text":"plain asset://ast_1234567890abcdefABCDEF1234567890 mention"},
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"},
+			{"type":"video_url","video_url":{"url":"https://cdn.example.com/input.mp4?foo=1&bar=2"},"role":"reference_video"}
+		]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://asset-opaque-123",
+	})
+
+	r, err := a.BuildRequestBody(c, newRelayInfo())
+	if err != nil {
+		t.Fatalf("BuildRequestBody error: %v", err)
+	}
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	s := string(raw)
+	if strings.Contains(s, `\u0026`) {
+		t.Fatalf("HTML-escaped ampersand leaked into body: %s", s)
+	}
+
+	var body requestPayload
+	if err := common.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal upstream body: %v\nraw=%s", err, raw)
+	}
+	if body.Content[0].Text != "plain asset://ast_1234567890abcdefABCDEF1234567890 mention" {
+		t.Fatalf("text item changed: %+v", body.Content[0])
+	}
+	if body.Content[1].ImageURL == nil || body.Content[1].ImageURL.URL != "asset://asset-opaque-123" {
+		t.Fatalf("image URL not rewritten: %+v", body.Content[1].ImageURL)
+	}
+	if body.Content[2].VideoURL == nil || body.Content[2].VideoURL.URL != "https://cdn.example.com/input.mp4?foo=1&bar=2" {
+		t.Fatalf("video URL changed: %+v", body.Content[2].VideoURL)
+	}
+}
+
+func TestBuildRequestBody_RejectsMissingRewriteMapForExactAssetRef(t *testing.T) {
+	a := &TaskAdaptor{baseURL: "https://ark.example"}
+	c := newJSONCtx(`{
+		"model":"doubao-seedance-2-0-260128",
+		"content":[
+			{"type":"video_url","video_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_video"}
+		]
+	}`)
+
+	_, err := a.BuildRequestBody(c, newRelayInfo())
+	if err == nil || err.Error() != "invalid asset reference" {
+		t.Fatalf("BuildRequestBody error = %v, want invalid asset reference", err)
+	}
+	if strings.Contains(err.Error(), "ast_1234567890abcdefABCDEF1234567890") {
+		t.Fatalf("error leaked asset id: %v", err)
+	}
+}
+
+func TestBuildRequestBody_RejectsEmptyUpstreamRewrite(t *testing.T) {
+	a := &TaskAdaptor{baseURL: "https://ark.example"}
+	c := newJSONCtx(`{
+		"model":"doubao-seedance-2-0-260128",
+		"content":[
+			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"}
+		]
+	}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{
+		"asset://ast_1234567890abcdefABCDEF1234567890": "",
+	})
+
+	_, err := a.BuildRequestBody(c, newRelayInfo())
+	if err == nil || err.Error() != "invalid asset reference" {
+		t.Fatalf("BuildRequestBody error = %v, want invalid asset reference", err)
 	}
 }
 

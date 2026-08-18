@@ -232,6 +232,68 @@ func TestTechMobiReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {
 	require.Equal(t, AssetReadinessIneligible, readiness)
 }
 
+func TestExplicitCredentialScopedProviderReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {
+	mapping := `{"seedance-2.0-fast":"seedance-2.0-fast"}`
+	channel := &model.Channel{
+		Id:            156,
+		Type:          constant.ChannelTypeBytePlus,
+		Key:           "seedance-key-a\nseedance-key-b",
+		ModelMapping:  &mapping,
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid/v1","group_id":"grp_shared_aigc"}}`,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scopeA, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "seedance-2.0-fast", APIKey: "seedance-key-a"})
+	require.NoError(t, err)
+	scopeB, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "seedance-2.0-fast", APIKey: "seedance-key-b"})
+	require.NoError(t, err)
+
+	refs := AssetReferenceSet{
+		references: []assetReference{
+			{PublicID: "ast_scope_a", ExpectedAssetType: "Image"},
+			{PublicID: "ast_scope_b", ExpectedAssetType: "Image"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_scope_a": {
+				PublicID:     "ast_scope_a",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeA,
+					UpstreamAssetID: "asset-a",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+			"ast_scope_b": {
+				PublicID:     "ast_scope_b",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-b",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, ok := refs.ReadinessForChannel(channel, "seedance-2.0-fast")
+	require.False(t, ok)
+	require.Equal(t, AssetReadinessIneligible, readiness)
+	require.Equal(t, map[string]string{
+		"asset://ast_scope_a": "asset://asset-a",
+	}, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", "seedance-key-a"))
+	require.Equal(t, map[string]string{
+		"asset://ast_scope_b": "asset://asset-b",
+	}, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", "seedance-key-b"))
+}
+
 // TechMobi readiness promises "some enabled key covers every reference". This
 // locks in that the promise is actually redeemable: resolving the scope from an
 // arbitrarily routed key must land on the key that holds the bindings, so the
@@ -566,6 +628,28 @@ func TestAssetReferenceSetRequiresOneChannelToConsumeEveryReferencedAsset(t *tes
 	readiness, ok := refs.ReadinessForChannel(&model.Channel{Id: 131, Type: constant.ChannelTypeBytePlus})
 	require.True(t, ok)
 	require.Equal(t, AssetReadinessPartialBound, readiness)
+}
+
+func TestExplicitUnknownAssetMaterializationProviderFailsClosedForAllAssetTypes(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeBytePlus,
+		OtherSettings: `{"asset_materialization":{"provider":"future_provider","gateway_base_url":"https://gateway.example.invalid","group_id":"group-1"}}`,
+	}
+
+	require.False(t, channelCanConsumeAssetType(channel, "Image"))
+	require.False(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+}
+
+func TestExplicitInvalidSeedanceProxyConfigurationFailsClosedForAllAssetTypes(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeModelAPISeedance,
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"http://gateway.example.invalid","group_id":"group-1"}}`,
+	}
+
+	require.False(t, channelCanConsumeAssetType(channel, "Image"))
+	require.False(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
 }
 
 func TestCacheGetRandomSatisfiedChannelAssetRankerReadinessOutranksPriority(t *testing.T) {

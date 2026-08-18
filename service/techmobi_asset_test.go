@@ -557,7 +557,7 @@ func TestTechMobiAssetMaterializerGetAssetReturnsActiveForValidHandle(t *testing
 }
 
 func TestTechMobiAssetMaterializerIsRegistered(t *testing.T) {
-	materializer, ok := assetMaterializerForChannel(constant.ChannelTypeTechMobiVideo)
+	materializer, ok := assetMaterializerForChannelType(constant.ChannelTypeTechMobiVideo)
 	require.True(t, ok)
 	require.IsType(t, techMobiAssetBindingMaterializer{}, materializer)
 }

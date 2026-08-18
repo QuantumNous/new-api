@@ -257,7 +257,7 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 	if !eligible {
 		return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 	}
-	if AssetModelChannelUsesSourceURL(channel.Type) && target.BindingScope == assetModelSourceURLBindingScopeModelAPI {
+	if AssetModelChannelUsesSourceURLForChannel(channel) && target.BindingScope == assetModelSourceURLBindingScopeModelAPI {
 		if channel.Status != common.ChannelStatusEnabled || !assetModelTargetMatchesCurrentChannel(*target, channel) {
 			return scheduleAssetModelReadinessRetry(row, owner, nowUnix, AssetMaterializeErrorProcessing, 0)
 		}
@@ -313,6 +313,9 @@ func PrepareAssetModelReadiness(ctx context.Context, row model.AssetModelReadine
 }
 
 func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target model.AssetModelCoverageTarget, channel *model.Channel, options AssetMaterializeOptions, owner string, nowUnix int64) (*model.AssetBinding, error) {
+	if !channelCanConsumeAssetType(channel, asset.AssetType) {
+		return nil, assetModelBindingDefinitiveError{class: AssetMaterializeErrorDefinitive}
+	}
 	existing, err := model.GetAssetBindingForScope(asset.Id, target.ChannelId, target.BindingScope)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
@@ -361,8 +364,8 @@ func prepareAssetModelBinding(ctx context.Context, asset model.Asset, target mod
 		_, _ = model.ReleaseAssetBindingForRetryLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, AssetMaterializeErrorProcessing, nowUnix)
 		return nil, err
 	}
-	materializer, ok := assetMaterializerForChannel(currentChannel.Type)
-	if !ok {
+	materializer, err := assetMaterializerForChannel(currentChannel)
+	if err != nil || materializer == nil {
 		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, target.ChannelId, target.BindingScope, owner, bindingLeaseExpiresAt, "asset_channel_unavailable", nowUnix)
 		return nil, assetModelBindingDefinitiveError{class: "asset_channel_unavailable"}
 	}
@@ -462,7 +465,7 @@ func finalPreflightAssetModelProviderWrite(target model.AssetModelCoverageTarget
 	if err != nil {
 		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
-	bindingScope, err := assetBindingScope(channel.Type, options)
+	bindingScope, err := assetBindingScopeForChannel(channel, options)
 	if err != nil {
 		return model.AssetModelCoverageTarget{}, nil, AssetMaterializeOptions{}, assetModelBindingRetryError{class: AssetMaterializeErrorProcessing}
 	}
