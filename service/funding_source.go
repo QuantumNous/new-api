@@ -85,10 +85,12 @@ type SubscriptionFunding struct {
 	subscriptionId int
 	preConsumed    int64
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
-	AmountTotal     int64
-	AmountUsedAfter int64
-	PlanId          int
-	PlanTitle       string
+	AmountTotal              int64
+	AmountUsedAfter          int64
+	PlanId                   int
+	PlanTitle                string
+	settledSubscriptionDelta int64
+	settledWalletDelta       int64
 }
 
 func (s *SubscriptionFunding) Source() string { return BillingSourceSubscription }
@@ -115,7 +117,13 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	result, err := model.SettleUserSubscriptionDelta(s.subscriptionId, s.userId, int64(delta))
+	if err != nil {
+		return err
+	}
+	s.settledSubscriptionDelta = result.SubscriptionDelta
+	s.settledWalletDelta = result.WalletDelta
+	return nil
 }
 
 func (s *SubscriptionFunding) Refund() error {
