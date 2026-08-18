@@ -3,6 +3,7 @@ import Script from "next/script";
 import type { ReactNode } from "react";
 import { GoogleOneTapPrompt } from "@/components/google-one-tap-prompt";
 import { SiteConfigProvider } from "@/components/site-config-provider";
+import { buildLanguagePreferenceCookieWrites } from "@/lib/language-routing";
 import { MIXPANEL_BROWSER_SCRIPT } from "@/lib/mixpanel";
 import { localeLanguageTag, type Locale } from "@/lib/locales";
 import { SITE_ORIGIN, consoleUrl } from "@/lib/origins";
@@ -36,6 +37,14 @@ export const LIVECHAT_BOOTSTRAP_SCRIPT = `(function(){
   window.addEventListener("keydown",load,{once:true,passive:true});
   idle();
 })();`;
+
+export function buildLanguagePreferenceSyncScript(
+  locale: Locale,
+  cookieDomain?: string,
+): string {
+  const cookieWrites = buildLanguagePreferenceCookieWrites(locale, cookieDomain);
+  return `(function(){try{var cookies=${JSON.stringify(cookieWrites)};for(var i=0;i<cookies.length;i++){document.cookie=cookies[i];}}catch(_){}})();`;
+}
 
 export const ATTRIBUTION_COOKIE_SCRIPT = `(function(){
   try {
@@ -141,10 +150,16 @@ export function RootDocument({
     return_to: "/",
   });
   const googleOneTapCookieDomain = googleOneTapStateCookieDomain();
+  const languageCookieDomain = process.env.COOKIE_SESSION_DOMAIN?.trim() || undefined;
 
   return (
     <html lang={localeLanguageTag(lang)} suppressHydrationWarning>
       <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: buildLanguagePreferenceSyncScript(lang, languageCookieDomain),
+          }}
+        />
         {bodyStart}
         <Script id="google-tag-manager" strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.gtmStrategy}>
           {`
