@@ -284,6 +284,7 @@ function FlatkeyModelDetailPage(props: {
   const ttft = summary?.avg_ttft_ms ?? trendAvgTtftMs(trend);
   const heroPrice = priceRows.rows[0]?.flatkey ?? (model ? "—" : `${props.config.flatkeyPrice} ${props.t(props.config.priceUnit)}`);
   const endpointLabel = props.config.generator?.endpoint ?? model?.supported_endpoint_types?.[0] ?? "/v1/chat/completions";
+  const dashboardHref = consoleUrl("/dashboard");
 
   return (
     <SiteShell locale={props.locale} pathname={`/models/${props.config.slug}`}>
@@ -312,8 +313,7 @@ function FlatkeyModelDetailPage(props: {
                   {props.t("Back to Models")}
                 </a>
                 <a
-                  href={runHref}
-                  onClick={props.onRunClick}
+                  href={dashboardHref}
                   className="flatkey-hero-cta inline-flex h-10 items-center gap-2 px-4 text-sm font-medium shadow-[0_16px_34px_-18px_rgba(124,58,237,0.85)]"
                   style={{ borderRadius: "0.5rem" }}
                 >

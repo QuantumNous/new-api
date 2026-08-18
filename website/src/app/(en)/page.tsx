@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { OnlineHomePage } from "@/components/online-home-page";
+import { hasConsoleSessionHintFromRequestCookieStore } from "@/lib/console-session-hint";
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
@@ -8,6 +10,14 @@ export const metadata = buildMetadata({
   pathname: "/",
 });
 
-export default function Page() {
-  return <OnlineHomePage locale="en" />;
+export default async function Page() {
+  const requestCookies = await cookies();
+  return (
+    <OnlineHomePage
+      hasConsoleSessionHint={hasConsoleSessionHintFromRequestCookieStore(
+        requestCookies,
+      )}
+      locale="en"
+    />
+  );
 }
