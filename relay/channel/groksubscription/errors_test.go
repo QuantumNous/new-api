@@ -134,6 +134,11 @@ func TestClassifyForbiddenNonJSONFallback(t *testing.T) {
 }
 
 func TestClassifyForbiddenMaxParseBoundary(t *testing.T) {
+	// 夹具长度自引用 maxParse，只能锁"边界关系"；64 KiB 绝对值是设计 §8.4 的
+	// 防御上限，单列断言防误改（缩到 1<<15 之类测试仍绿但 DoS 面变大）。
+	if maxParse != 1<<16 {
+		t.Fatalf("maxParse must stay 64 KiB per design §8.4, got %d", maxParse)
+	}
 	head := `{"error":"`
 	tail := `","code":"subscription_required"}`
 	pad := strings.Repeat("x", maxParse-len(head)-len(tail))
