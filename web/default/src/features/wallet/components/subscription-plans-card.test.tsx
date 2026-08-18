@@ -271,7 +271,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).toContain('Buy now')
   })
 
-  test('shows localized plan positioning and recommends Go only', async () => {
+  test('shows localized plan positioning and marks Pro as most popular', async () => {
     await testI18n.changeLanguage('zh')
     try {
       const html = renderWalletCard()
@@ -285,15 +285,15 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       expect(goStart).toBeGreaterThanOrEqual(0)
       expect(proStart).toBeGreaterThan(goStart)
       expect(maxStart).toBeGreaterThan(proStart)
-      expect(html.slice(goStart, proStart)).toContain('推荐')
-      expect(html.slice(proStart, maxStart)).not.toContain('推荐')
-      expect(html.match(/推荐/g)?.length).toBe(1)
+      expect(html.slice(goStart, proStart)).not.toContain('最受欢迎')
+      expect(html.slice(proStart, maxStart)).toContain('最受欢迎')
+      expect(html.match(/最受欢迎/g)?.length).toBe(1)
     } finally {
       await testI18n.changeLanguage('en')
     }
   })
 
-  test('keeps the Go recommendation badge visible when there is an active plan', () => {
+  test('keeps the Pro most-popular badge visible when there is an active plan', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
         contract: {
@@ -321,25 +321,15 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(goStart).toBeGreaterThanOrEqual(0)
     expect(proStart).toBeGreaterThan(goStart)
     expect(maxStart).toBeGreaterThan(proStart)
-    expect(html.slice(goStart, proStart)).toContain('Recommended')
-    expect(html.slice(proStart, maxStart)).not.toContain('Recommended')
-    expect(html.match(/Recommended/g)?.length).toBe(1)
+    expect(html.slice(goStart, proStart)).not.toContain('Most Popular')
+    expect(html.slice(proStart, maxStart)).toContain('Most Popular')
+    expect(html.match(/Most Popular/g)?.length).toBe(1)
   })
 
-  test('keeps the refresh control in the subscription card header action', () => {
+  test('does not render a refresh control in the subscription card header', () => {
     const html = renderWalletCard()
-    const headerStart = html.indexOf('data-slot="card-header"')
-    const contentStart = html.indexOf('data-slot="card-content"', headerStart)
-    const refreshButton = html.indexOf(
-      'aria-label="Refresh subscription plans"'
-    )
 
-    expect(headerStart).toBeGreaterThanOrEqual(0)
-    expect(contentStart).toBeGreaterThan(headerStart)
-    expect(refreshButton).toBeGreaterThan(headerStart)
-    expect(refreshButton).toBeLessThan(contentStart)
-    expect(html).toContain('size-7')
-    expect(html).not.toContain('min-h-11 min-w-11')
+    expect(html).not.toContain('aria-label="Refresh subscription plans"')
   })
 
   test('renders a read-only current card with correct badges and only the three active usage meters', () => {

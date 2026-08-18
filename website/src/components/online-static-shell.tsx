@@ -10,7 +10,7 @@ type ShellProps = {
   pathname?: string;
 };
 
-const ONLINE_STATIC_STYLESHEET_HREF = "/fk2.css?v=730-font-frame";
+const ONLINE_STATIC_STYLESHEET_HREF = "/fk2.css?v=731-default-font-scale";
 const ONLINE_STATIC_PAGE_CLASS_NAME = "online-static-page";
 
 export function OnlineStaticStylesheet() {

@@ -35,7 +35,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
 import { TitledCard } from '@/components/ui/titled-card'
 import { SectionPageLayout } from '@/components/layout'
 import { consumePendingPostLoginRedirect } from '@/features/auth/lib/storage'
@@ -951,19 +950,9 @@ export function Wallet(props: WalletProps) {
                 id='wallet-billing-history'
                 className={hasRechargeHistory ? 'scroll-mt-4' : 'hidden'}
               >
-                {hasRechargeHistory && <Separator className='mb-4' />}
-                {hasRechargeHistory && (
-                  <div className='mb-3'>
-                    <h3 className='text-sm font-semibold'>
-                      {t('Recharge History')}
-                    </h3>
-                    <p className='text-muted-foreground mt-0.5 text-xs'>
-                      {t('View your top-up records and payment receipts.')}
-                    </p>
-                  </div>
-                )}
                 <BillingHistoryPanel
                   scrollAreaClassName='max-h-none pr-0 sm:pr-0'
+                  showInlineHeader
                   onAvailabilityChange={handleRechargeHistoryAvailability}
                   onResumeStripeCheckout={handleResumeStripeCheckout}
                   onRefundSuccess={fetchUser}

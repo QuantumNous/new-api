@@ -203,6 +203,21 @@ describe('ProfileHeader', () => {
     expect(html).toContain('API Requests')
   })
 
+  test('renders the full API request count without compact locale units', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <ProfileHeader
+          profile={{ ...profile, request_count: 130_000_000 }}
+          loading={false}
+          subscription={activeSubscription}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('130,000,000')
+    expect(html).not.toContain('1.3亿')
+  })
+
   test('renders identity and balance in the top row before the full-width plan band', () => {
     const html = renderHeader(activeSubscription)
 
@@ -227,6 +242,49 @@ describe('ProfileHeader', () => {
     expect(balanceStart).toBeGreaterThan(identityStart)
     expect(planStart).toBeGreaterThan(balanceStart)
     expect(statsStart).toBeGreaterThan(planStart)
+  })
+
+  test('links redemption from the balance area and hides the internal group', () => {
+    const internalGroup = 'internal-admin-routing-group'
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <ProfileHeader
+          profile={{ ...profile, group: internalGroup }}
+          loading={false}
+          subscription={activeSubscription}
+        />
+      </I18nextProvider>
+    )
+    const balanceColumn = sliceBetweenDataSlots(
+      html,
+      'profile-balance-column',
+      'profile-plan-summary'
+    )
+
+    expect(balanceColumn).toContain('href="/redeem"')
+    expect(balanceColumn).toContain('Redeem Code')
+    expect(html).not.toContain(internalGroup)
+  })
+
+  test('keeps balance and redeem actions visually aligned with clear spacing', () => {
+    const html = renderHeader(activeSubscription)
+    const actionsClass = classForDataSlot(html, 'profile-balance-actions')
+    const balanceClass = classForDataSlot(html, 'profile-balance')
+    const actions = sliceBetweenDataSlots(
+      html,
+      'profile-balance-actions',
+      'profile-balance-guidance'
+    )
+
+    expect(actionsClass).toContain('flex')
+    expect(actionsClass).toContain('flex-wrap')
+    expect(actionsClass).toContain('gap-3')
+    expect(actionsClass).toContain('lg:justify-end')
+    expect(balanceClass).toContain('h-9')
+    expect(balanceClass).toContain('rounded-lg')
+    expect(balanceClass).toContain('bg-background')
+    expect(balanceClass).toContain('shadow-xs')
+    expect(actions).toContain('h-9 rounded-lg px-3 shadow-xs')
   })
 
   test('keeps the loading header aligned to the desktop balance column', () => {

@@ -160,6 +160,7 @@ export const STATIC_I18N_KEYS = [
   'Stripe top-up is not enabled. Please contact administrator.',
   'Plans & wallet',
   'Available balance',
+  'Redeem Code',
 
   // Profile balance guidance
   'Balance can be used to purchase plans directly.',
@@ -185,7 +186,6 @@ export const STATIC_I18N_KEYS = [
   'Buy now',
   'Repurchase now',
   'Switch now',
-  'Refresh subscription plans',
   'Payment choice is unavailable',
   'Purchase plan',
   'Review the payment choice and term before continuing.',

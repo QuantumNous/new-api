@@ -203,22 +203,24 @@
   --fk-site-frame-max-width: calc(
     var(--fk-site-max-width) + var(--fk-site-gutter) + var(--fk-site-gutter)
   );
-  --fk-copy-line-height: 1.68;
+  --fk-copy-line-height: 1.62;
   --fk-font-latin:
-    "Flatkey Public Sans", Inter, "SF Pro Text", "SF Pro Display", Arial,
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   --fk-font-zh:
-    "Flatkey Public Sans", "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei UI", "Microsoft YaHei", Arial, sans-serif;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI",
+    "Microsoft YaHei", sans-serif;
   --fk-font-ja:
-    "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", "YuGothic",
-    "Meiryo", "Hiragino Sans", "Helvetica Neue", Arial, sans-serif;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Hiragino Sans", "Yu Gothic", "YuGothic", "Meiryo",
+    "Hiragino Kaku Gothic ProN", sans-serif;
   --fk-font-ko:
-    "Flatkey Public Sans", "Apple SD Gothic Neo", "Malgun Gothic", Inter,
-    Arial, sans-serif;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --fk-font-cyrillic:
-    Inter, "Flatkey Public Sans", "SF Pro Text", "Segoe UI", Arial,
-    sans-serif;
+    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Helvetica Neue", sans-serif;
   --fk-font-sans: var(--fk-font-latin);
   --fk-font-heading: var(--fk-font-sans);
   --fk-font-mono:
@@ -608,6 +610,15 @@ a {
 
 .home-landing h1 {
   font-weight: 650;
+  line-height: 1.05;
+}
+
+.home-landing h2 {
+  line-height: 1.08;
+}
+
+.home-landing :is(h3, h4) {
+  line-height: 1.16;
 }
 
 .home-landing :is(p, span, a, button) {

@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Crown, RefreshCw, Sparkles } from 'lucide-react'
+import { Check, Crown, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
@@ -298,7 +298,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
     () => props.initialSelfData ?? normalizeSelfSubscriptionData(undefined)
   )
   const [loading, setLoading] = useState(props.initialLoading ?? true)
-  const [refreshing, setRefreshing] = useState(false)
   const [purchaseTarget, setPurchaseTarget] = useState<{
     plan: PlanRecord
     requestId: string
@@ -496,15 +495,6 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   useEffect(() => {
     onAvailabilityChange?.(isAvailable)
   }, [isAvailable, onAvailabilityChange])
-
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    try {
-      await Promise.all([fetchPlans(), fetchSelfSubscription()])
-    } finally {
-      setRefreshing(false)
-    }
-  }
 
   const refreshAfterRenewal = async () => {
     const selfRefreshResult = await fetchSelfSubscription({
@@ -796,24 +786,11 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       <TitledCard
         title={t('Subscription Plans')}
         description={t(
-          'One key, 328+ frontier models: GPT, Claude, Gemini, DeepSeek, GLM for text, plus Seedance 2.5 and more for image & video generation.'
+          'One key, 100+ frontier models: GPT, Claude, Gemini, DeepSeek, GLM for text, plus Seedance 2.5 and more for image & video generation.'
         )}
         icon={<Crown className='h-4 w-4' />}
         iconClassName='bg-[#f0ebfa] text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'
         contentClassName='space-y-4 sm:space-y-5'
-        action={
-          <Button
-            variant='ghost'
-            size='icon-sm'
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-label={t('Refresh subscription plans')}
-          >
-            <RefreshCw
-              className={cn('h-4 w-4', refreshing && 'animate-spin')}
-            />
-          </Button>
-        }
       >
         {hasActivePlan && currentPlan ? (
           <CurrentPlanCard
@@ -842,8 +819,8 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
               const displayPrice = discountPreview
                 ? formatPlanPrice(discountPreview.total, currency)
                 : originalPrice
-              const isRecommended =
-                plan.title.trim().toLowerCase() === 'go' &&
+              const isMostPopular =
+                plan.title.trim().toLowerCase() === 'pro' &&
                 orderedPlans.length > 1
               const audience =
                 getPlanAudience(plan.title, t) || plan.subtitle || ''
@@ -866,7 +843,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                   key={plan.id}
                   className={cn(
                     'ring-border rounded-lg shadow-none transition-shadow',
-                    isRecommended
+                    isMostPopular
                       ? 'shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
                       : 'hover:ring-foreground/20'
                   )}
@@ -892,10 +869,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                             {t('OFF')}
                           </span>
                         ) : null}
-                        {isRecommended ? (
+                        {isMostPopular ? (
                           <span className='inline-flex items-center gap-1 rounded-full bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
                             <Sparkles className='h-3 w-3' />
-                            {t('Recommended')}
+                            {t('Most Popular')}
                           </span>
                         ) : null}
                       </div>
@@ -941,7 +918,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                     <Button
                       className={cn(
                         'min-h-11 w-full',
-                        isRecommended &&
+                        isMostPopular &&
                           'bg-[#070707] text-white hover:bg-[#4c1d95] dark:bg-white dark:text-black dark:hover:bg-[#ddd6fe]'
                       )}
                       variant={action === 'switch' ? 'outline' : 'default'}

@@ -97,6 +97,7 @@ interface BillingHistoryDialogProps {
 
 interface BillingHistoryPanelProps {
   scrollAreaClassName?: string
+  showInlineHeader?: boolean
   onAvailabilityChange?: (available: boolean) => void
   onResumeStripeCheckout?: (record: TopupRecord) => Promise<void>
   onRefundSuccess?: () => void | Promise<void>
@@ -532,6 +533,7 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
     handleSearch,
     handleCompleteOrder,
     handleRequestInvoice,
+    refreshLatest,
     refresh: refreshBillingHistory,
   } = useBillingHistory()
   const {
@@ -693,6 +695,31 @@ export function BillingHistoryPanel(props: BillingHistoryPanelProps) {
   return (
     <>
       <div className='min-h-0 space-y-3'>
+        {props.showInlineHeader ? (
+          <div className='flex items-start justify-between gap-3'>
+            <div>
+              <h3 className='text-sm font-semibold'>
+                {t('Recharge History')}
+              </h3>
+              <p className='text-muted-foreground mt-0.5 text-xs'>
+                {t('View your top-up records and payment receipts.')}
+              </p>
+            </div>
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon-sm'
+              disabled={loading}
+              aria-label={t('Refresh')}
+              onClick={() => void refreshLatest()}
+            >
+              <RefreshCw
+                className={cn('h-4 w-4', loading && 'animate-spin')}
+              />
+            </Button>
+          </div>
+        ) : null}
+
         {refundableTermsError ? (
           <RefundableTermsLoadError
             retrying={refundableTermsRetrying}

@@ -16,15 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Activity, BarChart3, WalletCards } from 'lucide-react'
+import { Activity, BarChart3, Gift, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
-  formatCompactNumber,
+  formatNumber,
   formatQuota,
   formatTimestampToDate,
 } from '@/lib/format'
 import { getRoleLabel } from '@/lib/roles'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/status-badge'
@@ -194,7 +195,10 @@ export function ProfileHeader(props: ProfileHeaderProps) {
               data-slot='profile-balance-column'
               className='min-w-0 space-y-2 lg:w-[390px] lg:justify-self-end'
             >
-              <Skeleton className='h-8 w-44 rounded-full lg:ml-auto' />
+              <div className='flex flex-wrap items-center gap-3 lg:justify-end'>
+                <Skeleton className='h-9 w-44 rounded-lg' />
+                <Skeleton className='h-9 w-24 rounded-lg' />
+              </div>
               <div className='space-y-2 lg:flex lg:flex-col lg:items-end'>
                 <Skeleton className='h-4 w-full max-w-sm' />
                 <Skeleton className='h-4 w-full max-w-md' />
@@ -282,7 +286,7 @@ export function ProfileHeader(props: ProfileHeaderProps) {
     },
     {
       label: t('API Requests'),
-      value: formatCompactNumber(props.profile.request_count),
+      value: formatNumber(props.profile.request_count),
       icon: Activity,
     },
   ]
@@ -339,12 +343,6 @@ export function ProfileHeader(props: ProfileHeaderProps) {
                     <span className='truncate'>{props.profile.email}</span>
                   </>
                 )}
-                {props.profile.group && (
-                  <>
-                    <span>•</span>
-                    <span className='truncate'>{props.profile.group}</span>
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -354,19 +352,33 @@ export function ProfileHeader(props: ProfileHeaderProps) {
             className='min-w-0 space-y-2 lg:w-[390px] lg:justify-self-end lg:text-right'
           >
             <div
-              data-slot='profile-balance'
-              className='border-border/70 bg-muted/50 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-sm lg:ml-auto'
+              data-slot='profile-balance-actions'
+              className='flex flex-wrap items-center gap-3 lg:justify-end'
             >
-              <WalletCards
-                className='text-muted-foreground size-4 shrink-0'
-                aria-hidden='true'
-              />
-              <span className='text-muted-foreground shrink-0'>
-                {t('Available balance')}
-              </span>
-              <span className='text-foreground min-w-0 font-mono font-semibold tabular-nums'>
-                {formatQuota(props.profile.quota)}
-              </span>
+              <div
+                data-slot='profile-balance'
+                className='border-border bg-background inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-3 text-sm shadow-xs'
+              >
+                <WalletCards
+                  className='text-muted-foreground size-4 shrink-0'
+                  aria-hidden='true'
+                />
+                <span className='text-muted-foreground shrink-0'>
+                  {t('Available balance')}
+                </span>
+                <span className='text-foreground min-w-0 font-mono font-semibold tabular-nums'>
+                  {formatQuota(props.profile.quota)}
+                </span>
+              </div>
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-9 rounded-lg px-3 shadow-xs'
+                render={<a href='/redeem' />}
+              >
+                <Gift className='size-4' aria-hidden='true' />
+                {t('Redeem Code')}
+              </Button>
             </div>
             <div
               data-slot='profile-balance-guidance'
