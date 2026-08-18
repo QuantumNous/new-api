@@ -43,6 +43,17 @@ func TestResolveCompactBaseStripsMappedSuffixOnce(t *testing.T) {
 	require.Equal(t, "real-openai-compact", resolution.LogicalBillingModel)
 }
 
+func TestResolveCompactExactNonGPTAlwaysUsesBaseMapping(t *testing.T) {
+	resolution, err := ResolveCompactExact("gemini-2.5-flash", map[string]string{
+		"gemini-2.5-flash":                "mapped-base",
+		"gemini-2.5-flash-openai-compact": "ignored-compact",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "mapped-base", resolution.UpstreamModel)
+	require.Equal(t, "mapped-base", resolution.LogicalBillingModel)
+	require.True(t, resolution.Mapped)
+}
+
 func TestResolveRejectsMappingCycle(t *testing.T) {
 	_, _, err := Resolve("a", map[string]string{"a": "b", "b": "a"})
 	require.EqualError(t, err, "model_mapping_contains_cycle")

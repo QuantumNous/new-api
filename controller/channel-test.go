@@ -47,7 +47,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if normalized != "" {
 		return normalized
 	}
-	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
+	if ratio_setting.IsVirtualCompactModel(modelName) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
@@ -147,7 +147,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 
 		// responses compaction models (must use /v1/responses/compact)
-		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
+		if ratio_setting.IsVirtualCompactModel(testModel) {
 			requestPath = "/v1/responses/compact"
 		}
 	}
@@ -157,7 +157,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		requestPath = strings.Replace(requestPath, ":generateContent", ":streamGenerateContent", 1)
 	}
 	if strings.HasPrefix(requestPath, "/v1/responses/compact") {
-		testModel = ratio_setting.WithCompactModelSuffix(testModel)
+		testModel, _ = ratio_setting.VirtualCompactModelName(testModel)
 	}
 
 	c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, requestPath, nil)
@@ -240,7 +240,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 
 	request := buildTestRequest(testModel, endpointType, channel, isStream)
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
-		requestedModel := strings.TrimSuffix(testModel, ratio_setting.CompactModelSuffix)
+		requestedModel := ratio_setting.CompactModelBaseName(testModel)
 		stage := service.SpecificChannelCompactStage(channel, requestedModel)
 		if stage == relaycommon.CompactAttemptNone {
 			err := fmt.Errorf("channel does not support /v1/responses/compact for model %s", requestedModel)
@@ -820,7 +820,8 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	// Responses compaction models (must use /v1/responses/compact)
-	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
+	if constant.EndpointType(endpointType) == constant.EndpointTypeOpenAIResponseCompact ||
+		ratio_setting.IsVirtualCompactModel(model) {
 		return &dto.OpenAIResponsesCompactionRequest{
 			Model: model,
 			Input: testResponsesInput,

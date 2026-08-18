@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -175,4 +176,44 @@ func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	info.SetReasoningEffort("low")
 	info.InitChannelMeta(ctx)
 	assert.Equal(t, "max", info.ReasoningEffort)
+}
+
+func TestGenBaseRelayInfoNormalizesCompactModelIdentity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name          string
+		origin        string
+		requested     string
+		logical       string
+		normalizedReq string
+	}{
+		{
+			name:          "gpt virtual compact",
+			origin:        "gpt-5-openai-compact",
+			requested:     "gpt-5",
+			logical:       "gpt-5-openai-compact",
+			normalizedReq: "gpt-5",
+		},
+		{
+			name:          "non gpt compact suffix uses base",
+			origin:        "gemini-2.5-flash-openai-compact",
+			requested:     "gemini-2.5-flash",
+			logical:       "gemini-2.5-flash",
+			normalizedReq: "gemini-2.5-flash",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/responses/compact", nil)
+			ctx.Set("original_model", tt.origin)
+
+			info := genBaseRelayInfo(ctx, nil)
+			require.Equal(t, relayconstant.RelayModeResponsesCompact, info.RelayMode)
+			require.Equal(t, tt.requested, info.RequestedModel)
+			require.Equal(t, tt.logical, info.LogicalBillingModel)
+			require.Equal(t, tt.normalizedReq, info.OriginModelName)
+		})
+	}
 }

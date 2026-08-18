@@ -24,6 +24,25 @@ func TestCompactChannelStageCapabilities(t *testing.T) {
 	require.False(t, compactChannelSupportsStage(unsupported, map[string]bool{"gpt-5-openai-compact": true}, "gpt-5", "gpt-5-openai-compact", relaycommon.CompactAttemptExact))
 }
 
+func TestNonGPTCompactRequestsSkipExactStage(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeOpenAI}
+	abilityModels := map[string]bool{"gemini-2.5-flash": true}
+	require.False(t, compactChannelSupportsStage(
+		channel,
+		abilityModels,
+		"gemini-2.5-flash",
+		"gemini-2.5-flash",
+		relaycommon.CompactAttemptExact,
+	))
+	require.True(t, compactChannelSupportsStage(
+		channel,
+		abilityModels,
+		"gemini-2.5-flash",
+		"gemini-2.5-flash",
+		relaycommon.CompactAttemptBase,
+	))
+}
+
 func TestAdvancedCustomCompactRequiresExplicitRoute(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeAdvancedCustom}
 	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{

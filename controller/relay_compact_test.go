@@ -64,6 +64,15 @@ func TestCompactRetryTransfersAllExactBudgetWhenStartingAtBase(t *testing.T) {
 	require.Equal(t, 5, state.baseBudget)
 }
 
+func TestCompactRetryStartsNonGPTRequestsAtBase(t *testing.T) {
+	state := newCompactRetryState(&relaycommon.RelayInfo{
+		RelayMode:           relayconstant.RelayModeResponsesCompact,
+		RequestedModel:      "gemini-2.5-flash",
+		CompactAttemptStage: relaycommon.CompactAttemptNone,
+	})
+	require.Equal(t, relaycommon.CompactAttemptBase, state.stage)
+}
+
 func TestCompactModelSemanticErrorDoesNotMatchOrdinaryParameter400(t *testing.T) {
 	ordinary := types.WithOpenAIError(types.OpenAIError{
 		Message: "Invalid value for input",

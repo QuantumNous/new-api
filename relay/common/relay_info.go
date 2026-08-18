@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -556,8 +557,8 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		},
 	}
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
-		info.LogicalBillingModel = info.OriginModelName
-		info.RequestedModel = strings.TrimSuffix(info.OriginModelName, "-openai-compact")
+		info.RequestedModel = ratio_setting.CompactModelBaseName(info.OriginModelName)
+		info.LogicalBillingModel, _ = ratio_setting.VirtualCompactModelName(info.RequestedModel)
 		info.OriginModelName = info.RequestedModel
 		info.CompactAttemptStage = CompactAttemptStage(common.GetContextKeyString(c, constant.ContextKeyCompactStage))
 	}

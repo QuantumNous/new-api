@@ -46,7 +46,7 @@ func Distribute() func(c *gin.Context) {
 			relayconstant.Path2RelayMode(c.Request.URL.Path) == relayconstant.RelayModeResponses &&
 			requestRequiresNativeResponses(c)
 		common.SetContextKey(c, constant.ContextKeyResponsesNativeRequired, requiresNativeResponses)
-		compactRequestedModel := strings.TrimSuffix(modelRequest.Model, ratio_setting.CompactModelSuffix)
+		compactRequestedModel := ratio_setting.CompactModelBaseName(modelRequest.Model)
 		if ok {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
@@ -482,7 +482,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	}
 
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") && modelRequest.Model != "" {
-		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
+		modelRequest.Model, _ = ratio_setting.VirtualCompactModelName(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
 }

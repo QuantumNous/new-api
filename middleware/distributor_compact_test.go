@@ -53,6 +53,28 @@ func TestDistributeAllowsCompactSuffixOnRegularResponsesEndpoint(t *testing.T) {
 	require.True(t, called)
 }
 
+func TestCompactRequestModelUsesBaseForNonGPTAndSuffixForGPT(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "non gpt", body: `{"model":"gemini-2.5-flash"}`, want: "gemini-2.5-flash"},
+		{name: "gpt", body: `{"model":"gpt-5"}`, want: "gpt-5-openai-compact"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", strings.NewReader(test.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+
+			modelRequest, _, err := getModelRequest(c)
+			require.NoError(t, err)
+			require.Equal(t, test.want, modelRequest.Model)
+		})
+	}
+}
+
 func TestDistributeRejectsRemoteCompactionOnNonNativeSpecificChannel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB

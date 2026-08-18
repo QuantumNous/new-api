@@ -52,7 +52,11 @@ func Resolve(modelName string, mapping map[string]string) (string, bool, error) 
 }
 
 func ResolveCompactExact(requestedModel string, mapping map[string]string) (CompactResolution, error) {
-	logicalModel := ratio_setting.WithCompactModelSuffix(requestedModel)
+	requestedModel = ratio_setting.CompactModelBaseName(requestedModel)
+	logicalModel, virtual := ratio_setting.VirtualCompactModelName(requestedModel)
+	if !virtual {
+		return ResolveCompactBase(requestedModel, mapping)
+	}
 	if _, ok := mapping[logicalModel]; ok {
 		upstreamModel, mapped, err := Resolve(logicalModel, mapping)
 		if err != nil {
@@ -88,14 +92,19 @@ func ResolveCompactExact(requestedModel string, mapping map[string]string) (Comp
 }
 
 func ResolveCompactBase(requestedModel string, mapping map[string]string) (CompactResolution, error) {
+	requestedModel = ratio_setting.CompactModelBaseName(requestedModel)
 	mappedModel, mapped, err := Resolve(requestedModel, mapping)
 	if err != nil {
 		return CompactResolution{}, err
 	}
-	upstreamModel := strings.TrimSuffix(mappedModel, ratio_setting.CompactModelSuffix)
+	upstreamModel := ratio_setting.CompactModelBaseName(mappedModel)
+	logicalBillingModel := upstreamModel
+	if _, virtual := ratio_setting.VirtualCompactModelName(requestedModel); virtual {
+		logicalBillingModel = ratio_setting.WithCompactModelSuffix(upstreamModel)
+	}
 	return CompactResolution{
 		UpstreamModel:       upstreamModel,
-		LogicalBillingModel: ratio_setting.WithCompactModelSuffix(upstreamModel),
+		LogicalBillingModel: logicalBillingModel,
 		Mapped:              mapped || upstreamModel != requestedModel,
 	}, nil
 }

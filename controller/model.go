@@ -189,8 +189,13 @@ func projectModelEndpointTypesForToken(modelName string, tokenModelLimit map[str
 	}
 
 	baseAllowed := tokenAllowsModel(tokenModelLimit, modelName)
+	compactModel, virtualCompact := ratio_setting.VirtualCompactModelName(modelName)
+	compactPermission := baseAllowed
+	if virtualCompact {
+		compactPermission = tokenAllowsModel(tokenModelLimit, compactModel)
+	}
 	compactAllowed := slices.Contains(endpointTypes, constant.EndpointTypeOpenAIResponseCompact) &&
-		tokenAllowsModel(tokenModelLimit, ratio_setting.WithCompactModelSuffix(modelName))
+		compactPermission
 	if !baseAllowed && !compactAllowed {
 		return nil, false
 	}
