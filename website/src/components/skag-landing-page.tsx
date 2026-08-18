@@ -142,6 +142,14 @@ export function SkagLandingPage({ config }: Props) {
                 >
                   <h2 className="text-lg font-black tracking-tight text-slate-950 dark:text-white">{feature.title}</h2>
                   <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-400">{feature.body}</p>
+                  {feature.link && (
+                    <Link
+                      href={feature.link.href}
+                      className="mt-4 inline-flex text-sm font-black text-violet-700 underline-offset-4 hover:underline dark:text-violet-300"
+                    >
+                      {feature.link.label}
+                    </Link>
+                  )}
                 </article>
               ))}
             </div>

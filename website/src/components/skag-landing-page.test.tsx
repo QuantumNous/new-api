@@ -72,11 +72,40 @@ describe("SkagLandingPage", () => {
     const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api", "pt")} />);
 
     expect(html).toContain("Obter chave da API DeepSeek");
+    expect(html).toContain("disponibilidade acima de 98%");
+    expect(html).toContain("sem grandes mudanças no código");
+    expect(html).toContain("pronto para usar imediatamente");
+    expect(html).toContain("Preços DeepSeek transparentes");
+    expect(html).toContain("Veja a lista ao vivo");
+    expect(html).toContain("/pt/models?vendor=DeepSeek");
+    expect(html).toContain("Compare modelos sem novas contas");
+    expect(html).toContain("Veja todos os modelos");
+    expect(html).toContain("/pt/models");
+    expect(html).toContain("deepseek-v3 / 1M tokens");
+    expect(html).toContain("$0.34");
+    expect(html).toContain("deepseek-v4-flash / 1M tokens");
+    expect(html).toContain("$0.374");
+    expect(html).toContain("deepseek-v4-pro / 1M tokens");
+    expect(html).toContain("$1.122");
     expect(html).toContain("bg-gradient-to-r from-[#5f86ff] to-[#8357ff]");
     expect(html).toContain('style="color:#fff"');
     expect(html).not.toContain("Ver preços ao vivo");
     expect(html).not.toContain("from openai import OpenAI");
     expect(html).toContain("max-w-6xl");
+  });
+
+  test("renders DeepSeek feature links in English", () => {
+    const html = renderToStaticMarkup(<SkagLandingPage config={getSkagLandingConfig("deepseek-api")} />);
+
+    expect(html).toContain("over 98% availability");
+    expect(html).toContain("without major code changes");
+    expect(html).toContain("ready to use immediately");
+    expect(html).toContain("Transparent DeepSeek pricing");
+    expect(html).toContain("See live DeepSeek pricing");
+    expect(html).toContain("/models?vendor=DeepSeek");
+    expect(html).toContain("One account for model comparison");
+    expect(html).toContain("See all models");
+    expect(html).toContain("/models");
   });
 
   test("limits the DeepSeek language switcher to translated locales", () => {

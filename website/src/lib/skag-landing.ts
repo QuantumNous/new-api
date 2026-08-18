@@ -48,7 +48,7 @@ export type SkagLandingConfig = {
   /** Model id used in the runnable curl / Python example. */
   exampleModel: string;
   codeTitle: string;
-  features: Array<{ title: string; body: string }>;
+  features: Array<{ title: string; body: string; link?: { label: string; href: string } }>;
   faq: Array<{ question: string; answer: string }>;
   seo: {
     title: string;
@@ -452,9 +452,9 @@ const DEEPSEEK_API: SkagLandingConfig = {
   hideCodeWindow: true,
   pricingTitle: "Stable DeepSeek API access",
   priceRows: [
-    { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.056", official: "$0.14" },
-    { label: "DeepSeek V3, V3.2, V4 Pro", flatkey: "One key", official: "Separate setup" },
-    { label: "OpenAI SDK migration", flatkey: "base_url + key", official: "Provider SDK work" },
+    { label: "deepseek-v3 / 1M tokens", flatkey: "$0.34", official: "$0.4" },
+    { label: "deepseek-v4-flash / 1M tokens", flatkey: "$0.374", official: "$0.44" },
+    { label: "deepseek-v4-pro / 1M tokens", flatkey: "$1.122", official: "$1.32" },
   ],
   priceFootnote: "* Representative coverage — see live pricing for current model rates and availability.",
   exampleModel: "deepseek-v4-flash",
@@ -462,19 +462,21 @@ const DEEPSEEK_API: SkagLandingConfig = {
   features: [
     {
       title: "Stable access for production",
-      body: "Route DeepSeek requests through one managed API instead of depending on a single provider console when availability matters to your application.",
+      body: "Route DeepSeek requests through one managed API with over 98% availability instead of depending on a single provider console when availability matters to your application.",
     },
     {
       title: "OpenAI-compatible API",
-      body: "Keep the OpenAI SDK already in your application. Change base_url, set a flatkey API key, and select a DeepSeek model id.",
+      body: "Keep the OpenAI SDK already in your application. Change base_url, set a flatkey API key, and select a DeepSeek model id without major code changes, ready to use immediately.",
     },
     {
-      title: "Per-token cost visibility",
-      body: "Check current per-token pricing and availability in one account before you scale code, automation, and other API workloads.",
+      title: "Transparent DeepSeek pricing",
+      body: "Check prices per 1M tokens, official price comparison, latency, and health score for DeepSeek models before you scale code and automation.",
+      link: { label: "See live DeepSeek pricing", href: "/models?vendor=DeepSeek" },
     },
     {
       title: "One account for model comparison",
-      body: "Compare DeepSeek with GPT, Claude, Gemini, Qwen, and GLM without creating separate provider accounts or changing your API integration.",
+      body: "Compare DeepSeek with GPT, Claude, Gemini, Qwen, and GLM in the same model directory without creating separate provider accounts or changing your API integration.",
+      link: { label: "See all models", href: "/models" },
     },
   ],
   faq: [
@@ -514,9 +516,9 @@ const PT_DEEPSEEK_API: SkagLandingConfig = {
   trustLine: "DeepSeek · GPT · Claude · Gemini · Qwen · GLM — uma chave, uma fatura · sem cartão de crédito para começar",
   pricingTitle: "Acesso estável à API DeepSeek",
   priceRows: [
-    { label: "DeepSeek V4 Flash / 1M tokens", flatkey: "$0.056", official: "$0.14" },
-    { label: "DeepSeek V3, V3.2, V4 Pro", flatkey: "Uma chave", official: "Configurações separadas" },
-    { label: "Migração do SDK OpenAI", flatkey: "base_url + key", official: "Trabalho por fornecedor" },
+    { label: "deepseek-v3 / 1M tokens", flatkey: "$0.34", official: "$0.4" },
+    { label: "deepseek-v4-flash / 1M tokens", flatkey: "$0.374", official: "$0.44" },
+    { label: "deepseek-v4-pro / 1M tokens", flatkey: "$1.122", official: "$1.32" },
   ],
   priceFootnote: "* Cobertura representativa — veja os preços ao vivo para taxas e disponibilidade atuais.",
   exampleModel: "deepseek-v4-flash",
@@ -524,19 +526,21 @@ const PT_DEEPSEEK_API: SkagLandingConfig = {
   features: [
     {
       title: "Acesso estável para produção",
-      body: "Encaminhe chamadas DeepSeek por uma API gerenciada em vez de depender de um único console de fornecedor quando a disponibilidade importa para seu aplicativo.",
+      body: "Encaminhe chamadas DeepSeek por uma API gerenciada com disponibilidade acima de 98%, em vez de depender de um único console de fornecedor quando a disponibilidade importa para seu aplicativo.",
     },
     {
       title: "API compatível com OpenAI",
-      body: "Mantenha o SDK da OpenAI que já existe no seu aplicativo. Altere base_url, use uma chave flatkey e escolha o ID do modelo DeepSeek.",
+      body: "Mantenha o SDK da OpenAI que já existe no seu aplicativo. Altere base_url, use uma chave flatkey e escolha o ID do modelo DeepSeek, sem grandes mudanças no código e pronto para usar imediatamente.",
     },
     {
-      title: "Visibilidade de custo por token",
-      body: "Confira preço por token e disponibilidade atuais em uma conta antes de escalar código, automação e outras cargas de API.",
+      title: "Preços DeepSeek transparentes",
+      body: "Confira preços por 1M tokens, comparação com preço oficial, latência e pontuação de saúde dos modelos DeepSeek antes de escalar código e automação.",
+      link: { label: "Veja a lista ao vivo", href: "/pt/models?vendor=DeepSeek" },
     },
     {
       title: "Compare modelos sem novas contas",
-      body: "Compare DeepSeek com GPT, Claude, Gemini, Qwen e GLM sem abrir contas separadas de fornecedor nem mudar sua integração de API.",
+      body: "Compare DeepSeek com GPT, Claude, Gemini, Qwen e GLM no mesmo diretório de modelos, sem abrir contas separadas de fornecedor nem mudar sua integração de API.",
+      link: { label: "Veja todos os modelos", href: "/pt/models" },
     },
   ],
   faq: [
