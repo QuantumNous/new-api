@@ -13,7 +13,7 @@ func ResolveModel(modelName string) (string, string) {
 	}
 
 	normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
-	baseModel := ratio_setting.CompactModelBaseName(normalizedModel)
+	baseModel := strings.TrimSuffix(normalizedModel, ratio_setting.CompactModelSuffix)
 	manualPrice := ratio_setting.GetModelPriceCopy()
 	manualRatio := ratio_setting.GetModelRatioCopy()
 	hasManual := func(name string) bool {
@@ -25,18 +25,6 @@ func ResolveModel(modelName string) (string, string) {
 		}
 		_, ok := manualRatio[name]
 		return ok
-	}
-
-	// Only GPT names represent a virtual compact model. A compact-looking name
-	// from any other provider is billed and resolved as its base model.
-	if !ratio_setting.IsVirtualCompactModel(normalizedModel) {
-		if hasManual(baseModel) {
-			return baseModel, "compact_base_manual"
-		}
-		if ratio_setting.HasAutoPricingEntry(baseModel) {
-			return baseModel, "compact_base_auto"
-		}
-		return baseModel, "compact_base_unconfigured"
 	}
 
 	if hasManual(normalizedModel) {

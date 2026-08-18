@@ -281,11 +281,11 @@ func TestGetUserModelsAddsCompactPermissionVariantWithoutChangingStandardDiscove
 		Name:   "compact-openai",
 		Status: common.ChannelStatusEnabled,
 		Group:  "default",
-		Models: "gpt-compact-capable",
+		Models: "zz-compact-capable",
 	}).Error)
 	require.NoError(t, db.Create(&model.Ability{
 		Group:     "default",
-		Model:     "gpt-compact-capable",
+		Model:     "zz-compact-capable",
 		ChannelId: 704,
 		Enabled:   true,
 	}).Error)
@@ -298,49 +298,14 @@ func TestGetUserModelsAddsCompactPermissionVariantWithoutChangingStandardDiscove
 	GetUserModels(ctx)
 
 	models := decodeUserModelsResponse(t, recorder)
-	require.ElementsMatch(t, []string{"gpt-compact-capable", "gpt-compact-capable-openai-compact"}, models)
+	require.ElementsMatch(t, []string{"zz-compact-capable", "zz-compact-capable-openai-compact"}, models)
 
 	standardRecorder := httptest.NewRecorder()
 	standardCtx, _ := gin.CreateTestContext(standardRecorder)
 	standardCtx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 	standardCtx.Set("id", 1004)
 	ListModels(standardCtx, constant.ChannelTypeOpenAI)
-	require.Equal(t, map[string]struct{}{"gpt-compact-capable": {}}, decodeListModelsResponse(t, standardRecorder))
-}
-
-func TestGetUserModelsDoesNotExpandNonGPTCompactVariant(t *testing.T) {
-	withSelfUseModeEnabled(t)
-	db := setupModelListControllerTestDB(t)
-	require.NoError(t, db.Create(&model.User{
-		Id:       1005,
-		Username: "non-gpt-compact-user",
-		Password: "password",
-		Group:    "default",
-		Status:   common.UserStatusEnabled,
-	}).Error)
-	require.NoError(t, db.Create(&model.Channel{
-		Id:     708,
-		Type:   constant.ChannelTypeOpenAI,
-		Name:   "non-gpt-compact-openai",
-		Status: common.ChannelStatusEnabled,
-		Group:  "default",
-		Models: "zz-compact-capable",
-	}).Error)
-	require.NoError(t, db.Create(&model.Ability{
-		Group:     "default",
-		Model:     "zz-compact-capable",
-		ChannelId: 708,
-		Enabled:   true,
-	}).Error)
-	model.InvalidatePricingCache()
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?group=default", nil)
-	ctx.Set("id", 1005)
-	GetUserModels(ctx)
-
-	require.Equal(t, []string{"zz-compact-capable"}, decodeUserModelsResponse(t, recorder))
+	require.Equal(t, map[string]struct{}{"zz-compact-capable": {}}, decodeListModelsResponse(t, standardRecorder))
 }
 
 func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
@@ -352,11 +317,11 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 		Name:   "compact-token-projection",
 		Status: common.ChannelStatusEnabled,
 		Group:  "default",
-		Models: "gpt-compact-token-model",
+		Models: "zz-compact-token-model",
 	}).Error)
 	require.NoError(t, db.Create(&model.Ability{
 		Group:     "default",
-		Model:     "gpt-compact-token-model",
+		Model:     "zz-compact-token-model",
 		ChannelId: 705,
 		Enabled:   true,
 	}).Error)
@@ -372,7 +337,7 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 	}{
 		{
 			name:  "base only",
-			limit: map[string]bool{"gpt-compact-token-model": true},
+			limit: map[string]bool{"zz-compact-token-model": true},
 			endpoints: []constant.EndpointType{
 				constant.EndpointTypeOpenAI,
 				constant.EndpointTypeOpenAIResponse,
@@ -381,15 +346,15 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 		},
 		{
 			name:      "compact only",
-			limit:     map[string]bool{"gpt-compact-token-model-openai-compact": true},
+			limit:     map[string]bool{"zz-compact-token-model-openai-compact": true},
 			endpoints: []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact},
 			visible:   true,
 		},
 		{
 			name: "base and compact",
 			limit: map[string]bool{
-				"gpt-compact-token-model":                true,
-				"gpt-compact-token-model-openai-compact": true,
+				"zz-compact-token-model":                true,
+				"zz-compact-token-model-openai-compact": true,
 			},
 			endpoints: []constant.EndpointType{
 				constant.EndpointTypeOpenAI,
@@ -417,48 +382,10 @@ func TestListModelsProjectsCompactEndpointsByTokenPermission(t *testing.T) {
 				return
 			}
 			require.Len(t, payload.Data, 1)
-			require.Equal(t, "gpt-compact-token-model", payload.Data[0].Id)
+			require.Equal(t, "zz-compact-token-model", payload.Data[0].Id)
 			require.Equal(t, test.endpoints, payload.Data[0].SupportedEndpointTypes)
 		})
 	}
-}
-
-func TestListModelsUsesBasePermissionForNonGPTCompactEndpoint(t *testing.T) {
-	withSelfUseModeEnabled(t)
-	db := setupModelListControllerTestDB(t)
-	require.NoError(t, db.Create(&model.Channel{
-		Id:     707,
-		Type:   constant.ChannelTypeOpenAI,
-		Name:   "non-gpt-compact-base",
-		Status: common.ChannelStatusEnabled,
-		Group:  "default",
-		Models: "zz-compact-base-model",
-	}).Error)
-	require.NoError(t, db.Create(&model.Ability{
-		Group:     "default",
-		Model:     "zz-compact-base-model",
-		ChannelId: 707,
-		Enabled:   true,
-	}).Error)
-	model.InitChannelCache()
-	model.InvalidatePricingCache()
-	model.GetPricing()
-
-	list := func(limit map[string]bool) []dto.OpenAIModels {
-		recorder := httptest.NewRecorder()
-		ctx, _ := gin.CreateTestContext(recorder)
-		ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-		common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
-		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
-		common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, limit)
-		ListModels(ctx, constant.ChannelTypeOpenAI)
-		return decodeListModelsPayload(t, recorder).Data
-	}
-
-	baseModels := list(map[string]bool{"zz-compact-base-model": true})
-	require.Len(t, baseModels, 1)
-	require.Contains(t, baseModels[0].SupportedEndpointTypes, constant.EndpointTypeOpenAIResponseCompact)
-	require.Empty(t, list(map[string]bool{"zz-compact-base-model-openai-compact": true}))
 }
 
 func TestTokenModelPermissionNormalizationKeepsCompactWildcardIsolated(t *testing.T) {

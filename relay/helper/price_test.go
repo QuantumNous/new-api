@@ -317,13 +317,13 @@ func TestCompactPricingWildcardPrecedesBaseFixedPrice(t *testing.T) {
 	})
 
 	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
-	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"*-openai-compact":0.1,"gpt-compact-base":0.2}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"*-openai-compact":0.1,"compact-base":0.2}`))
 
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Set("group", "default")
 	info := &relaycommon.RelayInfo{
-		OriginModelName:     "gpt-compact-base",
-		LogicalBillingModel: "gpt-compact-base-openai-compact",
+		OriginModelName:     "compact-base",
+		LogicalBillingModel: "compact-base-openai-compact",
 		UserGroup:           "default",
 		UsingGroup:          "default",
 	}

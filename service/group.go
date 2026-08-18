@@ -137,10 +137,7 @@ func ExpandCompactPermissionModels(models []string) []string {
 		if !slices.Contains(model.GetModelSupportEndpointTypes(modelName), constant.EndpointTypeOpenAIResponseCompact) {
 			continue
 		}
-		compactModel, virtual := ratio_setting.VirtualCompactModelName(modelName)
-		if !virtual {
-			continue
-		}
+		compactModel := ratio_setting.WithCompactModelSuffix(modelName)
 		if _, ok := seen[compactModel]; ok {
 			continue
 		}

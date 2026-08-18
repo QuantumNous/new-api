@@ -43,21 +43,12 @@ func CacheGetRandomSatisfiedCompactChannel(
 	requestedModel string,
 	stage relaycommon.CompactAttemptStage,
 ) (*model.Channel, string, error) {
-	requestedModel = ratio_setting.CompactModelBaseName(requestedModel)
-	logicalModel, virtual := ratio_setting.VirtualCompactModelName(requestedModel)
-	if stage == relaycommon.CompactAttemptExact && !virtual {
-		param.ModelName = logicalModel
-		return nil, param.TokenGroup, nil
-	}
+	logicalModel := ratio_setting.WithCompactModelSuffix(requestedModel)
 	param.ModelName = logicalModel
-	candidateModels := []string{logicalModel}
-	if virtual {
-		candidateModels = append(candidateModels, requestedModel)
-	}
 	return cacheGetRandomSatisfiedChannel(param, func(group string, _ int) (*model.Channel, error) {
 		return model.GetRandomSatisfiedChannelForModels(
 			group,
-			candidateModels,
+			[]string{logicalModel, requestedModel},
 			0,
 			param.RequestPath,
 			requestedModel,
@@ -78,18 +69,17 @@ func CacheGetRandomSatisfiedCompactChannel(
 }
 
 func PreferredChannelCompactStage(channel *model.Channel, group, requestedModel string) relaycommon.CompactAttemptStage {
-	requestedModel = ratio_setting.CompactModelBaseName(requestedModel)
 	if channel == nil || !channelSupportsCompactEndpoint(channel, requestedModel) {
 		return relaycommon.CompactAttemptNone
 	}
-	logicalModel, virtual := ratio_setting.VirtualCompactModelName(requestedModel)
+	logicalModel := ratio_setting.WithCompactModelSuffix(requestedModel)
 	exactAbility := model.IsChannelEnabledForGroupModel(group, logicalModel, channel.Id)
 	baseAbility := model.IsChannelEnabledForGroupModel(group, requestedModel, channel.Id)
 	abilityModels := map[string]bool{
 		logicalModel:   exactAbility,
 		requestedModel: baseAbility,
 	}
-	if virtual && compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
+	if compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
 		return relaycommon.CompactAttemptExact
 	}
 	if compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptBase) {
@@ -99,20 +89,16 @@ func PreferredChannelCompactStage(channel *model.Channel, group, requestedModel 
 }
 
 func SpecificChannelCompactStage(channel *model.Channel, requestedModel string) relaycommon.CompactAttemptStage {
-	requestedModel = ratio_setting.CompactModelBaseName(requestedModel)
 	if channel == nil || !channelSupportsCompactEndpoint(channel, requestedModel) {
 		return relaycommon.CompactAttemptNone
 	}
-	logicalModel, virtual := ratio_setting.VirtualCompactModelName(requestedModel)
+	logicalModel := ratio_setting.WithCompactModelSuffix(requestedModel)
 	abilityModels := make(map[string]bool)
 	for _, modelName := range strings.Split(channel.Models, ",") {
 		abilityModels[strings.TrimSpace(modelName)] = true
 	}
-	if virtual && compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
+	if compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptExact) {
 		return relaycommon.CompactAttemptExact
-	}
-	if !virtual && !compactChannelSupportsStage(channel, abilityModels, requestedModel, logicalModel, relaycommon.CompactAttemptBase) {
-		return relaycommon.CompactAttemptNone
 	}
 	return relaycommon.CompactAttemptBase
 }
@@ -129,9 +115,6 @@ func compactChannelSupportsStage(
 	}
 	switch stage {
 	case relaycommon.CompactAttemptExact:
-		if !ratio_setting.IsVirtualCompactModel(logicalModel) {
-			return false
-		}
 		if abilityModels[logicalModel] || abilityModels[ratio_setting.FormatMatchingModelName(logicalModel)] {
 			return true
 		}

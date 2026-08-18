@@ -25,7 +25,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/samber/lo"
@@ -382,12 +381,7 @@ func newCompactRetryState(info *relaycommon.RelayInfo) *compactRetryState {
 	}
 	stage := info.CompactAttemptStage
 	if stage == relaycommon.CompactAttemptNone {
-		_, virtual := ratio_setting.VirtualCompactModelName(info.RequestedModel)
-		if virtual {
-			stage = relaycommon.CompactAttemptExact
-		} else {
-			stage = relaycommon.CompactAttemptBase
-		}
+		stage = relaycommon.CompactAttemptExact
 	}
 	state := &compactRetryState{
 		stage:       stage,
