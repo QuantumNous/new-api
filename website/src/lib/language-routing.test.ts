@@ -40,6 +40,27 @@ describe("language routing", () => {
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", cookieLocale: "fr", acceptLanguage: "ja" })).toBe("/fr/pricing");
   });
 
+  test("keeps header and footer clicks on English pages in English", () => {
+    expect(
+      getLanguageRedirectPath({
+        pathname: "/pricing",
+        method: "GET",
+        cookieLocale: "zh",
+        acceptLanguage: "zh-CN,zh;q=0.9",
+        refererPathname: "/",
+      })
+    ).toBeNull();
+    expect(
+      getLanguageRedirectPath({
+        pathname: "/models",
+        method: "GET",
+        cookieLocale: "zh",
+        acceptLanguage: "zh-CN,zh;q=0.9",
+        refererPathname: "/pricing",
+      })
+    ).toBeNull();
+  });
+
   test("does not redirect English preferences or explicit locale paths", () => {
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", acceptLanguage: "en-US,en;q=0.9" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/ja/pricing", method: "GET", acceptLanguage: "fr" })).toBeNull();
@@ -60,6 +81,12 @@ describe("language routing", () => {
     expect(getLanguageRedirectPath({ pathname: "/br", method: "GET", acceptLanguage: "pt-BR" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/in", method: "GET", acceptLanguage: "hi-IN" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/id-market", method: "GET", acceptLanguage: "id-ID" })).toBeNull();
+  });
+
+  test("keeps careers on the canonical English path unless zh is selected", () => {
+    expect(getLanguageRedirectPath({ pathname: "/careers", method: "GET", acceptLanguage: "id-ID" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/careers", method: "GET", cookieLocale: "id", acceptLanguage: "zh-CN" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/careers", method: "GET", acceptLanguage: "zh-CN,zh;q=0.9" })).toBe("/zh/careers");
   });
 
   test("does not localize English-only paid-search landing pages", () => {

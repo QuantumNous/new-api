@@ -50,7 +50,12 @@ type LanguageRedirectInput = {
   method: string;
   acceptLanguage?: string | null;
   cookieLocale?: string | null;
+  refererPathname?: string | null;
   userAgent?: string | null;
+};
+
+const PATH_LOCALE_ALLOWLIST: Partial<Record<string, Locale[]>> = {
+  "/careers": ["zh"],
 };
 
 export function isBotUserAgent(userAgent: string | null | undefined): boolean {
@@ -79,9 +84,11 @@ export function getLanguageRedirectPath(input: LanguageRedirectInput): string | 
   if (shouldIgnorePath(pathname)) return null;
   if (pathname === "/") return null;
   if (hasLocalePrefix(pathname)) return null;
+  if (isDefaultLocaleNavigation(input.refererPathname)) return null;
 
   const locale = resolvePreferredLocale(input.cookieLocale, input.acceptLanguage);
   if (locale === DEFAULT_LOCALE) return null;
+  if (!isLocaleEnabledForPath(pathname, locale)) return null;
 
   return localizePath(pathname, locale);
 }
@@ -132,6 +139,19 @@ function normalizePathname(pathname: string): string {
 function hasLocalePrefix(pathname: string): boolean {
   const firstSegment = pathname.split("/")[1];
   return isLocale(firstSegment);
+}
+
+function isDefaultLocaleNavigation(refererPathname: string | null | undefined): boolean {
+  if (!refererPathname) return false;
+
+  const pathname = normalizePathname(refererPathname);
+  if (shouldIgnorePath(pathname)) return false;
+  return !hasLocalePrefix(pathname);
+}
+
+function isLocaleEnabledForPath(pathname: string, locale: Locale): boolean {
+  const allowedLocales = PATH_LOCALE_ALLOWLIST[pathname];
+  return !allowedLocales || allowedLocales.includes(locale);
 }
 
 function shouldIgnorePath(pathname: string): boolean {

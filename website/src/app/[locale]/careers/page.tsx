@@ -17,6 +17,7 @@ export async function generateMetadata({ params }: Props) {
     description: "加入 San Jose 一支小而快乐的 AI-native 团队：每个人带一队 agent 工作。我们招真正动手做出过东西的 Builder 和增长工程师。",
     pathname: "/careers",
     locale,
+    locales: ["en", "zh"],
   });
 }
 
