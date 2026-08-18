@@ -6606,6 +6606,21 @@
     "GitHub Copilot channels support one credential only": "GitHub Copilot channels support one credential only",
     "Cooling": "Cooling",
     "Max concurrency must be a non-negative integer": "Max concurrency must be a non-negative integer",
-    "0 removes the limit": "0 removes the limit"
+    "0 removes the limit": "0 removes the limit",
+    "Channel Concurrency Limits": "Channel Concurrency Limits",
+    "Controls queueing and cooldown for channels with a max concurrency; channels without a limit are unaffected": "Controls queueing and cooldown for channels with a max concurrency; channels without a limit are unaffected",
+    "Queue when concurrency is full": "Queue when concurrency is full",
+    "When a bounded channel is saturated, hold the request briefly for a freed slot instead of failing immediately": "When a bounded channel is saturated, hold the request briefly for a freed slot instead of failing immediately",
+    "Queue timeout (ms)": "Queue timeout (ms)",
+    "Max waiting per channel (0 = same as its concurrency limit)": "Max waiting per channel (0 = same as its concurrency limit)",
+    "Enable channel cooldown": "Enable channel cooldown",
+    "Temporarily exclude a bounded channel from selection after upstream rate-limit signals": "Temporarily exclude a bounded channel from selection after upstream rate-limit signals",
+    "Cooldown duration (seconds)": "Cooldown duration (seconds)",
+    "Cool down on upstream HTTP 429": "Cool down on upstream HTTP 429",
+    "Trigger cooldown only when the upstream explicitly returns HTTP 429": "Trigger cooldown only when the upstream explicitly returns HTTP 429",
+    "Cool down on rate-limit keywords in error messages (prone to false positives)": "Cool down on rate-limit keywords in error messages (prone to false positives)",
+    "Also trigger cooldown when error messages merely mention rate-limit-like keywords; fuzzy matching, off by default": "Also trigger cooldown when error messages merely mention rate-limit-like keywords; fuzzy matching, off by default",
+    "Load snapshot cache (reduces Redis pressure)": "Load snapshot cache (reduces Redis pressure)",
+    "Cache channel load snapshots briefly for routing decisions; disable only to debug routing with live reads": "Cache channel load snapshots briefly for routing decisions; disable only to debug routing with live reads"
   }
 }

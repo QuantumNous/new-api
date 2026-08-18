@@ -23,6 +23,7 @@ import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
+import { ChannelConcurrencySection } from './channel-concurrency-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -181,6 +182,35 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'channel-concurrency',
+    titleKey: 'Channel Concurrency Limits',
+    build: (settings: OperationsSettings) => (
+      <ChannelConcurrencySection
+        defaultValues={{
+          'channel_concurrency_setting.wait_enabled':
+            settings['channel_concurrency_setting.wait_enabled'] ?? true,
+          'channel_concurrency_setting.wait_timeout_ms':
+            settings['channel_concurrency_setting.wait_timeout_ms'] ?? 5000,
+          'channel_concurrency_setting.max_waiting_per_channel':
+            settings['channel_concurrency_setting.max_waiting_per_channel'] ??
+            0,
+          'channel_concurrency_setting.cooldown_enabled':
+            settings['channel_concurrency_setting.cooldown_enabled'] ?? true,
+          'channel_concurrency_setting.cooldown_seconds':
+            settings['channel_concurrency_setting.cooldown_seconds'] ?? 30,
+          'channel_concurrency_setting.cooldown_on_status_429':
+            settings['channel_concurrency_setting.cooldown_on_status_429'] ??
+            true,
+          'channel_concurrency_setting.cooldown_on_message_match':
+            settings['channel_concurrency_setting.cooldown_on_message_match'] ??
+            false,
+          'channel_concurrency_setting.load_cache_enabled':
+            settings['channel_concurrency_setting.load_cache_enabled'] ?? true,
         }}
       />
     ),

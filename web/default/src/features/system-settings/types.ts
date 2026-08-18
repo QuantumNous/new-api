@@ -381,6 +381,14 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+  'channel_concurrency_setting.wait_enabled': boolean
+  'channel_concurrency_setting.wait_timeout_ms': number
+  'channel_concurrency_setting.max_waiting_per_channel': number
+  'channel_concurrency_setting.cooldown_enabled': boolean
+  'channel_concurrency_setting.cooldown_seconds': number
+  'channel_concurrency_setting.cooldown_on_status_429': boolean
+  'channel_concurrency_setting.cooldown_on_message_match': boolean
+  'channel_concurrency_setting.load_cache_enabled': boolean
 }
 
 export type SecuritySettings = {
