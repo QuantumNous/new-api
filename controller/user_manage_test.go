@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/authz"
 
@@ -59,6 +60,113 @@ func performManageUserRequest(t *testing.T, body string) *httptest.ResponseRecor
 	c.Set("username", "root-operator")
 	ManageUser(c)
 	return recorder
+}
+
+func performUpdateUserRequest(t *testing.T, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/user", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("id", 9999)
+	c.Set("role", common.RoleRootUser)
+	c.Set("username", "root-operator")
+	UpdateUser(c)
+	return recorder
+}
+
+func TestRegisterRejectsOmittedPassword(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	previousRegisterEnabled := common.RegisterEnabled
+	previousPasswordRegisterEnabled := common.PasswordRegisterEnabled
+	previousEmailVerificationEnabled := common.EmailVerificationEnabled
+	previousGenerateDefaultToken := constant.GenerateDefaultToken
+	common.RegisterEnabled = true
+	common.PasswordRegisterEnabled = true
+	common.EmailVerificationEnabled = false
+	constant.GenerateDefaultToken = false
+	t.Cleanup(func() {
+		common.RegisterEnabled = previousRegisterEnabled
+		common.PasswordRegisterEnabled = previousPasswordRegisterEnabled
+		common.EmailVerificationEnabled = previousEmailVerificationEnabled
+		constant.GenerateDefaultToken = previousGenerateDefaultToken
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/register", strings.NewReader(`{"username":"missing-password"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	Register(c)
+
+	assert.Contains(t, recorder.Body.String(), `"success":false`)
+	var userCount int64
+	require.NoError(t, db.Model(&model.User{}).Count(&userCount).Error)
+	assert.Zero(t, userCount)
+}
+
+func TestUpdateUserAcceptsFormerPasswordSentinelAsPassword(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	passwordHash, err := common.Password2Hash("OldPassword123!")
+	require.NoError(t, err)
+	user := model.User{
+		Username:    "sentinel-user",
+		Password:    passwordHash,
+		DisplayName: "Sentinel User",
+		Role:        common.RoleAdminUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AuthVersion: 1,
+		AffCode:     "sentinel-password-aff",
+	}
+	require.NoError(t, db.Create(&user).Error)
+
+	body := fmt.Sprintf(
+		`{"id":%d,"username":%q,"display_name":%q,"password":"$I_LOVE_U","role":%d,"status":%d,"group":"default"}`,
+		user.Id,
+		user.Username,
+		user.DisplayName,
+		user.Role,
+		user.Status,
+	)
+	recorder := performUpdateUserRequest(t, body)
+
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	var updated model.User
+	require.NoError(t, db.First(&updated, user.Id).Error)
+	assert.True(t, common.ValidatePasswordAndHash("$I_LOVE_U", updated.Password))
+}
+
+func TestUpdateUserKeepsPasswordWhenOmitted(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	passwordHash, err := common.Password2Hash("ExistingPassword123!")
+	require.NoError(t, err)
+	user := model.User{
+		Username:    "unchanged-user",
+		Password:    passwordHash,
+		DisplayName: "Before Update",
+		Role:        common.RoleAdminUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AuthVersion: 1,
+		AffCode:     "unchanged-pass-aff",
+	}
+	require.NoError(t, db.Create(&user).Error)
+
+	body := fmt.Sprintf(
+		`{"id":%d,"username":%q,"display_name":"After Update","role":%d,"status":%d,"group":"default"}`,
+		user.Id,
+		user.Username,
+		user.Role,
+		user.Status,
+	)
+	recorder := performUpdateUserRequest(t, body)
+
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	var updated model.User
+	require.NoError(t, db.First(&updated, user.Id).Error)
+	assert.Equal(t, passwordHash, updated.Password)
+	assert.Equal(t, "After Update", updated.DisplayName)
 }
 
 func TestManageUserDisableAdvancesAuthVersionOnceAndRevokesSession(t *testing.T) {

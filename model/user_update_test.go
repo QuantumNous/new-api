@@ -354,6 +354,32 @@ func TestValidateAndFillRejectsPasswordlessUser(t *testing.T) {
 	assert.Empty(t, stored.Password)
 }
 
+func TestValidateAndFillAcceptsExistingPasswordOverCurrentLengthLimit(t *testing.T) {
+	setupUserUpdateTestState(t)
+	legacyPassword := "LegacyPasswordOver20!"
+	passwordHash, err := common.Password2Hash(legacyPassword)
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&User{
+		Username: "legacy-password-user",
+		Password: passwordHash,
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	loginUser := User{
+		Username: "legacy-password-user",
+		Password: legacyPassword,
+	}
+
+	require.NoError(t, loginUser.ValidateAndFill())
+	assert.NotZero(t, loginUser.Id)
+}
+
+func TestUserValidationAllowsOmittedPassword(t *testing.T) {
+	user := User{Username: "profile-update-user"}
+
+	require.NoError(t, common.Validate.Struct(&user))
+}
+
 func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {
 	setupUserUpdateTestState(t)
 
