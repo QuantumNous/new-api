@@ -11,6 +11,7 @@ var (
 	ErrCompactStreamUnsupported = errors.New("grok compact: stream=true not supported")
 	ErrCompactMissingReasoning  = errors.New("grok compact: response missing encrypted reasoning")
 	ErrCompactMissingSummary    = errors.New("grok compact: response missing summary text")
+	ErrCompactInvalidInput      = errors.New("grok compact: input must be an array of items")
 )
 
 // summaryInstruction 是自撰的服务端 summary 指令（clean-room，不复制 sub2api 文本）。
@@ -42,6 +43,11 @@ func hasSummaryItem(jsonData []byte) bool {
 func BuildCompactTurn(jsonData []byte) ([]byte, error) {
 	if gjson.GetBytes(jsonData, "stream").Bool() {
 		return nil, ErrCompactStreamUnsupported
+	}
+	// 非数组 input（string/对象等简写形态）下 sjson 的 "input.-1" 是覆写而非追加，
+	// 会静默丢弃原始对话并产出非法上游请求，故直接拒绝；简写归一化留给后续接线任务。
+	if r := gjson.GetBytes(jsonData, "input"); r.Exists() && !r.IsArray() {
+		return nil, ErrCompactInvalidInput
 	}
 	var err error
 	summaryItem := map[string]any{

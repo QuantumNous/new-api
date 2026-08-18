@@ -29,10 +29,28 @@ func TestBuildCompactTurnForcesNonStreamAndStore(t *testing.T) {
 	}
 }
 
+func TestBuildCompactTurnRejectsNonArrayInput(t *testing.T) {
+	in := []byte(`{"model":"grok-4","input":"hello world"}`)
+	out, err := BuildCompactTurn(in)
+	if err != ErrCompactInvalidInput {
+		t.Fatalf("non-array input must fail, got %v", err)
+	}
+	if out != nil {
+		t.Fatalf("rejected input must return nil body, got %s", out)
+	}
+}
+
 func TestConvertCompactResponseRequiresEncryptedReasoning(t *testing.T) {
 	noReasoning := []byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"summary"}]}]}`)
 	if _, err := ConvertCompactResponse(noReasoning); err != ErrCompactMissingReasoning {
 		t.Fatalf("missing encrypted reasoning must fail, got %v", err)
+	}
+}
+
+func TestConvertCompactResponseRequiresSummary(t *testing.T) {
+	body := []byte(`{"output":[{"type":"reasoning","encrypted_content":"enc"}]}`)
+	if _, err := ConvertCompactResponse(body); err != ErrCompactMissingSummary {
+		t.Fatalf("missing summary must fail, got %v", err)
 	}
 }
 
