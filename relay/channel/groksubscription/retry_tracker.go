@@ -26,6 +26,7 @@ const (
 	EventClaudeTool
 	EventClaudeUsage
 	EventClaudeError
+	eventKindCount // 哨兵：新增枚举必须登记进 semanticKinds 或确认非语义（见 exhaustive 测试）
 )
 
 // semanticKinds 是会置位 semantic_output_started 的事件集合。
@@ -50,6 +51,8 @@ func NewSemanticOutputTracker() *SemanticOutputTracker {
 }
 
 // Observe 在写出该事件前调用；语义事件原子置位（幂等）。
+// 时序契约：tracker 看不到实际 write，无法自证时序——若接线方先 write 后 Observe，
+// failover 判定窗口内已写出语义内容但未置位，违反不可换账号契约；该不变量全靠接线方遵守。
 func (t *SemanticOutputTracker) Observe(ev StreamEvent) {
 	if _, ok := semanticKinds[ev.Kind]; ok {
 		t.started.Store(true)

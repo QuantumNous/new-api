@@ -53,3 +53,21 @@ func TestTrackerSetOnceIdempotentAndConcurrent(t *testing.T) {
 		t.Fatalf("concurrent observes must set started")
 	}
 }
+
+func TestEventKindExhaustiveClassification(t *testing.T) {
+	nonSemantic := map[EventKind]struct{}{
+		EventComment: {}, EventEmpty: {}, EventKeepalive: {}, EventHeaderFlush: {},
+	}
+	for k := EventComment; k < eventKindCount; k++ {
+		_, isSemantic := semanticKinds[k]
+		_, isNonSemantic := nonSemantic[k]
+		if isSemantic == isNonSemantic { // 同真=重复登记；同假=漏登记（新增枚举未归类时必命中）
+			t.Fatalf("EventKind(%d): semantic=%v, nonSemantic=%v — must belong to exactly one set", k, isSemantic, isNonSemantic)
+		}
+		tr := NewSemanticOutputTracker()
+		tr.Observe(StreamEvent{Kind: k})
+		if tr.SemanticOutputStarted() != isSemantic {
+			t.Fatalf("EventKind(%d): Observe -> started=%v, want %v", k, tr.SemanticOutputStarted(), isSemantic)
+		}
+	}
+}
