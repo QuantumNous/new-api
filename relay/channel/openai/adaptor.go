@@ -245,6 +245,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// Force upstream streaming when channel requests it and client asked for non-stream.
+	// The SSE response will be aggregated by OaiBufferedStreamHandler in DoResponse.
+	if info.ChannelSetting.ForceUpstreamStream && !lo.FromPtrOr(request.Stream, false) {
+		request.Stream = lo.ToPtr(true)
+		info.UpstreamStreamForced = true
+	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
