@@ -65,6 +65,8 @@ IMG_TAG_RE = re.compile(r'<img[^>]*?src="([^"]+)"', re.IGNORECASE)
 MD_IMG_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 FENCE_RE = re.compile(r"```text\n(.*?)```", re.DOTALL)
 SOURCE_LINK_RE = re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)")
+# "**Source:**" / italic "*Source: ...*" / bare "Source:" variants.
+SOURCE_MARKER_RE = re.compile(r"\*{0,2}(?<![A-Za-z])Source:\*{0,2}", re.IGNORECASE)
 COMMENT_RE = re.compile(r"\*\*Comment:\*\* *(.+)")
 # Live README style: "**English Translation:** <text>" on one line (no fence).
 INLINE_TRANSLATION_RE = re.compile(r"\*\*English Translation:\*\* *(.+)")
@@ -113,9 +115,9 @@ def parse_case_block(title, category_tag, block):
         return None
 
     sources = []
-    source_section = block.split("**Source:**", 1)
-    if len(source_section) == 2:
-        for label, url in SOURCE_LINK_RE.findall(source_section[1]):
+    marker = SOURCE_MARKER_RE.search(block)
+    if marker:
+        for label, url in SOURCE_LINK_RE.findall(block[marker.end():]):
             sources.append({"label": label, "url": url})
 
     comment_match = COMMENT_RE.search(block)
@@ -130,17 +132,69 @@ def parse_case_block(title, category_tag, block):
     }
 
 
+GPT_IMAGE_COL_RE = re.compile(r"GPT[- ]?Image", re.IGNORECASE)
+NON_GPT_COL_RE = re.compile(r"Nano Banana|Reference|Original", re.IGNORECASE)
+
+
+def split_table_row(line):
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def image_in_cell(cell):
+    tag = IMG_TAG_RE.search(cell)
+    if tag:
+        return tag.group(1)
+    md = MD_IMG_RE.search(cell)
+    if md:
+        return md.group(2)
+    return None
+
+
+def pick_comparison_image(block):
+    """In a comparison table, return the image under the GPT-Image column.
+
+    Live README headers: `| Nano Banana 2 | GPT-Image |`,
+    `| Reference | GPT-Image | Nano Banana 2 |`, `| GPT Image 1.5 | GPT Image 2 |`.
+    Cells are HTML <img alt="image"> (alt useless) or ![alt](url), so the
+    header column position decides; alt matching is only a fallback.
+    """
+    lines = [l for l in block.splitlines() if l.strip().startswith("|")]
+    col_idx = None
+    for line in lines:
+        cells = split_table_row(line)
+        candidates = [
+            i for i, cell in enumerate(cells)
+            if GPT_IMAGE_COL_RE.search(cell) and not NON_GPT_COL_RE.search(cell)
+        ]
+        if not candidates:
+            continue
+        preferred = [i for i in candidates if "1.5" not in cells[i]]
+        col_idx = (preferred or candidates)[-1]
+        break
+    if col_idx is None:
+        return None
+    for line in lines:
+        cells = split_table_row(line)
+        if col_idx < len(cells):
+            img = image_in_cell(cells[col_idx])
+            if img:
+                return img
+    # Fallback: match by alt text when row shape did not line up.
+    for alt, src in MD_IMG_RE.findall(block):
+        if GPT_IMAGE_COL_RE.search(alt) and not NON_GPT_COL_RE.search(alt) and "1.5" not in alt:
+            return src
+    return None
+
+
 def pick_image(block):
-    """Single image: <img src>. Comparison table: take the 'GPT Image 2' column."""
-    md_imgs = MD_IMG_RE.findall(block)
-    if md_imgs and "| GPT Image" in block:
-        for alt, src in md_imgs:
-            if "2" in alt and "1.5" not in alt:
-                return src
-        return md_imgs[-1][1]
+    """Single image: <img src>. Comparison table: take the GPT-Image column."""
+    comparison = pick_comparison_image(block)
+    if comparison:
+        return comparison
     tag = IMG_TAG_RE.search(block)
     if tag:
         return tag.group(1)
+    md_imgs = MD_IMG_RE.findall(block)
     if md_imgs:
         return md_imgs[0][1]
     return None
@@ -180,8 +234,7 @@ def upload_to_gcs(local_path, bucket, name):
     )
 
 
-def build_import_item(case, image_url, captured_at):
-    slug = slugify(case["title"])
+def build_import_item(case, slug, image_url, captured_at):
     output = {}
     if case["prompt_en"]:
         output["translation"] = case["prompt_en"]
@@ -212,16 +265,18 @@ def build_import_item(case, image_url, captured_at):
     return item
 
 
-def dedupe_slugs(items):
+def dedupe_slugs(slugs):
+    """Return slugs with -2/-3... suffixes on duplicates, order preserved."""
     seen = {}
-    for item in items:
-        base = item["slug"]
+    result = []
+    for base in slugs:
         if base in seen:
             seen[base] += 1
-            item["slug"] = f"{base}-{seen[base]}"
+            result.append(f"{base}-{seen[base]}")
         else:
             seen[base] = 1
-    return items
+            result.append(base)
+    return result
 
 
 def main():
@@ -242,16 +297,17 @@ def main():
 
     captured_at = datetime.date.today().isoformat()
     items, failures = [], []
+    # Dedupe up front so GCS object names always match the final item slugs.
+    final_slugs = dedupe_slugs([slugify(case["title"]) for case in cases])
 
     if args.dry_run:
-        for case in cases:
-            items.append(build_import_item(case, resolve_image_url(case["image_src"]), captured_at))
+        for case, slug in zip(cases, final_slugs):
+            items.append(build_import_item(case, slug, resolve_image_url(case["image_src"]), captured_at))
     else:
         if not args.bucket:
             sys.exit("--bucket is required unless --dry-run")
         with tempfile.TemporaryDirectory() as tmp:
-            for case in cases:
-                slug = slugify(case["title"])
+            for case, slug in zip(cases, final_slugs):
                 src_url = resolve_image_url(case["image_src"])
                 try:
                     resp = requests.get(src_url, timeout=60)
@@ -266,12 +322,11 @@ def main():
                     else:
                         print(f"exists, skip {object_name}")
                     gcs_url = f"https://storage.googleapis.com/{args.bucket}/{object_name}"
-                    items.append(build_import_item(case, gcs_url, captured_at))
+                    items.append(build_import_item(case, slug, gcs_url, captured_at))
                 except Exception as exc:  # noqa: BLE001 - continue on per-item failure
                     failures.append({"title": case["title"], "reason": str(exc)})
                     print(f"FAILED {case['title']}: {exc}", file=sys.stderr)
 
-    items = dedupe_slugs(items)
     pathlib.Path(args.out).write_text(json.dumps({"items": items}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"wrote {len(items)} items to {args.out}; {len(failures)} failures")
 
@@ -280,21 +335,32 @@ def main():
     if not args.api_base or not args.token:
         sys.exit("--api-base and --token are required to import (or rerun with --dry-run)")
 
+    batch_errors = []
     for start in range(0, len(items), IMPORT_BATCH_LIMIT):
+        batch_no = start // IMPORT_BATCH_LIMIT + 1
         batch = items[start:start + IMPORT_BATCH_LIMIT]
-        resp = requests.post(
-            f"{args.api_base.rstrip('/')}/api/prompt-library/import",
-            json={"items": batch},
-            headers={"Authorization": f"Bearer {args.token}"},
-            timeout=60,
-        )
-        print(f"batch {start // IMPORT_BATCH_LIMIT + 1}: HTTP {resp.status_code} {resp.text[:400]}")
-        resp.raise_for_status()
+        try:
+            resp = requests.post(
+                f"{args.api_base.rstrip('/')}/api/prompt-library/import",
+                json={"items": batch},
+                headers={"Authorization": f"Bearer {args.token}"},
+                timeout=60,
+            )
+            print(f"batch {batch_no}: HTTP {resp.status_code} {resp.text[:400]}")
+            resp.raise_for_status()
+        except Exception as exc:  # noqa: BLE001 - keep importing remaining batches
+            batch_errors.append(f"batch {batch_no}: {exc}")
+            print(f"FAILED batch {batch_no}: {exc}", file=sys.stderr)
 
     if failures:
         print("failures summary:")
         for failure in failures:
             print(f"  - {failure['title']}: {failure['reason']}")
+    if batch_errors:
+        print("batch errors:")
+        for err in batch_errors:
+            print(f"  - {err}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

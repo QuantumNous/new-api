@@ -95,3 +95,59 @@ def test_parse_inline_translation():
     case = parse_readme(sample)[0]
     assert case["category_tag"] == "gaming"
     assert case["prompt_en"] == "Generate a Japanese social game gacha screen."
+
+
+# Live README comparison-table variants: headers use "GPT-Image" (hyphen),
+# competitor "Nano Banana 2" columns, and HTML <img> cells whose alt is just
+# "image" — only the header column position identifies the right image.
+REAL_TABLE_SAMPLE = textwrap.dedent('''
+    ## 🎮 Game & Entertainment
+
+    ### Two Column HTML Cells
+    | Nano Banana 2 | GPT-Image |
+    |:-------------:|:---------:|
+    | <img width="400" alt="image" src="https://example.com/nano.jpg" /> | <img width="400" alt="image" src="https://example.com/gpt.jpg" />|
+
+    **Prompt:**
+    ```text
+    convenience store at night
+    ```
+    *Source: [卡尔的AI沃茨](https://mp.weixin.qq.com/s/abc)*
+
+    ### Reference Middle Column
+    | Reference | GPT-Image | Nano Banana 2 |
+    |:---------:|:---------:|:-------------:|
+    | <img alt="image" src="https://example.com/ref.jpg" /> | <img alt="image" src="https://example.com/gpt-mid.jpg" /> | <img alt="image" src="https://example.com/nano2.jpg" /> |
+
+    **Prompt:**
+    ```text
+    pet brand poster
+    ```
+
+    ### Original Last Column
+    | Original | Nano Banana 2 | GPT-Image |
+    |:--------:|:-------------:|:---------:|
+    | ![Original](https://example.com/orig.jpg) | ![Nano Banana 2](https://example.com/nano3.jpg) | ![GPT-Image](https://example.com/gpt-last.jpg) |
+
+    **Prompt:**
+    ```text
+    comic page coloring
+    ```
+    **Source:** [@x](https://x.com/x/status/3)
+''')
+
+
+def test_parse_real_comparison_tables_take_gpt_image_column():
+    cases = parse_readme(REAL_TABLE_SAMPLE)
+    assert [c["image_src"] for c in cases] == [
+        "https://example.com/gpt.jpg",
+        "https://example.com/gpt-mid.jpg",
+        "https://example.com/gpt-last.jpg",
+    ]
+
+
+def test_parse_italic_source_line():
+    case = parse_readme(REAL_TABLE_SAMPLE)[0]
+    assert case["sources"] == [
+        {"label": "卡尔的AI沃茨", "url": "https://mp.weixin.qq.com/s/abc"}
+    ]
