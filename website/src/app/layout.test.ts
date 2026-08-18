@@ -3,6 +3,7 @@ import {
   ATTRIBUTION_COOKIE_SCRIPT,
   LIVECHAT_BOOTSTRAP_SCRIPT,
   ROOT_DOCUMENT_PERFORMANCE_POLICY,
+  buildLanguagePreferenceSyncScript,
 } from "@/components/root-document";
 import { LOCALES, localeAlternates, localeLanguageTag, resolveLocaleFromPathname } from "@/lib/locales";
 
@@ -69,5 +70,15 @@ describe("RootDocument performance policy", () => {
     expect(LIVECHAT_BOOTSTRAP_SCRIPT).toContain("requestIdleCallback");
     expect(LIVECHAT_BOOTSTRAP_SCRIPT).toContain("pointerdown");
     expect(LIVECHAT_BOOTSTRAP_SCRIPT).toContain("solvea-livechat-embed");
+  });
+});
+
+describe("language preference sync", () => {
+  test("keeps the current page locale in the shared language cookie", () => {
+    expect(buildLanguagePreferenceSyncScript("en")).toContain("fk_locale=en");
+    expect(buildLanguagePreferenceSyncScript("zh", ".flatkey.ai")).toContain(
+      'fk_locale=zh; Path=/; Domain=.flatkey.ai; Max-Age=31536000; SameSite=Lax',
+    );
+    expect(buildLanguagePreferenceSyncScript("ja")).toContain("document.cookie");
   });
 });
