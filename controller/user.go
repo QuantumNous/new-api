@@ -32,6 +32,14 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type passwordValidationInput struct {
+	Password string `validate:"password"`
+}
+
+func validatePasswordInput(password string) error {
+	return common.Validate.Struct(&passwordValidationInput{Password: password})
+}
+
 var (
 	errUserPasswordUnset    = errors.New("user password is not set")
 	errOriginalPasswordFail = errors.New("original password is incorrect")
@@ -225,6 +233,10 @@ func Register(c *gin.Context) {
 		return
 	}
 	if err := common.Validate.Struct(&user); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+		return
+	}
+	if err := validatePasswordInput(user.Password); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
@@ -678,6 +690,12 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	if updatedUser.Password != "" {
+		if err := validatePasswordInput(updatedUser.Password); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+			return
+		}
+	}
 	originUser, err := model.GetUserById(updatedUser.Id, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -849,6 +867,12 @@ func UpdateSelf(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidInput)
 		return
 	}
+	if user.Password != "" {
+		if err := validatePasswordInput(user.Password); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgInvalidInput)
+			return
+		}
+	}
 
 	cleanUser := model.User{
 		Id:          c.GetInt("id"),
@@ -996,6 +1020,10 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 	if err := common.Validate.Struct(&user); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+		return
+	}
+	if err := validatePasswordInput(user.Password); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}

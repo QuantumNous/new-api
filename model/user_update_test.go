@@ -374,8 +374,11 @@ func TestValidateAndFillAcceptsExistingPasswordOverCurrentLengthLimit(t *testing
 	assert.NotZero(t, loginUser.Id)
 }
 
-func TestUserValidationAllowsOmittedPassword(t *testing.T) {
-	user := User{Username: "profile-update-user"}
+func TestUserValidationLeavesPasswordPolicyToInputBoundary(t *testing.T) {
+	user := User{
+		Username: "profile-update-user",
+		Password: "short",
+	}
 
 	require.NoError(t, common.Validate.Struct(&user))
 }
