@@ -4,12 +4,16 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/service"
@@ -114,4 +118,206 @@ func TestGrokPKCEStartRequiresCipherKey(t *testing.T) {
 	var count int64
 	require.NoError(t, model.DB.Model(&model.GrokAuthFlow{}).Count(&count).Error)
 	require.Zero(t, count, "no flow may be persisted without cipher key")
+}
+
+// ---- complete 段测试基础件 ----
+
+// grokDoerFunc 让函数直接充当 groksubscription.HTTPDoer（照 refresh_test.go 的 doerFunc 模式）。
+type grokDoerFunc func(*http.Request) (*http.Response, error)
+
+func (f grokDoerFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
+
+func grokJSONResponse(code int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: code,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}
+}
+
+func readGrokForm(t *testing.T, req *http.Request) url.Values {
+	t.Helper()
+	body, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	form, err := url.ParseQuery(string(body))
+	require.NoError(t, err)
+	return form
+}
+
+func seedGrokChannel(t *testing.T) model.Channel {
+	t.Helper()
+	ch := model.Channel{
+		Type:   constant.ChannelTypeGrokSubscription,
+		Key:    "",
+		Models: "grok-4",
+		Group:  "default",
+		Status: 1,
+	}
+	require.NoError(t, model.DB.Create(&ch).Error)
+	return ch
+}
+
+// decryptGrokFlowVerifier 从落库 flow 解出 verifier 明文（仅测试用于断言交换请求内容）。
+func decryptGrokFlowVerifier(t *testing.T, flow model.GrokAuthFlow) string {
+	t.Helper()
+	cipher, err := service.LoadGrokCredentialCipher()
+	require.NoError(t, err)
+	verifier, err := cipher.Decrypt(flow.FlowID, "pkce_verifier", flow.EncryptedVerifier)
+	require.NoError(t, err)
+	return verifier
+}
+
+func readGrokFlow(t *testing.T, flowID string) model.GrokAuthFlow {
+	t.Helper()
+	var flow model.GrokAuthFlow
+	require.NoError(t, model.DB.Where("flow_id = ?", flowID).First(&flow).Error)
+	return flow
+}
+
+func getGrokChannelKey(t *testing.T, channelID int) string {
+	t.Helper()
+	ch, err := model.GetChannelById(channelID, true)
+	require.NoError(t, err)
+	return ch.Key
+}
+
+func TestGrokPKCECompleteHappyPath(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	start, err := GrokPKCEStart(ch.Id, "https://newapi.example/callback")
+	require.NoError(t, err)
+	verifier := decryptGrokFlowVerifier(t, readGrokFlow(t, start.FlowID))
+
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		form := readGrokForm(t, req)
+		require.Equal(t, "authorization_code", form.Get("grant_type"))
+		require.Equal(t, "the-auth-code", form.Get("code"))
+		require.Equal(t, verifier, form.Get("code_verifier"), "exchange must carry the decrypted PKCE verifier")
+		require.Equal(t, "https://newapi.example/callback", form.Get("redirect_uri"))
+		require.Equal(t, groksubscription.OAuthClientID, form.Get("client_id"))
+		return grokJSONResponse(200, `{"access_token":"at-final","refresh_token":"rt-final","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+
+	require.NoError(t, GrokPKCEComplete(start.FlowID, "the-auth-code", start.State, ""))
+
+	// Channel.Key 被一次写回为可 ParseCredential 的规范化版本化 JSON。
+	key := getGrokChannelKey(t, ch.Id)
+	cred, err := groksubscription.ParseCredential(key)
+	require.NoError(t, err, "stored key must be ParseCredential-clean versioned JSON")
+	require.Equal(t, "at-final", cred.AccessToken)
+	require.Equal(t, "rt-final", cred.RefreshToken)
+	require.NotContains(t, key, verifier, "verifier must never land in Channel.Key")
+	require.NotContains(t, key, "the-auth-code", "authorization code must never land in Channel.Key")
+
+	// 认证状态 active。
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusActive, st.AuthStatus)
+
+	// flow 已消费：任何人（含推导 owner）不能再 claim。
+	_, claimed, err := model.ClaimGrokAuthFlow(start.FlowID, "whoever")
+	require.NoError(t, err)
+	require.False(t, claimed, "flow must be consumed after success")
+}
+
+// TestGrokPKCECompleteStateMismatchBurnsFlow 守护防重放：state 不符必须 consume flow 且报 400 语义错误，
+// 错误信息不含 state/code 明文。
+func TestGrokPKCECompleteStateMismatchBurnsFlow(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	called := false
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		called = true
+		return grokJSONResponse(200, `{}`), nil
+	}))
+	defer restore()
+
+	start, err := GrokPKCEStart(ch.Id, "https://newapi.example/callback")
+	require.NoError(t, err)
+
+	err = GrokPKCEComplete(start.FlowID, "the-auth-code", "wrong-state-attacker", "")
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "wrong-state-attacker")
+	require.NotContains(t, err.Error(), "the-auth-code")
+	require.NotContains(t, err.Error(), start.State)
+	require.False(t, called, "state mismatch must not reach token endpoint")
+
+	// flow 已被烧掉：不可再 claim（防重放）。
+	_, claimed, err := model.ClaimGrokAuthFlow(start.FlowID, "whoever")
+	require.NoError(t, err)
+	require.False(t, claimed, "burned flow must not be claimable")
+
+	// Channel.Key 未被触碰。
+	require.Empty(t, getGrokChannelKey(t, ch.Id))
+}
+
+// TestGrokPKCECompleteGrantRejectedSetsNeedsReauth：token endpoint 拒绝 → needs_reauth + 脱敏错误。
+func TestGrokPKCECompleteGrantRejectedSetsNeedsReauth(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	const upstreamSecret = "upstream-secret-desc-must-not-leak"
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		return grokJSONResponse(400, `{"error":"invalid_grant","error_description":"`+upstreamSecret+`"}`), nil
+	}))
+	defer restore()
+
+	start, err := GrokPKCEStart(ch.Id, "https://newapi.example/callback")
+	require.NoError(t, err)
+
+	err = GrokPKCEComplete(start.FlowID, "the-auth-code", start.State, "")
+	require.Error(t, err)
+	var gre *groksubscription.GrantRejectedError
+	require.True(t, errors.As(err, &gre), "grant rejection must be typed, got %v", err)
+	require.Equal(t, "invalid_grant", gre.Code)
+	require.NotContains(t, err.Error(), upstreamSecret)
+	require.NotContains(t, err.Error(), "the-auth-code")
+
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusNeedsReauth, st.AuthStatus)
+	require.Contains(t, st.LastError, "invalid_grant")
+	require.NotContains(t, st.LastError, upstreamSecret)
+
+	// Channel.Key 未被写入。
+	require.Empty(t, getGrokChannelKey(t, ch.Id))
+}
+
+func TestGrokPKCECompleteRejectsInvalidArgs(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("must not call token endpoint for invalid args")
+		return nil, nil
+	}))
+	defer restore()
+	if err := GrokPKCEComplete("", "c", "s", ""); err == nil {
+		t.Fatalf("empty flowID must be rejected")
+	}
+	if err := GrokPKCEComplete("f", "", "s", ""); err == nil {
+		t.Fatalf("empty code must be rejected")
+	}
+	if err := GrokPKCEComplete("f", "c", "", ""); err == nil {
+		t.Fatalf("empty state must be rejected")
+	}
+}
+
+// TestGrokPKCECompleteUnknownFlow：未知/过期 flow 报可区分错误，不触网。
+func TestGrokPKCECompleteUnknownFlow(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("must not call token endpoint for unknown flow")
+		return nil, nil
+	}))
+	defer restore()
+	err := GrokPKCEComplete("no-such-flow", "c", "s", "")
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "no-such-flow")
 }

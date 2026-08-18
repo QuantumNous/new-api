@@ -1,18 +1,21 @@
 package controller
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"net/http"
+	"net/url"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/service"
-
-	"net/url"
 )
 
 // Grok 认证服务端编排（设计 §7、§12；Task 18）。
@@ -120,4 +123,129 @@ func randomURLSafe(n int) (string, error) {
 func hashGrokState(state string) string {
 	sum := sha256.Sum256([]byte(state))
 	return hex.EncodeToString(sum[:])
+}
+
+// ---- PKCE complete ----
+
+// grokAuthHTTPDoer 是 token endpoint 的 HTTP 通道，测试经 SetGrokAuthHTTPDoerForTest 注入 stub。
+var grokAuthHTTPDoer groksubscription.HTTPDoer = http.DefaultClient
+
+// SetGrokAuthHTTPDoerForTest 仅供测试注入 token endpoint stub；返回恢复函数（照
+// service.ReplaceStripeCheckoutSessionAccessorsForTest 的仓库先例）。
+func SetGrokAuthHTTPDoerForTest(doer groksubscription.HTTPDoer) func() {
+	original := grokAuthHTTPDoer
+	grokAuthHTTPDoer = doer
+	return func() { grokAuthHTTPDoer = original }
+}
+
+// errGrokStateMismatch 是 400 语义错误：state 校验失败（flow 已被 consume 防重放）。
+var errGrokStateMismatch = errors.New("grok auth: state mismatch")
+
+// GrokPKCEComplete 用授权码换凭证并写回渠道。
+// 流程：claim flow（一次性）→ 常数时间校验 state hash → 解密 verifier → ExchangeToken
+// → 一次性 UpdateChannelKeyForType 写回（不做 Load-改-存，无 TOCTOU）→ 置 active → consume。
+// ownerToken 为空时从 flowID 确定性推导（同 flow 重试幂等，他人 owner 抢不走 claim）。
+func GrokPKCEComplete(flowID, code, state, ownerToken string) error {
+	if flowID == "" || code == "" || state == "" {
+		return errors.New("grok auth: invalid args")
+	}
+	if ownerToken == "" {
+		ownerToken = grokFlowOwnerToken(flowID)
+	}
+	flow, claimed, err := model.ClaimGrokAuthFlow(flowID, ownerToken)
+	if err != nil {
+		return err
+	}
+	if !claimed || flow == nil {
+		return errors.New("grok auth: flow not found, expired or already used")
+	}
+	if subtle.ConstantTimeCompare([]byte(hashGrokState(state)), []byte(flow.StateHash)) != 1 {
+		// state 不符必须烧掉 flow：防重放（设计 §7.1）。
+		_ = model.ConsumeGrokAuthFlow(flowID, ownerToken)
+		return errGrokStateMismatch
+	}
+	cipher, err := loadGrokAuthCipher()
+	if err != nil {
+		return err
+	}
+	verifier, err := cipher.Decrypt(flow.FlowID, grokSensitiveFieldPKCEVerifierForController, flow.EncryptedVerifier)
+	if err != nil {
+		return err // cipher 错误信息自身已脱敏
+	}
+	cred, err := groksubscription.ExchangeToken(context.Background(), grokAuthHTTPDoer,
+		groksubscription.GrantTypeAuthorizationCode, code, verifier, "", flow.RedirectURI)
+	if err != nil {
+		var rejected *groksubscription.GrantRejectedError
+		if errors.As(err, &rejected) {
+			recordGrokNeedsReauth(flow.ChannelID, err)
+		}
+		return err
+	}
+	if err := persistGrokCredential(flow.ChannelID, cred); err != nil {
+		return err
+	}
+	if err := upsertGrokAuthStatus(flow.ChannelID, model.GrokAuthStatusActive, true, ""); err != nil {
+		return err
+	}
+	return model.ConsumeGrokAuthFlow(flowID, ownerToken)
+}
+
+// grokFlowOwnerToken 从 flowID 推导 claim 用的 owner token：同一 flow 的重试幂等
+// （ClaimGrokAuthFlow 同 owner 重入成功），且 state-mismatch 烧 flow 时我们已持有 claim。
+func grokFlowOwnerToken(flowID string) string {
+	sum := sha256.Sum256([]byte("grok-auth-flow-owner:" + flowID))
+	return hex.EncodeToString(sum[:])[:48]
+}
+
+// persistGrokCredential 把交换到的凭证以规范化版本化 JSON 一次写回 Channel.Key。
+// 设计 §6.1：Channel.Key 存版本化 OAuth JSON（同 Refresh 的 CredentialStore 契约与
+// adaptor 的 ParseCredential(info.ApiKey) 读取路径）；UpdateChannelKeyForType 是
+// 单条 UPDATE+abilities 刷新，不做 Load-改-存。
+func persistGrokCredential(channelID int, cred groksubscription.Credential) error {
+	serialized, err := cred.Serialize()
+	if err != nil {
+		return err
+	}
+	return model.UpdateChannelKeyForType(channelID, constant.ChannelTypeGrokSubscription, serialized)
+}
+
+// upsertGrokAuthStatus 更新认证状态；保留既有非秘密快照字段（quota/billing/lease），
+// 避免 Upsert 的 OnConflict UpdateAll 用零值覆盖。active 时清空 LastError。
+func upsertGrokAuthStatus(channelID int, status string, markRefreshed bool, lastErr string) error {
+	st := &model.GrokChannelState{ChannelID: channelID, AuthStatus: status}
+	if existing, err := model.GetGrokChannelState(channelID); err == nil && existing != nil {
+		st.BillingPlan = existing.BillingPlan
+		st.TierRaw = existing.TierRaw
+		st.QuotaSnapshot = existing.QuotaSnapshot
+		st.RefreshLeaseOwner = existing.RefreshLeaseOwner
+		st.RefreshLeaseExpiresAt = existing.RefreshLeaseExpiresAt
+		st.LastRefreshAt = existing.LastRefreshAt
+		st.LastError = existing.LastError
+		st.CreatedAt = existing.CreatedAt
+	}
+	if markRefreshed {
+		st.LastRefreshAt = model.GetDBTimestamp()
+	}
+	if status == model.GrokAuthStatusActive {
+		st.LastError = ""
+	} else if lastErr != "" {
+		st.LastError = truncateGrokString(lastErr, 512)
+	}
+	return model.UpsertGrokChannelState(st)
+}
+
+// recordGrokNeedsReauth 把脱敏后的失败原因落进 needs_reauth 状态（列宽 512 截断）。
+func recordGrokNeedsReauth(channelID int, cause error) {
+	msg := ""
+	if cause != nil {
+		msg = cause.Error()
+	}
+	_ = upsertGrokAuthStatus(channelID, model.GrokAuthStatusNeedsReauth, false, msg)
+}
+
+func truncateGrokString(s string, limit int) string {
+	if len(s) > limit {
+		return s[:limit]
+	}
+	return s
 }
