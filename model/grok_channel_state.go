@@ -72,6 +72,11 @@ func AcquireGrokRefreshLease(channelID int, owner string, now, ttlSeconds int64)
 	if channelID <= 0 || owner == "" || ttlSeconds <= 0 {
 		return false, errors.New("grok refresh lease: invalid args")
 	}
+	// MySQL 默认返回 changed-rows（非 matched-rows），no-op UPDATE 返回 0。
+	// 此处 RowsAffected==1 判定安全的前提是本 UPDATE 恒改动至少一列：
+	// 过期分支下 WHERE 要求旧 expires_at<=now，而新值 now+ttlSeconds>now（ttlSeconds>0 已校验）必变；
+	// 空 owner 分支下新 owner 非空（已校验）必变。
+	// 切勿把 expires_at 改成条件写入，否则会在 MySQL 下无声破坏该判定。
 	res := DB.Model(&GrokChannelState{}).
 		Where("channel_id = ? AND (refresh_lease_owner = '' OR refresh_lease_owner IS NULL OR refresh_lease_expires_at <= ?)", channelID, now).
 		Updates(map[string]any{

@@ -105,3 +105,54 @@ func TestRefreshTokenCASConflictReturnsRetryable(t *testing.T) {
 		t.Fatalf("want ErrRefreshConflict on CAS mismatch, got %v", err)
 	}
 }
+
+// TestRefreshTokenNon200ErrorOmitsBody 守护凭证安全铁律：非 200 响应的 error 只带状态码，
+// 绝不夹带上游 response body（body 可能含敏感串）。变异验证：把 body 拼进 error 即 FAIL。
+func TestRefreshTokenNon200ErrorOmitsBody(t *testing.T) {
+	const secret = "super-secret-should-not-leak"
+	store := &fakeStore{
+		key:      `{"version":1,"type":"grok_subscription","access_token":"old","refresh_token":"rt","token_type":"Bearer","expires_at":1000}`,
+		revision: 1,
+	}
+	doer := doerFunc(func(req *http.Request) (*http.Response, error) {
+		return jsonResponse(401, `{"error":"`+secret+`"}`), nil
+	})
+	r := NewRefresher(store, doer, func() int64 { return 2000 })
+	_, err := r.Refresh(context.Background(), 5)
+	if err == nil {
+		t.Fatalf("non-200 must return error")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("error message must NOT leak response body, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "401") {
+		t.Fatalf("error should carry status code, got %q", err.Error())
+	}
+	if store.casCalls != 0 {
+		t.Fatalf("must not CAS on non-200, got %d calls", store.casCalls)
+	}
+}
+
+// TestRefreshTokenPreservesOldRefreshTokenWhenUpstreamOmits 守护 OAuth 正确性（RFC 6749 §6）：
+// 上游 200 但不轮换 refresh_token 时，新凭证须保留旧 refresh_token。变异验证：改成只取 tr.RefreshToken 即 FAIL。
+func TestRefreshTokenPreservesOldRefreshTokenWhenUpstreamOmits(t *testing.T) {
+	store := &fakeStore{
+		key:      `{"version":1,"type":"grok_subscription","access_token":"old","refresh_token":"keep-me","token_type":"Bearer","expires_at":1000}`,
+		revision: 3,
+	}
+	doer := doerFunc(func(req *http.Request) (*http.Response, error) {
+		// 上游只回新 access_token，不轮换 refresh_token
+		return jsonResponse(200, `{"access_token":"new","token_type":"Bearer","expires_in":3600}`), nil
+	})
+	r := NewRefresher(store, doer, func() int64 { return 2000 })
+	newCred, err := r.Refresh(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("refresh err %v", err)
+	}
+	if newCred.RefreshToken != "keep-me" {
+		t.Fatalf("refresh_token must be preserved when upstream omits it, got %q", newCred.RefreshToken)
+	}
+	if newCred.AccessToken != "new" {
+		t.Fatalf("access_token must update, got %q", newCred.AccessToken)
+	}
+}

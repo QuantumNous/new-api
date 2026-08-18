@@ -16,6 +16,9 @@ var (
 	ErrRefreshConflict = errors.New("grok refresh: revision CAS conflict")
 )
 
+// maxTokenResponseBytes 限制读取上游响应体，防超大响应。
+const maxTokenResponseBytes = 1 << 20
+
 // HTTPDoer 便于测试注入。
 type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
@@ -76,7 +79,9 @@ func (r *Refresher) Refresh(ctx context.Context, channelID int) (Credential, err
 		return Credential{}, err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	// 忽略 ReadAll error 是有意的：status!=200 时 body 不参与判定（error 只带状态码）；
+	// status==200 时读取异常会被后续 json.Unmarshal 失败或空 access_token 检查兜住（均 fail-closed）。
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if resp.StatusCode != http.StatusOK {
 		return Credential{}, fmt.Errorf("grok refresh: token endpoint status %d", resp.StatusCode)
 	}
@@ -94,7 +99,8 @@ func (r *Refresher) Refresh(ctx context.Context, channelID int) (Credential, err
 		AccessToken:  tr.AccessToken,
 		RefreshToken: firstNonEmpty(tr.RefreshToken, cred.RefreshToken), // 上游可能不轮换 refresh
 		TokenType:    firstNonEmpty(tr.TokenType, cred.TokenType),
-		ExpiresAt:    r.now() + tr.ExpiresIn,
+		// 单位约定：now() 返回 unix 秒，tr.ExpiresIn 为上游给的有效期秒数，故 ExpiresAt 为 unix 秒。
+		ExpiresAt: r.now() + tr.ExpiresIn,
 	}
 	serialized, err := newCred.Serialize()
 	if err != nil {
