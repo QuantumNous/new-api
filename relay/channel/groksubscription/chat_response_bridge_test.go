@@ -184,3 +184,40 @@ func TestRelayChatOverGrok_NoTerminalEventIsBadGateway(t *testing.T) {
 		t.Fatalf("status = %d, want 502 (no terminal event is a protocol error)", apiErr.StatusCode)
 	}
 }
+
+// TestRelayChatOverGrok_UpstreamErrorBodyTruncatedAtLimit 校验非 200 兜底分支读取上游
+// body 有 1MB 上限（照 refresh.go / token_exchange.go 的 LimitReader 先例）：达上限时
+// error 标记 (truncated)（防把残缺 JSON 误读为完整），且超限内容绝不进入 error message。
+func TestRelayChatOverGrok_UpstreamErrorBodyTruncatedAtLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	// 1MB 填充 + 哨兵串放在 1MB 之后：读取若无上限，哨兵串必然进入 error message。
+	body := strings.Repeat("x", maxTokenResponseBytes) + "SENTINEL_BEYOND_LIMIT"
+	resp := &http.Response{
+		StatusCode: http.StatusInternalServerError,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+	_, apiErr := RelayChatOverGrok(c, &relaycommon.RelayInfo{UserWantsStream: false}, resp)
+	if apiErr == nil {
+		t.Fatalf("expected error for non-200 upstream")
+	}
+	msg := apiErr.Error()
+	// 失败输出只打印末尾片段，避免把 1MB 全喷进测试日志。
+	tail := msg
+	if len(tail) > 200 {
+		tail = tail[len(tail)-200:]
+	}
+	if !strings.Contains(msg, "truncated") {
+		t.Fatalf("error must be marked truncated when body hits %d bytes; tail: ...%s", maxTokenResponseBytes, tail)
+	}
+	if strings.Contains(msg, "SENTINEL_BEYOND_LIMIT") {
+		t.Fatalf("error must not include bytes beyond %d; tail: ...%s", maxTokenResponseBytes, tail)
+	}
+	if apiErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 (upstream status preserved)", apiErr.StatusCode)
+	}
+}

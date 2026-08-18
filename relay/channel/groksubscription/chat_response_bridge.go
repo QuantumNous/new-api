@@ -40,11 +40,17 @@ func aggregateGrokResponsesToChat(c *gin.Context, info *relaycommon.RelayInfo, r
 		return buildGrokUsage(nil), types.NewError(errors.New("grok subscription channel: nil upstream response"), types.ErrorCodeBadResponse)
 	}
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		// 上限读取照 refresh.go / token_exchange.go 的 LimitReader 先例；达上限时标记
+		// truncated，防止把残缺 JSON 误读为完整。
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
+		truncated := ""
+		if len(body) == maxTokenResponseBytes {
+			truncated = " (truncated)"
+		}
 		_ = resp.Body.Close()
 		// 必须保留上游状态码，否则上层重试/限流策略失去信号（429/5xx 不再退避或切换渠道）。
 		return buildGrokUsage(nil), types.NewErrorWithStatusCode(
-			fmt.Errorf("grok subscription channel: upstream status %d: %s", resp.StatusCode, string(body)),
+			fmt.Errorf("grok subscription channel: upstream status %d%s: %s", resp.StatusCode, truncated, string(body)),
 			types.ErrorCodeBadResponse, resp.StatusCode)
 	}
 	defer func() { _ = resp.Body.Close() }()
