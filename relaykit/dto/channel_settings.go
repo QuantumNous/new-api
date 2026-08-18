@@ -23,6 +23,11 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+	// ForceUpstreamStream makes new-api send stream=true to the upstream even
+	// when the downstream client requested non-streaming. The SSE response is
+	// aggregated server-side into a single JSON. Mutually exclusive with
+	// PassThroughBodyEnabled.
+	ForceUpstreamStream bool `json:"force_upstream_stream,omitempty"`
 }
 
 const (
@@ -47,6 +52,18 @@ func (s *ChannelSettings) ValidateHTTPTransport() error {
 	}
 	if protocol == HTTPProtocolHTTP1 && s.HTTP2ConnectionShards > 1 {
 		return fmt.Errorf("http2_connection_shards must be 1 when http_protocol is http1")
+	}
+	return nil
+}
+
+// ValidateForceUpstreamStream rejects configurations where ForceUpstreamStream
+// and PassThroughBodyEnabled are both enabled, since they are mutually exclusive.
+func (s *ChannelSettings) ValidateForceUpstreamStream() error {
+	if s == nil {
+		return nil
+	}
+	if s.ForceUpstreamStream && s.PassThroughBodyEnabled {
+		return fmt.Errorf("force_upstream_stream and pass_through_body_enabled are mutually exclusive")
 	}
 	return nil
 }
