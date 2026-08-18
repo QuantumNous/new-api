@@ -332,7 +332,6 @@ func TestShouldClaudeUseResponsesBridgeForGrokDespiteGlobalPassThrough(t *testin
 		settings.PassThroughRequestEnabled = previous
 	})
 
-	// 即便全局 pass-through 打开，Grok 也必须强制走 Responses bridge
 	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{ApiType: constant.APITypeGrokSubscription},
 	}
