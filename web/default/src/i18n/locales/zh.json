@@ -6604,6 +6604,8 @@
     "Used only to start GitHub Copilot Device Flow. No client secret is required.": "仅用于发起 GitHub Copilot 设备授权流程，无需 Client Secret。",
     "Authorize with GitHub": "使用 GitHub 授权",
     "GitHub Copilot channels support one credential only": "GitHub Copilot 渠道仅支持一个凭据",
-    "Cooling": "冷却中"
+    "Cooling": "冷却中",
+    "Max concurrency must be a non-negative integer": "最大并发数必须为非负整数",
+    "0 removes the limit": "0 表示不限制"
   }
 }

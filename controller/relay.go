@@ -542,6 +542,10 @@ func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
+	// Master switch first, then per-trigger switches (429 / keyword match).
+	if !operation_setting.IsChannelConcurrencyCooldownEnabled() {
+		return false
+	}
 	message := strings.ToLower(err.Error())
 	if strings.Contains(message, "insufficient_quota") ||
 		strings.Contains(message, "quota exceeded") ||
@@ -551,7 +555,12 @@ func shouldMarkChannelConcurrencyCooldown(err *types.NewAPIError) bool {
 		return false
 	}
 	if err.StatusCode == http.StatusTooManyRequests {
-		return true
+		return operation_setting.IsChannelConcurrencyCooldownOnStatus429()
+	}
+	// Keyword matching is fuzzy (an upstream mentioning "capacity" in an
+	// unrelated error would trip it), so it is gated behind its own opt-in.
+	if !operation_setting.IsChannelConcurrencyCooldownOnMessageMatch() {
+		return false
 	}
 	return strings.Contains(message, "rate limit") ||
 		strings.Contains(message, "rate limited") ||

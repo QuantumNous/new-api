@@ -905,6 +905,7 @@ type ChannelBatchEdit struct {
 	Groups               *string `json:"groups"`
 	Priority             *int64  `json:"priority"`
 	Weight               *uint   `json:"weight"`
+	MaxConcurrency       *int    `json:"max_concurrency"`
 	CodexFingerprintMode *string `json:"codex_fingerprint_mode"`
 }
 
@@ -1343,7 +1344,11 @@ func EditChannelBatch(c *gin.Context) {
 		}
 		batchEdit.CodexFingerprintMode = common.GetPointer[string](mode)
 	}
-	err = model.EditChannelsByIds(batchEdit.Ids, batchEdit.ModelMapping, batchEdit.Models, batchEdit.Groups, batchEdit.Priority, batchEdit.Weight)
+	if batchEdit.MaxConcurrency != nil && *batchEdit.MaxConcurrency < 0 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, "common.invalid_params")})
+		return
+	}
+	err = model.EditChannelsByIds(batchEdit.Ids, batchEdit.ModelMapping, batchEdit.Models, batchEdit.Groups, batchEdit.Priority, batchEdit.Weight, batchEdit.MaxConcurrency)
 	if err != nil {
 		common.ApiError(c, err)
 		return

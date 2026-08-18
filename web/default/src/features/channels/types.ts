@@ -293,6 +293,7 @@ export interface BatchEditChannelsParams {
   groups?: string // 逗号分隔
   priority?: number
   weight?: number
+  max_concurrency?: number
   codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
 }
 

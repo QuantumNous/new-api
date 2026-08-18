@@ -6604,6 +6604,8 @@
     "Used only to start GitHub Copilot Device Flow. No client secret is required.": "Chỉ dùng để bắt đầu luồng thiết bị GitHub Copilot. Không cần client secret.",
     "Authorize with GitHub": "Ủy quyền bằng GitHub",
     "GitHub Copilot channels support one credential only": "Kênh GitHub Copilot chỉ hỗ trợ một thông tin xác thực",
-    "Cooling": "đang nghỉ"
+    "Cooling": "đang nghỉ",
+    "Max concurrency must be a non-negative integer": "Số đồng thời tối đa phải là số nguyên không âm",
+    "0 removes the limit": "0 để bỏ giới hạn"
   }
 }

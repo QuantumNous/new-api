@@ -6604,6 +6604,8 @@
     "Used only to start GitHub Copilot Device Flow. No client secret is required.": "Usado apenas para iniciar o fluxo de dispositivo do GitHub Copilot. Nenhum segredo do cliente é necessário.",
     "Authorize with GitHub": "Autorizar com o GitHub",
     "GitHub Copilot channels support one credential only": "Os canais do GitHub Copilot aceitam apenas uma credencial",
-    "Cooling": "resfriando"
+    "Cooling": "resfriando",
+    "Max concurrency must be a non-negative integer": "A concorrência máxima deve ser um inteiro não negativo",
+    "0 removes the limit": "0 remove o limite"
   }
 }

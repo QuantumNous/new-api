@@ -4605,7 +4605,18 @@
     "设置不同充值金额对应的赠送额度，键为充值金额，值为赠送额度，例如：{\"20\": 5, \"50\": 15}": "Thiết lập tín dụng thưởng cho từng số tiền nạp. Khóa là số tiền nạp, giá trị là số tiền thưởng, ví dụ: {\"20\": 5, \"50\": 15}",
     "赠送额度": "Tín dụng thưởng",
     "到账额度": "Tín dụng ví",
-    "等待": "chờ",
-    "冷却中": "đang nghỉ"
+    "冷却中": "đang nghỉ",
+    "渠道并发限制设置": "Giới hạn đồng thời kênh",
+    "控制配置了最大并发数的渠道的排队与冷却行为，对未设置并发上限的渠道无影响": "Điều khiển xếp hàng và nghỉ cho kênh có giới hạn đồng thời; kênh không giới hạn không bị ảnh hưởng",
+    "并发满时允许排队": "Xếp hàng khi đầy",
+    "排队超时（毫秒）": "Hết hạn xếp hàng (ms)",
+    "每渠道排队上限（0 = 等于该渠道并发上限）": "Tối đa chờ mỗi kênh (0 = bằng giới hạn đồng thời)",
+    "启用渠道冷却": "Bật nghỉ kênh",
+    "冷却时长（秒）": "Thời gian nghỉ (giây)",
+    "上游返回 429 时触发冷却": "Nghỉ khi upstream trả 429",
+    "错误消息含限流关键词时触发冷却（易误伤）": "Nghỉ khi thông báo lỗi chứa từ khóa giới hạn (dễ nhầm)",
+    "负载快照缓存（降低 Redis 压力）": "Bộ đệm ảnh chụp tải (giảm áp lực Redis)",
+    "保存渠道并发限制设置": "Lưu cài đặt đồng thời kênh",
+    "请填写有效的渠道并发限制数值": "Vui lòng nhập giá trị giới hạn đồng thời hợp lệ"
   }
 }

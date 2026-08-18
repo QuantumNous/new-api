@@ -32,22 +32,31 @@ type ChannelConcurrencySetting struct {
 	MaxWaitingPerChannel int  `json:"max_waiting_per_channel"`
 	CooldownEnabled      bool `json:"cooldown_enabled"`
 	CooldownSeconds      int  `json:"cooldown_seconds"`
-	LoadCacheEnabled     bool `json:"load_cache_enabled"`
-	LoadCacheTTLMS       int  `json:"load_cache_ttl_ms"`
-	MaxAcquireAttempts   int  `json:"max_acquire_attempts"`
+	// CooldownOnStatus429 marks a cooldown when the upstream returns HTTP 429.
+	CooldownOnStatus429 bool `json:"cooldown_on_status_429"`
+	// CooldownOnMessageMatch additionally marks a cooldown when the error
+	// message merely contains rate-limit-like keywords ("rate limit",
+	// "overload", "capacity"). Keyword matching is fuzzy and prone to false
+	// positives, so it defaults to off.
+	CooldownOnMessageMatch bool `json:"cooldown_on_message_match"`
+	LoadCacheEnabled       bool `json:"load_cache_enabled"`
+	LoadCacheTTLMS         int  `json:"load_cache_ttl_ms"`
+	MaxAcquireAttempts     int  `json:"max_acquire_attempts"`
 }
 
 var channelConcurrencySetting = ChannelConcurrencySetting{
-	SlotTTLMinutes:       defaultChannelConcurrencySlotTTLMinutes,
-	WaitEnabled:          true,
-	WaitTimeoutMS:        defaultChannelConcurrencyWaitTimeoutMS,
-	WaitIntervalMS:       defaultChannelConcurrencyWaitIntervalMS,
-	MaxWaitingPerChannel: 0,
-	CooldownEnabled:      true,
-	CooldownSeconds:      defaultChannelConcurrencyCooldownSecs,
-	LoadCacheEnabled:     true,
-	LoadCacheTTLMS:       defaultChannelConcurrencyLoadCacheTTLMS,
-	MaxAcquireAttempts:   defaultChannelConcurrencyMaxAcquireAttempts,
+	SlotTTLMinutes:         defaultChannelConcurrencySlotTTLMinutes,
+	WaitEnabled:            true,
+	WaitTimeoutMS:          defaultChannelConcurrencyWaitTimeoutMS,
+	WaitIntervalMS:         defaultChannelConcurrencyWaitIntervalMS,
+	MaxWaitingPerChannel:   0,
+	CooldownEnabled:        true,
+	CooldownSeconds:        defaultChannelConcurrencyCooldownSecs,
+	CooldownOnStatus429:    true,
+	CooldownOnMessageMatch: false,
+	LoadCacheEnabled:       true,
+	LoadCacheTTLMS:         defaultChannelConcurrencyLoadCacheTTLMS,
+	MaxAcquireAttempts:     defaultChannelConcurrencyMaxAcquireAttempts,
 }
 
 var channelConcurrencySettingMu sync.RWMutex
@@ -140,6 +149,18 @@ func IsChannelConcurrencyCooldownEnabled() bool {
 	channelConcurrencySettingMu.RLock()
 	defer channelConcurrencySettingMu.RUnlock()
 	return channelConcurrencySetting.CooldownEnabled
+}
+
+func IsChannelConcurrencyCooldownOnStatus429() bool {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	return channelConcurrencySetting.CooldownOnStatus429
+}
+
+func IsChannelConcurrencyCooldownOnMessageMatch() bool {
+	channelConcurrencySettingMu.RLock()
+	defer channelConcurrencySettingMu.RUnlock()
+	return channelConcurrencySetting.CooldownOnMessageMatch
 }
 
 func GetChannelConcurrencyCooldown() time.Duration {

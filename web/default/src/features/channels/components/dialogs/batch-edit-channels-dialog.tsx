@@ -60,6 +60,7 @@ export function BatchEditChannelsDialog({
   const [groups, setGroups] = useState<string[]>([])
   const [priority, setPriority] = useState('')
   const [weight, setWeight] = useState('')
+  const [maxConcurrency, setMaxConcurrency] = useState('')
   const [codexFingerprintMode, setCodexFingerprintMode] = useState<
     'off' | 'device' | 'session' | 'full' | ''
   >('')
@@ -94,6 +95,7 @@ export function BatchEditChannelsDialog({
       groups?: string
       priority?: number
       weight?: number
+      max_concurrency?: number
       codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
     } = {}
 
@@ -116,6 +118,14 @@ export function BatchEditChannelsDialog({
       }
       payload.weight = n
     }
+    if (maxConcurrency.trim() !== '') {
+      const n = Number(maxConcurrency)
+      if (Number.isNaN(n) || !Number.isInteger(n) || n < 0) {
+        toast.error(t('Max concurrency must be a non-negative integer'))
+        return
+      }
+      payload.max_concurrency = n
+    }
     if (codexFingerprintMode)
       payload.codex_fingerprint_mode = codexFingerprintMode
 
@@ -135,6 +145,7 @@ export function BatchEditChannelsDialog({
     setGroups([])
     setPriority('')
     setWeight('')
+    setMaxConcurrency('')
     setCodexFingerprintMode('')
     onOpenChange(false)
   }
@@ -214,8 +225,8 @@ export function BatchEditChannelsDialog({
           )}
         </div>
 
-        {/* Priority & Weight */}
-        <div className='grid grid-cols-2 gap-4'>
+        {/* Priority & Weight & Max Concurrency */}
+        <div className='grid grid-cols-3 gap-4'>
           <div className='space-y-2'>
             <Label htmlFor='batch-edit-priority'>{t('Priority')}</Label>
             <Input
@@ -237,6 +248,23 @@ export function BatchEditChannelsDialog({
               onChange={(e) => setWeight(e.target.value)}
               disabled={isSaving}
             />
+          </div>
+          <div className='space-y-2'>
+            <Label htmlFor='batch-edit-max-concurrency'>
+              {t('Max Concurrency')}
+            </Label>
+            <Input
+              id='batch-edit-max-concurrency'
+              type='number'
+              min={0}
+              placeholder={t('Leave empty to keep current')}
+              value={maxConcurrency}
+              onChange={(e) => setMaxConcurrency(e.target.value)}
+              disabled={isSaving}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('0 removes the limit')}
+            </p>
           </div>
         </div>
 

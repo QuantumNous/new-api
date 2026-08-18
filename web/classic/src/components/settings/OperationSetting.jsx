@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsChannelConcurrency from '../../pages/Setting/Operation/SettingsChannelConcurrency';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -78,6 +79,16 @@ const OperationSetting = () => {
     'checkin_setting.enabled': false,
     'checkin_setting.min_quota': 1000,
     'checkin_setting.max_quota': 10000,
+
+    /* 渠道并发限制设置 */
+    'channel_concurrency_setting.wait_enabled': true,
+    'channel_concurrency_setting.wait_timeout_ms': 5000,
+    'channel_concurrency_setting.max_waiting_per_channel': 0,
+    'channel_concurrency_setting.cooldown_enabled': true,
+    'channel_concurrency_setting.cooldown_seconds': 30,
+    'channel_concurrency_setting.cooldown_on_status_429': true,
+    'channel_concurrency_setting.cooldown_on_message_match': false,
+    'channel_concurrency_setting.load_cache_enabled': true,
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
@@ -153,6 +164,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 渠道并发限制设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsChannelConcurrency options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
