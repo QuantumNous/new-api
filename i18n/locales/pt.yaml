@@ -81,6 +81,8 @@ redemption.expired: "Este código de resgate expirou"
 redemption.failed: "Falha no resgate, tente novamente mais tarde"
 redemption.not_provided: "Código de resgate não fornecido"
 redemption.expire_time_invalid: "O horário de expiração não pode ser anterior ao horário atual"
+redemption.codes_exhausted: "Você chegou tarde — todos os códigos já foram resgatados"
+redemption.already_claimed: "Você já resgatou um código para esta oferta"
 
 # User messages
 user.password_login_disabled: "O login por senha foi desabilitado pelo administrador"

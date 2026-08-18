@@ -122,9 +122,12 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
 
   return (
     <div className='space-y-5'>
-      <div>
+      <div className='space-y-1'>
         <p className='text-muted-foreground text-xs'>
-          {t('The amount you pay is added to your balance at face value.')}
+          {t('Choose an amount to add to your USD balance.')}
+        </p>
+        <p className='text-muted-foreground text-xs'>
+          {t('One-time payment.')}
         </p>
       </div>
 
@@ -227,11 +230,7 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
         {props.paymentLoadingAmount ? (
           <Loader2 className='mr-2 h-4 w-4 animate-spin' />
         ) : null}
-        {selected
-          ? t('Top up {{amount}}', {
-              amount: `$${formatNumber(selected.value)}`,
-            })
-          : t('Top up balance')}
+        {t('Continue to payment')}
       </Button>
     </div>
   )

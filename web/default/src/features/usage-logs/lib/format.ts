@@ -286,7 +286,7 @@ export function getTieredBillingSummary(
  * reversed; we only translate the leading action phrase and keep the formatted
  * amount as-is (the currency symbol already conveys it is a quota amount).
  *
- * Returns the localized string, or null when the content is not a known reward
+ * Returns the localized string, or null when the content is not a known
  * log (callers should then fall back to showing the raw content).
  */
 const SYSTEM_REWARD_PREFIXES: Array<{ zh: string; key: string }> = [
@@ -305,6 +305,22 @@ export function localizeSystemRewardContent(
   t: (key: string, opts?: Record<string, unknown>) => string
 ): string | null {
   if (!content) return null
+
+  const redemptionMatch = content.match(
+    /^Redemption code top-up:\s+(.+?)\s+\(ID:\s*(\d+)\)$/
+  )
+  const legacyRedemptionMatch = content.match(
+    /^通过兑换码充值\s+(.+?)，兑换码ID\s+(\d+)$/
+  )
+  const matchedRedemption = redemptionMatch ?? legacyRedemptionMatch
+  if (matchedRedemption) {
+    const amount = matchedRedemption[1].replace(/\s*(?:点)?额度$/, '').trim()
+    return t('Redemption code top-up: {{amount}} (ID: {{id}})', {
+      amount,
+      id: matchedRedemption[2],
+    })
+  }
+
   for (const { zh, key } of SYSTEM_REWARD_PREFIXES) {
     if (content.startsWith(zh)) {
       const amount = content

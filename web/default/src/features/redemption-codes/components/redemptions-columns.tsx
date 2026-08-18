@@ -74,9 +74,9 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'name',
-      meta: { label: t('Name'), mobileTitle: true },
+      meta: { label: t('Purpose'), mobileTitle: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Name')} />
+        <DataTableColumnHeader column={column} title={t('Purpose')} />
       ),
       cell: ({ row }) => {
         return (

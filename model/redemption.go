@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -12,18 +13,91 @@ import (
 )
 
 type Redemption struct {
-	Id           int            `json:"id"`
-	UserId       int            `json:"user_id"`
-	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex"`
-	Status       int            `json:"status" gorm:"default:1"`
-	Name         string         `json:"name" gorm:"index"`
-	Quota        int            `json:"quota" gorm:"default:100"`
-	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
-	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
-	Count        int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId   int            `json:"used_user_id"`
-	DeletedAt    gorm.DeletedAt `gorm:"index"`
-	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	Id            int            `json:"id"`
+	UserId        int            `json:"user_id"`
+	Key           string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Status        int            `json:"status" gorm:"default:1"`
+	Name          string         `json:"name" gorm:"index"`
+	Quota         int            `json:"quota" gorm:"default:100"`
+	CreatedTime   int64          `json:"created_time" gorm:"bigint"`
+	RedeemedTime  int64          `json:"redeemed_time" gorm:"bigint"`
+	Count         int            `json:"count" gorm:"-:all"` // only for api request
+	UsedUserId    int            `json:"used_user_id"`
+	ClaimedUserId int            `json:"claimed_user_id" gorm:"index;default:0"`
+	ClaimedTime   int64          `json:"claimed_time" gorm:"bigint;default:0"`
+	DeletedAt     gorm.DeletedAt `gorm:"index"`
+	ExpiredTime   int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+}
+
+func ClaimRedemptionByPurpose(purpose string, userId int) (*Redemption, error) {
+	purpose = strings.TrimSpace(purpose)
+	if purpose == "" {
+		return nil, ErrRedemptionPurposeRequired
+	}
+	if userId == 0 {
+		return nil, errors.New("invalid user id")
+	}
+
+	var claimed Redemption
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		// Serialize claims for the same user across application instances. The
+		// redemption path takes the same lock first to keep lock ordering stable.
+		var user User
+		if err := lockQuery(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+
+		now := common.GetTimestamp()
+		available := lockQuery(tx).Where("name = ? AND status = ? AND claimed_user_id = ? AND (expired_time = 0 OR expired_time >= ?)",
+			purpose, common.RedemptionCodeStatusEnabled, userId, now).
+			Order("id asc").First(&claimed).Error
+		if available == nil {
+			return nil
+		}
+		if !errors.Is(available, gorm.ErrRecordNotFound) {
+			return available
+		}
+
+		var usedCount int64
+		if err := tx.Model(&Redemption{}).
+			Where("name = ? AND status = ? AND used_user_id = ?", purpose, common.RedemptionCodeStatusUsed, userId).
+			Count(&usedCount).Error; err != nil {
+			return err
+		}
+		if usedCount > 0 {
+			return ErrRedemptionAlreadyClaimed
+		}
+
+		for attempts := 0; attempts < 5; attempts++ {
+			var candidate Redemption
+			err := lockQuery(tx).Where("name = ? AND status = ? AND (claimed_user_id = 0 OR claimed_user_id IS NULL) AND (expired_time = 0 OR expired_time >= ?)",
+				purpose, common.RedemptionCodeStatusEnabled, now).
+				Order("id asc").First(&candidate).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrRedemptionCodesExhausted
+			}
+			if err != nil {
+				return err
+			}
+			result := tx.Model(&Redemption{}).
+				Where("id = ? AND status = ? AND (claimed_user_id = 0 OR claimed_user_id IS NULL)", candidate.Id, common.RedemptionCodeStatusEnabled).
+				Updates(map[string]interface{}{"claimed_user_id": userId, "claimed_time": now})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 1 {
+				candidate.ClaimedUserId = userId
+				candidate.ClaimedTime = now
+				claimed = candidate
+				return nil
+			}
+		}
+		return ErrRedemptionCodesExhausted
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &claimed, nil
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -127,12 +201,22 @@ func Redeem(key string, userId int) (quota int, err error) {
 	}
 	common.RandomSleep()
 	err = DB.Transaction(func(tx *gorm.DB) error {
+		// Match ClaimRedemptionByPurpose's lock order so a claim racing with a
+		// redemption cannot deadlock or allocate another code for this user.
+		var user User
+		if err := lockQuery(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
 			return errors.New("无效的兑换码")
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
 			return errors.New("该兑换码已被使用")
+		}
+		if redemption.ClaimedUserId != 0 && redemption.ClaimedUserId != userId {
+			return errors.New("该兑换码已被其他用户领取")
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
@@ -150,7 +234,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
 	}
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	RecordLog(userId, LogTypeTopup, fmt.Sprintf("Redemption code top-up: %s (ID: %d)", logger.FormatQuota(redemption.Quota), redemption.Id))
 	return redemption.Quota, nil
 }
 

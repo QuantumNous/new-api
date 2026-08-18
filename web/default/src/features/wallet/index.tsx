@@ -977,7 +977,7 @@ export function Wallet(props: WalletProps) {
       <Dialog open={topupDialogOpen} onOpenChange={setTopupDialogOpen}>
         <DialogContent className='sm:max-w-lg' showCloseButton>
           <DialogHeader>
-            <DialogTitle>{t('Top up balance')}</DialogTitle>
+            <DialogTitle>{t('Add to your balance')}</DialogTitle>
           </DialogHeader>
           <RechargeFormCard
             topupInfo={topupInfo}

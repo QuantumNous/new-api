@@ -81,6 +81,8 @@ redemption.expired: "該兌換碼已過期"
 redemption.failed: "兌換失敗，請稍後重試"
 redemption.not_provided: "未提供兌換碼"
 redemption.expire_time_invalid: "過期時間不能早於當前時間"
+redemption.codes_exhausted: "來晚了，code 已經發完了"
+redemption.already_claimed: "你已經領取過這個用途的 code"
 
 # User messages
 user.password_login_disabled: "管理員關閉了密碼登錄"

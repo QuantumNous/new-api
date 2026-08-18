@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,6 +14,47 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type claimRedemptionRequest struct {
+	Purpose string `json:"purpose"`
+}
+
+func ClaimRedemption(c *gin.Context) {
+	if !operation_setting.IsPaymentComplianceConfirmed() {
+		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+		return
+	}
+	request := claimRedemptionRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	purpose := strings.TrimSpace(request.Purpose)
+	if utf8.RuneCountInString(purpose) == 0 || utf8.RuneCountInString(purpose) > 20 {
+		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
+		return
+	}
+	redemption, err := model.ClaimRedemptionByPurpose(purpose, c.GetInt("id"))
+	if err != nil {
+		switch {
+		case errors.Is(err, model.ErrRedemptionCodesExhausted):
+			c.JSON(http.StatusOK, gin.H{"success": false, "code": "redemption_codes_exhausted", "message": i18n.T(c, i18n.MsgRedemptionCodesExhausted)})
+		case errors.Is(err, model.ErrRedemptionAlreadyClaimed):
+			c.JSON(http.StatusOK, gin.H{"success": false, "code": "redemption_already_claimed", "message": i18n.T(c, i18n.MsgRedemptionAlreadyClaimed)})
+		default:
+			common.ApiError(c, err)
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"key":     redemption.Key,
+			"purpose": redemption.Name,
+			"quota":   redemption.Quota,
+		},
+	})
+}
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)

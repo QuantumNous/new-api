@@ -60,6 +60,7 @@ import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
+import { Route as AuthenticatedRedeemIndexRouteImport } from './routes/_authenticated/redeem/index'
 import { Route as AuthenticatedRecallCampaignsIndexRouteImport } from './routes/_authenticated/recall-campaigns/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
@@ -365,6 +366,12 @@ const AuthenticatedRedemptionCodesIndexRoute =
   AuthenticatedRedemptionCodesIndexRouteImport.update({
     id: '/redemption-codes/',
     path: '/redemption-codes/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedRedeemIndexRoute =
+  AuthenticatedRedeemIndexRouteImport.update({
+    id: '/redeem/',
+    path: '/redeem/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedRecallCampaignsIndexRoute =
@@ -710,6 +717,7 @@ export interface FileRoutesByFullPath {
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/recall-campaigns/': typeof AuthenticatedRecallCampaignsIndexRoute
+  '/redeem/': typeof AuthenticatedRedeemIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -807,6 +815,7 @@ export interface FileRoutesByTo {
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/recall-campaigns': typeof AuthenticatedRecallCampaignsIndexRoute
+  '/redeem': typeof AuthenticatedRedeemIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
@@ -908,6 +917,7 @@ export interface FileRoutesById {
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/recall-campaigns/': typeof AuthenticatedRecallCampaignsIndexRoute
+  '/_authenticated/redeem/': typeof AuthenticatedRedeemIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -1008,6 +1018,7 @@ export interface FileRouteTypes {
     | '/playground/'
     | '/profile/'
     | '/recall-campaigns/'
+    | '/redeem/'
     | '/redemption-codes/'
     | '/subscriptions/'
     | '/system-settings/'
@@ -1105,6 +1116,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/profile'
     | '/recall-campaigns'
+    | '/redeem'
     | '/redemption-codes'
     | '/subscriptions'
     | '/system-settings'
@@ -1205,6 +1217,7 @@ export interface FileRouteTypes {
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/recall-campaigns/'
+    | '/_authenticated/redeem/'
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/subscriptions/'
     | '/_authenticated/system-settings/'
@@ -1636,6 +1649,13 @@ declare module '@tanstack/react-router' {
       path: '/redemption-codes'
       fullPath: '/redemption-codes/'
       preLoaderRoute: typeof AuthenticatedRedemptionCodesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/redeem/': {
+      id: '/_authenticated/redeem/'
+      path: '/redeem'
+      fullPath: '/redeem/'
+      preLoaderRoute: typeof AuthenticatedRedeemIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/recall-campaigns/': {
@@ -2079,6 +2099,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRecallCampaignsIndexRoute: typeof AuthenticatedRecallCampaignsIndexRoute
+  AuthenticatedRedeemIndexRoute: typeof AuthenticatedRedeemIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
@@ -2116,6 +2137,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRecallCampaignsIndexRoute:
     AuthenticatedRecallCampaignsIndexRoute,
+  AuthenticatedRedeemIndexRoute: AuthenticatedRedeemIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,

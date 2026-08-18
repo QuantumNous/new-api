@@ -80,6 +80,8 @@ redemption.expired: "This redemption code has expired"
 redemption.failed: "Redemption failed, please try again later"
 redemption.not_provided: "Redemption code not provided"
 redemption.expire_time_invalid: "Expiration time cannot be earlier than current time"
+redemption.codes_exhausted: "Too late — all codes have already been claimed"
+redemption.already_claimed: "You have already claimed a code for this offer"
 
 # User messages
 user.password_login_disabled: "Password login has been disabled by administrator"
