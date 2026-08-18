@@ -51,6 +51,31 @@ func UpsertGrokChannelState(st *GrokChannelState) error {
 	}).Create(st).Error
 }
 
+// GrokAuthStateView 是 GrokChannelState 的非秘密子集（白名单投影，绝不含 LastError/lease/token/quota）。
+// 仅用于 GetChannel detail 响应对管理员展示 113 渠道的认证状态。
+// 新增字段前务必确认其非敏感——GrokChannelState.LastError 承载上游报文片段，绝不可投影进来。
+type GrokAuthStateView struct {
+	AuthStatus    string `json:"auth_status"`
+	BillingPlan   string `json:"billing_plan,omitempty"`
+	TierRaw       string `json:"tier_raw,omitempty"`
+	LastRefreshAt int64  `json:"last_refresh_at,omitempty"`
+}
+
+// NewGrokAuthStateView 从 GrokChannelState 投影出非秘密视图（白名单逐字段挑选，
+// 绝不含 LastError / RefreshLeaseOwner / RefreshLeaseExpiresAt / QuotaSnapshot / token）。
+// 入参为 nil（state 行尚不存在）时返回 nil，使 detail 响应因 omitempty 省略该字段。
+func NewGrokAuthStateView(st *GrokChannelState) *GrokAuthStateView {
+	if st == nil {
+		return nil
+	}
+	return &GrokAuthStateView{
+		AuthStatus:    st.AuthStatus,
+		BillingPlan:   st.BillingPlan,
+		TierRaw:       st.TierRaw,
+		LastRefreshAt: st.LastRefreshAt,
+	}
+}
+
 // GetGrokChannelState 取单渠道状态；不存在返回 (nil, gorm.ErrRecordNotFound)。
 func GetGrokChannelState(channelID int) (*GrokChannelState, error) {
 	var st GrokChannelState

@@ -1,6 +1,9 @@
 {
   "translation": {
     "Grok Authorization": "Ủy quyền Grok",
+    "Authorized": "Đã ủy quyền",
+    "Pending authorization": "Đang chờ ủy quyền",
+    "Needs re-authorization": "Cần ủy quyền lại",
     "Authorize this saved channel with Grok OAuth. Credentials are stored on the server automatically.": "Ủy quyền kênh đã lưu này bằng Grok OAuth. Thông tin xác thực được lưu tự động trên máy chủ.",
     "1) Click \"Open authorization page\" and sign in to Grok. 2) Your browser will redirect to a localhost address (it is OK if the page does not load). 3) Copy the full URL from the address bar and paste it below. 4) Click \"Complete authorization\".": "1) Nhấp vào \"Mở trang ủy quyền\" và đăng nhập Grok. 2) Trình duyệt sẽ chuyển hướng đến địa chỉ localhost (không sao nếu trang không tải được). 3) Sao chép toàn bộ URL từ thanh địa chỉ và dán vào bên dưới. 4) Nhấp vào \"Hoàn tất ủy quyền\".",
     "Authorize this saved channel with Grok OAuth, or import an existing refresh token.": "Ủy quyền kênh đã lưu này bằng Grok OAuth, hoặc nhập một refresh token hiện có.",

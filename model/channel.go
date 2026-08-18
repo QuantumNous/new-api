@@ -75,6 +75,10 @@ type Channel struct {
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+
+	// GrokAuthState 是 113(Grok Subscription) 渠道的非秘密认证状态投影，
+	// 仅在 GetChannel detail 动态填充、不落库（gorm:"-"）。绝不含 token/verifier/last_error/lease。
+	GrokAuthState *GrokAuthStateView `json:"grok_auth_state,omitempty" gorm:"-"`
 }
 
 type ChannelInfo struct {

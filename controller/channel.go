@@ -398,6 +398,15 @@ func GetChannel(c *gin.Context) {
 	}
 	if channel != nil {
 		clearChannelInfo(channel)
+		// 113(Grok Subscription) 渠道：附带非秘密认证状态投影，供管理 UI 显示 pending/active/needs_reauth 徽章。
+		// 白名单投影（model.NewGrokAuthStateView），绝不含 token/verifier/last_error/lease。
+		if channel.Type == constant.ChannelTypeGrokSubscription {
+			if st, err := model.GetGrokChannelState(channel.Id); err == nil {
+				channel.GrokAuthState = model.NewGrokAuthStateView(st)
+			}
+			// state 行不存在（gorm.ErrRecordNotFound，渠道刚建未授权）或真实 DB 错误：
+			// 均不填充、不阻断 detail 返回；前端据 grok_auth_state 缺省显示 pending。
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

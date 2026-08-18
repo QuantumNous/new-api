@@ -1,6 +1,9 @@
 {
   "translation": {
     "Grok Authorization": "Autorización de Grok",
+    "Authorized": "Autorizado",
+    "Pending authorization": "Autorización pendiente",
+    "Needs re-authorization": "Requiere reautorización",
     "Authorize this saved channel with Grok OAuth. Credentials are stored on the server automatically.": "Autoriza este canal guardado con Grok OAuth. Las credenciales se almacenan automáticamente en el servidor.",
     "1) Click \"Open authorization page\" and sign in to Grok. 2) Your browser will redirect to a localhost address (it is OK if the page does not load). 3) Copy the full URL from the address bar and paste it below. 4) Click \"Complete authorization\".": "1) Haz clic en \"Abrir página de autorización\" e inicia sesión en Grok. 2) Tu navegador se redirigirá a una dirección localhost (no pasa nada si la página no carga). 3) Copia la URL completa de la barra de direcciones y pégala abajo. 4) Haz clic en \"Completar autorización\".",
     "Authorize this saved channel with Grok OAuth, or import an existing refresh token.": "Autoriza este canal guardado con Grok OAuth o importa un token de actualización existente.",

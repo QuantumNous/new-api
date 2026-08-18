@@ -53,6 +53,7 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
@@ -2292,8 +2293,44 @@ export function ChannelMutateDrawer({
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
                             <div className='flex flex-col gap-0.5'>
-                              <div className='text-sm font-semibold'>
-                                {t('Grok Authorization')}
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <div className='text-sm font-semibold'>
+                                  {t('Grok Authorization')}
+                                </div>
+                                {(() => {
+                                  const grokAuthStatus =
+                                    channelData?.data?.grok_auth_state
+                                      ?.auth_status
+                                  if (grokAuthStatus === 'active') {
+                                    return (
+                                      <StatusBadge
+                                        variant='success'
+                                        size='sm'
+                                        copyable={false}
+                                        label={t('Authorized')}
+                                      />
+                                    )
+                                  }
+                                  if (grokAuthStatus === 'needs_reauth') {
+                                    return (
+                                      <StatusBadge
+                                        variant='danger'
+                                        size='sm'
+                                        copyable={false}
+                                        label={t('Needs re-authorization')}
+                                      />
+                                    )
+                                  }
+                                  return (
+                                    <StatusBadge
+                                      variant='warning'
+                                      size='sm'
+                                      pulse
+                                      copyable={false}
+                                      label={t('Pending authorization')}
+                                    />
+                                  )
+                                })()}
                               </div>
                               <div className='text-muted-foreground text-xs'>
                                 {isEditing

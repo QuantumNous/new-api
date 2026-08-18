@@ -1,6 +1,9 @@
 {
   "translation": {
     "Grok Authorization": "Grok 認証",
+    "Authorized": "認証済み",
+    "Pending authorization": "認証待ち",
+    "Needs re-authorization": "再認証が必要",
     "Authorize this saved channel with Grok OAuth. Credentials are stored on the server automatically.": "保存済みのチャネルを Grok OAuth で認証します。認証情報はサーバーに自動的に保存されます。",
     "1) Click \"Open authorization page\" and sign in to Grok. 2) Your browser will redirect to a localhost address (it is OK if the page does not load). 3) Copy the full URL from the address bar and paste it below. 4) Click \"Complete authorization\".": "1)「認証ページを開く」をクリックして Grok にログインします。2) ブラウザが localhost アドレスにリダイレクトされます（ページが読み込まれなくても問題ありません）。3) アドレスバーから完全な URL をコピーして下に貼り付けます。4)「認証を完了」をクリックします。",
     "Authorize this saved channel with Grok OAuth, or import an existing refresh token.": "保存済みのチャネルを Grok OAuth で認証するか、既存のリフレッシュトークンをインポートします。",
