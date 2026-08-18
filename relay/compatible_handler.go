@@ -30,7 +30,10 @@ func shouldPassThroughTextRequest(info *relaycommon.RelayInfo) bool {
 	if info.ChannelType == constant.ChannelTypeCopilot {
 		return false
 	}
-	if info.RelayMode == relayconstant.RelayModeChatCompletions && info.ApiType == constant.APITypeCodex {
+	// Codex/Grok 上游只有 /v1/responses 端点：chat 原文透传必然协议不匹配，
+	// 即使全局/渠道透传开关开启也必须走转换路径（与 claude_handler 侧对称）。
+	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
+		(info.ApiType == constant.APITypeCodex || info.ApiType == constant.APITypeGrokSubscription) {
 		return false
 	}
 	return model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled
