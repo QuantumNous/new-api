@@ -718,9 +718,9 @@ export default {
     refreshBalance: 'Sync upstream balance and ratio',
     rowUpstreamAction: 'Per-channel upstream sync',
     rowResponseAction: 'Per-channel response test',
-    syncSupplier: 'Sync {supplier} upstream balances and ratios',
-    testSupplier: 'Test {supplier} channel responses',
-    clearSupplier: 'Clear {supplier} channels',
+    syncSupplier: 'Sync {supplier} Lab upstream balances and ratios',
+    testSupplier: 'Test {supplier} Lab channel responses',
+    clearSupplier: 'Clear {supplier} Lab channels',
     batchBalancePage: 'Sync upstream',
     batchBalanceLabel:
       'Sync upstream balances and ratios for {count} visible channels',
@@ -842,10 +842,10 @@ export default {
     bulkDeleteTitle: 'Delete selected channels',
     bulkDeleteMessage:
       'Delete the selected {count} channels? This action cannot be undone.',
-    clearSupplierTitle: 'Clear supplier channels',
+    clearSupplierTitle: 'Clear Lab group channels',
     clearSupplierMessage:
-      'Delete all {count} visible channels in the {supplier} group? This action cannot be undone.',
-    supplierCleared: 'Cleared {count} channels from {supplier}',
+      'Delete all {count} visible channels in the {supplier} Lab group (IDs {ids})? This action cannot be undone.',
+    supplierCleared: 'Cleared {count} channels from {supplier} Lab',
     fieldSettings: 'Visible fields',
     resetFields: 'Restore defaults',
     supplierGroupCount: '{count} channels',

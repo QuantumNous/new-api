@@ -40,6 +40,22 @@ export type AdminChannelSortBy =
 
 export type AdminChannelSortOrder = 'asc' | 'desc'
 
+export interface AdminChannelLabMatch {
+  slug: string
+  name: string
+  confidence: number
+  source: string
+}
+
+export interface AdminChannelModelMatch {
+  input_model: string
+  real_model: string
+  canonical_id?: string
+  lab_slug?: string
+  confidence: number
+  source: string
+}
+
 export interface AdminChannel extends Record<string, unknown> {
   id: number
   name: string
@@ -60,6 +76,12 @@ export interface AdminChannel extends Record<string, unknown> {
   base_url: string
   models: string
   model_mapping: string
+  lab_group_slug?: string
+  lab_group_name?: string
+  lab_matches?: AdminChannelLabMatch[]
+  lab_models?: AdminChannelModelMatch[]
+  lab_unresolved_count?: number
+  lab_catalog_version?: string
 }
 
 export interface AdminChannelCreateInput {

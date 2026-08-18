@@ -39,9 +39,16 @@ export const vendorLogoMeta: Record<string, VendorLogoMeta> = {
   Google: { src: '/models/gemini-color.svg' },
   DeepSeek: { src: '/models/deepseek-color.svg' },
   阿里通义: { src: '/models/qwen-color.svg' },
+  Alibaba: { src: '/models/qwen-color.svg' },
   xAI: { src: '/models/grok.svg', monochrome: true },
   Moonshot: { src: '/models/kimi-color.svg', darkSurface: true },
+  'Moonshot AI': { src: '/models/kimi-color.svg', darkSurface: true },
   智谱AI: { src: '/models/zhipu-color.svg' },
+  'Zhipu AI': { src: '/models/zhipu-color.svg' },
+  MiniMax: { src: '/models/minimax-color.svg' },
+  Mistral: { src: '/models/mistral-color.svg' },
+  Tencent: { src: '/models/hunyuan-color.svg' },
+  'Bytedance Seed': { src: '/models/doubao-color.svg' },
 }
 
 /** Platform-side upstream channels (also the channel pool for platform tokens). */

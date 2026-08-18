@@ -68,16 +68,20 @@ import type {
 import { formatMoney, formatQuota, relativeTime } from '@/utils/format'
 
 interface SupplierGroup {
+  groupSlug: string
   supplier: string
   channels: AdminChannel[]
+  labMatches: NonNullable<AdminChannel['lab_matches']>
 }
 
 interface SupplierTableRow extends Record<string, unknown> {
   key: string | number
   kind: 'supplier'
+  groupSlug: string
   supplier: string
   count: number
   channels: AdminChannel[]
+  labMatches: NonNullable<AdminChannel['lab_matches']>
 }
 
 interface ChannelTableRow extends Record<string, unknown> {
@@ -89,7 +93,12 @@ interface ChannelTableRow extends Record<string, unknown> {
 type AdminChannelTableRow = SupplierTableRow | ChannelTableRow
 type DeleteTarget =
   | { kind: 'channel'; channel: AdminChannel }
-  | { kind: 'supplier'; supplier: string; channels: AdminChannel[] }
+  | {
+      kind: 'supplier'
+      supplier: string
+      groupSlug: string
+      channels: AdminChannel[]
+    }
   | { kind: 'bulk'; channels: AdminChannel[] }
 
 const { t, locale } = useI18n()
@@ -129,6 +138,7 @@ const {
   toggleStatus,
   refreshBalance,
   testChannelModel,
+  recordLabAudit,
   removeChannelModels,
   createChannel,
   updateChannelDetails,
@@ -309,23 +319,40 @@ const minTableWidth = computed(() => {
 })
 
 const supplierGroups = computed<SupplierGroup[]>(() => {
-  const groups = new Map<string, AdminChannel[]>()
+  const groups = new Map<string, SupplierGroup>()
   rows.value.forEach((channel) => {
-    const channels = groups.get(channel.supplier)
-    if (channels) channels.push(channel)
-    else groups.set(channel.supplier, [channel])
+    const groupSlug = channel.lab_group_slug || channel.supplier || 'unknown'
+    const supplier = channel.lab_group_name || channel.supplier || 'Unknown / Provider-specific'
+    const group = groups.get(groupSlug)
+    if (group) {
+      group.channels.push(channel)
+      for (const match of channel.lab_matches ?? []) {
+        if (!group.labMatches.some((existing) => existing.slug === match.slug)) {
+          group.labMatches.push(match)
+        }
+      }
+      return
+    }
+    groups.set(groupSlug, {
+      groupSlug,
+      supplier,
+      channels: [channel],
+      labMatches: [...(channel.lab_matches ?? [])],
+    })
   })
-  return Array.from(groups, ([supplier, channels]) => ({ supplier, channels }))
+  return [...groups.values()]
 })
 
 const tableRows = computed<AdminChannelTableRow[]>(() =>
   supplierGroups.value.flatMap((group) => {
     const groupRow: SupplierTableRow = {
-      key: `supplier:${group.supplier}`,
+      key: `lab:${group.groupSlug}`,
       kind: 'supplier',
+      groupSlug: group.groupSlug,
       supplier: group.supplier,
       count: group.channels.length,
       channels: group.channels,
+      labMatches: group.labMatches,
     }
     if (collapsedSuppliers.value.includes(group.supplier)) return [groupRow]
     return [
@@ -602,6 +629,7 @@ function requestClearSupplier(group: SupplierGroup) {
   deleting.value = {
     kind: 'supplier',
     supplier: group.supplier,
+    groupSlug: group.groupSlug,
     channels: group.channels.map((channel) => ({ ...channel })),
   }
 }
@@ -613,7 +641,11 @@ async function confirmDelete() {
     target.kind === 'channel'
       ? await deleteChannel(target.channel)
       : target.kind === 'supplier'
-        ? await deleteSupplierChannels(target.supplier, target.channels)
+        ? await deleteSupplierChannels(
+            target.supplier,
+            target.channels,
+            target.groupSlug
+          )
         : await deleteSelectedChannels(target.channels)
   if (deleted) {
     deleting.value = null
@@ -647,8 +679,16 @@ const deleteDialogMessage = computed(() => {
   return t('channels.clearSupplierMessage', {
     supplier: target.supplier,
     count: target.channels.length,
+    ids: channelIdSummary(target.channels),
   })
 })
+
+function channelIdSummary(channels: AdminChannel[]): string {
+  const ids = channels.map((channel) => channel.id).sort((a, b) => a - b)
+  if (ids.length === 0) return ''
+  if (ids.length === 1) return `#${ids[0]}`
+  return `#${ids[0]} - #${ids[ids.length - 1]}`
+}
 
 async function runBulkStatus(
   action: 'enable' | 'disable' | 'reset'
@@ -935,6 +975,19 @@ async function runBulkStatus(
                   {{ (row as SupplierTableRow).supplier }}
                 </span>
                 <span
+                  v-if="(row as SupplierTableRow).labMatches.length > 1"
+                  class="flex min-w-0 flex-wrap items-center gap-1"
+                >
+                  <StatusChip
+                    v-for="match in (row as SupplierTableRow).labMatches"
+                    :key="match.slug"
+                    tone="info"
+                    class="text-[10px]"
+                  >
+                    {{ match.name }}
+                  </StatusChip>
+                </span>
+                <span
                   class="shrink-0 text-xs font-normal text-[var(--text-tertiary)]"
                 >
                   {{
@@ -965,7 +1018,8 @@ async function runBulkStatus(
                   @click="
                     runSupplierBalance(
                       (row as SupplierTableRow).supplier,
-                      (row as SupplierTableRow).channels
+                      (row as SupplierTableRow).channels,
+                      (row as SupplierTableRow).groupSlug
                     )
                   "
                 >
@@ -986,8 +1040,10 @@ async function runBulkStatus(
                   class="h-7 w-7"
                   @click="
                     openSupplierTest({
+                      groupSlug: (row as SupplierTableRow).groupSlug,
                       supplier: (row as SupplierTableRow).supplier,
                       channels: (row as SupplierTableRow).channels,
+                      labMatches: (row as SupplierTableRow).labMatches,
                     })
                   "
                 >
@@ -1005,8 +1061,10 @@ async function runBulkStatus(
                   class="h-7 w-7"
                   @click="
                     requestClearSupplier({
+                      groupSlug: (row as SupplierTableRow).groupSlug,
                       supplier: (row as SupplierTableRow).supplier,
                       channels: (row as SupplierTableRow).channels,
+                      labMatches: (row as SupplierTableRow).labMatches,
                     })
                   "
                 >
@@ -1436,9 +1494,11 @@ async function runBulkStatus(
 
     <ChannelTestPickerDialog
       :open="pickingGroup !== null"
+      :group-slug="pickingGroup?.groupSlug"
       :supplier="pickingGroup?.supplier ?? ''"
       :channels="pickingGroup?.channels ?? []"
       :test-model="testChannelModel"
+      :record-audit="recordLabAudit"
       @close="closeSupplierTest"
       @start="onGroupTestStart"
       @result="onGroupTestResult"

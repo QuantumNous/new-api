@@ -40,7 +40,12 @@ interface ChannelBatchProgress {
 }
 
 const props = defineProps<{
-  groups: Array<{ supplier: string; channels: AdminChannel[] }>
+  groups: Array<{
+    groupSlug: string
+    supplier: string
+    channels: AdminChannel[]
+    labMatches: NonNullable<AdminChannel['lab_matches']>
+  }>
   visibleFields: AdminChannelOptionalField[]
   selectedIds: number[]
   allSelected: boolean
@@ -60,13 +65,21 @@ const props = defineProps<{
   canSensitiveWrite: boolean
   runSupplierBalance: (
     supplier: string,
-    channels: AdminChannel[]
+    channels: AdminChannel[],
+    groupSlug: string
   ) => Promise<void>
   pickSupplierTest: (group: {
+    groupSlug: string
     supplier: string
     channels: AdminChannel[]
+    labMatches: NonNullable<AdminChannel['lab_matches']>
   }) => void
-  clearSupplier: (group: { supplier: string; channels: AdminChannel[] }) => void
+  clearSupplier: (group: {
+    groupSlug: string
+    supplier: string
+    channels: AdminChannel[]
+    labMatches: NonNullable<AdminChannel['lab_matches']>
+  }) => void
   isBusy: (id: number, action: ChannelAction) => boolean
   isRowBusy: (id: number) => boolean
   updateNumber: (
@@ -184,6 +197,19 @@ function responseDisplay(channel: AdminChannel): {
               >
                 {{ group.supplier }}
               </span>
+              <span
+                v-if="(group.labMatches?.length ?? 0) > 1"
+                class="flex min-w-0 flex-wrap gap-1"
+              >
+                <StatusChip
+                  v-for="match in group.labMatches"
+                  :key="match.slug"
+                  tone="info"
+                  class="text-[10px]"
+                >
+                  {{ match.name }}
+                </StatusChip>
+              </span>
               <span class="block text-[10px] text-[var(--text-tertiary)]">
                 {{
                   batchProgress?.scope === 'supplier' &&
@@ -208,7 +234,13 @@ function responseDisplay(channel: AdminChannel): {
               :label="t('channels.syncSupplier', { supplier: group.supplier })"
               :disabled="!canRunBatch"
               class="h-7 w-7"
-              @click="runSupplierBalance(group.supplier, group.channels)"
+              @click="
+                runSupplierBalance(
+                  group.supplier,
+                  group.channels,
+                  group.groupSlug
+                )
+              "
             >
               <LoaderCircle
                 v-if="

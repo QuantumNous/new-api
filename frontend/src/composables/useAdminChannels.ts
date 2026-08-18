@@ -130,6 +130,67 @@ export function useAdminChannels() {
     busy.value = next
   }
 
+  function buildLabAudit(
+    channels: AdminChannel[],
+    groupSlug?: string
+  ): Record<string, unknown> {
+    const labs = new Set<string>()
+    const models = new Set<string>()
+    const sources = new Set<string>()
+    let unresolvedCount = 0
+    let catalogVersion = ''
+    channels.forEach((channel) => {
+      for (const match of channel.lab_matches ?? []) {
+        labs.add(match.slug)
+      }
+      for (const match of channel.lab_models ?? []) {
+        const model = match.canonical_id || match.real_model
+        if (model) models.add(model)
+        if (match.source) sources.add(match.source)
+      }
+      unresolvedCount += channel.lab_unresolved_count ?? 0
+      if (!catalogVersion && channel.lab_catalog_version) {
+        catalogVersion = channel.lab_catalog_version
+      }
+    })
+    const matchedLabs = [...labs].sort()
+    const resolvedGroupSlug =
+      groupSlug ||
+      (matchedLabs.length === 1
+        ? matchedLabs[0]
+        : matchedLabs.length > 1
+          ? 'mixed'
+          : 'unknown')
+    const groupKind =
+      resolvedGroupSlug === 'mixed'
+        ? 'mixed'
+        : resolvedGroupSlug === 'unknown'
+          ? 'unknown'
+          : 'single'
+    return {
+      group_slug: resolvedGroupSlug,
+      group_kind: groupKind,
+      channel_ids: channels.map((channel) => channel.id),
+      matched_labs: matchedLabs,
+      matched_models: [...models].sort(),
+      match_sources: [...sources].sort(),
+      catalog_version: catalogVersion,
+      unresolved_count: unresolvedCount,
+    }
+  }
+
+  async function recordLabAudit(
+    action: 'channel.lab_balance_sync' | 'channel.lab_model_test',
+    channels: AdminChannel[],
+    groupSlug?: string
+  ): Promise<void> {
+    if (channels.length === 0) return
+    await api.post<unknown>('/api/next/admin/channels/lab-audit', {
+      action,
+      ...buildLabAudit(channels, groupSlug),
+    })
+  }
+
   function currentParams() {
     return {
       p: page.value,
@@ -379,13 +440,14 @@ export function useAdminChannels() {
 
   function deleteSupplierChannels(
     supplier: string,
-    channels: AdminChannel[]
+    channels: AdminChannel[],
+    groupSlug?: string
   ): Promise<boolean> {
     const ids = channels.map((channel) => channel.id)
     return runCrudAction('delete', null, async (signal) => {
       const deleted = await api.post<number>(
         '/api/channel/batch',
-        { ids },
+        { ids, lab_audit: buildLabAudit(channels, groupSlug) },
         { signal }
       )
       toast.success(t('channels.supplierCleared', { supplier, count: deleted }))
@@ -461,7 +523,11 @@ export function useAdminChannels() {
     return runBulkAction(action, async (signal) => {
       const changed = await api.post<number>(
         '/api/next/admin/channels/status/batch',
-        { ids: targets.map((channel) => channel.id), status },
+        {
+          ids: targets.map((channel) => channel.id),
+          status,
+          lab_audit: buildLabAudit(targets),
+        },
         { signal }
       )
       toast.success(
@@ -485,7 +551,7 @@ export function useAdminChannels() {
     return runBulkAction('delete', async (signal) => {
       const deleted = await api.post<number>(
         '/api/channel/batch',
-        { ids },
+        { ids, lab_audit: buildLabAudit(channels) },
         { signal }
       )
       toast.success(t('channels.bulkDeleted', { count: deleted }))
@@ -500,11 +566,18 @@ export function useAdminChannels() {
   async function runBalanceBatch(
     scope: ChannelBatchScope,
     channels: AdminChannel[],
-    supplier?: string
+    supplier?: string,
+    groupSlug?: string
   ): Promise<void> {
     if (!canMutate.value || channels.length === 0) return
 
     const targets = channels.map((channel) => ({ ...channel }))
+    try {
+      await recordLabAudit('channel.lab_balance_sync', targets, groupSlug)
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : String(error))
+      return
+    }
     const controller = new AbortController()
     batchController = controller
     batchProgress.value = {
@@ -595,9 +668,10 @@ export function useAdminChannels() {
 
   function runSupplierBalance(
     supplier: string,
-    channels: AdminChannel[]
+    channels: AdminChannel[],
+    groupSlug?: string
   ): Promise<void> {
-    return runBalanceBatch('supplier', channels, supplier)
+    return runBalanceBatch('supplier', channels, supplier, groupSlug)
   }
 
   onMounted(() => void load())
@@ -637,6 +711,7 @@ export function useAdminChannels() {
     toggleStatus,
     refreshBalance,
     testChannelModel,
+    recordLabAudit,
     removeChannelModels,
     createChannel,
     updateChannelDetails,

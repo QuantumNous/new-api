@@ -184,7 +184,7 @@ func GetAllChannels(c *gin.Context) {
 		typeCounts[r.Type] = r.Count
 	}
 	common.ApiSuccess(c, gin.H{
-		"items":       channelData,
+		"items":       buildLegacyChannelDTOs(channelData),
 		"total":       total,
 		"page":        pageInfo.GetPage(),
 		"page_size":   pageInfo.GetPageSize(),
@@ -386,7 +386,7 @@ func SearchChannels(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"items":       pagedData,
+			"items":       buildLegacyChannelDTOs(pagedData),
 			"total":       total,
 			"type_counts": typeCounts,
 		},
@@ -408,10 +408,14 @@ func GetChannel(c *gin.Context) {
 	if channel != nil {
 		clearChannelInfo(channel)
 	}
+	var channelData interface{} = channel
+	if channel != nil {
+		channelData = buildLegacyChannelDTO(channel)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    channel,
+		"data":    channelData,
 	})
 	return
 }
@@ -923,21 +927,31 @@ func EditTagChannels(c *gin.Context) {
 }
 
 type ChannelBatch struct {
-	Ids []int   `json:"ids"`
-	Tag *string `json:"tag"`
+	Ids      []int                   `json:"ids"`
+	Tag      *string                 `json:"tag"`
+	LabAudit *channelLabAuditContext `json:"lab_audit,omitempty"`
 }
 
 func DeleteChannelBatch(c *gin.Context) {
 	channelBatch := ChannelBatch{}
 	err := c.ShouldBindJSON(&channelBatch)
-	if err != nil || len(channelBatch.Ids) == 0 {
+	ids, idErr := normalizeChannelIDs(channelBatch.Ids)
+	if err != nil || idErr != nil || len(ids) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
 		})
 		return
 	}
-	deletedCount, err := model.BatchDeleteChannels(channelBatch.Ids)
+	var derivedAudit map[string]interface{}
+	if channelBatch.LabAudit != nil {
+		derivedAudit, err = channelLabAuditParams(ids)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	deletedCount, err := model.BatchDeleteChannels(ids)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -946,9 +960,16 @@ func DeleteChannelBatch(c *gin.Context) {
 	if deletedCount > 0 {
 		service.ResetProxyClientCache()
 	}
-	recordManageAudit(c, "channel.delete_batch", map[string]interface{}{
-		"count": deletedCount,
-	})
+	auditParams := map[string]interface{}{"count": deletedCount}
+	if channelBatch.LabAudit != nil {
+		for key, value := range derivedAudit {
+			auditParams[key] = value
+		}
+		auditParams["action_scope"] = "lab_group"
+		recordManageAudit(c, channelLabDeleteAuditAction, auditParams)
+	} else {
+		recordManageAudit(c, "channel.delete_batch", auditParams)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -968,8 +989,9 @@ type ChannelStatusRequest struct {
 }
 
 type ChannelStatusBatchRequest struct {
-	Ids    []int `json:"ids"`
-	Status int   `json:"status"`
+	Ids      []int                   `json:"ids"`
+	Status   int                     `json:"status"`
+	LabAudit *channelLabAuditContext `json:"lab_audit,omitempty"`
 }
 
 func UpdateChannel(c *gin.Context) {
@@ -1183,12 +1205,14 @@ func UpdateChannelStatus(c *gin.Context) {
 
 func BatchUpdateChannelStatus(c *gin.Context) {
 	req := ChannelStatusBatchRequest{}
-	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 || !isManageableChannelStatus(req.Status) {
+	err := c.ShouldBindJSON(&req)
+	ids, idErr := normalizeChannelIDs(req.Ids)
+	if err != nil || idErr != nil || len(ids) == 0 || !isManageableChannelStatus(req.Status) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	changedCount := 0
-	for _, id := range req.Ids {
+	for _, id := range ids {
 		if model.UpdateChannelStatus(id, "", req.Status, "manual batch operation") {
 			changedCount++
 		}
@@ -1196,11 +1220,23 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 	if changedCount > 0 {
 		model.InitChannelCache()
 	}
-	recordManageAudit(c, "channel.status_update_batch", map[string]interface{}{
+	auditParams := map[string]interface{}{
 		"count":  changedCount,
-		"total":  len(req.Ids),
+		"total":  len(ids),
 		"status": req.Status,
-	})
+	}
+	if req.LabAudit != nil {
+		derived, auditErr := channelLabAuditParams(ids)
+		if auditErr != nil {
+			common.ApiError(c, auditErr)
+			return
+		}
+		for key, value := range derived {
+			auditParams[key] = value
+		}
+		auditParams["action_scope"] = "lab_group"
+	}
+	recordManageAudit(c, "channel.status_update_batch", auditParams)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

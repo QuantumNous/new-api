@@ -54,6 +54,32 @@ export const channelSchema = z.object({
   group: z.string().default('default'),
   used_quota: z.number().default(0),
   model_mapping: z.string().nullish(),
+  lab_group_slug: z.string().optional(),
+  lab_group_name: z.string().optional(),
+  lab_matches: z
+    .array(
+      z.object({
+        slug: z.string(),
+        name: z.string(),
+        confidence: z.number(),
+        source: z.string(),
+      })
+    )
+    .optional(),
+  lab_models: z
+    .array(
+      z.object({
+        input_model: z.string(),
+        real_model: z.string(),
+        canonical_id: z.string().optional(),
+        lab_slug: z.string().optional(),
+        confidence: z.number(),
+        source: z.string(),
+      })
+    )
+    .optional(),
+  lab_unresolved_count: z.number().optional(),
+  lab_catalog_version: z.string().optional(),
   status_code_mapping: z.string().nullish(),
   priority: z.number().nullish(),
   auto_ban: z.number().nullish(),

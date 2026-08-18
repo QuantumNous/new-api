@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/modellab"
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -376,24 +377,44 @@ func writeManagedUserError(c *gin.Context, err error) {
 }
 
 type nextAdminChannelDTO struct {
-	ID            int     `json:"id"`
-	Name          string  `json:"name"`
-	Type          int     `json:"type"`
-	Supplier      string  `json:"supplier"`
-	Status        int     `json:"status"`
-	Priority      int64   `json:"priority"`
-	Weight        uint    `json:"weight"`
-	UsedQuota     int64   `json:"used_quota"`
-	ChannelRatio  float64 `json:"channel_ratio"`
-	Balance       float64 `json:"balance"`
-	UpstreamRatio float64 `json:"upstream_ratio"`
-	CapacityTotal int     `json:"capacity_total"`
-	CapacityUsed  int     `json:"capacity_used"`
-	ResponseTime  int     `json:"response_time"`
-	TestTime      int64   `json:"test_time"`
-	BaseURL       string  `json:"base_url"`
-	Models        string  `json:"models"`
-	ModelMapping  string  `json:"model_mapping"`
+	ID            int                   `json:"id"`
+	Name          string                `json:"name"`
+	Type          int                   `json:"type"`
+	Supplier      string                `json:"supplier"`
+	Status        int                   `json:"status"`
+	Priority      int64                 `json:"priority"`
+	Weight        uint                  `json:"weight"`
+	UsedQuota     int64                 `json:"used_quota"`
+	ChannelRatio  float64               `json:"channel_ratio"`
+	Balance       float64               `json:"balance"`
+	UpstreamRatio float64               `json:"upstream_ratio"`
+	CapacityTotal int                   `json:"capacity_total"`
+	CapacityUsed  int                   `json:"capacity_used"`
+	ResponseTime  int                   `json:"response_time"`
+	TestTime      int64                 `json:"test_time"`
+	BaseURL       string                `json:"base_url"`
+	Models        string                `json:"models"`
+	ModelMapping  string                `json:"model_mapping"`
+	LabGroupSlug  string                `json:"lab_group_slug"`
+	LabGroupName  string                `json:"lab_group_name"`
+	LabMatches    []modellab.LabMatch   `json:"lab_matches"`
+	LabModels     []modellab.ModelMatch `json:"lab_models"`
+	LabUnresolved int                   `json:"lab_unresolved_count"`
+	LabCatalog    string                `json:"lab_catalog_version"`
+}
+
+func labGroupName(resolution modellab.Resolution) string {
+	switch resolution.GroupSlug {
+	case modellab.GroupMixed:
+		return "Mixed / Multi-Lab"
+	case modellab.GroupUnknown:
+		return "Unknown / Provider-specific"
+	default:
+		if len(resolution.Labs) > 0 && resolution.Labs[0].Slug == resolution.GroupSlug {
+			return resolution.Labs[0].Name
+		}
+		return resolution.GroupSlug
+	}
 }
 
 func buildNextAdminChannelDTO(channel *model.Channel) nextAdminChannelDTO {
@@ -421,6 +442,7 @@ func buildNextAdminChannelDTO(channel *model.Channel) nextAdminChannelDTO {
 	if channel.ModelMapping != nil {
 		modelMapping = *channel.ModelMapping
 	}
+	labResolution := modellab.Resolve(channel.Models, modelMapping)
 	return nextAdminChannelDTO{
 		ID: channel.Id, Name: channel.Name, Type: channel.Type, Supplier: constant.GetChannelTypeName(channel.Type),
 		Status: channel.Status, Priority: priority, Weight: weight,
@@ -428,6 +450,9 @@ func buildNextAdminChannelDTO(channel *model.Channel) nextAdminChannelDTO {
 		UpstreamRatio: upstreamRatio, CapacityTotal: capacityTotal, CapacityUsed: channel.CapacityUsed,
 		ResponseTime: channel.ResponseTime, TestTime: channel.TestTime,
 		BaseURL: channel.GetBaseURL(), Models: channel.Models, ModelMapping: modelMapping,
+		LabGroupSlug: labResolution.GroupSlug, LabGroupName: labGroupName(labResolution),
+		LabMatches: labResolution.Labs, LabModels: labResolution.Models,
+		LabUnresolved: labResolution.UnresolvedCount, LabCatalog: labResolution.CatalogVersion,
 	}
 }
 
