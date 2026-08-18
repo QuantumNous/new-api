@@ -505,6 +505,18 @@ a {
   color: inherit !important;
 }
 
+.blog-cta-button {
+  border: 1px solid #ffffff !important;
+  background: #ffffff !important;
+  color: #0b0b0f !important;
+  box-shadow: 0 12px 30px -18px rgb(255 255 255 / 0.85);
+}
+
+.blog-cta-button:hover {
+  background: #f1f1f3 !important;
+  color: #0b0b0f !important;
+}
+
 .flatkey-hero-cta {
   background: #7c3aed !important;
   color: #ffffff !important;
