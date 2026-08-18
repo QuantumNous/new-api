@@ -121,6 +121,25 @@ func TestCheckModelRequestRateLimitReservesSuccessSlotsAtomically(t *testing.T) 
 	}
 }
 
+func TestCheckModelRequestRateLimitDisablesNonPositiveSuccessLimit(t *testing.T) {
+	for _, backend := range []string{"memory", "redis"} {
+		t.Run(backend, func(t *testing.T) {
+			setupModelRequestRateLimitTest(t, 0, -1)
+			if backend == "redis" {
+				useRateLimitMiniRedis(t)
+			}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Set("id", 900+int(modelRateLimitTestUserSequence.Add(1)))
+
+			for range 2 {
+				commit, apiErr := CheckModelRequestRateLimit(c)
+				require.Nil(t, apiErr)
+				commit(true)
+			}
+		})
+	}
+}
+
 func TestResponsesWebSocketHandshakeDoesNotConsumeRequestLimit(t *testing.T) {
 	setupModelRequestRateLimitTest(t, 1, 10)
 	router := gin.New()

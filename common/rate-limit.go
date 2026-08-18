@@ -61,7 +61,7 @@ func (l *InMemoryRateLimiter) Reserve(key string, maxRequestNum int, duration in
 }
 
 func (l *InMemoryRateLimiter) requestLocked(key string, maxRequestNum int, duration int64, reservationID string) bool {
-	if maxRequestNum == 0 {
+	if maxRequestNum <= 0 {
 		return true
 	}
 	// [old <-- new]
@@ -132,7 +132,7 @@ func (l *InMemoryRateLimiter) ReleaseReservation(key string, reservationID strin
 func (l *InMemoryRateLimiter) Check(key string, maxRequestNum int, duration int64) bool {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if maxRequestNum == 0 {
+	if maxRequestNum <= 0 {
 		return true
 	}
 	queue, ok := l.store[key]

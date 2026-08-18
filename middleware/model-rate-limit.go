@@ -63,7 +63,7 @@ return 0
 `
 
 func reserveRedisModelSuccess(ctx context.Context, rdb *redis.Client, key string, maxCount int, duration int64) (ModelRequestRateLimitCommit, bool, error) {
-	if maxCount == 0 {
+	if maxCount <= 0 {
 		return func(bool) {}, true, nil
 	}
 	now := time.Now().UTC()
@@ -98,7 +98,7 @@ func reserveRedisModelSuccess(ctx context.Context, rdb *redis.Client, key string
 }
 
 func reserveMemoryModelSuccess(key string, maxCount int, duration int64) (ModelRequestRateLimitCommit, bool) {
-	if maxCount == 0 {
+	if maxCount <= 0 {
 		return func(bool) {}, true
 	}
 	reservationID := common.GetUUID()

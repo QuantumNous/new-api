@@ -29,3 +29,14 @@ func TestInMemoryRateLimiterConcurrentInit(t *testing.T) {
 	assert.True(t, limiter.Request("test", 1, 60))
 	assert.False(t, limiter.Request("test", 1, 60))
 }
+
+func TestInMemoryRateLimiterDisablesNonPositiveLimits(t *testing.T) {
+	for _, maximum := range []int{0, -1} {
+		var limiter InMemoryRateLimiter
+		limiter.Init(0)
+
+		assert.True(t, limiter.Request("request", maximum, 60))
+		assert.True(t, limiter.Reserve("reservation", maximum, 60, "test-reservation"))
+		assert.True(t, limiter.Check("check", maximum, 60))
+	}
+}
