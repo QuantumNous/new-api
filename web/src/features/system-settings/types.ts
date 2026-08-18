@@ -334,6 +334,7 @@ export type BillingSettings = {
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
   MezonPaymentEnabled: boolean
+  MezonProviderId: number
   MezonTreasuryAddress: string
   MezonIndexerBase: string
   MezonChainId: string

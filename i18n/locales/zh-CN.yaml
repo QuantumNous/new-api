@@ -154,6 +154,7 @@ payment.mezon_tx_too_old: "交易时间过久，无法兑换"
 payment.mezon_invalid_amount: "转账金额无效"
 payment.mezon_amount_too_large: "单笔转账金额过大，无法入账"
 payment.mezon_tx_used: "该交易已被兑换过"
+payment.mezon_quota_limit: "本次充值将超过钱包余额上限"
 
 # Topup messages
 topup.not_provided: "未提供支付单号"

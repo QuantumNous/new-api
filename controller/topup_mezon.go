@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -24,7 +25,9 @@ var MezonTxHashPattern = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
 // IsMezonTopUpEnabled reports whether the Mezon đồng payment method is
 // configured and usable.
 func IsMezonTopUpEnabled() bool {
-	return setting.MezonPayment.Enabled && setting.MezonPayment.TreasuryAddress != ""
+	return setting.MezonPayment.Enabled &&
+		setting.MezonPayment.ProviderId > 0 &&
+		setting.MezonPayment.TreasuryAddress != ""
 }
 
 type MezonPayRequest struct {
@@ -38,6 +41,9 @@ type MezonPayRequest struct {
 // transaction hash can only be redeemed once (enforced by the unique
 // topups.trade_no constraint).
 func RequestMezonPay(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
 	if !IsMezonTopUpEnabled() {
 		common.ApiErrorI18n(c, i18n.MsgPaymentMezonDisabled)
 		return
@@ -56,18 +62,13 @@ func RequestMezonPay(c *gin.Context) {
 
 	userId := c.GetInt("id")
 
-	// Resolve the user's Mezon wallet address from their OAuth binding.
-	bindings, err := model.GetUserOAuthBindingsByUserId(userId)
-	if err != nil || len(bindings) == 0 {
+	// Only the configured Mezon OAuth provider can derive a claimable wallet.
+	binding, err := model.GetUserOAuthBinding(userId, setting.MezonPayment.ProviderId)
+	if err != nil || binding == nil || binding.ProviderUserId == "" {
 		common.ApiErrorI18n(c, i18n.MsgPaymentMezonNotBound)
 		return
 	}
-	boundAddresses := make(map[string]bool, len(bindings))
-	for _, binding := range bindings {
-		if binding.ProviderUserId != "" {
-			boundAddresses[service.MezonWalletAddressFromUserId(binding.ProviderUserId)] = true
-		}
-	}
+	boundAddress := service.MezonWalletAddressFromUserId(binding.ProviderUserId)
 
 	tx, err := service.GetMezonTransaction(txHash)
 	if err != nil {
@@ -84,11 +85,11 @@ func RequestMezonPay(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgPaymentMezonTxNotSuccess)
 		return
 	}
-	if !strings.EqualFold(tx.ToAddress, setting.MezonPayment.TreasuryAddress) {
+	if tx.ToAddress != setting.MezonPayment.TreasuryAddress {
 		common.ApiErrorI18n(c, i18n.MsgPaymentMezonWrongRecipient)
 		return
 	}
-	if !boundAddresses[tx.FromAddress] {
+	if tx.FromAddress != boundAddress {
 		common.ApiErrorI18n(c, i18n.MsgPaymentMezonWrongSender)
 		return
 	}
@@ -125,17 +126,20 @@ func RequestMezonPay(c *gin.Context) {
 		CompleteTime:    time.Now().Unix(),
 		Status:          common.TopUpStatusSuccess,
 	}
-	if err := topUp.Insert(); err != nil {
+	if err := model.CompleteMezonTopUp(topUp, quotaToAdd); err != nil {
+		if errors.Is(err, model.ErrTopUpQuotaLimitExceeded) {
+			common.ApiErrorI18n(c, i18n.MsgPaymentMezonQuotaLimit)
+			return
+		}
+		if errors.Is(err, model.ErrInvalidTopUpQuota) {
+			common.ApiErrorI18n(c, i18n.MsgPaymentMezonAmountTooLarge)
+			return
+		}
 		errMsg := strings.ToLower(err.Error())
 		if strings.Contains(errMsg, "duplicate") || strings.Contains(errMsg, "unique") {
 			common.ApiErrorI18n(c, i18n.MsgPaymentMezonTxUsed)
 			return
 		}
-		common.ApiError(c, err)
-		return
-	}
-
-	if err := model.IncreaseUserQuota(userId, quotaToAdd, true); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Mezon topup credit failed user_id=%d tx=%s quota=%d error=%q", userId, txHash, quotaToAdd, err.Error()))
 		common.ApiError(c, err)
 		return
@@ -209,6 +213,9 @@ type MezonUserTx struct {
 // current user's wallet to the treasury, with a flag indicating whether each
 // transaction has already been claimed.
 func GetMezonUserTransactions(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
 	if !IsMezonTopUpEnabled() {
 		common.ApiSuccess(c, []MezonUserTx{})
 		return
@@ -216,30 +223,21 @@ func GetMezonUserTransactions(c *gin.Context) {
 
 	userId := c.GetInt("id")
 
-	bindings, err := model.GetUserOAuthBindingsByUserId(userId)
-	if err != nil || len(bindings) == 0 {
+	binding, err := model.GetUserOAuthBinding(userId, setting.MezonPayment.ProviderId)
+	if err != nil || binding == nil || binding.ProviderUserId == "" {
 		// No Mezon account bound — return empty list, not an error.
 		common.ApiSuccess(c, []MezonUserTx{})
 		return
 	}
 
 	treasury := setting.MezonPayment.TreasuryAddress
-
-	// Collect transactions from all bound Mezon identities.
-	var allTxs []service.MezonIndexerTx
-	for _, binding := range bindings {
-		if binding.ProviderUserId == "" {
-			continue
-		}
-		walletAddr := service.MezonWalletAddressFromUserId(binding.ProviderUserId)
-		txs, qErr := service.GetMezonTransactionsForWallet(walletAddr, treasury, 10)
-		if qErr != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf(
-				"Mezon tx list indexer query failed user_id=%d wallet=%s error=%q",
-				userId, walletAddr, qErr.Error()))
-			continue
-		}
-		allTxs = append(allTxs, txs...)
+	walletAddr := service.MezonWalletAddressFromUserId(binding.ProviderUserId)
+	allTxs, qErr := service.GetMezonTransactionsForWallet(walletAddr, treasury, 10)
+	if qErr != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf(
+			"Mezon tx list indexer query failed user_id=%d wallet=%s error=%q",
+			userId, walletAddr, qErr.Error()))
+		allTxs = nil
 	}
 
 	claimed, err := model.GetMezonClaimedHashes(userId)
@@ -253,7 +251,7 @@ func GetMezonUserTransactions(c *gin.Context) {
 		if tx.Status != 2 {
 			continue
 		}
-		if !strings.EqualFold(tx.ToAddress, treasury) {
+		if tx.ToAddress != treasury {
 			continue
 		}
 		dong, dErr := service.MezonRawValueToDong(tx.Value)

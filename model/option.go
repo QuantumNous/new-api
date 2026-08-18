@@ -117,6 +117,7 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
 	common.OptionMap["MezonPaymentEnabled"] = strconv.FormatBool(setting.MezonPayment.Enabled)
+	common.OptionMap["MezonProviderId"] = strconv.Itoa(setting.MezonPayment.ProviderId)
 	common.OptionMap["MezonTreasuryAddress"] = setting.MezonPayment.TreasuryAddress
 	common.OptionMap["MezonIndexerBase"] = setting.MezonPayment.IndexerBase
 	common.OptionMap["MezonChainId"] = setting.MezonPayment.ChainId
@@ -447,6 +448,8 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.StripeMinTopUp, _ = strconv.Atoi(value)
 	case "MezonPaymentEnabled":
 		setting.MezonPayment.Enabled = value == "true"
+	case "MezonProviderId":
+		setting.MezonPayment.ProviderId, _ = strconv.Atoi(value)
 	case "MezonTreasuryAddress":
 		setting.MezonPayment.TreasuryAddress = value
 	case "MezonIndexerBase":

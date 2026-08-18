@@ -53,6 +53,36 @@ func MezonWalletAddressFromUserId(userId string) string {
 	return base58Encode(sum[:])
 }
 
+// IsValidMezonWalletAddress reports whether addr is a base58-encoded 32-byte
+// MMN wallet (the same shape as MezonWalletAddressFromUserId).
+func IsValidMezonWalletAddress(addr string) bool {
+	decoded, ok := base58Decode(addr)
+	return ok && len(decoded) == sha256.Size
+}
+
+func base58Decode(input string) ([]byte, bool) {
+	if input == "" {
+		return nil, false
+	}
+	num := new(big.Int)
+	for i := 0; i < len(input); i++ {
+		idx := strings.IndexByte(base58Alphabet, input[i])
+		if idx < 0 {
+			return nil, false
+		}
+		num.Mul(num, big.NewInt(58))
+		num.Add(num, big.NewInt(int64(idx)))
+	}
+	decoded := num.Bytes()
+	leading := 0
+	for leading < len(input) && input[leading] == base58Alphabet[0] {
+		leading++
+	}
+	result := make([]byte, leading+len(decoded))
+	copy(result[leading:], decoded)
+	return result, true
+}
+
 // MezonIndexerTx is the subset of the mmn-tx-explorer indexer transaction
 // shape used for payment verification.
 type MezonIndexerTx struct {
@@ -104,6 +134,9 @@ func GetMezonTransaction(txHash string) (*MezonIndexerTx, error) {
 	}
 	if body.Data.Transaction.Hash == "" {
 		return nil, nil
+	}
+	if !strings.EqualFold(body.Data.Transaction.Hash, txHash) {
+		return nil, fmt.Errorf("indexer hash mismatch")
 	}
 	return &body.Data.Transaction, nil
 }

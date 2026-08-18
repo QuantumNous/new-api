@@ -7,6 +7,10 @@ package setting
 var MezonPayment = struct {
 	// Enabled toggles the Mezon đồng payment method.
 	Enabled bool
+	// ProviderId is the custom OAuth provider whose bindings are treated as
+	// Mezon identities. Required when Enabled is true; 0 fails closed so a
+	// second OAuth provider cannot be used to claim another user's transfer.
+	ProviderId int
 	// TreasuryAddress is the on-chain wallet that receives top-up transfers.
 	TreasuryAddress string
 	// IndexerBase is the base URL of the mmn-tx-explorer indexer API,
@@ -16,6 +20,7 @@ var MezonPayment = struct {
 	ChainId string
 }{
 	Enabled:         false,
+	ProviderId:      0,
 	TreasuryAddress: "",
 	IndexerBase:     "https://dong.mezon.ai/indexer-api",
 	ChainId:         "1337",

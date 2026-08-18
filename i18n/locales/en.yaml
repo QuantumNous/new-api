@@ -153,6 +153,7 @@ payment.mezon_tx_too_old: "Transaction is too old to redeem"
 payment.mezon_invalid_amount: "Invalid transfer amount"
 payment.mezon_amount_too_large: "Transfer amount is too large to credit in one top-up"
 payment.mezon_tx_used: "This transaction has already been redeemed"
+payment.mezon_quota_limit: "This top-up would exceed the maximum wallet balance"
 
 # Topup messages
 topup.not_provided: "Payment order number not provided"

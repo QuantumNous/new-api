@@ -33,6 +33,7 @@ import {
   formatGatewayApiKey,
   pickDefaultQuickSetupModel,
   resolveGatewayServerAddress,
+  QUICK_SETUP_API_KEY_PLACEHOLDER,
   type ClaudeCodeSnippetFormat,
   type QuickSetupClient,
 } from '@/features/dashboard/lib/quick-setup'
@@ -53,6 +54,7 @@ export function QuickSetupPanel() {
     useState<ClaudeCodeSnippetFormat>('settings')
   const [selectedKeyId, setSelectedKeyId] = useState('')
   const [selectedModel, setSelectedModel] = useState('')
+  const [isCopyingKey, setIsCopyingKey] = useState(false)
 
   const keysQuery = useQuery({
     queryKey: ['overview-quick-setup-keys'],
@@ -95,15 +97,8 @@ export function QuickSetupPanel() {
   const model = selectedModel || pickDefaultQuickSetupModel(models)
   const keyIdNumber = Number(keyId)
 
-  const tokenKeyQuery = useQuery({
-    queryKey: ['overview-quick-setup-token-key', keyId],
-    queryFn: () => fetchTokenKey(keyIdNumber),
-    enabled: Number.isFinite(keyIdNumber) && keyIdNumber > 0,
-    staleTime: 5 * 60 * 1000,
-  })
-
   const baseUrl = resolveGatewayServerAddress(status)
-  const apiKey = formatGatewayApiKey(tokenKeyQuery.data?.data?.key ?? '')
+  const apiKey = QUICK_SETUP_API_KEY_PLACEHOLDER
   const snippet =
     client === 'claude'
       ? buildClaudeCodeSnippet({
@@ -113,8 +108,12 @@ export function QuickSetupPanel() {
           format: claudeFormat,
         })
       : buildOpenCodeSnippet({ baseUrl, apiKey, model })
-  const canCopy = Boolean(apiKey) && Boolean(model) && Boolean(baseUrl)
-  const isCopied = copiedText === snippet
+  const canCopy =
+    Number.isFinite(keyIdNumber) &&
+    keyIdNumber > 0 &&
+    Boolean(model) &&
+    Boolean(baseUrl)
+  const isCopied = Boolean(copiedText) && !isCopyingKey
   let snippetLabel = '~/.claude/settings.json'
   if (client === 'opencode') {
     snippetLabel = '~/.config/opencode/opencode.json'
@@ -219,9 +218,36 @@ export function QuickSetupPanel() {
                 size='sm'
                 variant='outline'
                 className='gap-1.5'
-                disabled={!canCopy}
+                disabled={!canCopy || isCopyingKey}
                 onClick={() => {
-                  void copyToClipboard(snippet)
+                  void (async () => {
+                    setIsCopyingKey(true)
+                    try {
+                      const result = await fetchTokenKey(keyIdNumber)
+                      const realKey = formatGatewayApiKey(
+                        result.data?.key ?? ''
+                      )
+                      if (!realKey) {
+                        return
+                      }
+                      const realSnippet =
+                        client === 'claude'
+                          ? buildClaudeCodeSnippet({
+                              baseUrl,
+                              apiKey: realKey,
+                              model,
+                              format: claudeFormat,
+                            })
+                          : buildOpenCodeSnippet({
+                              baseUrl,
+                              apiKey: realKey,
+                              model,
+                            })
+                      await copyToClipboard(realSnippet)
+                    } finally {
+                      setIsCopyingKey(false)
+                    }
+                  })()
                 }}
               >
                 {isCopied ? <Check className='text-success' /> : <Copy />}

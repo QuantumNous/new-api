@@ -196,6 +196,7 @@ const BILLING_SECTIONS = [
       <MezonPaymentSettingsSection
         defaultValues={{
           MezonPaymentEnabled: settings.MezonPaymentEnabled ?? false,
+          MezonProviderId: settings.MezonProviderId ?? 0,
           MezonTreasuryAddress: settings.MezonTreasuryAddress ?? '',
           MezonIndexerBase:
             settings.MezonIndexerBase || 'https://dong.mezon.ai/indexer-api',

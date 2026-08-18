@@ -58,6 +58,25 @@ func (topUp *TopUp) Insert() error {
 	return err
 }
 
+// CompleteMezonTopUp inserts a successful Mezon top-up and credits quota in
+// one transaction. If the credit hits the wallet ceiling, the insert is
+// rolled back so the transaction hash remains claimable.
+func CompleteMezonTopUp(topUp *TopUp, quotaToAdd int) error {
+	if topUp == nil {
+		return errors.New("topup is nil")
+	}
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(topUp).Error; err != nil {
+			return err
+		}
+		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
+	}); err != nil {
+		return err
+	}
+	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "mezon topup")
+	return nil
+}
+
 func topUpQuotaMaxCurrent(creditedQuota int) (int, error) {
 	if creditedQuota <= 0 || creditedQuota >= common.MaxQuota {
 		return 0, ErrInvalidTopUpQuota

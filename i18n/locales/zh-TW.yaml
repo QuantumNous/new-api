@@ -154,6 +154,7 @@ payment.mezon_tx_too_old: "交易時間過久，無法兌換"
 payment.mezon_invalid_amount: "轉帳金額無效"
 payment.mezon_amount_too_large: "單筆轉帳金額過大，無法入帳"
 payment.mezon_tx_used: "該交易已被兌換過"
+payment.mezon_quota_limit: "本次儲值將超過錢包餘額上限"
 
 # Topup messages
 topup.not_provided: "未提供支付單號"

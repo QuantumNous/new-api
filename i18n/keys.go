@@ -173,6 +173,7 @@ const (
 	MsgPaymentMezonInvalidAmount  = "payment.mezon_invalid_amount"
 	MsgPaymentMezonAmountTooLarge = "payment.mezon_amount_too_large"
 	MsgPaymentMezonTxUsed         = "payment.mezon_tx_used"
+	MsgPaymentMezonQuotaLimit     = "payment.mezon_quota_limit"
 )
 
 // Topup related messages

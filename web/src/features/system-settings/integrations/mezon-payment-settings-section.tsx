@@ -35,7 +35,16 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { useCustomOAuthProviders } from '@/features/system-settings/auth/custom-oauth/hooks/use-custom-oauth-providers'
 
 import {
   SettingsForm,
@@ -53,11 +62,22 @@ const createSchema = (t: (key: string) => string) =>
   z
     .object({
       MezonPaymentEnabled: z.boolean(),
+      MezonProviderId: z.number().int(),
       MezonTreasuryAddress: z.string(),
       MezonIndexerBase: z.string(),
       MezonChainId: z.string(),
     })
     .superRefine((values, ctx) => {
+      if (values.MezonPaymentEnabled && values.MezonProviderId <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MezonProviderId'],
+          message: t(
+            'Mezon OAuth provider is required when Mezon top-up is enabled'
+          ),
+        })
+      }
+
       if (values.MezonPaymentEnabled && !values.MezonTreasuryAddress.trim()) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -97,6 +117,7 @@ type Values = z.infer<ReturnType<typeof createSchema>>
 
 export type MezonPaymentSettingsValues = {
   MezonPaymentEnabled: boolean
+  MezonProviderId: number
   MezonTreasuryAddress: string
   MezonIndexerBase: string
   MezonChainId: string
@@ -111,11 +132,14 @@ export function MezonPaymentSettingsSection({
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const schema = useMemo(() => createSchema(t), [t])
+  const providersQuery = useCustomOAuthProviders()
+  const providers = providersQuery.data ?? []
 
   const form = useForm<Values>({
     resolver: zodResolver(schema) as unknown as Resolver<Values>,
     defaultValues: {
       MezonPaymentEnabled: defaultValues.MezonPaymentEnabled,
+      MezonProviderId: defaultValues.MezonProviderId ?? 0,
       MezonTreasuryAddress: defaultValues.MezonTreasuryAddress,
       MezonIndexerBase: defaultValues.MezonIndexerBase || DEFAULT_INDEXER_BASE,
       MezonChainId: defaultValues.MezonChainId || DEFAULT_CHAIN_ID,
@@ -128,6 +152,7 @@ export function MezonPaymentSettingsSection({
   async function onSubmit(values: Values) {
     const nextValues: Values = {
       MezonPaymentEnabled: values.MezonPaymentEnabled,
+      MezonProviderId: values.MezonProviderId,
       MezonTreasuryAddress: values.MezonTreasuryAddress.trim(),
       MezonIndexerBase: values.MezonIndexerBase.trim() || DEFAULT_INDEXER_BASE,
       MezonChainId: values.MezonChainId.trim() || DEFAULT_CHAIN_ID,
@@ -135,10 +160,10 @@ export function MezonPaymentSettingsSection({
 
     const updates: Array<{ key: string; value: string }> = []
 
-    if (nextValues.MezonPaymentEnabled !== defaultValues.MezonPaymentEnabled) {
+    if (nextValues.MezonProviderId !== (defaultValues.MezonProviderId ?? 0)) {
       updates.push({
-        key: 'MezonPaymentEnabled',
-        value: String(nextValues.MezonPaymentEnabled),
+        key: 'MezonProviderId',
+        value: String(nextValues.MezonProviderId),
       })
     }
     if (
@@ -165,6 +190,12 @@ export function MezonPaymentSettingsSection({
       updates.push({
         key: 'MezonChainId',
         value: nextValues.MezonChainId,
+      })
+    }
+    if (nextValues.MezonPaymentEnabled !== defaultValues.MezonPaymentEnabled) {
+      updates.push({
+        key: 'MezonPaymentEnabled',
+        value: String(nextValues.MezonPaymentEnabled),
       })
     }
 
@@ -224,6 +255,54 @@ export function MezonPaymentSettingsSection({
                   />
                 </FormControl>
               </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='MezonProviderId'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Mezon OAuth provider')}</FormLabel>
+                <Select
+                  items={providers.map((provider) => ({
+                    value: String(provider.id),
+                    label: provider.enabled
+                      ? `${provider.name} (${provider.slug})`
+                      : `${provider.name} (${provider.slug}) — ${t('disabled')}`,
+                  }))}
+                  onValueChange={(value) => field.onChange(Number(value) || 0)}
+                  value={field.value > 0 ? String(field.value) : ''}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={t('Select the Mezon OAuth provider')}
+                      />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent alignItemWithTrigger={false}>
+                    <SelectGroup>
+                      {providers.map((provider) => (
+                        <SelectItem
+                          key={provider.id}
+                          value={String(provider.id)}
+                        >
+                          {provider.enabled
+                            ? `${provider.name} (${provider.slug})`
+                            : `${provider.name} (${provider.slug}) — ${t('disabled')}`}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {t(
+                    'Only bindings from this provider can claim Mezon top-ups. Adding another OAuth provider must not be able to steal a transfer.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
             )}
           />
 

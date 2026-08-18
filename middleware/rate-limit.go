@@ -178,6 +178,16 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// AuthRateLimit is the IP-keyed limiter for login/register/reset. It uses a
+// dedicated mark so business endpoints that share CriticalRateLimit cannot
+// starve authentication.
+func AuthRateLimit() func(c *gin.Context) {
+	if common.CriticalRateLimitEnable {
+		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "AU")
+	}
+	return defNext
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext

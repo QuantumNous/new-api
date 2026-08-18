@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -11,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -69,12 +72,64 @@ func (a *modelProbeAggregate) toProbe() modelStatusProbe {
 	return probe
 }
 
+const modelStatusCacheTTL = 30 * time.Second
+
+type modelStatusCacheEntry struct {
+	expires time.Time
+	payload gin.H
+}
+
+var (
+	modelStatusCacheMu sync.Mutex
+	modelStatusCache   = map[string]modelStatusCacheEntry{}
+)
+
+func modelStatusCacheKey(groups []string) string {
+	sorted := append([]string(nil), groups...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
+}
+
+func loadModelStatusCache(key string) (gin.H, bool) {
+	modelStatusCacheMu.Lock()
+	defer modelStatusCacheMu.Unlock()
+	entry, ok := modelStatusCache[key]
+	if !ok || time.Now().After(entry.expires) {
+		return nil, false
+	}
+	return entry.payload, true
+}
+
+func storeModelStatusCache(key string, payload gin.H) {
+	modelStatusCacheMu.Lock()
+	defer modelStatusCacheMu.Unlock()
+	modelStatusCache[key] = modelStatusCacheEntry{
+		expires: time.Now().Add(modelStatusCacheTTL),
+		payload: payload,
+	}
+}
+
 // GetModelStatus returns per-model success rate and average latency (from
 // perf metrics of real traffic) plus alive/dead status (from scheduled
-// channel tests) for every currently enabled model. Public endpoint
-// backing the model square status strip.
+// channel tests) for models the caller can use. Public when the pricing
+// header-nav module is public; otherwise requires login.
 func GetModelStatus(c *gin.Context) {
-	modelNames := model.GetEnabledModels()
+	userGroup := ""
+	if userId, exists := c.Get("id"); exists {
+		if user, err := model.GetUserCache(userId.(int)); err == nil {
+			userGroup = user.Group
+		}
+	}
+	usableGroup := service.GetUserUsableGroups(userGroup)
+	groupsToQuery := lo.Keys(usableGroup)
+	cacheKey := modelStatusCacheKey(groupsToQuery)
+	if cached, ok := loadModelStatusCache(cacheKey); ok {
+		c.Header("Cache-Control", "private, max-age=30")
+		c.JSON(http.StatusOK, cached)
+		return
+	}
+
+	modelNames := service.GetGroupsEnabledModels(groupsToQuery)
 
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
@@ -83,6 +138,16 @@ func GetModelStatus(c *gin.Context) {
 			"message": err.Error(),
 		})
 		return
+	}
+	for _, channel := range channels {
+		if channel != nil {
+			channel.Key = ""
+		}
+	}
+
+	allowed := make(map[string]struct{}, len(modelNames))
+	for _, name := range modelNames {
+		allowed[name] = struct{}{}
 	}
 
 	probes := map[string]*modelProbeAggregate{}
@@ -93,6 +158,9 @@ func GetModelStatus(c *gin.Context) {
 		for _, name := range strings.Split(channel.Models, ",") {
 			name = strings.TrimSpace(name)
 			if name == "" {
+				continue
+			}
+			if _, ok := allowed[name]; !ok {
 				continue
 			}
 			agg, ok := probes[name]
@@ -108,6 +176,9 @@ func GetModelStatus(c *gin.Context) {
 	activeGroups := append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
 	if summary, err := perfmetrics.QuerySummaryAll(24, activeGroups); err == nil {
 		for _, m := range summary.Models {
+			if _, ok := allowed[m.ModelName]; !ok {
+				continue
+			}
 			summaries[m.ModelName] = m
 		}
 	} else {
@@ -132,10 +203,13 @@ func GetModelStatus(c *gin.Context) {
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 
-	c.JSON(http.StatusOK, gin.H{
+	payload := gin.H{
 		"success": true,
 		"data": gin.H{
 			"models": entries,
 		},
-	})
+	}
+	storeModelStatusCache(cacheKey, payload)
+	c.Header("Cache-Control", "private, max-age=30")
+	c.JSON(http.StatusOK, payload)
 }

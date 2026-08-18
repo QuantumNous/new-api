@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -57,4 +58,25 @@ func TestMezonDongToQuotaAmount_InvalidInputs(t *testing.T) {
 	quota, overflow = mezonDongToQuotaAmount(1, 0)
 	assert.False(t, overflow)
 	assert.Equal(t, 0, quota)
+}
+
+func TestIsMezonTopUpEnabledRequiresProviderAndTreasury(t *testing.T) {
+	prev := setting.MezonPayment
+	t.Cleanup(func() { setting.MezonPayment = prev })
+
+	setting.MezonPayment.Enabled = true
+	setting.MezonPayment.ProviderId = 0
+	setting.MezonPayment.TreasuryAddress = "9boK1HQDiKJ922j3HetRkFszX873q6B1xSZDqmDSoQro"
+	assert.False(t, IsMezonTopUpEnabled())
+
+	setting.MezonPayment.ProviderId = 1
+	setting.MezonPayment.TreasuryAddress = ""
+	assert.False(t, IsMezonTopUpEnabled())
+
+	setting.MezonPayment.ProviderId = 1
+	setting.MezonPayment.TreasuryAddress = "9boK1HQDiKJ922j3HetRkFszX873q6B1xSZDqmDSoQro"
+	assert.True(t, IsMezonTopUpEnabled())
+
+	setting.MezonPayment.Enabled = false
+	assert.False(t, IsMezonTopUpEnabled())
 }

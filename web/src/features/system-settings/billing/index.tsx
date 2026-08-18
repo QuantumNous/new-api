@@ -107,6 +107,7 @@ const defaultBillingSettings: BillingSettings = {
   'checkin_setting.min_quota': 1000,
   'checkin_setting.max_quota': 10000,
   MezonPaymentEnabled: false,
+  MezonProviderId: 0,
   MezonTreasuryAddress: '',
   MezonIndexerBase: 'https://dong.mezon.ai/indexer-api',
   MezonChainId: '1337',
