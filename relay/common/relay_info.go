@@ -93,6 +93,7 @@ type RelayInfo struct {
 	isFirstResponse   bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
+	UpstreamStreamForced   bool  // true when client requested non-stream but upstream was forced to stream
 	IsGeminiBatchEmbedding bool
 	IsPlayground           bool
 	UsePrice               bool

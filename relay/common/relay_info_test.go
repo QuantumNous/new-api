@@ -176,3 +176,11 @@ func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	info.InitChannelMeta(ctx)
 	assert.Equal(t, "max", info.ReasoningEffort)
 }
+
+func TestUpstreamStreamForcedField(t *testing.T) {
+	info := &RelayInfo{}
+	info.UpstreamStreamForced = true
+	if !info.UpstreamStreamForced {
+		t.Error("UpstreamStreamForced field not settable")
+	}
+}
