@@ -57,6 +57,7 @@ import {
 } from '../api'
 import {
   PROMPT_GALLERY_CATEGORIES,
+  PROMPT_GALLERY_CATEGORY_LABEL_KEYS,
   itemToFormData,
   type PromptLibraryAdminItem,
 } from '../types'
@@ -151,7 +152,7 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
             </SelectItem>
             {PROMPT_GALLERY_CATEGORIES.map((c) => (
               <SelectItem key={c} value={c}>
-                {c}
+                {t(PROMPT_GALLERY_CATEGORY_LABEL_KEYS[c])}
               </SelectItem>
             ))}
           </SelectContent>

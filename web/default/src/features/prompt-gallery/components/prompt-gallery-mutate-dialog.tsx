@@ -36,18 +36,11 @@ import { Dialog } from '@/components/dialog'
 import { createPromptGalleryItem, updatePromptGalleryItem } from '../api'
 import {
   PROMPT_GALLERY_CATEGORIES,
+  PROMPT_GALLERY_CATEGORY_LABEL_KEYS,
   itemToFormData,
   type PromptGalleryFormData,
   type PromptLibraryAdminItem,
 } from '../types'
-
-const CATEGORY_LABEL_KEYS: Record<string, string> = {
-  image: 'Image',
-  video: 'Video',
-  audio: 'Audio',
-  text: 'Text',
-  agent: 'Agent',
-}
 
 const EMPTY_FORM: PromptGalleryFormData = {
   slug: '',
@@ -206,7 +199,7 @@ function PromptGalleryForm({ currentRow, onClose }: PromptGalleryFormProps) {
           <SelectContent>
             {PROMPT_GALLERY_CATEGORIES.map((category) => (
               <SelectItem key={category} value={category}>
-                {t(CATEGORY_LABEL_KEYS[category])}
+                {t(PROMPT_GALLERY_CATEGORY_LABEL_KEYS[category])}
               </SelectItem>
             ))}
           </SelectContent>

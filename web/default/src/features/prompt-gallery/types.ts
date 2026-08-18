@@ -74,6 +74,15 @@ export const PROMPT_GALLERY_CATEGORIES = [
   'agent',
 ] as const
 
+// i18n keys for category labels, shared by the table filter and the dialog
+export const PROMPT_GALLERY_CATEGORY_LABEL_KEYS: Record<string, string> = {
+  image: 'Image',
+  video: 'Video',
+  audio: 'Audio',
+  text: 'Text',
+  agent: 'Agent',
+}
+
 export function formDataToPayload(form: PromptGalleryFormData) {
   return {
     slug: form.slug.trim(),
