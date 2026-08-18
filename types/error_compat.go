@@ -34,11 +34,13 @@ const (
 
 var (
 	ClassifyImageRoutingUpstreamResponse = relaytypes.ClassifyImageRoutingUpstreamResponse
+	ErrOptionWithClientAborted           = relaytypes.ErrOptionWithClientAborted
 	ErrOptionWithNoRecordErrorLog        = relaytypes.ErrOptionWithNoRecordErrorLog
 	ErrOptionWithRequestNotSent          = relaytypes.ErrOptionWithRequestNotSent
 	ErrOptionWithSkipRetry               = relaytypes.ErrOptionWithSkipRetry
 	ErrOptionWithStatusCode              = relaytypes.ErrOptionWithStatusCode
 	ImageRoutingUpstreamStatusCode       = relaytypes.ImageRoutingUpstreamStatusCode
+	IsClientAbortedError                 = relaytypes.IsClientAbortedError
 	IsImageRoutingErrorRetryable         = relaytypes.IsImageRoutingErrorRetryable
 	IsImageRoutingUpstreamRejected       = relaytypes.IsImageRoutingUpstreamRejected
 	IsRequestNotSentError                = relaytypes.IsRequestNotSentError

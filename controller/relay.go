@@ -296,6 +296,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 
+		// A request whose caller cancelled it before the upstream could respond
+		// (user pressed cancel in Studio, or the Studio relay gave up waiting)
+		// is likewise not a channel fault: do not disable, cool down, or
+		// attribute an error to the channel, and do not retry because the
+		// client is gone. The pre-consume is refunded by the deferred billing
+		// handler.
+		if types.IsClientAbortedError(newAPIError) {
+			logger.LogWarn(c, fmt.Sprintf("image request aborted by client on channel #%d; not attributed to the channel", channel.Id))
+			break
+		}
+
 		channelError := types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan())
 		if recordImageAutoCooldown(imageAutoCooldowns, relayInfo, newAPIError) {
 			// A 524 on an image-auto route is a temporary route-local condition.

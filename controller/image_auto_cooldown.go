@@ -127,7 +127,8 @@ func filterImageAutoPlanCooldowns(plan *types.ImageRoutingPlan, registry *imageA
 }
 
 func recordImageAutoCooldown(registry *imageAutoCooldownRegistry, info *relaycommon.RelayInfo, err *types.NewAPIError) bool {
-	if registry == nil || info == nil || info.ImageRouting == nil || err == nil || types.IsRequestNotSentError(err) {
+	if registry == nil || info == nil || info.ImageRouting == nil || err == nil ||
+		types.IsRequestNotSentError(err) || types.IsClientAbortedError(err) {
 		return false
 	}
 	statusCode := types.ImageRoutingUpstreamStatusCode(err)

@@ -93,6 +93,11 @@ type NewAPIError struct {
 	RelayError     any
 	skipRetry      bool
 	requestNotSent bool
+	// clientAborted marks requests whose caller (browser or the Studio relay)
+	// cancelled the in-flight upstream request before it could respond. The
+	// channel never produced a failure, so cooldown and channel-disabling
+	// decisions must not blame it.
+	clientAborted bool
 	// imageRoutingUpstreamStatusCode preserves the provider's HTTP status for
 	// image retry/cooldown decisions. Channel mappings may later rewrite the
 	// client-visible StatusCode.
@@ -392,6 +397,14 @@ func IsRequestNotSentError(err *NewAPIError) bool {
 	return err != nil && err.requestNotSent
 }
 
+// IsClientAbortedError reports errors that exist only because the caller
+// cancelled the request before the upstream could respond (the user pressed
+// cancel in Studio, or the Studio relay gave up waiting). The channel is not
+// at fault, so it must not be cooled down or disabled for these errors.
+func IsClientAbortedError(err *NewAPIError) bool {
+	return err != nil && err.clientAborted
+}
+
 // ClassifyImageRoutingUpstreamResponse records only response statuses that
 // prove the image request was rejected before generation. Timeout and server
 // failures remain ambiguous because the provider may still enqueue or bill
@@ -451,6 +464,16 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 func ErrOptionWithRequestNotSent() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.requestNotSent = true
+	}
+}
+
+// ErrOptionWithClientAborted marks an error caused by the caller cancelling
+// the request (user pressed cancel in Studio, or the Studio relay gave up
+// waiting) rather than by an upstream failure. The flag survives
+// sanitization so downstream cooldown decisions can tell the two apart.
+func ErrOptionWithClientAborted() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.clientAborted = true
 	}
 }
 

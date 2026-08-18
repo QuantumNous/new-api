@@ -106,6 +106,35 @@ func TestRecordImageAutoCooldownForAmbiguousFailureAndRateLimit(t *testing.T) {
 	require.False(t, recordImageAutoCooldown(registry, info, notSent))
 }
 
+func TestRecordImageAutoCooldownSkipsClientAbortedRequest(t *testing.T) {
+	now := time.Date(2026, time.July, 25, 8, 0, 0, 0, time.UTC)
+	registry := newImageAutoCooldownRegistry(func() time.Time { return now })
+	state := relaycommon.NewImageRoutingState(imageAutoCooldownPlanForTest(t))
+	require.NoError(t, state.ActivateRoute(0))
+	info := &relaycommon.RelayInfo{ImageRouting: state}
+
+	// A user pressing cancel cancels the in-flight upstream request; the
+	// channel is healthy and must not be cooled down for it.
+	clientAborted := types.NewOpenAIError(
+		errors.New("context canceled"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusInternalServerError,
+		types.ErrOptionWithClientAborted(),
+	)
+	require.False(t, recordImageAutoCooldown(registry, info, clientAborted))
+	require.False(t, registry.IsCooling(36))
+
+	// The same transport failure without the abort flag still cools the
+	// channel, preserving existing behavior for real upstream problems.
+	plainFailure := types.NewOpenAIError(
+		errors.New("dial tcp: connection refused"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusInternalServerError,
+	)
+	require.True(t, recordImageAutoCooldown(registry, info, plainFailure))
+	require.True(t, registry.IsCooling(36))
+}
+
 func TestImageAuto524IsNeverRetriedInCurrentRequest(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	state := relaycommon.NewImageRoutingState(imageAutoCooldownPlanForTest(t))

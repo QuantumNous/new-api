@@ -41,6 +41,37 @@ func TestSanitizeImageAutoErrorPreservesRequestNotSentRetryProof(t *testing.T) {
 	require.True(t, types.IsImageRoutingErrorRetryable(sanitized, false, true))
 }
 
+func TestSanitizeImageAutoErrorPreservesClientAbortedProof(t *testing.T) {
+	plan, err := (types.ImageRoutingConfig{
+		Enabled:     true,
+		PublicModel: "image-auto",
+		PublicGroup: "imageauto",
+		MaxN:        4,
+		Routes: []types.ImageRoutingRoute{{
+			ID:                 "route-a",
+			ChannelID:          1,
+			Priority:           1,
+			Enabled:            true,
+			BillingMode:        types.ImageRoutingBillingFixed,
+			UpstreamModel:      "upstream-image",
+			FixedQuotaPerImage: 1,
+		}},
+	}).BuildPlan("low", 1)
+	require.NoError(t, err)
+	info := &relaycommon.RelayInfo{ImageRouting: relaycommon.NewImageRoutingState(plan)}
+	original := types.NewOpenAIError(
+		errors.New("context canceled"),
+		types.ErrorCodeDoRequestFailed,
+		http.StatusInternalServerError,
+		types.ErrOptionWithClientAborted(),
+	)
+
+	sanitized := sanitizeImageAutoError(info, original)
+
+	require.True(t, types.IsClientAbortedError(sanitized))
+	require.False(t, types.IsImageRoutingErrorRetryable(sanitized, false, true))
+}
+
 func TestSanitizeImageAutoErrorPreservesDefinitiveRejectionProof(t *testing.T) {
 	info := &relaycommon.RelayInfo{ImageRouting: &relaycommon.ImageRoutingState{}}
 	original := types.ClassifyImageRoutingUpstreamResponse(types.NewOpenAIError(

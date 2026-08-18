@@ -2,6 +2,8 @@ package relay
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,12 +32,15 @@ func sanitizeImageAutoError(info *relaycommon.RelayInfo, apiErr *types.NewAPIErr
 	if info == nil || info.ImageRouting == nil || apiErr == nil {
 		return apiErr
 	}
-	options := make([]types.NewAPIErrorOptions, 0, 2)
+	options := make([]types.NewAPIErrorOptions, 0, 3)
 	if types.IsSkipRetryError(apiErr) {
 		options = append(options, types.ErrOptionWithSkipRetry())
 	}
 	if types.IsRequestNotSentError(apiErr) {
 		options = append(options, types.ErrOptionWithRequestNotSent())
+	}
+	if types.IsClientAbortedError(apiErr) {
+		options = append(options, types.ErrOptionWithClientAborted())
 	}
 	if upstreamStatus := types.ImageRoutingUpstreamStatusCode(apiErr); upstreamStatus != 0 {
 		options = append(options, types.ErrOptionWithImageRoutingUpstreamResponse(
@@ -140,7 +145,18 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		return sanitizeImageAutoError(info, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError))
+		// The upstream request runs on the client request context
+		// (api_request.DoApiRequest). When the caller cancels the generation
+		// (user pressed cancel in Studio, or the Studio relay gave up
+		// waiting), that context is done and the upstream call fails with
+		// context.Canceled. The channel never returned a failure, so carry
+		// that signal through sanitization and let the cooldown/disable
+		// decisions skip the channel.
+		options := make([]types.NewAPIErrorOptions, 0, 1)
+		if errors.Is(err, context.Canceled) {
+			options = append(options, types.ErrOptionWithClientAborted())
+		}
+		return sanitizeImageAutoError(info, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, options...))
 	}
 	var httpResp *http.Response
 	if resp != nil {
