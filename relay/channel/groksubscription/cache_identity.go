@@ -10,6 +10,8 @@ import (
 
 // ComputeCacheIdentity 用 HMAC-SHA256 对 (channel, user, token, clientKey) 命名空间化。
 // 客户端未提供 cache key 时返回空串，调用方据此不发 cache 字段（不凭空造身份）。
+// secret 必须由系统级密钥派生且 >= 32 字节；轮换 secret 会使全部已发 identity 失效
+// （预期行为：等于清空上游缓存隔离层）。空/弱 secret 不会被本函数拒绝，接线方负责校验。
 func ComputeCacheIdentity(secret []byte, channelID int, userIdentity, tokenIdentity, clientCacheKey string) string {
 	if strings.TrimSpace(clientCacheKey) == "" {
 		return ""
