@@ -23,6 +23,10 @@ import (
 //   - false: 聚合所有增量后一次性返回单个 chat.completion JSON
 //
 // 绝不能用 info.IsStream 决定：compatible_handler 会因上游 Content-Type=SSE 把它抬成 true。
+//
+// 非 200 兜底：上层 compatible_handler.go 已对非 2xx 做 RelayErrorHandler 预过滤，
+// 正常情况下非 200 响应到不了本函数；aggregateGrokResponsesToChat 里的非 200 检查是
+// 纵深防御。流式路径因此不再做本地非 200 兜底（openai handler 内部自行处理）。
 func RelayChatOverGrok(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (any, *types.NewAPIError) {
 	if info != nil && info.UserWantsStream {
 		return openai.OaiResponsesToChatStreamHandler(c, info, resp)
@@ -177,6 +181,11 @@ func buildGrokUsage(u *apicompat.ResponsesUsage) *dto.Usage {
 	}
 	if u.InputTokensDetails != nil {
 		out.PromptTokensDetails = dto.InputTokenDetails{
+			CachedTokens:     u.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: u.InputTokensDetails.CacheWriteTokens,
+		}
+		// 同步指针字段，方便下游 reasoning/responses 链路读取（与 codex buildUsage 对齐）。
+		out.InputTokensDetails = &dto.InputTokenDetails{
 			CachedTokens:     u.InputTokensDetails.CachedTokens,
 			CacheWriteTokens: u.InputTokensDetails.CacheWriteTokens,
 		}

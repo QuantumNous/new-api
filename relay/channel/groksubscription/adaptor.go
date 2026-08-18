@@ -83,8 +83,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.New("request is nil")
 	}
 	// 记录客户端 stream 意图（上游 CLI proxy 强制流式，与此解耦；C1 修复）。
+	// request 已在函数开头的 nil 守卫处保证非 nil，故此处只判 Stream 指针。
 	if info != nil {
-		if request != nil && request.Stream != nil {
+		if request.Stream != nil {
 			info.UserWantsStream = *request.Stream
 		} else {
 			info.UserWantsStream = false
