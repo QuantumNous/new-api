@@ -76,6 +76,8 @@ func getTokenRequestUserGroup(c *gin.Context) (string, error) {
 	return model.GetUserGroup(c.GetInt("id"), false)
 }
 
+// setTokenAutoGroups 验证并设置令牌的 auto_groups 列表。groups 为空时清空该字段；
+// targetUserGroup 用于跨用户操作时按目标用户的可选组做校验，为空则回退到请求者。
 func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string, targetUserGroup string) bool {
 	if len(groups) == 0 {
 		if err := token.SetAutoGroups(nil); err != nil {
@@ -132,6 +134,7 @@ func getQueryUserId(c *gin.Context) int {
 	return userId
 }
 
+// GetAllTokens 列出令牌。Root 可查全部或按 user_id 筛选，普通用户仅显示自己的。
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -163,6 +166,7 @@ func GetAllTokens(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// SearchTokens 按关键字搜索令牌，权限与 GetAllTokens 一致。
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
@@ -192,6 +196,7 @@ func SearchTokens(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+// GetToken 获取单个令牌详情，Root 可查看任意用户令牌，非 Root 仅限自己的。
 func GetToken(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
@@ -230,6 +235,7 @@ func GetTokenAutoGroups(c *gin.Context) {
 	})
 }
 
+// GetTokenKey 获取令牌明文 Key。Root 查看他人令牌 Key 时写入一条管理审计日志。
 func GetTokenKey(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
@@ -267,6 +273,7 @@ func GetTokenKey(c *gin.Context) {
 	})
 }
 
+// GetTokenStatus 返回令牌的额度与过期时间。
 func GetTokenStatus(c *gin.Context) {
 	tokenId := c.GetInt("token_id")
 	userId := c.GetInt("id")
@@ -288,6 +295,7 @@ func GetTokenStatus(c *gin.Context) {
 	})
 }
 
+// GetTokenUsage 通过 Authorization 头返回令牌用量信息。
 func GetTokenUsage(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
@@ -337,6 +345,7 @@ func GetTokenUsage(c *gin.Context) {
 	})
 }
 
+// AddToken 创建令牌。Root 可通过 user_id 为其他用户创建，普通用户仅给自己。
 func AddToken(c *gin.Context) {
 	request := tokenRequest{}
 	err := c.ShouldBindJSON(&request)
@@ -448,6 +457,7 @@ func AddToken(c *gin.Context) {
 	})
 }
 
+// DeleteToken 删除令牌。Root 可删除任意用户令牌，非 Root 仅限自己的。
 func DeleteToken(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
@@ -487,6 +497,7 @@ func DeleteToken(c *gin.Context) {
 	})
 }
 
+// UpdateToken 更新令牌。Root 可更新任意用户令牌，非 Root 仅限自己的。
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")
@@ -592,6 +603,7 @@ type TokenBatch struct {
 	Ids []int `json:"ids"`
 }
 
+// DeleteTokenBatch 批量删除令牌。Root 可批量删除任意用户令牌，非 Root 仅限自己的。
 func DeleteTokenBatch(c *gin.Context) {
 	tokenBatch := TokenBatch{}
 	if err := c.ShouldBindJSON(&tokenBatch); err != nil || len(tokenBatch.Ids) == 0 {
@@ -629,6 +641,7 @@ func DeleteTokenBatch(c *gin.Context) {
 	})
 }
 
+// GetTokenKeysBatch 批量获取令牌。Root 可批量获取任意用户令牌，非 Root 仅限自己的。
 func GetTokenKeysBatch(c *gin.Context) {
 	tokenBatch := TokenBatch{}
 	if err := c.ShouldBindJSON(&tokenBatch); err != nil || len(tokenBatch.Ids) == 0 {
