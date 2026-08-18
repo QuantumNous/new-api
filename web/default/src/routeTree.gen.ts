@@ -61,6 +61,7 @@ import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedRecallCampaignsIndexRouteImport } from './routes/_authenticated/recall-campaigns/index'
+import { Route as AuthenticatedPromptGalleryIndexRouteImport } from './routes/_authenticated/prompt-gallery/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedOpsReportIndexRouteImport } from './routes/_authenticated/ops-report/index'
@@ -371,6 +372,12 @@ const AuthenticatedRecallCampaignsIndexRoute =
   AuthenticatedRecallCampaignsIndexRouteImport.update({
     id: '/recall-campaigns/',
     path: '/recall-campaigns/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPromptGalleryIndexRoute =
+  AuthenticatedPromptGalleryIndexRouteImport.update({
+    id: '/prompt-gallery/',
+    path: '/prompt-gallery/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedProfileIndexRoute =
@@ -709,6 +716,7 @@ export interface FileRoutesByFullPath {
   '/ops-report/': typeof AuthenticatedOpsReportIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
+  '/prompt-gallery/': typeof AuthenticatedPromptGalleryIndexRoute
   '/recall-campaigns/': typeof AuthenticatedRecallCampaignsIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
@@ -806,6 +814,7 @@ export interface FileRoutesByTo {
   '/ops-report': typeof AuthenticatedOpsReportIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
+  '/prompt-gallery': typeof AuthenticatedPromptGalleryIndexRoute
   '/recall-campaigns': typeof AuthenticatedRecallCampaignsIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
@@ -907,6 +916,7 @@ export interface FileRoutesById {
   '/_authenticated/ops-report/': typeof AuthenticatedOpsReportIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
+  '/_authenticated/prompt-gallery/': typeof AuthenticatedPromptGalleryIndexRoute
   '/_authenticated/recall-campaigns/': typeof AuthenticatedRecallCampaignsIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
@@ -1007,6 +1017,7 @@ export interface FileRouteTypes {
     | '/ops-report/'
     | '/playground/'
     | '/profile/'
+    | '/prompt-gallery/'
     | '/recall-campaigns/'
     | '/redemption-codes/'
     | '/subscriptions/'
@@ -1104,6 +1115,7 @@ export interface FileRouteTypes {
     | '/ops-report'
     | '/playground'
     | '/profile'
+    | '/prompt-gallery'
     | '/recall-campaigns'
     | '/redemption-codes'
     | '/subscriptions'
@@ -1204,6 +1216,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ops-report/'
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
+    | '/_authenticated/prompt-gallery/'
     | '/_authenticated/recall-campaigns/'
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/subscriptions/'
@@ -1645,6 +1658,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRecallCampaignsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/prompt-gallery/': {
+      id: '/_authenticated/prompt-gallery/'
+      path: '/prompt-gallery'
+      fullPath: '/prompt-gallery/'
+      preLoaderRoute: typeof AuthenticatedPromptGalleryIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/profile/': {
       id: '/_authenticated/profile/'
       path: '/profile'
@@ -2078,6 +2098,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOpsReportIndexRoute: typeof AuthenticatedOpsReportIndexRoute
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
+  AuthenticatedPromptGalleryIndexRoute: typeof AuthenticatedPromptGalleryIndexRoute
   AuthenticatedRecallCampaignsIndexRoute: typeof AuthenticatedRecallCampaignsIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
@@ -2114,6 +2135,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOpsReportIndexRoute: AuthenticatedOpsReportIndexRoute,
   AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
+  AuthenticatedPromptGalleryIndexRoute: AuthenticatedPromptGalleryIndexRoute,
   AuthenticatedRecallCampaignsIndexRoute:
     AuthenticatedRecallCampaignsIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
