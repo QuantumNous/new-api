@@ -21,32 +21,49 @@ import (
 
 func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 	tests := []struct {
-		name           string
-		clientStream   *bool
-		forceUpstream  bool
-		wantStreamSent bool // what the upstream should receive
-		wantForcedFlag bool // whether UpstreamStreamForced should be set
+		name               string
+		clientStream       *bool
+		forceUpstream      bool
+		supportStreamOpts  bool
+		wantStreamSent     bool // what the upstream should receive
+		wantForcedFlag     bool // whether UpstreamStreamForced should be set
+		wantStreamOptions  bool // whether StreamOptions.IncludeUsage should be true
 	}{
 		{
-			name:           "client non-stream + force -> upstream stream + forced flag",
-			clientStream:   lo.ToPtr(false),
-			forceUpstream:  true,
-			wantStreamSent: true,
-			wantForcedFlag: true,
+			name:              "client non-stream + force -> upstream stream + forced flag",
+			clientStream:      lo.ToPtr(false),
+			forceUpstream:     true,
+			supportStreamOpts: true,
+			wantStreamSent:    true,
+			wantForcedFlag:    true,
+			wantStreamOptions: true,
 		},
 		{
-			name:           "client stream + force -> upstream stream, no forced flag",
-			clientStream:   lo.ToPtr(true),
-			forceUpstream:  true,
-			wantStreamSent: true,
-			wantForcedFlag: false,
+			name:              "client stream + force -> upstream stream, no forced flag",
+			clientStream:      lo.ToPtr(true),
+			forceUpstream:     true,
+			supportStreamOpts: true,
+			wantStreamSent:    true,
+			wantForcedFlag:    false,
+			wantStreamOptions: false, // forced flag not set, so StreamOptions not injected by force path
 		},
 		{
-			name:           "client non-stream + no force -> upstream non-stream, no forced flag",
-			clientStream:   lo.ToPtr(false),
-			forceUpstream:  false,
-			wantStreamSent: false,
-			wantForcedFlag: false,
+			name:              "client non-stream + no force -> upstream non-stream, no forced flag",
+			clientStream:      lo.ToPtr(false),
+			forceUpstream:     false,
+			supportStreamOpts: true,
+			wantStreamSent:    false,
+			wantForcedFlag:    false,
+			wantStreamOptions: false,
+		},
+		{
+			name:              "force + no stream options support -> stream injected but no StreamOptions",
+			clientStream:      lo.ToPtr(false),
+			forceUpstream:     true,
+			supportStreamOpts: false,
+			wantStreamSent:    true,
+			wantForcedFlag:    true,
+			wantStreamOptions: false,
 		},
 	}
 	for _, tt := range tests {
@@ -58,9 +75,10 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 
 			info := &relaycommon.RelayInfo{
 				ChannelMeta: &relaycommon.ChannelMeta{
-					ChannelType:       constant.ChannelTypeOpenAI,
-					UpstreamModelName: "test-model",
-					ChannelSetting:    dto.ChannelSettings{ForceUpstreamStream: tt.forceUpstream},
+					ChannelType:         constant.ChannelTypeOpenAI,
+					UpstreamModelName:   "test-model",
+					ChannelSetting:      dto.ChannelSettings{ForceUpstreamStream: tt.forceUpstream},
+					SupportStreamOptions: tt.supportStreamOpts,
 				},
 				RelayFormat: types.RelayFormatOpenAI,
 			}
@@ -81,6 +99,13 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 				"upstream stream field mismatch")
 			assert.Equal(t, tt.wantForcedFlag, info.UpstreamStreamForced,
 				"UpstreamStreamForced flag mismatch")
+
+			if tt.wantStreamOptions {
+				require.NotNil(t, returnedRequest.StreamOptions,
+					"StreamOptions should be injected when stream is forced and provider supports it")
+				assert.True(t, returnedRequest.StreamOptions.IncludeUsage,
+					"StreamOptions.IncludeUsage must be true")
+			}
 		})
 	}
 }

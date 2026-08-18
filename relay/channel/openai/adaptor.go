@@ -250,6 +250,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if info.ChannelSetting.ForceUpstreamStream && !lo.FromPtrOr(request.Stream, false) {
 		request.Stream = lo.ToPtr(true)
 		info.UpstreamStreamForced = true
+		// Inject stream_options.include_usage so the upstream returns actual
+		// usage in the final SSE chunk. Without this, the buffered handler
+		// falls back to estimated token counts, hurting billing accuracy.
+		if info.SupportStreamOptions && request.StreamOptions == nil {
+			request.StreamOptions = &dto.StreamOptions{
+				IncludeUsage: true,
+			}
+		}
 	}
 	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
