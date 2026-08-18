@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -635,4 +636,26 @@ func TestGrokAuthRefreshHandler(t *testing.T) {
 	require.True(t, resp.Success)
 	require.Equal(t, model.GrokAuthStatusActive, resp.Data.Status)
 	require.Equal(t, `{"remaining":7}`, resp.Data.QuotaSnapshot)
+}
+
+// TestGrokRefreshShouldMarkNeedsReauth 守护设计 §6.3 的失败分类：
+// revision CAS 冲突（另一节点刚成功刷新、凭证仍健康）属瞬时失败，不得置 needs_reauth；
+// 凭证不可刷新与其它未分类失败保守置 needs_reauth。用 errors.Is 语义覆盖 wrap 情形。
+func TestGrokRefreshShouldMarkNeedsReauth(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil error", err: nil, want: false},
+		{name: "refresh conflict sentinel", err: groksubscription.ErrRefreshConflict, want: false},
+		{name: "wrapped refresh conflict", err: fmt.Errorf("refresh channel %d: %w", 7, groksubscription.ErrRefreshConflict), want: false},
+		{name: "not refreshable", err: groksubscription.ErrNotRefreshable, want: true},
+		{name: "arbitrary error", err: errors.New("boom"), want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, grokRefreshShouldMarkNeedsReauth(tc.err))
+		})
+	}
 }

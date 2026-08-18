@@ -313,14 +313,32 @@ func (s *grokChannelCredentialStore) CompareAndSwap(ctx context.Context, channel
 	return model.CompareAndSwapChannelKey(channelID, constant.ChannelTypeGrokSubscription, oldKey, newKey)
 }
 
+// grokRefreshShouldMarkNeedsReauth 判定一次刷新失败是否应把渠道置 needs_reauth 并自动停用。
+// 设计 §6.3：瞬时失败（含 revision CAS 冲突——另一节点刚成功刷新、凭证仍健康）不得停用渠道；
+// 仅凭证不可刷新 / 上游拒绝（invalid_grant 等）/ 强刷后仍失效才停用。
+// 注：里程碑 A 的 Refresher 对上游非 200 统一返回状态码错误、未回传结构化 invalid_grant 信号，
+// 故此处对"其余未分类失败"保守返回 true（宁可要求重认证也不放过真失效）；瞬时网络失败
+// 与 invalid_grant 的完整细分随 workstream 2 的 refresh.go 结构化错误改造再收敛。
+func grokRefreshShouldMarkNeedsReauth(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, groksubscription.ErrRefreshConflict) {
+		return false
+	}
+	return true
+}
+
 // GrokRefreshChannelCredential 刷新渠道既有凭证（Task 8 Refresher 的 Task 18 接线），
 // 成功置 active，失败（不可刷新 / 上游拒绝 / CAS 冲突）置 needs_reauth（渠道仍在时）。
 func GrokRefreshChannelCredential(ctx context.Context, channelID int) error {
 	refresher := groksubscription.NewRefresher(newGrokChannelCredentialStore(), grokAuthHTTPDoer, time.Now().Unix)
 	if _, err := refresher.Refresh(ctx, channelID); err != nil {
-		// 渠道已不存在的 Load 失败不落状态行；其余失败统一 needs_reauth（设计 §6.3）。
-		if _, loadErr := model.GetChannelById(channelID, false); loadErr == nil {
-			recordGrokNeedsReauth(channelID, err)
+		// 渠道已不存在则不落状态行；否则按错误类别决定是否置 needs_reauth（设计 §6.3）。
+		if grokRefreshShouldMarkNeedsReauth(err) {
+			if _, loadErr := model.GetChannelById(channelID, false); loadErr == nil {
+				recordGrokNeedsReauth(channelID, err)
+			}
 		}
 		return err
 	}
