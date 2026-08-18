@@ -280,6 +280,7 @@ function renderInlineEm(value: string) {
 }
 
 type OnlineHomePageProps = {
+  /** A browser hint is not a verified console session; CTA auth state is verified client-side. */
   hasConsoleSessionHint?: boolean;
   locale: Locale;
 };
@@ -299,9 +300,7 @@ export async function OnlineHomePage(props: OnlineHomePageProps) {
   };
   const modelPrice = (price: string) =>
     price === "Early access" ? t("md.early", price) : price;
-  const authActionHref = props.hasConsoleSessionHint
-    ? consoleUrl("/dashboard")
-    : consoleUrl("/sign-up", `lng=${props.locale}`);
+  const authActionHref = consoleUrl("/sign-up", `lng=${props.locale}`);
   const authActionLabel = copy.home.ctaKey;
   const finalCtaLabel = t("cta.b1", "Get started");
 

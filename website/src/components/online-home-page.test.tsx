@@ -25,16 +25,16 @@ describe("OnlineHomePage", () => {
     expect(hrefBeforeText(html, "Get started")).toBe(signupHref);
   });
 
-  test("routes home auth CTAs to the console overview when a session hint exists", async () => {
+  test("does not treat a console session hint as verified auth for home CTAs", async () => {
     const { OnlineHomePage } = await import("./online-home-page");
     const html = renderToStaticMarkup(
       await OnlineHomePage({ locale: "en", hasConsoleSessionHint: true }),
     );
 
-    const dashboardHref = "https://console.flatkey.ai/dashboard";
+    const signupHref = "https://console.flatkey.ai/sign-up?lng=en";
     expect(hrefBeforeText(html, "Get up to 40 USD free credits")).toBe(
-      dashboardHref,
+      signupHref,
     );
-    expect(hrefBeforeText(html, "Get started")).toBe(dashboardHref);
+    expect(hrefBeforeText(html, "Get started")).toBe(signupHref);
   });
 });

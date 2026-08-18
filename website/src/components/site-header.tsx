@@ -22,7 +22,6 @@ import { consoleUrl } from "@/lib/origins";
 import { TOOLS_LANDING_PATH, toolsLandingCopy } from "@/lib/tools-landing";
 import {
   clearConsoleSessionHint,
-  hasConsoleSessionHint,
   isVerifiedConsoleUserPayload,
   rememberConsoleSessionHint,
 } from "@/lib/console-session-hint";
@@ -193,6 +192,49 @@ const desktopPrimaryActionClass =
   "inline-flex h-10 max-w-[10rem] items-center justify-center overflow-hidden whitespace-nowrap rounded-[9px] bg-[#070707] px-3 text-[13px] font-bold text-ellipsis text-white no-underline shadow-[0_10px_24px_-18px_rgba(11,11,15,.75)] transition hover:-translate-y-px hover:bg-[#17171B] min-[1180px]:h-11 min-[1180px]:max-w-[12rem] min-[1180px]:px-4 min-[1180px]:text-[13.5px] min-[1360px]:text-[14px]";
 const headerLogoClass =
   "gap-2 [&_img]:!h-9 [&_img]:!w-9 [&_[data-flatkey-wordmark='true']]:!text-[28px] min-[1180px]:gap-[9px] min-[1180px]:[&_img]:!h-10 min-[1180px]:[&_img]:!w-10 min-[1180px]:[&_[data-flatkey-wordmark='true']]:!text-[32px] min-[1480px]:[&_img]:!h-11 min-[1480px]:[&_img]:!w-11 min-[1480px]:[&_[data-flatkey-wordmark='true']]:!text-[36px]";
+
+type SiteHeaderDesktopActionsProps = {
+  accountHref: string;
+  accountLabel: string;
+  contactSalesHref: string;
+  contactSalesLabel: string;
+  consoleSessionActive: boolean;
+  signUpHref: string;
+  startFreeLabel: string;
+};
+
+export function SiteHeaderDesktopActions(
+  props: SiteHeaderDesktopActionsProps,
+) {
+  return (
+    <>
+      <a
+        className={desktopSecondaryActionClass}
+        href={props.accountHref}
+        aria-label={props.accountLabel}
+      >
+        <span>{props.accountLabel}</span>
+      </a>
+      {props.consoleSessionActive ? (
+        <a
+          className={desktopSecondaryActionClass}
+          href={props.contactSalesHref}
+          aria-label={props.contactSalesLabel}
+        >
+          <span>{props.contactSalesLabel}</span>
+        </a>
+      ) : (
+        <a
+          className={desktopPrimaryActionClass}
+          href={props.signUpHref}
+          style={{ color: "#fff" }}
+        >
+          {props.startFreeLabel}
+        </a>
+      )}
+    </>
+  );
+}
 
 function persistLanguagePreference(locale: Locale, cookieDomain?: string) {
   for (const cookie of buildLanguagePreferenceCookieWrites(
@@ -366,6 +408,7 @@ export function SiteHeader(props: Props) {
   const dashboardHref = consoleUrl("/dashboard");
   const accountHref = consoleSessionActive ? dashboardHref : signInHref;
   const accountLabel = consoleSessionActive ? copy.nav.console : copy.nav.signIn;
+  const contactSalesHref = localizePath("/contact", props.locale);
   const startFreeLabel =
     startFreeLabelByLocale[props.locale] ?? startFreeLabelByLocale.en;
   const primaryActionHref = consoleSessionActive ? dashboardHref : signUpHref;
@@ -431,9 +474,6 @@ export function SiteHeader(props: Props) {
   useEffect(() => {
     let cancelled = false;
 
-    const applyHint = () => {
-      setConsoleSessionActive(hasConsoleSessionHint());
-    };
     const refresh = async () => {
       try {
         const response = await fetch("/api/mixpanel/current-user", {
@@ -459,7 +499,7 @@ export function SiteHeader(props: Props) {
         }
         setConsoleSessionActive(verified);
       } catch {
-        /* Keep the local hint when a transient network failure prevents verification. */
+        /* Keep the current verified state when a transient network failure prevents refresh. */
       }
     };
     const refreshWhenVisible = () => {
@@ -468,7 +508,6 @@ export function SiteHeader(props: Props) {
       }
     };
 
-    applyHint();
     void refresh();
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -632,22 +671,15 @@ export function SiteHeader(props: Props) {
               cookieDomain={props.languageCookieDomain}
             />
           )}
-          <a
-            className={desktopSecondaryActionClass}
-            href={accountHref}
-            aria-label={accountLabel}
-          >
-            <span>{accountLabel}</span>
-          </a>
-          {!consoleSessionActive && (
-            <a
-              className={desktopPrimaryActionClass}
-              href={signUpHref}
-              style={{ color: "#fff" }}
-            >
-              {startFreeLabel}
-            </a>
-          )}
+          <SiteHeaderDesktopActions
+            accountHref={accountHref}
+            accountLabel={accountLabel}
+            contactSalesHref={contactSalesHref}
+            contactSalesLabel={copy.nav.contactSales}
+            consoleSessionActive={consoleSessionActive}
+            signUpHref={signUpHref}
+            startFreeLabel={startFreeLabel}
+          />
         </div>
 
         <a
@@ -689,7 +721,7 @@ export function SiteHeader(props: Props) {
             : "pointer-events-none -translate-y-4 opacity-0 shadow-none",
         )}
       >
-        <div className="mb-3 grid">
+        <div className="mb-3 grid gap-2">
           <a
             className="flex min-h-12 items-center justify-center rounded-xl border border-[#0B0B0F14] bg-white px-4 py-3 text-base font-bold text-[#0B0B0F] shadow-[0_10px_24px_-22px_rgba(11,11,15,.55)] transition hover:border-[#C9B8FF] hover:bg-[#F3EDFF] hover:text-[#6B46C1] focus-visible:border-[#C9B8FF] focus-visible:bg-[#F3EDFF] focus-visible:text-[#6B46C1] focus-visible:outline-none"
             href={accountHref}
@@ -697,6 +729,15 @@ export function SiteHeader(props: Props) {
           >
             <span>{accountLabel}</span>
           </a>
+          {consoleSessionActive ? (
+            <a
+              className="flex min-h-12 items-center justify-center rounded-xl border border-[#0B0B0F14] bg-white px-4 py-3 text-base font-bold text-[#0B0B0F] shadow-[0_10px_24px_-22px_rgba(11,11,15,.55)] transition hover:border-[#C9B8FF] hover:bg-[#F3EDFF] hover:text-[#6B46C1] focus-visible:border-[#C9B8FF] focus-visible:bg-[#F3EDFF] focus-visible:text-[#6B46C1] focus-visible:outline-none"
+              href={contactSalesHref}
+              aria-label={copy.nav.contactSales}
+            >
+              <span>{copy.nav.contactSales}</span>
+            </a>
+          ) : null}
         </div>
         <div className={mobileMenuSurfaceClass}>
           {renderMobileGroup(groupLabels.products, productItems)}

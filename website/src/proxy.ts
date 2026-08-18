@@ -13,6 +13,7 @@ export function proxy(request: NextRequest) {
     method: request.method,
     acceptLanguage: request.headers.get("accept-language"),
     cookieLocale,
+    refererPathname: sameOriginRefererPathname(request),
     userAgent: request.headers.get("user-agent"),
   });
 
@@ -23,6 +24,18 @@ export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   url.pathname = redirectPath;
   return withLanguagePreferenceCookieMigration(NextResponse.redirect(url, 307), cookieLocale, cookieHeader);
+}
+
+function sameOriginRefererPathname(request: NextRequest): string | null {
+  const referer = request.headers.get("referer");
+  if (!referer) return null;
+
+  try {
+    const url = new URL(referer);
+    return url.origin === request.nextUrl.origin ? url.pathname : null;
+  } catch {
+    return null;
+  }
 }
 
 function withLanguagePreferenceCookieMigration(

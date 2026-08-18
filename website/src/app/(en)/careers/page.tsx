@@ -6,6 +6,7 @@ export const metadata = buildMetadata({
   description:
     "Join a small, happy, AI-native team in San Jose. Every person works with a fleet of agents. We hire builders and growth engineers who ship.",
   pathname: "/careers",
+  locales: ["en", "zh"],
 });
 
 export default function Page() {

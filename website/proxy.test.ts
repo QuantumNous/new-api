@@ -44,6 +44,18 @@ describe("website proxy language redirects", () => {
     expect(response?.headers.get("location")).toBeNull();
   });
 
+  test("keeps same-origin clicks from English pages on English routes", () => {
+    const response = proxy(
+      request("/pricing", {
+        "accept-language": "zh-CN,zh;q=0.9",
+        cookie: "fk_locale=zh",
+        referer: "https://flatkey.ai/",
+      })
+    );
+
+    expect(response?.headers.get("location")).toBeNull();
+  });
+
   test("does not redirect declared AI crawlers", () => {
     const response = proxy(
       request("/pricing", {

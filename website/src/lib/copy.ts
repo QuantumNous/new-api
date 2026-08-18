@@ -10,6 +10,7 @@ type Copy = {
     console: string;
     rankings: string;
     contact: string;
+    contactSales: string;
     blog: string;
     about: string;
     app: string;
@@ -116,6 +117,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "Console",
       rankings: "Rankings",
       contact: "Contact us",
+      contactSales: "Contact sales",
       blog: "Blog",
       about: "About",
       app: "Open app",
@@ -275,6 +277,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "控制台",
       rankings: "排行",
       contact: "联系我们",
+      contactSales: "联系销售",
       blog: "博客",
       about: "关于",
       app: "打开应用",
@@ -431,6 +434,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "Consola",
       rankings: "Rankings",
       contact: "Contacto",
+      contactSales: "Contactar ventas",
       blog: "Blog",
       about: "Acerca de",
       app: "Abrir app",
@@ -559,6 +563,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "Console",
       rankings: "Classements",
       contact: "Contact",
+      contactSales: "Parler aux ventes",
       blog: "Blog",
       about: "À propos",
       app: "Ouvrir l'app",
@@ -687,6 +692,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "Console",
       rankings: "Rankings",
       contact: "Contato",
+      contactSales: "Falar com vendas",
       blog: "Blog",
       about: "Sobre",
       app: "Abrir app",
@@ -815,6 +821,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "Консоль",
       rankings: "Рейтинги",
       contact: "Контакты",
+      contactSales: "Отдел продаж",
       blog: "Блог",
       about: "О нас",
       app: "Открыть приложение",
@@ -943,6 +950,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "コンソール",
       rankings: "ランキング",
       contact: "お問い合わせ",
+      contactSales: "営業に相談",
       blog: "ブログ",
       about: "概要",
       app: "アプリを開く",
@@ -1071,6 +1079,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "Bảng điều khiển",
       rankings: "Xếp hạng",
       contact: "Liên hệ",
+      contactSales: "Liên hệ sales",
       blog: "Blog",
       about: "Giới thiệu",
       app: "Mở ứng dụng",
@@ -1199,6 +1208,7 @@ const copies: Record<Locale, BaseCopy> = withIdFallback({
       console: "Konsole",
       rankings: "Rankings",
       contact: "Kontakt",
+      contactSales: "Vertrieb kontaktieren",
       blog: "Blog",
       about: "Über uns",
       app: "App öffnen",
