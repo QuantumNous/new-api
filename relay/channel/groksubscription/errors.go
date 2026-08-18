@@ -59,7 +59,7 @@ var contentPolicyPhrases = []string{
 	"content moderation rejected",
 	"blocked by policy",
 	"violates policy",
-	"is sensitive",
+	"is sensitive", // 有意宽于 §12 的 image/text 限定：误判方向 fail-safe（多判只走 ReturnPolicyError，不 failover）
 	"prohibited content",
 	"forbidden content",
 }
@@ -216,6 +216,7 @@ type AttemptState struct {
 
 // DecideAction 按 (status, 403 分类, attempt 状态, 是否可重放) 决定动作。
 // replayable=false 表示已写出语义内容或请求体不可安全重放。
+// st 为 nil 时视作全新 AttemptState（once 上限仅由调用方持久状态保证）。
 func DecideAction(status int, cat ForbiddenCategory, st *AttemptState, replayable bool) Action {
 	if st == nil {
 		st = &AttemptState{}

@@ -117,3 +117,15 @@ func TestDecideActionSelfSetContract(t *testing.T) {
 		t.Fatalf("403 cli-compat must NOT self-set OfficialFallbackUsed (caller sets it)")
 	}
 }
+
+func TestClassifyForbiddenNonJSONFallback(t *testing.T) {
+	// HTML 错误页：JSON 解析失败 → 整体 lower 后作为单一 message，短语兜底仍可命中
+	html := `<html><body>403 Forbidden: subscription required for this plan</body></html>`
+	if got := ClassifyForbidden([]byte(html)); got != ForbiddenAccount {
+		t.Fatalf("non-JSON body must still match via fallback message, got %v", got)
+	}
+	// 无短语命中的非 JSON body 必须 fail-closed 到 Unknown
+	if got := ClassifyForbidden([]byte(`<html>gateway error</html>`)); got != ForbiddenUnknown {
+		t.Fatalf("unmatched non-JSON body must fail closed, got %v", got)
+	}
+}
