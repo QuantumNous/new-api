@@ -149,7 +149,15 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 	}
 
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	// The buffered handler has fully parsed and rebuilt the response as a
+	// single JSON object. Write it directly with the correct Content-Type
+	// instead of using IOCopyBytesGracefully, which would copy the upstream's
+	// text/event-stream header and mislead strict clients (P0-1).
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.Header().Set("Content-Length", fmt.Sprintf("%d", len(responseBody)))
+	c.Writer.WriteHeader(http.StatusOK)
+	_, _ = c.Writer.Write(responseBody)
+	c.Writer.Flush()
 
 	return usage, nil
 }

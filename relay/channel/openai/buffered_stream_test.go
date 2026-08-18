@@ -167,3 +167,41 @@ func TestOaiBufferedStreamHandler_MissingFinishChunk(t *testing.T) {
 	assert.Contains(t, body, "Hi")
 	assert.Contains(t, body, `"object":"chat.completion"`)
 }
+
+// TestOaiBufferedStreamHandler_ContentTypeIsJSON verifies that the buffered
+// handler sets Content-Type to application/json, not the upstream's
+// text/event-stream.  A strict HTTP client rejects a JSON body declared as
+// text/event-stream (P0-1).
+func TestOaiBufferedStreamHandler_ContentTypeIsJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	sseBody := strings.Join([]string{
+		`data: {"id":"chatcmpl-ct","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{"content":"Hi"},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(sseBody))),
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "test"},
+		IsStream:             true,
+		UpstreamStreamForced: true,
+	}
+
+	_, apiErr := OaiBufferedStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+
+	contentType := w.Header().Get("Content-Type")
+	assert.Contains(t, contentType, "application/json",
+		"Content-Type must be application/json, got: %s", contentType)
+	assert.NotContains(t, contentType, "text/event-stream",
+		"Content-Type must not leak upstream text/event-stream")
+}
