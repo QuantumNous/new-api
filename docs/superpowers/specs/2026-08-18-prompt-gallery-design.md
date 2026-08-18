@@ -1,109 +1,98 @@
-# Prompt Gallery（GPT 图像提示词图库）设计
+# Prompt Gallery（awesome-gpt-image 并入 prompt-library）设计
 
-日期：2026-08-18
-状态：已与用户逐节确认
+日期：2026-08-18（2026-08-19 修订：并入现有 prompt-library，不再新建表）
+状态：已与用户确认
 
 ## 背景与目标
 
-把 [ZeroLu/awesome-gpt-image](https://github.com/ZeroLu/awesome-gpt-image)（GPT Image 2 提示词精选集，约 70 个案例）搬到 flatkey（new-api），以**公开只读 API** 的形式对外提供「提示词 + 示例图」数据，供前端（flatkey 官网，由其他人接入，不在本设计范围内）请求展示。
+把 [ZeroLu/awesome-gpt-image](https://github.com/ZeroLu/awesome-gpt-image)（GPT Image 2 提示词精选集，约 70 个案例）搬到 flatkey（new-api），以**公开只读 API** 的形式对外提供「提示词 + 示例图」数据。官网页面由其他人员对接，不在本设计范围。
 
-## 范围决策（澄清结论）
+## 关键修订：复用现有 prompt-library
 
-- 消费方：官网灵感图库页；**官网页面本身不做**，只交付 API。
-- 数据获取：一次性搬运 + 脚本可重跑（幂等），不做定时自动同步。
-- 图片托管：自家 GCS 公共读 bucket；bucket 名作为脚本参数，**后端不引入 GCS SDK**。
-- 接口层：Go 后端（new-api 主服务）提供 API。
-- 存储：数据库表（GORM AutoMigrate）。
-- 管理：控制台管理后台 CRUD（仅 `web/default` 新主题）。
-- 内容量：上游全量搬运（不做版权/肖像预筛）。
-- 灌库方式：脚本 → JSON → AdminAuth 批量导入接口（按 slug upsert），不直连 DB。
+调研发现 main 已有 `prompt-library` 模块（`model/prompt_library.go`、`controller/prompt_library.go`、`middleware/prompt_library_import_auth.go`）：
 
-## 1. 数据模型（Go / GORM）
+- `prompt_library_items` 表已含 slug（唯一）、category、model、prompt、title/summary（多语言 JSON）、tags、artifact（示例图 URL 在 `artifact.url`）、source（作者+出处）等字段，覆盖本需求全部数据。
+- `POST /api/prompt-library/import` 批量导入已有：slug upsert、单条失败记 rejected 不中断、`PROMPT_LIBRARY_IMPORT_TOKEN` Bearer 鉴权、单批上限 100 条。
+- staging 提交 `270740221` 已实现公开读端点（`GET /api/prompt-library`、`GET /api/prompt-library/:slug`）及测试，但未进 main。
 
-新表 `prompt_gallery_items`，模型文件仿 `model/custom_oauth_provider.go` 模式，加入 `model/main.go` 的 AutoMigrate 列表：
+因此**不新建表、不新建导入接口**，工作收敛为四项：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `id` | int PK 自增 | |
-| `slug` | varchar(128) uniqueIndex not null | 稳定标识，upsert 键（如 `rice-grain-micro-typography`） |
-| `title` | varchar(256) not null | 案例标题（英文原题） |
-| `category` | varchar(64) index | 上游 8 分类之一：`photography` / `gaming` / `ui-ux` / `video-animation` / `typography-poster` / `infographic` / `character-consistency` / `image-editing` |
-| `prompt` | text not null | 提示词原文 |
-| `prompt_en` | text | 英文翻译（原文为中文时才有，可空） |
-| `comment` | text | 上游点评（可空） |
-| `image_url` | varchar(512) not null | 示例图完整绝对 URL（指向 GCS）。DB 只存 URL、不感知存储位置——这是脚本与后端的边界 |
-| `source_author` | varchar(128) | 原作者（如 `@adonis_singh`） |
-| `source_urls` | text | 出处链接，JSON 数组字符串。上游内容许可要求署名，API 原样返回该字段即满足 |
-| `enabled` | bool default true | 下架不删数据 |
-| `sort_order` | int default 0 | 脚本按 README 原序编号，后台可调 |
-| `created_at` / `updated_at` | | GORM 常规时间戳 |
+1. 移植 staging 公开读端点进 main（含分页增强）。
+2. 表加 `enabled` 字段（下架不删数据）。
+3. 新增 AdminAuth 管理 CRUD + `web/default` 管理页。
+4. 搬运脚本：解析上游 → 图传 GCS → 转 import 格式灌入。
 
-列表默认排序：`sort_order ASC, id ASC`。
+## 1. 数据模型变更
+
+`PromptLibraryItem`（`model/prompt_library.go`）新增一列：
+
+- `Enabled bool`，gorm tag `default:true`，JSON `enabled`。AutoMigrate 自动加列。
+
+导入 upsert 的 `DoUpdates` 列表**不含** enabled——重跑脚本不会把后台手动下架的条目复活；新插入行走默认值 true。
+
+查询函数：
+
+- `ListPromptLibraryItems(category, keyword string, enabledOnly bool, startIdx, num int) ([]PromptLibraryItem, int64, error)` — 替换 staging 版签名，增加 keyword（LIKE 匹配 prompt/title_json）、enabledOnly、分页与 total。排序 `updated_time DESC, id DESC`。
+- `GetPromptLibraryItemBySlug(slug string)` — 照搬 staging 版；公开端点上层过滤 enabled。
+- `GetPromptLibraryItemById(id int)`、`(*PromptLibraryItem) Update()`、`DeletePromptLibraryItemById(id int)`、`CreatePromptLibraryItem(*PromptLibraryItem)` — 管理端用。
 
 ## 2. API 设计
 
-响应统一用仓库现有 `{success, message, data}` 包裹。
+响应统一 `{success, message, data}`。路由组 `/api/prompt-library`（gin 1.9.1 下 `/admin` 静态子组与 `/:slug` 参数路由可共存，已用探针测试验证）。
 
-### 公开只读（匿名，走现有全局限流）
+### 公开只读（匿名，现有全局限流）
 
-- `GET /api/prompt-gallery` — 分页列表。参数：`category`（可选）、`page`（默认 1）、`page_size`（默认 20，上限 100）、`keyword`（可选，匹配 title/prompt）。仅返回 `enabled=true` 条目。`data` 为 `{list, total, page, page_size}`。
-- `GET /api/prompt-gallery/categories` — 分类列表及各分类数量（仅统计 enabled）。
-- `GET /api/prompt-gallery/item/:slug` — 单条详情。detail 挂在 `/item/` 下是刻意设计，避免与同级静态路由（`categories`、`admin`）产生 gin 路由通配冲突。
+- `GET /api/prompt-library` — 分页列表。参数：`category`（可选，白名单校验）、`keyword`（可选）、`p`/`page_size`（走 `common.GetPageQuery`，默认 20、上限 100）。仅返回 enabled。`data` 为 PageInfo（`{page, page_size, total, items}`）。item 结构沿用 staging 的 `promptLibraryPublicItem`（artifact/source/title/summary 解包为 JSON 对象）。
+- `GET /api/prompt-library/:slug` — 单条详情，enabled=false 或不存在均返回 404。
 
-### 管理端（`/api/prompt-gallery/admin` 分组，`middleware.AdminAuth()`，仿 custom-oauth-provider 分组写法）
+### 管理端（`/api/prompt-library/admin` 子组，`middleware.AdminAuth()`）
 
-- `GET /` — 全量列表（含 disabled），支持与公开列表相同的筛选参数。
-- `POST /` — 新建单条。
+- `GET /` — 分页列表（含 disabled），同公开列表参数，item 返回原始行（含 id、enabled、各 *JSON 字段原文）。
+- `POST /` — 新建单条（字段校验同导入的 normalize 逻辑）。
 - `PUT /:id` — 更新单条。
 - `DELETE /:id` — 删除单条。
-- `POST /import` — 批量导入。body：`{items: [...]}`；**按 slug upsert**；返回 `{created, updated, failed: [{slug, reason}]}`；单条校验失败记入 failed，不中断整批。
+
+导入接口不动（管理面手工增删改走上述 CRUD；批量走既有 import）。
 
 ## 3. 搬运脚本
 
-位置：`scripts/prompt-gallery-import/`，Python 3 单文件 + requests（与上游仓库自身脚本风格一致）。
+位置：`scripts/prompt-gallery-import/`，Python 3 单文件 + requests。
 
 流程：
 
-1. 拉取上游 `README.md`（raw），按 `##` 分类 / `###` 案例结构解析出约 70 个条目：标题、图片 src、` ```text ` prompt 代码块、English Translation、Comment、Source 链接（作者 + URL 列表）。
-2. 下载示例图（多数在 `pbs.twimg.com` X CDN，少数为 GitHub attachments 或仓库内 `assets/` 相对路径）→ 上传 GCS：`gs://<bucket>/prompt-gallery/<slug>.<ext>`，设 `Cache-Control: public, max-age=31536000`；对象已存在则跳过，`--force` 强制覆盖。上传通过子进程调用 `gcloud storage cp`（复用操作者本机 gcloud 认证，脚本不引入 google-cloud-storage 依赖）。
-3. 产出 `items.json`（结构与导入接口 body 对齐，可先人工过目）→ 调 `POST /api/prompt-gallery/admin/import` 灌库。
+1. 拉上游 `README.md` raw，解析 `##` 分类 / `###` 案例（约 70 条）：标题、图片 src、` ```text ` prompt 块、English Translation、Comment、Source（作者+URL 列表）。
+2. 下载示例图（pbs.twimg.com 为主，兼容 GitHub attachments 与仓库内 `assets/` 相对路径）→ `gcloud storage cp` 上传 `gs://<bucket>/prompt-gallery/<slug>.<ext>`（子进程调用，复用本机 gcloud 认证；`Cache-Control: public, max-age=31536000`；已存在跳过，`--force` 覆盖）。
+3. 映射为 import 格式并调 `POST /api/prompt-library/import`（每批 ≤100）：
+   - `category` = `"image"`（固定）；`model` = `"gpt-image-2"`（固定，满足导入的模型在售校验）
+   - `title` = `{"en": 案例标题}`；`summary` = `{"en": Comment}`（有则填）
+   - `tags` = `[上游分类 slug]`（photography / gaming / ui-ux / video-animation / typography-poster / infographic / character-consistency / image-editing）
+   - `prompt` = prompt 原文（有 English Translation 时附在 output.translation）
+   - `artifact` = `{"kind": "image", "url": GCS URL, "alt": 标题}`
+   - `source` = `{"label": 作者, "platform": "X" 或 "WeChat" 或 "OpenNana", "url": 首个出处链接, "captured_at": 运行日期}`；多出处并入 output.extra_sources
+4. 对比图案例只取 GPT Image 2 那张。slug 由标题 slugify（小写连字符，冲突加序号）。
 
-参数（CLI/env）：`--api-base`、`--token`（admin token）、`--bucket`、`--dry-run`（只产 JSON，不上传不导入）。整条链路幂等可重跑。
-
-约定：
-
-- 对比图案例（GPT Image 1.5 vs 2 两张图）只取 GPT Image 2 那张。
-- slug 由标题 slugify 生成（小写、连字符），冲突时追加序号。
-- GCS bucket 需公共读（复用现有静态资源桶或新建均可），脚本只拿名字当参数。
-- 脚本目录 README 注明数据来源仓库与许可，条目级署名靠 `source_author`/`source_urls` 字段保留。
+参数：`--api-base`、`--token`（import token）、`--bucket`、`--dry-run`（只产 items.json 不上传不导入）。幂等可重跑。脚本目录 README 注明数据来源与 CC BY 4.0 许可。
 
 ## 4. 管理后台 UI
 
-仅 `web/default` 新主题。仿 `features/redemption-codes` 结构新建 `features/prompt-gallery/`（`api.ts` / `types.ts` / `components/` / `index.tsx`），路由挂 `routes/_authenticated/` 下，admin 角色可见。
+仅 `web/default`。仿 `features/redemption-codes` 建 `features/prompt-gallery/`（api.ts / types.ts / components/ / index.tsx），路由 `routes/_authenticated/prompt-gallery/index.tsx`（beforeLoad 校验 `role >= ROLE.ADMIN`），sidebar 管理组加入口（icon: Images）。
 
-功能：
+功能：缩略图列表（分类筛选/关键词搜索/分页）、enabled 开关、新建/编辑弹窗（全字段表单，image URL 为文本框）、删除确认。i18n 走 `i18n:sync` 流程。
 
-- 缩略图列表：分类筛选、关键词搜索、分页。
-- 启用/停用开关（对应 `enabled`）。
-- 编辑/新建弹窗：全字段表单；`image_url` 为普通文本输入框（手动新增条目时自行传图后贴 URL）。
-- 删除（带确认）。
-- `sort_order` 调整（表单字段即可，不做拖拽）。
-- i18n 中英文案跟现有模式。
-
-不做：classic 老主题；UI 内批量导入按钮（脚本已覆盖）；图片直传/GCS 集成。
+不做：classic 主题；UI 批量导入；图片直传。
 
 ## 5. 错误处理与测试
 
-- 导入接口校验：slug 格式（`^[a-z0-9-]+$`）、必填字段（slug/title/prompt/image_url/category）；单条失败记入 `failed` 不炸整批。
-- 脚本：单图下载/上传失败跳过该条并在汇总中报告，不中断。
-- Go 测试：model 层 CRUD 与 import upsert 逻辑、controller 层公开接口的 enabled 过滤与分页（沿用仓库现有 sqlite 内存库测试模式）。
-- 前端：跟随 `web/default` 现有 lint/typecheck/build 门槛。
-- 发布：先 23.173.152.247 验证环境按 PR 起实例验证，不直接动生产。
+- 管理端校验沿用 normalize 逻辑（slug/category/model/prompt/artifact/source 必填与格式）；错误统一 `common.ApiErrorMsg`。
+- Go 测试：sqlite 内存库（照 `controller/prompt_library_test.go` 现有 harness）覆盖——enabled 过滤、分页 total、keyword 过滤、admin CRUD、公开端点 404、导入不复活 disabled 条目。
+- 脚本：`--dry-run` 产物人工过目；单图失败跳过并汇总报告。
+- 前端：`bun run typecheck` + `bun run lint` + `bun test`。
+- 发布：23.173.152.247 验证环境按 PR 起实例验证，不直接动生产。
 
-## 非目标（Out of Scope）
+## 非目标
 
-- 官网图库页面（由其他人基于本 API 接入）。
+- 官网页面（他人对接，消费本 API）。
 - 上游定时自动同步。
 - classic 主题管理界面。
-- 后端 GCS SDK 集成 / 图片直传。
-- 多语言 prompt 翻译（仅保留上游已有的英文翻译字段）。
+- 后端 GCS SDK / 图片直传。
+- 修改既有 import 接口行为。
