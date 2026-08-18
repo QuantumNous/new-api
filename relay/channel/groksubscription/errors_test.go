@@ -92,3 +92,28 @@ func TestDecideActionNotReplayableNoRetry(t *testing.T) {
 		t.Fatalf("401 not replayable = %v, want ActionStop", a)
 	}
 }
+
+// TestDecideActionSelfSetContract 锁定副作用不对称的接线契约：
+// 429 与 403-Account 分支由 DecideAction 自设 AltChannelUsed（调用方不手动设）；
+// 401 与 403-CLICompat 分支不自设（由调用方经 gin context 设置）。
+// 删掉任一自设或把不对称"统一"掉，本测试必 FAIL。
+func TestDecideActionSelfSetContract(t *testing.T) {
+	st := &AttemptState{}
+	if a := DecideAction(429, ForbiddenUnknown, st, true); a != ActionFailoverAlt || !st.AltChannelUsed {
+		t.Fatalf("429 failover must self-set AltChannelUsed, got action=%v flag=%v", a, st.AltChannelUsed)
+	}
+	st2 := &AttemptState{}
+	if a := DecideAction(403, ForbiddenAccount, st2, true); a != ActionFailoverAlt || !st2.AltChannelUsed {
+		t.Fatalf("403 account failover must self-set AltChannelUsed, got action=%v flag=%v", a, st2.AltChannelUsed)
+	}
+	st3 := &AttemptState{}
+	_ = DecideAction(401, ForbiddenUnknown, st3, true)
+	if st3.RefreshUsed {
+		t.Fatalf("401 must NOT self-set RefreshUsed (caller sets it via context)")
+	}
+	st4 := &AttemptState{}
+	_ = DecideAction(403, ForbiddenCLICompat, st4, true)
+	if st4.OfficialFallbackUsed {
+		t.Fatalf("403 cli-compat must NOT self-set OfficialFallbackUsed (caller sets it)")
+	}
+}

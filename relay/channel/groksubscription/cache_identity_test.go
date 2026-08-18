@@ -24,10 +24,10 @@ func TestCacheIdentityVariesByChannelAndInputs(t *testing.T) {
 	secret := []byte("server-secret-32-bytes-long-xxxxx")
 	base := ComputeCacheIdentity(secret, 42, "user-1", "token-9", "client-key")
 	for _, other := range []string{
-		ComputeCacheIdentity(secret, 43, "user-1", "token-9", "client-key"), // 换 channel
-		ComputeCacheIdentity(secret, 42, "user-2", "token-9", "client-key"), // 换 user
-		ComputeCacheIdentity(secret, 42, "user-1", "token-8", "client-key"), // 换 token
-		ComputeCacheIdentity(secret, 42, "user-1", "token-9", "other-key"),  // 换 client key
+		ComputeCacheIdentity(secret, 43, "user-1", "token-9", "client-key"),                                      // 换 channel
+		ComputeCacheIdentity(secret, 42, "user-2", "token-9", "client-key"),                                      // 换 user
+		ComputeCacheIdentity(secret, 42, "user-1", "token-8", "client-key"),                                      // 换 token
+		ComputeCacheIdentity(secret, 42, "user-1", "token-9", "other-key"),                                       // 换 client key
 		ComputeCacheIdentity([]byte("server-secret-32-bytes-long-yyyyy"), 42, "user-1", "token-9", "client-key"), // 换 secret
 	} {
 		if other == base {
