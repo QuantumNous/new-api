@@ -153,7 +153,17 @@ func CreatePromptLibraryItem(item *PromptLibraryItem) error {
 	now := common.GetTimestamp()
 	item.CreatedTime = now
 	item.UpdatedTime = now
-	return DB.Create(item).Error
+	// gorm 对带 default:true 的零值 bool，Create 时会改用默认值并写回结构体，
+	// 因此必须在 Create 前捕获调用者意图，事后显式落盘 false。
+	enabled := item.Enabled
+	if err := DB.Create(item).Error; err != nil {
+		return err
+	}
+	if !enabled {
+		item.Enabled = false
+		return DB.Model(item).Update("enabled", false).Error
+	}
+	return nil
 }
 
 func (item *PromptLibraryItem) Update() error {

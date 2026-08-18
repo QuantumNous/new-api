@@ -77,6 +77,8 @@ func TestListPromptLibraryItemsFiltersAndPaginates(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 2, total)
 	require.Len(t, items, 1)
+	// 相同 updated_time 下按 id DESC，第二页（size=1）应为先插入的 a-cat
+	require.Equal(t, "a-cat", items[0].Slug)
 }
 
 func TestUpsertDoesNotReviveDisabledItem(t *testing.T) {
@@ -115,6 +117,7 @@ func TestPromptLibraryItemCRUDById(t *testing.T) {
 
 	got, err := GetPromptLibraryItemById(item.Id)
 	require.NoError(t, err)
+	require.NotNil(t, got)
 	require.Equal(t, "crud-item", got.Slug)
 
 	got.Prompt = "p2"
@@ -127,4 +130,36 @@ func TestPromptLibraryItemCRUDById(t *testing.T) {
 	gone, err := GetPromptLibraryItemById(item.Id)
 	require.NoError(t, err)
 	require.Nil(t, gone)
+}
+
+func TestUpdatePersistsEnabledFalse(t *testing.T) {
+	setupPromptLibraryModelTest(t)
+	item := &PromptLibraryItem{
+		Slug: "toggle-off", Category: "image", Model: "gpt-image-2", Prompt: "p",
+		TitleJSON: `{"en":"t"}`, ArtifactJSON: `{"kind":"image","url":"https://e.com/i.png"}`,
+		SourceJSON: `{"url":"https://x.com/s/1"}`, SourcePlatform: "X", SourceURL: "https://x.com/s/1",
+		Enabled: true,
+	}
+	require.NoError(t, CreatePromptLibraryItem(item))
+
+	// Update 走 Select("*")：零值 enabled=false 不能被 GORM 跳过
+	item.Enabled = false
+	require.NoError(t, item.Update())
+	got, err := GetPromptLibraryItemById(item.Id)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.False(t, got.Enabled)
+
+	// create-as-disabled：Enabled=false 创建也必须落库 false（default:true 不得覆盖）
+	disabled := &PromptLibraryItem{
+		Slug: "born-off", Category: "image", Model: "gpt-image-2", Prompt: "p",
+		TitleJSON: `{"en":"t"}`, ArtifactJSON: `{"kind":"image","url":"https://e.com/i.png"}`,
+		SourceJSON: `{"url":"https://x.com/s/2"}`, SourcePlatform: "X", SourceURL: "https://x.com/s/2",
+	}
+	require.NoError(t, CreatePromptLibraryItem(disabled))
+	fetched, err := GetPromptLibraryItemById(disabled.Id)
+	require.NoError(t, err)
+	require.NotNil(t, fetched)
+	require.False(t, fetched.Enabled)
+	require.False(t, disabled.Enabled) // 内存与 DB 一致
 }
