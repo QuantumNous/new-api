@@ -1119,6 +1119,13 @@ export function ChannelMutateDrawer({
       if (!v) {
         form.reset(CHANNEL_FORM_DEFAULT_VALUES)
         setAdvancedSettingsOpen(false)
+        // Clear Grok sensitive/transient state on close: the refresh-token
+        // plaintext must never linger in memory (design §14: clear sensitive
+        // state after the dialog closes). Setters are stable refs, so the
+        // callback deps below stay unchanged.
+        setGrokRefreshTokenInput('')
+        setGrokImportOpen(false)
+        setGrokOAuthDialogOpen(false)
       }
     },
     [onOpenChange, form]
