@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // Grok 认证服务端编排（设计 §7、§12；Task 18）。
@@ -216,7 +217,13 @@ func persistGrokCredential(channelID int, cred groksubscription.Credential) erro
 // 避免 Upsert 的 OnConflict UpdateAll 用零值覆盖。active 时清空 LastError。
 func upsertGrokAuthStatus(channelID int, status string, markRefreshed bool, lastErr string) error {
 	st := &model.GrokChannelState{ChannelID: channelID, AuthStatus: status}
-	if existing, err := model.GetGrokChannelState(channelID); err == nil && existing != nil {
+	existing, err := model.GetGrokChannelState(channelID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		// 真实 DB 错误（连接断/死锁/超时）：不可继续，否则 UpsertGrokChannelState 的
+		// OnConflict{UpdateAll} 会用零值覆盖既有 quota/billing/lease 快照（"读失败反而毁数据"）。
+		return err
+	}
+	if existing != nil {
 		st.BillingPlan = existing.BillingPlan
 		st.TierRaw = existing.TierRaw
 		st.QuotaSnapshot = existing.QuotaSnapshot

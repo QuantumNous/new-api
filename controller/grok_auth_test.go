@@ -659,3 +659,73 @@ func TestGrokRefreshShouldMarkNeedsReauth(t *testing.T) {
 		})
 	}
 }
+
+// errGrokInjectedDBFailure 模拟一次真实 DB 读错误（连接断/死锁/超时）——
+// 关键在于它 NOT gorm.ErrRecordNotFound：upsertGrokAuthStatus 必须据此中止，
+// 而非把它当成"首次创建"继续，从而避免 OnConflict{UpdateAll} 用零值覆盖既有快照。
+var errGrokInjectedDBFailure = errors.New("grok test: simulated real db read failure")
+
+// TestGrokAuthUpsertStatusAbortsOnRealDBError 守护 Important 修复：
+// 既有快照读取遇到真实 DB 错误（非 not-found）时，upsertGrokAuthStatus 必须返回该错误并中止，
+// 绝不能继续走到 UpsertGrokChannelState 的 OnConflict{UpdateAll} 用零值覆盖既有 quota/billing/lease 快照
+// （"读失败反而毁数据"）。真实 DB 错误路径由 errors.Is(gorm.ErrRecordNotFound) 甄别守卫。
+func TestGrokAuthUpsertStatusAbortsOnRealDBError(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	// 预置一行带非零快照的既有状态（正是"读失败反而毁数据"要保护的字段）。
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{
+		ChannelID:             ch.Id,
+		AuthStatus:            model.GrokAuthStatusActive,
+		BillingPlan:           "grok-4-heavy",
+		TierRaw:               "tier-raw-xyz",
+		QuotaSnapshot:         `{"remaining":99}`,
+		RefreshLeaseOwner:     "node-A",
+		RefreshLeaseExpiresAt: 1893456000,
+		LastRefreshAt:         1700000000,
+	}))
+
+	// 只对 Query 注入真实 DB 错误：GetGrokChannelState 的 First 会失败，
+	// 而 UpsertGrokChannelState 的 Create（若被错误地执行到）走 Create 回调链、不受 Query 回调影响，
+	// 从而能真实暴露"跳过字段保留 + 零值覆盖"这一缺陷（修复前红、修复后绿）。
+	require.NoError(t, model.DB.Callback().Query().Before("gorm:query").
+		Register("grok_inject_read_error", func(db *gorm.DB) {
+			_ = db.AddError(errGrokInjectedDBFailure)
+		}))
+
+	upErr := upsertGrokAuthStatus(ch.Id, model.GrokAuthStatusActive, true, "")
+
+	// 立即摘除注入回调，恢复读能力以便验证。
+	require.NoError(t, model.DB.Callback().Query().Remove("grok_inject_read_error"))
+
+	// 1) 必须把真实 DB 错误上抛（不得吞掉当作首次创建）。
+	require.Error(t, upErr, "真实 DB 读错误必须中止 upsert 并上抛")
+
+	// 2) 既有快照必须完好——绝不能被零值覆盖。
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, "grok-4-heavy", st.BillingPlan, "BillingPlan 不得被零值覆盖")
+	require.Equal(t, "tier-raw-xyz", st.TierRaw, "TierRaw 不得被零值覆盖")
+	require.Equal(t, `{"remaining":99}`, st.QuotaSnapshot, "QuotaSnapshot 不得被零值覆盖")
+	require.Equal(t, "node-A", st.RefreshLeaseOwner, "RefreshLeaseOwner 不得被零值覆盖")
+	require.Equal(t, int64(1893456000), st.RefreshLeaseExpiresAt, "RefreshLeaseExpiresAt 不得被零值覆盖")
+	require.Equal(t, int64(1700000000), st.LastRefreshAt, "LastRefreshAt 不得被零值覆盖")
+}
+
+// TestGrokAuthUpsertStatusCreatesOnNotFound 守护三态甄别的 not-found 分支：
+// GetGrokChannelState 返回 gorm.ErrRecordNotFound 时属正常"首次创建"，
+// upsertGrokAuthStatus 不得把它当成真实错误上抛，而应正常新建状态行。
+func TestGrokAuthUpsertStatusCreatesOnNotFound(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	// 无既有 state 行 → GetGrokChannelState 命中 ErrRecordNotFound（非真实错误）。
+	require.NoError(t, upsertGrokAuthStatus(ch.Id, model.GrokAuthStatusActive, true, ""))
+
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusActive, st.AuthStatus)
+	require.NotZero(t, st.LastRefreshAt, "markRefreshed 应落 LastRefreshAt")
+}
