@@ -42,3 +42,18 @@ func TestCacheIdentityEmptyClientKeyReturnsEmpty(t *testing.T) {
 		t.Fatalf("empty client cache key must yield empty identity, got %q", got)
 	}
 }
+
+// TestCacheIdentityLengthPrefixPreventsCrossFieldCollision 锁定长度前缀属性：
+// 无前缀时 ("4","2user-1") 与 ("42","user-1") 的 HMAC 输入同为 "42user-1"，
+// 会产生同一 identity（跨租户缓存串号）。删除 writeField 的长度字节必使本测试 FAIL。
+func TestCacheIdentityLengthPrefixPreventsCrossFieldCollision(t *testing.T) {
+	secret := []byte("server-secret-32-bytes-long-xxxxx")
+	a := ComputeCacheIdentity(secret, 4, "2user-1", "token-9", "client-key")
+	b := ComputeCacheIdentity(secret, 42, "user-1", "token-9", "client-key")
+	if a == b {
+		t.Fatalf("ambiguous field split must not collide: both = %q", a)
+	}
+	if !strings.HasPrefix(a, "grok_") || !strings.HasPrefix(b, "grok_") {
+		t.Fatalf("identity must keep grok_ prefix")
+	}
+}
