@@ -1,6 +1,8 @@
 package relay
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
@@ -112,6 +115,14 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	info.RelayMode = relayconstant.RelayModeResponses
 	info.RequestURLPath = "/v1/responses"
 
+	// Codex 上游（chatgpt.com/backend-api/codex/responses）只接受流式请求，
+	// 非流式会被直接拒为 400 "Stream must be set to true"。客户端要非流式时，
+	// 强制上游走流式，响应再由下方 buffered handler 聚合成完整 JSON 返回给客户端。
+	// info.IsStream 保持不变，以免把 SSE 直接透传给期望 JSON 的客户端。
+	if info.ChannelType == constant.ChannelTypeCodex && !lo.FromPtrOr(responsesReq.Stream, false) {
+		responsesReq.Stream = lo.ToPtr(true)
+	}
+
 	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *responsesReq)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -149,7 +160,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 	httpResp = resp.(*http.Response)
 	clientStream := info.IsStream
-	upstreamStream := isResponsesEventStreamContentType(httpResp.Header.Get("Content-Type"))
+	upstreamStream := responsesUpstreamIsStream(httpResp)
 	info.IsStream = clientStream || upstreamStream
 	if httpResp.StatusCode != http.StatusOK {
 		newApiErr := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
@@ -185,4 +196,41 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 
 func isResponsesEventStreamContentType(contentType string) bool {
 	return strings.Contains(strings.ToLower(contentType), "text/event-stream")
+}
+
+// sseBodySniffLen 覆盖最长的 SSE 行前缀 "event:"。
+const sseBodySniffLen = 6
+
+type peekedBody struct {
+	io.Reader
+	io.Closer
+}
+
+// responsesUpstreamIsStream 判断上游 Responses 响应是否为 SSE 事件流。
+//
+// Content-Type 不可信：Codex 的 chatgpt.com/backend-api/codex/responses 返回 SSE
+// 时不带该响应头，仅凭响应头判断会把事件流当成 JSON 解析，首字符 'e'（event:）
+// 直接触发 "invalid character 'e' looking for beginning of value"。
+// 因此响应头缺失或不匹配时，改为嗅探响应体首字节；被读取的字节会放回 Body，
+// 后续 handler 仍能拿到完整响应。
+func responsesUpstreamIsStream(resp *http.Response) bool {
+	if resp == nil {
+		return false
+	}
+	if isResponsesEventStreamContentType(resp.Header.Get("Content-Type")) {
+		return true
+	}
+	if resp.Body == nil {
+		return false
+	}
+
+	original := resp.Body
+	buffered := bufio.NewReader(original)
+	resp.Body = peekedBody{Reader: buffered, Closer: original}
+
+	prefix, err := buffered.Peek(sseBodySniffLen)
+	if len(prefix) == 0 && err != nil {
+		return false
+	}
+	return bytes.HasPrefix(prefix, []byte("data:")) || bytes.HasPrefix(prefix, []byte("event:"))
 }
