@@ -323,3 +323,19 @@ func TestCodexClaudeBridgeReturnsAnthropicResponses(t *testing.T) {
 		})
 	}
 }
+
+func TestShouldClaudeUseResponsesBridgeForGrokDespiteGlobalPassThrough(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	previous := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = true
+	t.Cleanup(func() {
+		settings.PassThroughRequestEnabled = previous
+	})
+
+	// 即便全局 pass-through 打开，Grok 也必须强制走 Responses bridge
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{ApiType: constant.APITypeGrokSubscription},
+	}
+
+	require.True(t, shouldClaudeUseResponsesBridge(info))
+}
