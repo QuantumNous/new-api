@@ -561,6 +561,7 @@ export const STATIC_I18N_KEYS = [
   'Uppercase and lowercase letters',
   'A number',
   'A symbol',
+  'Password contains too many emoji or extended characters',
 
   // Misc
   'Cancel',

@@ -27,6 +27,7 @@ import {
   PasswordConfirmationStatus,
   PasswordStrength,
 } from '@/components/password-strength'
+import { getPasswordValidationMessageKey } from '@/components/password-strength-utils'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 
@@ -73,8 +74,11 @@ export function ChangePasswordDialog({
       return
     }
 
-    if (formData.newPassword.length < 8 || formData.newPassword.length > 20) {
-      toast.error(t('Password must be between 8 and 20 characters'))
+    const passwordMessage = getPasswordValidationMessageKey(
+      formData.newPassword
+    )
+    if (passwordMessage) {
+      toast.error(t(passwordMessage))
       return
     }
 
@@ -166,8 +170,6 @@ export function ChangePasswordDialog({
             onChange={(e) => handleChange('newPassword', e.target.value)}
             disabled={loading}
             required
-            minLength={8}
-            maxLength={20}
             autoComplete='new-password'
             aria-describedby='change-password-strength'
           />
@@ -185,14 +187,8 @@ export function ChangePasswordDialog({
             onChange={(e) => handleChange('confirmPassword', e.target.value)}
             disabled={loading}
             required
-            minLength={8}
-            maxLength={20}
             autoComplete='new-password'
-            aria-describedby={
-              formData.confirmPassword
-                ? 'change-password-confirmation-status'
-                : undefined
-            }
+            aria-describedby='change-password-confirmation-status'
           />
           <PasswordConfirmationStatus
             id='change-password-confirmation-status'

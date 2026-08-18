@@ -33,6 +33,7 @@ import {
 } from '@/components/drawer-layout'
 import { PasswordInput } from '@/components/password-input'
 import { PasswordStrength } from '@/components/password-strength'
+import { getPasswordValidationMessageKey } from '@/components/password-strength-utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -161,12 +162,13 @@ export function UsersMutateDrawer({
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
-    const passwordLength = data.password?.length ?? 0
-    const shouldValidatePassword = !isUpdate || passwordLength > 0
-    if (shouldValidatePassword && (passwordLength < 8 || passwordLength > 20)) {
+    const password = data.password ?? ''
+    const shouldValidatePassword = !isUpdate || password.length > 0
+    const passwordMessage = getPasswordValidationMessageKey(password)
+    if (shouldValidatePassword && passwordMessage) {
       form.setError('password', {
         type: 'manual',
-        message: t('Password must be between 8 and 20 characters'),
+        message: t(passwordMessage),
       })
       return
     }
@@ -335,16 +337,15 @@ export function UsersMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Password')}</FormLabel>
-                      <FormControl>
+                      <FormControl
+                        describedBy={
+                          field.value ? 'user-password-strength' : undefined
+                        }
+                      >
                         <PasswordInput
                           {...field}
                           value={field.value ?? ''}
                           autoComplete='new-password'
-                          minLength={8}
-                          maxLength={20}
-                          aria-describedby={
-                            field.value ? 'user-password-strength' : undefined
-                          }
                           placeholder={
                             isUpdate
                               ? t('Leave empty to keep unchanged')

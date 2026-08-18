@@ -21,7 +21,14 @@ const COMMON_PASSWORD_PATTERN =
 const REPEATED_CHARACTER_PATTERN = /(.)\1{3,}/
 const SEQUENTIAL_PATTERN =
   /(?:0123|1234|2345|3456|4567|5678|6789|abcd|bcde|cdef|defg|qwer|wert|erty|asdf)/i
-const SYMBOL_PATTERN = /[^a-zA-Z0-9]/
+const LOWERCASE_PATTERN = /\p{Ll}/u
+const UPPERCASE_PATTERN = /\p{Lu}/u
+const DIGIT_PATTERN = /\p{N}/u
+const SYMBOL_PATTERN = /[\p{P}\p{S}]/u
+
+export const PASSWORD_MIN_LENGTH = 8
+export const PASSWORD_MAX_LENGTH = 20
+export const PASSWORD_MAX_BYTES = 72
 
 export type PasswordStrengthRuleId = 'length' | 'case' | 'digit' | 'symbol'
 export type PasswordStrengthScore = 0 | 1 | 2 | 3 | 4
@@ -32,6 +39,15 @@ export type PasswordStrengthLabel =
   | 'Password strength good'
   | 'Password strength strong'
 export type PasswordConfirmationState = 'empty' | 'match' | 'mismatch'
+export type PasswordLengthState =
+  | 'empty'
+  | 'too-short'
+  | 'valid'
+  | 'too-long'
+  | 'too-many-bytes'
+export type PasswordValidationMessageKey =
+  | 'Password must be between 8 and 20 characters'
+  | 'Password contains too many emoji or extended characters'
 
 type EvaluatedPasswordRule = {
   id: PasswordStrengthRuleId
@@ -43,6 +59,8 @@ export type PasswordStrengthResult = {
   labelKey: PasswordStrengthLabel
   guessable: boolean
   meetsRequirements: boolean
+  characterCount: number
+  lengthState: PasswordLengthState
   rules: EvaluatedPasswordRule[]
 }
 
@@ -69,7 +87,19 @@ function getPasswordScore(
 export function evaluatePasswordStrength(
   password: string
 ): PasswordStrengthResult {
-  const meetsRequirements = password.length >= 8 && password.length <= 20
+  const characterCount = [...password].length
+  const byteCount = new TextEncoder().encode(password).length
+  let lengthState: PasswordLengthState = 'valid'
+  if (characterCount === 0) {
+    lengthState = 'empty'
+  } else if (characterCount < PASSWORD_MIN_LENGTH) {
+    lengthState = 'too-short'
+  } else if (characterCount > PASSWORD_MAX_LENGTH) {
+    lengthState = 'too-long'
+  } else if (byteCount > PASSWORD_MAX_BYTES) {
+    lengthState = 'too-many-bytes'
+  }
+  const meetsRequirements = lengthState === 'valid'
   const rules: EvaluatedPasswordRule[] = [
     {
       id: 'length',
@@ -77,9 +107,9 @@ export function evaluatePasswordStrength(
     },
     {
       id: 'case',
-      met: /[a-z]/.test(password) && /[A-Z]/.test(password),
+      met: LOWERCASE_PATTERN.test(password) && UPPERCASE_PATTERN.test(password),
     },
-    { id: 'digit', met: /\d/.test(password) },
+    { id: 'digit', met: DIGIT_PATTERN.test(password) },
     { id: 'symbol', met: SYMBOL_PATTERN.test(password) },
   ]
   const guessable =
@@ -98,6 +128,8 @@ export function evaluatePasswordStrength(
     labelKey: STRENGTH_LABELS[score],
     guessable,
     meetsRequirements,
+    characterCount,
+    lengthState,
     rules,
   }
 }
@@ -108,4 +140,19 @@ export function getPasswordConfirmationState(
 ): PasswordConfirmationState {
   if (!confirmation) return 'empty'
   return password === confirmation ? 'match' : 'mismatch'
+}
+
+export function getPasswordValidationMessageKey(
+  password: string
+): PasswordValidationMessageKey | null {
+  if (!password) return 'Password must be between 8 and 20 characters'
+
+  const result = evaluatePasswordStrength(password)
+  if (result.lengthState === 'too-many-bytes') {
+    return 'Password contains too many emoji or extended characters'
+  }
+  if (!result.meetsRequirements) {
+    return 'Password must be between 8 and 20 characters'
+  }
+  return null
 }

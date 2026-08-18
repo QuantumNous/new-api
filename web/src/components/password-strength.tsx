@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils'
 import {
   evaluatePasswordStrength,
   getPasswordConfirmationState,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
   type PasswordStrengthRuleId,
   type PasswordStrengthScore,
 } from './password-strength-utils'
@@ -78,10 +80,15 @@ type PasswordRuleItemProps = {
     id: PasswordStrengthRuleId
     met: boolean
   }
+  label: string
   shouldReduceMotion: boolean | null
 }
 
-function PasswordRuleItem({ rule, shouldReduceMotion }: PasswordRuleItemProps) {
+function PasswordRuleItem({
+  rule,
+  label,
+  shouldReduceMotion,
+}: PasswordRuleItemProps) {
   const { t } = useTranslation()
   const transition = shouldReduceMotion
     ? MOTION_TRANSITION.none
@@ -109,9 +116,7 @@ function PasswordRuleItem({ rule, shouldReduceMotion }: PasswordRuleItemProps) {
           <Check className='size-2.5' strokeWidth={2.5} />
         </motion.span>
       </span>
-      <span className={cn(rule.met && 'text-foreground')}>
-        {t(RULE_LABELS[rule.id])}
-      </span>
+      <span className={cn(rule.met && 'text-foreground')}>{label}</span>
       <span className='sr-only'>{rule.met ? t('Met') : t('Not met')}</span>
     </li>
   )
@@ -128,6 +133,7 @@ export function PasswordStrength({
   const strength = useMemo(() => evaluatePasswordStrength(value), [value])
   const [settledAnnouncement, setSettledAnnouncement] = useState('')
   const tone = METER_TONES[strength.score]
+  const isEmpty = strength.lengthState === 'empty'
   const requirementRule = strength.rules.find((rule) => rule.id === 'length')
   const suggestionRules = useMemo(
     () => strength.rules.filter((rule) => rule.id !== 'length'),
@@ -140,6 +146,27 @@ export function PasswordStrength({
         .map((rule) => t(RULE_LABELS[rule.id])),
     [suggestionRules, t]
   )
+  let requirementLabel = t(RULE_LABELS.length)
+  if (strength.lengthState === 'too-short') {
+    requirementLabel = t('Characters remaining: {{count}}', {
+      count: PASSWORD_MIN_LENGTH - strength.characterCount,
+    })
+  } else if (strength.lengthState === 'too-long') {
+    requirementLabel = t('Characters over limit: {{count}}', {
+      count: strength.characterCount - PASSWORD_MAX_LENGTH,
+    })
+  } else if (strength.lengthState === 'too-many-bytes') {
+    requirementLabel = t('Use fewer emoji or extended characters')
+  }
+  let requirementStatusLabel = t('Password requirements not met')
+  let requirementStatusTone = 'text-destructive'
+  if (isEmpty) {
+    requirementStatusLabel = t(RULE_LABELS.length)
+    requirementStatusTone = 'text-muted-foreground'
+  } else if (strength.meetsRequirements) {
+    requirementStatusLabel = t('Password requirements met')
+    requirementStatusTone = 'text-emerald-600 dark:text-emerald-400'
+  }
 
   const announcement = useMemo(() => {
     if (!value) return ''
@@ -230,17 +257,7 @@ export function PasswordStrength({
         <span className={cn('font-medium', tone.text)}>
           {t(strength.labelKey)}
         </span>
-        <span
-          className={cn(
-            strength.meetsRequirements
-              ? 'text-emerald-600 dark:text-emerald-400'
-              : 'text-destructive'
-          )}
-        >
-          {strength.meetsRequirements
-            ? t('Password requirements met')
-            : t('Password requirements not met')}
-        </span>
+        <span className={requirementStatusTone}>{requirementStatusLabel}</span>
       </div>
 
       {strength.guessable && (
@@ -257,6 +274,7 @@ export function PasswordStrength({
           {requirementRule && (
             <PasswordRuleItem
               rule={requirementRule}
+              label={requirementLabel}
               shouldReduceMotion={shouldReduceMotion}
             />
           )}
@@ -272,6 +290,7 @@ export function PasswordStrength({
             <PasswordRuleItem
               key={rule.id}
               rule={rule}
+              label={t(RULE_LABELS[rule.id])}
               shouldReduceMotion={shouldReduceMotion}
             />
           ))}
@@ -301,23 +320,28 @@ export function PasswordConfirmationStatus({
   const { t } = useTranslation()
   const state = getPasswordConfirmationState(password, confirmation)
 
-  if (state === 'empty') return null
-
   const matches = state === 'match'
-  const label = matches ? t('Passwords match') : t('Passwords do not match')
+  let label = ''
+  if (state !== 'empty') {
+    label = matches ? t('Passwords match') : t('Passwords do not match')
+  }
   const Icon = matches ? Check : X
 
   return (
     <p
       id={id}
+      role='status'
       aria-live='polite'
+      aria-atomic='true'
       className={cn(
-        'flex items-center gap-1.5 text-xs',
+        state !== 'empty' && 'flex items-center gap-1.5 text-xs',
         matches ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive',
         className
       )}
     >
-      <Icon aria-hidden='true' className='size-3.5' strokeWidth={2.5} />
+      {state !== 'empty' && (
+        <Icon aria-hidden='true' className='size-3.5' strokeWidth={2.5} />
+      )}
       {label}
     </p>
   )

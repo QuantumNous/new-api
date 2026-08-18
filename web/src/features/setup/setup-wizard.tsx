@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { ErrorState } from '@/components/error-state'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { LoadingState } from '@/components/loading-state'
+import { getPasswordValidationMessageKey } from '@/components/password-strength-utils'
 import {
   Card,
   CardContent,
@@ -220,12 +221,15 @@ export function SetupWizard() {
       return false
     }
 
-    if (!password || password.length < 8 || password.length > 20) {
+    const passwordMessage = password
+      ? getPasswordValidationMessageKey(password)
+      : 'Password must be between 8 and 20 characters'
+    if (passwordMessage) {
       form.setError('password', {
         type: 'manual',
-        message: t('Password must be between 8 and 20 characters'),
+        message: t(passwordMessage),
       })
-      toast.error(t('Password must be between 8 and 20 characters'))
+      toast.error(t(passwordMessage))
       return false
     }
 

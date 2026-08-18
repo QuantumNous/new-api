@@ -278,13 +278,10 @@ export function SignUpForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>{t('Password')}</FormLabel>
-              <FormControl>
+              <FormControl describedBy='sign-up-password-strength'>
                 <PasswordInput
                   placeholder={t('Enter password (8-20 characters)')}
                   autoComplete='new-password'
-                  minLength={8}
-                  maxLength={20}
-                  aria-describedby='sign-up-password-strength'
                   {...field}
                 />
               </FormControl>
@@ -304,17 +301,10 @@ export function SignUpForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>{t('Confirm password')}</FormLabel>
-              <FormControl>
+              <FormControl describedBy='sign-up-password-confirmation-status'>
                 <PasswordInput
                   placeholder={t('Confirm password')}
                   autoComplete='new-password'
-                  minLength={8}
-                  maxLength={20}
-                  aria-describedby={
-                    confirmationValue
-                      ? 'sign-up-password-confirmation-status'
-                      : undefined
-                  }
                   {...field}
                 />
               </FormControl>

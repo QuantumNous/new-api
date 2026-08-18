@@ -93,14 +93,11 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('Password')}</FormLabel>
-            <FormControl>
+            <FormControl describedBy='setup-admin-password-strength'>
               <PasswordInput
                 {...field}
                 placeholder={t('Enter password (8-20 characters)')}
                 autoComplete='new-password'
-                minLength={8}
-                maxLength={20}
-                aria-describedby='setup-admin-password-strength'
                 onChange={(event) => {
                   form.clearErrors('password')
                   field.onChange(event)
@@ -122,18 +119,11 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
         render={({ field }) => (
           <FormItem className='sm:col-span-2'>
             <FormLabel>{t('Confirm password')}</FormLabel>
-            <FormControl>
+            <FormControl describedBy='setup-admin-password-confirmation-status'>
               <PasswordInput
                 {...field}
                 placeholder={t('Repeat the administrator password')}
                 autoComplete='new-password'
-                minLength={8}
-                maxLength={20}
-                aria-describedby={
-                  confirmationValue
-                    ? 'setup-admin-password-confirmation-status'
-                    : undefined
-                }
                 onChange={(event) => {
                   form.clearErrors('confirmPassword')
                   field.onChange(event)
