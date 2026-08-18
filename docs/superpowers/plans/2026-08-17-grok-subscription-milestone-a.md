@@ -819,6 +819,387 @@ git add relay/channel/groksubscription/ relay/relay_adaptor.go relay/relay_adapt
 git commit -m "feat(grok): fixed constants, host guard, text adaptor skeleton + registration"
 ```
 
+### Task 4.5: Chat 客户端 stream 意图与上游强制流式解耦（C1 修复）
+
+**背景（C1，代码质量评审确认的真实缺陷）：**
+CLI proxy 只暴露 `/v1/responses`，且 `pkg/apicompat.ChatCompletionsToResponses` 恒置 `Stream=true`，所以上游永远回 `text/event-stream`。`relay/compatible_handler.go:241` 会据此把 `info.IsStream` 无条件抬成 `true`。Task 4 的 `DoResponse` 在 `RelayModeChatCompletions` 分支用 `info.IsStream` 判定回写形式 —— 于是**永远**走流式 handler：一个发了 `stream:false` 的客户端仍会收到 `chat.completion.chunk` SSE + `[DONE]`（SDK 解析失败），非流式分支 `OaiResponsesToChatHandler` 成为死代码（且即便到达也会因为拿到 SSE body 而解析失败）。
+
+**修复思路（对齐 Codex 的 `RelayChatOverCodex`）：**
+用客户端原始 stream 意图 `info.UserWantsStream`（`relay/common/relay_info.go:101` 既有顶层字段）而非 `info.IsStream` 决定回写形式：
+- `UserWantsStream==true`：沿用已验证的 `openai.OaiResponsesToChatStreamHandler`（逐事件转 Chat SSE chunk，行为不变）。
+- `UserWantsStream==false`：新增聚合器，缓冲 Responses SSE，用 apicompat 公共累加器合并成单个 Chat JSON 回写。
+
+**Files:**
+- Create: `relay/channel/groksubscription/chat_response_bridge.go`
+- Create: `relay/channel/groksubscription/chat_response_bridge_test.go`
+- Modify: `relay/channel/groksubscription/adaptor.go`（`ConvertOpenAIRequest` 记录 `UserWantsStream`；`DoResponse` 的 Chat 分支改调 `RelayChatOverGrok`）
+
+- [ ] **Step 1: 写聚合器失败测试（非流式 Chat 必须得到单个 JSON，绝不是 SSE）**
+
+```go
+package groksubscription
+
+import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
+)
+
+// grokResponsesSSE 是一段最小但完整的 Responses SSE：created → 文本增量 → completed（带 usage 与完整 output）。
+const grokResponsesSSE = "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\",\"model\":\"grok-4\"}}\n\n" +
+	"data: {\"type\":\"response.output_text.delta\",\"delta\":\"Hello\"}\n\n" +
+	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"model\":\"grok-4\",\"status\":\"completed\",\"usage\":{\"input_tokens\":5,\"output_tokens\":1,\"total_tokens\":6},\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Hello\"}]}]}}\n\n"
+
+func newSSEResponse(body string) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+// TestRelayChatOverGrok_NonStreamAggregatesToJSON 锁住 C1 修复：客户端 stream=false
+// 时，即便上游是 SSE，也必须聚合成单个 chat.completion JSON，绝不能回 SSE / [DONE]。
+func TestRelayChatOverGrok_NonStreamAggregatesToJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "grok-4"},
+		UserWantsStream: false,
+	}
+	if _, apiErr := RelayChatOverGrok(c, info, newSSEResponse(grokResponsesSSE)); apiErr != nil {
+		t.Fatalf("unexpected error: %v", apiErr)
+	}
+
+	out := rec.Body.String()
+	if strings.Contains(out, "data:") || strings.Contains(out, "[DONE]") {
+		t.Fatalf("non-stream client must NOT receive SSE; got: %s", out)
+	}
+	var chatResp dto.OpenAITextResponse
+	if err := common.Unmarshal(rec.Body.Bytes(), &chatResp); err != nil {
+		t.Fatalf("output must be a single Chat JSON: %v; body=%s", err, out)
+	}
+	if chatResp.Object != "chat.completion" {
+		t.Fatalf("object = %q, want chat.completion", chatResp.Object)
+	}
+	if len(chatResp.Choices) == 0 || chatResp.Choices[0].Message.StringContent() != "Hello" {
+		t.Fatalf("aggregated content mismatch; body=%s", out)
+	}
+}
+
+// TestRelayChatOverGrok_StreamStillSSE 锁住流式路径不回归：stream=true 仍回
+// chat.completion.chunk SSE 且以 [DONE] 收尾。
+func TestRelayChatOverGrok_StreamStillSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "grok-4"},
+		UserWantsStream: true,
+		RelayFormat:     "openai",
+	}
+	if _, apiErr := RelayChatOverGrok(c, info, newSSEResponse(grokResponsesSSE)); apiErr != nil {
+		t.Fatalf("unexpected error: %v", apiErr)
+	}
+	out := rec.Body.String()
+	if !strings.Contains(out, "chat.completion.chunk") {
+		t.Fatalf("stream client must receive chat.completion.chunk; got: %s", out)
+	}
+	if !strings.Contains(out, "[DONE]") {
+		t.Fatalf("stream must terminate with [DONE]; got: %s", out)
+	}
+}
+
+// TestRelayChatOverGrok_UpstreamErrorPreservesStatus 校验上游非 200 时保留状态码。
+func TestRelayChatOverGrok_UpstreamErrorPreservesStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusTooManyRequests,
+		Header:     http.Header{},
+		Body:       io.NopCloser(strings.NewReader(`{"error":"rate limited"}`)),
+	}
+	_, apiErr := RelayChatOverGrok(c, &relaycommon.RelayInfo{UserWantsStream: false}, resp)
+	if apiErr == nil {
+		t.Fatalf("expected error for non-200 upstream")
+	}
+	if apiErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429 (must preserve upstream status for retry/limit signals)", apiErr.StatusCode)
+	}
+}
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `go test ./relay/channel/groksubscription/ -run TestRelayChatOverGrok -v`
+Expected: FAIL（`RelayChatOverGrok` undefined）
+
+- [ ] **Step 3: 写 bridge 实现**
+
+```go
+package groksubscription
+
+import (
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/pkg/apicompat"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
+)
+
+// RelayChatOverGrok 处理 CLI proxy 返回的 Responses SSE，并按客户端原始 stream
+// 意图（info.UserWantsStream）选择回写形式，与上游“恒流式”彻底解耦（修复 C1）：
+//   - true:  逐事件转 Chat Completions SSE chunk（复用已验证的 openai handler）
+//   - false: 聚合所有增量后一次性返回单个 chat.completion JSON
+//
+// 绝不能用 info.IsStream 决定：compatible_handler 会因上游 Content-Type=SSE 把它抬成 true。
+func RelayChatOverGrok(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (any, *types.NewAPIError) {
+	if info != nil && info.UserWantsStream {
+		return openai.OaiResponsesToChatStreamHandler(c, info, resp)
+	}
+	return aggregateGrokResponsesToChat(c, info, resp)
+}
+
+// aggregateGrokResponsesToChat 缓冲 Responses SSE，合并成单个 Chat JSON 回写。
+func aggregateGrokResponsesToChat(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (any, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return buildGrokUsage(nil), types.NewError(errors.New("grok subscription channel: nil upstream response"), types.ErrorCodeBadResponse)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		// 必须保留上游状态码，否则上层重试/限流策略失去信号（429/5xx 不再退避或切换）。
+		return buildGrokUsage(nil), types.NewErrorWithStatusCode(
+			fmt.Errorf("grok subscription channel: upstream status %d: %s", resp.StatusCode, string(body)),
+			types.ErrorCodeBadResponse, resp.StatusCode)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	acc := apicompat.NewBufferedResponseAccumulator()
+	var lastUsage *apicompat.ResponsesUsage
+	var lastTerminal *apicompat.ResponsesResponse
+	var terminalSeen bool
+	var terminalErr *types.NewAPIError
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+
+	var dataLines []string
+	flushEvent := func() bool {
+		if len(dataLines) == 0 {
+			return false
+		}
+		payload := strings.Join(dataLines, "\n")
+		dataLines = dataLines[:0]
+		evt := &apicompat.ResponsesStreamEvent{}
+		if err := common.Unmarshal([]byte(payload), evt); err != nil {
+			return false
+		}
+		acc.ProcessEvent(evt)
+
+		isFailed := evt.Type == "response.failed" || (evt.Response != nil && evt.Response.Status == "failed")
+		if isFailed {
+			terminalSeen = true
+			terminalErr = grokResponseFailedError(evt)
+			if evt.Response != nil && evt.Response.Usage != nil {
+				lastUsage = evt.Response.Usage
+			}
+			return true
+		}
+
+		isTerminal := evt.Type == "response.completed" ||
+			evt.Type == "response.done" ||
+			evt.Type == "response.incomplete"
+		if isTerminal && evt.Response != nil {
+			if evt.Response.Usage != nil {
+				lastUsage = evt.Response.Usage
+			}
+			lastTerminal = evt.Response
+			terminalSeen = true
+			return true
+		}
+		return false
+	}
+
+	stop := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			if flushEvent() {
+				stop = true
+				break
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		}
+	}
+	if !stop {
+		_ = flushEvent()
+	}
+
+	if terminalErr != nil {
+		return buildGrokUsage(lastUsage), terminalErr
+	}
+	if scanErr := scanner.Err(); scanErr != nil {
+		common.SysError(fmt.Sprintf("grok chat bridge: SSE scan error: %v", scanErr))
+		return buildGrokUsage(lastUsage), types.NewErrorWithStatusCode(
+			fmt.Errorf("grok subscription channel: SSE scan error: %v", scanErr),
+			types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+	if !terminalSeen {
+		return buildGrokUsage(lastUsage), types.NewErrorWithStatusCode(
+			errors.New("grok subscription channel: upstream stream ended before a terminal event"),
+			types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+
+	full := &apicompat.ResponsesResponse{}
+	acc.SupplementResponseOutput(full)
+	if lastTerminal != nil {
+		full.Status = lastTerminal.Status
+		full.IncompleteDetails = lastTerminal.IncompleteDetails
+		full.Error = lastTerminal.Error
+	} else {
+		full.Status = "completed"
+	}
+	full.Usage = lastUsage
+
+	upstreamModel := ""
+	if info != nil && info.ChannelMeta != nil {
+		upstreamModel = info.UpstreamModelName
+	}
+	chatResp := apicompat.ResponsesToChatCompletions(full, upstreamModel)
+	c.JSON(http.StatusOK, chatResp)
+	return buildGrokUsage(lastUsage), nil
+}
+
+func grokResponseFailedError(evt *apicompat.ResponsesStreamEvent) *types.NewAPIError {
+	message := "grok upstream response failed"
+	if evt != nil {
+		if evt.Response != nil && evt.Response.Error != nil {
+			switch {
+			case strings.TrimSpace(evt.Response.Error.Message) != "":
+				message = evt.Response.Error.Message
+			case strings.TrimSpace(evt.Response.Error.Code) != "":
+				message = evt.Response.Error.Code
+			}
+		} else if strings.TrimSpace(evt.Code) != "" {
+			message = evt.Code
+		}
+	}
+	return types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+}
+
+// buildGrokUsage 把 Responses usage 翻译成 *dto.Usage，始终 non-nil（缺失时零值占位）。
+func buildGrokUsage(u *apicompat.ResponsesUsage) *dto.Usage {
+	out := &dto.Usage{}
+	if u == nil {
+		return out
+	}
+	out.PromptTokens = u.InputTokens
+	out.CompletionTokens = u.OutputTokens
+	out.TotalTokens = u.TotalTokens
+	out.InputTokens = u.InputTokens
+	out.OutputTokens = u.OutputTokens
+	if out.TotalTokens == 0 && (out.PromptTokens != 0 || out.CompletionTokens != 0) {
+		out.TotalTokens = out.PromptTokens + out.CompletionTokens
+	}
+	if u.InputTokensDetails != nil {
+		out.PromptTokensDetails = dto.InputTokenDetails{
+			CachedTokens:     u.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: u.InputTokensDetails.CacheWriteTokens,
+		}
+		if u.InputTokensDetails.CachedTokens > 0 {
+			out.PromptCacheHitTokens = u.InputTokensDetails.CachedTokens
+		}
+	}
+	if u.OutputTokensDetails != nil {
+		out.CompletionTokenDetails = dto.OutputTokenDetails{
+			ReasoningTokens: u.OutputTokensDetails.ReasoningTokens,
+		}
+	}
+	return out
+}
+```
+
+> **注意**：`aggregateGrokResponsesToChat` 的 SSE 扫描结构刻意对齐 `relay/channel/codex/chat_bridge.go` 的 `RelayChatOverCodex`（同仓库同许可，非 sub2api 代码），去掉了 Codex 特有的 fingerprint / store 约束。若字段名（`apicompat.ResponsesUsage.InputTokensDetails.CacheWriteTokens` 等）与仓库当前版本不符，以 codex 包实际使用为准。
+
+- [ ] **Step 4: 改 `ConvertOpenAIRequest` 记录客户端 stream 意图**
+
+`adaptor.go` 的 `ConvertOpenAIRequest` 开头（`chatCompletionsRequestToResponsesBody` 之前）加入（对齐 Codex `adaptor.go:69-76`）：
+
+```go
+	// 记录客户端 stream 意图（上游 CLI proxy 强制流式，与此解耦；C1 修复）。
+	if info != nil {
+		if request != nil && request.Stream != nil {
+			info.UserWantsStream = *request.Stream
+		} else {
+			info.UserWantsStream = false
+		}
+	}
+```
+
+- [ ] **Step 5: 改 `DoResponse` 的 Chat 分支改调 `RelayChatOverGrok`**
+
+把 `adaptor.go` `DoResponse` 中的：
+
+```go
+	case relayconstant.RelayModeChatCompletions:
+		// 上游（CLI proxy）返回 Responses 格式，用共享 Responses→Chat handler 转回
+		// Chat Completions（与 ConvertOpenAIRequest 的 Chat→Responses 转换对称）。
+		if info.IsStream {
+			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
+		}
+		return openai.OaiResponsesToChatHandler(c, info, resp)
+```
+
+替换为：
+
+```go
+	case relayconstant.RelayModeChatCompletions:
+		// 上游（CLI proxy）恒返回 Responses SSE；用客户端原始 stream 意图
+		// （info.UserWantsStream）而非 info.IsStream 决定回写形式（C1 修复）。
+		return RelayChatOverGrok(c, info, resp)
+```
+
+- [ ] **Step 6: 运行 + gofmt + 全量测试**
+
+Run: `gofmt -l relay/channel/groksubscription/`（应无输出）
+Run: `go test ./relay/channel/groksubscription/ -v`
+Expected: PASS（含 3 个新 `TestRelayChatOverGrok*`；原有测试不回归）
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add relay/channel/groksubscription/chat_response_bridge.go relay/channel/groksubscription/chat_response_bridge_test.go relay/channel/groksubscription/adaptor.go
+git commit -m "fix(grok): decouple Chat client stream intent from upstream forced streaming"
+```
+
 ### Task 5: Grok AuthFlow 一次性 PKCE 状态表
 
 设计 §6.2、§7.1、§18。Grok 专用独立表，跨节点 owner-token claim、10 分钟过期、verifier 加密。不迁移 Copilot/Codex 现有机制。

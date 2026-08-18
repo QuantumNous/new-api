@@ -82,6 +82,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// 记录客户端 stream 意图（上游 CLI proxy 强制流式，与此解耦；C1 修复）。
+	if info != nil {
+		if request != nil && request.Stream != nil {
+			info.UserWantsStream = *request.Stream
+		} else {
+			info.UserWantsStream = false
+		}
+	}
 	// CLI proxy 只暴露 /v1/responses，没有原生 Chat Completions 端点。
 	// 当通用 Chat→Responses bridge 未生效（默认全局策略关闭）时，请求以
 	// RelayModeChatCompletions 落到此 plain 路径；adaptor 自行把 Chat 转成
@@ -123,12 +131,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 		return openai.OaiResponsesHandler(c, info, resp)
 	case relayconstant.RelayModeChatCompletions:
-		// 上游（CLI proxy）返回 Responses 格式，用共享 Responses→Chat handler 转回
-		// Chat Completions（与 ConvertOpenAIRequest 的 Chat→Responses 转换对称）。
-		if info.IsStream {
-			return openai.OaiResponsesToChatStreamHandler(c, info, resp)
-		}
-		return openai.OaiResponsesToChatHandler(c, info, resp)
+		// 上游（CLI proxy）恒返回 Responses SSE；用客户端原始 stream 意图
+		// （info.UserWantsStream）而非 info.IsStream 决定回写形式（C1 修复）。
+		return RelayChatOverGrok(c, info, resp)
 	default:
 		if info.IsStream {
 			return openai.OaiStreamHandler(c, info, resp)
