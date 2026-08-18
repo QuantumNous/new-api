@@ -743,7 +743,7 @@ export function SiteHeader(props: Props) {
               >
                 <Image
                   alt=""
-                  src="/assets/logos/bytedance.svg"
+                  src="/assets/logos/deepseek.svg"
                   width={16}
                   height={16}
                   unoptimized

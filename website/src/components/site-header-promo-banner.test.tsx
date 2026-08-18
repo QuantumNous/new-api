@@ -18,6 +18,8 @@ describe("SiteHeader promo banner", () => {
     expect(html).toContain(">Learn more →<");
     expect(html).toContain('aria-label="Dismiss DeepSeek V4 announcement"');
     expect(html).toContain('href="/blog/deepseek-v4-pro-vs-flash"');
+    expect(html).toContain('src="/assets/logos/deepseek.svg"');
+    expect(html).not.toContain('src="/assets/logos/bytedance.svg"');
     expect(
       html.indexOf("DeepSeek V4 is here. Join our Discord get $5 free credits."),
     ).toBeLessThan(
