@@ -9,8 +9,10 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -166,6 +168,98 @@ func TestOaiBufferedStreamHandler_MissingFinishChunk(t *testing.T) {
 	body := w.Body.String()
 	assert.Contains(t, body, "Hi")
 	assert.Contains(t, body, `"object":"chat.completion"`)
+}
+
+// TestOaiBufferedStreamHandler_ToolCallBilling verifies that the buffered
+// handler counts billable tool calls for special tool pricing, matching
+// OaiStreamHandler and OpenaiHandler (P2-3). Without this, forced streams
+// that return tool_calls skip per-call tool billing.
+func TestOaiBufferedStreamHandler_ToolCallBilling(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	operation_setting.SetToolPriceForTest("my_priced_fn", 5.0)
+	t.Cleanup(func() {
+		operation_setting.DeleteToolPriceForTest("my_priced_fn")
+	})
+
+	sseBody := strings.Join([]string{
+		`data: {"id":"chatcmpl-tb","object":"chat.completion.chunk","created":1,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"my_priced_fn","arguments":""}}]},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl-tb","object":"chat.completion.chunk","created":1,"model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{}"}}]},"finish_reason":"tool_calls"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(sseBody))),
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4"},
+		OriginModelName:      "gpt-4",
+		IsStream:             true,
+		UpstreamStreamForced: true,
+	}
+
+	_, apiErr := OaiBufferedStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+
+	require.NotNil(t, info.ResponsesUsageInfo, "ResponsesUsageInfo must be initialized by CountBillableToolCall")
+	require.Contains(t, info.ResponsesUsageInfo.BuiltInTools, "my_priced_fn",
+		"priced tool call must be counted for billing")
+	assert.Equal(t, 1, info.ResponsesUsageInfo.BuiltInTools["my_priced_fn"].CallCount,
+		"call count must be 1 for a single tool invocation")
+}
+
+// TestOaiBufferedStreamHandler_UsagePostProcessing verifies that the buffered
+// handler applies channel-specific usage post-processing (e.g. DeepSeek
+// cache-hit token migration), matching OpenaiHandler (P2-3). Without this,
+// DeepSeek cached-token billing is silently lost on forced streams.
+func TestOaiBufferedStreamHandler_UsagePostProcessing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	sseBody := strings.Join([]string{
+		`data: {"id":"chatcmpl-up","object":"chat.completion.chunk","created":1,"model":"deepseek-chat","choices":[{"index":0,"delta":{"content":"Hi"},"finish_reason":"stop"}]}`,
+		`data: {"id":"chatcmpl-up","object":"chat.completion.chunk","created":1,"model":"deepseek-chat","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":1,"total_tokens":11,"prompt_cache_hit_tokens":5}}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(sseBody))),
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeDeepSeek,
+			UpstreamModelName: "deepseek-chat",
+		},
+		OriginModelName:      "deepseek-chat",
+		IsStream:             true,
+		UpstreamStreamForced: true,
+	}
+
+	usage, apiErr := OaiBufferedStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+
+	assert.Equal(t, 5, usage.PromptTokensDetails.CachedTokens,
+		"DeepSeek prompt_cache_hit_tokens must be migrated to PromptTokensDetails.CachedTokens by applyUsagePostProcessing")
+
+	body := w.Body.String()
+	var textResp dto.OpenAITextResponse
+	require.NoError(t, common.Unmarshal([]byte(body), &textResp))
+	assert.Equal(t, 5, textResp.Usage.PromptTokensDetails.CachedTokens,
+		"response body must reflect migrated cached tokens")
 }
 
 // TestOaiBufferedStreamHandler_ContentTypeIsJSON verifies that the buffered

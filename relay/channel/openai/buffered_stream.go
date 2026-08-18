@@ -149,6 +149,26 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 	}
 
+	// Apply channel-specific usage post-processing (e.g. DeepSeek cache-hit
+	// token migration) and re-marshal if usage changed. Matches the pattern
+	// in OpenaiHandler (P2-3).
+	applyUsagePostProcessing(info, &textResponse.Usage, responseBody)
+	if textResponse.Usage.PromptTokensDetails.CachedTokens != usage.PromptTokensDetails.CachedTokens {
+		responseBody, err = common.Marshal(textResponse)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+		}
+		usage = &textResponse.Usage
+	}
+
+	// Count billable tool calls for special tool pricing, matching
+	// OaiStreamHandler and OpenaiHandler (P2-3).
+	for _, tc := range accumulatedToolCalls {
+		if tc.Function.Name != "" {
+			info.CountBillableToolCall(dto.BuildInCallFunctionCall, tc.Function.Name)
+		}
+	}
+
 	// The buffered handler has fully parsed and rebuilt the response as a
 	// single JSON object. Write it directly with the correct Content-Type
 	// instead of using IOCopyBytesGracefully, which would copy the upstream's
