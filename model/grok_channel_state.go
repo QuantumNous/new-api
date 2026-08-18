@@ -15,7 +15,9 @@ const (
 
 // GrokChannelState 是按 channel_id 唯一的非秘密状态快照（设计 §6.3）。
 // 严禁存放 access_token / refresh_token / pkce_verifier / 密码 / SSO cookie。
-// 秘密只存在于加密后的 Channel.Key（凭证 JSON）与 GrokAuthFlow.EncryptedVerifier。
+// 秘密存放：Channel.Key 存凭证 JSON（明文，依赖 DB 访问控制，与全仓渠道 Key 一致）；
+// PKCE verifier 走 authenticated encryption 存 GrokAuthFlow.EncryptedVerifier。
+// 本表（grok_channel_states）不存任何秘密。
 //
 // 日志安全：本表虽为非秘密快照，但 LastError 会承载上游刷新失败的原始报文片段（Task 8 写入），
 // 可能夹带上游返回的敏感字符串。调用方记录日志时切勿用 %+v/%v 打印整个 GrokChannelState，
