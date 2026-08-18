@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
@@ -466,8 +467,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel.MaxConcurrency < 0 {
 		return fmt.Errorf("channel max concurrency cannot be negative")
 	}
-	if channel.Type == constant.ChannelTypeCopilot && channel.ChannelInfo.IsMultiKey {
-		return fmt.Errorf("Copilot channel does not support multi-key mode")
+	if channel.ChannelInfo.IsMultiKey &&
+		(channel.Type == constant.ChannelTypeCopilot || channel.Type == constant.ChannelTypeGrokSubscription) {
+		return fmt.Errorf("%s channel does not support multi-key mode", constant.GetChannelTypeName(channel.Type))
 	}
 
 	// 校验 channel settings
@@ -481,7 +483,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	// 如果是添加操作，检查 channel 是否为空。Copilot credentials are
 	// acquired only through its Device Flow after the channel has been saved.
 	if isAdd {
-		if channel == nil || (channel.Key == "" && channel.Type != constant.ChannelTypeCopilot) {
+		if channel == nil || (channel.Key == "" &&
+			channel.Type != constant.ChannelTypeCopilot &&
+			channel.Type != constant.ChannelTypeGrokSubscription) {
 			return fmt.Errorf("channel cannot be empty")
 		}
 
@@ -525,6 +529,16 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 			}
 			if v, ok := keyMap["account_id"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
 				return fmt.Errorf("Codex key JSON must include account_id")
+			}
+		}
+	}
+
+	// Grok Subscription 版本化 OAuth 凭证校验（仅当提供 Key 时；空 Key 走 OAuth 待授权）。
+	if channel.Type == constant.ChannelTypeGrokSubscription {
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if trimmedKey != "" {
+			if _, err := groksubscription.ParseCredential(trimmedKey); err != nil {
+				return fmt.Errorf("Grok subscription key invalid: %w", err)
 			}
 		}
 	}
