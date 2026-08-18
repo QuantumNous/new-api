@@ -206,6 +206,17 @@ The GCP staging environment is deployed by GitHub Actions from the remote `stagi
 - This is separate from production: production deploys from `main` through the production workflows and approval gate. Do not use `staging` as evidence that production has been deployed.
 - Do not copy production-only runtime settings, callback URLs, payment credentials, OAuth secrets, or production domains into staging. Staging must keep its own domain/origin values.
 
+### Rule 14: Development Must Start From Latest `origin/main` And Land Through GitHub
+
+For every code change unless the user explicitly requests a different flow:
+
+- Fetch `origin/main` before implementation and create the work on a clean branch or worktree based on the latest `origin/main`. Do not base new work on a stale local `main`, a diverged local `main`, or an unrelated dirty feature branch.
+- Keep unrelated local or generated changes out of the branch, commit, and PR. If the active workspace is dirty, isolate the requested change in a clean worktree from `origin/main`.
+- After implementation, run the relevant automated tests and start the affected local preview/dev server. Verify the requested behavior through the local preview URL before considering the work complete; for `website/`, use `http://localhost:4000` unless that port is occupied, then use the next available port.
+- If local preview cannot be started or verified, report the blocker and do not claim completion.
+- Push the feature branch to the `SolveaCX/new-api` GitHub repository, create a PR against `main`, wait for or inspect available checks, and merge through GitHub only after validation passes.
+- Do not treat a local merge into `main` as complete unless the user explicitly asks for a local-only merge.
+
 ---
 
 ## Code Map — 按需加载的模块级文档（重要）

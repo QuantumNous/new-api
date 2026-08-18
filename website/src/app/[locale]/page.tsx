@@ -1,5 +1,7 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { OnlineHomePage } from "@/components/online-home-page";
+import { hasConsoleSessionHintFromRequestCookieStore } from "@/lib/console-session-hint";
 import { DEFAULT_LOCALE, isLocale, LOCALES } from "@/lib/locales";
 import { buildMetadata } from "@/lib/seo";
 
@@ -28,5 +30,13 @@ export async function generateMetadata(props: Props) {
 export default async function Page(props: Props) {
   const params = await props.params;
   if (!isLocale(params.locale) || params.locale === DEFAULT_LOCALE) notFound();
-  return <OnlineHomePage locale={params.locale} />;
+  const requestCookies = await cookies();
+  return (
+    <OnlineHomePage
+      hasConsoleSessionHint={hasConsoleSessionHintFromRequestCookieStore(
+        requestCookies,
+      )}
+      locale={params.locale}
+    />
+  );
 }

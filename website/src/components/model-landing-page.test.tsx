@@ -71,6 +71,14 @@ const gptRankings: RankingsData = {
   },
 };
 
+function hrefBeforeText(html: string, text: string): string {
+  const textIndex = html.indexOf(`>${text}<`);
+  expect(textIndex).toBeGreaterThanOrEqual(0);
+  const matches = [...html.slice(0, textIndex).matchAll(/href="([^"]+)"/g)];
+  expect(matches.length).toBeGreaterThan(0);
+  return matches[matches.length - 1][1].replaceAll("&amp;", "&");
+}
+
 describe("ModelLandingPage", () => {
   test("uses the exact configured model as the primary live model", () => {
     const liveModels: PricingModel[] = [
@@ -111,6 +119,16 @@ describe("ModelLandingPage", () => {
     expect(url.searchParams.get("model")).toBe("gpt-image-2");
     expect(url.searchParams.get("prompt")).toBe(GPT_IMAGE_2_CONFIG.examplePrompt);
     expect(url.searchParams.has("redirect")).toBe(false);
+  });
+
+  test("routes the top Get API Key action to the console overview", () => {
+    const html = renderToStaticMarkup(
+      <ModelLandingPage config={GPT_CONFIG} locale="en" liveModels={[]} />
+    );
+
+    expect(hrefBeforeText(html, "Get API Key")).toBe(
+      "https://console.flatkey.ai/dashboard",
+    );
   });
 
   test("renders Flatkey homepage-style sections for video model landings", () => {
