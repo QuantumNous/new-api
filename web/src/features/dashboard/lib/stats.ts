@@ -27,8 +27,8 @@ export function safeDivide(
   precision: number = 3
 ): number {
   const result = value / divisor
-  if (Number.isNaN(result) || !Number.isFinite(result)) return 0
-  const factor = 10 ** precision
+  if (isNaN(result) || !isFinite(result)) return 0
+  const factor = Math.pow(10, precision)
   return Math.round(result * factor) / factor
 }
 

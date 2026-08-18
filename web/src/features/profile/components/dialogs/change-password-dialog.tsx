@@ -102,7 +102,7 @@ export function ChangePasswordDialog({
       } else {
         toast.error(response.message || t('Failed to change password'))
       }
-    } catch {
+    } catch (_error) {
       toast.error(t('Failed to change password'))
     } finally {
       setLoading(false)

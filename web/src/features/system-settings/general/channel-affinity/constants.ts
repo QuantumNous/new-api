@@ -130,5 +130,5 @@ export function makeUniqueName(
 }
 
 export function cloneTemplate<T>(template: T): T {
-  return structuredClone(template)
+  return JSON.parse(JSON.stringify(template))
 }

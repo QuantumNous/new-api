@@ -566,10 +566,7 @@ export function PaymentSettingsSection({
       sanitized.StripeApiSecret &&
       sanitized.StripeApiSecret !== initial.StripeApiSecret
     ) {
-      updates.push({
-        key: 'StripeApiSecret',
-        value: sanitized.StripeApiSecret,
-      })
+      updates.push({ key: 'StripeApiSecret', value: sanitized.StripeApiSecret })
     }
 
     if (
@@ -587,10 +584,7 @@ export function PaymentSettingsSection({
     }
 
     if (sanitized.StripeUnitPrice !== initial.StripeUnitPrice) {
-      updates.push({
-        key: 'StripeUnitPrice',
-        value: sanitized.StripeUnitPrice,
-      })
+      updates.push({ key: 'StripeUnitPrice', value: sanitized.StripeUnitPrice })
     }
 
     if (sanitized.StripeMinTopUp !== initial.StripeMinTopUp) {
@@ -644,10 +638,7 @@ export function PaymentSettingsSection({
     }
 
     if (sanitized.WaffoMerchantId !== initial.WaffoMerchantId) {
-      updates.push({
-        key: 'WaffoMerchantId',
-        value: sanitized.WaffoMerchantId,
-      })
+      updates.push({ key: 'WaffoMerchantId', value: sanitized.WaffoMerchantId })
     }
 
     if (sanitized.WaffoCurrency !== initial.WaffoCurrency) {
@@ -671,10 +662,7 @@ export function PaymentSettingsSection({
     }
 
     if (sanitized.WaffoPublicCert !== initial.WaffoPublicCert) {
-      updates.push({
-        key: 'WaffoPublicCert',
-        value: sanitized.WaffoPublicCert,
-      })
+      updates.push({ key: 'WaffoPublicCert', value: sanitized.WaffoPublicCert })
     }
 
     if (sanitized.WaffoSandboxPublicCert !== initial.WaffoSandboxPublicCert) {
@@ -689,10 +677,7 @@ export function PaymentSettingsSection({
     }
 
     if (sanitized.WaffoPrivateKey) {
-      updates.push({
-        key: 'WaffoPrivateKey',
-        value: sanitized.WaffoPrivateKey,
-      })
+      updates.push({ key: 'WaffoPrivateKey', value: sanitized.WaffoPrivateKey })
     }
 
     if (sanitized.WaffoSandboxApiKey) {
@@ -713,10 +698,7 @@ export function PaymentSettingsSection({
       normalizeJsonForComparison(sanitized.WaffoPayMethods) !==
       normalizeJsonForComparison(initial.WaffoPayMethods)
     ) {
-      updates.push({
-        key: 'WaffoPayMethods',
-        value: sanitized.WaffoPayMethods,
-      })
+      updates.push({ key: 'WaffoPayMethods', value: sanitized.WaffoPayMethods })
     }
 
     const hasWaffoPancakeChanges =

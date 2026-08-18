@@ -31,10 +31,7 @@ const PAGE_SIZE_STORAGE_KEY = 'page-size'
 
 function getStoredPageSize(): number | undefined {
   try {
-    const n = Number.parseInt(
-      localStorage.getItem(PAGE_SIZE_STORAGE_KEY) ?? '',
-      10
-    )
+    const n = parseInt(localStorage.getItem(PAGE_SIZE_STORAGE_KEY) ?? '', 10)
     return n > 0 ? n : undefined // n > 0 also rejects NaN
   } catch {
     return undefined
@@ -224,8 +221,9 @@ export function useTableUrlState(
         patch[cfg.searchKey] =
           value.trim() !== '' ? serialize(value) : undefined
       } else {
-        const rawValue = found?.value
-        const value = Array.isArray(rawValue) ? rawValue : []
+        const value = Array.isArray(found?.value)
+          ? (found!.value as unknown[])
+          : []
         patch[cfg.searchKey] = value.length > 0 ? serialize(value) : undefined
       }
     }

@@ -424,9 +424,7 @@ export async function handleBatchEnable(
       toast.error(response.message || i18next.t('Failed to enable channels'))
     } else if (failCount > 0) {
       toast.error(
-        i18next.t('{{count}} channel(s) failed to enable', {
-          count: failCount,
-        })
+        i18next.t('{{count}} channel(s) failed to enable', { count: failCount })
       )
     }
   } catch {

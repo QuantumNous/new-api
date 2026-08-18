@@ -83,10 +83,7 @@ export async function updateRedemptionStatus(
   id: number,
   status: number
 ): Promise<ApiResponse<Redemption>> {
-  const res = await api.put('/api/redemption/?status_only=true', {
-    id,
-    status,
-  })
+  const res = await api.put('/api/redemption/?status_only=true', { id, status })
   return res.data
 }
 

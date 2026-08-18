@@ -134,7 +134,7 @@ function SegmentedControl(props: {
 
         return (
           <Tooltip key={option.value}>
-            <TooltipTrigger render={button} />
+            <TooltipTrigger render={button}></TooltipTrigger>
             <TooltipContent side='bottom' className='text-xs'>
               {option.tooltip}
             </TooltipContent>

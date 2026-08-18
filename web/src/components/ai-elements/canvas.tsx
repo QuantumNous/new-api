@@ -32,7 +32,7 @@ export const Canvas = ({ children, ...props }: CanvasProps) => (
     fitView
     panOnDrag={false}
     panOnScroll
-    selectionOnDrag
+    selectionOnDrag={true}
     zoomOnDoubleClick={false}
     {...props}
   >

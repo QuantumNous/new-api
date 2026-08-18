@@ -325,24 +325,27 @@ export function SetupWizard() {
               {STEPS.map((step, index) => {
                 const isActive = currentStep === index
                 const isCompleted = currentStep > index
-                let stepClass = 'border-muted bg-card'
-                if (isActive) {
-                  stepClass = 'border-primary ring-primary/20 ring-2'
-                } else if (isCompleted) {
-                  stepClass = 'border-primary/40 bg-primary/5'
-                }
                 return (
                   <li
                     key={step.titleKey}
-                    className={cn('rounded-xl border p-3', stepClass)}
+                    className={cn(
+                      'rounded-xl border p-3',
+                      isActive
+                        ? 'border-primary ring-primary/20 ring-2'
+                        : isCompleted
+                          ? 'border-primary/40 bg-primary/5'
+                          : 'border-muted bg-card'
+                    )}
                   >
                     <div className='flex items-start gap-3'>
                       <span
                         className={cn(
                           'flex size-6 items-center justify-center rounded-md border text-xs font-semibold',
-                          isActive || isCompleted
+                          isActive
                             ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-muted-foreground/40 text-muted-foreground'
+                            : isCompleted
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-muted-foreground/40 text-muted-foreground'
                         )}
                       >
                         {index + 1}
@@ -361,14 +364,14 @@ export function SetupWizard() {
               })}
             </ol>
 
-            {isLoading && <LoadingState message={t('Loading setup status…')} />}
-            {!isLoading && isError && (
+            {isLoading ? (
+              <LoadingState message={t('Loading setup status…')} />
+            ) : isError ? (
               <ErrorState
                 title={t('We could not load the setup status.')}
                 onRetry={() => refetch()}
               />
-            )}
-            {!isLoading && !isError && (
+            ) : (
               <Form {...form}>
                 <form
                   className='space-y-6'

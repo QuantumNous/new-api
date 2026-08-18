@@ -527,7 +527,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         value: string | undefined
       ) => {
         if (!value || value === '') return
-        const parsed = Number.parseFloat(value)
+        const parsed = parseFloat(value)
         if (Number.isFinite(parsed)) target[name] = parsed
       }
 

@@ -255,15 +255,15 @@ export function MobileDrawer({
               >
                 {loading ? (
                   <div className='flex flex-col gap-1 p-2'>
-                    {['first', 'second', 'third', 'fourth'].map((slot) => (
-                      <Skeleton key={slot} className='h-8 w-full' />
+                    {Array.from({ length: 4 }, (_, i) => (
+                      <Skeleton key={i} className='h-8 w-full' />
                     ))}
                   </div>
                 ) : (
                   <AnimatePresence>
-                    {mobileLinksList.map((link) => (
+                    {mobileLinksList.map((link, index) => (
                       <motion.div
-                        key={`${link.href}-${link.title}`}
+                        key={`${link.href}-${index}`}
                         className='border-border border-b p-2.5 last:border-b-0'
                         variants={MOBILE_DRAWER_ANIMATION.menuItem as Variants}
                       >

@@ -47,18 +47,8 @@ export function LoadingSkeleton(props: LoadingSkeletonProps) {
 function CardContentSkeleton() {
   return (
     <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
-      {[
-        'card-1',
-        'card-2',
-        'card-3',
-        'card-4',
-        'card-5',
-        'card-6',
-        'card-7',
-        'card-8',
-        'card-9',
-      ].map((slot) => (
-        <div key={slot} className='rounded-xl border p-5'>
+      {Array.from({ length: 9 }).map((_, i) => (
+        <div key={i} className='rounded-xl border p-5'>
           <div className='flex items-start justify-between gap-3'>
             <div className='flex min-w-0 items-start gap-3'>
               <Skeleton className='size-10 shrink-0 rounded-xl' />
@@ -93,9 +83,9 @@ function FilterBarSkeleton() {
     <div className='space-y-3'>
       <div className='flex items-center gap-3'>
         <div className='flex flex-1 flex-wrap items-center gap-2'>
-          {[80, 90, 75, 85, 70].map((width) => (
+          {[80, 90, 75, 85, 70].map((width, i) => (
             <Skeleton
-              key={`filter-${width}`}
+              key={i}
               className='h-8 rounded-lg'
               style={{ width: `${width}px` }}
             />
@@ -115,12 +105,12 @@ function FilterBarSkeleton() {
 
 function TableContentSkeleton() {
   const columns = [
-    { id: 'model', width: 200 },
-    { id: 'provider', width: 100 },
-    { id: 'input-price', width: 100 },
-    { id: 'output-price', width: 100 },
-    { id: 'status', width: 80 },
-    { id: 'actions', width: 100 },
+    { width: 200 },
+    { width: 100 },
+    { width: 100 },
+    { width: 100 },
+    { width: 80 },
+    { width: 100 },
   ]
 
   return (
@@ -128,34 +118,23 @@ function TableContentSkeleton() {
       <div className='overflow-hidden rounded-lg border'>
         <div className='bg-muted/30 border-b px-4 py-3'>
           <div className='flex items-center gap-4'>
-            {columns.map((col) => (
+            {columns.map((col, i) => (
               <Skeleton
-                key={`heading-${col.id}`}
+                key={i}
                 className='h-4'
                 style={{ width: `${col.width}px` }}
               />
             ))}
           </div>
         </div>
-        {[
-          'row-1',
-          'row-2',
-          'row-3',
-          'row-4',
-          'row-5',
-          'row-6',
-          'row-7',
-          'row-8',
-          'row-9',
-          'row-10',
-        ].map((row) => (
+        {Array.from({ length: 10 }).map((_, i) => (
           <div
-            key={row}
+            key={i}
             className='flex items-center gap-4 border-b px-4 py-3 last:border-b-0'
           >
-            {columns.map((col) => (
+            {columns.map((col, j) => (
               <Skeleton
-                key={`${row}-column-${col.id}`}
+                key={j}
                 className='h-5'
                 style={{ width: `${col.width}px` }}
               />
@@ -166,8 +145,8 @@ function TableContentSkeleton() {
       <div className='flex items-center justify-between'>
         <Skeleton className='h-5 w-32' />
         <div className='flex items-center gap-2'>
-          {['first', 'previous', 'next', 'last'].map((control) => (
-            <Skeleton key={control} className='size-8' />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className='size-8' />
           ))}
         </div>
       </div>

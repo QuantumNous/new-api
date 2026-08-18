@@ -459,10 +459,7 @@ export function getAdvancedCustomConverterDefaults(
     converter === 'openai_chat_completions_to_gemini_generate_content' ||
     converter === 'openai_responses_to_gemini_generate_content'
   ) {
-    return {
-      upstream_path: geminiGenerateContentPath,
-      auth: geminiQueryAuth(),
-    }
+    return { upstream_path: geminiGenerateContentPath, auth: geminiQueryAuth() }
   }
 
   return {
