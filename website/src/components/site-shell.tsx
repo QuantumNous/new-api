@@ -10,6 +10,7 @@ type Props = {
   expandNavigationAtTablet?: boolean;
   /** Single-locale routes (market pages) have no localized siblings — the switcher would link to 404s. */
   hideLanguageSwitcher?: boolean;
+  languageSwitcherLocales?: readonly Locale[];
   children: ReactNode;
 };
 
@@ -25,6 +26,7 @@ export function SiteShell(props: Props) {
         languageCookieDomain={languageCookieDomain}
         expandNavigationAtTablet={props.expandNavigationAtTablet}
         hideLanguageSwitcher={props.hideLanguageSwitcher}
+        languageSwitcherLocales={props.languageSwitcherLocales}
       />
       <div className="fk-site-main fk-new-home" data-route={props.pathname}>
         {props.children}

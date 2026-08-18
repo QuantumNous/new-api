@@ -223,6 +223,7 @@ type Props = {
   pathname: string;
   languageCookieDomain?: string;
   hideLanguageSwitcher?: boolean;
+  languageSwitcherLocales?: readonly Locale[];
   /**
    * Paid-search pages opted into a 1024px desktop-navigation threshold. This header
    * already expands at 901px, so the flag is accepted for call-site compatibility
@@ -316,6 +317,7 @@ function persistLanguagePreference(locale: Locale, cookieDomain?: string) {
 function HeaderLanguageMenu(props: {
   cookieDomain?: string;
   locale: Locale;
+  locales?: readonly Locale[];
   pathname: string;
   variant?: "dropdown" | "panel";
 }) {
@@ -323,14 +325,15 @@ function HeaderLanguageMenu(props: {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const strippedPath = stripLocale(props.pathname);
+  const locales = props.locales ?? LOCALES;
   const languageLinks = useMemo(
     () =>
-      LOCALES.map((locale) => ({
+      locales.map((locale) => ({
         code: locale,
         href: localizePath(strippedPath, locale),
         label: LOCALE_LABELS[locale],
       })),
-    [strippedPath],
+    [locales, strippedPath],
   );
 
   useEffect(() => {
@@ -787,6 +790,7 @@ export function SiteHeader(props: Props) {
           {!props.hideLanguageSwitcher && (
             <HeaderLanguageMenu
               locale={props.locale}
+              locales={props.languageSwitcherLocales}
               pathname={props.pathname}
               cookieDomain={props.languageCookieDomain}
             />
@@ -866,6 +870,7 @@ export function SiteHeader(props: Props) {
           {!props.hideLanguageSwitcher && (
             <HeaderLanguageMenu
               locale={props.locale}
+              locales={props.languageSwitcherLocales}
               pathname={props.pathname}
               cookieDomain={props.languageCookieDomain}
               variant="panel"

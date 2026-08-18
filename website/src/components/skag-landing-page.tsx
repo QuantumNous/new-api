@@ -6,6 +6,7 @@ import { ROUTER_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 import {
   SKAG_TRUST_LINE,
+  getSkagLandingLocales,
   getSkagLandingCtaUrl,
   skagLandingPath,
   type SkagLandingConfig,
@@ -29,7 +30,12 @@ export function SkagLandingPage({ config }: Props) {
   const hideCodeWindow = config.hideCodeWindow ?? false;
 
   return (
-    <SiteShell locale={locale} pathname={pathname} expandNavigationAtTablet>
+    <SiteShell
+      locale={locale}
+      pathname={pathname}
+      expandNavigationAtTablet
+      languageSwitcherLocales={getSkagLandingLocales(config.slug)}
+    >
       <div className="min-h-screen overflow-hidden bg-[linear-gradient(180deg,#f4f0ff_0%,#fbfaff_28%,#ffffff_58%,#f4f1ff_100%)] text-slate-950 dark:bg-[linear-gradient(180deg,#050712_0%,#080b18_36%,#070712_72%,#03040b_100%)] dark:text-white">
         <section
           className={cn(
@@ -82,6 +88,7 @@ export function SkagLandingPage({ config }: Props) {
                 <a
                   href={ctaUrl}
                   className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5f86ff] to-[#8357ff] px-7 text-base font-extrabold text-white shadow-[0_22px_70px_rgba(95,134,255,0.35)] transition-transform hover:-translate-y-0.5 sm:w-auto"
+                  style={{ color: "#fff" }}
                 >
                   {config.ctaLabel}
                   <ArrowRight className="size-4" />
@@ -151,6 +158,7 @@ export function SkagLandingPage({ config }: Props) {
               <a
                 href={ctaUrl}
                 className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#5f86ff] to-[#8357ff] px-6 text-sm font-black text-white shadow-[0_20px_60px_rgba(95,134,255,0.25)] transition-transform hover:-translate-y-0.5"
+                style={{ color: "#fff" }}
               >
                 {config.ctaLabel}
                 <ArrowRight className="size-4" />
