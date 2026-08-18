@@ -442,9 +442,7 @@ export async function getDeploymentLogs(
     end_time?: string
   }
 ): Promise<{ success: boolean; message?: string; data?: string }> {
-  const res = await api.get(`/api/deployments/${deploymentId}/logs`, {
-    params,
-  })
+  const res = await api.get(`/api/deployments/${deploymentId}/logs`, { params })
   return res.data
 }
 

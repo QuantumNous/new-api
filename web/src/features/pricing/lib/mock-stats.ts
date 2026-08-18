@@ -315,7 +315,8 @@ export function buildGroupPerformance(model: PricingModel): GroupPerformance[] {
   const spec = PROFILE_SPECS[profile]
   const baseSeed = hashStringToSeed(model.model_name)
 
-  return [...targets]
+  return targets
+    .slice()
     .sort((a, b) => a.localeCompare(b))
     .map<GroupPerformance>((group) => {
       const rand = seededRandom(baseSeed ^ hashStringToSeed(group))
@@ -812,20 +813,12 @@ export function buildRateLimits(model: PricingModel): RateLimit[] {
   const baseSeed = hashStringToSeed(`${model.model_name}:rl`)
   const isHeavy = cat === 'image' || cat === 'video'
   const isLight = cat === 'embedding'
-  let baseRpm = 500
-  let baseTpm = 200_000
-  let baseRpd = 10_000
-  if (isHeavy) {
-    baseRpm = 60
-    baseTpm = 0
-    baseRpd = 1_000
-  } else if (isLight) {
-    baseRpm = 5_000
-    baseTpm = 1_000_000
-    baseRpd = 100_000
-  }
+  const baseRpm = isHeavy ? 60 : isLight ? 5_000 : 500
+  const baseTpm = isHeavy ? 0 : isLight ? 1_000_000 : 200_000
+  const baseRpd = isHeavy ? 1_000 : isLight ? 100_000 : 10_000
 
-  return [...targets]
+  return targets
+    .slice()
     .sort((a, b) => a.localeCompare(b))
     .map((group) => {
       const rand = seededRandom(baseSeed ^ hashStringToSeed(group))
@@ -843,8 +836,7 @@ export function buildRateLimits(model: PricingModel): RateLimit[] {
 export function formatRateLimit(value: number): string {
   if (value <= 0) return '—'
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000) {
+  if (value >= 1_000)
     return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`
-  }
   return value.toLocaleString()
 }

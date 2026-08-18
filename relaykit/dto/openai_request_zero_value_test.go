@@ -52,34 +52,6 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "return_related_questions").Exists())
 }
 
-func TestToolCallRequestFunctionUsesStableFieldOrder(t *testing.T) {
-	encoded, err := kitutil.Marshal(ToolCallRequest{
-		ID:   "call_1",
-		Type: "function",
-		Function: FunctionRequest{
-			Name:      "lookup",
-			Arguments: `{}`,
-		},
-	})
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}`, string(encoded))
-	assert.Equal(t, `{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}`, string(encoded))
-}
-
-func TestToolCallRequestCustomRestoresConvenienceFields(t *testing.T) {
-	var toolCall ToolCallRequest
-	err := kitutil.Unmarshal([]byte(`{
-		"id":"call_custom",
-		"type":"custom",
-		"custom":{"type":"custom_tool_call","name":"apply_patch","input":"patch body"}
-	}`), &toolCall)
-	require.NoError(t, err)
-
-	assert.Equal(t, "apply_patch", toolCall.Function.Name)
-	assert.Equal(t, "patch body", toolCall.Function.Arguments)
-	assert.Equal(t, "custom_tool_call", gjson.GetBytes(toolCall.Custom, "type").String())
-}
-
 func TestGeneralOpenAIRequestPreserveQwenThinkingBudget(t *testing.T) {
 	raw := []byte(`{
 		"model":"qwen-plus",

@@ -204,10 +204,7 @@ export function SubscriptionsMutateDrawer({
         typeof res.data === 'object' &&
         res.data
       ) {
-        const created = res.data as {
-          product_id: string
-          product_name: string
-        }
+        const created = res.data as { product_id: string; product_name: string }
         form.setValue('waffo_pancake_product_id', created.product_id, {
           shouldDirty: true,
         })

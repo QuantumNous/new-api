@@ -84,11 +84,6 @@ import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
-import {
-  isSeedanceModel,
-  modelRatioToSeedanceBasePriceRmb,
-  seedanceBasePriceRmbToModelRatio,
-} from '../../lib/seedance-pricing'
 import type { Model } from '../../types'
 
 // Extended schema for ratio configuration (internal form state only)
@@ -165,19 +160,6 @@ function lookupModelRatio(
   })[modelName]
 }
 
-function getModelRatioDescription(
-  value: string | undefined,
-  seedance: boolean,
-  fallback: string
-): string {
-  if (!value || Number.isNaN(Number.parseFloat(value))) return fallback
-  const ratio = Number.parseFloat(value)
-  if (seedance) {
-    return `480p price without video input: ¥${modelRatioToSeedanceBasePriceRmb(ratio).toFixed(4)} per 1M tokens`
-  }
-  return `Calculated price: $${(ratio * 2).toFixed(4)} per 1M tokens`
-}
-
 // Pricing is not stored on the model row: it lives in system options as
 // model-name keyed JSON maps, so it has to be read back out of those maps to
 // populate the form. Both create and edit rely on this, because submit rebuilds
@@ -213,15 +195,9 @@ function readPricingConfig(
   let promptPrice = ''
   let completionPrice = ''
   if (ratio !== undefined && ratio !== null) {
-    const tokenPrice = isSeedanceModel(modelName)
-      ? modelRatioToSeedanceBasePriceRmb(ratio)
-      : ratio * 2
+    const tokenPrice = ratio * 2
     promptPrice = tokenPrice.toString()
-    if (
-      !isSeedanceModel(modelName) &&
-      completionRatio !== undefined &&
-      completionRatio !== null
-    ) {
+    if (completionRatio !== undefined && completionRatio !== null) {
       completionPrice = (tokenPrice * completionRatio).toString()
     }
   }
@@ -403,8 +379,6 @@ export function ModelMutateDrawer({
       audioCompletionRatio: '',
     },
   })
-  const currentModelName = form.watch('model_name')
-  const isSeedancePricing = isSeedanceModel(currentModelName)
 
   const validateNumber = (value: string) => {
     if (value === '') return true
@@ -414,10 +388,7 @@ export function ModelMutateDrawer({
   const handlePromptPriceChange = (value: string) => {
     setPromptPrice(value)
     if (value && !Number.isNaN(Number.parseFloat(value))) {
-      const parsedPrice = Number.parseFloat(value)
-      const ratio = isSeedanceModel(form.getValues('model_name'))
-        ? seedanceBasePriceRmbToModelRatio(parsedPrice)
-        : parsedPrice / 2
+      const ratio = Number.parseFloat(value) / 2
       form.setValue('ratio', ratio.toString())
     } else {
       form.setValue('ratio', '')
@@ -529,9 +500,6 @@ export function ModelMutateDrawer({
         if (response.success) {
           // Handle ratio configuration updates in system settings
           const finalModelName = values.model_name
-          const completionRatioForSave = isSeedanceModel(finalModelName)
-            ? ''
-            : values.completionRatio
           const hasRatioConfig =
             (pricingMode === 'per-request' &&
               values.price &&
@@ -539,7 +507,7 @@ export function ModelMutateDrawer({
             (pricingMode === 'per-token' &&
               (values.ratio ||
                 values.cacheRatio ||
-                completionRatioForSave ||
+                values.completionRatio ||
                 values.imageRatio ||
                 values.audioRatio ||
                 values.audioCompletionRatio))
@@ -624,9 +592,9 @@ export function ModelMutateDrawer({
                     values.cacheRatio
                   )
                 }
-                if (completionRatioForSave && completionRatioForSave !== '') {
+                if (values.completionRatio && values.completionRatio !== '') {
                   completionMap[finalModelName] = Number.parseFloat(
-                    completionRatioForSave
+                    values.completionRatio
                   )
                 }
                 if (values.imageRatio && values.imageRatio !== '') {
@@ -1089,9 +1057,7 @@ export function ModelMutateDrawer({
                       <div className='flex items-center space-x-2'>
                         <RadioGroupItem value='price' id='price' />
                         <Label htmlFor='price' className='font-normal'>
-                          {isSeedancePricing
-                            ? t('Seedance base price (RMB per 1M tokens)')
-                            : t('Price mode (USD per 1M tokens)')}
+                          {t('Price mode (USD per 1M tokens)')}
                         </Label>
                       </div>
                     </RadioGroup>
@@ -1115,13 +1081,10 @@ export function ModelMutateDrawer({
                                   if (validateNumber(value)) {
                                     field.onChange(value)
                                     if (value) {
-                                      const ratio = Number.parseFloat(value)
                                       setPromptPrice(
-                                        isSeedancePricing
-                                          ? modelRatioToSeedanceBasePriceRmb(
-                                              ratio
-                                            ).toString()
-                                          : (ratio * 2).toString()
+                                        (
+                                          Number.parseFloat(value) * 2
+                                        ).toString()
                                       )
                                     } else {
                                       setPromptPrice('')
@@ -1131,74 +1094,65 @@ export function ModelMutateDrawer({
                               />
                             </FormControl>
                             <FormDescription>
-                              {getModelRatioDescription(
-                                field.value,
-                                isSeedancePricing,
-                                t('Multiplier for prompt tokens.')
-                              )}
+                              {field.value &&
+                              !Number.isNaN(Number.parseFloat(field.value))
+                                ? `Calculated price: $${(Number.parseFloat(field.value) * 2).toFixed(4)} per 1M tokens`
+                                : t('Multiplier for prompt tokens.')}
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      {!isSeedancePricing && (
-                        <FormField
-                          control={form.control}
-                          name='completionRatio'
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t('Completion ratio')}</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type='text'
-                                  placeholder='1.0'
-                                  {...field}
-                                  onChange={(e) => {
-                                    const value = e.target.value
-                                    if (validateNumber(value)) {
-                                      field.onChange(value)
-                                      const ratio = form.getValues('ratio')
-                                      if (value && ratio) {
-                                        const compPrice =
-                                          Number.parseFloat(ratio) *
-                                          2 *
-                                          Number.parseFloat(value)
-                                        setCompletionPrice(compPrice.toString())
-                                      } else {
-                                        setCompletionPrice('')
-                                      }
+                      <FormField
+                        control={form.control}
+                        name='completionRatio'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Completion ratio')}</FormLabel>
+                            <FormControl>
+                              <Input
+                                type='text'
+                                placeholder='1.0'
+                                {...field}
+                                onChange={(e) => {
+                                  const value = e.target.value
+                                  if (validateNumber(value)) {
+                                    field.onChange(value)
+                                    const ratio = form.getValues('ratio')
+                                    if (value && ratio) {
+                                      const compPrice =
+                                        Number.parseFloat(ratio) *
+                                        2 *
+                                        Number.parseFloat(value)
+                                      setCompletionPrice(compPrice.toString())
+                                    } else {
+                                      setCompletionPrice('')
                                     }
-                                  }}
-                                />
-                              </FormControl>
-                              <FormDescription>
-                                {field.value &&
-                                !Number.isNaN(Number.parseFloat(field.value)) &&
-                                promptPrice &&
-                                !Number.isNaN(Number.parseFloat(promptPrice))
-                                  ? `Calculated price: $${(Number.parseFloat(promptPrice) * Number.parseFloat(field.value)).toFixed(4)} per 1M tokens`
-                                  : t('Multiplier for completion tokens.')}
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {field.value &&
+                              !Number.isNaN(Number.parseFloat(field.value)) &&
+                              promptPrice &&
+                              !Number.isNaN(Number.parseFloat(promptPrice))
+                                ? `Calculated price: $${(Number.parseFloat(promptPrice) * Number.parseFloat(field.value)).toFixed(4)} per 1M tokens`
+                                : t('Multiplier for completion tokens.')}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </>
                   ) : (
                     <div className='space-y-4'>
                       <div className='space-y-2'>
-                        <Label>
-                          {isSeedancePricing
-                            ? t(
-                                '480p price without video input (RMB per 1M tokens)'
-                              )
-                            : t('Prompt price ($/1M tokens)')}
-                        </Label>
+                        <Label>{t('Prompt price ($/1M tokens)')}</Label>
                         <Input
                           type='text'
-                          placeholder={isSeedancePricing ? '46' : '2.0'}
+                          placeholder='2.0'
                           value={promptPrice}
                           onChange={(e) =>
                             handlePromptPriceChange(e.target.value)
@@ -1207,38 +1161,31 @@ export function ModelMutateDrawer({
                         <p className='text-muted-foreground text-sm'>
                           {promptPrice &&
                           !Number.isNaN(Number.parseFloat(promptPrice))
-                            ? `Calculated ratio: ${(isSeedancePricing
-                                ? seedanceBasePriceRmbToModelRatio(
-                                    Number.parseFloat(promptPrice)
-                                  )
-                                : Number.parseFloat(promptPrice) / 2
-                              ).toFixed(4)}`
+                            ? `Calculated ratio: ${(Number.parseFloat(promptPrice) / 2).toFixed(4)}`
                             : t('Enter Input price to calculate ratio')}
                         </p>
                       </div>
 
-                      {!isSeedancePricing && (
-                        <div className='space-y-2'>
-                          <Label>{t('Completion price ($/1M tokens)')}</Label>
-                          <Input
-                            type='text'
-                            placeholder='4.0'
-                            value={completionPrice}
-                            onChange={(e) =>
-                              handleCompletionPriceChange(e.target.value)
-                            }
-                          />
-                          <p className='text-muted-foreground text-sm'>
-                            {completionPrice &&
-                            !Number.isNaN(Number.parseFloat(completionPrice)) &&
-                            promptPrice &&
-                            !Number.isNaN(Number.parseFloat(promptPrice)) &&
-                            Number.parseFloat(promptPrice) > 0
-                              ? `Calculated ratio: ${(Number.parseFloat(completionPrice) / Number.parseFloat(promptPrice)).toFixed(4)}`
-                              : t('Enter Completion price to calculate ratio')}
-                          </p>
-                        </div>
-                      )}
+                      <div className='space-y-2'>
+                        <Label>{t('Completion price ($/1M tokens)')}</Label>
+                        <Input
+                          type='text'
+                          placeholder='4.0'
+                          value={completionPrice}
+                          onChange={(e) =>
+                            handleCompletionPriceChange(e.target.value)
+                          }
+                        />
+                        <p className='text-muted-foreground text-sm'>
+                          {completionPrice &&
+                          !Number.isNaN(Number.parseFloat(completionPrice)) &&
+                          promptPrice &&
+                          !Number.isNaN(Number.parseFloat(promptPrice)) &&
+                          Number.parseFloat(promptPrice) > 0
+                            ? `Calculated ratio: ${(Number.parseFloat(completionPrice) / Number.parseFloat(promptPrice)).toFixed(4)}`
+                            : t('Enter Completion price to calculate ratio')}
+                        </p>
+                      </div>
                     </div>
                   )}
 

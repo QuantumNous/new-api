@@ -207,9 +207,7 @@ export function OllamaModelsDialog({
         : [...new Set([...existingModels, ...selected])]
 
     try {
-      const res = await updateChannel(currentRow.id, {
-        models: next.join(','),
-      })
+      const res = await updateChannel(currentRow.id, { models: next.join(',') })
       if (res.success) {
         toast.success(
           mode === 'replace'

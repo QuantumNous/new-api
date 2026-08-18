@@ -164,7 +164,7 @@ export function MultiSelect(props: MultiSelectProps) {
     if (canCreate) {
       set.add(trimmedInput)
     }
-    return [...set]
+    return Array.from(set)
   }, [props.options, props.selected, canCreate, trimmedInput])
 
   const addValues = React.useCallback(

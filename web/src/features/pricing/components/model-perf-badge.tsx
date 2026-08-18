@@ -102,24 +102,22 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
           {t('Status short')}
         </div>
         <div className='flex h-4 items-center justify-end gap-0.5'>
-          {[
-            { height: 'h-2', rate: statusBars[0], slot: 'oldest' },
-            { height: 'h-2.5', rate: statusBars[1], slot: 'middle' },
-            { height: 'h-3', rate: statusBars[2], slot: 'latest' },
-          ].map(({ height, rate, slot }) => {
-            let color = 'bg-muted-foreground/15'
-            if (rate != null) {
-              color = getSuccessRateDotClass(rate)
-            } else if (slot === 'oldest') {
-              color = 'bg-muted-foreground/10'
-            }
-            return (
-              <span
-                key={slot}
-                className={cn('w-1 rounded-full', height, color)}
-              />
-            )
-          })}
+          {statusBars.map((rate, index) => (
+            <span
+              key={`${index}-${rate ?? 'empty'}`}
+              className={cn(
+                'w-1 rounded-full',
+                index === 0 && 'h-2',
+                index === 1 && 'h-2.5',
+                index === 2 && 'h-3',
+                rate == null
+                  ? index === 0
+                    ? 'bg-muted-foreground/10'
+                    : 'bg-muted-foreground/15'
+                  : getSuccessRateDotClass(rate)
+              )}
+            />
+          ))}
         </div>
       </div>
     </div>
