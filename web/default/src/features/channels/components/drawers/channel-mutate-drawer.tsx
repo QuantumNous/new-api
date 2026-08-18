@@ -1132,6 +1132,41 @@ export function ChannelMutateDrawer({
     [onOpenChange, form]
   )
 
+  // Grok Subscription (type 113) auth-state badge. Extracted per repo convention
+  // (see codex-usage-dialog.tsx statusBadge) instead of an inline JSX IIFE.
+  const grokAuthBadge = (() => {
+    const grokAuthStatus = channelData?.data?.grok_auth_state?.auth_status
+    if (grokAuthStatus === 'active') {
+      return (
+        <StatusBadge
+          variant='success'
+          size='sm'
+          copyable={false}
+          label={t('Authorized')}
+        />
+      )
+    }
+    if (grokAuthStatus === 'needs_reauth') {
+      return (
+        <StatusBadge
+          variant='danger'
+          size='sm'
+          copyable={false}
+          label={t('Needs re-authorization')}
+        />
+      )
+    }
+    return (
+      <StatusBadge
+        variant='warning'
+        size='sm'
+        pulse
+        copyable={false}
+        label={t('Pending authorization')}
+      />
+    )
+  })()
+
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -2297,40 +2332,7 @@ export function ChannelMutateDrawer({
                                 <div className='text-sm font-semibold'>
                                   {t('Grok Authorization')}
                                 </div>
-                                {(() => {
-                                  const grokAuthStatus =
-                                    channelData?.data?.grok_auth_state
-                                      ?.auth_status
-                                  if (grokAuthStatus === 'active') {
-                                    return (
-                                      <StatusBadge
-                                        variant='success'
-                                        size='sm'
-                                        copyable={false}
-                                        label={t('Authorized')}
-                                      />
-                                    )
-                                  }
-                                  if (grokAuthStatus === 'needs_reauth') {
-                                    return (
-                                      <StatusBadge
-                                        variant='danger'
-                                        size='sm'
-                                        copyable={false}
-                                        label={t('Needs re-authorization')}
-                                      />
-                                    )
-                                  }
-                                  return (
-                                    <StatusBadge
-                                      variant='warning'
-                                      size='sm'
-                                      pulse
-                                      copyable={false}
-                                      label={t('Pending authorization')}
-                                    />
-                                  )
-                                })()}
+                                {grokAuthBadge}
                               </div>
                               <div className='text-muted-foreground text-xs'>
                                 {isEditing

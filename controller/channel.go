@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -403,9 +404,13 @@ func GetChannel(c *gin.Context) {
 		if channel.Type == constant.ChannelTypeGrokSubscription {
 			if st, err := model.GetGrokChannelState(channel.Id); err == nil {
 				channel.GrokAuthState = model.NewGrokAuthStateView(st)
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				// 真实 DB 错误（连接断/死锁）须与 record-not-found 区分：记一行脱敏日志
+				// （只含 channelID + err，绝不打整个 state 以免带出 LastError），
+				// 但不阻断 detail 返回——保持原有正确行为，前端仍据缺省显示 pending。
+				common.SysError(fmt.Sprintf("grok auth state load failed for channel %d: %v", channel.Id, err))
 			}
-			// state 行不存在（gorm.ErrRecordNotFound，渠道刚建未授权）或真实 DB 错误：
-			// 均不填充、不阻断 detail 返回；前端据 grok_auth_state 缺省显示 pending。
+			// record-not-found（渠道刚建未授权）属正常高频路径：静默不填充，前端缺省显示 pending。
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{

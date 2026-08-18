@@ -80,6 +80,36 @@ func TestGetChannelProjectsGrokAuthStateFor113(t *testing.T) {
 	require.Equal(t, int64(1700000000), resp.Data.GrokAuthState.LastRefreshAt)
 }
 
+// TestGetChannelProjectsNeedsReauthState 守护 needs_reauth 端到端：detail 如实透出该状态，
+// 响应体同样不得夹带 last_error / lease / 敏感哨兵（needs_reauth 正是 LastError 最可能非空的态）。
+func TestGetChannelProjectsNeedsReauthState(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	ch := seedGrokChannel(t)
+
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{
+		ChannelID:  ch.Id,
+		AuthStatus: model.GrokAuthStatusNeedsReauth,
+		LastError:  "SENSITIVE-refresh-failed-desc-xyz",
+	}))
+
+	ctx, rec := newGetChannelContext(t, ch.Id)
+	GetChannel(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	body := rec.Body.String()
+	for _, banned := range []string{
+		"last_error", "refresh_lease", "SENSITIVE-refresh-failed-desc-xyz",
+	} {
+		require.NotContains(t, body, banned, "detail response must not leak %q", banned)
+	}
+
+	var resp getChannelResponse
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &resp))
+	require.True(t, resp.Success)
+	require.NotNil(t, resp.Data.GrokAuthState, "needs_reauth channel must carry grok_auth_state")
+	require.Equal(t, model.GrokAuthStatusNeedsReauth, resp.Data.GrokAuthState.AuthStatus)
+}
+
 // TestGetChannelNoGrokStateStillReturns 守护 state 行不存在（渠道刚建、未授权）时
 // detail 仍 200 返回、不 500，且 grok_auth_state 因 omitempty 省略（前端据此显示 pending）。
 func TestGetChannelNoGrokStateStillReturns(t *testing.T) {
