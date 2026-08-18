@@ -2,7 +2,9 @@ package service
 
 import (
 	"bytes"
+	"encoding/base64"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -58,5 +60,89 @@ func TestGrokCipherRejectsBadKey(t *testing.T) {
 	}
 	if _, err := newGrokCredentialCipher(make([]byte, 32), nil); err == nil {
 		t.Fatalf("nil random reader must be rejected")
+	}
+}
+
+// TestGrokCipherRejectsInvalidEnvelopes 覆盖 Decrypt 的 fail-closed 边界（照 byteplus 的
+// TestBytePlusSensitiveCipherRejectsInvalidEnvelopes）：篡改、错版本前缀、非法 base64、过短 payload 全须拒绝。
+func TestGrokCipherRejectsInvalidEnvelopes(t *testing.T) {
+	cipher, err := newGrokCredentialCipher(bytesOf('k', 32), strings.NewReader(strings.Repeat("n", 64)))
+	if err != nil {
+		t.Fatalf("new cipher err %v", err)
+	}
+	envelope, err := cipher.Encrypt("flow-1", "pkce_verifier", "the-verifier")
+	if err != nil {
+		t.Fatalf("encrypt err %v", err)
+	}
+	tampered := envelope[:len(envelope)-1] + "A"
+
+	tests := []string{
+		tampered, // ① 篡改末字节 -> GCM 认证失败
+		"v2:" + strings.TrimPrefix(envelope, "v1:"),                   // ② 错误版本前缀
+		"v1:not standard/base64",                                      // ③ 非法 base64（RawURL 不含 '/'、空格）
+		"v1:" + base64.RawURLEncoding.EncodeToString([]byte("short")), // ④ 过短 payload（<= nonceSize）
+	}
+	for _, env := range tests {
+		if _, err := cipher.Decrypt("flow-1", "pkce_verifier", env); err == nil {
+			t.Fatalf("Decrypt(%q) must fail", env)
+		}
+	}
+}
+
+// TestGrokCipherRejectsEmptyPlaintext：上下文合法（sessionID/field 通过白名单）但 plaintext 为空必须拒绝。
+func TestGrokCipherRejectsEmptyPlaintext(t *testing.T) {
+	cipher, err := newGrokCredentialCipher(bytesOf('k', 32), strings.NewReader(strings.Repeat("n", 64)))
+	if err != nil {
+		t.Fatalf("new cipher err %v", err)
+	}
+	if _, err := cipher.Encrypt("flow-1", "pkce_verifier", ""); err == nil {
+		t.Fatalf("encrypt with empty plaintext must fail")
+	}
+}
+
+// TestGrokCipherReturnsRandomReadError：nonce 生成失败（random reader 出错）时 Encrypt 必须 fail-closed
+// 返回 error（照 byteplus 的 failReader，reuse 同包内已定义的 failReader）。
+func TestGrokCipherReturnsRandomReadError(t *testing.T) {
+	cipher, err := newGrokCredentialCipher(bytesOf('k', 32), failReader{})
+	if err != nil {
+		t.Fatalf("new cipher err %v", err)
+	}
+	if _, err := cipher.Encrypt("flow-1", "pkce_verifier", "the-verifier"); err == nil {
+		t.Fatalf("encrypt must fail when nonce reader fails")
+	}
+}
+
+// TestLoadGrokCredentialCipherFromEnv：合法 32 字节 base64 key 从 env 装载并可 round-trip。
+func TestLoadGrokCredentialCipherFromEnv(t *testing.T) {
+	t.Setenv(grokCredentialCipherEnv, base64.StdEncoding.EncodeToString(bytesOf('k', 32)))
+	cipher, err := loadGrokCredentialCipherFromEnv()
+	if err != nil {
+		t.Fatalf("load from env err %v", err)
+	}
+	envelope, err := cipher.Encrypt("flow-1", "pkce_verifier", "the-verifier")
+	if err != nil {
+		t.Fatalf("encrypt err %v", err)
+	}
+	got, err := cipher.Decrypt("flow-1", "pkce_verifier", envelope)
+	if err != nil {
+		t.Fatalf("decrypt err %v", err)
+	}
+	if got != "the-verifier" {
+		t.Fatalf("round trip = %q", got)
+	}
+}
+
+// TestLoadGrokCredentialCipherFromEnvRejectsInvalidValues：env 缺失 / 坏 base64 / 解码后长度≠32 都须 fail-closed。
+func TestLoadGrokCredentialCipherFromEnvRejectsInvalidValues(t *testing.T) {
+	tests := []string{
+		"", // env 缺失（空）
+		"not base64",
+		base64.StdEncoding.EncodeToString(bytesOf('k', 31)), // 解码后 31 字节 ≠ 32
+	}
+	for _, value := range tests {
+		t.Setenv(grokCredentialCipherEnv, value)
+		if _, err := loadGrokCredentialCipherFromEnv(); err == nil {
+			t.Fatalf("loadGrokCredentialCipherFromEnv(%q) must fail", value)
+		}
 	}
 }

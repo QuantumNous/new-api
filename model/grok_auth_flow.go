@@ -9,6 +9,10 @@ import (
 
 // GrokAuthFlow 是 Grok 专用的一次性 PKCE 认证状态（设计 §7.1）。
 // 独立于 Copilot 的 Redis+内存 fallback 与 Codex 的 gin session；跨节点、owner-token claim、10 分钟过期。
+//
+// 安全提示：EncryptedVerifier / OwnerToken 上的 `json:"-"` 只挡 JSON 序列化，不挡 fmt 的 %+v/%v。
+// 调用方（Task 8/18）记录日志时切勿用 %+v/%v 打印整个 GrokAuthFlow，否则加密 verifier 与 owner-token 会外泄；
+// 只打印非敏感字段（如 FlowID / ChannelID / ExpiresAt）。
 type GrokAuthFlow struct {
 	FlowID            string `json:"flow_id" gorm:"primaryKey;type:varchar(64)"`
 	Provider          string `json:"provider" gorm:"type:varchar(32);index"`
@@ -48,17 +52,24 @@ func ClaimGrokAuthFlow(flowID, ownerToken string) (*GrokAuthFlow, bool, error) {
 	var claimed *GrokAuthFlow
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		// 条件更新：仅当未过期且 owner_token 为空（或已是本 owner，幂等）时写入 owner。
+		// 这个 WHERE 同时保证了跨-owner 一次性与过期拦截，正确无需改动。
 		res := tx.Model(&GrokAuthFlow{}).
 			Where("flow_id = ? AND expires_at > ? AND (owner_token = '' OR owner_token = ?)", flowID, now, ownerToken).
 			Update("owner_token", ownerToken)
 		if res.Error != nil {
 			return res.Error
 		}
-		if res.RowsAffected == 0 {
-			return nil // 未 claim 到
-		}
+		// 不能用 res.RowsAffected 判 claim 结果：同-owner 幂等重试是 no-op UPDATE（owner_token 被设为它已有的值），
+		// 生产 MySQL（本仓库 DSN 未设 clientFoundRows，采用 changed-rows 语义）会返回 RowsAffected=0，
+		// 而 SQLite 计 matched-rows 返回 1——依赖它会在 MySQL 上把幂等重试误判为失败（见 recall_recipient.go:1181）。
+		// 改为读回：本 owner 且未过期的行存在即代表我们持有该 claim（首次抢占或幂等重入皆然）。
+		// 读回 WHERE 必须带 expires_at > ?，否则一个已过期但仍属本 owner 的行会被误判为 claimed。
 		var f GrokAuthFlow
-		if err := tx.Where("flow_id = ? AND owner_token = ?", flowID, ownerToken).First(&f).Error; err != nil {
+		err := tx.Where("flow_id = ? AND owner_token = ? AND expires_at > ?", flowID, ownerToken, now).First(&f).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // 未 claim 到（已过期，或被他人持有）
+		}
+		if err != nil {
 			return err
 		}
 		claimed = &f

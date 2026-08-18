@@ -86,3 +86,24 @@ func TestConsumeGrokAuthFlowOnlyOwner(t *testing.T) {
 		t.Fatalf("flow must still exist after non-owner consume")
 	}
 }
+
+// TestGrokAuthFlowRejectsInvalidInputs 覆盖 CRUD 的 fail-closed 入口校验（M1）。
+func TestGrokAuthFlowRejectsInvalidInputs(t *testing.T) {
+	setupGrokAuthFlowTestDB(t)
+	// CreateGrokAuthFlow(nil) 必须返回 error（不得 panic）。
+	if err := CreateGrokAuthFlow(nil); err == nil {
+		t.Fatalf("CreateGrokAuthFlow(nil) must return error")
+	}
+	// 空 flowID 必须被拒。
+	if _, ok, err := ClaimGrokAuthFlow("", "owner"); err == nil || ok {
+		t.Fatalf("ClaimGrokAuthFlow with empty flowID must fail, ok=%v err=%v", ok, err)
+	}
+	// 空 ownerToken 必须被拒。
+	if _, ok, err := ClaimGrokAuthFlow("flow", ""); err == nil || ok {
+		t.Fatalf("ClaimGrokAuthFlow with empty ownerToken must fail, ok=%v err=%v", ok, err)
+	}
+	// 双空同样被拒。
+	if _, ok, err := ClaimGrokAuthFlow("", ""); err == nil || ok {
+		t.Fatalf("ClaimGrokAuthFlow with empty flowID/ownerToken must fail, ok=%v err=%v", ok, err)
+	}
+}
