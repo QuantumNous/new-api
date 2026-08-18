@@ -729,3 +729,19 @@ func TestGrokAuthUpsertStatusCreatesOnNotFound(t *testing.T) {
 	require.Equal(t, model.GrokAuthStatusActive, st.AuthStatus)
 	require.NotZero(t, st.LastRefreshAt, "markRefreshed 应落 LastRefreshAt")
 }
+
+// TestGrokAuthHTTPDoerHasTimeout 守护默认 doer 不是 http.DefaultClient 且带正 Timeout：
+// token 交换是短请求，http.DefaultClient 无 Timeout，上游挂起会无限拖住 admin API
+// goroutine（本平台有上游卡 44 分钟的先例）。
+func TestGrokAuthHTTPDoerHasTimeout(t *testing.T) {
+	if grokAuthHTTPDoer == http.DefaultClient {
+		t.Fatal("grokAuthHTTPDoer must not be http.DefaultClient (no timeout)")
+	}
+	client, ok := grokAuthHTTPDoer.(*http.Client)
+	if !ok {
+		t.Fatalf("grokAuthHTTPDoer = %T, want *http.Client", grokAuthHTTPDoer)
+	}
+	if client.Timeout <= 0 {
+		t.Fatalf("grokAuthHTTPDoer timeout = %v, want > 0", client.Timeout)
+	}
+}

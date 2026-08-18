@@ -132,7 +132,9 @@ func hashGrokState(state string) string {
 // ---- PKCE complete ----
 
 // grokAuthHTTPDoer 是 token endpoint 的 HTTP 通道，测试经 SetGrokAuthHTTPDoerForTest 注入 stub。
-var grokAuthHTTPDoer groksubscription.HTTPDoer = http.DefaultClient
+// 独立超时 client：token 交换是短请求，上游挂起不得拖死 admin API goroutine。
+// http.DefaultClient 无 Timeout，绝不能用于对外上游调用。
+var grokAuthHTTPDoer groksubscription.HTTPDoer = &http.Client{Timeout: 30 * time.Second}
 
 // SetGrokAuthHTTPDoerForTest 仅供测试注入 token endpoint stub；返回恢复函数（照
 // service.ReplaceStripeCheckoutSessionAccessorsForTest 的仓库先例）。
