@@ -1,6 +1,9 @@
 package groksubscription
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestClassifyForbidden(t *testing.T) {
 	cases := []struct {
@@ -127,5 +130,27 @@ func TestClassifyForbiddenNonJSONFallback(t *testing.T) {
 	// 无短语命中的非 JSON body 必须 fail-closed 到 Unknown
 	if got := ClassifyForbidden([]byte(`<html>gateway error</html>`)); got != ForbiddenUnknown {
 		t.Fatalf("unmatched non-JSON body must fail closed, got %v", got)
+	}
+}
+
+func TestClassifyForbiddenMaxParseBoundary(t *testing.T) {
+	head := `{"error":"`
+	tail := `","code":"subscription_required"}`
+	pad := strings.Repeat("x", maxParse-len(head)-len(tail))
+	exact := head + pad + tail
+	if len(exact) != maxParse {
+		t.Fatalf("fixture len = %d, want %d", len(exact), maxParse)
+	}
+	if got := ClassifyForbidden([]byte(exact)); got != ForbiddenAccount {
+		t.Fatalf("body of exactly maxParse must be parsed in full, got %v", got)
+	}
+	// 超限一字节：截断丢掉 tail 末字节 } → JSON 非法 → 整体兜底 message，
+	// 只含下划线版 subscription_required（不匹配空格短语）→ fail-closed Unknown。
+	over := head + strings.Repeat("x", maxParse-len(head)-len(tail)+1) + tail
+	if len(over) != maxParse+1 {
+		t.Fatalf("overflow fixture len = %d, want %d", len(over), maxParse+1)
+	}
+	if got := ClassifyForbidden([]byte(over)); got != ForbiddenUnknown {
+		t.Fatalf("content beyond maxParse must be ignored (truncated body fails closed), got %v", got)
 	}
 }
