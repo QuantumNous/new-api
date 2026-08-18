@@ -4060,6 +4060,7 @@
     "上游返回 429 时触发冷却": "Cool down on upstream HTTP 429",
     "错误消息含限流关键词时触发冷却（易误伤）": "Cool down on rate-limit keywords in error messages (prone to false positives)",
     "负载快照缓存（降低 Redis 压力）": "Load snapshot cache (reduces Redis pressure)",
-    "保存渠道并发限制设置": "Save Channel Concurrency Settings"
+    "保存渠道并发限制设置": "Save Channel Concurrency Settings",
+    "请填写有效的渠道并发限制数值": "Please enter valid channel concurrency limit values"
   }
 }

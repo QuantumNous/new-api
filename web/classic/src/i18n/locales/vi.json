@@ -4616,6 +4616,7 @@
     "上游返回 429 时触发冷却": "Nghỉ khi upstream trả 429",
     "错误消息含限流关键词时触发冷却（易误伤）": "Nghỉ khi thông báo lỗi chứa từ khóa giới hạn (dễ nhầm)",
     "负载快照缓存（降低 Redis 压力）": "Bộ đệm ảnh chụp tải (giảm áp lực Redis)",
-    "保存渠道并发限制设置": "Lưu cài đặt đồng thời kênh"
+    "保存渠道并发限制设置": "Lưu cài đặt đồng thời kênh",
+    "请填写有效的渠道并发限制数值": "Vui lòng nhập giá trị giới hạn đồng thời hợp lệ"
   }
 }

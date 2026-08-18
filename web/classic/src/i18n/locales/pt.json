@@ -4691,6 +4691,7 @@
     "上游返回 429 时触发冷却": "Resfriar em HTTP 429 do upstream",
     "错误消息含限流关键词时触发冷却（易误伤）": "Resfriar por palavras-chave de limite nas mensagens (propenso a falsos positivos)",
     "负载快照缓存（降低 Redis 压力）": "Cache de snapshot de carga (reduz pressão no Redis)",
-    "保存渠道并发限制设置": "Salvar configurações"
+    "保存渠道并发限制设置": "Salvar configurações",
+    "请填写有效的渠道并发限制数值": "Insira valores válidos de limite de concorrência"
   }
 }

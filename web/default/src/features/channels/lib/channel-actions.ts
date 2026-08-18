@@ -490,6 +490,7 @@ export async function handleBatchEdit(
     groups?: string
     priority?: number
     weight?: number
+    max_concurrency?: number
     codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
   },
   queryClient?: QueryClient,
@@ -507,6 +508,8 @@ export async function handleBatchEdit(
   if (payload.groups) data.groups = payload.groups
   if (payload.priority !== undefined) data.priority = payload.priority
   if (payload.weight !== undefined) data.weight = payload.weight
+  if (payload.max_concurrency !== undefined)
+    data.max_concurrency = payload.max_concurrency
   if (payload.codex_fingerprint_mode !== undefined) {
     data.codex_fingerprint_mode = payload.codex_fingerprint_mode
   }

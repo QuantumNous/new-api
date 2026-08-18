@@ -4080,6 +4080,7 @@
     "上游返回 429 时触发冷却": "Refroidir sur HTTP 429 amont",
     "错误消息含限流关键词时触发冷却（易误伤）": "Refroidir sur mots-clés de limitation dans les erreurs (risque de faux positifs)",
     "负载快照缓存（降低 Redis 压力）": "Cache d’instantanés de charge (réduit la pression Redis)",
-    "保存渠道并发限制设置": "Enregistrer les paramètres"
+    "保存渠道并发限制设置": "Enregistrer les paramètres",
+    "请填写有效的渠道并发限制数值": "Veuillez saisir des valeurs de limite de concurrence valides"
   }
 }

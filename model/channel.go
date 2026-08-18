@@ -977,40 +977,42 @@ func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority 
 	if len(ids) == 0 {
 		return nil
 	}
-	updateData := Channel{}
+	// Map-based update: one UPDATE statement for every provided field (no
+	// half-applied state from a second write), and zero values like
+	// max_concurrency = 0 or weight = 0 are written instead of being skipped
+	// as struct zero-values.
+	updateMap := map[string]any{}
 	shouldReCreateAbilities := false
 	hasPriorityWeight := false
 	if modelMapping != nil {
-		updateData.ModelMapping = modelMapping
+		updateMap["model_mapping"] = *modelMapping
 	}
 	if models != nil && *models != "" {
 		shouldReCreateAbilities = true
-		updateData.Models = *models
+		updateMap["models"] = *models
 	}
 	if group != nil && *group != "" {
 		shouldReCreateAbilities = true
-		updateData.Group = *group
+		updateMap["group"] = *group
 	}
 	if priority != nil {
 		hasPriorityWeight = true
-		updateData.Priority = priority
+		updateMap["priority"] = *priority
 	}
 	if weight != nil {
 		hasPriorityWeight = true
-		updateData.Weight = weight
+		updateMap["weight"] = *weight
+	}
+	if maxConcurrency != nil {
+		updateMap["max_concurrency"] = *maxConcurrency
+	}
+	if len(updateMap) == 0 {
+		return nil
 	}
 
-	err := DB.Model(&Channel{}).Where("id IN ?", ids).Updates(updateData).Error
+	err := DB.Model(&Channel{}).Where("id IN ?", ids).Updates(updateMap).Error
 	if err != nil {
 		return err
-	}
-	// Updates(struct) skips zero values, so max_concurrency = 0 (clear the
-	// limit) must go through a map update.
-	if maxConcurrency != nil {
-		if err := DB.Model(&Channel{}).Where("id IN ?", ids).
-			Update("max_concurrency", *maxConcurrency).Error; err != nil {
-			return err
-		}
 	}
 	if shouldReCreateAbilities {
 		channels, err := GetChannelsByIds(ids)

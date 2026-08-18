@@ -25,8 +25,23 @@ import {
   showError,
   showSuccess,
   showWarning,
+  toBoolean,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+
+const BOOL_FIELDS = [
+  'channel_concurrency_setting.wait_enabled',
+  'channel_concurrency_setting.cooldown_enabled',
+  'channel_concurrency_setting.cooldown_on_status_429',
+  'channel_concurrency_setting.cooldown_on_message_match',
+  'channel_concurrency_setting.load_cache_enabled',
+];
+
+const NUMBER_FIELDS = [
+  'channel_concurrency_setting.wait_timeout_ms',
+  'channel_concurrency_setting.max_waiting_per_channel',
+  'channel_concurrency_setting.cooldown_seconds',
+];
 
 export default function SettingsChannelConcurrency(props) {
   const { t } = useTranslation();
@@ -51,6 +66,19 @@ export default function SettingsChannelConcurrency(props) {
   }
 
   function onSubmit() {
+    // InputNumber allows clearing the field; a blank or non-finite value must
+    // never reach the option store where the runtime would fail to parse it.
+    for (const key of NUMBER_FIELDS) {
+      const value = inputs[key];
+      if (
+        value === undefined ||
+        value === null ||
+        value === '' ||
+        !Number.isFinite(Number(value))
+      ) {
+        return showError(t('请填写有效的渠道并发限制数值'));
+      }
+    }
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
@@ -80,14 +108,27 @@ export default function SettingsChannelConcurrency(props) {
   }
 
   useEffect(() => {
+    // /api/option/ serializes every value as a string; "false" is truthy in
+    // JS, so booleans and numbers must be deserialized before hitting the
+    // Switch/disabled logic.
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        const value = props.options[key];
+        if (BOOL_FIELDS.includes(key)) {
+          currentInputs[key] = toBoolean(value);
+        } else if (NUMBER_FIELDS.includes(key)) {
+          const parsed = Number(value);
+          currentInputs[key] = Number.isFinite(parsed)
+            ? parsed
+            : inputs[key];
+        } else {
+          currentInputs[key] = value;
+        }
       }
     }
-    setInputs(currentInputs);
-    setInputsRow(structuredClone(currentInputs));
+    setInputs((prev) => ({ ...prev, ...currentInputs }));
+    setInputsRow((prev) => structuredClone({ ...prev, ...currentInputs }));
     refForm.current.setValues(currentInputs);
   }, [props.options]);
 
