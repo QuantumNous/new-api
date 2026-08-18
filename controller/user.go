@@ -368,6 +368,29 @@ func SearchUsers(c *gin.Context) {
 	return
 }
 
+// SearchUserOptions 返回用户下拉选项列表（user_id + username）。
+// 可通过 include_token_counts 查询参数决定是否附带各用户的令牌数量统计。
+func SearchUserOptions(c *gin.Context) {
+	includeTokenCounts := false
+	if v := c.Query("include_token_counts"); v != "" {
+		if parsed, err := strconv.ParseBool(v); err == nil {
+			includeTokenCounts = parsed
+		}
+	}
+
+	options, totalTokens, err := model.SearchUserOptions(includeTokenCounts)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	common.ApiSuccess(c, gin.H{
+		"options": options,
+		"total":   totalTokens,
+	})
+	return
+}
+
 func canManageTargetRole(myRole int, targetRole int) bool {
 	return myRole == common.RoleRootUser || myRole > targetRole
 }

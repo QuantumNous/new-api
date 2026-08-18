@@ -450,6 +450,13 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'log.cleanup_start': 'Log cleanup task started.',
   // Generic middleware fallback
   generic: '{{method}} {{route}}',
+  // Token management
+  'token.admin_create': 'Created token {{token_name}} (ID: {{token_id}}) of user {{target_username}}',
+  'token.admin_update': 'Updated token {{token_name}} (ID: {{token_id}}) of user {{target_username}}',
+  'token.admin_delete': 'Deleted token {{token_name}} (ID: {{token_id}}) of user {{target_username}}',
+  'token.admin_batch_delete': 'Batch deleted {{count}} tokens (IDs: {{token_ids}})',
+  'token.admin_key_view': 'Viewed token key {{token_name}} (ID: {{token_id}}) of user {{target_username}}',
+  'token.admin_key_view_batch': 'Batch viewed keys of {{count}} tokens (IDs: {{token_ids}})',
 }
 
 /**

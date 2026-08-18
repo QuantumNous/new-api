@@ -169,6 +169,7 @@ function DataTableFacetedFilterInner<TData, TValue>({
                 )
               })}
             </CommandGroup>
+          </CommandList>
             {selectedValues.size > 0 && (
               <>
                 <CommandSeparator />
@@ -182,7 +183,6 @@ function DataTableFacetedFilterInner<TData, TValue>({
                 </CommandGroup>
               </>
             )}
-          </CommandList>
         </Command>
       </PopoverContent>
     </Popover>

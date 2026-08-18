@@ -73,7 +73,10 @@ function useGroupRatios(): Record<string, number | string> {
   return data ?? {}
 }
 
-export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
+export function useApiKeysColumns(
+  now: number,
+  isRoot?: boolean
+): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
   const groupRatios = useGroupRatios()
   const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
@@ -190,6 +193,23 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       },
       size: 170,
     },
+    ...(isRoot
+      ? [
+          {
+            id: 'username' as const,
+            accessorFn: () => '',
+            // Username filtering is done server-side, so keep all rows client-side.
+            filterFn: () => true,
+            header: t('Username'),
+            cell: ({ row }: { row: { original: ApiKey } }) => (
+              <span className='text-muted-foreground text-xs'>
+                {row.original.username || '—'}
+              </span>
+            ),
+            size: 120,
+          },
+        ]
+      : []),
     {
       accessorKey: 'group',
       header: t('Group'),
