@@ -64,3 +64,30 @@ func GetGrokChannelState(channelID int) (*GrokChannelState, error) {
 func DeleteGrokChannelState(channelID int) error {
 	return DB.Where("channel_id = ?", channelID).Delete(&GrokChannelState{}).Error
 }
+
+// AcquireGrokRefreshLease 原子抢占 channel-scoped 刷新 lease。
+// 条件：lease owner 为空 或 已过期（expires_at <= now）。ttlSeconds 单位秒。
+// 返回是否抢到。now 应由调用方用 GetDBTimestampWithContext 传入以统一时钟。
+func AcquireGrokRefreshLease(channelID int, owner string, now, ttlSeconds int64) (bool, error) {
+	if channelID <= 0 || owner == "" || ttlSeconds <= 0 {
+		return false, errors.New("grok refresh lease: invalid args")
+	}
+	res := DB.Model(&GrokChannelState{}).
+		Where("channel_id = ? AND (refresh_lease_owner = '' OR refresh_lease_owner IS NULL OR refresh_lease_expires_at <= ?)", channelID, now).
+		Updates(map[string]any{
+			"refresh_lease_owner":      owner,
+			"refresh_lease_expires_at": now + ttlSeconds,
+			"updated_at":               now,
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
+}
+
+// ReleaseGrokRefreshLease 仅当前 owner 可释放（清空 owner）。
+func ReleaseGrokRefreshLease(channelID int, owner string) error {
+	return DB.Model(&GrokChannelState{}).
+		Where("channel_id = ? AND refresh_lease_owner = ?", channelID, owner).
+		Updates(map[string]any{"refresh_lease_owner": "", "refresh_lease_expires_at": 0}).Error
+}

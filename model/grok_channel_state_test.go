@@ -161,3 +161,30 @@ func TestDeleteGrokChannelState(t *testing.T) {
 		t.Fatalf("after delete, get must return ErrRecordNotFound, got %v", err)
 	}
 }
+
+// TestAcquireRefreshLeaseIsExclusive 守护跨节点刷新 lease 的互斥语义：
+// 未过期时仅一个节点可持有；过期后可被抢占；非 owner 释放无效。
+func TestAcquireRefreshLeaseIsExclusive(t *testing.T) {
+	setupGrokChannelStateTestDB(t) // 修正：不是计划里的 setupTestDB
+	if err := UpsertGrokChannelState(&GrokChannelState{ChannelID: 5, AuthStatus: GrokAuthStatusActive}); err != nil {
+		t.Fatalf("seed err %v", err)
+	}
+	now := GetDBTimestamp()
+	okA, err := AcquireGrokRefreshLease(5, "node-A", now, 30)
+	if err != nil || !okA {
+		t.Fatalf("node A must acquire lease, ok=%v err=%v", okA, err)
+	}
+	okB, _ := AcquireGrokRefreshLease(5, "node-B", now+1, 30)
+	if okB {
+		t.Fatalf("node B must not acquire while A holds unexpired lease")
+	}
+	okB2, _ := AcquireGrokRefreshLease(5, "node-B", now+31, 30)
+	if !okB2 {
+		t.Fatalf("node B must acquire after A's lease expired")
+	}
+	ReleaseGrokRefreshLease(5, "node-A") // A 已非 owner（现在是 B），释放应无效
+	st, _ := GetGrokChannelState(5)
+	if st.RefreshLeaseOwner != "node-B" {
+		t.Fatalf("non-owner release must not clear lease, owner=%q", st.RefreshLeaseOwner)
+	}
+}
