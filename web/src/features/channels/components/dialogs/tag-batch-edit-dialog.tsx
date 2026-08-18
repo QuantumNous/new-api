@@ -73,7 +73,7 @@ export function TagBatchEditDialog({
   const groupOptions = useMemo(() => {
     if (!groupsData?.data) return []
     const allGroups = new Set([...groupsData.data, ...groups])
-    return Array.from(allGroups).map((group) => ({
+    return [...allGroups].map((group) => ({
       value: group,
       label: group,
     }))
@@ -121,7 +121,7 @@ export function TagBatchEditDialog({
     if (modelMapping.trim()) {
       try {
         JSON.parse(modelMapping)
-      } catch (_error) {
+      } catch {
         toast.error(t('Model mapping must be valid JSON'))
         return
       }
@@ -219,83 +219,79 @@ export function TagBatchEditDialog({
           <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
         </div>
       ) : (
-        <>
-          <div className='space-y-4 py-4'>
-            <Alert>
-              <AlertCircle className='h-4 w-4' />
-              <AlertDescription>
-                {t(
-                  'All edits are overwrite operations. Leave fields empty to keep current values unchanged.'
-                )}
-              </AlertDescription>
-            </Alert>
-
-            {/* Tag Name */}
-            <div className='space-y-2'>
-              <Label htmlFor='new-tag'>{t('Tag Name')}</Label>
-              <Input
-                id='new-tag'
-                placeholder={t(
-                  'Enter new tag name (leave empty to disband tag)'
-                )}
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                disabled={isSaving}
-              />
-              <p className='text-muted-foreground text-xs'>
-                {t('Leave empty to disband the tag')}
-              </p>
-            </div>
-
-            {/* Models */}
-            <div className='space-y-2'>
-              <Label htmlFor='models'>{t('Models')}</Label>
-              <Textarea
-                id='models'
-                placeholder={t(
-                  'Comma-separated model names (leave empty to keep current)'
-                )}
-                value={models}
-                onChange={(e) => setModels(e.target.value)}
-                disabled={isSaving}
-                rows={3}
-              />
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'Current models for the longest channel in this tag. May not include all models from all channels.'
-                )}
-              </p>
-            </div>
-
-            {/* Model Mapping */}
-            <div className='space-y-2'>
-              <Label htmlFor='model-mapping'>{t('Model Mapping')}</Label>
-              <ModelMappingEditor
-                value={modelMapping}
-                onChange={setModelMapping}
-                disabled={isSaving}
-              />
-            </div>
-
-            {/* Groups */}
-            <div className='space-y-2'>
-              <Label htmlFor='groups'>{t('Groups')}</Label>
-              {isLoadingGroups ? (
-                <Skeleton className='h-10 w-full' />
-              ) : (
-                <MultiSelect
-                  options={groupOptions}
-                  selected={groups}
-                  onChange={setGroups}
-                  placeholder={t('Select groups (leave empty to keep current)')}
-                />
+        <div className='space-y-4 py-4'>
+          <Alert>
+            <AlertCircle className='h-4 w-4' />
+            <AlertDescription>
+              {t(
+                'All edits are overwrite operations. Leave fields empty to keep current values unchanged.'
               )}
-              <p className='text-muted-foreground text-xs'>
-                {t('User groups that can access channels with this tag')}
-              </p>
-            </div>
+            </AlertDescription>
+          </Alert>
+
+          {/* Tag Name */}
+          <div className='space-y-2'>
+            <Label htmlFor='new-tag'>{t('Tag Name')}</Label>
+            <Input
+              id='new-tag'
+              placeholder={t('Enter new tag name (leave empty to disband tag)')}
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              disabled={isSaving}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('Leave empty to disband the tag')}
+            </p>
           </div>
-        </>
+
+          {/* Models */}
+          <div className='space-y-2'>
+            <Label htmlFor='models'>{t('Models')}</Label>
+            <Textarea
+              id='models'
+              placeholder={t(
+                'Comma-separated model names (leave empty to keep current)'
+              )}
+              value={models}
+              onChange={(e) => setModels(e.target.value)}
+              disabled={isSaving}
+              rows={3}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Current models for the longest channel in this tag. May not include all models from all channels.'
+              )}
+            </p>
+          </div>
+
+          {/* Model Mapping */}
+          <div className='space-y-2'>
+            <Label htmlFor='model-mapping'>{t('Model Mapping')}</Label>
+            <ModelMappingEditor
+              value={modelMapping}
+              onChange={setModelMapping}
+              disabled={isSaving}
+            />
+          </div>
+
+          {/* Groups */}
+          <div className='space-y-2'>
+            <Label htmlFor='groups'>{t('Groups')}</Label>
+            {isLoadingGroups ? (
+              <Skeleton className='h-10 w-full' />
+            ) : (
+              <MultiSelect
+                options={groupOptions}
+                selected={groups}
+                onChange={setGroups}
+                placeholder={t('Select groups (leave empty to keep current)')}
+              />
+            )}
+            <p className='text-muted-foreground text-xs'>
+              {t('User groups that can access channels with this tag')}
+            </p>
+          </div>
+        </div>
       )}
     </Dialog>
   )

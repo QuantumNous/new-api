@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type QueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
@@ -161,7 +161,9 @@ export async function handleBatchDeleteModels(
 
     if (failedCount > 0) {
       toast.error(
-        i18next.t('Failed to delete {{count}} model(s)', { count: failedCount })
+        i18next.t('Failed to delete {{count}} model(s)', {
+          count: failedCount,
+        })
       )
     }
   } catch (error: unknown) {
@@ -213,7 +215,9 @@ export async function handleBatchEnableModels(
 
     if (failedCount > 0) {
       toast.error(
-        i18next.t('Failed to enable {{count}} model(s)', { count: failedCount })
+        i18next.t('Failed to enable {{count}} model(s)', {
+          count: failedCount,
+        })
       )
     }
   } catch (error: unknown) {

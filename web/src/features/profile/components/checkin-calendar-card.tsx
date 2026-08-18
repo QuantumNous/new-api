@@ -210,7 +210,10 @@ export function CheckinCalendarCard({
     const remaining = 7 - (days.length % 7)
     if (remaining < 7) {
       for (let i = 1; i <= remaining; i++) {
-        days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false })
+        days.push({
+          date: new Date(year, month + 1, i),
+          isCurrentMonth: false,
+        })
       }
     }
 

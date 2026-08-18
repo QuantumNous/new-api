@@ -46,13 +46,16 @@ export function ScrollingIcons({
     >
       <div className={cn('flex flex-col gap-5', animationClass)}>
         {/* First set */}
-        {icons.map((iconName, i) => (
-          <IconCard key={`${direction}-1-${i}`} iconName={iconName} />
+        {icons.map((iconName) => (
+          <IconCard
+            key={`${direction}-first-${iconName}`}
+            iconName={iconName}
+          />
         ))}
         {/* Duplicate set for seamless loop */}
-        {icons.map((iconName, i) => (
+        {icons.map((iconName) => (
           <IconCard
-            key={`${direction}-2-${i}`}
+            key={`${direction}-second-${iconName}`}
             iconName={iconName}
             className='aria-hidden'
           />

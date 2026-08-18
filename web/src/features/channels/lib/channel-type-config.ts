@@ -164,6 +164,19 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'Doubao',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com',
+    hints: {
+      baseUrl: 'Default: https://ark.cn-beijing.volces.com',
+      key: 'Ark API Key|MediaKit API Key',
+      models: 'Seedance video models',
+      other:
+        '720p generates at 480p; 1080p generates at 720p; MediaKit enhances the final output.',
+    },
+  },
 }
 
 /**

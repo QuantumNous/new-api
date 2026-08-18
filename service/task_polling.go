@@ -493,6 +493,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	task.Data = redactVideoResponseBody(responseBody)
+	if taskResult.TaskID != "" && taskResult.TaskID != task.TaskID && taskResult.TaskID != task.GetUpstreamTaskID() {
+		// Multi-stage adaptors can atomically move polling to the next upstream
+		// task without changing the stable, user-facing task ID.
+		task.PrivateData.UpstreamTaskID = taskResult.TaskID
+	}
 
 	logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
 

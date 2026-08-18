@@ -58,7 +58,10 @@ interface BackendBody<T> {
 
 export type CatalogResponse = BackendBody<{ stores: CatalogStore[] }>
 export type PairResponse = BackendBody<PairResult>
-export type SaveResponse = BackendBody<{ product_id: string; store_id: string }>
+export type SaveResponse = BackendBody<{
+  product_id: string
+  store_id: string
+}>
 
 export async function listWaffoPancakeCatalog(
   merchantID: string,
