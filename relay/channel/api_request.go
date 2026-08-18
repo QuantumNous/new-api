@@ -392,7 +392,11 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
+	dialer, err := service.GetWebSocketDialerWithProxy(info.ChannelSetting.Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("new proxy websocket dialer failed: %w", err)
+	}
+	targetConn, _, err := dialer.DialContext(c.Request.Context(), fullRequestURL, targetHeader)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed to %s: %w", common.SanitizeURLForLog(fullRequestURL), err)
 	}
