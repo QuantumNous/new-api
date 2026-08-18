@@ -31,9 +31,9 @@ const upstreamUpdateRequestConfig = {
 
 function getManualIgnoredModelCount(settings: unknown): number {
   let parsed: Record<string, unknown> | null = null
-  if (settings && typeof settings === 'object')
+  if (settings && typeof settings === 'object') {
     parsed = settings as Record<string, unknown>
-  else if (typeof settings === 'string') {
+  } else if (typeof settings === 'string') {
     try {
       parsed = JSON.parse(settings)
     } catch {

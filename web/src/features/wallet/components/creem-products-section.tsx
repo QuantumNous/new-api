@@ -41,8 +41,8 @@ export function CreemProductsSection({
   if (loading) {
     return (
       <div className='grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 md:grid-cols-3'>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className='h-24 rounded-lg' />
+        {['product-1', 'product-2', 'product-3'].map((slot) => (
+          <Skeleton key={slot} className='h-24 rounded-lg' />
         ))}
       </div>
     )

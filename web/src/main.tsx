@@ -116,7 +116,9 @@ if (!rootElement) {
 // Set document.title and favicon from cached status, then refresh from network
 ;(function initSystemBranding() {
   try {
-    if (typeof window === 'undefined' || typeof document === 'undefined') return
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return
+    }
     const apply = (name: string) => {
       document.title = name
       const metaTitle = document.querySelector(
