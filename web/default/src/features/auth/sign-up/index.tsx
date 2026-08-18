@@ -23,6 +23,7 @@ import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { ensurePixelsLoaded } from '@/lib/analytics/pixels'
 import { useStatus } from '@/hooks/use-status'
 import { AuthLayout } from '../auth-layout'
+import { GoogleOneTap } from '../components/google-one-tap'
 import { TermsFooter } from '../components/terms-footer'
 import { resolvePendingPostLoginRedirect } from '../lib/storage'
 import { SignUpForm } from './components/sign-up-form'
@@ -38,6 +39,14 @@ export function SignUp() {
     visibleRedirect,
     recallRedirect
   )
+  const googleOAuthEnabled = Boolean(
+    (status?.google_oauth ?? status?.data?.google_oauth) &&
+    (status?.oauth_register_enabled ??
+      status?.data?.oauth_register_enabled ??
+      true)
+  )
+  const googleClientId =
+    status?.google_client_id ?? status?.data?.google_client_id
 
   useEffect(() => {
     ensurePixelsLoaded()
@@ -49,6 +58,12 @@ export function SignUp() {
 
   return (
     <AuthLayout>
+      <GoogleOneTap
+        clientId={googleClientId}
+        context='signup'
+        enabled={googleOAuthEnabled}
+        returnTo={redirect}
+      />
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>

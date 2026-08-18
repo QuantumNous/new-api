@@ -14,12 +14,14 @@ const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client'
 
 type GoogleOneTapProps = {
   clientId?: string
+  context?: 'signin' | 'signup'
   enabled: boolean
   returnTo?: string
 }
 
 export function GoogleOneTap({
   clientId,
+  context = 'signin',
   enabled,
   returnTo,
 }: GoogleOneTapProps) {
@@ -47,7 +49,7 @@ export function GoogleOneTap({
       id='g_id_onload'
       data-auto_prompt='true'
       data-client_id={normalizedClientId}
-      data-context='signin'
+      data-context={context}
       data-itp_support='true'
       data-login_uri={buildGoogleOneTapLoginUri(returnTo)}
       data-use_fedcm_for_prompt='true'
