@@ -98,4 +98,3 @@ jobs:
           echo "- Commit: \`${{ needs.verify.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: \`ghcr.io/shuohaowang/new-api:${{ needs.verify.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
-
