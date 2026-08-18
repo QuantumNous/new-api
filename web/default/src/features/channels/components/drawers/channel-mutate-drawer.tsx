@@ -114,6 +114,8 @@ import {
   getGroups,
   getPrefillGroups,
   refreshCodexCredential,
+  refreshGrokState,
+  importGrokRefreshToken,
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
@@ -158,6 +160,7 @@ import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import { CopilotDeviceFlowDialog } from '../dialogs/copilot-device-flow-dialog'
+import { GrokOAuthDialog } from '../dialogs/grok-oauth-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import {
   MissingModelsConfirmationDialog,
@@ -272,6 +275,12 @@ export function ChannelMutateDrawer({
   const [copilotDeviceFlowOpen, setCopilotDeviceFlowOpen] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
+  const [grokOAuthDialogOpen, setGrokOAuthDialogOpen] = useState(false)
+  const [isGrokCredentialRefreshing, setIsGrokCredentialRefreshing] =
+    useState(false)
+  const [grokImportOpen, setGrokImportOpen] = useState(false)
+  const [grokRefreshTokenInput, setGrokRefreshTokenInput] = useState('')
+  const [isGrokImporting, setIsGrokImporting] = useState(false)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
@@ -744,6 +753,57 @@ export function ChannelMutateDrawer({
       setIsCodexCredentialRefreshing(false)
     }
   }, [channelId, queryClient, t])
+
+  const handleRefreshGrokCredential = useCallback(async () => {
+    if (!channelId) return
+    setIsGrokCredentialRefreshing(true)
+    try {
+      const res = await refreshGrokState(channelId)
+      if (!res.success) {
+        if (res.data?.status === 'needs_reauth') {
+          throw new Error(
+            res.message ||
+              t('Authorization expired, please re-authorize this channel')
+          )
+        }
+        throw new Error(res.message || t('Failed to refresh credential'))
+      }
+      toast.success(t('Credential refreshed'))
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Refresh failed'))
+    } finally {
+      setIsGrokCredentialRefreshing(false)
+    }
+  }, [channelId, queryClient, t])
+
+  const handleImportGrokRefreshToken = useCallback(async () => {
+    if (!channelId) return
+    const token = grokRefreshTokenInput.trim()
+    if (!token) {
+      toast.error(t('Please enter a refresh token'))
+      return
+    }
+    setIsGrokImporting(true)
+    try {
+      const res = await importGrokRefreshToken(channelId, token)
+      if (!res.success) {
+        throw new Error(res.message || t('Failed to import refresh token'))
+      }
+      toast.success(t('Refresh token imported'))
+      setGrokRefreshTokenInput('')
+      setGrokImportOpen(false)
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Import failed'))
+    } finally {
+      setIsGrokImporting(false)
+    }
+  }, [channelId, grokRefreshTokenInput, queryClient, t])
 
   // Unified function to update models
   const updateModels = useCallback(
@@ -2221,6 +2281,119 @@ export function ChannelMutateDrawer({
                         </div>
                       )}
 
+                      {currentType === 113 && (
+                        <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='flex flex-col gap-0.5'>
+                              <div className='text-sm font-semibold'>
+                                {t('Grok Authorization')}
+                              </div>
+                              <div className='text-muted-foreground text-xs'>
+                                {isEditing
+                                  ? t(
+                                      'Authorize this saved channel with Grok OAuth, or import an existing refresh token.'
+                                    )
+                                  : t(
+                                      'Save the channel first, then authorize it with Grok OAuth.'
+                                    )}
+                              </div>
+                            </div>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              {isEditing && channelId && (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => setGrokOAuthDialogOpen(true)}
+                                >
+                                  <Link2 className='mr-2 h-4 w-4' />
+                                  {t('Authorize')}
+                                </Button>
+                              )}
+                              {isEditing && channelId && (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={handleRefreshGrokCredential}
+                                  disabled={isGrokCredentialRefreshing}
+                                >
+                                  {isGrokCredentialRefreshing ? (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <RefreshCw className='mr-2 h-4 w-4' />
+                                  )}
+                                  {isGrokCredentialRefreshing
+                                    ? t('Refreshing...')
+                                    : t('Refresh credential')}
+                                </Button>
+                              )}
+                              {isEditing && channelId && (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => setGrokImportOpen(true)}
+                                >
+                                  <Link2 className='mr-2 h-4 w-4' />
+                                  {t('Import refresh token')}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {grokImportOpen && isEditing && channelId && (
+                            <div className='flex flex-col gap-2'>
+                              <div className='text-sm font-medium'>
+                                {t('Refresh token')}
+                              </div>
+                              <Input
+                                type='password'
+                                value={grokRefreshTokenInput}
+                                onChange={(e) =>
+                                  setGrokRefreshTokenInput(e.target.value)
+                                }
+                                placeholder={t(
+                                  'Paste an existing Grok refresh token'
+                                )}
+                                autoComplete='off'
+                                spellCheck={false}
+                              />
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  onClick={handleImportGrokRefreshToken}
+                                  disabled={isGrokImporting}
+                                >
+                                  {isGrokImporting && (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  )}
+                                  {t('Import')}
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => {
+                                    setGrokRefreshTokenInput('')
+                                    setGrokImportOpen(false)
+                                  }}
+                                >
+                                  {t('Cancel')}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          <Alert>
+                            <AlertDescription>
+                              {t(
+                                'Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually'
+                              )}
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
+
                       {currentType === 112 && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
@@ -2324,6 +2497,19 @@ export function ChannelMutateDrawer({
                           channelId={channelId}
                           open={copilotDeviceFlowOpen}
                           onOpenChange={setCopilotDeviceFlowOpen}
+                          onAuthorized={() => {
+                            void queryClient.invalidateQueries({
+                              queryKey: channelsQueryKeys.detail(channelId),
+                            })
+                          }}
+                        />
+                      )}
+
+                      {channelId && (
+                        <GrokOAuthDialog
+                          channelId={channelId}
+                          open={grokOAuthDialogOpen}
+                          onOpenChange={setGrokOAuthDialogOpen}
                           onAuthorized={() => {
                             void queryClient.invalidateQueries({
                               queryKey: channelsQueryKeys.detail(channelId),
