@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Check, ChevronDown, Globe2, Menu, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -148,6 +149,65 @@ const languagePanelLabelByLocale: Record<Locale, string> = withIdFallback({
   vi: "Ngôn ngữ",
   de: "Sprache",
   id: "Bahasa",
+});
+
+const promoBannerCopyByLocale: Record<
+  Locale,
+  { dismissLabel: string; linkLabel: string; message: string }
+> = withIdFallback({
+  en: {
+    dismissLabel: "Dismiss Seedance promotion",
+    linkLabel: "Learn more →",
+    message:
+      "Seedance is 15% off for a limited time. Join our Discord to get $5 in free credit.",
+  },
+  zh: {
+    dismissLabel: "关闭 Seedance 优惠横幅",
+    linkLabel: "了解更多 →",
+    message: "Seedance 限时 85 折。加入我们的 Discord，可领取 5 美元免费额度。",
+  },
+  es: {
+    dismissLabel: "Cerrar promoción de Seedance",
+    linkLabel: "Más información →",
+    message:
+      "Seedance tiene un 15 % de descuento por tiempo limitado. Únete a nuestro Discord para conseguir 5 USD de crédito gratis.",
+  },
+  fr: {
+    dismissLabel: "Fermer la promotion Seedance",
+    linkLabel: "En savoir plus →",
+    message:
+      "Seedance est à -15 % pour une durée limitée. Rejoins notre Discord pour obtenir 5 $ de crédit offert.",
+  },
+  pt: {
+    dismissLabel: "Fechar promoção do Seedance",
+    linkLabel: "Saiba mais →",
+    message:
+      "O Seedance está com 15% de desconto por tempo limitado. Entre no nosso Discord para receber US$ 5 em crédito grátis.",
+  },
+  ru: {
+    dismissLabel: "Закрыть промо Seedance",
+    linkLabel: "Узнать больше →",
+    message:
+      "Seedance со скидкой 15% на ограниченное время. Присоединяйтесь к нашему Discord, чтобы получить 5 $ бесплатного кредита.",
+  },
+  ja: {
+    dismissLabel: "Seedance プロモーションを閉じる",
+    linkLabel: "詳細を見る →",
+    message:
+      "Seedance が期間限定で 15% オフ。Discord に参加すると、5 ドル分の無料クレジットを受け取れます。",
+  },
+  vi: {
+    dismissLabel: "Đóng khuyến mãi Seedance",
+    linkLabel: "Tìm hiểu thêm →",
+    message:
+      "Seedance đang giảm 15% trong thời gian có hạn. Tham gia Discord của chúng tôi để nhận 5 USD tín dụng miễn phí.",
+  },
+  de: {
+    dismissLabel: "Seedance-Aktion schließen",
+    linkLabel: "Mehr erfahren →",
+    message:
+      "Seedance ist für kurze Zeit um 15 % reduziert. Tritt unserem Discord bei und sichere dir 5 $ Gratisguthaben.",
+  },
 });
 
 type Props = {
@@ -402,6 +462,7 @@ export function SiteHeader(props: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileMenuId = useId();
   const [consoleSessionActive, setConsoleSessionActive] = useState(false);
+  const [promoBannerVisible, setPromoBannerVisible] = useState(true);
   const currentPath = stripLocale(props.pathname);
   const signInHref = consoleSignInUrl(props.locale);
   const signUpHref = consoleUrl("/sign-up", `lng=${props.locale}`);
@@ -415,6 +476,12 @@ export function SiteHeader(props: Props) {
   const primaryActionLabel = consoleSessionActive
     ? copy.nav.console
     : startFreeLabel;
+  const promoBannerCopy =
+    promoBannerCopyByLocale[props.locale] ?? promoBannerCopyByLocale.en;
+  const promoBannerHref = localizePath("/models/seedance-api", props.locale);
+  const mobileMenuOffsetClass = promoBannerVisible
+    ? "top-[132px] max-h-[calc(100dvh-132px)] min-[700px]:top-[112px] min-[700px]:max-h-[calc(100dvh-112px)]"
+    : "top-[72px] max-h-[calc(100dvh-72px)]";
 
   const productItems = useMemo<NavItem[]>(
     () => [
@@ -646,8 +713,50 @@ export function SiteHeader(props: Props) {
     </details>
   );
 
+  const dismissPromoBanner = () => {
+    setPromoBannerVisible(false);
+  };
+
   return (
     <header className="fk-site-header sticky top-0 z-50 border-b border-[#E7E4EC] bg-white/95 backdrop-blur-[8px]">
+      {promoBannerVisible && (
+        <div className="overflow-hidden border-b border-[#E4DAFF] bg-[#F6F1FF] text-[#0B0B0F]">
+          <div className="relative mx-auto flex min-h-[60px] w-full max-w-[100vw] items-center justify-center px-12 py-2 text-center min-[700px]:h-10 min-[700px]:min-h-10 min-[700px]:max-w-[var(--fk-site-frame-max-width)] min-[700px]:px-[var(--fk-site-gutter)] min-[700px]:py-0 min-[700px]:pr-[calc(var(--fk-site-gutter)+2.5rem)]">
+            <Link
+              className="inline-flex w-[calc(100vw-6rem)] max-w-xs min-w-0 items-center justify-center gap-1.5 text-center text-[#0B0B0F] no-underline min-[430px]:max-w-sm min-[700px]:w-auto min-[700px]:max-w-none min-[700px]:gap-2 min-[700px]:truncate"
+              href={promoBannerHref}
+            >
+              <span
+                className="grid size-[18px] shrink-0 place-items-center rounded-full bg-white/85 ring-1 ring-[#E4DAFF] min-[700px]:size-5"
+                aria-hidden="true"
+              >
+                <Image
+                  alt=""
+                  src="/assets/logos/bytedance.svg"
+                  width={16}
+                  height={16}
+                  unoptimized
+                  className="size-[14px] min-[700px]:size-4"
+                />
+              </span>
+              <span className="min-w-0 text-xs leading-snug font-normal min-[700px]:truncate min-[700px]:text-[14px] min-[700px]:leading-tight min-[700px]:font-medium">
+                {promoBannerCopy.message}{" "}
+                <span className="whitespace-nowrap underline decoration-[#AAA7B0] underline-offset-2">
+                  {promoBannerCopy.linkLabel}
+                </span>
+              </span>
+            </Link>
+            <button
+              type="button"
+              className="absolute top-1/2 right-2.5 z-10 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-[#0B0B0F] transition hover:bg-white/75 hover:text-[#0B0B0F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9B8FF] min-[700px]:right-[max(12px,var(--fk-site-gutter))]"
+              aria-label={promoBannerCopy.dismissLabel}
+              onClick={dismissPromoBanner}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
       <nav className="relative mx-auto flex h-[72px] max-w-[var(--fk-site-frame-max-width)] items-center gap-3 px-[var(--fk-site-gutter)] text-[#0B0B0F] min-[901px]:h-[76px] min-[1180px]:h-[84px] min-[1180px]:gap-5 min-[1480px]:h-[88px] min-[1480px]:gap-[30px]">
         <Link
           href={localizePath("/", props.locale)}
@@ -715,7 +824,7 @@ export function SiteHeader(props: Props) {
       <div
         id={mobileMenuId}
         className={cn(
-          "fixed inset-x-0 top-[72px] z-40 max-h-[calc(100dvh-72px)] overflow-y-auto border-b border-[#E7E4EC] bg-white px-4 py-4 shadow-[0_22px_60px_-42px_rgba(11,11,15,.45)] transition duration-200 ease-out min-[901px]:hidden",
+          `fixed inset-x-0 z-40 overflow-y-auto border-b border-[#E7E4EC] bg-white px-4 py-4 shadow-[0_22px_60px_-42px_rgba(11,11,15,.45)] transition duration-200 ease-out min-[901px]:hidden ${mobileMenuOffsetClass}`,
           mobileOpen
             ? "translate-y-0 opacity-100 shadow-[0_24px_70px_-42px_rgba(76,29,149,.52)]"
             : "pointer-events-none -translate-y-4 opacity-0 shadow-none",
