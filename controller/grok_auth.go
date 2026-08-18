@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -248,4 +249,28 @@ func truncateGrokString(s string, limit int) string {
 		return s[:limit]
 	}
 	return s
+}
+
+// ---- refresh-token import ----
+
+// GrokImportRefreshToken 用裸 refresh token 走一次 refresh_token grant 换完整凭证，
+// 一次性写回 Channel.Key 并置 active。渠道此前不需要已有凭证（这正是与 Refresher.Refresh
+// 的分工：Refresh 只能刷新 store 里既有的凭证）。
+func GrokImportRefreshToken(channelID int, refreshToken string) error {
+	if channelID <= 0 || strings.TrimSpace(refreshToken) == "" {
+		return errors.New("grok import: invalid args")
+	}
+	cred, err := groksubscription.ExchangeToken(context.Background(), grokAuthHTTPDoer,
+		groksubscription.GrantTypeRefreshToken, "", "", refreshToken, "")
+	if err != nil {
+		var rejected *groksubscription.GrantRejectedError
+		if errors.As(err, &rejected) {
+			recordGrokNeedsReauth(channelID, err)
+		}
+		return err
+	}
+	if err := persistGrokCredential(channelID, cred); err != nil {
+		return err
+	}
+	return upsertGrokAuthStatus(channelID, model.GrokAuthStatusActive, true, "")
 }

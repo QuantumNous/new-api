@@ -321,3 +321,82 @@ func TestGrokPKCECompleteUnknownFlow(t *testing.T) {
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "no-such-flow")
 }
+
+// ---- import 段 ----
+
+func TestGrokImportRefreshTokenHappyPath(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	const importedRT = "imported-secret-refresh-token"
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		form := readGrokForm(t, req)
+		require.Equal(t, "refresh_token", form.Get("grant_type"))
+		require.Equal(t, importedRT, form.Get("refresh_token"))
+		require.Equal(t, groksubscription.OAuthClientID, form.Get("client_id"))
+		require.Equal(t, "", form.Get("code"), "import must not carry authorization_code fields")
+		return grokJSONResponse(200, `{"access_token":"at-imported","refresh_token":"rt-rotated","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+
+	require.NoError(t, GrokImportRefreshToken(ch.Id, importedRT))
+
+	key := getGrokChannelKey(t, ch.Id)
+	cred, err := groksubscription.ParseCredential(key)
+	require.NoError(t, err)
+	require.Equal(t, "at-imported", cred.AccessToken)
+	require.Equal(t, "rt-rotated", cred.RefreshToken)
+	require.True(t, cred.IsRefreshable())
+
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusActive, st.AuthStatus)
+}
+
+// TestGrokImportInvalidGrantNeedsReauth：invalid_grant → needs_reauth + 脱敏错误，
+// refresh_token 明文绝不出现在任何错误串。
+func TestGrokImportInvalidGrantNeedsReauth(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+
+	const importedRT = "imported-secret-refresh-token"
+	const upstreamSecret = "upstream-secret-desc-must-not-leak"
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		return grokJSONResponse(400, `{"error":"invalid_grant","error_description":"`+upstreamSecret+`"}`), nil
+	}))
+	defer restore()
+
+	err := GrokImportRefreshToken(ch.Id, importedRT)
+	require.Error(t, err)
+	var gre *groksubscription.GrantRejectedError
+	require.True(t, errors.As(err, &gre))
+	require.Equal(t, "invalid_grant", gre.Code)
+	require.NotContains(t, err.Error(), importedRT, "refresh token plaintext must never appear in errors")
+	require.NotContains(t, err.Error(), upstreamSecret)
+
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusNeedsReauth, st.AuthStatus)
+	require.NotContains(t, st.LastError, importedRT)
+	require.NotContains(t, st.LastError, upstreamSecret)
+
+	require.Empty(t, getGrokChannelKey(t, ch.Id), "rejected import must not write Channel.Key")
+}
+
+func TestGrokImportRejectsInvalidArgs(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		t.Fatalf("must not call token endpoint for invalid args")
+		return nil, nil
+	}))
+	defer restore()
+	if err := GrokImportRefreshToken(0, "rt"); err == nil {
+		t.Fatalf("channelID<=0 must be rejected")
+	}
+	if err := GrokImportRefreshToken(42, "  "); err == nil {
+		t.Fatalf("blank refresh token must be rejected")
+	}
+}
