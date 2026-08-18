@@ -1,9 +1,14 @@
 package openai
 
 import (
+	"bytes"
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -76,6 +81,84 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 				"upstream stream field mismatch")
 			assert.Equal(t, tt.wantForcedFlag, info.UpstreamStreamForced,
 				"UpstreamStreamForced flag mismatch")
+		})
+	}
+}
+
+func TestDoResponse_RoutesForcedStreamToBufferedHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Set a valid streaming timeout to avoid NewTicker panic in OaiStreamHandler
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	// SSE response that OaiBufferedStreamHandler can aggregate
+	sseBody := strings.Join([]string{
+		`data: {"id":"chatcmpl-x","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{"role":"assistant","content":"Hi"},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	tests := []struct {
+		name               string
+		upstreamStreamForced bool
+		wantJSON             bool // true = buffered handler (JSON), false = stream handler (SSE)
+	}{
+		{
+			name:               "forced stream -> buffered handler (JSON response)",
+			upstreamStreamForced: true,
+			wantJSON:             true,
+		},
+		{
+			name:               "normal stream -> stream handler (SSE response)",
+			upstreamStreamForced: false,
+			wantJSON:             false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp := &http.Response{
+				StatusCode: 200,
+				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(sseBody))),
+			}
+
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			c.Set(common.RequestIdKey, "test-req")
+
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType:       constant.ChannelTypeOpenAI,
+					UpstreamModelName: "test",
+				},
+				IsStream:             true,
+				UpstreamStreamForced: tt.upstreamStreamForced,
+				RelayFormat:          types.RelayFormatOpenAI,
+			}
+
+			adaptor := &Adaptor{ChannelType: constant.ChannelTypeOpenAI}
+			usage, apiErr := adaptor.DoResponse(c, resp, info)
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+
+			contentType := w.Header().Get("Content-Type")
+			body := w.Body.String()
+			if tt.wantJSON {
+				// Buffered handler produces a single JSON object (not SSE chunks)
+				// Content-Type may be copied from upstream (text/event-stream) by
+				// IOCopyBytesGracefully, so we check the body format instead.
+				assert.Contains(t, body, "chat.completion",
+					"expected JSON response from buffered handler")
+				assert.NotContains(t, body, "data: ",
+					"buffered handler should not produce SSE data: lines")
+			} else {
+				// Stream handler writes SSE chunks with "data:" prefix
+				assert.True(t, strings.Contains(body, "data:") || strings.Contains(contentType, "text/event-stream"),
+					"expected SSE response from stream handler, got: %s", body[:min(100, len(body))])
+			}
 		})
 	}
 }
