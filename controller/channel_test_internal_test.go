@@ -442,7 +442,7 @@ func TestRunChannelTestWorkersStopsAfterCancellation(t *testing.T) {
 		t.Fatal("started another channel test after cancellation")
 	default:
 	}
-	assert.Equal(t, channelTestSummary{}, summary)
+	assert.Equal(t, channelTestSummary{Tested: 2, Succeeded: 2}, summary)
 	assert.Equal(t, []int{0}, progress)
 }
 

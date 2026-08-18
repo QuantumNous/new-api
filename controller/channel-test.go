@@ -993,20 +993,16 @@ func runChannelTestWorkers(
 					if !ok {
 						return
 					}
+					if ctx.Err() != nil {
+						return
+					}
 
 					result := channelTestSummary{}
 					if channel != nil && channel.Status != common.ChannelStatusManuallyDisabled {
 						result = run(ctx, channel)
 					}
-					if ctx.Err() != nil {
-						return
-					}
 
-					select {
-					case <-ctx.Done():
-						return
-					case results <- result:
-					}
+					results <- result
 
 					if common.RequestInterval > 0 {
 						select {
@@ -1039,16 +1035,13 @@ func runChannelTestWorkers(
 	summary := channelTestSummary{}
 	processed := 0
 	for result := range results {
-		if ctx.Err() != nil {
-			continue
-		}
 		summary.Tested += result.Tested
 		summary.Succeeded += result.Succeeded
 		summary.Failed += result.Failed
 		summary.Disabled += result.Disabled
 		summary.Enabled += result.Enabled
 		processed++
-		if report != nil {
+		if report != nil && ctx.Err() == nil {
 			report(processed, total)
 		}
 	}

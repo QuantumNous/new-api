@@ -71,7 +71,9 @@ const channelTestModes = [
 type ChannelTestMode = (typeof channelTestModes)[number]
 const MAX_CHANNEL_TEST_CONCURRENCY = 32
 
-const createRoutingReliabilitySchema = (t: (key: string) => string) =>
+const createRoutingReliabilitySchema = (
+  t: (key: string, options?: Record<string, unknown>) => string
+) =>
   z
     .object({
       RetryTimes: z.coerce.number().min(0).max(10),
@@ -86,7 +88,7 @@ const createRoutingReliabilitySchema = (t: (key: string) => string) =>
         auto_test_channel_minutes: z.coerce
           .number()
           .int()
-          .min(1, 'Interval must be at least 1 minute'),
+          .min(1, t('Interval must be at least 1 minute')),
         channel_test_concurrency: z.coerce
           .number()
           .int(t('Enter a positive integer'))
@@ -106,9 +108,9 @@ const createRoutingReliabilitySchema = (t: (key: string) => string) =>
         ctx.addIssue({
           code: 'custom',
           path: ['AutomaticDisableStatusCodes'],
-          message: `Invalid status code rules: ${disableParsed.invalidTokens.join(
-            ', '
-          )}`,
+          message: t('Invalid status code rules: {{tokens}}', {
+            tokens: disableParsed.invalidTokens.join(', '),
+          }),
         })
       }
 
@@ -119,9 +121,9 @@ const createRoutingReliabilitySchema = (t: (key: string) => string) =>
         ctx.addIssue({
           code: 'custom',
           path: ['AutomaticRetryStatusCodes'],
-          message: `Invalid status code rules: ${retryParsed.invalidTokens.join(
-            ', '
-          )}`,
+          message: t('Invalid status code rules: {{tokens}}', {
+            tokens: retryParsed.invalidTokens.join(', '),
+          }),
         })
       }
     })
