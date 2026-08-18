@@ -1,6 +1,12 @@
 import textwrap
 
-from import_awesome_gpt_image import parse_readme, slugify
+from import_awesome_gpt_image import (
+    dedupe_slugs,
+    image_ext,
+    parse_readme,
+    platform_for,
+    slugify,
+)
 
 SAMPLE = textwrap.dedent('''
     ## 📷 Photography & Realism
@@ -151,3 +157,33 @@ def test_parse_italic_source_line():
     assert case["sources"] == [
         {"label": "卡尔的AI沃茨", "url": "https://mp.weixin.qq.com/s/abc"}
     ]
+
+
+def test_dedupe_slugs():
+    assert dedupe_slugs(["a", "a", "b", "a"]) == ["a", "a-2", "b", "a-3"]
+    assert dedupe_slugs([]) == []
+
+
+def test_image_ext_uses_url_path_suffix():
+    # Extension must come from the URL path, not substrings elsewhere in the URL.
+    assert image_ext("https://h/x.png?format=jpg", None) == ".png"
+    assert image_ext("https://h/a.jpeg", None) == ".jpg"
+    assert image_ext("https://h/a.webp", None) == ".webp"
+    # No path suffix: fall back to content-type, then .jpg.
+    assert image_ext("https://h/assets/abc123", "image/png") == ".png"
+    assert image_ext("https://h/assets/abc123", "image/webp") == ".webp"
+    assert image_ext("https://h/assets/abc123", "image/gif") == ".gif"
+    assert image_ext("https://h/assets/abc123", None) == ".jpg"
+    # ".jpg" appearing only in the query string must not count.
+    assert image_ext("https://h/assets/abc?name=x.jpg", "image/png") == ".png"
+
+
+def test_platform_for_uses_hostname():
+    assert platform_for("https://x.com/u/status/1") == "X"
+    assert platform_for("https://www.x.com/u/status/1") == "X"
+    assert platform_for("https://twitter.com/u/status/1") == "X"
+    assert platform_for("https://mobile.twitter.com/u/status/1") == "X"
+    assert platform_for("https://mp.weixin.qq.com/s/abc") == "WeChat"
+    # "x.com" as a substring of another host must not classify as X.
+    assert platform_for("https://www.wix.com/site") == "Web"
+    assert platform_for("https://opennana.com/x") == "Web"

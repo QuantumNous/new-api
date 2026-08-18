@@ -12,6 +12,10 @@ Usage:
 
 Upstream: https://github.com/ZeroLu/awesome-gpt-image (CC BY 4.0).
 Attribution is preserved per-item in source/label and output.extra_sources.
+
+GCS objects are keyed by item slug and served with Cache-Control
+max-age=31536000 (1 year): re-uploading under the same name (--force)
+means cached clients may keep seeing the old image for up to max-age.
 """
 
 import argparse
@@ -20,9 +24,11 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 
 import requests
 
@@ -31,8 +37,9 @@ UPSTREAM_ASSET_BASE = "https://raw.githubusercontent.com/ZeroLu/awesome-gpt-imag
 IMPORT_BATCH_LIMIT = 100
 FIXED_MODEL = "gpt-image-2"
 
-# Upstream "## emoji Title" -> tag. Parser raises on unknown category so new
-# upstream sections surface loudly instead of being silently skipped.
+# Upstream "## emoji Title" -> tag. Unknown headings (Resources, Contributing,
+# ...) are skipped; parse_readme warns on stderr when a skipped section looks
+# like it carries prompt cases, so upstream drift is visible in the run log.
 CATEGORY_TAGS = {
     "photography": "photography",
     "gaming": "gaming",
@@ -86,6 +93,14 @@ def parse_readme(markdown):
                 current_category = category_tag_for(title)
             except ValueError:
                 current_category = None  # Resources/Contributing etc.
+                section_end = next(
+                    (p for p, k, _ in marks[idx + 1:] if k == "h2"), len(markdown)
+                )
+                if "```text" in markdown[pos:section_end]:
+                    print(
+                        f"WARNING: skipping unmapped section {title!r} which contains prompt fences",
+                        file=sys.stderr,
+                    )
             continue
         if current_category is None:
             continue
@@ -207,31 +222,47 @@ def resolve_image_url(src):
 
 
 def image_ext(url, content_type):
-    for ext in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
-        if ext in url.lower():
-            return ".jpg" if ext == ".jpeg" else ext
-    if "png" in (content_type or ""):
-        return ".png"
+    suffix = pathlib.PurePosixPath(urllib.parse.urlsplit(url).path).suffix.lower()
+    if suffix in (".png", ".jpg", ".jpeg", ".webp", ".gif"):
+        return ".jpg" if suffix == ".jpeg" else suffix
+    ct = content_type or ""
+    for needle, ext in (("png", ".png"), ("webp", ".webp"), ("gif", ".gif")):
+        if needle in ct:
+            return ext
     return ".jpg"
 
 
-def gcs_object_exists(bucket, name):
+def gcs_object_exists(gcloud_bin, bucket, name):
+    # Note: any gcloud failure (auth, network, ...) is treated as "not found",
+    # which just means we re-upload; the subsequent cp surfaces real errors.
     result = subprocess.run(
-        ["gcloud", "storage", "objects", "describe", f"gs://{bucket}/{name}"],
+        [gcloud_bin, "storage", "objects", "describe", f"gs://{bucket}/{name}"],
         capture_output=True,
     )
     return result.returncode == 0
 
 
-def upload_to_gcs(local_path, bucket, name):
+def upload_to_gcs(gcloud_bin, local_path, bucket, name):
     subprocess.run(
         [
-            "gcloud", "storage", "cp",
+            gcloud_bin, "storage", "cp",
             "--cache-control", "public, max-age=31536000",
             str(local_path), f"gs://{bucket}/{name}",
         ],
         check=True,
     )
+
+
+X_HOSTNAMES = {"x.com", "www.x.com", "twitter.com", "mobile.twitter.com"}
+
+
+def platform_for(url):
+    hostname = (urllib.parse.urlsplit(url).hostname or "").lower()
+    if hostname in X_HOSTNAMES:
+        return "X"
+    if hostname == "mp.weixin.qq.com" or hostname.endswith(".weixin.qq.com") or hostname == "weixin.qq.com":
+        return "WeChat"
+    return "Web"
 
 
 def build_import_item(case, slug, image_url, captured_at):
@@ -242,7 +273,7 @@ def build_import_item(case, slug, image_url, captured_at):
         output["extra_sources"] = case["sources"][1:]
 
     primary = case["sources"][0] if case["sources"] else {"label": "awesome-gpt-image", "url": "https://github.com/ZeroLu/awesome-gpt-image"}
-    platform = "X" if "x.com" in primary["url"] else ("WeChat" if "weixin" in primary["url"] else "Web")
+    platform = platform_for(primary["url"])
     item = {
         "slug": slug,
         "category": "image",
@@ -280,12 +311,23 @@ def dedupe_slugs(slugs):
 
 
 def main():
+    # Windows consoles/redirects may default to a non-UTF-8 codec; prompt text
+    # is full of CJK, so an unguarded print could raise UnicodeEncodeError
+    # mid-run (worst case right before raise_for_status, mislabeling a batch).
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--api-base", default=os.environ.get("PROMPT_GALLERY_API_BASE", ""))
     parser.add_argument("--token", default=os.environ.get("PROMPT_LIBRARY_IMPORT_TOKEN", ""))
     parser.add_argument("--bucket", default=os.environ.get("PROMPT_GALLERY_BUCKET", ""))
     parser.add_argument("--dry-run", action="store_true", help="parse only; write items.json without upload/import")
-    parser.add_argument("--force", action="store_true", help="re-upload images even if the GCS object exists")
+    parser.add_argument(
+        "--force", action="store_true",
+        help="re-upload images even if the GCS object exists; objects are slug-keyed "
+             "with 1-year Cache-Control, so cached clients may see the old image for up to max-age",
+    )
     parser.add_argument("--out", default="items.json")
     args = parser.parse_args()
 
@@ -298,26 +340,40 @@ def main():
     captured_at = datetime.date.today().isoformat()
     items, failures = [], []
     # Dedupe up front so GCS object names always match the final item slugs.
-    final_slugs = dedupe_slugs([slugify(case["title"]) for case in cases])
+    # Keep base slugs too: an empty base (fully non-Latin title) is a per-item
+    # failure even when dedupe would suffix a later duplicate to "-2".
+    base_slugs = [slugify(case["title"]) for case in cases]
+    final_slugs = dedupe_slugs(base_slugs)
 
     if args.dry_run:
-        for case, slug in zip(cases, final_slugs):
+        for case, base, slug in zip(cases, base_slugs, final_slugs):
+            if not base:
+                failures.append({"title": case["title"], "reason": "empty slug after slugify"})
+                print(f"FAILED {case['title']}: empty slug after slugify", file=sys.stderr)
+                continue
             items.append(build_import_item(case, slug, resolve_image_url(case["image_src"]), captured_at))
     else:
         if not args.bucket:
             sys.exit("--bucket is required unless --dry-run")
+        gcloud_bin = shutil.which("gcloud")
+        if gcloud_bin is None:
+            sys.exit("gcloud not found on PATH")
         with tempfile.TemporaryDirectory() as tmp:
-            for case, slug in zip(cases, final_slugs):
+            for case, base, slug in zip(cases, base_slugs, final_slugs):
+                if not base:
+                    failures.append({"title": case["title"], "reason": "empty slug after slugify"})
+                    print(f"FAILED {case['title']}: empty slug after slugify", file=sys.stderr)
+                    continue
                 src_url = resolve_image_url(case["image_src"])
                 try:
                     resp = requests.get(src_url, timeout=60)
                     resp.raise_for_status()
                     ext = image_ext(src_url, resp.headers.get("content-type"))
                     object_name = f"prompt-gallery/{slug}{ext}"
-                    if args.force or not gcs_object_exists(args.bucket, object_name):
+                    if args.force or not gcs_object_exists(gcloud_bin, args.bucket, object_name):
                         local = pathlib.Path(tmp) / f"{slug}{ext}"
                         local.write_bytes(resp.content)
-                        upload_to_gcs(local, args.bucket, object_name)
+                        upload_to_gcs(gcloud_bin, local, args.bucket, object_name)
                         print(f"uploaded {object_name}")
                     else:
                         print(f"exists, skip {object_name}")
@@ -330,27 +386,25 @@ def main():
     pathlib.Path(args.out).write_text(json.dumps({"items": items}, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"wrote {len(items)} items to {args.out}; {len(failures)} failures")
 
-    if args.dry_run:
-        return
-    if not args.api_base or not args.token:
-        sys.exit("--api-base and --token are required to import (or rerun with --dry-run)")
-
     batch_errors = []
-    for start in range(0, len(items), IMPORT_BATCH_LIMIT):
-        batch_no = start // IMPORT_BATCH_LIMIT + 1
-        batch = items[start:start + IMPORT_BATCH_LIMIT]
-        try:
-            resp = requests.post(
-                f"{args.api_base.rstrip('/')}/api/prompt-library/import",
-                json={"items": batch},
-                headers={"Authorization": f"Bearer {args.token}"},
-                timeout=60,
-            )
-            print(f"batch {batch_no}: HTTP {resp.status_code} {resp.text[:400]}")
-            resp.raise_for_status()
-        except Exception as exc:  # noqa: BLE001 - keep importing remaining batches
-            batch_errors.append(f"batch {batch_no}: {exc}")
-            print(f"FAILED batch {batch_no}: {exc}", file=sys.stderr)
+    if not args.dry_run:
+        if not args.api_base or not args.token:
+            sys.exit("--api-base and --token are required to import (or rerun with --dry-run)")
+        for start in range(0, len(items), IMPORT_BATCH_LIMIT):
+            batch_no = start // IMPORT_BATCH_LIMIT + 1
+            batch = items[start:start + IMPORT_BATCH_LIMIT]
+            try:
+                resp = requests.post(
+                    f"{args.api_base.rstrip('/')}/api/prompt-library/import",
+                    json={"items": batch},
+                    headers={"Authorization": f"Bearer {args.token}"},
+                    timeout=60,
+                )
+                print(f"batch {batch_no}: HTTP {resp.status_code} {resp.text[:400]}")
+                resp.raise_for_status()
+            except Exception as exc:  # noqa: BLE001 - keep importing remaining batches
+                batch_errors.append(f"batch {batch_no}: {exc}")
+                print(f"FAILED batch {batch_no}: {exc}", file=sys.stderr)
 
     if failures:
         print("failures summary:")
@@ -360,6 +414,7 @@ def main():
         print("batch errors:")
         for err in batch_errors:
             print(f"  - {err}")
+    if failures or batch_errors:
         sys.exit(1)
 
 
