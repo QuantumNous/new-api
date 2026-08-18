@@ -210,6 +210,8 @@ const promoBannerCopyByLocale: Record<
   },
 });
 
+const PROMO_BANNER_ARTICLE_PATH = "/blog/deepseek-v4-pro-vs-flash";
+
 type Props = {
   locale: Locale;
   pathname: string;
@@ -478,7 +480,10 @@ export function SiteHeader(props: Props) {
     : startFreeLabel;
   const promoBannerCopy =
     promoBannerCopyByLocale[props.locale] ?? promoBannerCopyByLocale.en;
-  const promoBannerHref = localizePath("/models/seedance-api", props.locale);
+  const promoBannerHref = localizePath(
+    PROMO_BANNER_ARTICLE_PATH,
+    props.locale,
+  );
   const mobileMenuOffsetClass = promoBannerVisible
     ? "top-[132px] max-h-[calc(100dvh-132px)] min-[700px]:top-[112px] min-[700px]:max-h-[calc(100dvh-112px)]"
     : "top-[72px] max-h-[calc(100dvh-72px)]";
