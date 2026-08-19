@@ -338,15 +338,14 @@ func TestOaiBufferedStreamHandler_UpstreamErrorEvent(t *testing.T) {
 }
 
 // TestOaiBufferedStreamHandler_MalformedDataLines verifies that malformed
-// data lines in the SSE stream are skipped without causing errors.
-// Note: an empty data payload ("data: \n") is treated as stream end by
-// the handler (matching OaiStreamHandler behavior), so this test only
-// covers non-empty malformed lines.
+// data lines in the SSE stream are skipped without causing errors, and that
+// empty data payloads (heartbeats) are skipped without ending aggregation.
 func TestOaiBufferedStreamHandler_MalformedDataLines(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	sseBody := strings.Join([]string{
 		`data: not-json`,
+		`data: `, // heartbeat — empty payload, should be skipped
 		`data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"test","choices":[{"index":0,"delta":{"content":"OK"},"finish_reason":"stop"}]}`,
 		`data: [DONE]`,
 		``,

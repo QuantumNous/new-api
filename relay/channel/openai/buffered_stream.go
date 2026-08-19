@@ -57,13 +57,16 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 
 		// Check for upstream error event before parsing as stream response.
-		var simpleResp dto.SimpleResponse
-		if err := common.UnmarshalJsonStr(data, &simpleResp); err == nil && simpleResp.Error != nil {
-			apiErr := simpleResp.GetOpenAIError()
-			if apiErr != nil {
-				return nil, types.NewOpenAIError(fmt.Errorf("upstream error: %s", apiErr.Message), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		// Cheap pre-check avoids double-unmarshal on normal chunks.
+		if strings.Contains(data, "\"error\"") {
+			var simpleResp dto.SimpleResponse
+			if err := common.UnmarshalJsonStr(data, &simpleResp); err == nil && simpleResp.Error != nil {
+				apiErr := simpleResp.GetOpenAIError()
+				if apiErr != nil {
+					return nil, types.NewOpenAIError(fmt.Errorf("upstream error: %s", apiErr.Message), types.ErrorCodeBadResponse, http.StatusBadGateway)
+				}
+				return nil, types.NewOpenAIError(fmt.Errorf("upstream returned error event"), types.ErrorCodeBadResponse, http.StatusBadGateway)
 			}
-			return nil, types.NewOpenAIError(fmt.Errorf("upstream returned error event"), types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
 
 		var streamResp dto.ChatCompletionsStreamResponse
@@ -184,15 +187,17 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	// matches what ProcessStreamResponse would compute for the same stream.
 	if usage == nil || usage.TotalTokens == 0 {
 		totalContent := ""
-		for _, c := range accumulatedContent {
-			totalContent += c
-		}
-		for _, r := range accumulatedReasoning {
-			totalContent += r
-		}
-		for _, tcMap := range accumulatedToolCalls {
-			for _, tc := range tcMap {
-				totalContent += tc.Function.Name + tc.Function.Arguments
+		for _, idx := range sortedIndices {
+			totalContent += accumulatedContent[idx] + accumulatedReasoning[idx]
+			if tcMap, ok := accumulatedToolCalls[idx]; ok {
+				tcKeys := make([]int, 0, len(tcMap))
+				for k := range tcMap {
+					tcKeys = append(tcKeys, k)
+				}
+				sort.Ints(tcKeys)
+				for _, k := range tcKeys {
+					totalContent += tcMap[k].Function.Name + tcMap[k].Function.Arguments
+				}
 			}
 		}
 		usage = service.ResponseText2Usage(c, totalContent, info.UpstreamModelName, info.GetEstimatePromptTokens())

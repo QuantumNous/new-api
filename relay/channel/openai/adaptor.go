@@ -77,6 +77,12 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if !ok {
 		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
 	}
+	// Preserve the original stream flag from the Claude request. The format
+	// converter may not carry it over, and ConvertOpenAIRequest needs it to
+	// set info.IsStream correctly for DoResponse routing.
+	if request.Stream != nil {
+		aiRequest.Stream = request.Stream
+	}
 	//if common.DebugEnabled {
 	//	println(fmt.Sprintf("convert claude to openai request result: %s", common.GetJsonString(aiRequest)))
 	//	// Save request body to file for debugging

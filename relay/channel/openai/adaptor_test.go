@@ -28,6 +28,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 		channelType        int
 		wantStreamSent     bool // what the upstream should receive
 		wantForcedFlag     bool // whether UpstreamStreamForced should be set
+		wantIsStream       bool // info.IsStream after conversion (always matches client request)
 		wantStreamOptions  bool // whether StreamOptions.IncludeUsage should be true
 	}{
 		{
@@ -37,6 +38,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			supportStreamOpts: true,
 			wantStreamSent:    true,
 			wantForcedFlag:    true,
+			wantIsStream:      false, // IsStream reflects client request, not forced upstream
 			wantStreamOptions: true,
 		},
 		{
@@ -46,6 +48,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			supportStreamOpts: true,
 			wantStreamSent:    true,
 			wantForcedFlag:    false,
+			wantIsStream:      true,
 			wantStreamOptions: false, // forced flag not set, so StreamOptions not injected by force path
 		},
 		{
@@ -55,6 +58,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			supportStreamOpts: true,
 			wantStreamSent:    false,
 			wantForcedFlag:    false,
+			wantIsStream:      false,
 			wantStreamOptions: false,
 		},
 		{
@@ -64,6 +68,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			supportStreamOpts: false,
 			wantStreamSent:    true,
 			wantForcedFlag:    true,
+			wantIsStream:      false,
 			wantStreamOptions: false,
 		},
 		{
@@ -80,6 +85,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			channelType:       constant.ChannelTypeDeepSeek,
 			wantStreamSent:    true,
 			wantForcedFlag:    true,
+			wantIsStream:      false,
 			wantStreamOptions: true,
 		},
 		{
@@ -93,6 +99,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			channelType:       constant.ChannelTypeDeepSeek,
 			wantStreamSent:    true,
 			wantForcedFlag:    true,
+			wantIsStream:      false,
 			wantStreamOptions: false,
 		},
 		{
@@ -105,6 +112,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			channelType:       constant.ChannelTypeOpenAI,
 			wantStreamSent:    true,
 			wantForcedFlag:    true,
+			wantIsStream:      false,
 			wantStreamOptions: true,
 		},
 	}
@@ -145,6 +153,8 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 				"upstream stream field mismatch")
 			assert.Equal(t, tt.wantForcedFlag, info.UpstreamStreamForced,
 				"UpstreamStreamForced flag mismatch")
+			assert.Equal(t, tt.wantIsStream, info.IsStream,
+				"info.IsStream must match the original client request, not the forced upstream stream")
 
 			if tt.wantStreamOptions {
 				require.NotNil(t, returnedRequest.StreamOptions,

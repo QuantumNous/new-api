@@ -27,7 +27,9 @@ type ChannelSettings struct {
 	// ForceUpstreamStream makes new-api send stream=true to the upstream even
 	// when the downstream client requested non-streaming. The SSE response is
 	// aggregated server-side into a single JSON. Mutually exclusive with
-	// PassThroughBodyEnabled.
+	// PassThroughBodyEnabled. Note: StreamOptions.IncludeUsage is injected
+	// only for OpenAI and Azure channels (SupportStreamOptions=true); other
+	// OpenAI-compatible channels (e.g. DeepSeek) will use estimated usage.
 	ForceUpstreamStream bool `json:"force_upstream_stream,omitempty"`
 }
 
