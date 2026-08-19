@@ -60,16 +60,35 @@ async function copyName() {
     v-if="layout === 'grid'"
     class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)] transition duration-200 ease-out hover:border-[var(--accent)] hover:shadow-[var(--card-shadow-hover)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-1"
   >
+    <!-- Accent Top Streamer Line (Day: caramel amber / Night: celestial gold glow) -->
+    <span
+      class="pointer-events-none absolute inset-x-0 top-0 h-[2.5px] opacity-70 transition-opacity duration-300 group-hover:opacity-100"
+      style="
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--accent) 25%,
+          var(--accent) 75%,
+          transparent
+        );
+      "
+      aria-hidden="true"
+    />
+
     <!-- Header: Model Name on left, Actions on right -->
     <div>
       <div class="flex items-center justify-between gap-2.5">
         <div class="min-w-0 flex-1">
           <button
             type="button"
-            class="flex max-w-full items-center gap-1.5 rounded text-left font-mono text-base font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--accent-text)] group-hover:text-[var(--accent-text)] focus-ring"
+            class="focus-ring flex max-w-full items-center gap-2 rounded text-left font-mono text-base font-bold text-[var(--text-primary)] transition-colors hover:text-[var(--accent-text)] group-hover:text-[var(--accent-text)]"
             :title="t('models.copyHint', { name: model.name })"
             @click="copyName"
           >
+            <span
+              class="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)] transition-transform duration-300 group-hover:scale-125"
+              aria-hidden="true"
+            />
             <span class="truncate">{{ model.name }}</span>
           </button>
         </div>
@@ -79,7 +98,7 @@ async function copyName() {
             type="button"
             :aria-label="t('common.copy')"
             :title="t('common.copy')"
-            class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-text)] focus-ring"
+            class="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-text)]"
             @click.stop="copyName"
           >
             <svg
@@ -98,7 +117,7 @@ async function copyName() {
             type="button"
             :aria-label="t('models.detail')"
             :title="t('models.detail')"
-            class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-text)] focus-ring"
+            class="focus-ring inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-text)]"
             @click.stop="emit('detail', model)"
           >
             <svg
