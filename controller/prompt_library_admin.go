@@ -115,8 +115,21 @@ func UpdatePromptLibraryEnabledAdmin(c *gin.Context) {
 		return
 	}
 	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "prompt library item not found"})
-		return
+		// MySQL reports 0 rows affected when the UPDATE changed nothing (same
+		// enabled value within the same updated_time second), which is
+		// indistinguishable from "no such row" at the model layer. Re-check
+		// existence so an idempotent no-op toggle is not misreported as 404.
+		// (sqlite in tests counts matched rows even without changes, so this
+		// branch is only reachable on MySQL-like backends.)
+		item, err := model.GetPromptLibraryItemById(id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if item == nil {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "prompt library item not found"})
+			return
+		}
 	}
 	common.ApiSuccess(c, gin.H{"id": id, "enabled": input.Enabled})
 }

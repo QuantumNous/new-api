@@ -1,5 +1,10 @@
+import json
+import sys
 import textwrap
 
+import pytest
+
+import import_awesome_gpt_image as script
 from import_awesome_gpt_image import (
     PARSE_WARNINGS,
     dedupe_slugs,
@@ -203,6 +208,86 @@ def test_parse_records_unknown_section_with_fences_as_warning():
     cases = parse_readme(sample)
     assert [c["title"] for c in cases] == ["Known Case"]
     assert PARSE_WARNINGS == ["🧪 Brand New Category"]
+
+
+DRIFTED_README = textwrap.dedent('''
+    ## 📷 Photography & Realism
+
+    ### Known Case
+    <img width="500" alt="k" src="https://example.com/k.jpg" />
+
+    **Prompt:**
+    ```text
+    known prompt
+    ```
+    **Source:** [@k](https://x.com/k/status/1)
+
+    ## 🧪 Brand New Category
+
+    ### Dropped Case
+    <img width="500" alt="d" src="https://example.com/d.jpg" />
+
+    **Prompt:**
+    ```text
+    dropped prompt
+    ```
+''')
+
+
+class _FakeReadmeResponse:
+    def __init__(self, text):
+        self.text = text
+
+    def raise_for_status(self):
+        pass
+
+
+def _run_main_with_drifted_readme(monkeypatch, argv):
+    fetched_urls = []
+
+    def fake_get(url, **kwargs):
+        fetched_urls.append(url)
+        if url == script.UPSTREAM_RAW:
+            return _FakeReadmeResponse(DRIFTED_README)
+        raise AssertionError(f"unexpected download of {url!r} after category drift")
+
+    monkeypatch.setattr(script.requests, "get", fake_get)
+    monkeypatch.setattr(
+        script, "upload_to_gcs",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("upload attempted after category drift")),
+    )
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit) as excinfo:
+        script.main()
+    return excinfo.value.code, fetched_urls
+
+
+def test_main_exits_before_side_effects_on_unknown_section(monkeypatch, tmp_path):
+    # Non-dry-run: category drift must abort BEFORE any image download, GCS
+    # upload, or import POST — only the README fetch may have happened.
+    code, fetched_urls = _run_main_with_drifted_readme(
+        monkeypatch,
+        ["import_awesome_gpt_image.py", "--bucket", "b", "--api-base", "https://h", "--token", "t",
+         "--out", str(tmp_path / "items.json")],
+    )
+    assert code == 1
+    assert fetched_urls == [script.UPSTREAM_RAW]
+    assert not (tmp_path / "items.json").exists()
+
+
+def test_main_dry_run_still_writes_items_then_exits_1_on_unknown_section(monkeypatch, tmp_path):
+    # Dry-run has no side effects: items.json is still written (it helps a
+    # human diagnose the drift) and the known-category cases are in it, but
+    # the run must still exit 1.
+    out = tmp_path / "items.json"
+    code, fetched_urls = _run_main_with_drifted_readme(
+        monkeypatch,
+        ["import_awesome_gpt_image.py", "--dry-run", "--out", str(out)],
+    )
+    assert code == 1
+    assert fetched_urls == [script.UPSTREAM_RAW]
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert [item["slug"] for item in written["items"]] == ["known-case"]
 
 
 def test_parse_stays_silent_on_pure_link_sections():

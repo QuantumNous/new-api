@@ -358,12 +358,19 @@ def main():
     cases = parse_readme(readme.text)
     print(f"parsed {len(cases)} cases")
 
+    # Unknown category sections carrying prompt fences mean the parser dropped
+    # cases (upstream drift). Abort before any side effect — image downloads,
+    # GCS uploads, import POSTs — so automated retries cannot compound a
+    # half-imported state. --dry-run has no side effects and continues: the
+    # items.json it writes helps a human diagnose the drift; the drift is
+    # recorded as failures there so the run still exits 1 via the summary.
+    if PARSE_WARNINGS and not args.dry_run:
+        for section in PARSE_WARNINGS:
+            print(f"FAILED {section}: unknown category section with prompt fences", file=sys.stderr)
+        sys.exit(1)
+
     captured_at = datetime.date.today().isoformat()
     items, failures = [], []
-    # Unknown category sections that contain prompt fences are hard failures:
-    # their cases were dropped by the parser and would silently vanish.
-    for section in PARSE_WARNINGS:
-        failures.append({"title": section, "reason": "unknown category section with prompt fences"})
     # Dedupe up front so GCS object names always match the final item slugs.
     # Keep base slugs too: an empty base (fully non-Latin title) is a per-item
     # failure even when dedupe would suffix a later duplicate to "-2".
@@ -371,6 +378,12 @@ def main():
     final_slugs = dedupe_slugs(base_slugs)
 
     if args.dry_run:
+        # Category drift is a failure in dry-run too, but recorded through the
+        # summary machinery instead of an early exit: items.json still gets
+        # written below so a human can diagnose, then the run exits 1.
+        for section in PARSE_WARNINGS:
+            failures.append({"title": section, "reason": "unknown category section with prompt fences"})
+            print(f"FAILED {section}: unknown category section with prompt fences", file=sys.stderr)
         for case, base, slug in zip(cases, base_slugs, final_slugs):
             if not base:
                 failures.append({"title": case["title"], "reason": "empty slug after slugify"})

@@ -222,3 +222,36 @@ func TestAdminEnabledToggleNonexistentIdReturns404(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	require.Contains(t, rec.Body.String(), "prompt library item not found")
 }
+
+func TestAdminEnabledToggleSameValueIsIdempotent200(t *testing.T) {
+	// Contract: repeating a toggle with the same value must stay 200 (no-op),
+	// never 404. On MySQL a no-change UPDATE reports 0 rows affected and the
+	// handler disambiguates via an existence re-check; glebarez sqlite counts
+	// matched rows as affected (probed: returns 1), so the 0-rows branch
+	// itself is MySQL-specific — this test pins the observable behavior.
+	r := setupPromptLibraryAdminTest(t)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/prompt-library/admin", bytes.NewReader([]byte(validAdminItemJSON))))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	for i := 0; i < 2; i++ {
+		rec2 := httptest.NewRecorder()
+		r.ServeHTTP(rec2, httptest.NewRequest(http.MethodPut, "/api/prompt-library/admin/1/enabled", bytes.NewReader([]byte(`{"enabled": true}`))))
+		require.Equal(t, http.StatusOK, rec2.Code, "call %d: %s", i+1, rec2.Body.String())
+		var response struct {
+			Success bool `json:"success"`
+			Data    struct {
+				Id      int  `json:"id"`
+				Enabled bool `json:"enabled"`
+			} `json:"data"`
+		}
+		require.NoError(t, common.Unmarshal(rec2.Body.Bytes(), &response))
+		require.True(t, response.Success)
+		require.Equal(t, 1, response.Data.Id)
+		require.True(t, response.Data.Enabled)
+	}
+	item, err := model.GetPromptLibraryItemById(1)
+	require.NoError(t, err)
+	require.NotNil(t, item)
+	require.True(t, item.Enabled)
+}
