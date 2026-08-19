@@ -26,6 +26,7 @@ export interface ApiResponse<T = unknown> {
 export interface OpsFunnelRow {
   key: string
   registrations: number
+  activated: number
   real_browse: number
   manual_keys: number
   key_users: number

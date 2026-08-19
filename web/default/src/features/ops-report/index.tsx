@@ -97,9 +97,11 @@ function chartColor(): string {
 function TrendBarChart({
   data,
   yLabel,
+  valueFormat,
 }: {
   data: { date: string; value: number }[]
   yLabel: string
+  valueFormat?: (v: number) => string
 }) {
   const { resolvedTheme } = useTheme()
   return (
@@ -127,7 +129,10 @@ function TrendBarChart({
               content: [
                 {
                   key: () => yLabel,
-                  value: (datum: any) => String(datum?.value ?? ''),
+                  value: (datum: any) =>
+                    valueFormat
+                      ? valueFormat(Number(datum?.value ?? 0))
+                      : String(datum?.value ?? ''),
                 },
               ],
             },
@@ -136,6 +141,17 @@ function TrendBarChart({
       />
     </div>
   )
+}
+
+// Daily funnel chart series: one point per (Pacific) day, ascending, for a
+// single funnel metric. All four metrics are cohort counts/amounts bucketed by
+// registration day, matching the daily table below.
+type DailyFunnelMetric = 'registrations' | 'activated' | 'paid' | 'paid_usd'
+
+function dailySeries(rows: OpsDailyRow[], field: DailyFunnelMetric) {
+  return [...rows]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((row) => ({ date: row.key, value: row[field] }))
 }
 
 const pct = (part: number, total: number): string =>
@@ -188,12 +204,13 @@ function FunnelCells({ row }: { row: OpsFunnelRow }) {
   return (
     <>
       <TableCell className='text-right'>{n}</TableCell>
+      {cell(row.activated)}
+      {cell(row.paid)}
+      <TableCell className='text-right'>{usd(row.paid_usd)}</TableCell>
       {cell(row.real_browse)}
       {cell(row.manual_keys)}
       {cell(row.key_users)}
       {cell(row.pay_intent)}
-      {cell(row.paid)}
-      <TableCell className='text-right'>{usd(row.paid_usd)}</TableCell>
       <TableCell className='text-right'>{usd(row.cost_usd)}</TableCell>
     </>
   )
@@ -218,12 +235,13 @@ function FunnelHeader({
           </>
         )}
         <TableHead className='text-right'>{t('Registrations')}</TableHead>
+        <TableHead className='text-right'>{t('Activated')}</TableHead>
+        <TableHead className='text-right'>{t('Paid Users')}</TableHead>
+        <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
         <TableHead className='text-right'>{t('Real Browse')}</TableHead>
         <TableHead className='text-right'>{t('Manual Keys')}</TableHead>
         <TableHead className='text-right'>{t('Key Users')}</TableHead>
         <TableHead className='text-right'>{t('Payment Intent')}</TableHead>
-        <TableHead className='text-right'>{t('Paid Users')}</TableHead>
-        <TableHead className='text-right'>{t('Paid Amount')}</TableHead>
         <TableHead className='text-right'>{t('Op Cost')}</TableHead>
       </TableRow>
     </TableHeader>
@@ -950,15 +968,25 @@ export function OpsReport() {
                     <CardTitle>{t('Daily Registrations')}</CardTitle>
                   </CardHeader>
                   <CardContent className='space-y-4'>
-                    <TrendBarChart
-                      data={[...report.daily]
-                        .sort((a, b) => a.key.localeCompare(b.key))
-                        .map((row) => ({
-                          date: row.key,
-                          value: row.registrations,
-                        }))}
-                      yLabel={t('Registrations')}
-                    />
+                    <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+                      <TrendBarChart
+                        data={dailySeries(report.daily, 'registrations')}
+                        yLabel={t('Registrations')}
+                      />
+                      <TrendBarChart
+                        data={dailySeries(report.daily, 'activated')}
+                        yLabel={t('Activated')}
+                      />
+                      <TrendBarChart
+                        data={dailySeries(report.daily, 'paid')}
+                        yLabel={t('Paid Users')}
+                      />
+                      <TrendBarChart
+                        data={dailySeries(report.daily, 'paid_usd')}
+                        yLabel={t('Paid Amount')}
+                        valueFormat={usd}
+                      />
+                    </div>
                     <DailyFunnelTable rows={report.daily} />
                   </CardContent>
                 </Card>

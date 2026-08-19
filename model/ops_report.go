@@ -63,6 +63,10 @@ type OpsUserTokenStats struct {
 	UserId           int   `json:"user_id"`
 	ManualTokenCount int   `json:"manual_token_count"`
 	FirstManualAt    int64 `json:"first_manual_at"`
+	// CliTokenCount counts tokens created via the CLI device-authorization flow
+	// (source = 'cli'); those fire the activate_success event too, so they must
+	// count as activation regardless of when they were created.
+	CliTokenCount int `json:"cli_token_count"`
 	// AutoKeyUsedQuota is the quota burned through auto-provisioned tokens
 	// (created within the auto window of signup) — the ops cost of giving
 	// signup credit to bot/farm registrations that never create a manual key.
@@ -223,6 +227,7 @@ func GetOpsUserTokenStats(autoWindowSec int64) ([]*OpsUserTokenStats, error) {
 		SELECT t.user_id,
 		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at >= ? THEN 1 ELSE 0 END), 0) AS manual_token_count,
 		       COALESCE(MIN(CASE WHEN t.created_time - u.created_at >= ? THEN t.created_time END), 0) AS first_manual_at,
+		       COALESCE(SUM(CASE WHEN t.source = 'cli' THEN 1 ELSE 0 END), 0) AS cli_token_count,
 		       COALESCE(SUM(CASE WHEN t.created_time - u.created_at < ? THEN t.used_quota ELSE 0 END), 0) AS auto_key_used_quota
 		FROM tokens t
 		INNER JOIN users u ON u.id = t.user_id
