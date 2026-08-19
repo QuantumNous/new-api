@@ -374,7 +374,7 @@ function parseExprLiteral(raw: string): string | null {
 
 function tryParseTimeCondition(expr: string): RequestCondition | null {
   let m = expr.match(
-    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)$/
+    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)$/
   )
   if (m) {
     return {
@@ -388,7 +388,7 @@ function tryParseTimeCondition(expr: string): RequestCondition | null {
     }
   }
   m = expr.match(
-    /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)\)$/
+    /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)\)$/
   )
   if (m) {
     return {
@@ -486,6 +486,11 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
 function tryParseRequestConditions(
   conditionStr: string
 ): RequestCondition[] | null {
+  // A single time range like hour(tz) >= 9 && hour(tz) < 12 must stay one
+  // MATCH_RANGE condition instead of being split into two scalar conditions.
+  const wholeTimeCond = tryParseTimeCondition(conditionStr.trim())
+  if (wholeTimeCond) return [wholeTimeCond]
+
   const andParts = splitTopLevelAnd(conditionStr)
   const conditions: RequestCondition[] = []
   for (const part of andParts) {
@@ -735,7 +740,15 @@ function buildTimeConditionExpr(cond: TimeCondition): string {
     if (!NUMERIC_LITERAL_REGEX.test(s) || !NUMERIC_LITERAL_REGEX.test(e)) {
       return ''
     }
-    return `${fn} >= ${s} || ${fn} < ${e}`
+    // Overnight range (start > end) crosses the day boundary, e.g. 21-6.
+    // A within-day range (start <= end), e.g. 9-12, must use && so the
+    // condition is not a tautology that always applies the multiplier.
+    const sNum = Number(s)
+    const eNum = Number(e)
+    if (sNum > eNum) {
+      return `${fn} >= ${s} || ${fn} < ${e}`
+    }
+    return `${fn} >= ${s} && ${fn} < ${e}`
   }
   const v = normalized.value.trim()
   if (!NUMERIC_LITERAL_REGEX.test(v)) return ''
