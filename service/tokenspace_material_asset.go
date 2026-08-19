@@ -89,6 +89,7 @@ func (tokenSpaceMaterialAssetBindingMaterializer) CreateAsset(ctx context.Contex
 		return AssetMaterializeResult{}, tokenSpaceMaterialProtocolFailure(http.StatusOK, errors.New("tokenspace material asset id missing"))
 	}
 	return AssetMaterializeResult{
+		UpstreamGroupID: config.GroupID,
 		UpstreamAssetID: upstreamID,
 		Status:          model.AssetStatusProcessing,
 	}, nil
@@ -115,11 +116,19 @@ func (tokenSpaceMaterialAssetBindingMaterializer) GetAsset(ctx context.Context, 
 	if observedID == "" {
 		return AssetMaterializeResult{}, tokenSpaceMaterialProtocolFailure(http.StatusOK, errors.New("tokenspace material asset id missing"))
 	}
+	if observedID != upstreamAssetID {
+		return AssetMaterializeResult{}, tokenSpaceMaterialProtocolFailure(http.StatusOK, errors.New("tokenspace material asset id mismatch"))
+	}
+	upstreamGroupID := strings.TrimSpace(response.Result.GroupID)
+	if upstreamGroupID == "" || upstreamGroupID != config.GroupID {
+		return AssetMaterializeResult{}, tokenSpaceMaterialProtocolFailure(http.StatusOK, errors.New("tokenspace material group id mismatch"))
+	}
 	status, ok := tokenSpaceMaterialNormalizeStatus(response.Result.Status)
 	if !ok {
 		return AssetMaterializeResult{}, tokenSpaceMaterialProtocolFailure(http.StatusOK, errors.New("tokenspace material asset status invalid"))
 	}
 	return AssetMaterializeResult{
+		UpstreamGroupID: upstreamGroupID,
 		UpstreamAssetID: observedID,
 		Status:          status,
 	}, nil

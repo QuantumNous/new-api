@@ -67,7 +67,7 @@ func TestTokenSpaceMaterialAssetCreatesAndGetsViaActionAPI(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Empty(t, createResult.UpstreamGroupID)
+	require.Equal(t, "group-internal", createResult.UpstreamGroupID)
 	require.Equal(t, "asset-created", createResult.UpstreamAssetID)
 	require.Equal(t, model.AssetStatusProcessing, createResult.Status)
 	require.Equal(t, "idem-test", seenIdempotencyKey)
@@ -77,7 +77,7 @@ func TestTokenSpaceMaterialAssetCreatesAndGetsViaActionAPI(t *testing.T) {
 		APIKey:  "key-test",
 	}, createResult.UpstreamAssetID)
 	require.NoError(t, err)
-	require.Empty(t, getResult.UpstreamGroupID)
+	require.Equal(t, "group-internal", getResult.UpstreamGroupID)
 	require.Equal(t, "asset-created", getResult.UpstreamAssetID)
 	require.Equal(t, model.AssetStatusActive, getResult.Status)
 }
@@ -96,14 +96,50 @@ func TestTokenSpaceMaterialAssetGetMapsKnownStatuses(t *testing.T) {
 		t.Run(test.status, func(t *testing.T) {
 			materializer, channel := tokenSpaceMaterialMaterializerWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
 				require.Equal(t, "GetAsset", r.URL.Query().Get("Action"))
-				_, _ = io.WriteString(w, `{"Result":{"Id":"asset-created","Status":"`+test.status+`"}}`)
+				_, _ = io.WriteString(w, `{"Result":{"Id":"asset-created","GroupId":"group-internal","Status":"`+test.status+`"}}`)
 			})
 
 			result, err := materializer.GetAsset(context.Background(), AssetMaterializeInput{Channel: channel, APIKey: "key-test"}, "asset-created")
 
 			require.NoError(t, err)
+			require.Equal(t, "group-internal", result.UpstreamGroupID)
 			require.Equal(t, "asset-created", result.UpstreamAssetID)
 			require.Equal(t, test.want, result.Status)
+		})
+	}
+}
+
+func TestTokenSpaceMaterialAssetGetRejectsMissingOrMismatchedGroupAndAssetID(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing group",
+			body: `{"Result":{"Id":"asset-created","Status":"Active"}}`,
+		},
+		{
+			name: "mismatched group",
+			body: `{"Result":{"Id":"asset-created","GroupId":"group-other","Status":"Active"}}`,
+		},
+		{
+			name: "mismatched asset id",
+			body: `{"Result":{"Id":"asset-other","GroupId":"group-internal","Status":"Active"}}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			materializer, channel := tokenSpaceMaterialMaterializerWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, "GetAsset", r.URL.Query().Get("Action"))
+				_, _ = io.WriteString(w, test.body)
+			})
+
+			_, err := materializer.GetAsset(context.Background(), AssetMaterializeInput{Channel: channel, APIKey: "key-test"}, "asset-created")
+
+			require.Error(t, err)
+			require.Equal(t, AssetMaterializeErrorProcessing, AssetMaterializeErrorClass(err))
+			require.True(t, IsRetryableAssetMaterializeError(err))
+			assertTokenSpaceMaterialErrorDoesNotLeak(t, err)
 		})
 	}
 }
@@ -127,7 +163,7 @@ func TestTokenSpaceMaterialAssetClassifiesHTTPAndProtocolFailures(t *testing.T) 
 		{name: "upstream 5xx", status: http.StatusBadGateway, body: `{"Result":{"Error":{"Code":"BadGateway","Message":"try later"}}}`, wantClass: AssetMaterializeErrorUpstream5xx, wantHTTP: http.StatusBadGateway, wantRetryOK: true},
 		{name: "malformed json", status: http.StatusOK, body: `{"Result":`, wantClass: AssetMaterializeErrorProcessing, wantHTTP: http.StatusOK, wantRetryOK: true},
 		{name: "missing id", status: http.StatusOK, body: `{"Result":{"Status":"Active"}}`, wantClass: AssetMaterializeErrorProcessing, wantHTTP: http.StatusOK, wantRetryOK: true},
-		{name: "unknown status", status: http.StatusOK, body: `{"Result":{"Id":"asset-created","Status":"Mystery"}}`, wantClass: AssetMaterializeErrorProcessing, wantHTTP: http.StatusOK, wantRetryOK: true},
+		{name: "unknown status", status: http.StatusOK, body: `{"Result":{"Id":"asset-created","GroupId":"group-internal","Status":"Mystery"}}`, wantClass: AssetMaterializeErrorProcessing, wantHTTP: http.StatusOK, wantRetryOK: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -180,7 +216,7 @@ func TestTokenSpaceMaterialAssetClassifiesTimeoutAndOversizedJSON(t *testing.T) 
 
 	t.Run("oversized", func(t *testing.T) {
 		materializer, channel := tokenSpaceMaterialMaterializerWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
-			_, _ = io.WriteString(w, `{"Result":{"Id":"asset-created","Status":"Active"}}`+strings.Repeat(" ", techMobiAssetResponseMaxSize))
+			_, _ = io.WriteString(w, `{"Result":{"Id":"asset-created","GroupId":"group-internal","Status":"Active"}}`+strings.Repeat(" ", techMobiAssetResponseMaxSize))
 		})
 
 		_, err := materializer.GetAsset(context.Background(), AssetMaterializeInput{Channel: channel, APIKey: "key-test"}, "asset-created")
