@@ -156,3 +156,43 @@ func TestRefreshTokenPreservesOldRefreshTokenWhenUpstreamOmits(t *testing.T) {
 		t.Fatalf("access_token must update, got %q", newCred.AccessToken)
 	}
 }
+
+// TestRefreshTokenRejectsNonPositiveExpiresIn 守护 fail-closed（[7][9]）：上游 200 但 expires_in<=0
+// （含缺省解析为 0）会持久化 ExpiresAt<=now 的立即过期凭证，ParseCredential 读回要求 ExpiresAt>0，
+// 于是变成写入即自败、可能触发重刷循环的坏凭证。必须在构造 newCred 前报错、绝不 CAS 写回。
+func TestRefreshTokenRejectsNonPositiveExpiresIn(t *testing.T) {
+	// 缺 expires_in → 解析为 0
+	t.Run("missing/zero", func(t *testing.T) {
+		store := &fakeStore{
+			key:      `{"version":1,"type":"grok_subscription","access_token":"old","refresh_token":"rt","token_type":"Bearer","expires_at":1000}`,
+			revision: 1,
+		}
+		doer := doerFunc(func(req *http.Request) (*http.Response, error) {
+			return jsonResponse(200, `{"access_token":"new","refresh_token":"rt2","token_type":"Bearer"}`), nil
+		})
+		r := NewRefresher(store, doer, func() int64 { return 2000 })
+		if _, err := r.Refresh(context.Background(), 5); err == nil {
+			t.Fatalf("zero expires_in must fail closed")
+		}
+		if store.casCalls != 0 {
+			t.Fatalf("must not CAS/persist self-expiring credential, got %d calls", store.casCalls)
+		}
+	})
+	// 负数 expires_in 同样拒绝
+	t.Run("negative", func(t *testing.T) {
+		store := &fakeStore{
+			key:      `{"version":1,"type":"grok_subscription","access_token":"old","refresh_token":"rt","token_type":"Bearer","expires_at":1000}`,
+			revision: 1,
+		}
+		doer := doerFunc(func(req *http.Request) (*http.Response, error) {
+			return jsonResponse(200, `{"access_token":"new","refresh_token":"rt2","token_type":"Bearer","expires_in":-10}`), nil
+		})
+		r := NewRefresher(store, doer, func() int64 { return 2000 })
+		if _, err := r.Refresh(context.Background(), 5); err == nil {
+			t.Fatalf("negative expires_in must fail closed")
+		}
+		if store.casCalls != 0 {
+			t.Fatalf("must not CAS on negative expires_in, got %d calls", store.casCalls)
+		}
+	})
+}

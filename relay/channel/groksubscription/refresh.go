@@ -92,6 +92,11 @@ func (r *Refresher) Refresh(ctx context.Context, channelID int) (Credential, err
 	if strings.TrimSpace(tr.AccessToken) == "" {
 		return Credential{}, errors.New("grok refresh: empty access_token in response")
 	}
+	// fail-closed：expires_in<=0（含缺省 0）会算出 ExpiresAt<=now 的立即过期凭证，
+	// ParseCredential 读回强制 ExpiresAt>0，写入即自败并可能触发重刷循环——绝不落库。
+	if tr.ExpiresIn <= 0 {
+		return Credential{}, errors.New("grok refresh: non-positive expires_in")
+	}
 
 	newCred := Credential{
 		Version:      CredentialVersion,
