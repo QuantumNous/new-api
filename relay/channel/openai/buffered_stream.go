@@ -30,11 +30,11 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	defer service.CloseResponseBodyGracefully(resp)
 
 	var (
-		accumulatedContent   string
-		accumulatedReasoning string
+		accumulatedContent   = make(map[int]string) // per choice index
+		accumulatedReasoning = make(map[int]string) // per choice index
 		accumulatedToolCalls []dto.ToolCallResponse
 		toolCallSeen         = make(map[int]bool)
-		finishReason         string
+		finishReason         = make(map[int]string) // per choice index
 		model                = info.UpstreamModelName
 		responseId           = helper.GetResponseID(c)
 		created              = time.Now().Unix()
@@ -49,8 +49,21 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 			continue
 		}
 		data := strings.TrimSpace(line[5:])
-		if data == "" || data == "[DONE]" {
+		if data == "[DONE]" {
 			break
+		}
+		if data == "" {
+			continue // heartbeat / keep-alive
+		}
+
+		// Check for upstream error event before parsing as stream response.
+		var simpleResp dto.SimpleResponse
+		if err := common.UnmarshalJsonStr(data, &simpleResp); err == nil && simpleResp.Error != nil {
+			apiErr := simpleResp.GetOpenAIError()
+			if apiErr != nil {
+				return nil, types.NewOpenAIError(fmt.Errorf("upstream error: %s", apiErr.Message), types.ErrorCodeBadResponse, http.StatusBadGateway)
+			}
+			return nil, types.NewOpenAIError(fmt.Errorf("upstream returned error event"), types.ErrorCodeBadResponse, http.StatusBadGateway)
 		}
 
 		var streamResp dto.ChatCompletionsStreamResponse
@@ -66,45 +79,47 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 			model = streamResp.Model
 		}
 		if len(streamResp.Choices) > 0 {
-			choice := streamResp.Choices[0]
-			if choice.Delta.GetContentString() != "" {
-				accumulatedContent += choice.Delta.GetContentString()
-			}
-			if choice.Delta.GetReasoningContent() != "" {
-				accumulatedReasoning += choice.Delta.GetReasoningContent()
-			}
-			if len(choice.Delta.ToolCalls) > 0 {
-				for _, tc := range choice.Delta.ToolCalls {
-					idx := 0
-					if tc.Index != nil {
-						idx = *tc.Index
-					}
-					if !toolCallSeen[idx] {
-						toolCallSeen[idx] = true
-						accumulatedToolCalls = append(accumulatedToolCalls, tc)
-					} else {
-						// Append arguments to the existing tool call at this index
-						for i := len(accumulatedToolCalls) - 1; i >= 0; i-- {
-							ai := 0
-							if accumulatedToolCalls[i].Index != nil {
-								ai = *accumulatedToolCalls[i].Index
-							}
-							if ai == idx {
-								accumulatedToolCalls[i].Function.Arguments += tc.Function.Arguments
-								if tc.Function.Name != "" {
-									accumulatedToolCalls[i].Function.Name = tc.Function.Name
+			for _, choice := range streamResp.Choices {
+				idx := choice.Index
+				if choice.Delta.GetContentString() != "" {
+					accumulatedContent[idx] += choice.Delta.GetContentString()
+				}
+				if choice.Delta.GetReasoningContent() != "" {
+					accumulatedReasoning[idx] += choice.Delta.GetReasoningContent()
+				}
+				if len(choice.Delta.ToolCalls) > 0 {
+					for _, tc := range choice.Delta.ToolCalls {
+						tcIdx := 0
+						if tc.Index != nil {
+							tcIdx = *tc.Index
+						}
+						if !toolCallSeen[tcIdx] {
+							toolCallSeen[tcIdx] = true
+							accumulatedToolCalls = append(accumulatedToolCalls, tc)
+						} else {
+							// Append arguments to the existing tool call at this index
+							for i := len(accumulatedToolCalls) - 1; i >= 0; i-- {
+								ai := 0
+								if accumulatedToolCalls[i].Index != nil {
+									ai = *accumulatedToolCalls[i].Index
 								}
-								if tc.ID != "" {
-									accumulatedToolCalls[i].ID = tc.ID
+								if ai == tcIdx {
+									accumulatedToolCalls[i].Function.Arguments += tc.Function.Arguments
+									if tc.Function.Name != "" {
+										accumulatedToolCalls[i].Function.Name = tc.Function.Name
+									}
+									if tc.ID != "" {
+										accumulatedToolCalls[i].ID = tc.ID
+									}
+									break
 								}
-								break
 							}
 						}
 					}
 				}
-			}
-			if choice.FinishReason != nil && *choice.FinishReason != "" {
-				finishReason = *choice.FinishReason
+				if choice.FinishReason != nil && *choice.FinishReason != "" {
+					finishReason[idx] = *choice.FinishReason
+				}
 			}
 		}
 	}
@@ -113,26 +128,51 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
-	if finishReason == "" {
-		finishReason = constant.FinishReasonStop
+	// Determine all choice indices that received content
+	allIndices := make(map[int]bool)
+	for idx := range accumulatedContent {
+		allIndices[idx] = true
+	}
+	for idx := range accumulatedReasoning {
+		allIndices[idx] = true
+	}
+	for idx := range finishReason {
+		allIndices[idx] = true
 	}
 
+	// Build choices for all indices
+	var choices []dto.OpenAITextResponseChoice
+	for idx := 0; idx < len(allIndices) || idx == 0; idx++ {
+		fr := finishReason[idx]
+		if fr == "" {
+			fr = constant.FinishReasonStop
+		}
+		choice := dto.OpenAITextResponseChoice{
+			Index:        idx,
+			FinishReason: fr,
+		}
+		choice.Message.Role = "assistant"
+		choice.Message.Content = accumulatedContent[idx]
+		if accumulatedReasoning[idx] != "" {
+			rc := accumulatedReasoning[idx]
+			choice.Message.ReasoningContent = &rc
+		}
+		if len(accumulatedToolCalls) > 0 && idx == 0 {
+			choice.Message.SetToolCalls(accumulatedToolCalls)
+		}
+		choices = append(choices, choice)
+		if len(allIndices) == 0 {
+			break
+		}
+	}
+
+	// Usage fallback: aggregate all content across choices for estimation
 	if usage == nil || usage.TotalTokens == 0 {
-		usage = service.ResponseText2Usage(c, accumulatedContent, info.UpstreamModelName, info.GetEstimatePromptTokens())
-	}
-
-	// Build the non-streaming response
-	choice := dto.OpenAITextResponseChoice{
-		Index:        0,
-		FinishReason: finishReason,
-	}
-	choice.Message.Role = "assistant"
-	choice.Message.Content = accumulatedContent
-	if accumulatedReasoning != "" {
-		choice.Message.ReasoningContent = &accumulatedReasoning
-	}
-	if len(accumulatedToolCalls) > 0 {
-		choice.Message.SetToolCalls(accumulatedToolCalls)
+		totalContent := ""
+		for _, c := range accumulatedContent {
+			totalContent += c
+		}
+		usage = service.ResponseText2Usage(c, totalContent, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
 
 	textResponse := dto.OpenAITextResponse{
@@ -140,7 +180,7 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		Object:  "chat.completion",
 		Created: created,
 		Model:   model,
-		Choices: []dto.OpenAITextResponseChoice{choice},
+		Choices: choices,
 		Usage:   *usage,
 	}
 

@@ -249,6 +249,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	// The SSE response will be aggregated by OaiBufferedStreamHandler in DoResponse.
 	if info.ChannelSetting.ForceUpstreamStream && !lo.FromPtrOr(request.Stream, false) {
 		request.Stream = lo.ToPtr(true)
+		info.IsStream = true
 		info.UpstreamStreamForced = true
 		// Inject stream_options.include_usage so the upstream returns actual
 		// usage in the final SSE chunk. Without this, the buffered handler

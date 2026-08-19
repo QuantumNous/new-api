@@ -328,16 +328,12 @@ func TestOaiBufferedStreamHandler_UpstreamErrorEvent(t *testing.T) {
 	}
 
 	usage, apiErr := OaiBufferedStreamHandler(c, info, resp)
-	// The error event has no choices, so content is empty and usage falls back
-	// to estimation. The handler should not crash; it returns a valid response
-	// with empty content. An error event is not a transport error -- it is
-	// embedded in the SSE stream and the handler treats it as data.
-	// If the upstream returns an error event with no choices, the buffered
-	// handler produces an empty completion with finish_reason "stop".
-	assert.Nil(t, apiErr, "handler must not return API error for in-stream error event")
-	assert.NotNil(t, usage, "usage must not be nil even for empty stream")
-	body := w.Body.String()
-	assert.Contains(t, body, "chat.completion", "response must still be a valid chat.completion JSON")
+	// An upstream error event is a real error, not data. The handler must
+	// return a NewAPIError and nil usage so the client sees the failure
+	// and billing is not charged for an empty success.
+	assert.NotNil(t, apiErr, "handler must return API error for in-stream error event")
+	assert.Nil(t, usage, "usage must be nil when upstream returns error")
+	assert.Contains(t, apiErr.Error(), "upstream error", "error message must mention upstream")
 }
 
 // TestOaiBufferedStreamHandler_MalformedDataLines verifies that malformed
