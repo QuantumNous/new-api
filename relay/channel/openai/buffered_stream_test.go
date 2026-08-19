@@ -38,7 +38,7 @@ func TestOaiBufferedStreamHandler_AggregatesContent(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "kimi-k2.6"},
 		IsStream:    true,
@@ -75,7 +75,7 @@ func TestOaiBufferedStreamHandler_AggregatesReasoningContent(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "deepseek-r1"},
 		IsStream:    true,
@@ -115,7 +115,7 @@ func TestOaiBufferedStreamHandler_AggregatesToolCalls(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4"},
 		IsStream:    true,
@@ -154,7 +154,7 @@ func TestOaiBufferedStreamHandler_MissingFinishChunk(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "test"},
 		IsStream:    true,
@@ -197,7 +197,7 @@ func TestOaiBufferedStreamHandler_ToolCallBilling(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4"},
 		OriginModelName:      "gpt-4",
@@ -237,7 +237,7 @@ func TestOaiBufferedStreamHandler_UsagePostProcessing(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType:       constant.ChannelTypeDeepSeek,
@@ -283,7 +283,7 @@ func TestOaiBufferedStreamHandler_ContentTypeIsJSON(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "test"},
 		IsStream:             true,
@@ -301,8 +301,9 @@ func TestOaiBufferedStreamHandler_ContentTypeIsJSON(t *testing.T) {
 }
 
 // TestOaiBufferedStreamHandler_UpstreamErrorEvent verifies that an error event
-// in the SSE stream is handled gracefully -- the handler returns a NewAPIError
-// instead of panicking or returning partial content.
+// in the SSE stream is surfaced as an API error -- the handler returns a
+// NewAPIError and nil usage so the client sees the failure and billing is not
+// charged for an empty success.
 func TestOaiBufferedStreamHandler_UpstreamErrorEvent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -320,7 +321,7 @@ func TestOaiBufferedStreamHandler_UpstreamErrorEvent(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "test"},
 		IsStream:             true,
@@ -359,7 +360,7 @@ func TestOaiBufferedStreamHandler_MalformedDataLines(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "test"},
 		IsStream:             true,
@@ -393,7 +394,7 @@ func TestOaiBufferedStreamHandler_UpstreamHTTPError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 	info := &relaycommon.RelayInfo{
 		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "test"},
 		IsStream:             true,

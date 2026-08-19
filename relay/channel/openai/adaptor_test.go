@@ -71,7 +71,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 
 			info := &relaycommon.RelayInfo{
 				ChannelMeta: &relaycommon.ChannelMeta{
@@ -151,7 +151,7 @@ func TestDoResponse_RoutesForcedStreamToBufferedHandler(t *testing.T) {
 
 			w := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 			c.Set(common.RequestIdKey, "test-req")
 
 			info := &relaycommon.RelayInfo{
