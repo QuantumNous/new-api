@@ -245,6 +245,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	// Reset forced-stream flags on each retry attempt. RelayInfo is reused
+	// across retries (controller/relay.go), so flags set by a previous
+	// channel must not leak into the current one.
+	info.IsStream = lo.FromPtrOr(request.Stream, false)
+	info.UpstreamStreamForced = false
 	// Force upstream streaming when channel requests it and client asked for non-stream.
 	// The SSE response will be aggregated by OaiBufferedStreamHandler in DoResponse.
 	if info.ChannelSetting.ForceUpstreamStream && !lo.FromPtrOr(request.Stream, false) {
