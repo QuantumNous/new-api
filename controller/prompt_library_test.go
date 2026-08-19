@@ -119,3 +119,155 @@ func TestImportPromptLibraryClosedWhenTokenUnset(t *testing.T) {
 	r.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
+
+func setupPromptLibraryPublicTest(t *testing.T) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.PromptLibraryItem{}))
+	prevDB := model.DB
+	model.DB = db
+	t.Cleanup(func() { model.DB = prevDB })
+
+	seed := func(slug, category string, enabled bool) {
+		item := model.PromptLibraryItem{
+			Slug: slug, Category: category, Model: "gpt-image-2", Prompt: "prompt of " + slug,
+			TitleJSON:      `{"en":"` + slug + `"}`,
+			ArtifactJSON:   `{"kind":"image","url":"https://example.com/` + slug + `.png"}`,
+			SourceJSON:     `{"label":"@a","platform":"X","url":"https://x.com/a/status/1"}`,
+			SourcePlatform: "X", SourceURL: "https://x.com/a/status/1",
+			Enabled: true,
+		}
+		require.NoError(t, db.Create(&item).Error)
+		if !enabled {
+			// gorm default:true swallows zero-value false on INSERT; disable via explicit update
+			require.NoError(t, db.Model(&item).Update("enabled", false).Error)
+		}
+	}
+	seed("pub-one", "image", true)
+	seed("pub-two", "image", true)
+	seed("pub-off", "image", false)
+
+	r := gin.New()
+	g := r.Group("/api/prompt-library")
+	g.GET("", ListPromptLibrary)
+	g.GET("/:slug", GetPromptLibraryItem)
+	return r
+}
+
+func TestListPromptLibraryPublicExcludesDisabledAndPaginates(t *testing.T) {
+	r := setupPromptLibraryPublicTest(t)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library?category=image&p=1&page_size=1", nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Total int              `json:"total"`
+			Items []map[string]any `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, 2, response.Data.Total) // disabled not counted
+	require.Len(t, response.Data.Items, 1)   // page_size=1
+	artifact, ok := response.Data.Items[0]["artifact"].(map[string]any)
+	require.True(t, ok)
+	require.Contains(t, artifact["url"], "https://example.com/")
+}
+
+func TestGetPromptLibraryItemPublic404s(t *testing.T) {
+	r := setupPromptLibraryPublicTest(t)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library/pub-one", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/api/prompt-library/pub-off", nil))
+	require.Equal(t, http.StatusNotFound, rec2.Code) // disabled behaves as absent
+
+	rec3 := httptest.NewRecorder()
+	r.ServeHTTP(rec3, httptest.NewRequest(http.MethodGet, "/api/prompt-library/no-such", nil))
+	require.Equal(t, http.StatusNotFound, rec3.Code)
+}
+
+func TestListPromptLibraryPublicRejectsBadCategory(t *testing.T) {
+	r := setupPromptLibraryPublicTest(t)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library?category=nope", nil))
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestListPromptLibraryPublicSurvivesCorruptJSONColumn(t *testing.T) {
+	r := setupPromptLibraryPublicTest(t)
+	// One row with a corrupt JSON column must degrade to the fallback value
+	// instead of failing the whole listing with a 500.
+	item := model.PromptLibraryItem{
+		Slug: "pub-corrupt", Category: "image", Model: "gpt-image-2", Prompt: "prompt of pub-corrupt",
+		TitleJSON:      `{"en":"pub-corrupt"}`,
+		ArtifactJSON:   "{corrupt",
+		SourceJSON:     `{"label":"@a","platform":"X","url":"https://x.com/a/status/1"}`,
+		SourcePlatform: "X", SourceURL: "https://x.com/a/status/1",
+		Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(&item).Error)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library?page_size=10", nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Total int              `json:"total"`
+			Items []map[string]any `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, 3, response.Data.Total) // pub-one, pub-two, pub-corrupt
+	var corrupt map[string]any
+	for _, listed := range response.Data.Items {
+		if listed["slug"] == "pub-corrupt" {
+			corrupt = listed
+		}
+	}
+	require.NotNil(t, corrupt, "corrupt row must still be listed")
+	require.Equal(t, map[string]any{}, corrupt["artifact"])                 // fallback, not the raw garbage
+	require.Equal(t, map[string]any{"en": "pub-corrupt"}, corrupt["title"]) // valid columns untouched
+}
+
+func TestGetPromptLibraryItemPublicNormalizesLiteralNullColumns(t *testing.T) {
+	r := setupPromptLibraryPublicTest(t)
+	// The import path marshals absent optional fields (title/summary/tags/output)
+	// via common.Marshal(nil), which stores the literal string "null".
+	item := model.PromptLibraryItem{
+		Slug: "pub-null", Category: "image", Model: "gpt-image-2", Prompt: "prompt of pub-null",
+		TitleJSON:      `{"en":"pub-null"}`,
+		SummaryJSON:    "null",
+		TagsJSON:       "null",
+		OutputJSON:     "null",
+		ArtifactJSON:   `{"kind":"image","url":"https://example.com/pub-null.png"}`,
+		SourceJSON:     `{"label":"@a","platform":"X","url":"https://x.com/a/status/1"}`,
+		SourcePlatform: "X", SourceURL: "https://x.com/a/status/1",
+		Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(&item).Error)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library/pub-null", nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Item map[string]any `json:"item"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, map[string]any{"en": "pub-null"}, response.Data.Item["title"])
+	require.Equal(t, map[string]any{}, response.Data.Item["summary"]) // literal "null" column -> {}
+	require.Equal(t, []any{}, response.Data.Item["tags"])             // literal "null" column -> []
+	require.Equal(t, map[string]any{}, response.Data.Item["output"])  // literal "null" column -> {}
+}

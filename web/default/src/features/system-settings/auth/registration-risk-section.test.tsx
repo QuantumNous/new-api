@@ -48,6 +48,8 @@ describe('registration domain risk settings', () => {
         windowHours: 12,
         threshold: 8,
         trustedDomains: ' Example.com\ncompany.com\nexample.com ',
+        emailBlacklistPatterns:
+          ' (?i)^fk[a-z0-9]{12}@[a-z0-9.]+$\n^blocked@example\\.com$ ',
       })
     ).toEqual({
       options: [
@@ -66,6 +68,11 @@ describe('registration domain risk settings', () => {
         {
           key: 'registration_security.trusted_email_domains',
           value: '["example.com","company.com"]',
+        },
+        {
+          key: 'registration_security.email_blacklist_patterns',
+          value:
+            '["(?i)^fk[a-z0-9]{12}@[a-z0-9.]+$","^blocked@example\\\\.com$"]',
         },
       ],
     })

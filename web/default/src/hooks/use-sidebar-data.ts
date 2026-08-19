@@ -26,6 +26,7 @@ import {
   FileText,
   FlaskConical,
   HeartPulse,
+  Images,
   Key,
   LayoutDashboard,
   ListTodo,
@@ -200,6 +201,11 @@ export function buildSidebarData(
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
+          },
+          {
+            title: t('Prompt Gallery'),
+            url: '/prompt-gallery',
+            icon: Images,
           },
           {
             title: t('Subscription Management'),

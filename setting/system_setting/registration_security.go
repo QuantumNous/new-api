@@ -2,6 +2,7 @@ package system_setting
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -16,11 +17,15 @@ type RegistrationSecuritySettings struct {
 	DomainRiskThreshold         int      `json:"domain_risk_threshold"`
 	TrustedEmailDomains         []string `json:"trusted_email_domains"`
 	RejectSubdomainEmailDomains bool     `json:"reject_subdomain_email_domains"`
+	EmailBlacklistPatterns      []string `json:"email_blacklist_patterns"`
 }
 
 var registrationSecuritySettings = RegistrationSecuritySettings{
 	DomainRiskWindowHours: 24,
 	DomainRiskThreshold:   10,
+	EmailBlacklistPatterns: []string{
+		`(?i)^fk[a-z0-9]{12}@[a-z0-9.]+$`,
+	},
 }
 
 const (
@@ -39,6 +44,7 @@ func GetRegistrationSecuritySettings() RegistrationSecuritySettings {
 	defer registrationSecuritySettingsMu.RUnlock()
 	cfg := registrationSecuritySettings
 	cfg.TrustedEmailDomains = append([]string(nil), registrationSecuritySettings.TrustedEmailDomains...)
+	cfg.EmailBlacklistPatterns = append([]string(nil), registrationSecuritySettings.EmailBlacklistPatterns...)
 	return cfg
 }
 
@@ -64,6 +70,7 @@ func UpdateRegistrationSecuritySettingsFromMap(values map[string]string) error {
 
 	next := registrationSecuritySettings
 	next.TrustedEmailDomains = append([]string(nil), registrationSecuritySettings.TrustedEmailDomains...)
+	next.EmailBlacklistPatterns = append([]string(nil), registrationSecuritySettings.EmailBlacklistPatterns...)
 	if err := config.UpdateConfigFromMap(&next, values); err != nil {
 		return err
 	}
@@ -96,6 +103,24 @@ func (s *RegistrationSecuritySettings) NormalizeAndValidate() error {
 	}
 	sort.Strings(normalized)
 	s.TrustedEmailDomains = normalized
+
+	seenPatterns := make(map[string]struct{}, len(s.EmailBlacklistPatterns))
+	normalizedPatterns := make([]string, 0, len(s.EmailBlacklistPatterns))
+	for _, raw := range s.EmailBlacklistPatterns {
+		pattern := strings.TrimSpace(raw)
+		if pattern == "" {
+			continue
+		}
+		if _, err := regexp.Compile(pattern); err != nil {
+			return fmt.Errorf("invalid registration email blacklist pattern %q: %w", pattern, err)
+		}
+		if _, ok := seenPatterns[pattern]; ok {
+			continue
+		}
+		seenPatterns[pattern] = struct{}{}
+		normalizedPatterns = append(normalizedPatterns, pattern)
+	}
+	s.EmailBlacklistPatterns = normalizedPatterns
 	return nil
 }
 
@@ -103,6 +128,28 @@ func (s RegistrationSecuritySettings) IsTrustedDomain(domain string) bool {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	for _, trusted := range s.TrustedEmailDomains {
 		if domain == trusted {
+			return true
+		}
+	}
+	return false
+}
+
+func (s RegistrationSecuritySettings) IsEmailBlacklisted(email string) (blacklisted bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			common.SysError(fmt.Sprintf("recovered from panic while evaluating registration email blacklist: %v", r))
+			blacklisted = false
+		}
+	}()
+
+	email = strings.TrimSpace(email)
+	for _, pattern := range s.EmailBlacklistPatterns {
+		matched, err := regexp.MatchString(pattern, email)
+		if err != nil {
+			common.SysError(fmt.Sprintf("invalid registration email blacklist pattern %q: %s", pattern, err.Error()))
+			continue
+		}
+		if matched {
 			return true
 		}
 	}

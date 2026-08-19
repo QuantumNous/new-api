@@ -33,6 +33,41 @@ func TestRegistrationSecurityRejectsSubdomainAndActiveBlock(t *testing.T) {
 	require.ErrorIs(t, err, ErrRegistrationDomainUnavailable)
 }
 
+func TestRegistrationSecurityRejectsAutomatedEmailPattern(t *testing.T) {
+	cfg := system_setting.RegistrationSecuritySettings{
+		EmailBlacklistPatterns: []string{`(?i)^fk[a-z0-9]{12}@[a-z0-9.]+$`},
+	}
+
+	for _, email := range []string{
+		"fk123456789abc@example.com",
+		"FK123456789ABC@EXAMPLE.COM",
+		"  fkabc123abc123@mail.example.com  ",
+	} {
+		t.Run(email, func(t *testing.T) {
+			_, err := EvaluateRegistrationEmail(email, cfg, nil)
+			require.ErrorIs(t, err, ErrAutomatedRegistrationEmailRejected)
+		})
+	}
+}
+
+func TestRegistrationSecurityAllowsEmailsOutsideAutomatedPattern(t *testing.T) {
+	cfg := system_setting.RegistrationSecuritySettings{
+		EmailBlacklistPatterns: []string{`(?i)^fk[a-z0-9]{12}@[a-z0-9.]+$`},
+	}
+
+	for _, email := range []string{
+		"fk123456789ab@example.com",
+		"fk123456789abcd@example.com",
+		"prefix-fk123456789abc@example.com",
+		"fk123456789abc@example-domain.com",
+	} {
+		t.Run(email, func(t *testing.T) {
+			_, err := EvaluateRegistrationEmail(email, cfg, nil)
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestRegistrationSecurityActiveBlockOverridesTrustedDomain(t *testing.T) {
 	cfg := system_setting.RegistrationSecuritySettings{
 		DomainRiskEnabled:     true,

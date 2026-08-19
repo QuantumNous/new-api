@@ -80,6 +80,37 @@ func TestRegisterRejectsSubdomainEmailDomain(t *testing.T) {
 	require.Zero(t, count)
 }
 
+func TestRegisterRejectsAutomatedEmailPattern(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	configureRegistrationEndpointTest(t)
+	withRegistrationSecurityConfig(t, map[string]string{
+		"registration_security.domain_risk_enabled":            "false",
+		"registration_security.domain_risk_window_hours":       "24",
+		"registration_security.domain_risk_threshold":          "10",
+		"registration_security.trusted_email_domains":          "[]",
+		"registration_security.reject_subdomain_email_domains": "false",
+	})
+
+	body, err := common.Marshal(map[string]any{
+		"username": "automated-email-user",
+		"password": "password123",
+		"email":    "fk123456789abc@example.com",
+	})
+	require.NoError(t, err)
+	recorder := performRegisterRequest(t, body)
+
+	var payload struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.False(t, payload.Success)
+	require.NotEmpty(t, payload.Message)
+	var count int64
+	require.NoError(t, db.Model(&model.User{}).Where("username = ?", "automated-email-user").Count(&count).Error)
+	require.Zero(t, count)
+}
+
 func TestRegisterPersistsEmailDomainWhenRiskControlsAreDisabled(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	configureRegistrationEndpointTest(t)

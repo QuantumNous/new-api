@@ -250,11 +250,20 @@ const mobileNavRowClass =
 const mobileNavActiveClass = "bg-[#F3EDFF] text-[#6B46C1]";
 const mobileNavNestedClass = "grid gap-0.5 pt-0.5 pl-4";
 const mobileNavOpenClass = "group-open:bg-[#F3EDFF] group-open:text-[#6B46C1]";
+const mobilePrimaryActionClass =
+  "flex min-h-12 items-center justify-center rounded-xl bg-[#070707] px-4 py-3 text-base font-bold text-white shadow-[0_14px_30px_-20px_rgba(11,11,15,.8)] transition hover:bg-[#17171B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9B8FF] focus-visible:ring-offset-2";
+const mobileSecondaryActionClass =
+  "flex min-h-12 items-center justify-center rounded-xl border border-[#0B0B0F14] bg-white px-4 py-3 text-base font-bold text-[#0B0B0F] shadow-[0_10px_24px_-22px_rgba(11,11,15,.55)] transition hover:border-[#C9B8FF] hover:bg-[#F3EDFF] hover:text-[#6B46C1] focus-visible:border-[#C9B8FF] focus-visible:bg-[#F3EDFF] focus-visible:text-[#6B46C1] focus-visible:outline-none";
 const desktopNavTriggerClass =
-  "inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[9px] px-2.5 text-[12.75px] font-semibold text-[#4A4650] transition hover:bg-[#F7F2FF] hover:text-[#0B0B0F] min-[1120px]:gap-2 min-[1120px]:px-3 min-[1120px]:text-[13.5px] min-[1360px]:text-[14.5px]";
-const desktopNavActiveClass = "bg-[#F7F2FF] text-[#0B0B0F]";
-const desktopNavDotClass =
-  "size-1.5 shrink-0 rounded-full bg-[#AAA7B0] transition group-hover/nav:bg-[#7C3AED]";
+  "inline-flex h-10 shrink-0 select-none items-center justify-center gap-1 whitespace-nowrap px-2.5 [font-family:inherit] text-[14px] leading-none no-underline transition-[color,transform,opacity] duration-200 ease-out hover:-translate-y-px hover:text-[#050505] focus-visible:text-[#050505] focus-visible:outline-none active:scale-[0.985] min-[1120px]:gap-1.5 min-[1120px]:px-3 min-[1120px]:text-[14.5px] min-[1360px]:text-[15px]";
+const desktopNavDropdownTriggerClass =
+  `${desktopNavTriggerClass} cursor-pointer appearance-none border-0 bg-transparent`;
+const desktopNavDropdownItemClass =
+  "flex min-h-10 origin-center items-center rounded-[10px] px-3 py-2 text-[14px] font-semibold leading-none text-[#0B0B0F] transition-[color,transform,background-color] duration-200 ease-out hover:translate-x-0.5 hover:bg-[#F7F2FF] hover:text-[#050505] focus-visible:bg-[#F7F2FF] focus-visible:text-[#050505] focus-visible:outline-none";
+const desktopNavIdleClass = "font-semibold text-[#0B0B0F]";
+const desktopNavActiveClass = "font-bold text-[#050505]";
+const desktopDropdownChevronClass =
+  "size-3 shrink-0 text-current opacity-55 transition-all duration-200 ease-out group-hover/nav:rotate-180 group-hover/nav:opacity-75 group-focus-within/nav:rotate-180 group-focus-within/nav:opacity-75";
 const desktopSecondaryActionClass =
   "inline-flex h-10 items-center whitespace-nowrap rounded-[9px] border border-[#E7E4EC] bg-white px-2.5 text-[13px] font-bold text-[#0B0B0F] no-underline shadow-[0_1px_2px_rgba(24,14,38,.05)] transition hover:border-[#D8D1E2] hover:bg-[#F8F4FF] hover:text-[#4C1D95] min-[1180px]:px-3 min-[1180px]:text-[13.5px] min-[1360px]:text-[14px]";
 const desktopPrimaryActionClass =
@@ -286,9 +295,10 @@ export function SiteHeaderDesktopActions(
       </a>
       {props.consoleSessionActive ? (
         <a
-          className={desktopSecondaryActionClass}
+          className={desktopPrimaryActionClass}
           href={props.contactSalesHref}
           aria-label={props.contactSalesLabel}
+          style={{ color: "#fff" }}
         >
           <span>{props.contactSalesLabel}</span>
         </a>
@@ -599,27 +609,16 @@ export function SiteHeader(props: Props) {
     };
   }, []);
 
-  const renderNavLink = (item: NavItem, compact = false, withDot = false) => {
+  const renderNavLink = (item: NavItem, compact = false) => {
     const hrefPath = item.href.split("#")[0] || item.href;
     const active =
       item.publicPath && currentPath === hrefPath && !item.href.includes("#");
     const className = cn(
-      compact
-        ? "flex min-h-10 items-center rounded-[10px] px-3 py-2 text-sm font-semibold transition hover:bg-[#F7F2FF] hover:text-[#0B0B0F]"
-        : desktopNavTriggerClass,
-      active ? desktopNavActiveClass : "text-[#4A4650]",
+      compact ? desktopNavDropdownItemClass : desktopNavTriggerClass,
+      active ? desktopNavActiveClass : desktopNavIdleClass,
     );
     const children = (
       <>
-        {withDot ? (
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              active ? "bg-[#7C3AED]" : "bg-[#AAA7B0]",
-            )}
-            aria-hidden="true"
-          />
-        ) : null}
         <span className="min-w-0 overflow-hidden text-ellipsis">
           {item.label}
         </span>
@@ -680,29 +679,41 @@ export function SiteHeader(props: Props) {
     );
   };
 
-  const renderNavGroup = (label: string, items: NavItem[]) => (
-    <div className="group/nav relative">
-      <div
-        className={cn(
-          desktopNavTriggerClass,
-          "cursor-default select-none group-hover/nav:bg-[#F7F2FF] group-hover/nav:text-[#0B0B0F]",
-        )}
-      >
-        <span
-          className={desktopNavDotClass}
-          aria-hidden="true"
-        />
-        <span className="min-w-0 overflow-hidden text-ellipsis">{label}</span>
-      </div>
-      <div className="pointer-events-none absolute top-full left-1/2 z-[70] w-[220px] -translate-x-1/2 translate-y-1 pt-[10px] opacity-0 transition group-hover/nav:pointer-events-auto group-hover/nav:translate-y-0 group-hover/nav:opacity-100">
-        <div className="grid gap-0.5 rounded-[14px] border border-[#E7E4EC] bg-white/[.98] p-[7px] shadow-[0_22px_60px_-26px_rgba(24,14,38,.38)] backdrop-blur-[18px]">
-          {items.map((item) => (
-            <div key={item.href}>{renderNavLink(item, true)}</div>
-          ))}
+  const renderNavGroup = (label: string, items: NavItem[]) => {
+    const active = items.some((item) => {
+      const hrefPath = item.href.split("#")[0] || item.href;
+      return (
+        item.publicPath && currentPath === hrefPath && !item.href.includes("#")
+      );
+    });
+
+    return (
+      <div className="group/nav relative before:absolute before:top-full before:left-1/2 before:z-[69] before:h-4 before:w-[256px] before:-translate-x-1/2 before:bg-transparent before:content-['']">
+        <button
+          type="button"
+          aria-haspopup="menu"
+          className={cn(
+            desktopNavDropdownTriggerClass,
+            active ? desktopNavActiveClass : desktopNavIdleClass,
+          )}
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          <span className="min-w-0 overflow-hidden text-ellipsis">{label}</span>
+          <ChevronDown className={desktopDropdownChevronClass} aria-hidden="true" />
+        </button>
+        <div className="pointer-events-none absolute top-full left-1/2 z-[70] w-[220px] origin-top -translate-x-1/2 -translate-y-1 scale-[0.97] pt-[6px] opacity-0 transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/nav:pointer-events-auto group-hover/nav:translate-y-0 group-hover/nav:scale-100 group-hover/nav:opacity-100 group-focus-within/nav:pointer-events-auto group-focus-within/nav:translate-y-0 group-focus-within/nav:scale-100 group-focus-within/nav:opacity-100">
+          <div
+            role="menu"
+            className="grid gap-0.5 rounded-[14px] border border-[#E7E4EC] bg-white/[.98] p-[7px] shadow-[0_24px_70px_-32px_rgba(24,14,38,.42)] backdrop-blur-[18px]"
+          >
+            {items.map((item) => (
+              <div key={item.href}>{renderNavLink(item, true)}</div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderMobileGroup = (label: string, items: NavItem[]) => (
     <details className="group">
@@ -783,7 +794,7 @@ export function SiteHeader(props: Props) {
         <div className="hidden min-w-0 flex-1 items-center gap-0 min-[901px]:flex min-[1120px]:gap-0.5">
           {renderNavGroup(groupLabels.products, productItems)}
           {renderNavGroup(groupLabels.resources, resourceItems)}
-          {topLevelItems.map((item) => renderNavLink(item, false, true))}
+          {topLevelItems.map((item) => renderNavLink(item))}
         </div>
 
         <div className="ml-auto hidden shrink-0 items-center gap-1.5 min-[901px]:flex min-[1180px]:gap-2">
@@ -807,9 +818,14 @@ export function SiteHeader(props: Props) {
         </div>
 
         <a
-          className="ml-auto inline-flex h-10 max-w-[8.5rem] shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-[9px] bg-[#070707] px-3 text-[13px] font-bold text-ellipsis text-white no-underline shadow-[0_6px_18px_-12px_rgba(11,11,15,.8)] min-[901px]:hidden"
+          className={cn(
+            "ml-auto h-10 max-w-[8.5rem] shrink-0 overflow-hidden whitespace-nowrap rounded-[9px] px-3 text-[13px] font-bold text-ellipsis no-underline min-[901px]:hidden",
+            consoleSessionActive
+              ? "inline-flex items-center justify-center border border-[#E7E4EC] bg-white text-[#0B0B0F] shadow-[0_1px_2px_rgba(24,14,38,.05)] transition hover:border-[#D8D1E2] hover:bg-[#F8F4FF] hover:text-[#4C1D95]"
+              : "inline-flex items-center justify-center bg-[#070707] text-white shadow-[0_6px_18px_-12px_rgba(11,11,15,.8)]",
+          )}
           href={primaryActionHref}
-          style={{ color: "#fff" }}
+          style={consoleSessionActive ? undefined : { color: "#fff" }}
         >
           {primaryActionLabel}
         </a>
@@ -847,7 +863,7 @@ export function SiteHeader(props: Props) {
       >
         <div className="mb-3 grid gap-2">
           <a
-            className="flex min-h-12 items-center justify-center rounded-xl border border-[#0B0B0F14] bg-white px-4 py-3 text-base font-bold text-[#0B0B0F] shadow-[0_10px_24px_-22px_rgba(11,11,15,.55)] transition hover:border-[#C9B8FF] hover:bg-[#F3EDFF] hover:text-[#6B46C1] focus-visible:border-[#C9B8FF] focus-visible:bg-[#F3EDFF] focus-visible:text-[#6B46C1] focus-visible:outline-none"
+            className={mobileSecondaryActionClass}
             href={accountHref}
             aria-label={accountLabel}
           >
@@ -855,9 +871,10 @@ export function SiteHeader(props: Props) {
           </a>
           {consoleSessionActive ? (
             <a
-              className="flex min-h-12 items-center justify-center rounded-xl border border-[#0B0B0F14] bg-white px-4 py-3 text-base font-bold text-[#0B0B0F] shadow-[0_10px_24px_-22px_rgba(11,11,15,.55)] transition hover:border-[#C9B8FF] hover:bg-[#F3EDFF] hover:text-[#6B46C1] focus-visible:border-[#C9B8FF] focus-visible:bg-[#F3EDFF] focus-visible:text-[#6B46C1] focus-visible:outline-none"
+              className={mobilePrimaryActionClass}
               href={contactSalesHref}
               aria-label={copy.nav.contactSales}
+              style={{ color: "#fff" }}
             >
               <span>{copy.nav.contactSales}</span>
             </a>

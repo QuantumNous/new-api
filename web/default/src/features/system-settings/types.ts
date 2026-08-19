@@ -110,6 +110,7 @@ export type AuthSettings = {
   'registration_security.domain_risk_window_hours': number
   'registration_security.domain_risk_threshold': number
   'registration_security.trusted_email_domains': string[]
+  'registration_security.email_blacklist_patterns': string[]
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
