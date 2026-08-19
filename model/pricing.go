@@ -40,6 +40,8 @@ type Pricing struct {
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
 }
 
+const PricingVersion = "db96bf4087646951cb0885f808b0737aa1b799c688ae11384de08639992d0800"
+
 type PricingVendor struct {
 	ID          int    `json:"id"`
 	Name        string `json:"name"`
@@ -456,7 +458,7 @@ func updatePricing() {
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "9d55bf3091fd32ca67f92e684279179a483381146b895b10d2f8ecf721f8fd7d"
+		pricingMap[0].PricingVersion = PricingVersion
 	}
 
 	// 刷新缓存映射，供高并发快速查询

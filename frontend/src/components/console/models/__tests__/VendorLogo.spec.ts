@@ -9,9 +9,14 @@ const vendorIcons = {
   Google: '/models/gemini-color.svg',
   DeepSeek: '/models/deepseek-color.svg',
   阿里通义: '/models/qwen-color.svg',
+  Alibaba: '/models/qwen-color.svg',
   xAI: '/models/grok.svg',
   Moonshot: '/models/kimi-color.svg',
+  'Moonshot AI': '/models/kimi-color.svg',
   智谱AI: '/models/zhipu-color.svg',
+  'Zhipu AI': '/models/zhipu-color.svg',
+  'Bytedance Seed': '/models/doubao-color.svg',
+  Tencent: '/models/hunyuan-color.svg',
 }
 
 describe('VendorLogo', () => {

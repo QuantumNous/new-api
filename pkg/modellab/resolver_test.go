@@ -23,6 +23,7 @@ func TestResolveModelLabs(t *testing.T) {
 		{name: "model mapping target wins", models: "public-model", mapping: `{"public-model":"anthropic/claude-opus-5"}`, group: "anthropic", source: "canonical"},
 		{name: "bedrock regional alias", models: "us.anthropic.claude-opus-4-1-20250805-v1:0", group: "anthropic", source: "alias"},
 		{name: "explicit qwen alias", models: "qwen3-max", group: "alibaba", source: "alias"},
+		{name: "codex model containing router token", models: "codex-auto-review", group: "openai", source: "alias"},
 		{name: "canonical wins over family token", models: "nvidia/llama-3.1-nemotron-70b-instruct", group: "nvidia", source: "canonical"},
 		{name: "mixed", models: "openai/gpt-5,anthropic/claude-opus-5", group: GroupMixed, source: "canonical"},
 		{name: "router remains unknown", models: "openrouter/auto", group: GroupUnknown, unresolvedCount: 1, source: "unknown"},

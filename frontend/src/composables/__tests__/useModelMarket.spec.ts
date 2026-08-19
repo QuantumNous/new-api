@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildLiveModelCatalog } from '@/composables/useModelMarket'
+import { vendorMeta } from '@/constants/console'
 
 describe('live model market adapter', () => {
   it('combines pricing and performance without dropping models lacking metrics', () => {
@@ -66,5 +67,38 @@ describe('live model market adapter', () => {
       price: { per_call: 0.0001 },
       health: 0,
     })
+  })
+
+  it('preserves canonical Model Lab vendor names from pricing', () => {
+    const vendors = [
+      'Alibaba',
+      'Moonshot AI',
+      'Zhipu AI',
+      'Bytedance Seed',
+      'Tencent',
+    ]
+    const catalog = buildLiveModelCatalog(
+      vendors.map((vendor) => `model-${vendor}`),
+      vendors.map((vendor) => ({
+        model_name: `model-${vendor}`,
+        description: '',
+        icon: '',
+        tags: '',
+        vendor_id: 1,
+        quota_type: 0,
+        model_ratio: 1,
+        model_price: 0,
+        owner_by: vendor,
+        completion_ratio: 1,
+        cache_ratio: null,
+        enable_groups: [],
+        supported_endpoint_types: ['chat'],
+        billing_mode: '',
+      })),
+      []
+    )
+
+    expect(catalog.vendors).toEqual(vendors)
+    for (const vendor of vendors) expect(vendorMeta[vendor]).toBeTruthy()
   })
 })

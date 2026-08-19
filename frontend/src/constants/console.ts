@@ -22,9 +22,14 @@ export const vendorMeta: Record<string, string> = {
   Google: 'Gemini 多模态与超长上下文',
   DeepSeek: '国产开源，极致性价比',
   阿里通义: '通义千问系列与多模态',
+  Alibaba: '通义千问系列与多模态',
   xAI: 'Grok 实时联网大模型',
   Moonshot: 'Kimi 长文与 Agent 能力',
+  'Moonshot AI': 'Kimi 长文与 Agent 能力',
   智谱AI: 'GLM 系列与视觉生成',
+  'Zhipu AI': 'GLM 系列与视觉生成',
+  'Bytedance Seed': '豆包与 Seed 系列多模态模型',
+  Tencent: '混元系列与多模态模型',
 }
 
 export interface VendorLogoMeta {

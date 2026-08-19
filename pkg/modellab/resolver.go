@@ -68,6 +68,7 @@ var hints = []hint{
 }
 
 var routerPattern = regexp.MustCompile(`(?:^|[/_.:-])(?:auto|router|ensemble)(?:$|[/_.:-])`)
+var codexModelPattern = regexp.MustCompile(`(?:^|[/_.:-])codex(?:$|[/_.:-])`)
 
 func regexps(values ...string) []*regexp.Regexp {
 	result := make([]*regexp.Regexp, 0, len(values))
@@ -171,7 +172,10 @@ func splitModels(models string) []string {
 func matchModel(catalog *Catalog, input, realModel string) ModelMatch {
 	normalized := normalize(realModel)
 	match := ModelMatch{InputModel: input, RealModel: realModel, Source: "unknown"}
-	if normalized == "" || strings.HasPrefix(normalized, "~") || routerPattern.MatchString(normalized) {
+	if normalized == "" || strings.HasPrefix(normalized, "~") {
+		return match
+	}
+	if routerPattern.MatchString(normalized) && !codexModelPattern.MatchString(normalized) {
 		return match
 	}
 	if lab, canonical, source := canonicalMatch(catalog, normalized); lab != "" {
