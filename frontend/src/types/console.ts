@@ -627,6 +627,7 @@ export interface MarketModelPrice {
   input?: number // $ / 1M tokens
   output?: number // $ / 1M tokens
   cache_read?: number // $ / 1M tokens
+  cache_write?: number // $ / 1M tokens
   per_call?: number // $ / call
   tiers?: MarketPriceTier[] // tiered billing breakdown
 }

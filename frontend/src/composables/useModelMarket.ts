@@ -56,6 +56,9 @@ function modelPrice(pricing: PricingModelContract): MarketModel['price'] {
     ...(pricing.cache_ratio === null
       ? {}
       : { cache_read: input * pricing.cache_ratio }),
+    ...(pricing.create_cache_ratio === null
+      ? {}
+      : { cache_write: input * pricing.create_cache_ratio }),
   }
 }
 

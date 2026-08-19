@@ -20,6 +20,7 @@ describe('live model market adapter', () => {
           owner_by: 'OpenAI',
           completion_ratio: 1.2,
           cache_ratio: 0.25,
+          create_cache_ratio: 0.5,
           enable_groups: [],
           supported_endpoint_types: ['chat'],
           billing_mode: '',
@@ -35,7 +36,8 @@ describe('live model market adapter', () => {
           model_price: 0.0001,
           owner_by: '',
           completion_ratio: 0,
-          cache_ratio: null,
+          cache_ratio: 0.5,
+          create_cache_ratio: 0.75,
           enable_groups: [],
           supported_endpoint_types: ['embeddings'],
           billing_mode: '',
@@ -56,7 +58,12 @@ describe('live model market adapter', () => {
     expect(catalog.models[0]).toMatchObject({
       type: 'chat',
       billing: 'token',
-      price: { input: 1, output: 1.2, cache_read: 0.25 },
+      price: {
+        input: 1,
+        output: 1.2,
+        cache_read: 0.25,
+        cache_write: 0.5,
+      },
       latency: 0.8,
       tps: 40,
       health: 98,
@@ -67,6 +74,8 @@ describe('live model market adapter', () => {
       price: { per_call: 0.0001 },
       health: 0,
     })
+    expect(catalog.models[1].price).not.toHaveProperty('cache_read')
+    expect(catalog.models[1].price).not.toHaveProperty('cache_write')
   })
 
   it('preserves canonical Model Lab vendor names from pricing', () => {
@@ -91,6 +100,7 @@ describe('live model market adapter', () => {
         owner_by: vendor,
         completion_ratio: 1,
         cache_ratio: null,
+        create_cache_ratio: null,
         enable_groups: [],
         supported_endpoint_types: ['chat'],
         billing_mode: '',
@@ -125,6 +135,7 @@ describe('live model market adapter', () => {
           name === 'gpt-5.3-codex-openai-compact' ? 'Virtual' : 'OpenAI',
         completion_ratio: 1,
         cache_ratio: null,
+        create_cache_ratio: null,
         enable_groups: [],
         supported_endpoint_types: ['chat'],
         billing_mode: '',
@@ -139,5 +150,56 @@ describe('live model market adapter', () => {
       'gpt-5.3-openai-compact-preview',
     ])
     expect(catalog.vendors).toEqual(['OpenAI'])
+  })
+
+  it('preserves zero cache-write prices and omits unavailable cache prices', () => {
+    const catalog = buildLiveModelCatalog(
+      ['zero-cache-write', 'missing-cache-write'],
+      [
+        {
+          model_name: 'zero-cache-write',
+          description: '',
+          icon: '',
+          tags: '',
+          vendor_id: 1,
+          quota_type: 0,
+          model_ratio: 2,
+          model_price: 0,
+          owner_by: 'OpenAI',
+          completion_ratio: 3,
+          cache_ratio: 0.25,
+          create_cache_ratio: 0,
+          enable_groups: [],
+          supported_endpoint_types: ['chat'],
+          billing_mode: '',
+        },
+        {
+          model_name: 'missing-cache-write',
+          description: '',
+          icon: '',
+          tags: '',
+          vendor_id: 1,
+          quota_type: 0,
+          model_ratio: 2,
+          model_price: 0,
+          owner_by: 'OpenAI',
+          completion_ratio: 3,
+          cache_ratio: null,
+          create_cache_ratio: null,
+          enable_groups: [],
+          supported_endpoint_types: ['chat'],
+          billing_mode: '',
+        },
+      ],
+      []
+    )
+
+    expect(catalog.models[0].price).toEqual({
+      input: 4,
+      output: 12,
+      cache_read: 1,
+      cache_write: 0,
+    })
+    expect(catalog.models[1].price).toEqual({ input: 4, output: 12 })
   })
 })

@@ -58,20 +58,13 @@ async function copyName() {
   <!-- ============ GRID ============ -->
   <article
     v-if="layout === 'grid'"
-    class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)] transition duration-200 ease-out hover:border-[var(--accent)] hover:shadow-[var(--card-shadow-hover)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-1"
+    class="model-card group relative flex min-h-64 flex-col justify-between overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 transition duration-200 ease-out hover:border-[var(--accent)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-1"
+    data-model-card
+    :data-model-name="model.name"
   >
-    <!-- Accent Top Streamer Line (Day: caramel amber / Night: celestial gold glow) -->
+    <!-- A solid semantic accent keeps the paper-card cue legible in both themes. -->
     <span
-      class="pointer-events-none absolute inset-x-0 top-0 h-[2.5px] opacity-70 transition-opacity duration-300 group-hover:opacity-100"
-      style="
-        background: linear-gradient(
-          90deg,
-          transparent,
-          var(--accent) 25%,
-          var(--accent) 75%,
-          transparent
-        );
-      "
+      class="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-[var(--accent)] opacity-70 transition-opacity duration-300 group-hover:opacity-100"
       aria-hidden="true"
     />
 
@@ -138,7 +131,8 @@ async function copyName() {
       <div class="mt-3">
         <template v-if="model.billing === 'per_call'">
           <div
-            class="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/50 px-3.5 py-2.5"
+            class="flex items-center justify-between rounded-md border border-[var(--border-default)] bg-[var(--surface-muted)] px-3.5 py-2.5"
+            data-model-price-panel
           >
             <span class="text-xs text-[var(--text-tertiary)]">{{
               t('models.perCall')
@@ -152,10 +146,11 @@ async function copyName() {
         </template>
         <template v-else>
           <div
-            class="space-y-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-table-header)]/60 p-3"
+            class="rounded-md border border-[var(--border-default)] bg-[var(--surface-table-header)] p-3"
+            data-model-price-panel
           >
             <div
-              class="grid grid-cols-2 gap-3 divide-x divide-[var(--border-subtle)]"
+              class="grid min-h-12 grid-cols-2 gap-3 divide-x divide-[var(--border-default)]"
             >
               <div class="pr-2">
                 <div class="text-[11px] text-[var(--text-tertiary)]">
@@ -191,17 +186,51 @@ async function copyName() {
               </div>
             </div>
             <div
-              v-if="model.price.cache_read != null"
-              class="flex items-center justify-between border-t border-[var(--border-subtle)] pt-2 text-[11px] text-[var(--text-tertiary)]"
+              v-if="
+                model.price.cache_read != null ||
+                model.price.cache_write != null
+              "
+              class="mt-2 grid gap-3 border-t border-[var(--border-default)] pt-2"
+              :class="
+                model.price.cache_read != null &&
+                model.price.cache_write != null
+                  ? 'grid-cols-2'
+                  : 'grid-cols-1'
+              "
+              data-model-cache-prices
             >
-              <span>{{ t('models.priceCache') }}</span>
-              <span class="font-mono font-medium text-[var(--text-secondary)]">
-                {{ formatTokenPrice(model.price.cache_read) }}
-                <span
-                  class="font-sans text-[10px] font-normal text-[var(--text-tertiary)]"
-                  >/ 1M</span
+              <div
+                v-if="model.price.cache_read != null"
+                class="min-w-0 text-[11px] text-[var(--text-tertiary)]"
+                data-model-cache-read
+              >
+                <div>{{ t('models.priceCache') }}</div>
+                <div
+                  class="mt-0.5 truncate font-mono font-medium text-[var(--text-secondary)]"
                 >
-              </span>
+                  {{ formatTokenPrice(model.price.cache_read) }}
+                  <span
+                    class="font-sans text-[10px] font-normal text-[var(--text-tertiary)]"
+                    >/ 1M</span
+                  >
+                </div>
+              </div>
+              <div
+                v-if="model.price.cache_write != null"
+                class="min-w-0 text-[11px] text-[var(--text-tertiary)]"
+                data-model-cache-write
+              >
+                <div>{{ t('models.priceCacheWrite') }}</div>
+                <div
+                  class="mt-0.5 truncate font-mono font-medium text-[var(--text-secondary)]"
+                >
+                  {{ formatTokenPrice(model.price.cache_write) }}
+                  <span
+                    class="font-sans text-[10px] font-normal text-[var(--text-tertiary)]"
+                    >/ 1M</span
+                  >
+                </div>
+              </div>
             </div>
           </div>
         </template>
@@ -264,7 +293,9 @@ async function copyName() {
   <!-- ============ LIST ============ -->
   <article
     v-else
-    class="group flex items-center gap-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 transition duration-200 ease-out hover:border-[var(--accent)] hover:shadow-[var(--card-shadow-hover)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-0.5"
+    class="model-card group flex items-center gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-solid)] px-4 py-3 transition duration-200 ease-out hover:border-[var(--accent)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-0.5"
+    data-model-card
+    :data-model-name="model.name"
   >
     <!-- name + description -->
     <div class="min-w-0 flex-1">
@@ -370,3 +401,18 @@ async function copyName() {
     </div>
   </article>
 </template>
+
+<style scoped>
+.model-card {
+  box-shadow: var(--card-shadow);
+}
+
+.model-card:hover {
+  box-shadow: var(--card-shadow-hover);
+}
+
+:global(html[data-theme='dark']) .model-card,
+:global(html[data-theme='dark']) .model-card:hover {
+  box-shadow: none;
+}
+</style>

@@ -27,6 +27,21 @@ function expectInvalidResponse(parse: () => unknown): void {
   }
 }
 
+function pricingResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    model_name: 'gpt-4o',
+    description: 'Fast model',
+    quota_type: 0,
+    model_ratio: 0.5,
+    completion_ratio: 1.2,
+    cache_ratio: 0.25,
+    owner_by: 'OpenAI',
+    supported_endpoint_types: ['chat'],
+    enable_groups: ['default'],
+    ...overrides,
+  }
+}
+
 describe('live API contracts', () => {
   it('parses user models in both supported backend shapes', () => {
     expect(parseUserModels(['gpt-4o', 'claude-3-7-sonnet'])).toEqual([
@@ -39,23 +54,12 @@ describe('live API contracts', () => {
 
   it('parses model pricing and performance summaries with optional metadata', () => {
     expect(
-      parsePricingModels([
-        {
-          model_name: 'gpt-4o',
-          description: 'Fast model',
-          quota_type: 0,
-          model_ratio: 0.5,
-          completion_ratio: 1.2,
-          cache_ratio: 0.25,
-          owner_by: 'OpenAI',
-          supported_endpoint_types: ['chat'],
-          enable_groups: ['default'],
-        },
-      ])[0]
+      parsePricingModels([pricingResponse({ create_cache_ratio: 1.25 })])[0]
     ).toMatchObject({
       model_name: 'gpt-4o',
       model_ratio: 0.5,
       cache_ratio: 0.25,
+      create_cache_ratio: 1.25,
       owner_by: 'OpenAI',
     })
     expect(
@@ -77,6 +81,21 @@ describe('live API contracts', () => {
     })
     expectInvalidResponse(() => parsePricingModels([{ model_name: 'gpt-4o' }]))
     expectInvalidResponse(() => parsePerfMetricsSummary({ models: [{}] }))
+  })
+
+  it('normalizes missing cache-write ratios and rejects invalid values', () => {
+    expect(parsePricingModels([pricingResponse()])[0].create_cache_ratio).toBe(
+      null
+    )
+    expect(
+      parsePricingModels([pricingResponse({ create_cache_ratio: null })])[0]
+        .create_cache_ratio
+    ).toBe(null)
+    expectInvalidResponse(() =>
+      parsePricingModels([
+        pricingResponse({ create_cache_ratio: 'not-a-number' }),
+      ])
+    )
   })
 
   it('parses the log overview contract and rejects missing fields', () => {

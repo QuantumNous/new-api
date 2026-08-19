@@ -467,6 +467,7 @@ export default {
     priceInput: '输入价格',
     priceOutput: '补全价格',
     priceCache: '缓存读取',
+    priceCacheWrite: '缓存写入',
     perCall: '每次调用',
     perCallShort: '次',
     tierCount: '{count} 档',

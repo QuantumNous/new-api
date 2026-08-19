@@ -69,6 +69,7 @@ export interface PricingModelContract {
   owner_by: string
   completion_ratio: number
   cache_ratio: number | null
+  create_cache_ratio: number | null
   enable_groups: string[]
   supported_endpoint_types: string[]
   billing_mode: string
@@ -100,6 +101,10 @@ export function parsePricingModels(value: unknown): PricingModelContract[] {
       item.cache_ratio === undefined || item.cache_ratio === null
         ? null
         : requiredNumber(item.cache_ratio, endpoint)
+    const createCacheRatio =
+      item.create_cache_ratio === undefined || item.create_cache_ratio === null
+        ? null
+        : requiredNumber(item.create_cache_ratio, endpoint)
     return {
       model_name: requiredString(item.model_name, endpoint, false),
       description: requiredString(item.description ?? '', endpoint),
@@ -112,6 +117,7 @@ export function parsePricingModels(value: unknown): PricingModelContract[] {
       owner_by: requiredString(item.owner_by ?? '', endpoint),
       completion_ratio: requiredNumber(item.completion_ratio ?? 0, endpoint),
       cache_ratio: cacheRatio,
+      create_cache_ratio: createCacheRatio,
       enable_groups: [...groups],
       supported_endpoint_types: [...endpoints],
       billing_mode: requiredString(item.billing_mode ?? '', endpoint),

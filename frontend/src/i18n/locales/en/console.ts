@@ -473,6 +473,7 @@ export default {
     priceInput: 'Input',
     priceOutput: 'Output',
     priceCache: 'Cache read',
+    priceCacheWrite: 'Cache write',
     perCall: 'Per call',
     perCallShort: 'call',
     tierCount: '{count} tiers',

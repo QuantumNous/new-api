@@ -357,7 +357,10 @@ onMounted(load)
                     {{ formatTokenPrice(detailModel.price.output) }} / 1M
                   </td>
                 </tr>
-                <tr v-if="detailModel.price.cache_read != null">
+                <tr
+                  v-if="detailModel.price.cache_read != null"
+                  data-detail-cache-read
+                >
                   <td class="px-4 py-2 text-[var(--text-secondary)]">
                     {{ t('models.priceCache') }}
                   </td>
@@ -366,6 +369,20 @@ onMounted(load)
                     colspan="2"
                   >
                     {{ formatTokenPrice(detailModel.price.cache_read) }} / 1M
+                  </td>
+                </tr>
+                <tr
+                  v-if="detailModel.price.cache_write != null"
+                  data-detail-cache-write
+                >
+                  <td class="px-4 py-2 text-[var(--text-secondary)]">
+                    {{ t('models.priceCacheWrite') }}
+                  </td>
+                  <td
+                    class="px-4 py-2 text-right font-mono text-[var(--text-secondary)]"
+                    colspan="2"
+                  >
+                    {{ formatTokenPrice(detailModel.price.cache_write) }} / 1M
                   </td>
                 </tr>
               </tbody>
