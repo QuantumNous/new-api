@@ -151,6 +151,7 @@ interface FunnelCountDatum {
 
 interface FunnelUsdDatum {
   date: string
+  metric: string
   value: number
 }
 
@@ -181,6 +182,10 @@ function FunnelComboChart({
               xField: 'date',
               yField: 'value',
               seriesField: 'metric',
+              // Funnel stages are monotonic subsets (registrations >= activated
+              // >= paid), so keep the bars side-by-side instead of stacking
+              // them into one additive total.
+              stack: false,
               bar: { style: { cornerRadius: [4, 4, 0, 0] } },
             },
             {
@@ -189,6 +194,7 @@ function FunnelComboChart({
               data: { id: 'funnel-usd', values: usdSeries },
               xField: 'date',
               yField: 'value',
+              seriesField: 'metric',
               point: { visible: true, style: { size: 4 } },
               line: { style: { lineWidth: 2 } },
             },
@@ -211,16 +217,26 @@ function FunnelComboChart({
           height: 288,
           padding: { top: 8, bottom: 4, left: 4, right: 8 },
           tooltip: {
-            mark: {
+            dimension: {
+              title: {
+                value: (datum: any) => String(datum?.date ?? ''),
+              },
               content: [
                 {
-                  key: (datum: any) => String(datum?.metric ?? usdLabel),
-                  value: (datum: any) =>
-                    datum?.metric != null
-                      ? String(datum?.value ?? '')
-                      : usd(Number(datum?.value ?? 0)),
+                  key: (datum: any) => String(datum?.metric ?? ''),
+                  value: (datum: any) => datum?.value ?? 0,
                 },
               ],
+              updateContent: (
+                array: Array<{ key: string; value: string | number }>
+              ) =>
+                array.map((item) => ({
+                  key: item.key,
+                  value:
+                    item.key === usdLabel
+                      ? usd(Number(item.value))
+                      : String(item.value),
+                })),
             },
           },
         }}
@@ -1060,7 +1076,11 @@ export function OpsReport() {
                         ])}
                       usdSeries={[...report.daily]
                         .sort((a, b) => a.key.localeCompare(b.key))
-                        .map((row) => ({ date: row.key, value: row.paid_usd }))}
+                        .map((row) => ({
+                          date: row.key,
+                          metric: t('Paid Amount'),
+                          value: row.paid_usd,
+                        }))}
                       usdLabel={t('Paid Amount')}
                     />
                     <DailyFunnelTable rows={report.daily} />
