@@ -334,6 +334,9 @@ export interface ChannelFormData {
   header_override?: string
   settings?: string
   other?: string
+  asset_materialization_provider?: string
+  asset_materialization_gateway_base_url?: string
+  asset_materialization_group_id?: string
   // Multi-key specific
   multi_key_mode?: 'single' | 'batch' | 'multi_to_single'
   multi_key_type?: 'random' | 'polling'

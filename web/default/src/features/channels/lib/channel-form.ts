@@ -32,6 +32,13 @@ export type BlockRunPaymentChain = 'base' | 'solana'
 const CODEX_FINGERPRINT_MODES = ['off', 'device', 'session', 'full'] as const
 type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
 
+const ASSET_MATERIALIZATION_PROVIDERS = [
+  'seedance_proxy',
+  'tokenspace_material',
+] as const
+type AssetMaterializationProvider =
+  (typeof ASSET_MATERIALIZATION_PROVIDERS)[number]
+
 const BASE58_ALPHABET =
   '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 const BASE58_INDEX = new Map(
@@ -246,6 +253,44 @@ function normalizeCodexFingerprintMode(value: unknown): CodexFingerprintMode {
     : 'off'
 }
 
+function normalizeAssetMaterializationProvider(
+  value: unknown
+): AssetMaterializationProvider | string {
+  return ASSET_MATERIALIZATION_PROVIDERS.includes(
+    value as AssetMaterializationProvider
+  )
+    ? (value as AssetMaterializationProvider)
+    : typeof value === 'string'
+      ? value.trim()
+      : ''
+}
+
+function isSecureAssetMaterializationGatewayUrl(
+  value: string | undefined
+): boolean {
+  const rawValue = value?.trim()
+  if (!rawValue) return false
+
+  try {
+    const parsed = new URL(rawValue)
+    if (
+      parsed.protocol !== 'https:' ||
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      return false
+    }
+    return !parsed.pathname
+      .split('/')
+      .some((segment) => segment === '.' || segment === '..')
+  } catch {
+    return false
+  }
+}
+
 function isVertexJsonKey(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -346,6 +391,9 @@ export const channelFormSchema = z
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
+    asset_materialization_provider: z.string().optional(),
+    asset_materialization_gateway_base_url: z.string().optional(),
+    asset_materialization_group_id: z.string().optional(),
     blockrun_payment_chain: z.enum(['base', 'solana']),
     blockrun_max_payment_atomic: z.string().optional(),
     // Field passthrough controls (stored in settings JSON)
@@ -418,6 +466,65 @@ export const channelFormSchema = z
           ctx,
           'key',
           'Codex credential must be a JSON object with access_token and account_id'
+        )
+      }
+    }
+
+    const assetMaterializationProvider =
+      data.asset_materialization_provider?.trim() || ''
+    const assetMaterializationGatewayBaseURL =
+      data.asset_materialization_gateway_base_url?.trim() || ''
+    const assetMaterializationGroupID =
+      data.asset_materialization_group_id?.trim() || ''
+
+    if (
+      ASSET_MATERIALIZATION_PROVIDERS.includes(
+        assetMaterializationProvider as AssetMaterializationProvider
+      )
+    ) {
+      if (
+        !isSecureAssetMaterializationGatewayUrl(
+          assetMaterializationGatewayBaseURL
+        )
+      ) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_gateway_base_url',
+          'Gateway base URL must be a valid HTTPS URL'
+        )
+      }
+      if (!assetMaterializationGroupID) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_group_id',
+          'Asset materialization group is required'
+        )
+      }
+    } else if (
+      !assetMaterializationProvider &&
+      (assetMaterializationGatewayBaseURL || assetMaterializationGroupID)
+    ) {
+      addRequiredIssue(
+        ctx,
+        'asset_materialization_provider',
+        'Asset materialization provider is required'
+      )
+      if (
+        !isSecureAssetMaterializationGatewayUrl(
+          assetMaterializationGatewayBaseURL
+        )
+      ) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_gateway_base_url',
+          'Gateway base URL must be a valid HTTPS URL'
+        )
+      }
+      if (!assetMaterializationGroupID) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_group_id',
+          'Asset materialization group is required'
         )
       }
     }
@@ -509,6 +616,9 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   vertex_key_type: 'json',
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
+  asset_materialization_provider: '',
+  asset_materialization_gateway_base_url: '',
+  asset_materialization_group_id: '',
   blockrun_payment_chain: 'base',
   blockrun_max_payment_atomic: '',
   // Field passthrough controls
@@ -582,6 +692,9 @@ export function transformChannelToFormDefaults(
   // Parse type-specific settings from settings field
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
+  let assetMaterializationProvider: AssetMaterializationProvider | string = ''
+  let assetMaterializationGatewayBaseURL = ''
+  let assetMaterializationGroupID = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
   let blockRunPaymentChain: BlockRunPaymentChain = 'base'
@@ -602,6 +715,19 @@ export function transformChannelToFormDefaults(
       const parsed = JSON.parse(channel.settings)
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
+      if (isJsonObjectValue(parsed.asset_materialization)) {
+        assetMaterializationProvider = normalizeAssetMaterializationProvider(
+          parsed.asset_materialization.provider
+        )
+        assetMaterializationGatewayBaseURL =
+          typeof parsed.asset_materialization.gateway_base_url === 'string'
+            ? parsed.asset_materialization.gateway_base_url
+            : ''
+        assetMaterializationGroupID =
+          typeof parsed.asset_materialization.group_id === 'string'
+            ? parsed.asset_materialization.group_id
+            : ''
+      }
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
       blockRunPaymentChain =
@@ -665,6 +791,9 @@ export function transformChannelToFormDefaults(
     is_enterprise_account: isEnterpriseAccount,
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
+    asset_materialization_provider: assetMaterializationProvider,
+    asset_materialization_gateway_base_url: assetMaterializationGatewayBaseURL,
+    asset_materialization_group_id: assetMaterializationGroupID,
     aws_key_type: awsKeyType,
     blockrun_payment_chain: blockRunPaymentChain,
     blockrun_max_payment_atomic: blockRunMaxPaymentAtomic,
@@ -721,6 +850,9 @@ export function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.force_format ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
+    values.asset_materialization_provider?.trim() ||
+    values.asset_materialization_gateway_base_url?.trim() ||
+    values.asset_materialization_group_id?.trim() ||
     normalizeCodexFingerprintMode(values.codex_fingerprint_mode) !== 'off' ||
     (values.type === 105 && values.return_source_url) ||
     values.system_prompt_override ||
@@ -773,6 +905,23 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.aws_key_type = formData.aws_key_type || 'ak_sk'
   } else if ('aws_key_type' in settingsObj) {
     delete settingsObj.aws_key_type
+  }
+
+  const assetMaterializationProvider =
+    formData.asset_materialization_provider?.trim() || ''
+  const assetMaterializationGatewayBaseURL =
+    formData.asset_materialization_gateway_base_url?.trim() || ''
+  const assetMaterializationGroupID =
+    formData.asset_materialization_group_id?.trim() || ''
+
+  if (assetMaterializationProvider) {
+    settingsObj.asset_materialization = {
+      provider: assetMaterializationProvider,
+      gateway_base_url: assetMaterializationGatewayBaseURL,
+      group_id: assetMaterializationGroupID,
+    }
+  } else if ('asset_materialization' in settingsObj) {
+    delete settingsObj.asset_materialization
   }
 
   if (formData.type === 100) {

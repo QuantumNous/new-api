@@ -736,6 +736,57 @@ func TestPrepareAssetModelReadinessActivatesExactProviderBindingSet(t *testing.T
 	require.Equal(t, siblingTarget.BindingScope, sibling.BindingScope)
 }
 
+func TestPrepareAssetModelBindingRejectsSeedanceProxyAudioBeforeProviderWrite(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_worker_seedance_audio")
+	require.NoError(t, model.DB.Model(&model.Asset{}).Where("id = ?", asset.Id).Updates(map[string]any{
+		"asset_type":   "Audio",
+		"content_type": "audio/mpeg",
+	}).Error)
+	asset.AssetType = "Audio"
+
+	priority := int64(80)
+	weight := uint(50)
+	channel := &model.Channel{
+		Id:            181,
+		Type:          constant.ChannelTypeBytePlus,
+		Key:           "seedance-worker-key",
+		Status:        common.ChannelStatusEnabled,
+		Name:          "seedance-worker-audio-channel",
+		Group:         "default",
+		Models:        "seedance-2.0",
+		Priority:      &priority,
+		Weight:        &weight,
+		ModelMapping:  func() *string { value := `{"seedance-2.0":"doubao/seedance-pro"}`; return &value }(),
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid","group_id":"grp_shared_aigc"}}`,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	options := AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: channel.Key}
+	bindingScope, err := assetBindingScopeForChannel(channel, options)
+	require.NoError(t, err)
+	target := model.AssetModelCoverageTarget{ChannelId: channel.Id, BindingScope: bindingScope}
+
+	providerCalled := false
+	originalFactory := seedanceProxyAssetHTTPClientFactory
+	seedanceProxyAssetHTTPClientFactory = func(*model.Channel) (*http.Client, error) {
+		providerCalled = true
+		return nil, nil
+	}
+	t.Cleanup(func() { seedanceProxyAssetHTTPClientFactory = originalFactory })
+
+	_, err = prepareAssetModelBinding(context.Background(), asset, target, channel, options, "node-a", 100)
+	var definitiveErr assetModelBindingDefinitiveError
+	require.ErrorAs(t, err, &definitiveErr)
+	require.Equal(t, AssetMaterializeErrorDefinitive, definitiveErr.class)
+	require.False(t, providerCalled)
+
+	var bindingCount int64
+	require.NoError(t, model.DB.Model(&model.AssetBinding{}).Where("asset_id = ?", asset.Id).Count(&bindingCount).Error)
+	require.Zero(t, bindingCount)
+}
+
 func TestPrepareAssetModelReadinessActivatesExactSourceURLBindingSetWithoutAssetBindingRow(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)

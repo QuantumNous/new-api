@@ -464,7 +464,7 @@ func RefreshAssetRewriteMapForSelectedChannel(c *gin.Context, channel *model.Cha
 	if c.Request != nil {
 		ctx = c.Request.Context()
 	}
-	if service.AssetModelChannelUsesSourceURL(channel.Type) {
+	if service.AssetModelChannelUsesSourceURLForChannel(channel) {
 		modelInfo := &relaycommon.RelayInfo{
 			OriginModelName: originModel,
 			ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: originModel},

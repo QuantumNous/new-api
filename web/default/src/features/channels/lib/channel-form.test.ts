@@ -494,3 +494,163 @@ describe('TechMobi return_source_url channel setting', () => {
     })
   })
 })
+
+describe('Asset materialization settings', () => {
+  test('round-trips provider, gateway, and group while preserving unrelated settings', () => {
+    const channel = {
+      ...baseChannel,
+      settings: JSON.stringify({
+        allow_service_tier: true,
+        asset_materialization: {
+          provider: 'seedance_proxy',
+          gateway_base_url: 'https://asset-gateway.example.invalid/v1/',
+          group_id: 'grp_shared_aigc',
+        },
+      }),
+    } as Channel
+
+    const defaults = transformChannelToFormDefaults(channel)
+
+    expect(defaults.asset_materialization_provider).toBe('seedance_proxy')
+    expect(defaults.asset_materialization_gateway_base_url).toBe(
+      'https://asset-gateway.example.invalid/v1/'
+    )
+    expect(defaults.asset_materialization_group_id).toBe('grp_shared_aigc')
+
+    const payload = transformFormDataToUpdatePayload(
+      {
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        name: 'asset-channel',
+        models: 'gpt-4o',
+        settings: JSON.stringify({
+          legacy_setting: { keep: true },
+        }),
+        asset_materialization_provider: 'seedance_proxy',
+        asset_materialization_gateway_base_url:
+          'https://asset-gateway.example.invalid/v1/',
+        asset_materialization_group_id: 'grp_shared_aigc',
+      },
+      1
+    )
+
+    expect(JSON.parse(payload.settings || '{}')).toMatchObject({
+      legacy_setting: { keep: true },
+      asset_materialization: {
+        provider: 'seedance_proxy',
+        gateway_base_url: 'https://asset-gateway.example.invalid/v1/',
+        group_id: 'grp_shared_aigc',
+      },
+    })
+  })
+
+  test('requires a secure gateway and group when materialization is enabled', () => {
+    const validValues = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'asset-channel',
+      models: 'gpt-4o',
+      asset_materialization_provider: 'seedance_proxy',
+      asset_materialization_gateway_base_url:
+        'https://asset-gateway.example.invalid',
+      asset_materialization_group_id: 'grp_shared_aigc',
+    }
+
+    expect(channelFormSchema.safeParse(validValues).success).toBe(true)
+
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        asset_materialization_gateway_base_url:
+          'http://asset-gateway.example.invalid',
+      }).success
+    ).toBe(false)
+
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        asset_materialization_group_id: '',
+      }).success
+    ).toBe(false)
+  })
+
+  test('round-trips TokenSpace materialization provider settings', () => {
+    const payload = transformFormDataToUpdatePayload(
+      {
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        name: 'tokenspace-channel',
+        models: 'seedance-2.0',
+        asset_materialization_provider: 'tokenspace_material',
+        asset_materialization_gateway_base_url:
+          'https://materials.example.invalid',
+        asset_materialization_group_id: 'group-internal',
+      },
+      1
+    )
+
+    expect(JSON.parse(payload.settings || '{}')).toMatchObject({
+      asset_materialization: {
+        provider: 'tokenspace_material',
+        gateway_base_url: 'https://materials.example.invalid',
+        group_id: 'group-internal',
+      },
+    })
+  })
+
+  test('requires a secure gateway and group for TokenSpace materialization', () => {
+    const validValues = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'tokenspace-channel',
+      models: 'seedance-2.0',
+      asset_materialization_provider: 'tokenspace_material',
+      asset_materialization_gateway_base_url:
+        'https://materials.example.invalid',
+      asset_materialization_group_id: 'group-internal',
+    }
+
+    expect(channelFormSchema.safeParse(validValues).success).toBe(true)
+
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        asset_materialization_gateway_base_url:
+          'http://materials.example.invalid',
+      }).success
+    ).toBe(false)
+
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        asset_materialization_group_id: '',
+      }).success
+    ).toBe(false)
+  })
+
+  test('preserves an unknown persisted provider instead of silently clearing it', () => {
+    const channel = {
+      ...baseChannel,
+      settings: JSON.stringify({
+        asset_materialization: {
+          provider: 'future_provider',
+          gateway_base_url: 'https://asset-gateway.example.invalid',
+          group_id: 'grp_shared_aigc',
+        },
+      }),
+    } as Channel
+
+    const defaults = transformChannelToFormDefaults(channel)
+
+    expect(defaults.asset_materialization_provider).toBe('future_provider')
+    expect(channelFormSchema.safeParse(defaults).success).toBe(true)
+
+    const payload = transformFormDataToUpdatePayload(
+      { ...defaults, name: 'renamed-channel' },
+      channel.id
+    )
+    expect(JSON.parse(payload.settings || '{}')).toMatchObject({
+      asset_materialization: {
+        provider: 'future_provider',
+        gateway_base_url: 'https://asset-gateway.example.invalid',
+        group_id: 'grp_shared_aigc',
+      },
+    })
+  })
+})

@@ -2976,6 +2976,113 @@ export function ChannelMutateDrawer({
 
                       <div className='flex flex-col gap-4 border-t pt-4'>
                         <SubHeading
+                          title={t('Asset Materialization')}
+                          icon={<Settings className='h-3.5 w-3.5' />}
+                        />
+                        <div className='grid gap-4 sm:grid-cols-3'>
+                          <FormField
+                            control={form.control}
+                            name='asset_materialization_provider'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Provider')}</FormLabel>
+                                <Select
+                                  items={[
+                                    {
+                                      value: '',
+                                      label: t('None'),
+                                    },
+                                    {
+                                      value: 'seedance_proxy',
+                                      label: t('Seedance proxy'),
+                                    },
+                                    {
+                                      value: 'tokenspace_material',
+                                      label: t('TokenSpace material'),
+                                    },
+                                  ]}
+                                  onValueChange={field.onChange}
+                                  value={field.value || ''}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue
+                                        placeholder={t('Select provider')}
+                                      />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent alignItemWithTrigger={false}>
+                                    <SelectGroup>
+                                      <SelectItem value=''>
+                                        {t('None')}
+                                      </SelectItem>
+                                      <SelectItem value='seedance_proxy'>
+                                        {t('Seedance proxy')}
+                                      </SelectItem>
+                                      <SelectItem value='tokenspace_material'>
+                                        {t('TokenSpace material')}
+                                      </SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  {t(
+                                    'Admin-only asset materialization provider for server-side bindings.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='asset_materialization_gateway_base_url'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Gateway Base URL')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder='https://asset-gateway.example.invalid/v1/'
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'HTTPS gateway URL for the asset materialization service.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='asset_materialization_group_id'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Group ID')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder='grp_shared_aigc'
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'Asset group identifier used for binding and lookup.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      <div className='flex flex-col gap-4 border-t pt-4'>
+                        <SubHeading
                           title={t('Override Rules')}
                           icon={<Code className='h-3.5 w-3.5' />}
                         />

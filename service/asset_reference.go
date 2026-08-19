@@ -98,12 +98,12 @@ func (s AssetReferenceSet) readinessForChannelModel(channel *model.Channel, orig
 		}
 		return s.targetReadinessForChannel(channel, originModel)
 	}
-	techMobiScopes, scopesOK := techMobiBindingScopesForRequest(channel, originModel)
+	techMobiScopes, scopesOK := assetBindingScopesForRequest(channel, originModel)
 	if !scopesOK {
 		return AssetReadinessIneligible, false
 	}
-	if channel.Type != constant.ChannelTypeTechMobiVideo {
-		return s.readinessForChannelScope(channel, nil)
+	if !assetBindingScopesRequireSingleScope(channel) {
+		return s.readinessForChannelScope(channel, techMobiScopes)
 	}
 	bestReadiness := AssetReadinessIneligible
 	for scope := range techMobiScopes {
@@ -113,6 +113,18 @@ func (s AssetReferenceSet) readinessForChannelModel(channel *model.Channel, orig
 		}
 	}
 	return bestReadiness, bestReadiness != AssetReadinessIneligible
+}
+
+func assetBindingScopesRequireSingleScope(channel *model.Channel) bool {
+	if channel == nil {
+		return false
+	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err == nil && explicit {
+		descriptor, ok := assetMaterializationProviderDescriptors[config.Provider]
+		return ok && descriptor.CredentialScoped
+	}
+	return channel.Type == constant.ChannelTypeTechMobiVideo
 }
 
 func (s AssetReferenceSet) preparationReadinessForChannel(channel *model.Channel) (AssetReadinessClass, bool) {
@@ -183,7 +195,7 @@ func (s AssetReferenceSet) targetReadinessForChannel(channel *model.Channel, ori
 		if !ok || !assetModelReadinessMatchesTarget(row, *s.target) || row.AssetId != asset.ID || row.Status != model.AssetModelReadinessStatusActive {
 			return AssetReadinessRecoverable, true
 		}
-		if AssetModelChannelUsesSourceURL(channel.Type) && s.target.BindingScope == assetModelSourceURLBindingScopeModelAPI {
+		if AssetModelChannelUsesSourceURLForChannel(channel) && s.target.BindingScope == assetModelSourceURLBindingScopeModelAPI {
 			if assetReferenceSourceURLRecoverable(asset) {
 				continue
 			}
@@ -232,11 +244,11 @@ func (s AssetReferenceSet) RewriteMapForSelectedChannel(channel *model.Channel, 
 		}
 		return s.rewriteMapForChannel(channel, map[string]struct{}{s.target.BindingScope: {}})
 	}
-	techMobiScopes, ok := techMobiBindingScopeForSelectedKey(channel, originModel, apiKey)
+	bindingScopes, ok := assetBindingScopesForSelectedKey(channel, originModel, apiKey)
 	if !ok {
 		return nil
 	}
-	return s.rewriteMapForChannel(channel, techMobiScopes)
+	return s.rewriteMapForChannel(channel, bindingScopes)
 }
 
 func (s AssetReferenceSet) rewriteMapForChannel(channel *model.Channel, techMobiScopes map[string]struct{}) map[string]string {
@@ -269,7 +281,7 @@ func activeAssetReferenceBindingForRequest(bindings []assetReferenceBinding, cha
 	if channel == nil {
 		return assetReferenceBinding{}, false
 	}
-	if channel.Type != constant.ChannelTypeTechMobiVideo || techMobiScopes == nil {
+	if techMobiScopes == nil {
 		return activeAssetReferenceBindingForChannel(bindings, channel.Id)
 	}
 	for _, binding := range bindings {
@@ -283,9 +295,37 @@ func activeAssetReferenceBindingForRequest(bindings []assetReferenceBinding, cha
 	return assetReferenceBinding{}, false
 }
 
-func techMobiBindingScopesForRequest(channel *model.Channel, originModel string) (map[string]struct{}, bool) {
+func assetBindingScopesForRequest(channel *model.Channel, originModel string) (map[string]struct{}, bool) {
 	if channel == nil {
 		return nil, false
+	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil {
+		return nil, false
+	}
+	if explicit {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
+			return nil, false
+		}
+		mappedModel, ok := assetReferenceMappedModel(channel.GetModelMapping(), originModel)
+		if !ok || strings.TrimSpace(mappedModel) == "" {
+			return nil, false
+		}
+		keys := enabledAssetMaterializeKeys(channel)
+		if len(keys) == 0 {
+			return nil, false
+		}
+		scopes := make(map[string]struct{}, len(keys))
+		for _, key := range keys {
+			scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: mappedModel, APIKey: key.key})
+			if err != nil {
+				continue
+			}
+			scopes[scope] = struct{}{}
+		}
+		return scopes, len(scopes) > 0
 	}
 	if channel.Type != constant.ChannelTypeTechMobiVideo {
 		return nil, true
@@ -303,7 +343,7 @@ func techMobiBindingScopesForRequest(channel *model.Channel, originModel string)
 	}
 	scopes := make(map[string]struct{}, len(keys))
 	for _, key := range keys {
-		scope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: mappedModel, APIKey: key.key})
+		scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: mappedModel, APIKey: key.key})
 		if err != nil {
 			continue
 		}
@@ -312,9 +352,29 @@ func techMobiBindingScopesForRequest(channel *model.Channel, originModel string)
 	return scopes, len(scopes) > 0
 }
 
-func techMobiBindingScopeForSelectedKey(channel *model.Channel, originModel string, apiKey string) (map[string]struct{}, bool) {
+func assetBindingScopesForSelectedKey(channel *model.Channel, originModel string, apiKey string) (map[string]struct{}, bool) {
 	if channel == nil {
 		return nil, false
+	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil {
+		return nil, false
+	}
+	if explicit {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
+			return nil, false
+		}
+		mappedModel, ok := assetReferenceMappedModel(channel.GetModelMapping(), originModel)
+		if !ok || strings.TrimSpace(mappedModel) == "" {
+			return nil, false
+		}
+		scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: mappedModel, APIKey: strings.TrimSpace(apiKey)})
+		if err != nil {
+			return nil, false
+		}
+		return map[string]struct{}{scope: {}}, true
 	}
 	if channel.Type != constant.ChannelTypeTechMobiVideo {
 		return nil, true
@@ -323,7 +383,7 @@ func techMobiBindingScopeForSelectedKey(channel *model.Channel, originModel stri
 	if !ok {
 		return nil, false
 	}
-	scope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{
+	scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{
 		Model:  mappedModel,
 		APIKey: strings.TrimSpace(apiKey),
 	})
@@ -753,6 +813,18 @@ func assetReferenceSourceExpired(asset assetReferenceAsset) bool {
 func channelCanConsumeAssetType(channel *model.Channel, assetType string) bool {
 	if channel == nil {
 		return false
+	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if explicit {
+		if err != nil {
+			return false
+		}
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+			return assetType == "Image" || assetType == "Video"
+		default:
+			return false
+		}
 	}
 	switch channel.Type {
 	case constant.ChannelTypeBytePlus:

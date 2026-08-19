@@ -232,6 +232,133 @@ func TestTechMobiReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {
 	require.Equal(t, AssetReadinessIneligible, readiness)
 }
 
+func TestExplicitCredentialScopedProviderReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {
+	mapping := `{"seedance-2.0-fast":"seedance-2.0-fast"}`
+	channel := &model.Channel{
+		Id:            156,
+		Type:          constant.ChannelTypeBytePlus,
+		Key:           "seedance-key-a\nseedance-key-b",
+		ModelMapping:  &mapping,
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid/v1","group_id":"grp_shared_aigc"}}`,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scopeA, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "seedance-2.0-fast", APIKey: "seedance-key-a"})
+	require.NoError(t, err)
+	scopeB, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "seedance-2.0-fast", APIKey: "seedance-key-b"})
+	require.NoError(t, err)
+
+	refs := AssetReferenceSet{
+		references: []assetReference{
+			{PublicID: "ast_scope_a", ExpectedAssetType: "Image"},
+			{PublicID: "ast_scope_b", ExpectedAssetType: "Image"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_scope_a": {
+				PublicID:     "ast_scope_a",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeA,
+					UpstreamAssetID: "asset-a",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+			"ast_scope_b": {
+				PublicID:     "ast_scope_b",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-b",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, ok := refs.ReadinessForChannel(channel, "seedance-2.0-fast")
+	require.False(t, ok)
+	require.Equal(t, AssetReadinessIneligible, readiness)
+	require.Equal(t, map[string]string{
+		"asset://ast_scope_a": "asset://asset-a",
+	}, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", "seedance-key-a"))
+	require.Equal(t, map[string]string{
+		"asset://ast_scope_b": "asset://asset-b",
+	}, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", "seedance-key-b"))
+}
+
+func TestTokenSpaceMaterialReadyChannelResolvesSelectedCredentialAndRewriteMap(t *testing.T) {
+	mapping := `{"seedance-2.0-fast":"doubao/seedance-pro"}`
+	channel := &model.Channel{
+		Id:            160,
+		Type:          constant.ChannelTypeTechMobiVideo,
+		Key:           "tokenspace-key-a\ntokenspace-key-b",
+		ModelMapping:  &mapping,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scopeB, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "tokenspace-key-b"})
+	require.NoError(t, err)
+	refs := AssetReferenceSet{
+		references: []assetReference{
+			{PublicID: "ast_tokenspace_one", ExpectedAssetType: "Image"},
+			{PublicID: "ast_tokenspace_two", ExpectedAssetType: "Video"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_tokenspace_one": {
+				PublicID:     "ast_tokenspace_one",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-one",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+			"ast_tokenspace_two": {
+				PublicID:     "ast_tokenspace_two",
+				AssetType:    "Video",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-two",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, ok := refs.ReadinessForChannel(channel, "seedance-2.0-fast")
+	require.True(t, ok)
+	require.Equal(t, AssetReadinessAllBound, readiness)
+
+	options, keyIndex, err := ResolveAssetMaterializeOptions(refs, channel, AssetMaterializeOptions{
+		Model:  "doubao/seedance-pro",
+		APIKey: "tokenspace-key-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "tokenspace-key-b"}, options)
+	require.Equal(t, 1, keyIndex)
+	require.Equal(t, map[string]string{
+		"asset://ast_tokenspace_one": "asset://asset-one",
+		"asset://ast_tokenspace_two": "asset://asset-two",
+	}, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", options.APIKey))
+}
+
 // TechMobi readiness promises "some enabled key covers every reference". This
 // locks in that the promise is actually redeemable: resolving the scope from an
 // arbitrarily routed key must land on the key that holds the bindings, so the
@@ -566,6 +693,50 @@ func TestAssetReferenceSetRequiresOneChannelToConsumeEveryReferencedAsset(t *tes
 	readiness, ok := refs.ReadinessForChannel(&model.Channel{Id: 131, Type: constant.ChannelTypeBytePlus})
 	require.True(t, ok)
 	require.Equal(t, AssetReadinessPartialBound, readiness)
+}
+
+func TestExplicitUnknownAssetMaterializationProviderFailsClosedForAllAssetTypes(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeBytePlus,
+		OtherSettings: `{"asset_materialization":{"provider":"future_provider","gateway_base_url":"https://gateway.example.invalid","group_id":"group-1"}}`,
+	}
+
+	require.False(t, channelCanConsumeAssetType(channel, "Image"))
+	require.False(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+}
+
+func TestTokenSpaceMaterialConfiguredAssetTypeAllowsImageAndVideoOnly(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeTechMobiVideo,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
+	}
+
+	require.True(t, channelCanConsumeAssetType(channel, "Image"))
+	require.True(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+}
+
+func TestTokenSpaceMaterialIncompleteConfigurationFailsClosedForAllAssetTypes(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeTechMobiVideo,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid"}}`,
+	}
+
+	require.False(t, channelCanConsumeAssetType(channel, "Image"))
+	require.False(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+}
+
+func TestExplicitInvalidSeedanceProxyConfigurationFailsClosedForAllAssetTypes(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeModelAPISeedance,
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"http://gateway.example.invalid","group_id":"group-1"}}`,
+	}
+
+	require.False(t, channelCanConsumeAssetType(channel, "Image"))
+	require.False(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
 }
 
 func TestCacheGetRandomSatisfiedChannelAssetRankerReadinessOutranksPriority(t *testing.T) {

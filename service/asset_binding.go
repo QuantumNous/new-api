@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +49,58 @@ var (
 	assetMaterializersMu sync.RWMutex
 	assetMaterializers   = map[int]AssetMaterializer{}
 )
+
+const (
+	assetMaterializationProviderSeedanceProxy      = "seedance_proxy"
+	seedanceProxyBindingScopePrefix                = "seedance-proxy:v1:"
+	assetMaterializationProviderTokenSpaceMaterial = "tokenspace_material"
+	tokenSpaceMaterialBindingScopePrefix           = "tokenspace-material:v1:"
+)
+
+type assetMaterializationChannelConfig struct {
+	Provider       string
+	GatewayBaseURL string
+	GatewayOrigin  string
+	GroupID        string
+}
+
+type assetMaterializationProviderDescriptor struct {
+	MaterializerFactory func(assetMaterializationChannelConfig) AssetMaterializer
+	BindingScope        func(assetMaterializationChannelConfig, AssetMaterializeOptions) (string, error)
+	ValidateConfig      func(assetMaterializationChannelConfig) (assetMaterializationChannelConfig, error)
+	CredentialScoped    bool
+}
+
+var assetMaterializationProviderDescriptors = map[string]assetMaterializationProviderDescriptor{
+	assetMaterializationProviderSeedanceProxy: {
+		MaterializerFactory: func(config assetMaterializationChannelConfig) AssetMaterializer {
+			return seedanceProxyAssetBindingMaterializer{config: config}
+		},
+		BindingScope: func(config assetMaterializationChannelConfig, options AssetMaterializeOptions) (string, error) {
+			scope := seedanceProxyBindingScope(config.GatewayOrigin, config.GroupID, options.APIKey)
+			if scope == "" {
+				return "", ErrAssetBindingUnavailable
+			}
+			return scope, nil
+		},
+		ValidateConfig:   validateSeedanceProxyAssetMaterializationConfig,
+		CredentialScoped: true,
+	},
+	assetMaterializationProviderTokenSpaceMaterial: {
+		MaterializerFactory: func(config assetMaterializationChannelConfig) AssetMaterializer {
+			return tokenSpaceMaterialAssetBindingMaterializer{config: config}
+		},
+		BindingScope: func(config assetMaterializationChannelConfig, options AssetMaterializeOptions) (string, error) {
+			scope := tokenSpaceMaterialBindingScope(config.GatewayOrigin, config.GroupID, options.APIKey)
+			if scope == "" {
+				return "", ErrAssetBindingUnavailable
+			}
+			return scope, nil
+		},
+		ValidateConfig:   validateTokenSpaceMaterialAssetMaterializationConfig,
+		CredentialScoped: true,
+	},
+}
 
 type AssetMaterializer interface {
 	CreateAsset(ctx context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error)
@@ -145,11 +198,126 @@ func registerAssetMaterializerForTest(t interface{ Cleanup(func()) }, channelTyp
 	return restore
 }
 
-func assetMaterializerForChannel(channelType int) (AssetMaterializer, bool) {
+func assetMaterializerForChannelType(channelType int) (AssetMaterializer, bool) {
 	assetMaterializersMu.RLock()
 	defer assetMaterializersMu.RUnlock()
 	materializer, ok := assetMaterializers[channelType]
 	return materializer, ok
+}
+
+func assetMaterializerForChannel(channel *model.Channel) (AssetMaterializer, error) {
+	if channel == nil {
+		return nil, nil
+	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil {
+		return nil, err
+	}
+	if explicit {
+		descriptor, ok := assetMaterializationProviderDescriptors[config.Provider]
+		if !ok || descriptor.MaterializerFactory == nil {
+			return nil, ErrAssetBindingUnavailable
+		}
+		return descriptor.MaterializerFactory(config), nil
+	}
+	materializer, ok := assetMaterializerForChannelType(channel.Type)
+	if !ok {
+		return nil, nil
+	}
+	return materializer, nil
+}
+
+func assetMaterializationConfigForChannel(channel *model.Channel) (assetMaterializationChannelConfig, bool, error) {
+	if channel == nil {
+		return assetMaterializationChannelConfig{}, false, nil
+	}
+	settings := channel.GetOtherSettings().AssetMaterialization
+	if settings == nil {
+		return assetMaterializationChannelConfig{}, false, nil
+	}
+	provider := strings.TrimSpace(settings.Provider)
+	if provider == "" {
+		return assetMaterializationChannelConfig{}, false, nil
+	}
+	config := assetMaterializationChannelConfig{
+		Provider:       provider,
+		GatewayBaseURL: strings.TrimSpace(settings.GatewayBaseURL),
+		GroupID:        strings.TrimSpace(settings.GroupID),
+	}
+	descriptor, ok := assetMaterializationProviderDescriptors[provider]
+	if !ok {
+		return assetMaterializationChannelConfig{}, true, ErrAssetBindingUnavailable
+	}
+	if descriptor.ValidateConfig == nil {
+		return config, true, nil
+	}
+	config, err := descriptor.ValidateConfig(config)
+	if err != nil {
+		return assetMaterializationChannelConfig{}, true, ErrAssetBindingUnavailable
+	}
+	return config, true, nil
+}
+
+func validateSeedanceProxyAssetMaterializationConfig(config assetMaterializationChannelConfig) (assetMaterializationChannelConfig, error) {
+	scopeBase, err := normalizedGatewayScopeBase(config.GatewayBaseURL)
+	if err != nil {
+		return assetMaterializationChannelConfig{}, err
+	}
+	if config.GroupID == "" {
+		return assetMaterializationChannelConfig{}, ErrAssetBindingUnavailable
+	}
+	config.GatewayOrigin = scopeBase
+	return config, nil
+}
+
+func validateTokenSpaceMaterialAssetMaterializationConfig(config assetMaterializationChannelConfig) (assetMaterializationChannelConfig, error) {
+	origin, err := normalizedGatewayOrigin(config.GatewayBaseURL)
+	if err != nil {
+		return assetMaterializationChannelConfig{}, err
+	}
+	if config.GroupID == "" {
+		return assetMaterializationChannelConfig{}, ErrAssetBindingUnavailable
+	}
+	config.GatewayOrigin = origin
+	return config, nil
+}
+
+func normalizedGatewayOrigin(rawURL string) (string, error) {
+	if err := seedanceProxyValidateGatewayBaseURL(rawURL); err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", err
+	}
+	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), nil
+}
+
+func normalizedGatewayScopeBase(rawURL string) (string, error) {
+	origin, err := normalizedGatewayOrigin(rawURL)
+	if err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", err
+	}
+	path := strings.TrimRight(parsed.EscapedPath(), "/")
+	if path == "" {
+		return origin, nil
+	}
+	return origin + path, nil
+}
+
+func seedanceProxyBindingScope(origin string, groupID string, apiKey string) string {
+	origin = strings.TrimSpace(origin)
+	groupID = strings.TrimSpace(groupID)
+	apiKey = strings.TrimSpace(apiKey)
+	if origin == "" || groupID == "" || apiKey == "" {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(origin + "\x00" + groupID + "\x00" + apiKey))
+	return seedanceProxyBindingScopePrefix + hex.EncodeToString(digest[:])
 }
 
 func MaterializeAssetBindingsForChannel(ctx context.Context, userID int, set AssetReferenceSet, channel *model.Channel, options ...AssetMaterializeOptions) (map[string]string, error) {
@@ -160,7 +328,7 @@ func MaterializeAssetBindingsForChannel(ctx context.Context, userID int, set Ass
 	if len(options) > 0 {
 		materializeOptions = options[0]
 	}
-	bindingScope, err := assetBindingScope(channel.Type, materializeOptions)
+	bindingScope, err := assetBindingScopeForChannel(channel, materializeOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +388,7 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 	if request.Channel == nil || request.Channel.Id <= 0 {
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
-	bindingScope, err := assetBindingScope(request.Channel.Type, AssetMaterializeOptions{Model: request.Model, APIKey: request.APIKey})
+	bindingScope, err := assetBindingScopeForChannel(request.Channel, AssetMaterializeOptions{Model: request.Model, APIKey: request.APIKey})
 	if err != nil {
 		return AssetBindingResult{}, err
 	}
@@ -229,6 +397,9 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 		return AssetBindingResult{}, sanitizeAssetBindingError(err)
 	}
 	if request.ExpectedType != "" && asset.AssetType != request.ExpectedType {
+		return AssetBindingResult{}, ErrAssetBindingUnavailable
+	}
+	if !channelCanConsumeAssetType(request.Channel, asset.AssetType) {
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
 	if asset.Status != model.AssetStatusActive {
@@ -357,7 +528,11 @@ func handleProcessingAssetBinding(ctx context.Context, asset *model.Asset, chann
 }
 
 func assetBindingRequiresRematerializationFromProcessing(channel *model.Channel) bool {
-	return channel != nil && channel.Type == constant.ChannelTypeTechMobiVideo
+	if channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo {
+		return false
+	}
+	_, explicit, err := assetMaterializationConfigForChannel(channel)
+	return err == nil && !explicit
 }
 
 func markProcessingAssetBindingForRematerialization(assetID int64, channelID int, bindingScope string, upstreamAssetID string) (bool, error) {
@@ -373,8 +548,12 @@ func markProcessingAssetBindingForRematerialization(assetID int64, channelID int
 }
 
 func createLeasedAssetBinding(ctx context.Context, asset *model.Asset, channel *model.Channel, owner string, expectedLeaseExpiresAt int64, pollLimit int, pollDelay time.Duration, modelName string, apiKey string, bindingScope string) (AssetBindingResult, error) {
-	materializer, ok := assetMaterializerForChannel(channel.Type)
-	if !ok {
+	materializer, err := assetMaterializerForChannel(channel)
+	if err != nil {
+		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, channel.Id, bindingScope, owner, expectedLeaseExpiresAt, "asset_channel_unavailable", assetBindingNow().Unix())
+		return AssetBindingResult{}, ErrAssetBindingUnavailable
+	}
+	if materializer == nil {
 		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, channel.Id, bindingScope, owner, expectedLeaseExpiresAt, "asset_channel_unavailable", assetBindingNow().Unix())
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
@@ -524,8 +703,12 @@ func sameAssetBindingProviderResult(binding *model.AssetBinding, result AssetMat
 }
 
 func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channel, options AssetMaterializeOptions) (AssetMaterializeOptions, int, error) {
-	if channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo || !set.HasReferences() {
+	if channel == nil || !set.HasReferences() {
 		return options, -1, nil
+	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil {
+		return AssetMaterializeOptions{}, -1, err
 	}
 	if set.strictCoverage {
 		if set.target == nil {
@@ -538,7 +721,7 @@ func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channe
 		if err != nil {
 			return AssetMaterializeOptions{}, -1, err
 		}
-		scope, err := assetBindingScope(channel.Type, targetOptions)
+		scope, err := assetBindingScopeForChannel(channel, targetOptions)
 		if err != nil {
 			return AssetMaterializeOptions{}, -1, err
 		}
@@ -546,6 +729,57 @@ func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channe
 			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
 		}
 		return targetOptions, index, nil
+	}
+	if explicit {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
+			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+		}
+		keys := enabledAssetMaterializeKeys(channel)
+		if len(keys) == 0 {
+			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+		}
+		selectedKey := strings.TrimSpace(options.APIKey)
+		bestScore := -1
+		bestIndex := -1
+		bestKey := ""
+		for _, candidate := range keys {
+			candidateOptions := AssetMaterializeOptions{Model: options.Model, APIKey: candidate.key}
+			scope, err := assetBindingScopeForChannel(channel, candidateOptions)
+			if err != nil {
+				continue
+			}
+			score := 0
+			feasible := true
+			for _, reference := range set.references {
+				asset := set.assets[reference.PublicID]
+				if _, ok := activeAssetReferenceBindingForScope(asset.Bindings, channel.Id, scope); ok {
+					score++
+					continue
+				}
+				if !assetReferenceSourceRecoverable(asset) {
+					feasible = false
+					break
+				}
+			}
+			if !feasible {
+				continue
+			}
+			if score > bestScore || (score == bestScore && strings.TrimSpace(candidate.key) == selectedKey) {
+				bestScore = score
+				bestIndex = candidate.index
+				bestKey = candidate.key
+			}
+		}
+		if bestScore < 0 {
+			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+		}
+		options.APIKey = bestKey
+		return options, bestIndex, nil
+	}
+	if channel.Type != constant.ChannelTypeTechMobiVideo {
+		return options, -1, nil
 	}
 	keys := enabledAssetMaterializeKeys(channel)
 	if len(keys) == 0 {
@@ -557,7 +791,7 @@ func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channe
 	bestKey := ""
 	for _, candidate := range keys {
 		candidateOptions := AssetMaterializeOptions{Model: options.Model, APIKey: candidate.key}
-		scope, err := assetBindingScope(channel.Type, candidateOptions)
+		scope, err := assetBindingScopeForChannel(channel, candidateOptions)
 		if err != nil {
 			continue
 		}
@@ -634,6 +868,24 @@ func assetBindingScope(channelType int, options AssetMaterializeOptions) (string
 	return "techmobi:v1:" + hex.EncodeToString(digest[:]), nil
 }
 
+func assetBindingScopeForChannel(channel *model.Channel, options AssetMaterializeOptions) (string, error) {
+	if channel == nil {
+		return "", nil
+	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil {
+		return "", err
+	}
+	if explicit {
+		descriptor, ok := assetMaterializationProviderDescriptors[config.Provider]
+		if !ok || descriptor.BindingScope == nil {
+			return "", ErrAssetBindingUnavailable
+		}
+		return descriptor.BindingScope(config, options)
+	}
+	return assetBindingScope(channel.Type, options)
+}
+
 func activeAssetReferenceBindingForScope(bindings []assetReferenceBinding, channelID int, bindingScope string) (assetReferenceBinding, bool) {
 	for _, binding := range bindings {
 		if binding.ChannelID == channelID && binding.BindingScope == bindingScope && isActiveAssetReferenceBinding(binding) {
@@ -647,8 +899,11 @@ func refreshProcessingAssetBinding(ctx context.Context, asset *model.Asset, chan
 	if strings.TrimSpace(upstreamAssetID) == "" {
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
-	materializer, ok := assetMaterializerForChannel(channel.Type)
-	if !ok {
+	materializer, err := assetMaterializerForChannel(channel)
+	if err != nil {
+		return AssetBindingResult{}, ErrAssetBindingUnavailable
+	}
+	if materializer == nil {
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
 	for attempt := 0; attempt < pollLimit; attempt++ {

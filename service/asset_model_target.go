@@ -30,6 +30,17 @@ func AssetModelChannelUsesSourceURL(channelType int) bool {
 	return channelType == constant.ChannelTypeModelAPISeedance
 }
 
+func AssetModelChannelUsesSourceURLForChannel(channel *model.Channel) bool {
+	if channel == nil {
+		return false
+	}
+	_, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil || explicit {
+		return false
+	}
+	return AssetModelChannelUsesSourceURL(channel.Type)
+}
+
 func AssetModelTargetCandidates(scope AssetModelScope, modelName string) ([]AssetModelTargetCandidate, error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" || len(scope.Groups) == 0 {
@@ -76,12 +87,13 @@ func assetModelChannelEligible(scope AssetModelScope, channel *model.Channel) bo
 	if scope.SpecificChannelID > 0 && channel.Id != scope.SpecificChannelID {
 		return false
 	}
-	if AssetModelChannelUsesSourceURL(channel.Type) {
+	if AssetModelChannelUsesSourceURLForChannel(channel) {
 		return channelCanConsumeAssetType(channel, "Image") ||
 			channelCanConsumeAssetType(channel, "Video") ||
 			channelCanConsumeAssetType(channel, "Audio")
 	}
-	if _, ok := assetMaterializerForChannel(channel.Type); !ok {
+	materializer, err := assetMaterializerForChannel(channel)
+	if err != nil || materializer == nil {
 		return false
 	}
 	return channelCanConsumeAssetType(channel, "Image") || channelCanConsumeAssetType(channel, "Video")
@@ -95,7 +107,7 @@ func assetModelCandidatesForChannel(channel *model.Channel, modelName string) []
 	if !ok {
 		return nil
 	}
-	if AssetModelChannelUsesSourceURL(channel.Type) {
+	if AssetModelChannelUsesSourceURLForChannel(channel) {
 		return []AssetModelTargetCandidate{{
 			ChannelID:       channel.Id,
 			ChannelType:     channel.Type,
@@ -106,8 +118,37 @@ func assetModelCandidatesForChannel(channel *model.Channel, modelName string) []
 			CredentialIndex: -1,
 		}}
 	}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil {
+		return nil
+	}
+	if explicit {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
+			return nil
+		}
+		keys := enabledAssetMaterializeKeys(channel)
+		candidates := make([]AssetModelTargetCandidate, 0, len(keys))
+		for _, key := range keys {
+			scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: mappedModel, APIKey: key.key})
+			if err != nil {
+				continue
+			}
+			candidates = append(candidates, AssetModelTargetCandidate{
+				ChannelID:       channel.Id,
+				ChannelType:     channel.Type,
+				Priority:        channel.GetPriority(),
+				Weight:          channel.GetWeight(),
+				MappedModel:     mappedModel,
+				BindingScope:    scope,
+				CredentialIndex: key.index,
+			})
+		}
+		return candidates
+	}
 	if channel.Type != constant.ChannelTypeTechMobiVideo {
-		scope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: mappedModel})
+		scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: mappedModel})
 		if err != nil {
 			return nil
 		}
@@ -124,7 +165,7 @@ func assetModelCandidatesForChannel(channel *model.Channel, modelName string) []
 	keys := enabledAssetMaterializeKeys(channel)
 	candidates := make([]AssetModelTargetCandidate, 0, len(keys))
 	for _, key := range keys {
-		scope, err := assetBindingScope(channel.Type, AssetMaterializeOptions{Model: mappedModel, APIKey: key.key})
+		scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: mappedModel, APIKey: key.key})
 		if err != nil {
 			continue
 		}
@@ -306,6 +347,33 @@ func ResolveAssetModelTargetOptions(target model.AssetModelCoverageTarget, chann
 		return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
 	}
 	options := AssetMaterializeOptions{Model: strings.TrimSpace(target.MappedModel)}
+	config, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err != nil {
+		return AssetMaterializeOptions{}, -1, err
+	}
+	if explicit {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
+			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+		}
+		keys := enabledAssetMaterializeKeys(channel)
+		for _, key := range keys {
+			if key.index != target.CredentialIndex {
+				continue
+			}
+			options.APIKey = key.key
+			scope, err := assetBindingScopeForChannel(channel, options)
+			if err != nil {
+				return AssetMaterializeOptions{}, -1, err
+			}
+			if scope != target.BindingScope {
+				return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+			}
+			return options, key.index, nil
+		}
+		return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
+	}
 	if channel.Type != constant.ChannelTypeTechMobiVideo {
 		return options, -1, nil
 	}
@@ -315,7 +383,7 @@ func ResolveAssetModelTargetOptions(target model.AssetModelCoverageTarget, chann
 			continue
 		}
 		options.APIKey = key.key
-		scope, err := assetBindingScope(channel.Type, options)
+		scope, err := assetBindingScopeForChannel(channel, options)
 		if err != nil {
 			return AssetMaterializeOptions{}, -1, err
 		}

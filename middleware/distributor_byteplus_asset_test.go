@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -1024,6 +1026,41 @@ func TestAssetReferenceStrictInitializingTargetKeepsRequestEligibleForQueue(t *t
 	require.Equal(t, 0, calls)
 }
 
+func TestAssetReferenceSeedanceProxyMaterializationBypassesSourceURLRewriteBranch(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+
+	priority := int64(1)
+	weight := uint(1)
+	apiKey := "modelapi-seedance-key"
+	channel := middlewareBytePlusAssetChannel(156, constant.ChannelTypeModelAPISeedance, "default", common.ChannelStatusEnabled, priority, weight)
+	channel.Key = apiKey
+	channel.Name = "modelapi-seedance-156"
+	channel.OtherSettings = `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid/v1","group_id":"grp_shared_aigc"}}`
+	require.NoError(t, model.DB.Create(&channel).Error)
+	insertMiddlewareAbility(t, 156, "default", "seedance-2.0", true, priority, weight)
+
+	publicID := "ast_15615615615615615615615615615615"
+	asset := insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusUnavailable, 0)
+	insertMiddlewareSeedanceProxyAssetBinding(t, asset.Id, 156, "https://asset-gateway.example.invalid", "grp_shared_aigc", apiKey, "seedance-proxy-upstream", model.AssetStatusActive)
+	model.InitChannelCache()
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, 156, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		require.True(t, ok)
+		require.Equal(t, "asset://seedance-proxy-upstream", rewriteMap["asset://"+publicID])
+		require.NotContains(t, rewriteMap["asset://"+publicID], "https://")
+		c.Status(http.StatusOK)
+	})
+
+	recorder := performBytePlusAssetDistributorRequestWithMaterialize(router, "", `{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://ast_15615615615615615615615615615615"},"role":"reference_image"}]
+	}`)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
 func TestAssetReferenceMaterializationFailuresAbortBeforeHandler(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -1343,6 +1380,20 @@ func insertMiddlewareGeneralizedAssetBinding(t *testing.T, assetID int64, channe
 	require.NoError(t, model.DB.Create(&model.AssetBinding{
 		AssetId:         assetID,
 		ChannelId:       channelID,
+		UpstreamAssetId: upstreamID,
+		Status:          status,
+		CreatedAt:       time.Now().Unix(),
+		UpdatedAt:       time.Now().Unix(),
+	}).Error)
+}
+
+func insertMiddlewareSeedanceProxyAssetBinding(t *testing.T, assetID int64, channelID int, origin string, groupID string, apiKey string, upstreamID string, status string) {
+	t.Helper()
+	digest := sha256.Sum256([]byte(origin + "\x00" + groupID + "\x00" + apiKey))
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         assetID,
+		ChannelId:       channelID,
+		BindingScope:    "seedance-proxy:v1:" + hex.EncodeToString(digest[:]),
 		UpstreamAssetId: upstreamID,
 		Status:          status,
 		CreatedAt:       time.Now().Unix(),

@@ -286,6 +286,14 @@ type doubaoExtensions struct {
 // request plus Doubao-only extensions and translates it into the Ark upstream
 // body.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	return a.buildRequestBody(c, info, true)
+}
+
+func (a *TaskAdaptor) BuildRequestBodyWithoutAssetRewrite(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	return a.buildRequestBody(c, info, false)
+}
+
+func (a *TaskAdaptor) buildRequestBody(c *gin.Context, info *relaycommon.RelayInfo, rewriteAssets bool) (io.Reader, error) {
 	// The official seedance fields and the Doubao-only extension keys are
 	// siblings in the same JSON body; decode both in a single pass.
 	var inbound struct {
@@ -296,6 +304,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	seedReq := inbound.SeedanceVideoRequest
+	if rewriteAssets {
+		rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		if err := rewriteSeedanceAssetReferences(&seedReq, rewriteMap); err != nil {
+			return nil, err
+		}
+	}
 
 	body := buildDoubaoCreateRequest(&seedReq, inbound.doubaoExtensions)
 	if info.IsModelMapped {
@@ -309,7 +323,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if info.ChannelOtherSettings.AllowSafetyIdentifier {
 		body.SafetyIdentifier = seedReq.SafetyIdentifier
 	}
-	data, err := common.Marshal(body)
+	data, err := common.MarshalNoHTMLEscape(body)
 	if err != nil {
 		return nil, err
 	}
@@ -359,6 +373,33 @@ func toBoolValue(v *bool) *dto.BoolValue {
 	}
 	bv := dto.BoolValue(*v)
 	return &bv
+}
+
+func rewriteSeedanceAssetReferences(seedReq *dto.SeedanceVideoRequest, rewriteMap map[string]string) error {
+	if seedReq == nil {
+		return nil
+	}
+	for index := range seedReq.Content {
+		item := &seedReq.Content[index]
+		for _, media := range []*dto.SeedanceURLObject{item.ImageURL, item.VideoURL} {
+			if media == nil {
+				continue
+			}
+			rawURL := strings.TrimSpace(media.URL)
+			if !service.IsStrictBytePlusAssetURI(rawURL) {
+				if strings.HasPrefix(strings.ToLower(rawURL), "asset://ast_") {
+					return fmt.Errorf("invalid asset reference")
+				}
+				continue
+			}
+			upstreamURL, ok := rewriteMap[rawURL]
+			if !ok || strings.TrimSpace(upstreamURL) == "" {
+				return fmt.Errorf("invalid asset reference")
+			}
+			media.URL = strings.TrimSpace(upstreamURL)
+		}
+	}
+	return nil
 }
 
 // DoRequest delegates to common helper.
