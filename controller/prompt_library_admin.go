@@ -111,6 +111,8 @@ func DeletePromptLibraryAdmin(c *gin.Context) {
 // response is already written and ok=false. Unlike the import path it does not
 // require the model to be available on Flatkey (admins may curate examples for
 // any model).
+// PUT is full-replace: omitted optional fields are cleared (summary/tags/output/captured_at
+// included); clients must round-trip source_json faithfully.
 func bindPromptLibraryAdminItem(c *gin.Context) (*model.PromptLibraryItem, bool) {
 	var input promptLibraryAdminItemInput
 	if err := common.DecodeJson(c.Request.Body, &input); err != nil {

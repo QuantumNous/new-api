@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -19,12 +20,22 @@ import (
 func setupPromptLibraryAdminTest(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	// glebarez ":memory:" gives every pooled connection its own empty DB; use a
+	// named shared-cache memory DB pinned to one connection so all queries see
+	// the same schema/data.
+	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
 	require.NoError(t, db.AutoMigrate(&model.PromptLibraryItem{}))
 	prevDB := model.DB
 	model.DB = db
-	t.Cleanup(func() { model.DB = prevDB })
+	t.Cleanup(func() {
+		model.DB = prevDB
+		require.NoError(t, sqlDB.Close())
+	})
 
 	r := gin.New()
 	admin := r.Group("/api/prompt-library/admin")
@@ -144,4 +155,23 @@ func TestAdminUpdateRejectsSlugCollision(t *testing.T) {
 	rec3 := httptest.NewRecorder()
 	r.ServeHTTP(rec3, httptest.NewRequest(http.MethodPut, "/api/prompt-library/admin/2", bytes.NewReader([]byte(collide))))
 	require.Equal(t, http.StatusBadRequest, rec3.Code, rec3.Body.String())
+}
+
+func TestAdminUpdateNonexistentIdReturns404(t *testing.T) {
+	r := setupPromptLibraryAdminTest(t)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/api/prompt-library/admin/999", bytes.NewReader([]byte(validAdminItemJSON))))
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}
+
+func TestAdminCreateRejectsDuplicateSlug(t *testing.T) {
+	r := setupPromptLibraryAdminTest(t)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/prompt-library/admin", bytes.NewReader([]byte(validAdminItemJSON))))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, httptest.NewRequest(http.MethodPost, "/api/prompt-library/admin", bytes.NewReader([]byte(validAdminItemJSON))))
+	require.Equal(t, http.StatusBadRequest, rec2.Code, rec2.Body.String())
+	require.Contains(t, rec2.Body.String(), "slug already exists")
 }
