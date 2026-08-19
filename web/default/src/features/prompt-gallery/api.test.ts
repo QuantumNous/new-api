@@ -69,6 +69,10 @@ describe('itemToFormData', () => {
       tags_json: 'null',
       artifact_json: 'null',
       source_json: 'null',
+      // clear the denormalized columns too: sourcePlatform/sourceUrl fall
+      // back to them when source_json lacks the keys (covered below)
+      source_platform: '',
+      source_url: '',
     }
     const form = itemToFormData(nulled)
     expect(form.titleEn).toBe('')
@@ -80,6 +84,19 @@ describe('itemToFormData', () => {
     expect(form.sourcePlatform).toBe('')
     expect(form.sourceUrl).toBe('')
     expect(form.enabled).toBe(true)
+  })
+
+  it('falls back to top-level source columns when source_json lacks them', () => {
+    const sparse = {
+      ...item,
+      source_json: '{"label":"@adonis_singh"}',
+      source_platform: 'X',
+      source_url: 'https://x.com/a/status/1',
+    }
+    const form = itemToFormData(sparse)
+    expect(form.sourceLabel).toBe('@adonis_singh')
+    expect(form.sourcePlatform).toBe('X')
+    expect(form.sourceUrl).toBe('https://x.com/a/status/1')
   })
 })
 
@@ -102,5 +119,79 @@ describe('formDataToPayload', () => {
     const payload = formDataToPayload(form)
     expect(payload.summary).toBeUndefined()
     expect(payload.tags).toEqual(['a', 'b', 'c'])
+  })
+
+  it('preserves un-edited JSON data when the original row is provided', () => {
+    const rich: PromptLibraryAdminItem = {
+      ...item,
+      title_json: '{"en":"Rice Grain","zh":"米粒"}',
+      summary_json: '{"en":"tiny text","zh":"小字"}',
+      output_json: '{"translation":"tiny text on rice","ratio":"1:1"}',
+      artifact_json:
+        '{"kind":"image","url":"https://storage.googleapis.com/b/rice.png","alt":"Rice","width":1024}',
+      source_json:
+        '{"label":"@adonis_singh","platform":"X","url":"https://x.com/a/status/1","captured_at":"2026-08-05"}',
+    }
+    const form = itemToFormData(rich)
+    form.titleEn = 'Rice Grain (edited)'
+    const payload = formDataToPayload(form, rich)
+    // edited en title applied, extra language kept
+    expect(payload.title).toEqual({ en: 'Rice Grain (edited)', zh: '米粒' })
+    // untouched summary language survives alongside the form's en
+    expect(payload.summary).toEqual({ en: 'tiny text', zh: '小字' })
+    // output passed through although the form has no output editor
+    expect(payload.output).toEqual({
+      translation: 'tiny text on rice',
+      ratio: '1:1',
+    })
+    // captured_at and extra artifact keys preserved
+    expect(payload.source).toEqual({
+      label: '@adonis_singh',
+      platform: 'X',
+      url: 'https://x.com/a/status/1',
+      captured_at: '2026-08-05',
+    })
+    expect(payload.artifact).toEqual({
+      kind: 'image',
+      url: 'https://storage.googleapis.com/b/rice.png',
+      alt: 'Rice',
+      width: 1024,
+    })
+  })
+
+  it('keeps other summary languages when the form clears en, drops empty summary', () => {
+    const rich: PromptLibraryAdminItem = {
+      ...item,
+      summary_json: '{"en":"tiny text","zh":"小字"}',
+    }
+    const form = itemToFormData(rich)
+    form.summaryEn = ''
+    const payload = formDataToPayload(form, rich)
+    expect(payload.summary).toEqual({ zh: '小字' })
+
+    const enOnly: PromptLibraryAdminItem = {
+      ...item,
+      summary_json: '{"en":"tiny text"}',
+    }
+    const enOnlyForm = itemToFormData(enOnly)
+    enOnlyForm.summaryEn = ''
+    expect(formDataToPayload(enOnlyForm, enOnly).summary).toBeUndefined()
+  })
+
+  it('without an original the create payload keeps its previous shape', () => {
+    const form = itemToFormData(item)
+    const payload = formDataToPayload(form)
+    expect(payload.title).toEqual({ en: 'Rice Grain' })
+    expect(payload.artifact).toEqual({
+      kind: 'image',
+      url: 'https://storage.googleapis.com/b/rice.png',
+      alt: 'Rice',
+    })
+    expect(payload.source).toEqual({
+      label: '@adonis_singh',
+      platform: 'X',
+      url: 'https://x.com/a/status/1',
+    })
+    expect(payload.output).toBeUndefined()
   })
 })

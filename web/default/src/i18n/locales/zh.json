@@ -1779,6 +1779,7 @@
     "Enter invite emails separated by comma, space, or new line": "输入邀请邮箱，支持逗号、空格或换行分隔",
     "Image Alt": "图片替代文本",
     "Image URL": "图片 URL",
+    "Curate the public prompt example library.": "维护公开的提示词示例库。",
     "No prompts found": "暂无提示词",
     "Prompt Gallery": "提示词图库",
     "Search by keyword...": "按关键词搜索...",

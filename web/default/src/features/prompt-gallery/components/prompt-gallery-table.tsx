@@ -52,7 +52,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   deletePromptGalleryItem,
   getPromptGalleryItems,
-  updatePromptGalleryItem,
+  setPromptGalleryItemEnabled,
 } from '../api'
 import {
   PROMPT_GALLERY_CATEGORIES,
@@ -89,6 +89,11 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
   const [deleteTarget, setDeleteTarget] =
     useState<PromptLibraryAdminItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  // Ids whose enabled toggle is in flight; their Switch is disabled so a
+  // double click cannot fire overlapping mutations for the same row.
+  const [togglingIds, setTogglingIds] = useState<ReadonlySet<number>>(
+    () => new Set()
+  )
 
   const effectiveCategory = category === ALL_CATEGORIES ? '' : category
 
@@ -136,12 +141,21 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
     queryClient.invalidateQueries({ queryKey: ['prompt-gallery'] })
 
   const handleToggleEnabled = async (item: PromptLibraryAdminItem) => {
-    const form = itemToFormData(item)
-    form.enabled = !item.enabled
-    const result = await updatePromptGalleryItem(item.id, form)
-    if (result.success) {
-      toast.success(t('Updated successfully'))
-      invalidate()
+    if (togglingIds.has(item.id)) return
+    setTogglingIds((prev) => new Set(prev).add(item.id))
+    try {
+      // Single-column endpoint: cannot clobber concurrent full-row edits.
+      const result = await setPromptGalleryItemEnabled(item.id, !item.enabled)
+      if (result.success) {
+        toast.success(t('Updated successfully'))
+        invalidate()
+      }
+    } finally {
+      setTogglingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(item.id)
+        return next
+      })
     }
   }
 
@@ -281,6 +295,7 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
                     <TableCell>
                       <Switch
                         checked={item.enabled}
+                        disabled={togglingIds.has(item.id)}
                         onCheckedChange={() => handleToggleEnabled(item)}
                         aria-label={t('Enabled')}
                       />

@@ -83,28 +83,89 @@ export const PROMPT_GALLERY_CATEGORY_LABEL_KEYS: Record<string, string> = {
   agent: 'Agent',
 }
 
-export function formDataToPayload(form: PromptGalleryFormData) {
+type JsonRecord = Record<string, unknown>
+
+// Backend marshals absent optional JSON columns as the literal string "null";
+// JSON.parse('null') succeeds and returns null, which would make property
+// reads throw — coalesce to {} inside the try. Malformed JSON also yields {}.
+const safeParseJson = (raw: string): unknown => {
+  try {
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed ?? {}
+  } catch {
+    return {}
+  }
+}
+
+const asRecord = (value: unknown): JsonRecord =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : {}
+
+// Build the full-replace PUT/POST payload from the flat form. The backend PUT
+// is full-replace: omitted fields are cleared. The form only edits a subset
+// (en title/summary, image artifact, source label/platform/url), so when the
+// original row is provided its un-edited JSON data — output_json, extra title
+// or summary languages, source.captured_at, extra artifact/source keys — is
+// merged back in instead of being silently dropped. The create path passes no
+// original and behaves as before.
+export function formDataToPayload(
+  form: PromptGalleryFormData,
+  original?: PromptLibraryAdminItem
+) {
+  const origTitle = original ? asRecord(safeParseJson(original.title_json)) : {}
+  const origSummary = original
+    ? asRecord(safeParseJson(original.summary_json))
+    : {}
+  const origArtifact = original
+    ? asRecord(safeParseJson(original.artifact_json))
+    : {}
+  const origSource = original
+    ? asRecord(safeParseJson(original.source_json))
+    : {}
+  const origOutput = original
+    ? asRecord(safeParseJson(original.output_json))
+    : {}
+
+  // Summary: set/delete en per the form, keep other languages; only drop the
+  // object entirely when it would be empty.
+  const summary: JsonRecord = { ...origSummary }
+  if (form.summaryEn.trim()) {
+    summary.en = form.summaryEn.trim()
+  } else {
+    delete summary.en
+  }
+
+  const origKind = origArtifact.kind
+  const artifactKind =
+    typeof origKind === 'string' && origKind ? origKind : 'image'
+
   return {
     slug: form.slug.trim(),
     category: form.category,
     model: form.model.trim(),
     prompt: form.prompt,
-    title: { en: form.titleEn.trim() },
-    summary: form.summaryEn.trim() ? { en: form.summaryEn.trim() } : undefined,
+    title: { ...origTitle, en: form.titleEn.trim() },
+    summary: Object.keys(summary).length > 0 ? summary : undefined,
     tags: form.tags
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
     artifact: {
-      kind: 'image',
+      ...origArtifact,
+      kind: artifactKind,
       url: form.imageUrl.trim(),
       alt: form.imageAlt.trim() || form.titleEn.trim(),
     },
     source: {
+      // spread keeps captured_at and any extra keys from the original source
+      ...origSource,
       label: form.sourceLabel.trim(),
       platform: form.sourcePlatform.trim() || 'Web',
       url: form.sourceUrl.trim(),
     },
+    // the form has no output editor — pass the original through untouched
+    output: Object.keys(origOutput).length > 0 ? origOutput : undefined,
     enabled: form.enabled,
   }
 }
@@ -112,35 +173,28 @@ export function formDataToPayload(form: PromptGalleryFormData) {
 export function itemToFormData(
   item: PromptLibraryAdminItem
 ): PromptGalleryFormData {
-  const parse = (raw: string) => {
-    try {
-      // JSON.parse('null') succeeds and returns null (the backend marshals
-      // absent JSON columns as the literal string "null"), which would make
-      // the property reads below throw — coalesce to {} inside the try.
-      const parsed = raw ? JSON.parse(raw) : {}
-      return parsed ?? {}
-    } catch {
-      return {}
-    }
-  }
-  const title = parse(item.title_json)
-  const summary = parse(item.summary_json)
-  const artifact = parse(item.artifact_json)
-  const source = parse(item.source_json)
-  const tags = parse(item.tags_json)
+  const title = asRecord(safeParseJson(item.title_json))
+  const summary = asRecord(safeParseJson(item.summary_json))
+  const artifact = asRecord(safeParseJson(item.artifact_json))
+  const source = asRecord(safeParseJson(item.source_json))
+  const tags = safeParseJson(item.tags_json)
+  const stringOr = (value: unknown, fallback = '') =>
+    typeof value === 'string' ? value : fallback
   return {
     slug: item.slug,
     category: item.category,
     model: item.model,
     prompt: item.prompt,
-    titleEn: typeof title.en === 'string' ? title.en : '',
-    summaryEn: typeof summary.en === 'string' ? summary.en : '',
+    titleEn: stringOr(title.en),
+    summaryEn: stringOr(summary.en),
     tags: Array.isArray(tags) ? tags.join(', ') : '',
-    imageUrl: typeof artifact.url === 'string' ? artifact.url : '',
-    imageAlt: typeof artifact.alt === 'string' ? artifact.alt : '',
-    sourceLabel: typeof source.label === 'string' ? source.label : '',
-    sourcePlatform: typeof source.platform === 'string' ? source.platform : '',
-    sourceUrl: typeof source.url === 'string' ? source.url : '',
+    imageUrl: stringOr(artifact.url),
+    imageAlt: stringOr(artifact.alt),
+    sourceLabel: stringOr(source.label),
+    // source_json is authoritative but may lack these; fall back to the
+    // denormalized top-level columns.
+    sourcePlatform: stringOr(source.platform) || (item.source_platform ?? ''),
+    sourceUrl: stringOr(source.url) || (item.source_url ?? ''),
     enabled: item.enabled,
   }
 }

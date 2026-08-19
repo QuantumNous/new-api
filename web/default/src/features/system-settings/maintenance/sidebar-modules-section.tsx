@@ -156,6 +156,10 @@ export function SidebarModulesSection({
         title: t('Redeem codes'),
         description: t('Create and review invite or credit codes.'),
       },
+      prompt_gallery: {
+        title: t('Prompt Gallery'),
+        description: t('Curate the public prompt example library.'),
+      },
       user: {
         title: t('Users'),
         description: t('Administer user accounts and roles.'),

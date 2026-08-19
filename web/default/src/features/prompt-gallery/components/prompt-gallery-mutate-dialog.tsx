@@ -160,7 +160,9 @@ function PromptGalleryForm({ currentRow, onClose }: PromptGalleryFormProps) {
     setIsSubmitting(true)
     try {
       const result = isUpdate
-        ? await updatePromptGalleryItem(currentRow.id, form)
+        ? // pass the original row so un-edited JSON data (output, captured_at,
+          // extra languages) survives the backend's full-replace PUT
+          await updatePromptGalleryItem(currentRow.id, form, currentRow)
         : await createPromptGalleryItem(form)
       if (result.success) {
         toast.success(

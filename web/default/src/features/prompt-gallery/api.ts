@@ -22,6 +22,7 @@ import {
   type ApiResponse,
   type PromptGalleryFormData,
   type PromptGalleryListData,
+  type PromptLibraryAdminItem,
 } from './types'
 
 // Get paginated prompt gallery items (admin view, includes disabled)
@@ -51,15 +52,30 @@ export async function createPromptGalleryItem(
   return res.data
 }
 
-// Update a prompt gallery item
+// Update a prompt gallery item. PUT is full-replace on the backend, so pass
+// the original row to preserve JSON data the form does not edit
+// (output_json, captured_at, extra languages).
 export async function updatePromptGalleryItem(
   id: number,
-  form: PromptGalleryFormData
+  form: PromptGalleryFormData,
+  original?: PromptLibraryAdminItem
 ): Promise<ApiResponse<{ id: number }>> {
   const res = await api.put(
     `/api/prompt-library/admin/${id}`,
-    formDataToPayload(form)
+    formDataToPayload(form, original)
   )
+  return res.data
+}
+
+// Toggle only the enabled flag; unlike the full-replace PUT this cannot
+// clobber concurrent edits to content fields.
+export async function setPromptGalleryItemEnabled(
+  id: number,
+  enabled: boolean
+): Promise<ApiResponse<{ id: number; enabled: boolean }>> {
+  const res = await api.put(`/api/prompt-library/admin/${id}/enabled`, {
+    enabled,
+  })
   return res.data
 }
 
