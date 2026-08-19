@@ -157,7 +157,10 @@ import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
-import { resolveGrokAuthorizationView } from '../../lib/grok-oauth'
+import {
+  resolveGrokAuthorizationView,
+  resolveGrokCredentialTextareaValue,
+} from '../../lib/grok-oauth'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
@@ -2128,6 +2131,14 @@ export function ChannelMutateDrawer({
                         control={form.control}
                         name='key'
                         render={({ field }) => {
+                          const keyFieldValue =
+                            resolveGrokCredentialTextareaValue({
+                              channelType: currentType,
+                              isEditing,
+                              formKey: field.value,
+                            })
+                          const isGrokCreateKeyMasked =
+                            currentType === 113 && !isEditing
                           const keyPlaceholder = (() => {
                             if (isEditing) {
                               return t('Leave empty to keep existing key')
@@ -2172,6 +2183,8 @@ export function ChannelMutateDrawer({
                                   placeholder={keyPlaceholder}
                                   rows={isBatchMode ? 8 : 4}
                                   {...field}
+                                  value={keyFieldValue}
+                                  readOnly={isGrokCreateKeyMasked}
                                 />
                               </FormControl>
                               <FormDescription>

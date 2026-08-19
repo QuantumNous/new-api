@@ -30,3 +30,12 @@ export function resolveGrokAuthorizationView(input: {
   if (input.serverStatus === 'needs_reauth') return 'needs-reauth'
   return 'pending'
 }
+
+export function resolveGrokCredentialTextareaValue(input: {
+  channelType: number
+  isEditing: boolean
+  formKey?: string
+}): string {
+  if (input.channelType === 113 && !input.isEditing) return ''
+  return input.formKey ?? ''
+}

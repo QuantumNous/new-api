@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   normalizeGrokOAuthChannelID,
   resolveGrokAuthorizationView,
+  resolveGrokCredentialTextareaValue,
   resolveGrokOAuthCompletionKey,
 } from './grok-oauth'
 
@@ -46,5 +47,32 @@ describe('Grok OAuth mode contract', () => {
         serverStatus: 'needs_reauth',
       })
     ).toBe('needs-reauth')
+  })
+
+  test('masks create-mode Grok credentials from the generic key field value', () => {
+    const credential =
+      '{"version":1,"type":"grok_subscription","access_token":"at"}'
+
+    expect(
+      resolveGrokCredentialTextareaValue({
+        channelType: 113,
+        isEditing: false,
+        formKey: credential,
+      })
+    ).toBe('')
+    expect(
+      resolveGrokCredentialTextareaValue({
+        channelType: 113,
+        isEditing: true,
+        formKey: credential,
+      })
+    ).toBe(credential)
+    expect(
+      resolveGrokCredentialTextareaValue({
+        channelType: 1,
+        isEditing: false,
+        formKey: credential,
+      })
+    ).toBe(credential)
   })
 })
