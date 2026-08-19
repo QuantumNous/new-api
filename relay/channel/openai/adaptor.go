@@ -256,7 +256,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	// and start a ping goroutine for the downstream client, which would corrupt
 	// the non-streaming JSON response. DoResponse routes on UpstreamStreamForced
 	// directly, independent of IsStream.
-	if info.ChannelSetting.ForceUpstreamStream && !lo.FromPtrOr(request.Stream, false) {
+	if info.ChannelSetting.ForceUpstreamStream && !info.IsStream {
 		request.Stream = lo.ToPtr(true)
 		info.UpstreamStreamForced = true
 		// Inject stream_options.include_usage so the upstream returns actual
@@ -268,7 +268,22 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 	}
-	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
+	// Strip StreamOptions for channels that don't support them, but only
+	// when we did not inject it ourselves via ForceUpstreamStream. The
+	// forced-stream path (above) injects IncludeUsage for billing accuracy;
+	// nil-ing it here would make that injection dead code for any channel
+	// whose type is not OpenAI/Azure (e.g. DeepSeek with SupportStreamOptions).
+	// However, when the channel does not support StreamOptions at all
+	// (SupportStreamOptions=false), we must still strip them — even in
+	// forced-stream mode — to avoid sending unsupported fields upstream.
+	//
+	// Ordering dependency: shouldPreserveStreamOptions reads
+	// info.UpstreamStreamForced which is set inside the ForceUpstreamStream
+	// block above (line ~261). This guard MUST stay below that block.
+	shouldPreserveStreamOptions := info.UpstreamStreamForced && info.SupportStreamOptions
+	if !shouldPreserveStreamOptions &&
+		info.ChannelType != constant.ChannelTypeOpenAI &&
+		info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {

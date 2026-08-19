@@ -121,12 +121,17 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
-	// Determine all choice indices that received content
+	// Determine all choice indices that received content, reasoning,
+	// tool calls, or a finish reason. Tool-call-only choices (no content,
+	// no reasoning, no finish_reason) must not be silently dropped.
 	allIndices := make(map[int]bool)
 	for idx := range accumulatedContent {
 		allIndices[idx] = true
 	}
 	for idx := range accumulatedReasoning {
+		allIndices[idx] = true
+	}
+	for idx := range accumulatedToolCalls {
 		allIndices[idx] = true
 	}
 	for idx := range finishReason {
@@ -191,6 +196,13 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 			}
 		}
 		usage = service.ResponseText2Usage(c, totalContent, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
+	// Guard against nil usage from the fallback estimator. If the upstream
+	// returned no usage object AND the estimator returned nil (e.g. empty
+	// model name or zero content), dereferencing *usage below would panic.
+	if usage == nil {
+		logger.LogWarn(c, "buffered stream: usage estimator returned nil, using zero usage")
+		usage = &dto.Usage{}
 	}
 
 	textResponse := dto.OpenAITextResponse{

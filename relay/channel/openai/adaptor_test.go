@@ -25,6 +25,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 		clientStream       *bool
 		forceUpstream      bool
 		supportStreamOpts  bool
+		channelType        int
 		wantStreamSent     bool // what the upstream should receive
 		wantForcedFlag     bool // whether UpstreamStreamForced should be set
 		wantStreamOptions  bool // whether StreamOptions.IncludeUsage should be true
@@ -65,6 +66,47 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			wantForcedFlag:    true,
 			wantStreamOptions: false,
 		},
+		{
+			// Bug-injection: non-OpenAI/Azure channel with force + stream options
+			// support. The buggy code unconditionally nils StreamOptions for
+			// non-OpenAI/Azure channels, making the IncludeUsage injection
+			// dead code. The fix scopes the nil-out with
+			// !info.UpstreamStreamForced so the forced-stream path keeps its
+			// StreamOptions.
+			name:              "force + non-OpenAI channel + stream options support -> StreamOptions preserved",
+			clientStream:      lo.ToPtr(false),
+			forceUpstream:     true,
+			supportStreamOpts: true,
+			channelType:       constant.ChannelTypeDeepSeek,
+			wantStreamSent:    true,
+			wantForcedFlag:    true,
+			wantStreamOptions: true,
+		},
+		{
+			// force + non-OpenAI channel + NO stream options support -> StreamOptions stripped.
+			// Even in forced-stream mode, if the channel doesn't support
+			// StreamOptions, we must nil them to avoid upstream 400 errors.
+			name:              "force + non-OpenAI channel + no stream options support -> StreamOptions stripped",
+			clientStream:      lo.ToPtr(false),
+			forceUpstream:     true,
+			supportStreamOpts: false,
+			channelType:       constant.ChannelTypeDeepSeek,
+			wantStreamSent:    true,
+			wantForcedFlag:    true,
+			wantStreamOptions: false,
+		},
+		{
+			// nil *bool clientStream should be treated as false (non-stream),
+			// matching lo.FromPtrOr's default. Force should still apply.
+			name:              "nil clientStream + force -> upstream stream + forced flag",
+			clientStream:      nil,
+			forceUpstream:     true,
+			supportStreamOpts: true,
+			channelType:       constant.ChannelTypeOpenAI,
+			wantStreamSent:    true,
+			wantForcedFlag:    true,
+			wantStreamOptions: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -73,9 +115,13 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 			c, _ := gin.CreateTestContext(w)
 			c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
 
+			chType := tt.channelType
+			if chType == 0 {
+				chType = constant.ChannelTypeOpenAI
+			}
 			info := &relaycommon.RelayInfo{
 				ChannelMeta: &relaycommon.ChannelMeta{
-					ChannelType:         constant.ChannelTypeOpenAI,
+					ChannelType:         chType,
 					UpstreamModelName:   "test-model",
 					ChannelSetting:      dto.ChannelSettings{ForceUpstreamStream: tt.forceUpstream},
 					SupportStreamOptions: tt.supportStreamOpts,
@@ -88,7 +134,7 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 				Stream: tt.clientStream,
 			}
 
-			adaptor := &Adaptor{ChannelType: constant.ChannelTypeOpenAI}
+			adaptor := &Adaptor{ChannelType: chType}
 			result, err := adaptor.ConvertOpenAIRequest(c, info, request)
 			require.NoError(t, err)
 

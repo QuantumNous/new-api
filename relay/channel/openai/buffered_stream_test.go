@@ -373,3 +373,100 @@ func TestOaiBufferedStreamHandler_MalformedDataLines(t *testing.T) {
 	assert.Contains(t, body, "OK", "valid content after malformed lines must be aggregated")
 }
 
+// TestOaiBufferedStreamHandler_ToolCallOnlyChoiceNotDropped verifies that a
+// choice index which receives only tool_calls (no content, no reasoning, no
+// finish_reason) is still present in the aggregated response. Without
+// collecting indices from accumulatedToolCalls, such a choice is silently
+// dropped from allIndices and never appears in the output.
+func TestOaiBufferedStreamHandler_ToolCallOnlyChoiceNotDropped(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Choice index 1 receives ONLY tool_calls — no content, no finish_reason.
+	// The buggy code only collected indices from content/reasoning/finishReason,
+	// so index 1 would be dropped. The fix adds accumulatedToolCalls to the
+	// index collection.
+	sseBody := strings.Join([]string{
+		`data: {"id":"chatcmpl-tc-only","object":"chat.completion.chunk","created":1,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}`,
+		`data: {"id":"chatcmpl-tc-only","object":"chat.completion.chunk","created":1,"model":"gpt-4","choices":[{"index":1,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_x","type":"function","function":{"name":"do_thing","arguments":"{}"}}]}}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(sseBody))),
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4"},
+		IsStream:             true,
+		UpstreamStreamForced: true,
+	}
+
+	_, apiErr := OaiBufferedStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+
+	body := w.Body.String()
+	var textResp dto.OpenAITextResponse
+	require.NoError(t, common.Unmarshal([]byte(body), &textResp))
+	require.Len(t, textResp.Choices, 2, "both choice indices must appear: index 0 (content) and index 1 (tool_calls only)")
+
+	// Find choice with index 1
+	var choice1 *dto.OpenAITextResponseChoice
+	for i := range textResp.Choices {
+		if textResp.Choices[i].Index == 1 {
+			choice1 = &textResp.Choices[i]
+			break
+		}
+	}
+	require.NotNil(t, choice1, "choice index 1 (tool_calls only) must not be dropped")
+	toolCalls := choice1.Message.ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "do_thing", toolCalls[0].Function.Name)
+}
+
+// TestOaiBufferedStreamHandler_NilUsageNoPanic verifies that the handler does
+// not panic when the upstream returns no usage object and the fallback
+// estimator returns nil (simulated via empty content + empty model name).
+// Without the nil guard, `Usage: *usage` dereferences a nil pointer.
+func TestOaiBufferedStreamHandler_NilUsageNoPanic(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// SSE stream with no usage chunk and no content (so ResponseText2Usage
+	// gets empty string). An empty model name makes the estimator return nil.
+	sseBody := strings.Join([]string{
+		`data: {"id":"chatcmpl-nil","object":"chat.completion.chunk","created":1,"model":"","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	resp := &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(sseBody))),
+	}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequestWithContext(t.Context(), "POST", "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:          &relaycommon.ChannelMeta{UpstreamModelName: ""},
+		IsStream:             true,
+		UpstreamStreamForced: true,
+	}
+
+	// Must not panic
+	require.NotPanics(t, func() {
+		usage, apiErr := OaiBufferedStreamHandler(c, info, resp)
+		require.Nil(t, apiErr)
+		require.NotNil(t, usage, "usage must be non-nil even when estimator returns nil")
+	})
+
+	body := w.Body.String()
+	assert.Contains(t, body, "chat.completion", "response must still be valid JSON")
+}
+
