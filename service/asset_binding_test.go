@@ -499,6 +499,58 @@ func TestAssetBindingExistingProcessingRefreshesWithGetOnly(t *testing.T) {
 	require.Len(t, store.signed, 0, "Get-only refresh must not sign source URLs")
 }
 
+func TestTokenSpaceMaterialTechMobiProcessingBindingRefreshesWithGetOnly(t *testing.T) {
+	newAssetServiceTestDB(t)
+	store := installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_tokenspace_processing_refresh")
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-internal",
+	})
+	channel.Id = 106
+	options := AssetMaterializeOptions{Model: "seedance-2.0-fast", APIKey: "tokenspace-key"}
+	bindingScope, err := assetBindingScopeForChannel(channel, options)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       channel.Id,
+		BindingScope:    bindingScope,
+		Status:          model.AssetStatusProcessing,
+		UpstreamGroupId: "group-internal",
+		UpstreamAssetId: "asset-created",
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}).Error)
+	materializer := &recordingAssetMaterializer{getStatus: model.AssetStatusActive}
+	descriptor := assetMaterializationProviderDescriptors[assetMaterializationProviderTokenSpaceMaterial]
+	assetMaterializationProviderDescriptors[assetMaterializationProviderTokenSpaceMaterial] = assetMaterializationProviderDescriptor{
+		MaterializerFactory: func(assetMaterializationChannelConfig) AssetMaterializer {
+			return materializer
+		},
+		BindingScope:     descriptor.BindingScope,
+		ValidateConfig:   descriptor.ValidateConfig,
+		CredentialScoped: descriptor.CredentialScoped,
+	}
+	t.Cleanup(func() {
+		assetMaterializationProviderDescriptors[assetMaterializationProviderTokenSpaceMaterial] = descriptor
+	})
+
+	result, handled, err := handleProcessingAssetBinding(context.Background(), &asset, channel, bindingScope, options.Model, options.APIKey, "asset-created", 2, 0)
+
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.Equal(t, "asset://asset-created", result.RewriteURI)
+	require.Zero(t, atomic.LoadInt64(&materializer.createCalls))
+	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.getCalls))
+	require.Equal(t, "asset-created", materializer.lastGetAssetID)
+	require.Len(t, store.signed, 0, "explicit provider processing refresh must not sign or create a replacement asset")
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, channel.Id, bindingScope).Error)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "asset-created", binding.UpstreamAssetId)
+}
+
 func TestTechMobiAssetBindingHistoricalProcessingOpaqueAssetRematerializes(t *testing.T) {
 	newAssetServiceTestDB(t)
 	store := installAssetServiceTestDeps(t)

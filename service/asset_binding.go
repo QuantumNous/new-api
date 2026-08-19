@@ -500,7 +500,11 @@ func handleProcessingAssetBinding(ctx context.Context, asset *model.Asset, chann
 }
 
 func assetBindingRequiresRematerializationFromProcessing(channel *model.Channel) bool {
-	return channel != nil && channel.Type == constant.ChannelTypeTechMobiVideo
+	if channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo {
+		return false
+	}
+	_, explicit, err := assetMaterializationConfigForChannel(channel)
+	return err == nil && !explicit
 }
 
 func markProcessingAssetBindingForRematerialization(assetID int64, channelID int, bindingScope string, upstreamAssetID string) (bool, error) {
