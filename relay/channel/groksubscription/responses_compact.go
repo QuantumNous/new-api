@@ -1,8 +1,18 @@
 package groksubscription
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -102,4 +112,114 @@ func ConvertCompactResponse(respBody []byte) (CompactionItem, error) {
 		return CompactionItem{}, ErrCompactMissingSummary
 	}
 	return CompactionItem{EncryptedContent: enc, Summary: summary}, nil
+}
+
+// grokCompactUsageFromBody 从上游普通 Responses body 的 usage 映射出 *dto.Usage。
+// 始终返回 non-nil（缺失时零值占位）——入口层 responses_handler.go 对 DoResponse 的
+// usage 返回值无条件做 usage.(*dto.Usage)，nil 会 panic。映射与
+// OaiResponsesCompactionHandler 对齐：input→Prompt、output→Completion、total→Total，
+// 同时保留 Responses 风格的 InputTokens/OutputTokens，便于响应体按 Responses usage 回写。
+func grokCompactUsageFromBody(respBody []byte) *dto.Usage {
+	u := &dto.Usage{}
+	usage := gjson.GetBytes(respBody, "usage")
+	if !usage.Exists() {
+		return u
+	}
+	in := int(usage.Get("input_tokens").Int())
+	out := int(usage.Get("output_tokens").Int())
+	total := int(usage.Get("total_tokens").Int())
+	if total == 0 && (in != 0 || out != 0) {
+		total = in + out
+	}
+	u.PromptTokens = in
+	u.CompletionTokens = out
+	u.TotalTokens = total
+	u.InputTokens = in
+	u.OutputTokens = out
+	return u
+}
+
+// buildCompactionOutput 构造回给客户端的 compaction item Output 数组。
+//
+// 设计 §9（docs/superpowers/specs/2026-08-17-grok-subscription-design.md）路由矩阵
+// 与文本节点只点名了两个语义字段名 encrypted_content 与 summary（§9 行 252/290:
+// “把 reasoning encrypted content/summary 转回 OpenAI compaction item”），并未逐字
+// 转录对外 Output item 的完整线格。按 Task 12.5 契约，缺完整线格时以
+// {type:"reasoning", encrypted_content, summary} 为 clean-room 基线（不复制 sub2api
+// LGPL 文本）：单个 reasoning item 同时承载 encrypted 载荷与人读 summary，语义自洽。
+func buildCompactionOutput(item CompactionItem) (json.RawMessage, error) {
+	out := []byte(`[]`)
+	var err error
+	if out, err = sjson.SetBytes(out, "-1", map[string]any{
+		"type":              "reasoning",
+		"encrypted_content": item.EncryptedContent,
+		"summary":           item.Summary,
+	}); err != nil {
+		return nil, err
+	}
+	return json.RawMessage(out), nil
+}
+
+// grokCompactResponseHandler 处理 compact turn 的上游回包。Grok 上游走 CLI proxy 的
+// /v1/responses，回的是普通 Responses JSON（非 OpenAI compact 格式，故不能复用
+// openai.OaiResponsesCompactionHandler）。流程：读 body → 非 200 保留状态码 →
+// ConvertCompactResponse 提取 encrypted reasoning + summary（失败返回稳定错误、绝不
+// 伪造）→ 组装 dto.OpenAIResponsesCompactionResponse 回写客户端 → 映射 usage。
+//
+// 凭证安全：encrypted_content 是要回给客户端的响应数据（写响应体 OK），但绝不进日志/
+// 错误信息；本函数的所有错误路径都不回显上游 body 或 encrypted 载荷。
+func grokCompactResponseHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return &dto.Usage{}, types.NewErrorWithStatusCode(
+			errors.New("grok subscription channel: nil upstream response"),
+			types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	// 上限读取照 refresh.go / chat_response_bridge.go 的 LimitReader 先例，防超大响应。
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		truncated := ""
+		if len(body) == maxTokenResponseBytes {
+			truncated = " (truncated)"
+		}
+		// 保留上游状态码，否则上层重试/限流策略失去信号（429/5xx 不再退避/切渠道）。
+		return &dto.Usage{}, types.NewErrorWithStatusCode(
+			fmt.Errorf("grok subscription channel: upstream status %d%s", resp.StatusCode, truncated),
+			types.ErrorCodeBadResponse, resp.StatusCode)
+	}
+
+	usage := grokCompactUsageFromBody(body)
+
+	item, err := ConvertCompactResponse(body)
+	if err != nil {
+		// 稳定错误、绝不伪造 compaction item。err 只含固定文案（见 ErrCompact* 定义），
+		// 不含上游 body / encrypted 载荷，可安全进入错误链。
+		return usage, types.NewErrorWithStatusCode(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
+	}
+
+	output, err := buildCompactionOutput(item)
+	if err != nil {
+		return usage, types.NewErrorWithStatusCode(
+			errors.New("grok subscription channel: failed to encode compaction item"),
+			types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	// 保留上游 Responses 的 id/object/created_at，Output 换成 compaction item，usage 回写。
+	compactResp := dto.OpenAIResponsesCompactionResponse{
+		ID:        gjson.GetBytes(body, "id").String(),
+		Object:    gjson.GetBytes(body, "object").String(),
+		CreatedAt: int(gjson.GetBytes(body, "created_at").Int()),
+		Output:    output,
+		Usage:     usage,
+	}
+	payload, mErr := common.Marshal(&compactResp)
+	if mErr != nil {
+		return usage, types.NewErrorWithStatusCode(
+			errors.New("grok subscription channel: failed to encode compaction response"),
+			types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	service.IOCopyBytesGracefully(c, resp, payload)
+	return usage, nil
 }

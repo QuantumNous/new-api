@@ -142,6 +142,11 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
 	switch info.RelayMode {
+	case relayconstant.RelayModeResponsesCompact:
+		// Grok 上游走 CLI proxy /v1/responses，回普通 Responses JSON（非 OpenAI
+		// compact 格式），故用本包 clean-room handler，而非
+		// openai.OaiResponsesCompactionHandler（后者解析上游 compact 格式）。
+		return grokCompactResponseHandler(c, resp, info)
 	case relayconstant.RelayModeResponses:
 		if info.IsStream {
 			return openai.OaiResponsesStreamHandler(c, info, resp)

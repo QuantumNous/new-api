@@ -1,10 +1,111 @@
 package groksubscription
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
+
+// grokCompactUpstreamOK 是一段合法的上游普通 Responses JSON（非流式），含 encrypted
+// reasoning + message.output_text，以及 usage。它是 Grok compact turn 的上游回包形态
+// （Grok 上游回普通 Responses JSON，不是 OpenAI 的 compact 格式）。
+const grokCompactUpstreamOK = `{"id":"resp_c1","object":"response","created_at":123,"model":"grok-4","status":"completed","output":[{"type":"reasoning","encrypted_content":"ENC_BLOB"},{"type":"message","role":"assistant","content":[{"type":"output_text","text":"the summary"}]}],"usage":{"input_tokens":11,"output_tokens":7,"total_tokens":18}}`
+
+func newJSONResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+func newCompactTestContext(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+	return c, rec
+}
+
+// TestGrokCompactResponseHandler_Success 锁住 Task 12.5 C：合法上游 Responses JSON
+// （含 encrypted reasoning + output_text summary）→ 200 回写
+// OpenAIResponsesCompactionResponse，Output 含 encrypted_content + summary，usage 映射
+// 正确（input→prompt / output→completion / total）。返回 *dto.Usage（入口层无条件断言）。
+func TestGrokCompactResponseHandler_Success(t *testing.T) {
+	c, rec := newCompactTestContext(t)
+	usageAny, apiErr := grokCompactResponseHandler(c, newJSONResponse(http.StatusOK, grokCompactUpstreamOK), &relaycommon.RelayInfo{})
+	if apiErr != nil {
+		t.Fatalf("unexpected error: %v", apiErr)
+	}
+	// 入口层 (responses_handler.go) 无条件做 usage.(*dto.Usage)，必须返回非 nil 指针。
+	usage, ok := usageAny.(*dto.Usage)
+	if !ok || usage == nil {
+		t.Fatalf("usage return = %T (%v), want non-nil *dto.Usage", usageAny, usageAny)
+	}
+	if usage.PromptTokens != 11 || usage.CompletionTokens != 7 || usage.TotalTokens != 18 {
+		t.Fatalf("usage mismatch: prompt=%d completion=%d total=%d, want 11/7/18", usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens)
+	}
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("http status = %d, want 200", rec.Code)
+	}
+	var resp dto.OpenAIResponsesCompactionResponse
+	if err := common.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("body must be OpenAIResponsesCompactionResponse: %v; body=%s", err, rec.Body.String())
+	}
+	// Output 是 compaction item 数组：至少含一个带 encrypted_content 与 summary 的 item。
+	enc := gjson.GetBytes(resp.Output, "0.encrypted_content").String()
+	if enc != "ENC_BLOB" {
+		t.Fatalf("Output[0].encrypted_content = %q, want ENC_BLOB; output=%s", enc, string(resp.Output))
+	}
+	summary := gjson.GetBytes(resp.Output, "0.summary").String()
+	if summary != "the summary" {
+		t.Fatalf("Output[0].summary = %q, want 'the summary'; output=%s", summary, string(resp.Output))
+	}
+	if resp.Usage == nil || resp.Usage.InputTokens != 11 || resp.Usage.OutputTokens != 7 {
+		t.Fatalf("response usage mismatch: %+v", resp.Usage)
+	}
+}
+
+// TestGrokCompactResponseHandler_MissingReasoningStableError 锁住：上游缺 encrypted
+// reasoning 时返回稳定错误、绝不伪造 compaction item，且不回 200。
+func TestGrokCompactResponseHandler_MissingReasoningStableError(t *testing.T) {
+	c, _ := newCompactTestContext(t)
+	body := `{"output":[{"type":"message","content":[{"type":"output_text","text":"summary"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
+	usageAny, apiErr := grokCompactResponseHandler(c, newJSONResponse(http.StatusOK, body), &relaycommon.RelayInfo{})
+	if apiErr == nil {
+		t.Fatalf("missing encrypted reasoning must return a stable error, not fabricate an item")
+	}
+	// 即便报错，usage 仍须是 *dto.Usage（入口层无条件断言，nil 会 panic）。
+	if _, ok := usageAny.(*dto.Usage); !ok {
+		t.Fatalf("usage on error = %T, want *dto.Usage (entry point asserts unconditionally)", usageAny)
+	}
+}
+
+// TestGrokCompactResponseHandler_Non200PreservesStatus 锁住：上游非 200 时保留状态码
+// （重试/限流信号不丢失），且不把上游 body 当成功结果回写。
+func TestGrokCompactResponseHandler_Non200PreservesStatus(t *testing.T) {
+	c, _ := newCompactTestContext(t)
+	usageAny, apiErr := grokCompactResponseHandler(c, newJSONResponse(http.StatusTooManyRequests, `{"error":"rate limited"}`), &relaycommon.RelayInfo{})
+	if apiErr == nil {
+		t.Fatalf("expected error for non-200 upstream")
+	}
+	if apiErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429 (must preserve upstream status)", apiErr.StatusCode)
+	}
+	if _, ok := usageAny.(*dto.Usage); !ok {
+		t.Fatalf("usage on error = %T, want *dto.Usage", usageAny)
+	}
+}
 
 // TestBuildCompactTurnRequestsEncryptedReasoningViaInclude 锁住 D 修复：encrypted
 // reasoning 必须通过 include 数组请求（仓库三处先例形态），绝不能用布尔
