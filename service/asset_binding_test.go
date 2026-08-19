@@ -15,6 +15,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
@@ -1340,6 +1341,99 @@ func TestAssetBindingScopeUsesSeedanceProxyConfigWithoutModelOrType(t *testing.T
 	require.NotContains(t, scope, "byteplus")
 }
 
+func TestAssetMaterializerForChannelSelectsTokenSpaceMaterial(t *testing.T) {
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-internal",
+	})
+
+	materializer, err := assetMaterializerForChannel(channel)
+
+	require.NoError(t, err)
+	require.IsType(t, tokenSpaceMaterialAssetBindingMaterializer{}, materializer)
+}
+
+func TestAssetBindingScopeForTokenSpaceMaterialIsCredentialScopedAndModelIndependent(t *testing.T) {
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid/path/",
+		GroupID:        "group-internal",
+	})
+
+	first, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "model-a", APIKey: "key-a"})
+	require.NoError(t, err)
+	same, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "model-b", APIKey: "key-a"})
+	require.NoError(t, err)
+	otherKey, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "model-a", APIKey: "key-b"})
+	require.NoError(t, err)
+
+	require.Equal(t, first, same)
+	require.NotEqual(t, first, otherKey)
+	require.True(t, strings.HasPrefix(first, "tokenspace-material:v1:"))
+}
+
+func TestAssetBindingScopeForTokenSpaceMaterialChangesWithGroupAndOriginOnly(t *testing.T) {
+	base := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid/base/",
+		GroupID:        "group-internal",
+	})
+	otherGroup := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid/base/",
+		GroupID:        "group-other",
+	})
+	otherOrigin := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://other-materials.example.invalid/base/",
+		GroupID:        "group-internal",
+	})
+	otherType := channelWithAssetMaterializationSettings(t, constant.ChannelTypeBytePlus, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid/other-path/",
+		GroupID:        "group-internal",
+	})
+
+	options := AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "key-a"}
+	baseScope, err := assetBindingScopeForChannel(base, options)
+	require.NoError(t, err)
+	groupScope, err := assetBindingScopeForChannel(otherGroup, options)
+	require.NoError(t, err)
+	originScope, err := assetBindingScopeForChannel(otherOrigin, options)
+	require.NoError(t, err)
+	typeScope, err := assetBindingScopeForChannel(otherType, options)
+	require.NoError(t, err)
+
+	require.NotEqual(t, baseScope, groupScope)
+	require.NotEqual(t, baseScope, originScope)
+	require.Equal(t, baseScope, typeScope)
+}
+
+func TestAssetBindingScopeForTokenSpaceMaterialFailClosedAndEmptyProviderFallsBack(t *testing.T) {
+	unknown := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "unknown_provider",
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-internal",
+	})
+	emptyProvider := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-internal",
+	})
+
+	_, err := assetMaterializerForChannel(unknown)
+	require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+	_, err = assetBindingScopeForChannel(unknown, AssetMaterializeOptions{Model: "model-a", APIKey: "key-a"})
+	require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+
+	materializer, err := assetMaterializerForChannel(emptyProvider)
+	require.NoError(t, err)
+	require.IsType(t, techMobiAssetBindingMaterializer{}, materializer)
+	scope, err := assetBindingScopeForChannel(emptyProvider, AssetMaterializeOptions{Model: "model-a", APIKey: "key-a"})
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(scope, "techmobi:v1:"))
+}
+
 func TestAssetBindingScopeRejectsUnknownExplicitProvider(t *testing.T) {
 	channel := &model.Channel{
 		Id:            156,
@@ -1408,4 +1502,16 @@ func TestSeedanceProxyExplicitProviderOverridesLegacyTypeMaterializer(t *testing
 	scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "seedance-key"})
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(scope, seedanceProxyBindingScopePrefix))
+}
+
+func channelWithAssetMaterializationSettings(t *testing.T, channelType int, settings dto.AssetMaterializationSettings) *model.Channel {
+	t.Helper()
+	payload, err := common.Marshal(dto.ChannelOtherSettings{AssetMaterialization: &settings})
+	require.NoError(t, err)
+	return &model.Channel{
+		Id:            156,
+		Type:          channelType,
+		Key:           "material-key",
+		OtherSettings: string(payload),
+	}
 }

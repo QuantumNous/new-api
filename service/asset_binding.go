@@ -51,8 +51,10 @@ var (
 )
 
 const (
-	assetMaterializationProviderSeedanceProxy = "seedance_proxy"
-	seedanceProxyBindingScopePrefix           = "seedance-proxy:v1:"
+	assetMaterializationProviderSeedanceProxy      = "seedance_proxy"
+	seedanceProxyBindingScopePrefix                = "seedance-proxy:v1:"
+	assetMaterializationProviderTokenSpaceMaterial = "tokenspace_material"
+	tokenSpaceMaterialBindingScopePrefix           = "tokenspace-material:v1:"
 )
 
 type assetMaterializationChannelConfig struct {
@@ -76,6 +78,20 @@ var assetMaterializationProviderDescriptors = map[string]assetMaterializationPro
 		},
 		BindingScope: func(config assetMaterializationChannelConfig, options AssetMaterializeOptions) (string, error) {
 			scope := seedanceProxyBindingScope(config.GatewayOrigin, config.GroupID, options.APIKey)
+			if scope == "" {
+				return "", ErrAssetBindingUnavailable
+			}
+			return scope, nil
+		},
+		ValidateConfig:   validateSeedanceProxyAssetMaterializationConfig,
+		CredentialScoped: true,
+	},
+	assetMaterializationProviderTokenSpaceMaterial: {
+		MaterializerFactory: func(config assetMaterializationChannelConfig) AssetMaterializer {
+			return tokenSpaceMaterialAssetBindingMaterializer{config: config}
+		},
+		BindingScope: func(config assetMaterializationChannelConfig, options AssetMaterializeOptions) (string, error) {
+			scope := tokenSpaceMaterialBindingScope(config.GatewayOrigin, config.GroupID, options.APIKey)
 			if scope == "" {
 				return "", ErrAssetBindingUnavailable
 			}
