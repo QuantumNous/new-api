@@ -14,7 +14,7 @@
 - Fetch and merge the latest `origin/main` before implementation; preserve PR #753's generic materializer commits and the committed design/plan documents.
 - Reuse `dto.ChannelOtherSettings.AssetMaterialization`; do not add a database column, table, public API field, or second secret.
 - Provider key is exactly `tokenspace_material`; binding scope prefix is exactly `tokenspace-material:v1:`.
-- The live origin, API key, group ID, account credentials, signed URLs, and upstream asset IDs must not appear in source, fixtures, reports, commits, or logs.
+- The API key, group ID, account credentials, signed URLs, and upstream asset IDs must not appear in source, fixtures, reports, commits, or logs. The publicly documented API origin may appear only in design or transient operations commands; it must not be hard-coded into production code or tests.
 - The application runtime never creates, lists, updates, or deletes TokenSpace groups. Operations owns one pre-created AIGC group.
 - Only Image and Video are eligible in this change; Audio fails before an upstream call.
 - All JSON marshal/unmarshal calls use `common.Marshal` / `common.Unmarshal`.
