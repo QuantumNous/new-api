@@ -2996,6 +2996,10 @@ export function ChannelMutateDrawer({
                                       value: 'seedance_proxy',
                                       label: t('Seedance proxy'),
                                     },
+                                    {
+                                      value: 'tokenspace_material',
+                                      label: t('TokenSpace material'),
+                                    },
                                   ]}
                                   onValueChange={field.onChange}
                                   value={field.value || ''}
@@ -3014,6 +3018,9 @@ export function ChannelMutateDrawer({
                                       </SelectItem>
                                       <SelectItem value='seedance_proxy'>
                                         {t('Seedance proxy')}
+                                      </SelectItem>
+                                      <SelectItem value='tokenspace_material'>
+                                        {t('TokenSpace material')}
                                       </SelectItem>
                                     </SelectGroup>
                                   </SelectContent>

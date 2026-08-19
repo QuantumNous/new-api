@@ -641,6 +641,28 @@ func TestExplicitUnknownAssetMaterializationProviderFailsClosedForAllAssetTypes(
 	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
 }
 
+func TestTokenSpaceMaterialConfiguredAssetTypeAllowsImageAndVideoOnly(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeTechMobiVideo,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
+	}
+
+	require.True(t, channelCanConsumeAssetType(channel, "Image"))
+	require.True(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+}
+
+func TestTokenSpaceMaterialIncompleteConfigurationFailsClosedForAllAssetTypes(t *testing.T) {
+	channel := &model.Channel{
+		Type:          constant.ChannelTypeTechMobiVideo,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid"}}`,
+	}
+
+	require.False(t, channelCanConsumeAssetType(channel, "Image"))
+	require.False(t, channelCanConsumeAssetType(channel, "Video"))
+	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+}
+
 func TestExplicitInvalidSeedanceProxyConfigurationFailsClosedForAllAssetTypes(t *testing.T) {
 	channel := &model.Channel{
 		Type:          constant.ChannelTypeModelAPISeedance,

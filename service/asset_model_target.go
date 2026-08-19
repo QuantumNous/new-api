@@ -123,7 +123,9 @@ func assetModelCandidatesForChannel(channel *model.Channel, modelName string) []
 		return nil
 	}
 	if explicit {
-		if config.Provider != assetMaterializationProviderSeedanceProxy {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
 			return nil
 		}
 		keys := enabledAssetMaterializeKeys(channel)

@@ -32,7 +32,10 @@ export type BlockRunPaymentChain = 'base' | 'solana'
 const CODEX_FINGERPRINT_MODES = ['off', 'device', 'session', 'full'] as const
 type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
 
-const ASSET_MATERIALIZATION_PROVIDERS = ['seedance_proxy'] as const
+const ASSET_MATERIALIZATION_PROVIDERS = [
+  'seedance_proxy',
+  'tokenspace_material',
+] as const
 type AssetMaterializationProvider =
   (typeof ASSET_MATERIALIZATION_PROVIDERS)[number]
 
@@ -474,7 +477,11 @@ export const channelFormSchema = z
     const assetMaterializationGroupID =
       data.asset_materialization_group_id?.trim() || ''
 
-    if (assetMaterializationProvider === 'seedance_proxy') {
+    if (
+      ASSET_MATERIALIZATION_PROVIDERS.includes(
+        assetMaterializationProvider as AssetMaterializationProvider
+      )
+    ) {
       if (
         !isSecureAssetMaterializationGatewayUrl(
           assetMaterializationGatewayBaseURL

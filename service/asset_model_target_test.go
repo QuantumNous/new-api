@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -377,33 +378,97 @@ func TestExplicitSeedanceProxyOverridesModelAPISourceURLCapability(t *testing.T)
 	require.IsType(t, seedanceProxyAssetBindingMaterializer{}, materializer)
 }
 
+func TestAssetModelTargetExplicitTokenSpaceMaterialKeepsTechMobiEligible(t *testing.T) {
+	newAssetReferenceDB(t)
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID:            140,
+		ChannelType:   constant.ChannelTypeTechMobiVideo,
+		Group:         "default",
+		ModelName:     "seedance-2.0",
+		Priority:      10,
+		Weight:        100,
+		Key:           "tokenspace-key",
+		Mapping:       `{"seedance-2.0":"doubao/seedance-pro"}`,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
+	})
+
+	candidates, err := AssetModelTargetCandidates(AssetModelScope{
+		ScopeKey:   "scope-tokenspace",
+		Groups:     []string{"default"},
+		ModelNames: []string{"seedance-2.0"},
+	}, "seedance-2.0")
+
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	require.Equal(t, 140, candidates[0].ChannelID)
+	require.Equal(t, "doubao/seedance-pro", candidates[0].MappedModel)
+	require.True(t, strings.HasPrefix(candidates[0].BindingScope, tokenSpaceMaterialBindingScopePrefix))
+}
+
+func TestAssetModelTargetExplicitTokenSpaceMaterialInvalidConfigAndUnknownProviderAreIneligible(t *testing.T) {
+	newAssetReferenceDB(t)
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID:            141,
+		ChannelType:   constant.ChannelTypeTechMobiVideo,
+		Group:         "default",
+		ModelName:     "seedance-2.0",
+		Priority:      10,
+		Weight:        100,
+		Key:           "tokenspace-key",
+		Mapping:       `{"seedance-2.0":"doubao/seedance-pro"}`,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid"}}`,
+	})
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID:            142,
+		ChannelType:   constant.ChannelTypeTechMobiVideo,
+		Group:         "default",
+		ModelName:     "seedance-2.0",
+		Priority:      9,
+		Weight:        100,
+		Key:           "tokenspace-key",
+		Mapping:       `{"seedance-2.0":"doubao/seedance-pro"}`,
+		OtherSettings: `{"asset_materialization":{"provider":"future_provider","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
+	})
+
+	candidates, err := AssetModelTargetCandidates(AssetModelScope{
+		ScopeKey:   "scope-tokenspace-invalid",
+		Groups:     []string{"default"},
+		ModelNames: []string{"seedance-2.0"},
+	}, "seedance-2.0")
+
+	require.NoError(t, err)
+	require.Empty(t, candidates)
+}
+
 type assetModelTargetChannelSeed struct {
-	ID          int
-	ChannelType int
-	Group       string
-	ModelName   string
-	Priority    int64
-	Weight      uint
-	Key         string
-	Mapping     string
-	ChannelInfo model.ChannelInfo
+	ID            int
+	ChannelType   int
+	Group         string
+	ModelName     string
+	Priority      int64
+	Weight        uint
+	Key           string
+	Mapping       string
+	OtherSettings string
+	ChannelInfo   model.ChannelInfo
 }
 
 func insertAssetModelTargetChannel(t *testing.T, seed assetModelTargetChannelSeed) {
 	t.Helper()
 	mapping := seed.Mapping
 	channel := &model.Channel{
-		Id:           seed.ID,
-		Type:         seed.ChannelType,
-		Key:          seed.Key,
-		Status:       common.ChannelStatusEnabled,
-		Name:         "asset-target-channel",
-		Group:        seed.Group,
-		Models:       seed.ModelName,
-		Priority:     &seed.Priority,
-		Weight:       &seed.Weight,
-		ModelMapping: &mapping,
-		ChannelInfo:  seed.ChannelInfo,
+		Id:            seed.ID,
+		Type:          seed.ChannelType,
+		Key:           seed.Key,
+		Status:        common.ChannelStatusEnabled,
+		Name:          "asset-target-channel",
+		Group:         seed.Group,
+		Models:        seed.ModelName,
+		Priority:      &seed.Priority,
+		Weight:        &seed.Weight,
+		ModelMapping:  &mapping,
+		OtherSettings: seed.OtherSettings,
+		ChannelInfo:   seed.ChannelInfo,
 	}
 	require.NoError(t, model.DB.Create(channel).Error)
 	require.NoError(t, model.DB.Create(&model.Ability{

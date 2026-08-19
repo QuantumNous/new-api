@@ -572,6 +572,58 @@ describe('Asset materialization settings', () => {
     ).toBe(false)
   })
 
+  test('round-trips TokenSpace materialization provider settings', () => {
+    const payload = transformFormDataToUpdatePayload(
+      {
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        name: 'tokenspace-channel',
+        models: 'seedance-2.0',
+        asset_materialization_provider: 'tokenspace_material',
+        asset_materialization_gateway_base_url:
+          'https://materials.example.invalid',
+        asset_materialization_group_id: 'group-internal',
+      },
+      1
+    )
+
+    expect(JSON.parse(payload.settings || '{}')).toMatchObject({
+      asset_materialization: {
+        provider: 'tokenspace_material',
+        gateway_base_url: 'https://materials.example.invalid',
+        group_id: 'group-internal',
+      },
+    })
+  })
+
+  test('requires a secure gateway and group for TokenSpace materialization', () => {
+    const validValues = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'tokenspace-channel',
+      models: 'seedance-2.0',
+      asset_materialization_provider: 'tokenspace_material',
+      asset_materialization_gateway_base_url:
+        'https://materials.example.invalid',
+      asset_materialization_group_id: 'group-internal',
+    }
+
+    expect(channelFormSchema.safeParse(validValues).success).toBe(true)
+
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        asset_materialization_gateway_base_url:
+          'http://materials.example.invalid',
+      }).success
+    ).toBe(false)
+
+    expect(
+      channelFormSchema.safeParse({
+        ...validValues,
+        asset_materialization_group_id: '',
+      }).success
+    ).toBe(false)
+  })
+
   test('preserves an unknown persisted provider instead of silently clearing it', () => {
     const channel = {
       ...baseChannel,
