@@ -5317,6 +5317,8 @@
     "Reject the registration that reaches this count": "この件数に達する登録を拒否します",
     "Trusted email domains": "信頼するメールドメイン",
     "One exact domain per line; trusted domains bypass registration rate blocking": "1 行に正確なドメインを 1 つ指定します。信頼するドメインは登録数ブロックの対象外です",
+    "Registration email blacklist": "登録メールアドレスのブラックリスト",
+    "One Go regular expression per line; matching email addresses cannot register": "1 行につき 1 つの Go 正規表現を入力してください。一致するメールアドレスは登録できません",
     "Domain block incidents": "ドメインブロックのインシデント",
     "Review affected accounts and quickly recover a false-positive block": "影響を受けたアカウントを確認し、誤検知を迅速に復旧します",
     "Loading domain incidents...": "ドメインインシデントを読み込み中...",

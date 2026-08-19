@@ -58,6 +58,8 @@ const AUTH_SECTIONS = [
           threshold: settings['registration_security.domain_risk_threshold'],
           trustedDomains:
             settings['registration_security.trusted_email_domains'],
+          emailBlacklistPatterns:
+            settings['registration_security.email_blacklist_patterns'],
         }}
       />
     ),

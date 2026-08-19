@@ -37,6 +37,9 @@ const defaultAuthSettings: AuthSettings = {
   'registration_security.domain_risk_window_hours': 24,
   'registration_security.domain_risk_threshold': 10,
   'registration_security.trusted_email_domains': [],
+  'registration_security.email_blacklist_patterns': [
+    '(?i)^fk[a-z0-9]{12}@[a-z0-9.]+$',
+  ],
   GitHubOAuthEnabled: false,
   GitHubClientId: '',
   GitHubClientSecret: '',

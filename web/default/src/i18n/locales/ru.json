@@ -5317,6 +5317,8 @@
     "Reject the registration that reaches this count": "Отклонять регистрацию, достигающую этого количества",
     "Trusted email domains": "Доверенные почтовые домены",
     "One exact domain per line; trusted domains bypass registration rate blocking": "Один точный домен в строке; доверенные домены обходят ограничение частоты",
+    "Registration email blacklist": "Черный список адресов для регистрации",
+    "One Go regular expression per line; matching email addresses cannot register": "Одно регулярное выражение Go на строку; совпавшие адреса электронной почты не смогут зарегистрироваться",
     "Domain block incidents": "Инциденты блокировки доменов",
     "Review affected accounts and quickly recover a false-positive block": "Проверить затронутые учётные записи и быстро устранить ложную блокировку",
     "Loading domain incidents...": "Загрузка инцидентов доменов...",

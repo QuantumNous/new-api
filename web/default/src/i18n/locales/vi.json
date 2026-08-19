@@ -5317,6 +5317,8 @@
     "Reject the registration that reaches this count": "Từ chối lượt đăng ký đạt đến số lượng này",
     "Trusted email domains": "Tên miền email tin cậy",
     "One exact domain per line; trusted domains bypass registration rate blocking": "Mỗi dòng một tên miền chính xác; tên miền tin cậy không bị chặn theo tần suất đăng ký",
+    "Registration email blacklist": "Danh sách đen email đăng ký",
+    "One Go regular expression per line; matching email addresses cannot register": "Mỗi dòng một biểu thức chính quy Go; địa chỉ email khớp sẽ không thể đăng ký",
     "Domain block incidents": "Sự cố chặn tên miền",
     "Review affected accounts and quickly recover a false-positive block": "Xem tài khoản bị ảnh hưởng và nhanh chóng khôi phục trường hợp chặn nhầm",
     "Loading domain incidents...": "Đang tải sự cố tên miền...",

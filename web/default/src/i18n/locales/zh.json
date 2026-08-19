@@ -5317,6 +5317,8 @@
     "Reject the registration that reaches this count": "拒绝达到此数量的触发注册",
     "Trusted email domains": "可信邮箱域名",
     "One exact domain per line; trusted domains bypass registration rate blocking": "每行一个精确域名；可信域名不受注册频率封禁",
+    "Registration email blacklist": "注册邮箱黑名单",
+    "One Go regular expression per line; matching email addresses cannot register": "每行一个 Go 正则表达式；匹配的邮箱地址无法注册",
     "Domain block incidents": "域名封禁事件",
     "Review affected accounts and quickly recover a false-positive block": "查看受影响账号并快速恢复误封",
     "Loading domain incidents...": "正在加载域名事件...",

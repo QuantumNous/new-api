@@ -24,6 +24,7 @@ export type RegistrationRiskSettingsForm = {
   windowHours: number
   threshold: number
   trustedDomains: string
+  emailBlacklistPatterns: string
 }
 
 export type RegistrationDomainBlock = {
@@ -81,12 +82,15 @@ export type RegistrationRiskReleaseRequest = {
   add_trusted_domain: boolean
 }
 
-function normalizeTrustedDomains(value: string): string[] {
+function normalizeLines(
+  value: string,
+  transform: (value: string) => string
+): string[] {
   const seen = new Set<string>()
   const domains: string[] = []
 
   for (const rawDomain of value.split('\n')) {
-    const domain = rawDomain.trim().toLowerCase()
+    const domain = transform(rawDomain.trim())
     if (!domain || seen.has(domain)) continue
     seen.add(domain)
     domains.push(domain)
@@ -114,7 +118,15 @@ export function buildRegistrationRiskOptionRequest(
       },
       {
         key: 'registration_security.trusted_email_domains',
-        value: JSON.stringify(normalizeTrustedDomains(values.trustedDomains)),
+        value: JSON.stringify(
+          normalizeLines(values.trustedDomains, (value) => value.toLowerCase())
+        ),
+      },
+      {
+        key: 'registration_security.email_blacklist_patterns',
+        value: JSON.stringify(
+          normalizeLines(values.emailBlacklistPatterns, (value) => value)
+        ),
       },
     ],
   }

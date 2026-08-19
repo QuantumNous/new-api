@@ -5317,6 +5317,8 @@
     "Reject the registration that reaches this count": "Rechazar el registro que alcance este número",
     "Trusted email domains": "Dominios de correo confiables",
     "One exact domain per line; trusted domains bypass registration rate blocking": "Un dominio exacto por línea; los dominios confiables omiten el bloqueo por frecuencia",
+    "Registration email blacklist": "Lista negra de correos de registro",
+    "One Go regular expression per line; matching email addresses cannot register": "Una expresión regular de Go por línea; las direcciones de correo coincidentes no podrán registrarse",
     "Domain block incidents": "Incidentes de bloqueo de dominio",
     "Review affected accounts and quickly recover a false-positive block": "Revisar las cuentas afectadas y recuperar rápidamente un falso positivo",
     "Loading domain incidents...": "Cargando incidentes de dominio...",

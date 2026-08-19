@@ -70,6 +70,7 @@ const registrationRiskSchema = z.object({
     .max(maxRegistrationDomainRiskWindowHours),
   threshold: z.number().int().min(2).max(maxRegistrationDomainRiskThreshold),
   trustedDomains: z.string(),
+  emailBlacklistPatterns: z.string(),
 })
 
 const incidentPageSize = 20
@@ -80,6 +81,7 @@ type RegistrationRiskSectionProps = {
     windowHours: number
     threshold: number
     trustedDomains: string[]
+    emailBlacklistPatterns: string[]
   }
 }
 
@@ -103,6 +105,8 @@ export function RegistrationRiskSection(props: RegistrationRiskSectionProps) {
       windowHours: props.defaultValues.windowHours,
       threshold: props.defaultValues.threshold,
       trustedDomains: props.defaultValues.trustedDomains.join('\n'),
+      emailBlacklistPatterns:
+        props.defaultValues.emailBlacklistPatterns.join('\n'),
     }),
     [props.defaultValues]
   )
@@ -242,6 +246,29 @@ export function RegistrationRiskSection(props: RegistrationRiskSectionProps) {
                 <FormDescription>
                   {t(
                     'One exact domain per line; trusted domains bypass registration rate blocking'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='emailBlacklistPatterns'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Registration email blacklist')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={5}
+                    placeholder={'(?i)^fk[a-z0-9]{12}@[a-z0-9.]+$'}
+                    className='font-mono'
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'One Go regular expression per line; matching email addresses cannot register'
                   )}
                 </FormDescription>
                 <FormMessage />

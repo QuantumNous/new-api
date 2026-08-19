@@ -54,7 +54,7 @@ func registrationEmailErrorKey(err error) (string, bool) {
 		return i18n.MsgRegistrationEmailDomainInvalid, true
 	case errors.Is(err, service.ErrSubdomainEmailRegistrationRejected):
 		return i18n.MsgRegistrationEmailSubdomainRejected, true
-	case errors.Is(err, service.ErrRegistrationDomainUnavailable), errors.Is(err, model.ErrRegistrationDomainBlocked):
+	case errors.Is(err, service.ErrAutomatedRegistrationEmailRejected), errors.Is(err, service.ErrRegistrationDomainUnavailable), errors.Is(err, model.ErrRegistrationDomainBlocked):
 		return i18n.MsgRegistrationEmailDomainUnavailable, true
 	default:
 		return "", false

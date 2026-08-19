@@ -5317,6 +5317,8 @@
     "Reject the registration that reaches this count": "Reject the registration that reaches this count",
     "Trusted email domains": "Trusted email domains",
     "One exact domain per line; trusted domains bypass registration rate blocking": "One exact domain per line; trusted domains bypass registration rate blocking",
+    "Registration email blacklist": "Registration email blacklist",
+    "One Go regular expression per line; matching email addresses cannot register": "One Go regular expression per line; matching email addresses cannot register",
     "Domain block incidents": "Domain block incidents",
     "Review affected accounts and quickly recover a false-positive block": "Review affected accounts and quickly recover a false-positive block",
     "Loading domain incidents...": "Loading domain incidents...",
