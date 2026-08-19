@@ -60,6 +60,27 @@ describe('itemToFormData', () => {
     expect(form.titleEn).toBe('')
     expect(form.imageUrl).toBe('')
   })
+
+  it('treats literal-null JSON columns as empty', () => {
+    const nulled = {
+      ...item,
+      title_json: 'null',
+      summary_json: 'null',
+      tags_json: 'null',
+      artifact_json: 'null',
+      source_json: 'null',
+    }
+    const form = itemToFormData(nulled)
+    expect(form.titleEn).toBe('')
+    expect(form.summaryEn).toBe('')
+    expect(form.tags).toBe('')
+    expect(form.imageUrl).toBe('')
+    expect(form.imageAlt).toBe('')
+    expect(form.sourceLabel).toBe('')
+    expect(form.sourcePlatform).toBe('')
+    expect(form.sourceUrl).toBe('')
+    expect(form.enabled).toBe(true)
+  })
 })
 
 describe('formDataToPayload', () => {

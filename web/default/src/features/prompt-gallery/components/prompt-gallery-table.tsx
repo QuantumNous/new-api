@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useDebounce } from '@/hooks'
 import { Edit, MoreHorizontal, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -64,6 +63,7 @@ import {
 
 const PAGE_SIZE = 20
 const ALL_CATEGORIES = 'all'
+const KEYWORD_DEBOUNCE_MS = 400
 
 type PromptGalleryTableProps = {
   onEdit: (item: PromptLibraryAdminItem) => void
@@ -75,12 +75,34 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
   const [page, setPage] = useState(1)
   const [category, setCategory] = useState(ALL_CATEGORIES)
   const [keywordInput, setKeywordInput] = useState('')
-  const keyword = useDebounce(keywordInput, 400)
+  const [keyword, setKeyword] = useState('')
+  // Commit the keyword and the page reset together once typing settles, so no
+  // interim request goes out with the new page but the old keyword.
+  const keywordTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const committedKeyword = useRef('')
+  useEffect(
+    () => () => {
+      if (keywordTimer.current) clearTimeout(keywordTimer.current)
+    },
+    []
+  )
   const [deleteTarget, setDeleteTarget] =
     useState<PromptLibraryAdminItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   const effectiveCategory = category === ALL_CATEGORIES ? '' : category
+
+  const handleKeywordChange = (value: string) => {
+    setKeywordInput(value)
+    if (keywordTimer.current) clearTimeout(keywordTimer.current)
+    keywordTimer.current = setTimeout(() => {
+      if (committedKeyword.current !== value) {
+        committedKeyword.current = value
+        setKeyword(value)
+        setPage(1)
+      }
+    }, KEYWORD_DEBOUNCE_MS)
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['prompt-gallery', page, effectiveCategory, keyword],
@@ -102,6 +124,13 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
   const items = data?.items ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  // Render-phase state adjustment (the React-documented alternative to a
+  // setState-in-effect): a concurrent shrink of the list can leave `page`
+  // past the end ("Page 3 of 2"); clamp as soon as the new total arrives.
+  // Guarded so it fires at most once per data change — no loop.
+  if (!isLoading && data && page > pageCount) {
+    setPage(pageCount)
+  }
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ['prompt-gallery'] })
@@ -124,6 +153,11 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
       if (result.success) {
         toast.success(t('Deleted successfully'))
         setDeleteTarget(null)
+        // Deleting the only row of a later page leaves it empty — step back
+        // before refetching so we do not fetch a page we know is now empty.
+        if (items.length === 1 && page > 1) {
+          setPage(page - 1)
+        }
         invalidate()
       }
     } finally {
@@ -160,10 +194,7 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
         <Input
           className='w-64'
           value={keywordInput}
-          onChange={(e) => {
-            setKeywordInput(e.target.value)
-            resetToFirstPage()
-          }}
+          onChange={(e) => handleKeywordChange(e.target.value)}
           placeholder={t('Search by keyword...')}
         />
       </div>
@@ -228,12 +259,17 @@ export function PromptGalleryTable({ onEdit }: PromptGalleryTableProps) {
                       {form.titleEn}
                     </TableCell>
                     <TableCell>
-                      <Badge variant='outline'>{item.category}</Badge>
+                      <Badge variant='outline'>
+                        {t(
+                          PROMPT_GALLERY_CATEGORY_LABEL_KEYS[item.category] ??
+                            item.category
+                        )}
+                      </Badge>
                     </TableCell>
                     <TableCell className='max-w-40'>
                       <div className='flex flex-wrap gap-1'>
-                        {tags.slice(0, 3).map((tag) => (
-                          <Badge key={tag} variant='secondary'>
+                        {tags.slice(0, 3).map((tag, index) => (
+                          <Badge key={`${tag}-${index}`} variant='secondary'>
                             {tag}
                           </Badge>
                         ))}

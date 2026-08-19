@@ -114,7 +114,11 @@ export function itemToFormData(
 ): PromptGalleryFormData {
   const parse = (raw: string) => {
     try {
-      return raw ? JSON.parse(raw) : {}
+      // JSON.parse('null') succeeds and returns null (the backend marshals
+      // absent JSON columns as the literal string "null"), which would make
+      // the property reads below throw — coalesce to {} inside the try.
+      const parsed = raw ? JSON.parse(raw) : {}
+      return parsed ?? {}
     } catch {
       return {}
     }
