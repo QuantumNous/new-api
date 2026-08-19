@@ -6,6 +6,7 @@ package i18n
 // Common error messages
 const (
 	MsgInvalidParams     = "common.invalid_params"
+	MsgEmailInvalid      = "common.invalid_email"
 	MsgDatabaseError     = "common.database_error"
 	MsgRetryLater        = "common.retry_later"
 	MsgGenerateFailed    = "common.generate_failed"

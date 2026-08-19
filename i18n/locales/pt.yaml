@@ -3,6 +3,7 @@
 
 # Common messages
 common.invalid_params: "Parâmetros inválidos"
+common.invalid_email: "Digite um endereço de e-mail válido"
 common.database_error: "Erro no banco de dados, entre em contato com o administrador"
 common.retry_later: "Tente novamente mais tarde"
 common.generate_failed: "Falha na geração"

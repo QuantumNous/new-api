@@ -2,6 +2,7 @@
 
 # Common messages
 common.invalid_params: "Invalid parameters"
+common.invalid_email: "Please enter a valid email address"
 common.database_error: "Database error, please contact the administrator"
 common.retry_later: "Please try again later"
 common.generate_failed: "Generation failed"

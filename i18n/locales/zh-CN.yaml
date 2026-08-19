@@ -3,6 +3,7 @@
 
 # Common messages
 common.invalid_params: "无效的参数"
+common.invalid_email: "请输入有效的邮箱地址"
 common.database_error: "数据库出错，请联系管理员"
 common.retry_later: "请稍后重试"
 common.generate_failed: "生成失败"
