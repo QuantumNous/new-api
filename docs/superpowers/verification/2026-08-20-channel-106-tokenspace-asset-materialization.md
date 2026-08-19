@@ -6,9 +6,10 @@ Scope: PR #753 branch `feat/channel-156-asset-materialization`.
 
 - Comprehensive implementation evidence base: `df80cc0af5fea02048a702722134b73caacb9513`.
 - Task 3 evidence HEAD reviewed before this wording correction: `ec8b1353715d9820525ba769562959baf4bfd8a1`.
-- Final implementation HEAD after broad-review code fixes: `28cbf39ac1abd79fbdcbec3567c59da547896171`.
+- TokenSpace identity-validation code fix: `28cbf39ac1abd79fbdcbec3567c59da547896171`.
+- Final implementation HEAD after PR review resolution: `a8f7f9831566307e9ebf1afd7eead79aa5c75a5f`.
 - After mutation restoration at `ec8b1353715d9820525ba769562959baf4bfd8a1`, `git diff -- service/tokenspace_material_asset.go` was empty and `git status --short` showed no uncommitted files.
-- The comprehensive evidence through `df80cc0af5fea02048a702722134b73caacb9513` remains valid, plus the final code delta at `28cbf39ac1abd79fbdcbec3567c59da547896171` was verified below.
+- The comprehensive evidence through `df80cc0af5fea02048a702722134b73caacb9513` remains valid, plus the code deltas at `28cbf39ac1abd79fbdcbec3567c59da547896171` and `a8f7f9831566307e9ebf1afd7eead79aa5c75a5f` were verified below.
 - This document update records final broad-review evidence only; the final implementation head is the code commit above, not a later evidence-only commit.
 
 ## Instructions Reviewed
@@ -257,3 +258,49 @@ Secret/live-identifier scan:
 Non-printing diff scan for credential, live upstream host, group, asset, and signed-URL markers returned `secret-scan: no matches`. The command intentionally did not print matching text.
 
 GitNexus impact attempts for `tokenSpaceMaterialAssetBindingMaterializer.CreateAsset` and `tokenSpaceMaterialAssetBindingMaterializer.GetAsset` again reported the sibling-worktree stale index and storage version mismatch, so local call search and the focused verification above were used as fallback evidence.
+
+## PR Review Resolution: Seedance Proxy Path-Scoped Bindings
+
+Finding: a pre-existing PR review comment was technically valid for `seedance_proxy`. Seedance proxy requests append the provider endpoint to the full configured gateway base URL, but the binding scope previously hashed only scheme and host. Same host, group, and credential with different base paths could reuse the wrong upstream asset. TokenSpace remains intentionally origin-scoped because its Action API replaces the configured path with `/api/material`.
+
+Code commit:
+
+- `a8f7f9831566307e9ebf1afd7eead79aa5c75a5f` — `Scope Seedance proxy bindings by gateway path`.
+
+Red evidence:
+
+```powershell
+go test ./service -run 'Test(SeedanceProxyBindingScopeIncludesNormalizedGatewayBasePath|TokenSpaceMaterialBindingScopeRemainsPathIndependent)' -count=1 -timeout=5m
+```
+
+Result: exit 1 before the fix. `TestSeedanceProxyBindingScopeIncludesNormalizedGatewayBasePath` failed because two distinct non-root Seedance proxy base paths on the same host produced the same binding scope.
+
+Green evidence:
+
+```powershell
+go test ./service -run 'Test(SeedanceProxyBindingScopeIncludesNormalizedGatewayBasePath|TokenSpaceMaterialBindingScopeRemainsPathIndependent|SeedanceProxyAssetMaterializerCreatesAndReadsAssetsViaGatewayBasePath)' -count=1 -timeout=5m
+```
+
+Result: exit 0, `ok github.com/QuantumNous/new-api/service 0.378s`.
+
+```powershell
+go test ./service -run 'Test(SeedanceProxy|TokenSpaceMaterial|AssetMaterializerForChannelSelectsTokenSpaceMaterial|AssetBindingScopeForTokenSpaceMaterial|AssetBindingExistingProcessingRefreshesWithGetOnly|TechMobiAssetBindingHistoricalProcessingOpaqueAssetRematerializes)' -count=1 -timeout=5m
+```
+
+Result: exit 0, `ok github.com/QuantumNous/new-api/service 0.456s`.
+
+```powershell
+go build ./...
+```
+
+Result: exit 0.
+
+```powershell
+git diff --check
+```
+
+Result: exit 0.
+
+Non-printing diff scan for credential, live upstream host, group, asset, and signed-URL markers returned `secret-scan: no matches`.
+
+GitNexus impact attempts for `validateSeedanceProxyAssetMaterializationConfig`, `normalizedGatewayOrigin`, and `seedanceProxyBindingScope` again reported the sibling-worktree stale index and storage version mismatch, so local symbol/call search and the focused verification above were used as fallback evidence.
