@@ -1,6 +1,39 @@
 package groksubscription
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/tidwall/gjson"
+)
+
+// TestBuildCompactTurnRequestsEncryptedReasoningViaInclude 锁住 D 修复：encrypted
+// reasoning 必须通过 include 数组请求（仓库三处先例形态），绝不能用布尔
+// reasoning.encrypted_content=true——后者上游不会回 encrypted reasoning，会让
+// ConvertCompactResponse 恒 ErrCompactMissingReasoning。
+func TestBuildCompactTurnRequestsEncryptedReasoningViaInclude(t *testing.T) {
+	in := []byte(`{"model":"grok-4","input":[{"role":"user","content":"hi"}]}`)
+	out, err := BuildCompactTurn(in)
+	if err != nil {
+		t.Fatalf("build err %v", err)
+	}
+	inc := gjson.GetBytes(out, "include")
+	if !inc.IsArray() {
+		t.Fatalf("include must be an array, got %q", inc.Raw)
+	}
+	found := false
+	for _, v := range inc.Array() {
+		if v.String() == "reasoning.encrypted_content" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("include must contain reasoning.encrypted_content, got %q", inc.Raw)
+	}
+	// 绝不能是布尔形态：上游对布尔不回 encrypted reasoning。
+	if gjson.GetBytes(out, "reasoning.encrypted_content").Type == gjson.True {
+		t.Fatalf("must NOT set boolean reasoning.encrypted_content; got reasoning=%q", gjson.GetBytes(out, "reasoning").Raw)
+	}
+}
 
 func TestBuildCompactTurnRejectsStreamTrue(t *testing.T) {
 	in := []byte(`{"model":"grok-4","stream":true,"input":[]}`)

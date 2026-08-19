@@ -64,7 +64,13 @@ func BuildCompactTurn(jsonData []byte) ([]byte, error) {
 	if jsonData, err = sjson.SetBytes(jsonData, "store", false); err != nil {
 		return nil, err
 	}
-	if jsonData, err = sjson.SetBytes(jsonData, "reasoning.encrypted_content", true); err != nil {
+	// encrypted reasoning 必须通过 include 数组请求（仓库先例：
+	// pkg/apicompat/chatcompletions_to_responses.go、relay/channel/codex/image.go
+	// 均用 include:[]string{"reasoning.encrypted_content"}）。布尔形态
+	// reasoning.encrypted_content=true 上游不会回 encrypted reasoning，会让
+	// ConvertCompactResponse 恒 ErrCompactMissingReasoning。"include.-1" 追加，
+	// 保留客户端可能已传入的其它 include 项。
+	if jsonData, err = sjson.SetBytes(jsonData, "include.-1", "reasoning.encrypted_content"); err != nil {
 		return nil, err
 	}
 	return SanitizeCompactRequest(jsonData)
