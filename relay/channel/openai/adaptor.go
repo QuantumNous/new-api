@@ -36,11 +36,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Adaptor implements the OpenAI-compatible channel adaptor, handling request
+// conversion, header setup, and response dispatch for OpenAI, Azure, and
+// other OpenAI-compatible upstreams.
 type Adaptor struct {
 	ChannelType    int
 	ResponseFormat string
 }
 
+// ConvertGeminiRequest converts a Gemini chat request to the upstream request body.
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
 	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
 	if err != nil {
@@ -53,6 +57,7 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	return a.ConvertOpenAIRequest(c, info, openaiRequest)
 }
 
+// ConvertClaudeRequest converts a Claude request to the upstream request body.
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
 	//if !strings.Contains(request.Model, "claude") {
 	//	return nil, fmt.Errorf("you are using openai channel type with path /v1/messages, only claude model supported convert, but got %s", request.Model)
@@ -89,6 +94,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	return a.ConvertOpenAIRequest(c, info, aiRequest)
 }
 
+// Init initializes the adaptor with channel metadata from RelayInfo.
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 
@@ -102,6 +108,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	}
 }
 
+// GetRequestURL returns the upstream endpoint URL based on relay mode and channel configuration.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == relayconstant.RelayModeRealtime {
 		if strings.HasPrefix(info.ChannelBaseUrl, "https://") {
@@ -180,6 +187,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	}
 }
 
+// SetupRequestHeader sets authentication and routing headers on the upstream request.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, header)
 	if info.ChannelType == constant.ChannelTypeAzure {
@@ -241,6 +249,11 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	return nil
 }
 
+// ConvertOpenAIRequest transforms a client-side GeneralOpenAIRequest into the
+// upstream-specific request body. When the channel has ForceUpstreamStream
+// enabled and the client requested non-streaming, it forces stream=true on the
+// upstream request and sets UpstreamStreamForced so DoResponse routes through
+// the buffered SSE aggregation handler.
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
@@ -404,14 +417,17 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	return request, nil
 }
 
+// ConvertRerankRequest converts a rerank request to the upstream request body.
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
 	return request, nil
 }
 
+// ConvertEmbeddingRequest converts an embedding request to the upstream request body.
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
 	return request, nil
 }
 
+// ConvertAudioRequest converts an audio request to the upstream request body.
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	a.ResponseFormat = request.ResponseFormat
 	if info.RelayMode == relayconstant.RelayModeAudioSpeech {
@@ -478,6 +494,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 }
 
+// ConvertImageRequest converts an image generation request to the upstream request body.
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
@@ -639,6 +656,7 @@ func detectImageMimeType(filename string) string {
 	}
 }
 
+// ConvertOpenAIResponsesRequest converts an OpenAI Responses API request to the upstream request body.
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	//  转换模型推理力度后缀
 	effort, originModel := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(request.Model)
@@ -658,6 +676,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return request, nil
 }
 
+// DoRequest executes the upstream HTTP request and returns the raw response.
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	if info.RelayMode == relayconstant.RelayModeAudioTranscription ||
 		info.RelayMode == relayconstant.RelayModeAudioTranslation ||
@@ -670,6 +689,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	}
 }
 
+// DoResponse dispatches the upstream HTTP response to the appropriate handler
+// based on relay mode and stream state. When UpstreamStreamForced is true, it
+// routes to OaiBufferedStreamHandler to aggregate the upstream SSE into a
+// single JSON response for the non-streaming client.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeRealtime:
@@ -710,6 +733,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	return
 }
 
+// GetModelList returns the list of models configured for this channel.
 func (a *Adaptor) GetModelList() []string {
 	switch a.ChannelType {
 	case constant.ChannelType360:
@@ -727,6 +751,7 @@ func (a *Adaptor) GetModelList() []string {
 	}
 }
 
+// GetChannelName returns the human-readable channel type name.
 func (a *Adaptor) GetChannelName() string {
 	switch a.ChannelType {
 	case constant.ChannelType360:
