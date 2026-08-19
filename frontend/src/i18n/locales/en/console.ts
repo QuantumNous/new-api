@@ -508,6 +508,7 @@ export default {
       success: 'Healthy',
       warning: 'Degraded',
       danger: 'Down',
+      neutral: 'Standby',
       aria: 'Status {state}, health {value}%',
     },
   },

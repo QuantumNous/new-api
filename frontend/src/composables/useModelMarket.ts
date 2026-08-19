@@ -218,7 +218,7 @@ export function useModelMarket() {
           healthy: models.filter((m) => m.health >= 95).length,
           degraded: models.filter((m) => m.health >= 80 && m.health < 95)
             .length,
-          down: models.filter((m) => m.health < 80).length,
+          down: models.filter((m) => m.health > 0 && m.health < 80).length,
         }
       })
   })

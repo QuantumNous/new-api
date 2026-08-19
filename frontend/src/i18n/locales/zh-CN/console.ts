@@ -502,6 +502,7 @@ export default {
       success: '正常',
       warning: '波动',
       danger: '异常',
+      neutral: '就绪',
       aria: '状态 {state}，健康度 {value}%',
     },
   },

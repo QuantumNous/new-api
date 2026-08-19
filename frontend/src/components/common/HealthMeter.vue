@@ -20,13 +20,20 @@ const { t } = useI18n()
 const tone = computed(() => {
   if (props.value >= 95) return 'success'
   if (props.value >= 80) return 'warning'
-  return 'danger'
+  if (props.value > 0) return 'danger'
+  return 'neutral'
 })
 
-const color = computed(() => `var(--status-${tone.value})`)
+const color = computed(() =>
+  tone.value === 'neutral'
+    ? 'var(--border-default)'
+    : `var(--status-${tone.value})`
+)
 
 const filled = computed(() =>
-  Math.max(1, Math.round((props.value / 100) * props.bars))
+  props.value <= 0
+    ? props.bars
+    : Math.max(1, Math.round((props.value / 100) * props.bars))
 )
 
 const label = computed(() => {

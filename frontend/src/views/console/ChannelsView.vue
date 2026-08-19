@@ -322,12 +322,17 @@ const supplierGroups = computed<SupplierGroup[]>(() => {
   const groups = new Map<string, SupplierGroup>()
   rows.value.forEach((channel) => {
     const groupSlug = channel.lab_group_slug || channel.supplier || 'unknown'
-    const supplier = channel.lab_group_name || channel.supplier || 'Unknown / Provider-specific'
+    const supplier =
+      channel.lab_group_name ||
+      channel.supplier ||
+      'Unknown / Provider-specific'
     const group = groups.get(groupSlug)
     if (group) {
       group.channels.push(channel)
       for (const match of channel.lab_matches ?? []) {
-        if (!group.labMatches.some((existing) => existing.slug === match.slug)) {
+        if (
+          !group.labMatches.some((existing) => existing.slug === match.slug)
+        ) {
           group.labMatches.push(match)
         }
       }
