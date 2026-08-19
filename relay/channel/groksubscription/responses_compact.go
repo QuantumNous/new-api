@@ -22,6 +22,7 @@ var (
 	ErrCompactMissingReasoning  = errors.New("grok compact: response missing encrypted reasoning")
 	ErrCompactMissingSummary    = errors.New("grok compact: response missing summary text")
 	ErrCompactInvalidInput      = errors.New("grok compact: input must be an array of items")
+	ErrCompactInvalidInclude    = errors.New("grok compact: include must be an array")
 )
 
 // summaryInstruction 是自撰的服务端 summary 指令（clean-room，不复制 sub2api 文本）。
@@ -80,6 +81,13 @@ func BuildCompactTurn(jsonData []byte) ([]byte, error) {
 	// reasoning.encrypted_content=true 上游不会回 encrypted reasoning，会让
 	// ConvertCompactResponse 恒 ErrCompactMissingReasoning。"include.-1" 追加，
 	// 保留客户端可能已传入的其它 include 项。
+	// 与 input 守卫对称：非数组 include（标量/对象等，Include 是 json.RawMessage，
+	// 客户端可传任意 JSON 类型）下 sjson 的 "include.-1" 不是追加，而是把 include 变成
+	// {"-1":...} 对象，产出非法上游请求 → 上游忽略 encrypted 请求 → 恒
+	// ErrCompactMissingReasoning，故直接拒绝。
+	if r := gjson.GetBytes(jsonData, "include"); r.Exists() && !r.IsArray() {
+		return nil, ErrCompactInvalidInclude
+	}
 	if jsonData, err = sjson.SetBytes(jsonData, "include.-1", "reasoning.encrypted_content"); err != nil {
 		return nil, err
 	}

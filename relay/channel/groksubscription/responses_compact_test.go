@@ -174,6 +174,59 @@ func TestBuildCompactTurnRejectsNonArrayInput(t *testing.T) {
 	}
 }
 
+// TestBuildCompactTurnRejectsScalarInclude 锁住 include 的对称守卫（review follow-up）：
+// dto.OpenAIResponsesRequest.Include 是 json.RawMessage，客户端可传标量。非数组 include
+// 下 sjson 的 "include.-1" 不是追加，而是把 include 变成 {"-1":...} 对象 → 非法上游请求
+// → 恒 ErrCompactMissingReasoning。必须与 input 守卫一致硬拒。
+func TestBuildCompactTurnRejectsScalarInclude(t *testing.T) {
+	in := []byte(`{"model":"grok-4","input":[{"role":"user","content":"hi"}],"include":"foo"}`)
+	out, err := BuildCompactTurn(in)
+	if err != ErrCompactInvalidInclude {
+		t.Fatalf("scalar include must fail with ErrCompactInvalidInclude, got %v", err)
+	}
+	if out != nil {
+		t.Fatalf("rejected include must return nil body, got %s", out)
+	}
+}
+
+// TestBuildCompactTurnRejectsObjectInclude 校验对象形态 include 同样被拒。
+func TestBuildCompactTurnRejectsObjectInclude(t *testing.T) {
+	in := []byte(`{"model":"grok-4","input":[{"role":"user","content":"hi"}],"include":{"a":1}}`)
+	out, err := BuildCompactTurn(in)
+	if err != ErrCompactInvalidInclude {
+		t.Fatalf("object include must fail with ErrCompactInvalidInclude, got %v", err)
+	}
+	if out != nil {
+		t.Fatalf("rejected include must return nil body, got %s", out)
+	}
+}
+
+// TestBuildCompactTurnPreservesExistingIncludeArray 回归：客户端已传合法 include 数组时，
+// 追加语义保留——结果同时含客户端原有项与 reasoning.encrypted_content。
+func TestBuildCompactTurnPreservesExistingIncludeArray(t *testing.T) {
+	in := []byte(`{"model":"grok-4","input":[{"role":"user","content":"hi"}],"include":["existing.item"]}`)
+	out, err := BuildCompactTurn(in)
+	if err != nil {
+		t.Fatalf("legal include array must not fail, got %v", err)
+	}
+	inc := gjson.GetBytes(out, "include")
+	if !inc.IsArray() {
+		t.Fatalf("include must remain an array, got %q", inc.Raw)
+	}
+	var haveExisting, haveEnc bool
+	for _, v := range inc.Array() {
+		switch v.String() {
+		case "existing.item":
+			haveExisting = true
+		case "reasoning.encrypted_content":
+			haveEnc = true
+		}
+	}
+	if !haveExisting || !haveEnc {
+		t.Fatalf("include must keep existing.item and append reasoning.encrypted_content, got %q", inc.Raw)
+	}
+}
+
 func TestConvertCompactResponseRequiresEncryptedReasoning(t *testing.T) {
 	noReasoning := []byte(`{"output":[{"type":"message","content":[{"type":"output_text","text":"summary"}]}]}`)
 	if _, err := ConvertCompactResponse(noReasoning); err != ErrCompactMissingReasoning {
