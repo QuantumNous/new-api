@@ -108,11 +108,9 @@ export type CopilotDevicePollResponse = {
   }
 }
 
-// Grok 复用 grok-cli 的 public OAuth client；x.ai 的 redirect allowlist 绑定该 client_id，
-// 只认 grok CLI 注册的 loopback 回调，与本站部署域名无关（绝不能用 window.location.origin）。
-// TODO(grok-milestone-A): 该 loopback 值待真实 Grok 订阅账号端到端验证与 x.ai allowlist byte-match；
-// 若不符，只需改这一个前端常量（后端 redirect_uri 已做成传参，无需重编译 Go）。
-export const GROK_OAUTH_REDIRECT_URI = 'http://localhost:8976/callback'
+// 与 xAI public client / sub2api 流程登记的 loopback URI 保持 byte-match。
+// 后端同样会固定为该值，避免旧前端缓存继续发送 localhost 回调。
+export const GROK_OAUTH_REDIRECT_URI = 'http://127.0.0.1:56121/callback'
 
 export type GrokPKCEStartResponse = {
   success: boolean

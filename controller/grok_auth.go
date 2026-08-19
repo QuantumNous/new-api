@@ -65,6 +65,10 @@ func GrokPKCEStart(channelID int, redirectURI string) (GrokPKCEStartResult, erro
 	if err != nil {
 		return GrokPKCEStartResult{}, err
 	}
+	nonce, err := randomHex(16)
+	if err != nil {
+		return GrokPKCEStartResult{}, err
+	}
 	sum := sha256.Sum256([]byte(verifier))
 	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
 
@@ -100,8 +104,11 @@ func GrokPKCEStart(channelID int, redirectURI string) (GrokPKCEStartResult, erro
 	q.Set("redirect_uri", redirectURI)
 	q.Set("scope", groksubscription.OAuthScope)
 	q.Set("state", state)
+	q.Set("nonce", nonce)
 	q.Set("code_challenge", challenge)
 	q.Set("code_challenge_method", "S256")
+	q.Set("plan", groksubscription.OAuthPlan)
+	q.Set("referrer", groksubscription.OAuthReferrer)
 
 	return GrokPKCEStartResult{
 		AuthorizeURL: groksubscription.OAuthAuthorize + "?" + q.Encode(),
@@ -125,6 +132,14 @@ func randomURLSafe(n int) (string, error) {
 		return "", errors.New("grok pkce: rng failure")
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func randomHex(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", errors.New("grok pkce: rng failure")
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // hashGrokState 计算 state 的 sha256 hex（落库/校验都用 hash，不存明文）。
@@ -408,14 +423,16 @@ func requireGrokChannel(c *gin.Context, channelID int) bool {
 func GrokPKCEStartHandler(c *gin.Context) {
 	grokAuthNoStore(c)
 	var req grokPKCEStartAPIRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.ChannelID <= 0 || strings.TrimSpace(req.RedirectURI) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id and redirect_uri are required"})
+	if err := c.ShouldBindJSON(&req); err != nil || req.ChannelID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "channel_id is required"})
 		return
 	}
 	if !requireGrokChannel(c, req.ChannelID) {
 		return
 	}
-	start, err := GrokPKCEStart(req.ChannelID, req.RedirectURI)
+	// xAI 对 public client 的 loopback redirect_uri 做精确 allowlist 校验。
+	// 服务端固定使用已登记值，忽略旧前端可能仍发送的 localhost 回调。
+	start, err := GrokPKCEStart(req.ChannelID, groksubscription.OAuthRedirectURI)
 	if err != nil {
 		// 错误均为脱敏类别（invalid args / rng / cipher 未配置 / 落库失败），不含 verifier。
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})

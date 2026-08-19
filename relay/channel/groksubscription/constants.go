@@ -8,11 +8,14 @@ import (
 
 // 固定 OAuth 参数（设计 §7）。
 const (
-	OAuthIssuer    = "https://auth.x.ai"
-	OAuthAuthorize = "https://auth.x.ai/oauth2/authorize"
-	OAuthToken     = "https://auth.x.ai/oauth2/token"
-	OAuthClientID  = "b1a00492-073a-47ea-816f-4c329264a828"
-	OAuthScope     = "openid profile email offline_access grok-cli:access api:access"
+	OAuthIssuer      = "https://auth.x.ai"
+	OAuthAuthorize   = "https://auth.x.ai/oauth2/authorize"
+	OAuthToken       = "https://auth.x.ai/oauth2/token"
+	OAuthClientID    = "b1a00492-073a-47ea-816f-4c329264a828"
+	OAuthScope       = "openid profile email offline_access grok-cli:access api:access"
+	OAuthRedirectURI = "http://127.0.0.1:56121/callback"
+	OAuthPlan        = "generic"
+	OAuthReferrer    = "sub2api"
 )
 
 // 固定上游 host（设计 §8.1）。里程碑 A 只用 CLI proxy 做文本。

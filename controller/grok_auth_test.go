@@ -61,11 +61,11 @@ func setGrokCipherKey(t *testing.T) {
 	t.Setenv("GROK_CREDENTIAL_CIPHER_KEY", base64.StdEncoding.EncodeToString(key))
 }
 
-func TestGrokAuthPKCEStartProducesChallenge(t *testing.T) {
+func TestGrokAuthPKCEStartProducesSub2CompatibleAuthorizationURL(t *testing.T) {
 	setupGrokAuthTestDB(t)
 	setGrokCipherKey(t)
 
-	start, err := GrokPKCEStart(42, "https://newapi.example/callback")
+	start, err := GrokPKCEStart(42, groksubscription.OAuthRedirectURI)
 	require.NoError(t, err)
 	require.NotEmpty(t, start.AuthorizeURL)
 	require.NotEmpty(t, start.FlowID)
@@ -77,9 +77,14 @@ func TestGrokAuthPKCEStartProducesChallenge(t *testing.T) {
 	q := u.Query()
 	require.Equal(t, "code", q.Get("response_type"))
 	require.Equal(t, groksubscription.OAuthClientID, q.Get("client_id"))
-	require.Equal(t, "https://newapi.example/callback", q.Get("redirect_uri"))
+	require.Equal(t, "http://127.0.0.1:56121/callback", q.Get("redirect_uri"))
 	require.Equal(t, groksubscription.OAuthScope, q.Get("scope"))
 	require.Equal(t, "S256", q.Get("code_challenge_method"))
+	nonce, err := hex.DecodeString(q.Get("nonce"))
+	require.NoError(t, err)
+	require.Len(t, nonce, 16)
+	require.Equal(t, "generic", q.Get("plan"))
+	require.Equal(t, "sub2api", q.Get("referrer"))
 	require.NotEmpty(t, q.Get("state"), "state must be set for CSRF protection")
 	require.Equal(t, q.Get("state"), start.State, "state must round-trip for callback verification")
 
@@ -87,7 +92,7 @@ func TestGrokAuthPKCEStartProducesChallenge(t *testing.T) {
 	var flow model.GrokAuthFlow
 	require.NoError(t, model.DB.Where("flow_id = ?", start.FlowID).First(&flow).Error)
 	require.Equal(t, 42, flow.ChannelID)
-	require.Equal(t, "https://newapi.example/callback", flow.RedirectURI)
+	require.Equal(t, "http://127.0.0.1:56121/callback", flow.RedirectURI)
 	require.NotEqual(t, start.State, flow.StateHash, "state must be stored as hash, not plaintext")
 	sum := sha256.Sum256([]byte(start.State))
 	require.Equal(t, hex.EncodeToString(sum[:]), flow.StateHash)
@@ -508,8 +513,9 @@ func TestGrokAuthPKCEStartHandler(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
 
-	// 成功 → 200，data 带 authorize_url/flow_id，no-store。
-	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`,"redirect_uri":"https://newapi.example/callback"}`)
+	// 成功 → 200，data 带 authorize_url/flow_id，no-store。服务端必须使用已登记的
+	// sub2-compatible loopback URI，不能信任旧前端传入的 localhost 回调。
+	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`,"redirect_uri":"http://localhost:8976/callback"}`)
 	GrokPKCEStartHandler(ctx)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
@@ -518,6 +524,12 @@ func TestGrokAuthPKCEStartHandler(t *testing.T) {
 	require.Contains(t, resp.Data.AuthorizeURL, "code_challenge=")
 	require.Contains(t, resp.Data.AuthorizeURL, "code_challenge_method=S256")
 	require.NotEmpty(t, resp.Data.FlowID)
+	authorizeURL, err := url.Parse(resp.Data.AuthorizeURL)
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:56121/callback", authorizeURL.Query().Get("redirect_uri"))
+	require.NotEmpty(t, authorizeURL.Query().Get("nonce"))
+	require.Equal(t, "generic", authorizeURL.Query().Get("plan"))
+	require.Equal(t, "sub2api", authorizeURL.Query().Get("referrer"))
 
 	// 渠道不存在 → 400。
 	ctx, rec = newGrokAuthRequestContext(t, `{"channel_id":99999,"redirect_uri":"https://x/cb"}`)
