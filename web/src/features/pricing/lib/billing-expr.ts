@@ -483,6 +483,28 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
   return null
 }
 
+function tryParseTimeRangePair(
+  lower: string,
+  upper: string
+): RequestCondition | null {
+  const a = tryParseTimeCondition(lower)
+  const b = tryParseTimeCondition(upper)
+  if (!a || !b || a.source !== 'time' || b.source !== 'time') return null
+  const ta = a as TimeCondition
+  const tb = b as TimeCondition
+  if (ta.timeFunc !== tb.timeFunc || ta.timezone !== tb.timezone) return null
+  if (ta.mode !== MATCH_GTE || tb.mode !== MATCH_LT) return null
+  return {
+    source: 'time',
+    timeFunc: ta.timeFunc,
+    timezone: ta.timezone,
+    mode: MATCH_RANGE,
+    value: '',
+    rangeStart: ta.value,
+    rangeEnd: tb.value,
+  }
+}
+
 function tryParseRequestConditions(
   conditionStr: string
 ): RequestCondition[] | null {
@@ -493,8 +515,19 @@ function tryParseRequestConditions(
 
   const andParts = splitTopLevelAnd(conditionStr)
   const conditions: RequestCondition[] = []
-  for (const part of andParts) {
-    const condition = tryParseRequestCondition(part.trim())
+  for (let i = 0; i < andParts.length; i += 1) {
+    const part = andParts[i].trim()
+    // Adjacent matching time bounds (fn >= X && fn < Y) form one range; merge
+    // them so the visual editor keeps a single MATCH_RANGE row even when
+    // other conditions follow in the same group.
+    const next = i + 1 < andParts.length ? andParts[i + 1].trim() : ''
+    const merged = next ? tryParseTimeRangePair(part, next) : null
+    if (merged) {
+      conditions.push(merged)
+      i += 1
+      continue
+    }
+    const condition = tryParseRequestCondition(part)
     if (!condition) return null
     conditions.push(condition)
   }
