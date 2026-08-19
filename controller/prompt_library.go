@@ -43,6 +43,23 @@ type promptLibraryImportResult struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+type promptLibraryPublicItem struct {
+	Artifact       any      `json:"artifact"`
+	Category       string   `json:"category"`
+	Model          string   `json:"model"`
+	Output         any      `json:"output"`
+	Prompt         string   `json:"prompt"`
+	Slug           string   `json:"slug"`
+	Source         any      `json:"source"`
+	SourcePlatform string   `json:"source_platform"`
+	SourceURL      string   `json:"source_url"`
+	Summary        any      `json:"summary"`
+	Tags           []string `json:"tags"`
+	Title          any      `json:"title"`
+	// staging contract keeps key "updatedAt" (lone camelCase) carrying the source capture date; may be empty
+	UpdatedAt string `json:"updatedAt"`
+}
+
 func ImportPromptLibrary(c *gin.Context) {
 	var request promptLibraryImportRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
@@ -204,4 +221,87 @@ func marshalPromptLibraryField(value any) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func ListPromptLibrary(c *gin.Context) {
+	category := strings.TrimSpace(c.Query("category"))
+	if category != "" && !model.IsPromptLibraryCategoryAllowed(category) {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "category is invalid"})
+		return
+	}
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	pageInfo := common.GetPageQuery(c)
+	items, total, err := model.ListPromptLibraryItems(category, keyword, true, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	responseItems := make([]promptLibraryPublicItem, 0, len(items))
+	for _, item := range items {
+		responseItems = append(responseItems, normalizePromptLibraryPublicItem(item))
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(responseItems)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func GetPromptLibraryItem(c *gin.Context) {
+	item, err := model.GetPromptLibraryItemBySlug(c.Param("slug"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if item == nil || !item.Enabled {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "prompt library item not found"})
+		return
+	}
+	common.ApiSuccess(c, gin.H{"item": normalizePromptLibraryPublicItem(*item)})
+}
+
+func normalizePromptLibraryPublicItem(item model.PromptLibraryItem) promptLibraryPublicItem {
+	title := unmarshalPromptLibraryField(item.TitleJSON, map[string]string{})
+	summary := unmarshalPromptLibraryField(item.SummaryJSON, map[string]string{})
+	artifact := unmarshalPromptLibraryField(item.ArtifactJSON, map[string]any{})
+	source := unmarshalPromptLibraryField(item.SourceJSON, map[string]any{})
+	output := unmarshalPromptLibraryField(item.OutputJSON, map[string]any{})
+	tags := make([]string, 0)
+	if trimmedTags := strings.TrimSpace(item.TagsJSON); trimmedTags != "" && trimmedTags != "null" {
+		if err := common.UnmarshalJsonStr(item.TagsJSON, &tags); err != nil {
+			// one corrupt row must not take the whole listing down; keep the empty slice
+			common.SysError("prompt library field JSON parse failed: " + err.Error())
+			tags = make([]string, 0)
+		}
+	}
+	return promptLibraryPublicItem{
+		Artifact:       artifact,
+		Category:       item.Category,
+		Model:          item.Model,
+		Output:         output,
+		Prompt:         item.Prompt,
+		Slug:           item.Slug,
+		Source:         source,
+		SourcePlatform: item.SourcePlatform,
+		SourceURL:      item.SourceURL,
+		Summary:        summary,
+		Tags:           tags,
+		Title:          title,
+		UpdatedAt:      item.CapturedAt,
+	}
+}
+
+func unmarshalPromptLibraryField(value string, fallback any) any {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	var decoded any
+	if err := common.UnmarshalJsonStr(value, &decoded); err != nil {
+		// corrupt stored JSON degrades to the fallback instead of failing the request
+		common.SysError("prompt library field JSON parse failed: " + err.Error())
+		return fallback
+	}
+	if decoded == nil {
+		// import path stores literal "null" for absent optional fields
+		return fallback
+	}
+	return decoded
 }

@@ -1,4 +1,6 @@
 {
+  "Curate the public prompt example library.": "Curate the public prompt example library.",
+  "Slug must contain only lowercase letters, numbers and hyphens": "Slug must contain only lowercase letters, numbers and hyphens",
   "Blocked models cannot be called even when they are also in the allowlist.": "Blocked models cannot be called even when they are also in the allowlist.",
   "Blacklist takes priority over the allowlist.": "Blacklist takes priority over the allowlist.",
   "They remain saved and will be blocked if they become available in this scope again.": "They remain saved and will be blocked if they become available in this scope again."

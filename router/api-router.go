@@ -48,9 +48,23 @@ func SetApiRouter(router *gin.Engine) {
 			blogRoute.GET("/categories", controller.GetBlogCategories)
 		}
 		promptLibraryRoute := apiRouter.Group("/prompt-library")
-		promptLibraryRoute.Use(middleware.PromptLibraryImportAuth())
 		{
-			promptLibraryRoute.POST("/import", anonymousRequestBodyLimit, controller.ImportPromptLibrary)
+			promptLibraryAdminRoute := promptLibraryRoute.Group("/admin")
+			promptLibraryAdminRoute.Use(middleware.AdminAuth())
+			{
+				promptLibraryAdminRoute.GET("", controller.ListPromptLibraryAdmin)
+				promptLibraryAdminRoute.POST("", controller.CreatePromptLibraryAdmin)
+				promptLibraryAdminRoute.PUT("/:id", controller.UpdatePromptLibraryAdmin)
+				promptLibraryAdminRoute.PUT("/:id/enabled", controller.UpdatePromptLibraryEnabledAdmin)
+				promptLibraryAdminRoute.DELETE("/:id", controller.DeletePromptLibraryAdmin)
+			}
+			promptLibraryRoute.GET("", controller.ListPromptLibrary)
+			promptLibraryRoute.GET("/:slug", controller.GetPromptLibraryItem)
+			promptLibraryImportRoute := promptLibraryRoute.Group("")
+			promptLibraryImportRoute.Use(middleware.PromptLibraryImportAuth())
+			{
+				promptLibraryImportRoute.POST("/import", anonymousRequestBodyLimit, controller.ImportPromptLibrary)
+			}
 		}
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
