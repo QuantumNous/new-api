@@ -473,6 +473,19 @@ func BatchInsertChannels(channels []Channel) error {
 				tx.Rollback()
 				return err
 			}
+			if channel_.Type == constant.ChannelTypeGrokSubscription {
+				status := GrokAuthStatusPending
+				if strings.TrimSpace(channel_.Key) != "" {
+					status = GrokAuthStatusActive
+				}
+				if err := upsertGrokChannelState(tx, &GrokChannelState{
+					ChannelID:  channel_.Id,
+					AuthStatus: status,
+				}); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
 		}
 	}
 	if err := tx.Commit().Error; err != nil {

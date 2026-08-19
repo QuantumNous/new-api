@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -40,14 +41,18 @@ func (GrokChannelState) TableName() string { return "grok_channel_states" }
 
 // UpsertGrokChannelState 按 channel_id 插入或覆盖（created_at 除外，保持首次写入值；见测试 TestGrokChannelStateUpsertPreservesCreatedAt）。
 func UpsertGrokChannelState(st *GrokChannelState) error {
-	if st == nil || st.ChannelID <= 0 {
+	return upsertGrokChannelState(DB, st)
+}
+
+func upsertGrokChannelState(db *gorm.DB, st *GrokChannelState) error {
+	if db == nil || st == nil || st.ChannelID <= 0 {
 		return errors.New("grok channel state: invalid channel id")
 	}
 	if st.CreatedAt == 0 {
 		st.CreatedAt = GetDBTimestamp()
 	}
 	st.UpdatedAt = GetDBTimestamp()
-	return DB.Clauses(clause.OnConflict{
+	return db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "channel_id"}},
 		UpdateAll: true,
 	}).Create(st).Error
