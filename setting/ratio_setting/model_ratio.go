@@ -271,6 +271,7 @@ var defaultModelRatio = map[string]float64{
 	"llama-3-sonar-large-32k-chat":   1 / 1000 * USD,
 	"llama-3-sonar-large-32k-online": 1 / 1000 * USD,
 	// grok
+	"grok-4.6":              1,
 	"grok-3-beta":           1.5,
 	"grok-3-mini-beta":      0.15,
 	"grok-2":                1,
@@ -368,6 +369,8 @@ var defaultCompletionRatio = map[string]float64{
 	"gpt-4-all":      2,
 	"gpt-image-1":    8,
 	"gpt-image-2":    6,
+	// grok-4.6 official API: input $2/M, output $6/M -> completion ratio 3
+	"grok-4.6": 3,
 }
 
 // InitRatioSettings initializes all model related settings maps
