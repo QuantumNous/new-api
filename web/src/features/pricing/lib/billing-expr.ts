@@ -728,6 +728,25 @@ function buildExprLiteral(mode: string, value: string): string {
   return JSON.stringify(text)
 }
 
+// Time function value domains. Values outside these ranges are invalid for
+// the corresponding time function (e.g. hour() is 0-23) and would otherwise
+// produce always-true conditions like hour >= -1 || hour < -5.
+const TIME_FUNC_RANGES: Record<TimeFunc, [number, number]> = {
+  hour: [0, 23],
+  minute: [0, 59],
+  weekday: [0, 6],
+  month: [1, 12],
+  day: [1, 31],
+}
+
+function isTimeValueInRange(timeFunc: TimeFunc, text: string): boolean {
+  if (!NUMERIC_LITERAL_REGEX.test(text)) return false
+  const value = Number(text)
+  if (!Number.isInteger(value)) return false
+  const [min, max] = TIME_FUNC_RANGES[timeFunc]
+  return value >= min && value <= max
+}
+
 function buildTimeConditionExpr(cond: TimeCondition): string {
   const normalized = normalizeCondition(cond) as TimeCondition
   const { timeFunc, timezone, mode } = normalized
@@ -737,7 +756,7 @@ function buildTimeConditionExpr(cond: TimeCondition): string {
   if (mode === MATCH_RANGE) {
     const s = normalized.rangeStart.trim()
     const e = normalized.rangeEnd.trim()
-    if (!NUMERIC_LITERAL_REGEX.test(s) || !NUMERIC_LITERAL_REGEX.test(e)) {
+    if (!isTimeValueInRange(timeFunc, s) || !isTimeValueInRange(timeFunc, e)) {
       return ''
     }
     // Overnight range (start > end) crosses the day boundary, e.g. 21-6.
@@ -751,7 +770,7 @@ function buildTimeConditionExpr(cond: TimeCondition): string {
     return `${fn} >= ${s} && ${fn} < ${e}`
   }
   const v = normalized.value.trim()
-  if (!NUMERIC_LITERAL_REGEX.test(v)) return ''
+  if (!isTimeValueInRange(timeFunc, v)) return ''
   const opMap: Record<string, string> = {
     [MATCH_EQ]: '==',
     [MATCH_GTE]: '>=',
