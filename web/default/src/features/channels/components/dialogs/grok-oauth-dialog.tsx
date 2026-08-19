@@ -92,8 +92,14 @@ export function GrokOAuthDialog({
 
       setState((prev) => ({ ...prev, authorizeUrl: url, flowId }))
       try {
-        window.open(url, '_blank', 'noopener,noreferrer')
-        toast.success(t('Opened authorization page'))
+        // window.open returns null when the popup is blocked (no exception thrown),
+        // so a bare call would still toast success and mislead the user. Branch on it.
+        const win = window.open(url, '_blank', 'noopener,noreferrer')
+        if (!win) {
+          toast.warning(t('Please manually copy and open the authorization link'))
+        } else {
+          toast.success(t('Opened authorization page'))
+        }
       } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('Failed to open authorization page:', error)
