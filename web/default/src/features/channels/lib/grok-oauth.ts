@@ -13,3 +13,20 @@ export function resolveGrokOAuthCompletionKey(
   if (!key) throw new Error('Missing credential in OAuth response')
   return key
 }
+
+export type GrokAuthorizationView =
+  | 'authorized-unsaved'
+  | 'active'
+  | 'needs-reauth'
+  | 'pending'
+
+export function resolveGrokAuthorizationView(input: {
+  isEditing: boolean
+  formKey?: string
+  serverStatus?: string
+}): GrokAuthorizationView {
+  if (!input.isEditing && input.formKey?.trim()) return 'authorized-unsaved'
+  if (input.serverStatus === 'active') return 'active'
+  if (input.serverStatus === 'needs_reauth') return 'needs-reauth'
+  return 'pending'
+}

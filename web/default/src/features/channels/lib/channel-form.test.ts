@@ -151,6 +151,35 @@ describe('GitHub Copilot credential mode', () => {
   })
 })
 
+describe('Grok OAuth create payload', () => {
+  test('carries the generated credential only in the final create payload', () => {
+    const credential =
+      '{"version":1,"type":"grok_subscription","access_token":"at","token_type":"Bearer","expires_at":1786900000}'
+    const payload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'grok',
+      type: 113,
+      key: credential,
+      models: 'grok-4',
+    })
+
+    expect(payload.mode).toBe('single')
+    expect(payload.channel.key).toBe(credential)
+  })
+
+  test('keeps empty-key pending creation available', () => {
+    const payload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'pending-grok',
+      type: 113,
+      key: '',
+      models: 'grok-4',
+    })
+
+    expect(payload.channel.key).toBeNull()
+  })
+})
+
 describe('Codex fingerprint convergence settings', () => {
   test('defaults new and missing Codex fingerprint modes to off', () => {
     expect(CHANNEL_FORM_DEFAULT_VALUES.codex_fingerprint_mode).toBe('off')

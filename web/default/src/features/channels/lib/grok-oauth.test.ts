@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   normalizeGrokOAuthChannelID,
+  resolveGrokAuthorizationView,
   resolveGrokOAuthCompletionKey,
 } from './grok-oauth'
 
@@ -28,5 +29,22 @@ describe('Grok OAuth mode contract', () => {
         data: { status: 'active' },
       })
     ).toThrow('Missing credential in OAuth response')
+  })
+
+  test('shows an unsaved authorization only for a new form with a key', () => {
+    expect(
+      resolveGrokAuthorizationView({
+        isEditing: false,
+        formKey: '{"version":1}',
+        serverStatus: undefined,
+      })
+    ).toBe('authorized-unsaved')
+    expect(
+      resolveGrokAuthorizationView({
+        isEditing: true,
+        formKey: '{"version":1}',
+        serverStatus: 'needs_reauth',
+      })
+    ).toBe('needs-reauth')
   })
 })

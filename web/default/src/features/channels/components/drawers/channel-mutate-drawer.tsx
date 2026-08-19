@@ -157,6 +157,7 @@ import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
+import { resolveGrokAuthorizationView } from '../../lib/grok-oauth'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
@@ -1153,7 +1154,22 @@ export function ChannelMutateDrawer({
   // (see codex-usage-dialog.tsx statusBadge) instead of an inline JSX IIFE.
   const grokAuthBadge = (() => {
     const grokAuthStatus = channelData?.data?.grok_auth_state?.auth_status
-    if (grokAuthStatus === 'active') {
+    const grokAuthorizationView = resolveGrokAuthorizationView({
+      isEditing,
+      formKey: currentKey,
+      serverStatus: grokAuthStatus,
+    })
+    if (grokAuthorizationView === 'authorized-unsaved') {
+      return (
+        <StatusBadge
+          variant='success'
+          size='sm'
+          copyable={false}
+          label={t('Authorized — not saved')}
+        />
+      )
+    }
+    if (grokAuthorizationView === 'active') {
       return (
         <StatusBadge
           variant='success'
@@ -1163,7 +1179,7 @@ export function ChannelMutateDrawer({
         />
       )
     }
-    if (grokAuthStatus === 'needs_reauth') {
+    if (grokAuthorizationView === 'needs-reauth') {
       return (
         <StatusBadge
           variant='danger'
@@ -2357,22 +2373,20 @@ export function ChannelMutateDrawer({
                                       'Authorize this saved channel with Grok OAuth, or import an existing refresh token.'
                                     )
                                   : t(
-                                      'Save the channel first, then authorize it with Grok OAuth.'
+                                      'Authorize with Grok OAuth, then save the channel once.'
                                     )}
                               </div>
                             </div>
                             <div className='flex flex-wrap items-center gap-2'>
-                              {isEditing && channelId && (
-                                <Button
-                                  type='button'
-                                  variant='outline'
-                                  size='sm'
-                                  onClick={() => setGrokOAuthDialogOpen(true)}
-                                >
-                                  <Link2 className='mr-2 h-4 w-4' />
-                                  {t('Authorize')}
-                                </Button>
-                              )}
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setGrokOAuthDialogOpen(true)}
+                              >
+                                <Link2 className='mr-2 h-4 w-4' />
+                                {t('Authorize')}
+                              </Button>
                               {isEditing && channelId && (
                                 <Button
                                   type='button'
@@ -2568,12 +2582,20 @@ export function ChannelMutateDrawer({
                         />
                       )}
 
-                      {channelId && (
+                      {currentType === 113 && (
                         <GrokOAuthDialog
-                          channelId={channelId}
+                          channelId={channelId ?? undefined}
                           open={grokOAuthDialogOpen}
                           onOpenChange={setGrokOAuthDialogOpen}
-                          onAuthorized={() => {
+                          onAuthorized={(key) => {
+                            if (!channelId) {
+                              if (!key) return
+                              form.setValue('key', key, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                              return
+                            }
                             void queryClient.invalidateQueries({
                               queryKey: channelsQueryKeys.detail(channelId),
                             })
