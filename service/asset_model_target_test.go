@@ -352,6 +352,34 @@ func TestResolveAssetModelTargetOptionsReloadsStoredCredentialIndex(t *testing.T
 	require.Equal(t, 1, index)
 }
 
+func TestResolveAssetModelTargetOptionsReloadsTokenSpaceCredentialIndex(t *testing.T) {
+	channel := &model.Channel{
+		Id:            160,
+		Type:          constant.ChannelTypeTechMobiVideo,
+		Key:           "tokenspace-key-a\ntokenspace-key-b",
+		Status:        common.ChannelStatusEnabled,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scope, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "tokenspace-key-b"})
+	require.NoError(t, err)
+	target := model.AssetModelCoverageTarget{
+		ChannelId:       channel.Id,
+		MappedModel:     "doubao/seedance-pro",
+		BindingScope:    scope,
+		CredentialIndex: 1,
+	}
+
+	options, index, err := ResolveAssetModelTargetOptions(target, channel)
+	require.NoError(t, err)
+	require.Equal(t, "doubao/seedance-pro", options.Model)
+	require.Equal(t, "tokenspace-key-b", options.APIKey)
+	require.Equal(t, 1, index)
+}
+
 func TestSeedanceProxyCapabilityRejectsAudioRegardlessOfLegacyChannelType(t *testing.T) {
 	channel := &model.Channel{
 		Type:          constant.ChannelTypeBytePlus,

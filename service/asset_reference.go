@@ -304,7 +304,9 @@ func assetBindingScopesForRequest(channel *model.Channel, originModel string) (m
 		return nil, false
 	}
 	if explicit {
-		if config.Provider != assetMaterializationProviderSeedanceProxy {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
 			return nil, false
 		}
 		mappedModel, ok := assetReferenceMappedModel(channel.GetModelMapping(), originModel)
@@ -359,7 +361,9 @@ func assetBindingScopesForSelectedKey(channel *model.Channel, originModel string
 		return nil, false
 	}
 	if explicit {
-		if config.Provider != assetMaterializationProviderSeedanceProxy {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
 			return nil, false
 		}
 		mappedModel, ok := assetReferenceMappedModel(channel.GetModelMapping(), originModel)

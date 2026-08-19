@@ -294,6 +294,71 @@ func TestExplicitCredentialScopedProviderReadinessRequiresOneKeyScopeToCoverEver
 	}, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", "seedance-key-b"))
 }
 
+func TestTokenSpaceMaterialReadyChannelResolvesSelectedCredentialAndRewriteMap(t *testing.T) {
+	mapping := `{"seedance-2.0-fast":"doubao/seedance-pro"}`
+	channel := &model.Channel{
+		Id:            160,
+		Type:          constant.ChannelTypeTechMobiVideo,
+		Key:           "tokenspace-key-a\ntokenspace-key-b",
+		ModelMapping:  &mapping,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	scopeB, err := assetBindingScopeForChannel(channel, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "tokenspace-key-b"})
+	require.NoError(t, err)
+	refs := AssetReferenceSet{
+		references: []assetReference{
+			{PublicID: "ast_tokenspace_one", ExpectedAssetType: "Image"},
+			{PublicID: "ast_tokenspace_two", ExpectedAssetType: "Video"},
+		},
+		assets: map[string]assetReferenceAsset{
+			"ast_tokenspace_one": {
+				PublicID:     "ast_tokenspace_one",
+				AssetType:    "Image",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-one",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+			"ast_tokenspace_two": {
+				PublicID:     "ast_tokenspace_two",
+				AssetType:    "Video",
+				Status:       model.AssetStatusActive,
+				SourceStatus: model.AssetSourceStatusUnavailable,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					BindingScope:    scopeB,
+					UpstreamAssetID: "asset-two",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	readiness, ok := refs.ReadinessForChannel(channel, "seedance-2.0-fast")
+	require.True(t, ok)
+	require.Equal(t, AssetReadinessAllBound, readiness)
+
+	options, keyIndex, err := ResolveAssetMaterializeOptions(refs, channel, AssetMaterializeOptions{
+		Model:  "doubao/seedance-pro",
+		APIKey: "tokenspace-key-a",
+	})
+	require.NoError(t, err)
+	require.Equal(t, AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: "tokenspace-key-b"}, options)
+	require.Equal(t, 1, keyIndex)
+	require.Equal(t, map[string]string{
+		"asset://ast_tokenspace_one": "asset://asset-one",
+		"asset://ast_tokenspace_two": "asset://asset-two",
+	}, refs.RewriteMapForSelectedChannel(channel, "seedance-2.0-fast", options.APIKey))
+}
+
 // TechMobi readiness promises "some enabled key covers every reference". This
 // locks in that the promise is actually redeemable: resolving the scope from an
 // arbitrarily routed key must land on the key that holds the bindings, so the

@@ -703,7 +703,9 @@ func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channe
 		return targetOptions, index, nil
 	}
 	if explicit {
-		if config.Provider != assetMaterializationProviderSeedanceProxy {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
 			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
 		}
 		keys := enabledAssetMaterializeKeys(channel)

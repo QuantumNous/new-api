@@ -352,7 +352,9 @@ func ResolveAssetModelTargetOptions(target model.AssetModelCoverageTarget, chann
 		return AssetMaterializeOptions{}, -1, err
 	}
 	if explicit {
-		if config.Provider != assetMaterializationProviderSeedanceProxy {
+		switch config.Provider {
+		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		default:
 			return AssetMaterializeOptions{}, -1, ErrAssetBindingUnavailable
 		}
 		keys := enabledAssetMaterializeKeys(channel)
