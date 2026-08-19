@@ -55,6 +55,7 @@ func SetApiRouter(router *gin.Engine) {
 				promptLibraryAdminRoute.GET("", controller.ListPromptLibraryAdmin)
 				promptLibraryAdminRoute.POST("", controller.CreatePromptLibraryAdmin)
 				promptLibraryAdminRoute.PUT("/:id", controller.UpdatePromptLibraryAdmin)
+				promptLibraryAdminRoute.PUT("/:id/enabled", controller.UpdatePromptLibraryEnabledAdmin)
 				promptLibraryAdminRoute.DELETE("/:id", controller.DeletePromptLibraryAdmin)
 			}
 			promptLibraryRoute.GET("", controller.ListPromptLibrary)

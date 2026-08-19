@@ -238,12 +238,7 @@ func ListPromptLibrary(c *gin.Context) {
 	}
 	responseItems := make([]promptLibraryPublicItem, 0, len(items))
 	for _, item := range items {
-		responseItem, err := normalizePromptLibraryPublicItem(item)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		responseItems = append(responseItems, responseItem)
+		responseItems = append(responseItems, normalizePromptLibraryPublicItem(item))
 	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(responseItems)
@@ -260,39 +255,21 @@ func GetPromptLibraryItem(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "prompt library item not found"})
 		return
 	}
-	responseItem, err := normalizePromptLibraryPublicItem(*item)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.ApiSuccess(c, gin.H{"item": responseItem})
+	common.ApiSuccess(c, gin.H{"item": normalizePromptLibraryPublicItem(*item)})
 }
 
-func normalizePromptLibraryPublicItem(item model.PromptLibraryItem) (promptLibraryPublicItem, error) {
-	title, err := unmarshalPromptLibraryField(item.TitleJSON, map[string]string{})
-	if err != nil {
-		return promptLibraryPublicItem{}, err
-	}
-	summary, err := unmarshalPromptLibraryField(item.SummaryJSON, map[string]string{})
-	if err != nil {
-		return promptLibraryPublicItem{}, err
-	}
-	artifact, err := unmarshalPromptLibraryField(item.ArtifactJSON, map[string]any{})
-	if err != nil {
-		return promptLibraryPublicItem{}, err
-	}
-	source, err := unmarshalPromptLibraryField(item.SourceJSON, map[string]any{})
-	if err != nil {
-		return promptLibraryPublicItem{}, err
-	}
-	output, err := unmarshalPromptLibraryField(item.OutputJSON, map[string]any{})
-	if err != nil {
-		return promptLibraryPublicItem{}, err
-	}
+func normalizePromptLibraryPublicItem(item model.PromptLibraryItem) promptLibraryPublicItem {
+	title := unmarshalPromptLibraryField(item.TitleJSON, map[string]string{})
+	summary := unmarshalPromptLibraryField(item.SummaryJSON, map[string]string{})
+	artifact := unmarshalPromptLibraryField(item.ArtifactJSON, map[string]any{})
+	source := unmarshalPromptLibraryField(item.SourceJSON, map[string]any{})
+	output := unmarshalPromptLibraryField(item.OutputJSON, map[string]any{})
 	tags := make([]string, 0)
 	if trimmedTags := strings.TrimSpace(item.TagsJSON); trimmedTags != "" && trimmedTags != "null" {
 		if err := common.UnmarshalJsonStr(item.TagsJSON, &tags); err != nil {
-			return promptLibraryPublicItem{}, err
+			// one corrupt row must not take the whole listing down; keep the empty slice
+			common.SysError("prompt library field JSON parse failed: " + err.Error())
+			tags = make([]string, 0)
 		}
 	}
 	return promptLibraryPublicItem{
@@ -309,20 +286,22 @@ func normalizePromptLibraryPublicItem(item model.PromptLibraryItem) (promptLibra
 		Tags:           tags,
 		Title:          title,
 		UpdatedAt:      item.CapturedAt,
-	}, nil
+	}
 }
 
-func unmarshalPromptLibraryField(value string, fallback any) (any, error) {
+func unmarshalPromptLibraryField(value string, fallback any) any {
 	if strings.TrimSpace(value) == "" {
-		return fallback, nil
+		return fallback
 	}
 	var decoded any
 	if err := common.UnmarshalJsonStr(value, &decoded); err != nil {
-		return nil, err
+		// corrupt stored JSON degrades to the fallback instead of failing the request
+		common.SysError("prompt library field JSON parse failed: " + err.Error())
+		return fallback
 	}
 	if decoded == nil {
 		// import path stores literal "null" for absent optional fields
-		return fallback, nil
+		return fallback
 	}
-	return decoded, nil
+	return decoded
 }

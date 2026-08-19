@@ -94,6 +94,33 @@ func UpdatePromptLibraryAdmin(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"id": id})
 }
 
+// UpdatePromptLibraryEnabledAdmin toggles only the enabled flag. Unlike the
+// full-replace PUT /:id it cannot clobber concurrently edited content fields.
+func UpdatePromptLibraryEnabledAdmin(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid id"})
+		return
+	}
+	var input struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid JSON body"})
+		return
+	}
+	rowsAffected, err := model.SetPromptLibraryItemEnabled(id, input.Enabled)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if rowsAffected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "prompt library item not found"})
+		return
+	}
+	common.ApiSuccess(c, gin.H{"id": id, "enabled": input.Enabled})
+}
+
 func DeletePromptLibraryAdmin(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

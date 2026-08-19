@@ -42,6 +42,7 @@ func setupPromptLibraryAdminTest(t *testing.T) *gin.Engine {
 	admin.GET("", ListPromptLibraryAdmin)
 	admin.POST("", CreatePromptLibraryAdmin)
 	admin.PUT("/:id", UpdatePromptLibraryAdmin)
+	admin.PUT("/:id/enabled", UpdatePromptLibraryEnabledAdmin)
 	admin.DELETE("/:id", DeletePromptLibraryAdmin)
 	return r
 }
@@ -174,4 +175,50 @@ func TestAdminCreateRejectsDuplicateSlug(t *testing.T) {
 	r.ServeHTTP(rec2, httptest.NewRequest(http.MethodPost, "/api/prompt-library/admin", bytes.NewReader([]byte(validAdminItemJSON))))
 	require.Equal(t, http.StatusBadRequest, rec2.Code, rec2.Body.String())
 	require.Contains(t, rec2.Body.String(), "slug already exists")
+}
+
+func TestAdminEnabledToggle(t *testing.T) {
+	r := setupPromptLibraryAdminTest(t)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/prompt-library/admin", bytes.NewReader([]byte(validAdminItemJSON))))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	rec2 := httptest.NewRecorder()
+	r.ServeHTTP(rec2, httptest.NewRequest(http.MethodPut, "/api/prompt-library/admin/1/enabled", bytes.NewReader([]byte(`{"enabled": false}`))))
+	require.Equal(t, http.StatusOK, rec2.Code, rec2.Body.String())
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Id      int  `json:"id"`
+			Enabled bool `json:"enabled"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec2.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, 1, response.Data.Id)
+	require.False(t, response.Data.Enabled)
+
+	item, err := model.GetPromptLibraryItemById(1)
+	require.NoError(t, err)
+	require.NotNil(t, item)
+	require.False(t, item.Enabled)
+	// content columns untouched by the single-column update
+	require.Equal(t, "an admin created prompt", item.Prompt)
+
+	// flip back on
+	rec3 := httptest.NewRecorder()
+	r.ServeHTTP(rec3, httptest.NewRequest(http.MethodPut, "/api/prompt-library/admin/1/enabled", bytes.NewReader([]byte(`{"enabled": true}`))))
+	require.Equal(t, http.StatusOK, rec3.Code, rec3.Body.String())
+	item, err = model.GetPromptLibraryItemById(1)
+	require.NoError(t, err)
+	require.NotNil(t, item)
+	require.True(t, item.Enabled)
+}
+
+func TestAdminEnabledToggleNonexistentIdReturns404(t *testing.T) {
+	r := setupPromptLibraryAdminTest(t)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodPut, "/api/prompt-library/admin/999/enabled", bytes.NewReader([]byte(`{"enabled": false}`))))
+	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	require.Contains(t, rec.Body.String(), "prompt library item not found")
 }

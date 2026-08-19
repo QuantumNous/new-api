@@ -200,6 +200,44 @@ func TestListPromptLibraryPublicRejectsBadCategory(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
+func TestListPromptLibraryPublicSurvivesCorruptJSONColumn(t *testing.T) {
+	r := setupPromptLibraryPublicTest(t)
+	// One row with a corrupt JSON column must degrade to the fallback value
+	// instead of failing the whole listing with a 500.
+	item := model.PromptLibraryItem{
+		Slug: "pub-corrupt", Category: "image", Model: "gpt-image-2", Prompt: "prompt of pub-corrupt",
+		TitleJSON:      `{"en":"pub-corrupt"}`,
+		ArtifactJSON:   "{corrupt",
+		SourceJSON:     `{"label":"@a","platform":"X","url":"https://x.com/a/status/1"}`,
+		SourcePlatform: "X", SourceURL: "https://x.com/a/status/1",
+		Enabled: true,
+	}
+	require.NoError(t, model.DB.Create(&item).Error)
+
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prompt-library?page_size=10", nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Total int              `json:"total"`
+			Items []map[string]any `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, 3, response.Data.Total) // pub-one, pub-two, pub-corrupt
+	var corrupt map[string]any
+	for _, listed := range response.Data.Items {
+		if listed["slug"] == "pub-corrupt" {
+			corrupt = listed
+		}
+	}
+	require.NotNil(t, corrupt, "corrupt row must still be listed")
+	require.Equal(t, map[string]any{}, corrupt["artifact"])                 // fallback, not the raw garbage
+	require.Equal(t, map[string]any{"en": "pub-corrupt"}, corrupt["title"]) // valid columns untouched
+}
+
 func TestGetPromptLibraryItemPublicNormalizesLiteralNullColumns(t *testing.T) {
 	r := setupPromptLibraryPublicTest(t)
 	// The import path marshals absent optional fields (title/summary/tags/output)

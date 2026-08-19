@@ -155,15 +155,30 @@ func CreatePromptLibraryItem(item *PromptLibraryItem) error {
 	item.UpdatedTime = now
 	// gorm 对带 default:true 的零值 bool，Create 时会改用默认值并写回结构体，
 	// 因此必须在 Create 前捕获调用者意图，事后显式落盘 false。
+	// Create + 修正 Update 放在同一事务里，避免中途崩溃留下一条被错误置为
+	// enabled 的行。
 	enabled := item.Enabled
-	if err := DB.Create(item).Error; err != nil {
-		return err
-	}
-	if !enabled {
-		item.Enabled = false
-		return DB.Model(item).Update("enabled", false).Error
-	}
-	return nil
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(item).Error; err != nil {
+			return err
+		}
+		if !enabled {
+			item.Enabled = false
+			return tx.Model(item).Update("enabled", false).Error
+		}
+		return nil
+	})
+}
+
+// SetPromptLibraryItemEnabled flips only the enabled column (map form so the
+// zero-value false is not skipped by GORM). Returns rows affected so callers
+// can distinguish "not found".
+func SetPromptLibraryItemEnabled(id int, enabled bool) (int64, error) {
+	res := DB.Model(&PromptLibraryItem{}).Where("id = ?", id).Updates(map[string]any{
+		"enabled":      enabled,
+		"updated_time": common.GetTimestamp(),
+	})
+	return res.RowsAffected, res.Error
 }
 
 func (item *PromptLibraryItem) Update() error {
