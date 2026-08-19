@@ -97,7 +97,7 @@ var assetMaterializationProviderDescriptors = map[string]assetMaterializationPro
 			}
 			return scope, nil
 		},
-		ValidateConfig:   validateSeedanceProxyAssetMaterializationConfig,
+		ValidateConfig:   validateTokenSpaceMaterialAssetMaterializationConfig,
 		CredentialScoped: true,
 	},
 }
@@ -259,6 +259,18 @@ func assetMaterializationConfigForChannel(channel *model.Channel) (assetMaterial
 }
 
 func validateSeedanceProxyAssetMaterializationConfig(config assetMaterializationChannelConfig) (assetMaterializationChannelConfig, error) {
+	scopeBase, err := normalizedGatewayScopeBase(config.GatewayBaseURL)
+	if err != nil {
+		return assetMaterializationChannelConfig{}, err
+	}
+	if config.GroupID == "" {
+		return assetMaterializationChannelConfig{}, ErrAssetBindingUnavailable
+	}
+	config.GatewayOrigin = scopeBase
+	return config, nil
+}
+
+func validateTokenSpaceMaterialAssetMaterializationConfig(config assetMaterializationChannelConfig) (assetMaterializationChannelConfig, error) {
 	origin, err := normalizedGatewayOrigin(config.GatewayBaseURL)
 	if err != nil {
 		return assetMaterializationChannelConfig{}, err
@@ -279,6 +291,22 @@ func normalizedGatewayOrigin(rawURL string) (string, error) {
 		return "", err
 	}
 	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), nil
+}
+
+func normalizedGatewayScopeBase(rawURL string) (string, error) {
+	origin, err := normalizedGatewayOrigin(rawURL)
+	if err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return "", err
+	}
+	path := strings.TrimRight(parsed.EscapedPath(), "/")
+	if path == "" {
+		return origin, nil
+	}
+	return origin + path, nil
 }
 
 func seedanceProxyBindingScope(origin string, groupID string, apiKey string) string {

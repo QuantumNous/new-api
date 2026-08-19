@@ -1510,6 +1510,58 @@ func TestSeedanceProxyBindingScopeDigestNormalizesGatewayOrigin(t *testing.T) {
 	require.Equal(t, "seedance-proxy:v1:"+hex.EncodeToString(sum[:]), seedanceProxyBindingScope(origin, "grp_shared_aigc", "seedance-key"))
 }
 
+func TestSeedanceProxyBindingScopeIncludesNormalizedGatewayBasePath(t *testing.T) {
+	baseA := channelWithAssetMaterializationSettings(t, constant.ChannelTypeBytePlus, dto.AssetMaterializationSettings{
+		Provider:       "seedance_proxy",
+		GatewayBaseURL: "https://ASSET-GATEWAY.example.invalid/v1/base/",
+		GroupID:        "grp_shared_aigc",
+	})
+	baseATrailingVariant := channelWithAssetMaterializationSettings(t, constant.ChannelTypeBytePlus, dto.AssetMaterializationSettings{
+		Provider:       "seedance_proxy",
+		GatewayBaseURL: "https://asset-gateway.example.invalid/v1/base",
+		GroupID:        "grp_shared_aigc",
+	})
+	baseB := channelWithAssetMaterializationSettings(t, constant.ChannelTypeBytePlus, dto.AssetMaterializationSettings{
+		Provider:       "seedance_proxy",
+		GatewayBaseURL: "https://asset-gateway.example.invalid/v2/base/",
+		GroupID:        "grp_shared_aigc",
+	})
+	options := AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "seedance-key"}
+
+	scopeA, err := assetBindingScopeForChannel(baseA, options)
+	require.NoError(t, err)
+	scopeATrailingVariant, err := assetBindingScopeForChannel(baseATrailingVariant, options)
+	require.NoError(t, err)
+	scopeB, err := assetBindingScopeForChannel(baseB, options)
+	require.NoError(t, err)
+
+	require.Equal(t, scopeA, scopeATrailingVariant)
+	require.NotEqual(t, scopeA, scopeB)
+	require.True(t, strings.HasPrefix(scopeA, seedanceProxyBindingScopePrefix))
+}
+
+func TestTokenSpaceMaterialBindingScopeRemainsPathIndependent(t *testing.T) {
+	baseA := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid/v1/base/",
+		GroupID:        "group-internal",
+	})
+	baseB := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid/v2/base/",
+		GroupID:        "group-internal",
+	})
+	options := AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "tokenspace-key"}
+
+	scopeA, err := assetBindingScopeForChannel(baseA, options)
+	require.NoError(t, err)
+	scopeB, err := assetBindingScopeForChannel(baseB, options)
+	require.NoError(t, err)
+
+	require.Equal(t, scopeA, scopeB)
+	require.True(t, strings.HasPrefix(scopeA, tokenSpaceMaterialBindingScopePrefix))
+}
+
 func TestNormalizedGatewayOriginRejectsNonHTTPS(t *testing.T) {
 	_, err := normalizedGatewayOrigin("http://asset-gateway.example.invalid")
 	require.Error(t, err)
