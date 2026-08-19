@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -32,8 +33,7 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	var (
 		accumulatedContent   = make(map[int]string) // per choice index
 		accumulatedReasoning = make(map[int]string) // per choice index
-		accumulatedToolCalls []dto.ToolCallResponse
-		toolCallSeen         = make(map[int]bool)
+		accumulatedToolCalls = make(map[int]map[int]*dto.ToolCallResponse) // choiceIdx -> tcIdx -> tc
 		finishReason         = make(map[int]string) // per choice index
 		model                = info.UpstreamModelName
 		responseId           = helper.GetResponseID(c)
@@ -88,31 +88,24 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 					accumulatedReasoning[idx] += choice.Delta.GetReasoningContent()
 				}
 				if len(choice.Delta.ToolCalls) > 0 {
+					if accumulatedToolCalls[idx] == nil {
+						accumulatedToolCalls[idx] = make(map[int]*dto.ToolCallResponse)
+					}
 					for _, tc := range choice.Delta.ToolCalls {
 						tcIdx := 0
 						if tc.Index != nil {
 							tcIdx = *tc.Index
 						}
-						if !toolCallSeen[tcIdx] {
-							toolCallSeen[tcIdx] = true
-							accumulatedToolCalls = append(accumulatedToolCalls, tc)
+						if existing, ok := accumulatedToolCalls[idx][tcIdx]; !ok {
+							tcCopy := tc
+							accumulatedToolCalls[idx][tcIdx] = &tcCopy
 						} else {
-							// Append arguments to the existing tool call at this index
-							for i := len(accumulatedToolCalls) - 1; i >= 0; i-- {
-								ai := 0
-								if accumulatedToolCalls[i].Index != nil {
-									ai = *accumulatedToolCalls[i].Index
-								}
-								if ai == tcIdx {
-									accumulatedToolCalls[i].Function.Arguments += tc.Function.Arguments
-									if tc.Function.Name != "" {
-										accumulatedToolCalls[i].Function.Name = tc.Function.Name
-									}
-									if tc.ID != "" {
-										accumulatedToolCalls[i].ID = tc.ID
-									}
-									break
-								}
+							existing.Function.Arguments += tc.Function.Arguments
+							if tc.Function.Name != "" {
+								existing.Function.Name = tc.Function.Name
+							}
+							if tc.ID != "" {
+								existing.ID = tc.ID
 							}
 						}
 					}
@@ -140,9 +133,18 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		allIndices[idx] = true
 	}
 
-	// Build choices for all indices
+	// Build choices for all indices (sorted for deterministic output)
+	var sortedIndices []int
+	for idx := range allIndices {
+		sortedIndices = append(sortedIndices, idx)
+	}
+	if len(sortedIndices) == 0 {
+		sortedIndices = []int{0}
+	}
+	sort.Ints(sortedIndices)
+
 	var choices []dto.OpenAITextResponseChoice
-	for idx := 0; idx < len(allIndices) || idx == 0; idx++ {
+	for _, idx := range sortedIndices {
 		fr := finishReason[idx]
 		if fr == "" {
 			fr = constant.FinishReasonStop
@@ -157,20 +159,36 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 			rc := accumulatedReasoning[idx]
 			choice.Message.ReasoningContent = &rc
 		}
-		if len(accumulatedToolCalls) > 0 && idx == 0 {
-			choice.Message.SetToolCalls(accumulatedToolCalls)
+		if tcMap, ok := accumulatedToolCalls[idx]; ok && len(tcMap) > 0 {
+			var tcs []dto.ToolCallResponse
+			var tcKeys []int
+			for k := range tcMap {
+				tcKeys = append(tcKeys, k)
+			}
+			sort.Ints(tcKeys)
+			for _, k := range tcKeys {
+				tcs = append(tcs, *tcMap[k])
+			}
+			choice.Message.SetToolCalls(tcs)
 		}
 		choices = append(choices, choice)
-		if len(allIndices) == 0 {
-			break
-		}
 	}
 
-	// Usage fallback: aggregate all content across choices for estimation
+	// Usage fallback: aggregate all content across choices for estimation.
+	// Include reasoning content and tool-call arguments so the estimate
+	// matches what ProcessStreamResponse would compute for the same stream.
 	if usage == nil || usage.TotalTokens == 0 {
 		totalContent := ""
 		for _, c := range accumulatedContent {
 			totalContent += c
+		}
+		for _, r := range accumulatedReasoning {
+			totalContent += r
+		}
+		for _, tcMap := range accumulatedToolCalls {
+			for _, tc := range tcMap {
+				totalContent += tc.Function.Name + tc.Function.Arguments
+			}
 		}
 		usage = service.ResponseText2Usage(c, totalContent, info.UpstreamModelName, info.GetEstimatePromptTokens())
 	}
@@ -202,10 +220,12 @@ func OaiBufferedStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	}
 
 	// Count billable tool calls for special tool pricing, matching
-	// OaiStreamHandler and OpenaiHandler (P2-3).
-	for _, tc := range accumulatedToolCalls {
-		if tc.Function.Name != "" {
-			info.CountBillableToolCall(dto.BuildInCallFunctionCall, tc.Function.Name)
+	// OaiStreamHandler and OpenaiHandler (P2-3). Iterate per choice.
+	for _, tcMap := range accumulatedToolCalls {
+		for _, tc := range tcMap {
+			if tc.Function.Name != "" {
+				info.CountBillableToolCall(dto.BuildInCallFunctionCall, tc.Function.Name)
+			}
 		}
 	}
 

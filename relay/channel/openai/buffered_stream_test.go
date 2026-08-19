@@ -332,7 +332,7 @@ func TestOaiBufferedStreamHandler_UpstreamErrorEvent(t *testing.T) {
 	// An upstream error event is a real error, not data. The handler must
 	// return a NewAPIError and nil usage so the client sees the failure
 	// and billing is not charged for an empty success.
-	assert.NotNil(t, apiErr, "handler must return API error for in-stream error event")
+	require.NotNil(t, apiErr, "handler must return API error for in-stream error event")
 	assert.Nil(t, usage, "usage must be nil when upstream returns error")
 	assert.Contains(t, apiErr.Error(), "upstream error", "error message must mention upstream")
 }
