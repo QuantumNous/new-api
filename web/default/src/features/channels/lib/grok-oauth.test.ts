@@ -2,7 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import {
   normalizeGrokOAuthChannelID,
   resolveGrokAuthorizationView,
+  resolveGrokCreateTypeSwitch,
   resolveGrokCredentialTextareaValue,
+  resolveGrokOAuthAuthorizedKeyDecision,
   resolveGrokOAuthCompletionKey,
 } from './grok-oauth'
 
@@ -74,5 +76,60 @@ describe('Grok OAuth mode contract', () => {
         formKey: credential,
       })
     ).toBe(credential)
+  })
+
+  test('clears pending create credentials before switching away from Grok', () => {
+    const credential =
+      '{"version":1,"type":"grok_subscription","access_token":"at"}'
+
+    expect(
+      resolveGrokCreateTypeSwitch({
+        isEditing: false,
+        currentType: 113,
+        nextType: 1,
+        formKey: credential,
+      })
+    ).toEqual({
+      key: '',
+      closeTransientState: true,
+    })
+    expect(
+      resolveGrokCreateTypeSwitch({
+        isEditing: true,
+        currentType: 113,
+        nextType: 1,
+        formKey: credential,
+      })
+    ).toEqual({
+      key: credential,
+      closeTransientState: false,
+    })
+  })
+
+  test('ignores stale create completions after the form leaves Grok', () => {
+    const credential =
+      '{"version":1,"type":"grok_subscription","access_token":"at"}'
+
+    expect(
+      resolveGrokOAuthAuthorizedKeyDecision({
+        channelId: null,
+        currentType: 1,
+        key: credential,
+      })
+    ).toEqual({ action: 'ignore' })
+    expect(
+      resolveGrokOAuthAuthorizedKeyDecision({
+        channelId: null,
+        currentType: 113,
+        key: credential,
+      })
+    ).toEqual({ action: 'store', key: credential })
+    expect(
+      resolveGrokOAuthAuthorizedKeyDecision({
+        channelId: 42,
+        currentType: 113,
+        key: undefined,
+      })
+    ).toEqual({ action: 'invalidate', channelId: 42 })
   })
 })

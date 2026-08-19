@@ -159,7 +159,9 @@ import {
 } from '../../lib/status-code-risk-guard'
 import {
   resolveGrokAuthorizationView,
+  resolveGrokCreateTypeSwitch,
   resolveGrokCredentialTextareaValue,
+  resolveGrokOAuthAuthorizedKeyDecision,
 } from '../../lib/grok-oauth'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
@@ -1276,6 +1278,30 @@ export function ChannelMutateDrawer({
                                     Number.isInteger(nextType) &&
                                     nextType > 0
                                   ) {
+                                    const currentFormKey =
+                                      form.getValues('key')
+                                    const grokTypeSwitch =
+                                      resolveGrokCreateTypeSwitch({
+                                        isEditing,
+                                        currentType: form.getValues('type'),
+                                        nextType,
+                                        formKey: currentFormKey,
+                                      })
+                                    if (grokTypeSwitch.closeTransientState) {
+                                      if (grokTypeSwitch.key !== currentFormKey) {
+                                        form.setValue(
+                                          'key',
+                                          grokTypeSwitch.key,
+                                          {
+                                            shouldDirty: true,
+                                            shouldValidate: true,
+                                          }
+                                        )
+                                      }
+                                      setGrokRefreshTokenInput('')
+                                      setGrokImportOpen(false)
+                                      setGrokOAuthDialogOpen(false)
+                                    }
                                     field.onChange(nextType)
                                   }
                                 }}
@@ -2601,16 +2627,26 @@ export function ChannelMutateDrawer({
                           open={grokOAuthDialogOpen}
                           onOpenChange={setGrokOAuthDialogOpen}
                           onAuthorized={(key) => {
-                            if (!channelId) {
-                              if (!key) return
-                              form.setValue('key', key, {
+                            const decision =
+                              resolveGrokOAuthAuthorizedKeyDecision({
+                                channelId,
+                                currentType: form.getValues('type'),
+                                key,
+                              })
+                            if (decision.action === 'store') {
+                              form.setValue('key', decision.key, {
                                 shouldDirty: true,
                                 shouldValidate: true,
                               })
                               return
                             }
+                            if (decision.action === 'ignore') {
+                              return
+                            }
                             void queryClient.invalidateQueries({
-                              queryKey: channelsQueryKeys.detail(channelId),
+                              queryKey: channelsQueryKeys.detail(
+                                decision.channelId
+                              ),
                             })
                           }}
                         />

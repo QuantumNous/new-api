@@ -39,3 +39,39 @@ export function resolveGrokCredentialTextareaValue(input: {
   if (input.channelType === 113 && !input.isEditing) return ''
   return input.formKey ?? ''
 }
+
+export function resolveGrokCreateTypeSwitch(input: {
+  isEditing: boolean
+  currentType: number
+  nextType: number
+  formKey?: string
+}): {
+  key: string
+  closeTransientState: boolean
+} {
+  const closeTransientState =
+    !input.isEditing && input.currentType === 113 && input.nextType !== 113
+
+  return {
+    key: closeTransientState ? '' : (input.formKey ?? ''),
+    closeTransientState,
+  }
+}
+
+export type GrokOAuthAuthorizedKeyDecision =
+  | { action: 'store'; key: string }
+  | { action: 'invalidate'; channelId: number }
+  | { action: 'ignore' }
+
+export function resolveGrokOAuthAuthorizedKeyDecision(input: {
+  channelId?: number | null
+  currentType: number
+  key?: string
+}): GrokOAuthAuthorizedKeyDecision {
+  if (input.channelId !== undefined && input.channelId !== null) {
+    return { action: 'invalidate', channelId: input.channelId }
+  }
+  if (input.currentType !== 113) return { action: 'ignore' }
+  if (!input.key?.trim()) return { action: 'ignore' }
+  return { action: 'store', key: input.key }
+}
