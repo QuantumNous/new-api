@@ -752,7 +752,12 @@ func AddChannel(c *gin.Context) {
 
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
-		if key == "" && addChannelRequest.Channel.Type != constant.ChannelTypeCopilot {
+		// Copilot and Grok Subscription create an empty-key channel first and
+		// acquire the credential later via their post-save OAuth flow, so an
+		// empty key must be preserved rather than skipped for those types.
+		if key == "" &&
+			addChannelRequest.Channel.Type != constant.ChannelTypeCopilot &&
+			addChannelRequest.Channel.Type != constant.ChannelTypeGrokSubscription {
 			continue
 		}
 		localChannel := addChannelRequest.Channel

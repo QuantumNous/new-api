@@ -1011,8 +1011,15 @@ export function ChannelMutateDrawer({
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
-      // Validate key is required when creating
-      if (!isEditing && data.type !== 112 && !data.key?.trim()) {
+      // Validate key is required when creating.
+      // 112 (Copilot) and 113 (Grok Subscription) acquire their credential
+      // through a post-save OAuth flow, so an empty key is expected there.
+      if (
+        !isEditing &&
+        data.type !== 112 &&
+        data.type !== 113 &&
+        !data.key?.trim()
+      ) {
         form.setError('key', {
           type: 'manual',
           message: ERROR_MESSAGES.REQUIRED_KEY,
