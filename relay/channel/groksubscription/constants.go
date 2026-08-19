@@ -48,11 +48,10 @@ const (
 const ChannelName = "grok_subscription"
 
 // DefaultModelList 首次创建渠道时的已知 Grok 默认模型（DB 渠道模型列表仍是最终路由依据，设计 §5.3）。
+// 仅预填当前活跃且已配置计费的旗舰模型。原 grok-4 / grok-4-fast / grok-3 / grok-3-mini
+// 均在 2026-05-15 被 xAI 退役（仅存重定向），已移除以免预填出无法计费的死模型。
 var DefaultModelList = []string{
-	"grok-4",
-	"grok-4-fast",
-	"grok-3",
-	"grok-3-mini",
+	"grok-4.6",
 }
 
 // CLIClientVersion 读环境变量覆盖，校验 semver 且不低于 CLIClientVersionMin，非法回退默认。

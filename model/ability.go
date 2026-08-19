@@ -394,8 +394,14 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
-	copilotCredentialMissing := false
-	if channel.Type == constant.ChannelTypeCopilot {
+	credentialMissing := false
+	// Copilot and Grok Subscription create an empty-key channel first and obtain
+	// the credential later via a post-save OAuth flow. While the key is still
+	// empty (pending authorization) the channel must not be routable, otherwise
+	// the dispatcher may select it and fail on the missing credential. Force its
+	// abilities disabled until the credential is written back; UpdateChannelKeyForType
+	// rebuilds abilities on write-back, at which point the key is non-empty and they re-enable.
+	if channel.Type == constant.ChannelTypeCopilot || channel.Type == constant.ChannelTypeGrokSubscription {
 		credential := strings.TrimSpace(channel.Key)
 		if credential == "" && channel.Id > 0 {
 			useDB := DB
@@ -404,14 +410,14 @@ func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 			}
 			if useDB != nil {
 				var stored Channel
-				err := useDB.Select("key").Where("id = ? AND type = ?", channel.Id, constant.ChannelTypeCopilot).First(&stored).Error
+				err := useDB.Select("key").Where("id = ? AND type = ?", channel.Id, channel.Type).First(&stored).Error
 				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 					return nil, err
 				}
 				credential = strings.TrimSpace(stored.Key)
 			}
 		}
-		copilotCredentialMissing = credential == ""
+		credentialMissing = credential == ""
 	}
 	governanceByModel, err := channel.codexAbilityGovernanceByModel(tx, models_)
 	if err != nil {
@@ -431,7 +437,7 @@ func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 			}
 			abilitySet[key] = struct{}{}
 			enabled := channel.Status == common.ChannelStatusEnabled
-			if copilotCredentialMissing {
+			if credentialMissing {
 				enabled = false
 			}
 			if governance.Disabled {
