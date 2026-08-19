@@ -102,6 +102,17 @@ const (
 	LogTypeLogin   = 7
 )
 
+func resolveSelfServiceLogTypes(logType int) []int {
+	switch logType {
+	case LogTypeUnknown:
+		return []int{LogTypeTopup, LogTypeConsume, LogTypeError, LogTypeRefund}
+	case LogTypeTopup, LogTypeConsume, LogTypeError, LogTypeRefund:
+		return []int{logType}
+	default:
+		return nil
+	}
+}
+
 func ensureLogRequestId(log *Log) {
 	if log != nil && log.RequestId == "" {
 		log.RequestId = common.NewRequestId()
@@ -687,12 +698,11 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 const logSearchCountLimit = 10000
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, keyword string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
-	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+	logTypes := resolveSelfServiceLogTypes(logType)
+	if len(logTypes) == 0 {
+		return []*Log{}, 0, nil
 	}
+	tx := LOG_DB.Where("logs.user_id = ? AND logs.type IN ?", userId, logTypes)
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err

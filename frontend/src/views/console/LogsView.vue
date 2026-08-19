@@ -176,17 +176,14 @@ function updateOpenColSettingsPanelMetrics() {
 
 onClickOutside(colSettingsRef, () => closeColSettings())
 
-// ---------- type options (6 types) ----------
+// ---------- business log type options ----------
 
 const typeOptions = computed(() => [
   { value: '', label: t('common.all') },
   { value: 'consume', label: t('logs.typeConsume'), tone: 'accent' as const },
   { value: 'topup', label: t('logs.typeTopup'), tone: 'success' as const },
   { value: 'refund', label: t('logs.typeRefund'), tone: 'warning' as const },
-  { value: 'manage', label: t('logs.typeManage'), tone: 'info' as const },
   { value: 'error', label: t('logs.typeError'), tone: 'danger' as const },
-  { value: 'system', label: t('logs.typeSystem'), tone: 'info' as const },
-  { value: 'login', label: t('logs.typeLogin'), tone: 'info' as const },
 ])
 
 // ---------- columns (dynamic, driven by visibleCols) ----------
@@ -256,11 +253,8 @@ function currentParams() {
   const typeMap: Record<string, number> = {
     topup: 1,
     consume: 2,
-    manage: 3,
-    system: 4,
     error: 5,
     refund: 6,
-    login: 7,
   }
   const requestedStart = startDate.value
     ? Math.floor(new Date(startDate.value).getTime() / 1000)

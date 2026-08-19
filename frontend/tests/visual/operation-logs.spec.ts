@@ -64,6 +64,25 @@ for (const theme of ['light', 'dark'] as const) {
   }
 }
 
+test('consume logs keep operation types in the separate admin view', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await configureStablePage(page, { theme: 'light', authenticated: true })
+  await page.goto('/console/logs', { waitUntil: 'domcontentloaded' })
+  await waitForStablePage(page)
+
+  await page.getByRole('combobox', { name: '类型' }).click()
+  const options = page.getByRole('option')
+  await expect(options).toHaveText(['全部', '消费', '充值', '退款', '错误'])
+  await expect(page.getByRole('option', { name: '管理' })).toHaveCount(0)
+  await expect(page.getByRole('option', { name: '系统' })).toHaveCount(0)
+  await expect(page.getByRole('option', { name: '登录' })).toHaveCount(0)
+
+  await page.getByRole('link', { name: '操作日志' }).click()
+  await expect(page).toHaveURL(/\/console\/logs\/operations$/)
+})
+
 test('operation logs expose loading and empty states', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await configureStablePage(page, { theme: 'light', authenticated: true })
