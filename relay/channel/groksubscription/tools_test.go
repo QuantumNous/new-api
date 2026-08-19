@@ -1,6 +1,9 @@
 package groksubscription
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseWebSearchToolPreservesFalse(t *testing.T) {
 	// 客户端显式传 return_citations=false 必须保留（指针字段），不能被当成缺省丢弃
@@ -44,6 +47,21 @@ func TestParseUnknownToolTypeRejected(t *testing.T) {
 	raw := `{"type":"code_interpreter","code_interpreter":{}}`
 	if _, err := ParseTool([]byte(raw)); err == nil {
 		t.Fatalf("unknown tool type must be rejected with locatable error, not silently dropped")
+	}
+}
+
+// TestParseUnknownToolTypeErrorOmitsClientInput 守护本文件 invariant（[8] high/security）：
+// 未知 tool type 的错误信息只描述类别，绝不 echo 客户端可控的原始 type 字符串
+// （否则有 log/response injection 面）。变异验证：把 head.Type 拼回 error 即 FAIL。
+func TestParseUnknownToolTypeErrorOmitsClientInput(t *testing.T) {
+	const probe = "XSS-PROBE-<script>alert(1)</script>"
+	raw := `{"type":"` + probe + `"}`
+	_, err := ParseTool([]byte(raw))
+	if err == nil {
+		t.Fatalf("unknown tool type must be rejected")
+	}
+	if strings.Contains(err.Error(), probe) {
+		t.Fatalf("error must NOT echo raw client tool type, got %q", err.Error())
 	}
 }
 

@@ -104,7 +104,8 @@ func ParseTool(raw []byte) (Tool, error) {
 		return Tool{Type: ToolTypeXSearch, XSearch: &xs}, nil
 
 	default:
-		return Tool{}, errors.New("grok tool: unsupported tool type " + head.Type)
+		// 只描述类别，绝不 echo 客户端可控的 head.Type（log/response injection 面；同本文件 invariant）。
+		return Tool{}, errors.New("grok tool: unsupported tool type")
 	}
 }
 
