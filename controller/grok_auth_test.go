@@ -763,6 +763,8 @@ func TestGrokTruncateStringIsRuneSafe(t *testing.T) {
 		t.Fatalf("ASCII truncation must be exactly 512 'a', got len=%d", len(got))
 	}
 }
+
+// TestGrokAuthHTTPDoerHasTimeout 守护默认 doer 不是 http.DefaultClient 且带正 Timeout：
 // token 交换是短请求，http.DefaultClient 无 Timeout，上游挂起会无限拖住 admin API
 // goroutine（本平台有上游卡 44 分钟的先例）。
 func TestGrokAuthHTTPDoerHasTimeout(t *testing.T) {

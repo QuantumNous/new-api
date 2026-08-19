@@ -87,7 +87,7 @@ func ConsumeGrokAuthFlow(flowID, ownerToken string) error {
 }
 
 // DeleteExpiredGrokAuthFlows 清掉已过期 flow（未完成的 PKCE 残留，含未认领 verifier 密文）。
-// ConsumeGrokAuthFlow 只按 owner_token 删已认领的 flow；未完成授权（owner_token='')的 flow
+// ConsumeGrokAuthFlow 只按 owner_token 删已认领的 flow；未完成授权（owner_token=”)的 flow
 // 永不被消费，EncryptedVerifier 会超期滞留并无界增长。best-effort 机会式清理由调用方触发。
 // expires_at 为 UNIX 秒（同 CreateGrokAuthFlow 写入约定），与 GetDBTimestamp() 同源比较。
 func DeleteExpiredGrokAuthFlows() error {

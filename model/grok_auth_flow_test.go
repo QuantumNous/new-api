@@ -87,7 +87,7 @@ func TestConsumeGrokAuthFlowOnlyOwner(t *testing.T) {
 	}
 }
 
-// TestDeleteExpiredGrokAuthFlows 守护 [1]：过期 flow（含未认领的 owner_token='' PKCE 残留）
+// TestDeleteExpiredGrokAuthFlows 守护 [1]：过期 flow（含未认领的 owner_token=” PKCE 残留）
 // 必须被清理，未过期 flow 必须保留。照既有夹具时间约定：ExpiresAt 为 UNIX 秒，
 // GetDBTimestamp()-1 已过期、GetDBTimestamp()+600 未过期。
 func TestDeleteExpiredGrokAuthFlows(t *testing.T) {
