@@ -38,8 +38,9 @@ IMPORT_BATCH_LIMIT = 100
 FIXED_MODEL = "gpt-image-2"
 
 # Upstream "## emoji Title" -> tag. Unknown headings (Resources, Contributing,
-# ...) are skipped; parse_readme warns on stderr when a skipped section looks
-# like it carries prompt cases, so upstream drift is visible in the run log.
+# ...) are skipped; when a skipped section carries prompt fences it is recorded
+# in PARSE_WARNINGS and main() reports it as a failure (exit 1), so upstream
+# category drift cannot silently drop cases.
 CATEGORY_TAGS = {
     "photography": "photography",
     "gaming": "gaming",
@@ -79,8 +80,21 @@ COMMENT_RE = re.compile(r"\*\*Comment:\*\* *(.+)")
 INLINE_TRANSLATION_RE = re.compile(r"\*\*English Translation:\*\* *(.+)")
 
 
+# Unknown H2 section titles that carry ```text prompt fences, collected by the
+# most recent parse_readme call (reset at parse start). Pure link sections
+# (Resources, Contributing, ... without fences) are not recorded. main() turns
+# these into hard failures so upstream category drift cannot silently drop
+# cases from the import.
+PARSE_WARNINGS = []
+
+
 def parse_readme(markdown):
-    """Parse upstream README into a list of case dicts."""
+    """Parse upstream README into a list of case dicts.
+
+    Side effect: resets and fills PARSE_WARNINGS with the titles of unknown
+    H2 sections that contain prompt fences.
+    """
+    PARSE_WARNINGS.clear()
     headings = [(m.start(), "h2", m.group(1)) for m in H2_RE.finditer(markdown)]
     cases_pos = [(m.start(), "h3", m.group(1)) for m in CASE_RE.finditer(markdown)]
     marks = sorted(headings + cases_pos)
@@ -97,6 +111,7 @@ def parse_readme(markdown):
                     (p for p, k, _ in marks[idx + 1:] if k == "h2"), len(markdown)
                 )
                 if "```text" in markdown[pos:section_end]:
+                    PARSE_WARNINGS.append(title)
                     print(
                         f"WARNING: skipping unmapped section {title!r} which contains prompt fences",
                         file=sys.stderr,
@@ -297,16 +312,22 @@ def build_import_item(case, slug, image_url, captured_at):
 
 
 def dedupe_slugs(slugs):
-    """Return slugs with -2/-3... suffixes on duplicates, order preserved."""
-    seen = {}
+    """Return slugs with -2/-3... suffixes on duplicates, order preserved.
+
+    Used-set algorithm: a generated suffix can itself collide with a later
+    (or earlier) literal slug like "foo-2", so uniqueness is checked against
+    everything emitted so far, not just the duplicate count per base.
+    """
+    used = set()
     result = []
     for base in slugs:
-        if base in seen:
-            seen[base] += 1
-            result.append(f"{base}-{seen[base]}")
-        else:
-            seen[base] = 1
-            result.append(base)
+        candidate = base
+        n = 2
+        while candidate in used:
+            candidate = f"{base}-{n}"
+            n += 1
+        used.add(candidate)
+        result.append(candidate)
     return result
 
 
@@ -339,6 +360,10 @@ def main():
 
     captured_at = datetime.date.today().isoformat()
     items, failures = [], []
+    # Unknown category sections that contain prompt fences are hard failures:
+    # their cases were dropped by the parser and would silently vanish.
+    for section in PARSE_WARNINGS:
+        failures.append({"title": section, "reason": "unknown category section with prompt fences"})
     # Dedupe up front so GCS object names always match the final item slugs.
     # Keep base slugs too: an empty base (fully non-Latin title) is a per-item
     # failure even when dedupe would suffix a later duplicate to "-2".

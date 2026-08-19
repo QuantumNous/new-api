@@ -1,6 +1,7 @@
 import textwrap
 
 from import_awesome_gpt_image import (
+    PARSE_WARNINGS,
     dedupe_slugs,
     image_ext,
     parse_readme,
@@ -162,6 +163,89 @@ def test_parse_italic_source_line():
 def test_dedupe_slugs():
     assert dedupe_slugs(["a", "a", "b", "a"]) == ["a", "a-2", "b", "a-3"]
     assert dedupe_slugs([]) == []
+
+
+def test_dedupe_slugs_suffix_collision_with_literal():
+    # A generated "-2" suffix can collide with a literal "foo-2" slug; the
+    # used-set walk must keep first occurrences stable and everything unique.
+    result = dedupe_slugs(["foo", "foo-2", "foo"])
+    assert result == ["foo", "foo-2", "foo-3"]
+    assert len(set(result)) == len(result)
+    # Literal arriving after the generated suffix collides the other way.
+    result2 = dedupe_slugs(["foo", "foo", "foo-2"])
+    assert result2[0] == "foo"
+    assert result2[1] == "foo-2"  # first duplicate keeps the lowest free suffix
+    assert len(set(result2)) == len(result2)
+
+
+def test_parse_records_unknown_section_with_fences_as_warning():
+    sample = textwrap.dedent('''
+        ## 📷 Photography & Realism
+
+        ### Known Case
+        <img width="500" alt="k" src="https://example.com/k.jpg" />
+
+        **Prompt:**
+        ```text
+        known prompt
+        ```
+
+        ## 🧪 Brand New Category
+
+        ### Dropped Case
+        <img width="500" alt="d" src="https://example.com/d.jpg" />
+
+        **Prompt:**
+        ```text
+        dropped prompt
+        ```
+    ''')
+    cases = parse_readme(sample)
+    assert [c["title"] for c in cases] == ["Known Case"]
+    assert PARSE_WARNINGS == ["🧪 Brand New Category"]
+
+
+def test_parse_stays_silent_on_pure_link_sections():
+    sample = textwrap.dedent('''
+        ## 📷 Photography & Realism
+
+        ### Known Case
+        <img width="500" alt="k" src="https://example.com/k.jpg" />
+
+        **Prompt:**
+        ```text
+        known prompt
+        ```
+
+        ## Resources
+
+        - [Some link](https://example.com)
+
+        ## Contributing
+
+        PRs welcome.
+    ''')
+    cases = parse_readme(sample)
+    assert len(cases) == 1
+    assert PARSE_WARNINGS == []
+
+
+def test_parse_warnings_reset_between_runs():
+    with_warning = textwrap.dedent('''
+        ## 🧪 Unknown Section
+
+        ### Case
+        <img alt="x" src="https://example.com/x.jpg" />
+
+        **Prompt:**
+        ```text
+        p
+        ```
+    ''')
+    parse_readme(with_warning)
+    assert PARSE_WARNINGS == ["🧪 Unknown Section"]
+    parse_readme(SAMPLE)
+    assert PARSE_WARNINGS == []
 
 
 def test_image_ext_uses_url_path_suffix():
