@@ -4,10 +4,12 @@ Date: 2026-08-20
 
 Scope: PR #753 branch `feat/channel-156-asset-materialization`.
 
-- Implementation HEAD under test/base: `df80cc0af5fea02048a702722134b73caacb9513`.
+- Comprehensive implementation evidence base: `df80cc0af5fea02048a702722134b73caacb9513`.
 - Task 3 evidence HEAD reviewed before this wording correction: `ec8b1353715d9820525ba769562959baf4bfd8a1`.
+- Final implementation HEAD after broad-review code fixes: `28cbf39ac1abd79fbdcbec3567c59da547896171`.
 - After mutation restoration at `ec8b1353715d9820525ba769562959baf4bfd8a1`, `git diff -- service/tokenspace_material_asset.go` was empty and `git status --short` showed no uncommitted files.
-- This follow-up changes evidence wording only.
+- The comprehensive evidence through `df80cc0af5fea02048a702722134b73caacb9513` remains valid, plus the final code delta at `28cbf39ac1abd79fbdcbec3567c59da547896171` was verified below.
+- This document update records final broad-review evidence only; the final implementation head is the code commit above, not a later evidence-only commit.
 
 ## Instructions Reviewed
 
@@ -207,3 +209,51 @@ Known gaps:
 - Live TokenSpace `CreateAsset` / `GetAsset` were not executed.
 - End-to-end Flatkey upload through generation was not executed.
 - Production channel activation remains untested and intentionally unperformed.
+
+## Final Broad Review Fix
+
+Finding: the TokenSpace materializer accepted successful `GetAsset` responses without proving the returned asset and group matched the requested upstream asset ID and configured group, and `CreateAsset` did not return the configured group into the binding result.
+
+Code commit:
+
+- `28cbf39ac1abd79fbdcbec3567c59da547896171` — `Validate TokenSpace asset identity before activation`.
+
+Red evidence:
+
+```powershell
+go test ./service -run 'TestTokenSpaceMaterialAsset' -count=1 -timeout=5m
+```
+
+Result: exit 1 before the fix. Failures showed `CreateAsset` and successful `GetAsset` returned an empty `UpstreamGroupID`, and `GetAsset` accepted missing group, mismatched group, and mismatched asset ID responses.
+
+Green evidence:
+
+```powershell
+go test ./service -run 'TestTokenSpaceMaterialAsset' -count=1 -timeout=5m
+```
+
+Result: exit 0, `ok github.com/QuantumNous/new-api/service 0.418s`.
+
+```powershell
+go test ./service -run 'Test(TokenSpaceMaterialAsset|TokenSpaceMaterialTechMobiProcessingBindingRefreshesWithGetOnly|AssetMaterializerForChannelSelectsTokenSpaceMaterial|AssetBindingScopeForTokenSpaceMaterial|SeedanceProxyAsset|TechMobiAssetBindingHistoricalProcessingOpaqueAssetRematerializes|AssetBindingExistingProcessingRefreshesWithGetOnly)' -count=1 -timeout=5m
+```
+
+Result: exit 0, `ok github.com/QuantumNous/new-api/service 0.514s`.
+
+```powershell
+go build ./...
+```
+
+Result: exit 0.
+
+```powershell
+git diff --check
+```
+
+Result: exit 0.
+
+Secret/live-identifier scan:
+
+Non-printing diff scan for credential, live upstream host, group, asset, and signed-URL markers returned `secret-scan: no matches`. The command intentionally did not print matching text.
+
+GitNexus impact attempts for `tokenSpaceMaterialAssetBindingMaterializer.CreateAsset` and `tokenSpaceMaterialAssetBindingMaterializer.GetAsset` again reported the sibling-worktree stale index and storage version mismatch, so local call search and the focused verification above were used as fallback evidence.
