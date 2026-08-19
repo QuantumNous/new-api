@@ -216,7 +216,10 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 		seconds = req.Duration
 	}
 	if req.InputReference != "" {
-		req.Images = []string{req.InputReference}
+		// input_reference can be combined with images (for example, one input
+		// video plus HappyHorse reference images). Preserve both instead of
+		// discarding the explicitly supplied image list.
+		req.Images = append([]string{req.InputReference}, req.Images...)
 	} else if len(req.Images) == 0 && strings.TrimSpace(req.Image) != "" {
 		// 兼容单图上传
 		req.Images = []string{strings.TrimSpace(req.Image)}

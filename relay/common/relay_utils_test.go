@@ -77,6 +77,26 @@ func TestValidateMultipartDirectNormalizesImageField(t *testing.T) {
 	require.Equal(t, constant.TaskActionGenerate, info.Action)
 }
 
+func TestValidateMultipartDirectPreservesImagesWithInputReference(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := strings.NewReader(`{"model":"happyhorse-1.0-video-edit","prompt":"edit","input_reference":"https://example.com/input.mp4","images":["https://example.com/ref.png"]}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/video/generations", body)
+	request.Header.Set("Content-Type", "application/json")
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = request
+	info := &RelayInfo{TaskRelayInfo: &TaskRelayInfo{}}
+
+	taskErr := ValidateMultipartDirect(context, info)
+
+	require.Nil(t, taskErr)
+	storedReq, err := GetTaskRequest(context)
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"https://example.com/input.mp4",
+		"https://example.com/ref.png",
+	}, storedReq.Images)
+}
+
 // TestTaskDurationBounds guards the billing invariant that user-supplied
 // video duration (a quota multiplier via OtherRatio "seconds") is bounded, so
 // it can never overflow quota calculation into a negative charge.

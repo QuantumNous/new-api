@@ -1142,7 +1142,7 @@ func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.Task
 // PerCallBilling tests — settleTaskBillingOnComplete
 // ===========================================================================
 
-func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
+func TestSettle_PerCallBilling_AppliesAdaptorAdjust(t *testing.T) {
 	truncate(t)
 	ctx := context.Background()
 
@@ -1162,11 +1162,11 @@ func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
 
 	settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
 
-	// Per-call: no adjustment despite adaptor returning 2000
-	assert.Equal(t, initQuota, getUserQuota(t, userID))
-	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
-	assert.Equal(t, preConsumed, task.Quota)
-	assert.Equal(t, int64(0), countLogs(t))
+	// A per-call base price may still require usage-based adaptor settlement.
+	assert.Equal(t, initQuota+(preConsumed-2000), getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain+(preConsumed-2000), getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, 2000, task.Quota)
+	assert.Equal(t, int64(1), countLogs(t))
 }
 
 func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {

@@ -638,23 +638,25 @@ func truncateBase64(s string) string {
 // settleTaskBillingOnComplete 任务完成时的统一计费调整。
 // 优先级：1. adaptor.AdjustBillingOnComplete 返回正数 → 使用 adaptor 计算的额度
 //
-//  2. taskResult.TotalTokens > 0 → 按 token 重算
-//  3. 都不满足 → 保持预扣额度不变
+//  2. 按次计费且 adaptor 未调整 → 保持预扣额度不变
+//  3. taskResult.TotalTokens > 0 → 按 token 重算
+//  4. 都不满足 → 保持预扣额度不变
 func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
-	// 0. 按次计费的任务不做差额结算
-	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
-		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，跳过差额结算", task.TaskID))
-		return
-	}
-	// 1. 优先让 adaptor 决定最终额度
+	// 1. 优先让 adaptor 决定最终额度。部分按次价格只是基础单位价，
+	// 仍需要 adaptor 根据异步响应中的实际秒数/张数完成最终结算。
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整", taskResult.QuotaClamp)
 		return
 	}
-	// 2. 回退到 token 重算
+	// 2. 其他按次计费任务不回退到 token 重算。
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
+		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 按次计费，adaptor 无调整，保持预扣额度", task.TaskID))
+		return
+	}
+	// 3. 回退到 token 重算
 	if taskResult.TotalTokens > 0 {
 		RecalculateTaskQuotaByTokens(ctx, task, taskResult.TotalTokens)
 		return
 	}
-	// 3. 无调整，保持预扣额度
+	// 4. 无调整，保持预扣额度
 }
