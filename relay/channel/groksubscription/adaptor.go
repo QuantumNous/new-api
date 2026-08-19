@@ -30,7 +30,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return "", errUnsupportedEndpoint
 	}
 	switch info.RelayMode {
-	case relayconstant.RelayModeResponses, relayconstant.RelayModeChatCompletions:
+	case relayconstant.RelayModeResponses, relayconstant.RelayModeChatCompletions, relayconstant.RelayModeResponsesCompact:
 		return CLIProxyBase + CLIResponsesPath, nil
 	default:
 		if info.RelayFormat == types.RelayFormatClaude {

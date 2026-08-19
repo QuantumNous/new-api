@@ -108,6 +108,23 @@ func TestGetRequestURL_Routing(t *testing.T) {
 	}
 }
 
+// TestGetRequestURL_CompactRoutesToCLIProxy 锁住 Task 12.5 A 修复：
+// RelayModeResponsesCompact 与 Responses/Chat 同落 CLI proxy 的 /v1/responses
+// （设计 §8.3——compact 不调不存在的上游 compact path）。修复前 compact 落
+// default 分支 → errUnsupportedEndpoint，请求在 DoRequest 前就失败。
+func TestGetRequestURL_CompactRoutesToCLIProxy(t *testing.T) {
+	a := &Adaptor{}
+	want := CLIProxyBase + CLIResponsesPath
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponsesCompact}
+	got, err := a.GetRequestURL(info)
+	if err != nil {
+		t.Fatalf("compact must route to CLI proxy, got error: %v", err)
+	}
+	if got != want {
+		t.Fatalf("compact url = %q, want %q", got, want)
+	}
+}
+
 // TestSetupRequestHeader_InjectsIdentityAndBearer 校验合法凭证下的 header 注入。
 func TestSetupRequestHeader_InjectsIdentityAndBearer(t *testing.T) {
 	a := &Adaptor{}
