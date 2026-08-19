@@ -110,10 +110,13 @@ describe('SystemStatusCard', () => {
     const tiles = wrapper.findAll('.grid > .min-w-0')
     expect(tiles).toHaveLength(4)
     const [cpu, memory, bandwidth, disk] = tiles
-    expect(cpu!.find('.h-1').exists()).toBe(true)
-    expect(memory!.find('.h-1').exists()).toBe(true)
-    expect(disk!.find('.h-1').exists()).toBe(true)
-    expect(bandwidth!.find('.h-1').exists()).toBe(false)
+    expect(cpu!.find('.pencil-progress').exists()).toBe(true)
+    expect(memory!.find('.pencil-progress').exists()).toBe(true)
+    expect(disk!.find('.pencil-progress').exists()).toBe(true)
+    expect(bandwidth!.find('.pencil-progress').exists()).toBe(false)
+    expect(cpu!.find('.pencil-progress > div').attributes('style')).toContain(
+      'width: 34%'
+    )
     expect(bandwidth!.find('.mt-auto svg[aria-hidden="true"]').exists()).toBe(
       true
     )

@@ -3,7 +3,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 
 import { api } from '@/api/console'
-import { parseUsageRows } from '@/api/liveContracts'
+import { parseUsageRows, type UsageRow } from '@/api/liveContracts'
 import { ApiError } from '@/api/types'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -12,6 +12,7 @@ export interface DashboardStats {
   quota: number
   used_quota: number
   today_quota: number
+  month_quota?: number
   today_requests: number
   total_requests: number
   month_quota_delta: number
@@ -70,6 +71,61 @@ export interface FlowPoint {
   topup: number
 }
 
+const DAY_SECONDS = 86_400
+const MAX_SELF_USAGE_RANGE_SECONDS = 30 * DAY_SECONDS
+
+export function getLocalDayStartTimestamp(now = new Date()): number {
+  return Math.floor(
+    new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000
+  )
+}
+
+export function getLocalMonthStartTimestamp(now = new Date()): number {
+  return Math.floor(
+    new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000
+  )
+}
+
+function splitUsageRange(
+  startTimestamp: number,
+  endTimestamp: number
+): Array<{ start_timestamp: number; end_timestamp: number }> {
+  if (endTimestamp < startTimestamp) return []
+
+  const ranges: Array<{
+    start_timestamp: number
+    end_timestamp: number
+  }> = []
+  let nextStart = startTimestamp
+  while (nextStart <= endTimestamp) {
+    const nextEnd = Math.min(
+      endTimestamp,
+      nextStart + MAX_SELF_USAGE_RANGE_SECONDS - 1
+    )
+    ranges.push({ start_timestamp: nextStart, end_timestamp: nextEnd })
+    nextStart = nextEnd + 1
+  }
+  return ranges
+}
+
+export async function fetchSelfUsage(
+  startTimestamp: number,
+  endTimestamp: number,
+  signal?: AbortSignal
+): Promise<UsageRow[]> {
+  const ranges = splitUsageRange(startTimestamp, endTimestamp)
+  const responses = await Promise.all(
+    ranges.map(({ start_timestamp, end_timestamp }) =>
+      api.get<unknown>(
+        '/api/data/self',
+        { start_timestamp, end_timestamp },
+        signal ? { signal } : undefined
+      )
+    )
+  )
+  return responses.flatMap(parseUsageRows)
+}
+
 /** Balance visibility preference, shared across dashboard & wallet. */
 export function useBalanceVisibility() {
   const hidden = useLocalStorage('renren_hide_balance', false)
@@ -101,29 +157,24 @@ export function useDashboard() {
     try {
       {
         const endTimestamp = Math.floor(Date.now() / 1000)
-        const startTimestamp = endTimestamp - 29 * 86_400
-        const [usageResponse, trendResponse] = await Promise.all([
-          api.get<unknown>('/api/data/self', {
-            start_timestamp: startTimestamp,
-            end_timestamp: endTimestamp,
-          }),
+        const startTimestamp = endTimestamp - 29 * DAY_SECONDS
+        const monthStartTimestamp = getLocalMonthStartTimestamp()
+        const [usage, trendResponse, monthUsage] = await Promise.all([
+          fetchSelfUsage(startTimestamp, endTimestamp),
           api.get<TokenTrendPoint[]>('/api/next/dashboard/token-trend', {
             range: '30d',
             tz_offset: String(-new Date().getTimezoneOffset()),
           }),
+          fetchSelfUsage(monthStartTimestamp, endTimestamp),
         ])
-        const usage = parseUsageRows(usageResponse)
         const previousResult = await Promise.allSettled([
-          api.get<unknown>('/api/data/self', {
-            start_timestamp: startTimestamp - 30 * 86_400,
-            end_timestamp: startTimestamp - 1,
-          }),
+          fetchSelfUsage(startTimestamp - 30 * DAY_SECONDS, startTimestamp - 1),
         ])
         const previousUsage =
           previousResult[0]?.status === 'fulfilled'
-            ? parseUsageRows(previousResult[0].value)
+            ? previousResult[0].value
             : []
-        const todayStart = endTimestamp - (endTimestamp % 86_400)
+        const todayStart = getLocalDayStartTimestamp()
         const totalQuota = usage.reduce((sum, row) => sum + row.quota, 0)
         const totalRequests = usage.reduce((sum, row) => sum + row.count, 0)
         const previousQuota = previousUsage.reduce(
@@ -140,6 +191,7 @@ export function useDashboard() {
           today_quota: usage
             .filter((row) => row.created_at >= todayStart)
             .reduce((sum, row) => sum + row.quota, 0),
+          month_quota: monthUsage.reduce((sum, row) => sum + row.quota, 0),
           today_requests: usage
             .filter((row) => row.created_at >= todayStart)
             .reduce((sum, row) => sum + row.count, 0),

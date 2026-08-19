@@ -99,6 +99,7 @@ export default {
     requestsShort: 'Requests',
     usedQuota: 'Used',
     todaySpend: "Today's spend",
+    monthSpend: "This month's spend",
     discount: {
       title: 'Pricing discount',
       global: 'Global discount',

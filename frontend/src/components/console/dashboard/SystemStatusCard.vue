@@ -277,46 +277,56 @@ const successColor = computed(() => rateColor(successRate.value))
     </div>
 
     <!--
-      Four resource gauges as equal panels. Every tile carries a bar so the 2×2
-      grid stays square: the three with a ceiling show usage against it, and
-      bandwidth — which has no ceiling — shows its up/down split instead.
-      `grow` hands the row's surplus height to this grid, whose auto rows split
-      it evenly — the panels get a little airier instead of the surplus pooling
-      as one blank band above the version row.
+      Four resource gauges as equal panels. Every tile carries a dynamic visual gauge
+      so the 2×2 grid stays square: CPU, Memory, Disk and App Traffic each display
+      tailored visual dynamic meters with light/dark theme aesthetics.
     -->
     <div class="mb-4 mt-4 grid grow grid-cols-2 gap-3">
       <div
         v-for="tile in tiles"
         :key="tile.key"
-        class="flex min-w-0 flex-col rounded-xl bg-[var(--surface-muted)] px-3 py-2.5"
+        class="group relative flex min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-all duration-300 hover:bg-[var(--surface-hover)]"
       >
-        <p
-          class="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]"
-        >
-          <ArrowUpDown
-            v-if="tile.key === 'bandwidth'"
-            :size="13"
-            :stroke-width="1.8"
-            aria-hidden="true"
-            data-bandwidth-icon
-          />
-          <svg
-            v-else-if="tile.icon"
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <!-- Tile Header with Icon and subtle badge -->
+        <div class="flex items-center justify-between gap-1.5">
+          <p
+            class="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]"
           >
-            <path :d="tile.icon" />
-          </svg>
-          <span class="truncate">{{ tile.label }}</span>
-        </p>
+            <ArrowUpDown
+              v-if="tile.key === 'bandwidth'"
+              :size="13"
+              :stroke-width="1.8"
+              aria-hidden="true"
+              data-bandwidth-icon
+            />
+            <svg
+              v-else-if="tile.icon"
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path :d="tile.icon" />
+            </svg>
+            <span class="truncate">{{ tile.label }}</span>
+          </p>
+          <!-- Auxiliary micro badge for percent status (for metrics with ceiling like memory/disk) -->
+          <span
+            v-if="tile.percent !== null && tile.key !== 'cpu'"
+            class="shrink-0 font-mono text-[9px] font-semibold tabular-nums opacity-80"
+            :style="{ color: tile.color }"
+          >
+            {{ Math.round(tile.percent) }}%
+          </span>
+        </div>
+
+        <!-- Metric Value Readout -->
         <p
-          class="mt-1 flex items-baseline pb-2"
+          class="mt-1 flex items-baseline pb-1.5"
           :class="tile.bandwidth ? 'flex-wrap gap-x-2 gap-y-0.5' : 'gap-1'"
         >
           <template v-if="tile.bandwidth">
@@ -350,26 +360,97 @@ const successColor = computed(() => rateColor(successRate.value))
             </span>
           </template>
         </p>
-        <!-- Throughput chart for the ceiling-less metric, a usage bar otherwise -->
+
+        <!-- Dynamic Visualization Area -->
+        <!-- Bandwidth: Smooth dual-track wave with dynamic glow & pulse points -->
         <div v-if="tile.series" class="mt-auto" aria-hidden="true">
           <MiniSparkline
             :points="tile.series.down"
             :secondary="tile.series.up"
-            color="var(--support)"
-            secondary-color="var(--signal)"
+            color="var(--glow)"
+            secondary-color="var(--accent)"
             :height="26"
           />
         </div>
+
+        <!-- Memory: Segmented dynamic fluid bar with tick marks -->
         <div
-          v-else
-          class="pencil-progress mt-auto flex h-1 overflow-hidden rounded-full bg-[var(--surface-solid)]"
+          v-else-if="tile.key === 'memory'"
+          class="pencil-progress relative mt-auto flex h-1.5 overflow-hidden rounded-full bg-[var(--surface-solid)]"
+          aria-hidden="true"
+        >
+          <div
+            v-if="tile.percent !== null"
+            class="relative h-full rounded-full transition-[width] duration-700"
+            :style="{
+              width: `${tile.percent}%`,
+              background: `linear-gradient(90deg, var(--glow) 0%, ${tile.color} 100%)`,
+              boxShadow: '0 0 6px rgba(142, 200, 170, 0.25)',
+            }"
+          >
+            <!-- Gentle light sheen in dark mode -->
+            <div
+              class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-sheen"
+            />
+          </div>
+          <!-- Segment dividers for tactile scale -->
+          <div
+            class="pointer-events-none absolute inset-0 flex justify-between px-1"
+          >
+            <span
+              v-for="tick in 4"
+              :key="tick"
+              class="h-full w-px bg-[var(--surface-muted)] opacity-60"
+            />
+          </div>
+        </div>
+
+        <!-- Disk: Capacity progress with warning threshold markers -->
+        <div
+          v-else-if="tile.key === 'disk'"
+          class="pencil-progress relative mt-auto flex h-1.5 overflow-hidden rounded-full bg-[var(--surface-solid)]"
           aria-hidden="true"
         >
           <div
             v-if="tile.percent !== null"
             class="h-full rounded-full transition-[width] duration-700"
-            :style="{ width: `${tile.percent}%`, background: tile.color }"
+            :style="{
+              width: `${tile.percent}%`,
+              background: `linear-gradient(90deg, var(--support) 0%, ${tile.color} 100%)`,
+              boxShadow: '0 0 6px rgba(216, 152, 76, 0.25)',
+            }"
           />
+          <!-- 70% and 90% threshold indicators -->
+          <span
+            class="pointer-events-none absolute left-[70%] top-0 h-full w-px bg-[var(--status-warning)] opacity-40"
+          />
+          <span
+            class="pointer-events-none absolute left-[90%] top-0 h-full w-px bg-[var(--status-danger)] opacity-40"
+          />
+        </div>
+
+        <!-- CPU: Dynamic load energy gauge with active pulse beacon -->
+        <div
+          v-else
+          class="pencil-progress relative mt-auto flex h-1.5 overflow-hidden rounded-full bg-[var(--surface-solid)]"
+          aria-hidden="true"
+        >
+          <div
+            v-if="tile.percent !== null"
+            class="relative h-full rounded-full transition-[width] duration-700"
+            :style="{
+              width: `${tile.percent}%`,
+              background: `linear-gradient(90deg, var(--accent-soft) 0%, ${tile.color} 100%)`,
+              boxShadow: '0 0 6px rgba(226, 188, 85, 0.25)',
+            }"
+          >
+            <!-- Glowing end beacon for live CPU pulse -->
+            <span
+              v-if="tile.percent > 0"
+              class="absolute right-0 top-1/2 -translate-y-1/2 size-1.5 rounded-full bg-white shadow-[0_0_4px_currentColor] animate-pulse-slow"
+              :style="{ color: tile.color }"
+            />
+          </div>
         </div>
       </div>
     </div>

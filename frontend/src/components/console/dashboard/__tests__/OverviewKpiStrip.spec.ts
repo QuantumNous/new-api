@@ -38,6 +38,7 @@ const stats: DashboardStats = {
   quota: 5_200_000,
   used_quota: 2_985_000,
   today_quota: 96_402,
+  month_quota: 1_842_600,
   today_requests: 312,
   total_requests: 18_764,
   month_quota_delta: 16.2,

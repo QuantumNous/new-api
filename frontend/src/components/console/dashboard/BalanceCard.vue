@@ -14,6 +14,7 @@ const props = withDefaults(
     quota: number
     usedQuota?: number
     todayQuota?: number
+    monthQuota?: number
     /** rolling daily burn used for the runway estimate */
     dailyBurn?: number
     compact?: boolean
@@ -21,6 +22,7 @@ const props = withDefaults(
   {
     usedQuota: 0,
     todayQuota: undefined,
+    monthQuota: undefined,
     dailyBurn: undefined,
     compact: false,
   }
@@ -67,6 +69,10 @@ const runwayDays = computed(() => {
   const burn = props.dailyBurn ?? props.todayQuota ?? 0
   if (burn <= 0 || props.quota <= 0) return null
   return Math.floor(props.quota / burn)
+})
+
+const monthSpendDisplay = computed(() => {
+  return props.monthQuota === undefined ? '--' : formatQuota(props.monthQuota)
 })
 </script>
 
@@ -165,9 +171,14 @@ const runwayDays = computed(() => {
       </div>
     </div>
 
-    <!-- Today vs. average spend grid -->
+    <!-- Month vs. average spend grid -->
     <div
-      v-if="!compact && (todayQuota !== undefined || dailyBurn !== undefined)"
+      v-if="
+        !compact &&
+        (monthQuota !== undefined ||
+          todayQuota !== undefined ||
+          dailyBurn !== undefined)
+      "
       class="grid grow content-center grid-cols-2 gap-3 py-2.5"
       data-balance-spend-summary
     >
@@ -180,12 +191,12 @@ const runwayDays = computed(() => {
         "
       >
         <p class="text-[11px] text-[var(--text-secondary)]">
-          {{ t('dashboard.todaySpend') }}
+          {{ t('dashboard.monthSpend') }}
         </p>
         <p
           class="mt-0.5 font-mono font-bold tabular-nums text-[var(--text-primary)]"
         >
-          {{ todayQuota === undefined ? '--' : formatQuota(todayQuota) }}
+          {{ monthSpendDisplay }}
         </p>
       </div>
       <div

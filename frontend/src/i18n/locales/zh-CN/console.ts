@@ -99,6 +99,7 @@ export default {
     requestsShort: '请求',
     usedQuota: '已用额度',
     todaySpend: '今日消费',
+    monthSpend: '本月累计',
     discount: {
       title: '定价折扣',
       global: '全局折扣',

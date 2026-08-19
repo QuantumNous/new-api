@@ -35,6 +35,34 @@ const gradientId = `sparkline-${useId()}`
 const WIDTH = 100
 const PAD = 2
 
+/** Generates smooth Bezier curve commands from an array of coordinate points */
+function toSmoothLine(coords: { x: number; y: number }[]): string {
+  if (coords.length < 2) return ''
+  const minY = Math.min(...coords.map((point) => point.y))
+  const maxY = Math.max(...coords.map((point) => point.y))
+  const clampY = (value: number) => Math.min(maxY, Math.max(minY, value))
+  if (coords.length === 2) {
+    return `M${coords[0]!.x.toFixed(2)} ${coords[0]!.y.toFixed(2)} L${coords[1]!.x.toFixed(2)} ${coords[1]!.y.toFixed(2)}`
+  }
+
+  let d = `M${coords[0]!.x.toFixed(2)} ${coords[0]!.y.toFixed(2)}`
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i === 0 ? 0 : i - 1]!
+    const p1 = coords[i]!
+    const p2 = coords[i + 1]!
+    const p3 = coords[i + 2] ?? p2
+
+    // Catmull-Rom to Cubic Bezier control points
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = clampY(p1.y + (p2.y - p0.y) / 6)
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = clampY(p2.y - (p3.y - p1.y) / 6)
+
+    d += ` C${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`
+  }
+  return d
+}
+
 /** Normalised paths. Flat series sit on the centre line instead of the floor. */
 const geometry = computed(() => {
   const values = props.points
@@ -56,15 +84,9 @@ const geometry = computed(() => {
       const y = PAD + (1 - ratio) * usable
       return { x, y }
     })
-  const toLine = (coords: { x: number; y: number }[]) =>
-    coords
-      .map(
-        (c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(2)} ${c.y.toFixed(2)}`
-      )
-      .join(' ')
 
   const coords = project(values)
-  const line = toLine(coords)
+  const line = toSmoothLine(coords)
   const area = `${line} L${WIDTH} ${props.height} L0 ${props.height} Z`
   const last = coords[coords.length - 1]!
 
@@ -73,7 +95,7 @@ const geometry = computed(() => {
     line,
     area,
     last,
-    secondaryLine: secondaryCoords ? toLine(secondaryCoords) : null,
+    secondaryLine: secondaryCoords ? toSmoothLine(secondaryCoords) : null,
     secondaryLast: secondaryCoords
       ? secondaryCoords[secondaryCoords.length - 1]!
       : null,
@@ -86,13 +108,14 @@ const geometry = computed(() => {
     v-if="geometry"
     :viewBox="`0 0 ${WIDTH} ${height}`"
     preserveAspectRatio="none"
-    class="w-full"
+    class="w-full transition-all duration-300"
     :style="{ height: `${height}px` }"
     aria-hidden="true"
   >
     <defs>
       <linearGradient :id="gradientId" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" :stop-color="color" stop-opacity="0.22" />
+        <stop offset="0%" :stop-color="color" stop-opacity="0.32" />
+        <stop offset="60%" :stop-color="color" stop-opacity="0.12" />
         <stop offset="100%" :stop-color="color" stop-opacity="0" />
       </linearGradient>
     </defs>
@@ -101,10 +124,11 @@ const geometry = computed(() => {
       :d="geometry.line"
       fill="none"
       :stroke="color"
-      stroke-width="1.5"
+      stroke-width="1.8"
       stroke-linecap="round"
       stroke-linejoin="round"
       vector-effect="non-scaling-stroke"
+      class="drop-shadow-[0_1px_3px_var(--chart-line-glow)]"
     />
     <!-- Line only for the second series: one shaded band is enough. -->
     <path
@@ -112,24 +136,29 @@ const geometry = computed(() => {
       :d="geometry.secondaryLine"
       fill="none"
       :stroke="secondaryColor"
-      stroke-width="1.5"
+      stroke-width="1.8"
       stroke-linecap="round"
       stroke-linejoin="round"
       vector-effect="non-scaling-stroke"
+      class="drop-shadow-[0_1px_3px_var(--chart-line-glow)]"
     />
     <!--
-      Latest point, so the eye lands on where the series ends. r is in viewBox
-      units and the box is stretched horizontally by preserveAspectRatio="none",
-      so this renders as a small ellipse rather than a circle — at 2px that
-      reads as a dot either way.
+      Latest point with dynamic pulse beacon
     -->
-    <circle :cx="geometry.last.x" :cy="geometry.last.y" r="2" :fill="color" />
+    <circle
+      :cx="geometry.last.x"
+      :cy="geometry.last.y"
+      r="2.4"
+      :fill="color"
+      class="animate-pulse-slow"
+    />
     <circle
       v-if="geometry.secondaryLast"
       :cx="geometry.secondaryLast.x"
       :cy="geometry.secondaryLast.y"
-      r="2"
+      r="2.4"
       :fill="secondaryColor"
+      class="animate-pulse-slow"
     />
   </svg>
 </template>

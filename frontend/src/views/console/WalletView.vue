@@ -3,8 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
-import { api } from '@/api/console'
-import { parseUsageRows } from '@/api/liveContracts'
 import { ApiError } from '@/api/types'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import PageHero from '@/components/console/PageHero.vue'
@@ -13,7 +11,11 @@ import RedeemPanel from '@/components/console/wallet/RedeemPanel.vue'
 import TopupPanel from '@/components/console/wallet/TopupPanel.vue'
 import TopupRecords from '@/components/console/wallet/TopupRecords.vue'
 import type { DashboardStats, FlowPoint } from '@/composables/useDashboard'
-import { useBalanceVisibility } from '@/composables/useDashboard'
+import {
+  fetchSelfUsage,
+  getLocalMonthStartTimestamp,
+  useBalanceVisibility,
+} from '@/composables/useDashboard'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -73,13 +75,9 @@ const statCards = computed(() => {
 async function loadStats(): Promise<void> {
   loading.value = true
   const endTimestamp = Math.floor(Date.now() / 1000)
-  const startTimestamp = endTimestamp - 29 * 86_400
+  const startTimestamp = getLocalMonthStartTimestamp()
   const result = await statsRequest.run((signal) =>
-    api.get<unknown>(
-      '/api/data/self',
-      { start_timestamp: startTimestamp, end_timestamp: endTimestamp },
-      { signal }
-    )
+    fetchSelfUsage(startTimestamp, endTimestamp, signal)
   )
   if (result.stale) return
   loading.value = false
@@ -91,7 +89,8 @@ async function loadStats(): Promise<void> {
     )
     return
   }
-  const rows = parseUsageRows(result.value)
+  const rows = result.value
+  const monthQuota = rows.reduce((sum, row) => sum + row.quota, 0)
   const byDay = new Map<string, FlowPoint>()
   for (const row of rows) {
     const date = new Date(row.created_at * 1000).toISOString().slice(0, 10)
@@ -103,8 +102,9 @@ async function loadStats(): Promise<void> {
   flow.value = [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date))
   stats.value = {
     quota: auth.user?.quota ?? 0,
-    used_quota: rows.reduce((sum, row) => sum + row.quota, 0),
+    used_quota: monthQuota,
     today_quota: 0,
+    month_quota: monthQuota,
     today_requests: 0,
     total_requests: rows.reduce((sum, row) => sum + row.count, 0),
     month_quota_delta: 0,

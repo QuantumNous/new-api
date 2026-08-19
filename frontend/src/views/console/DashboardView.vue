@@ -203,6 +203,7 @@ const rangeOptions = computed(() => [
             :quota="stats?.quota ?? 0"
             :used-quota="stats?.used_quota ?? 0"
             :today-quota="stats?.today_quota"
+            :month-quota="stats?.month_quota"
             :daily-burn="dailyBurn"
           />
           <!-- Usage distribution -->
