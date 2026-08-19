@@ -30,12 +30,16 @@ import {
   startGrokPKCE,
   GROK_OAUTH_REDIRECT_URI,
 } from '../../api'
+import {
+  normalizeGrokOAuthChannelID,
+  resolveGrokOAuthCompletionKey,
+} from '../../lib/grok-oauth'
 
 type GrokOAuthDialogProps = {
-  channelId: number
+  channelId?: number
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAuthorized: () => void
+  onAuthorized: (key?: string) => void
 }
 
 export function GrokOAuthDialog({
@@ -79,7 +83,10 @@ export function GrokOAuthDialog({
   const handleStart = async () => {
     setState((prev) => ({ ...prev, isStarting: true }))
     try {
-      const res = await startGrokPKCE(channelId, GROK_OAUTH_REDIRECT_URI)
+      const res = await startGrokPKCE(
+        normalizeGrokOAuthChannelID(channelId),
+        GROK_OAUTH_REDIRECT_URI
+      )
       if (!res.success) {
         throw new Error(res.message || 'Failed to start OAuth')
       }
@@ -152,11 +159,9 @@ export function GrokOAuthDialog({
         throw new Error(res.message || 'OAuth failed')
       }
 
-      // Success: the backend has already written the credential into the
-      // channel key. The frontend never receives (nor should hold) any token;
-      // just notify the parent to refetch the channel.
+      const key = resolveGrokOAuthCompletionKey(channelId, res)
       toast.success(t('Grok authorization completed'))
-      onAuthorized()
+      onAuthorized(key)
       onOpenChange(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t('OAuth failed'))
@@ -171,7 +176,9 @@ export function GrokOAuthDialog({
       onOpenChange={onOpenChange}
       title={t('Grok Authorization')}
       description={t(
-        'Authorize this saved channel with Grok OAuth. Credentials are stored on the server automatically.'
+        channelId === undefined
+          ? 'Authorize this new channel with Grok OAuth. The credential will be added to the form and saved only by Create Channel.'
+          : 'Authorize this saved channel with Grok OAuth. Credentials are stored on the server automatically.'
       )}
       contentClassName='sm:max-w-2xl'
       contentHeight='auto'

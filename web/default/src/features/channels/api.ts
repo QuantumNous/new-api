@@ -121,7 +121,7 @@ export type GrokPKCEStartResponse = {
 export type GrokAuthStatusResponse = {
   success: boolean
   message?: string
-  data?: { status?: string; quota_snapshot?: string }
+  data?: { status?: string; quota_snapshot?: string; key?: string }
 }
 
 // ============================================================================
