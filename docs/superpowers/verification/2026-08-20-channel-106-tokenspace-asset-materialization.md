@@ -2,7 +2,12 @@
 
 Date: 2026-08-20
 
-Scope: PR #753 branch `feat/channel-156-asset-materialization` at `df80cc0af5fea02048a702722134b73caacb9513`.
+Scope: PR #753 branch `feat/channel-156-asset-materialization`.
+
+- Implementation HEAD under test/base: `df80cc0af5fea02048a702722134b73caacb9513`.
+- Task 3 evidence HEAD reviewed before this wording correction: `ec8b1353715d9820525ba769562959baf4bfd8a1`.
+- After mutation restoration at `ec8b1353715d9820525ba769562959baf4bfd8a1`, `git diff -- service/tokenspace_material_asset.go` was empty and `git status --short` showed no uncommitted files.
+- This follow-up changes evidence wording only.
 
 ## Instructions Reviewed
 
@@ -168,7 +173,7 @@ git diff origin/main...HEAD | rg -n 'sk-|shulex123|api\.tokenspace\.net\.cn|grou
 
 Result: exit 0 with matches limited to the planned scan command text, public design/operations documentation references, and non-live test placeholders. Manual review found no live credential, no signed URL, no live group ID, and no upstream asset ID in the branch diff.
 
-No credential, group ID, response body, signed URL, or upstream asset ID was retained in source, logs, reports, or commits.
+No credential, group ID, response body, signed URL, or upstream asset ID was retained in source, reports, commits, or the scanned branch diff.
 
 ## Read-only Group Confirmation
 
