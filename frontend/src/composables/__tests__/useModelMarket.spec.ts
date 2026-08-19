@@ -101,4 +101,43 @@ describe('live model market adapter', () => {
     expect(catalog.vendors).toEqual(vendors)
     for (const vendor of vendors) expect(vendorMeta[vendor]).toBeTruthy()
   })
+
+  it('hides only strict GPT Compact virtual models from the market', () => {
+    const names = [
+      'gpt-5.3-codex',
+      'gpt-5.3-codex-openai-compact',
+      'claude-3-openai-compact',
+      'gpt--openai-compact',
+      'gpt-5.3-openai-compact-preview',
+    ]
+    const catalog = buildLiveModelCatalog(
+      names,
+      names.map((name, index) => ({
+        model_name: name,
+        description: '',
+        icon: '',
+        tags: '',
+        vendor_id: index + 1,
+        quota_type: 0,
+        model_ratio: 1,
+        model_price: 0,
+        owner_by:
+          name === 'gpt-5.3-codex-openai-compact' ? 'Virtual' : 'OpenAI',
+        completion_ratio: 1,
+        cache_ratio: null,
+        enable_groups: [],
+        supported_endpoint_types: ['chat'],
+        billing_mode: '',
+      })),
+      []
+    )
+
+    expect(catalog.models.map((model) => model.name)).toEqual([
+      'gpt-5.3-codex',
+      'claude-3-openai-compact',
+      'gpt--openai-compact',
+      'gpt-5.3-openai-compact-preview',
+    ])
+    expect(catalog.vendors).toEqual(['OpenAI'])
+  })
 })

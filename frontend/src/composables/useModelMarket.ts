@@ -34,6 +34,8 @@ export interface VendorGroup {
   down: number // < 80
 }
 
+const compactVirtualModelPattern = /^gpt-.+-openai-compact$/
+
 function modelType(endpoints: string[]): MarketModel['type'] {
   if (endpoints.includes('image-generation')) return 'image'
   if (endpoints.includes('embeddings')) return 'embedding'
@@ -66,29 +68,31 @@ export function buildLiveModelCatalog(
   const performanceByName = new Map(
     performance.map((item) => [item.model_name, item])
   )
-  const models = names.map((name, index) => {
-    const price = pricingByName.get(name)
-    const metrics = performanceByName.get(name)
-    const vendor = price?.owner_by.trim() || '平台'
-    return {
-      id: index + 1,
-      name,
-      vendor,
-      type: modelType(price?.supported_endpoint_types ?? []),
-      billing:
-        price?.billing_mode === 'tiered_expr'
-          ? ('tiered' as const)
-          : price?.quota_type === 1
-            ? ('per_call' as const)
-            : ('token' as const),
-      price: price ? modelPrice(price) : {},
-      context: 0,
-      tagline: price?.description ?? '',
-      latency: metrics ? Math.max(0, metrics.avg_latency_ms / 1000) : 0,
-      tps: metrics ? Math.max(0, metrics.avg_tps) : 0,
-      health: metrics ? Math.min(100, Math.max(0, metrics.success_rate)) : 0,
-    }
-  })
+  const models = names
+    .filter((name) => !compactVirtualModelPattern.test(name))
+    .map((name, index) => {
+      const price = pricingByName.get(name)
+      const metrics = performanceByName.get(name)
+      const vendor = price?.owner_by.trim() || '平台'
+      return {
+        id: index + 1,
+        name,
+        vendor,
+        type: modelType(price?.supported_endpoint_types ?? []),
+        billing:
+          price?.billing_mode === 'tiered_expr'
+            ? ('tiered' as const)
+            : price?.quota_type === 1
+              ? ('per_call' as const)
+              : ('token' as const),
+        price: price ? modelPrice(price) : {},
+        context: 0,
+        tagline: price?.description ?? '',
+        latency: metrics ? Math.max(0, metrics.avg_latency_ms / 1000) : 0,
+        tps: metrics ? Math.max(0, metrics.avg_tps) : 0,
+        health: metrics ? Math.min(100, Math.max(0, metrics.success_rate)) : 0,
+      }
+    })
   return {
     models,
     vendors: [...new Set(models.map((model) => model.vendor))],
