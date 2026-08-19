@@ -58,8 +58,7 @@ async function copyName() {
   <!-- ============ GRID ============ -->
   <article
     v-if="layout === 'grid'"
-    class="pencil-surface sketch-card group flex flex-col justify-between rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-4.5 transition duration-200 ease-out hover:border-[var(--accent)] hover:shadow-[var(--card-shadow-hover)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-1"
-    data-handdrawn="surface"
+    class="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)] p-5 shadow-[var(--card-shadow)] transition duration-200 ease-out hover:border-[var(--accent)] hover:shadow-[var(--card-shadow-hover)] focus-within:border-[var(--accent)] motion-safe:hover:-translate-y-1"
   >
     <!-- Header: Model Name on left, Actions on right -->
     <div>
