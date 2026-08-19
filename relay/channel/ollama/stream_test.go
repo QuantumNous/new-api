@@ -102,6 +102,34 @@ func TestOllamaChatHandlerNonStreamToolCalls(t *testing.T) {
 	}
 }
 
+func TestOllamaStreamHandlerCompletesThinkingAndContent(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	raw := strings.Join([]string{
+		`{"model":"qwen3","created_at":"2026-08-14T12:00:00Z","message":{"role":"assistant","content":"","thinking":"plan"},"done":false}`,
+		`{"model":"qwen3","created_at":"2026-08-14T12:00:01Z","message":{"role":"assistant","content":"hello"},"done":false}`,
+		`{"model":"qwen3","created_at":"2026-08-14T12:00:02Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","prompt_eval_count":3,"eval_count":2}`,
+	}, "\n")
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	usage, apiErr := ollamaStreamHandler(c, &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "qwen3"},
+	}, &http.Response{Body: io.NopCloser(strings.NewReader(raw))})
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 5, usage.TotalTokens)
+
+	body := recorder.Body.String()
+	assert.Contains(t, body, "plan")
+	assert.Contains(t, body, "hello")
+	assert.Contains(t, body, "[DONE]")
+}
+
 // TestOllamaStreamHandlerClientCancelClosesUpstream pins the playground-stop
 // contract for Ollama NDJSON streams: aborting the client request (Playground
 // stop) must close the upstream body so Ollama stops generating, and the
