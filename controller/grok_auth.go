@@ -90,6 +90,9 @@ func GrokPKCEStart(channelID int, redirectURI string) (GrokPKCEStartResult, erro
 	if err := model.CreateGrokAuthFlow(flow); err != nil {
 		return GrokPKCEStartResult{}, err
 	}
+	// 机会式清理过期 PKCE 残留（含未认领的 owner_token='' verifier 密文，无界增长）。
+	// best-effort：清理失败绝不阻断授权主流程（设计 §7.1）。
+	_ = model.DeleteExpiredGrokAuthFlows()
 
 	q := url.Values{}
 	q.Set("response_type", "code")

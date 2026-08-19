@@ -87,6 +87,30 @@ func TestConsumeGrokAuthFlowOnlyOwner(t *testing.T) {
 	}
 }
 
+// TestDeleteExpiredGrokAuthFlows 守护 [1]：过期 flow（含未认领的 owner_token='' PKCE 残留）
+// 必须被清理，未过期 flow 必须保留。照既有夹具时间约定：ExpiresAt 为 UNIX 秒，
+// GetDBTimestamp()-1 已过期、GetDBTimestamp()+600 未过期。
+func TestDeleteExpiredGrokAuthFlows(t *testing.T) {
+	setupGrokAuthFlowTestDB(t)
+
+	// 已过期、未认领（owner_token 空）——正是无界增长的密文残留。
+	expiredUnclaimed := &GrokAuthFlow{Provider: "grok_subscription", ChannelID: 1, StateHash: "s1", EncryptedVerifier: "v1:e1", ExpiresAt: GetDBTimestamp() - 1}
+	// 已过期、已认领——同样应清。
+	expiredClaimed := &GrokAuthFlow{Provider: "grok_subscription", ChannelID: 2, StateHash: "s2", EncryptedVerifier: "v1:e2", OwnerToken: "owner-x", ExpiresAt: GetDBTimestamp() - 100}
+	// 未过期——必须保留。
+	fresh := &GrokAuthFlow{Provider: "grok_subscription", ChannelID: 3, StateHash: "s3", EncryptedVerifier: "v1:e3", ExpiresAt: GetDBTimestamp() + 600}
+	for _, f := range []*GrokAuthFlow{expiredUnclaimed, expiredClaimed, fresh} {
+		require.NoError(t, CreateGrokAuthFlow(f))
+	}
+
+	require.NoError(t, DeleteExpiredGrokAuthFlows())
+
+	var remaining []GrokAuthFlow
+	require.NoError(t, DB.Find(&remaining).Error)
+	require.Len(t, remaining, 1, "only the non-expired flow must survive")
+	require.Equal(t, fresh.FlowID, remaining[0].FlowID)
+}
+
 // TestGrokAuthFlowRejectsInvalidInputs 覆盖 CRUD 的 fail-closed 入口校验（M1）。
 func TestGrokAuthFlowRejectsInvalidInputs(t *testing.T) {
 	setupGrokAuthFlowTestDB(t)
