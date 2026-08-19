@@ -252,9 +252,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	info.UpstreamStreamForced = false
 	// Force upstream streaming when channel requests it and client asked for non-stream.
 	// The SSE response will be aggregated by OaiBufferedStreamHandler in DoResponse.
+	// Do NOT set info.IsStream here -- DoApiRequest uses it to set SSE headers
+	// and start a ping goroutine for the downstream client, which would corrupt
+	// the non-streaming JSON response. DoResponse routes on UpstreamStreamForced
+	// directly, independent of IsStream.
 	if info.ChannelSetting.ForceUpstreamStream && !lo.FromPtrOr(request.Stream, false) {
 		request.Stream = lo.ToPtr(true)
-		info.IsStream = true
 		info.UpstreamStreamForced = true
 		// Inject stream_options.include_usage so the upstream returns actual
 		// usage in the final SSE chunk. Without this, the buffered handler
@@ -679,12 +682,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeResponsesCompact:
 		usage, err = OaiResponsesCompactionHandler(c, resp)
 	default:
-		if info.IsStream {
-			if info.UpstreamStreamForced {
-				usage, err = OaiBufferedStreamHandler(c, info, resp)
-			} else {
-				usage, err = OaiStreamHandler(c, info, resp)
-			}
+		if info.UpstreamStreamForced {
+			// Forced upstream stream: the upstream returned SSE but the client
+			// asked for non-streaming. Aggregate into a single JSON response.
+			usage, err = OaiBufferedStreamHandler(c, info, resp)
+		} else if info.IsStream {
+			usage, err = OaiStreamHandler(c, info, resp)
 		} else {
 			usage, err = OpenaiHandler(c, info, resp)
 		}
