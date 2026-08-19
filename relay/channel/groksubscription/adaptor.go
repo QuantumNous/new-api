@@ -1,6 +1,7 @@
 package groksubscription
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -111,6 +112,21 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	// 时解引用会 panic，必须与 ConvertOpenAIRequest 一致做 nil 防御。
 	if request.Model == "" && info != nil && info.ChannelMeta != nil {
 		request.Model = info.UpstreamModelName
+	}
+	// compact 端点：clean-room 把请求改造成服务端 summary 指令的普通非流式
+	// Responses turn（设计 §8.3/§9——不调不存在的上游 compact path）。BuildCompactTurn
+	// 追加 summary item、强制 stream/store=false、经 include 请求 encrypted reasoning、
+	// 并剥离工具配置。非 compact 路径保持返回 dto（正常 Responses 请求行为不变）。
+	if info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		raw, err := common.Marshal(&request)
+		if err != nil {
+			return nil, err
+		}
+		out, err := BuildCompactTurn(raw)
+		if err != nil {
+			return nil, err
+		}
+		return json.RawMessage(out), nil
 	}
 	return request, nil
 }

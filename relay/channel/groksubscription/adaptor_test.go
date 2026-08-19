@@ -1,6 +1,7 @@
 package groksubscription
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -14,6 +15,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // 说明：DoResponse 的 Responses→Chat 转换（RelayModeChatCompletions 分支）复用
@@ -254,6 +256,75 @@ func TestConvertOpenAIRequest_NilRequest(t *testing.T) {
 	a := &Adaptor{}
 	if _, err := a.ConvertOpenAIRequest(newTestGinContext(t), &relaycommon.RelayInfo{}, nil); err == nil {
 		t.Fatalf("expected error for nil request")
+	}
+}
+
+// TestConvertOpenAIResponsesRequest_CompactBuildsSummaryTurn 锁住 Task 12.5 B 修复：
+// compact RelayMode 下，ConvertOpenAIResponsesRequest 必须把请求交给 BuildCompactTurn
+// 改造成服务端 summary turn（返回 json.RawMessage），而非透传 dto。断言：
+//   - 返回 json.RawMessage（非 dto.OpenAIResponsesRequest）
+//   - input 末尾追加了 summary item
+//   - stream=false、store=false
+//   - include 数组含 reasoning.encrypted_content，且不是布尔形态
+//   - tools 被剥离
+func TestConvertOpenAIResponsesRequest_CompactBuildsSummaryTurn(t *testing.T) {
+	a := &Adaptor{}
+	req := dto.OpenAIResponsesRequest{}
+	if err := common.Unmarshal([]byte(`{"model":"grok-4","input":[{"role":"user","content":"hi"}],"tools":[{"type":"function"}]}`), &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponsesCompact}
+	out, err := a.ConvertOpenAIResponsesRequest(newTestGinContext(t), info, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	raw, ok := out.(json.RawMessage)
+	if !ok {
+		t.Fatalf("compact must return json.RawMessage (BuildCompactTurn output), got %T", out)
+	}
+	if getBool(raw, "stream") != false {
+		t.Fatalf("compact must force stream=false")
+	}
+	if getBool(raw, "store") != false {
+		t.Fatalf("compact must force store=false")
+	}
+	if !hasSummaryItem(raw) {
+		t.Fatalf("compact must append server summary item to input")
+	}
+	if hasTopLevelKey(raw, "tools") {
+		t.Fatalf("compact must strip tools")
+	}
+	inc := gjson.GetBytes(raw, "include")
+	if !inc.IsArray() {
+		t.Fatalf("include must be array, got %q", inc.Raw)
+	}
+	found := false
+	for _, v := range inc.Array() {
+		if v.String() == "reasoning.encrypted_content" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("include must contain reasoning.encrypted_content, got %q", inc.Raw)
+	}
+	if gjson.GetBytes(raw, "reasoning.encrypted_content").Type == gjson.True {
+		t.Fatalf("must not set boolean reasoning.encrypted_content")
+	}
+}
+
+// TestConvertOpenAIResponsesRequest_NonCompactUnchanged 锁住非 compact 路径行为不变：
+// 普通 Responses 请求仍返回 dto.OpenAIResponsesRequest（不经 BuildCompactTurn），
+// 保证正常 Responses 流量不受 compact 接线影响。
+func TestConvertOpenAIResponsesRequest_NonCompactUnchanged(t *testing.T) {
+	a := &Adaptor{}
+	req := dto.OpenAIResponsesRequest{Model: "grok-4"}
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponses}
+	out, err := a.ConvertOpenAIResponsesRequest(newTestGinContext(t), info, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := out.(dto.OpenAIResponsesRequest); !ok {
+		t.Fatalf("non-compact must return dto.OpenAIResponsesRequest unchanged, got %T", out)
 	}
 }
 
