@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -255,11 +256,17 @@ func recordGrokNeedsReauth(channelID int, cause error) {
 	_ = upsertGrokAuthStatus(channelID, model.GrokAuthStatusNeedsReauth, false, msg)
 }
 
+// truncateGrokString 按字节上限截断，但 rune 安全：若 limit 落在多字节 rune 中间，
+// 回退到最近的 rune 边界，避免 LastError 存下坏尾字节（列宽 512 场景）。
 func truncateGrokString(s string, limit int) string {
-	if len(s) > limit {
-		return s[:limit]
+	if len(s) <= limit {
+		return s
 	}
-	return s
+	cut := s[:limit]
+	for len(cut) > 0 && !utf8.ValidString(cut) {
+		cut = cut[:len(cut)-1]
+	}
+	return cut
 }
 
 // ---- refresh-token import ----

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -730,7 +731,38 @@ func TestGrokAuthUpsertStatusCreatesOnNotFound(t *testing.T) {
 	require.NotZero(t, st.LastRefreshAt, "markRefreshed 应落 LastRefreshAt")
 }
 
-// TestGrokAuthHTTPDoerHasTimeout 守护默认 doer 不是 http.DefaultClient 且带正 Timeout：
+// TestGrokTruncateStringIsRuneSafe 守护 [4]：LastError 截断（512 列宽）绝不能切断多字节 rune
+// 留下坏尾字节。中文/emoji 超限串截断后必须仍是合法 UTF-8 且长度<=limit；ASCII 行为不变。
+func TestGrokTruncateStringIsRuneSafe(t *testing.T) {
+	// 每个中文占 3 字节；limit 落在某个 rune 中间，天真的 s[:limit] 会切出坏字节。
+	zh := strings.Repeat("测", 300) // 900 字节
+	for _, limit := range []int{0, 1, 2, 3, 7, 100, 511, 512} {
+		out := truncateGrokString(zh, limit)
+		if !utf8.ValidString(out) {
+			t.Fatalf("truncated string must stay valid UTF-8 at limit=%d, got invalid bytes", limit)
+		}
+		if len(out) > limit {
+			t.Fatalf("truncated length %d must be <= limit %d", len(out), limit)
+		}
+	}
+	// emoji（4 字节）同样不得被拆
+	emoji := strings.Repeat("😀", 200) // 800 字节
+	out := truncateGrokString(emoji, 10)
+	if !utf8.ValidString(out) {
+		t.Fatalf("emoji truncation must stay valid UTF-8")
+	}
+	if len(out) > 10 {
+		t.Fatalf("emoji truncation length %d must be <= 10", len(out))
+	}
+	// ASCII 行为不变：短串原样返回，超限按字节截断且合法
+	if got := truncateGrokString("hello", 512); got != "hello" {
+		t.Fatalf("short ASCII must be returned unchanged, got %q", got)
+	}
+	ascii := strings.Repeat("a", 600)
+	if got := truncateGrokString(ascii, 512); len(got) != 512 || got != strings.Repeat("a", 512) {
+		t.Fatalf("ASCII truncation must be exactly 512 'a', got len=%d", len(got))
+	}
+}
 // token 交换是短请求，http.DefaultClient 无 Timeout，上游挂起会无限拖住 admin API
 // goroutine（本平台有上游卡 44 分钟的先例）。
 func TestGrokAuthHTTPDoerHasTimeout(t *testing.T) {
