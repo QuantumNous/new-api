@@ -19,15 +19,22 @@ import (
 // the same tier the whole /api surface uses and is generous enough for a
 // periodic reconciliation consumer paginating through results.
 func SetUsageReconciliationRouter(router *gin.Engine) {
-	g := router.Group("/usage")
-	g.Use(middleware.GlobalAPIRateLimit(), middleware.UsageReconAuth())
-	g.GET("/summary", controller.GetUsageSummary)
-	g.GET("/validation", controller.GetUsageValidation)
-	g.GET("/transactions", controller.GetUsageTransactions)
-	g.GET("/models", controller.GetUsageModels)
-	g.GET("/channels", controller.GetUsageChannels)
-	g.GET("/channel-summary", controller.GetChannelUsageSummary)
-	g.GET("/channel-validation", controller.GetChannelUsageValidation)
-	g.GET("/channel-transactions", controller.GetChannelUsageTransactions)
-	g.GET("/channel-models", controller.GetChannelUsageModels)
+	channelUsage := router.Group("/usage")
+	channelUsage.Use(middleware.GlobalAPIRateLimit(), middleware.UsageReconAuth())
+	channelUsage.GET("/summary", controller.GetUsageSummary)
+	channelUsage.GET("/validation", controller.GetUsageValidation)
+	channelUsage.GET("/transactions", controller.GetUsageTransactions)
+	channelUsage.GET("/models", controller.GetUsageModels)
+	channelUsage.GET("/channels", controller.GetUsageChannels)
+	channelUsage.GET("/channel-summary", controller.GetChannelUsageSummary)
+	channelUsage.GET("/channel-validation", controller.GetChannelUsageValidation)
+	channelUsage.GET("/channel-transactions", controller.GetChannelUsageTransactions)
+	channelUsage.GET("/channel-models", controller.GetChannelUsageModels)
+
+	customerUsage := router.Group("/usage")
+	customerUsage.Use(middleware.GlobalAPIRateLimit(), middleware.CustomerUsageAuth())
+	customerUsage.GET("/customers/:customer_id", controller.GetCustomerUsageCustomer)
+	customerUsage.GET("/customer-transactions", controller.GetCustomerUsageTransactions)
+	customerUsage.GET("/customer-summary", controller.GetCustomerUsageSummary)
+	customerUsage.GET("/customer-adjustments", controller.GetCustomerUsageAdjustments)
 }
