@@ -105,6 +105,9 @@ func TestConvertOpenAIRequest_ForceUpstreamStream(t *testing.T) {
 					"StreamOptions should be injected when stream is forced and provider supports it")
 				assert.True(t, returnedRequest.StreamOptions.IncludeUsage,
 					"StreamOptions.IncludeUsage must be true")
+			} else {
+				assert.Nil(t, returnedRequest.StreamOptions,
+					"StreamOptions must not be injected when stream is not forced or provider does not support it")
 			}
 		})
 	}
@@ -172,9 +175,10 @@ func TestDoResponse_RoutesForcedStreamToBufferedHandler(t *testing.T) {
 			contentType := w.Header().Get("Content-Type")
 			body := w.Body.String()
 			if tt.wantJSON {
-				// Buffered handler produces a single JSON object (not SSE chunks)
-				// Content-Type may be copied from upstream (text/event-stream) by
-				// IOCopyBytesGracefully, so we check the body format instead.
+				// Buffered handler produces a single JSON object with
+				// Content-Type application/json.
+				assert.Contains(t, contentType, "application/json",
+					"forced stream route must return application/json")
 				assert.Contains(t, body, "chat.completion",
 					"expected JSON response from buffered handler")
 				assert.NotContains(t, body, "data: ",
