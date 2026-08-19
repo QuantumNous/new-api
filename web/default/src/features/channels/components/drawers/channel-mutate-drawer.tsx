@@ -395,6 +395,16 @@ export function ChannelMutateDrawer({
     }
   }, [open, resetDoubaoApiUnlock])
 
+  // Clear the Grok refresh-token plaintext when the user switches the channel
+  // type away from 113: the type-113 block unmounts but its input value would
+  // otherwise linger in state (design §14: refresh-token plaintext must not
+  // persist once its input is gone). Setter is a stable ref.
+  useEffect(() => {
+    if (currentType !== 113) {
+      setGrokRefreshTokenInput('')
+    }
+  }, [currentType])
+
   // Helper computed values
   const isBatchMode =
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
