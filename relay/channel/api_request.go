@@ -321,6 +321,14 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 	}
 }
 
+func finalizeRequestIfSupported(a any, c *gin.Context, req *http.Request, info *common.RelayInfo) error {
+	finalizer, ok := a.(RequestFinalizer)
+	if !ok {
+		return nil
+	}
+	return finalizer.FinalizeRequest(c, req, info)
+}
+
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
@@ -350,6 +358,9 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 			return nil, err
 		}
 		applyHeaderOverrideToRequest(req, headerOverride)
+	}
+	if err := finalizeRequestIfSupported(a, c, req, info); err != nil {
+		return nil, err
 	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
@@ -383,6 +394,9 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+	if err := finalizeRequestIfSupported(a, c, req, info); err != nil {
+		return nil, err
+	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
@@ -410,6 +424,17 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		targetHeader.Set(key, value)
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	if finalizer, ok := a.(RequestFinalizer); ok {
+		req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, fullRequestURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("new websocket request failed: %w", err)
+		}
+		req.Header = targetHeader
+		if err := finalizer.FinalizeRequest(c, req, info); err != nil {
+			return nil, err
+		}
+		targetHeader = req.Header
+	}
 	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
 	if err != nil {
 		return nil, fmt.Errorf("dial failed to %s: %w", fullRequestURL, err)
@@ -619,6 +644,9 @@ func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, req
 	err = a.BuildRequestHeader(c, req, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
+	}
+	if err := finalizeRequestIfSupported(a, c, req, info); err != nil {
+		return nil, err
 	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
