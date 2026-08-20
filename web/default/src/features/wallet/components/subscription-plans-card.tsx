@@ -446,15 +446,24 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
 
   useEffect(() => {
     let cancelled = false
+    const clearPlanPreviewQuotes = () => {
+      void Promise.resolve().then(() => {
+        if (!cancelled) {
+          setPlanPreviewQuotes({})
+        }
+      })
+    }
     if (
       loading ||
       orderedPlans.length === 0 ||
       !isPaymentChoiceAvailable(paymentAvailability, 'stripe_recurring')
     ) {
-      setPlanPreviewQuotes({})
-      return
+      clearPlanPreviewQuotes()
+      return () => {
+        cancelled = true
+      }
     }
-    setPlanPreviewQuotes({})
+    clearPlanPreviewQuotes()
     const loadPlanPreviewQuotes = async () => {
       const entries = await Promise.all(
         orderedPlans.map(async (item) => {
