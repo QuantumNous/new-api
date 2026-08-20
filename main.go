@@ -29,6 +29,7 @@ import (
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	intelligentrouting "github.com/QuantumNous/new-api/service/intelligent_routing"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -338,6 +339,10 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+	if err := intelligentrouting.DefaultPolicyControl.RefreshSnapshot(context.Background()); err != nil {
+		common.SysError("failed to load intelligent routing policy snapshot: " + err.Error())
+	}
+	intelligentrouting.StartPolicyRefresh(context.Background(), intelligentrouting.DefaultPolicyControl, time.Duration(common.SyncFrequency)*time.Second)
 
 	perfmetrics.Init()
 

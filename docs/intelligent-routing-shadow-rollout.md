@@ -10,6 +10,10 @@ Routing details remain backend-only under `other.admin_info.intelligent_routing`
 
 ## Configuration
 
+Published administrator policies and scoped rollouts are managed through the root-only `/api/intelligent-routing` endpoints. Drafts are validated and checksummed before publication; published versions are immutable, and rollback creates a new version. A rollout selects a published version, `shadow` or `live` mode, user/token group allowlists, and a deterministic traffic percentage guarded by a revision number.
+
+Instances refresh the durable rollout snapshot at startup and periodically. The stable bucket uses the policy version, account, and token so the same caller remains in the same cohort. If no durable rollout exists, the legacy global configuration below remains active for backward compatibility.
+
 Configure the registered `intelligent_routing_setting` object through the system options API or administrator settings storage:
 
 - `enabled`: enables planning.
