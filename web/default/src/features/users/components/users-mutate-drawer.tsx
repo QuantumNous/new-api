@@ -55,6 +55,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import {
   SideDrawerSection,
   sideDrawerContentClassName,
@@ -526,6 +527,34 @@ export function UsersMutateDrawer({
                             rows={3}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='email_verified'
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className='flex items-center justify-between gap-3'>
+                          <div className='space-y-0.5'>
+                            <FormLabel>
+                              {t('Email verified')}
+                            </FormLabel>
+                            <FormDescription>
+                              {t(
+                                'Manually pass the email verification for this account'
+                              )}
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={!!field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -6668,6 +6668,16 @@
     "Purpose": "Назначение",
     "Redeem credits": "Активировать кредиты",
     "Too late — all codes have already been claimed": "Вы опоздали — все коды уже разобраны",
-    "You already claimed this offer": "Вы уже получили это предложение"
+    "You already claimed this offer": "Вы уже получили это предложение",
+    "Paid": "Оплачено",
+    "Manually pass the email verification for this account": "Вручную подтвердить электронную почту этой учетной записи",
+    "Email Verified": "Почта подтверждена",
+    "Verified": "Подтверждено",
+    "Unverified": "Не подтверждено",
+    "Verify email of selected users": "Подтвердить почту выбранных пользователей",
+    "Verify Selected Users?": "Подтвердить выбранных пользователей?",
+    "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "Будет подтверждена почта для {{count}} выбранных пользователей. Удалённые пользователи будут пропущены.",
+    "Successfully verified {{count}} user(s)": "Успешно подтверждено {{count}} пользователей",
+    "No selected users can be verified": "Нет выбранных пользователей для подтверждения"
   }
 }

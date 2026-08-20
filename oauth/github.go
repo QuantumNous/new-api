@@ -209,6 +209,11 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		Username:       githubUser.Login,
 		DisplayName:    githubUser.Name,
 		Email:          githubUser.Email,
+		// GitHub only surfaces account emails after verification (the public
+		// email is one of the account's verified emails; when absent we fetch
+		// the verified primary via /user/emails). A non-empty GitHub email is
+		// therefore provider-verified by construction.
+		EmailVerified: githubUser.Email != "",
 		Extra: map[string]any{
 			"legacy_id": githubUser.Login, // Store login for migration from old accounts
 		},

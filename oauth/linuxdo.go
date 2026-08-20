@@ -161,6 +161,9 @@ func (p *LinuxDOProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*
 		Username:       linuxdoUser.Username,
 		DisplayName:    linuxdoUser.Name,
 		Email:          strings.TrimSpace(linuxdoUser.Email),
+		// LinuxDO does not expose an email-verified signal, so the account must
+		// verify the address through the standard flow before using tokens.
+		EmailVerified: false,
 		Extra: map[string]any{
 			"trust_level": linuxdoUser.TrustLevel,
 			"active":      linuxdoUser.Active,

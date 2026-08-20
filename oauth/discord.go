@@ -33,10 +33,11 @@ type discordOAuthResponse struct {
 }
 
 type discordUser struct {
-	UID   string `json:"id"`
-	ID    string `json:"username"`
-	Name  string `json:"global_name"`
-	Email string `json:"email"`
+	UID      string `json:"id"`
+	ID       string `json:"username"`
+	Name     string `json:"global_name"`
+	Email    string `json:"email"`
+	Verified bool   `json:"verified"` // Discord's account email-verified flag
 }
 
 func (p *DiscordProvider) GetName() string {
@@ -153,6 +154,9 @@ func (p *DiscordProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*
 		Username:       discordUser.ID,
 		DisplayName:    discordUser.Name,
 		Email:          strings.TrimSpace(discordUser.Email),
+		// Discord marks the account email as verified when it was confirmed on
+		// Discord's side; without that flag we cannot claim ownership proof.
+		EmailVerified: discordUser.Email != "" && discordUser.Verified,
 	}, nil
 }
 

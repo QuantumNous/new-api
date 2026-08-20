@@ -130,7 +130,10 @@ func RegisterUserWithDomainRisk(user *User, inviterID int, registrationIP string
 		if err := tx.Where("domain = ?", domain).First(&state).Error; err != nil {
 			return err
 		}
-		if state.ActiveBlockID != 0 {
+		// An active velocity block only applies when the risk policy is enabled.
+		// Trusted domains (and a globally-disabled policy) bypass it, so an
+		// enterprise customer can still register after its domain was hammered.
+		if policy.Enabled && state.ActiveBlockID != 0 {
 			result.BlockID = state.ActiveBlockID
 			return nil
 		}

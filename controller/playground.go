@@ -4,9 +4,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -47,6 +51,15 @@ func Playground(c *gin.Context) {
 		return
 	}
 	userCache.WriteContext(c)
+
+	// Playground consumes the user's quota directly; apply the same
+	// email-verification gate used for API tokens.
+	if operation_setting.RequireEmailVerificationForTokens() &&
+		userCache.Role < common.RoleAdminUser &&
+		userCache.Email != "" && userCache.EmailVerifiedAt == 0 {
+		newAPIError = types.NewError(errors.New(i18n.T(c, i18n.MsgUserEmailVerificationRequiredForAPI, map[string]any{"ConsoleOrigin": system_setting.ResolveConsoleOrigin()})), types.ErrorCodeAccessDenied, types.ErrOptionWithSkipRetry())
+		return
+	}
 
 	tempToken := &model.Token{
 		UserId: userId,

@@ -277,7 +277,7 @@ func TestRegisterUserWithDomainRiskNormalizesPrepopulatedEmailDomain(t *testing.
 	require.Equal(t, "mixed.example", stored.EmailDomain)
 }
 
-func TestRegisterUserWithDomainRiskRejectsActiveBlockWhenThresholdPolicyDisabled(t *testing.T) {
+func TestRegisterUserWithDomainRiskAllowsWhenPolicyDisabledEvenWithActiveBlock(t *testing.T) {
 	setupRegistrationDomainRiskTest(t)
 	now := time.Now().Unix()
 	block := RegistrationDomainBlock{Domain: "trusted.example", WindowHours: 24, Threshold: 10, ObservedCount: 10, BlockedAt: now}
@@ -287,9 +287,11 @@ func TestRegisterUserWithDomainRiskRejectsActiveBlockWhenThresholdPolicyDisabled
 
 	result, err := RegisterUserWithDomainRisk(&candidate, 0, "203.0.113.16", RegistrationDomainRiskPolicy{Enabled: false, Now: now}, nil)
 
-	require.ErrorIs(t, err, ErrRegistrationDomainBlocked)
-	require.Equal(t, block.Id, result.BlockID)
-	require.Zero(t, candidate.Id)
+	// A disabled policy (trusted domain or globally-off risk) must bypass the
+	// active block and create the user, so customers can still register.
+	require.NoError(t, err)
+	require.Zero(t, result.BlockID)
+	require.NotZero(t, candidate.Id)
 }
 
 func TestRegisterUserWithDomainRiskBackfillsLegacyEmailDomains(t *testing.T) {

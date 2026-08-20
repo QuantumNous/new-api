@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/context/theme-provider'
+import { countryLabel } from '@/lib/country'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -243,21 +244,6 @@ function FunnelComboChart({
       />
     </div>
   )
-}
-
-function countryLabel(code: string, locale: string): string {
-  if (!code || code.length !== 2) return ''
-  const cc = code.toUpperCase()
-  const flag = String.fromCodePoint(
-    ...[...cc].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)
-  )
-  let name = cc
-  try {
-    name = new Intl.DisplayNames([locale], { type: 'region' }).of(cc) ?? cc
-  } catch {
-    // fall back to the bare code
-  }
-  return `${flag} ${name}`
 }
 
 // All times in this report render in US Pacific Time to match the backend's

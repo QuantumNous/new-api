@@ -49,6 +49,19 @@ func NormalizeAppConsoleOrigin(value string) (string, error) {
 	return scheme + "://" + parsed.Host, nil
 }
 
+// ResolveConsoleOrigin returns the configured app-console origin, falling back
+// to ServerAddress. Empty when neither is set. Used to build user-facing links
+// (e.g. "sign in at <origin>/sign-in") without hardcoding a host.
+func ResolveConsoleOrigin() string {
+	if origin, err := NormalizeAppConsoleOrigin(GetAppConsoleSettings().Origin); err == nil && origin != "" {
+		return origin
+	}
+	if origin, err := NormalizeAppConsoleOrigin(ServerAddress); err == nil {
+		return origin
+	}
+	return ""
+}
+
 func appConsoleOriginHostValid(host, hostname, port string) bool {
 	if port != "" {
 		portNumber, err := strconv.Atoi(port)

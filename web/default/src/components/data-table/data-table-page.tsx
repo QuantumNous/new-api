@@ -316,6 +316,9 @@ function renderDesktop<TData>(
                 <TableHead
                   key={header.id}
                   colSpan={header.colSpan}
+                  className={getPinnedCellClass(
+                    header.column.columnDef.meta?.pinned
+                  )}
                   style={
                     props.applyHeaderSize
                       ? { width: header.getSize() }
@@ -368,6 +371,16 @@ function renderDesktop<TData>(
   )
 }
 
+/**
+ * Sticky-cell classes for columns that declare `meta.pinned`. Uses the theme
+ * background so scrolling content does not bleed through the pinned column.
+ */
+function getPinnedCellClass(pinned?: 'left' | 'right'): string | undefined {
+  if (pinned === 'right') return 'sticky right-0 z-10 bg-background'
+  if (pinned === 'left') return 'sticky left-0 z-10 bg-background'
+  return undefined
+}
+
 function DefaultRow<TData>({
   row,
   className,
@@ -381,7 +394,10 @@ function DefaultRow<TData>({
       className={className}
     >
       {row.getVisibleCells().map((cell) => (
-        <TableCell key={cell.id}>
+        <TableCell
+          key={cell.id}
+          className={getPinnedCellClass(cell.column.columnDef.meta?.pinned)}
+        >
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </TableCell>
       ))}

@@ -27,7 +27,18 @@ func withRegistrationSecurityConfig(t *testing.T, values map[string]string) {
 		}
 	}
 	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
-	require.NoError(t, config.GlobalConfig.LoadFromDB(values))
+	// Registration endpoint tests use synthetic domains; keep them offline and
+	// deterministic by disabling the live DNS validation unless a test opts in
+	// explicitly. DNS policy itself is covered by service-level unit tests with
+	// a stubbed checker.
+	merged := make(map[string]string, len(values)+1)
+	for k, v := range values {
+		merged[k] = v
+	}
+	if _, set := merged["registration_security.enable_email_domain_dns_validation"]; !set {
+		merged["registration_security.enable_email_domain_dns_validation"] = "false"
+	}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(merged))
 }
 
 func configureRegistrationEndpointTest(t *testing.T) {

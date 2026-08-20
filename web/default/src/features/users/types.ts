@@ -57,6 +57,11 @@ export const userSchema = z.object({
   created_at: z.number().optional(),
   updated_at: z.number().optional(),
   last_login_at: z.number().optional(),
+  registration_ip: z.string().optional(),
+  last_login_ip: z.string().optional(),
+  ip_country: z.string().optional(),
+  email_verified_at: z.number().optional(),
+  paid_amount: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
   stripe_customer: z.string().optional(),
@@ -101,6 +106,8 @@ export interface SearchUsersParams {
   role?: string
   status?: string
   language?: string
+  paid?: boolean
+  email_verified?: boolean
   p?: number
   page_size?: number
 }
@@ -113,6 +120,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  set_email_verified?: boolean // Only used when updating user (admin manually verifies)
 }
 
 export type ManageUserAction =

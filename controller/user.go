@@ -288,6 +288,12 @@ func ensureDefaultUserToken(user *model.User) error {
 	if !constant.GenerateDefaultToken || user == nil || user.Id == 0 {
 		return nil
 	}
+	// Unverified accounts must not receive any token — including the initial
+	// one — when email verification is enforced. They verify first and then get
+	// the default token on the next login/ensure path.
+	if operation_setting.RequireEmailVerificationForTokens() && user.Email != "" && user.EmailVerifiedAt == 0 {
+		return nil
+	}
 	key, err := common.GenerateKey()
 	if err != nil {
 		common.SysLog("failed to generate default token key: " + err.Error())
@@ -474,8 +480,20 @@ func SearchUsers(c *gin.Context) {
 			status = &parsed
 		}
 	}
+	paid := false
+	if paidStr := c.Query("paid"); paidStr == "1" || paidStr == "true" {
+		paid = true
+	}
+	var emailVerified *bool
+	if evStr := c.Query("email_verified"); evStr == "1" || evStr == "true" {
+		v := true
+		emailVerified = &v
+	} else if evStr == "0" || evStr == "false" {
+		v := false
+		emailVerified = &v
+	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, role, status, language, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, role, status, language, paid, emailVerified, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -902,6 +920,20 @@ func GetUserModels(c *gin.Context) {
 	return
 }
 
+// applyAdminEmailTrust marks an account's email as verified when an admin sets
+// or changes it. Admin editing is a trust signal (the admin manages the account
+// directly), so managed/enterprise accounts must not be blocked by the
+// email-verification gate afterwards. Clearing the email leaves verification
+// as-is (email-less accounts are exempt from the gate anyway).
+func applyAdminEmailTrust(originUser *model.User, updatedUser *model.User) {
+	if updatedUser == nil || originUser == nil {
+		return
+	}
+	if updatedUser.Email != "" && updatedUser.Email != originUser.Email {
+		updatedUser.EmailVerifiedAt = common.GetTimestamp()
+	}
+}
+
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
 	err := common.DecodeJson(c.Request.Body, &updatedUser)
@@ -934,9 +966,39 @@ func UpdateUser(c *gin.Context) {
 		updatedUser.Password = "" // rollback to what it should be
 	}
 	updatePassword := updatedUser.Password != ""
+	// An admin editing a user is a trust signal: if the admin sets/changes the
+	// account email, mark it verified so enterprise/managed accounts are never
+	// blocked by the email-verification gate on token creation or API usage.
+	applyAdminEmailTrust(originUser, &updatedUser)
+	emailChanged := updatedUser.Email != "" && updatedUser.Email != originUser.Email
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+
+	// Edit() deliberately omits email and email_verified_at. Apply them here in
+	// the admin context only: a changed email is trusted (verified), and the
+	// explicit set_email_verified control flips verification on/off without
+	// touching the email. Missing control leaves the existing value untouched.
+	emailUpdates := map[string]interface{}{}
+	if emailChanged {
+		emailUpdates["email"] = updatedUser.Email
+		emailUpdates["email_verified_at"] = updatedUser.EmailVerifiedAt
+	} else if updatedUser.SetEmailVerified != nil {
+		if *updatedUser.SetEmailVerified {
+			emailUpdates["email_verified_at"] = common.GetTimestamp()
+		} else {
+			emailUpdates["email_verified_at"] = 0
+		}
+	}
+	if len(emailUpdates) > 0 {
+		if err := model.DB.Model(&originUser).Updates(emailUpdates).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.InvalidateUserCache(originUser.Id); err != nil {
+			common.SysError("failed to invalidate user cache after admin email update: " + err.Error())
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -1199,6 +1261,12 @@ func CreateUser(c *gin.Context) {
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
 	}
+	// Admin-created accounts are trusted: carry the email (if provided) and mark
+	// it verified so the account can use tokens/API right away.
+	cleanUser.Email = strings.TrimSpace(user.Email)
+	if cleanUser.Email != "" {
+		cleanUser.EmailVerifiedAt = common.GetTimestamp()
+	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1216,6 +1284,25 @@ type ManageRequest struct {
 	Action string `json:"action"`
 	Value  int    `json:"value"`
 	Mode   string `json:"mode"`
+}
+
+// BatchVerifyEmail marks a set of users' email as verified in one request.
+// Admin-only; read the ids from the JSON body. Used by the users table's bulk
+// action bar so admins can pass email verification for many accounts at once.
+func BatchVerifyEmail(c *gin.Context) {
+	var req struct {
+		Ids []int `json:"ids"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || len(req.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	affected, err := model.BatchVerifyEmails(req.Ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"affected": affected})
 }
 
 // ManageUser Only admin user can do this
@@ -1398,6 +1485,15 @@ func EmailBind(c *gin.Context) {
 	err = user.Update(false)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	// The initial token was skipped at registration for unverified accounts;
+	// re-issue it now that the email is verified so onboarding completes. Fail
+	// loudly (rather than silently) so the client can surface a retry instead of
+	// leaving the user "verified but without a token".
+	if err := ensureDefaultUserToken(&user); err != nil {
+		common.SysLog("failed to ensure default token after email verification: " + err.Error())
+		common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

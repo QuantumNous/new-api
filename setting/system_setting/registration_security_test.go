@@ -55,6 +55,37 @@ func TestRegistrationSecurityNormalizeAndValidate(t *testing.T) {
 	require.Error(t, cfg.NormalizeAndValidate())
 }
 
+func TestRegistrationSecurityDisposableEmailDomains(t *testing.T) {
+	cfg := GetRegistrationSecuritySettings()
+	// default blocklist ships non-empty (from the generated disposable-domain list)
+	require.NotEmpty(t, cfg.DisposableEmailDomains)
+	require.True(t, cfg.IsDisposableEmailDomain("web-library.net"))
+	require.True(t, cfg.IsDisposableEmailDomain("WEB-LIBRARY.NET"))
+	require.True(t, cfg.IsDisposableEmailDomain("mail.web-library.net"))
+	require.False(t, cfg.IsDisposableEmailDomain("gmail.com"))
+	require.False(t, cfg.IsDisposableEmailDomain(""))
+	// DNS validation defaults
+	require.True(t, cfg.EnableEmailDomainDNSValidation)
+	require.True(t, cfg.RejectEmailDomainWithoutMX)
+	require.True(t, cfg.RejectEmailDomainWithoutWebsite)
+}
+
+func TestRegistrationSecurityNormalizeDisposableDomains(t *testing.T) {
+	cfg := RegistrationSecuritySettings{
+		DomainRiskWindowHours: 24,
+		DomainRiskThreshold:   10,
+		DisposableEmailDomains: []string{" Temp-Mail.com ", "web-library.net", "web-library.net", "EXAMPLE.ORG"},
+	}
+	require.NoError(t, cfg.NormalizeAndValidate())
+	require.Equal(t, []string{"example.org", "temp-mail.com", "web-library.net"}, cfg.DisposableEmailDomains)
+	require.True(t, cfg.IsDisposableEmailDomain("x.temp-mail.com"))
+
+	cfg.DisposableEmailDomains = []string{"not a domain"}
+	require.Error(t, cfg.NormalizeAndValidate())
+	cfg.DisposableEmailDomains = []string{"user@example.com"}
+	require.Error(t, cfg.NormalizeAndValidate())
+}
+
 func TestRegistrationSecurityLoadFromDBRejectsOutOfRangeValues(t *testing.T) {
 	original := GetRegistrationSecuritySettings()
 	t.Cleanup(func() {

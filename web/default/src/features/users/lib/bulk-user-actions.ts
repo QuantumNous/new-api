@@ -38,6 +38,10 @@ export function getBatchDisableUserTargets(users: User[]): User[] {
   return users.filter(canDisableUser)
 }
 
+export function getBatchVerifyEmailTargets(users: User[]): User[] {
+  return users.filter((user) => !isUserDeleted(user))
+}
+
 export async function disableUsersBatch(
   users: User[],
   disableUser: (user: User) => Promise<ApiResponse<Partial<User>>>

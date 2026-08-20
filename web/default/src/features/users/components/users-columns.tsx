@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { INTERFACE_LANGUAGE_OPTIONS } from '@/i18n/languages'
 import { getPreferredUserLanguage } from '@/i18n/user-language-preference'
 import { formatQuota, formatTimestamp } from '@/lib/format'
+import { countryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -65,7 +66,7 @@ const LANGUAGE_LABELS = new Map<string, string>(
 )
 
 export function useUsersColumns(): ColumnDef<User>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   return [
     {
       id: 'select',
@@ -156,6 +157,62 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       meta: { label: t('Email') },
+    },
+    {
+      id: 'email_verified',
+      accessorFn: (user) => (user.email_verified_at || 0) > 0,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Email Verified')} />
+      ),
+      cell: ({ row }) => {
+        const verified = row.getValue('email_verified') as boolean
+        return verified ? (
+          <StatusBadge
+            label={t('Verified')}
+            variant='success'
+            copyable={false}
+          />
+        ) : (
+          <StatusBadge
+            label={t('Unverified')}
+            variant='neutral'
+            copyable={false}
+          />
+        )
+      },
+      filterFn: (row, id, value) => {
+        const values = Array.isArray(value) ? value : [value]
+        return values.includes(row.getValue(id) ? '1' : '0')
+      },
+      enableSorting: false,
+      meta: { label: t('Email Verified'), mobileHidden: true },
+    },
+    {
+      id: 'ip',
+      accessorFn: (user) => user.registration_ip || user.last_login_ip || '',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('IP Address')} />
+      ),
+      cell: ({ row }) => {
+        const ip = row.getValue('ip') as string
+        const country = row.original.ip_country
+        return ip ? (
+          <div className='flex flex-col gap-0.5'>
+            <span className='text-muted-foreground text-sm tabular-nums'>
+              {ip}
+            </span>
+            {country && (
+              <span className='text-muted-foreground text-xs'>
+                {countryLabel(country, i18n.language)}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className='text-muted-foreground text-sm'>-</span>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('IP Address'), mobileHidden: true },
     },
     {
       id: 'language',
@@ -285,6 +342,29 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       meta: { label: t('Quota') },
+    },
+    {
+      id: 'paid',
+      accessorKey: 'paid_amount',
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Paid Amount')} />
+      ),
+      cell: ({ row }) => {
+        const amount = row.getValue('paid_amount') as number | undefined
+        return amount && amount > 0 ? (
+          <span className='text-sm font-medium tabular-nums'>
+            ${amount.toFixed(2)}
+          </span>
+        ) : (
+          <span className='text-muted-foreground text-sm'>-</span>
+        )
+      },
+      filterFn: (row, id, value) => {
+        const values = Array.isArray(value) ? value : [value]
+        const amount = row.getValue(id) as number | undefined
+        return values.includes(amount && amount > 0 ? '1' : '0')
+      },
+      meta: { label: t('Paid Amount'), mobileHidden: true },
     },
     {
       id: 'usage_logs',
@@ -542,7 +622,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
     {
       id: 'actions',
       cell: ({ row }) => <DataTableRowActions row={row} />,
-      meta: { label: t('Actions') },
+      meta: { label: t('Actions'), pinned: 'right' },
     },
   ]
 }

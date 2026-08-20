@@ -14,7 +14,9 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-contrib/sessions"
@@ -492,6 +494,19 @@ func TokenAuth() func(c *gin.Context) {
 		userEnabled := userCache.Status == common.UserStatusEnabled
 		if !userEnabled {
 			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned))
+			return
+		}
+
+		// Defense-in-depth: block quota consumption from API tokens owned by
+		// users who never verified their email. Covers accounts created before
+		// email verification was enforced and any other path that leaves
+		// email_verified_at = 0. Exempts admin/root and users without an email.
+		if operation_setting.RequireEmailVerificationForTokens() &&
+			userCache.Role < common.RoleAdminUser &&
+			userCache.Email != "" && userCache.EmailVerifiedAt == 0 {
+			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgUserEmailVerificationRequiredForAPI, map[string]any{
+				"ConsoleOrigin": system_setting.ResolveConsoleOrigin(),
+			}))
 			return
 		}
 

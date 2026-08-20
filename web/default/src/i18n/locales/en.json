@@ -6668,6 +6668,16 @@
     "Purpose": "Purpose",
     "Redeem credits": "Redeem credits",
     "Too late — all codes have already been claimed": "Too late — all codes have already been claimed",
-    "You already claimed this offer": "You already claimed this offer"
+    "You already claimed this offer": "You already claimed this offer",
+    "Paid": "Paid",
+    "Manually pass the email verification for this account": "Manually pass the email verification for this account",
+    "Email Verified": "Email Verified",
+    "Verified": "Verified",
+    "Unverified": "Unverified",
+    "Verify email of selected users": "Verify email of selected users",
+    "Verify Selected Users?": "Verify Selected Users?",
+    "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.",
+    "Successfully verified {{count}} user(s)": "Successfully verified {{count}} user(s)",
+    "No selected users can be verified": "No selected users can be verified"
   }
 }

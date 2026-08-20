@@ -389,6 +389,10 @@ func TestRegisterRejectsEmailOutsideDomainWhitelist(t *testing.T) {
 func TestRegisterTrimsEmailBeforeDomainValidationAndPersistence(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 
+	// Synthetic domain "allowed.example" does not resolve; keep the DNS
+	// validation off for this offline test (policy covered at service level).
+	withRegistrationSecurityConfig(t, map[string]string{})
+
 	originalRegisterEnabled := common.RegisterEnabled
 	originalPasswordRegisterEnabled := common.PasswordRegisterEnabled
 	originalEmailVerificationEnabled := common.EmailVerificationEnabled

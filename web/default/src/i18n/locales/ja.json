@@ -6668,6 +6668,16 @@
     "Purpose": "用途",
     "Redeem credits": "クレジットを引き換える",
     "Too late — all codes have already been claimed": "申し訳ありません。コードの配布は終了しました",
-    "You already claimed this offer": "このキャンペーンはすでに受け取り済みです"
+    "You already claimed this offer": "このキャンペーンはすでに受け取り済みです",
+    "Paid": "支払済み",
+    "Manually pass the email verification for this account": "このアカウントのメール確認を手動で承認する",
+    "Email Verified": "メール確認済み",
+    "Verified": "確認済み",
+    "Unverified": "未確認",
+    "Verify email of selected users": "選択したユーザーのメールを確認",
+    "Verify Selected Users?": "選択したユーザーを確認しますか？",
+    "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "選択した {{count}} 人のユーザーのメール確認を承認します。削除済みユーザーはスキップされます。",
+    "Successfully verified {{count}} user(s)": "{{count}} 人のユーザーを正常に確認しました",
+    "No selected users can be verified": "確認できるユーザーが選択されていません"
   }
 }

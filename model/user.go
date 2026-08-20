@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/phuslu/iploc"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -67,6 +69,18 @@ type User struct {
 	NewUserBonusGiven       bool           `json:"new_user_bonus_given" gorm:"default:false;column:new_user_bonus_given"`
 	RegistrationIP          string         `json:"registration_ip,omitempty" gorm:"type:varchar(64);column:registration_ip;index"`
 	IsEnterprise            bool           `json:"is_enterprise" gorm:"default:false;column:is_enterprise"` // enterprise users retain the group concept; PLG (non-enterprise) users are forced to the plg group with groups hidden
+	// PaidAmount is the lifetime total of successful top-ups (USD) for this
+	// user. It is not persisted on the user row — FillPaidAmounts aggregates it
+	// from the top_ups table when listing users (admin console only).
+	PaidAmount float64 `json:"paid_amount,omitempty" gorm:"-"`
+	// IPCountry is the ISO country code resolved from the user's registration
+	// (or last-login) IP. Not persisted — FillIPCountries resolves it at list
+	// time via the embedded iploc database (admin console only).
+	IPCountry string `json:"ip_country,omitempty" gorm:"-"`
+	// SetEmailVerified is a control field for the admin UpdateUser endpoint.
+	// When non-nil it overrides EmailVerifiedAt (true → now, false → 0); when
+	// nil the existing value is left untouched. Never persisted.
+	SetEmailVerified *bool `json:"set_email_verified,omitempty" gorm:"-"`
 	StripeCardFingerprint   string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
 	CreatedAt               int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt             int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
@@ -87,14 +101,16 @@ type User struct {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:           user.Id,
-		Group:        user.Group,
-		Quota:        user.Quota,
-		Status:       user.Status,
-		Username:     user.Username,
-		Setting:      user.Setting,
-		Email:        user.Email,
-		IsEnterprise: user.IsEnterprise,
+		Id:              user.Id,
+		Group:           user.Group,
+		Quota:           user.Quota,
+		Status:          user.Status,
+		Username:        user.Username,
+		Setting:         user.Setting,
+		Email:           user.Email,
+		IsEnterprise:    user.IsEnterprise,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		Role:            user.Role,
 	}
 	return cache
 }
@@ -223,7 +239,6 @@ func GetMaxUserId() int {
 }
 
 func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
-	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -252,6 +267,11 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 	if err = tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
+
+	if err := FillPaidAmounts(users); err != nil {
+		common.SysError("failed to fill paid amounts for user list: " + err.Error())
+	}
+	FillIPCountries(users)
 
 	return users, total, nil
 }
@@ -347,7 +367,7 @@ func recallAudienceUserLikePattern(keyword string) string {
 	return "%" + escaped + "%"
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, language string, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, role *int, status *int, language string, paid bool, emailVerified *bool, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -392,6 +412,16 @@ func SearchUsers(keyword string, group string, role *int, status *int, language 
 			query = query.Where("deleted_at IS NULL").Where("status = ?", *status)
 		}
 	}
+	if paid {
+		query = query.Where("id IN (SELECT user_id FROM top_ups WHERE status = ?)", common.TopUpStatusSuccess)
+	}
+	if emailVerified != nil {
+		if *emailVerified {
+			query = query.Where("email_verified_at > 0")
+		} else {
+			query = query.Where("email_verified_at = 0")
+		}
+	}
 	query = applyUserLanguageFilter(query, language)
 
 	// 获取总数
@@ -413,7 +443,74 @@ func SearchUsers(keyword string, group string, role *int, status *int, language 
 		return nil, 0, err
 	}
 
+	if err := FillPaidAmounts(users); err != nil {
+		common.SysError("failed to fill paid amounts for user search: " + err.Error())
+	}
+	FillIPCountries(users)
+
 	return users, total, nil
+}
+
+// FillPaidAmounts hydrates each user's PaidAmount with the lifetime total of
+// successful top-ups (USD). It runs one grouped query for the whole page rather
+// than N per-user queries. Read-only; safe under multi-node.
+func FillPaidAmounts(users []*User) error {
+	if len(users) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.Id)
+	}
+	type paidRow struct {
+		UserId int     `gorm:"column:user_id"`
+		Total  float64 `gorm:"column:total"`
+	}
+	var rows []paidRow
+	if err := DB.Model(&TopUp{}).
+		Select("user_id, COALESCE(SUM(money), 0) AS total").
+		Where("user_id IN ? AND status = ?", ids, common.TopUpStatusSuccess).
+		Group("user_id").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	totals := make(map[int]float64, len(rows))
+	for _, r := range rows {
+		totals[r.UserId] = r.Total
+	}
+	for _, u := range users {
+		u.PaidAmount = totals[u.Id]
+	}
+	return nil
+}
+
+// FillIPCountries resolves each user's IP to an ISO country code using the
+// embedded iploc database (offline, no network). Prefers the registration IP
+// and falls back to the last-login IP. Private/unknown addresses leave the
+// field empty. Read-only; safe under multi-node.
+func FillIPCountries(users []*User) {
+	for _, u := range users {
+		ip := u.RegistrationIP
+		if ip == "" {
+			ip = u.LastLoginIp
+		}
+		u.IPCountry = resolveIPCountry(ip)
+	}
+}
+
+func resolveIPCountry(ip string) string {
+	if ip == "" {
+		return ""
+	}
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ""
+	}
+	country := iploc.IPCountry(addr)
+	if country == "" || country == "ZZ" {
+		return ""
+	}
+	return country
 }
 
 func applyUserLanguageFilter(query *gorm.DB, language string) *gorm.DB {
@@ -1360,6 +1457,27 @@ func UpdateUserPayCountry(id int, country string) {
 	if err := DB.Model(&User{}).Where("id = ?", id).Update("pay_country", country).Error; err != nil {
 		common.SysLog("failed to update user pay_country: " + err.Error())
 	}
+}
+
+// BatchVerifyEmails marks the given users' email as verified in one UPDATE.
+// Returns the number of affected rows. Invalidates each user's cache so the
+// change is visible immediately. Safe under multi-node (DB row update).
+func BatchVerifyEmails(ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := DB.Model(&User{}).
+		Where("id IN ?", ids).
+		Update("email_verified_at", common.GetTimestamp())
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	for _, id := range ids {
+		if err := InvalidateUserCache(id); err != nil {
+			common.SysError("failed to invalidate batch-verified user cache: " + err.Error())
+		}
+	}
+	return result.RowsAffected, nil
 }
 
 func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {

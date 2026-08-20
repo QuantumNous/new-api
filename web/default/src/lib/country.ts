@@ -16,21 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import '@tanstack/react-table'
 
-declare module '@tanstack/react-table' {
-  // Extended column metadata for enhanced table functionality
-  interface ColumnMeta<_TData, _TValue> {
-    // Human-readable label for the column
-    label?: string
-    // Optional description shown in tooltips or help text
-    description?: string
-    // Whether this column can be sorted (overrides default behavior)
-    sortable?: boolean
-    // Custom CSS classes to apply to the column cells
-    className?: string
-    // Pin the column to the left/right edge (sticky) while the table scrolls
-    // horizontally. The data-table renderer applies the sticky styles.
-    pinned?: 'left' | 'right'
+/**
+ * Render an ISO 3166-1 alpha-2 country code as a flag emoji + localized country
+ * name, e.g. "US" -> "🇺🇸 United States" (en) or "🇺🇸 美国" (zh). Returns an
+ * empty string for empty/invalid codes so callers can fall back to "-".
+ */
+export function countryLabel(code: string, locale: string): string {
+  if (!code || code.length !== 2) return ''
+  const cc = code.toUpperCase()
+  const flag = String.fromCodePoint(
+    ...[...cc].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65)
+  )
+  let name = cc
+  try {
+    name = new Intl.DisplayNames([locale], { type: 'region' }).of(cc) ?? cc
+  } catch {
+    // fall back to the bare code
   }
+  return `${flag} ${name}`
 }

@@ -6668,6 +6668,16 @@
     "Purpose": "Finalidade",
     "Redeem credits": "Resgatar créditos",
     "Too late — all codes have already been claimed": "Você chegou tarde — todos os códigos já foram resgatados",
-    "You already claimed this offer": "Você já resgatou esta oferta"
+    "You already claimed this offer": "Você já resgatou esta oferta",
+    "Paid": "Pago",
+    "Manually pass the email verification for this account": "Aprovar manualmente a verificação de e-mail desta conta",
+    "Email Verified": "E-mail verificado",
+    "Verified": "Verificado",
+    "Unverified": "Não verificado",
+    "Verify email of selected users": "Verificar o e-mail dos usuários selecionados",
+    "Verify Selected Users?": "Verificar os usuários selecionados?",
+    "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "A verificação de e-mail será aprovada para {{count}} usuário(s) selecionado(s). Usuários excluídos serão ignorados.",
+    "Successfully verified {{count}} user(s)": "{{count}} usuário(s) verificado(s) com sucesso",
+    "No selected users can be verified": "Nenhum usuário selecionado pode ser verificado"
   }
 }

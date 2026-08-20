@@ -12,20 +12,28 @@ import (
 )
 
 type RegistrationSecuritySettings struct {
-	DomainRiskEnabled           bool     `json:"domain_risk_enabled"`
-	DomainRiskWindowHours       int      `json:"domain_risk_window_hours"`
-	DomainRiskThreshold         int      `json:"domain_risk_threshold"`
-	TrustedEmailDomains         []string `json:"trusted_email_domains"`
-	RejectSubdomainEmailDomains bool     `json:"reject_subdomain_email_domains"`
-	EmailBlacklistPatterns      []string `json:"email_blacklist_patterns"`
+	DomainRiskEnabled               bool     `json:"domain_risk_enabled"`
+	DomainRiskWindowHours           int      `json:"domain_risk_window_hours"`
+	DomainRiskThreshold             int      `json:"domain_risk_threshold"`
+	TrustedEmailDomains             []string `json:"trusted_email_domains"`
+	RejectSubdomainEmailDomains     bool     `json:"reject_subdomain_email_domains"`
+	EmailBlacklistPatterns          []string `json:"email_blacklist_patterns"`
+	DisposableEmailDomains          []string `json:"disposable_email_domains"`
+	EnableEmailDomainDNSValidation  bool     `json:"enable_email_domain_dns_validation"`
+	RejectEmailDomainWithoutMX      bool     `json:"reject_email_domain_without_mx"`
+	RejectEmailDomainWithoutWebsite bool     `json:"reject_email_domain_without_website"`
 }
 
 var registrationSecuritySettings = RegistrationSecuritySettings{
-	DomainRiskWindowHours: 24,
-	DomainRiskThreshold:   10,
+	DomainRiskWindowHours:           24,
+	DomainRiskThreshold:             10,
 	EmailBlacklistPatterns: []string{
 		`(?i)^fk[a-z0-9]{12}@[a-z0-9.]+$`,
 	},
+	DisposableEmailDomains:          append([]string(nil), defaultDisposableEmailDomains...),
+	EnableEmailDomainDNSValidation:  true,
+	RejectEmailDomainWithoutMX:      true,
+	RejectEmailDomainWithoutWebsite: true,
 }
 
 const (
@@ -45,6 +53,7 @@ func GetRegistrationSecuritySettings() RegistrationSecuritySettings {
 	cfg := registrationSecuritySettings
 	cfg.TrustedEmailDomains = append([]string(nil), registrationSecuritySettings.TrustedEmailDomains...)
 	cfg.EmailBlacklistPatterns = append([]string(nil), registrationSecuritySettings.EmailBlacklistPatterns...)
+	cfg.DisposableEmailDomains = append([]string(nil), registrationSecuritySettings.DisposableEmailDomains...)
 	return cfg
 }
 
@@ -71,6 +80,7 @@ func UpdateRegistrationSecuritySettingsFromMap(values map[string]string) error {
 	next := registrationSecuritySettings
 	next.TrustedEmailDomains = append([]string(nil), registrationSecuritySettings.TrustedEmailDomains...)
 	next.EmailBlacklistPatterns = append([]string(nil), registrationSecuritySettings.EmailBlacklistPatterns...)
+	next.DisposableEmailDomains = append([]string(nil), registrationSecuritySettings.DisposableEmailDomains...)
 	if err := config.UpdateConfigFromMap(&next, values); err != nil {
 		return err
 	}
@@ -121,6 +131,22 @@ func (s *RegistrationSecuritySettings) NormalizeAndValidate() error {
 		normalizedPatterns = append(normalizedPatterns, pattern)
 	}
 	s.EmailBlacklistPatterns = normalizedPatterns
+
+	seenDisposable := make(map[string]struct{}, len(s.DisposableEmailDomains))
+	normalizedDisposable := make([]string, 0, len(s.DisposableEmailDomains))
+	for _, raw := range s.DisposableEmailDomains {
+		domain, err := common.NormalizeEmailDomain("user@" + strings.TrimSpace(raw))
+		if err != nil {
+			return fmt.Errorf("invalid disposable email domain %q", raw)
+		}
+		if _, ok := seenDisposable[domain]; ok {
+			continue
+		}
+		seenDisposable[domain] = struct{}{}
+		normalizedDisposable = append(normalizedDisposable, domain)
+	}
+	sort.Strings(normalizedDisposable)
+	s.DisposableEmailDomains = normalizedDisposable
 	return nil
 }
 
@@ -128,6 +154,22 @@ func (s RegistrationSecuritySettings) IsTrustedDomain(domain string) bool {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	for _, trusted := range s.TrustedEmailDomains {
 		if domain == trusted {
+			return true
+		}
+	}
+	return false
+}
+
+// IsDisposableEmailDomain reports whether the given (already normalized, lowercase)
+// email domain matches the disposable-email blocklist exactly or as a subdomain,
+// e.g. "web-library.net" also matches "mail.web-library.net".
+func (s RegistrationSecuritySettings) IsDisposableEmailDomain(domain string) bool {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	if domain == "" {
+		return false
+	}
+	for _, blocked := range s.DisposableEmailDomains {
+		if domain == blocked || strings.HasSuffix(domain, "."+blocked) {
 			return true
 		}
 	}

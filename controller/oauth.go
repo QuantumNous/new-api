@@ -588,6 +588,31 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 	})
 }
 
+// selfHealOAuthEmailVerification backfills EmailVerifiedAt for existing OAuth
+// users when the provider proves email ownership (Google/GitHub verified
+// emails, OIDC email_verified claim, Discord verified flag). Accounts created
+// before email-verification tracking was enforced keep email_verified_at = 0,
+// which blocks token creation/usage; healing on next login avoids a manual
+// SQL backfill for those users. Fail-open: an update error only logs and the
+// login still succeeds.
+func selfHealOAuthEmailVerification(user *model.User, oauthUser *oauth.OAuthUser) {
+	if oauthUser == nil || user == nil || !oauthUser.EmailVerified {
+		return
+	}
+	if user.Email == "" || user.EmailVerifiedAt != 0 {
+		return
+	}
+	user.EmailVerifiedAt = common.GetTimestamp()
+	if err := user.Update(false); err != nil {
+		common.SysError(fmt.Sprintf("[OAuth] failed to self-heal email_verified_at for user %d: %v", user.Id, err))
+		return
+	}
+	common.SysLog(fmt.Sprintf("[OAuth] self-healed email_verified_at for user %d on %s login", user.Id, oauthUser.ProviderUserID))
+	if err := model.InvalidateUserCache(user.Id); err != nil {
+		common.SysError("failed to invalidate self-healed user cache: " + err.Error())
+	}
+}
+
 // findOrCreateOAuthUser finds existing user or creates new user. The second return value is
 // true only when a brand-new user was created (used to trigger first-login onboarding).
 func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, session sessions.Session) (*model.User, bool, error) {
@@ -605,6 +630,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			return nil, false, &OAuthUserDeletedError{}
 		}
 		updateUserAdsAttributionIfEmpty(user, adsAttribution)
+		selfHealOAuthEmailVerification(user, oauthUser)
 		return user, false, nil
 	}
 
@@ -624,6 +650,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 					// Continue with login even if migration fails
 				}
 				updateUserAdsAttributionIfEmpty(user, adsAttribution)
+				selfHealOAuthEmailVerification(user, oauthUser)
 				return user, false, nil
 			}
 		}
@@ -661,6 +688,15 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	if oauthUser.Email != "" {
 		user.Email = oauthUser.Email
 		user.EmailDomain = emailDecision.Domain
+		// Only mark the address verified when the provider actually proved
+		// ownership (Google/GitHub verified emails, OIDC email_verified claim,
+		// Discord verified flag). Providers that pass an unverified address
+		// through (generic/OIDC without the claim, LinuxDO) leave the account
+		// unverified so it must confirm the email via the standard flow before
+		// creating or using tokens.
+		if oauthUser.EmailVerified {
+			user.EmailVerifiedAt = common.GetTimestamp()
+		}
 	}
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled

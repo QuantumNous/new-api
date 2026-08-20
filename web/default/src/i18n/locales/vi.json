@@ -6668,6 +6668,16 @@
     "Purpose": "Mục đích",
     "Redeem credits": "Đổi tín dụng",
     "Too late — all codes have already been claimed": "Bạn đến muộn — tất cả mã đã được nhận hết",
-    "You already claimed this offer": "Bạn đã nhận ưu đãi này"
+    "You already claimed this offer": "Bạn đã nhận ưu đãi này",
+    "Paid": "Đã thanh toán",
+    "Manually pass the email verification for this account": "Phê duyệt thủ công xác minh email cho tài khoản này",
+    "Email Verified": "Email đã xác minh",
+    "Verified": "Đã xác minh",
+    "Unverified": "Chưa xác minh",
+    "Verify email of selected users": "Xác minh email của người dùng đã chọn",
+    "Verify Selected Users?": "Xác minh người dùng đã chọn?",
+    "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "Sẽ phê duyệt xác minh email cho {{count}} người dùng đã chọn. Người dùng đã xóa sẽ bị bỏ qua.",
+    "Successfully verified {{count}} user(s)": "Đã xác minh thành công {{count}} người dùng",
+    "No selected users can be verified": "Không có người dùng đã chọn nào có thể xác minh"
   }
 }

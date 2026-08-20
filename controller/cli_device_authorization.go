@@ -187,6 +187,10 @@ func ApproveCliDeviceAuthorization(c *gin.Context) {
 	}
 	cleanToken, err := buildCLITokenForInsert(c, token, key)
 	if err != nil {
+		if errors.Is(err, errTokenEmailVerificationRequired) {
+			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequiredForAPI, map[string]any{"ConsoleOrigin": system_setting.ResolveConsoleOrigin()})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}

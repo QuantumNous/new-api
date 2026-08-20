@@ -113,7 +113,12 @@ const (
 	MsgUserSessionSaveFailed         = "user.session_save_failed"
 	MsgUserRequire2FA                = "user.require_2fa"
 	MsgUserEmailVerificationRequired = "user.email_verification_required"
-	MsgUserVerificationCodeError     = "user.verification_code_error"
+	// MsgUserEmailVerificationRequiredForAPI is shown to already-logged-in users
+	// (token creation, API calls, playground) whose account email is unverified.
+	// It points them at the two recovery paths: re-login (OAuth accounts
+	// self-heal) or verifying the email in profile settings.
+	MsgUserEmailVerificationRequiredForAPI = "user.email_verification_required_for_api"
+	MsgUserVerificationCodeError           = "user.verification_code_error"
 	MsgUserInputInvalid              = "user.input_invalid"
 	MsgUserNoPermissionSameLevel     = "user.no_permission_same_level"
 	MsgUserNoPermissionHigherLevel   = "user.no_permission_higher_level"
