@@ -114,8 +114,8 @@ const geometry = computed(() => {
   >
     <defs>
       <linearGradient :id="gradientId" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" :stop-color="color" stop-opacity="0.32" />
-        <stop offset="60%" :stop-color="color" stop-opacity="0.12" />
+        <stop offset="0%" :stop-color="color" stop-opacity="0.22" />
+        <stop offset="60%" :stop-color="color" stop-opacity="0.06" />
         <stop offset="100%" :stop-color="color" stop-opacity="0" />
       </linearGradient>
     </defs>
@@ -148,17 +148,19 @@ const geometry = computed(() => {
     <circle
       :cx="geometry.last.x"
       :cy="geometry.last.y"
-      r="2.4"
+      r="2.5"
       :fill="color"
       class="animate-pulse-slow"
+      :style="{ filter: `drop-shadow(0 0 5px ${color})` }"
     />
     <circle
       v-if="geometry.secondaryLast"
       :cx="geometry.secondaryLast.x"
       :cy="geometry.secondaryLast.y"
-      r="2.4"
+      r="2.5"
       :fill="secondaryColor"
       class="animate-pulse-slow"
+      :style="{ filter: `drop-shadow(0 0 5px ${secondaryColor})` }"
     />
   </svg>
 </template>

@@ -247,10 +247,16 @@ const cpuGauge = computed(() => {
 function memorySegmentStyle(percent: number | null, index: number) {
   const fill =
     percent === null ? 0 : Math.min(1, Math.max(0, percent / 10 - index))
+  const isFilled = fill > 0
   return {
-    background: fill > 0 ? 'var(--glow)' : 'var(--surface-solid)',
-    opacity: fill > 0 ? 0.35 + fill * 0.65 : 1,
-    boxShadow: fill >= 1 ? '0 0 4px var(--glow)' : 'none',
+    background: isFilled
+      ? 'var(--glow)'
+      : 'color-mix(in srgb, var(--text-primary) 12%, transparent)',
+    opacity: isFilled ? (fill >= 1 ? 1 : 0.6) : 1,
+    boxShadow:
+      fill >= 1
+        ? '0 0 8px color-mix(in srgb, var(--glow) 45%, transparent)'
+        : 'none',
   }
 }
 
@@ -357,8 +363,11 @@ const successColor = computed(() => rateColor(successRate.value))
           </p>
           <span
             v-if="tile.percent !== null"
-            class="shrink-0 rounded-md bg-[var(--surface-solid)] px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums"
-            :style="{ color: tile.color }"
+            class="shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums"
+            :style="{
+              color: tile.color,
+              background: `color-mix(in srgb, ${tile.color} 14%, transparent)`,
+            }"
           >
             {{ Math.round(tile.percent) }}%
           </span>
@@ -391,7 +400,7 @@ const successColor = computed(() => rateColor(successRate.value))
           >
             <path
               d="M8 32a24 24 0 0 1 48 0"
-              stroke="var(--surface-solid)"
+              stroke="color-mix(in srgb, var(--text-primary) 12%, transparent)"
               stroke-width="4"
               stroke-linecap="round"
             />

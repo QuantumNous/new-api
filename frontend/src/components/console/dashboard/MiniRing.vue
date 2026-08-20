@@ -50,7 +50,7 @@ const dashOffset = computed(
         :cy="center"
         :r="radius"
         fill="none"
-        stroke="var(--surface-muted)"
+        stroke="color-mix(in srgb, var(--text-primary) 12%, transparent)"
         :stroke-width="stroke"
       />
       <circle
