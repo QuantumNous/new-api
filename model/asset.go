@@ -106,11 +106,14 @@ type Asset struct {
 	UpdatedAt         int64  `json:"updated_at"`
 }
 
+// AssetBindingScopeMaxLength is the storage contract for provider binding identities.
+const AssetBindingScopeMaxLength = 128
+
 type AssetBinding struct {
 	Id              int64  `json:"id" gorm:"primaryKey"`
 	AssetId         int64  `json:"asset_id" gorm:"uniqueIndex:idx_asset_binding_asset_channel_scope"`
 	ChannelId       int    `json:"channel_id" gorm:"uniqueIndex:idx_asset_binding_asset_channel_scope;index"`
-	BindingScope    string `json:"-" gorm:"type:varchar(80);not null;default:'';uniqueIndex:idx_asset_binding_asset_channel_scope"`
+	BindingScope    string `json:"-" gorm:"type:varchar(128);not null;default:'';uniqueIndex:idx_asset_binding_asset_channel_scope"`
 	UpstreamGroupId string `json:"-" gorm:"type:varchar(191)"`
 	UpstreamAssetId string `json:"-" gorm:"type:varchar(191)"`
 	Status          string `json:"status" gorm:"type:varchar(24);index"`

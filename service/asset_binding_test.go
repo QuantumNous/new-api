@@ -1575,6 +1575,39 @@ func TestAssetBindingScopeForTokenSpaceMaterialChangesWithGroupAndOriginOnly(t *
 	require.Equal(t, baseScope, typeScope)
 }
 
+func TestProviderAssetBindingScopesFitModelContract(t *testing.T) {
+	seedanceChannel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeBytePlus, dto.AssetMaterializationSettings{
+		Provider:       "seedance_proxy",
+		GatewayBaseURL: "https://asset-gateway.example.invalid/v1/base/",
+		GroupID:        "grp_shared_aigc",
+	})
+	tokenSpaceChannel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "https://materials.example.invalid/v1/base/",
+		GroupID:        "group-internal",
+	})
+
+	scopes := []string{}
+	seedanceScope, err := assetBindingScopeForChannel(seedanceChannel, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "seedance-key"})
+	require.NoError(t, err)
+	scopes = append(scopes, seedanceScope)
+	tokenSpaceScope, err := assetBindingScopeForChannel(tokenSpaceChannel, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "tokenspace-key"})
+	require.NoError(t, err)
+	scopes = append(scopes, tokenSpaceScope)
+	techMobiScope, err := assetBindingScope(constant.ChannelTypeTechMobiVideo, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "techmobi-key"})
+	require.NoError(t, err)
+	scopes = append(scopes, techMobiScope)
+
+	for _, scope := range scopes {
+		require.LessOrEqual(t, len(scope), model.AssetBindingScopeMaxLength)
+		separator := strings.LastIndex(scope, ":")
+		require.Greater(t, separator, 0)
+		_, err := hex.DecodeString(scope[separator+1:])
+		require.NoError(t, err)
+		require.Len(t, scope[separator+1:], sha256.Size*2)
+	}
+}
+
 func TestAssetBindingScopeForTokenSpaceMaterialFailClosedAndEmptyProviderFallsBack(t *testing.T) {
 	unknown := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
 		Provider:       "unknown_provider",

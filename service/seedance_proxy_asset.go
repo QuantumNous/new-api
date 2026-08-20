@@ -265,7 +265,7 @@ func seedanceProxyAssetNormalizeType(assetType string) (string, error) {
 	case strings.ToLower("Video"):
 		return "Video", nil
 	case strings.ToLower("Audio"):
-		return "", errors.New("seedance proxy asset type unsupported")
+		return "Audio", nil
 	default:
 		return "", errors.New("seedance proxy asset type unsupported")
 	}
