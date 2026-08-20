@@ -16,18 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { SlidersHorizontalIcon } from 'lucide-react'
+import { useState } from 'react'
+import { SlidersHorizontalIcon, XIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -66,10 +68,11 @@ function isFieldVisible(
 
 export function PlaygroundParameters(props: PlaygroundParametersProps) {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
 
   return (
-    <Dialog>
-      <DialogTrigger
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger
         render={
           <PromptInputButton
             className='border font-medium'
@@ -81,15 +84,31 @@ export function PlaygroundParameters(props: PlaygroundParametersProps) {
         <SlidersHorizontalIcon size={16} />
         <span className='hidden sm:inline'>{t('Parameters')}</span>
         <span className='sr-only sm:hidden'>{t('Parameters')}</span>
-      </DialogTrigger>
-      <DialogContent className='max-h-[min(80vh,42rem)] overflow-y-auto sm:max-w-lg'>
-        <DialogHeader>
-          <DialogTitle>{t('Generation parameters')}</DialogTitle>
-          <DialogDescription>
+      </PopoverTrigger>
+      <PopoverContent
+        align='start'
+        className='relative grid max-h-[min(70vh,36rem)] w-[min(36rem,calc(100vw-2rem))] gap-4 overflow-y-auto rounded-2xl p-5 shadow-xl'
+        collisionPadding={16}
+        side='top'
+        sideOffset={10}
+      >
+        <PopoverHeader className='gap-1 pr-8'>
+          <PopoverTitle>{t('Generation parameters')}</PopoverTitle>
+          <PopoverDescription>
             {props.model} ·{' '}
             {props.profile.kind === 'image' ? t('Image') : t('Video')}
-          </DialogDescription>
-        </DialogHeader>
+          </PopoverDescription>
+        </PopoverHeader>
+        <Button
+          aria-label={t('Close')}
+          className='absolute top-2.5 right-2.5'
+          onClick={() => setOpen(false)}
+          size='icon-sm'
+          type='button'
+          variant='ghost'
+        >
+          <XIcon size={16} />
+        </Button>
 
         <div className='grid gap-4 py-1 sm:grid-cols-2'>
           {props.profile.fields.map((field) => {
@@ -186,7 +205,7 @@ export function PlaygroundParameters(props: PlaygroundParametersProps) {
             {t(props.profile.noteKey)}
           </p>
         )}
-      </DialogContent>
-    </Dialog>
+      </PopoverContent>
+    </Popover>
   )
 }
