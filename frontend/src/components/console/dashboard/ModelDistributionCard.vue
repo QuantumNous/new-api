@@ -164,10 +164,13 @@ function highlight(rowIndex: number, on: boolean) {
 
     <div
       v-if="loading"
-      class="grid grow gap-5 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]"
+      class="grid grow gap-4 lg:gap-6 lg:grid-cols-[minmax(18rem,20rem)_minmax(0,1fr)]"
     >
-      <div class="h-64 animate-pulse rounded-full bg-[var(--surface-muted)]" />
-      <div class="space-y-2.5">
+      <div
+        class="h-56 animate-pulse rounded-full bg-[var(--surface-muted)] lg:h-[300px]"
+        data-model-distribution-chart
+      />
+      <div class="self-center space-y-2.5">
         <div
           v-for="i in 8"
           :key="i"
@@ -185,7 +188,7 @@ function highlight(rowIndex: number, on: boolean) {
 
     <div
       v-else
-      class="grid grow gap-5 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]"
+      class="grid grow gap-4 lg:gap-6 lg:grid-cols-[minmax(18rem,20rem)_minmax(0,1fr)]"
     >
       <!--
         Donut sized to fill its column rather than sit in a fixed box. min-w-0:
@@ -194,9 +197,10 @@ function highlight(rowIndex: number, on: boolean) {
       -->
       <div
         ref="el"
-        class="h-64 w-full min-w-0 self-center"
+        class="h-56 w-full min-w-0 self-center lg:h-[300px]"
         role="img"
         :aria-label="t('dashboard.modelDist.title')"
+        data-model-distribution-chart
       />
 
       <!--
@@ -204,12 +208,21 @@ function highlight(rowIndex: number, on: boolean) {
         without bound. The header stays put so the columns remain readable.
       -->
       <div
-        class="subtle-scroll max-h-64 overflow-y-auto overflow-x-auto pr-2"
+        class="subtle-scroll max-h-56 min-w-0 self-center overflow-y-auto overflow-x-auto pr-2 lg:max-h-[300px]"
         role="region"
         tabindex="0"
         :aria-label="t('dashboard.modelDist.title')"
+        data-model-distribution-table
+        data-model-distribution-scroll
       >
-        <table class="w-full min-w-[500px] border-collapse text-sm">
+        <table class="w-full min-w-[560px] border-collapse text-sm">
+          <colgroup>
+            <col class="w-[180px]" />
+            <col class="w-[72px]" />
+            <col class="w-[84px]" />
+            <col class="w-[150px]" />
+            <col class="w-[82px]" />
+          </colgroup>
           <!--
             Sticky lives on the cells, not on thead: with border-collapse the
             rows scroll through a sticky thead's background instead of behind it.
@@ -217,27 +230,27 @@ function highlight(rowIndex: number, on: boolean) {
           <thead>
             <tr class="text-xs text-[var(--text-tertiary)]">
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-left font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-left font-semibold"
               >
                 {{ t('dashboard.modelDist.model') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.requests') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.tokens') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.share') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.spend') }}
               </th>
@@ -251,7 +264,7 @@ function highlight(rowIndex: number, on: boolean) {
               @mouseenter="highlight(i, true)"
               @mouseleave="highlight(i, false)"
             >
-              <td class="px-2.5 py-2.5">
+              <td class="px-2.5 py-2">
                 <span class="flex min-w-0 items-center gap-2">
                   <span
                     class="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm"
@@ -265,16 +278,16 @@ function highlight(rowIndex: number, on: boolean) {
                 </span>
               </td>
               <td
-                class="px-2.5 py-2.5 text-right tabular-nums text-[var(--text-secondary)]"
+                class="px-2.5 py-2 text-right tabular-nums text-[var(--text-secondary)]"
               >
                 {{ formatNumber(m.requests) }}
               </td>
               <td
-                class="px-2.5 py-2.5 text-right tabular-nums text-[var(--text-secondary)]"
+                class="px-2.5 py-2 text-right tabular-nums text-[var(--text-secondary)]"
               >
                 {{ formatCompact(m.tokens) }}
               </td>
-              <td class="px-2.5 py-2.5 text-right">
+              <td class="px-2.5 py-2 text-right">
                 <div class="flex items-center justify-end gap-2">
                   <div
                     class="pencil-progress h-1.5 w-14 overflow-hidden rounded-full bg-[var(--surface-muted)]"
@@ -295,7 +308,7 @@ function highlight(rowIndex: number, on: boolean) {
                 </div>
               </td>
               <td
-                class="px-2.5 py-2.5 text-right font-semibold tabular-nums"
+                class="px-2.5 py-2 text-right font-semibold tabular-nums"
                 :style="{ color: 'var(--text-primary)' }"
               >
                 {{ formatQuota(m.quota) }}

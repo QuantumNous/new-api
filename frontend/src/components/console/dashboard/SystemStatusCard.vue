@@ -325,20 +325,23 @@ const successColor = computed(() => rateColor(successRate.value))
         <MiniRing
           :percent="successRate ?? 0"
           :color="successColor"
-          :size="34"
+          :size="46"
+          :stroke-width="4.5"
           :indeterminate="successRate === null"
+          data-success-rate-ring
+          :data-success-rate-state="successRate === null ? 'unknown' : 'value'"
         />
       </div>
     </template>
 
     <div
-      class="my-auto grid grid-cols-2 content-start gap-3 py-1"
+      class="grid grid-cols-2 content-start gap-3 py-1"
       data-system-status-grid
     >
       <div
         v-for="tile in tiles"
         :key="tile.key"
-        class="group relative flex h-[108px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-colors duration-300 hover:bg-[var(--surface-hover)]"
+        class="group relative flex h-[108px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-colors duration-300 hover:bg-[var(--surface-hover)] sm:h-[116px]"
         data-system-status-tile
         :data-metric="tile.key"
       >
@@ -388,7 +391,7 @@ const successColor = computed(() => rateColor(successRate.value))
         >
           <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
             <span
-              class="whitespace-nowrap text-xl font-bold leading-none tabular-nums"
+              class="whitespace-nowrap text-2xl font-bold leading-none tabular-nums"
               :style="{ color: tile.color }"
             >
               {{ tile.value }}
@@ -437,8 +440,8 @@ const successColor = computed(() => rateColor(successRate.value))
         </div>
 
         <template v-else-if="tile.key === 'memory'">
-          <p class="mt-auto flex items-baseline gap-1 pt-2">
-            <span class="text-base font-bold leading-tight tabular-nums">
+          <p class="mt-auto flex items-baseline gap-1 whitespace-nowrap pt-2">
+            <span class="text-lg font-bold leading-tight tabular-nums">
               {{ tile.value }}
             </span>
             <span
@@ -449,7 +452,7 @@ const successColor = computed(() => rateColor(successRate.value))
             </span>
           </p>
           <div
-            class="mt-2 grid h-2 grid-cols-10 gap-1"
+            class="mt-2 grid h-2.5 grid-cols-10 gap-1"
             data-memory-segments
             aria-hidden="true"
           >
@@ -464,7 +467,7 @@ const successColor = computed(() => rateColor(successRate.value))
 
         <template v-else-if="tile.key === 'bandwidth'">
           <p
-            class="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-2 text-xs font-bold leading-tight tabular-nums"
+            class="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-2 text-[11px] font-bold leading-tight tabular-nums"
           >
             <template v-if="tile.bandwidth">
               <span
@@ -502,7 +505,7 @@ const successColor = computed(() => rateColor(successRate.value))
         >
           <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
             <span
-              class="text-sm font-bold leading-tight tabular-nums"
+              class="text-base font-bold leading-tight tabular-nums"
               :style="{ color: tile.color }"
             >
               {{ tile.value }}
@@ -517,7 +520,7 @@ const successColor = computed(() => rateColor(successRate.value))
           <MiniRing
             :percent="tile.percent ?? 0"
             :color="tile.color"
-            :size="36"
+            :size="40"
             :indeterminate="tile.percent === null"
           />
         </div>

@@ -115,6 +115,41 @@ describe('SystemStatusCard', () => {
     expect(wrapper.findAll('[data-system-status-tile]')).toHaveLength(4)
   })
 
+  it('renders a prominent determinate success-rate ring for valid data', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: { metrics: metrics() },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    const ring = wrapper.find('[data-success-rate-ring]')
+    expect(ring.exists()).toBe(true)
+    expect(ring.attributes('data-success-rate-state')).toBe('value')
+    expect(
+      ring.find('circle[stroke-dasharray]').attributes('stroke-width')
+    ).toBe('4.5')
+    expect(
+      ring.find('circle[stroke-dasharray]').attributes('stroke-dashoffset')
+    ).not.toBe(
+      ring.find('circle[stroke-dasharray]').attributes('stroke-dasharray')
+    )
+  })
+
+  it('uses an indeterminate neutral ring when success rate is unavailable', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: { metrics: { ...metrics(), api_success_rate: null } },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    const ring = wrapper.find('[data-success-rate-ring]')
+    expect(ring.attributes('data-success-rate-state')).toBe('unknown')
+    expect(ring.find('circle[stroke-dasharray="3 4"]').exists()).toBe(true)
+    expect(ring.find('circle[stroke-dashoffset]').exists()).toBe(false)
+  })
+
   it('uses a distinct visual gauge for each system resource', () => {
     const pinia = createPinia()
     setActivePinia(pinia)

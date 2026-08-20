@@ -14,15 +14,22 @@ const props = withDefaults(
     percent: number
     color: string
     size?: number
+    /** Ring stroke width; callers can increase emphasis without changing geometry. */
+    strokeWidth?: number
     /** Dashed full ring instead of an arc — for "no ceiling" style states. */
     indeterminate?: boolean
     /** Accessible name for a standalone ring; omit when decorative. */
     ariaLabel?: string
   }>(),
-  { size: 44, indeterminate: false, ariaLabel: undefined }
+  {
+    size: 44,
+    strokeWidth: undefined,
+    indeterminate: false,
+    ariaLabel: undefined,
+  }
 )
 
-const stroke = computed(() => (props.size >= 40 ? 4 : 3))
+const stroke = computed(() => props.strokeWidth ?? (props.size >= 40 ? 4 : 3))
 const center = computed(() => props.size / 2)
 const radius = computed(() => center.value - stroke.value / 2 - 1)
 const circumference = computed(() => 2 * Math.PI * radius.value)
@@ -35,6 +42,7 @@ const dashOffset = computed(
 
 <template>
   <span
+    v-bind="$attrs"
     class="relative inline-flex shrink-0"
     :role="ariaLabel ? 'img' : undefined"
     :aria-label="ariaLabel"

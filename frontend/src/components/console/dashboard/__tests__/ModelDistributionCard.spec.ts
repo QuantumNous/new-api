@@ -143,6 +143,33 @@ describe('ModelDistributionCard', () => {
     expect(wrapper.findAll('tbody tr')).toHaveLength(15)
   })
 
+  it('exposes balanced chart and table regions with a complete non-wrapping header', () => {
+    const wrapper = render(models(3))
+
+    expect(wrapper.find('[data-model-distribution-chart]').exists()).toBe(true)
+    expect(wrapper.find('[data-model-distribution-table]').exists()).toBe(true)
+    expect(wrapper.find('[data-model-distribution-scroll]').exists()).toBe(true)
+    expect(wrapper.find('table').classes()).toContain('min-w-[560px]')
+    expect(wrapper.findAll('thead th')).toHaveLength(5)
+    for (const header of wrapper.findAll('thead th')) {
+      expect(header.classes()).toContain('whitespace-nowrap')
+      expect(header.classes()).toContain('bg-[var(--surface-table-header)]')
+    }
+  })
+
+  it('shows loading and empty states without initializing a table', () => {
+    const loading = mount(ModelDistributionCard, {
+      props: { items: [], loading: true },
+      global: { plugins: [i18n] },
+    })
+    expect(loading.find('[data-model-distribution-chart]').exists()).toBe(true)
+    expect(loading.find('table').exists()).toBe(false)
+
+    const empty = render([])
+    expect(empty.find('[data-handdrawn="empty-state"]').exists()).toBe(true)
+    expect(empty.find('table').exists()).toBe(false)
+  })
+
   it('gives folded rows a neutral swatch instead of a slice colour', () => {
     const wrapper = render(models(15))
     const swatchOf = (row: number) =>
