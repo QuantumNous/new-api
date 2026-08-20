@@ -112,6 +112,28 @@ func scopedChannelGroupQuery(base *gorm.DB, role int, userGroup, requestedGroup 
 	return model.ApplyChannelGroupFilterAny(base, visible), true
 }
 
+// channelVisibleToCaller 判定某渠道（其 Channel.Group 为逗号分隔列表）
+// 是否与调用者的可见分组集合有交集。超级管理员/匿名恒可见。
+func channelVisibleToCaller(channelGroup string, role int, userGroup string) bool {
+	visible, unrestricted := service.GetUserVisibleGroups(role, userGroup)
+	if unrestricted {
+		return true
+	}
+	visibleSet := make(map[string]struct{}, len(visible))
+	for _, g := range visible {
+		visibleSet[g] = struct{}{}
+	}
+	for _, g := range strings.Split(strings.Trim(channelGroup, ","), ",") {
+		if g == "" {
+			continue
+		}
+		if _, ok := visibleSet[strings.TrimSpace(g)]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 func GetChannelOps(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"retry_times": common.RetryTimes,
@@ -355,6 +377,18 @@ func SearchChannels(c *gin.Context) {
 		channelData = channels
 	}
 
+	role := c.GetInt("role")
+	userGroup := c.GetString("group")
+	if _, unrestricted := service.GetUserVisibleGroups(role, userGroup); !unrestricted {
+		visibleChannels := make([]*model.Channel, 0, len(channelData))
+		for _, ch := range channelData {
+			if channelVisibleToCaller(ch.Group, role, userGroup) {
+				visibleChannels = append(visibleChannels, ch)
+			}
+		}
+		channelData = visibleChannels
+	}
+
 	if statusFilter == common.ChannelStatusEnabled || statusFilter == 0 {
 		filtered := make([]*model.Channel, 0, len(channelData))
 		for _, ch := range channelData {
@@ -441,9 +475,11 @@ func GetChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if channel != nil {
-		clearChannelInfo(channel)
+	if channel == nil || !channelVisibleToCaller(channel.Group, c.GetInt("role"), c.GetString("group")) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
 	}
+	clearChannelInfo(channel)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
