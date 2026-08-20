@@ -130,6 +130,14 @@ function setupDom() {
 
   const body = new ElementShim('body')
   const head = new ElementShim('head')
+  const storage = {
+    clear: () => undefined,
+    getItem: () => null,
+    key: () => null,
+    length: 0,
+    removeItem: () => undefined,
+    setItem: () => undefined,
+  } as Storage
   const shimDocument = {
     nodeType: 9,
     body,
@@ -156,18 +164,38 @@ function setupDom() {
         pathname: '/wallet',
         search: '?currency=BRL',
       },
+      localStorage: storage,
       queueMicrotask,
       requestAnimationFrame: (callback: FrameRequestCallback) => {
         callback(0)
         return 1
       },
+      sessionStorage: storage,
       setTimeout,
       clearTimeout,
     }) as unknown as Window & typeof globalThis
   )
+  defineTestGlobal('localStorage', storage)
   defineTestGlobal('navigator', { userAgent: 'Chrome' } as Navigator)
+  defineTestGlobal('Element', ElementShim as unknown as typeof Element)
   defineTestGlobal('HTMLElement', ElementShim as unknown as typeof HTMLElement)
+  defineTestGlobal(
+    'HTMLButtonElement',
+    ElementShim as unknown as typeof HTMLButtonElement
+  )
+  defineTestGlobal(
+    'HTMLDivElement',
+    ElementShim as unknown as typeof HTMLDivElement
+  )
   defineTestGlobal('HTMLIFrameElement', class {} as typeof HTMLIFrameElement)
+  defineTestGlobal(
+    'HTMLInputElement',
+    ElementShim as unknown as typeof HTMLInputElement
+  )
+  defineTestGlobal(
+    'HTMLSpanElement',
+    ElementShim as unknown as typeof HTMLSpanElement
+  )
   defineTestGlobal('Node', NodeShim as unknown as typeof Node)
   defineTestGlobal('IS_REACT_ACT_ENVIRONMENT', true)
 }
@@ -175,6 +203,17 @@ function setupDom() {
 setupDom()
 
 mock.module('@/lib/api', () => ({
+  api: {
+    delete: mock(async () => ({ data: { success: true } })),
+    get: mock(async () => ({ data: { success: true, data: null } })),
+    post: mock(async () => ({ data: { success: true, data: null } })),
+    put: mock(async () => ({ data: { success: true, data: null } })),
+  },
+  disable2FA: mock(async () => ({ success: true })),
+  enable2FA: mock(async () => ({ success: true })),
+  get2FAStatus: mock(async () => ({ success: true })),
+  getCommonHeaders: () => ({ 'Content-Type': 'application/json' }),
+  getNotice: mock(async () => ({ success: true })),
   getSelf: mock(async () => ({
     success: true,
     data: {
@@ -189,10 +228,20 @@ mock.module('@/lib/api', () => ({
       group: 'default',
     },
   })),
+  getStatus: mock(async () => ({ success: true })),
+  getUserGroups: mock(async () => ({ success: true, data: [] })),
+  getUserModels: mock(async () => ({ success: true, data: [] })),
+  regenerate2FABackupCodes: mock(async () => ({ success: true })),
+  setup2FA: mock(async () => ({ success: true })),
 }))
 
 mock.module('@/lib/analytics/gtag', () => ({
+  ensureGtagLoaded: mock(async () => undefined),
+  getGAMeasurementIdentifiers: () => ({}),
+  isGtagEnabled: () => false,
+  shouldInitializeGtagForURL: () => false,
   trackAdsFunnelEvent: mock(() => undefined),
+  trackSignupConversion: mock(() => undefined),
 }))
 
 mock.module('@/lib/analytics/mixpanel', () => ({
@@ -215,12 +264,8 @@ mock.module('@/features/auth/lib/storage', () => ({
 
 mock.module('@/features/onboarding/api', () => ({
   getCardStatus: mock(async () => ({ success: true, data: {} })),
-}))
-
-mock.module('@/features/subscriptions/components/dialogs/subscription-purchase-dialog', () => ({
-  RecallClaimProvider: (props: { children: React.ReactNode }) => (
-    <>{props.children}</>
-  ),
+  isApiSuccess: (response: { success?: boolean }) => response.success === true,
+  requestPromoTopup: mock(async () => ({ success: true })),
 }))
 
 mock.module('sonner', () => ({
@@ -234,9 +279,34 @@ mock.module('sonner', () => ({
 }))
 
 mock.module('./api', () => ({
+  calculateAmount: mock(async () => ({ success: true })),
+  calculatePaddleAmount: mock(async () => ({ success: true })),
+  calculateStripeAmount: mock(async () => ({ success: true })),
+  calculateWaffoPancakeAmount: mock(async () => ({ success: true })),
+  completeOrder: mock(async () => ({ success: true })),
+  getAllBillingHistory: mock(async () => ({ success: true, data: [] })),
+  getInvoiceProfile: mock(async () => ({ success: true, data: null })),
   getPaddleTopUpStatus: mock(async () => ({ success: false })),
+  getRefundableSubscriptionTerms: mock(async () => ({
+    success: true,
+    data: { items: [], total_refund_money: 0, total_refund_quota: 0 },
+  })),
+  getTopupInfo: mock(async () => ({ success: true, data: null })),
+  getUserBillingHistory: mock(async () => ({
+    success: true,
+    data: { items: [], total: 0 },
+  })),
   isApiSuccess: (response: { success?: boolean }) => response.success === true,
+  refundSubscriptionTerm: mock(async () => ({ success: true })),
+  requestCreemPayment: mock(async () => ({ success: true })),
+  requestPaddlePayment: mock(async () => ({ success: true })),
+  requestPayment: mock(async () => ({ success: true })),
+  requestStripePayment: mock(async () => ({ success: true })),
+  requestTopupInvoice: mock(async () => ({ success: true, data: null })),
+  requestWaffoPancakePayment: mock(async () => ({ success: true })),
+  requestWaffoPayment: mock(async () => ({ success: true })),
   resumeStripeTopup: mock(async () => ({ success: false })),
+  updateInvoiceProfile: mock(async () => ({ success: true, data: null })),
 }))
 
 mock.module('./wallet-recall-offers', () => ({
@@ -280,9 +350,21 @@ mock.module('./hooks', () => ({
   }),
 }))
 
-mock.module('./components/subscription-plans-card', () => ({
-  SubscriptionPlansCard: () => null,
-}))
+mock.module('./lib', async () => {
+  const stripeCurrency = await import('./lib/stripe-currency')
+  const payment = await import('./lib/payment')
+
+  return {
+    ...stripeCurrency,
+    ...payment,
+    clearPaddleCheckoutUrlFallback: () => undefined,
+    getInitialPresetTopupAmount: () => 20,
+    getMinTopupAmount: () => 1,
+    getPaddleCheckoutUrlFallback: () => undefined,
+    isPresetTopupAmount: (amount: number) => amount === 20,
+    shouldConsumeWalletCheckoutSearchParams: () => false,
+  }
+})
 
 mock.module('./components/dialogs/billing-history-dialog', () => ({
   BillingHistoryPanel: () => null,
@@ -292,65 +374,24 @@ mock.module('./components/dialogs/stripe-checkout-dialog', () => ({
   StripeCheckoutDialog: () => null,
 }))
 
-mock.module('@/components/layout', () => ({
-  SectionPageLayout: Object.assign(
-    (props: { children: React.ReactNode }) => <div>{props.children}</div>,
-    {
-      Content: (props: { children: React.ReactNode }) => (
-        <div>{props.children}</div>
-      ),
-      Title: (props: { children: React.ReactNode }) => (
-        <div>{props.children}</div>
-      ),
-    }
-  ),
-}))
+mock.module('@/components/ui/dialog', () => {
+  const Part = (props: { children?: React.ReactNode }) => (
+    <div>{props.children}</div>
+  )
 
-mock.module('@/components/ui/alert', () => ({
-  Alert: (props: { children: React.ReactNode }) => <div>{props.children}</div>,
-  AlertDescription: (props: { children: React.ReactNode }) => (
-    <div>{props.children}</div>
-  ),
-  AlertTitle: (props: { children: React.ReactNode }) => (
-    <div>{props.children}</div>
-  ),
-}))
-
-mock.module('@/components/ui/button', () => ({
-  Button: (props: { children?: React.ReactNode; onClick?: () => void }) => (
-    <button onClick={props.onClick}>{props.children}</button>
-  ),
-}))
-
-mock.module('@/components/ui/dialog', () => ({
-  Dialog: (props: { children: React.ReactNode }) => <div>{props.children}</div>,
-  DialogContent: (props: { children: React.ReactNode }) => (
-    <div>{props.children}</div>
-  ),
-  DialogFooter: (props: { children: React.ReactNode }) => (
-    <div>{props.children}</div>
-  ),
-  DialogHeader: (props: { children: React.ReactNode }) => (
-    <div>{props.children}</div>
-  ),
-  DialogTitle: (props: { children: React.ReactNode }) => (
-    <div>{props.children}</div>
-  ),
-}))
-
-mock.module('@/components/ui/titled-card', () => ({
-  TitledCard: (props: { children: React.ReactNode }) => (
-    <div>{props.children}</div>
-  ),
-}))
-
-mock.module('lucide-react', () => ({
-  CreditCard: () => null,
-  Landmark: () => null,
-  Loader2: () => null,
-  PartyPopper: () => null,
-  Wallet2: () => null,
-}))
+  return {
+    Dialog: Part,
+    DialogClose: Part,
+    DialogContent: Part,
+    DialogDescription: Part,
+    DialogFooter: Part,
+    DialogHeader: Part,
+    DialogOverlay: Part,
+    DialogPortal: Part,
+    DialogTitle: Part,
+    DialogTrigger: Part,
+  }
+})
 
 mock.module('./lib/paddle-checkout', () => ({
   openPaddleCheckoutForTransaction: mock(async () => undefined),
