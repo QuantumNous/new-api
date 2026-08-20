@@ -103,9 +103,10 @@ function normalizeUsageWindow(
     window?.remaining === undefined
       ? Math.max(0, totalQuota - usedQuota)
       : finiteNonNegative(window.remaining)
+  const notIncluded = kind === 'media' && totalQuota === 0
   const unlimited =
-    window?.unlimited === true || (kind === 'quota' && totalQuota === 0)
-  const notIncluded = kind === 'media' && !unlimited && totalQuota === 0
+    !notIncluded &&
+    (window?.unlimited === true || (kind === 'quota' && totalQuota === 0))
 
   return {
     totalQuota,

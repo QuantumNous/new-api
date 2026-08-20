@@ -1402,6 +1402,10 @@ describe('PlanPurchaseDialog payment choices', () => {
       expect(html).toContain('max="12"')
       expect(html).not.toContain('<select')
       expect(html).toContain('No prorating or credit is applied.')
+      expect(html).toContain('Monthly and Image + video usage reset.')
+      expect(html).not.toContain('5-hour')
+      expect(html).not.toContain('7-day')
+      expect(html).not.toContain('rolling usage')
       expect(html).not.toContain('future months')
     }
   })

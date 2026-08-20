@@ -45,3 +45,25 @@ Typecheck:
 - No unresolved concerns for Task 4.
 - Admin subscription form was not changed.
 - Wallet localized-currency worktree changes were preserved; no unrelated rollback was performed.
+
+## Fix Round 1
+
+Review findings fixed:
+- Profile media normalization now treats `media_credits.total = 0` as `notIncluded: true` and `unlimited: false`, even if the backend sends `unlimited: true`.
+- Purchase review copy no longer mentions 5-hour / 7-day rolling usage and still preserves the active monthly/media reset warning.
+
+RED evidence:
+- `bun test src/features/profile/lib/subscription-summary.test.ts`
+  - Failed as expected because zero media credits with backend `unlimited: true` returned `unlimited: true` and `notIncluded: false`.
+- `bun test src/features/wallet/components/subscription-plans-card.test.tsx`
+  - Failed as expected because purchase review copy still included 5-hour / 7-day rolling usage wording and did not match the new monthly/media-only sentence.
+
+GREEN evidence:
+- `bun test src/features/profile/lib/subscription-summary.test.ts`
+  - Result: 12 pass, 0 fail.
+- `bun test src/features/wallet/components/subscription-plans-card.test.tsx`
+  - Result: 69 pass, 0 fail.
+- `bun test src/features/wallet/components/subscription-plans-card.test.tsx src/features/wallet/lib/subscription-plan-lifecycle.test.ts src/features/profile/components/profile-header.test.tsx src/features/profile/lib/subscription-summary.test.ts`
+  - Result: 137 pass, 0 fail, 824 expectations.
+- `bun run typecheck`
+  - Result: pass.
