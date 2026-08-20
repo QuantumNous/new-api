@@ -20,8 +20,11 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
-import type { MediaGenerationProfile } from '../lib'
-import { PlaygroundParameters } from './playground-parameters'
+import type { MediaGenerationProfile, MediaNumberParameterField } from '../lib'
+import {
+  PlaygroundNumberParameter,
+  PlaygroundParameters,
+} from './playground-parameters'
 
 const testI18n = createInstance()
 
@@ -41,6 +44,16 @@ const profile: MediaGenerationProfile = {
   defaults: {},
 }
 
+const durationField: MediaNumberParameterField = {
+  key: 'duration',
+  labelKey: 'Duration',
+  control: 'number',
+  min: 4,
+  max: 15,
+  step: 1,
+  unitKey: 'seconds',
+}
+
 describe('PlaygroundParameters interaction surface', () => {
   test('uses an anchored popover trigger instead of a modal dialog trigger', () => {
     const markup = renderToStaticMarkup(
@@ -56,5 +69,21 @@ describe('PlaygroundParameters interaction surface', () => {
 
     expect(markup).toContain('data-slot="popover-trigger"')
     expect(markup).not.toContain('data-slot="dialog-trigger"')
+  })
+
+  test('keeps number units clear of the native spinner controls', () => {
+    const markup = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlaygroundNumberParameter
+          field={durationField}
+          onChange={() => undefined}
+          settings={{ duration: 8 }}
+        />
+      </I18nextProvider>
+    )
+
+    expect(markup).toContain('pr-16')
+    expect(markup).toContain('right-8')
+    expect(markup).toContain('whitespace-nowrap')
   })
 })

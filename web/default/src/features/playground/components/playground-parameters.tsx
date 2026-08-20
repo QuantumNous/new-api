@@ -43,6 +43,7 @@ import { PromptInputButton } from '@/components/ai-elements/prompt-input'
 import type {
   MediaGenerationProfile,
   MediaGenerationSettings,
+  MediaNumberParameterField,
   MediaParameterField,
   MediaParameterKey,
   MediaParameterValue,
@@ -63,6 +64,43 @@ function isFieldVisible(
   if (field.control !== 'number' || !field.visibleWhen) return true
   return field.visibleWhen.values.includes(
     settings[field.visibleWhen.key] ?? ''
+  )
+}
+
+interface PlaygroundNumberParameterProps {
+  field: MediaNumberParameterField
+  settings: MediaGenerationSettings
+  onChange: (key: MediaParameterKey, value: MediaParameterValue) => void
+}
+
+export function PlaygroundNumberParameter({
+  field,
+  settings,
+  onChange,
+}: PlaygroundNumberParameterProps) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='grid gap-1.5'>
+      <Label htmlFor={`playground-${field.key}`}>{t(field.labelKey)}</Label>
+      <div className='relative'>
+        <Input
+          className={field.unitKey ? 'pr-16' : undefined}
+          id={`playground-${field.key}`}
+          max={field.max}
+          min={field.min}
+          onChange={(event) => onChange(field.key, Number(event.target.value))}
+          step={field.step}
+          type='number'
+          value={Number(settings[field.key] ?? field.min)}
+        />
+        {field.unitKey && (
+          <span className='text-muted-foreground pointer-events-none absolute top-1/2 right-8 -translate-y-1/2 text-xs whitespace-nowrap'>
+            {t(field.unitKey)}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -136,29 +174,12 @@ export function PlaygroundParameters(props: PlaygroundParametersProps) {
 
             if (field.control === 'number') {
               return (
-                <div className='grid gap-1.5' key={field.key}>
-                  <Label htmlFor={`playground-${field.key}`}>
-                    {t(field.labelKey)}
-                  </Label>
-                  <div className='relative'>
-                    <Input
-                      id={`playground-${field.key}`}
-                      max={field.max}
-                      min={field.min}
-                      onChange={(event) =>
-                        props.onChange(field.key, Number(event.target.value))
-                      }
-                      step={field.step}
-                      type='number'
-                      value={Number(props.settings[field.key] ?? field.min)}
-                    />
-                    {field.unitKey && (
-                      <span className='text-muted-foreground pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-xs'>
-                        {t(field.unitKey)}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <PlaygroundNumberParameter
+                  field={field}
+                  key={field.key}
+                  onChange={props.onChange}
+                  settings={props.settings}
+                />
               )
             }
 
