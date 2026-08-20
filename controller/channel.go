@@ -648,15 +648,14 @@ func defaultNewCodexFingerprintMode(channel *model.Channel) {
 	if channel == nil || channel.Type != constant.ChannelTypeCodex {
 		return
 	}
-	if channel.Setting != nil && strings.TrimSpace(*channel.Setting) != "" {
-		var raw map[string]any
-		if err := common.Unmarshal([]byte(*channel.Setting), &raw); err == nil {
-			if _, exists := raw["codex_fingerprint_mode"]; exists {
-				return
-			}
-		}
-	}
 	setting := channel.GetSetting()
+	mode := strings.ToLower(strings.TrimSpace(setting.CodexFingerprintMode))
+	switch mode {
+	case "off", "device", "session", "full":
+		setting.CodexFingerprintMode = mode
+		channel.SetSetting(setting)
+		return
+	}
 	setting.CodexFingerprintMode = "full"
 	channel.SetSetting(setting)
 }

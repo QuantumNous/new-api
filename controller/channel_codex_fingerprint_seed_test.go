@@ -170,6 +170,14 @@ func TestAddCodexChannelDefaultsFingerprintModeToFull(t *testing.T) {
 	require.NoError(t, model.DB.Order("id DESC").First(&explicit, "type = ?", constant.ChannelTypeCodex).Error)
 	require.Equal(t, "session", explicit.GetSetting().CodexFingerprintMode)
 
+	ctx, recorder = newChannelSeedJSONContext(http.MethodPost, "/api/channel", codexChannelCreateBody(`"setting":"{\"codex_fingerprint_mode\":\"bogus\"}"`))
+	AddChannel(ctx)
+	requireChannelSeedAPIStatus(t, recorder)
+
+	var invalid model.Channel
+	require.NoError(t, model.DB.Order("id DESC").First(&invalid, "type = ?", constant.ChannelTypeCodex).Error)
+	require.Equal(t, "full", invalid.GetSetting().CodexFingerprintMode)
+
 	openAIBody := `{"mode":"single","channel":{"type":` + strconv.Itoa(constant.ChannelTypeOpenAI) + `,"key":"sk-test","name":"openai","status":1,"models":"gpt-4o","group":"default"}}`
 	ctx, recorder = newChannelSeedJSONContext(http.MethodPost, "/api/channel", openAIBody)
 	AddChannel(ctx)
