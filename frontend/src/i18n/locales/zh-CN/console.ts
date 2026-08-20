@@ -134,9 +134,11 @@ export default {
       tokens: 'Token',
       actual: '实际',
       standard: '标准',
+      share: '占比',
       others: '其他 {n} 个模型',
       modelsUsed: '个模型',
       topNote: '图表展示消费前 {n}',
+      emptyHint: '暂无模型消费记录',
     },
     tokenTrend: {
       title: 'Token 使用趋势',

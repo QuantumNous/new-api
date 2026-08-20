@@ -134,9 +134,11 @@ export default {
       tokens: 'Tokens',
       actual: 'Actual',
       standard: 'Standard',
+      share: 'Share',
       others: '{n} other models',
       modelsUsed: 'models',
       topNote: 'Chart shows top {n} by spend',
+      emptyHint: 'No model spend recorded in this period',
     },
     tokenTrend: {
       title: 'Token usage trend',

@@ -35,10 +35,12 @@ export interface ChartPalette {
 export const SERIES_TOKENS = [
   'var(--accent)',
   'var(--signal)',
-  'var(--status-danger)',
+  'var(--glow)',
   'var(--support)',
-  'var(--status-success)',
+  'var(--status-info)',
   'var(--status-warning)',
+  'var(--status-danger)',
+  'var(--status-success)',
 ] as const
 
 export function resolveToken(name: string, fallback = ''): string {
@@ -86,8 +88,30 @@ export function chartPalette(): ChartPalette {
       : 'transparent',
     series: [],
   }
-  // Donut / categorical cycle: all six seed hues for maximum distinction
-  // (info aliases signal, so danger takes its slot in the cycle).
-  p.series = [p.accent, p.signal, p.danger, p.support, p.success, p.warning]
+  const glow = normalizeOpaqueColor(
+    resolveToken('--glow'),
+    isDark ? '#8ec8aa' : '#7fa463'
+  )
+  p.series = isDark
+    ? [
+        p.accent,
+        p.signal,
+        glow,
+        p.support,
+        p.info,
+        p.warning,
+        p.danger,
+        p.success,
+      ]
+    : [
+        p.accent,
+        p.signal,
+        glow,
+        p.danger,
+        p.support,
+        p.warning,
+        p.success,
+        p.signalStrong,
+      ]
   return p
 }

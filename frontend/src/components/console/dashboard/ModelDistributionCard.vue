@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { SERIES_TOKENS } from '@/charts/palette'
 import { useEChart } from '@/charts/useEChart'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import type { ModelShare } from '@/composables/useDashboard'
 import { formatCompact, formatNumber, formatQuota } from '@/utils/format'
 import { escapeHtml } from '@/utils/html'
@@ -26,6 +27,20 @@ const colors = SERIES_TOKENS
 const ranked = computed(() =>
   [...props.items].sort((a, b) => b.quota - a.quota)
 )
+
+const totalQuota = computed(() =>
+  props.items.reduce((sum, m) => sum + m.quota, 0)
+)
+
+function modelSharePercent(quota: number): string {
+  if (totalQuota.value <= 0) return '0.0'
+  return ((quota / totalQuota.value) * 100).toFixed(1)
+}
+
+function modelShareRatio(quota: number): number {
+  if (totalQuota.value <= 0) return 0
+  return Math.min(100, Math.max(0, (quota / totalQuota.value) * 100))
+}
 
 /**
  * Donut data: the top models by spend plus a single aggregate for the tail. A
@@ -73,7 +88,7 @@ const { dispatch } = useEChart(
       borderColor: p.borderSubtle,
       textStyle: { color: p.textPrimary, fontSize: 12 },
       formatter: (params: { name: string; percent: number; value: number }) =>
-        `${escapeHtml(params.name)}<br/>${escapeHtml(formatQuota(params.value))} · ${escapeHtml(params.percent)}%`,
+        `${escapeHtml(params.name)}<br/>${escapeHtml(formatQuota(params.value))} · ${escapeHtml(String(params.percent))}%`,
     },
     series: [
       {
@@ -87,7 +102,15 @@ const { dispatch } = useEChart(
           borderRadius: p.isDark ? 4 : 0,
         },
         label: { show: false },
-        emphasis: { scaleSize: 6 },
+        emphasis: {
+          scaleSize: 6,
+          itemStyle: {
+            shadowBlur: p.isDark ? 10 : 6,
+            shadowColor: p.isDark
+              ? 'rgba(0, 4, 16, 0.55)'
+              : 'rgba(56, 55, 43, 0.16)',
+          },
+        },
         data: slices.value,
       },
     ],
@@ -100,6 +123,7 @@ const { dispatch } = useEChart(
           text: String(props.items.length),
           fontSize: 24,
           fontWeight: 700,
+          fontFamily: 'Ren2JetBrainsMono, monospace',
           fill: p.textPrimary,
           textAlign: 'center',
         },
@@ -152,6 +176,13 @@ function highlight(rowIndex: number, on: boolean) {
       </div>
     </div>
 
+    <EmptyState
+      v-else-if="!items.length"
+      class="grow"
+      :title="t('dashboard.stats.noData')"
+      :hint="t('dashboard.modelDist.emptyHint')"
+    />
+
     <div
       v-else
       class="grid grow gap-5 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]"
@@ -178,7 +209,7 @@ function highlight(rowIndex: number, on: boolean) {
         tabindex="0"
         :aria-label="t('dashboard.modelDist.title')"
       >
-        <table class="w-full min-w-[420px] border-collapse text-sm">
+        <table class="w-full min-w-[500px] border-collapse text-sm">
           <!--
             Sticky lives on the cells, not on thead: with border-collapse the
             rows scroll through a sticky thead's background instead of behind it.
@@ -186,27 +217,32 @@ function highlight(rowIndex: number, on: boolean) {
           <thead>
             <tr class="text-xs text-[var(--text-tertiary)]">
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2 pb-2 text-left font-medium"
+                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-left font-semibold"
               >
                 {{ t('dashboard.modelDist.model') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2 pb-2 text-right font-medium"
+                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.requests') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2 pb-2 text-right font-medium"
+                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.tokens') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2 pb-2 text-right font-medium"
+                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
+              >
+                {{ t('dashboard.modelDist.share') }}
+              </th>
+              <th
+                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.actual') }}
               </th>
               <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2 pb-2 text-right font-medium"
+                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.standard') }}
               </th>
@@ -216,39 +252,64 @@ function highlight(rowIndex: number, on: boolean) {
             <tr
               v-for="(m, i) in ranked"
               :key="m.model"
-              class="border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-muted)]"
+              class="border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-hover)]"
               @mouseenter="highlight(i, true)"
               @mouseleave="highlight(i, false)"
             >
-              <td class="px-2 py-2">
+              <td class="px-2.5 py-2.5">
                 <span class="flex min-w-0 items-center gap-2">
                   <span
-                    class="h-2.5 w-2.5 shrink-0 rounded-sm"
+                    class="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm"
                     :style="{ background: swatchColor(i) }"
                   />
-                  <span class="truncate text-[var(--text-primary)]">{{
-                    m.model
-                  }}</span>
+                  <span
+                    class="max-w-[160px] truncate font-medium text-[var(--text-primary)]"
+                  >
+                    {{ m.model }}
+                  </span>
                 </span>
               </td>
               <td
-                class="px-2 py-2 text-right tabular-nums text-[var(--text-secondary)]"
+                class="px-2.5 py-2.5 text-right tabular-nums text-[var(--text-secondary)]"
               >
                 {{ formatNumber(m.requests) }}
               </td>
               <td
-                class="px-2 py-2 text-right tabular-nums text-[var(--text-secondary)]"
+                class="px-2.5 py-2.5 text-right tabular-nums text-[var(--text-secondary)]"
               >
                 {{ formatCompact(m.tokens) }}
               </td>
+              <td class="px-2.5 py-2.5 text-right">
+                <div class="flex items-center justify-end gap-2">
+                  <div
+                    class="pencil-progress h-1.5 w-14 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                  >
+                    <div
+                      class="h-full rounded-full transition-all"
+                      :style="{
+                        width: `${modelShareRatio(m.quota)}%`,
+                        background: swatchColor(i),
+                      }"
+                    />
+                  </div>
+                  <span
+                    class="w-11 shrink-0 text-right text-xs tabular-nums text-[var(--text-tertiary)]"
+                  >
+                    {{ modelSharePercent(m.quota) }}%
+                  </span>
+                </div>
+              </td>
               <td
-                class="px-2 py-2 text-right font-semibold tabular-nums"
+                class="px-2.5 py-2.5 text-right font-semibold tabular-nums"
                 :style="{ color: 'var(--status-success-text)' }"
               >
                 {{ formatQuota(m.quota) }}
               </td>
               <td
-                class="px-2 py-2 text-right tabular-nums text-[var(--text-tertiary)] line-through decoration-1"
+                class="px-2.5 py-2.5 text-right tabular-nums text-[var(--text-tertiary)]"
+                :class="{
+                  'line-through decoration-1': m.standard_quota > m.quota,
+                }"
               >
                 {{ formatQuota(m.standard_quota) }}
               </td>
