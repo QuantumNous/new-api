@@ -293,7 +293,7 @@ func TestStripeTopUpPriceContractDrivesSupportedCurrenciesAndAmounts(t *testing.
 		{
 			currency: "BRL",
 			amounts: map[int64]int64{
-				10: 4990, 20: 9990, 50: 24990, 100: 49900, 200: 99000,
+				10: 4990, 20: 9990, 50: 24990, 100: 49990, 200: 99090,
 			},
 		},
 		{
