@@ -170,6 +170,41 @@ func TestCodexFinalizerRewritesOverriddenTurnMetadata(t *testing.T) {
 	require.NotContains(t, turnMetadata, "attacker-")
 }
 
+func TestCodexFinalizerDropsTurnMetadataWithoutFingerprintIDs(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	service.InitHttpClient()
+
+	var upstream http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(server.Close)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := codexPolicyRelayInfo(server.URL, relayconstant.RelayModeResponses, fingerprintOff)
+	info.ChannelMeta.HeadersOverride = map[string]any{
+		"X-Codex-Turn-Metadata": `{"installation_id":"attacker-install","session_id":"attacker-session","thread_id":"attacker-thread","turn_id":"attacker-turn","window_id":"attacker-window"}`,
+	}
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(`{"model":"gpt-5"}`))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+
+	require.Empty(t, upstream.Get("X-Codex-Turn-Metadata"))
+}
+
+func TestFinalizeCodexRequestDropsTurnMetadataWithoutRelayInfo(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "https://chatgpt.example/backend-api/codex/responses", nil)
+	req.Header.Set("X-Codex-Turn-Metadata", `{"installation_id":"attacker-install"}`)
+
+	require.NoError(t, FinalizeCodexRequest(req, nil))
+	require.Empty(t, req.Header.Get("X-Codex-Turn-Metadata"))
+}
+
 func TestExistingCodexRouteSwitchRejectsSuffixSmuggling(t *testing.T) {
 	adaptor := &Adaptor{}
 	tests := []struct {

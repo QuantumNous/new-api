@@ -59,9 +59,11 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 		req.Header.Del(name)
 	}
 	req.Header.Set("User-Agent", "")
-	dropUnknownCodexHeaders(req.Header)
+	dropUnknownCodexHeaders(req.Header, true)
 
 	if info == nil {
+		req.Header.Del("X-Codex-Turn-Metadata")
+		dropUnknownCodexHeaders(req.Header, false)
 		return nil
 	}
 
@@ -93,14 +95,19 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 	if err != nil {
 		return err
 	}
+	if ids == nil {
+		req.Header.Del("X-Codex-Turn-Metadata")
+		dropUnknownCodexHeaders(req.Header, false)
+		return nil
+	}
 	applyFingerprintHeaders(req.Header, ids)
 	return nil
 }
 
-func dropUnknownCodexHeaders(header http.Header) {
+func dropUnknownCodexHeaders(header http.Header, preserveTurnMetadata bool) {
 	for name := range header {
 		lower := strings.ToLower(name)
-		if lower == "x-codex-turn-metadata" {
+		if preserveTurnMetadata && lower == "x-codex-turn-metadata" {
 			continue
 		}
 		if strings.HasPrefix(lower, "x-codex-") {
