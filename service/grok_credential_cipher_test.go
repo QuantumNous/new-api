@@ -39,6 +39,30 @@ func TestGrokCipherRoundTrip(t *testing.T) {
 	}
 }
 
+func TestGrokCipherCompletionKeyRoundTrip(t *testing.T) {
+	cipher, err := newGrokCredentialCipher(bytesOf('k', 32), strings.NewReader(strings.Repeat("n", 64)))
+	if err != nil {
+		t.Fatalf("new cipher err %v", err)
+	}
+	envelope, err := cipher.Encrypt("flow-123", "completion_key", `{"v":1,"access_token":"secret"}`)
+	if err != nil {
+		t.Fatalf("encrypt err %v", err)
+	}
+	if strings.Contains(envelope, "secret") {
+		t.Fatal("completion envelope must not contain plaintext credentials")
+	}
+	got, err := cipher.Decrypt("flow-123", "completion_key", envelope)
+	if err != nil {
+		t.Fatalf("decrypt err %v", err)
+	}
+	if got != `{"v":1,"access_token":"secret"}` {
+		t.Fatalf("round trip = %q", got)
+	}
+	if _, err := cipher.Decrypt("flow-123", "pkce_verifier", envelope); err == nil {
+		t.Fatal("completion ciphertext must not decrypt under the verifier AAD")
+	}
+}
+
 func TestGrokCipherRejectsDisallowedField(t *testing.T) {
 	key := make([]byte, 32)
 	for i := range key {
@@ -48,7 +72,7 @@ func TestGrokCipherRejectsDisallowedField(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new cipher err %v", err)
 	}
-	// 非白名单字段（access_token）必须拒绝，verifier 之外不受此 cipher 保护。
+	// 非白名单字段（access_token）必须拒绝；只有 verifier 和 completion key 可用。
 	if _, err := cipher.Encrypt("flow-123", "access_token", "secret"); err == nil {
 		t.Fatalf("encrypt with disallowed field must fail")
 	}

@@ -10,20 +10,23 @@ import (
 // GrokAuthFlow 是 Grok 专用的一次性 PKCE 认证状态（设计 §7.1）。
 // 独立于 Copilot 的 Redis+内存 fallback 与 Codex 的 gin session；跨节点、owner-token claim、10 分钟过期。
 //
-// 安全提示：EncryptedVerifier / OwnerToken 上的 `json:"-"` 只挡 JSON 序列化，不挡 fmt 的 %+v/%v。
+// 安全提示：EncryptedVerifier / EncryptedCompletionResult / OwnerToken 上的 `json:"-"`
+// 只挡 JSON 序列化，不挡 fmt 的 %+v/%v。
 // 调用方（Task 8/18）记录日志时切勿用 %+v/%v 打印整个 GrokAuthFlow，否则加密 verifier 与 owner-token 会外泄；
 // 只打印非敏感字段（如 FlowID / ChannelID / ExpiresAt）。
 type GrokAuthFlow struct {
-	FlowID            string `json:"flow_id" gorm:"primaryKey;type:varchar(64)"`
-	Provider          string `json:"provider" gorm:"type:varchar(32);index"`
-	AdminID           int    `json:"admin_id" gorm:"index"`
-	ChannelID         int    `json:"channel_id" gorm:"index"`
-	StateHash         string `json:"state_hash" gorm:"type:varchar(128)"`
-	EncryptedVerifier string `json:"-" gorm:"type:text"`
-	RedirectURI       string `json:"redirect_uri" gorm:"type:varchar(512)"`
-	OwnerToken        string `json:"-" gorm:"type:varchar(128)"`
-	CreatedAt         int64  `json:"created_at"`
-	ExpiresAt         int64  `json:"expires_at" gorm:"index"`
+	FlowID                    string `json:"flow_id" gorm:"primaryKey;type:varchar(64)"`
+	Provider                  string `json:"provider" gorm:"type:varchar(32);index"`
+	AdminID                   int    `json:"admin_id" gorm:"index"`
+	ChannelID                 int    `json:"channel_id" gorm:"index"`
+	StateHash                 string `json:"state_hash" gorm:"type:varchar(128)"`
+	EncryptedVerifier         string `json:"-" gorm:"type:text"`
+	EncryptedCompletionResult string `json:"-" gorm:"type:text"`
+	RedirectURI               string `json:"redirect_uri" gorm:"type:varchar(512)"`
+	OwnerToken                string `json:"-" gorm:"type:varchar(128)"`
+	CreatedAt                 int64  `json:"created_at"`
+	CompletedAt               int64  `json:"completed_at" gorm:"index"`
+	ExpiresAt                 int64  `json:"expires_at" gorm:"index"`
 }
 
 func (GrokAuthFlow) TableName() string { return "grok_auth_flows" }
@@ -54,7 +57,7 @@ func ClaimGrokAuthFlow(flowID, ownerToken string) (*GrokAuthFlow, bool, error) {
 		// 条件更新：仅当未过期且 owner_token 为空（或已是本 owner，幂等）时写入 owner。
 		// 这个 WHERE 同时保证了跨-owner 一次性与过期拦截，正确无需改动。
 		res := tx.Model(&GrokAuthFlow{}).
-			Where("flow_id = ? AND expires_at > ? AND (owner_token = '' OR owner_token = ?)", flowID, now, ownerToken).
+			Where("flow_id = ? AND expires_at > ? AND (completed_at IS NULL OR completed_at = 0) AND (owner_token = '' OR owner_token = ?)", flowID, now, ownerToken).
 			Update("owner_token", ownerToken)
 		if res.Error != nil {
 			return res.Error
@@ -65,7 +68,7 @@ func ClaimGrokAuthFlow(flowID, ownerToken string) (*GrokAuthFlow, bool, error) {
 		// 改为读回：本 owner 且未过期的行存在即代表我们持有该 claim（首次抢占或幂等重入皆然）。
 		// 读回 WHERE 必须带 expires_at > ?，否则一个已过期但仍属本 owner 的行会被误判为 claimed。
 		var f GrokAuthFlow
-		err := tx.Where("flow_id = ? AND owner_token = ? AND expires_at > ?", flowID, ownerToken, now).First(&f).Error
+		err := tx.Where("flow_id = ? AND owner_token = ? AND expires_at > ? AND (completed_at IS NULL OR completed_at = 0)", flowID, ownerToken, now).First(&f).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil // 未 claim 到（已过期，或被他人持有）
 		}
@@ -79,6 +82,48 @@ func ClaimGrokAuthFlow(flowID, ownerToken string) (*GrokAuthFlow, bool, error) {
 		return nil, false, err
 	}
 	return claimed, claimed != nil, nil
+}
+
+// CompleteGrokAuthFlow stores an encrypted completion result for an unbound
+// flow and irreversibly removes its PKCE verifier. Keeping the completed row
+// until ExpiresAt lets the caller recover from a lost HTTP response without
+// exchanging the one-time authorization code again.
+func CompleteGrokAuthFlow(flowID, ownerToken, encryptedResult string) error {
+	if flowID == "" || ownerToken == "" || encryptedResult == "" {
+		return errors.New("grok auth flow: completion inputs are required")
+	}
+	now := GetDBTimestamp()
+	res := DB.Model(&GrokAuthFlow{}).
+		Where("flow_id = ? AND owner_token = ? AND channel_id = 0 AND expires_at > ? AND (completed_at IS NULL OR completed_at = 0)", flowID, ownerToken, now).
+		Updates(map[string]any{
+			"encrypted_completion_result": encryptedResult,
+			"encrypted_verifier":          "",
+			"completed_at":                now,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return errors.New("grok auth flow: completion could not be persisted")
+	}
+	return nil
+}
+
+// GetGrokAuthFlowCompletion returns a fresh encrypted completion only to the
+// owner that claimed the flow. The caller must verify StateHash before decrypting.
+func GetGrokAuthFlowCompletion(flowID, ownerToken string) (*GrokAuthFlow, bool, error) {
+	if flowID == "" || ownerToken == "" {
+		return nil, false, errors.New("grok auth flow: empty flowID/ownerToken")
+	}
+	var flow GrokAuthFlow
+	err := DB.Where("flow_id = ? AND owner_token = ? AND expires_at > ? AND completed_at > 0 AND encrypted_completion_result <> ''", flowID, ownerToken, GetDBTimestamp()).First(&flow).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return &flow, true, nil
 }
 
 // ConsumeGrokAuthFlow 仅 owner 可删除（成功/失败终态/过期）。

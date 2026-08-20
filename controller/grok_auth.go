@@ -123,9 +123,12 @@ func GrokPKCEStart(channelID int, redirectURI string) (GrokPKCEStartResult, erro
 	}, nil
 }
 
-// grokSensitiveFieldPKCEVerifierForController 与 service.grokSensitiveFieldPKCEVerifier 同值
-// （cipher 白名单只放行 "pkce_verifier" 一个字段）；不直接引用 service 私有常量。
-const grokSensitiveFieldPKCEVerifierForController = "pkce_verifier"
+// These values mirror the private service cipher field allowlist. The field is
+// part of the AEAD associated data, so encryption and decryption must match.
+const (
+	grokSensitiveFieldPKCEVerifierForController  = "pkce_verifier"
+	grokSensitiveFieldCompletionKeyForController = "completion_key"
+)
 
 // loadGrokAuthCipher 装载 Task 5 cipher（fail-closed：env 未配置即失败）。
 func loadGrokAuthCipher() (service.GrokCredentialCipher, error) {
@@ -174,7 +177,7 @@ var errGrokStateMismatch = errors.New("grok auth: state mismatch")
 
 // GrokPKCEComplete 用授权码换凭证。未绑定渠道时返回凭证；已绑定渠道时写回渠道。
 // 流程：claim flow（一次性）→ 常数时间校验 state hash → 解密 verifier → ExchangeToken
-// → 序列化凭证 → 未绑定时 consume 并返回；已绑定时一次性写回、置 active、consume。
+// → 序列化凭证 → 未绑定时加密保存可恢复结果并返回；已绑定时一次性写回、置 active、consume。
 // ownerToken 为空时从 flowID 确定性推导（同 flow 重试幂等，他人 owner 抢不走 claim）。
 func GrokPKCEComplete(flowID, code, state, ownerToken string) (GrokPKCECompleteResult, error) {
 	if flowID == "" || code == "" || state == "" {
@@ -182,6 +185,27 @@ func GrokPKCEComplete(flowID, code, state, ownerToken string) (GrokPKCECompleteR
 	}
 	if ownerToken == "" {
 		ownerToken = grokFlowOwnerToken(flowID)
+	}
+	completion, found, err := model.GetGrokAuthFlowCompletion(flowID, ownerToken)
+	if err != nil {
+		return GrokPKCECompleteResult{}, err
+	}
+	if found {
+		if subtle.ConstantTimeCompare([]byte(hashGrokState(state)), []byte(completion.StateHash)) != 1 {
+			return GrokPKCECompleteResult{}, errGrokStateMismatch
+		}
+		cipher, err := loadGrokAuthCipher()
+		if err != nil {
+			return GrokPKCECompleteResult{}, err
+		}
+		serialized, err := cipher.Decrypt(flowID, grokSensitiveFieldCompletionKeyForController, completion.EncryptedCompletionResult)
+		if err != nil {
+			return GrokPKCECompleteResult{}, err
+		}
+		if _, err := groksubscription.ParseCredential(serialized); err != nil {
+			return GrokPKCECompleteResult{}, errors.New("grok auth: stored completion is invalid")
+		}
+		return GrokPKCECompleteResult{Key: serialized}, nil
 	}
 	flow, claimed, err := model.ClaimGrokAuthFlow(flowID, ownerToken)
 	if err != nil {
@@ -217,7 +241,11 @@ func GrokPKCEComplete(flowID, code, state, ownerToken string) (GrokPKCECompleteR
 		return GrokPKCECompleteResult{}, err
 	}
 	if flow.ChannelID == 0 {
-		if err := model.ConsumeGrokAuthFlow(flowID, ownerToken); err != nil {
+		encryptedResult, err := cipher.Encrypt(flowID, grokSensitiveFieldCompletionKeyForController, serialized)
+		if err != nil {
+			return GrokPKCECompleteResult{}, err
+		}
+		if err := model.CompleteGrokAuthFlow(flowID, ownerToken, encryptedResult); err != nil {
 			return GrokPKCECompleteResult{}, err
 		}
 		return GrokPKCECompleteResult{Key: serialized}, nil

@@ -273,6 +273,32 @@ func TestGrokAuthPKCECompleteUnboundReturnsCredentialWithoutChannelWrite(t *test
 	require.False(t, claimed)
 }
 
+func TestGrokAuthPKCECompleteUnboundRecoversCredentialWithoutSecondExchange(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	start, err := GrokPKCEStart(0, groksubscription.OAuthRedirectURI)
+	require.NoError(t, err)
+
+	exchanges := 0
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(*http.Request) (*http.Response, error) {
+		exchanges++
+		return grokJSONResponse(200, `{"access_token":"at-recover","refresh_token":"rt-recover","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+
+	first, err := GrokPKCEComplete(start.FlowID, "recover-code", start.State, "")
+	require.NoError(t, err)
+	second, err := GrokPKCEComplete(start.FlowID, "recover-code", start.State, "")
+	require.NoError(t, err, "a retry after a lost HTTP response must recover the persisted credential")
+	require.Equal(t, first.Key, second.Key)
+	require.Equal(t, 1, exchanges, "the one-time authorization code must never be exchanged twice")
+
+	var flow model.GrokAuthFlow
+	require.NoError(t, model.DB.Where("flow_id = ?", start.FlowID).First(&flow).Error)
+	require.NotContains(t, flow.EncryptedCompletionResult, "at-recover")
+	require.Empty(t, flow.EncryptedVerifier, "the completed flow must not retain the PKCE verifier")
+}
+
 // TestGrokPKCECompleteStateMismatchBurnsFlow 守护防重放：state 不符必须 consume flow 且报 400 语义错误，
 // 错误信息不含 state/code 明文。
 func TestGrokAuthPKCECompleteStateMismatchBurnsFlow(t *testing.T) {

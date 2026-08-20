@@ -13,7 +13,10 @@ import (
 
 const grokCredentialCipherEnv = "GROK_CREDENTIAL_CIPHER_KEY"
 
-const grokSensitiveFieldPKCEVerifier = "pkce_verifier"
+const (
+	grokSensitiveFieldPKCEVerifier  = "pkce_verifier"
+	grokSensitiveFieldCompletionKey = "completion_key"
+)
 
 type GrokCredentialCipher interface {
 	Encrypt(sessionID, field, plaintext string) (string, error)
@@ -95,7 +98,12 @@ func (c *grokCredentialCipher) Decrypt(sessionID, field, envelope string) (strin
 }
 
 func isValidGrokSensitiveContext(sessionID, field string) bool {
-	if sessionID == "" || len(sessionID) > 64 || field != grokSensitiveFieldPKCEVerifier {
+	if sessionID == "" || len(sessionID) > 64 {
+		return false
+	}
+	switch field {
+	case grokSensitiveFieldPKCEVerifier, grokSensitiveFieldCompletionKey:
+	default:
 		return false
 	}
 	for i := 0; i < len(sessionID); i++ {
