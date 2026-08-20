@@ -175,6 +175,32 @@ func SetGrokAuthHTTPDoerForTest(doer groksubscription.HTTPDoer) func() {
 // errGrokStateMismatch 是 400 语义错误：state 校验失败（flow 已被 consume 防重放）。
 var errGrokStateMismatch = errors.New("grok auth: state mismatch")
 
+// errGrokCompletionPending tells a concurrent retry that another request owns
+// the one-time code exchange. Retrying later will recover the persisted result.
+var errGrokCompletionPending = errors.New("grok auth: completion pending, retry shortly")
+
+func recoverGrokAuthCompletion(flowID, ownerToken, state string) (GrokPKCECompleteResult, bool, error) {
+	completion, found, err := model.GetGrokAuthFlowCompletion(flowID, ownerToken)
+	if err != nil || !found {
+		return GrokPKCECompleteResult{}, found, err
+	}
+	if subtle.ConstantTimeCompare([]byte(hashGrokState(state)), []byte(completion.StateHash)) != 1 {
+		return GrokPKCECompleteResult{}, true, errGrokStateMismatch
+	}
+	cipher, err := loadGrokAuthCipher()
+	if err != nil {
+		return GrokPKCECompleteResult{}, true, err
+	}
+	serialized, err := cipher.Decrypt(flowID, grokSensitiveFieldCompletionKeyForController, completion.EncryptedCompletionResult)
+	if err != nil {
+		return GrokPKCECompleteResult{}, true, err
+	}
+	if _, err := groksubscription.ParseCredential(serialized); err != nil {
+		return GrokPKCECompleteResult{}, true, errors.New("grok auth: stored completion is invalid")
+	}
+	return GrokPKCECompleteResult{Key: serialized}, true, nil
+}
+
 // GrokPKCEComplete 用授权码换凭证。未绑定渠道时返回凭证；已绑定渠道时写回渠道。
 // 流程：claim flow（一次性）→ 常数时间校验 state hash → 解密 verifier → ExchangeToken
 // → 序列化凭证 → 未绑定时加密保存可恢复结果并返回；已绑定时一次性写回、置 active、consume。
@@ -186,32 +212,17 @@ func GrokPKCEComplete(flowID, code, state, ownerToken string) (GrokPKCECompleteR
 	if ownerToken == "" {
 		ownerToken = grokFlowOwnerToken(flowID)
 	}
-	completion, found, err := model.GetGrokAuthFlowCompletion(flowID, ownerToken)
-	if err != nil {
-		return GrokPKCECompleteResult{}, err
-	}
-	if found {
-		if subtle.ConstantTimeCompare([]byte(hashGrokState(state)), []byte(completion.StateHash)) != 1 {
-			return GrokPKCECompleteResult{}, errGrokStateMismatch
-		}
-		cipher, err := loadGrokAuthCipher()
-		if err != nil {
-			return GrokPKCECompleteResult{}, err
-		}
-		serialized, err := cipher.Decrypt(flowID, grokSensitiveFieldCompletionKeyForController, completion.EncryptedCompletionResult)
-		if err != nil {
-			return GrokPKCECompleteResult{}, err
-		}
-		if _, err := groksubscription.ParseCredential(serialized); err != nil {
-			return GrokPKCECompleteResult{}, errors.New("grok auth: stored completion is invalid")
-		}
-		return GrokPKCECompleteResult{Key: serialized}, nil
+	if result, found, err := recoverGrokAuthCompletion(flowID, ownerToken, state); err != nil || found {
+		return result, err
 	}
 	flow, claimed, err := model.ClaimGrokAuthFlow(flowID, ownerToken)
 	if err != nil {
 		return GrokPKCECompleteResult{}, err
 	}
 	if !claimed || flow == nil {
+		if result, found, err := recoverGrokAuthCompletion(flowID, ownerToken, state); err != nil || found {
+			return result, err
+		}
 		return GrokPKCECompleteResult{}, errors.New("grok auth: flow not found, expired or already used")
 	}
 	if subtle.ConstantTimeCompare([]byte(hashGrokState(state)), []byte(flow.StateHash)) != 1 {
@@ -226,6 +237,18 @@ func GrokPKCEComplete(flowID, code, state, ownerToken string) (GrokPKCECompleteR
 	verifier, err := cipher.Decrypt(flow.FlowID, grokSensitiveFieldPKCEVerifierForController, flow.EncryptedVerifier)
 	if err != nil {
 		return GrokPKCECompleteResult{}, err // cipher 错误信息自身已脱敏
+	}
+	if flow.ChannelID == 0 {
+		began, err := model.BeginGrokAuthFlowExchange(flowID, ownerToken)
+		if err != nil {
+			return GrokPKCECompleteResult{}, err
+		}
+		if !began {
+			if result, found, err := recoverGrokAuthCompletion(flowID, ownerToken, state); err != nil || found {
+				return result, err
+			}
+			return GrokPKCECompleteResult{}, errGrokCompletionPending
+		}
 	}
 	cred, err := groksubscription.ExchangeToken(context.Background(), grokAuthHTTPDoer,
 		groksubscription.GrantTypeAuthorizationCode, code, verifier, "", flow.RedirectURI)
@@ -556,6 +579,10 @@ func GrokPKCECompleteHandler(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, errGrokStateMismatch) {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "state mismatch"})
+			return
+		}
+		if errors.Is(err, errGrokCompletionPending) {
+			c.JSON(http.StatusConflict, gin.H{"success": false, "message": errGrokCompletionPending.Error()})
 			return
 		}
 		body := gin.H{"success": false, "message": err.Error()}

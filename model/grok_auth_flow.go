@@ -7,6 +7,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	grokAuthCompletionRecoveryTTL = 10 * 60
+	grokAuthExchangeCleanupGrace  = 2 * 60
+)
+
 // GrokAuthFlow 是 Grok 专用的一次性 PKCE 认证状态（设计 §7.1）。
 // 独立于 Copilot 的 Redis+内存 fallback 与 Codex 的 gin session；跨节点、owner-token claim、10 分钟过期。
 //
@@ -25,8 +30,26 @@ type GrokAuthFlow struct {
 	RedirectURI               string `json:"redirect_uri" gorm:"type:varchar(512)"`
 	OwnerToken                string `json:"-" gorm:"type:varchar(128)"`
 	CreatedAt                 int64  `json:"created_at"`
+	ExchangeStartedAt         int64  `json:"exchange_started_at" gorm:"index"`
 	CompletedAt               int64  `json:"completed_at" gorm:"index"`
 	ExpiresAt                 int64  `json:"expires_at" gorm:"index"`
+}
+
+// BeginGrokAuthFlowExchange atomically grants one caller permission to use the
+// one-time authorization code. Same-owner retries remain claim-compatible, but
+// only the first request can transition the flow into exchange-in-progress.
+func BeginGrokAuthFlowExchange(flowID, ownerToken string) (bool, error) {
+	if flowID == "" || ownerToken == "" {
+		return false, errors.New("grok auth flow: empty flowID/ownerToken")
+	}
+	now := GetDBTimestamp()
+	res := DB.Model(&GrokAuthFlow{}).
+		Where("flow_id = ? AND owner_token = ? AND expires_at > ? AND (completed_at IS NULL OR completed_at = 0) AND (exchange_started_at IS NULL OR exchange_started_at = 0)", flowID, ownerToken, now).
+		Update("exchange_started_at", now)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
 }
 
 func (GrokAuthFlow) TableName() string { return "grok_auth_flows" }
@@ -94,11 +117,12 @@ func CompleteGrokAuthFlow(flowID, ownerToken, encryptedResult string) error {
 	}
 	now := GetDBTimestamp()
 	res := DB.Model(&GrokAuthFlow{}).
-		Where("flow_id = ? AND owner_token = ? AND channel_id = 0 AND expires_at > ? AND (completed_at IS NULL OR completed_at = 0)", flowID, ownerToken, now).
+		Where("flow_id = ? AND owner_token = ? AND channel_id = 0 AND exchange_started_at > 0 AND (completed_at IS NULL OR completed_at = 0)", flowID, ownerToken).
 		Updates(map[string]any{
 			"encrypted_completion_result": encryptedResult,
 			"encrypted_verifier":          "",
 			"completed_at":                now,
+			"expires_at":                  now + grokAuthCompletionRecoveryTTL,
 		})
 	if res.Error != nil {
 		return res.Error
@@ -136,5 +160,10 @@ func ConsumeGrokAuthFlow(flowID, ownerToken string) error {
 // 永不被消费，EncryptedVerifier 会超期滞留并无界增长。best-effort 机会式清理由调用方触发。
 // expires_at 为 UNIX 秒（同 CreateGrokAuthFlow 写入约定），与 GetDBTimestamp() 同源比较。
 func DeleteExpiredGrokAuthFlows() error {
-	return DB.Where("expires_at <= ?", GetDBTimestamp()).Delete(&GrokAuthFlow{}).Error
+	now := GetDBTimestamp()
+	return DB.Where(
+		"expires_at <= ? AND ((exchange_started_at IS NULL OR exchange_started_at = 0) OR completed_at > 0 OR exchange_started_at <= ?)",
+		now,
+		now-grokAuthExchangeCleanupGrace,
+	).Delete(&GrokAuthFlow{}).Error
 }

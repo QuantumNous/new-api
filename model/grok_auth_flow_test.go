@@ -118,6 +118,12 @@ func TestCompleteGrokAuthFlowIsRecoverableAndNoLongerClaimable(t *testing.T) {
 	_, claimed, err := ClaimGrokAuthFlow(flow.FlowID, "owner-1")
 	require.NoError(t, err)
 	require.True(t, claimed)
+	began, err := BeginGrokAuthFlowExchange(flow.FlowID, "owner-1")
+	require.NoError(t, err)
+	require.True(t, began)
+	began, err = BeginGrokAuthFlowExchange(flow.FlowID, "owner-1")
+	require.NoError(t, err)
+	require.False(t, began, "only one request may exchange the authorization code")
 
 	require.NoError(t, CompleteGrokAuthFlow(flow.FlowID, "owner-1", "v1:completion"))
 	completed, found, err := GetGrokAuthFlowCompletion(flow.FlowID, "owner-1")
@@ -134,6 +140,31 @@ func TestCompleteGrokAuthFlowIsRecoverableAndNoLongerClaimable(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, found, "another owner must not read the completion")
 	require.Error(t, CompleteGrokAuthFlow(flow.FlowID, "owner-1", "v1:replacement"), "completion must be write-once")
+}
+
+func TestCompleteGrokAuthFlowPersistsAfterClaimExpires(t *testing.T) {
+	setupGrokAuthFlowTestDB(t)
+	flow := &GrokAuthFlow{
+		Provider:          "grok_subscription",
+		StateHash:         "state-hash",
+		EncryptedVerifier: "v1:verifier",
+		ExpiresAt:         GetDBTimestamp() + 600,
+	}
+	require.NoError(t, CreateGrokAuthFlow(flow))
+	_, claimed, err := ClaimGrokAuthFlow(flow.FlowID, "owner-1")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	began, err := BeginGrokAuthFlowExchange(flow.FlowID, "owner-1")
+	require.NoError(t, err)
+	require.True(t, began)
+	require.NoError(t, DB.Model(&GrokAuthFlow{}).Where("flow_id = ?", flow.FlowID).Update("expires_at", GetDBTimestamp()-1).Error)
+	require.NoError(t, DeleteExpiredGrokAuthFlows(), "cleanup must retain a recently-started exchange")
+
+	require.NoError(t, CompleteGrokAuthFlow(flow.FlowID, "owner-1", "v1:completion"), "an exchange that started before expiry must be durable after it succeeds")
+	completed, found, err := GetGrokAuthFlowCompletion(flow.FlowID, "owner-1")
+	require.NoError(t, err)
+	require.True(t, found)
+	require.Greater(t, completed.ExpiresAt, GetDBTimestamp(), "completion persistence must extend the recovery window")
 }
 
 // TestDeleteExpiredGrokAuthFlows 守护 [1]：过期 flow（含未认领的 owner_token=” PKCE 残留）
@@ -184,5 +215,8 @@ func TestGrokAuthFlowRejectsInvalidInputs(t *testing.T) {
 	}
 	if _, ok, err := GetGrokAuthFlowCompletion("flow", ""); err == nil || ok {
 		t.Fatalf("GetGrokAuthFlowCompletion with an empty owner must fail, ok=%v err=%v", ok, err)
+	}
+	if began, err := BeginGrokAuthFlowExchange("", "owner"); err == nil || began {
+		t.Fatalf("BeginGrokAuthFlowExchange with an empty flowID must fail, began=%v err=%v", began, err)
 	}
 }

@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -297,6 +299,51 @@ func TestGrokAuthPKCECompleteUnboundRecoversCredentialWithoutSecondExchange(t *t
 	require.NoError(t, model.DB.Where("flow_id = ?", start.FlowID).First(&flow).Error)
 	require.NotContains(t, flow.EncryptedCompletionResult, "at-recover")
 	require.Empty(t, flow.EncryptedVerifier, "the completed flow must not retain the PKCE verifier")
+}
+
+func TestGrokAuthPKCECompleteUnboundConcurrentRetryDoesNotExchangeTwice(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	start, err := GrokPKCEStart(0, groksubscription.OAuthRedirectURI)
+	require.NoError(t, err)
+
+	var exchanges atomic.Int32
+	exchangeStarted := make(chan struct{})
+	releaseExchange := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseExchange) }) }
+	defer release()
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(*http.Request) (*http.Response, error) {
+		if exchanges.Add(1) == 1 {
+			close(exchangeStarted)
+			<-releaseExchange
+		}
+		return grokJSONResponse(200, `{"access_token":"at-concurrent","refresh_token":"rt-concurrent","token_type":"Bearer","expires_in":3600}`), nil
+	}))
+	defer restore()
+
+	type completionResult struct {
+		result GrokPKCECompleteResult
+		err    error
+	}
+	firstDone := make(chan completionResult, 1)
+	go func() {
+		result, err := GrokPKCEComplete(start.FlowID, "concurrent-code", start.State, "")
+		firstDone <- completionResult{result: result, err: err}
+	}()
+	<-exchangeStarted
+
+	_, err = GrokPKCEComplete(start.FlowID, "concurrent-code", start.State, "")
+	require.ErrorIs(t, err, errGrokCompletionPending)
+	require.Equal(t, int32(1), exchanges.Load(), "a pending retry must not reach the token endpoint")
+
+	release()
+	first := <-firstDone
+	require.NoError(t, first.err)
+	recovered, err := GrokPKCEComplete(start.FlowID, "concurrent-code", start.State, "")
+	require.NoError(t, err)
+	require.Equal(t, first.result.Key, recovered.Key)
+	require.Equal(t, int32(1), exchanges.Load())
 }
 
 // TestGrokPKCECompleteStateMismatchBurnsFlow 守护防重放：state 不符必须 consume flow 且报 400 语义错误，
