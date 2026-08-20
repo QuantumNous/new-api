@@ -28,6 +28,7 @@ export const subscriptionPlanSchema = z.object({
   subtitle: z.string().optional(),
   price_amount: z.number(),
   currency: z.string().default('USD'),
+  currency_prices: z.record(z.string(), z.number()).optional(),
   pix_price_brl: z.number().nullable().optional(),
   upi_price_inr: z.number().nullable().optional(),
   duration_unit: z.enum(['year', 'month', 'day', 'hour', 'custom']),

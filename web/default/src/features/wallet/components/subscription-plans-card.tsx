@@ -60,6 +60,10 @@ import {
   mergeFlexibleQuoteProjection,
   normalizeSelfSubscriptionData,
 } from '../lib/subscription-plan-lifecycle'
+import {
+  resolveSubscriptionPlanDisplayPrice,
+  resolveSubscriptionPlanGridCurrency,
+} from '../lib/subscription-plan-prices'
 import type { TopupInfo } from '../types'
 import { CurrentPlanCard } from './current-plan-card'
 import { PlanPurchaseDialog } from './plan-purchase-dialog'
@@ -276,7 +280,7 @@ function getPlanEntitlements(plan: PlanRecord['plan'], t: Translate) {
 }
 
 export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const {
     topupInfo,
     onAvailabilityChange,
@@ -417,6 +421,14 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
         )
       }),
     [plans]
+  )
+  const planGridCurrency = useMemo(
+    () =>
+      resolveSubscriptionPlanGridCurrency(
+        orderedPlans.map((item) => item.plan),
+        i18n.resolvedLanguage || i18n.language
+      ),
+    [i18n.language, i18n.resolvedLanguage, orderedPlans]
   )
 
   const contract = selfData.contract ?? null
@@ -801,11 +813,13 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
               const discountPreview = getPlanCardDiscountPreview(
                 planPreviewQuotes[plan.id]
               )
+              const configuredDisplayPrice =
+                resolveSubscriptionPlanDisplayPrice(plan, planGridCurrency)
               const currency =
-                discountPreview?.currency || plan.currency || 'USD'
+                discountPreview?.currency || configuredDisplayPrice.currency
               const originalPrice = formatPlanPrice(
                 discountPreview?.originalTotal ??
-                  Number(plan.price_amount || 0),
+                  configuredDisplayPrice.amount,
                 currency
               )
               const displayPrice = discountPreview

@@ -2,10 +2,12 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -27,27 +29,28 @@ type AdminSubscriptionPlanDTO struct {
 }
 
 type SubscriptionPlanPublicDTO struct {
-	Id                      int      `json:"id"`
-	Title                   string   `json:"title"`
-	Subtitle                string   `json:"subtitle"`
-	PriceAmount             float64  `json:"price_amount"`
-	Currency                string   `json:"currency"`
-	DurationUnit            string   `json:"duration_unit"`
-	DurationValue           int      `json:"duration_value"`
-	CustomSeconds           int64    `json:"custom_seconds"`
-	Enabled                 bool     `json:"enabled"`
-	SortOrder               int      `json:"sort_order"`
-	TierRank                *int     `json:"tier_rank"`
-	AllowBalancePay         *bool    `json:"allow_balance_pay"`
-	PaymentModes            []string `json:"payment_modes"`
-	MaxPurchasePerUser      int      `json:"max_purchase_per_user"`
-	UpgradeGroup            string   `json:"upgrade_group"`
-	TotalAmount             int64    `json:"total_amount"`
-	MediaCreditsMonthly     int64    `json:"media_credits_monthly"`
-	QuotaResetPeriod        string   `json:"quota_reset_period"`
-	QuotaResetCustomSeconds int64    `json:"quota_reset_custom_seconds"`
-	CreatedAt               int64    `json:"created_at"`
-	UpdatedAt               int64    `json:"updated_at"`
+	Id                      int                `json:"id"`
+	Title                   string             `json:"title"`
+	Subtitle                string             `json:"subtitle"`
+	PriceAmount             float64            `json:"price_amount"`
+	Currency                string             `json:"currency"`
+	CurrencyPrices          map[string]float64 `json:"currency_prices,omitempty"`
+	DurationUnit            string             `json:"duration_unit"`
+	DurationValue           int                `json:"duration_value"`
+	CustomSeconds           int64              `json:"custom_seconds"`
+	Enabled                 bool               `json:"enabled"`
+	SortOrder               int                `json:"sort_order"`
+	TierRank                *int               `json:"tier_rank"`
+	AllowBalancePay         *bool              `json:"allow_balance_pay"`
+	PaymentModes            []string           `json:"payment_modes"`
+	MaxPurchasePerUser      int                `json:"max_purchase_per_user"`
+	UpgradeGroup            string             `json:"upgrade_group"`
+	TotalAmount             int64              `json:"total_amount"`
+	MediaCreditsMonthly     int64              `json:"media_credits_monthly"`
+	QuotaResetPeriod        string             `json:"quota_reset_period"`
+	QuotaResetCustomSeconds int64              `json:"quota_reset_custom_seconds"`
+	CreatedAt               int64              `json:"created_at"`
+	UpdatedAt               int64              `json:"updated_at"`
 }
 
 type BillingPreferenceRequest struct {
@@ -321,8 +324,18 @@ func GetSubscriptionPlans(c *gin.Context) {
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
 		p.NormalizeDefaults()
+		planDTO := subscriptionPlanPublicDTO(&p)
+		currencyPrices, currencyPricesErr := subscriptionPlanCurrencyPrices(&p)
+		if currencyPricesErr != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf(
+				"subscription plan currency prices unavailable plan_id=%d error=%q",
+				p.Id,
+				currencyPricesErr.Error(),
+			))
+		}
+		planDTO.CurrencyPrices = currencyPrices
 		result = append(result, SubscriptionPlanDTO{
-			Plan:     subscriptionPlanPublicDTO(&p),
+			Plan:     planDTO,
 			TierRank: p.TierRank,
 			Relation: subscriptionPlanRelation(contract, currentTierRank, &p),
 		})

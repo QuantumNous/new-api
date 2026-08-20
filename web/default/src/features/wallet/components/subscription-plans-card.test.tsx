@@ -89,6 +89,17 @@ function plan(id: number, title: string, price: number): PlanRecord {
 }
 
 const plans = [plan(1, 'Go', 10), plan(2, 'Pro', 20), plan(3, 'Max', 40)]
+const localizedPlans = plans.map((item, index) => ({
+  ...item,
+  plan: {
+    ...item.plan,
+    currency_prices: {
+      USD: [10, 20, 40][index],
+      JPY: [1_500, 3_000, 6_000][index],
+      BRL: [49.9, 99.9, 199.9][index],
+    },
+  },
+}))
 const TEST_NOW_SECONDS = 4_000_000_000
 const VALID_QUOTE_EXPIRES_AT = TEST_NOW_SECONDS + 60
 
@@ -162,18 +173,25 @@ function matchLocalPaymentQuote(
   )
 }
 
-function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
+function renderWalletCardWithPlans(
+  initialPlans: PlanRecord[],
+  selfData = normalizeSelfSubscriptionData(undefined)
+) {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <SubscriptionPlansCard
         topupInfo={topupInfo}
-        initialPlans={plans}
+        initialPlans={initialPlans}
         initialSelfData={selfData}
         initialLoading={false}
         userQuota={12345}
       />
     </I18nextProvider>
   )
+}
+
+function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
+  return renderWalletCardWithPlans(plans, selfData)
 }
 
 function renderWalletCardWithPreviewQuote(
@@ -258,6 +276,60 @@ function renderWalletCardWithRecallOffers(recallOffers: RecallOfferView[]) {
 }
 
 describe('SubscriptionPlansCard flexible wallet plan UI', () => {
+  test('shows configured JPY plan prices for a Japanese interface', async () => {
+    await testI18n.changeLanguage('ja-JP')
+    try {
+      const html = renderWalletCardWithPlans(localizedPlans)
+
+      expect(html).toContain('¥1,500')
+      expect(html).toContain('¥3,000')
+      expect(html).toContain('¥6,000')
+      expect(html).not.toContain('$10')
+    } finally {
+      await testI18n.changeLanguage('en')
+    }
+  })
+
+  test('shows configured BRL plan prices for a Portuguese interface', async () => {
+    await testI18n.changeLanguage('pt-BR')
+    try {
+      const html = renderWalletCardWithPlans(localizedPlans)
+
+      expect(html).toContain('R$')
+      expect(html).toContain('49,90')
+      expect(html).toContain('99,90')
+      expect(html).toContain('199,90')
+      expect(html).not.toContain('$10')
+    } finally {
+      await testI18n.changeLanguage('en')
+    }
+  })
+
+  test('falls all Japanese plan cards back to USD when one JPY price is missing', async () => {
+    await testI18n.changeLanguage('ja')
+    try {
+      const incompletePlans = localizedPlans.map((item, index) =>
+        index === 2
+          ? {
+              ...item,
+              plan: {
+                ...item.plan,
+                currency_prices: { USD: item.plan.price_amount },
+              },
+            }
+          : item
+      )
+      const html = renderWalletCardWithPlans(incompletePlans)
+
+      expect(html).toContain('$10')
+      expect(html).toContain('$20')
+      expect(html).toContain('$40')
+      expect(html).not.toContain('¥1,500')
+    } finally {
+      await testI18n.changeLanguage('en')
+    }
+  })
+
   test('hides the current plan module when there is no active plan and shows Go Pro Max first', () => {
     const html = renderWalletCard()
 
