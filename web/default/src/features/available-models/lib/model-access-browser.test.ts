@@ -30,6 +30,7 @@ import {
   getModelAccessScopeModels,
   getModelAccessUnavailableScopeModels,
   getModelVendorFilterSignature,
+  getModelVendorFilterCounts,
   getModelVendorFilters,
   isFixedModelAccessView,
   normalizeModelAvailabilityStatus,
@@ -253,6 +254,25 @@ describe('available models browser filters', () => {
       { value: 'vendor:openai', label: 'OpenAI' },
       { value: UNLABELLED_MODEL_VENDOR, label: null },
     ])
+  })
+
+  test('counts the models behind each vendor filter', () => {
+    const counts = getModelVendorFilterCounts(models)
+
+    expect(counts.get(ALL_MODEL_VENDORS)).toBe(3)
+    expect(counts.get('vendor:openai')).toBe(1)
+    expect(counts.get('vendor:example labs')).toBe(1)
+    expect(counts.get(UNLABELLED_MODEL_VENDOR)).toBe(1)
+  })
+
+  test('groups vendor spelling variants into a single count', () => {
+    const counts = getModelVendorFilterCounts([
+      ...models,
+      { ...models[0], id: 'openai-duplicate', vendor: { id: 99, name: 'openai' } },
+    ])
+
+    expect(counts.get('vendor:openai')).toBe(2)
+    expect(counts.get(ALL_MODEL_VENDORS)).toBe(4)
   })
 
   test('preserves valid vendor selections across equivalent option arrays', () => {

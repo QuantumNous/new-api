@@ -6682,6 +6682,12 @@
     "Website": "网站",
     "Website (optional)": "网站（选填）",
     "Honeypot": "蜜罐",
-    "Include disabled users": "包含禁用用户"
+    "Include disabled users": "包含禁用用户",
+    "Try it now": "立即使用",
+    "Quick start": "快速接入",
+    "Model type": "模型类型",
+    "Dynamic pricing": "动态计费",
+    "Not callable": "不可调用",
+    "Price depends on request size and options.": "价格取决于请求大小与所选参数。"
   }
 }

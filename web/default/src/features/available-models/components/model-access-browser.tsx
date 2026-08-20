@@ -42,6 +42,7 @@ import {
   getModelAccessScopeModelCounts,
   getModelAccessScopeModels,
   getModelAccessUnavailableScopeModels,
+  getModelVendorFilterCounts,
   getModelVendorFilters,
   isFixedModelAccessView,
   reconcileModelVendorFilterState,
@@ -49,8 +50,16 @@ import {
   UNLABELLED_MODEL_VENDOR,
   type ModelVendorFilter,
 } from '../lib/model-access-browser'
+import {
+  ALL_MODEL_CATEGORIES,
+  filterModelsByCategory,
+  getModelCategoryFilters,
+  getModelCategoryLabel,
+  type ModelCategoryFilter,
+} from '../lib/model-catalog-type'
+import { useModelCatalogPrices } from '../hooks/use-model-catalog-prices'
 import type { UserModelAccess } from '../types'
-import { ModelAccessList } from './model-access-list'
+import { ModelCatalogGrid } from './model-catalog-grid'
 import { ModelAccessScopeRail } from './model-access-scope-rail'
 
 type ModelAccessBrowserProps = {
@@ -62,6 +71,9 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   const fixedView = isFixedModelAccessView(access)
   const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [category, setCategory] =
+    useState<ModelCategoryFilter>(ALL_MODEL_CATEGORIES)
+  const priceIndex = useModelCatalogPrices()
 
   const activeScopeId = resolveModelAccessScope(access, selectedScopeId)
   const ratioContext = resolveModelRatioContext(access, activeScopeId)
@@ -96,13 +108,42 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   }
   const activeVendor = reconciledVendorState.value
 
+  // Category chips describe the whole scope, so switching vendor never makes a
+  // type disappear from the row; the counts still follow the vendor selection.
+  const categoryFilters = useMemo(
+    () => getModelCategoryFilters(scopeModels),
+    [scopeModels]
+  )
+  const vendorCounts = useMemo(
+    () => getModelVendorFilterCounts(filterModelsByCategory(scopeModels, category)),
+    [category, scopeModels]
+  )
+
+  // A category that vanished with the scope must not keep filtering silently.
+  const activeCategory = categoryFilters.some(
+    (option) => option.value === category
+  )
+    ? category
+    : ALL_MODEL_CATEGORIES
+  if (activeCategory !== category) {
+    setCategory(ALL_MODEL_CATEGORIES)
+  }
+
   const visibleModels = useMemo(
-    () => filterModelAccessModels(scopeModels, query, activeVendor),
-    [activeVendor, query, scopeModels]
+    () =>
+      filterModelsByCategory(
+        filterModelAccessModels(scopeModels, query, activeVendor),
+        activeCategory
+      ),
+    [activeCategory, activeVendor, query, scopeModels]
   )
   const visibleUnavailableModels = useMemo(
-    () => filterModelAccessModels(unavailableScopeModels, query, activeVendor),
-    [activeVendor, query, unavailableScopeModels]
+    () =>
+      filterModelsByCategory(
+        filterModelAccessModels(unavailableScopeModels, query, activeVendor),
+        activeCategory
+      ),
+    [activeCategory, activeVendor, query, unavailableScopeModels]
   )
   const selectedScope = access.groups.find(
     (scope) => scope.id === activeScopeId
@@ -113,6 +154,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
 
   const clearFilters = () => {
     setQuery('')
+    setCategory(ALL_MODEL_CATEGORIES)
     setVendorState(createModelVendorFilterState(vendorFilters, activeScopeId))
   }
 
@@ -249,6 +291,34 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
 
         <div className='flex flex-col gap-1.5'>
           <span className='text-muted-foreground text-xs font-medium'>
+            {t('Model type')}
+          </span>
+          <div className='overflow-x-auto pb-0.5'>
+            <ToggleGroup
+              value={[activeCategory]}
+              variant='outline'
+              size='sm'
+              aria-label={t('Model type')}
+              onValueChange={(values) => {
+                if (values[0]) {
+                  setCategory(values[0] as ModelCategoryFilter)
+                }
+              }}
+            >
+              {categoryFilters.map((option) => (
+                <ToggleGroupItem key={option.value} value={option.value}>
+                  {getModelCategoryLabel(option.value, t)}
+                  <span className='text-muted-foreground ml-1 tabular-nums'>
+                    {option.count}
+                  </span>
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+        </div>
+
+        <div className='flex flex-col gap-1.5'>
+          <span className='text-muted-foreground text-xs font-medium'>
             {t('Model vendors')}
           </span>
           <div className='overflow-x-auto pb-0.5'>
@@ -276,6 +346,9 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
                     : option.value === UNLABELLED_MODEL_VENDOR
                       ? t('Unlabelled vendor')
                       : option.label}
+                  <span className='text-muted-foreground ml-1 tabular-nums'>
+                    {vendorCounts.get(option.value) ?? 0}
+                  </span>
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -283,10 +356,11 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
         </div>
       </div>
 
-      <ModelAccessList
+      <ModelCatalogGrid
         defaultRatio={ratioContext.defaultRatio}
         modelRatios={ratioContext.modelRatios}
         models={visibleModels}
+        priceIndex={priceIndex}
         scopeIsEmpty={scopeModels.length === 0}
         onClearFilters={clearFilters}
       />
@@ -310,10 +384,11 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
               })}
             </Badge>
           </div>
-          <ModelAccessList
+          <ModelCatalogGrid
             defaultRatio={ratioContext.defaultRatio}
             modelRatios={ratioContext.modelRatios}
             models={visibleUnavailableModels}
+            priceIndex={priceIndex}
             scopeIsEmpty={false}
             onClearFilters={clearFilters}
           />

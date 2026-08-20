@@ -26,7 +26,20 @@ import {
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
+/**
+ * `?model=` hands a model from the model catalog to the overview's integration
+ * examples, so the picker there lands pre-selected on the model the user came
+ * from. Anything else is dropped rather than echoed back into the URL.
+ */
+export function validateDashboardSearch(search: Record<string, unknown>): {
+  model?: string
+} {
+  const model = typeof search.model === 'string' ? search.model.trim() : ''
+  return model ? { model } : {}
+}
+
 export const Route = createFileRoute('/_authenticated/dashboard/$section')({
+  validateSearch: validateDashboardSearch,
   beforeLoad: ({ params }) => {
     const validSections = DASHBOARD_SECTION_IDS as unknown as string[]
     const userRole = useAuthStore.getState().auth.user?.role

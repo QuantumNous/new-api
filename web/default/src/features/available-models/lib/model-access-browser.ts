@@ -165,6 +165,24 @@ export function resolveModelVendorSelection(
     : ALL_MODEL_VENDORS
 }
 
+/**
+ * Model count behind each vendor filter, keyed the same way as the filter
+ * options — so vendor spelling variants collapse into one entry, matching how
+ * {@link getModelVendorFilters} dedupes them.
+ */
+export function getModelVendorFilterCounts(
+  models: readonly ModelAccessModel[]
+): Map<ModelVendorFilter, number> {
+  const counts = new Map<ModelVendorFilter, number>([
+    [ALL_MODEL_VENDORS, models.length],
+  ])
+  for (const model of models) {
+    const value = modelVendorFilterValue(model)
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+  return counts
+}
+
 export function createModelVendorFilterState(
   filterOptions: readonly ModelVendorFilterOption[],
   scopeKey: string | null,

@@ -6682,6 +6682,12 @@
     "Website": "ウェブサイト",
     "Website (optional)": "ウェブサイト（任意）",
     "Honeypot": "ハニーポット",
-    "Include disabled users": "無効なユーザーを含める"
+    "Include disabled users": "無効なユーザーを含める",
+    "Try it now": "今すぐ試す",
+    "Quick start": "クイック接続",
+    "Model type": "モデルタイプ",
+    "Dynamic pricing": "動的課金",
+    "Not callable": "呼び出し不可",
+    "Price depends on request size and options.": "価格はリクエストのサイズとオプションによって変わります。"
   }
 }

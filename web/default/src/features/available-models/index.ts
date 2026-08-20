@@ -37,6 +37,14 @@ export {
   resolveModelAccessScope,
 } from './lib/model-access-browser'
 export {
+  ALL_MODEL_CATEGORIES,
+  filterModelsByCategory,
+  getModelCategory,
+  getModelCategoryFilters,
+  type ModelCategory,
+  type ModelCategoryFilter,
+} from './lib/model-catalog-type'
+export {
   createModelAccessQueryOptions,
   modelAccessQueryKeys,
   useModelAccess,

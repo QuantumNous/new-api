@@ -6682,6 +6682,12 @@
     "Website": "Website",
     "Website (optional)": "Website (optional)",
     "Honeypot": "Honeypot",
-    "Include disabled users": "Include disabled users"
+    "Include disabled users": "Include disabled users",
+    "Try it now": "Try it now",
+    "Quick start": "Quick start",
+    "Model type": "Model type",
+    "Dynamic pricing": "Dynamic pricing",
+    "Not callable": "Not callable",
+    "Price depends on request size and options.": "Price depends on request size and options."
   }
 }
