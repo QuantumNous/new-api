@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ArrowRight, CheckCircle2, CreditCard, Gift, Layers3, ShieldCheck, WalletCards, Zap } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import { consoleUrl } from "@/lib/origins";
@@ -16,7 +17,14 @@ const steps = [
   "Comece a usar APIs de IA",
 ];
 
-const models = ["DeepSeek", "Qwen", "Kimi", "GLM", "Claude", "GPT"];
+const models = [
+  { name: "DeepSeek", logo: "/logos/deepseek.svg" },
+  { name: "Qwen", logo: "/logos/qwen.svg" },
+  { name: "Kimi", logo: "/logos/moonshotai.svg" },
+  { name: "Seedance", logo: "/assets/model-pages/seedance-2-0-hero.png" },
+  { name: "Claude", logo: "/logos/claude.svg" },
+  { name: "GPT", logo: "/logos/openai.svg" },
+];
 
 const reasons = [
   { label: "Créditos prontos para começar", icon: Zap },
@@ -37,6 +45,22 @@ export function FiveCreditPromoPage() {
   return (
     <SiteShell locale="pt" pathname="/5-credit-promo" hideLanguageSwitcher>
       <main className="bg-[#f7f8fb] text-slate-950">
+        <section className="border-b border-slate-200 bg-[#f7f8fb]">
+          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <h2 className="text-2xl font-semibold text-slate-950">Modelos disponíveis</h2>
+            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+              {models.map((model) => (
+                <div key={model.name} className="flex items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                  <span className="relative flex h-8 w-8 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+                    <Image src={model.logo} alt="" fill sizes="32px" className="object-contain p-1" />
+                  </span>
+                  <span className="text-base font-semibold text-slate-950">{model.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="border-b border-slate-200 bg-white">
           <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.8fr)] lg:px-8 lg:py-10">
             <div className="flex min-w-0 flex-col justify-center">
@@ -85,16 +109,6 @@ export function FiveCreditPromoPage() {
                   );
                 })}
               </div>
-              <div className="mt-5 border-t border-slate-200 pt-4">
-                <p className="text-sm font-semibold text-slate-950">Modelos disponíveis</p>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {models.map((model) => (
-                    <div key={model} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-900">
-                      {model}
-                    </div>
-                  ))}
-                </div>
-              </div>
             </aside>
           </div>
         </section>
@@ -110,24 +124,6 @@ export function FiveCreditPromoPage() {
                 <p className="mt-4 text-base font-semibold text-slate-950">{step}</p>
               </div>
             ))}
-          </div>
-        </section>
-
-        <section className="border-y border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-            <div className="max-w-3xl">
-              <h2 className="text-2xl font-semibold text-slate-950">Use seus créditos nos modelos que você precisa</h2>
-              <p className="mt-3 text-base leading-7 text-slate-700">
-                Use uma única plataforma para acessar modelos de IA e APIs para diferentes projetos.
-              </p>
-            </div>
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {models.map((model) => (
-                <div key={model} className="rounded-lg border border-slate-200 bg-[#f7f8fb] px-4 py-4 text-center text-base font-semibold text-slate-950">
-                  {model}
-                </div>
-              ))}
-            </div>
           </div>
         </section>
 

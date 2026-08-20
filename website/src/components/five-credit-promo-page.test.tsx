@@ -15,9 +15,12 @@ describe("FiveCreditPromoPage", () => {
     expect(html).toContain("DeepSeek");
     expect(html).toContain("Qwen");
     expect(html).toContain("Kimi");
-    expect(html).toContain("GLM");
+    expect(html).toContain("Seedance");
     expect(html).toContain("Claude");
     expect(html).toContain("GPT");
+    expect(html).not.toContain("GLM");
+    expect(html).toContain("/logos/deepseek.svg");
+    expect(html).toContain("/logos/moonshotai.svg");
     expect(html).toContain(PROMO_CLAIM_URL.replaceAll("&", "&amp;"));
   });
 
