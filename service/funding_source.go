@@ -2,11 +2,9 @@ package service
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -89,11 +87,10 @@ type SubscriptionFunding struct {
 	userId         int
 	modelName      string
 	amount         int64   // 预扣的订阅额度（subConsume，list 等值，未加权）
-	weight         float64 // 模型权重（全局权重表，缺省 1.0）；池/窗口扣量 = list × weight
+	weight         float64 // 模型权重（全局权重表，缺省 1.0）；池扣量 = list × weight
 	subscriptionId int
-	preConsumed    int64                    // 实际预扣的池额度（加权后）
-	extraWeighted  int64                    // Reserve 阶段追加预扣的池额度（加权后）
-	windowGuard    *subscriptionWindowGuard // 窗口计数守卫（可能为 nil = 窗口未启用/fail-open）
+	preConsumed    int64 // 实际预扣的池额度（加权后）
+	extraWeighted  int64 // Reserve 阶段追加预扣的池额度（加权后）
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
@@ -120,54 +117,10 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	// amount 参数被忽略，使用内部 s.amount（已在构造时根据 preConsumedQuota 计算）
 	weightedAmount := s.weighted(s.amount)
 
-	// ---- 窗口检查 + 原子预留（5h 滚动 + 周锚定周期）----
-	// 预测本次将被扣费的订阅（与 PreConsumeUserSubscription 相同的选择逻辑：
-	// end_time asc、跳过池余额不足的档），窗口按该订阅预留。
-	windowInfo, err := model.GetChargeableSubscriptionWindowInfo(s.userId, weightedAmount)
-	if err != nil {
-		// 读取失败按 fail-open 处理，窗口不拦截；池扣费仍然照常
-		common.SysLog("subscription window info query failed (fail-open): " + err.Error())
-		windowInfo = nil
-	}
-	guard, windowErr := reserveSubscriptionWindows(windowInfo, weightedAmount)
-	if windowErr != nil {
-		return windowErr
-	}
-
 	res, err := model.PreConsumeUserSubscription(s.requestId, s.userId, s.modelName, 0, weightedAmount)
 	if err != nil {
-		guard.Release()
 		return err
 	}
-	// 并发下实际扣费订阅仍可能与预测不符：释放旧守卫后必须对实际订阅重新
-	// 预留并判限——直接放行会让付费档的 5h/周窗口被绕过（Free+付费并存是常态）。
-	if guard != nil && res.UserSubscriptionId != guard.subId {
-		guard.Release()
-		guard = nil
-	}
-	if guard == nil {
-		actualInfo, infoErr := model.GetSubscriptionWindowInfoBySubId(res.UserSubscriptionId)
-		if infoErr != nil {
-			common.SysLog("subscription window info re-query failed (fail-open): " + infoErr.Error())
-		} else if actualInfo != nil {
-			reGuard, reErr := reserveSubscriptionWindows(actualInfo, weightedAmount)
-			if reErr != nil {
-				// 实际扣费订阅的窗口已满：回滚池扣费并拒绝本次请求。
-				// 回滚失败必须上抛为系统错误——此时池已扣但请求被拒，
-				// 吞掉会造成静默少给用户额度（RefundSubscriptionPreConsume
-				// 按 requestId 幂等，上层重试/人工补偿均可安全重放）。
-				if refundErr := refundWithRetry(func() error {
-					return model.RefundSubscriptionPreConsume(s.requestId)
-				}); refundErr != nil {
-					common.SysError("failed to refund subscription pre-consume after window rejection: " + refundErr.Error())
-					return fmt.Errorf("subscription window rejected but pre-consume refund failed (request_id=%s): %w", s.requestId, refundErr)
-				}
-				return reErr
-			}
-			guard = reGuard
-		}
-	}
-	s.windowGuard = guard
 	s.subscriptionId = res.UserSubscriptionId
 	s.preConsumed = res.PreConsumed
 	s.AmountTotal = res.AmountTotal
@@ -188,7 +141,6 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if err := model.PostConsumeUserSubscriptionDelta(s.subscriptionId, weightedDelta); err != nil {
 		return err
 	}
-	s.windowGuard.Adjust(weightedDelta)
 	return nil
 }
 
@@ -199,14 +151,11 @@ func (s *SubscriptionFunding) Refund() error {
 	err := refundWithRetry(func() error {
 		return model.RefundSubscriptionPreConsume(s.requestId)
 	})
-	if err == nil {
-		s.windowGuard.Release()
-	}
 	return err
 }
 
 // ReserveExtra 流式发送前追加预扣（billing_session.Reserve 路径）：
-// 按权重扣池并同步窗口计数。窗口在追加阶段不再拦截（请求已在途），只累计。
+// 按权重追加扣减订阅池额度。
 func (s *SubscriptionFunding) ReserveExtra(delta int64) error {
 	if delta <= 0 {
 		return nil
@@ -216,7 +165,6 @@ func (s *SubscriptionFunding) ReserveExtra(delta int64) error {
 		return err
 	}
 	s.extraWeighted += weightedDelta
-	s.windowGuard.Adjust(weightedDelta)
 	return nil
 }
 
@@ -233,7 +181,6 @@ func (s *SubscriptionFunding) RollbackExtra(delta int64) error {
 	if s.extraWeighted < 0 {
 		s.extraWeighted = 0
 	}
-	s.windowGuard.Adjust(-weightedDelta)
 	return nil
 }
 
@@ -245,13 +192,13 @@ func (s *SubscriptionFunding) RefundExtra(delta int64) error {
 // ExtraWeighted 返回追加预扣的池额度（加权后），供日志/RelayInfo 展示。
 func (s *SubscriptionFunding) ExtraWeighted() int64 { return s.extraWeighted }
 
-// Weight 返回本次请求的模型权重快照（池/窗口扣量 = list × weight）。
+// Weight 返回本次请求的模型权重快照（池扣量 = list × weight）。
 func (s *SubscriptionFunding) Weight() float64 { return s.weight }
 
-// WindowSnapshot 导出窗口守卫台账（窗口未启用/已释放时为 nil），
-// 供异步任务持久化后在轮询阶段做窗口补偿。
+// WindowSnapshot is retained for compatibility while synchronous
+// subscription billing no longer persists short-window snapshots.
 func (s *SubscriptionFunding) WindowSnapshot() *model.TaskSubscriptionWindow {
-	return s.windowGuard.Snapshot()
+	return nil
 }
 
 // refundWithRetry 尝试多次执行退款操作以提高成功率，只能用于基于事务的退款函数！！！！！！
