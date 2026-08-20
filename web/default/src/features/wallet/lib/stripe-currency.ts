@@ -17,6 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export type StripeCheckoutCurrency = 'USD' | 'JPY' | 'BRL' | 'INR'
+export type StripeCurrencyPrices = Partial<
+  Record<StripeCheckoutCurrency, Record<number, number>>
+>
 
 const STRIPE_CHECKOUT_CURRENCIES = new Set<StripeCheckoutCurrency>([
   'USD',
@@ -56,6 +59,22 @@ export function defaultCurrencyForRegion(
   return REGION_DEFAULT_CURRENCY[region?.toUpperCase() ?? ''] ?? 'USD'
 }
 
+export function defaultCurrencyForLanguage(
+  language: string | undefined
+): StripeCheckoutCurrency {
+  const normalized = language?.trim().toLowerCase()
+
+  if (normalized === 'pt' || normalized === 'pt-br') {
+    return 'BRL'
+  }
+
+  if (normalized === 'ja' || normalized?.startsWith('ja-')) {
+    return 'JPY'
+  }
+
+  return 'USD'
+}
+
 export function normalizeStripeCheckoutCurrency(
   currency: string | undefined
 ): StripeCheckoutCurrency | undefined {
@@ -64,9 +83,134 @@ export function normalizeStripeCheckoutCurrency(
     return undefined
   }
 
-  return STRIPE_CHECKOUT_CURRENCIES.has(
-    normalized as StripeCheckoutCurrency
-  )
+  return STRIPE_CHECKOUT_CURRENCIES.has(normalized as StripeCheckoutCurrency)
     ? (normalized as StripeCheckoutCurrency)
     : undefined
+}
+
+export function parseStripeCurrencyPrices(data: unknown): StripeCurrencyPrices {
+  let parsedData = data
+
+  if (typeof data === 'string') {
+    try {
+      parsedData = JSON.parse(data)
+    } catch {
+      return {}
+    }
+  }
+
+  if (
+    !parsedData ||
+    typeof parsedData !== 'object' ||
+    Array.isArray(parsedData)
+  ) {
+    return {}
+  }
+
+  return Object.entries(parsedData).reduce<StripeCurrencyPrices>(
+    (result, [currencyKey, priceMap]) => {
+      const currency = normalizeStripeCheckoutCurrency(currencyKey)
+
+      if (
+        !currency ||
+        !priceMap ||
+        typeof priceMap !== 'object' ||
+        Array.isArray(priceMap)
+      ) {
+        return result
+      }
+
+      const parsedPrices = Object.entries(priceMap).reduce<
+        Record<number, number>
+      >((prices, [amountKey, minorUnits]) => {
+        const amount = Number(amountKey)
+        const price = Number(minorUnits)
+
+        if (
+          Number.isFinite(amount) &&
+          amount > 0 &&
+          Number.isFinite(price) &&
+          price > 0
+        ) {
+          prices[amount] = price
+        }
+
+        return prices
+      }, {})
+
+      if (Object.keys(parsedPrices).length > 0) {
+        result[currency] = parsedPrices
+      }
+
+      return result
+    },
+    {}
+  )
+}
+
+export function currencySupportsPresetAmounts(
+  prices: StripeCurrencyPrices,
+  currency: StripeCheckoutCurrency,
+  presetAmounts: number[]
+): boolean {
+  const currencyPrices = prices[currency]
+
+  return (
+    !!currencyPrices &&
+    presetAmounts.length > 0 &&
+    presetAmounts.every((amount) => (currencyPrices[amount] ?? 0) > 0)
+  )
+}
+
+export type ResolveEffectiveStripeCheckoutCurrencyParams = {
+  requestedCurrency: StripeCheckoutCurrency
+  language: string | undefined
+  prices: StripeCurrencyPrices
+  presetAmounts: number[]
+  currencyTouched: boolean
+}
+
+export function resolveEffectiveStripeCheckoutCurrency(
+  params: ResolveEffectiveStripeCheckoutCurrencyParams
+): StripeCheckoutCurrency {
+  const presetAmounts = params.presetAmounts.filter(
+    (amount) => Number.isFinite(amount) && amount > 0
+  )
+
+  if (presetAmounts.length === 0) {
+    return params.requestedCurrency
+  }
+
+  const currencySupported = (currency: StripeCheckoutCurrency) =>
+    currencySupportsPresetAmounts(params.prices, currency, presetAmounts)
+
+  if (params.currencyTouched) {
+    if (currencySupported(params.requestedCurrency)) {
+      return params.requestedCurrency
+    }
+
+    return STRIPE_CHECKOUT_CURRENCY_OPTIONS.find(currencySupported) ?? 'USD'
+  }
+
+  const languageCurrency = defaultCurrencyForLanguage(params.language)
+
+  if (currencySupported(languageCurrency)) {
+    return languageCurrency
+  }
+
+  return STRIPE_CHECKOUT_CURRENCY_OPTIONS.find(currencySupported) ?? 'USD'
+}
+
+export function stripeTopUpDisplayAmount(
+  prices: StripeCurrencyPrices,
+  currency: StripeCheckoutCurrency,
+  amount: number
+): number | undefined {
+  const minorUnits = prices[currency]?.[amount]
+
+  if (!minorUnits || minorUnits <= 0) {
+    return undefined
+  }
+
+  return currency === 'JPY' ? minorUnits : minorUnits / 100
 }

@@ -82,8 +82,6 @@ function plan(id: number, title: string, price: number): PlanRecord {
       allow_balance_pay: true,
       max_purchase_per_user: 0,
       total_amount: price * 1000,
-      window_5h_amount: price * 100,
-      window_week_amount: price * 250,
       media_credits_monthly: price,
       payment_modes: ['stripe_recurring', 'balance_one_period'],
     },
@@ -91,6 +89,17 @@ function plan(id: number, title: string, price: number): PlanRecord {
 }
 
 const plans = [plan(1, 'Go', 10), plan(2, 'Pro', 20), plan(3, 'Max', 40)]
+const localizedPlans = plans.map((item, index) => ({
+  ...item,
+  plan: {
+    ...item.plan,
+    currency_prices: {
+      USD: [10, 20, 40][index],
+      JPY: [1_500, 3_000, 6_000][index],
+      BRL: [49.9, 99.9, 199.9][index],
+    },
+  },
+}))
 const TEST_NOW_SECONDS = 4_000_000_000
 const VALID_QUOTE_EXPIRES_AT = TEST_NOW_SECONDS + 60
 
@@ -164,18 +173,25 @@ function matchLocalPaymentQuote(
   )
 }
 
-function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
+function renderWalletCardWithPlans(
+  initialPlans: PlanRecord[],
+  selfData = normalizeSelfSubscriptionData(undefined)
+) {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
       <SubscriptionPlansCard
         topupInfo={topupInfo}
-        initialPlans={plans}
+        initialPlans={initialPlans}
         initialSelfData={selfData}
         initialLoading={false}
         userQuota={12345}
       />
     </I18nextProvider>
   )
+}
+
+function renderWalletCard(selfData = normalizeSelfSubscriptionData(undefined)) {
+  return renderWalletCardWithPlans(plans, selfData)
 }
 
 function renderWalletCardWithPreviewQuote(
@@ -260,6 +276,60 @@ function renderWalletCardWithRecallOffers(recallOffers: RecallOfferView[]) {
 }
 
 describe('SubscriptionPlansCard flexible wallet plan UI', () => {
+  test('shows configured JPY plan prices for a Japanese interface', async () => {
+    await testI18n.changeLanguage('ja-JP')
+    try {
+      const html = renderWalletCardWithPlans(localizedPlans)
+
+      expect(html).toContain('¥1,500')
+      expect(html).toContain('¥3,000')
+      expect(html).toContain('¥6,000')
+      expect(html).not.toContain('$10')
+    } finally {
+      await testI18n.changeLanguage('en')
+    }
+  })
+
+  test('shows configured BRL plan prices for a Portuguese interface', async () => {
+    await testI18n.changeLanguage('pt-BR')
+    try {
+      const html = renderWalletCardWithPlans(localizedPlans)
+
+      expect(html).toContain('R$')
+      expect(html).toContain('49,90')
+      expect(html).toContain('99,90')
+      expect(html).toContain('199,90')
+      expect(html).not.toContain('$10')
+    } finally {
+      await testI18n.changeLanguage('en')
+    }
+  })
+
+  test('falls all Japanese plan cards back to USD when one JPY price is missing', async () => {
+    await testI18n.changeLanguage('ja')
+    try {
+      const incompletePlans = localizedPlans.map((item, index) =>
+        index === 2
+          ? {
+              ...item,
+              plan: {
+                ...item.plan,
+                currency_prices: { USD: item.plan.price_amount },
+              },
+            }
+          : item
+      )
+      const html = renderWalletCardWithPlans(incompletePlans)
+
+      expect(html).toContain('$10')
+      expect(html).toContain('$20')
+      expect(html).toContain('$40')
+      expect(html).not.toContain('¥1,500')
+    } finally {
+      await testI18n.changeLanguage('en')
+    }
+  })
+
   test('hides the current plan module when there is no active plan and shows Go Pro Max first', () => {
     const html = renderWalletCard()
 
@@ -332,7 +402,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('aria-label="Refresh subscription plans"')
   })
 
-  test('renders a read-only current card with correct badges and only the three active usage meters', () => {
+  test('renders a read-only current card with correct badges and only monthly plus media usage meters', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
         contract: {
@@ -373,8 +443,13 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
           amount_remaining: 13000,
           unlimited: false,
         },
-        window_5h: { used: 200, total: 2000, remaining: 1800, reset_at: 1 },
-        window_7d: { used: 1000, total: 5000, remaining: 4000, reset_at: 1 },
+        monthly_bucket: {
+          used: 7000,
+          total: 20000,
+          remaining: 13000,
+          reset_at: 1,
+          unlimited: false,
+        },
         media_credits: { used: 3, total: 20, remaining: 17, reset_at: 1 },
       })
     )
@@ -387,14 +462,15 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Auto-renew enabled')
     expect(html).not.toContain('Renewal time')
     expect(html).not.toContain('future charge')
-    expect(html.match(/data-wallet-usage-meter=/g)?.length).toBe(3)
-    expect(html.match(/data-wallet-secondary-meter=/g)?.length).toBe(3)
-    expect(html).not.toContain('data-wallet-usage-meter="Monthly model quota"')
-    expect(html).toContain('data-wallet-usage-meter="5-hour limit"')
-    expect(html).toContain('data-wallet-usage-meter="7-day limit"')
+    expect(html.match(/data-wallet-usage-meter=/g)?.length).toBe(2)
+    expect(html.match(/data-wallet-secondary-meter=/g)?.length).toBe(2)
+    expect(html).toContain('data-wallet-usage-meter="Monthly model quota"')
     expect(html).toContain('data-wallet-usage-meter="Media generation credits"')
-    expect(html).toContain('$0.0004 / $0.004 used')
-    expect(html).toContain('$0.002 / $0.01 used')
+    expect(html).not.toContain('data-wallet-usage-meter="5-hour limit"')
+    expect(html).not.toContain('data-wallet-usage-meter="7-day limit"')
+    expect(html).not.toContain('5-hour limit')
+    expect(html).not.toContain('7-day limit')
+    expect(html).toContain('$0.014 / $0.04 used')
     expect(html).toContain('3 / 20 used')
     expect(html).not.toContain('Cancel auto-renewal')
     expect(html).not.toContain('Resume auto-renewal')
@@ -1027,7 +1103,9 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
 
     expect(mediaMeter).toContain('Not included')
     expect(mediaMeter).not.toContain('Unlimited')
-    expect(html).toContain('data-wallet-usage-meter="5-hour limit"')
+    expect(html).toContain('data-wallet-usage-meter="Monthly model quota"')
+    expect(html).not.toContain('data-wallet-usage-meter="5-hour limit"')
+    expect(html).not.toContain('data-wallet-usage-meter="7-day limit"')
     expect(html).toContain('No usage limit')
   })
 
@@ -1055,12 +1133,13 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Media generation credits: Unlimited')
   })
 
-  test('labels plan card rolling quotas and media credits explicitly', () => {
+  test('labels plan card monthly quota and media credits without short-window quotas', () => {
     const html = renderWalletCard()
 
-    expect(html).toContain('5-hour limit: $0.002')
-    expect(html).toContain('7-day limit: $0.005')
+    expect(html).toContain('Monthly model quota: $0.02')
     expect(html).toContain('Media generation credits: 10 credits')
+    expect(html).not.toContain('5-hour limit')
+    expect(html).not.toContain('7-day limit')
     expect(html).not.toContain('5-hour: $0.002')
     expect(html).not.toContain('7-day: $0.005')
     expect(html).not.toContain('Image + video: 10 credits')
@@ -1395,6 +1474,10 @@ describe('PlanPurchaseDialog payment choices', () => {
       expect(html).toContain('max="12"')
       expect(html).not.toContain('<select')
       expect(html).toContain('No prorating or credit is applied.')
+      expect(html).toContain('Monthly and Image + video usage reset.')
+      expect(html).not.toContain('5-hour')
+      expect(html).not.toContain('7-day')
+      expect(html).not.toContain('rolling usage')
       expect(html).not.toContain('future months')
     }
   })

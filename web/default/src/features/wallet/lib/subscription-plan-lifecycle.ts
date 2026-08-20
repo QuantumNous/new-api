@@ -114,8 +114,6 @@ export type WalletSelfSubscriptionData = Omit<
   current_period?: SubscriptionCurrentPeriod
   quota?: SubscriptionQuota
   monthly_bucket?: SubscriptionUsageWindow
-  window_5h?: SubscriptionUsageWindow
-  window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
   remaining_days?: number
   renewal_source?: SubscriptionRenewalSource
@@ -267,8 +265,6 @@ export function normalizeSelfSubscriptionData(
     current_period: data?.current_period ?? DEFAULT_CURRENT_PERIOD,
     quota: data?.quota ?? DEFAULT_QUOTA,
     monthly_bucket: data?.monthly_bucket ?? EMPTY_USAGE_WINDOW,
-    window_5h: data?.window_5h ?? EMPTY_USAGE_WINDOW,
-    window_7d: data?.window_7d ?? EMPTY_USAGE_WINDOW,
     media_credits: normalizeMediaUsageWindow(data?.media_credits),
     remaining_days: data?.remaining_days,
     renewal_source: normalizeRenewalSource(data?.renewal_source),

@@ -24,6 +24,7 @@ import {
   getLockedTopupAmountOptions,
   mergePresetAmounts,
   getMinTopupAmount,
+  parseStripeCurrencyPrices,
   shouldRequireConfiguredTopupPackages,
 } from '../lib'
 import type {
@@ -225,6 +226,9 @@ export function useTopupInfo() {
           response.data.waffo_pancake_min_topup
         ),
         amount_options: parseAmountOptions(response.data.amount_options),
+        stripe_currency_prices: parseStripeCurrencyPrices(
+          response.data.stripe_currency_prices
+        ),
         discount: parseNumberMap(response.data.discount),
         bonus: parseNumberMap(response.data.bonus),
         bonus_remaining: parseNumberMap(response.data.bonus_remaining),

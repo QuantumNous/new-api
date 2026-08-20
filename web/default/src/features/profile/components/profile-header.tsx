@@ -50,10 +50,7 @@ interface ProfileHeaderProps {
 interface ProfileUsageWindowMeterProps {
   label: string
   summary: ProfileUsageWindowSummary
-  slot:
-    | 'profile-plan-window-5h'
-    | 'profile-plan-window-7d'
-    | 'profile-plan-window-media'
+  slot: 'profile-plan-window-media'
   media?: boolean
 }
 
@@ -219,25 +216,18 @@ export function ProfileHeader(props: ProfileHeaderProps) {
               <Skeleton className='h-5 w-16 rounded-full' />
             </div>
             <div
-              data-slot='profile-plan-short-window-row'
-              className='mt-4 grid gap-4 lg:grid-cols-3'
+              data-slot='profile-plan-usage-row'
+              className='mt-4 grid gap-4'
             >
-              {[
-                'profile-plan-window-5h',
-                'profile-plan-window-7d',
-                'profile-plan-window-media',
-              ].map((slot) => (
-                <div
-                  key={slot}
-                  data-slot={slot}
-                  className='min-w-0 space-y-1.5'
-                >
-                  <Skeleton className='h-4 w-24' />
-                  <Skeleton className='h-5 w-32' />
-                  <Skeleton className='h-1.5 w-full rounded-full' />
-                  <Skeleton className='h-4 w-28' />
-                </div>
-              ))}
+              <div
+                data-slot='profile-plan-window-media'
+                className='min-w-0 space-y-1.5'
+              >
+                <Skeleton className='h-4 w-24' />
+                <Skeleton className='h-5 w-32' />
+                <Skeleton className='h-1.5 w-full rounded-full' />
+                <Skeleton className='h-4 w-28' />
+              </div>
             </div>
             <div
               data-slot='profile-plan-quota-row'
@@ -425,19 +415,9 @@ export function ProfileHeader(props: ProfileHeaderProps) {
             </div>
 
             <div
-              data-slot='profile-plan-short-window-row'
-              className='mt-4 grid gap-4 lg:grid-cols-3'
+              data-slot='profile-plan-usage-row'
+              className='mt-4 grid gap-4'
             >
-              <ProfileUsageWindowMeter
-                slot='profile-plan-window-5h'
-                label={t('5-hour limit')}
-                summary={subscription.window5h}
-              />
-              <ProfileUsageWindowMeter
-                slot='profile-plan-window-7d'
-                label={t('7-day limit')}
-                summary={subscription.window7d}
-              />
               <ProfileUsageWindowMeter
                 slot='profile-plan-window-media'
                 label={t('Media generation credits')}

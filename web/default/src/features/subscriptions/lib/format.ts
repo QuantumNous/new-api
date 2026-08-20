@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 import dayjs from '@/lib/dayjs'
-import { formatQuota } from '@/lib/format'
 import type { SubscriptionPlan } from '../types'
 
 export function formatDuration(
@@ -86,19 +85,6 @@ export function formatSpeedSpecs(
   if (concurrency > 0)
     specs.push(t('{{count}} concurrent', { count: concurrency }))
   return specs
-}
-
-// 三层用量窗口摘要（加权美元），未配置的窗口省略
-export function formatWindowSummary(
-  plan: Partial<SubscriptionPlan>,
-  t: TFunction
-): string {
-  const parts: string[] = []
-  const w5h = Number(plan?.window_5h_amount || 0)
-  const wWeek = Number(plan?.window_week_amount || 0)
-  if (w5h > 0) parts.push(`${formatQuota(w5h)}/5h`)
-  if (wWeek > 0) parts.push(`${formatQuota(wWeek)}/${t('week')}`)
-  return parts.join(' · ')
 }
 
 // admin 录入的价值卖点：按换行拆分、去空行

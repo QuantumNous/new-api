@@ -35,8 +35,6 @@ export type ProfileUsageWindowSummary = {
 export type ProfileSubscriptionSummary = ProfileUsageWindowSummary & {
   planTitle: string
   remainingDays: number | null
-  window5h: ProfileUsageWindowSummary
-  window7d: ProfileUsageWindowSummary
   mediaCredits: ProfileUsageWindowSummary
 }
 
@@ -105,9 +103,10 @@ function normalizeUsageWindow(
     window?.remaining === undefined
       ? Math.max(0, totalQuota - usedQuota)
       : finiteNonNegative(window.remaining)
+  const notIncluded = kind === 'media' && totalQuota === 0
   const unlimited =
-    window?.unlimited === true || (kind === 'quota' && totalQuota === 0)
-  const notIncluded = kind === 'media' && !unlimited && totalQuota === 0
+    !notIncluded &&
+    (window?.unlimited === true || (kind === 'quota' && totalQuota === 0))
 
   return {
     totalQuota,
@@ -197,8 +196,6 @@ export function buildProfileSubscriptionSummary(
     remainingDays: normalizeRemainingDays(data?.remaining_days),
     resetAt: 0,
     usagePercent: monthlySummary.usagePercent,
-    window5h: normalizeUsageWindow(data?.window_5h),
-    window7d: normalizeUsageWindow(data?.window_7d),
     mediaCredits: normalizeUsageWindow(data?.media_credits, 'media'),
   }
 }

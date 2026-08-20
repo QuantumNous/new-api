@@ -18,8 +18,10 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -209,6 +211,21 @@ func seedSubscription(t *testing.T, id int, userId int, amountTotal int64, amoun
 	require.NoError(t, model.DB.Create(sub).Error)
 }
 
+func useTaskBillingRedisForTest(t *testing.T) func() {
+	t.Helper()
+	mr := miniredis.RunT(t)
+	oldRDB := common.RDB
+	oldRedisEnabled := common.RedisEnabled
+	common.RDB = redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	common.RedisEnabled = true
+	return func() {
+		_ = common.RDB.Close()
+		common.RDB = oldRDB
+		common.RedisEnabled = oldRedisEnabled
+		mr.Close()
+	}
+}
+
 func seedChannel(t *testing.T, id int) {
 	t.Helper()
 	ch := &model.Channel{Id: id, Name: "test_channel", Key: "sk-test", Status: common.ChannelStatusEnabled}
@@ -318,6 +335,13 @@ func countLogs(t *testing.T) int64 {
 	t.Helper()
 	var count int64
 	model.LOG_DB.Model(&model.Log{}).Count(&count)
+	return count
+}
+
+func countAcceptedAccountingLedgers(t *testing.T, taskID string, step string) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, model.DB.Model(&model.TaskAcceptedAccountingLedger{}).Where("task_id = ? AND step = ?", taskID, step).Count(&count).Error)
 	return count
 }
 
@@ -440,6 +464,93 @@ func TestRefundTaskQuota_Subscription(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestRefundTaskSubscriptionWindowSnapshotLeavesRedisCounters(t *testing.T) {
+	truncate(t)
+	restoreRedis := useTaskBillingRedisForTest(t)
+	defer restoreRedis()
+	ctx := context.Background()
+
+	const userID, tokenID, channelID, subID = 22, 22, 22, 22
+	const preConsumed = 100
+	const subTotal, subUsed int64 = 100000, 500
+	const tokenRemain = 8000
+	const bucketKey = "sub:win:5h:22:0"
+	const weekKey = "sub:win:w:22:0"
+
+	seedUser(t, userID, 0)
+	seedToken(t, tokenID, userID, "sk-sub-window-refund", tokenRemain)
+	seedChannel(t, channelID)
+	seedSubscription(t, subID, userID, subTotal, subUsed)
+	require.NoError(t, common.RDB.Set(ctx, bucketKey, 150, 0).Err())
+	require.NoError(t, common.RDB.Set(ctx, weekKey, 150, 0).Err())
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceSubscription, subID)
+	task.TaskID = "task_subscription_window_refund"
+	task.PrivateData.BillingContext.SubscriptionWeight = 1.5
+	task.PrivateData.BillingContext.SubscriptionWindow = &model.TaskSubscriptionWindow{
+		SubId:      subID,
+		SubStart:   0,
+		Limit5h:    1000,
+		LimitWeek:  1000,
+		BucketHeld: map[string]int64{bucketKey: 150},
+		WeekHeld:   map[string]int64{weekKey: 150},
+	}
+
+	RefundTaskQuota(ctx, task, "subscription task failed")
+
+	require.Equal(t, subUsed-150, getSubscriptionUsed(t, subID), "refund must still settle the weighted monthly subscription pool")
+	bucketValue, err := common.RDB.Get(ctx, bucketKey).Int64()
+	require.NoError(t, err)
+	weekValue, err := common.RDB.Get(ctx, weekKey).Int64()
+	require.NoError(t, err)
+	require.EqualValues(t, 150, bucketValue, "legacy 5h window counter must not be changed by async refund")
+	require.EqualValues(t, 150, weekValue, "legacy weekly window counter must not be changed by async refund")
+}
+
+func TestAcceptedTaskSubscriptionWindowStepOnlyMarksCompatibilityLedger(t *testing.T) {
+	truncate(t)
+	restoreRedis := useTaskBillingRedisForTest(t)
+	defer restoreRedis()
+	ctx := context.Background()
+
+	const userID, tokenID, channelID, subID = 23, 23, 23, 23
+	now := common.GetTimestamp()
+	subStart := now - 3600
+	bucketKey := subscriptionWindowBucketKey(subID, now/subscriptionWindowBucketSeconds*subscriptionWindowBucketSeconds)
+	weekKey := subscriptionWindowWeekKey(subID, subscriptionWindowWeekIndex(subStart, now))
+
+	seedUser(t, userID, 0)
+	seedToken(t, tokenID, userID, "sk-sub-window-accepted", 8000)
+	seedChannel(t, channelID)
+	seedSubscription(t, subID, userID, 100000, 500)
+	require.NoError(t, common.RDB.Set(ctx, bucketKey, 150, 0).Err())
+	require.NoError(t, common.RDB.Set(ctx, weekKey, 150, 0).Err())
+
+	task := makeTask(userID, channelID, 100, tokenID, BillingSourceSubscription, subID)
+	task.TaskID = "task_subscription_window_accepted"
+	task.AcceptedAccountingReservedQuota = 100
+	task.AcceptedAccountingActualQuota = 200
+	task.PrivateData.BillingContext.SubscriptionWeight = 1.5
+	task.PrivateData.BillingContext.SubscriptionWindow = &model.TaskSubscriptionWindow{
+		SubId:      subID,
+		SubStart:   subStart,
+		Limit5h:    1000,
+		LimitWeek:  1000,
+		BucketHeld: map[string]int64{bucketKey: 150},
+		WeekHeld:   map[string]int64{weekKey: 150},
+	}
+
+	require.NoError(t, ApplyAcceptedTaskSubscriptionWindowOnce(ctx, task))
+
+	require.EqualValues(t, 1, countAcceptedAccountingLedgers(t, task.TaskID, model.TaskAcceptedAccountingStepSubscriptionWindow))
+	bucketValue, err := common.RDB.Get(ctx, bucketKey).Int64()
+	require.NoError(t, err)
+	weekValue, err := common.RDB.Get(ctx, weekKey).Int64()
+	require.NoError(t, err)
+	require.EqualValues(t, 150, bucketValue, "legacy 5h window counter must not be changed by accepted accounting")
+	require.EqualValues(t, 150, weekValue, "legacy weekly window counter must not be changed by accepted accounting")
 }
 
 func TestRefundTaskQuota_ZeroQuota(t *testing.T) {

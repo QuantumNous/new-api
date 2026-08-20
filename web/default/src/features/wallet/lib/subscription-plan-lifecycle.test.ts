@@ -131,14 +131,14 @@ function createCanonicalLifecycleWithContract(
 }
 
 describe('normalizeSelfSubscriptionData', () => {
-  test('preserves the legacy balance renewal source used by the wallet fallback', () => {
+  test('normalizes the legacy balance renewal source to absent wallet state', () => {
     const normalized = normalizeSelfSubscriptionData({
       ...createBackendSelfData(false, false),
       renewal_source: 'balance',
       renewal_status: 'enabled',
     })
 
-    expect(normalized.renewal_source).toBe('balance')
+    expect(normalized.renewal_source).toBeUndefined()
     expect(normalized.renewal_status).toBe('enabled')
   })
 
@@ -257,24 +257,10 @@ describe('normalizeSelfSubscriptionData', () => {
     expect(normalized.contract?.grace_period_end).toBe(2100)
   })
 
-  test('normalizes zero media usage as not included while preserving legacy unlimited windows', () => {
+  test('normalizes monthly and zero media usage without synthesizing short-window buckets', () => {
     const normalized = normalizeSelfSubscriptionData({
       ...createBackendSelfData(false, false),
       monthly_bucket: {
-        used: 0,
-        total: 0,
-        remaining: 0,
-        reset_at: 0,
-        unlimited: true,
-      },
-      window_5h: {
-        used: 0,
-        total: 0,
-        remaining: 0,
-        reset_at: 0,
-        unlimited: true,
-      },
-      window_7d: {
         used: 0,
         total: 0,
         remaining: 0,
@@ -291,8 +277,8 @@ describe('normalizeSelfSubscriptionData', () => {
     } as SelfSubscriptionDataResponse)
 
     expect(normalized.monthly_bucket?.unlimited).toBe(true)
-    expect(normalized.window_5h?.unlimited).toBe(true)
-    expect(normalized.window_7d?.unlimited).toBe(true)
+    expect('window_5h' in normalized).toBe(false)
+    expect('window_7d' in normalized).toBe(false)
     expect(normalized.media_credits?.total).toBe(0)
     expect(normalized.media_credits?.unlimited).toBe(false)
   })

@@ -60,6 +60,10 @@ import {
   mergeFlexibleQuoteProjection,
   normalizeSelfSubscriptionData,
 } from '../lib/subscription-plan-lifecycle'
+import {
+  resolveSubscriptionPlanDisplayPrice,
+  resolveSubscriptionPlanGridCurrency,
+} from '../lib/subscription-plan-prices'
 import type { TopupInfo } from '../types'
 import { CurrentPlanCard } from './current-plan-card'
 import { PlanPurchaseDialog } from './plan-purchase-dialog'
@@ -261,18 +265,10 @@ function buildRenewalLifecyclePrecondition(
 
 function getPlanEntitlements(plan: PlanRecord['plan'], t: Translate) {
   const monthly = Number(plan.total_amount || 0)
-  const window5h = Number(plan.window_5h_amount || 0)
-  const window7d = Number(plan.window_week_amount || 0)
   const media = Number(plan.media_credits_monthly || 0)
   return [
     t('Monthly model quota: {{value}}', {
       value: monthly > 0 ? formatQuota(monthly) : t('Unlimited'),
-    }),
-    t('5-hour limit: {{value}}', {
-      value: window5h > 0 ? formatQuota(window5h) : t('Unlimited'),
-    }),
-    t('7-day limit: {{value}}', {
-      value: window7d > 0 ? formatQuota(window7d) : t('Unlimited'),
     }),
     t('Media generation credits: {{value}}', {
       value:
@@ -284,7 +280,7 @@ function getPlanEntitlements(plan: PlanRecord['plan'], t: Translate) {
 }
 
 export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const {
     topupInfo,
     onAvailabilityChange,
@@ -426,6 +422,14 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
       }),
     [plans]
   )
+  const planGridCurrency = useMemo(
+    () =>
+      resolveSubscriptionPlanGridCurrency(
+        orderedPlans.map((item) => item.plan),
+        i18n.resolvedLanguage || i18n.language
+      ),
+    [i18n.language, i18n.resolvedLanguage, orderedPlans]
+  )
 
   const contract = selfData.contract ?? null
   const currentPlanId =
@@ -442,15 +446,24 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
 
   useEffect(() => {
     let cancelled = false
+    const clearPlanPreviewQuotes = () => {
+      void Promise.resolve().then(() => {
+        if (!cancelled) {
+          setPlanPreviewQuotes({})
+        }
+      })
+    }
     if (
       loading ||
       orderedPlans.length === 0 ||
       !isPaymentChoiceAvailable(paymentAvailability, 'stripe_recurring')
     ) {
-      setPlanPreviewQuotes({})
-      return
+      clearPlanPreviewQuotes()
+      return () => {
+        cancelled = true
+      }
     }
-    setPlanPreviewQuotes({})
+    clearPlanPreviewQuotes()
     const loadPlanPreviewQuotes = async () => {
       const entries = await Promise.all(
         orderedPlans.map(async (item) => {
@@ -809,11 +822,13 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
               const discountPreview = getPlanCardDiscountPreview(
                 planPreviewQuotes[plan.id]
               )
+              const configuredDisplayPrice =
+                resolveSubscriptionPlanDisplayPrice(plan, planGridCurrency)
               const currency =
-                discountPreview?.currency || plan.currency || 'USD'
+                discountPreview?.currency || configuredDisplayPrice.currency
               const originalPrice = formatPlanPrice(
                 discountPreview?.originalTotal ??
-                  Number(plan.price_amount || 0),
+                  configuredDisplayPrice.amount,
                 currency
               )
               const displayPrice = discountPreview

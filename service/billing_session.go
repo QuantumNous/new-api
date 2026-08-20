@@ -158,16 +158,14 @@ func (s *BillingSession) needsRefundLocked() bool {
 	return false
 }
 
-// GetPreConsumedQuota 返回实际预扣的额度。
-// SubscriptionTaskSnapshot exports the subscription weight and window-guard
-// ledger for persistence on an async task, so its later refund/recalculation
-// can convert list-quota deltas to weighted pool units and compensate the
-// original window counters. Returns (0, nil) for non-subscription funding.
+// SubscriptionTaskSnapshot exports the subscription weight for async task
+// settlement. Short-window snapshots are no longer persisted from synchronous
+// subscription billing. Returns (0, nil) for non-subscription funding.
 func (s *BillingSession) SubscriptionTaskSnapshot() (float64, *model.TaskSubscriptionWindow) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if sf, ok := s.funding.(*SubscriptionFunding); ok {
-		return sf.Weight(), sf.WindowSnapshot()
+		return sf.Weight(), nil
 	}
 	return 0, nil
 }
@@ -249,32 +247,6 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 				)
 			}
 			s.tokenConsumed = 0
-		}
-		// 订阅窗口超限：映射为 InsufficientUserQuota，使 subscription_first 自动落钱包；
-		// subscription_only 用户则直接收到 429 + 刷新时间提示
-		var winErr *subscriptionWindowExceededError
-		if errors.As(err, &winErr) {
-			now := common.GetTimestamp()
-			msgKey := "quota.subscription_window_5h_exceeded"
-			params := map[string]any{}
-			if winErr.Window == "week" {
-				msgKey = "quota.subscription_window_week_exceeded"
-				hours := (winErr.ResetAt - now + 3599) / 3600
-				if hours < 1 {
-					hours = 1
-				}
-				params["Hours"] = hours
-			} else {
-				minutes := (winErr.ResetAt - now + 59) / 60
-				if minutes < 1 {
-					minutes = 1
-				}
-				params["Minutes"] = minutes
-			}
-			return types.NewErrorWithStatusCode(
-				fmt.Errorf("%s", common.TranslateMessage(c, msgKey, params)),
-				types.ErrorCodeInsufficientUserQuota, http.StatusTooManyRequests,
-				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		errMsg := err.Error()

@@ -74,8 +74,6 @@ export function getPlanFormSchema(t: TFunction) {
     rpm: z.coerce.number().min(0).optional(),
     concurrency: z.coerce.number().min(0).optional(),
     media_credits_monthly: z.coerce.number().min(0).optional(),
-    window_5h_amount: z.coerce.number().min(0).optional(),
-    window_week_amount: z.coerce.number().min(0).optional(),
     feature_lines: z.string().optional(),
   })
 }
@@ -106,8 +104,6 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   rpm: 0,
   concurrency: 0,
   media_credits_monthly: 0,
-  window_5h_amount: 0,
-  window_week_amount: 0,
   feature_lines: '',
 }
 
@@ -136,44 +132,43 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     rpm: 0,
     concurrency: Number(plan.concurrency || 0),
     media_credits_monthly: Number(plan.media_credits_monthly || 0),
-    window_5h_amount: quotaUnitsToDollars(Number(plan.window_5h_amount || 0)),
-    window_week_amount: quotaUnitsToDollars(
-      Number(plan.window_week_amount || 0)
-    ),
     feature_lines: plan.feature_lines || '',
   }
 }
 
 export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
+  const {
+    window_5h_amount: _window5hAmount,
+    window_week_amount: _windowWeekAmount,
+    ...planValues
+  } = values as PlanFormValues & {
+    window_5h_amount?: unknown
+    window_week_amount?: unknown
+  }
+
   return {
     plan: {
-      ...values,
-      price_amount: Number(values.price_amount || 0),
+      ...planValues,
+      price_amount: Number(planValues.price_amount || 0),
       currency: 'USD',
-      pix_price_brl: localPriceToPayload(values.pix_price_brl),
-      upi_price_inr: localPriceToPayload(values.upi_price_inr),
-      duration_value: Number(values.duration_value || 0),
-      custom_seconds: Number(values.custom_seconds || 0),
-      quota_reset_period: values.quota_reset_period || 'never',
+      pix_price_brl: localPriceToPayload(planValues.pix_price_brl),
+      upi_price_inr: localPriceToPayload(planValues.upi_price_inr),
+      duration_value: Number(planValues.duration_value || 0),
+      custom_seconds: Number(planValues.custom_seconds || 0),
+      quota_reset_period: planValues.quota_reset_period || 'never',
       quota_reset_custom_seconds:
-        values.quota_reset_period === 'custom'
-          ? Number(values.quota_reset_custom_seconds || 0)
+        planValues.quota_reset_period === 'custom'
+          ? Number(planValues.quota_reset_custom_seconds || 0)
           : 0,
-      sort_order: Number(values.sort_order || 0),
-      max_purchase_per_user: Number(values.max_purchase_per_user || 0),
-      total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
-      upgrade_group: values.upgrade_group || '',
-      model_count: Number(values.model_count || 0),
+      sort_order: Number(planValues.sort_order || 0),
+      max_purchase_per_user: Number(planValues.max_purchase_per_user || 0),
+      total_amount: parseQuotaFromDollars(Number(planValues.total_amount || 0)),
+      upgrade_group: planValues.upgrade_group || '',
+      model_count: Number(planValues.model_count || 0),
       rpm: 0,
-      concurrency: Number(values.concurrency || 0),
-      media_credits_monthly: Number(values.media_credits_monthly || 0),
-      window_5h_amount: parseQuotaFromDollars(
-        Number(values.window_5h_amount || 0)
-      ),
-      window_week_amount: parseQuotaFromDollars(
-        Number(values.window_week_amount || 0)
-      ),
-      feature_lines: values.feature_lines || '',
+      concurrency: Number(planValues.concurrency || 0),
+      media_credits_monthly: Number(planValues.media_credits_monthly || 0),
+      feature_lines: planValues.feature_lines || '',
     },
   }
 }
