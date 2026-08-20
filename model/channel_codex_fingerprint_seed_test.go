@@ -272,3 +272,36 @@ func TestUpdateChannelStatusMintsSeedForLegacyAutoDisabledCodexChannel(t *testin
 	require.Equal(t, common.ChannelStatusEnabled, stored.Status)
 	requireUUIDString(t, stored.CodexFingerprintSeed)
 }
+
+func TestUpdateChannelStatusRollsBackWhenAbilityUpdateFails(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusAutoDisabled, "")
+	ability := Ability{
+		Group:     "default",
+		Model:     "gpt-5-codex",
+		ChannelId: channel.Id,
+		Enabled:   false,
+	}
+	require.NoError(t, DB.Create(&ability).Error)
+
+	const callbackName = "test:fail_channel_status_ability_update"
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "abilities" {
+			tx.AddError(errors.New("forced ability status update failure"))
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	})
+
+	require.False(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusEnabled, "manual retry"))
+
+	var storedChannel Channel
+	require.NoError(t, DB.First(&storedChannel, "id = ?", channel.Id).Error)
+	require.Equal(t, common.ChannelStatusAutoDisabled, storedChannel.Status)
+	require.Empty(t, storedChannel.CodexFingerprintSeed)
+
+	var storedAbility Ability
+	require.NoError(t, DB.First(&storedAbility, "channel_id = ?", channel.Id).Error)
+	require.False(t, storedAbility.Enabled)
+}

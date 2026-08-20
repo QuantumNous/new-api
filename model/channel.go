@@ -963,79 +963,51 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
 		defer channelStatusLock.Unlock()
-
-		channelCache, _ := CacheGetChannel(channelId)
-		if channelCache == nil {
-			return false
-		}
-		if channelCache.ChannelInfo.IsMultiKey {
-			// Use per-channel lock to prevent concurrent map read/write with GetNextEnabledKey
-			beforeStatus := channelCache.Status
-			pollingLock := GetChannelPollingLock(channelId)
-			pollingLock.Lock()
-			// 如果是多Key模式，更新缓存中的状态
-			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
-			pollingLock.Unlock()
-			if beforeStatus != channelCache.Status {
-				CacheUpdateChannelStatus(channelId, channelCache.Status)
-			}
-			//CacheUpdateChannel(channelCache)
-			//return true
-		} else {
-			// 如果缓存渠道存在，且状态已是目标状态，直接返回
-			if channelCache.Status == status {
-				return false
-			}
-			CacheUpdateChannelStatus(channelId, status)
-		}
 	}
 
-	shouldUpdateAbilities := false
-	defer func() {
-		if shouldUpdateAbilities {
-			err := UpdateAbilityStatus(channelId, status == common.ChannelStatusEnabled)
-			if err != nil {
-				common.SysLog(fmt.Sprintf("failed to update ability status: channel_id=%d, error=%v", channelId, err))
-			}
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		channel := &Channel{}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(channel, "id = ?", channelId).Error; err != nil {
+			return err
 		}
-	}()
-	channel, err := GetChannelById(channelId, true)
-	if err != nil {
-		return false
-	} else {
 		if channel.Status == status {
-			return false
+			return nil
 		}
 
+		beforeStatus := channel.Status
 		if channel.ChannelInfo.IsMultiKey {
-			beforeStatus := channel.Status
-			// Protect map writes with the same per-channel lock used by readers
-			pollingLock := GetChannelPollingLock(channelId)
-			pollingLock.Lock()
 			handlerMultiKeyUpdate(channel, usingKey, status, reason)
-			pollingLock.Unlock()
-			if beforeStatus != channel.Status {
-				shouldUpdateAbilities = true
-			}
 		} else {
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
 			channel.Status = status
-			shouldUpdateAbilities = true
 		}
 		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled &&
 			!validCodexFingerprintSeed(channel.CodexFingerprintSeed) {
 			channel.CodexFingerprintSeed = uuid.NewString()
 		}
-		err = channel.SaveWithoutKey()
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
-			return false
+		if err := tx.Omit("key").Save(channel).Error; err != nil {
+			return err
 		}
+		if beforeStatus != channel.Status {
+			if err := updateAbilityStatusWithDB(tx, channelId, channel.Status == common.ChannelStatusEnabled); err != nil {
+				return err
+			}
+		}
+		changed = true
+		return nil
+	})
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channelId, status, err))
+		return false
 	}
-	publishChannelsChanged()
+	if !changed {
+		return false
+	}
+	refreshLocalChannelCacheAndPublishChanged()
 	return true
 }
 
