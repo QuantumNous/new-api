@@ -111,8 +111,7 @@ func taskSubscriptionWeighted(task *model.Task, n int64) int64 {
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
 // 订阅来源按「加权后总量之差」换算池扣量——对 delta 单独 ceil 会累计舍入
 // （如 weight=1.5、预扣 1 已计 2，实际 2 应总计 3，按增量 ceil 会补 2 变 4）；
-// 以 task.Quota（调整前的未加权总量）为基准做差杜绝该误差。窗口计数同步补偿
-// （负向按台账退回原始 Redis key，正向记入当前窗口）。
+// 以 task.Quota（调整前的未加权总量）为基准做差杜绝该误差。
 func taskAdjustFunding(task *model.Task, delta int) error {
 	if taskIsSubscription(task) {
 		currentQuota := int64(task.Quota)
@@ -126,11 +125,6 @@ func taskAdjustFunding(task *model.Task, delta int) error {
 		}
 		if err := model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, weightedDelta); err != nil {
 			return err
-		}
-		if bc := task.PrivateData.BillingContext; bc != nil && bc.SubscriptionWindow != nil {
-			if _, err := AdjustSubscriptionWindowFromSnapshot(bc.SubscriptionWindow, weightedDelta); err != nil {
-				common.SysLog(fmt.Sprintf("task %s subscription window compensation failed (tolerated): %v", task.TaskID, err))
-			}
 		}
 		return nil
 	}
@@ -465,26 +459,6 @@ func SyncAcceptedTaskTokenCacheOnce(ctx context.Context, task *model.Task) error
 func ApplyAcceptedTaskSubscriptionWindowOnce(ctx context.Context, task *model.Task) error {
 	if task == nil || !taskIsSubscription(task) {
 		return nil
-	}
-	bc := task.PrivateData.BillingContext
-	if bc == nil || bc.SubscriptionWindow == nil {
-		return nil
-	}
-	actualQuota := task.AcceptedAccountingActualQuota
-	if actualQuota == 0 {
-		actualQuota = task.Quota
-	}
-	reservedQuota := task.AcceptedAccountingReservedQuota
-	if reservedQuota == 0 {
-		reservedQuota = task.Quota
-	}
-	weightedDelta := taskSubscriptionWeighted(task, int64(actualQuota)) - taskSubscriptionWeighted(task, int64(reservedQuota))
-	if weightedDelta == 0 {
-		_, err := markAcceptedAccountingStepDone(task.TaskID, model.TaskAcceptedAccountingStepSubscriptionWindow)
-		return err
-	}
-	if _, err := AdjustSubscriptionWindowFromSnapshotOnce(bc.SubscriptionWindow, weightedDelta, task.TaskID); err != nil {
-		return err
 	}
 	_, err := markAcceptedAccountingStepDone(task.TaskID, model.TaskAcceptedAccountingStepSubscriptionWindow)
 	return err

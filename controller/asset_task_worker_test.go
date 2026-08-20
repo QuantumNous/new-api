@@ -1436,7 +1436,7 @@ func TestAssetTaskWorkerAcceptedSubscriptionUsesSnapshotForSettlement(t *testing
 	require.EqualValues(t, 1, consumeLogs)
 }
 
-func TestAssetTaskQueuePersistsSubscriptionBillingSnapshot(t *testing.T) {
+func TestAssetTaskQueuePersistsSubscriptionSnapshot(t *testing.T) {
 	restoreDB := useControllerAssetTaskDBForTest(t)
 	defer restoreDB()
 	restorePricing := useControllerAssetTaskPricingForTest(t)
@@ -1509,10 +1509,7 @@ func TestAssetTaskQueuePersistsSubscriptionBillingSnapshot(t *testing.T) {
 	require.Equal(t, service.BillingSourceSubscription, task.PrivateData.BillingSource)
 	require.Equal(t, subID, task.PrivateData.SubscriptionId)
 	require.InDelta(t, 1.5, task.PrivateData.BillingContext.SubscriptionWeight, 0.0001)
-	require.NotNil(t, task.PrivateData.BillingContext.SubscriptionWindow)
-	require.Equal(t, subID, task.PrivateData.BillingContext.SubscriptionWindow.SubId)
-	require.Equal(t, window5h, task.PrivateData.BillingContext.SubscriptionWindow.Limit5h)
-	require.Equal(t, windowWeek, task.PrivateData.BillingContext.SubscriptionWindow.LimitWeek)
+	require.Nil(t, task.PrivateData.BillingContext.SubscriptionWindow)
 
 	beforeRefund := getControllerSubscriptionUsed(t, subID)
 	service.RefundTaskQuota(context.Background(), &task, "restart refund")
