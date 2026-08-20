@@ -14,7 +14,6 @@ const (
 )
 
 // ContentToReasoningSession keeps per-choice parser state for one relay response.
-// The host RelayInfo owns it lazily; it is reset when channel metadata changes.
 type ContentToReasoningSession struct {
 	markers         []content2reasoning.Pair
 	states          map[int]*content2reasoning.State
@@ -125,8 +124,7 @@ func (info *RelayInfo) TransformContentToReasoningStream(data string) ([]*dto.Ch
 		}
 		fragments := state.Feed(text)
 		if len(fragments) == 0 {
-			// The choice is mid-marker (partial start or incomplete thinking).
-			// Preserve any metadata but suppress the buffered content itself.
+			// Mid-marker: keep metadata, suppress the buffered content.
 			metadataOnly := choice
 			metadataOnly.Delta.Content = nil
 			tailChoices = append(tailChoices, contentToReasoningMetadataChoice{index: choice.Index, choice: metadataOnly})

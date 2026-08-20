@@ -10,9 +10,8 @@ import (
 )
 
 // Pair is one start/end marker pair. Start and End must be non-empty after
-// trimming. The same value may be used for both, in which case the marker is
-// interpreted as a toggle: the first occurrence opens a reasoning block and the
-// next closes it.
+// trimming. When Start equals End the marker toggles: the first occurrence opens
+// a reasoning block and the next closes it.
 type Pair struct {
 	Start string
 	End   string
@@ -45,9 +44,6 @@ type State struct {
 	phase   phase
 	active  int
 
-	// tail holds the current-stage text that has not been emitted yet. In the
-	// awaiting phase it may be a partial start marker; in the thinking phase it
-	// may be a partial end marker.
 	tail      string
 	knowledge strings.Builder
 	found     bool
@@ -83,17 +79,10 @@ func (s *State) Feed(text string) []Fragment {
 	}
 
 	s.tail += text
-
-	var fragments []Fragment
-	switch s.phase {
-	case phaseThinking:
-		fragments = s.consumeThinking(noMoreInputFalse)
-	case phaseAwaiting:
-		fragments = s.consumeAwaiting()
-	case phaseContent:
-		// Unreachable; handled above.
+	if s.phase == phaseThinking {
+		return s.consumeThinking()
 	}
-	return fragments
+	return s.consumeAwaiting()
 }
 
 // IsContent reports whether the parser has already emitted its first complete
@@ -113,8 +102,8 @@ func (s *State) Found() bool {
 }
 
 // Done flushes the parser. If a reasoning block is still open, the collected text
-// is optimistically emitted as reasoning and unclosed is true. Any buffered partial
-// end marker is trimmed so the marker itself does not leak into reasoning.
+// is emitted as reasoning and unclosed is true. Any buffered partial end marker is
+// trimmed so the marker itself does not leak into reasoning.
 func (s *State) Done() ([]Fragment, bool) {
 	if s == nil {
 		return nil, false
@@ -146,12 +135,6 @@ func (s *State) Done() ([]Fragment, bool) {
 	}
 }
 
-type noMoreInput bool
-
-const (
-	noMoreInputFalse noMoreInput = false
-)
-
 func (s *State) consumeAwaiting() []Fragment {
 	var fragments []Fragment
 	for s.phase == phaseAwaiting {
@@ -174,12 +157,12 @@ func (s *State) consumeAwaiting() []Fragment {
 		s.knowledge.Reset()
 		s.phase = phaseThinking
 
-		fragments = append(fragments, s.consumeThinking(noMoreInputFalse)...)
+		fragments = append(fragments, s.consumeThinking()...)
 	}
 	return fragments
 }
 
-func (s *State) consumeThinking(noMoreInput noMoreInput) []Fragment {
+func (s *State) consumeThinking() []Fragment {
 	var fragments []Fragment
 	if s.phase != phaseThinking {
 		return fragments

@@ -56,7 +56,7 @@ func handleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 }
 
 // FlushContentToReasoning emits buffered unclosed reasoning after the upstream
-// stream has ended. It is only used by the shared OpenAI-style stream handlers.
+// stream has ended.
 func FlushContentToReasoning(c *gin.Context, info *relaycommon.RelayInfo) {
 	if info == nil || !info.ContentToReasoningEnabled() {
 		return

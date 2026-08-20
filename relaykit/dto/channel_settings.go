@@ -96,8 +96,7 @@ type ContentToReasoningSettings struct {
 }
 
 // ContentToReasoningMarkerPair is one paired start/end marker. Start and End must
-// both be non-empty and are matched as a pair, never cross-matched with other
-// pairs.
+// both be non-empty.
 type ContentToReasoningMarkerPair struct {
 	Start string `json:"start,omitempty"`
 	End   string `json:"end,omitempty"`
