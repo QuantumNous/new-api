@@ -203,6 +203,80 @@ func TestAdminUpdateSubscriptionPlanClearsAndValidatesLocalPrices(t *testing.T) 
 	require.False(t, resp.Success, recorder.Body.String())
 }
 
+func TestAdminCreateSubscriptionPlanNormalizesLegacyShortWindowAmountsToZero(t *testing.T) {
+	setupSubscriptionPlanControllerLifecycleTestDB(t)
+	confirmSubscriptionPlanPaymentComplianceForTest(t)
+	gin.SetMode(gin.TestMode)
+
+	req := AdminUpsertSubscriptionPlanRequest{Plan: model.SubscriptionPlan{
+		Title:               "Legacy window create",
+		PriceAmount:         9.99,
+		Currency:            "USD",
+		DurationUnit:        model.SubscriptionDurationMonth,
+		DurationValue:       1,
+		Enabled:             false,
+		TotalAmount:         1000,
+		Window5hAmount:      500,
+		WindowWeekAmount:    2000,
+		MediaCreditsMonthly: 75,
+	}}
+	recorder := performAdminCreateSubscriptionPlan(t, req)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp struct {
+		Success bool                   `json:"success"`
+		Data    model.SubscriptionPlan `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.True(t, resp.Success, recorder.Body.String())
+	require.Zero(t, resp.Data.Window5hAmount)
+	require.Zero(t, resp.Data.WindowWeekAmount)
+	require.Equal(t, int64(75), resp.Data.MediaCreditsMonthly)
+
+	var stored model.SubscriptionPlan
+	require.NoError(t, model.DB.First(&stored, "id = ?", resp.Data.Id).Error)
+	require.Zero(t, stored.Window5hAmount)
+	require.Zero(t, stored.WindowWeekAmount)
+	require.Equal(t, int64(75), stored.MediaCreditsMonthly)
+}
+
+func TestAdminUpdateSubscriptionPlanNormalizesLegacyShortWindowAmountsToZero(t *testing.T) {
+	setupSubscriptionPlanControllerLifecycleTestDB(t)
+	confirmSubscriptionPlanPaymentComplianceForTest(t)
+	gin.SetMode(gin.TestMode)
+
+	plan := &model.SubscriptionPlan{
+		Title:               "Legacy window update",
+		PriceAmount:         9.99,
+		Currency:            "USD",
+		DurationUnit:        model.SubscriptionDurationMonth,
+		DurationValue:       1,
+		Enabled:             false,
+		TotalAmount:         1000,
+		Window5hAmount:      111,
+		WindowWeekAmount:    222,
+		MediaCreditsMonthly: 33,
+	}
+	require.NoError(t, model.CreateSubscriptionPlan(plan))
+
+	req := AdminUpsertSubscriptionPlanRequest{Plan: *plan}
+	req.Plan.Window5hAmount = 500
+	req.Plan.WindowWeekAmount = 2000
+	req.Plan.MediaCreditsMonthly = 75
+	recorder := performAdminUpdateSubscriptionPlan(t, plan.Id, req)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var resp struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.True(t, resp.Success, recorder.Body.String())
+
+	var stored model.SubscriptionPlan
+	require.NoError(t, model.DB.First(&stored, "id = ?", plan.Id).Error)
+	require.Zero(t, stored.Window5hAmount)
+	require.Zero(t, stored.WindowWeekAmount)
+	require.Equal(t, int64(75), stored.MediaCreditsMonthly)
+}
+
 func performAdminCreateSubscriptionPlan(t *testing.T, req AdminUpsertSubscriptionPlanRequest) *httptest.ResponseRecorder {
 	t.Helper()
 	body, err := json.Marshal(req)

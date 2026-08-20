@@ -43,8 +43,6 @@ type SubscriptionPlanPublicDTO struct {
 	MaxPurchasePerUser      int      `json:"max_purchase_per_user"`
 	UpgradeGroup            string   `json:"upgrade_group"`
 	TotalAmount             int64    `json:"total_amount"`
-	Window5hAmount          int64    `json:"window_5h_amount"`
-	WindowWeekAmount        int64    `json:"window_week_amount"`
 	MediaCreditsMonthly     int64    `json:"media_credits_monthly"`
 	QuotaResetPeriod        string   `json:"quota_reset_period"`
 	QuotaResetCustomSeconds int64    `json:"quota_reset_custom_seconds"`
@@ -91,8 +89,6 @@ type SubscriptionSelfResponse struct {
 	CurrentPeriod          SubscriptionCurrentPeriodDTO               `json:"current_period"`
 	Quota                  SubscriptionQuotaDTO                       `json:"quota"`
 	MonthlyBucket          SubscriptionUsageWindowDTO                 `json:"monthly_bucket"`
-	Window5h               SubscriptionUsageWindowDTO                 `json:"window_5h"`
-	Window7d               SubscriptionUsageWindowDTO                 `json:"window_7d"`
 	MediaCredits           SubscriptionUsageWindowDTO                 `json:"media_credits"`
 	RemainingDays          int64                                      `json:"remaining_days"`
 	RenewalSource          string                                     `json:"renewal_source"`
@@ -115,8 +111,6 @@ type SubscriptionSelfSubscriptionDTO struct {
 	AmountUsed        int64  `json:"amount_used"`
 	MediaCreditsTotal int64  `json:"media_credits_total"`
 	MediaCreditsUsed  int64  `json:"media_credits_used"`
-	Window5hAmount    *int64 `json:"window_5h_amount,omitempty"`
-	WindowWeekAmount  *int64 `json:"window_week_amount,omitempty"`
 	StartTime         int64  `json:"start_time"`
 	EndTime           int64  `json:"end_time"`
 	AccessEndTime     int64  `json:"access_end_time"`
@@ -150,8 +144,6 @@ type SubscriptionSelfPlanDTO struct {
 	MaxPurchasePerUser      int      `json:"max_purchase_per_user"`
 	UpgradeGroup            string   `json:"upgrade_group"`
 	TotalAmount             int64    `json:"total_amount"`
-	Window5hAmount          int64    `json:"window_5h_amount"`
-	WindowWeekAmount        int64    `json:"window_week_amount"`
 	MediaCreditsMonthly     int64    `json:"media_credits_monthly"`
 	QuotaResetPeriod        string   `json:"quota_reset_period"`
 	QuotaResetCustomSeconds int64    `json:"quota_reset_custom_seconds"`
@@ -170,7 +162,6 @@ type SubscriptionSelfSummaryDTO struct {
 type SubscriptionSelfCurrentSubscriptionDTO struct {
 	Subscription *SubscriptionSelfSubscriptionDTO `json:"subscription"`
 	Plan         *SubscriptionSelfPlanDTO         `json:"plan"`
-	UsageLimits  service.SubscriptionWindowUsage  `json:"usage_limits"`
 }
 
 type AdminUserSubscriptionsResponse struct {
@@ -360,8 +351,6 @@ func subscriptionPlanPublicDTO(plan *model.SubscriptionPlan) SubscriptionPlanPub
 		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
 		UpgradeGroup:            plan.UpgradeGroup,
 		TotalAmount:             plan.TotalAmount,
-		Window5hAmount:          plan.Window5hAmount,
-		WindowWeekAmount:        plan.WindowWeekAmount,
 		MediaCreditsMonthly:     plan.MediaCreditsMonthly,
 		QuotaResetPeriod:        plan.QuotaResetPeriod,
 		QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
@@ -498,21 +487,6 @@ func buildSubscriptionSelfResponse(
 			currentEntitlement.NextResetTime,
 			false,
 		)
-		if windowInfo, err := model.GetSubscriptionWindowInfoBySubId(currentEntitlement.Id); err == nil && windowInfo != nil {
-			usage := service.GetSubscriptionWindowUsage(windowInfo)
-			response.Window5h = subscriptionUsageWindowDTO(
-				usage.Window5hUsed,
-				windowInfo.Window5hAmount,
-				usage.Window5hResetAt,
-				windowInfo.Window5hAmount == 0,
-			)
-			response.Window7d = subscriptionUsageWindowDTO(
-				usage.WindowWeekUsed,
-				windowInfo.WindowWeekAmount,
-				usage.WindowWeekResetAt,
-				windowInfo.WindowWeekAmount == 0,
-			)
-		}
 	}
 	if pendingChange != nil && pendingChange.Id > 0 {
 		response.PendingChange = subscriptionSelfPendingChangeDTO(pendingChange)
@@ -551,16 +525,9 @@ func buildCurrentSubscriptionSnapshot(activeSubscriptions []model.SubscriptionSu
 	if currentPlan == nil || currentSub == nil {
 		return nil
 	}
-	windowInfo := &model.SubscriptionWindowInfo{
-		UserSubscriptionId: currentSub.Id,
-		SubscriptionStart:  currentSub.StartTime,
-		Window5hAmount:     currentPlan.Window5hAmount,
-		WindowWeekAmount:   currentPlan.WindowWeekAmount,
-	}
 	return &SubscriptionSelfCurrentSubscriptionDTO{
 		Subscription: subscriptionSelfSubscriptionDTO(currentSub),
 		Plan:         subscriptionSelfPlanDTO(currentPlan),
-		UsageLimits:  service.GetSubscriptionWindowUsage(windowInfo),
 	}
 }
 
@@ -588,8 +555,6 @@ func subscriptionSelfSubscriptionDTO(subscription *model.UserSubscription) *Subs
 		AmountUsed:        subscription.AmountUsed,
 		MediaCreditsTotal: subscription.MediaCreditsTotal,
 		MediaCreditsUsed:  subscription.MediaCreditsUsed,
-		Window5hAmount:    subscription.Window5hAmount,
-		WindowWeekAmount:  subscription.WindowWeekAmount,
 		StartTime:         subscription.StartTime,
 		EndTime:           subscription.EndTime,
 		AccessEndTime:     subscription.AccessEndTime,
@@ -628,8 +593,6 @@ func subscriptionSelfPlanDTO(plan *model.SubscriptionPlan) *SubscriptionSelfPlan
 		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
 		UpgradeGroup:            plan.UpgradeGroup,
 		TotalAmount:             plan.TotalAmount,
-		Window5hAmount:          plan.Window5hAmount,
-		WindowWeekAmount:        plan.WindowWeekAmount,
 		MediaCreditsMonthly:     plan.MediaCreditsMonthly,
 		QuotaResetPeriod:        plan.QuotaResetPeriod,
 		QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
@@ -1424,10 +1387,8 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "媒体额度不能为负数")
 		return
 	}
-	if req.Plan.Window5hAmount < 0 || req.Plan.WindowWeekAmount < 0 {
-		common.ApiErrorMsg(c, "窗口限额不能为负数")
-		return
-	}
+	req.Plan.Window5hAmount = 0
+	req.Plan.WindowWeekAmount = 0
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -1501,10 +1462,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "媒体额度不能为负数")
 		return
 	}
-	if req.Plan.Window5hAmount < 0 || req.Plan.WindowWeekAmount < 0 {
-		common.ApiErrorMsg(c, "窗口限额不能为负数")
-		return
-	}
+	req.Plan.Window5hAmount = 0
+	req.Plan.WindowWeekAmount = 0
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
