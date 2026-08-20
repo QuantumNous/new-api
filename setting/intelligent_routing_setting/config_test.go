@@ -23,6 +23,11 @@ func TestNormalizeConfigAppliesSafeDefaults(t *testing.T) {
 func TestNormalizeConfigRejectsInvalidValues(t *testing.T) {
 	tests := []Config{
 		{MaxAttempts: -1},
+		{MaxAttempts: MaxAttempts + 1},
+		{MaxEndpointsPerModel: MaxEndpointsPerModel + 1},
+		{NonStreamBudget: MaxExecutionBudget + time.Nanosecond},
+		{StreamFirstByteBudget: MaxExecutionBudget + time.Nanosecond},
+		{MaxCostMultiplier: MaxCostMultiplier + 0.01},
 		{QualityThresholds: map[TaskType]float64{TaskGeneral: 1.1}},
 		{Models: []ModelPolicy{{Model: "a", Tier: 4}}},
 		{Models: []ModelPolicy{{Model: "a"}, {Model: "a"}}},

@@ -20,6 +20,15 @@ const (
 	TaskReasoning   TaskType = "reasoning"
 	TaskJSON        TaskType = "json_schema"
 	TaskTool        TaskType = "tool"
+
+	MaxPolicyDocumentBytes = 1 << 20
+	MaxPolicyModels        = 512
+	MaxAttempts            = 8
+	MaxEndpointsPerModel   = 4
+	MaxExecutionBudget     = 2 * time.Minute
+	MaxContextLimit        = 10_000_000
+	MaxModelPrice          = 1_000_000
+	MaxCostMultiplier      = 100
 )
 
 type ModelPolicy struct {
@@ -73,7 +82,11 @@ func Normalize(input Config) (Config, error) {
 	if input.MaxCostMultiplier == 0 {
 		input.MaxCostMultiplier = 2.5
 	}
-	if input.PolicyVersion < 1 || input.MaxAttempts < 1 || input.MaxEndpointsPerModel < 1 || input.NonStreamBudget < 0 || input.StreamFirstByteBudget < 0 || input.MaxCostMultiplier < 1 {
+	if input.PolicyVersion < 1 || input.MaxAttempts < 1 || input.MaxAttempts > MaxAttempts ||
+		input.MaxEndpointsPerModel < 1 || input.MaxEndpointsPerModel > MaxEndpointsPerModel ||
+		input.NonStreamBudget < 0 || input.NonStreamBudget > MaxExecutionBudget ||
+		input.StreamFirstByteBudget < 0 || input.StreamFirstByteBudget > MaxExecutionBudget ||
+		input.MaxCostMultiplier < 1 || input.MaxCostMultiplier > MaxCostMultiplier {
 		return Config{}, errors.New("invalid intelligent routing budget")
 	}
 	defaults := map[TaskType]float64{
@@ -87,9 +100,15 @@ func Normalize(input Config) (Config, error) {
 		defaults[task] = value
 	}
 	input.QualityThresholds = defaults
+	if len(input.Models) > MaxPolicyModels {
+		return Config{}, errors.New("too many intelligent routing model policies")
+	}
 	seen := make(map[string]struct{}, len(input.Models))
 	for _, policy := range input.Models {
-		if policy.Model == "" || policy.Tier < 0 || policy.Tier > 3 || policy.InputPrice < 0 || policy.OutputPrice < 0 || policy.ContextLimit < 0 {
+		if policy.Model == "" || policy.Tier < 0 || policy.Tier > 3 ||
+			policy.InputPrice < 0 || policy.InputPrice > MaxModelPrice ||
+			policy.OutputPrice < 0 || policy.OutputPrice > MaxModelPrice ||
+			policy.ContextLimit < 0 || policy.ContextLimit > MaxContextLimit {
 			return Config{}, fmt.Errorf("invalid model policy for %q", policy.Model)
 		}
 		if _, ok := seen[policy.Model]; ok {
