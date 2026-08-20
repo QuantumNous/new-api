@@ -203,6 +203,19 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
 		}
+		intelligentRoutingRoute := apiRouter.Group("/intelligent-routing")
+		intelligentRoutingRoute.Use(middleware.RootAuth())
+		{
+			intelligentRoutingRoute.GET("/policies", controller.ListIntelligentRoutingPolicies)
+			intelligentRoutingRoute.GET("/policies/:id", controller.GetIntelligentRoutingPolicy)
+			intelligentRoutingRoute.POST("/policies", controller.CreateIntelligentRoutingPolicy)
+			intelligentRoutingRoute.PUT("/policies/:id", controller.UpdateIntelligentRoutingPolicy)
+			intelligentRoutingRoute.POST("/policies/:id/validate", controller.ValidateIntelligentRoutingPolicy)
+			intelligentRoutingRoute.POST("/policies/:id/publish", controller.PublishIntelligentRoutingPolicy)
+			intelligentRoutingRoute.POST("/policies/versions/:version/rollback", controller.RollbackIntelligentRoutingPolicy)
+			intelligentRoutingRoute.GET("/rollout", controller.GetIntelligentRoutingRollout)
+			intelligentRoutingRoute.PUT("/rollout", controller.UpdateIntelligentRoutingRollout)
+		}
 
 		// Custom OAuth provider management (root only)
 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")

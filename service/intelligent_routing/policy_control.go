@@ -82,6 +82,11 @@ type PolicyControl struct {
 	snapshot   atomic.Pointer[RuntimePolicySnapshot]
 }
 
+var DefaultPolicyControl = NewPolicyControl(
+	DatabasePolicyRepository{},
+	common.GetEnvOrDefaultString("INTELLIGENT_ROUTING_DEPLOYMENT_SALT", "intelligent-routing"),
+)
+
 func NewPolicyControl(repository PolicyRepository, deploymentSalt string) *PolicyControl {
 	control := &PolicyControl{repository: repository, salt: deploymentSalt}
 	control.snapshot.Store(&RuntimePolicySnapshot{DeploymentSalt: deploymentSalt})
