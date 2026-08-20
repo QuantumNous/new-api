@@ -239,11 +239,36 @@ mock.module('@/hooks/use-system-config', () => ({
 }))
 
 mock.module('@/stores/system-config-store', () => ({
-  DEFAULT_CURRENCY_CONFIG: { quotaPerUnit: 500000 },
+  DEFAULT_CURRENCY_CONFIG: {
+    displayInCurrency: true,
+    quotaDisplayType: 'USD',
+    quotaPerUnit: 500000,
+    usdExchangeRate: 1,
+    customCurrencySymbol: '¤',
+    customCurrencyExchangeRate: 1,
+  },
+  useSystemConfigStore: {
+    getState: () => ({
+      config: {
+        currency: {
+          displayInCurrency: true,
+          quotaDisplayType: 'USD',
+          quotaPerUnit: 500000,
+          usdExchangeRate: 1,
+          customCurrencySymbol: '¤',
+          customCurrencyExchangeRate: 1,
+        },
+      },
+    }),
+  },
 }))
 
 mock.module('@/lib/format', () => ({
-  formatQuota: (value: number) => String(value),
+  formatNumber: (value: number | null | undefined) =>
+    value == null || Number.isNaN(value) ? '-' : String(value),
+  formatQuota: (value: number) => `$${(value / 500000).toFixed(2)}`,
+  formatTimestampToDate: (timestamp?: number) =>
+    timestamp ? new Date(timestamp * 1000).toISOString() : '-',
 }))
 
 mock.module('../../lib', () => ({
@@ -265,9 +290,19 @@ mock.module('sonner', () => ({
 }))
 
 mock.module('lucide-react', () => ({
+  AlertCircle: () => null,
   CalendarClock: () => null,
+  Check: () => null,
+  ChevronLeft: () => null,
+  ChevronRight: () => null,
+  Copy: () => null,
   Crown: () => null,
+  ExternalLink: () => null,
+  FileText: () => null,
+  Loader2: () => null,
   Package: () => null,
+  RefreshCw: () => null,
+  Search: () => null,
 }))
 
 mock.module('@/components/dialog', () => ({

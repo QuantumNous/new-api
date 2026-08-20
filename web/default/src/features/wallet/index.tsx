@@ -57,9 +57,8 @@ import {
   getPaddleCheckoutUrlFallback,
   getWalletCheckoutInitialTopupAmount,
   isPresetTopupAmount,
-  currencySupportsPresetAmounts,
-  defaultCurrencyForLanguage,
   normalizeStripeCheckoutCurrency,
+  resolveEffectiveStripeCheckoutCurrency,
   shouldConsumeWalletCheckoutSearchParams,
   shouldShowCurrencySelector,
   type StripeCheckoutCurrency,
@@ -164,13 +163,14 @@ export function Wallet(props: WalletProps) {
           props.initialCheckoutSearch?.currency
         ) ?? 'USD'
     )
-  const currencyTouchedRef = useRef(
-    normalizeStripeCheckoutCurrency(props.initialCheckoutSearch?.currency) !=
+  const [currencyTouched, setCurrencyTouched] = useState(
+    () =>
+      normalizeStripeCheckoutCurrency(props.initialCheckoutSearch?.currency) !=
       null
   )
 
   const handleCheckoutCurrencyChange = (currency: StripeCheckoutCurrency) => {
-    currencyTouchedRef.current = true
+    setCurrencyTouched(true)
     setCheckoutCurrency(currency)
   }
 
@@ -191,57 +191,13 @@ export function Wallet(props: WalletProps) {
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
   const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
 
-  // Default the Stripe settlement currency from the interface language once
-  // configured prices are known. URL/manual choices stay authoritative.
-  useEffect(() => {
-    if (!topupInfo || topupLoading) return
-
-    const presetValues = presetAmounts
-      .map((preset) => preset.value)
-      .filter((value) => Number.isFinite(value) && value > 0)
-    if (presetValues.length === 0) return
-
-    const languageCurrency = defaultCurrencyForLanguage(resolvedLanguage)
-    const stripeCurrencyPrices = topupInfo.stripe_currency_prices ?? {}
-    const currentCurrencyConfigured = currencySupportsPresetAmounts(
-      stripeCurrencyPrices,
-      checkoutCurrency,
-      presetValues
-    )
-    const usdConfigured = currencySupportsPresetAmounts(
-      stripeCurrencyPrices,
-      'USD',
-      presetValues
-    )
-    let nextCurrency: StripeCheckoutCurrency | null = null
-
-    if (!currentCurrencyConfigured && checkoutCurrency !== 'USD') {
-      if (usdConfigured) {
-        nextCurrency = 'USD'
-      }
-    } else if (!currencyTouchedRef.current) {
-      nextCurrency = currencySupportsPresetAmounts(
-        stripeCurrencyPrices,
-        languageCurrency,
-        presetValues
-      )
-        ? languageCurrency
-        : 'USD'
-    }
-
-    if (nextCurrency == null || nextCurrency === checkoutCurrency) return
-
-    const timeoutId = window.setTimeout(() => {
-      setCheckoutCurrency(nextCurrency)
-    }, 0)
-    return () => window.clearTimeout(timeoutId)
-  }, [
-    checkoutCurrency,
-    presetAmounts,
-    resolvedLanguage,
-    topupInfo,
-    topupLoading,
-  ])
+  const effectiveCheckoutCurrency = resolveEffectiveStripeCheckoutCurrency({
+    requestedCurrency: checkoutCurrency,
+    language: resolvedLanguage,
+    prices: topupInfo?.stripe_currency_prices ?? {},
+    presetAmounts: presetAmounts.map((preset) => preset.value),
+    currencyTouched,
+  })
 
   const {
     processing,
@@ -371,7 +327,7 @@ export function Wallet(props: WalletProps) {
       await fetchUser()
       return false
     },
-    [fetchUser, t]
+    [fetchUser, setPaddleCheckoutNotice, t]
   )
 
   useEffect(() => {
@@ -824,7 +780,7 @@ export function Wallet(props: WalletProps) {
           : undefined
 
       const success = await processPayment(preset.value, 'stripe', {
-        stripeCurrency: checkoutCurrency,
+        stripeCurrency: effectiveCheckoutCurrency,
         preferEmbeddedCheckout: true,
         recallClaim: validatedRecallClaim,
       })
@@ -874,7 +830,7 @@ export function Wallet(props: WalletProps) {
 
   const handleRechargeHistoryAvailability = useCallback(
     (available: boolean) => setHasRechargeHistory(available),
-    []
+    [setHasRechargeHistory]
   )
 
   return (
@@ -1024,7 +980,7 @@ export function Wallet(props: WalletProps) {
             onStripeTopUp={handleStripeTopUp}
             paymentLoadingAmount={processing ? paymentLoadingAmount : null}
             loading={topupLoading}
-            checkoutCurrency={checkoutCurrency}
+            checkoutCurrency={effectiveCheckoutCurrency}
             onCheckoutCurrencyChange={handleCheckoutCurrencyChange}
             showCurrencySelector={
               shouldShowCurrencySelector(topupInfo?.client_region) ||

@@ -162,6 +162,41 @@ export function currencySupportsPresetAmounts(
   )
 }
 
+export type ResolveEffectiveStripeCheckoutCurrencyParams = {
+  requestedCurrency: StripeCheckoutCurrency
+  language: string | undefined
+  prices: StripeCurrencyPrices
+  presetAmounts: number[]
+  currencyTouched: boolean
+}
+
+export function resolveEffectiveStripeCheckoutCurrency(
+  params: ResolveEffectiveStripeCheckoutCurrencyParams
+): StripeCheckoutCurrency {
+  const presetAmounts = params.presetAmounts.filter(
+    (amount) => Number.isFinite(amount) && amount > 0
+  )
+
+  if (presetAmounts.length === 0) {
+    return params.requestedCurrency
+  }
+
+  const currencySupported = (currency: StripeCheckoutCurrency) =>
+    currencySupportsPresetAmounts(params.prices, currency, presetAmounts)
+
+  if (params.currencyTouched) {
+    return currencySupported(params.requestedCurrency)
+      ? params.requestedCurrency
+      : 'USD'
+  }
+
+  const languageCurrency = defaultCurrencyForLanguage(params.language)
+
+  return currencySupported(languageCurrency)
+    ? languageCurrency
+    : 'USD'
+}
+
 export function stripeTopUpDisplayAmount(
   prices: StripeCurrencyPrices,
   currency: StripeCheckoutCurrency,

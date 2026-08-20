@@ -22,6 +22,7 @@ import {
   defaultCurrencyForLanguage,
   normalizeStripeCheckoutCurrency,
   parseStripeCurrencyPrices,
+  resolveEffectiveStripeCheckoutCurrency,
   stripeTopUpDisplayAmount,
 } from './stripe-currency'
 
@@ -85,5 +86,67 @@ describe('currencySupportsPresetAmounts', () => {
 
     expect(currencySupportsPresetAmounts(prices, 'USD', [20, 50])).toBe(true)
     expect(currencySupportsPresetAmounts(prices, 'BRL', [20, 50])).toBe(false)
+  })
+})
+
+describe('resolveEffectiveStripeCheckoutCurrency', () => {
+  test('falls back the whole tier to USD when the requested local currency is partial', () => {
+    const prices = parseStripeCurrencyPrices({
+      USD: { 20: 2000, 50: 5000 },
+      BRL: { 20: 9990 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'pt-BR',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
+      })
+    ).toBe('USD')
+  })
+
+  test('uses USD instead of a partial local currency even when USD prices are absent', () => {
+    const prices = parseStripeCurrencyPrices({
+      BRL: { 20: 9990 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'pt-BR',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
+      })
+    ).toBe('USD')
+  })
+
+  test('keeps explicit and language currencies when they cover every visible preset', () => {
+    const prices = parseStripeCurrencyPrices({
+      USD: { 20: 2000, 50: 5000 },
+      BRL: { 20: 9990, 50: 24990 },
+      JPY: { 20: 3000, 50: 7500 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'ja-JP',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
+      })
+    ).toBe('BRL')
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'USD',
+        language: 'ja-JP',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: false,
+      })
+    ).toBe('JPY')
   })
 })
