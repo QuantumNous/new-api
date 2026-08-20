@@ -551,6 +551,50 @@ func TestTokenSpaceMaterialTechMobiProcessingBindingRefreshesWithGetOnly(t *test
 	require.Equal(t, "asset-created", binding.UpstreamAssetId)
 }
 
+func TestTechMobiAssetBindingMalformedExplicitConfigRematerializesProcessingBinding(t *testing.T) {
+	newAssetServiceTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_techmobi_malformed_explicit_processing")
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "http://materials.example.invalid",
+		GroupID:        "group-internal",
+	})
+	channel.Id = 106
+	options := AssetMaterializeOptions{
+		Model:  "seedance-2.0-fast",
+		APIKey: "selected-techmobi-key",
+	}
+	bindingScope, err := assetBindingScope(channel.Type, options)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       channel.Id,
+		BindingScope:    bindingScope,
+		Status:          model.AssetStatusProcessing,
+		UpstreamAssetId: "asset://historical-processing",
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}).Error)
+	materializer := &recordingAssetMaterializer{
+		getErr: errors.New("TechMobi processing rows must not be refreshed from opaque asset URLs"),
+	}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	defer restore()
+
+	result, handled, err := handleProcessingAssetBinding(context.Background(), &asset, channel, bindingScope, options.Model, options.APIKey, "asset://historical-processing", 2, 0)
+
+	require.NoError(t, err)
+	require.False(t, handled)
+	require.Empty(t, result.RewriteURI)
+	require.Zero(t, atomic.LoadInt64(&materializer.getCalls))
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, channel.Id, bindingScope).Error)
+	require.Equal(t, model.AssetStatusFailed, binding.Status)
+	require.Equal(t, AssetMaterializeErrorProcessing, binding.ErrorCode)
+	require.Equal(t, "asset://historical-processing", binding.UpstreamAssetId)
+}
+
 func TestTechMobiAssetBindingHistoricalProcessingOpaqueAssetRematerializes(t *testing.T) {
 	newAssetServiceTestDB(t)
 	store := installAssetServiceTestDeps(t)

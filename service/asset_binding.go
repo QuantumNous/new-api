@@ -532,7 +532,10 @@ func assetBindingRequiresRematerializationFromProcessing(channel *model.Channel)
 		return false
 	}
 	_, explicit, err := assetMaterializationConfigForChannel(channel)
-	return err == nil && !explicit
+	if err != nil {
+		return true
+	}
+	return !explicit
 }
 
 func markProcessingAssetBindingForRematerialization(assetID int64, channelID int, bindingScope string, upstreamAssetID string) (bool, error) {
