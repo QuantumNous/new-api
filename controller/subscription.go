@@ -25,7 +25,39 @@ type SubscriptionPlanDTO struct {
 }
 
 type AdminSubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan AdminSubscriptionPlanResponseDTO `json:"plan"`
+}
+
+type AdminSubscriptionPlanResponseDTO struct {
+	Id                      int      `json:"id"`
+	Title                   string   `json:"title"`
+	Subtitle                string   `json:"subtitle"`
+	PriceAmount             float64  `json:"price_amount"`
+	Currency                string   `json:"currency"`
+	PixPriceBRL             *float64 `json:"pix_price_brl"`
+	UpiPriceINR             *float64 `json:"upi_price_inr"`
+	DurationUnit            string   `json:"duration_unit"`
+	DurationValue           int      `json:"duration_value"`
+	CustomSeconds           int64    `json:"custom_seconds"`
+	Enabled                 bool     `json:"enabled"`
+	SortOrder               int      `json:"sort_order"`
+	TierRank                *int     `json:"tier_rank"`
+	AllowBalancePay         *bool    `json:"allow_balance_pay"`
+	StripePriceId           string   `json:"stripe_price_id"`
+	CreemProductId          string   `json:"creem_product_id"`
+	WaffoPancakeProductId   string   `json:"waffo_pancake_product_id"`
+	MaxPurchasePerUser      int      `json:"max_purchase_per_user"`
+	UpgradeGroup            string   `json:"upgrade_group"`
+	TotalAmount             int64    `json:"total_amount"`
+	MediaCreditsMonthly     int64    `json:"media_credits_monthly"`
+	QuotaResetPeriod        string   `json:"quota_reset_period"`
+	QuotaResetCustomSeconds int64    `json:"quota_reset_custom_seconds"`
+	ModelCount              int      `json:"model_count"`
+	Rpm                     int      `json:"rpm"`
+	Concurrency             int      `json:"concurrency"`
+	FeatureLines            string   `json:"feature_lines"`
+	CreatedAt               int64    `json:"created_at"`
+	UpdatedAt               int64    `json:"updated_at"`
 }
 
 type SubscriptionPlanPublicDTO struct {
@@ -603,6 +635,43 @@ func subscriptionSelfPlanDTO(plan *model.SubscriptionPlan) *SubscriptionSelfPlan
 		SortOrder:               plan.SortOrder,
 		TierRank:                plan.TierRank,
 		AllowBalancePay:         plan.AllowBalancePay,
+		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
+		UpgradeGroup:            plan.UpgradeGroup,
+		TotalAmount:             plan.TotalAmount,
+		MediaCreditsMonthly:     plan.MediaCreditsMonthly,
+		QuotaResetPeriod:        plan.QuotaResetPeriod,
+		QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
+		ModelCount:              plan.ModelCount,
+		Rpm:                     plan.Rpm,
+		Concurrency:             plan.Concurrency,
+		FeatureLines:            plan.FeatureLines,
+		CreatedAt:               plan.CreatedAt,
+		UpdatedAt:               plan.UpdatedAt,
+	}
+}
+
+func adminSubscriptionPlanResponseDTO(plan *model.SubscriptionPlan) AdminSubscriptionPlanResponseDTO {
+	if plan == nil {
+		return AdminSubscriptionPlanResponseDTO{}
+	}
+	return AdminSubscriptionPlanResponseDTO{
+		Id:                      plan.Id,
+		Title:                   plan.Title,
+		Subtitle:                plan.Subtitle,
+		PriceAmount:             plan.PriceAmount,
+		Currency:                plan.Currency,
+		PixPriceBRL:             plan.PixPriceBRL,
+		UpiPriceINR:             plan.UpiPriceINR,
+		DurationUnit:            plan.DurationUnit,
+		DurationValue:           plan.DurationValue,
+		CustomSeconds:           plan.CustomSeconds,
+		Enabled:                 plan.Enabled,
+		SortOrder:               plan.SortOrder,
+		TierRank:                plan.TierRank,
+		AllowBalancePay:         plan.AllowBalancePay,
+		StripePriceId:           plan.StripePriceId,
+		CreemProductId:          plan.CreemProductId,
+		WaffoPancakeProductId:   plan.WaffoPancakeProductId,
 		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
 		UpgradeGroup:            plan.UpgradeGroup,
 		TotalAmount:             plan.TotalAmount,
@@ -1339,7 +1408,7 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 	for _, p := range plans {
 		p.NormalizeDefaults()
 		result = append(result, AdminSubscriptionPlanDTO{
-			Plan: p,
+			Plan: adminSubscriptionPlanResponseDTO(&p),
 		})
 	}
 	common.ApiSuccess(c, result)
@@ -1419,7 +1488,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		apiSubscriptionPlanLifecycleError(c, err)
 		return
 	}
-	common.ApiSuccess(c, req.Plan)
+	common.ApiSuccess(c, adminSubscriptionPlanResponseDTO(&req.Plan))
 }
 
 func AdminUpdateSubscriptionPlan(c *gin.Context) {
