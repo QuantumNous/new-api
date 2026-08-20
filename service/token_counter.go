@@ -309,14 +309,17 @@ func CountTokenRealtime(info *relaycommon.RelayInfo, request dto.RealtimeEvent, 
 			msgTokens := CountTextToken(request.Session.Instructions, model)
 			textToken += msgTokens
 		}
-	case dto.RealtimeEventResponseAudioDelta:
+	case dto.RealtimeEventResponseAudioDelta, dto.RealtimeEventResponseOutputAudioDelta:
 		// count audio token
 		atk, err := CountAudioTokenOutput(request.Delta, info.OutputAudioFormat)
 		if err != nil {
 			return 0, 0, fmt.Errorf("error counting audio token: %v", err)
 		}
 		audioToken += atk
-	case dto.RealtimeEventResponseAudioTranscriptionDelta, dto.RealtimeEventResponseFunctionCallArgumentsDelta:
+	case dto.RealtimeEventResponseOutputTextDelta,
+		dto.RealtimeEventResponseAudioTranscriptionDelta,
+		dto.RealtimeEventResponseOutputAudioTranscriptDelta,
+		dto.RealtimeEventResponseFunctionCallArgumentsDelta:
 		// count text token
 		tkm := CountTextToken(request.Delta, model)
 		textToken += tkm

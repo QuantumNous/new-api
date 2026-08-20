@@ -123,16 +123,25 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				}
 
 				if realtimeEvent.Type == dto.RealtimeEventTypeResponseDone {
-					realtimeUsage := realtimeEvent.Response.Usage
+					var realtimeUsage *dto.RealtimeUsage
+					if realtimeEvent.Response != nil {
+						realtimeUsage = realtimeEvent.Response.Usage
+					}
 					if realtimeUsage != nil {
 						usage.TotalTokens += realtimeUsage.TotalTokens
 						usage.InputTokens += realtimeUsage.InputTokens
 						usage.OutputTokens += realtimeUsage.OutputTokens
 						usage.InputTokenDetails.AudioTokens += realtimeUsage.InputTokenDetails.AudioTokens
 						usage.InputTokenDetails.CachedTokens += realtimeUsage.InputTokenDetails.CachedTokens
+						usage.InputTokenDetails.CachedTokensDetails.TextTokens += realtimeUsage.InputTokenDetails.CachedTokensDetails.TextTokens
+						usage.InputTokenDetails.CachedTokensDetails.AudioTokens += realtimeUsage.InputTokenDetails.CachedTokensDetails.AudioTokens
+						usage.InputTokenDetails.CachedTokensDetails.ImageTokens += realtimeUsage.InputTokenDetails.CachedTokensDetails.ImageTokens
 						usage.InputTokenDetails.TextTokens += realtimeUsage.InputTokenDetails.TextTokens
+						usage.InputTokenDetails.ImageTokens += realtimeUsage.InputTokenDetails.ImageTokens
 						usage.OutputTokenDetails.AudioTokens += realtimeUsage.OutputTokenDetails.AudioTokens
 						usage.OutputTokenDetails.TextTokens += realtimeUsage.OutputTokenDetails.TextTokens
+						usage.OutputTokenDetails.ImageTokens += realtimeUsage.OutputTokenDetails.ImageTokens
+						usage.OutputTokenDetails.ReasoningTokens += realtimeUsage.OutputTokenDetails.ReasoningTokens
 						err := preConsumeUsage(c, info, usage, sumUsage)
 						if err != nil {
 							errChan <- fmt.Errorf("error consume usage: %v", err)
@@ -232,11 +241,17 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	totalUsage.InputTokens += usage.InputTokens
 	totalUsage.OutputTokens += usage.OutputTokens
 	totalUsage.InputTokenDetails.CachedTokens += usage.InputTokenDetails.CachedTokens
+	totalUsage.InputTokenDetails.CachedTokensDetails.TextTokens += usage.InputTokenDetails.CachedTokensDetails.TextTokens
+	totalUsage.InputTokenDetails.CachedTokensDetails.AudioTokens += usage.InputTokenDetails.CachedTokensDetails.AudioTokens
+	totalUsage.InputTokenDetails.CachedTokensDetails.ImageTokens += usage.InputTokenDetails.CachedTokensDetails.ImageTokens
 	totalUsage.InputTokenDetails.TextTokens += usage.InputTokenDetails.TextTokens
 	totalUsage.InputTokenDetails.AudioTokens += usage.InputTokenDetails.AudioTokens
+	totalUsage.InputTokenDetails.ImageTokens += usage.InputTokenDetails.ImageTokens
 	totalUsage.OutputTokenDetails.TextTokens += usage.OutputTokenDetails.TextTokens
 	totalUsage.OutputTokenDetails.AudioTokens += usage.OutputTokenDetails.AudioTokens
+	totalUsage.OutputTokenDetails.ImageTokens += usage.OutputTokenDetails.ImageTokens
+	totalUsage.OutputTokenDetails.ReasoningTokens += usage.OutputTokenDetails.ReasoningTokens
 	// clear usage
-	err := service.PreWssConsumeQuota(ctx, info, usage)
+	err := service.PreWssConsumeQuota(ctx, info, usage, totalUsage)
 	return err
 }
