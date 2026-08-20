@@ -96,10 +96,10 @@ describe('SystemStatusCard', () => {
 
     expect(wrapper.find('header').text()).toContain('99.7%')
     // Four resource tiles remain; success rate is no longer one of them.
-    expect(wrapper.findAll('.grid > .min-w-0')).toHaveLength(4)
+    expect(wrapper.findAll('[data-system-status-tile]')).toHaveLength(4)
   })
 
-  it('foots ceilinged tiles with usage bars and charts bandwidth instead', () => {
+  it('uses a distinct visual gauge for each system resource', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const wrapper = mount(SystemStatusCard, {
@@ -107,19 +107,17 @@ describe('SystemStatusCard', () => {
       global: { plugins: [pinia, i18n] },
     })
 
-    const tiles = wrapper.findAll('.grid > .min-w-0')
+    const tiles = wrapper.findAll('[data-system-status-tile]')
     expect(tiles).toHaveLength(4)
     const [cpu, memory, bandwidth, disk] = tiles
-    expect(cpu!.find('.pencil-progress').exists()).toBe(true)
-    expect(memory!.find('.pencil-progress').exists()).toBe(true)
-    expect(disk!.find('.pencil-progress').exists()).toBe(true)
+    expect(cpu!.find('[data-cpu-gauge]').exists()).toBe(true)
+    expect(cpu!.find('[data-cpu-gauge-active]').exists()).toBe(true)
+    expect(memory!.find('[data-memory-segments]').exists()).toBe(true)
+    expect(memory!.findAll('[data-memory-segments] > span')).toHaveLength(10)
+    expect(disk!.find('[data-disk-gauge]').exists()).toBe(true)
+    expect(disk!.find('svg').exists()).toBe(true)
     expect(bandwidth!.find('.pencil-progress').exists()).toBe(false)
-    expect(cpu!.find('.pencil-progress > div').attributes('style')).toContain(
-      'width: 34%'
-    )
-    expect(bandwidth!.find('.mt-auto svg[aria-hidden="true"]').exists()).toBe(
-      true
-    )
+    expect(bandwidth!.find('[data-bandwidth-sparkline]').exists()).toBe(true)
     expect(bandwidth!.find('[data-bandwidth-icon]').exists()).toBe(true)
   })
 
@@ -132,8 +130,8 @@ describe('SystemStatusCard', () => {
     })
 
     const spark = wrapper
-      .findAll('.grid > .min-w-0')[2]!
-      .find('.mt-auto svg[aria-hidden="true"]')
+      .findAll('[data-system-status-tile]')[2]!
+      .find('[data-bandwidth-sparkline] svg[aria-hidden="true"]')
     expect(spark.exists()).toBe(true)
     // One line per direction plus the shaded download area beneath them.
     expect(spark.findAll('path[fill="none"]')).toHaveLength(2)
@@ -152,7 +150,7 @@ describe('SystemStatusCard', () => {
     expect(wrapper.text()).not.toContain('demo data')
   })
 
-  it('renders supplied metrics with usage bars', () => {
+  it('renders supplied metrics with resource gauges', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const wrapper = mount(SystemStatusCard, {
@@ -183,7 +181,9 @@ describe('SystemStatusCard', () => {
       global: { plugins: [pinia, i18n] },
     })
 
-    const cpuValue = wrapper.findAll('.grid > .min-w-0')[0]!.find('.mt-1 span')
+    const cpuValue = wrapper
+      .findAll('[data-system-status-tile]')[0]!
+      .find('[data-cpu-gauge] span')
     expect(wrapper.text()).toContain('4.6%')
     expect(wrapper.text()).toContain('↑1.2 Mbps')
     expect(wrapper.text()).toContain('↓6.6 Mbps')
@@ -206,11 +206,64 @@ describe('SystemStatusCard', () => {
       global: { plugins: [pinia, i18n] },
     })
 
-    const bandwidth = wrapper.findAll('.grid > .min-w-0')[2]!
+    const bandwidth = wrapper.findAll('[data-system-status-tile]')[2]!
     expect(bandwidth.text()).toContain('↑450 Kbps')
     expect(bandwidth.text()).toContain('↓420 bps')
     expect(bandwidth.text()).not.toContain('Mbps')
     expect(bandwidth.findAll('[data-bandwidth-direction]')).toHaveLength(2)
+  })
+
+  it('clamps percentages and rejects invalid metric values', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: {
+        metrics: {
+          ...metrics(),
+          cpu_percent: 140,
+          memory_used_gb: -1,
+          memory_total_gb: 0,
+          disk_used_gb: Number.NaN,
+          disk_total_gb: 100,
+          api_success_rate: Number.POSITIVE_INFINITY,
+          bandwidth_up_mbps: -0.5,
+          bandwidth_down_mbps: Number.NaN,
+          bandwidth_series: {
+            up: [1, Number.NaN, 3],
+            down: [2, 4, 6],
+          },
+        },
+      },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    const tiles = wrapper.findAll('[data-system-status-tile]')
+    expect(tiles[0]!.text()).toContain('100%')
+    expect(tiles[0]!.find('[data-cpu-gauge-active]').exists()).toBe(true)
+    expect(tiles[1]!.text()).toContain('--')
+    expect(tiles[2]!.text()).toContain('--')
+    expect(tiles[2]!.find('[data-bandwidth-sparkline]').exists()).toBe(false)
+    expect(tiles[3]!.text()).toContain('--')
+    expect(wrapper.find('header').text()).toContain('--')
+  })
+
+  it('keeps bandwidth values visible without drawing an incomplete series', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const wrapper = mount(SystemStatusCard, {
+      props: {
+        metrics: {
+          ...metrics(),
+          bandwidth_series: { up: [1], down: [2] },
+        },
+      },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    const bandwidth = wrapper.findAll('[data-system-status-tile]')[2]!
+    expect(bandwidth.text()).toContain('↑2.1 Mbps')
+    expect(bandwidth.text()).toContain('↓12.4 Mbps')
+    expect(bandwidth.find('[data-bandwidth-sparkline]').exists()).toBe(false)
   })
 
   it('uses the Chinese app traffic label', async () => {

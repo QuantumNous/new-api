@@ -8,15 +8,19 @@ import {
 } from './fixtures'
 
 async function expectMetricValuesToFit(card: Locator): Promise<void> {
-  for (const index of [0, 2]) {
+  for (const metric of ['cpu', 'bandwidth']) {
     const fits = await card
-      .locator('.grid > .min-w-0')
-      .nth(index)
+      .locator(`[data-metric="${metric}"]`)
       .evaluate((tile) => {
-        const row = tile.querySelector('p.mt-1')
+        const row = tile.querySelector(
+          '[data-cpu-gauge] p, [data-bandwidth-direction]'
+        )
         if (!row) return false
         const rowRect = row.getBoundingClientRect()
-        return [...row.children].every((part) => {
+        const parts = row.matches('[data-bandwidth-direction]')
+          ? [row]
+          : [...row.children]
+        return parts.every((part) => {
           const partRect = part.getBoundingClientRect()
           return (
             partRect.left >= rowRect.left - 0.5 &&
@@ -26,6 +30,17 @@ async function expectMetricValuesToFit(card: Locator): Promise<void> {
       })
     expect(fits).toBe(true)
   }
+}
+
+async function expectStableTileHeights(card: Locator): Promise<void> {
+  const heights = await card
+    .locator('[data-system-status-tile]')
+    .evaluateAll((tiles) =>
+      tiles.map((tile) => tile.getBoundingClientRect().height)
+    )
+  expect(heights).toHaveLength(4)
+  expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1)
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(108)
 }
 
 for (const theme of ['light', 'dark'] satisfies VisualTheme[]) {
@@ -43,6 +58,7 @@ for (const theme of ['light', 'dark'] satisfies VisualTheme[]) {
     await expect(card).toContainText('↑450 Kbps')
     await expect(card).toContainText('↓420 bps')
     await expectMetricValuesToFit(card)
+    await expectStableTileHeights(card)
     await assertNoHorizontalOverflow(page)
 
     await page.setViewportSize({ width: 390, height: 844 })
@@ -51,6 +67,7 @@ for (const theme of ['light', 'dark'] satisfies VisualTheme[]) {
     await expect(card).toContainText('↑450 Kbps')
     await expect(card).toContainText('↓420 bps')
     await expectMetricValuesToFit(card)
+    await expectStableTileHeights(card)
     await assertNoHorizontalOverflow(page)
   })
 }
