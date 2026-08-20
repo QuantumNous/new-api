@@ -31,7 +31,6 @@ import {
   LayoutDashboard,
   ListTodo,
   MailCheck,
-  MessageSquare,
   Radio,
   Rocket,
   Settings,
@@ -61,23 +60,7 @@ export function buildSidebarData(
     navGroups: [
       {
         id: 'chat',
-        title: t('Chat'),
-        items: [
-          {
-            title: t('Playground'),
-            url: '/playground',
-            icon: FlaskConical,
-          },
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
-          },
-        ],
-      },
-      {
-        id: 'general',
-        title: t('Models'),
+        title: t('Get Started'),
         items: [
           {
             title: t('Overview'),
@@ -85,10 +68,16 @@ export function buildSidebarData(
             icon: Activity,
           },
           {
-            title: t('Dashboard'),
-            url: '/dashboard/models',
-            icon: LayoutDashboard,
+            title: t('Playground'),
+            url: '/playground',
+            icon: FlaskConical,
           },
+        ],
+      },
+      {
+        id: 'general',
+        title: t('Models'),
+        items: [
           {
             title: t('Available Models'),
             url: '/available-models',
@@ -105,6 +94,11 @@ export function buildSidebarData(
             activeUrls: ['/usage-logs/drawing'],
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
+          },
+          {
+            title: t('Analytics'),
+            url: '/dashboard/models',
+            icon: LayoutDashboard,
           },
         ],
       },

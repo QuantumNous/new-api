@@ -24,20 +24,30 @@ import { buildSidebarData } from './use-sidebar-data'
 const t = ((key: string) => key) as TFunction
 
 describe('buildSidebarData', () => {
-  test('hides compute from the user dashboard navigation', () => {
+  test('places overview and playground in the get started group', () => {
+    const getStartedGroup = buildSidebarData(t).navGroups.find(
+      (group) => group.id === 'chat'
+    )
+
+    expect(getStartedGroup).toMatchObject({
+      title: 'Get Started',
+      items: [
+        { title: 'Overview', url: '/dashboard/overview' },
+        { title: 'Playground', url: '/playground' },
+      ],
+    })
+  })
+
+  test('orders the models group with analytics after task logs', () => {
     const generalGroup = buildSidebarData(t).navGroups.find(
       (group) => group.id === 'general'
     )
-    const urls = generalGroup?.items.flatMap((item) =>
-      'url' in item && item.url ? [item.url] : []
-    )
 
-    expect(urls).toEqual([
-      '/dashboard/overview',
-      '/dashboard/models',
-      '/available-models',
-      '/usage-logs/common',
-      '/usage-logs/task',
+    expect(generalGroup?.items).toMatchObject([
+      { title: 'Available Models', url: '/available-models' },
+      { title: 'Usage Logs', url: '/usage-logs/common' },
+      { title: 'Task Logs', url: '/usage-logs/task' },
+      { title: 'Analytics', url: '/dashboard/models' },
     ])
   })
 
