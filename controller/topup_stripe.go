@@ -79,6 +79,13 @@ const (
 	stripeTopUpLineQuantity int64 = 1
 )
 
+var stripeTopUpPriceContract = map[string]map[int64]int64{
+	"USD": {10: 1000, 20: 2000, 50: 5000, 100: 10000, 200: 20000},
+	"JPY": {10: 1500, 20: 3000, 50: 7500, 100: 15000, 200: 30000},
+	"BRL": {10: 4990, 20: 9990, 50: 24990, 100: 49900, 200: 99000},
+	"INR": {10: 89900, 20: 179900, 50: 449900, 100: 899900, 200: 1799000},
+}
+
 type stripeTopUpCheckout struct {
 	PriceId         string
 	Quantity        int64
@@ -140,12 +147,8 @@ func resolveStripeTopUpCheckout(req *StripePayRequest, normalizedAmount int64, g
 }
 
 func stripeTopUpCurrencySupported(currency string) bool {
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	case "USD", "JPY", "BRL", "INR":
-		return true
-	default:
-		return false
-	}
+	_, ok := stripeTopUpPriceContract[strings.ToUpper(strings.TrimSpace(currency))]
+	return ok
 }
 
 var stripePriceAmountMinorForCheckoutCurrency = getStripePriceAmountMinorForCurrency
@@ -193,64 +196,12 @@ func validateStripeTopUpPriceContract(priceId string, requestedCurrency string, 
 }
 
 func expectedStripeTopUpAmountMinor(currency string, packageAmount int64) (int64, bool) {
-	switch strings.ToUpper(strings.TrimSpace(currency)) {
-	// 50/100 tiers: USD is exact face value; JPY/BRL/INR follow the pricing
-	// pattern of the existing tiers (JPY ×150, BRL/INR psychological endings)
-	// — confirm with ops before enabling those currencies in production.
-	case "USD":
-		switch packageAmount {
-		case 10:
-			return 1000, true
-		case 20:
-			return 2000, true
-		case 50:
-			return 5000, true
-		case 100:
-			return 10000, true
-		case 200:
-			return 20000, true
-		}
-	case "JPY":
-		switch packageAmount {
-		case 10:
-			return 1500, true
-		case 20:
-			return 3000, true
-		case 50:
-			return 7500, true
-		case 100:
-			return 15000, true
-		case 200:
-			return 30000, true
-		}
-	case "BRL":
-		switch packageAmount {
-		case 10:
-			return 4990, true
-		case 20:
-			return 9990, true
-		case 50:
-			return 24990, true
-		case 100:
-			return 49900, true
-		case 200:
-			return 99000, true
-		}
-	case "INR":
-		switch packageAmount {
-		case 10:
-			return 89900, true
-		case 20:
-			return 179900, true
-		case 50:
-			return 449900, true
-		case 100:
-			return 899900, true
-		case 200:
-			return 1799000, true
-		}
+	prices, ok := stripeTopUpPriceContract[strings.ToUpper(strings.TrimSpace(currency))]
+	if !ok {
+		return 0, false
 	}
-	return 0, false
+	amountMinor, ok := prices[packageAmount]
+	return amountMinor, ok
 }
 
 func stripePriceSupportsCurrency(price *stripe.Price, requestedCurrency string) bool {

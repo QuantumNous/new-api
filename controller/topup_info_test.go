@@ -22,6 +22,19 @@ func TestBuildStripeTopUpPriceIDsUsesConfiguredAmountOptions(t *testing.T) {
 	}, buildStripeTopUpPriceIDs([]int{20, 50}))
 }
 
+func TestBuildStripeTopUpCurrencyPricesFiltersUnconfiguredTiers(t *testing.T) {
+	original := setting.StripeTopUpPriceIds
+	t.Cleanup(func() { setting.StripeTopUpPriceIds = original })
+	setting.StripeTopUpPriceIds = `{"20":"price_topup_20"}`
+
+	require.Equal(t, map[string]map[int]int64{
+		"USD": {20: 2000},
+		"JPY": {20: 3000},
+		"BRL": {20: 9990},
+		"INR": {20: 179900},
+	}, buildStripeTopUpCurrencyPrices([]int{20, 50}))
+}
+
 func TestGetTopUpInfoExposesStripePriceIDsByAmount(t *testing.T) {
 	paymentSetting := operation_setting.GetPaymentSetting()
 	originalAmountOptions := paymentSetting.AmountOptions
@@ -46,7 +59,8 @@ func TestGetTopUpInfoExposesStripePriceIDsByAmount(t *testing.T) {
 	var response struct {
 		Success bool `json:"success"`
 		Data    struct {
-			StripePriceIDs map[string]string `json:"stripe_price_ids"`
+			StripePriceIDs       map[string]string           `json:"stripe_price_ids"`
+			StripeCurrencyPrices map[string]map[string]int64 `json:"stripe_currency_prices"`
 		} `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
@@ -55,4 +69,10 @@ func TestGetTopUpInfoExposesStripePriceIDsByAmount(t *testing.T) {
 		"20": "price_topup_20",
 		"50": "price_topup_50",
 	}, response.Data.StripePriceIDs)
+	require.Equal(t, map[string]map[string]int64{
+		"USD": {"20": 2000, "50": 5000},
+		"JPY": {"20": 3000, "50": 7500},
+		"BRL": {"20": 9990, "50": 24990},
+		"INR": {"20": 179900, "50": 449900},
+	}, response.Data.StripeCurrencyPrices)
 }

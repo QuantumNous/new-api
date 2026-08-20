@@ -273,6 +273,55 @@ func TestStripePriceAmountMinorForCurrency(t *testing.T) {
 	require.False(t, ok)
 }
 
+func TestStripeTopUpPriceContractDrivesSupportedCurrenciesAndAmounts(t *testing.T) {
+	tests := []struct {
+		currency string
+		amounts  map[int64]int64
+	}{
+		{
+			currency: "USD",
+			amounts: map[int64]int64{
+				10: 1000, 20: 2000, 50: 5000, 100: 10000, 200: 20000,
+			},
+		},
+		{
+			currency: "JPY",
+			amounts: map[int64]int64{
+				10: 1500, 20: 3000, 50: 7500, 100: 15000, 200: 30000,
+			},
+		},
+		{
+			currency: "BRL",
+			amounts: map[int64]int64{
+				10: 4990, 20: 9990, 50: 24990, 100: 49900, 200: 99000,
+			},
+		},
+		{
+			currency: "INR",
+			amounts: map[int64]int64{
+				10: 89900, 20: 179900, 50: 449900, 100: 899900, 200: 1799000,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.currency, func(t *testing.T) {
+			require.True(t, stripeTopUpCurrencySupported(" "+strings.ToLower(tt.currency)+" "))
+			for packageAmount, wantMinor := range tt.amounts {
+				gotMinor, ok := expectedStripeTopUpAmountMinor(tt.currency, packageAmount)
+				require.True(t, ok)
+				require.Equal(t, wantMinor, gotMinor)
+			}
+		})
+	}
+
+	require.False(t, stripeTopUpCurrencySupported("EUR"))
+	_, ok := expectedStripeTopUpAmountMinor("EUR", 20)
+	require.False(t, ok)
+	_, ok = expectedStripeTopUpAmountMinor("USD", 15)
+	require.False(t, ok)
+}
+
 func TestGetStripePriceAmountMinorForCurrencyExpandsCurrencyOptions(t *testing.T) {
 	originalAPISecret := setting.StripeApiSecret
 	originalPriceGetter := stripePriceGetter
