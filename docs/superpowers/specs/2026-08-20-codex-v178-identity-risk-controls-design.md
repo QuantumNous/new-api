@@ -76,9 +76,48 @@ Use the same staged ID object for:
 
 Capture the original body `client_metadata.session_id`. Rewrite root `prompt_cache_key` to the converged session only when the original key equals that captured session default. Preserve custom cache keys.
 
-Typed and raw JSON paths must have identical semantics. Invalid/non-object bodies keep the current fail-safe behavior. Legacy compact requests continue to skip convergence. Retry/failover staging must clear stale IDs before resolving a new channel.
+Typed and raw JSON paths must have identical semantics. Chat, responses,
+passthrough, image, and compact requests all use the same convergence policy;
+compact is no longer an identity bypass when convergence is enabled. Retry
+staging must clear stale IDs before resolving a new channel.
 
-### 3. Canonical Codex outbound identity
+### 3. Full-mode zero-original hardening
+
+`full` is stricter than the Sub2 v0.1.178 implementation. It guarantees that
+known and unknown client-origin identity material is not forwarded unchanged.
+
+Body policy:
+
+- Rebuild `client_metadata` from the converged installation/session/thread/turn/window set.
+- Remove environment and tool-chain fields such as cwd, workspace, Git state,
+  OS/architecture, terminal, plugin, skill, MCP, and trace identifiers.
+- Unknown `client_metadata` fields are dropped and the clean request continues.
+- Invalid JSON, unsafe shape, or an over-limit metadata object fails before the
+  upstream request instead of falling back to original passthrough bytes.
+- Apply the same sanitizer before Codex request bodies or errors are persisted
+  or emitted to logs.
+
+Header policy:
+
+- After channel header overrides, rebuild the exact Codex outbound allowlist.
+- Drop client/override Cookie, distributed-trace, locale, timeout, opaque beta,
+  turn-state, attestation, and unknown `x-codex-*` headers.
+- Recreate required auth, media, canonical identity, beta, and converged-ID
+  headers from trusted server state.
+- Use exact endpoint allowlists for inference, compact, models, OAuth, usage,
+  reset-credit, and administrative probe requests; do not append arbitrary
+  client path suffixes.
+
+Flatkey does not honor `openai_device_id` or another client/admin supplied
+installation ID. Installation identity always derives from the system-managed
+seed and deployment namespace.
+
+All Codex subscription egress paths share the same finalization helpers,
+including typed conversion, raw passthrough, compact, image, OAuth refresh,
+models, usage/reset, and admin probes. A path that cannot be finalized fails
+before sending rather than silently using the caller's original identity.
+
+### 4. Canonical Codex outbound identity
 
 Introduce one resolver that returns a coherent identity tuple:
 
@@ -108,7 +147,7 @@ Request shapes:
 - Models manifest: query `client_version` keeps its caller contract; the `Version` header uses that value only when valid and above the floor, otherwise it falls back to the canonical version.
 - Existing Flatkey quota/usage/reset-credit and probe paths that authenticate as the Codex subscription reuse the same resolver instead of hard-coded client identities.
 
-### 4. Official version synchronization
+### 5. Official version synchronization
 
 Reuse and harden Flatkey's existing `openai/codex` release lookup rather than creating a second downloader.
 
@@ -120,7 +159,25 @@ Reuse and harden Flatkey's existing `openai/codex` release lookup rather than cr
 - A failed refresh keeps the last known version and logs only the source/result, never credentials or fingerprint seeds.
 - All replicas read the persisted effective value through the existing settings/cache invalidation mechanism.
 
-### 5. Administration surface
+### 6. Deployment namespace and clone safety
+
+Stable IDs derive from both the random channel seed and a deployment-level
+namespace supplied through `CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE`.
+
+- Every replica in one deployment must use the same namespace.
+- Independent production, staging, and cloned deployments must use different
+  namespaces, so copying the database does not copy the upstream-visible IDs.
+- Production `full` mode fails closed when the namespace is absent; local/test
+  environments may use an explicit `local` namespace.
+- Namespace values are never sent upstream or logged with seeds.
+- Changing the namespace intentionally rotates all converged IDs and therefore
+  requires an explicit deployment operation.
+
+Application-level channel copy still clears the source seed and mints a new one.
+The external namespace solves full-database clone reuse, which a database-only
+seed cannot solve by itself.
+
+### 7. Administration surface
 
 Keep the existing per-channel convergence selector and make `full` the selected
 and persisted default for newly created Codex channels. Editing an existing
@@ -143,6 +200,7 @@ mode remain `off`; deployment does not mass-enable convergence.
 ## Error handling and rollback
 
 - Missing/invalid seed on an enabled channel is repaired server-side; if persistence fails, the request fails before sending a changing or legacy-derived identity upstream.
+- Missing production deployment namespace fails before a `full` request is sent upstream.
 - Disabling convergence stops ID/body rewriting but retains the seed for stable re-enable.
 - Disabling identity enforcement restores the existing passthrough/default-header behavior without deleting version or seed state.
 - Version-sync failure never blocks inference while a valid manual, synced, or built-in fallback exists.
@@ -157,7 +215,12 @@ Tests must prove:
 - downstream users/tokens no longer change installation/session IDs for one channel
 - UUIDv7 turn IDs and one shared turn timestamp
 - typed/raw body parity and guarded `prompt_cache_key` rewrite
-- compact remains unconverged and retry state cannot leak across channels
+- full-mode metadata rebuild drops environment/tool/trace fields and unknown keys
+- final header allowlisting removes client/override identity side channels
+- compact, image, passthrough, usage, model, OAuth, and admin probe paths share the policy
+- invalid metadata fails closed and retry state cannot leak across channels
+- exact endpoint allowlists reject suffix/path smuggling
+- deployment namespaces isolate cloned databases and missing production namespace fails closed
 - inference identity tuple is coherent after header overrides
 - credential-face requests omit `version`
 - manifest query/header version rules
@@ -171,5 +234,6 @@ Tests must prove:
 - Console deploy: required, because channel seed lifecycle, global settings, migrations, and the version-sync task change.
 - Web deploy: not required; only the authenticated console frontend changes.
 - Database: one additive hidden channel column plus an idempotent backfill/repair step compatible with SQLite, MySQL, and PostgreSQL.
+- Runtime configuration: set a stable, deployment-unique `CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE` on console and router replicas before enabling `full` traffic.
 
 Roll out to staging first. Verify one enabled test subscription across two downstream users and tokens, OAuth refresh, models fetch, usage query, and restart/multi-replica cache convergence before production deployment.
