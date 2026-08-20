@@ -36,6 +36,8 @@ describe("sitemap", () => {
       expect(urls).not.toContain("https://flatkey.ai/models/claude-api");
       expect(urls).toContain("https://flatkey.ai/gpt-api");
       expect(urls).toContain("https://flatkey.ai/claude-api");
+      expect(urls).toContain("https://flatkey.ai/pt/5-credit-promo");
+      expect(urls).not.toContain("https://flatkey.ai/5-credit-promo");
     } finally {
       globalThis.fetch = originalFetch;
     }
