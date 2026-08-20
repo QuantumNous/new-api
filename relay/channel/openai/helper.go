@@ -23,6 +23,27 @@ import (
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	info.SendResponseCount++
 
+	if info.ContentToReasoningEnabled() {
+		responses, err := info.TransformContentToReasoningStream(data)
+		if err != nil {
+			return err
+		}
+		for _, response := range responses {
+			responseData, err := common.Marshal(response)
+			if err != nil {
+				return err
+			}
+			if err := handleStreamFormat(c, info, string(responseData), forceFormat, false); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return handleStreamFormat(c, info, data, forceFormat, thinkToContent)
+}
+
+func handleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		return sendStreamData(c, info, data, forceFormat, thinkToContent)
@@ -32,6 +53,24 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 		return handleGeminiFormat(c, data, info)
 	}
 	return nil
+}
+
+// FlushContentToReasoning emits buffered unclosed reasoning after the upstream
+// stream has ended. It is only used by the shared OpenAI-style stream handlers.
+func FlushContentToReasoning(c *gin.Context, info *relaycommon.RelayInfo) {
+	if info == nil || !info.ContentToReasoningEnabled() {
+		return
+	}
+	responses, _ := info.ContentToReasoningFlush()
+	for _, response := range responses {
+		responseData, err := common.Marshal(response)
+		if err != nil {
+			continue
+		}
+		if err := handleStreamFormat(c, info, string(responseData), info.ChannelSetting.ForceFormat, false); err != nil {
+			common.SysLog("error flushing content_to_reasoning: " + err.Error())
+		}
+	}
 }
 
 func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {

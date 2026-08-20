@@ -183,6 +183,7 @@ type RelayInfo struct {
 	*ResponsesUsageInfo
 	*ChannelMeta
 	*TaskRelayInfo
+	*ContentToReasoningSession
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
@@ -245,6 +246,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	if info.Request != nil {
 		info.Request.SetModelName(info.OriginModelName)
 	}
+	info.ContentToReasoningSession = nil
 }
 
 func (info *RelayInfo) ToString() string {
