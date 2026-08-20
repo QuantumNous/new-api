@@ -333,9 +333,6 @@ func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode st
 	if len(raw) == 0 {
 		return nil, errors.New("codex channel: full fingerprint request body is empty")
 	}
-	if len(raw) > maxCodexMetadataBytes {
-		return nil, errors.New("codex channel: full fingerprint request body is too large")
-	}
 	var body map[string]any
 	if err := common.Unmarshal(raw, &body); err != nil {
 		return nil, errors.New("codex channel: invalid full fingerprint request json")
@@ -343,15 +340,19 @@ func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode st
 	if body == nil {
 		return nil, errors.New("codex channel: full fingerprint request body must be an object")
 	}
-	if exceedsJSONDepth(body, maxCodexMetadataDepth) {
-		return nil, errors.New("codex channel: full fingerprint request body is too deeply nested")
-	}
 
 	originalSession := ""
 	if rawMetadata, ok := body["client_metadata"]; ok {
 		metadata, ok := rawMetadata.(map[string]any)
 		if !ok {
 			return nil, errors.New("codex channel: full fingerprint client_metadata must be an object")
+		}
+		metadataJSON := gjson.GetBytes(raw, "client_metadata")
+		if len(metadataJSON.Raw) > maxCodexMetadataBytes {
+			return nil, errors.New("codex channel: full fingerprint client_metadata is too large")
+		}
+		if exceedsJSONDepth(metadata, maxCodexMetadataDepth) {
+			return nil, errors.New("codex channel: full fingerprint client_metadata is too deeply nested")
 		}
 		if session, ok := metadata["session_id"].(string); ok {
 			originalSession = strings.TrimSpace(session)

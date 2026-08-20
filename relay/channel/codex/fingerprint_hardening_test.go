@@ -1,6 +1,8 @@
 package codex
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -117,6 +119,22 @@ func TestInvalidFullMetadataFailsClosed(t *testing.T) {
 	}
 }
 
+func TestFullMetadataBoundsIgnoreLargeAndNestedNonMetadataFields(t *testing.T) {
+	fingerprint := hardeningFingerprint(t, fingerprintFull, "original-session")
+	raw := []byte(`{
+		"model":"gpt-5",
+		"input":"` + strings.Repeat("x", maxCodexMetadataBytes) + `",
+		"tools":[{"type":"function","schema":{"a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":{"i":{"j":{"k":"valid-tool-schema"}}}}}}}}}}}}],
+		"client_metadata":{"session_id":"original-session"}
+	}`)
+
+	rewritten, err := SanitizeCodexRequestBody(raw, fingerprint, fingerprintFull)
+	require.NoError(t, err)
+	require.Equal(t, strings.Repeat("x", maxCodexMetadataBytes), gjson.GetBytes(rewritten, "input").String())
+	require.Equal(t, "valid-tool-schema", gjson.GetBytes(rewritten, "tools.0.schema.a.b.c.d.e.f.g.h.i.j.k").String())
+	require.Equal(t, fingerprint.SessionID, gjson.GetBytes(rewritten, "client_metadata.session_id").String())
+}
+
 func TestOAuthKeyIgnoresOpenAIDeviceID(t *testing.T) {
 	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -214,4 +232,49 @@ func TestFingerprintErrorMessagesDoNotEchoIdentityMarkers(t *testing.T) {
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), marker)
 	require.False(t, strings.Contains(err.Error(), hardeningSeed))
+}
+
+func TestCodexImageFailureLogDoesNotEchoOAuthOrMetadataMarkers(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	accessMarker := "codex-log-access-marker"
+	refreshMarker := "codex-log-refresh-marker"
+	metadataMarker := "codex-log-metadata-marker"
+	logs := captureCodexSysError(t)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := hardeningInfo(fingerprintFull)
+	info.ApiKey = `{"access_token":"` + accessMarker + `","refresh_token":"` + refreshMarker + `","account_id":"account"}`
+	info.RelayMode = relayconstant.RelayModeImagesGenerations
+	info.Request = &dto.ImageRequest{Model: "gpt-image-1", Prompt: "test"}
+	resp := &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Body: io.NopCloser(strings.NewReader(`{
+			"error":{
+				"message":"upstream failure ` + accessMarker + ` ` + refreshMarker + ` ` + metadataMarker + `"
+			}
+		}`)),
+		Header: http.Header{},
+	}
+
+	sanitizeCodexImageErrorResponse(c, resp)
+
+	output := logs.String()
+	require.NotContains(t, output, accessMarker)
+	require.NotContains(t, output, refreshMarker)
+	require.NotContains(t, output, metadataMarker)
+}
+
+func captureCodexSysError(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var logs bytes.Buffer
+	common.LogWriterMu.Lock()
+	previous := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logs
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = previous
+		common.LogWriterMu.Unlock()
+	})
+	return &logs
 }

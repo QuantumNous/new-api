@@ -254,8 +254,8 @@ func sanitizeCodexImageErrorResponse(c *gin.Context, resp *http.Response) {
 		_ = resp.Body.Close()
 	}
 	if len(upstreamBody) > 0 {
-		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d, body: %s",
-			resp.StatusCode, common.LocalLogPreview(string(upstreamBody))))
+		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d, body: <redacted>",
+			resp.StatusCode))
 	} else {
 		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d with empty body", resp.StatusCode))
 	}
