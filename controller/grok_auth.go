@@ -416,6 +416,47 @@ type grokPKCECompleteAPIRequest struct {
 	State  string `json:"state"`
 }
 
+type grokAuthorizationInput struct {
+	Code          string
+	State         string
+	RequiresState bool
+}
+
+// parseGrokAuthorizationInput mirrors sub2's manual OAuth input contract:
+// a full callback URL, a query string, or a bare authorization code.
+func parseGrokAuthorizationInput(raw string) grokAuthorizationInput {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return grokAuthorizationInput{}
+	}
+
+	if parsed, err := url.Parse(trimmed); err == nil && parsed != nil {
+		values := parsed.Query()
+		if code := strings.TrimSpace(values.Get("code")); code != "" {
+			return grokAuthorizationInput{
+				Code:          code,
+				State:         strings.TrimSpace(values.Get("state")),
+				RequiresState: true,
+			}
+		}
+	}
+
+	queryCandidate := strings.TrimPrefix(trimmed, "?")
+	if strings.Contains(queryCandidate, "=") {
+		if values, err := url.ParseQuery(queryCandidate); err == nil {
+			if code := strings.TrimSpace(values.Get("code")); code != "" {
+				return grokAuthorizationInput{
+					Code:          code,
+					State:         strings.TrimSpace(values.Get("state")),
+					RequiresState: true,
+				}
+			}
+		}
+	}
+
+	return grokAuthorizationInput{Code: trimmed}
+}
+
 type grokImportAPIRequest struct {
 	ChannelID    int    `json:"channel_id"`
 	RefreshToken string `json:"refresh_token"`
@@ -462,6 +503,7 @@ func GrokPKCEStartHandler(c *gin.Context) {
 		"data": gin.H{
 			"authorize_url": start.AuthorizeURL,
 			"flow_id":       start.FlowID,
+			"state":         start.State,
 		},
 	})
 }
@@ -469,11 +511,20 @@ func GrokPKCEStartHandler(c *gin.Context) {
 func GrokPKCECompleteHandler(c *gin.Context) {
 	grokAuthNoStore(c)
 	var req grokPKCECompleteAPIRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.FlowID == "" || req.Code == "" || req.State == "" {
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.FlowID) == "" || strings.TrimSpace(req.Code) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "flow_id, code and state are required"})
 		return
 	}
-	result, err := GrokPKCEComplete(req.FlowID, req.Code, req.State, "")
+	parsed := parseGrokAuthorizationInput(req.Code)
+	state := parsed.State
+	if state == "" && !parsed.RequiresState {
+		state = strings.TrimSpace(req.State)
+	}
+	if parsed.Code == "" || state == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "flow_id, code and state are required"})
+		return
+	}
+	result, err := GrokPKCEComplete(strings.TrimSpace(req.FlowID), parsed.Code, state, "")
 	if err != nil {
 		if errors.Is(err, errGrokStateMismatch) {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "state mismatch"})

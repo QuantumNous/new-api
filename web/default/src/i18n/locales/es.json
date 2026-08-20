@@ -1,5 +1,11 @@
 {
   "translation": {
+    "360": "360",
+    "1000": "1000",
+    "10000": "10000",
+    "1) Open the authorization page and sign in to Grok. 2) xAI will either redirect to localhost or display an authorization code. 3) Paste the full callback URL, query string, or code below. 4) Complete authorization.": "1) Abre la página de autorización e inicia sesión en Grok. 2) xAI redirigirá a localhost o mostrará un código de autorización. 3) Pega abajo la URL de callback completa, la cadena de consulta o el código. 4) Completa la autorización.",
+    "Callback URL, Query String, or Code": "URL de callback, cadena de consulta o código",
+    "Paste the callback URL, query string, or authorization code": "Pega la URL de callback, la cadena de consulta o el código de autorización",
     "Grok Authorization": "Autorización de Grok",
     "Authorized": "Autorizado",
     "Pending authorization": "Autorización pendiente",
@@ -22,9 +28,6 @@
     "Import failed": "Error al importar",
     "Authorization expired, please re-authorize this channel": "La autorización ha caducado; vuelve a autorizar este canal",
     "Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually": "Los canales de suscripción de Grok tienen una credencial OAuth compartida por canal; no pegues claves manualmente",
-    "360": "360",
-    "1000": "1000",
-    "10000": "10000",
     "_copy": "_copy",
     "，": ", ",
     ", and": ", and",

@@ -115,7 +115,7 @@ export const GROK_OAUTH_REDIRECT_URI = 'http://127.0.0.1:56121/callback'
 export type GrokPKCEStartResponse = {
   success: boolean
   message?: string
-  data?: { authorize_url?: string; flow_id?: string }
+  data?: { authorize_url?: string; flow_id?: string; state?: string }
 }
 
 export type GrokAuthStatusResponse = {

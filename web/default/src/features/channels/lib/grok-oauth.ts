@@ -4,6 +4,20 @@ export function normalizeGrokOAuthChannelID(channelId?: number): number {
   return channelId ?? 0
 }
 
+export function resolveGrokOAuthState(
+  authorizeUrl: string,
+  responseState?: string
+): string {
+  const explicitState = responseState?.trim()
+  if (explicitState) return explicitState
+
+  try {
+    return new URL(authorizeUrl).searchParams.get('state')?.trim() ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export function resolveGrokOAuthCompletionKey(
   channelId: number | undefined,
   response: GrokAuthStatusResponse

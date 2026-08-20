@@ -1,5 +1,11 @@
 {
   "translation": {
+    "360": "360",
+    "1000": "1000",
+    "10000": "10000",
+    "1) Open the authorization page and sign in to Grok. 2) xAI will either redirect to localhost or display an authorization code. 3) Paste the full callback URL, query string, or code below. 4) Complete authorization.": "1）認証ページを開いて Grok にサインインします。2）xAI は localhost にリダイレクトするか、認証コードを表示します。3）完全なコールバック URL、クエリ文字列、またはコードを下に貼り付けます。4）認証を完了します。",
+    "Callback URL, Query String, or Code": "コールバック URL、クエリ文字列、またはコード",
+    "Paste the callback URL, query string, or authorization code": "コールバック URL、クエリ文字列、または認証コードを貼り付けてください",
     "Grok Authorization": "Grok 認証",
     "Authorized": "認証済み",
     "Pending authorization": "認証待ち",
@@ -22,9 +28,6 @@
     "Import failed": "インポートに失敗しました",
     "Authorization expired, please re-authorize this channel": "認証の有効期限が切れました。このチャネルを再認証してください",
     "Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually": "Grok サブスクリプションチャネルはチャネルごとに 1 つの共有 OAuth 認証情報を保持します。キーを手動で貼り付けないでください",
-    "360": "360",
-    "1000": "1000",
-    "10000": "10000",
     "_copy": "_copy",
     "，": ", ",
     ", and": "、および",

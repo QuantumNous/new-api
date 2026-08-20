@@ -6,6 +6,7 @@ import {
   resolveGrokCredentialTextareaValue,
   resolveGrokOAuthAuthorizedKeyDecision,
   resolveGrokOAuthCompletionKey,
+  resolveGrokOAuthState,
 } from './grok-oauth'
 
 describe('Grok OAuth mode contract', () => {
@@ -23,6 +24,17 @@ describe('Grok OAuth mode contract', () => {
       '{"version":1}'
     )
     expect(resolveGrokOAuthCompletionKey(42, response)).toBeUndefined()
+  })
+
+  test('keeps the OAuth state needed for bare authorization codes', () => {
+    const authorizeUrl =
+      'https://accounts.x.ai/oauth2/auth?client_id=grok&state=url-state'
+
+    expect(resolveGrokOAuthState(authorizeUrl, 'response-state')).toBe(
+      'response-state'
+    )
+    expect(resolveGrokOAuthState(authorizeUrl)).toBe('url-state')
+    expect(resolveGrokOAuthState('not-a-url')).toBe('')
   })
 
   test('rejects create success without a key', () => {

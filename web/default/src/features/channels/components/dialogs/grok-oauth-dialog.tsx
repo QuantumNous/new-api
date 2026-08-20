@@ -33,6 +33,7 @@ import {
 import {
   normalizeGrokOAuthChannelID,
   resolveGrokOAuthCompletionKey,
+  resolveGrokOAuthState,
 } from '../../lib/grok-oauth'
 
 type GrokOAuthDialogProps = {
@@ -54,6 +55,7 @@ export function GrokOAuthDialog({
   const [state, setState] = useState({
     authorizeUrl: '',
     flowId: '',
+    oauthState: '',
     callbackUrl: '',
     isStarting: false,
     isCompleting: false,
@@ -61,9 +63,11 @@ export function GrokOAuthDialog({
 
   useEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({
         authorizeUrl: '',
         flowId: '',
+        oauthState: '',
         callbackUrl: '',
         isStarting: false,
         isCompleting: false,
@@ -76,8 +80,9 @@ export function GrokOAuthDialog({
     () =>
       Boolean(state.callbackUrl.trim()) &&
       Boolean(state.flowId) &&
+      Boolean(state.oauthState) &&
       !state.isCompleting,
-    [state.callbackUrl, state.flowId, state.isCompleting]
+    [state.callbackUrl, state.flowId, state.oauthState, state.isCompleting]
   )
 
   const handleStart = async () => {
@@ -93,17 +98,25 @@ export function GrokOAuthDialog({
 
       const url = res.data?.authorize_url || ''
       const flowId = res.data?.flow_id || ''
-      if (!url || !flowId) {
-        throw new Error('Missing authorize_url or flow_id in response')
+      const oauthState = resolveGrokOAuthState(url, res.data?.state)
+      if (!url || !flowId || !oauthState) {
+        throw new Error(t('OAuth start failed'))
       }
 
-      setState((prev) => ({ ...prev, authorizeUrl: url, flowId }))
+      setState((prev) => ({
+        ...prev,
+        authorizeUrl: url,
+        flowId,
+        oauthState,
+      }))
       try {
         // window.open returns null when the popup is blocked (no exception thrown),
         // so a bare call would still toast success and mislead the user. Branch on it.
         const win = window.open(url, '_blank', 'noopener,noreferrer')
         if (!win) {
-          toast.warning(t('Please manually copy and open the authorization link'))
+          toast.warning(
+            t('Please manually copy and open the authorization link')
+          )
         } else {
           toast.success(t('Opened authorization page'))
         }
@@ -122,39 +135,16 @@ export function GrokOAuthDialog({
   }
 
   const handleComplete = async () => {
-    const callbackUrl = state.callbackUrl.trim()
-    if (!callbackUrl || !state.flowId) return
-
-    // Parse code & state on the client. Grok's /pkce/complete expects the
-    // decomposed { flow_id, code, state } (unlike Codex, which sends the raw
-    // callback URL to the backend). A malformed URL throws from new URL().
-    let code = ''
-    let stateParam = ''
-    try {
-      const parsed = new URL(callbackUrl)
-      code = parsed.searchParams.get('code') || ''
-      stateParam = parsed.searchParams.get('state') || ''
-    } catch {
-      toast.error(
-        t(
-          'Invalid callback URL, please copy the full address including code and state'
-        )
-      )
-      return
-    }
-
-    if (!code || !stateParam) {
-      toast.error(
-        t(
-          'Invalid callback URL, please copy the full address including code and state'
-        )
-      )
-      return
-    }
+    const authorizationInput = state.callbackUrl.trim()
+    if (!authorizationInput || !state.flowId || !state.oauthState) return
 
     setState((prev) => ({ ...prev, isCompleting: true }))
     try {
-      const res = await completeGrokPKCE(state.flowId, code, stateParam)
+      const res = await completeGrokPKCE(
+        state.flowId,
+        authorizationInput,
+        state.oauthState
+      )
       if (!res.success) {
         throw new Error(res.message || 'OAuth failed')
       }
@@ -208,7 +198,7 @@ export function GrokOAuthDialog({
         <Alert>
           <AlertDescription>
             {t(
-              '1) Click "Open authorization page" and sign in to Grok. 2) Your browser will redirect to a localhost address (it is OK if the page does not load). 3) Copy the full URL from the address bar and paste it below. 4) Click "Complete authorization".'
+              '1) Open the authorization page and sign in to Grok. 2) xAI will either redirect to localhost or display an authorization code. 3) Paste the full callback URL, query string, or code below. 4) Complete authorization.'
             )}
           </AlertDescription>
         </Alert>
@@ -244,14 +234,16 @@ export function GrokOAuthDialog({
         </div>
 
         <div className='space-y-2'>
-          <div className='text-sm font-medium'>{t('Callback URL')}</div>
+          <div className='text-sm font-medium'>
+            {t('Callback URL, Query String, or Code')}
+          </div>
           <Input
             value={state.callbackUrl}
             onChange={(e) =>
               setState((prev) => ({ ...prev, callbackUrl: e.target.value }))
             }
             placeholder={t(
-              'Paste the full callback URL (includes code & state)'
+              'Paste the callback URL, query string, or authorization code'
             )}
             autoComplete='off'
             spellCheck={false}

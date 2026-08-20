@@ -1,5 +1,11 @@
 {
   "translation": {
+    "360": "360",
+    "1000": "1000",
+    "10000": "10000",
+    "1) Open the authorization page and sign in to Grok. 2) xAI will either redirect to localhost or display an authorization code. 3) Paste the full callback URL, query string, or code below. 4) Complete authorization.": "1) Mở trang ủy quyền và đăng nhập vào Grok. 2) xAI sẽ chuyển hướng đến localhost hoặc hiển thị mã ủy quyền. 3) Dán URL callback đầy đủ, chuỗi truy vấn hoặc mã vào bên dưới. 4) Hoàn tất ủy quyền.",
+    "Callback URL, Query String, or Code": "URL callback, chuỗi truy vấn hoặc mã",
+    "Paste the callback URL, query string, or authorization code": "Dán URL callback, chuỗi truy vấn hoặc mã ủy quyền",
     "Grok Authorization": "Ủy quyền Grok",
     "Authorized": "Đã ủy quyền",
     "Pending authorization": "Đang chờ ủy quyền",
@@ -22,9 +28,6 @@
     "Import failed": "Nhập thất bại",
     "Authorization expired, please re-authorize this channel": "Ủy quyền đã hết hạn, vui lòng ủy quyền lại kênh này",
     "Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually": "Các kênh đăng ký Grok giữ một thông tin xác thực OAuth dùng chung cho mỗi kênh; không dán khóa thủ công",
-    "360": "360",
-    "1000": "1000",
-    "10000": "10000",
     "_copy": "_bản sao",
     "，": ", ",
     ", and": ", và",

@@ -528,6 +528,7 @@ type grokAuthHandlerResponse struct {
 	Data    struct {
 		AuthorizeURL  string `json:"authorize_url"`
 		FlowID        string `json:"flow_id"`
+		State         string `json:"state"`
 		Status        string `json:"status"`
 		Key           string `json:"key"`
 		QuotaSnapshot string `json:"quota_snapshot"`
@@ -586,9 +587,11 @@ func TestGrokAuthPKCEStartHandler(t *testing.T) {
 	require.Contains(t, resp.Data.AuthorizeURL, "code_challenge=")
 	require.Contains(t, resp.Data.AuthorizeURL, "code_challenge_method=S256")
 	require.NotEmpty(t, resp.Data.FlowID)
+	require.NotEmpty(t, resp.Data.State)
 	authorizeURL, err := url.Parse(resp.Data.AuthorizeURL)
 	require.NoError(t, err)
 	require.Equal(t, "http://127.0.0.1:56121/callback", authorizeURL.Query().Get("redirect_uri"))
+	require.Equal(t, authorizeURL.Query().Get("state"), resp.Data.State)
 	require.NotEmpty(t, authorizeURL.Query().Get("nonce"))
 	require.Equal(t, "generic", authorizeURL.Query().Get("plan"))
 	require.Equal(t, "sub2api", authorizeURL.Query().Get("referrer"))
@@ -647,6 +650,179 @@ func TestGrokAuthPKCECompleteHandler(t *testing.T) {
 	require.True(t, resp.Success)
 	_, err = groksubscription.ParseCredential(resp.Data.Key)
 	require.NoError(t, err)
+}
+
+func TestParseGrokAuthorizationInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		raw               string
+		wantCode          string
+		wantState         string
+		wantRequiresState bool
+	}{
+		{
+			name:              "full callback url",
+			raw:               "http://127.0.0.1:56121/callback?code=abc123&state=state456",
+			wantCode:          "abc123",
+			wantState:         "state456",
+			wantRequiresState: true,
+		},
+		{
+			name:              "query string",
+			raw:               "?code=abc123&state=state456",
+			wantCode:          "abc123",
+			wantState:         "state456",
+			wantRequiresState: true,
+		},
+		{
+			name:              "query string without prefix",
+			raw:               "code=abc123&state=state456",
+			wantCode:          "abc123",
+			wantState:         "state456",
+			wantRequiresState: true,
+		},
+		{
+			name:     "bare code",
+			raw:      "abc123",
+			wantCode: "abc123",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := parseGrokAuthorizationInput(test.raw)
+			require.Equal(t, test.wantCode, got.Code)
+			require.Equal(t, test.wantState, got.State)
+			require.Equal(t, test.wantRequiresState, got.RequiresState)
+		})
+	}
+}
+
+func TestGrokAuthPKCECompleteHandlerAcceptsSub2AuthorizationInputs(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       func(code, state string) string
+		storedState bool
+	}{
+		{
+			name: "full callback url",
+			input: func(code, state string) string {
+				return "http://127.0.0.1:56121/callback?code=" + code + "&state=" + state
+			},
+		},
+		{
+			name: "query string",
+			input: func(code, state string) string {
+				return "?code=" + code + "&state=" + state
+			},
+		},
+		{
+			name: "bare code",
+			input: func(code, _ string) string {
+				return code
+			},
+			storedState: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setupGrokAuthTestDB(t)
+			setGrokCipherKey(t)
+			channel := seedGrokChannel(t)
+			start, err := GrokPKCEStart(channel.Id, groksubscription.OAuthRedirectURI)
+			require.NoError(t, err)
+
+			var exchangedCode string
+			restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+				require.NoError(t, req.ParseForm())
+				exchangedCode = req.Form.Get("code")
+				return grokJSONResponse(200, `{"access_token":"at-h","refresh_token":"rt-h","token_type":"Bearer","expires_in":3600}`), nil
+			}))
+			defer restore()
+
+			input := test.input("auth-code-xyz", start.State)
+			requestState := ""
+			if test.storedState {
+				requestState = start.State
+			}
+			body, err := common.Marshal(grokPKCECompleteAPIRequest{
+				FlowID: start.FlowID,
+				Code:   input,
+				State:  requestState,
+			})
+			require.NoError(t, err)
+			ctx, recorder := newGrokAuthRequestContext(t, string(body))
+
+			GrokPKCECompleteHandler(ctx)
+
+			require.Equal(t, http.StatusOK, recorder.Code)
+			require.Equal(t, "auth-code-xyz", exchangedCode)
+		})
+	}
+}
+
+func TestGrokAuthPKCECompleteHandlerRejectsMismatchedEmbeddedState(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	channel := seedGrokChannel(t)
+	start, err := GrokPKCEStart(channel.Id, groksubscription.OAuthRedirectURI)
+	require.NoError(t, err)
+
+	tokenEndpointCalled := false
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		tokenEndpointCalled = true
+		return grokJSONResponse(200, `{"access_token":"must-not-be-used"}`), nil
+	}))
+	defer restore()
+
+	callbackURL := "http://127.0.0.1:56121/callback?code=stale-code&state=stale-state"
+	body, err := common.Marshal(grokPKCECompleteAPIRequest{
+		FlowID: start.FlowID,
+		Code:   callbackURL,
+		State:  start.State,
+	})
+	require.NoError(t, err)
+	ctx, recorder := newGrokAuthRequestContext(t, string(body))
+
+	GrokPKCECompleteHandler(ctx)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.False(t, tokenEndpointCalled)
+	require.NotContains(t, recorder.Body.String(), "stale-code")
+	require.NotContains(t, recorder.Body.String(), "stale-state")
+}
+
+func TestGrokAuthPKCECompleteHandlerRejectsQueryWithoutEmbeddedState(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	channel := seedGrokChannel(t)
+	start, err := GrokPKCEStart(channel.Id, groksubscription.OAuthRedirectURI)
+	require.NoError(t, err)
+
+	tokenEndpointCalled := false
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		tokenEndpointCalled = true
+		return grokJSONResponse(200, `{"access_token":"must-not-be-used"}`), nil
+	}))
+	defer restore()
+
+	body, err := common.Marshal(grokPKCECompleteAPIRequest{
+		FlowID: start.FlowID,
+		Code:   "?code=stale-code",
+		State:  start.State,
+	})
+	require.NoError(t, err)
+	ctx, recorder := newGrokAuthRequestContext(t, string(body))
+
+	GrokPKCECompleteHandler(ctx)
+
+	require.Equal(t, http.StatusBadRequest, recorder.Code)
+	require.False(t, tokenEndpointCalled)
+	require.NotContains(t, recorder.Body.String(), "stale-code")
 }
 
 func TestGrokAuthImportHandler(t *testing.T) {
