@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -72,6 +73,8 @@ type Channel struct {
 	ChannelInfo ChannelInfo `json:"channel_info" gorm:"type:json"`
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
+
+	CodexFingerprintSeed string `json:"-" gorm:"type:varchar(36);default:''"`
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
@@ -464,6 +467,9 @@ func BatchInsertChannels(channels []Channel) error {
 	}()
 
 	for _, chunk := range lo.Chunk(channels, 50) {
+		for i := range chunk {
+			chunk[i].prepareCodexFingerprintSeedForInsert()
+		}
 		if err := tx.Create(&chunk).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -567,8 +573,68 @@ func (channel *Channel) GetStatusCodeMapping() string {
 	return *channel.StatusCodeMapping
 }
 
+func validCodexFingerprintSeed(seed string) bool {
+	_, err := uuid.Parse(seed)
+	return err == nil
+}
+
+func EnsureCodexFingerprintSeed(channelID int) (string, error) {
+	for {
+		var channel Channel
+		err := DB.Select("id", "type", "status", "codex_fingerprint_seed").
+			First(&channel, "id = ?", channelID).Error
+		if err != nil {
+			return "", err
+		}
+		if channel.Type != constant.ChannelTypeCodex || channel.Status != common.ChannelStatusEnabled {
+			return "", nil
+		}
+		if validCodexFingerprintSeed(channel.CodexFingerprintSeed) {
+			return channel.CodexFingerprintSeed, nil
+		}
+
+		invalidValue := channel.CodexFingerprintSeed
+		nextSeed := uuid.NewString()
+		result := DB.Model(&Channel{}).
+			Where("id = ? AND type = ? AND status = ? AND codex_fingerprint_seed = ?",
+				channelID, constant.ChannelTypeCodex, common.ChannelStatusEnabled, invalidValue).
+			Update("codex_fingerprint_seed", nextSeed)
+		if result.Error != nil {
+			return "", result.Error
+		}
+		if result.RowsAffected == 1 {
+			refreshLocalChannelCacheAndPublishChanged()
+			return nextSeed, nil
+		}
+	}
+}
+
+func BackfillCodexFingerprintSeeds() error {
+	var ids []int
+	if err := DB.Model(&Channel{}).
+		Where("type = ? AND status = ?", constant.ChannelTypeCodex, common.ChannelStatusEnabled).
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := EnsureCodexFingerprintSeed(id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (channel *Channel) prepareCodexFingerprintSeedForInsert() {
+	if channel.Type != constant.ChannelTypeCodex || channel.Status != common.ChannelStatusEnabled {
+		channel.CodexFingerprintSeed = ""
+		return
+	}
+	channel.CodexFingerprintSeed = uuid.NewString()
+}
+
 func (channel *Channel) Insert() error {
 	var err error
+	channel.prepareCodexFingerprintSeedForInsert()
 	err = DB.Create(channel).Error
 	if err != nil {
 		return err

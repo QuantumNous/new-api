@@ -65,6 +65,7 @@ type ChannelMeta struct {
 	ChannelId            int
 	ChannelIsMultiKey    bool
 	ChannelMultiKeyIndex int
+	CodexFingerprintSeed string
 	ChannelBaseUrl       string
 	ApiType              int
 	ApiVersion           string
@@ -202,6 +203,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
 		ChannelIsMultiKey:    common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey),
 		ChannelMultiKeyIndex: common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
+		CodexFingerprintSeed: c.GetString("channel_codex_fingerprint_seed"),
 		ChannelBaseUrl:       common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl),
 		ApiType:              apiType,
 		ApiVersion:           c.GetString("api_version"),
