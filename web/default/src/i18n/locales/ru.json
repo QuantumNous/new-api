@@ -6682,12 +6682,6 @@
     "Website": "Веб-сайт",
     "Website (optional)": "Веб-сайт (необязательно)",
     "Honeypot": "Приманка",
-    "Include disabled users": "Включить отключенных пользователей",
-    "Try it now": "Попробовать",
-    "Quick start": "Быстрое подключение",
-    "Model type": "Тип модели",
-    "Dynamic pricing": "Динамическая тарификация",
-    "Not callable": "Недоступна для вызова",
-    "Price depends on request size and options.": "Цена зависит от размера запроса и выбранных параметров."
+    "Include disabled users": "Включить отключенных пользователей"
   }
 }

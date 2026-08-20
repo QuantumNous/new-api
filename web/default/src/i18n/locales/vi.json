@@ -6682,12 +6682,6 @@
     "Website": "Trang web",
     "Website (optional)": "Trang web (tùy chọn)",
     "Honeypot": "Honeypot",
-    "Include disabled users": "Bao gồm người dùng bị vô hiệu hóa",
-    "Try it now": "Dùng thử ngay",
-    "Quick start": "Tích hợp nhanh",
-    "Model type": "Loại mô hình",
-    "Dynamic pricing": "Định giá động",
-    "Not callable": "Không thể gọi",
-    "Price depends on request size and options.": "Giá phụ thuộc vào kích thước yêu cầu và các tùy chọn."
+    "Include disabled users": "Bao gồm người dùng bị vô hiệu hóa"
   }
 }

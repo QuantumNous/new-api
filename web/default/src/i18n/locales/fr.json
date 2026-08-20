@@ -6682,12 +6682,6 @@
     "Website": "Site web",
     "Website (optional)": "Site web (facultatif)",
     "Honeypot": "Honeypot",
-    "Include disabled users": "Inclure les utilisateurs désactivés",
-    "Try it now": "Essayer maintenant",
-    "Quick start": "Intégration rapide",
-    "Model type": "Type de modèle",
-    "Dynamic pricing": "Tarification dynamique",
-    "Not callable": "Non appelable",
-    "Price depends on request size and options.": "Le prix dépend de la taille de la requête et des options choisies."
+    "Include disabled users": "Inclure les utilisateurs désactivés"
   }
 }
