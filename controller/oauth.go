@@ -386,6 +386,10 @@ func googleOneTapOAuthUser(payload *idtoken.Payload) (*oauth.OAuthUser, error) {
 		Username:       oauth.GoogleUsernameFromEmail(email),
 		DisplayName:    googleOneTapStringClaim(payload, "name"),
 		Email:          email,
+		// email_verified was validated above (rejected when false), so the
+		// address is proven by Google — mark it verified or the account would
+		// be blocked by the email-verification gate on token creation/usage.
+		EmailVerified: true,
 	}, nil
 }
 

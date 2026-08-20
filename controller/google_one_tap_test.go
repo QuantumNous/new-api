@@ -210,6 +210,7 @@ func TestGoogleOneTapOAuthUser(t *testing.T) {
 	require.Equal(t, "google_user", user.Username)
 	require.Equal(t, "user@example.com", user.Email)
 	require.Equal(t, "Jane Doe", user.DisplayName)
+	require.True(t, user.EmailVerified, "One Tap email_verified must surface as verified")
 }
 
 func TestGoogleOneTapOAuthUserAcceptsStringEmailVerified(t *testing.T) {
