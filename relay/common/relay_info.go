@@ -355,6 +355,7 @@ func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 
 func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
+	info.RelayMode = relayconstant.RelayModeChatCompletions
 	info.RelayFormat = types.RelayFormatClaude
 	info.ShouldIncludeUsage = false
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
