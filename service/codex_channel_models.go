@@ -34,7 +34,14 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 	if baseURL == "" {
 		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeCodex]
 	}
-	return fetchCodexChannelModels(ctx, channel, baseURL, &client, ResolveCodexClientIdentity().Version)
+	clientVersion := ResolveCodexClientIdentity().Version
+	if !IsCodexClientIdentityEnforced() {
+		clientVersion, err = GetLatestCodexClientVersion(ctx, &client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Codex client version: %w", err)
+		}
+	}
+	return fetchCodexChannelModels(ctx, channel, baseURL, &client, clientVersion)
 }
 
 func fetchCodexChannelModels(

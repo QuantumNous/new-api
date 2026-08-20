@@ -117,3 +117,60 @@ func TestFetchCodexChannelModelsSupportsSavedChannel(t *testing.T) {
 		"gpt-5.6-sol-openai-compact",
 	}, models)
 }
+
+func TestFetchCodexChannelModelsKillSwitchUsesLegacyLatestIdentity(t *testing.T) {
+	allowPrivateCodexModelFetch(t)
+	withCodexIdentityOptions(t, map[string]string{
+		"CodexClientVersion":         "0.146.9",
+		"CodexSyncedClientVersion":   "0.145.9",
+		"CodexEnforceClientIdentity": "false",
+	})
+
+	var upstream http.Header
+	var clientVersion string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream = r.Header.Clone()
+		clientVersion = r.URL.Query().Get("client_version")
+		_, _ = w.Write([]byte(`{"models":[{"slug":"gpt-5.6-sol"}]}`))
+	}))
+	defer server.Close()
+	previousHTTPClient := httpClient
+	httpClient = server.Client()
+	t.Cleanup(func() { httpClient = previousHTTPClient })
+
+	latestCodexClientVersion.Lock()
+	previousVersion := latestCodexClientVersion.version
+	previousExpiresAt := latestCodexClientVersion.expiresAt
+	previousLastError := latestCodexClientVersion.lastError
+	previousRetryAt := latestCodexClientVersion.retryAt
+	latestCodexClientVersion.version = "0.144.6"
+	latestCodexClientVersion.expiresAt = time.Now().Add(time.Hour)
+	latestCodexClientVersion.lastError = ""
+	latestCodexClientVersion.retryAt = time.Time{}
+	latestCodexClientVersion.Unlock()
+	t.Cleanup(func() {
+		latestCodexClientVersion.Lock()
+		defer latestCodexClientVersion.Unlock()
+		latestCodexClientVersion.version = previousVersion
+		latestCodexClientVersion.expiresAt = previousExpiresAt
+		latestCodexClientVersion.lastError = previousLastError
+		latestCodexClientVersion.retryAt = previousRetryAt
+	})
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Id:      1,
+		Type:    constant.ChannelTypeCodex,
+		Key:     `{"access_token":"token","account_id":"account"}`,
+		BaseURL: &baseURL,
+	}
+
+	models, err := FetchCodexChannelModels(channel)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-sol-openai-compact"}, models)
+	require.Equal(t, "0.144.6", clientVersion)
+	require.Equal(t, "codex-cli/0.144.6", upstream.Get("User-Agent"))
+	require.Empty(t, upstream.Get("originator"))
+	require.Empty(t, upstream.Get("OpenAI-Client-Version"))
+}
