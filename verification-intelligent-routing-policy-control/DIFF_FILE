@@ -1,0 +1,1654 @@
+diff --git a/controller/audit.go b/controller/audit.go
+index d6974b90..fa9f0e20 100644
+--- a/controller/audit.go
++++ b/controller/audit.go
+@@ -16,19 +16,24 @@ import (
+ // action 的 params 填充。本地化展示文案在前端 i18n 模板中维护，本表是语言中立的
+ // 英文基线——调用方因此无需在每个埋点处手写句子（避免与 params 重复书写同一份值）。
+ var auditContentTemplates = map[string]string{
+-	"user.create":           "Created user ${username} (role ${role})",
+-	"user.update":           "Updated user ${username} (ID: ${id})",
+-	"user.delete":           "Deleted user ${username} (ID: ${id})",
+-	"user.manage":           "Performed ${action} on user ${username} (ID: ${id})",
+-	"user.quota_add":        "Increased user quota by ${quota}",
+-	"user.quota_subtract":   "Decreased user quota by ${quota}",
+-	"user.quota_override":   "Overrode user quota from ${from} to ${to}",
+-	"user.binding_clear":    "Cleared ${bindingType} binding for user ${username}",
+-	"user.2fa_disable":      "Force-disabled two-factor authentication for the user",
+-	"user.passkey_register": "Registered a passkey",
+-	"user.passkey_delete":   "Deleted a passkey",
+-	"user.reset_passkey":    "Reset the user passkey",
+-	"option.update":         "Updated system setting ${key}",
++	"user.create":                         "Created user ${username} (role ${role})",
++	"user.update":                         "Updated user ${username} (ID: ${id})",
++	"user.delete":                         "Deleted user ${username} (ID: ${id})",
++	"user.manage":                         "Performed ${action} on user ${username} (ID: ${id})",
++	"user.quota_add":                      "Increased user quota by ${quota}",
++	"user.quota_subtract":                 "Decreased user quota by ${quota}",
++	"user.quota_override":                 "Overrode user quota from ${from} to ${to}",
++	"user.binding_clear":                  "Cleared ${bindingType} binding for user ${username}",
++	"user.2fa_disable":                    "Force-disabled two-factor authentication for the user",
++	"user.passkey_register":               "Registered a passkey",
++	"user.passkey_delete":                 "Deleted a passkey",
++	"user.reset_passkey":                  "Reset the user passkey",
++	"option.update":                       "Updated system setting ${key}",
++	"intelligent_routing.policy.create":   "Created intelligent routing policy ${id}",
++	"intelligent_routing.policy.update":   "Updated intelligent routing policy ${id}",
++	"intelligent_routing.policy.publish":  "Published intelligent routing policy ${version}",
++	"intelligent_routing.policy.rollback": "Rolled back intelligent routing policy to ${source_version} as ${version}",
++	"intelligent_routing.rollout.update":  "Updated intelligent routing rollout revision ${revision}",
+ 
+ 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
+ 	"channel.update":             "Updated channel ${name} (ID: ${id})",
+diff --git a/controller/intelligent_routing.go b/controller/intelligent_routing.go
+new file mode 100644
+index 00000000..356ae176
+--- /dev/null
++++ b/controller/intelligent_routing.go
+@@ -0,0 +1,207 @@
++package controller
++
++import (
++	"errors"
++	"net/http"
++	"strconv"
++
++	"github.com/QuantumNous/new-api/common"
++	"github.com/QuantumNous/new-api/dto"
++	"github.com/QuantumNous/new-api/model"
++	intelligentrouting "github.com/QuantumNous/new-api/service/intelligent_routing"
++	"github.com/gin-gonic/gin"
++)
++
++func ListIntelligentRoutingPolicies(c *gin.Context) {
++	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
++	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
++	if page < 1 {
++		page = 1
++	}
++	if pageSize < 1 {
++		pageSize = 20
++	}
++	if pageSize > 100 {
++		pageSize = 100
++	}
++	policies, total, err := model.ListIntelligentRoutingPolicies((page-1)*pageSize, pageSize)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	c.JSON(http.StatusOK, gin.H{"success": true, "data": policies, "total": total, "page": page, "page_size": pageSize})
++}
++
++func GetIntelligentRoutingPolicy(c *gin.Context) {
++	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
++	if err != nil || id < 1 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid policy id"})
++		return
++	}
++	policy, err := model.GetIntelligentRoutingPolicy(id)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	c.JSON(http.StatusOK, gin.H{"success": true, "data": policy})
++}
++
++func CreateIntelligentRoutingPolicy(c *gin.Context) {
++	var request dto.IntelligentRoutingDraftRequest
++	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
++		return
++	}
++	policy, issues, err := intelligentrouting.DefaultPolicyControl.CreateDraft(c, request.Config, c.GetInt("id"))
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	if len(issues) > 0 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "issues": issues})
++		return
++	}
++	recordManageAudit(c, "intelligent_routing.policy.create", map[string]interface{}{"id": policy.Id})
++	c.JSON(http.StatusCreated, gin.H{"success": true, "data": policy})
++}
++
++func UpdateIntelligentRoutingPolicy(c *gin.Context) {
++	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
++	if err != nil || id < 1 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid policy id"})
++		return
++	}
++	var request dto.IntelligentRoutingDraftUpdateRequest
++	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
++		return
++	}
++	policy, issues, err := intelligentrouting.DefaultPolicyControl.UpdateDraft(c, id, request.UpdatedAt, request.Config)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	if len(issues) > 0 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "issues": issues})
++		return
++	}
++	recordManageAudit(c, "intelligent_routing.policy.update", map[string]interface{}{"id": policy.Id})
++	c.JSON(http.StatusOK, gin.H{"success": true, "data": policy})
++}
++
++func ValidateIntelligentRoutingPolicy(c *gin.Context) {
++	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
++	if err != nil || id < 1 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid policy id"})
++		return
++	}
++	policy, err := model.GetIntelligentRoutingPolicy(id)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	validated, issues := intelligentrouting.ValidatePolicyDocument(policy.Config)
++	c.JSON(http.StatusOK, gin.H{"success": len(issues) == 0, "data": gin.H{"checksum": validated.Checksum, "issues": issues}})
++}
++
++func PublishIntelligentRoutingPolicy(c *gin.Context) {
++	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
++	if err != nil || id < 1 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid policy id"})
++		return
++	}
++	var request dto.IntelligentRoutingPublishRequest
++	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
++		return
++	}
++	policy, issues, err := intelligentrouting.DefaultPolicyControl.Publish(c, id, c.GetInt("id"), request.ChangeNote)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	if len(issues) > 0 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "issues": issues})
++		return
++	}
++	recordManageAudit(c, "intelligent_routing.policy.publish", map[string]interface{}{"id": policy.Id, "version": policy.Version})
++	c.JSON(http.StatusOK, gin.H{"success": true, "data": policy})
++}
++
++func RollbackIntelligentRoutingPolicy(c *gin.Context) {
++	version, err := strconv.Atoi(c.Param("version"))
++	if err != nil || version < 1 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid policy version"})
++		return
++	}
++	var request dto.IntelligentRoutingPublishRequest
++	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
++		return
++	}
++	policy, issues, err := intelligentrouting.DefaultPolicyControl.Rollback(c, version, c.GetInt("id"), request.ChangeNote)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	if len(issues) > 0 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "issues": issues})
++		return
++	}
++	recordManageAudit(c, "intelligent_routing.policy.rollback", map[string]interface{}{"source_version": version, "version": policy.Version})
++	c.JSON(http.StatusOK, gin.H{"success": true, "data": policy})
++}
++
++func GetIntelligentRoutingRollout(c *gin.Context) {
++	rollout, err := model.GetIntelligentRoutingRollout()
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	c.JSON(http.StatusOK, gin.H{"success": true, "data": rollout})
++}
++
++func UpdateIntelligentRoutingRollout(c *gin.Context) {
++	var request dto.IntelligentRoutingRolloutUpdateRequest
++	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
++		return
++	}
++	userGroups, err := common.Marshal(request.UserGroups)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	tokenGroups, err := common.Marshal(request.TokenGroups)
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	rollout, issues, err := intelligentrouting.DefaultPolicyControl.UpdateRollout(c, request.Revision, model.IntelligentRoutingRollout{
++		PolicyVersion: request.PolicyVersion, Enabled: request.Enabled, Mode: request.Mode, TrafficPercent: request.TrafficPercent,
++		UserGroups: string(userGroups), TokenGroups: string(tokenGroups), UpdatedBy: c.GetInt("id"),
++	})
++	if err != nil {
++		intelligentRoutingError(c, err)
++		return
++	}
++	if len(issues) > 0 {
++		c.JSON(http.StatusBadRequest, gin.H{"success": false, "issues": issues})
++		return
++	}
++	recordManageAudit(c, "intelligent_routing.rollout.update", map[string]interface{}{"revision": rollout.Revision, "policy_version": rollout.PolicyVersion, "mode": rollout.Mode, "traffic_percent": rollout.TrafficPercent})
++	c.JSON(http.StatusOK, gin.H{"success": true, "data": rollout})
++}
++
++func intelligentRoutingError(c *gin.Context, err error) {
++	switch {
++	case errors.Is(err, model.ErrIntelligentRoutingPolicyNotFound), errors.Is(err, model.ErrIntelligentRoutingRolloutNotFound):
++		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "resource not found"})
++	case errors.Is(err, model.ErrIntelligentRoutingRevisionConflict):
++		c.JSON(http.StatusConflict, gin.H{"success": false, "message": "revision conflict"})
++	case errors.Is(err, model.ErrIntelligentRoutingPolicyImmutable):
++		c.JSON(http.StatusConflict, gin.H{"success": false, "message": "published policy is immutable"})
++	default:
++		c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "message": "intelligent routing service unavailable"})
++	}
++}
+diff --git a/controller/relay.go b/controller/relay.go
+index 6d4236fe..79dc7909 100644
+--- a/controller/relay.go
++++ b/controller/relay.go
+@@ -157,9 +157,25 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
+ 
+ 	relayInfo.SetEstimatePromptTokens(tokens)
+ 	routingConfig := routingsetting.Get()
++	runtimeSnapshot := intelligentrouting.DefaultPolicyControl.Snapshot()
++	if runtimeSnapshot.Rollout.Exists {
++		decision := intelligentrouting.ResolveRollout(runtimeSnapshot, intelligentrouting.RolloutSubject{
++			AccountID:  relayInfo.UserId,
++			TokenID:    relayInfo.TokenId,
++			UserGroup:  relayInfo.UserGroup,
++			TokenGroup: relayInfo.TokenGroup,
++		})
++		routingConfig = runtimeSnapshot.Config
++		routingConfig.Enabled = decision.Selected
++		routingConfig.ShadowOnly = decision.Mode == model.IntelligentRoutingModeShadow
++		relayInfo.IntelligentRoutePolicyVersion = decision.PolicyVersion
++		relayInfo.IntelligentRouteRolloutRevision = decision.Revision
++		relayInfo.IntelligentRouteRolloutBucket = decision.Bucket
++		relayInfo.IntelligentRouteRolloutMode = decision.Mode
++	}
+ 	intelligentRoutingActive := routingConfig.Enabled && supportsIntelligentRouting(relayInfo.RelayFormat, relayInfo.RelayMode)
+ 	if intelligentRoutingActive {
+-		if routingErr := buildShadowRoutePlan(c, relayInfo, tokens, nil); routingErr != nil {
++		if routingErr := buildRoutePlan(c, relayInfo, tokens, nil, routingConfig); routingErr != nil {
+ 			relayInfo.IntelligentRouteError = routingErr.Error()
+ 			if routingConfig.ShadowOnly {
+ 				logger.LogWarn(c, "intelligent routing shadow plan failed: "+routingErr.Error())
+@@ -386,8 +402,11 @@ func recordIntelligentRouteAttempt(info *relaycommon.RelayInfo, node hosttypes.I
+ }
+ 
+ func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource) error {
++	return buildRoutePlan(c, info, promptTokens, source, routingsetting.Get())
++}
++
++func buildRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource, config routingsetting.Config) error {
+ 	startedAt := time.Now()
+-	config := routingsetting.Get()
+ 	features := intelligentrouting.ExtractFeatures(intelligentrouting.Input{
+ 		Request: info.Request, RelayFormat: info.RelayFormat, PromptTokens: promptTokens, RequestPath: c.Request.URL.Path,
+ 	})
+@@ -412,6 +431,7 @@ func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTok
+ 	}
+ 	info.IntelligentRoutePlan = &plan
+ 	info.IntelligentRouteShadow = config.ShadowOnly
++	info.IntelligentRouteLive = !config.ShadowOnly
+ 	info.IntelligentRouteSessionKey = sessionKey
+ 	info.IntelligentRouteTask = string(features.Task)
+ 	intelligentrouting.DefaultMetrics.Observe(intelligentrouting.Observation{CandidateTier: plan.Nodes[0].Tier, PlanningDuration: time.Since(startedAt)})
+@@ -486,8 +506,7 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
+ }
+ 
+ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+-	routingConfig := routingsetting.Get()
+-	if routingConfig.Enabled && !routingConfig.ShadowOnly && info.IntelligentRoutePlan != nil {
++	if info.IntelligentRouteLive && info.IntelligentRoutePlan != nil {
+ 		index := retryParam.GetRetry()
+ 		if index < 0 || index >= len(info.IntelligentRoutePlan.Nodes) {
+ 			return nil, types.NewError(errors.New("intelligent route attempts exhausted"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+diff --git a/docs/intelligent-routing-shadow-rollout.md b/docs/intelligent-routing-shadow-rollout.md
+index e4ea49ae..27fd006a 100644
+--- a/docs/intelligent-routing-shadow-rollout.md
++++ b/docs/intelligent-routing-shadow-rollout.md
+@@ -10,6 +10,10 @@ Routing details remain backend-only under `other.admin_info.intelligent_routing`
+ 
+ ## Configuration
+ 
++Published administrator policies and scoped rollouts are managed through the root-only `/api/intelligent-routing` endpoints. Drafts are validated and checksummed before publication; published versions are immutable, and rollback creates a new version. A rollout selects a published version, `shadow` or `live` mode, user/token group allowlists, and a deterministic traffic percentage guarded by a revision number.
++
++Instances refresh the durable rollout snapshot at startup and periodically. The stable bucket uses the policy version, account, and token so the same caller remains in the same cohort. If no durable rollout exists, the legacy global configuration below remains active for backward compatibility.
++
+ Configure the registered `intelligent_routing_setting` object through the system options API or administrator settings storage:
+ 
+ - `enabled`: enables planning.
+diff --git a/dto/intelligent_routing.go b/dto/intelligent_routing.go
+new file mode 100644
+index 00000000..275d53ef
+--- /dev/null
++++ b/dto/intelligent_routing.go
+@@ -0,0 +1,26 @@
++package dto
++
++import "time"
++
++type IntelligentRoutingDraftRequest struct {
++	Config string `json:"config"`
++}
++
++type IntelligentRoutingDraftUpdateRequest struct {
++	Config    string    `json:"config"`
++	UpdatedAt time.Time `json:"updated_at"`
++}
++
++type IntelligentRoutingPublishRequest struct {
++	ChangeNote string `json:"change_note"`
++}
++
++type IntelligentRoutingRolloutUpdateRequest struct {
++	Revision       int64    `json:"revision"`
++	PolicyVersion  int      `json:"policy_version"`
++	Enabled        bool     `json:"enabled"`
++	Mode           string   `json:"mode"`
++	TrafficPercent int      `json:"traffic_percent"`
++	UserGroups     []string `json:"user_groups"`
++	TokenGroups    []string `json:"token_groups"`
++}
+diff --git a/main.go b/main.go
+index 742d1551..711eeffe 100644
+--- a/main.go
++++ b/main.go
+@@ -29,6 +29,7 @@ import (
+ 	"github.com/QuantumNous/new-api/router"
+ 	"github.com/QuantumNous/new-api/service"
+ 	"github.com/QuantumNous/new-api/service/authz"
++	intelligentrouting "github.com/QuantumNous/new-api/service/intelligent_routing"
+ 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
+ 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+ 
+@@ -338,6 +339,10 @@ func InitResources() error {
+ 	if err != nil {
+ 		return err
+ 	}
++	if err := intelligentrouting.DefaultPolicyControl.RefreshSnapshot(context.Background()); err != nil {
++		common.SysError("failed to load intelligent routing policy snapshot: " + err.Error())
++	}
++	intelligentrouting.StartPolicyRefresh(context.Background(), intelligentrouting.DefaultPolicyControl, time.Duration(common.SyncFrequency)*time.Second)
+ 
+ 	perfmetrics.Init()
+ 
+diff --git a/model/intelligent_routing_policy.go b/model/intelligent_routing_policy.go
+new file mode 100644
+index 00000000..62b1434b
+--- /dev/null
++++ b/model/intelligent_routing_policy.go
+@@ -0,0 +1,252 @@
++package model
++
++import (
++	"errors"
++	"time"
++
++	"gorm.io/gorm"
++)
++
++const (
++	IntelligentRoutingPolicyDraft    = "draft"
++	IntelligentRoutingPolicyActive   = "active"
++	IntelligentRoutingPolicyArchived = "archived"
++
++	IntelligentRoutingModeShadow = "shadow"
++	IntelligentRoutingModeLive   = "live"
++)
++
++var (
++	ErrIntelligentRoutingPolicyNotFound   = errors.New("intelligent routing policy not found")
++	ErrIntelligentRoutingRolloutNotFound  = errors.New("intelligent routing rollout not found")
++	ErrIntelligentRoutingPolicyImmutable  = errors.New("published intelligent routing policy is immutable")
++	ErrIntelligentRoutingRevisionConflict = errors.New("intelligent routing revision conflict")
++)
++
++type IntelligentRoutingPolicy struct {
++	Id            int64      `json:"id" gorm:"primaryKey"`
++	Version       int        `json:"version" gorm:"index"`
++	Status        string     `json:"status" gorm:"type:varchar(16);index"`
++	Config        string     `json:"config" gorm:"type:text"`
++	Checksum      string     `json:"checksum" gorm:"type:varchar(64)"`
++	SourceVersion int        `json:"source_version"`
++	ChangeNote    string     `json:"change_note" gorm:"type:varchar(500)"`
++	CreatedBy     int        `json:"created_by"`
++	PublishedBy   int        `json:"published_by"`
++	PublishedAt   *time.Time `json:"published_at"`
++	CreatedAt     time.Time  `json:"created_at"`
++	UpdatedAt     time.Time  `json:"updated_at"`
++}
++
++type IntelligentRoutingRollout struct {
++	Id             int64      `json:"id" gorm:"primaryKey"`
++	Revision       int64      `json:"revision"`
++	PolicyVersion  int        `json:"policy_version"`
++	Enabled        bool       `json:"enabled"`
++	Mode           string     `json:"mode" gorm:"type:varchar(16)"`
++	TrafficPercent int        `json:"traffic_percent"`
++	UserGroups     string     `json:"user_groups" gorm:"type:text"`
++	TokenGroups    string     `json:"token_groups" gorm:"type:text"`
++	UpdatedBy      int        `json:"updated_by"`
++	StartedAt      *time.Time `json:"started_at"`
++	EndedAt        *time.Time `json:"ended_at"`
++	CreatedAt      time.Time  `json:"created_at"`
++	UpdatedAt      time.Time  `json:"updated_at"`
++}
++
++func CreateIntelligentRoutingDraft(policy IntelligentRoutingPolicy) (IntelligentRoutingPolicy, error) {
++	policy.Id = 0
++	policy.Version = 0
++	policy.Status = IntelligentRoutingPolicyDraft
++	policy.PublishedBy = 0
++	policy.PublishedAt = nil
++	err := DB.Create(&policy).Error
++	return policy, err
++}
++
++func UpdateIntelligentRoutingDraft(id int64, updatedAt time.Time, config, checksum string) (IntelligentRoutingPolicy, error) {
++	var policy IntelligentRoutingPolicy
++	err := DB.Transaction(func(tx *gorm.DB) error {
++		if err := lockForUpdate(tx).Where("id = ?", id).First(&policy).Error; err != nil {
++			if errors.Is(err, gorm.ErrRecordNotFound) {
++				return ErrIntelligentRoutingPolicyNotFound
++			}
++			return err
++		}
++		if policy.Status != IntelligentRoutingPolicyDraft {
++			return ErrIntelligentRoutingPolicyImmutable
++		}
++		result := tx.Model(&IntelligentRoutingPolicy{}).
++			Where("id = ? AND status = ? AND updated_at = ?", id, IntelligentRoutingPolicyDraft, updatedAt).
++			Updates(map[string]any{"config": config, "checksum": checksum})
++		if result.Error != nil {
++			return result.Error
++		}
++		if result.RowsAffected != 1 {
++			return ErrIntelligentRoutingRevisionConflict
++		}
++		return tx.Where("id = ?", id).First(&policy).Error
++	})
++	return policy, err
++}
++
++func ListIntelligentRoutingPolicies(offset, limit int) ([]IntelligentRoutingPolicy, int64, error) {
++	var policies []IntelligentRoutingPolicy
++	var total int64
++	if err := DB.Model(&IntelligentRoutingPolicy{}).Count(&total).Error; err != nil {
++		return nil, 0, err
++	}
++	err := DB.Order("id DESC").Offset(offset).Limit(limit).Find(&policies).Error
++	return policies, total, err
++}
++
++func GetIntelligentRoutingPolicy(id int64) (IntelligentRoutingPolicy, error) {
++	var policy IntelligentRoutingPolicy
++	err := DB.Where("id = ?", id).First(&policy).Error
++	if errors.Is(err, gorm.ErrRecordNotFound) {
++		err = ErrIntelligentRoutingPolicyNotFound
++	}
++	return policy, err
++}
++
++func GetActiveIntelligentRoutingPolicy() (IntelligentRoutingPolicy, error) {
++	var policy IntelligentRoutingPolicy
++	err := DB.Where("status = ?", IntelligentRoutingPolicyActive).Order("version DESC").First(&policy).Error
++	if errors.Is(err, gorm.ErrRecordNotFound) {
++		err = ErrIntelligentRoutingPolicyNotFound
++	}
++	return policy, err
++}
++
++func GetIntelligentRoutingPolicyByVersion(version int) (IntelligentRoutingPolicy, error) {
++	var policy IntelligentRoutingPolicy
++	err := DB.Where("version = ?", version).First(&policy).Error
++	if errors.Is(err, gorm.ErrRecordNotFound) {
++		err = ErrIntelligentRoutingPolicyNotFound
++	}
++	return policy, err
++}
++
++func PublishIntelligentRoutingPolicy(id int64, administratorID int, changeNote string) (IntelligentRoutingPolicy, error) {
++	var published IntelligentRoutingPolicy
++	err := DB.Transaction(func(tx *gorm.DB) error {
++		var draft IntelligentRoutingPolicy
++		if err := lockForUpdate(tx).Where("id = ?", id).First(&draft).Error; err != nil {
++			if errors.Is(err, gorm.ErrRecordNotFound) {
++				return ErrIntelligentRoutingPolicyNotFound
++			}
++			return err
++		}
++		if draft.Status != IntelligentRoutingPolicyDraft {
++			return ErrIntelligentRoutingPolicyImmutable
++		}
++
++		var latest IntelligentRoutingPolicy
++		latestErr := lockForUpdate(tx).Order("version DESC").First(&latest).Error
++		if latestErr != nil && !errors.Is(latestErr, gorm.ErrRecordNotFound) {
++			return latestErr
++		}
++		nextVersion := latest.Version + 1
++		if err := tx.Model(&IntelligentRoutingPolicy{}).
++			Where("status = ?", IntelligentRoutingPolicyActive).
++			Update("status", IntelligentRoutingPolicyArchived).Error; err != nil {
++			return err
++		}
++		now := time.Now()
++		updates := map[string]any{
++			"version": nextVersion, "status": IntelligentRoutingPolicyActive, "change_note": changeNote,
++			"published_by": administratorID, "published_at": &now,
++		}
++		result := tx.Model(&IntelligentRoutingPolicy{}).
++			Where("id = ? AND status = ?", id, IntelligentRoutingPolicyDraft).
++			Updates(updates)
++		if result.Error != nil {
++			return result.Error
++		}
++		if result.RowsAffected != 1 {
++			return ErrIntelligentRoutingRevisionConflict
++		}
++		return tx.Where("id = ?", id).First(&published).Error
++	})
++	return published, err
++}
++
++func RollbackIntelligentRoutingPolicy(sourceVersion int, administratorID int, changeNote string) (IntelligentRoutingPolicy, error) {
++	var rolledBack IntelligentRoutingPolicy
++	err := DB.Transaction(func(tx *gorm.DB) error {
++		var source IntelligentRoutingPolicy
++		if err := lockForUpdate(tx).Where("version = ?", sourceVersion).First(&source).Error; err != nil {
++			if errors.Is(err, gorm.ErrRecordNotFound) {
++				return ErrIntelligentRoutingPolicyNotFound
++			}
++			return err
++		}
++		var latest IntelligentRoutingPolicy
++		latestErr := lockForUpdate(tx).Order("version DESC").First(&latest).Error
++		if latestErr != nil && !errors.Is(latestErr, gorm.ErrRecordNotFound) {
++			return latestErr
++		}
++		if err := tx.Model(&IntelligentRoutingPolicy{}).
++			Where("status = ?", IntelligentRoutingPolicyActive).
++			Update("status", IntelligentRoutingPolicyArchived).Error; err != nil {
++			return err
++		}
++		now := time.Now()
++		rolledBack = IntelligentRoutingPolicy{
++			Version: latest.Version + 1, Status: IntelligentRoutingPolicyActive, Config: source.Config,
++			Checksum: source.Checksum, SourceVersion: sourceVersion, ChangeNote: changeNote,
++			CreatedBy: administratorID, PublishedBy: administratorID, PublishedAt: &now,
++		}
++		return tx.Create(&rolledBack).Error
++	})
++	return rolledBack, err
++}
++
++func GetIntelligentRoutingRollout() (IntelligentRoutingRollout, error) {
++	var rollout IntelligentRoutingRollout
++	err := DB.First(&rollout, 1).Error
++	if errors.Is(err, gorm.ErrRecordNotFound) {
++		err = ErrIntelligentRoutingRolloutNotFound
++	}
++	return rollout, err
++}
++
++func UpdateIntelligentRoutingRollout(expectedRevision int64, next IntelligentRoutingRollout) (IntelligentRoutingRollout, error) {
++	var stored IntelligentRoutingRollout
++	err := DB.Transaction(func(tx *gorm.DB) error {
++		var current IntelligentRoutingRollout
++		err := lockForUpdate(tx).First(&current, 1).Error
++		if errors.Is(err, gorm.ErrRecordNotFound) {
++			if expectedRevision != 0 {
++				return ErrIntelligentRoutingRevisionConflict
++			}
++			next.Id = 1
++			next.Revision = 1
++			if err := tx.Create(&next).Error; err != nil {
++				return err
++			}
++			stored = next
++			return nil
++		}
++		if err != nil {
++			return err
++		}
++		if current.Revision != expectedRevision {
++			return ErrIntelligentRoutingRevisionConflict
++		}
++		updates := map[string]any{
++			"revision": expectedRevision + 1, "policy_version": next.PolicyVersion, "enabled": next.Enabled,
++			"mode": next.Mode, "traffic_percent": next.TrafficPercent, "user_groups": next.UserGroups,
++			"token_groups": next.TokenGroups, "updated_by": next.UpdatedBy, "started_at": next.StartedAt, "ended_at": next.EndedAt,
++		}
++		result := tx.Model(&IntelligentRoutingRollout{}).Where("id = ? AND revision = ?", current.Id, expectedRevision).Updates(updates)
++		if result.Error != nil {
++			return result.Error
++		}
++		if result.RowsAffected != 1 {
++			return ErrIntelligentRoutingRevisionConflict
++		}
++		return tx.First(&stored, current.Id).Error
++	})
++	return stored, err
++}
+diff --git a/model/intelligent_routing_policy_test.go b/model/intelligent_routing_policy_test.go
+new file mode 100644
+index 00000000..1821fd42
+--- /dev/null
++++ b/model/intelligent_routing_policy_test.go
+@@ -0,0 +1,94 @@
++package model
++
++import (
++	"errors"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++)
++
++func resetIntelligentRoutingPolicyTables(t *testing.T) {
++	t.Helper()
++	require.NoError(t, DB.AutoMigrate(&IntelligentRoutingPolicy{}, &IntelligentRoutingRollout{}))
++	require.NoError(t, DB.Exec("DELETE FROM intelligent_routing_rollouts").Error)
++	require.NoError(t, DB.Exec("DELETE FROM intelligent_routing_policies").Error)
++	t.Cleanup(func() {
++		require.NoError(t, DB.Exec("DELETE FROM intelligent_routing_rollouts").Error)
++		require.NoError(t, DB.Exec("DELETE FROM intelligent_routing_policies").Error)
++	})
++}
++
++func TestIntelligentRoutingPolicyDraftLifecycle(t *testing.T) {
++	resetIntelligentRoutingPolicyTables(t)
++
++	draft, err := CreateIntelligentRoutingDraft(IntelligentRoutingPolicy{
++		Status: IntelligentRoutingPolicyDraft, Config: `{"enabled":false}`, Checksum: "sum", CreatedBy: 11,
++	})
++	require.NoError(t, err)
++	assert.Equal(t, IntelligentRoutingPolicyDraft, draft.Status)
++
++	stored, err := GetIntelligentRoutingPolicy(draft.Id)
++	require.NoError(t, err)
++	assert.Equal(t, draft.Id, stored.Id)
++
++	stored.Status = IntelligentRoutingPolicyActive
++	require.NoError(t, DB.Save(&stored).Error)
++	_, err = UpdateIntelligentRoutingDraft(stored.Id, stored.UpdatedAt, `{"enabled":true}`, "next")
++	assert.ErrorIs(t, err, ErrIntelligentRoutingPolicyImmutable)
++}
++
++func TestIntelligentRoutingPolicyPublishArchivesPriorVersion(t *testing.T) {
++	resetIntelligentRoutingPolicyTables(t)
++
++	first, err := CreateIntelligentRoutingDraft(IntelligentRoutingPolicy{Config: `{"enabled":false}`, Checksum: "one", CreatedBy: 1})
++	require.NoError(t, err)
++	first, err = PublishIntelligentRoutingPolicy(first.Id, 1, "first")
++	require.NoError(t, err)
++	assert.Equal(t, 1, first.Version)
++	assert.Equal(t, IntelligentRoutingPolicyActive, first.Status)
++
++	second, err := CreateIntelligentRoutingDraft(IntelligentRoutingPolicy{Config: `{"enabled":true}`, Checksum: "two", CreatedBy: 2})
++	require.NoError(t, err)
++	second, err = PublishIntelligentRoutingPolicy(second.Id, 2, "second")
++	require.NoError(t, err)
++	assert.Equal(t, 2, second.Version)
++
++	first, err = GetIntelligentRoutingPolicy(first.Id)
++	require.NoError(t, err)
++	assert.Equal(t, IntelligentRoutingPolicyArchived, first.Status)
++}
++
++func TestIntelligentRoutingPolicyRollbackCreatesNewVersion(t *testing.T) {
++	resetIntelligentRoutingPolicyTables(t)
++
++	first, err := CreateIntelligentRoutingDraft(IntelligentRoutingPolicy{Config: `{"enabled":false}`, Checksum: "one", CreatedBy: 1})
++	require.NoError(t, err)
++	_, err = PublishIntelligentRoutingPolicy(first.Id, 1, "first")
++	require.NoError(t, err)
++	second, err := CreateIntelligentRoutingDraft(IntelligentRoutingPolicy{Config: `{"enabled":true}`, Checksum: "two", CreatedBy: 2})
++	require.NoError(t, err)
++	_, err = PublishIntelligentRoutingPolicy(second.Id, 2, "second")
++	require.NoError(t, err)
++
++	rolledBack, err := RollbackIntelligentRoutingPolicy(1, 3, "restore first")
++	require.NoError(t, err)
++	assert.Equal(t, 3, rolledBack.Version)
++	assert.Equal(t, 1, rolledBack.SourceVersion)
++	assert.Equal(t, `{"enabled":false}`, rolledBack.Config)
++}
++
++func TestIntelligentRoutingRolloutRejectsStaleRevision(t *testing.T) {
++	resetIntelligentRoutingPolicyTables(t)
++
++	rollout, err := UpdateIntelligentRoutingRollout(0, IntelligentRoutingRollout{PolicyVersion: 1, Enabled: true, Mode: IntelligentRoutingModeShadow, TrafficPercent: 25})
++	require.NoError(t, err)
++	assert.Equal(t, int64(1), rollout.Revision)
++
++	_, err = UpdateIntelligentRoutingRollout(0, IntelligentRoutingRollout{PolicyVersion: 1, Enabled: false, Mode: IntelligentRoutingModeShadow})
++	assert.True(t, errors.Is(err, ErrIntelligentRoutingRevisionConflict))
++
++	stored, err := GetIntelligentRoutingRollout()
++	require.NoError(t, err)
++	assert.True(t, stored.Enabled)
++}
+diff --git a/model/main.go b/model/main.go
+index 21445593..4dfda76f 100644
+--- a/model/main.go
++++ b/model/main.go
+@@ -290,6 +290,8 @@ func migrateDB() error {
+ 		&SystemInstance{},
+ 		&SystemTask{},
+ 		&SystemTaskLock{},
++		&IntelligentRoutingPolicy{},
++		&IntelligentRoutingRollout{},
+ 		&CasbinRule{},
+ 		&AuthzRole{},
+ 	)
+@@ -353,6 +355,8 @@ func migrateDBFast() error {
+ 		{&SystemInstance{}, "SystemInstance"},
+ 		{&SystemTask{}, "SystemTask"},
+ 		{&SystemTaskLock{}, "SystemTaskLock"},
++		{&IntelligentRoutingPolicy{}, "IntelligentRoutingPolicy"},
++		{&IntelligentRoutingRollout{}, "IntelligentRoutingRollout"},
+ 	}
+ 	// 动态计算migration数量，确保errChan缓冲区足够大
+ 	errChan := make(chan error, len(migrations))
+diff --git a/relay/common/relay_info.go b/relay/common/relay_info.go
+index 87fb91d4..215a45d1 100644
+--- a/relay/common/relay_info.go
++++ b/relay/common/relay_info.go
+@@ -150,14 +150,19 @@ type RelayInfo struct {
+ 	UseRuntimeHeadersOverride             bool
+ 	ParamOverrideAudit                    []string
+ 
+-	PriceData                  hosttypes.PriceData
+-	IntelligentRoutePlan       *hosttypes.IntelligentRoutePlan
+-	IntelligentRouteError      string
+-	IntelligentRouteShadow     bool
+-	IntelligentRouteAttempt    int
+-	IntelligentRouteSessionKey string
+-	IntelligentRouteTask       string
+-	IntelligentRouteAttempts   []hosttypes.IntelligentRouteAttempt
++	PriceData                       hosttypes.PriceData
++	IntelligentRoutePlan            *hosttypes.IntelligentRoutePlan
++	IntelligentRouteError           string
++	IntelligentRouteShadow          bool
++	IntelligentRouteLive            bool
++	IntelligentRoutePolicyVersion   int
++	IntelligentRouteRolloutRevision int64
++	IntelligentRouteRolloutBucket   int
++	IntelligentRouteRolloutMode     string
++	IntelligentRouteAttempt         int
++	IntelligentRouteSessionKey      string
++	IntelligentRouteTask            string
++	IntelligentRouteAttempts        []hosttypes.IntelligentRouteAttempt
+ 
+ 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
+ 	// int32 bound (or NaN fallback) while computing this request's charge.
+diff --git a/router/api-router.go b/router/api-router.go
+index 31c595e0..c4ef77f3 100644
+--- a/router/api-router.go
++++ b/router/api-router.go
+@@ -203,6 +203,19 @@ func SetApiRouter(router *gin.Engine) {
+ 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
+ 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
+ 		}
++		intelligentRoutingRoute := apiRouter.Group("/intelligent-routing")
++		intelligentRoutingRoute.Use(middleware.RootAuth())
++		{
++			intelligentRoutingRoute.GET("/policies", controller.ListIntelligentRoutingPolicies)
++			intelligentRoutingRoute.GET("/policies/:id", controller.GetIntelligentRoutingPolicy)
++			intelligentRoutingRoute.POST("/policies", controller.CreateIntelligentRoutingPolicy)
++			intelligentRoutingRoute.PUT("/policies/:id", controller.UpdateIntelligentRoutingPolicy)
++			intelligentRoutingRoute.POST("/policies/:id/validate", controller.ValidateIntelligentRoutingPolicy)
++			intelligentRoutingRoute.POST("/policies/:id/publish", controller.PublishIntelligentRoutingPolicy)
++			intelligentRoutingRoute.POST("/policies/versions/:version/rollback", controller.RollbackIntelligentRoutingPolicy)
++			intelligentRoutingRoute.GET("/rollout", controller.GetIntelligentRoutingRollout)
++			intelligentRoutingRoute.PUT("/rollout", controller.UpdateIntelligentRoutingRollout)
++		}
+ 
+ 		// Custom OAuth provider management (root only)
+ 		customOAuthRoute := apiRouter.Group("/custom-oauth-provider")
+diff --git a/router/intelligent_routing_routes_test.go b/router/intelligent_routing_routes_test.go
+new file mode 100644
+index 00000000..453d7d62
+--- /dev/null
++++ b/router/intelligent_routing_routes_test.go
+@@ -0,0 +1,35 @@
++package router
++
++import (
++	"net/http"
++	"testing"
++
++	"github.com/gin-gonic/gin"
++	"github.com/stretchr/testify/assert"
++)
++
++func TestIntelligentRoutingAdminRoutes(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	engine := gin.New()
++	SetApiRouter(engine)
++	routes := make(map[string]struct{}, len(engine.Routes()))
++	for _, route := range engine.Routes() {
++		routes[route.Method+" "+route.Path] = struct{}{}
++	}
++
++	expected := []string{
++		http.MethodGet + " /api/intelligent-routing/policies",
++		http.MethodGet + " /api/intelligent-routing/policies/:id",
++		http.MethodPost + " /api/intelligent-routing/policies",
++		http.MethodPut + " /api/intelligent-routing/policies/:id",
++		http.MethodPost + " /api/intelligent-routing/policies/:id/validate",
++		http.MethodPost + " /api/intelligent-routing/policies/:id/publish",
++		http.MethodPost + " /api/intelligent-routing/policies/versions/:version/rollback",
++		http.MethodGet + " /api/intelligent-routing/rollout",
++		http.MethodPut + " /api/intelligent-routing/rollout",
++	}
++	for _, route := range expected {
++		_, ok := routes[route]
++		assert.True(t, ok, route)
++	}
++}
+diff --git a/service/intelligent_routing/policy_control.go b/service/intelligent_routing/policy_control.go
+new file mode 100644
+index 00000000..db7f8848
+--- /dev/null
++++ b/service/intelligent_routing/policy_control.go
+@@ -0,0 +1,251 @@
++package intelligent_routing
++
++import (
++	"context"
++	"errors"
++	"strings"
++	"sync/atomic"
++	"time"
++
++	"github.com/QuantumNous/new-api/common"
++	"github.com/QuantumNous/new-api/model"
++	routingsetting "github.com/QuantumNous/new-api/setting/intelligent_routing_setting"
++)
++
++type PolicyRepository interface {
++	CreateDraft(policy model.IntelligentRoutingPolicy) (model.IntelligentRoutingPolicy, error)
++	UpdateDraft(id int64, updatedAt time.Time, config, checksum string) (model.IntelligentRoutingPolicy, error)
++	GetPolicy(id int64) (model.IntelligentRoutingPolicy, error)
++	GetPolicyByVersion(version int) (model.IntelligentRoutingPolicy, error)
++	Publish(id int64, administratorID int, note string) (model.IntelligentRoutingPolicy, error)
++	Rollback(version int, administratorID int, note string) (model.IntelligentRoutingPolicy, error)
++	GetRollout() (model.IntelligentRoutingRollout, error)
++	UpdateRollout(revision int64, rollout model.IntelligentRoutingRollout) (model.IntelligentRoutingRollout, error)
++}
++
++type DatabasePolicyRepository struct{}
++
++func (DatabasePolicyRepository) CreateDraft(policy model.IntelligentRoutingPolicy) (model.IntelligentRoutingPolicy, error) {
++	return model.CreateIntelligentRoutingDraft(policy)
++}
++
++func (DatabasePolicyRepository) UpdateDraft(id int64, updatedAt time.Time, config, checksum string) (model.IntelligentRoutingPolicy, error) {
++	return model.UpdateIntelligentRoutingDraft(id, updatedAt, config, checksum)
++}
++
++func (DatabasePolicyRepository) GetPolicy(id int64) (model.IntelligentRoutingPolicy, error) {
++	return model.GetIntelligentRoutingPolicy(id)
++}
++
++func (DatabasePolicyRepository) GetPolicyByVersion(version int) (model.IntelligentRoutingPolicy, error) {
++	return model.GetIntelligentRoutingPolicyByVersion(version)
++}
++
++func (DatabasePolicyRepository) Publish(id int64, administratorID int, note string) (model.IntelligentRoutingPolicy, error) {
++	return model.PublishIntelligentRoutingPolicy(id, administratorID, note)
++}
++
++func (DatabasePolicyRepository) Rollback(version int, administratorID int, note string) (model.IntelligentRoutingPolicy, error) {
++	return model.RollbackIntelligentRoutingPolicy(version, administratorID, note)
++}
++
++func (DatabasePolicyRepository) GetRollout() (model.IntelligentRoutingRollout, error) {
++	return model.GetIntelligentRoutingRollout()
++}
++
++func (DatabasePolicyRepository) UpdateRollout(revision int64, rollout model.IntelligentRoutingRollout) (model.IntelligentRoutingRollout, error) {
++	return model.UpdateIntelligentRoutingRollout(revision, rollout)
++}
++
++type RuntimeRollout struct {
++	Exists         bool
++	Revision       int64
++	PolicyVersion  int
++	Enabled        bool
++	Mode           string
++	TrafficPercent int
++	UserGroups     []string
++	TokenGroups    []string
++}
++
++type RuntimePolicySnapshot struct {
++	DeploymentSalt string
++	PolicyID       int64
++	Checksum       string
++	Config         routingsetting.Config
++	Rollout        RuntimeRollout
++}
++
++type PolicyControl struct {
++	repository PolicyRepository
++	salt       string
++	snapshot   atomic.Pointer[RuntimePolicySnapshot]
++}
++
++var DefaultPolicyControl = NewPolicyControl(
++	DatabasePolicyRepository{},
++	common.GetEnvOrDefaultString("INTELLIGENT_ROUTING_DEPLOYMENT_SALT", "intelligent-routing"),
++)
++
++func NewPolicyControl(repository PolicyRepository, deploymentSalt string) *PolicyControl {
++	control := &PolicyControl{repository: repository, salt: deploymentSalt}
++	control.snapshot.Store(&RuntimePolicySnapshot{DeploymentSalt: deploymentSalt})
++	return control
++}
++
++func (control *PolicyControl) CreateDraft(_ context.Context, raw string, administratorID int) (model.IntelligentRoutingPolicy, []ValidationIssue, error) {
++	validated, issues := ValidatePolicyDocument(raw)
++	if len(issues) > 0 {
++		return model.IntelligentRoutingPolicy{}, issues, nil
++	}
++	policy, err := control.repository.CreateDraft(model.IntelligentRoutingPolicy{
++		Config: validated.JSON, Checksum: validated.Checksum, CreatedBy: administratorID,
++	})
++	return policy, nil, err
++}
++
++func (control *PolicyControl) UpdateDraft(_ context.Context, id int64, updatedAt time.Time, raw string) (model.IntelligentRoutingPolicy, []ValidationIssue, error) {
++	validated, issues := ValidatePolicyDocument(raw)
++	if len(issues) > 0 {
++		return model.IntelligentRoutingPolicy{}, issues, nil
++	}
++	policy, err := control.repository.UpdateDraft(id, updatedAt, validated.JSON, validated.Checksum)
++	return policy, nil, err
++}
++
++func (control *PolicyControl) Publish(ctx context.Context, id int64, administratorID int, changeNote string) (model.IntelligentRoutingPolicy, []ValidationIssue, error) {
++	if strings.TrimSpace(changeNote) == "" {
++		return model.IntelligentRoutingPolicy{}, []ValidationIssue{{Code: "change_note.required", Field: "change_note", Message: "Change note is required"}}, nil
++	}
++	policy, err := control.repository.GetPolicy(id)
++	if err != nil {
++		return model.IntelligentRoutingPolicy{}, nil, err
++	}
++	validated, issues := ValidatePolicyDocument(policy.Config)
++	if len(issues) > 0 {
++		return model.IntelligentRoutingPolicy{}, issues, nil
++	}
++	if validated.Checksum != policy.Checksum {
++		return model.IntelligentRoutingPolicy{}, []ValidationIssue{{Code: "policy.checksum_mismatch", Field: "policy", Message: "Policy checksum does not match its content"}}, nil
++	}
++	published, err := control.repository.Publish(id, administratorID, strings.TrimSpace(changeNote))
++	if err != nil {
++		return model.IntelligentRoutingPolicy{}, nil, err
++	}
++	if refreshErr := control.RefreshSnapshot(ctx); refreshErr != nil && !errors.Is(refreshErr, model.ErrIntelligentRoutingRolloutNotFound) {
++		return published, nil, refreshErr
++	}
++	return published, nil, nil
++}
++
++func (control *PolicyControl) Rollback(ctx context.Context, version, administratorID int, changeNote string) (model.IntelligentRoutingPolicy, []ValidationIssue, error) {
++	if strings.TrimSpace(changeNote) == "" {
++		return model.IntelligentRoutingPolicy{}, []ValidationIssue{{Code: "change_note.required", Field: "change_note", Message: "Change note is required"}}, nil
++	}
++	rolledBack, err := control.repository.Rollback(version, administratorID, strings.TrimSpace(changeNote))
++	if err != nil {
++		return model.IntelligentRoutingPolicy{}, nil, err
++	}
++	if refreshErr := control.RefreshSnapshot(ctx); refreshErr != nil && !errors.Is(refreshErr, model.ErrIntelligentRoutingRolloutNotFound) {
++		return rolledBack, nil, refreshErr
++	}
++	return rolledBack, nil, nil
++}
++
++func (control *PolicyControl) UpdateRollout(ctx context.Context, revision int64, rollout model.IntelligentRoutingRollout) (model.IntelligentRoutingRollout, []ValidationIssue, error) {
++	issues := validateRollout(rollout)
++	if len(issues) > 0 {
++		return model.IntelligentRoutingRollout{}, issues, nil
++	}
++	if rollout.PolicyVersion > 0 {
++		policy, err := control.repository.GetPolicyByVersion(rollout.PolicyVersion)
++		if err != nil {
++			return model.IntelligentRoutingRollout{}, nil, err
++		}
++		if policy.Status != model.IntelligentRoutingPolicyActive && rollout.Enabled {
++			return model.IntelligentRoutingRollout{}, []ValidationIssue{{Code: "policy_version.not_active", Field: "policy_version", Message: "Enabled rollout requires the active policy"}}, nil
++		}
++	}
++	updated, err := control.repository.UpdateRollout(revision, rollout)
++	if err != nil {
++		return model.IntelligentRoutingRollout{}, nil, err
++	}
++	if err := control.RefreshSnapshot(ctx); err != nil {
++		return updated, nil, err
++	}
++	return updated, nil, nil
++}
++
++func validateRollout(rollout model.IntelligentRoutingRollout) []ValidationIssue {
++	if rollout.Mode != model.IntelligentRoutingModeShadow && rollout.Mode != model.IntelligentRoutingModeLive {
++		return []ValidationIssue{{Code: "mode.invalid", Field: "mode", Message: "Rollout mode must be shadow or live"}}
++	}
++	if rollout.TrafficPercent < 0 || rollout.TrafficPercent > 100 {
++		return []ValidationIssue{{Code: "traffic_percent.out_of_range", Field: "traffic_percent", Message: "Traffic percentage must be between 0 and 100"}}
++	}
++	if rollout.Enabled && rollout.PolicyVersion < 1 {
++		return []ValidationIssue{{Code: "policy_version.required", Field: "policy_version", Message: "Enabled rollout requires a policy version"}}
++	}
++	return nil
++}
++
++func (control *PolicyControl) RefreshSnapshot(_ context.Context) error {
++	rollout, err := control.repository.GetRollout()
++	if errors.Is(err, model.ErrIntelligentRoutingRolloutNotFound) {
++		control.snapshot.Store(&RuntimePolicySnapshot{DeploymentSalt: control.salt})
++		return nil
++	}
++	if err != nil {
++		return err
++	}
++	snapshot := RuntimePolicySnapshot{DeploymentSalt: control.salt, Rollout: RuntimeRollout{
++		Exists: true, Revision: rollout.Revision, PolicyVersion: rollout.PolicyVersion, Enabled: rollout.Enabled,
++		Mode: rollout.Mode, TrafficPercent: rollout.TrafficPercent,
++	}}
++	if err := common.UnmarshalJsonStr(rollout.UserGroups, &snapshot.Rollout.UserGroups); err != nil && strings.TrimSpace(rollout.UserGroups) != "" {
++		return err
++	}
++	if err := common.UnmarshalJsonStr(rollout.TokenGroups, &snapshot.Rollout.TokenGroups); err != nil && strings.TrimSpace(rollout.TokenGroups) != "" {
++		return err
++	}
++	if rollout.PolicyVersion > 0 {
++		policy, err := control.repository.GetPolicyByVersion(rollout.PolicyVersion)
++		if err != nil {
++			return err
++		}
++		validated, issues := ValidatePolicyDocument(policy.Config)
++		if len(issues) > 0 || validated.Checksum != policy.Checksum {
++			return errors.New("stored intelligent routing policy failed validation")
++		}
++		snapshot.PolicyID = policy.Id
++		snapshot.Checksum = policy.Checksum
++		snapshot.Config = validated.Config
++	}
++	control.snapshot.Store(&snapshot)
++	return nil
++}
++
++func (control *PolicyControl) Snapshot() RuntimePolicySnapshot {
++	current := control.snapshot.Load()
++	if current == nil {
++		return RuntimePolicySnapshot{DeploymentSalt: control.salt}
++	}
++	copy := *current
++	copy.Rollout.UserGroups = append([]string(nil), current.Rollout.UserGroups...)
++	copy.Rollout.TokenGroups = append([]string(nil), current.Rollout.TokenGroups...)
++	copy.Config = cloneRoutingConfig(current.Config)
++	return copy
++}
++
++func cloneRoutingConfig(input routingsetting.Config) routingsetting.Config {
++	input.Models = append([]routingsetting.ModelPolicy(nil), input.Models...)
++	for index := range input.Models {
++		input.Models[index].Capabilities = append([]string(nil), input.Models[index].Capabilities...)
++	}
++	thresholds := make(map[routingsetting.TaskType]float64, len(input.QualityThresholds))
++	for task, value := range input.QualityThresholds {
++		thresholds[task] = value
++	}
++	input.QualityThresholds = thresholds
++	return input
++}
+diff --git a/service/intelligent_routing/policy_control_test.go b/service/intelligent_routing/policy_control_test.go
+new file mode 100644
+index 00000000..c549c1eb
+--- /dev/null
++++ b/service/intelligent_routing/policy_control_test.go
+@@ -0,0 +1,126 @@
++package intelligent_routing
++
++import (
++	"context"
++	"errors"
++	"testing"
++	"time"
++
++	"github.com/QuantumNous/new-api/model"
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++)
++
++type policyRepositoryFixture struct {
++	policies    map[int64]model.IntelligentRoutingPolicy
++	rollout     model.IntelligentRoutingRollout
++	createCalls int
++	err         error
++	nextID      int64
++}
++
++func (repo *policyRepositoryFixture) CreateDraft(policy model.IntelligentRoutingPolicy) (model.IntelligentRoutingPolicy, error) {
++	repo.createCalls++
++	repo.nextID++
++	policy.Id = repo.nextID
++	policy.Status = model.IntelligentRoutingPolicyDraft
++	policy.UpdatedAt = time.Now()
++	if repo.policies == nil {
++		repo.policies = make(map[int64]model.IntelligentRoutingPolicy)
++	}
++	repo.policies[policy.Id] = policy
++	return policy, repo.err
++}
++
++func (repo *policyRepositoryFixture) UpdateDraft(id int64, updatedAt time.Time, config, checksum string) (model.IntelligentRoutingPolicy, error) {
++	policy := repo.policies[id]
++	policy.Config, policy.Checksum = config, checksum
++	repo.policies[id] = policy
++	return policy, repo.err
++}
++
++func (repo *policyRepositoryFixture) GetPolicy(id int64) (model.IntelligentRoutingPolicy, error) {
++	policy, ok := repo.policies[id]
++	if !ok {
++		return policy, model.ErrIntelligentRoutingPolicyNotFound
++	}
++	return policy, repo.err
++}
++
++func (repo *policyRepositoryFixture) GetPolicyByVersion(version int) (model.IntelligentRoutingPolicy, error) {
++	for _, policy := range repo.policies {
++		if policy.Version == version {
++			return policy, repo.err
++		}
++	}
++	return model.IntelligentRoutingPolicy{}, model.ErrIntelligentRoutingPolicyNotFound
++}
++
++func (repo *policyRepositoryFixture) Publish(id int64, administratorID int, note string) (model.IntelligentRoutingPolicy, error) {
++	policy := repo.policies[id]
++	policy.Version, policy.Status, policy.ChangeNote = 1, model.IntelligentRoutingPolicyActive, note
++	repo.policies[id] = policy
++	return policy, repo.err
++}
++
++func (repo *policyRepositoryFixture) Rollback(version int, administratorID int, note string) (model.IntelligentRoutingPolicy, error) {
++	policy, err := repo.GetPolicyByVersion(version)
++	if err != nil {
++		return policy, err
++	}
++	policy.Version, policy.SourceVersion, policy.ChangeNote = version+1, version, note
++	repo.nextID++
++	policy.Id = repo.nextID
++	repo.policies[policy.Id] = policy
++	return policy, repo.err
++}
++
++func (repo *policyRepositoryFixture) GetRollout() (model.IntelligentRoutingRollout, error) {
++	if repo.err != nil {
++		return model.IntelligentRoutingRollout{}, repo.err
++	}
++	if repo.rollout.Id == 0 {
++		return model.IntelligentRoutingRollout{}, model.ErrIntelligentRoutingRolloutNotFound
++	}
++	return repo.rollout, nil
++}
++
++func (repo *policyRepositoryFixture) UpdateRollout(revision int64, rollout model.IntelligentRoutingRollout) (model.IntelligentRoutingRollout, error) {
++	if repo.err != nil {
++		return model.IntelligentRoutingRollout{}, repo.err
++	}
++	rollout.Id, rollout.Revision = 1, revision+1
++	repo.rollout = rollout
++	return rollout, nil
++}
++
++func TestPolicyControlRejectsInvalidDraftBeforeRepositoryWrite(t *testing.T) {
++	repo := &policyRepositoryFixture{}
++	control := NewPolicyControl(repo, "deployment-salt")
++
++	_, issues, err := control.CreateDraft(context.Background(), `{"max_attempts":99}`, 7)
++	require.NoError(t, err)
++	require.NotEmpty(t, issues)
++	assert.Zero(t, repo.createCalls)
++}
++
++func TestPolicyControlRefreshRetainsLastValidSnapshot(t *testing.T) {
++	repo := &policyRepositoryFixture{}
++	control := NewPolicyControl(repo, "deployment-salt")
++	draft, issues, err := control.CreateDraft(context.Background(), `{"models":[{"model":"cheap","tier":1,"context_limit":4096}]}`, 7)
++	require.NoError(t, err)
++	require.Empty(t, issues)
++	policy := repo.policies[draft.Id]
++	policy.Version, policy.Status = 1, model.IntelligentRoutingPolicyActive
++	repo.policies[draft.Id] = policy
++	repo.rollout = model.IntelligentRoutingRollout{Id: 1, Revision: 2, PolicyVersion: 1, Enabled: true, Mode: model.IntelligentRoutingModeShadow, TrafficPercent: 100, UserGroups: `[]`, TokenGroups: `[]`}
++
++	require.NoError(t, control.RefreshSnapshot(context.Background()))
++	before := control.Snapshot()
++	assert.True(t, before.Rollout.Enabled)
++
++	repo.err = errors.New("database unavailable")
++	assert.Error(t, control.RefreshSnapshot(context.Background()))
++	after := control.Snapshot()
++	assert.Equal(t, before.Rollout.Revision, after.Rollout.Revision)
++}
+diff --git a/service/intelligent_routing/policy_document.go b/service/intelligent_routing/policy_document.go
+new file mode 100644
+index 00000000..d4d65354
+--- /dev/null
++++ b/service/intelligent_routing/policy_document.go
+@@ -0,0 +1,78 @@
++package intelligent_routing
++
++import (
++	"crypto/sha256"
++	"fmt"
++	"sort"
++
++	"github.com/QuantumNous/new-api/common"
++	routingsetting "github.com/QuantumNous/new-api/setting/intelligent_routing_setting"
++)
++
++type ValidationIssue struct {
++	Code    string `json:"code"`
++	Field   string `json:"field"`
++	Message string `json:"message"`
++}
++
++type ValidatedPolicy struct {
++	Config   routingsetting.Config
++	JSON     string
++	Checksum string
++}
++
++func ValidatePolicyDocument(raw string) (ValidatedPolicy, []ValidationIssue) {
++	if len(raw) > routingsetting.MaxPolicyDocumentBytes {
++		return ValidatedPolicy{}, []ValidationIssue{{Code: "policy.too_large", Field: "policy", Message: "Policy document is too large"}}
++	}
++	var input routingsetting.Config
++	if err := common.UnmarshalJsonStr(raw, &input); err != nil {
++		return ValidatedPolicy{}, []ValidationIssue{{Code: "policy.invalid_json", Field: "policy", Message: "Policy document is not valid JSON"}}
++	}
++	if input.MaxAttempts > routingsetting.MaxAttempts || input.MaxAttempts < 0 {
++		return ValidatedPolicy{}, []ValidationIssue{{Code: "max_attempts.out_of_range", Field: "max_attempts", Message: "Maximum attempts is out of range"}}
++	}
++	if input.MaxEndpointsPerModel > routingsetting.MaxEndpointsPerModel || input.MaxEndpointsPerModel < 0 {
++		return ValidatedPolicy{}, []ValidationIssue{{Code: "max_endpoints_per_model.out_of_range", Field: "max_endpoints_per_model", Message: "Maximum endpoints per model is out of range"}}
++	}
++	allowedCapabilities := map[string]struct{}{
++		string(CapabilityTools): {}, string(CapabilityJSONSchema): {}, string(CapabilityVision): {}, string(CapabilityAudio): {},
++	}
++	for modelIndex, policy := range input.Models {
++		for capabilityIndex, capability := range policy.Capabilities {
++			if _, ok := allowedCapabilities[capability]; !ok {
++				return ValidatedPolicy{}, []ValidationIssue{{
++					Code: "models.capability.unknown", Field: fmt.Sprintf("models[%d].capabilities[%d]", modelIndex, capabilityIndex),
++					Message: "Model capability is unknown",
++				}}
++			}
++		}
++	}
++
++	normalized, err := routingsetting.Normalize(input)
++	if err != nil {
++		return ValidatedPolicy{}, []ValidationIssue{{Code: "policy.invalid", Field: "policy", Message: "Policy document contains invalid values"}}
++	}
++	canonical, err := CanonicalPolicyJSON(normalized)
++	if err != nil {
++		return ValidatedPolicy{}, []ValidationIssue{{Code: "policy.canonicalization_failed", Field: "policy", Message: "Policy document could not be canonicalized"}}
++	}
++	sum := sha256.Sum256([]byte(canonical))
++	return ValidatedPolicy{Config: normalized, JSON: canonical, Checksum: fmt.Sprintf("%x", sum)}, nil
++}
++
++func CanonicalPolicyJSON(config routingsetting.Config) (string, error) {
++	config.Models = append([]routingsetting.ModelPolicy(nil), config.Models...)
++	for index := range config.Models {
++		config.Models[index].Capabilities = append([]string(nil), config.Models[index].Capabilities...)
++		sort.Strings(config.Models[index].Capabilities)
++	}
++	sort.Slice(config.Models, func(i, j int) bool {
++		return config.Models[i].Model < config.Models[j].Model
++	})
++	data, err := common.Marshal(config)
++	if err != nil {
++		return "", err
++	}
++	return string(data), nil
++}
+diff --git a/service/intelligent_routing/policy_document_test.go b/service/intelligent_routing/policy_document_test.go
+new file mode 100644
+index 00000000..927c11c0
+--- /dev/null
++++ b/service/intelligent_routing/policy_document_test.go
+@@ -0,0 +1,43 @@
++package intelligent_routing
++
++import (
++	"strings"
++	"testing"
++
++	routingsetting "github.com/QuantumNous/new-api/setting/intelligent_routing_setting"
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++)
++
++func TestValidatePolicyDocumentReturnsStructuredIssues(t *testing.T) {
++	tests := []struct {
++		name  string
++		raw   string
++		code  string
++		field string
++	}{
++		{name: "malformed", raw: `{`, code: "policy.invalid_json", field: "policy"},
++		{name: "too large", raw: `{"padding":"` + strings.Repeat("x", routingsetting.MaxPolicyDocumentBytes) + `"}`, code: "policy.too_large", field: "policy"},
++		{name: "attempts", raw: `{"max_attempts":99}`, code: "max_attempts.out_of_range", field: "max_attempts"},
++		{name: "capability", raw: `{"models":[{"model":"cheap","tier":1,"context_limit":4096,"capabilities":["telepathy"]}]}`, code: "models.capability.unknown", field: "models[0].capabilities[0]"},
++	}
++
++	for _, test := range tests {
++		t.Run(test.name, func(t *testing.T) {
++			_, issues := ValidatePolicyDocument(test.raw)
++			require.NotEmpty(t, issues)
++			assert.Equal(t, test.code, issues[0].Code)
++			assert.Equal(t, test.field, issues[0].Field)
++		})
++	}
++}
++
++func TestCanonicalPolicyJSONProducesStableChecksum(t *testing.T) {
++	first, issues := ValidatePolicyDocument(`{"models":[{"model":"b","tier":1,"context_limit":4096,"capabilities":["tools","json_schema"]},{"model":"a","tier":0,"context_limit":2048}]}`)
++	require.Empty(t, issues)
++	second, issues := ValidatePolicyDocument(`{"models":[{"model":"a","tier":0,"context_limit":2048},{"model":"b","tier":1,"context_limit":4096,"capabilities":["json_schema","tools"]}]}`)
++	require.Empty(t, issues)
++
++	assert.Equal(t, first.Checksum, second.Checksum)
++	assert.Equal(t, first.JSON, second.JSON)
++}
+diff --git a/service/intelligent_routing/policy_refresh.go b/service/intelligent_routing/policy_refresh.go
+new file mode 100644
+index 00000000..2f2847ee
+--- /dev/null
++++ b/service/intelligent_routing/policy_refresh.go
+@@ -0,0 +1,38 @@
++package intelligent_routing
++
++import (
++	"context"
++	"time"
++
++	"github.com/QuantumNous/new-api/common"
++)
++
++func StartPolicyRefresh(ctx context.Context, control *PolicyControl, interval time.Duration) {
++	if interval <= 0 {
++		interval = time.Minute
++	}
++	ticker := time.NewTicker(interval)
++	go func() {
++		defer ticker.Stop()
++		runPolicyRefresh(ctx, control, ticker.C)
++	}()
++}
++
++func runPolicyRefresh(ctx context.Context, control *PolicyControl, triggers <-chan time.Time) {
++	failed := false
++	for {
++		select {
++		case <-ctx.Done():
++			return
++		case <-triggers:
++			if err := control.RefreshSnapshot(ctx); err != nil {
++				if !failed {
++					common.SysError("failed to refresh intelligent routing policy snapshot: " + err.Error())
++				}
++				failed = true
++				continue
++			}
++			failed = false
++		}
++	}
++}
+diff --git a/service/intelligent_routing/policy_refresh_test.go b/service/intelligent_routing/policy_refresh_test.go
+new file mode 100644
+index 00000000..5a747f19
+--- /dev/null
++++ b/service/intelligent_routing/policy_refresh_test.go
+@@ -0,0 +1,30 @@
++package intelligent_routing
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/assert"
++)
++
++func TestPolicyRefreshStopsAfterCancellation(t *testing.T) {
++	repo := &policyRepositoryFixture{}
++	control := NewPolicyControl(repo, "salt")
++	triggers := make(chan time.Time, 2)
++	ctx, cancel := context.WithCancel(context.Background())
++	done := make(chan struct{})
++	go func() {
++		runPolicyRefresh(ctx, control, triggers)
++		close(done)
++	}()
++
++	triggers <- time.Now()
++	cancel()
++	select {
++	case <-done:
++	case <-time.After(time.Second):
++		t.Fatal("refresh loop did not stop after cancellation")
++	}
++	assert.False(t, control.Snapshot().Rollout.Enabled)
++}
+diff --git a/service/intelligent_routing/rollout.go b/service/intelligent_routing/rollout.go
+new file mode 100644
+index 00000000..34fe0c6f
+--- /dev/null
++++ b/service/intelligent_routing/rollout.go
+@@ -0,0 +1,54 @@
++package intelligent_routing
++
++import (
++	"crypto/hmac"
++	"crypto/sha256"
++	"encoding/binary"
++	"fmt"
++)
++
++type RolloutSubject struct {
++	AccountID  int
++	TokenID    int
++	UserGroup  string
++	TokenGroup string
++}
++
++type RolloutDecision struct {
++	Selected      bool
++	Bucket        int
++	Mode          string
++	PolicyVersion int
++	Revision      int64
++}
++
++func ResolveRollout(snapshot RuntimePolicySnapshot, subject RolloutSubject) RolloutDecision {
++	decision := RolloutDecision{
++		Mode: snapshot.Rollout.Mode, PolicyVersion: snapshot.Rollout.PolicyVersion, Revision: snapshot.Rollout.Revision,
++	}
++	if !snapshot.Rollout.Exists || !snapshot.Rollout.Enabled || snapshot.Rollout.TrafficPercent <= 0 {
++		return decision
++	}
++	if !rolloutGroupMatches(snapshot.Rollout.UserGroups, subject.UserGroup) ||
++		!rolloutGroupMatches(snapshot.Rollout.TokenGroups, subject.TokenGroup) {
++		return decision
++	}
++	mac := hmac.New(sha256.New, []byte(snapshot.DeploymentSalt))
++	_, _ = fmt.Fprintf(mac, "%d/%d/%d", snapshot.Rollout.PolicyVersion, subject.AccountID, subject.TokenID)
++	digest := mac.Sum(nil)
++	decision.Bucket = int(binary.BigEndian.Uint64(digest[:8]) % 100)
++	decision.Selected = decision.Bucket < snapshot.Rollout.TrafficPercent
++	return decision
++}
++
++func rolloutGroupMatches(allowed []string, actual string) bool {
++	if len(allowed) == 0 {
++		return true
++	}
++	for _, candidate := range allowed {
++		if candidate == actual {
++			return true
++		}
++	}
++	return false
++}
+diff --git a/service/intelligent_routing/rollout_test.go b/service/intelligent_routing/rollout_test.go
+new file mode 100644
+index 00000000..fea1c271
+--- /dev/null
++++ b/service/intelligent_routing/rollout_test.go
+@@ -0,0 +1,39 @@
++package intelligent_routing
++
++import (
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++)
++
++func TestResolveRolloutUsesStableSubjectBucket(t *testing.T) {
++	snapshot := RuntimePolicySnapshot{DeploymentSalt: "salt", Rollout: RuntimeRollout{
++		Exists: true, Revision: 3, PolicyVersion: 2, Enabled: true, Mode: "live", TrafficPercent: 100,
++		UserGroups: []string{"default"}, TokenGroups: []string{"auto"},
++	}}
++	subject := RolloutSubject{AccountID: 42, TokenID: 9, UserGroup: "default", TokenGroup: "auto"}
++
++	first := ResolveRollout(snapshot, subject)
++	second := ResolveRollout(snapshot, subject)
++
++	assert.True(t, first.Selected)
++	assert.Equal(t, first.Bucket, second.Bucket)
++	assert.Equal(t, "live", first.Mode)
++}
++
++func TestResolveRolloutRejectsDisabledExcludedAndZeroPercent(t *testing.T) {
++	base := RuntimePolicySnapshot{DeploymentSalt: "salt", Rollout: RuntimeRollout{
++		Exists: true, PolicyVersion: 1, Enabled: true, Mode: "shadow", TrafficPercent: 100,
++		UserGroups: []string{"allowed"}, TokenGroups: []string{"auto"},
++	}}
++	subject := RolloutSubject{AccountID: 1, TokenID: 2, UserGroup: "other", TokenGroup: "auto"}
++	assert.False(t, ResolveRollout(base, subject).Selected)
++
++	base.Rollout.UserGroups = nil
++	base.Rollout.Enabled = false
++	assert.False(t, ResolveRollout(base, subject).Selected)
++
++	base.Rollout.Enabled = true
++	base.Rollout.TrafficPercent = 0
++	assert.False(t, ResolveRollout(base, subject).Selected)
++}
+diff --git a/service/log_info_generate.go b/service/log_info_generate.go
+index e6be8579..1296b957 100644
+--- a/service/log_info_generate.go
++++ b/service/log_info_generate.go
+@@ -133,6 +133,12 @@ func appendIntelligentRoutingAdminInfo(relayInfo *relaycommon.RelayInfo, adminIn
+ 		"execution_model": relayInfo.GetExecutionModelName(),
+ 		"attempt_index":   relayInfo.IntelligentRouteAttempt,
+ 	}
++	if relayInfo.IntelligentRouteRolloutRevision > 0 {
++		audit["rollout_revision"] = relayInfo.IntelligentRouteRolloutRevision
++		audit["rollout_bucket"] = relayInfo.IntelligentRouteRolloutBucket
++		audit["rollout_mode"] = relayInfo.IntelligentRouteRolloutMode
++		audit["policy_version"] = relayInfo.IntelligentRoutePolicyVersion
++	}
+ 	if relayInfo.IntelligentRouteError != "" {
+ 		audit["error"] = relayInfo.IntelligentRouteError
+ 	}
+diff --git a/setting/intelligent_routing_setting/config.go b/setting/intelligent_routing_setting/config.go
+index f7f1064c..e777549a 100644
+--- a/setting/intelligent_routing_setting/config.go
++++ b/setting/intelligent_routing_setting/config.go
+@@ -20,6 +20,15 @@ const (
+ 	TaskReasoning   TaskType = "reasoning"
+ 	TaskJSON        TaskType = "json_schema"
+ 	TaskTool        TaskType = "tool"
++
++	MaxPolicyDocumentBytes = 1 << 20
++	MaxPolicyModels        = 512
++	MaxAttempts            = 8
++	MaxEndpointsPerModel   = 4
++	MaxExecutionBudget     = 2 * time.Minute
++	MaxContextLimit        = 10_000_000
++	MaxModelPrice          = 1_000_000
++	MaxCostMultiplier      = 100
+ )
+ 
+ type ModelPolicy struct {
+@@ -73,7 +82,11 @@ func Normalize(input Config) (Config, error) {
+ 	if input.MaxCostMultiplier == 0 {
+ 		input.MaxCostMultiplier = 2.5
+ 	}
+-	if input.PolicyVersion < 1 || input.MaxAttempts < 1 || input.MaxEndpointsPerModel < 1 || input.NonStreamBudget < 0 || input.StreamFirstByteBudget < 0 || input.MaxCostMultiplier < 1 {
++	if input.PolicyVersion < 1 || input.MaxAttempts < 1 || input.MaxAttempts > MaxAttempts ||
++		input.MaxEndpointsPerModel < 1 || input.MaxEndpointsPerModel > MaxEndpointsPerModel ||
++		input.NonStreamBudget < 0 || input.NonStreamBudget > MaxExecutionBudget ||
++		input.StreamFirstByteBudget < 0 || input.StreamFirstByteBudget > MaxExecutionBudget ||
++		input.MaxCostMultiplier < 1 || input.MaxCostMultiplier > MaxCostMultiplier {
+ 		return Config{}, errors.New("invalid intelligent routing budget")
+ 	}
+ 	defaults := map[TaskType]float64{
+@@ -87,9 +100,15 @@ func Normalize(input Config) (Config, error) {
+ 		defaults[task] = value
+ 	}
+ 	input.QualityThresholds = defaults
++	if len(input.Models) > MaxPolicyModels {
++		return Config{}, errors.New("too many intelligent routing model policies")
++	}
+ 	seen := make(map[string]struct{}, len(input.Models))
+ 	for _, policy := range input.Models {
+-		if policy.Model == "" || policy.Tier < 0 || policy.Tier > 3 || policy.InputPrice < 0 || policy.OutputPrice < 0 || policy.ContextLimit < 0 {
++		if policy.Model == "" || policy.Tier < 0 || policy.Tier > 3 ||
++			policy.InputPrice < 0 || policy.InputPrice > MaxModelPrice ||
++			policy.OutputPrice < 0 || policy.OutputPrice > MaxModelPrice ||
++			policy.ContextLimit < 0 || policy.ContextLimit > MaxContextLimit {
+ 			return Config{}, fmt.Errorf("invalid model policy for %q", policy.Model)
+ 		}
+ 		if _, ok := seen[policy.Model]; ok {
+diff --git a/setting/intelligent_routing_setting/config_test.go b/setting/intelligent_routing_setting/config_test.go
+index 3d4f748c..65e4f684 100644
+--- a/setting/intelligent_routing_setting/config_test.go
++++ b/setting/intelligent_routing_setting/config_test.go
+@@ -23,6 +23,11 @@ func TestNormalizeConfigAppliesSafeDefaults(t *testing.T) {
+ func TestNormalizeConfigRejectsInvalidValues(t *testing.T) {
+ 	tests := []Config{
+ 		{MaxAttempts: -1},
++		{MaxAttempts: MaxAttempts + 1},
++		{MaxEndpointsPerModel: MaxEndpointsPerModel + 1},
++		{NonStreamBudget: MaxExecutionBudget + time.Nanosecond},
++		{StreamFirstByteBudget: MaxExecutionBudget + time.Nanosecond},
++		{MaxCostMultiplier: MaxCostMultiplier + 0.01},
+ 		{QualityThresholds: map[TaskType]float64{TaskGeneral: 1.1}},
+ 		{Models: []ModelPolicy{{Model: "a", Tier: 4}}},
+ 		{Models: []ModelPolicy{{Model: "a"}, {Model: "a"}}},

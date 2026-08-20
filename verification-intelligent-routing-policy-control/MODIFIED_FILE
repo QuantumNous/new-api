@@ -1,0 +1,159 @@
+package intelligent_routing_setting
+
+import (
+	"errors"
+	"fmt"
+	"sync/atomic"
+	"time"
+
+	"github.com/QuantumNous/new-api/setting/config"
+)
+
+type TaskType string
+
+const (
+	TaskTranslation TaskType = "translation"
+	TaskSummary     TaskType = "summary"
+	TaskGeneral     TaskType = "general"
+	TaskExtraction  TaskType = "extraction"
+	TaskCode        TaskType = "code"
+	TaskReasoning   TaskType = "reasoning"
+	TaskJSON        TaskType = "json_schema"
+	TaskTool        TaskType = "tool"
+
+	MaxPolicyDocumentBytes = 1 << 20
+	MaxPolicyModels        = 512
+	MaxAttempts            = 8
+	MaxEndpointsPerModel   = 4
+	MaxExecutionBudget     = 2 * time.Minute
+	MaxContextLimit        = 10_000_000
+	MaxModelPrice          = 1_000_000
+	MaxCostMultiplier      = 100
+)
+
+type ModelPolicy struct {
+	Model        string   `json:"model"`
+	Tier         int      `json:"tier"`
+	InputPrice   float64  `json:"input_price"`
+	OutputPrice  float64  `json:"output_price"`
+	ContextLimit int      `json:"context_limit"`
+	Capabilities []string `json:"capabilities"`
+}
+
+type Config struct {
+	Enabled               bool                 `json:"enabled"`
+	ShadowOnly            bool                 `json:"shadow_only"`
+	PolicyVersion         int                  `json:"policy_version"`
+	MaxAttempts           int                  `json:"max_attempts"`
+	MaxEndpointsPerModel  int                  `json:"max_endpoints_per_model"`
+	NonStreamBudget       time.Duration        `json:"non_stream_budget"`
+	StreamFirstByteBudget time.Duration        `json:"stream_first_byte_budget"`
+	MaxCostMultiplier     float64              `json:"max_cost_multiplier"`
+	QualityThresholds     map[TaskType]float64 `json:"quality_thresholds"`
+	Models                []ModelPolicy        `json:"models"`
+}
+
+var current atomic.Pointer[Config]
+var registeredConfig Config
+
+func init() {
+	normalized, _ := Normalize(Config{})
+	registeredConfig = normalized
+	current.Store(&normalized)
+	config.GlobalConfig.Register("intelligent_routing_setting", &registeredConfig)
+}
+
+func Normalize(input Config) (Config, error) {
+	if input.PolicyVersion == 0 {
+		input.PolicyVersion = 1
+	}
+	if input.MaxAttempts == 0 {
+		input.MaxAttempts = 4
+	}
+	if input.MaxEndpointsPerModel == 0 {
+		input.MaxEndpointsPerModel = 2
+	}
+	if input.NonStreamBudget == 0 {
+		input.NonStreamBudget = 30 * time.Second
+	}
+	if input.StreamFirstByteBudget == 0 {
+		input.StreamFirstByteBudget = 12 * time.Second
+	}
+	if input.MaxCostMultiplier == 0 {
+		input.MaxCostMultiplier = 2.5
+	}
+	if input.PolicyVersion < 1 || input.MaxAttempts < 1 || input.MaxAttempts > MaxAttempts ||
+		input.MaxEndpointsPerModel < 1 || input.MaxEndpointsPerModel > MaxEndpointsPerModel ||
+		input.NonStreamBudget < 0 || input.NonStreamBudget > MaxExecutionBudget ||
+		input.StreamFirstByteBudget < 0 || input.StreamFirstByteBudget > MaxExecutionBudget ||
+		input.MaxCostMultiplier < 1 || input.MaxCostMultiplier > MaxCostMultiplier {
+		return Config{}, errors.New("invalid intelligent routing budget")
+	}
+	defaults := map[TaskType]float64{
+		TaskTranslation: .88, TaskSummary: .88, TaskGeneral: .90, TaskCode: .93, TaskExtraction: .94,
+		TaskReasoning: .95, TaskJSON: .97, TaskTool: .98,
+	}
+	for task, value := range input.QualityThresholds {
+		if value < 0 || value > 1 {
+			return Config{}, fmt.Errorf("quality threshold for %s must be between 0 and 1", task)
+		}
+		defaults[task] = value
+	}
+	input.QualityThresholds = defaults
+	if len(input.Models) > MaxPolicyModels {
+		return Config{}, errors.New("too many intelligent routing model policies")
+	}
+	seen := make(map[string]struct{}, len(input.Models))
+	for _, policy := range input.Models {
+		if policy.Model == "" || policy.Tier < 0 || policy.Tier > 3 ||
+			policy.InputPrice < 0 || policy.InputPrice > MaxModelPrice ||
+			policy.OutputPrice < 0 || policy.OutputPrice > MaxModelPrice ||
+			policy.ContextLimit < 0 || policy.ContextLimit > MaxContextLimit {
+			return Config{}, fmt.Errorf("invalid model policy for %q", policy.Model)
+		}
+		if _, ok := seen[policy.Model]; ok {
+			return Config{}, fmt.Errorf("duplicate model policy %q", policy.Model)
+		}
+		seen[policy.Model] = struct{}{}
+	}
+	return clone(input), nil
+}
+
+func Update(input Config) error {
+	normalized, err := Normalize(input)
+	if err != nil {
+		return err
+	}
+	current.Store(&normalized)
+	registeredConfig = clone(normalized)
+	return nil
+}
+
+func UpdateAndSync() error {
+	return Update(registeredConfig)
+}
+
+func Get() Config {
+	value := current.Load()
+	if value == nil {
+		return Config{}
+	}
+	return clone(*value)
+}
+
+func Enabled() bool {
+	return Get().Enabled
+}
+
+func clone(input Config) Config {
+	input.Models = append([]ModelPolicy(nil), input.Models...)
+	for i := range input.Models {
+		input.Models[i].Capabilities = append([]string(nil), input.Models[i].Capabilities...)
+	}
+	thresholds := input.QualityThresholds
+	input.QualityThresholds = make(map[TaskType]float64, len(thresholds))
+	for task, value := range thresholds {
+		input.QualityThresholds[task] = value
+	}
+	return input
+}

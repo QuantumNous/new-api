@@ -1,0 +1,34 @@
+CHANGED_BRANCH/FIELD: codex/intelligent-routing-admin; durable administrator policy versions, scoped rollout, validation, publication, rollback, runtime snapshot, request-path activation, and routing audit metadata.
+MODIFIED_FILE: C:\Users\liwen\Documents\ChatGPT\中转站\.worktrees\intelligent-routing-admin\verification-intelligent-routing-policy-control\MODIFIED_FILE
+DIFF_FILE: C:\Users\liwen\Documents\ChatGPT\中转站\.worktrees\intelligent-routing-admin\verification-intelligent-routing-policy-control\DIFF_FILE
+VERIFICATION: C:\Users\liwen\Documents\ChatGPT\中转站\.worktrees\intelligent-routing-admin\verification-intelligent-routing-policy-control\VERIFICATION.txt
+ROLLBACK: C:\Users\liwen\Documents\ChatGPT\中转站\.worktrees\intelligent-routing-admin\verification-intelligent-routing-policy-control\ROLLBACK.sh
+BASELINE COMMAND: Get-FileHash -Algorithm SHA256 -LiteralPath verification-intelligent-routing-policy-control\ORIGINAL_FILE
+BASELINE INPUT: commit faab9bcd setting/intelligent_routing_setting/config.go
+BASELINE OUTPUT/RESULT: F8DCB7E1F39E890E7B22886E709FBC9F7E69BF45ED2866E4AF4BB2815BD2B621
+BASELINE EXIT STATUS: 0
+MODIFIED COMMAND: Get-FileHash -Algorithm SHA256 -LiteralPath verification-intelligent-routing-policy-control\MODIFIED_FILE
+MODIFIED INPUT: current codex/intelligent-routing-admin setting/intelligent_routing_setting/config.go
+MODIFIED OUTPUT/RESULT: D70C0641C71F002BDD6A4003FBC621E57AAE4DA8EA6355C82D2054CAC99E5E4F
+MODIFIED EXIT STATUS: 0
+TEST COMMAND: $env:GOCACHE="$PWD\.gocache"; go test ./... -count=1
+TEST INPUT: complete root Go module with embedded web/dist fixture
+TEST OUTPUT/RESULT: all root-module packages passed; github.com/QuantumNous/new-api/controller ok 33.550s; github.com/QuantumNous/new-api/model ok 39.264s; github.com/QuantumNous/new-api/router ok 11.529s; github.com/QuantumNous/new-api/service/intelligent_routing ok 9.126s
+TEST EXIT STATUS: 0
+VET COMMAND: go vet ./service/intelligent_routing ./controller ./model ./router
+VET INPUT: modified intelligent-routing service, controller, model, and router packages
+VET OUTPUT/RESULT: no output
+VET EXIT STATUS: 0
+RELAYKIT COMMAND: $env:GOWORK='off'; go build ./...
+RELAYKIT INPUT: C:\Users\liwen\Documents\ChatGPT\中转站\.worktrees\intelligent-routing-admin\relaykit independent module
+RELAYKIT OUTPUT/RESULT: no output
+RELAYKIT EXIT STATUS: 0
+DIFF CHECK COMMAND: git diff --check
+DIFF CHECK INPUT: tracked source tree
+DIFF CHECK OUTPUT/RESULT: no output
+DIFF CHECK EXIT STATUS: 0
+ROLLBACK COMMAND: C:\Program Files\Git\bin\bash.exe verification-intelligent-routing-policy-control\ROLLBACK.sh
+ROLLBACK INPUT: MODIFIED_FILE copied to ROLLBACK_TEST_COPY, then ORIGINAL_FILE restored onto ROLLBACK_TEST_COPY
+ROLLBACK OUTPUT/RESULT: F8DCB7E1F39E890E7B22886E709FBC9F7E69BF45ED2866E4AF4BB2815BD2B621; ROLLBACK_MATCH=True
+ROLLBACK EXIT STATUS: 0
+RESTORED BEHAVIOR/STATUS: rollback test copy exactly matches the pre-change configuration implementation; working-tree MODIFIED_FILE remains changed; full tests, vet, relaykit build, and diff check pass.
