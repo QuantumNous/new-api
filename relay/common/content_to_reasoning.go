@@ -142,7 +142,12 @@ func (info *RelayInfo) TransformContentToReasoningStream(data string) ([]*dto.Ch
 
 	if maxFragments == 0 {
 		if len(tailChoices) == 0 {
-			return nil, nil
+			if stream.Usage == nil {
+				return nil, nil
+			}
+			response := newStreamResponseShell(&stream)
+			response.Usage = stream.Usage
+			return []*dto.ChatCompletionsStreamResponse{response}, nil
 		}
 		response := newStreamResponseShell(&stream)
 		response.Choices = choicesFromMetadata(tailChoices)

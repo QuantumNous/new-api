@@ -135,3 +135,32 @@ func TestContentToReasoningFlushEmitsUnclosedReasoning(t *testing.T) {
 	require.Len(t, responses[0].Choices, 1)
 	requireTextValue(t, responses[0].Choices[0].Delta.ReasoningContent, "unfinished")
 }
+
+func TestTransformContentToReasoningStreamPassthroughUsageOnlyChunk(t *testing.T) {
+	info := newContentToReasoningTestInfo(nil)
+	usage := &dto.Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15}
+
+	responses, err := info.TransformContentToReasoningStream(marshalContentToReasoningStream(t, dto.ChatCompletionsStreamResponse{
+		Id:      "chat-4",
+		Created: 4,
+		Model:   "test",
+		Usage:   usage,
+	}))
+	require.NoError(t, err)
+	require.Len(t, responses, 1)
+	require.Empty(t, responses[0].Choices)
+	require.NotNil(t, responses[0].Usage)
+	assert.Equal(t, 15, responses[0].Usage.TotalTokens)
+}
+
+func TestTransformContentToReasoningStreamDropsEmptyChunkWithoutUsage(t *testing.T) {
+	info := newContentToReasoningTestInfo(nil)
+
+	responses, err := info.TransformContentToReasoningStream(marshalContentToReasoningStream(t, dto.ChatCompletionsStreamResponse{
+		Id:      "chat-5",
+		Created: 5,
+		Model:   "test",
+	}))
+	require.NoError(t, err)
+	assert.Empty(t, responses)
+}
