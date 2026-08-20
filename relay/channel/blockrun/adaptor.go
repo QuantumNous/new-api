@@ -509,7 +509,8 @@ func blockRunSolanaSupportsRequest(info *relaycommon.RelayInfo) bool {
 	if info == nil {
 		return false
 	}
-	switch info.RequestURLPath {
+	requestPath := normalizeBlockRunRequestPath(info.RequestURLPath)
+	switch requestPath {
 	case "/v1/chat/completions":
 		return info.RelayMode == relayconstant.RelayModeChatCompletions && info.RelayFormat == types.RelayFormatOpenAI
 	case "/v1/messages":
@@ -520,6 +521,13 @@ func blockRunSolanaSupportsRequest(info *relaycommon.RelayInfo) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeBlockRunRequestPath(requestPath string) string {
+	if idx := strings.IndexAny(requestPath, "?#"); idx >= 0 {
+		return requestPath[:idx]
+	}
+	return requestPath
 }
 
 func rejectProtectedPaymentHeaderOverrides(info *relaycommon.RelayInfo) error {

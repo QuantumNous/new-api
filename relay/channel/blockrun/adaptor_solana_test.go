@@ -26,10 +26,14 @@ func TestBlockRunSolanaSupportsRequest_FullAllowlist(t *testing.T) {
 		want   bool
 	}{
 		{name: "chat", path: "/v1/chat/completions", mode: relayconstant.RelayModeChatCompletions, format: types.RelayFormatOpenAI, want: true},
+		{name: "chat with query", path: "/v1/chat/completions?xxx=yyy", mode: relayconstant.RelayModeChatCompletions, format: types.RelayFormatOpenAI, want: true},
 		{name: "messages", path: "/v1/messages", mode: relayconstant.RelayModeChatCompletions, format: types.RelayFormatClaude, want: true},
+		{name: "messages with query", path: "/v1/messages?beta=true", mode: relayconstant.RelayModeChatCompletions, format: types.RelayFormatClaude, want: true},
 		{name: "responses native format", path: "/v1/responses", mode: relayconstant.RelayModeResponses, format: types.RelayFormatOpenAIResponses, want: true},
+		{name: "responses with query", path: "/v1/responses?include[]=usage", mode: relayconstant.RelayModeResponses, format: types.RelayFormatOpenAIResponses, want: true},
 		{name: "responses handler format", path: "/v1/responses", mode: relayconstant.RelayModeResponses, format: types.RelayFormatOpenAI, want: true},
 		{name: "chat wrong format", path: "/v1/chat/completions", mode: relayconstant.RelayModeChatCompletions, format: types.RelayFormatClaude},
+		{name: "prefixed chat with query", path: "/api/open-apis/v1/chat/completions?xxx=yyy", mode: relayconstant.RelayModeChatCompletions, format: types.RelayFormatOpenAI},
 		{name: "messages wrong mode", path: "/v1/messages", mode: relayconstant.RelayModeCompletions, format: types.RelayFormatClaude},
 		{name: "completions", path: "/v1/completions", mode: relayconstant.RelayModeCompletions, format: types.RelayFormatOpenAI},
 		{name: "embeddings", path: "/v1/embeddings", mode: relayconstant.RelayModeEmbeddings, format: types.RelayFormatEmbedding},
