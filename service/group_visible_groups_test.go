@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -50,5 +49,4 @@ func TestGetUserVisibleGroupsAlwaysContainsOwnGroup(t *testing.T) {
 	assert.False(t, unrestricted)
 	assert.Contains(t, groups, "standalone")
 	require.NotEmpty(t, groups)
-	_ = fmt.Sprint(groups)
 }

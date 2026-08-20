@@ -54,3 +54,15 @@ func TestApplyChannelGroupFilterAnyEmptyIsFailClosed(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestApplyChannelGroupFilterAnyNormalizesToEmptyIsFailClosed(t *testing.T) {
+	db := newChannelFilterTestDB(t)
+	seedChannel(t, db, 1, "a", "default")
+
+	// Entries that all normalize to "" (whitespace / "all" / "null") must
+	// fail-closed, never fall through to returning every channel.
+	var got []*Channel
+	err := ApplyChannelGroupFilterAny(db.Model(&Channel{}), []string{"  ", "all", "null"}).Find(&got).Error
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
