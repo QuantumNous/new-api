@@ -65,7 +65,7 @@ type ChannelMeta struct {
 	ChannelId            int
 	ChannelIsMultiKey    bool
 	ChannelMultiKeyIndex int
-	CodexFingerprintSeed string
+	CodexFingerprintSeed string `json:"-"`
 	ChannelBaseUrl       string
 	ApiType              int
 	ApiVersion           string

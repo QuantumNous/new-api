@@ -151,3 +151,29 @@ func TestNonCodexAndOffChannelsDoNotMintSeed(t *testing.T) {
 	require.Empty(t, stored[0].CodexFingerprintSeed)
 	require.Empty(t, stored[1].CodexFingerprintSeed)
 }
+
+func TestEnableChannelByTagMintsSeedForLegacyDisabledCodexChannel(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	tag := "legacy-codex"
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusManuallyDisabled, "")
+	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("tag", tag).Error)
+
+	require.NoError(t, EnableChannelByTag(tag))
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, "id = ?", channel.Id).Error)
+	require.Equal(t, common.ChannelStatusEnabled, stored.Status)
+	requireUUIDString(t, stored.CodexFingerprintSeed)
+}
+
+func TestUpdateChannelStatusMintsSeedForLegacyAutoDisabledCodexChannel(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusAutoDisabled, "")
+
+	require.True(t, UpdateChannelStatus(channel.Id, "", common.ChannelStatusEnabled, ""))
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, "id = ?", channel.Id).Error)
+	require.Equal(t, common.ChannelStatusEnabled, stored.Status)
+	requireUUIDString(t, stored.CodexFingerprintSeed)
+}

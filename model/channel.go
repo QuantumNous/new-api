@@ -999,6 +999,12 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
 			return false
 		}
+		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled {
+			if _, err := EnsureCodexFingerprintSeed(channel.Id); err != nil {
+				common.SysLog(fmt.Sprintf("failed to ensure codex fingerprint seed: channel_id=%d, error=%v", channel.Id, err))
+				return false
+			}
+		}
 	}
 	publishChannelsChanged()
 	return true
@@ -1008,6 +1014,17 @@ func EnableChannelByTag(tag string) error {
 	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error
 	if err != nil {
 		return err
+	}
+	var ids []int
+	if err = DB.Model(&Channel{}).
+		Where("tag = ? AND type = ? AND status = ?", tag, constant.ChannelTypeCodex, common.ChannelStatusEnabled).
+		Pluck("id", &ids).Error; err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err = EnsureCodexFingerprintSeed(id); err != nil {
+			return err
+		}
 	}
 	if err = UpdateAbilityStatusByTag(tag, true); err != nil {
 		return err

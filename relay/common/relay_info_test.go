@@ -1,8 +1,10 @@
 package common
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -79,4 +81,31 @@ func TestGenRelayInfoClaude(t *testing.T) {
 			require.Equal(t, tt.wantBetaQuery, info.IsClaudeBetaQuery)
 		})
 	}
+}
+
+func TestCodexFingerprintSeedDoesNotLeakThroughJSONOrString(t *testing.T) {
+	seed := "11111111-1111-4111-8111-111111111111"
+	info := &RelayInfo{
+		ChannelMeta: &ChannelMeta{
+			ChannelType:          112,
+			ChannelId:            42,
+			CodexFingerprintSeed: seed,
+		},
+	}
+
+	metaJSON, err := json.Marshal(info.ChannelMeta)
+	require.NoError(t, err)
+	require.NotContains(t, string(metaJSON), "CodexFingerprintSeed")
+	require.NotContains(t, string(metaJSON), "codex_fingerprint_seed")
+	require.NotContains(t, string(metaJSON), seed)
+
+	infoJSON, err := json.Marshal(info)
+	require.NoError(t, err)
+	require.NotContains(t, string(infoJSON), "CodexFingerprintSeed")
+	require.NotContains(t, string(infoJSON), "codex_fingerprint_seed")
+	require.NotContains(t, string(infoJSON), seed)
+
+	infoString := info.ToString()
+	require.NotContains(t, infoString, seed)
+	require.False(t, strings.Contains(strings.ToLower(infoString), "fingerprint"))
 }
