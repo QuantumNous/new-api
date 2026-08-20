@@ -332,6 +332,9 @@ mock.module('./wallet-recall-offers', () => ({
   validateWalletRecallClaimAndRefresh: mock(async () => undefined),
 }))
 
+let walletTestPresetAmounts: { value: number }[]
+let walletTestTopupInfo: TopupInfo
+
 mock.module('./hooks', () => ({
   usePayment: () => ({
     checkoutDialog: null,
@@ -343,20 +346,8 @@ mock.module('./hooks', () => ({
   }),
   useTopupInfo: () => ({
     loading: false,
-    presetAmounts: [{ value: 20 }],
-    topupInfo: {
-      enable_online_topup: false,
-      enable_stripe_topup: true,
-      pay_methods: [{ name: 'Stripe', type: 'stripe', min_topup: 1 }],
-      min_topup: 1,
-      stripe_min_topup: 1,
-      amount_options: [20],
-      stripe_currency_prices: { USD: { 20: 2000 } },
-      discount: {},
-      bonus: {},
-      enable_redemption: false,
-      client_region: 'BR',
-    } satisfies TopupInfo,
+    presetAmounts: walletTestPresetAmounts,
+    topupInfo: walletTestTopupInfo,
   }),
 }))
 
@@ -420,6 +411,20 @@ beforeAll(async () => {
 })
 
 beforeEach(() => {
+  walletTestPresetAmounts = [{ value: 20 }]
+  walletTestTopupInfo = {
+    enable_online_topup: false,
+    enable_stripe_topup: true,
+    pay_methods: [{ name: 'Stripe', type: 'stripe', min_topup: 1 }],
+    min_topup: 1,
+    stripe_min_topup: 1,
+    amount_options: [20],
+    stripe_currency_prices: { USD: { 20: 2000 } },
+    discount: {},
+    bonus: {},
+    enable_redemption: false,
+    client_region: 'BR',
+  }
   window.location.href = 'http://localhost/wallet?currency=BRL'
   window.location.pathname = '/wallet'
   window.location.search = '?currency=BRL'
@@ -532,6 +537,33 @@ describe('Wallet checkout currency integration', () => {
       await flushReactWork()
 
       expect(container.textContent).toContain('$20')
+      expect(container.textContent).not.toContain(
+        'No top-up packages available'
+      )
+    } finally {
+      dispose(root)
+    }
+  })
+
+  test('falls back from a partially configured inbound checkout currency', async () => {
+    walletTestPresetAmounts = [{ value: 20 }, { value: 50 }]
+    walletTestTopupInfo = {
+      ...walletTestTopupInfo,
+      amount_options: [20, 50],
+      stripe_currency_prices: {
+        USD: { 20: 2000, 50: 5000 },
+        BRL: { 20: 9990 },
+      },
+    }
+
+    const { container, root } = renderWallet({ currency: 'BRL' })
+
+    try {
+      await flushReactWork()
+
+      expect(container.textContent).toContain('$20')
+      expect(container.textContent).toContain('$50')
+      expect(container.textContent).not.toContain('R$')
       expect(container.textContent).not.toContain(
         'No top-up packages available'
       )

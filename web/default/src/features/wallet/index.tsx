@@ -63,7 +63,6 @@ import {
   shouldConsumeWalletCheckoutSearchParams,
   shouldShowCurrencySelector,
   type StripeCheckoutCurrency,
-  type StripeCurrencyPrices,
   type WalletCheckoutSearch,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
@@ -141,19 +140,6 @@ function waitForPaddleStatusPollInterval(): Promise<void> {
   })
 }
 
-function currencyHasAnyPresetAmount(
-  prices: StripeCurrencyPrices,
-  currency: StripeCheckoutCurrency,
-  presetValues: number[]
-): boolean {
-  const currencyPrices = prices[currency]
-
-  return (
-    !!currencyPrices &&
-    presetValues.some((amount) => (currencyPrices[amount] ?? 0) > 0)
-  )
-}
-
 export function Wallet(props: WalletProps) {
   const { t, i18n } = useTranslation()
   const [recallClaim] = useState(() =>
@@ -217,35 +203,38 @@ export function Wallet(props: WalletProps) {
 
     const languageCurrency = defaultCurrencyForLanguage(resolvedLanguage)
     const stripeCurrencyPrices = topupInfo.stripe_currency_prices ?? {}
-    const currentCurrencyConfigured = currencyHasAnyPresetAmount(
+    const currentCurrencyConfigured = currencySupportsPresetAmounts(
       stripeCurrencyPrices,
       checkoutCurrency,
       presetValues
     )
-    const usdConfigured = currencyHasAnyPresetAmount(
+    const usdConfigured = currencySupportsPresetAmounts(
       stripeCurrencyPrices,
       'USD',
       presetValues
     )
+    let nextCurrency: StripeCheckoutCurrency | null = null
 
     if (!currentCurrencyConfigured && checkoutCurrency !== 'USD') {
       if (usdConfigured) {
-        setCheckoutCurrency('USD')
+        nextCurrency = 'USD'
       }
-      return
-    }
-
-    if (currencyTouchedRef.current) return
-
-    setCheckoutCurrency(
-      currencySupportsPresetAmounts(
+    } else if (!currencyTouchedRef.current) {
+      nextCurrency = currencySupportsPresetAmounts(
         stripeCurrencyPrices,
         languageCurrency,
         presetValues
       )
         ? languageCurrency
         : 'USD'
-    )
+    }
+
+    if (nextCurrency == null || nextCurrency === checkoutCurrency) return
+
+    const timeoutId = window.setTimeout(() => {
+      setCheckoutCurrency(nextCurrency)
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
   }, [
     checkoutCurrency,
     presetAmounts,
