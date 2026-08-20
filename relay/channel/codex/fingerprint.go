@@ -427,3 +427,27 @@ func applyFingerprintBodyRaw(body []byte, ids *codexFingerprintIDs) ([]byte, boo
 	}
 	return rewritten, true, nil
 }
+
+func stripCompactOriginalMetadataRaw(body []byte) ([]byte, bool, error) {
+	if len(body) == 0 {
+		return body, false, nil
+	}
+	root := gjson.ParseBytes(body)
+	if !gjson.ValidBytes(body) || !root.IsObject() {
+		return body, false, nil
+	}
+	rewritten := body
+	changed := false
+	for _, key := range []string{"client_metadata", "metadata"} {
+		if !gjson.GetBytes(rewritten, key).Exists() {
+			continue
+		}
+		var err error
+		rewritten, err = sjson.DeleteBytes(rewritten, key)
+		if err != nil {
+			return body, false, fmt.Errorf("strip compact original metadata: %w", err)
+		}
+		changed = true
+	}
+	return rewritten, changed, nil
+}

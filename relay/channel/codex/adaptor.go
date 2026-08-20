@@ -212,6 +212,31 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 			rewrittenBody = nil
 			info.UpstreamRequestBodySize = size
 			requestBody = body
+		} else if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+			if requestBody == nil {
+				return nil, errors.New("codex channel: compact pass-through request body is nil")
+			}
+			rawBody, err := io.ReadAll(requestBody)
+			if err != nil {
+				return nil, fmt.Errorf("read codex compact pass-through request body: %w", err)
+			}
+			rewrittenBody, changed, err := stripCompactOriginalMetadataRaw(rawBody)
+			if err != nil {
+				return nil, err
+			}
+			if changed {
+				body, size, closer, err := relaycommon.NewOutboundJSONBody(rewrittenBody)
+				if err != nil {
+					return nil, fmt.Errorf("store rewritten codex compact pass-through request body: %w", err)
+				}
+				defer closer.Close()
+				rewrittenBody = nil
+				info.UpstreamRequestBodySize = size
+				requestBody = body
+			} else {
+				requestBody = bytes.NewReader(rawBody)
+				info.UpstreamRequestBodySize = int64(len(rawBody))
+			}
 		}
 	}
 	resp, err := channel.DoApiRequest(a, c, info, requestBody)

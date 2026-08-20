@@ -131,6 +131,7 @@ func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo
 	}
 	if isCompact {
 		unsupported = append(unsupported, "max_tool_calls", "top_logprobs")
+		delete(body, "client_metadata")
 	}
 	for _, k := range unsupported {
 		delete(body, k)

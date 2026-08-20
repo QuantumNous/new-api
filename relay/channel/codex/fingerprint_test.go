@@ -360,7 +360,7 @@ func TestFingerprintCompactStagesHeadersWithoutBodyConvergence(t *testing.T) {
 	require.NotEmpty(t, header.Get("x-client-request-id"))
 }
 
-func TestFingerprintCompactPassThroughLeavesBodyAndHeadersUnchanged(t *testing.T) {
+func TestFingerprintCompactPassThroughDropsOriginalMetadataAndKeepsHeaders(t *testing.T) {
 	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	service.InitHttpClient()
 	var upstreamBody []byte
@@ -394,7 +394,7 @@ func TestFingerprintCompactPassThroughLeavesBodyAndHeadersUnchanged(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	_ = resp.(*http.Response).Body.Close()
-	require.JSONEq(t, rawBody, string(upstreamBody))
+	require.JSONEq(t, `{"model":"gpt-5"}`, string(upstreamBody))
 	require.NotEmpty(t, upstreamHeader.Get("x-codex-installation-id"))
 	require.NotEmpty(t, upstreamHeader.Get("session-id"))
 	require.NotEmpty(t, upstreamHeader.Get("x-client-request-id"))
