@@ -1587,24 +1587,37 @@ func TestProviderAssetBindingScopesFitModelContract(t *testing.T) {
 		GroupID:        "group-internal",
 	})
 
-	scopes := []string{}
+	scopes := []struct {
+		scope  string
+		prefix string
+	}{}
 	seedanceScope, err := assetBindingScopeForChannel(seedanceChannel, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "seedance-key"})
 	require.NoError(t, err)
-	scopes = append(scopes, seedanceScope)
+	scopes = append(scopes, struct {
+		scope  string
+		prefix string
+	}{scope: seedanceScope, prefix: seedanceProxyBindingScopePrefix})
 	tokenSpaceScope, err := assetBindingScopeForChannel(tokenSpaceChannel, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "tokenspace-key"})
 	require.NoError(t, err)
-	scopes = append(scopes, tokenSpaceScope)
+	scopes = append(scopes, struct {
+		scope  string
+		prefix string
+	}{scope: tokenSpaceScope, prefix: tokenSpaceMaterialBindingScopePrefix})
 	techMobiScope, err := assetBindingScope(constant.ChannelTypeTechMobiVideo, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: "techmobi-key"})
 	require.NoError(t, err)
-	scopes = append(scopes, techMobiScope)
+	scopes = append(scopes, struct {
+		scope  string
+		prefix string
+	}{scope: techMobiScope, prefix: "techmobi:v1:"})
 
-	for _, scope := range scopes {
-		require.LessOrEqual(t, len(scope), model.AssetBindingScopeMaxLength)
-		separator := strings.LastIndex(scope, ":")
+	for _, entry := range scopes {
+		require.True(t, strings.HasPrefix(entry.scope, entry.prefix))
+		require.LessOrEqual(t, len(entry.scope), model.AssetBindingScopeMaxLength)
+		separator := strings.LastIndex(entry.scope, ":")
 		require.Greater(t, separator, 0)
-		_, err := hex.DecodeString(scope[separator+1:])
+		_, err := hex.DecodeString(entry.scope[separator+1:])
 		require.NoError(t, err)
-		require.Len(t, scope[separator+1:], sha256.Size*2)
+		require.Len(t, entry.scope[separator+1:], sha256.Size*2)
 	}
 }
 
