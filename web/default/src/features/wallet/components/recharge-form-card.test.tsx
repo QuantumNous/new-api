@@ -325,4 +325,29 @@ describe('RechargeFormCard', () => {
     expect(html).toContain('line-through')
     expect(html).toContain('Save $2')
   })
+
+  test('calculates percent recall savings from the configured checkout price', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={{
+          ...topupInfoWithStripe,
+          stripe_price_ids: { 20: 'price_topup_10' },
+          stripe_currency_prices: { BRL: { 20: 9990 } },
+        }}
+        presetAmounts={[{ value: 20 }]}
+        selectedPreset={20}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        checkoutCurrency='BRL'
+        recallOffers={[usdPercentRecallOffer]}
+      />
+    )
+
+    expect(html).toContain('20% OFF')
+    expect(html).toContain('R$79.92')
+    expect(html).toContain('R$99.9')
+    expect(html).toContain('Save R$19.98')
+    expect(html).not.toContain('R$16')
+    expect(html).not.toContain('R$20')
+  })
 })

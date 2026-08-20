@@ -63,6 +63,7 @@ import {
   shouldConsumeWalletCheckoutSearchParams,
   shouldShowCurrencySelector,
   type StripeCheckoutCurrency,
+  type StripeCurrencyPrices,
   type WalletCheckoutSearch,
 } from './lib'
 import { openPaddleCheckoutForTransaction } from './lib/paddle-checkout'
@@ -140,6 +141,19 @@ function waitForPaddleStatusPollInterval(): Promise<void> {
   })
 }
 
+function currencyHasAnyPresetAmount(
+  prices: StripeCurrencyPrices,
+  currency: StripeCheckoutCurrency,
+  presetValues: number[]
+): boolean {
+  const currencyPrices = prices[currency]
+
+  return (
+    !!currencyPrices &&
+    presetValues.some((amount) => (currencyPrices[amount] ?? 0) > 0)
+  )
+}
+
 export function Wallet(props: WalletProps) {
   const { t, i18n } = useTranslation()
   const [recallClaim] = useState(() =>
@@ -194,7 +208,7 @@ export function Wallet(props: WalletProps) {
   // Default the Stripe settlement currency from the interface language once
   // configured prices are known. URL/manual choices stay authoritative.
   useEffect(() => {
-    if (currencyTouchedRef.current || !topupInfo || topupLoading) return
+    if (!topupInfo || topupLoading) return
 
     const presetValues = presetAmounts
       .map((preset) => preset.value)
@@ -203,6 +217,26 @@ export function Wallet(props: WalletProps) {
 
     const languageCurrency = defaultCurrencyForLanguage(resolvedLanguage)
     const stripeCurrencyPrices = topupInfo.stripe_currency_prices ?? {}
+    const currentCurrencyConfigured = currencyHasAnyPresetAmount(
+      stripeCurrencyPrices,
+      checkoutCurrency,
+      presetValues
+    )
+    const usdConfigured = currencyHasAnyPresetAmount(
+      stripeCurrencyPrices,
+      'USD',
+      presetValues
+    )
+
+    if (!currentCurrencyConfigured && checkoutCurrency !== 'USD') {
+      if (usdConfigured) {
+        setCheckoutCurrency('USD')
+      }
+      return
+    }
+
+    if (currencyTouchedRef.current) return
+
     setCheckoutCurrency(
       currencySupportsPresetAmounts(
         stripeCurrencyPrices,
@@ -212,7 +246,13 @@ export function Wallet(props: WalletProps) {
         ? languageCurrency
         : 'USD'
     )
-  }, [presetAmounts, resolvedLanguage, topupInfo, topupLoading])
+  }, [
+    checkoutCurrency,
+    presetAmounts,
+    resolvedLanguage,
+    topupInfo,
+    topupLoading,
+  ])
 
   const {
     processing,

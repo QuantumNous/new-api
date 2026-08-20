@@ -165,14 +165,14 @@ export function RechargeFormCard(props: RechargeFormCardProps) {
           const recallOffer = selectBestRecallOffer(props.recallOffers ?? [], {
             purchaseKind: 'topup',
             productId: stripePriceId,
-            amountMajor: preset.value,
+            amountMajor: displayAmount,
             currency: props.checkoutCurrency ?? 'USD',
           })
           const recallDiscount = getRecallPriceDiscount(
             recallOffer,
             stripePriceId,
             'topup',
-            preset.value,
+            displayAmount,
             checkoutCurrency
           )
           return (
