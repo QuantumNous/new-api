@@ -333,6 +333,10 @@ func TestGrokAuthPKCECompleteUnboundConcurrentRetryDoesNotExchangeTwice(t *testi
 	}()
 	<-exchangeStarted
 
+	_, err = GrokPKCEComplete(start.FlowID, "concurrent-code", "wrong-concurrent-state", "")
+	require.ErrorIs(t, err, errGrokCompletionPending, "a malformed concurrent retry must not delete the in-flight exchange")
+	require.Equal(t, int32(1), exchanges.Load())
+
 	_, err = GrokPKCEComplete(start.FlowID, "concurrent-code", start.State, "")
 	require.ErrorIs(t, err, errGrokCompletionPending)
 	require.Equal(t, int32(1), exchanges.Load(), "a pending retry must not reach the token endpoint")

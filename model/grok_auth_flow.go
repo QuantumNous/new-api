@@ -155,6 +155,24 @@ func ConsumeGrokAuthFlow(flowID, ownerToken string) error {
 	return DB.Where("flow_id = ? AND owner_token = ?", flowID, ownerToken).Delete(&GrokAuthFlow{}).Error
 }
 
+// ConsumeGrokAuthFlowBeforeExchange burns a claimed flow only while no request
+// has started using its one-time authorization code. The condition closes the
+// race where a malformed concurrent retry could delete an in-flight exchange.
+func ConsumeGrokAuthFlowBeforeExchange(flowID, ownerToken string) (bool, error) {
+	if flowID == "" || ownerToken == "" {
+		return false, errors.New("grok auth flow: empty flowID/ownerToken")
+	}
+	res := DB.Where(
+		"flow_id = ? AND owner_token = ? AND (exchange_started_at IS NULL OR exchange_started_at = 0)",
+		flowID,
+		ownerToken,
+	).Delete(&GrokAuthFlow{})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
+}
+
 // DeleteExpiredGrokAuthFlows 清掉已过期 flow（未完成的 PKCE 残留，含未认领 verifier 密文）。
 // ConsumeGrokAuthFlow 只按 owner_token 删已认领的 flow；未完成授权（owner_token=”)的 flow
 // 永不被消费，EncryptedVerifier 会超期滞留并无界增长。best-effort 机会式清理由调用方触发。

@@ -226,8 +226,15 @@ func GrokPKCEComplete(flowID, code, state, ownerToken string) (GrokPKCECompleteR
 		return GrokPKCECompleteResult{}, errors.New("grok auth: flow not found, expired or already used")
 	}
 	if subtle.ConstantTimeCompare([]byte(hashGrokState(state)), []byte(flow.StateHash)) != 1 {
-		// state 不符必须烧掉 flow：防重放（设计 §7.1）。
-		_ = model.ConsumeGrokAuthFlow(flowID, ownerToken)
+		// 未开始换码时烧掉 flow 防重放；一旦另一个请求已开始使用一次性
+		// authorization code，就不能让并发坏请求删除它。
+		consumed, err := model.ConsumeGrokAuthFlowBeforeExchange(flowID, ownerToken)
+		if err != nil {
+			return GrokPKCECompleteResult{}, err
+		}
+		if !consumed {
+			return GrokPKCECompleteResult{}, errGrokCompletionPending
+		}
 		return GrokPKCECompleteResult{}, errGrokStateMismatch
 	}
 	cipher, err := loadGrokAuthCipher()

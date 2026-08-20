@@ -124,6 +124,9 @@ func TestCompleteGrokAuthFlowIsRecoverableAndNoLongerClaimable(t *testing.T) {
 	began, err = BeginGrokAuthFlowExchange(flow.FlowID, "owner-1")
 	require.NoError(t, err)
 	require.False(t, began, "only one request may exchange the authorization code")
+	consumed, err := ConsumeGrokAuthFlowBeforeExchange(flow.FlowID, "owner-1")
+	require.NoError(t, err)
+	require.False(t, consumed, "an in-flight exchange must not be deleted by a concurrent retry")
 
 	require.NoError(t, CompleteGrokAuthFlow(flow.FlowID, "owner-1", "v1:completion"))
 	completed, found, err := GetGrokAuthFlowCompletion(flow.FlowID, "owner-1")
