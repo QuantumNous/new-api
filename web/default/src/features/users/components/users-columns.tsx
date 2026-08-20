@@ -620,6 +620,23 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: t('Last Login'), mobileHidden: true },
     },
     {
+      id: 'is_honeypot',
+      accessorFn: (user) => Boolean(user.is_honeypot),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Honeypot')} />
+      ),
+      cell: ({ row }) => {
+        const honeypot = row.getValue('is_honeypot') as boolean
+        return honeypot ? (
+          <StatusBadge label={t('Honeypot')} variant='warning' copyable={false} />
+        ) : (
+          <span className='text-muted-foreground text-sm'>-</span>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('Honeypot'), mobileHidden: true },
+    },
+    {
       id: 'actions',
       cell: ({ row }) => <DataTableRowActions row={row} />,
       meta: { label: t('Actions'), pinned: 'right' },

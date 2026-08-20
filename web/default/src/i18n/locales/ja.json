@@ -6680,6 +6680,7 @@
     "Successfully verified {{count}} user(s)": "{{count}} 人のユーザーを正常に確認しました",
     "No selected users can be verified": "確認できるユーザーが選択されていません",
     "Website": "ウェブサイト",
-    "Website (optional)": "ウェブサイト（任意）"
+    "Website (optional)": "ウェブサイト（任意）",
+    "Honeypot": "ハニーポット"
   }
 }

@@ -6680,6 +6680,7 @@
     "Successfully verified {{count}} user(s)": "Successfully verified {{count}} user(s)",
     "No selected users can be verified": "No selected users can be verified",
     "Website": "Website",
-    "Website (optional)": "Website (optional)"
+    "Website (optional)": "Website (optional)",
+    "Honeypot": "Honeypot"
   }
 }

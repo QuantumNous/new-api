@@ -6680,6 +6680,7 @@
     "Successfully verified {{count}} user(s)": "已成功验证 {{count}} 个用户的邮箱",
     "No selected users can be verified": "没有可验证邮箱的用户",
     "Website": "网站",
-    "Website (optional)": "网站（选填）"
+    "Website (optional)": "网站（选填）",
+    "Honeypot": "蜜罐"
   }
 }

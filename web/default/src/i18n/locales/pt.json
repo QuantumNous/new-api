@@ -6680,6 +6680,7 @@
     "Successfully verified {{count}} user(s)": "{{count}} usuário(s) verificado(s) com sucesso",
     "No selected users can be verified": "Nenhum usuário selecionado pode ser verificado",
     "Website": "Site",
-    "Website (optional)": "Site (opcional)"
+    "Website (optional)": "Site (opcional)",
+    "Honeypot": "Honeypot"
   }
 }

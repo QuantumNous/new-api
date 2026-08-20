@@ -6680,6 +6680,7 @@
     "Successfully verified {{count}} user(s)": "Đã xác minh thành công {{count}} người dùng",
     "No selected users can be verified": "Không có người dùng đã chọn nào có thể xác minh",
     "Website": "Trang web",
-    "Website (optional)": "Trang web (tùy chọn)"
+    "Website (optional)": "Trang web (tùy chọn)",
+    "Honeypot": "Honeypot"
   }
 }

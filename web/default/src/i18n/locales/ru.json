@@ -6680,6 +6680,7 @@
     "Successfully verified {{count}} user(s)": "Успешно подтверждено {{count}} пользователей",
     "No selected users can be verified": "Нет выбранных пользователей для подтверждения",
     "Website": "Веб-сайт",
-    "Website (optional)": "Веб-сайт (необязательно)"
+    "Website (optional)": "Веб-сайт (необязательно)",
+    "Honeypot": "Приманка"
   }
 }

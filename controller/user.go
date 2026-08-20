@@ -398,9 +398,11 @@ func Register(c *gin.Context) {
 		EmailVerifiedAt: user.EmailVerifiedAt,
 	}
 	// Honeypot accounts: the registration completes (so the bot sees success),
-	// but the account is created already disabled and can never be used.
+	// but the account is created already disabled and can never be used. The
+	// flag lets admins spot honeypot-created accounts in the users table.
 	if honeypotTriggered {
 		cleanUser.Status = common.UserStatusDisabled
+		cleanUser.IsHoneypot = true
 	}
 	if language, ok := dto.NormalizeUserLanguagePreference(i18n.GetLangFromContext(c)); ok {
 		cleanUser.SetSetting(dto.UserSetting{Language: language})

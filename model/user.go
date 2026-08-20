@@ -86,6 +86,10 @@ type User struct {
 	// it; a non-empty value marks the request as a bot and Register silently
 	// drops it. Never persisted.
 	Website string `json:"website,omitempty" gorm:"-"`
+	// IsHoneypot marks accounts created by a honeypot (hidden field) submission.
+	// Such accounts are created already disabled; the flag lets admins
+	// distinguish them from manually-disabled accounts in the users table.
+	IsHoneypot bool `json:"is_honeypot" gorm:"default:false;column:is_honeypot"`
 	StripeCardFingerprint   string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
 	CreatedAt               int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt             int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`

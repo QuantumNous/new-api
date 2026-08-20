@@ -310,6 +310,7 @@ func TestRegisterHoneypotCreatesDisabledAccount(t *testing.T) {
 	var user model.User
 	require.NoError(t, db.Where("username = ?", "honeypot-bot").First(&user).Error, "honeypot user is created")
 	require.Equal(t, common.UserStatusDisabled, user.Status, "honeypot user must be created disabled")
+	require.True(t, user.IsHoneypot, "honeypot user must carry the is_honeypot flag")
 }
 
 func TestRegisterWithoutHoneypotStillCreatesUser(t *testing.T) {
