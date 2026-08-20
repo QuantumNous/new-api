@@ -17,9 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
-import { after, describe, test, type TestContext } from 'node:test'
 
 import { Window } from 'happy-dom'
+import { afterAll, describe, test, type TestContext } from 'vitest'
 
 const domWindow = new Window()
 const domGlobals = [
@@ -80,6 +80,7 @@ const baseProps = {
   userUsableGroups: '{"default":"Default group"}',
   groupGroupRatio: '{}',
   autoGroups: '[]',
+  maxTokenAutoGroupsField: null,
   groupSpecialUsableGroup: '{}',
   onIdentifierValidityChange: () => undefined,
   onChange: () => undefined,
@@ -96,7 +97,7 @@ function setInputValue(input: HTMLInputElement, value: string) {
 }
 
 describe('group identifier presentation', () => {
-  after(() => {
+  afterAll(() => {
     domWindow.close()
   })
 
@@ -104,7 +105,7 @@ describe('group identifier presentation', () => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    testContext.after(async (): Promise<void> => {
+    testContext.onTestFinished(async (): Promise<void> => {
       try {
         await act(async () => root.unmount())
       } finally {
@@ -152,7 +153,7 @@ describe('group identifier presentation', () => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    testContext.after(async (): Promise<void> => {
+    testContext.onTestFinished(async (): Promise<void> => {
       try {
         await act(async () => root.unmount())
       } finally {
@@ -170,6 +171,7 @@ describe('group identifier presentation', () => {
         userUsableGroups: '{"vip":"VIP users"}',
         groupGroupRatio: '{}',
         autoGroups: '[]',
+        maxTokenAutoGroupsField: null,
         groupSpecialUsableGroup: '{}',
       })
 
@@ -243,7 +245,7 @@ describe('group identifier presentation', () => {
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
-    testContext.after(async (): Promise<void> => {
+    testContext.onTestFinished(async (): Promise<void> => {
       try {
         await act(async () => root.unmount())
       } finally {
@@ -260,6 +262,7 @@ describe('group identifier presentation', () => {
           UserUsableGroups: '{"default":"Default group"}',
           GroupGroupRatio: '{}',
           AutoGroups: '[]',
+          MaxTokenAutoGroups: 5,
           DefaultUseAutoGroup: false,
           GroupSpecialUsableGroup: '{}',
         },
@@ -297,5 +300,6 @@ describe('group identifier presentation', () => {
     for (const fieldName of editableFields) {
       assert.ok(container.querySelector(`textarea[name="${fieldName}"]`))
     }
+    assert.ok(container.querySelector('input[name="MaxTokenAutoGroups"]'))
   })
 })

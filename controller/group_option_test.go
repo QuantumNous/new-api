@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -26,6 +27,7 @@ func validGroupOptionsUpdateRequest() GroupOptionsUpdateRequest {
 		UserUsableGroups:        `{"codex1":"For Codex users"}`,
 		GroupGroupRatio:         `{}`,
 		AutoGroups:              `[]`,
+		MaxTokenAutoGroups:      5,
 		DefaultUseAutoGroup:     false,
 		GroupSpecialUsableGroup: `{}`,
 		ChangedKeys:             []string{"GroupRatio"},
@@ -46,6 +48,7 @@ func setupGroupOptionsUpdateTest(t *testing.T) *gorm.DB {
 	previousRedisEnabled := common.RedisEnabled
 	previousGroupRatio := ratio_setting.GroupRatio2JSONString()
 	previousAutoGroups := setting.AutoGroups2JsonString()
+	previousMaxTokenAutoGroups := setting.GetMaxTokenAutoGroups()
 	previousDisplayNames := setting.GroupDisplayNames2JSONString()
 	common.OptionMapRWMutex.RLock()
 	previousOptionMap := make(map[string]string, len(common.OptionMap))
@@ -59,6 +62,7 @@ func setupGroupOptionsUpdateTest(t *testing.T) *gorm.DB {
 		common.RedisEnabled = previousRedisEnabled
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousGroupRatio))
 		require.NoError(t, setting.UpdateAutoGroupsByJsonString(previousAutoGroups))
+		require.NoError(t, setting.UpdateMaxTokenAutoGroups(strconv.Itoa(previousMaxTokenAutoGroups)))
 		require.NoError(t, setting.UpdateGroupDisplayNamesByJSONString(previousDisplayNames))
 		common.OptionMapRWMutex.Lock()
 		common.OptionMap = previousOptionMap
@@ -142,6 +146,22 @@ func TestUpdateGroupOptionsPersistsOnlyChangedFields(t *testing.T) {
 	assert.JSONEq(t, `["server"]`, persistedAutoGroups.Value)
 	assert.JSONEq(t, `{"client":2}`, ratio_setting.GroupRatio2JSONString())
 	assert.JSONEq(t, `["server"]`, setting.AutoGroups2JsonString())
+}
+
+func TestUpdateGroupOptionsPersistsMaxTokenAutoGroups(t *testing.T) {
+	db := setupGroupOptionsUpdateTest(t)
+	request := validGroupOptionsUpdateRequest()
+	request.MaxTokenAutoGroups = 7
+	request.ChangedKeys = []string{"MaxTokenAutoGroups"}
+
+	recorder, response := performGroupOptionsUpdate(t, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.True(t, response.Success, response.Message)
+	var persisted model.Option
+	require.NoError(t, db.First(&persisted, "key = ?", "MaxTokenAutoGroups").Error)
+	assert.Equal(t, "7", persisted.Value)
+	assert.Equal(t, 7, setting.GetMaxTokenAutoGroups())
 }
 
 func TestUpdateGroupOptionsDisplayNameEditKeepsIdentifierAndTokenBinding(t *testing.T) {

@@ -25,6 +25,7 @@ import type {
   GetApiKeysResponse,
   SearchApiKeysParams,
   ApiKeyFormData,
+  TokenAutoGroupsConfig,
 } from './types'
 
 // ============================================================================
@@ -57,6 +58,14 @@ export async function searchApiKeys(
 // Get single API key by ID
 export async function getApiKey(id: number): Promise<ApiResponse<ApiKey>> {
   const res = await api.get(`/api/token/${id}`)
+  return res.data
+}
+
+// Get the current user's global Auto order and the per-token selection limit.
+export async function getTokenAutoGroups(): Promise<
+  ApiResponse<TokenAutoGroupsConfig>
+> {
+  const res = await api.get('/api/token/auto-groups')
   return res.data
 }
 

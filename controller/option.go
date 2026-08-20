@@ -38,6 +38,7 @@ type GroupOptionsUpdateRequest struct {
 	UserUsableGroups        string   `json:"UserUsableGroups"`
 	GroupGroupRatio         string   `json:"GroupGroupRatio"`
 	AutoGroups              string   `json:"AutoGroups"`
+	MaxTokenAutoGroups      int      `json:"MaxTokenAutoGroups"`
 	DefaultUseAutoGroup     bool     `json:"DefaultUseAutoGroup"`
 	GroupSpecialUsableGroup string   `json:"GroupSpecialUsableGroup"`
 	ChangedKeys             []string `json:"changedKeys"`
@@ -49,6 +50,9 @@ func validateGroupOptionsUpdate(request GroupOptionsUpdateRequest) error {
 		return err
 	}
 	if err := setting.ValidateGroupDisplayNamesJSONString(request.GroupDisplayNames); err != nil {
+		return err
+	}
+	if err := setting.ValidateMaxTokenAutoGroups(strconv.Itoa(request.MaxTokenAutoGroups)); err != nil {
 		return err
 	}
 
@@ -127,6 +131,8 @@ func buildChangedGroupOptionValues(request GroupOptionsUpdateRequest) (map[strin
 			storageKey, value = key, request.GroupGroupRatio
 		case "AutoGroups":
 			storageKey, value = key, request.AutoGroups
+		case "MaxTokenAutoGroups":
+			storageKey, value = key, strconv.Itoa(request.MaxTokenAutoGroups)
 		case "DefaultUseAutoGroup":
 			storageKey, value = key, strconv.FormatBool(request.DefaultUseAutoGroup)
 		case "GroupSpecialUsableGroup":

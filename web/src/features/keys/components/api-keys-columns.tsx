@@ -20,8 +20,6 @@ import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
-import { BadgeCell, TruncatedCell } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
@@ -30,6 +28,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useMediaQuery } from '@/hooks'
 import { toIntlLocale } from '@/i18n/languages'
 import { getUserGroups } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
@@ -39,6 +38,7 @@ import { cn } from '@/lib/utils'
 
 import { API_KEY_STATUSES } from '../constants'
 import type { ApiKey } from '../types'
+import { ApiKeyGroupCell } from './api-key-group-cell'
 import { ApiKeyTimestampCell } from './api-key-timestamp-cell'
 import {
   ApiKeyCell,
@@ -81,6 +81,7 @@ function useGroupMetadata(): GroupMetadata {
 export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
   const groupMetadata = useGroupMetadata()
+  const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const justNowLabel = t('Just now')
   const staleAccessThreshold = dayjs(now).subtract(3, 'month').valueOf()
@@ -201,49 +202,17 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         const apiKey = row.original
         const group = row.getValue('group') as string
         const metadata = group ? groupMetadata[group] : undefined
-        const ratio =
-          typeof metadata?.ratio === 'number' ? metadata.ratio : undefined
-
-        if (group === 'auto') {
-          return (
-            <Tooltip>
-              <TooltipTrigger
-                render={<BadgeCell className='gap-1.5 text-xs' />}
-              >
-                <GroupBadge group='auto' />
-                {apiKey.cross_group_retry && (
-                  <StatusBadge
-                    label={t('Cross-group')}
-                    variant='info'
-                    copyable={false}
-                  />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>
-                <span className='text-xs'>
-                  {t(
-                    'Automatically selects the best available group with circuit breaker mechanism'
-                  )}
-                </span>
-              </TooltipContent>
-            </Tooltip>
-          )
-        }
         return (
-          <TruncatedCell
-            className='-ml-1.5'
-            tooltipContent={
-              metadata?.label && metadata.label !== group
-                ? `${metadata.label} (${group})`
-                : group || '-'
-            }
-            tooltipClassName='break-all'
-          >
-            <GroupBadge group={group} label={metadata?.label} ratio={ratio} />
-          </TruncatedCell>
+          <ApiKeyGroupCell
+            group={group}
+            label={metadata?.label}
+            ratio={metadata?.ratio}
+            crossGroupRetry={apiKey.cross_group_retry}
+            shouldReduceMotion={shouldReduceMotion}
+          />
         )
       },
-      size: 160,
+      size: 220,
       meta: { mobileHidden: true },
     },
     {
