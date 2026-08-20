@@ -57,7 +57,8 @@ import {
   getPaddleCheckoutUrlFallback,
   getWalletCheckoutInitialTopupAmount,
   isPresetTopupAmount,
-  defaultCurrencyForRegion,
+  currencySupportsPresetAmounts,
+  defaultCurrencyForLanguage,
   normalizeStripeCheckoutCurrency,
   shouldConsumeWalletCheckoutSearchParams,
   shouldShowCurrencySelector,
@@ -140,7 +141,7 @@ function waitForPaddleStatusPollInterval(): Promise<void> {
 }
 
 export function Wallet(props: WalletProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [recallClaim] = useState(() =>
     normalizeRecallClaim(props.initialRecallClaim)
   )
@@ -188,12 +189,30 @@ export function Wallet(props: WalletProps) {
   const [cardBoundDialogOpen, setCardBoundDialogOpen] = useState(false)
 
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
-  // default the settlement currency by caller region (IN→INR, BR→BRL, JP→JPY)
-  // unless the URL or the user already picked one
+  const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+
+  // Default the Stripe settlement currency from the interface language once
+  // configured prices are known. URL/manual choices stay authoritative.
   useEffect(() => {
-    if (currencyTouchedRef.current || !topupInfo?.client_region) return
-    setCheckoutCurrency(defaultCurrencyForRegion(topupInfo.client_region))
-  }, [topupInfo?.client_region])
+    if (currencyTouchedRef.current || !topupInfo || topupLoading) return
+
+    const presetValues = presetAmounts
+      .map((preset) => preset.value)
+      .filter((value) => Number.isFinite(value) && value > 0)
+    if (presetValues.length === 0) return
+
+    const languageCurrency = defaultCurrencyForLanguage(resolvedLanguage)
+    const stripeCurrencyPrices = topupInfo.stripe_currency_prices ?? {}
+    setCheckoutCurrency(
+      currencySupportsPresetAmounts(
+        stripeCurrencyPrices,
+        languageCurrency,
+        presetValues
+      )
+        ? languageCurrency
+        : 'USD'
+    )
+  }, [presetAmounts, resolvedLanguage, topupInfo, topupLoading])
 
   const {
     processing,
