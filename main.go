@@ -339,6 +339,8 @@ func InitResources() error {
 	if err != nil {
 		return err
 	}
+	intelligentrouting.DefaultSharedRuntime.Configure(common.RedisEnabled && common.RDB != nil)
+	intelligentrouting.DefaultSharedRuntime.SetHealthy(common.RedisEnabled && common.RDB != nil)
 	if err := intelligentrouting.DefaultPolicyControl.RefreshSnapshot(context.Background()); err != nil {
 		common.SysError("failed to load intelligent routing policy snapshot: " + err.Error())
 	}

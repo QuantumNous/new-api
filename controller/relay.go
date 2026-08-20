@@ -165,6 +165,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			UserGroup:  relayInfo.UserGroup,
 			TokenGroup: relayInfo.TokenGroup,
 		})
+		if decision.Mode == model.IntelligentRoutingModeLive && !intelligentrouting.DefaultSharedRuntime.Ready() {
+			decision.Selected = false
+		}
 		routingConfig = runtimeSnapshot.Config
 		routingConfig.Enabled = decision.Selected
 		routingConfig.ShadowOnly = decision.Mode == model.IntelligentRoutingModeShadow
