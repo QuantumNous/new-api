@@ -381,7 +381,11 @@ func rewriteSeedanceAssetReferences(seedReq *dto.SeedanceVideoRequest, rewriteMa
 	}
 	for index := range seedReq.Content {
 		item := &seedReq.Content[index]
-		for _, media := range []*dto.SeedanceURLObject{item.ImageURL, item.VideoURL} {
+		for _, media := range []*dto.SeedanceURLObject{
+			item.ImageURL,
+			item.VideoURL,
+			item.AudioURL,
+		} {
 			if media == nil {
 				continue
 			}
