@@ -45,7 +45,7 @@ func TestDoResponsePollsPendingPrediction(t *testing.T) {
 		},
 	}
 	resp := &http.Response{
-		StatusCode: http.StatusCreated,
+		StatusCode: http.StatusAccepted,
 		Body: io.NopCloser(bytes.NewBufferString(
 			`{"id":"prediction-1","status":"processing","output":["https://example.com/partial.png"],"error":null}`,
 		)),
