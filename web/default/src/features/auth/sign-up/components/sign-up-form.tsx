@@ -126,6 +126,7 @@ export function SignUpForm({
       email: '',
       password: '',
       confirmPassword: '',
+      website: '',
     },
   })
 
@@ -302,6 +303,7 @@ export function SignUpForm({
         aff_code: getAffiliateCode(),
         ads_attribution: adsAttribution || undefined,
         turnstile: turnstileToken,
+        website: data.website || undefined,
       })
 
       if (res?.success) {
@@ -419,6 +421,35 @@ export function SignUpForm({
             className='pt-2'
           />
         )}
+
+        {/* Honeypot: invisible to humans but bots auto-fill this "website"
+            field. Positioned off-screen with plain CSS (not display:none) so
+            bot heuristics that skip hidden inputs still trip it. The server
+            silently drops any submission carrying a value. */}
+        <FormField
+          control={form.control}
+          name='website'
+          render={({ field }) => (
+            <FormItem
+              className='pointer-events-none absolute -left-[9999px] top-auto h-px w-px opacity-0'
+              aria-hidden='true'
+            >
+              <FormLabel className='sr-only'>
+                {t('Website (optional)')}
+              </FormLabel>
+              <FormControl>
+                <Input
+                  {...field}
+                  type='text'
+                  tabIndex={-1}
+                  autoComplete='off'
+                  placeholder={t('Website')}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         {/* Username Field */}
         <FormField

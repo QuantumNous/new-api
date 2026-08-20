@@ -6678,6 +6678,8 @@
     "Verify Selected Users?": "Verify Selected Users?",
     "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.",
     "Successfully verified {{count}} user(s)": "Successfully verified {{count}} user(s)",
-    "No selected users can be verified": "No selected users can be verified"
+    "No selected users can be verified": "No selected users can be verified",
+    "Website": "Website",
+    "Website (optional)": "Website (optional)"
   }
 }

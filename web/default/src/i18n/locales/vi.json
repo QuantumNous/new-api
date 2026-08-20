@@ -6678,6 +6678,8 @@
     "Verify Selected Users?": "Xác minh người dùng đã chọn?",
     "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "Sẽ phê duyệt xác minh email cho {{count}} người dùng đã chọn. Người dùng đã xóa sẽ bị bỏ qua.",
     "Successfully verified {{count}} user(s)": "Đã xác minh thành công {{count}} người dùng",
-    "No selected users can be verified": "Không có người dùng đã chọn nào có thể xác minh"
+    "No selected users can be verified": "Không có người dùng đã chọn nào có thể xác minh",
+    "Website": "Trang web",
+    "Website (optional)": "Trang web (tùy chọn)"
   }
 }

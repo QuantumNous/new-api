@@ -42,6 +42,9 @@ export interface RegisterPayload {
   ga_client_id?: string
   ga_session_id?: string
   turnstile?: string
+  // Honeypot: hidden from humans, bots auto-fill it. Server silently drops
+  // registrations that carry a value.
+  website?: string
 }
 
 export interface PasswordResetPayload {

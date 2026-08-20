@@ -6678,6 +6678,8 @@
     "Verify Selected Users?": "選択したユーザーを確認しますか？",
     "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "選択した {{count}} 人のユーザーのメール確認を承認します。削除済みユーザーはスキップされます。",
     "Successfully verified {{count}} user(s)": "{{count}} 人のユーザーを正常に確認しました",
-    "No selected users can be verified": "確認できるユーザーが選択されていません"
+    "No selected users can be verified": "確認できるユーザーが選択されていません",
+    "Website": "ウェブサイト",
+    "Website (optional)": "ウェブサイト（任意）"
   }
 }

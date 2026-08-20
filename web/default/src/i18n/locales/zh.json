@@ -6678,6 +6678,8 @@
     "Verify Selected Users?": "验证所选用户的邮箱？",
     "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "将为所选 {{count}} 个用户通过邮箱验证，已删除用户会被跳过。",
     "Successfully verified {{count}} user(s)": "已成功验证 {{count}} 个用户的邮箱",
-    "No selected users can be verified": "没有可验证邮箱的用户"
+    "No selected users can be verified": "没有可验证邮箱的用户",
+    "Website": "网站",
+    "Website (optional)": "网站（选填）"
   }
 }

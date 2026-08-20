@@ -6678,6 +6678,8 @@
     "Verify Selected Users?": "Подтвердить выбранных пользователей?",
     "This will pass email verification for {{count}} selected user(s). Deleted users will be skipped.": "Будет подтверждена почта для {{count}} выбранных пользователей. Удалённые пользователи будут пропущены.",
     "Successfully verified {{count}} user(s)": "Успешно подтверждено {{count}} пользователей",
-    "No selected users can be verified": "Нет выбранных пользователей для подтверждения"
+    "No selected users can be verified": "Нет выбранных пользователей для подтверждения",
+    "Website": "Веб-сайт",
+    "Website (optional)": "Веб-сайт (необязательно)"
   }
 }

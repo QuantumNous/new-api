@@ -284,3 +284,55 @@ func TestLegacyOAuthEmailLessRegistrationDoesNotCount(t *testing.T) {
 	require.NoError(t, db.Model(&model.RegistrationDomainState{}).Count(&states).Error)
 	require.Zero(t, states)
 }
+
+func TestRegisterHoneypotCreatesDisabledAccount(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	configureRegistrationEndpointTest(t)
+	withRegistrationSecurityConfig(t, map[string]string{})
+
+	body, err := common.Marshal(map[string]any{
+		"username": "honeypot-bot",
+		"password": "password123",
+		"website":  "http://spam.example.com",
+	})
+	require.NoError(t, err)
+	recorder := performRegisterRequest(t, body)
+
+	// The bot sees a fully successful registration (no trap revealed)...
+	var payload struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success, "honeypot registration must look successful to the bot")
+
+	// ...but the account is created already disabled, so the bot cannot log in.
+	var user model.User
+	require.NoError(t, db.Where("username = ?", "honeypot-bot").First(&user).Error, "honeypot user is created")
+	require.Equal(t, common.UserStatusDisabled, user.Status, "honeypot user must be created disabled")
+}
+
+func TestRegisterWithoutHoneypotStillCreatesUser(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	configureRegistrationEndpointTest(t)
+	withRegistrationSecurityConfig(t, map[string]string{
+		"registration_security.domain_risk_enabled": "false",
+	})
+
+	body, err := common.Marshal(map[string]any{
+		"username": "normal-human",
+		"password": "password123",
+	})
+	require.NoError(t, err)
+	recorder := performRegisterRequest(t, body)
+
+	var payload struct {
+		Success bool `json:"success"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success)
+
+	var count int64
+	require.NoError(t, db.Model(&model.User{}).Where("username = ?", "normal-human").Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}

@@ -81,6 +81,11 @@ type User struct {
 	// When non-nil it overrides EmailVerifiedAt (true → now, false → 0); when
 	// nil the existing value is left untouched. Never persisted.
 	SetEmailVerified *bool `json:"set_email_verified,omitempty" gorm:"-"`
+	// Website is a honeypot field (JSON key disguised as a common form field).
+	// The hidden registration input is invisible to humans but bots auto-fill
+	// it; a non-empty value marks the request as a bot and Register silently
+	// drops it. Never persisted.
+	Website string `json:"website,omitempty" gorm:"-"`
 	StripeCardFingerprint   string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
 	CreatedAt               int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 	LastLoginAt             int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
