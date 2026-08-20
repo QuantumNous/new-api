@@ -91,6 +91,27 @@ func buildChannelListQuery(group string, statusFilter int, typeFilter int) *gorm
 	return query
 }
 
+// scopedChannelGroupQuery 在 base 查询上叠加渠道可见性约束。
+// 超级管理员/匿名不受限（尊重 requestedGroup 的既有行为，直接返回 base）；
+// 受限用户：requestedGroup 为空时按其全部可见分组 OR 过滤；
+// requestedGroup 非空且越界时返回 ok=false（调用方应返回空结果）。
+func scopedChannelGroupQuery(base *gorm.DB, role int, userGroup, requestedGroup string) (*gorm.DB, bool) {
+	visible, unrestricted := service.GetUserVisibleGroups(role, userGroup)
+	if unrestricted {
+		return base, true
+	}
+	requestedGroup = model.NormalizeChannelGroupFilter(requestedGroup)
+	if requestedGroup != "" {
+		for _, g := range visible {
+			if g == requestedGroup {
+				return model.ApplyChannelGroupFilter(base, requestedGroup), true
+			}
+		}
+		return base, false
+	}
+	return model.ApplyChannelGroupFilterAny(base, visible), true
+}
+
 func GetChannelOps(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"retry_times": common.RetryTimes,
@@ -116,16 +137,31 @@ func GetAllChannels(c *gin.Context) {
 		}
 	}
 
+	role := c.GetInt("role")
+	userGroup := c.GetString("group")
+	if _, ok := scopedChannelGroupQuery(model.DB.Model(&model.Channel{}), role, userGroup, groupFilter); !ok {
+		common.ApiSuccess(c, gin.H{
+			"items": make([]*model.Channel, 0), "total": 0,
+			"page": pageInfo.GetPage(), "page_size": pageInfo.GetPageSize(),
+			"type_counts": map[int64]int64{},
+		})
+		return
+	}
+	scoped := func(statusFilter, typeFilter int) *gorm.DB {
+		q, _ := scopedChannelGroupQuery(buildChannelListQuery(groupFilter, statusFilter, typeFilter), role, userGroup, groupFilter)
+		return q
+	}
+
 	var total int64
 
 	if enableTagMode {
-		tags, err := model.GetPaginatedChannelTags(buildChannelListQuery(groupFilter, statusFilter, typeFilter), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		tags, err := model.GetPaginatedChannelTags(scoped(statusFilter, typeFilter), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 		if err != nil {
 			common.SysError("failed to get paginated tags: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取标签失败，请稍后重试"})
 			return
 		}
-		total, err = model.CountChannelTags(buildChannelListQuery(groupFilter, statusFilter, typeFilter))
+		total, err = model.CountChannelTags(scoped(statusFilter, typeFilter))
 		if err != nil {
 			common.SysError("failed to count tags: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取标签数量失败，请稍后重试"})
@@ -136,7 +172,7 @@ func GetAllChannels(c *gin.Context) {
 				continue
 			}
 			var tagChannels []*model.Channel
-			err := sortOptions.Apply(buildChannelListQuery(groupFilter, statusFilter, typeFilter).Where("tag = ?", *tag)).
+			err := sortOptions.Apply(scoped(statusFilter, typeFilter).Where("tag = ?", *tag)).
 				Omit("key").
 				Find(&tagChannels).Error
 			if err != nil {
@@ -147,13 +183,13 @@ func GetAllChannels(c *gin.Context) {
 			channelData = append(channelData, tagChannels...)
 		}
 	} else {
-		if err := buildChannelListQuery(groupFilter, statusFilter, typeFilter).Count(&total).Error; err != nil {
+		if err := scoped(statusFilter, typeFilter).Count(&total).Error; err != nil {
 			common.SysError("failed to count channels: " + err.Error())
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道数量失败，请稍后重试"})
 			return
 		}
 
-		err := sortOptions.Apply(buildChannelListQuery(groupFilter, statusFilter, typeFilter)).
+		err := sortOptions.Apply(scoped(statusFilter, typeFilter)).
 			Limit(pageInfo.GetPageSize()).
 			Offset(pageInfo.GetStartIdx()).
 			Omit("key").
@@ -169,7 +205,7 @@ func GetAllChannels(c *gin.Context) {
 		clearChannelInfo(datum)
 	}
 
-	countQuery := buildChannelListQuery(groupFilter, statusFilter, -1)
+	countQuery := scoped(statusFilter, -1)
 	var results []struct {
 		Type  int64
 		Count int64
