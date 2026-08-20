@@ -93,7 +93,7 @@ const { dispatch } = useEChart(
     series: [
       {
         type: 'pie',
-        radius: ['58%', '80%'],
+        radius: ['60%', '82%'],
         center: ['50%', '50%'],
         avoidLabelOverlap: true,
         itemStyle: {
@@ -103,11 +103,11 @@ const { dispatch } = useEChart(
         },
         label: { show: false },
         emphasis: {
-          scaleSize: 6,
+          scaleSize: 5,
           itemStyle: {
-            shadowBlur: p.isDark ? 10 : 6,
+            shadowBlur: p.isDark ? 12 : 6,
             shadowColor: p.isDark
-              ? 'rgba(0, 4, 16, 0.55)'
+              ? 'rgba(0, 4, 16, 0.65)'
               : 'rgba(56, 55, 43, 0.16)',
           },
         },
@@ -118,10 +118,10 @@ const { dispatch } = useEChart(
       {
         type: 'text',
         left: 'center',
-        top: '43%',
+        top: '42%',
         style: {
           text: String(props.items.length),
-          fontSize: 24,
+          fontSize: 26,
           fontWeight: 700,
           fontFamily: 'Ren2JetBrainsMono, monospace',
           fill: p.textPrimary,
@@ -134,7 +134,7 @@ const { dispatch } = useEChart(
         top: '56%',
         style: {
           text: t('dashboard.modelDist.modelsUsed'),
-          fontSize: 10,
+          fontSize: 11,
           fill: p.textTertiary,
           textAlign: 'center',
         },
@@ -217,20 +217,22 @@ function highlight(rowIndex: number, on: boolean) {
       >
         <table class="w-full min-w-[560px] border-collapse text-sm">
           <colgroup>
-            <col class="w-[180px]" />
-            <col class="w-[72px]" />
-            <col class="w-[84px]" />
-            <col class="w-[150px]" />
-            <col class="w-[82px]" />
+            <col class="w-[34%]" />
+            <col class="w-[13%]" />
+            <col class="w-[15%]" />
+            <col class="w-[22%]" />
+            <col class="w-[16%]" />
           </colgroup>
           <!--
             Sticky lives on the cells, not on thead: with border-collapse the
             rows scroll through a sticky thead's background instead of behind it.
           -->
           <thead>
-            <tr class="text-xs text-[var(--text-tertiary)]">
+            <tr
+              class="border-b border-[var(--border-subtle)] text-[11px] tracking-wider text-[var(--text-tertiary)]"
+            >
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-left font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-3 py-2.5 text-left font-semibold"
               >
                 {{ t('dashboard.modelDist.model') }}
               </th>
@@ -245,12 +247,12 @@ function highlight(rowIndex: number, on: boolean) {
                 {{ t('dashboard.modelDist.tokens') }}
               </th>
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-3 py-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.share') }}
               </th>
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-3 py-2.5 text-right font-semibold"
               >
                 {{ t('dashboard.modelDist.spend') }}
               </th>
@@ -260,40 +262,41 @@ function highlight(rowIndex: number, on: boolean) {
             <tr
               v-for="(m, i) in ranked"
               :key="m.model"
-              class="border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-hover)]"
+              class="group border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-hover)]"
               @mouseenter="highlight(i, true)"
               @mouseleave="highlight(i, false)"
             >
-              <td class="px-2.5 py-2">
-                <span class="flex min-w-0 items-center gap-2">
+              <td class="px-3 py-2.5">
+                <span class="flex min-w-0 items-center gap-2.5">
                   <span
-                    class="h-2.5 w-2.5 shrink-0 rounded-full shadow-sm"
+                    class="h-2 w-2 shrink-0 rounded-full ring-2 ring-[var(--surface-solid)] shadow-sm transition-transform group-hover:scale-125"
                     :style="{ background: swatchColor(i) }"
                   />
                   <span
-                    class="max-w-[160px] truncate font-medium text-[var(--text-primary)]"
+                    class="max-w-[170px] truncate font-mono text-xs font-medium text-[var(--text-primary)]"
+                    :title="m.model"
                   >
                     {{ m.model }}
                   </span>
                 </span>
               </td>
               <td
-                class="px-2.5 py-2 text-right tabular-nums text-[var(--text-secondary)]"
+                class="px-2.5 py-2.5 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)]"
               >
                 {{ formatNumber(m.requests) }}
               </td>
               <td
-                class="px-2.5 py-2 text-right tabular-nums text-[var(--text-secondary)]"
+                class="px-2.5 py-2.5 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)]"
               >
                 {{ formatCompact(m.tokens) }}
               </td>
-              <td class="px-2.5 py-2 text-right">
+              <td class="px-3 py-2.5 text-right">
                 <div class="flex items-center justify-end gap-2">
                   <div
-                    class="pencil-progress h-1.5 w-14 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                    class="pencil-progress h-1.5 w-16 overflow-hidden rounded-full bg-[var(--surface-muted)]"
                   >
                     <div
-                      class="h-full rounded-full transition-all"
+                      class="h-full rounded-full transition-all duration-300"
                       :style="{
                         width: `${modelShareRatio(m.quota)}%`,
                         background: swatchColor(i),
@@ -301,15 +304,14 @@ function highlight(rowIndex: number, on: boolean) {
                     />
                   </div>
                   <span
-                    class="w-11 shrink-0 text-right text-xs tabular-nums text-[var(--text-tertiary)]"
+                    class="w-11 shrink-0 text-right font-mono text-xs tabular-nums text-[var(--text-tertiary)]"
                   >
                     {{ modelSharePercent(m.quota) }}%
                   </span>
                 </div>
               </td>
               <td
-                class="px-2.5 py-2 text-right font-semibold tabular-nums"
-                :style="{ color: 'var(--text-primary)' }"
+                class="px-3 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-[var(--text-primary)] dark:text-[var(--accent-text)]"
               >
                 {{ formatQuota(m.quota) }}
               </td>

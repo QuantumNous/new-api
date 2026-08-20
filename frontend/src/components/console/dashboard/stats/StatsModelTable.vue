@@ -53,29 +53,31 @@ const colors = SERIES_TOKENS
           rows scroll through a sticky thead's background instead of behind it.
         -->
         <thead>
-          <tr class="text-xs text-[var(--text-tertiary)]">
+          <tr
+            class="border-b border-[var(--border-subtle)] text-[11px] tracking-wider text-[var(--text-tertiary)]"
+          >
             <th
-              class="sticky top-0 z-10 bg-[var(--surface-solid)] pb-2 text-left font-medium"
+              class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-solid)] px-3 py-2.5 text-left font-semibold"
             >
               {{ t('dashboard.stats.model') }}
             </th>
             <th
-              class="sticky top-0 z-10 bg-[var(--surface-solid)] pb-2 text-right font-medium"
+              class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-solid)] px-2.5 py-2.5 text-right font-semibold"
             >
               {{ t('dashboard.stats.tokens') }}
             </th>
             <th
-              class="sticky top-0 z-10 bg-[var(--surface-solid)] pb-2 text-right font-medium"
+              class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-solid)] px-3 py-2.5 text-right font-semibold"
             >
               {{ t('dashboard.stats.spend') }}
             </th>
             <th
-              class="sticky top-0 z-10 bg-[var(--surface-solid)] pb-2 text-right font-medium"
+              class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-solid)] px-2.5 py-2.5 text-right font-semibold"
             >
               {{ t('dashboard.stats.requests') }}
             </th>
             <th
-              class="sticky top-0 z-10 bg-[var(--surface-solid)] pb-2 pr-0 text-right font-medium"
+              class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-solid)] px-3 py-2.5 text-right font-semibold"
             >
               {{ t('dashboard.stats.share') }}
             </th>
@@ -85,44 +87,45 @@ const colors = SERIES_TOKENS
           <tr
             v-for="(row, i) in models"
             :key="row.model"
-            class="border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-muted)]"
+            class="group border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-hover)]"
           >
-            <td class="py-2.5 pr-3">
-              <span class="flex items-center gap-2">
+            <td class="px-3 py-2.5">
+              <span class="flex items-center gap-2.5">
                 <span
-                  class="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  class="h-2 w-2 shrink-0 rounded-full ring-2 ring-[var(--surface-solid)] shadow-sm transition-transform group-hover:scale-125"
                   :style="{ background: colors[i % colors.length] }"
                 />
                 <span
-                  class="max-w-[140px] truncate font-medium text-[var(--text-primary)]"
+                  class="max-w-[150px] truncate font-mono text-xs font-medium text-[var(--text-primary)]"
+                  :title="row.model"
                 >
                   {{ row.model }}
                 </span>
               </span>
             </td>
             <td
-              class="py-2.5 pr-3 text-right tabular-nums text-[var(--text-secondary)]"
+              class="px-2.5 py-2.5 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)]"
             >
               {{ formatNumber(row.tokens) }}
             </td>
             <td
-              class="py-2.5 pr-3 text-right font-semibold tabular-nums text-[var(--text-primary)]"
+              class="px-3 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-[var(--text-primary)] dark:text-[var(--accent-text)]"
             >
               {{ formatQuota(row.quota) }}
             </td>
             <td
-              class="py-2.5 pr-3 text-right tabular-nums text-[var(--text-secondary)]"
+              class="px-2.5 py-2.5 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)]"
             >
               {{ formatNumber(row.requests) }}
             </td>
-            <td class="py-2.5 text-right">
+            <td class="px-3 py-2.5 text-right">
               <!-- mini progress bar -->
               <div class="flex items-center justify-end gap-2">
                 <div
                   class="pencil-progress h-1.5 w-20 overflow-hidden rounded-full bg-[var(--surface-muted)]"
                 >
                   <div
-                    class="h-full rounded-full transition-all"
+                    class="h-full rounded-full transition-all duration-300"
                     :style="{
                       width: `${row.share}%`,
                       background: colors[i % colors.length],
@@ -130,7 +133,7 @@ const colors = SERIES_TOKENS
                   />
                 </div>
                 <span
-                  class="w-10 shrink-0 text-right text-xs tabular-nums text-[var(--text-tertiary)]"
+                  class="w-10 shrink-0 text-right font-mono text-xs tabular-nums text-[var(--text-tertiary)]"
                 >
                   {{ row.share }}%
                 </span>
