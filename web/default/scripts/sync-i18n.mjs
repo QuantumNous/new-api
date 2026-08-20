@@ -36,6 +36,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'AccessKey / SecretAccessKey',
   'AZURE_OPENAI_ENDPOINT *',
   'Baidu V2',
+  'Base64',
   'BlockRun',
   'ChatGPT',
   'Claude',

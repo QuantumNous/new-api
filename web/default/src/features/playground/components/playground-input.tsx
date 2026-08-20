@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   PaperclipIcon,
   FileIcon,
@@ -50,7 +50,14 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
+import type {
+  MediaGenerationProfile,
+  MediaGenerationSettings,
+  MediaParameterKey,
+  MediaParameterValue,
+} from '../lib'
 import type { ModelOption, GroupOption } from '../types'
+import { PlaygroundParameters } from './playground-parameters'
 
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
@@ -68,6 +75,12 @@ interface PlaygroundInputProps {
   onGroupChange: (value: string) => void
   showGroupSelector?: boolean
   initialText?: string
+  mediaProfile?: MediaGenerationProfile
+  mediaSettings?: MediaGenerationSettings
+  onMediaParameterChange?: (
+    key: MediaParameterKey,
+    value: MediaParameterValue
+  ) => void
 }
 
 const suggestions = [
@@ -95,15 +108,12 @@ export function PlaygroundInput({
   onGroupChange,
   showGroupSelector = true,
   initialText,
+  mediaProfile,
+  mediaSettings,
+  onMediaParameterChange,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
-  const [text, setText] = useState('')
-
-  useEffect(() => {
-    const trimmedInitialText = initialText?.trim()
-    if (!trimmedInitialText) return
-    setText((currentText) => currentText || trimmedInitialText)
-  }, [initialText])
+  const [text, setText] = useState(() => initialText?.trim() ?? '')
 
   const isModelSelectDisabled = disabled || isModelLoading || modelLocked
   const isGroupSelectDisabled = disabled || groups.length === 0
@@ -195,6 +205,16 @@ export function PlaygroundInput({
               <span className='hidden sm:inline'>{t('Search')}</span>
               <span className='sr-only sm:hidden'>{t('Search')}</span>
             </PromptInputButton>
+
+            {mediaProfile && mediaSettings && onMediaParameterChange && (
+              <PlaygroundParameters
+                disabled={disabled}
+                model={modelValue}
+                onChange={onMediaParameterChange}
+                profile={mediaProfile}
+                settings={mediaSettings}
+              />
+            )}
           </PromptInputTools>
 
           <div className='flex items-center gap-1.5 md:gap-2'>
