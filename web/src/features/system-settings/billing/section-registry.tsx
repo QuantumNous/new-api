@@ -28,7 +28,11 @@ import { createSectionRegistry } from '../utils/section-registry'
 
 const parseGroupNames = (groupRatio: string): string[] => {
   try {
-    return Object.keys(JSON.parse(groupRatio || '{}') as Record<string, unknown>)
+    const parsed: unknown = JSON.parse(groupRatio || '{}')
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return Object.keys(parsed)
+    }
+    return []
   } catch {
     return []
   }
