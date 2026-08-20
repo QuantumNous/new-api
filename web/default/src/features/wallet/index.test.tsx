@@ -14,6 +14,11 @@ import { I18nextProvider, initReactI18next } from 'react-i18next'
 import type { TopupInfo } from './types'
 import type { WalletCheckoutSearch } from './lib'
 
+const originalStorageDescriptors = {
+  localStorage: Object.getOwnPropertyDescriptor(globalThis, 'localStorage'),
+  sessionStorage: Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage'),
+}
+
 const originalGlobalPropertyDescriptors = new Map<
   PropertyKey,
   PropertyDescriptor | undefined
@@ -34,7 +39,13 @@ function defineTestGlobal(key: PropertyKey, value: unknown) {
 }
 
 function restoreTestGlobals() {
-  for (const [key, descriptor] of originalGlobalPropertyDescriptors) {
+  restoreGlobalPropertyDescriptors(originalGlobalPropertyDescriptors)
+}
+
+function restoreGlobalPropertyDescriptors(
+  descriptors: ReadonlyMap<PropertyKey, PropertyDescriptor | undefined>
+) {
+  for (const [key, descriptor] of descriptors) {
     if (descriptor) {
       Object.defineProperty(globalThis, key, descriptor)
     } else {
@@ -154,6 +165,8 @@ function setupDom() {
     defaultView: globalThis,
   }
   defineTestGlobal('document', shimDocument as unknown as Document)
+  defineTestGlobal('localStorage', storage)
+  defineTestGlobal('sessionStorage', storage)
   defineTestGlobal(
     'window',
     Object.assign(globalThis, {
@@ -164,18 +177,15 @@ function setupDom() {
         pathname: '/wallet',
         search: '?currency=BRL',
       },
-      localStorage: storage,
       queueMicrotask,
       requestAnimationFrame: (callback: FrameRequestCallback) => {
         callback(0)
         return 1
       },
-      sessionStorage: storage,
       setTimeout,
       clearTimeout,
     }) as unknown as Window & typeof globalThis
   )
-  defineTestGlobal('localStorage', storage)
   defineTestGlobal('navigator', { userAgent: 'Chrome' } as Navigator)
   defineTestGlobal('Element', ElementShim as unknown as typeof Element)
   defineTestGlobal('HTMLElement', ElementShim as unknown as typeof HTMLElement)
@@ -452,6 +462,69 @@ function dispose(root: Root) {
 }
 
 describe('Wallet checkout currency integration', () => {
+  test('registers storage globals with their pre-shim descriptors for afterAll restoration', () => {
+    expect(originalGlobalPropertyDescriptors.has('localStorage')).toBe(true)
+    expect(originalGlobalPropertyDescriptors.has('sessionStorage')).toBe(true)
+    expect(originalGlobalPropertyDescriptors.get('localStorage')).toEqual(
+      originalStorageDescriptors.localStorage
+    )
+    expect(originalGlobalPropertyDescriptors.get('sessionStorage')).toEqual(
+      originalStorageDescriptors.sessionStorage
+    )
+  })
+
+  test('restores or deletes storage globals from their saved descriptors', () => {
+    const shimmedLocalStorage = globalThis.localStorage
+    const shimmedSessionStorage = globalThis.sessionStorage
+
+    try {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: shimmedLocalStorage,
+        writable: true,
+      })
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        configurable: true,
+        value: shimmedSessionStorage,
+        writable: true,
+      })
+
+      restoreGlobalPropertyDescriptors(
+        new Map<PropertyKey, PropertyDescriptor | undefined>([
+          ['localStorage', originalStorageDescriptors.localStorage],
+          ['sessionStorage', originalStorageDescriptors.sessionStorage],
+        ])
+      )
+
+      if (originalStorageDescriptors.localStorage) {
+        expect(
+          Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+        ).toEqual(originalStorageDescriptors.localStorage)
+      } else {
+        expect(Object.hasOwn(globalThis, 'localStorage')).toBe(false)
+      }
+
+      if (originalStorageDescriptors.sessionStorage) {
+        expect(
+          Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage')
+        ).toEqual(originalStorageDescriptors.sessionStorage)
+      } else {
+        expect(Object.hasOwn(globalThis, 'sessionStorage')).toBe(false)
+      }
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: shimmedLocalStorage,
+        writable: true,
+      })
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        configurable: true,
+        value: shimmedSessionStorage,
+        writable: true,
+      })
+    }
+  })
+
   test('falls back from an inbound checkout currency with no configured prices', async () => {
     const { container, root } = renderWallet({ currency: 'BRL' })
 
