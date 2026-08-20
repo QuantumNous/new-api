@@ -94,9 +94,10 @@ export function transformFormDataToPayload(
     )
   }
 
-  // For create: only send required fields
+  // For create: send required fields + selected group
   if (userId === undefined) {
     payload.role = role
+    payload.group = data.group
   } else {
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
