@@ -237,4 +237,3 @@ Confidence: high
 Scope-risk: moderate
 Tested: wallet component tests and TypeScript typecheck
 ```
-
