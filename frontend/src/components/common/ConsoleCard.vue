@@ -78,9 +78,11 @@ const sketch = computed(() => props.variant === 'sketch')
           style="background: var(--accent)"
           aria-hidden="true"
         />
-        <h2 class="text-sm font-semibold text-[var(--text-primary)] truncate">
-          {{ title }}
-        </h2>
+        <slot name="title">
+          <h2 class="text-sm font-semibold text-[var(--text-primary)] truncate">
+            {{ title }}
+          </h2>
+        </slot>
       </div>
       <slot name="action" />
     </header>

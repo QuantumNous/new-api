@@ -85,13 +85,21 @@ function loadColor(percent: number | null): string {
   if (percent === null) return 'var(--text-tertiary)'
   if (percent >= 90) return 'var(--status-danger)'
   if (percent >= 70) return 'var(--status-warning)'
-  return 'var(--status-success)'
+  return 'var(--glow)'
+}
+
+/** Disk uses amber/accent by default, shifting to warning/danger under high usage. */
+function diskColor(percent: number | null): string {
+  if (percent === null) return 'var(--text-tertiary)'
+  if (percent >= 90) return 'var(--status-danger)'
+  if (percent >= 70) return 'var(--status-warning)'
+  return 'var(--accent)'
 }
 
 /** Success rate reads the other way round — high is good. */
 function rateColor(percent: number | null): string {
   if (percent === null) return 'var(--text-tertiary)'
-  if (percent >= 99) return 'var(--status-success)'
+  if (percent >= 99) return 'var(--glow)'
   if (percent >= 95) return 'var(--status-warning)'
   return 'var(--status-danger)'
 }
@@ -215,7 +223,7 @@ const tiles = computed<MetricTile[]>(() => {
           : `${formatStorage(diskUsed)} / ${formatStorage(diskTotal)}`,
       unit: diskUsed === null || diskTotal === null ? '' : 'GB',
       percent: diskPercent,
-      color: loadColor(diskPercent),
+      color: diskColor(diskPercent),
     },
   ]
 })
@@ -255,10 +263,38 @@ const successColor = computed(() => rateColor(successRate.value))
 
 <template>
   <ConsoleCard
-    :title="t('dashboard.systemStatus.title')"
     data-system-status-card
     stretch
   >
+    <template #title>
+      <div class="flex min-w-0 items-center gap-2">
+        <h2 class="truncate text-sm font-semibold text-[var(--text-primary)]">
+          {{ t('dashboard.systemStatus.title') }}
+        </h2>
+        <span
+          class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold"
+          :style="{
+            background: `color-mix(in srgb, ${apiState.color} 14%, transparent)`,
+            color: apiState.color,
+          }"
+          :data-status-reachable="statusReachable"
+        >
+          <span class="relative flex h-1.5 w-1.5">
+            <span
+              v-if="apiState.pulse"
+              class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
+              :style="{ background: apiState.color }"
+            />
+            <span
+              class="relative inline-flex h-1.5 w-1.5 rounded-full"
+              :style="{ background: apiState.color }"
+            />
+          </span>
+          <span>{{ apiState.label }}</span>
+        </span>
+      </div>
+    </template>
+
     <template #action>
       <div class="flex items-center gap-2">
         <div class="text-right">
@@ -282,52 +318,13 @@ const successColor = computed(() => rateColor(successRate.value))
     </template>
 
     <div
-      class="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] pb-3.5"
-      :data-status-reachable="statusReachable"
-    >
-      <span class="flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          aria-hidden="true"
-        >
-          <path
-            d="M5 12.55a11 11 0 0 1 14.08 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"
-          />
-        </svg>
-        {{ t('dashboard.systemStatus.apiService') }}
-      </span>
-      <span
-        class="flex items-center gap-1.5 text-sm font-semibold"
-        :style="{ color: apiState.color }"
-      >
-        <span class="relative flex h-2 w-2">
-          <span
-            v-if="apiState.pulse"
-            class="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60"
-            :style="{ background: apiState.color }"
-          />
-          <span
-            class="relative inline-flex h-2 w-2 rounded-full"
-            :style="{ background: apiState.color }"
-          />
-        </span>
-        {{ apiState.label }}
-      </span>
-    </div>
-
-    <div
-      class="mb-4 mt-4 grid grid-cols-2 content-start gap-3"
+      class="my-auto grid grid-cols-2 content-start gap-3 py-1"
       data-system-status-grid
     >
       <div
         v-for="tile in tiles"
         :key="tile.key"
-        class="group relative flex h-[108px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-colors duration-300 hover:bg-[var(--surface-hover)]"
+        class="group relative flex h-[100px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-colors duration-300 hover:bg-[var(--surface-hover)]"
         data-system-status-tile
         :data-metric="tile.key"
       >
@@ -414,7 +411,7 @@ const successColor = computed(() => rateColor(successRate.value))
               y1="32"
               :x2="cpuGauge.needleX"
               :y2="cpuGauge.needleY"
-              :stroke="tile.color"
+              stroke="var(--text-primary)"
               stroke-width="2.2"
               stroke-linecap="round"
             />
@@ -511,7 +508,7 @@ const successColor = computed(() => rateColor(successRate.value))
     </div>
 
     <div
-      class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3.5 text-xs"
+      class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3 text-xs"
     >
       <span class="flex items-center gap-1.5 text-[var(--text-tertiary)]">
         <svg
