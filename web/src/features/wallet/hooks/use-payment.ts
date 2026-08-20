@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -50,6 +50,23 @@ export interface PaymentAmountCalculators {
   waffoPancake: AmountCalculator
 }
 
+export interface PaymentQuote {
+  paymentType: string
+  topupAmount: number
+  amount?: number
+  currency?: string
+  status: 'loading' | 'ready' | 'error'
+}
+
+export interface PaymentAmountResult {
+  amount: number
+  currency?: string
+}
+
+function isCurrencyCode(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z]{3}$/.test(value)
+}
+
 const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
   regular: calculateAmount,
   stripe: calculateStripeAmount,
@@ -57,52 +74,168 @@ const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
   waffoPancake: calculateWaffoPancakeAmount,
 }
 
+export function getPaymentQuoteKey(paymentType: string, topupAmount: number) {
+  return `${paymentType}:${topupAmount}`
+}
+
 export async function requestPaymentAmount(
   topupAmount: number,
   paymentType: string,
   calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
-): Promise<number> {
+): Promise<PaymentAmountResult> {
   let calculator = calculators.regular
-  if (isStripePayment(paymentType)) {
+  const isStripe = isStripePayment(paymentType)
+  const isWaffoPancake = isWaffoPancakePayment(paymentType)
+  const requiresProviderCurrency = isStripe || isWaffoPancake
+  if (isStripe) {
     calculator = calculators.stripe
   } else if (isWaffoPayment(paymentType)) {
     calculator = calculators.waffo
-  } else if (isWaffoPancakePayment(paymentType)) {
+  } else if (isWaffoPancake) {
     calculator = calculators.waffoPancake
   }
 
   const response = await calculator({ amount: topupAmount })
-  if (!isApiSuccess(response) || !response.data) {
-    return 0
+  const amount = Number(response.data)
+  const currency = requiresProviderCurrency ? response.currency : undefined
+  if (
+    !isApiSuccess(response) ||
+    !Number.isFinite(amount) ||
+    amount <= 0 ||
+    (requiresProviderCurrency && !isCurrencyCode(currency))
+  ) {
+    throw new Error(response.message || 'Payment amount calculation failed')
   }
 
-  return Number.parseFloat(response.data)
+  return { amount, currency }
 }
 
-export function usePayment() {
-  const [amount, setAmount] = useState<number>(0)
-  const [calculating, setCalculating] = useState(false)
+export interface PaymentQuoteController {
+  getQuote: (
+    topupAmount: number,
+    paymentType: string
+  ) => PaymentQuote | undefined
+  calculate: (topupAmount: number, paymentType: string) => Promise<PaymentQuote>
+}
+
+export function createPaymentQuoteController(
+  calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
+): PaymentQuoteController {
+  const quotes: Record<string, PaymentQuote> = {}
+  const requestIds: Record<string, number> = {}
+  const inFlightRequests: Record<string, Promise<PaymentQuote>> = {}
+
+  const getQuote = (topupAmount: number, paymentType: string) =>
+    quotes[getPaymentQuoteKey(paymentType, topupAmount)]
+
+  const calculate = (topupAmount: number, paymentType: string) => {
+    const key = getPaymentQuoteKey(paymentType, topupAmount)
+    const cachedQuote = quotes[key]
+    if (cachedQuote?.status === 'ready') {
+      return Promise.resolve(cachedQuote)
+    }
+
+    const inFlightRequest = inFlightRequests[key]
+    if (inFlightRequest) {
+      return inFlightRequest
+    }
+
+    const requestId = (requestIds[key] || 0) + 1
+    requestIds[key] = requestId
+    quotes[key] = { paymentType, topupAmount, status: 'loading' }
+
+    const request = requestPaymentAmount(topupAmount, paymentType, calculators)
+      .then(({ amount, currency }) => {
+        const quote: PaymentQuote = {
+          paymentType,
+          topupAmount,
+          amount,
+          ...(currency ? { currency } : {}),
+          status: 'ready',
+        }
+        if (requestIds[key] === requestId) {
+          quotes[key] = quote
+        }
+        return quote
+      })
+      .catch(() => {
+        const quote: PaymentQuote = {
+          paymentType,
+          topupAmount,
+          status: 'error',
+        }
+        if (requestIds[key] === requestId) {
+          quotes[key] = quote
+        }
+        return quote
+      })
+      .finally(() => {
+        if (requestIds[key] === requestId) {
+          delete inFlightRequests[key]
+        }
+      })
+
+    inFlightRequests[key] = request
+    return request
+  }
+
+  return { getQuote, calculate }
+}
+
+export function canConfirmPayment(
+  paymentMethod: { type: string } | undefined,
+  topupAmount: number,
+  minimumTopup: number,
+  quote: PaymentQuote | undefined
+): boolean {
+  return (
+    !!paymentMethod &&
+    topupAmount >= minimumTopup &&
+    quote?.status === 'ready' &&
+    quote.paymentType === paymentMethod.type &&
+    quote.topupAmount === topupAmount
+  )
+}
+
+export function usePayment(
+  calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
+) {
+  const controllerRef = useRef<PaymentQuoteController | null>(null)
+  const calculatorsRef = useRef(calculators)
+  if (!controllerRef.current || calculatorsRef.current !== calculators) {
+    calculatorsRef.current = calculators
+    controllerRef.current = createPaymentQuoteController(calculators)
+  }
+  const controller = controllerRef.current
+  const [quotes, setQuotes] = useState<Record<string, PaymentQuote>>({})
   const [processing, setProcessing] = useState(false)
 
-  // Calculate payment amount
   const calculatePaymentAmount = useCallback(
     async (topupAmount: number, paymentType: string) => {
-      try {
-        setCalculating(true)
-        const calculatedAmount = await requestPaymentAmount(
-          topupAmount,
-          paymentType
-        )
-        setAmount(calculatedAmount)
-        return calculatedAmount
-      } catch {
-        setAmount(0)
-        return 0
-      } finally {
-        setCalculating(false)
+      const request = controller.calculate(topupAmount, paymentType)
+      const loadingQuote = controller.getQuote(topupAmount, paymentType)
+      if (loadingQuote) {
+        setQuotes((currentQuotes) => ({
+          ...currentQuotes,
+          [getPaymentQuoteKey(paymentType, topupAmount)]: loadingQuote,
+        }))
       }
+      const quote = await request
+      setQuotes((currentQuotes) => ({
+        ...currentQuotes,
+        [getPaymentQuoteKey(paymentType, topupAmount)]: quote,
+      }))
+      return quote
     },
-    []
+    [controller]
+  )
+
+  const getPaymentQuote = useCallback(
+    (topupAmount: number, paymentType: string) => {
+      const key = getPaymentQuoteKey(paymentType, topupAmount)
+      return quotes[key] ?? controller.getQuote(topupAmount, paymentType)
+    },
+    [controller, quotes]
   )
 
   // Process payment
@@ -129,14 +262,12 @@ export function usePayment() {
           return false
         }
 
-        // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
           window.open(response.data.pay_link as string, '_blank')
           toast.success(i18next.t('Redirecting to payment page...'))
           return true
         }
 
-        // Handle non-Stripe payment
         if (!isStripe && response.data) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
@@ -158,11 +289,10 @@ export function usePayment() {
   )
 
   return {
-    amount,
-    calculating,
+    quotes,
     processing,
     calculatePaymentAmount,
+    getPaymentQuote,
     processPayment,
-    setAmount,
   }
 }

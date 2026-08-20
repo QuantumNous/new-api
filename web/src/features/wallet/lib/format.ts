@@ -61,6 +61,11 @@ export function formatCurrency(amount: number | string): string {
   }).format(numeric)
 }
 
+export function formatPaymentQuote(amount: number, currency?: string): string {
+  const formatted = formatCurrency(amount)
+  return currency ? `${formatted} ${currency}` : formatted
+}
+
 /**
  * Get discount label for display (e.g., "20% OFF")
  */

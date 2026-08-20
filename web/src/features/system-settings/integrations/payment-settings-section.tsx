@@ -176,6 +176,9 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  WaffoPancakeCurrency: z.string(),
+  WaffoPancakeUnitPrice: z.coerce.number().positive(),
+  WaffoPancakeMinTopUp: z.coerce.number().min(1),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -457,6 +460,9 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeCurrency: values.WaffoPancakeCurrency.trim().toUpperCase(),
+      WaffoPancakeUnitPrice: values.WaffoPancakeUnitPrice,
+      WaffoPancakeMinTopUp: values.WaffoPancakeMinTopUp,
     }
 
     const initial = {
@@ -504,6 +510,10 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeCurrency:
+        initialRef.current.WaffoPancakeCurrency.trim().toUpperCase(),
+      WaffoPancakeUnitPrice: initialRef.current.WaffoPancakeUnitPrice,
+      WaffoPancakeMinTopUp: initialRef.current.WaffoPancakeMinTopUp,
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -705,6 +715,9 @@ export function PaymentSettingsSection({
       sanitized.WaffoPancakeMerchantID !== initial.WaffoPancakeMerchantID ||
       sanitized.WaffoPancakePrivateKey.length > 0 ||
       sanitized.WaffoPancakeReturnURL !== initial.WaffoPancakeReturnURL ||
+      sanitized.WaffoPancakeCurrency !== initial.WaffoPancakeCurrency ||
+      sanitized.WaffoPancakeUnitPrice !== initial.WaffoPancakeUnitPrice ||
+      sanitized.WaffoPancakeMinTopUp !== initial.WaffoPancakeMinTopUp ||
       waffoPancakeSelection.storeID !== waffoPancakeSavedBinding.storeID ||
       waffoPancakeSelection.productID !== waffoPancakeSavedBinding.productID
 
@@ -731,6 +744,11 @@ export function PaymentSettingsSection({
       return
     }
 
+    if (!sanitized.WaffoPancakeCurrency) {
+      toast.error(t('Select a checkout currency before saving.'))
+      return
+    }
+
     try {
       const body = await saveWaffoPancakeConfig({
         merchantID: sanitized.WaffoPancakeMerchantID,
@@ -738,6 +756,9 @@ export function PaymentSettingsSection({
         returnURL: sanitized.WaffoPancakeReturnURL,
         storeID: waffoPancakeSelection.storeID,
         productID: waffoPancakeSelection.productID,
+        currency: sanitized.WaffoPancakeCurrency,
+        unitPrice: sanitized.WaffoPancakeUnitPrice,
+        minTopup: sanitized.WaffoPancakeMinTopUp,
       })
 
       if (
@@ -794,6 +815,9 @@ export function PaymentSettingsSection({
     WaffoPancakeMerchantID: currentFormValues.WaffoPancakeMerchantID,
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
+    WaffoPancakeCurrency: currentFormValues.WaffoPancakeCurrency,
+    WaffoPancakeUnitPrice: currentFormValues.WaffoPancakeUnitPrice,
+    WaffoPancakeMinTopUp: currentFormValues.WaffoPancakeMinTopUp,
   }
 
   return (
@@ -896,56 +920,6 @@ export function PaymentSettingsSection({
                   <p className='text-muted-foreground text-sm'>
                     {t('Shared configuration for all payment gateways')}
                   </p>
-                </div>
-
-                <div className='grid gap-6 md:grid-cols-2'>
-                  <FormField
-                    control={form.control}
-                    name='Price'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {t('Price (local currency / USD)')}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type='number'
-                            step='0.01'
-                            min={0}
-                            {...safeNumberFieldProps(field)}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t(
-                            'How much to charge for each US dollar of balance (Epay)'
-                          )}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name='MinTopUp'
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
-                        <FormControl>
-                          <Input
-                            type='number'
-                            step='0.01'
-                            min={0}
-                            {...safeNumberFieldProps(field)}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t('Smallest USD amount users can recharge (Epay)')}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                 </div>
 
                 <FormField
@@ -1244,6 +1218,56 @@ export function PaymentSettingsSection({
                         </FormControl>
                         <FormDescription>
                           {t('Leave blank unless rotating the secret')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='Price'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Price (local currency / USD)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'How much to charge for each US dollar of balance (Epay)'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='MinTopUp'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Smallest USD amount users can recharge (Epay)')}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -12,16 +13,23 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
-	Amount          int64   `json:"amount"`
-	Money           float64 `json:"money"`
-	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
-	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
-	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
-	CreateTime      int64   `json:"create_time"`
-	CompleteTime    int64   `json:"complete_time"`
-	Status          string  `json:"status"`
+	Id                        int     `json:"id"`
+	UserId                    int     `json:"user_id" gorm:"index"`
+	Amount                    int64   `json:"amount"`
+	Money                     float64 `json:"money"`
+	TradeNo                   string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
+	PaymentMethod             string  `json:"payment_method" gorm:"type:varchar(50)"`
+	PaymentProvider           string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	PaymentExpectationVersion int     `json:"-" gorm:"default:0"`
+	ExpectedAmount            float64 `json:"-"`
+	ExpectedAmountUnit        int64   `json:"-"`
+	ExpectedCurrency          string  `json:"-" gorm:"type:varchar(16);default:''"`
+	ExpectedSessionID         string  `json:"-" gorm:"type:varchar(255);default:''"`
+	ExpectedBindingToken      string  `json:"-" gorm:"type:varchar(255);default:''"`
+	ExpectedStoreID           string  `json:"-" gorm:"type:varchar(255);default:''"`
+	CreateTime                int64   `json:"create_time"`
+	CompleteTime              int64   `json:"complete_time"`
+	Status                    string  `json:"status"`
 }
 
 const (
@@ -42,10 +50,34 @@ const (
 )
 
 var (
-	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
-	ErrTopUpNotFound         = errors.New("topup not found")
-	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
+	ErrPaymentMethodMismatch       = errors.New("payment method mismatch")
+	ErrTopUpNotFound               = errors.New("topup not found")
+	ErrTopUpStatusInvalid          = errors.New("topup status invalid")
+	ErrLegacyPaymentExpectation    = errors.New("legacy payment expectation requires manual reconciliation")
+	ErrStripeSessionBindingPending = errors.New("stripe checkout session binding pending")
+	ErrPaymentExpectationInvalid   = errors.New("payment expectation invalid")
+	ErrPaymentSettlementMismatch   = errors.New("payment settlement mismatch")
 )
+
+const (
+	StripePaymentExpectationVersion       = 2
+	WaffoPancakePaymentExpectationVersion = 1
+)
+
+type WaffoPancakeSettlement struct {
+	Amount   string
+	Currency string
+	StoreID  string
+}
+
+type StripeSettlement struct {
+	SessionID    string
+	BindingToken string
+	AmountUnit   int64
+	Currency     string
+	CustomerID   string
+	CallerIP     string
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error
@@ -104,6 +136,140 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 		topUp.Status = targetStatus
 		return tx.Save(topUp).Error
 	})
+}
+
+func SetStripeTopUpExpectedSessionID(tradeNo string, sessionID string) error {
+	if tradeNo == "" {
+		return errors.New("未提供支付单号")
+	}
+	if sessionID == "" {
+		return ErrPaymentExpectationInvalid
+	}
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		topUp := &TopUp{}
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if topUp.PaymentProvider != PaymentProviderStripe {
+			return ErrPaymentMethodMismatch
+		}
+
+		// immutable expectation checks (must pass for all cases)
+		if topUp.PaymentExpectationVersion != StripePaymentExpectationVersion ||
+			topUp.ExpectedAmountUnit <= 0 ||
+			topUp.ExpectedCurrency == "" ||
+			topUp.ExpectedBindingToken == "" {
+			return ErrPaymentExpectationInvalid
+		}
+
+		// success-row idempotence: exact-match only; never overwrite success row
+		if topUp.Status == common.TopUpStatusSuccess {
+			if topUp.ExpectedSessionID != sessionID {
+				return ErrPaymentSettlementMismatch
+			}
+			return nil
+		}
+
+		// pending-row binding
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		// already-bound check
+		if topUp.ExpectedSessionID != "" && topUp.ExpectedSessionID != sessionID {
+			return ErrPaymentSettlementMismatch
+		}
+
+		topUp.ExpectedSessionID = sessionID
+		return tx.Save(topUp).Error
+	})
+}
+
+func RechargeStripeSettlement(referenceId string, settlement StripeSettlement) (err error) {
+	if referenceId == "" {
+		return errors.New("未提供支付单号")
+	}
+
+	var quota float64
+	topUp := &TopUp{}
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).Where(refCol+" = ?", referenceId).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if topUp.PaymentProvider != PaymentProviderStripe {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.PaymentExpectationVersion == 0 {
+			return ErrLegacyPaymentExpectation
+		}
+		if topUp.PaymentExpectationVersion != StripePaymentExpectationVersion ||
+			topUp.ExpectedAmountUnit <= 0 ||
+			topUp.ExpectedCurrency == "" ||
+			topUp.ExpectedBindingToken == "" {
+			return ErrPaymentExpectationInvalid
+		}
+		if settlement.SessionID == "" || settlement.BindingToken == "" ||
+			settlement.AmountUnit <= 0 || settlement.Currency == "" {
+			return ErrPaymentExpectationInvalid
+		}
+		if topUp.ExpectedBindingToken != settlement.BindingToken {
+			return ErrPaymentSettlementMismatch
+		}
+		if topUp.ExpectedSessionID == "" {
+			topUp.ExpectedSessionID = settlement.SessionID
+		} else if topUp.ExpectedSessionID != settlement.SessionID {
+			return ErrPaymentSettlementMismatch
+		}
+		if topUp.ExpectedAmountUnit != settlement.AmountUnit ||
+			!strings.EqualFold(topUp.ExpectedCurrency, settlement.Currency) {
+			return ErrPaymentSettlementMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+
+		quota = topUp.Money * common.QuotaPerUnit
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{
+			"stripe_customer": settlement.CustomerID,
+			"quota":           gorm.Expr("quota + ?", quota),
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("充值用户不存在")
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if quota > 0 {
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), settlement.CallerIP, topUp.PaymentMethod, PaymentMethodStripe)
+	}
+	return nil
 }
 
 func Recharge(referenceId string, customerId string, callerIp string) (err error) {
@@ -527,63 +693,72 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	return nil
 }
 
-func RechargeWaffoPancake(tradeNo string) (err error) {
+func RechargeWaffoPancake(tradeNo string, settlement WaffoPancakeSettlement) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
-
+	providerAmount, err := decimal.NewFromString(strings.TrimSpace(settlement.Amount))
+	if err != nil || providerAmount.LessThanOrEqual(decimal.Zero) {
+		return ErrPaymentSettlementMismatch
+	}
+	providerAmount = providerAmount.Round(2)
+	providerCurrency := strings.ToUpper(strings.TrimSpace(settlement.Currency))
+	providerStoreID := strings.TrimSpace(settlement.StoreID)
+	if providerCurrency == "" || providerStoreID == "" {
+		return ErrPaymentSettlementMismatch
+	}
 	var quotaToAdd int
 	topUp := &TopUp{}
-
 	refCol := "`trade_no`"
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		refCol = `"trade_no"`
 	}
-
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error
-		if err != nil {
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
 			return errors.New("充值订单不存在")
 		}
-
 		if topUp.PaymentProvider != PaymentProviderWaffoPancake {
 			return ErrPaymentMethodMismatch
 		}
-
+		expectedAmount := decimal.NewFromFloat(topUp.ExpectedAmount).Round(2)
+		expectedCurrency := strings.ToUpper(strings.TrimSpace(topUp.ExpectedCurrency))
+		expectedStoreID := strings.TrimSpace(topUp.ExpectedStoreID)
+		if topUp.PaymentExpectationVersion != WaffoPancakePaymentExpectationVersion ||
+			topUp.ExpectedAmount <= 0 || expectedCurrency == "" || expectedStoreID == "" ||
+			!providerAmount.Equal(expectedAmount) || providerCurrency != expectedCurrency ||
+			providerStoreID != expectedStoreID {
+			return ErrPaymentSettlementMismatch
+		}
 		if topUp.Status == common.TopUpStatusSuccess {
 			return nil
 		}
-
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
-
 		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}
-
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
-
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
-			return err
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
 		}
-
+		if result.RowsAffected != 1 {
+			return errors.New("充值用户不存在")
+		}
 		return nil
 	})
-
 	if err != nil {
 		common.SysError("waffo pancake topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
-
 	if quotaToAdd > 0 {
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
-
 	return nil
 }
