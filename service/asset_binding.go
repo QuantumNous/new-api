@@ -544,9 +544,25 @@ func assetBindingRequiresRematerializationFromProcessing(channel *model.Channel)
 	}
 	_, explicit, err := assetMaterializationConfigForChannel(channel)
 	if err != nil {
-		return true
+		return explicit && hasKnownExplicitAssetMaterializationProvider(channel)
 	}
 	return !explicit
+}
+
+func hasKnownExplicitAssetMaterializationProvider(channel *model.Channel) bool {
+	if channel == nil {
+		return false
+	}
+	settings := channel.GetOtherSettings().AssetMaterialization
+	if settings == nil {
+		return false
+	}
+	provider := strings.TrimSpace(settings.Provider)
+	if provider == "" {
+		return false
+	}
+	_, ok := assetMaterializationProviderDescriptors[provider]
+	return ok
 }
 
 func legacyTechMobiProcessingRecoveryBinding(channel *model.Channel, options AssetMaterializeOptions, assetID int64) (string, AssetMaterializer, bool) {
@@ -554,7 +570,7 @@ func legacyTechMobiProcessingRecoveryBinding(channel *model.Channel, options Ass
 		return "", nil, false
 	}
 	_, explicit, err := assetMaterializationConfigForChannel(channel)
-	if err == nil || !explicit {
+	if err == nil || !explicit || !hasKnownExplicitAssetMaterializationProvider(channel) {
 		return "", nil, false
 	}
 	scope, err := assetBindingScope(channel.Type, options)
