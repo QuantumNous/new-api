@@ -27,10 +27,11 @@ import {
   parseVideoTaskResponse,
   updateAssistantMessageWithError,
   updateCurrentVersionContent,
+  updateCurrentVersionMedia,
   updateLastAssistantMessage,
   type MediaGenerationSettings,
 } from '../lib'
-import type { Message } from '../types'
+import type { GeneratedMedia, Message } from '../types'
 
 interface UseMediaGenerationOptions {
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
@@ -38,6 +39,9 @@ interface UseMediaGenerationOptions {
 
 const VIDEO_POLL_INTERVAL_MS = 3000
 const VIDEO_POLL_LIMIT = 200
+
+type PollTimeoutScheduler = (callback: () => void, delay: number) => number
+type PollTimeoutCanceller = (timer: number) => void
 
 function responseMessageContent(response: unknown): string {
   if (!response || typeof response !== 'object') return ''
@@ -72,17 +76,36 @@ function errorMessage(error: unknown): string {
   )
 }
 
-function waitForVideoPoll(signal: AbortSignal): Promise<void> {
+export function waitForVideoPoll(
+  signal: AbortSignal,
+  schedule: PollTimeoutScheduler = (callback, delay) =>
+    window.setTimeout(callback, delay),
+  cancel: PollTimeoutCanceller = (timer) => window.clearTimeout(timer)
+): Promise<void> {
   return new Promise((resolve) => {
-    const timer = window.setTimeout(resolve, VIDEO_POLL_INTERVAL_MS)
-    signal.addEventListener(
-      'abort',
-      () => {
-        window.clearTimeout(timer)
-        resolve()
-      },
-      { once: true }
-    )
+    let settled = false
+
+    function cleanup() {
+      signal.removeEventListener('abort', onAbort)
+    }
+    function finish() {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve()
+    }
+    function onAbort() {
+      cancel(timer)
+      finish()
+    }
+
+    const timer = schedule(finish, VIDEO_POLL_INTERVAL_MS)
+    if (settled) {
+      cancel(timer)
+      return
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
   })
 }
 
@@ -107,11 +130,13 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
   )
 
   const completeMedia = useCallback(
-    (content: string, generatedMedia: Message['generatedMedia']) => {
+    (content: string, generatedMedia?: GeneratedMedia[]) => {
       onMessageUpdate((messages) =>
         updateLastAssistantMessage(messages, (message) => ({
-          ...updateCurrentVersionContent(message, content),
-          generatedMedia,
+          ...updateCurrentVersionMedia(
+            updateCurrentVersionContent(message, content),
+            generatedMedia
+          ),
           status: MESSAGE_STATUS.COMPLETE,
           isContentComplete: true,
         }))

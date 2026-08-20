@@ -42,6 +42,37 @@ function imageMimeType(format: unknown, fallbackFormat: string): string {
   return 'image/png'
 }
 
+const safeDataImageUrlPattern =
+  /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/\r\n]+={0,2}$/i
+const safeHttpUrlPattern = /^https?:\/\/[^\s\\]+$/i
+const safeRelativeUrlPattern = /^\/(?!\/)[^\s\\]*$/
+
+export function sanitizeGeneratedMediaUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const url = value.trim()
+  if (!url) return undefined
+  if (safeRelativeUrlPattern.test(url) || safeDataImageUrlPattern.test(url)) {
+    return url
+  }
+  if (!safeHttpUrlPattern.test(url)) return undefined
+
+  try {
+    const parsed = new URL(url)
+    if (
+      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') ||
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password
+    ) {
+      return undefined
+    }
+  } catch {
+    return undefined
+  }
+
+  return url
+}
+
 export function extractGeneratedImages(
   response: unknown,
   fallbackFormat = 'png'
@@ -53,8 +84,9 @@ export function extractGeneratedImages(
   body.data.forEach((entry) => {
     const item = asRecord(entry)
     if (!item) return
-    if (typeof item.url === 'string' && item.url.trim()) {
-      media.push({ type: 'image', url: item.url })
+    const safeUrl = sanitizeGeneratedMediaUrl(item.url)
+    if (safeUrl) {
+      media.push({ type: 'image', url: safeUrl })
       return
     }
     if (typeof item.b64_json === 'string' && item.b64_json.trim()) {
@@ -128,7 +160,8 @@ export function parseVideoTaskResponse(
   }
   const progress = normalizeProgress(item.progress)
   if (progress !== undefined) result.progress = progress
-  if (typeof rawUrl === 'string' && rawUrl.trim()) result.url = rawUrl
+  const safeUrl = sanitizeGeneratedMediaUrl(rawUrl)
+  if (safeUrl) result.url = safeUrl
   const error = taskError(item)
   if (error) result.error = error
   return result

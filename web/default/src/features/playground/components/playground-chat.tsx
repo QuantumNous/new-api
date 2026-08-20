@@ -50,6 +50,7 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
+import { sanitizeGeneratedMediaUrl } from '../lib/media-response'
 import { getMessageContentStyles } from '../lib/message-styles'
 import {
   parseThinkTags,
@@ -175,11 +176,26 @@ export function PlaygroundChat({
                                 (message.status === 'loading' ||
                                   (message.status === 'streaming' &&
                                     !version.content))
+
+                              const generatedMedia = (
+                                version.generatedMedia ??
+                                (versionIndex === 0
+                                  ? message.generatedMedia
+                                  : undefined) ??
+                                []
+                              ).flatMap((media) => {
+                                const safeUrl = sanitizeGeneratedMediaUrl(
+                                  media.url
+                                )
+                                return safeUrl
+                                  ? [{ ...media, url: safeUrl }]
+                                  : []
+                              })
+
                               const showMessageContent =
                                 (message.from === MESSAGE_ROLES.USER ||
                                   !message.isReasoningStreaming) &&
-                                (!!version.content ||
-                                  !!message.generatedMedia?.length)
+                                (!!version.content || !!generatedMedia.length)
 
                               // Extract visible content (remove <think> tags for assistant messages)
                               const displayContent = isAssistant
@@ -210,7 +226,7 @@ export function PlaygroundChat({
                                         fileName: image.downloadName,
                                       })
                                     ),
-                                    ...(message.generatedMedia ?? [])
+                                    ...generatedMedia
                                       .filter((media) => media.type === 'image')
                                       .map((media, mediaIndex) => ({
                                         href: media.url,
@@ -326,10 +342,9 @@ export function PlaygroundChat({
                                           )}
                                         >
                                           <div className='space-y-3'>
-                                            {!!message.generatedMedia
-                                              ?.length && (
+                                            {!!generatedMedia.length && (
                                               <div className='grid gap-3 sm:grid-cols-2'>
-                                                {message.generatedMedia.map(
+                                                {generatedMedia.map(
                                                   (media, mediaIndex) => {
                                                     if (
                                                       media.type === 'video'

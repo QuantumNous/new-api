@@ -21,14 +21,15 @@ export type MessageRole = 'user' | 'assistant' | 'system'
 
 export type MessageStatus = 'loading' | 'streaming' | 'complete' | 'error'
 
-export interface MessageVersion {
-  id: string
-  content: string
-}
-
 export interface GeneratedMedia {
   type: 'image' | 'video'
   url: string
+}
+
+export interface MessageVersion {
+  id: string
+  content: string
+  generatedMedia?: GeneratedMedia[]
 }
 
 export interface Message {
@@ -54,6 +55,7 @@ export interface Message {
   isVideo?: boolean
   videoProgress?: number
   videoUrl?: string
+  /** @deprecated Media is stored on MessageVersion; kept for old saved sessions. */
   generatedMedia?: GeneratedMedia[]
 }
 

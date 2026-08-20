@@ -20,7 +20,42 @@ import { describe, expect, test } from 'bun:test'
 import {
   extractGeneratedImages,
   parseVideoTaskResponse,
+  sanitizeGeneratedMediaUrl,
 } from './media-response'
+
+describe('sanitizeGeneratedMediaUrl', () => {
+  test('allows same-origin, http(s), and generated image data URLs', () => {
+    expect(sanitizeGeneratedMediaUrl('/v1/videos/task_123/content')).toBe(
+      '/v1/videos/task_123/content'
+    )
+    expect(sanitizeGeneratedMediaUrl('https://cdn.example/video.mp4')).toBe(
+      'https://cdn.example/video.mp4'
+    )
+    expect(sanitizeGeneratedMediaUrl('data:image/png;base64,QUJDRA==')).toBe(
+      'data:image/png;base64,QUJDRA=='
+    )
+  })
+
+  test('rejects executable, non-image, and protocol-relative URLs', () => {
+    expect(sanitizeGeneratedMediaUrl('javascript:alert(1)')).toBeUndefined()
+    expect(sanitizeGeneratedMediaUrl('data:text/html,<script>x</script>')).toBe(
+      undefined
+    )
+    expect(sanitizeGeneratedMediaUrl('//tracking.example/image.png')).toBe(
+      undefined
+    )
+    expect(sanitizeGeneratedMediaUrl('/\\tracking.example/image.png')).toBe(
+      undefined
+    )
+    expect(
+      sanitizeGeneratedMediaUrl('https://\\tracking.example/image.png')
+    ).toBeUndefined()
+    expect(
+      sanitizeGeneratedMediaUrl('https://user:password@cdn.example/image.png')
+    ).toBeUndefined()
+    expect(sanitizeGeneratedMediaUrl('https://')).toBeUndefined()
+  })
+})
 
 describe('extractGeneratedImages', () => {
   test('extracts URL and base64 image responses without dropping order', () => {
@@ -45,6 +80,17 @@ describe('extractGeneratedImages', () => {
 
   test('ignores malformed image entries', () => {
     expect(extractGeneratedImages({ data: [{}, null, 'invalid'] })).toEqual([])
+  })
+
+  test('drops image URLs that are not safe media sources', () => {
+    expect(
+      extractGeneratedImages({
+        data: [
+          { url: 'javascript:alert(1)' },
+          { url: 'https://cdn.example/safe.png' },
+        ],
+      })
+    ).toEqual([{ type: 'image', url: 'https://cdn.example/safe.png' }])
   })
 })
 
@@ -95,6 +141,21 @@ describe('parseVideoTaskResponse', () => {
       taskId: 'task_456',
       status: 'failed',
       error: 'upstream rejected prompt',
+    })
+  })
+
+  test('omits unsafe completed-task result URLs', () => {
+    expect(
+      parseVideoTaskResponse({
+        data: {
+          task_id: 'task_789',
+          status: 'completed',
+          result_url: 'javascript:alert(1)',
+        },
+      })
+    ).toEqual({
+      taskId: 'task_789',
+      status: 'completed',
     })
   })
 })
