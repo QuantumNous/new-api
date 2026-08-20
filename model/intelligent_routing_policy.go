@@ -18,6 +18,7 @@ const (
 
 var (
 	ErrIntelligentRoutingPolicyNotFound   = errors.New("intelligent routing policy not found")
+	ErrIntelligentRoutingRolloutNotFound  = errors.New("intelligent routing rollout not found")
 	ErrIntelligentRoutingPolicyImmutable  = errors.New("published intelligent routing policy is immutable")
 	ErrIntelligentRoutingRevisionConflict = errors.New("intelligent routing revision conflict")
 )
@@ -117,6 +118,15 @@ func GetActiveIntelligentRoutingPolicy() (IntelligentRoutingPolicy, error) {
 	return policy, err
 }
 
+func GetIntelligentRoutingPolicyByVersion(version int) (IntelligentRoutingPolicy, error) {
+	var policy IntelligentRoutingPolicy
+	err := DB.Where("version = ?", version).First(&policy).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		err = ErrIntelligentRoutingPolicyNotFound
+	}
+	return policy, err
+}
+
 func PublishIntelligentRoutingPolicy(id int64, administratorID int, changeNote string) (IntelligentRoutingPolicy, error) {
 	var published IntelligentRoutingPolicy
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -195,6 +205,9 @@ func RollbackIntelligentRoutingPolicy(sourceVersion int, administratorID int, ch
 func GetIntelligentRoutingRollout() (IntelligentRoutingRollout, error) {
 	var rollout IntelligentRoutingRollout
 	err := DB.First(&rollout, 1).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		err = ErrIntelligentRoutingRolloutNotFound
+	}
 	return rollout, err
 }
 
