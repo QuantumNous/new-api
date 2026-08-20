@@ -144,8 +144,6 @@ quota.user_insufficient: "用户额度不足, 剩余额度: {{.Quota}}"
 quota.topup_hint: "前往 {{.URL}} 充值后即可继续。"
 quota.pre_consume_failed: "预扣费额度失败, 用户剩余额度: {{.Remaining}}, 需要预扣费额度: {{.Required}}"
 quota.subscription_insufficient: "订阅额度不足或未配置订阅: {{.Detail}}"
-quota.subscription_window_5h_exceeded: "套餐 5 小时用量窗口已用满，约 {{.Minutes}} 分钟后释放部分额度；充值余额可立即继续使用。"
-quota.subscription_window_week_exceeded: "套餐本周用量窗口已用满，约 {{.Hours}} 小时后刷新；充值余额可立即继续使用。"
 quota.token_insufficient: "令牌额度不足, 令牌剩余额度: {{.Remain}}, 需要额度: {{.Required}}"
 quota.user_insufficient_need: "用户额度不足, 用户额度: {{.Quota}}, 需要额度: {{.Required}}"
 

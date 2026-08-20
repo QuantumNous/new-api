@@ -54,6 +54,20 @@ const conversionAmountTranslations: Record<string, string> = {
   vi: 'Số tiền chuyển đổi',
 }
 
+const retiredFlatkeyShortWindowCopyKeys = [
+  'Short-term cap: {{fiveHour}} / 5 h · {{weekly}} / 7 days',
+  'Rolling 5-hour usage',
+  '7-day usage',
+  '5-hour window limit',
+  '7-day window limit',
+  '0 disables this window limit. The value is converted to quota units when saved.',
+  '5-hour limit',
+  '7-day limit',
+  'The active started term is not refunded. Monthly and Image + video usage reset; 5-hour and 7-day rolling usage is retained and re-evaluated.',
+  '5-hour limit: {{value}}',
+  '7-day limit: {{value}}',
+] as const
+
 const operationalActivityCopyKeys = [
   'Manage exclusions',
   'Candidates',
@@ -264,6 +278,21 @@ describe('i18n operational Activity and Recall copy', () => {
   test('does not register literal Activity and Recall copy in static keys', () => {
     for (const key of literalOperationalActivityCopyKeys) {
       expect(STATIC_I18N_KEYS).not.toContain(key)
+    }
+  })
+
+  test('does not keep retired Flatkey short-window copy', () => {
+    for (const key of retiredFlatkeyShortWindowCopyKeys) {
+      expect(STATIC_I18N_KEYS).not.toContain(key)
+
+      for (const [locale, translations] of Object.entries(
+        localeTranslations
+      )) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} still contains ${key}`
+        ).toBe(false)
+      }
     }
   })
 

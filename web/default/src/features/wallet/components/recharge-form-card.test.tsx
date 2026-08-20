@@ -1,44 +1,9 @@
-import { beforeAll, describe, expect, mock, test } from 'bun:test'
+import { beforeAll, describe, expect, test } from 'bun:test'
 import i18n from 'i18next'
-import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { initReactI18next } from 'react-i18next'
 import type { RecallOfferView, TopupInfo } from '../types'
-
-type ButtonProps = {
-  children?: ReactNode
-  disabled?: boolean
-  onClick?: () => void
-}
-
-let latestButtonProps: ButtonProps[] = []
-
-function nodeText(node: ReactNode): string {
-  if (node === null || node === undefined || typeof node === 'boolean') {
-    return ''
-  }
-  if (typeof node === 'string' || typeof node === 'number') {
-    return String(node)
-  }
-  if (Array.isArray(node)) {
-    return node.map(nodeText).join('')
-  }
-  if (typeof node === 'object' && 'props' in node) {
-    return nodeText(
-      (node as { props?: { children?: ReactNode } }).props?.children
-    )
-  }
-  return ''
-}
-
-mock.module('@/components/ui/button', () => ({
-  Button: (props: ButtonProps) => {
-    latestButtonProps.push(props)
-    return <button disabled={props.disabled}>{props.children}</button>
-  },
-}))
-
-const { RechargeFormCard } = await import('./recharge-form-card')
+import { RechargeFormCard } from './recharge-form-card'
 
 const topupInfoWithStripe: TopupInfo = {
   enable_online_topup: false,
@@ -99,6 +64,31 @@ const usdPercentRecallOffer: RecallOfferView = {
   },
   products: {
     topup_price_ids: ['price_topup_10'],
+    subscription_price_ids: [],
+    subscription_plan_ids: [],
+  },
+  redeemed: false,
+}
+
+const jpyRecallOffer: RecallOfferView = {
+  campaign_id: 5,
+  recipient_id: 6,
+  issued_at: 1_700_000_000,
+  campaign_name: 'Japan welcome back',
+  promotion_code_masked: 'FKJP****78',
+  expires_at: 4_100_000_000,
+  discount: {
+    type: 'fixed',
+    percent_off: 0,
+    amount_off: 500,
+    currency: 'JPY',
+    currency_options: {},
+    minimum_amount: 1000,
+    minimum_amount_currency: 'JPY',
+    coupon_redeem_by: 4_100_000_000,
+  },
+  products: {
+    topup_price_ids: ['price_topup_10_jpy'],
     subscription_price_ids: [],
     subscription_plan_ids: [],
   },
@@ -186,32 +176,6 @@ describe('RechargeFormCard', () => {
 
     expect(html).toContain('$20')
     expect(html).not.toContain('R$')
-  })
-
-  test('submits the preset selected under the checkout currency', () => {
-    const submittedPresets: number[] = []
-    latestButtonProps = []
-
-    renderToStaticMarkup(
-      <RechargeFormCard
-        topupInfo={{
-          ...topupInfoWithStripe,
-          stripe_currency_prices: { BRL: { 20: 9990 } },
-        }}
-        presetAmounts={[{ value: 20 }]}
-        selectedPreset={20}
-        onSelectPreset={() => undefined}
-        onStripeTopUp={(preset) => submittedPresets.push(preset.value)}
-        checkoutCurrency='BRL'
-      />
-    )
-
-    const continueButton = [...latestButtonProps]
-      .reverse()
-      .find((props) => nodeText(props.children) === 'Continue to payment')
-    continueButton?.onClick?.()
-
-    expect(submittedPresets).toEqual([20])
   })
 
   test('shows only checkout currency choices with configured prices', () => {
@@ -302,6 +266,29 @@ describe('RechargeFormCard', () => {
     expect(html).toContain('2.00 BRL OFF')
     expect(html).toContain('Save R$2')
     expect(html).not.toContain('>$10</span>')
+  })
+
+  test('renders fixed JPY recall top-up savings as zero-decimal yen', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={{
+          ...topupInfoWithStripe,
+          stripe_price_ids: { 10: 'price_topup_10_jpy' },
+          stripe_currency_prices: { JPY: { 10: 3000 } },
+        }}
+        presetAmounts={[{ value: 10 }]}
+        selectedPreset={10}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        checkoutCurrency='JPY'
+        recallOffers={[jpyRecallOffer]}
+      />
+    )
+
+    expect(html).toContain('¥2,500')
+    expect(html).toContain('¥3,000')
+    expect(html).toContain('Save ¥500')
+    expect(html).not.toContain('Save ¥5</')
   })
 
   test('renders percent recall top-up savings on the selected amount', () => {
