@@ -216,10 +216,10 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "DefaultUserGroup" {
 		if value == "" {
-			return errors.New("默认分组不能为空")
+			return errors.New("default user group cannot be empty")
 		}
 		if !ratio_setting.ContainsGroupRatio(value) {
-			return errors.New("默认分组不存在: " + value)
+			return errors.New("default user group does not exist: " + value)
 		}
 	}
 	if key == "GroupRatio" {
@@ -231,7 +231,7 @@ func validateOptionValue(key string, value string) error {
 		}
 		defaultGroup := common.GetDefaultUserGroup()
 		if _, ok := checkGroupRatio[defaultGroup]; !ok {
-			return errors.New("不能移除默认分组: " + defaultGroup)
+			return errors.New("cannot remove default user group: " + defaultGroup)
 		}
 	}
 	return nil

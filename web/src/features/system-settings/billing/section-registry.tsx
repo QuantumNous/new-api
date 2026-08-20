@@ -26,6 +26,14 @@ import { RatioSettingsCard } from '../models/ratio-settings-card'
 import type { BillingSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
+const parseGroupNames = (groupRatio: string): string[] => {
+  try {
+    return Object.keys(JSON.parse(groupRatio || '{}') as Record<string, unknown>)
+  } catch {
+    return []
+  }
+}
+
 const getModelDefaults = (settings: BillingSettings) => ({
   ModelPrice: settings.ModelPrice,
   ModelRatio: settings.ModelRatio,
@@ -77,6 +85,7 @@ const BILLING_SECTIONS = [
           (settings['payment_setting.compliance_confirmed'] ?? false) &&
           settings['payment_setting.compliance_terms_version'] === 'v1'
         }
+        groupOptions={parseGroupNames(settings.GroupRatio)}
       />
     ),
   },
