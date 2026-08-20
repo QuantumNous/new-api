@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export * from './message-utils'
+export * from './media-generation'
+export * from './media-response'
 export * from './model-parameter-profile'
 export * from './first-run-chat-override'
 export * from './first-run-model'

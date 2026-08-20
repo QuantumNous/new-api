@@ -178,7 +178,8 @@ export function PlaygroundChat({
                               const showMessageContent =
                                 (message.from === MESSAGE_ROLES.USER ||
                                   !message.isReasoningStreaming) &&
-                                !!version.content
+                                (!!version.content ||
+                                  !!message.generatedMedia?.length)
 
                               // Extract visible content (remove <think> tags for assistant messages)
                               const displayContent = isAssistant
@@ -202,12 +203,20 @@ export function PlaygroundChat({
                                   isGenerating={isGenerating}
                                   alwaysVisible={isLastAssistantMessage}
                                   className='mt-1'
-                                  downloads={generatedImageContent.images.map(
-                                    (image) => ({
-                                      href: image.src,
-                                      fileName: image.downloadName,
-                                    })
-                                  )}
+                                  downloads={[
+                                    ...generatedImageContent.images.map(
+                                      (image) => ({
+                                        href: image.src,
+                                        fileName: image.downloadName,
+                                      })
+                                    ),
+                                    ...(message.generatedMedia ?? [])
+                                      .filter((media) => media.type === 'image')
+                                      .map((media, mediaIndex) => ({
+                                        href: media.url,
+                                        fileName: `generated-image-${mediaIndex + 1}.png`,
+                                      })),
+                                  ]}
                                 />
                               )
 
@@ -317,6 +326,43 @@ export function PlaygroundChat({
                                           )}
                                         >
                                           <div className='space-y-3'>
+                                            {!!message.generatedMedia
+                                              ?.length && (
+                                              <div className='grid gap-3 sm:grid-cols-2'>
+                                                {message.generatedMedia.map(
+                                                  (media, mediaIndex) => {
+                                                    if (
+                                                      media.type === 'video'
+                                                    ) {
+                                                      return (
+                                                        <video
+                                                          className='bg-muted max-h-[32rem] w-full rounded-xl object-contain'
+                                                          controls
+                                                          key={`${message.key}-video-${mediaIndex}`}
+                                                          preload='metadata'
+                                                          src={media.url}
+                                                        >
+                                                          {t(
+                                                            'Your browser does not support video playback.'
+                                                          )}
+                                                        </video>
+                                                      )
+                                                    }
+                                                    return (
+                                                      <img
+                                                        alt={t(
+                                                          'Generated image'
+                                                        )}
+                                                        className='bg-muted max-h-[32rem] w-full rounded-xl object-contain'
+                                                        key={`${message.key}-image-${mediaIndex}`}
+                                                        loading='lazy'
+                                                        src={media.url}
+                                                      />
+                                                    )
+                                                  }
+                                                )}
+                                              </div>
+                                            )}
                                             {generatedImageContent.text && (
                                               <Response>
                                                 {generatedImageContent.text}

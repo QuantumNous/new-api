@@ -45,15 +45,16 @@ import {
   MESSAGE_STATUS,
   MODEL_GENERATOR_DRAFT_CLEANUP_KEY,
 } from './constants'
-import { usePlaygroundState, useChatHandler, useVideoGeneration } from './hooks'
+import { usePlaygroundState, useChatHandler, useMediaGeneration } from './hooks'
 import {
   createUserMessage,
   createLoadingAssistantMessage,
-  createLoadingVideoMessage,
   getFirstRunChatOverride as resolveFirstRunChatOverride,
   isPlaygroundChatModelName,
-  isVideoGenModelName,
+  isSupportedPlaygroundModelName,
   pickFirstRunModel,
+  normalizeMediaGenerationSettings,
+  resolveMediaGenerationProfile,
   shouldOpenFirstRunTopupPrompt,
   clearFirstRunDone,
   isFirstRunActive,
@@ -61,6 +62,9 @@ import {
   markFirstRunStarted,
   resolvePlaygroundHandoff,
   resolvePlaygroundHandoffModel,
+  type MediaGenerationSettings,
+  type MediaParameterKey,
+  type MediaParameterValue,
 } from './lib'
 import type { Message as MessageType } from './types'
 
@@ -116,28 +120,29 @@ export function Playground({
   const {
     sendChat,
     stopGeneration: stopChatGeneration,
-    isGenerating: isChatGenerating,
+    isGenerating: isGeneratingChat,
   } = useChatHandler({
     config,
     parameterEnabled,
     onMessageUpdate: updateMessages,
     minimalParameters: firstRun,
   })
+  const { generateMedia, stopMediaGeneration, isGeneratingMedia } =
+    useMediaGeneration({ onMessageUpdate: updateMessages })
+  const isGenerating = isGeneratingChat || isGeneratingMedia
+  const [mediaSettingsByModel, setMediaSettingsByModel] = useState<
+    Record<string, MediaGenerationSettings>
+  >({})
 
-  const {
-    generateVideo,
-    stopVideoGeneration,
-    releaseVideoObjectUrl,
-    isVideoGenerating,
-  } = useVideoGeneration({ onMessageUpdate: updateMessages })
-
-  // Either a chat stream or a video-generation task can be in flight; the input,
-  // stop button, and welcome chips all key off the combined state.
-  const isGenerating = isChatGenerating || isVideoGenerating
   const stopGeneration = useCallback(() => {
-    stopChatGeneration()
-    stopVideoGeneration()
-  }, [stopChatGeneration, stopVideoGeneration])
+    if (isGeneratingChat) stopChatGeneration()
+    if (isGeneratingMedia) stopMediaGeneration()
+  }, [
+    isGeneratingChat,
+    isGeneratingMedia,
+    stopChatGeneration,
+    stopMediaGeneration,
+  ])
 
   // Edit dialog state
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
@@ -201,12 +206,19 @@ export function Playground({
     },
   })
 
-  const chatModelsData = useMemo(
+  const playgroundModelsData = useMemo(
     () =>
       (availableModelsData ?? [])
-        .filter(isPlaygroundChatModelName)
+        .filter(isSupportedPlaygroundModelName)
         .map((model) => ({ label: model, value: model })),
     [availableModelsData]
+  )
+  const chatModelsData = useMemo(
+    () =>
+      playgroundModelsData.filter((model) =>
+        isPlaygroundChatModelName(model.value)
+      ),
+    [playgroundModelsData]
   )
 
   // Load groups only when the current user can choose token groups.
@@ -230,7 +242,7 @@ export function Playground({
   const handoff = useMemo(
     () =>
       resolvePlaygroundHandoff({
-        models: chatModelsData,
+        models: playgroundModelsData,
         availableModels: availableModelsData ?? [],
         model: resolvePlaygroundHandoffModel(
           initialModel,
@@ -240,7 +252,7 @@ export function Playground({
       }),
     [
       availableModelsData,
-      chatModelsData,
+      playgroundModelsData,
       initialModel,
       initialPrompt,
       retainedHandoffModel,
@@ -278,6 +290,73 @@ export function Playground({
     isHandoffModelLocked,
     userPickedModel,
   ])
+
+  const mediaProfile = useMemo(
+    () => resolveMediaGenerationProfile(config.model),
+    [config.model]
+  )
+  const mediaSettings = useMemo(() => {
+    if (!mediaProfile) return undefined
+    return normalizeMediaGenerationSettings(
+      mediaProfile,
+      mediaSettingsByModel[config.model] ?? {}
+    )
+  }, [config.model, mediaProfile, mediaSettingsByModel])
+
+  const getMediaSettings = useCallback(
+    (model: string): MediaGenerationSettings => {
+      const profile = resolveMediaGenerationProfile(model)
+      if (!profile) return {}
+      return normalizeMediaGenerationSettings(
+        profile,
+        mediaSettingsByModel[model] ?? {}
+      )
+    },
+    [mediaSettingsByModel]
+  )
+
+  const handleMediaParameterChange = useCallback(
+    (key: MediaParameterKey, value: MediaParameterValue) => {
+      const model = config.model
+      const profile = resolveMediaGenerationProfile(model)
+      if (!profile) return
+      setMediaSettingsByModel((current) => ({
+        ...current,
+        [model]: normalizeMediaGenerationSettings(profile, {
+          ...(current[model] ?? {}),
+          [key]: value,
+        }),
+      }))
+    },
+    [config.model]
+  )
+
+  const dispatchGeneration = useCallback(
+    (
+      prompt: string,
+      requestMessages: MessageType[],
+      modelOverride?: string
+    ) => {
+      const configOverride = modelOverride
+        ? { model: modelOverride }
+        : getFirstRunChatOverride()
+      const model = configOverride?.model ?? config.model
+      const group = config.group
+      if (resolveMediaGenerationProfile(model)) {
+        void generateMedia(prompt, model, group, getMediaSettings(model))
+        return
+      }
+      sendChat(requestMessages, configOverride)
+    },
+    [
+      config.group,
+      config.model,
+      generateMedia,
+      getFirstRunChatOverride,
+      getMediaSettings,
+      sendChat,
+    ]
+  )
 
   // PLG users are pinned to the `plg` group so model fetching uses it.
   useEffect(() => {
@@ -517,42 +596,20 @@ export function Playground({
         updateConfig('model', modelOverride)
       }
 
-      // Video-generation models (veo) do NOT run through chat completions: insert a
-      // video assistant bubble and drive the async /v1/videos submit→poll→content
-      // flow, which renders an inline <video> when done.
-      if (isVideoGenModelName(targetModel)) {
-        const videoMessage = createLoadingVideoMessage()
-        const newMessages = [...messages, userMessage, videoMessage]
-        updateMessages(newMessages)
-        generateVideo(text, targetModel, videoMessage.key)
-        return
-      }
-
       const assistantMessage = createLoadingAssistantMessage()
       const newMessages = [...messages, userMessage, assistantMessage]
       updateMessages(newMessages)
 
-      // Crucially, pass a forced model as a direct send override: `updateConfig` is
-      // async and wouldn't be reflected in `config` for this same-tick send, so the
-      // override guarantees THIS message is requested against the forced model.
-      if (modelOverride) {
-        sendChat(newMessages, { model: modelOverride })
-        return
-      }
-
-      // Send chat request
-      sendChat(newMessages, getFirstRunChatOverride())
+      dispatchGeneration(text, newMessages, modelOverride)
     },
     [
       clearModelGeneratorDraft,
       clearPlaygroundHandoffSearch,
       config.model,
-      generateVideo,
-      getFirstRunChatOverride,
+      dispatchGeneration,
       isHandoffModelLocked,
       messages,
       prepareSend,
-      sendChat,
       setUserPickedModel,
       updateConfig,
       updateMessages,
@@ -571,33 +628,21 @@ export function Playground({
     if (messageIndex === -1) return
 
     const chatOverride = getFirstRunChatOverride()
-    const targetModel = isVideoGenModelName(config.model)
-      ? config.model
-      : (chatOverride?.model ?? config.model)
+    const targetModel = chatOverride?.model ?? config.model
     if (!prepareSend(targetModel)) return
 
     // Remove messages after this one and regenerate
     const messagesUpToHere = messages.slice(0, messageIndex)
 
-    // Regenerating against a video model re-runs the async video flow using the
-    // most recent user prompt rather than hitting chat completions.
-    if (isVideoGenModelName(config.model)) {
-      const lastUser = [...messagesUpToHere]
-        .reverse()
-        .find((m) => m.from === MESSAGE_ROLES.USER)
-      const prompt = lastUser?.versions?.[0]?.content ?? ''
-      const videoMessage = createLoadingVideoMessage()
-      const newMessages = [...messagesUpToHere, videoMessage]
-      updateMessages(newMessages)
-      generateVideo(prompt, config.model, videoMessage.key)
-      return
-    }
-
     const loadingMessage = createLoadingAssistantMessage()
     const newMessages = [...messagesUpToHere, loadingMessage]
 
+    const prompt = [...messagesUpToHere]
+      .reverse()
+      .find((item) => item.from === MESSAGE_ROLES.USER)?.versions[0]?.content
+    if (!prompt) return
     updateMessages(newMessages)
-    sendChat(newMessages, chatOverride)
+    dispatchGeneration(prompt, newMessages)
   }
 
   const handleEditMessage = useCallback((message: MessageType) => {
@@ -636,22 +681,23 @@ export function Playground({
       const targetModel = chatOverride?.model ?? config.model
       if (!prepareSend(targetModel)) return
       updateMessages(toSubmit)
-      sendChat(toSubmit, chatOverride)
+      dispatchGeneration(newContent, toSubmit)
     },
     [
       editingMessageKey,
       config.model,
+      getFirstRunChatOverride,
       messages,
       prepareSend,
       updateMessages,
-      sendChat,
-      getFirstRunChatOverride,
+      dispatchGeneration,
     ]
   )
 
   const handleDeleteMessage = (message: MessageType) => {
-    // Revoke the video blob URL (if any) so deleting a video message doesn't leak.
-    if (message.videoUrl) releaseVideoObjectUrl(message.videoUrl)
+    if (message.videoUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(message.videoUrl)
+    }
     const newMessages = messages.filter((m) => m.key !== message.key)
     updateMessages(newMessages)
   }
@@ -695,6 +741,7 @@ export function Playground({
       {/* Input area: center content and constrain to the same container width */}
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
+          key={handoff.prompt || 'playground-input'}
           disabled={isGenerating}
           initialText={handoff.prompt}
           submitDisabled={!isCurrentModelValid || !isFirstRunModelReady}
@@ -706,6 +753,9 @@ export function Playground({
           modelLocked={isHandoffModelLocked}
           modelValue={config.model}
           models={models}
+          mediaProfile={mediaProfile}
+          mediaSettings={mediaSettings}
+          onMediaParameterChange={handleMediaParameterChange}
           onGroupChange={(value) => updateConfig('group', value)}
           onModelChange={(value) => {
             // Mark that the user explicitly chose a model so the first-run cheap

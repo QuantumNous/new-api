@@ -227,3 +227,54 @@ func TestResolvePlaygroundUsingGroupPrefersAuthoritativeUserGroup(t *testing.T) 
 	require.NoError(t, err)
 	require.Equal(t, "default", group)
 }
+
+func TestGetModelRequestParsesPlaygroundImageModelAndGroup(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/pg/images/generations",
+		strings.NewReader(`{"model":"gpt-image-2","group":"plg","prompt":"cat"}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	request, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "gpt-image-2", request.Model)
+	require.Equal(t, "plg", request.Group)
+	require.Equal(t, relayconstant.RelayModeImagesGenerations, c.GetInt("relay_mode"))
+}
+
+func TestGetModelRequestParsesPlaygroundVideoSubmit(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/pg/videos",
+		strings.NewReader(`{"model":"veo-3.1-generate-preview","group":"plg","prompt":"cat"}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	request, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "veo-3.1-generate-preview", request.Model)
+	require.Equal(t, "plg", request.Group)
+	require.Equal(t, relayconstant.RelayModeVideoSubmit, c.GetInt("relay_mode"))
+}
+
+func TestGetModelRequestRecognizesPlaygroundVideoFetch(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Params = gin.Params{{Key: "task_id", Value: "task_example"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/pg/videos/task_example", nil)
+
+	_, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.False(t, shouldSelectChannel)
+	require.Equal(t, relayconstant.RelayModeVideoFetchByID, c.GetInt("relay_mode"))
+}

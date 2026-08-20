@@ -26,6 +26,11 @@ export interface MessageVersion {
   content: string
 }
 
+export interface GeneratedMedia {
+  type: 'image' | 'video'
+  url: string
+}
+
 export interface Message {
   key: string
   from: MessageRole
@@ -49,6 +54,7 @@ export interface Message {
   isVideo?: boolean
   videoProgress?: number
   videoUrl?: string
+  generatedMedia?: GeneratedMedia[]
 }
 
 // API payload types
@@ -117,11 +123,7 @@ export interface ChatCompletionResponse {
 }
 
 // Video generation (async /v1/videos) task types
-export type VideoTaskStatus =
-  | 'queued'
-  | 'in_progress'
-  | 'completed'
-  | 'failed'
+export type VideoTaskStatus = 'queued' | 'in_progress' | 'completed' | 'failed'
 
 export interface VideoTask {
   id: string
