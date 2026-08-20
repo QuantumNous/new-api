@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -472,6 +473,13 @@ func GetChannel(c *gin.Context) {
 	}
 	channel, err := model.GetChannelById(id, false)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Return the identical response as the "not visible to caller" branch below,
+			// so a restricted caller cannot distinguish a nonexistent channel id from an
+			// existing channel outside their visible groups (existence leak / message oracle).
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
