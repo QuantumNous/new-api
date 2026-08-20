@@ -133,6 +133,12 @@ func appendIntelligentRoutingAdminInfo(relayInfo *relaycommon.RelayInfo, adminIn
 		"execution_model": relayInfo.GetExecutionModelName(),
 		"attempt_index":   relayInfo.IntelligentRouteAttempt,
 	}
+	if relayInfo.IntelligentRouteRolloutRevision > 0 {
+		audit["rollout_revision"] = relayInfo.IntelligentRouteRolloutRevision
+		audit["rollout_bucket"] = relayInfo.IntelligentRouteRolloutBucket
+		audit["rollout_mode"] = relayInfo.IntelligentRouteRolloutMode
+		audit["policy_version"] = relayInfo.IntelligentRoutePolicyVersion
+	}
 	if relayInfo.IntelligentRouteError != "" {
 		audit["error"] = relayInfo.IntelligentRouteError
 	}

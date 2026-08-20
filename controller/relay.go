@@ -157,9 +157,25 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 	routingConfig := routingsetting.Get()
+	runtimeSnapshot := intelligentrouting.DefaultPolicyControl.Snapshot()
+	if runtimeSnapshot.Rollout.Exists {
+		decision := intelligentrouting.ResolveRollout(runtimeSnapshot, intelligentrouting.RolloutSubject{
+			AccountID:  relayInfo.UserId,
+			TokenID:    relayInfo.TokenId,
+			UserGroup:  relayInfo.UserGroup,
+			TokenGroup: relayInfo.TokenGroup,
+		})
+		routingConfig = runtimeSnapshot.Config
+		routingConfig.Enabled = decision.Selected
+		routingConfig.ShadowOnly = decision.Mode == model.IntelligentRoutingModeShadow
+		relayInfo.IntelligentRoutePolicyVersion = decision.PolicyVersion
+		relayInfo.IntelligentRouteRolloutRevision = decision.Revision
+		relayInfo.IntelligentRouteRolloutBucket = decision.Bucket
+		relayInfo.IntelligentRouteRolloutMode = decision.Mode
+	}
 	intelligentRoutingActive := routingConfig.Enabled && supportsIntelligentRouting(relayInfo.RelayFormat, relayInfo.RelayMode)
 	if intelligentRoutingActive {
-		if routingErr := buildShadowRoutePlan(c, relayInfo, tokens, nil); routingErr != nil {
+		if routingErr := buildRoutePlan(c, relayInfo, tokens, nil, routingConfig); routingErr != nil {
 			relayInfo.IntelligentRouteError = routingErr.Error()
 			if routingConfig.ShadowOnly {
 				logger.LogWarn(c, "intelligent routing shadow plan failed: "+routingErr.Error())
@@ -386,8 +402,11 @@ func recordIntelligentRouteAttempt(info *relaycommon.RelayInfo, node hosttypes.I
 }
 
 func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource) error {
+	return buildRoutePlan(c, info, promptTokens, source, routingsetting.Get())
+}
+
+func buildRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, source intelligentrouting.ChannelSource, config routingsetting.Config) error {
 	startedAt := time.Now()
-	config := routingsetting.Get()
 	features := intelligentrouting.ExtractFeatures(intelligentrouting.Input{
 		Request: info.Request, RelayFormat: info.RelayFormat, PromptTokens: promptTokens, RequestPath: c.Request.URL.Path,
 	})
@@ -412,6 +431,7 @@ func buildShadowRoutePlan(c *gin.Context, info *relaycommon.RelayInfo, promptTok
 	}
 	info.IntelligentRoutePlan = &plan
 	info.IntelligentRouteShadow = config.ShadowOnly
+	info.IntelligentRouteLive = !config.ShadowOnly
 	info.IntelligentRouteSessionKey = sessionKey
 	info.IntelligentRouteTask = string(features.Task)
 	intelligentrouting.DefaultMetrics.Observe(intelligentrouting.Observation{CandidateTier: plan.Nodes[0].Tier, PlanningDuration: time.Since(startedAt)})
@@ -486,8 +506,7 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
-	routingConfig := routingsetting.Get()
-	if routingConfig.Enabled && !routingConfig.ShadowOnly && info.IntelligentRoutePlan != nil {
+	if info.IntelligentRouteLive && info.IntelligentRoutePlan != nil {
 		index := retryParam.GetRetry()
 		if index < 0 || index >= len(info.IntelligentRoutePlan.Nodes) {
 			return nil, types.NewError(errors.New("intelligent route attempts exhausted"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
