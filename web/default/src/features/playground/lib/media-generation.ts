@@ -137,7 +137,7 @@ const gptImageProfile: MediaGenerationProfile = {
       max: 10,
       step: 1,
     },
-    selectField('size', 'Size', [
+    selectField('size', 'Resolution', [
       'auto',
       '1024x1024',
       '1536x1024',
@@ -260,7 +260,7 @@ const seedance20Profile: MediaGenerationProfile = {
       min: 4,
       max: 15,
       step: 1,
-      unitKey: 'Seconds',
+      unitKey: 'seconds',
     },
     {
       key: 'seed',

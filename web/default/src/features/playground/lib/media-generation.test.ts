@@ -83,6 +83,17 @@ describe('Playground media model profiles', () => {
       'background',
       'compression',
     ])
+    expect(
+      profile?.fields.find((field) => field.key === 'size')?.labelKey
+    ).toBe('Resolution')
+  })
+
+  test('Seedance duration uses the shared localized seconds unit', () => {
+    const profile = resolveMediaGenerationProfile('seedance-2.0')
+
+    expect(
+      profile?.fields.find((field) => field.key === 'duration')?.unitKey
+    ).toBe('seconds')
   })
 
   test('Grok image does not invent unsupported quality or resolution controls', () => {
