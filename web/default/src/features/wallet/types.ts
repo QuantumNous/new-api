@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 // Wallet Type Definitions
 // ============================================================================
+import type { StripeCurrencyPrices } from './lib/stripe-currency'
 
 /**
  * Generic API response
@@ -248,6 +249,8 @@ export interface TopupInfo {
   amount_options: number[]
   /** Stripe Price IDs keyed by top-up amount */
   stripe_price_ids?: Record<number, string>
+  /** Stripe minor-unit prices keyed by checkout currency and top-up amount */
+  stripe_currency_prices?: StripeCurrencyPrices
   /** Discount rates by amount */
   discount: Record<number, number>
   /** Bonus amounts by selected recharge amount */
