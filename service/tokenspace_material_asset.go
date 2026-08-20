@@ -148,6 +148,8 @@ func tokenSpaceMaterialNormalizeType(assetType string) (string, error) {
 		return "Image", nil
 	case strings.ToLower("Video"):
 		return "Video", nil
+	case strings.ToLower("Audio"):
+		return "Audio", nil
 	default:
 		return "", errors.New("tokenspace material asset type unsupported")
 	}
