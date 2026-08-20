@@ -10,6 +10,7 @@ describe("FiveCreditPromoPage", () => {
     expect(html).toContain("Crie sua conta na Flatkey, resgate US$5 em créditos e comece a testar APIs de IA.");
     expect(html).toContain("Crédito promocional para novos usuários. Sem cartão. Limitado a uma vez por conta.");
     expect(html).toContain("Resgate sem recarga inicial");
+    expect(html).toContain("Modelos disponíveis");
     expect(html).toContain("Não é necessário fazer recarga para resgatar o crédito.");
     expect(html).toContain("DeepSeek");
     expect(html).toContain("Qwen");

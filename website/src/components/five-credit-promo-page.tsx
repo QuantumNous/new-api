@@ -38,22 +38,22 @@ export function FiveCreditPromoPage() {
     <SiteShell locale="pt" pathname="/5-credit-promo" hideLanguageSwitcher>
       <main className="bg-[#f7f8fb] text-slate-950">
         <section className="border-b border-slate-200 bg-white">
-          <div className="mx-auto grid max-w-6xl gap-10 px-4 pb-12 pt-10 sm:px-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.75fr)] lg:px-8 lg:pb-16 lg:pt-14">
+          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 sm:px-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.8fr)] lg:px-8 lg:py-10">
             <div className="flex min-w-0 flex-col justify-center">
-              <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-800">
+              <div className="mb-4 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-800">
                 <Gift className="h-4 w-4" aria-hidden="true" />
                 Crédito promocional para novos usuários
               </div>
-              <h1 className="max-w-3xl text-4xl font-semibold tracking-normal text-slate-950 sm:text-5xl lg:text-6xl">
+              <h1 className="max-w-3xl text-4xl font-semibold tracking-normal text-slate-950 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.04]">
                 Ganhe US$5 em créditos para APIs de IA
               </h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-700">
                 Crie sua conta na Flatkey, resgate US$5 em créditos e comece a testar APIs de IA.
               </p>
-              <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
                 <a
                   href={PROMO_CLAIM_URL}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-base font-semibold text-white transition hover:bg-slate-800"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-slate-950 px-5 py-3 text-base font-semibold !text-white transition hover:bg-slate-800"
                 >
                   Resgatar US$5 em créditos
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -85,11 +85,21 @@ export function FiveCreditPromoPage() {
                   );
                 })}
               </div>
+              <div className="mt-5 border-t border-slate-200 pt-4">
+                <p className="text-sm font-semibold text-slate-950">Modelos disponíveis</p>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {models.map((model) => (
+                    <div key={model} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-900">
+                      {model}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </aside>
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+        <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
           <h2 className="text-2xl font-semibold text-slate-950">Como funciona</h2>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             {steps.map((step, index) => (
@@ -104,7 +114,7 @@ export function FiveCreditPromoPage() {
         </section>
 
         <section className="border-y border-slate-200 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
             <div className="max-w-3xl">
               <h2 className="text-2xl font-semibold text-slate-950">Use seus créditos nos modelos que você precisa</h2>
               <p className="mt-3 text-base leading-7 text-slate-700">
@@ -121,7 +131,7 @@ export function FiveCreditPromoPage() {
           </div>
         </section>
 
-        <section className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[0.8fr_1fr] lg:px-8">
+        <section className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.8fr_1fr] lg:px-8">
           <div>
             <h2 className="text-2xl font-semibold text-slate-950">Mais simples para testar APIs de IA</h2>
             <p className="mt-3 text-base leading-7 text-slate-700">
@@ -142,7 +152,7 @@ export function FiveCreditPromoPage() {
         </section>
 
         <section className="border-t border-slate-200 bg-white">
-          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_1fr] lg:px-8">
+          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_1fr] lg:px-8">
             <div>
               <h2 className="text-2xl font-semibold text-slate-950">Condições da promoção</h2>
               <ul className="mt-5 space-y-3">
@@ -161,7 +171,7 @@ export function FiveCreditPromoPage() {
               </p>
               <a
                 href={PROMO_CLAIM_URL}
-                className="mt-6 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-base font-semibold text-slate-950 transition hover:bg-slate-100"
+                className="mt-6 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-base font-semibold !text-slate-950 transition hover:bg-slate-100"
               >
                 Resgatar meus US$5
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
