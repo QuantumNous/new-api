@@ -388,10 +388,6 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 	if request.Channel == nil || request.Channel.Id <= 0 {
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
-	bindingScope, err := assetBindingScopeForChannel(request.Channel, AssetMaterializeOptions{Model: request.Model, APIKey: request.APIKey})
-	if err != nil {
-		return AssetBindingResult{}, err
-	}
 	asset, err := model.GetAssetByPublicIDForUser(request.UserID, strings.TrimSpace(request.PublicID))
 	if err != nil {
 		return AssetBindingResult{}, sanitizeAssetBindingError(err)
@@ -399,11 +395,27 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 	if request.ExpectedType != "" && asset.AssetType != request.ExpectedType {
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
 	}
-	if !channelCanConsumeAssetType(request.Channel, asset.AssetType) {
-		return AssetBindingResult{}, ErrAssetBindingUnavailable
-	}
 	if asset.Status != model.AssetStatusActive {
 		return AssetBindingResult{}, ErrAssetBindingUnavailable
+	}
+	options := AssetMaterializeOptions{Model: request.Model, APIKey: request.APIKey}
+	legacyScope, legacyMaterializer, legacyRecovery := legacyTechMobiProcessingRecoveryBinding(request.Channel, options, asset.Id)
+	if !channelCanConsumeAssetType(request.Channel, asset.AssetType) && !legacyRecovery {
+		return AssetBindingResult{}, ErrAssetBindingUnavailable
+	}
+	bindingScope, err := assetBindingScopeForChannel(request.Channel, options)
+	var existing *model.AssetBinding
+	var existingErr error
+	var recoveryMaterializer AssetMaterializer
+	if err != nil {
+		if !legacyRecovery {
+			return AssetBindingResult{}, err
+		}
+		bindingScope = legacyScope
+		recoveryMaterializer = legacyMaterializer
+		existing, existingErr = model.GetAssetBindingForScope(asset.Id, request.Channel.Id, bindingScope)
+	} else {
+		existing, existingErr = model.GetAssetBindingForScope(asset.Id, request.Channel.Id, bindingScope)
 	}
 	owner := strings.TrimSpace(request.LeaseOwner)
 	if owner == "" {
@@ -421,7 +433,6 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 	if leaseTTL <= 0 {
 		leaseTTL = assetBindingDefaultLeaseTTL
 	}
-	existing, existingErr := model.GetAssetBindingForScope(asset.Id, request.Channel.Id, bindingScope)
 	if existingErr != nil && !errors.Is(existingErr, gorm.ErrRecordNotFound) {
 		return AssetBindingResult{}, sanitizeAssetBindingError(existingErr)
 	}
@@ -476,7 +487,7 @@ func MaterializeAssetBinding(ctx context.Context, request AssetBindingRequest) (
 			return AssetBindingResult{}, sanitizeAssetBindingError(err)
 		}
 		if claimed {
-			return createLeasedAssetBinding(ctx, asset, request.Channel, owner, leaseExpiresAt, pollLimit, pollDelay, request.Model, request.APIKey, bindingScope)
+			return createLeasedAssetBinding(ctx, asset, request.Channel, owner, leaseExpiresAt, pollLimit, pollDelay, request.Model, request.APIKey, bindingScope, recoveryMaterializer)
 		}
 		loaded, err := model.GetAssetBindingForScope(asset.Id, request.Channel.Id, bindingScope)
 		if err != nil {
@@ -532,7 +543,49 @@ func assetBindingRequiresRematerializationFromProcessing(channel *model.Channel)
 		return false
 	}
 	_, explicit, err := assetMaterializationConfigForChannel(channel)
-	return err == nil && !explicit
+	if err != nil {
+		return explicit && hasKnownExplicitAssetMaterializationProvider(channel)
+	}
+	return !explicit
+}
+
+func hasKnownExplicitAssetMaterializationProvider(channel *model.Channel) bool {
+	if channel == nil {
+		return false
+	}
+	settings := channel.GetOtherSettings().AssetMaterialization
+	if settings == nil {
+		return false
+	}
+	provider := strings.TrimSpace(settings.Provider)
+	if provider == "" {
+		return false
+	}
+	_, ok := assetMaterializationProviderDescriptors[provider]
+	return ok
+}
+
+func legacyTechMobiProcessingRecoveryBinding(channel *model.Channel, options AssetMaterializeOptions, assetID int64) (string, AssetMaterializer, bool) {
+	if channel == nil || channel.Type != constant.ChannelTypeTechMobiVideo {
+		return "", nil, false
+	}
+	_, explicit, err := assetMaterializationConfigForChannel(channel)
+	if err == nil || !explicit || !hasKnownExplicitAssetMaterializationProvider(channel) {
+		return "", nil, false
+	}
+	scope, err := assetBindingScope(channel.Type, options)
+	if err != nil {
+		return "", nil, false
+	}
+	binding, err := model.GetAssetBindingForScope(assetID, channel.Id, scope)
+	if err != nil || !processingAssetBinding(binding) {
+		return "", nil, false
+	}
+	materializer, ok := assetMaterializerForChannelType(channel.Type)
+	if !ok || materializer == nil {
+		return "", nil, false
+	}
+	return scope, materializer, true
 }
 
 func markProcessingAssetBindingForRematerialization(assetID int64, channelID int, bindingScope string, upstreamAssetID string) (bool, error) {
@@ -547,15 +600,19 @@ func markProcessingAssetBindingForRematerialization(assetID int64, channelID int
 	})
 }
 
-func createLeasedAssetBinding(ctx context.Context, asset *model.Asset, channel *model.Channel, owner string, expectedLeaseExpiresAt int64, pollLimit int, pollDelay time.Duration, modelName string, apiKey string, bindingScope string) (AssetBindingResult, error) {
-	materializer, err := assetMaterializerForChannel(channel)
-	if err != nil {
-		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, channel.Id, bindingScope, owner, expectedLeaseExpiresAt, "asset_channel_unavailable", assetBindingNow().Unix())
-		return AssetBindingResult{}, ErrAssetBindingUnavailable
-	}
+func createLeasedAssetBinding(ctx context.Context, asset *model.Asset, channel *model.Channel, owner string, expectedLeaseExpiresAt int64, pollLimit int, pollDelay time.Duration, modelName string, apiKey string, bindingScope string, materializerOverride AssetMaterializer) (AssetBindingResult, error) {
+	materializer := materializerOverride
 	if materializer == nil {
-		_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, channel.Id, bindingScope, owner, expectedLeaseExpiresAt, "asset_channel_unavailable", assetBindingNow().Unix())
-		return AssetBindingResult{}, ErrAssetBindingUnavailable
+		var err error
+		materializer, err = assetMaterializerForChannel(channel)
+		if err != nil {
+			_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, channel.Id, bindingScope, owner, expectedLeaseExpiresAt, "asset_channel_unavailable", assetBindingNow().Unix())
+			return AssetBindingResult{}, ErrAssetBindingUnavailable
+		}
+		if materializer == nil {
+			_, _ = model.FailAssetBindingForScopeLeaseCAS(asset.Id, channel.Id, bindingScope, owner, expectedLeaseExpiresAt, "asset_channel_unavailable", assetBindingNow().Unix())
+			return AssetBindingResult{}, ErrAssetBindingUnavailable
+		}
 	}
 	result, err := materializer.CreateAsset(ctx, AssetMaterializeInput{
 		UserID:         asset.UserId,

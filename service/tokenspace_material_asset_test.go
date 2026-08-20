@@ -226,17 +226,16 @@ func TestTokenSpaceMaterialAssetClassifiesTimeoutAndOversizedJSON(t *testing.T) 
 	})
 }
 
-func TestTokenSpaceMaterialAssetNormalizesImageAndVideoAndRejectsAudioBeforeHTTP(t *testing.T) {
-	requests := 0
+func TestTokenSpaceMaterialAssetNormalizesImageVideoAndAudioBeforeHTTP(t *testing.T) {
+	var requests []tokenSpaceMaterialCreateRequest
 	materializer, channel := tokenSpaceMaterialMaterializerWithHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		requests++
 		var body tokenSpaceMaterialCreateRequest
 		require.NoError(t, common.DecodeJson(r.Body, &body))
-		require.Contains(t, []string{"Image", "Video"}, body.AssetType)
+		requests = append(requests, body)
 		_, _ = io.WriteString(w, `{"Result":{"Id":"asset-created"}}`)
 	})
 
-	for _, assetType := range []string{"Image", "Video"} {
+	for _, assetType := range []string{"Image", "Video", "Audio"} {
 		result, err := materializer.CreateAsset(context.Background(), AssetMaterializeInput{
 			Asset:     model.Asset{PublicId: "ast_" + strings.ToLower(assetType), AssetType: assetType},
 			Channel:   channel,
@@ -247,16 +246,10 @@ func TestTokenSpaceMaterialAssetNormalizesImageAndVideoAndRejectsAudioBeforeHTTP
 		require.Equal(t, "asset-created", result.UpstreamAssetID)
 	}
 
-	_, err := materializer.CreateAsset(context.Background(), AssetMaterializeInput{
-		Asset:     model.Asset{PublicId: "ast_audio", AssetType: "Audio"},
-		Channel:   channel,
-		APIKey:    "key-test",
-		SourceURL: "https://signed.example/source",
-	})
-	require.Error(t, err)
-	require.Equal(t, AssetMaterializeErrorDefinitive, AssetMaterializeErrorClass(err))
-	require.False(t, IsRetryableAssetMaterializeError(err))
-	require.Equal(t, 2, requests)
+	require.Len(t, requests, 3)
+	require.Equal(t, "Image", requests[0].AssetType)
+	require.Equal(t, "Video", requests[1].AssetType)
+	require.Equal(t, "Audio", requests[2].AssetType)
 }
 
 func TestTokenSpaceMaterialAssetDoesNotExposeSecretsInErrorsOrResults(t *testing.T) {

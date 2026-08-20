@@ -706,15 +706,26 @@ func TestExplicitUnknownAssetMaterializationProviderFailsClosedForAllAssetTypes(
 	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
 }
 
-func TestTokenSpaceMaterialConfiguredAssetTypeAllowsImageAndVideoOnly(t *testing.T) {
-	channel := &model.Channel{
+func TestTokenSpaceMaterialConfiguredAssetTypeAllowsImageVideoAndAudio(t *testing.T) {
+	tokenSpaceChannel := &model.Channel{
 		Type:          constant.ChannelTypeTechMobiVideo,
 		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-internal"}}`,
 	}
 
-	require.True(t, channelCanConsumeAssetType(channel, "Image"))
-	require.True(t, channelCanConsumeAssetType(channel, "Video"))
-	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+	require.True(t, channelCanConsumeAssetType(tokenSpaceChannel, "Image"))
+	require.True(t, channelCanConsumeAssetType(tokenSpaceChannel, "Video"))
+	require.True(t, channelCanConsumeAssetType(tokenSpaceChannel, "Audio"))
+}
+
+func TestSeedanceProxyCapabilityRejectsAudio(t *testing.T) {
+	seedanceProxyChannel := &model.Channel{
+		Type:          constant.ChannelTypeBytePlus,
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid","group_id":"grp_shared_aigc"}}`,
+	}
+
+	require.True(t, channelCanConsumeAssetType(seedanceProxyChannel, "Image"))
+	require.True(t, channelCanConsumeAssetType(seedanceProxyChannel, "Video"))
+	require.False(t, channelCanConsumeAssetType(seedanceProxyChannel, "Audio"))
 }
 
 func TestTokenSpaceMaterialIncompleteConfigurationFailsClosedForAllAssetTypes(t *testing.T) {

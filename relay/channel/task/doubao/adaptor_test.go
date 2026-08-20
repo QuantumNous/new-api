@@ -247,11 +247,13 @@ func TestBuildRequestBody_RewritesExactAssetUrlsAndPreservesText(t *testing.T) {
 		"content":[
 			{"type":"text","text":"plain asset://ast_1234567890abcdefABCDEF1234567890 mention"},
 			{"type":"image_url","image_url":{"url":"asset://ast_1234567890abcdefABCDEF1234567890"},"role":"reference_image"},
-			{"type":"video_url","video_url":{"url":"https://cdn.example.com/input.mp4?foo=1&bar=2"},"role":"reference_video"}
+			{"type":"video_url","video_url":{"url":"https://cdn.example.com/input.mp4?foo=1&bar=2"},"role":"reference_video"},
+			{"type":"audio_url","audio_url":{"url":"asset://ast_abcdef1234567890ABCDEF1234567890"},"role":"reference_audio"}
 		]
 	}`)
 	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{
 		"asset://ast_1234567890abcdefABCDEF1234567890": "asset://asset-opaque-123",
+		"asset://ast_abcdef1234567890ABCDEF1234567890": "asset://audio-upstream-opaque",
 	})
 
 	r, err := a.BuildRequestBody(c, newRelayInfo())
@@ -280,6 +282,9 @@ func TestBuildRequestBody_RewritesExactAssetUrlsAndPreservesText(t *testing.T) {
 	if body.Content[2].VideoURL == nil || body.Content[2].VideoURL.URL != "https://cdn.example.com/input.mp4?foo=1&bar=2" {
 		t.Fatalf("video URL changed: %+v", body.Content[2].VideoURL)
 	}
+	if body.Content[3].AudioURL == nil || body.Content[3].AudioURL.URL != "asset://audio-upstream-opaque" {
+		t.Fatalf("audio URL not rewritten: %+v", body.Content[3].AudioURL)
+	}
 }
 
 func TestBuildRequestBody_RejectsMissingRewriteMapForExactAssetRef(t *testing.T) {
@@ -296,6 +301,24 @@ func TestBuildRequestBody_RejectsMissingRewriteMapForExactAssetRef(t *testing.T)
 		t.Fatalf("BuildRequestBody error = %v, want invalid asset reference", err)
 	}
 	if strings.Contains(err.Error(), "ast_1234567890abcdefABCDEF1234567890") {
+		t.Fatalf("error leaked asset id: %v", err)
+	}
+}
+
+func TestBuildRequestBody_RejectsMissingRewriteMapForExactAudioAssetRef(t *testing.T) {
+	a := &TaskAdaptor{baseURL: "https://ark.example"}
+	c := newJSONCtx(`{
+		"model":"doubao-seedance-2-0-260128",
+		"content":[
+			{"type":"audio_url","audio_url":{"url":"asset://ast_abcdef1234567890ABCDEF1234567890"},"role":"reference_audio"}
+		]
+	}`)
+
+	_, err := a.BuildRequestBody(c, newRelayInfo())
+	if err == nil || err.Error() != "invalid asset reference" {
+		t.Fatalf("BuildRequestBody error = %v, want invalid asset reference", err)
+	}
+	if strings.Contains(err.Error(), "ast_abcdef1234567890ABCDEF1234567890") {
 		t.Fatalf("error leaked asset id: %v", err)
 	}
 }
@@ -450,8 +473,15 @@ func TestBuildRequestBody_AudioPassthroughAndOptionalsOmitted(t *testing.T) {
 	}
 	raw, _ := io.ReadAll(r)
 	s := string(raw)
-	if !strings.Contains(s, `"audio_url"`) || !strings.Contains(s, "https://x/a.mp3") {
+	if !strings.Contains(s, `"audio_url"`) {
 		t.Errorf("audio not forwarded: %s", s)
+	}
+	var body requestPayload
+	if err := common.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal upstream body: %v\nraw=%s", err, raw)
+	}
+	if body.Content[1].AudioURL == nil || body.Content[1].AudioURL.URL != "https://x/a.mp3" {
+		t.Fatalf("audio URL changed: %+v", body.Content[1].AudioURL)
 	}
 	for _, notWant := range []string{`"duration"`, `"frames"`, `"seed"`, `"watermark"`, `"generate_audio"`} {
 		if strings.Contains(s, notWant) {

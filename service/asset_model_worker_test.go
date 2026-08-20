@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -785,6 +787,57 @@ func TestPrepareAssetModelBindingRejectsSeedanceProxyAudioBeforeProviderWrite(t 
 	var bindingCount int64
 	require.NoError(t, model.DB.Model(&model.AssetBinding{}).Where("asset_id = ?", asset.Id).Count(&bindingCount).Error)
 	require.Zero(t, bindingCount)
+}
+
+func TestPrepareAssetModelBindingAllowsTokenSpaceAudioBeforeProviderWrite(t *testing.T) {
+	newAssetModelWorkerTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_worker_tokenspace_audio")
+	require.NoError(t, model.DB.Model(&model.Asset{}).Where("id = ?", asset.Id).Updates(map[string]any{
+		"asset_type":   "Audio",
+		"content_type": "audio/mpeg",
+	}).Error)
+	asset.AssetType = "Audio"
+	asset.ContentType = "audio/mpeg"
+
+	var seenRequest tokenSpaceMaterialCreateRequest
+	providerCalled := false
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		providerCalled = true
+		require.Equal(t, "CreateAsset", r.URL.Query().Get("Action"))
+		require.NoError(t, common.DecodeJson(r.Body, &seenRequest))
+		_, _ = io.WriteString(w, `{"Result":{"Id":"upstream-audio","GroupId":"group-internal","Status":"Active"}}`)
+	}))
+	defer server.Close()
+	restore := installTokenSpaceMaterialHTTPClientFactory(t, server.Client())
+	defer restore()
+
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID:            182,
+		ChannelType:   constant.ChannelTypeTechMobiVideo,
+		Group:         "default",
+		ModelName:     "seedance-2.0",
+		Priority:      80,
+		Weight:        50,
+		Key:           "tokenspace-worker-key",
+		Mapping:       `{"seedance-2.0":"doubao/seedance-pro"}`,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"` + server.URL + `","group_id":"group-internal"}}`,
+	})
+	scope := AssetModelScope{ScopeKey: "scope-worker-tokenspace-audio", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+	target, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner", 90)
+	require.NoError(t, err)
+	require.NotNil(t, target)
+	channel, err := loadAssetModelReadinessChannel(target.ChannelId)
+	require.NoError(t, err)
+	options, _, err := ResolveAssetModelTargetOptions(*target, channel)
+	require.NoError(t, err)
+
+	_, err = prepareAssetModelBinding(context.Background(), asset, *target, channel, options, "node-a", 100)
+
+	require.True(t, providerCalled)
+	require.Equal(t, "Audio", seenRequest.AssetType)
+	var definitiveErr assetModelBindingDefinitiveError
+	require.False(t, errors.As(err, &definitiveErr))
 }
 
 func TestPrepareAssetModelReadinessActivatesExactSourceURLBindingSetWithoutAssetBindingRow(t *testing.T) {

@@ -820,8 +820,10 @@ func channelCanConsumeAssetType(channel *model.Channel, assetType string) bool {
 			return false
 		}
 		switch config.Provider {
-		case assetMaterializationProviderSeedanceProxy, assetMaterializationProviderTokenSpaceMaterial:
+		case assetMaterializationProviderSeedanceProxy:
 			return assetType == "Image" || assetType == "Video"
+		case assetMaterializationProviderTokenSpaceMaterial:
+			return assetType == "Image" || assetType == "Video" || assetType == "Audio"
 		default:
 			return false
 		}

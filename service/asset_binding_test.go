@@ -551,6 +551,119 @@ func TestTokenSpaceMaterialTechMobiProcessingBindingRefreshesWithGetOnly(t *test
 	require.Equal(t, "asset-created", binding.UpstreamAssetId)
 }
 
+func TestTechMobiAssetBindingMalformedExplicitConfigRematerializesProcessingBinding(t *testing.T) {
+	newAssetServiceTestDB(t)
+	store := installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_techmobi_malformed_explicit_processing")
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "tokenspace_material",
+		GatewayBaseURL: "http://materials.example.invalid",
+		GroupID:        "group-internal",
+	})
+	channel.Id = 106
+	options := AssetMaterializeOptions{
+		Model:  "seedance-2.0-fast",
+		APIKey: "selected-techmobi-key",
+	}
+	bindingScope, err := assetBindingScope(channel.Type, options)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       channel.Id,
+		BindingScope:    bindingScope,
+		Status:          model.AssetStatusProcessing,
+		UpstreamAssetId: "asset://historical-processing",
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}).Error)
+	materializer := &recordingAssetMaterializer{
+		getErr:        errors.New("TechMobi processing rows must not be refreshed from opaque asset URLs"),
+		createAssetID: "asset://new-techmobi-binding",
+	}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	defer restore()
+
+	result, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    2,
+		PollDelay:    0,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+		Model:        options.Model,
+		APIKey:       options.APIKey,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "asset://new-techmobi-binding", result.RewriteURI)
+	require.Zero(t, atomic.LoadInt64(&materializer.getCalls))
+	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.createCalls))
+	require.Len(t, store.signed, 1, "rematerialization must sign the recoverable source")
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, channel.Id, bindingScope).Error)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "asset://new-techmobi-binding", binding.UpstreamAssetId)
+	require.EqualValues(t, 1, binding.AttemptCount)
+}
+
+func TestTechMobiAssetBindingUnknownExplicitProviderDoesNotUseLegacyProcessingRecovery(t *testing.T) {
+	newAssetServiceTestDB(t)
+	store := installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_techmobi_unknown_explicit_processing")
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
+		Provider:       "unknown_provider",
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-internal",
+	})
+	channel.Id = 106
+	options := AssetMaterializeOptions{
+		Model:  "seedance-2.0-fast",
+		APIKey: "selected-techmobi-key",
+	}
+	bindingScope, err := assetBindingScope(channel.Type, options)
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.AssetBinding{
+		AssetId:         asset.Id,
+		ChannelId:       channel.Id,
+		BindingScope:    bindingScope,
+		Status:          model.AssetStatusProcessing,
+		UpstreamAssetId: "asset://historical-processing",
+		CreatedAt:       100,
+		UpdatedAt:       100,
+	}).Error)
+	materializer := &recordingAssetMaterializer{
+		getErr:        errors.New("unknown explicit providers must fail closed before refresh"),
+		createAssetID: "asset://unexpected-legacy-binding",
+	}
+	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
+	defer restore()
+
+	result, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    2,
+		PollDelay:    0,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+		Model:        options.Model,
+		APIKey:       options.APIKey,
+	})
+
+	require.ErrorIs(t, err, ErrAssetBindingUnavailable)
+	require.Empty(t, result.RewriteURI)
+	require.Zero(t, atomic.LoadInt64(&materializer.getCalls))
+	require.Zero(t, atomic.LoadInt64(&materializer.createCalls))
+	require.Len(t, store.signed, 0, "unknown explicit providers must not sign a source for legacy recovery")
+	var binding model.AssetBinding
+	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, channel.Id, bindingScope).Error)
+	require.Equal(t, model.AssetStatusProcessing, binding.Status)
+	require.Equal(t, "asset://historical-processing", binding.UpstreamAssetId)
+}
+
 func TestTechMobiAssetBindingHistoricalProcessingOpaqueAssetRematerializes(t *testing.T) {
 	newAssetServiceTestDB(t)
 	store := installAssetServiceTestDeps(t)
