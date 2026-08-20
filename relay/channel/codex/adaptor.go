@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -43,7 +44,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if err := ValidateCodexImageRequest(request); err != nil {
 		return nil, err
 	}
-	setFingerprintIDs(c, resolveFingerprintIDs(info, clientSessionID(c)))
+	setFingerprintIDs(c, nil)
+	ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	setFingerprintIDs(c, ids)
 
 	action := "generate"
 	var inputImages []string
@@ -88,9 +94,15 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	ids := resolveFingerprintIDs(info, clientSessionID(c))
+	setFingerprintIDs(c, nil)
+	ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
+	}
 	if ids != nil {
-		applyFingerprintBody(body, ids)
+		if !applyFingerprintBody(body, ids) {
+			return nil, errors.New("codex channel: sanitize fingerprint metadata")
+		}
 	}
 	setFingerprintIDs(c, ids)
 	return body, nil
@@ -127,12 +139,16 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	// 按真实 Codex 后端约束过滤字段；compact 还会移除其端点不接受的 tool-limit 字段。
 	applyCodexConstraintsToMap(body, info, isCompact)
 	var ids *codexFingerprintIDs
-	if !isCompact {
-		ids = resolveFingerprintIDs(info, clientSessionID(c))
+	setFingerprintIDs(c, nil)
+	ids, err = resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
 	}
 	setFingerprintIDs(c, ids)
-	if ids != nil {
-		applyFingerprintBody(body, ids)
+	if !isCompact && ids != nil {
+		if !applyFingerprintBody(body, ids) {
+			return nil, errors.New("codex channel: sanitize fingerprint metadata")
+		}
 	}
 
 	if isCompact {
@@ -162,8 +178,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		(info.RelayMode == relayconstant.RelayModeResponses || info.RelayMode == relayconstant.RelayModeResponsesCompact) {
 		info.UpstreamRequestBodySize = 0
 		var ids *codexFingerprintIDs
-		if info.RelayMode != relayconstant.RelayModeResponsesCompact {
-			ids = resolveFingerprintIDs(info, clientSessionID(c))
+		setFingerprintIDs(c, nil)
+		ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+		if err != nil {
+			return nil, err
 		}
 		setFingerprintIDs(c, ids)
 		if info.RelayMode == relayconstant.RelayModeResponses && ids != nil {
@@ -174,7 +192,15 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 			if err != nil {
 				return nil, fmt.Errorf("read codex pass-through request body: %w", err)
 			}
-			rewrittenBody, _, err := applyFingerprintBodyRaw(rawBody, ids)
+			fingerprint := &CodexFingerprint{
+				InstallationID: ids.installationID,
+				SessionID:      ids.sessionID,
+				ThreadID:       ids.threadID,
+				TurnID:         ids.turnID,
+				WindowID:       ids.windowID,
+				StartedAtMS:    ids.startedAtMS,
+			}
+			rewrittenBody, err := SanitizeCodexRequestBody(rawBody, fingerprint, ids.mode)
 			if err != nil {
 				return nil, err
 			}
@@ -331,7 +357,11 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
 	}
-	applyFingerprintHeaders(*req, fingerprintIDs(c, info))
+	ids, err := fingerprintIDsForRequest(c, info)
+	if err != nil {
+		return err
+	}
+	applyFingerprintHeaders(*req, ids)
 
 	// chatgpt.com/backend-api/codex/responses is strict about Content-Type.
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,

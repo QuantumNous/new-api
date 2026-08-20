@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -13,6 +14,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -47,7 +49,8 @@ func TestFingerprintModeDefaultsToOffUnlessExplicitlyEnabled(t *testing.T) {
 }
 
 func TestFingerprintSessionModeExplicitlyConvergesIDs(t *testing.T) {
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 42, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 42, CodexFingerprintSeed: hardeningSeed, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
 	a := resolveFingerprintIDs(info, "client-a")
 	b := resolveFingerprintIDs(info, "client-b")
 
@@ -58,7 +61,8 @@ func TestFingerprintSessionModeExplicitlyConvergesIDs(t *testing.T) {
 }
 
 func TestFingerprintModes(t *testing.T) {
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 42, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 42, CodexFingerprintSeed: hardeningSeed, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
 	a := resolveFingerprintIDs(info, "client-a")
 	b := resolveFingerprintIDs(info, "client-b")
 	require.NotNil(t, a)
@@ -74,11 +78,81 @@ func TestFingerprintModes(t *testing.T) {
 	require.Nil(t, resolveFingerprintIDs(info, "client-a"))
 }
 
+func TestFingerprintIgnoresDownstreamUserAndToken(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	now := time.Unix(1700000000, 123000000)
+	a := &relaycommon.RelayInfo{
+		UserId:  101,
+		TokenId: 201,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			CodexFingerprintSeed: "018f89db-7792-7b5e-a360-7fd9279fd725",
+			ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session"},
+		},
+	}
+	b := &relaycommon.RelayInfo{
+		UserId:  102,
+		TokenId: 202,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			CodexFingerprintSeed: "018f89db-7792-7b5e-a360-7fd9279fd725",
+			ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session"},
+		},
+	}
+
+	first, err := ResolveCodexFingerprint(a, "client-session", now)
+	require.NoError(t, err)
+	second, err := ResolveCodexFingerprint(b, "client-session", now)
+	require.NoError(t, err)
+
+	require.Equal(t, first.InstallationID, second.InstallationID)
+	require.Equal(t, first.SessionID, second.SessionID)
+	require.Equal(t, first.ThreadID, second.ThreadID)
+	require.Equal(t, first.WindowID, second.WindowID)
+}
+
+func TestFingerprintNamespaceSeparatesDatabaseClones(t *testing.T) {
+	now := time.Unix(1700000000, 123000000)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		CodexFingerprintSeed: "018f89db-7792-7b5e-a360-7fd9279fd725",
+		ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session"},
+	}}
+
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "prod-a")
+	prodA, err := ResolveCodexFingerprint(info, "client-session", now)
+	require.NoError(t, err)
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "prod-b")
+	prodB, err := ResolveCodexFingerprint(info, "client-session", now)
+	require.NoError(t, err)
+
+	require.NotEqual(t, prodA.InstallationID, prodB.InstallationID)
+	require.NotEqual(t, prodA.SessionID, prodB.SessionID)
+	require.NotEqual(t, prodA.ThreadID, prodB.ThreadID)
+	require.NotEqual(t, prodA.WindowID, prodB.WindowID)
+}
+
+func TestFingerprintTurnUsesUUIDv7AndOneTimestamp(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	now := time.Unix(1700000000, 123000000)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		CodexFingerprintSeed: "018f89db-7792-7b5e-a360-7fd9279fd725",
+		ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "full"},
+	}}
+
+	fingerprint, err := ResolveCodexFingerprint(info, "ignored-client-session", now)
+	require.NoError(t, err)
+	turnID, err := uuid.Parse(fingerprint.TurnID)
+	require.NoError(t, err)
+
+	require.Equal(t, uuid.Version(7), turnID.Version())
+	require.Equal(t, now.UnixMilli(), fingerprint.StartedAtMS)
+	require.Equal(t, fingerprint.SessionID, fingerprint.ThreadID)
+}
+
 func TestFingerprintIDsUsesClearedStagingForNextAttempt(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	c.Request.Header.Set("session-id", "client")
-	onInfo := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
+	onInfo := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, CodexFingerprintSeed: hardeningSeed, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
 	offInfo := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 8, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "off"}}}
 
 	setFingerprintIDs(c, resolveFingerprintIDs(onInfo, clientSessionID(c)))
@@ -89,7 +163,8 @@ func TestFingerprintIDsUsesClearedStagingForNextAttempt(t *testing.T) {
 }
 
 func TestFingerprintHeadersAndBodyShareIDs(t *testing.T) {
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, CodexFingerprintSeed: hardeningSeed, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"}}}
 	ids := resolveFingerprintIDs(info, "client")
 	h := http.Header{}
 	h.Set("x-codex-turn-metadata", `{"installation_id":"old","session_id":"old","thread_id":"old","turn_id":"old"}`)
@@ -102,7 +177,8 @@ func TestFingerprintHeadersAndBodyShareIDs(t *testing.T) {
 }
 
 func TestFingerprintBodyReplacesNonObjectMetadata(t *testing.T) {
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, CodexFingerprintSeed: hardeningSeed, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
 	ids := resolveFingerprintIDs(info, "client")
 	body := map[string]any{"client_metadata": "opaque"}
 	require.True(t, applyFingerprintBody(body, ids))
@@ -111,7 +187,8 @@ func TestFingerprintBodyReplacesNonObjectMetadata(t *testing.T) {
 }
 
 func TestFingerprintDeviceRewritesTurnMetadata(t *testing.T) {
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, CodexFingerprintSeed: hardeningSeed, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
 	ids := resolveFingerprintIDs(info, "client")
 	body := map[string]any{"client_metadata": map[string]any{"x-codex-turn-metadata": `{"installation_id":"old"}`}}
 	require.True(t, applyFingerprintBody(body, ids))
@@ -120,6 +197,7 @@ func TestFingerprintDeviceRewritesTurnMetadata(t *testing.T) {
 }
 
 func TestFingerprintPassThroughRawBodySharesHeaderIDsAndPreservesFields(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	service.InitHttpClient()
 	var upstreamBody []byte
 	var upstreamHeader http.Header
@@ -139,10 +217,11 @@ func TestFingerprintPassThroughRawBodySharesHeaderIDsAndPreservesFields(t *testi
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeResponses,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelId:      11,
-			ChannelBaseUrl: server.URL,
-			ApiKey:         `{"access_token":"token","account_id":"account"}`,
-			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session", PassThroughBodyEnabled: true},
+			ChannelId:            11,
+			CodexFingerprintSeed: hardeningSeed,
+			ChannelBaseUrl:       server.URL,
+			ApiKey:               `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session", PassThroughBodyEnabled: true},
 		},
 	}
 
@@ -163,6 +242,7 @@ func TestFingerprintPassThroughRawBodySharesHeaderIDsAndPreservesFields(t *testi
 }
 
 func TestFingerprintConvertedChatWithPassThroughReusesStagedIDs(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	service.InitHttpClient()
 	var upstreamBody []byte
 	var upstreamHeader http.Header
@@ -182,9 +262,10 @@ func TestFingerprintConvertedChatWithPassThroughReusesStagedIDs(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeChatCompletions,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelId:      16,
-			ChannelBaseUrl: server.URL,
-			ApiKey:         `{"access_token":"token","account_id":"account"}`,
+			ChannelId:            16,
+			CodexFingerprintSeed: hardeningSeed,
+			ChannelBaseUrl:       server.URL,
+			ApiKey:               `{"access_token":"token","account_id":"account"}`,
 			ChannelSetting: dto.ChannelSettings{
 				CodexFingerprintMode:   "session",
 				PassThroughBodyEnabled: true,
@@ -252,15 +333,17 @@ func TestFingerprintPassThroughOffClearsStaleBodySize(t *testing.T) {
 	require.Equal(t, rawBody, string(upstreamBody))
 }
 
-func TestFingerprintCompactSkipsConvergence(t *testing.T) {
+func TestFingerprintCompactStagesHeadersWithoutBodyConvergence(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
 	c.Request.Header.Set("session-id", "client-session")
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeResponsesCompact,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ApiKey:         `{"access_token":"token","account_id":"account"}`,
-			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"},
+			CodexFingerprintSeed: hardeningSeed,
+			ApiKey:               `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session"},
 		},
 	}
 
@@ -268,16 +351,17 @@ func TestFingerprintCompactSkipsConvergence(t *testing.T) {
 	require.NoError(t, err)
 	body := out.(map[string]any)
 	require.NotContains(t, body, "client_metadata")
-	require.Nil(t, fingerprintIDs(c, info))
+	require.NotNil(t, fingerprintIDs(c, info))
 
 	header := http.Header{}
 	require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
-	require.Empty(t, header.Get("x-codex-installation-id"))
-	require.Empty(t, header.Get("session-id"))
-	require.Empty(t, header.Get("x-client-request-id"))
+	require.NotEmpty(t, header.Get("x-codex-installation-id"))
+	require.NotEmpty(t, header.Get("session-id"))
+	require.NotEmpty(t, header.Get("x-client-request-id"))
 }
 
 func TestFingerprintCompactPassThroughLeavesBodyAndHeadersUnchanged(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	service.InitHttpClient()
 	var upstreamBody []byte
 	var upstreamHeader http.Header
@@ -297,10 +381,11 @@ func TestFingerprintCompactPassThroughLeavesBodyAndHeadersUnchanged(t *testing.T
 	info := &relaycommon.RelayInfo{
 		RelayMode: relayconstant.RelayModeResponsesCompact,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelId:      14,
-			ChannelBaseUrl: server.URL,
-			ApiKey:         `{"access_token":"token","account_id":"account"}`,
-			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session", PassThroughBodyEnabled: true},
+			ChannelId:            14,
+			CodexFingerprintSeed: hardeningSeed,
+			ChannelBaseUrl:       server.URL,
+			ApiKey:               `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session", PassThroughBodyEnabled: true},
 		},
 	}
 	rawBody := `{"model":"gpt-5","client_metadata":{"session_id":"client-value"}}`
@@ -310,15 +395,17 @@ func TestFingerprintCompactPassThroughLeavesBodyAndHeadersUnchanged(t *testing.T
 	require.NotNil(t, resp)
 	_ = resp.(*http.Response).Body.Close()
 	require.JSONEq(t, rawBody, string(upstreamBody))
-	require.Empty(t, upstreamHeader.Get("x-codex-installation-id"))
-	require.Empty(t, upstreamHeader.Get("session-id"))
-	require.Empty(t, upstreamHeader.Get("x-client-request-id"))
+	require.NotEmpty(t, upstreamHeader.Get("x-codex-installation-id"))
+	require.NotEmpty(t, upstreamHeader.Get("session-id"))
+	require.NotEmpty(t, upstreamHeader.Get("x-client-request-id"))
 }
 
 func TestFingerprintRawBodyReplacesNonObjectMetadata(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
-		ChannelId:      12,
-		ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"},
+		ChannelId:            12,
+		CodexFingerprintSeed: hardeningSeed,
+		ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session"},
 	}}
 	ids := resolveFingerprintIDs(info, "client-session")
 	require.NotNil(t, ids)
@@ -340,9 +427,11 @@ func TestFingerprintRawBodyReplacesNonObjectMetadata(t *testing.T) {
 }
 
 func TestFingerprintRawBodyPreservesUnrelatedMetadataEncoding(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
-		ChannelId:      15,
-		ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "session"},
+		ChannelId:            15,
+		CodexFingerprintSeed: hardeningSeed,
+		ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "session"},
 	}}
 	ids := resolveFingerprintIDs(info, "client-session")
 	require.NotNil(t, ids)
@@ -357,9 +446,11 @@ func TestFingerprintRawBodyPreservesUnrelatedMetadataEncoding(t *testing.T) {
 }
 
 func TestFingerprintRawBodyLeavesNonObjectRootsUntouched(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
-		ChannelId:      13,
-		ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"},
+		ChannelId:            13,
+		CodexFingerprintSeed: hardeningSeed,
+		ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "device"},
 	}}
 	ids := resolveFingerprintIDs(info, "client-session")
 	require.NotNil(t, ids)

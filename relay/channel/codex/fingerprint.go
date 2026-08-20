@@ -2,8 +2,10 @@ package codex
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +18,8 @@ import (
 )
 
 const fingerprintContextKey = "codex_fingerprint_ids"
+const maxCodexMetadataBytes = 64 * 1024
+const maxCodexMetadataDepth = 10
 
 func clientSessionID(c *gin.Context) string {
 	if c == nil || c.Request == nil {
@@ -44,6 +48,29 @@ func fingerprintIDs(c *gin.Context, info *relaycommon.RelayInfo) *codexFingerpri
 	return resolveFingerprintIDs(info, clientSessionID(c))
 }
 
+func resolveFingerprintIDsForRequest(info *relaycommon.RelayInfo, clientSession string, now time.Time) (*codexFingerprintIDs, error) {
+	mode := fingerprintMode(info)
+	if mode == fingerprintOff {
+		return nil, nil
+	}
+	fingerprint, err := ResolveCodexFingerprint(info, clientSession, now)
+	if err != nil {
+		return nil, err
+	}
+	return codexFingerprintFromPublic(mode, fingerprint), nil
+}
+
+func fingerprintIDsForRequest(c *gin.Context, info *relaycommon.RelayInfo) (*codexFingerprintIDs, error) {
+	if c != nil {
+		if value, ok := c.Get(fingerprintContextKey); ok {
+			if ids, ok := value.(*codexFingerprintIDs); ok {
+				return ids, nil
+			}
+		}
+	}
+	return resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+}
+
 const (
 	fingerprintOff     = "off"
 	fingerprintDevice  = "device"
@@ -51,8 +78,18 @@ const (
 	fingerprintFull    = "full"
 )
 
+type CodexFingerprint struct {
+	InstallationID string
+	SessionID      string
+	ThreadID       string
+	TurnID         string
+	WindowID       string
+	StartedAtMS    int64
+}
+
 type codexFingerprintIDs struct {
 	mode, installationID, sessionID, threadID, turnID, windowID string
+	startedAtMS                                                 int64
 }
 
 func fingerprintMode(info *relaycommon.RelayInfo) string {
@@ -68,12 +105,71 @@ func fingerprintMode(info *relaycommon.RelayInfo) string {
 	}
 }
 
-func stableFingerprintID(seed string) string {
-	h := sha256.Sum256([]byte(seed))
+func stableCodexID(seed, deploymentNamespace, label string) string {
+	material := fmt.Sprintf("new-api:codex-fingerprint:v3:%s:%s:%s", deploymentNamespace, seed, label)
+	h := sha256.Sum256([]byte(material))
 	b := h[:16]
 	b[6] = b[6]&0x0f | 0x40
 	b[8] = b[8]&0x3f | 0x80
 	return uuid.UUID(b).String()
+}
+
+func ResolveCodexFingerprint(info *relaycommon.RelayInfo, originalSession string, now time.Time) (*CodexFingerprint, error) {
+	if info == nil || fingerprintMode(info) == fingerprintOff {
+		return nil, nil
+	}
+	if info.ChannelMeta == nil {
+		return nil, errors.New("codex channel: fingerprint seed metadata is missing")
+	}
+	seed := strings.TrimSpace(info.ChannelMeta.CodexFingerprintSeed)
+	if seed == "" {
+		return nil, errors.New("codex channel: fingerprint seed is required")
+	}
+	if _, err := uuid.Parse(seed); err != nil {
+		return nil, errors.New("codex channel: fingerprint seed must be a canonical uuid")
+	}
+	deploymentNamespace := strings.TrimSpace(os.Getenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE"))
+	if deploymentNamespace == "" {
+		return nil, errors.New("codex channel: CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE is required")
+	}
+
+	mode := fingerprintMode(info)
+	sessionID := stableCodexID(seed, deploymentNamespace, "session")
+	threadID := sessionID
+	if mode == fingerprintSession {
+		threadSession := strings.TrimSpace(originalSession)
+		if threadSession == "" {
+			threadSession = "default"
+		}
+		threadID = stableCodexID(seed, deploymentNamespace, "thread:"+threadSession)
+	}
+	turnID, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("codex channel: create turn id: %w", err)
+	}
+	return &CodexFingerprint{
+		InstallationID: stableCodexID(seed, deploymentNamespace, "installation"),
+		SessionID:      sessionID,
+		ThreadID:       threadID,
+		TurnID:         turnID.String(),
+		WindowID:       stableCodexID(seed, deploymentNamespace, "window:"+threadID),
+		StartedAtMS:    now.UnixMilli(),
+	}, nil
+}
+
+func codexFingerprintFromPublic(mode string, fingerprint *CodexFingerprint) *codexFingerprintIDs {
+	if fingerprint == nil {
+		return nil
+	}
+	return &codexFingerprintIDs{
+		mode:           mode,
+		installationID: fingerprint.InstallationID,
+		sessionID:      fingerprint.SessionID,
+		threadID:       fingerprint.ThreadID,
+		turnID:         fingerprint.TurnID,
+		windowID:       fingerprint.WindowID,
+		startedAtMS:    fingerprint.StartedAtMS,
+	}
 }
 
 func resolveFingerprintIDs(info *relaycommon.RelayInfo, clientSession string) *codexFingerprintIDs {
@@ -84,23 +180,11 @@ func resolveFingerprintIDs(info *relaycommon.RelayInfo, clientSession string) *c
 	if mode == fingerprintOff {
 		return nil
 	}
-	accountSeed := fmt.Sprintf("new-api:codex-fingerprint:v2:%d:user:%d:token:%d", info.ChannelId, info.UserId, info.TokenId)
-	ids := &codexFingerprintIDs{mode: mode, installationID: stableFingerprintID(accountSeed + ":device")}
-	if mode == fingerprintDevice {
-		return ids
+	fingerprint, err := ResolveCodexFingerprint(info, clientSession, time.Now())
+	if err != nil {
+		return nil
 	}
-	ids.sessionID = stableFingerprintID(accountSeed + ":session")
-	if mode == fingerprintFull {
-		ids.threadID = ids.sessionID
-	} else {
-		if strings.TrimSpace(clientSession) == "" {
-			clientSession = "default"
-		}
-		ids.threadID = stableFingerprintID(accountSeed + ":thread:" + clientSession)
-	}
-	ids.turnID = uuid.New().String()
-	ids.windowID = ids.threadID + ":0"
-	return ids
+	return codexFingerprintFromPublic(mode, fingerprint)
 }
 
 func rewriteTurnMetadata(raw string, ids *codexFingerprintIDs) string {
@@ -117,7 +201,7 @@ func rewriteTurnMetadata(raw string, ids *codexFingerprintIDs) string {
 		metadata["thread_id"] = ids.threadID
 		metadata["turn_id"] = ids.turnID
 		metadata["window_id"] = ids.windowID
-		metadata["turn_started_at_unix_ms"] = time.Now().UnixMilli()
+		metadata["turn_started_at_unix_ms"] = ids.startedAtMS
 	}
 	out, err := common.Marshal(metadata)
 	if err != nil {
@@ -151,6 +235,35 @@ func applyFingerprintBody(body map[string]any, ids *codexFingerprintIDs) bool {
 	if body == nil || ids == nil {
 		return false
 	}
+	if ids.mode == fingerprintFull {
+		raw, err := common.Marshal(body)
+		if err != nil {
+			return false
+		}
+		fingerprint := &CodexFingerprint{
+			InstallationID: ids.installationID,
+			SessionID:      ids.sessionID,
+			ThreadID:       ids.threadID,
+			TurnID:         ids.turnID,
+			WindowID:       ids.windowID,
+			StartedAtMS:    ids.startedAtMS,
+		}
+		rewritten, err := SanitizeCodexRequestBody(raw, fingerprint, ids.mode)
+		if err != nil {
+			return false
+		}
+		var sanitized map[string]any
+		if err := common.Unmarshal(rewritten, &sanitized); err != nil {
+			return false
+		}
+		for key := range body {
+			delete(body, key)
+		}
+		for key, value := range sanitized {
+			body[key] = value
+		}
+		return true
+	}
 	metadata, _ := body["client_metadata"].(map[string]any)
 	if metadata == nil {
 		metadata = map[string]any{}
@@ -177,7 +290,7 @@ func applyFingerprintMetadata(metadata map[string]any, ids *codexFingerprintIDs)
 
 type fingerprintMetadataField struct {
 	name  string
-	value string
+	value any
 }
 
 func fingerprintMetadataFields(ids *codexFingerprintIDs) []fingerprintMetadataField {
@@ -191,9 +304,93 @@ func fingerprintMetadataFields(ids *codexFingerprintIDs) []fingerprintMetadataFi
 			fingerprintMetadataField{name: "thread_id", value: ids.threadID},
 			fingerprintMetadataField{name: "turn_id", value: ids.turnID},
 			fingerprintMetadataField{name: "x-codex-window-id", value: ids.windowID},
+			fingerprintMetadataField{name: "turn_started_at_unix_ms", value: ids.startedAtMS},
 		)
 	}
 	return fields
+}
+
+func fullFingerprintMetadata(ids *codexFingerprintIDs) map[string]any {
+	metadata := map[string]any{}
+	for _, field := range fingerprintMetadataFields(ids) {
+		metadata[field.name] = field.value
+	}
+	return metadata
+}
+
+func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode string) ([]byte, error) {
+	if fingerprint == nil {
+		return raw, nil
+	}
+	ids := codexFingerprintFromPublic(mode, fingerprint)
+	if ids == nil {
+		return raw, nil
+	}
+	if mode != fingerprintFull {
+		rewritten, _, err := applyFingerprintBodyRaw(raw, ids)
+		return rewritten, err
+	}
+	if len(raw) == 0 {
+		return nil, errors.New("codex channel: full fingerprint request body is empty")
+	}
+	if len(raw) > maxCodexMetadataBytes {
+		return nil, errors.New("codex channel: full fingerprint request body is too large")
+	}
+	var body map[string]any
+	if err := common.Unmarshal(raw, &body); err != nil {
+		return nil, errors.New("codex channel: invalid full fingerprint request json")
+	}
+	if body == nil {
+		return nil, errors.New("codex channel: full fingerprint request body must be an object")
+	}
+	if exceedsJSONDepth(body, maxCodexMetadataDepth) {
+		return nil, errors.New("codex channel: full fingerprint request body is too deeply nested")
+	}
+
+	originalSession := ""
+	if rawMetadata, ok := body["client_metadata"]; ok {
+		metadata, ok := rawMetadata.(map[string]any)
+		if !ok {
+			return nil, errors.New("codex channel: full fingerprint client_metadata must be an object")
+		}
+		if session, ok := metadata["session_id"].(string); ok {
+			originalSession = strings.TrimSpace(session)
+		}
+	}
+	if promptCacheKey, ok := body["prompt_cache_key"].(string); ok && originalSession != "" && promptCacheKey == originalSession {
+		body["prompt_cache_key"] = ids.sessionID
+	}
+	body["client_metadata"] = fullFingerprintMetadata(ids)
+	out, err := common.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("codex channel: marshal sanitized full fingerprint body: %w", err)
+	}
+	return out, nil
+}
+
+func exceedsJSONDepth(value any, maxDepth int) bool {
+	var walk func(any, int) bool
+	walk = func(v any, depth int) bool {
+		if depth > maxDepth {
+			return true
+		}
+		switch typed := v.(type) {
+		case map[string]any:
+			for _, child := range typed {
+				if walk(child, depth+1) {
+					return true
+				}
+			}
+		case []any:
+			for _, child := range typed {
+				if walk(child, depth+1) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(value, 1)
 }
 
 func applyFingerprintBodyRaw(body []byte, ids *codexFingerprintIDs) ([]byte, bool, error) {
