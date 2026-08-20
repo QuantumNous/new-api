@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -35,6 +36,7 @@ import (
 	stripetaxid "github.com/stripe/stripe-go/v86/taxid"
 	"github.com/stripe/stripe-go/v86/webhook"
 	"github.com/thanhpk/randstr"
+	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
 )
 
@@ -85,6 +87,25 @@ var stripeTopUpPriceContract = map[string]map[int64]int64{
 	"BRL": {10: 4990, 20: 9990, 50: 24990, 100: 49990, 200: 99090},
 	"INR": {10: 89900, 20: 179900, 50: 449900, 100: 899900, 200: 1799000},
 }
+
+const (
+	stripeTopUpCurrencyPriceCacheTTL    = 5 * time.Minute
+	stripeTopUpCurrencyPriceMaxStaleAge = 30 * time.Minute
+)
+
+type stripeTopUpCurrencyPriceCacheEntry struct {
+	prices     map[string]int64
+	expiresAt  time.Time
+	staleUntil time.Time
+}
+
+var stripeTopUpCurrencyPriceCache = struct {
+	sync.RWMutex
+	entries map[string]stripeTopUpCurrencyPriceCacheEntry
+}{entries: make(map[string]stripeTopUpCurrencyPriceCacheEntry)}
+
+var stripeTopUpCurrencyPriceNow = time.Now
+var stripeTopUpCurrencyPriceSingleflight singleflight.Group
 
 type stripeTopUpCheckout struct {
 	PriceId         string
@@ -227,6 +248,79 @@ func stripePriceAmountMinorForCurrency(price *stripe.Price, requestedCurrency st
 		}
 	}
 	return 0, false
+}
+
+func cachedStripeTopUpCurrencyPrices(priceID string) (map[string]int64, error) {
+	priceID = strings.TrimSpace(priceID)
+	if priceID == "" {
+		return map[string]int64{}, nil
+	}
+
+	pricesAny, err, _ := stripeTopUpCurrencyPriceSingleflight.Do(priceID, func() (any, error) {
+		now := stripeTopUpCurrencyPriceNow()
+		stripeTopUpCurrencyPriceCache.RLock()
+		entry, ok := stripeTopUpCurrencyPriceCache.entries[priceID]
+		stripeTopUpCurrencyPriceCache.RUnlock()
+		if ok && now.Before(entry.expiresAt) {
+			return cloneStripeTopUpCurrencyPrices(entry.prices), nil
+		}
+
+		if err := ensureStripeKey(); err != nil {
+			if ok && len(entry.prices) > 0 && now.Before(entry.staleUntil) {
+				return cloneStripeTopUpCurrencyPrices(entry.prices), fmt.Errorf(
+					"refresh Stripe Price %s: %w (using stale prices)",
+					priceID,
+					err,
+				)
+			}
+			return nil, err
+		}
+		params := &stripe.PriceParams{}
+		params.AddExpand("currency_options")
+		price, err := stripePriceGetter(priceID, params)
+		if err != nil {
+			if ok && len(entry.prices) > 0 && now.Before(entry.staleUntil) {
+				return cloneStripeTopUpCurrencyPrices(entry.prices), fmt.Errorf(
+					"refresh Stripe Price %s: %w (using stale prices)",
+					priceID,
+					err,
+				)
+			}
+			return nil, err
+		}
+
+		prices := make(map[string]int64)
+		for currency := range stripeTopUpPriceContract {
+			minor, supported := stripePriceAmountMinorForCurrency(price, currency)
+			if supported && minor > 0 {
+				prices[currency] = minor
+			}
+		}
+		stripeTopUpCurrencyPriceCache.Lock()
+		stripeTopUpCurrencyPriceCache.entries[priceID] = stripeTopUpCurrencyPriceCacheEntry{
+			prices:     cloneStripeTopUpCurrencyPrices(prices),
+			expiresAt:  now.Add(stripeTopUpCurrencyPriceCacheTTL),
+			staleUntil: now.Add(stripeTopUpCurrencyPriceMaxStaleAge),
+		}
+		stripeTopUpCurrencyPriceCache.Unlock()
+		return prices, nil
+	})
+	prices, ok := pricesAny.(map[string]int64)
+	if !ok {
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("invalid cached Stripe top-up currency prices")
+	}
+	return cloneStripeTopUpCurrencyPrices(prices), err
+}
+
+func cloneStripeTopUpCurrencyPrices(prices map[string]int64) map[string]int64 {
+	cloned := make(map[string]int64, len(prices))
+	for currency, amount := range prices {
+		cloned[currency] = amount
+	}
+	return cloned
 }
 
 func stripeTopUpPackageFor(amount int64) (stripeTopUpCurrencyPackage, bool) {

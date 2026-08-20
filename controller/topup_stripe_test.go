@@ -102,7 +102,7 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 		case "price_multi_currency_200:USD":
 			return 20000, nil
 		case "price_multi_currency_200:BRL":
-			return 99000, nil
+			return 99090, nil
 		case "price_multi_currency_10:INR":
 			return 89900, nil
 		default:
@@ -155,7 +155,7 @@ func TestResolveStripeTopUpCheckoutUsesTierMultiCurrencyPrice(t *testing.T) {
 	require.Equal(t, "BRL", checkedCurrencies["price_multi_currency_200"])
 	require.Equal(t, int64(1), checkout.Quantity)
 	require.Equal(t, "BRL", checkout.PaymentCurrency)
-	require.Equal(t, int64(99000), checkout.AmountMinor)
+	require.Equal(t, int64(99090), checkout.AmountMinor)
 	require.Equal(t, 200.0, checkout.Money)
 
 	checkout, err = resolveStripeTopUpCheckout(&StripePayRequest{

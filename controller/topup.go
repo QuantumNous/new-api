@@ -191,6 +191,30 @@ func buildStripeTopUpPriceIDs(amountOptions []int) map[int]string {
 
 func buildStripeTopUpCurrencyPrices(amountOptions []int) map[string]map[int]int64 {
 	currencyPrices := make(map[string]map[int]int64, len(stripeTopUpPriceContract))
+	if strings.TrimSpace(setting.StripeApiSecret) != "" {
+		for _, amount := range amountOptions {
+			priceID := strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount)))
+			if priceID == "" {
+				continue
+			}
+			stripePrices, err := cachedStripeTopUpCurrencyPrices(priceID)
+			if err != nil && len(stripePrices) == 0 {
+				continue
+			}
+			for currency, amountMinor := range stripePrices {
+				expectedAmountMinor, ok := expectedStripeTopUpAmountMinor(currency, int64(amount))
+				if !ok || amountMinor != expectedAmountMinor {
+					continue
+				}
+				if currencyPrices[currency] == nil {
+					currencyPrices[currency] = map[int]int64{}
+				}
+				currencyPrices[currency][amount] = amountMinor
+			}
+		}
+		return currencyPrices
+	}
+
 	for currency, contractPrices := range stripeTopUpPriceContract {
 		for _, amount := range amountOptions {
 			if strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount))) == "" {

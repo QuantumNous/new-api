@@ -84,4 +84,17 @@ describe('resolveSubscriptionPlanDisplayPrice', () => {
       )
     ).toEqual({ amount: 12, currency: 'EUR' })
   })
+
+  test('keeps an explicitly configured zero price instead of treating it as missing', () => {
+    expect(
+      resolveSubscriptionPlanDisplayPrice(
+        {
+          price_amount: 0,
+          currency: 'USD',
+          currency_prices: { BRL: 0 },
+        },
+        'BRL'
+      )
+    ).toEqual({ amount: 0, currency: 'BRL' })
+  })
 })

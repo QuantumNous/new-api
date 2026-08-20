@@ -62,13 +62,13 @@ export function defaultCurrencyForRegion(
 export function defaultCurrencyForLanguage(
   language: string | undefined
 ): StripeCheckoutCurrency {
-  const normalized = language?.trim().toLowerCase().split('-')[0]
+  const normalized = language?.trim().toLowerCase()
 
-  if (normalized === 'pt') {
+  if (normalized === 'pt' || normalized === 'pt-br') {
     return 'BRL'
   }
 
-  if (normalized === 'ja') {
+  if (normalized === 'ja' || normalized?.startsWith('ja-')) {
     return 'JPY'
   }
 
@@ -185,16 +185,20 @@ export function resolveEffectiveStripeCheckoutCurrency(
     currencySupportsPresetAmounts(params.prices, currency, presetAmounts)
 
   if (params.currencyTouched) {
-    return currencySupported(params.requestedCurrency)
-      ? params.requestedCurrency
-      : 'USD'
+    if (currencySupported(params.requestedCurrency)) {
+      return params.requestedCurrency
+    }
+
+    return STRIPE_CHECKOUT_CURRENCY_OPTIONS.find(currencySupported) ?? 'USD'
   }
 
   const languageCurrency = defaultCurrencyForLanguage(params.language)
 
-  return currencySupported(languageCurrency)
-    ? languageCurrency
-    : 'USD'
+  if (currencySupported(languageCurrency)) {
+    return languageCurrency
+  }
+
+  return STRIPE_CHECKOUT_CURRENCY_OPTIONS.find(currencySupported) ?? 'USD'
 }
 
 export function stripeTopUpDisplayAmount(

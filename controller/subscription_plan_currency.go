@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -9,15 +10,20 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/stripe/stripe-go/v86"
+	"golang.org/x/sync/singleflight"
 )
 
-const subscriptionPlanCurrencyPriceCacheTTL = 5 * time.Minute
+const (
+	subscriptionPlanCurrencyPriceCacheTTL    = 5 * time.Minute
+	subscriptionPlanCurrencyPriceMaxStaleAge = 30 * time.Minute
+)
 
 var subscriptionPlanSupportedCurrencies = [...]string{"USD", "JPY", "BRL", "INR"}
 
 type subscriptionPlanCurrencyPriceCacheEntry struct {
-	prices    map[string]float64
-	expiresAt time.Time
+	prices     map[string]float64
+	expiresAt  time.Time
+	staleUntil time.Time
 }
 
 var subscriptionPlanCurrencyPriceCache = struct {
@@ -26,6 +32,7 @@ var subscriptionPlanCurrencyPriceCache = struct {
 }{entries: make(map[string]subscriptionPlanCurrencyPriceCacheEntry)}
 
 var subscriptionPlanCurrencyPriceNow = time.Now
+var subscriptionPlanCurrencyPriceSingleflight singleflight.Group
 
 func subscriptionPlanCurrencyPrices(plan *model.SubscriptionPlan) (map[string]float64, error) {
 	prices := make(map[string]float64)
@@ -66,25 +73,43 @@ func cachedSubscriptionPlanStripeCurrencyPrices(priceID string) (map[string]floa
 	if priceID == "" {
 		return map[string]float64{}, nil
 	}
-	now := subscriptionPlanCurrencyPriceNow()
-	subscriptionPlanCurrencyPriceCache.RLock()
-	entry, ok := subscriptionPlanCurrencyPriceCache.entries[priceID]
-	subscriptionPlanCurrencyPriceCache.RUnlock()
-	if ok && now.Before(entry.expiresAt) {
-		return cloneSubscriptionPlanCurrencyPrices(entry.prices), nil
-	}
+	pricesAny, err, _ := subscriptionPlanCurrencyPriceSingleflight.Do(priceID, func() (any, error) {
+		now := subscriptionPlanCurrencyPriceNow()
+		subscriptionPlanCurrencyPriceCache.RLock()
+		entry, ok := subscriptionPlanCurrencyPriceCache.entries[priceID]
+		subscriptionPlanCurrencyPriceCache.RUnlock()
+		if ok && now.Before(entry.expiresAt) {
+			return cloneSubscriptionPlanCurrencyPrices(entry.prices), nil
+		}
 
-	prices, err := fetchSubscriptionPlanStripeCurrencyPrices(priceID)
-	if err != nil {
-		return nil, err
+		prices, err := fetchSubscriptionPlanStripeCurrencyPrices(priceID)
+		if err != nil {
+			if ok && len(entry.prices) > 0 && now.Before(entry.staleUntil) {
+				return cloneSubscriptionPlanCurrencyPrices(entry.prices), fmt.Errorf(
+					"refresh Stripe Price %s: %w (using stale prices)",
+					priceID,
+					err,
+				)
+			}
+			return nil, err
+		}
+		subscriptionPlanCurrencyPriceCache.Lock()
+		subscriptionPlanCurrencyPriceCache.entries[priceID] = subscriptionPlanCurrencyPriceCacheEntry{
+			prices:     cloneSubscriptionPlanCurrencyPrices(prices),
+			expiresAt:  now.Add(subscriptionPlanCurrencyPriceCacheTTL),
+			staleUntil: now.Add(subscriptionPlanCurrencyPriceMaxStaleAge),
+		}
+		subscriptionPlanCurrencyPriceCache.Unlock()
+		return cloneSubscriptionPlanCurrencyPrices(prices), nil
+	})
+	prices, ok := pricesAny.(map[string]float64)
+	if !ok {
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("invalid cached Stripe currency prices")
 	}
-	subscriptionPlanCurrencyPriceCache.Lock()
-	subscriptionPlanCurrencyPriceCache.entries[priceID] = subscriptionPlanCurrencyPriceCacheEntry{
-		prices:    cloneSubscriptionPlanCurrencyPrices(prices),
-		expiresAt: now.Add(subscriptionPlanCurrencyPriceCacheTTL),
-	}
-	subscriptionPlanCurrencyPriceCache.Unlock()
-	return prices, nil
+	return cloneSubscriptionPlanCurrencyPrices(prices), err
 }
 
 func fetchSubscriptionPlanStripeCurrencyPrices(priceID string) (map[string]float64, error) {

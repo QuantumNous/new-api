@@ -38,11 +38,10 @@ function configuredPlanPrice(
 ): number | undefined {
   const target = currency.trim().toUpperCase()
   const entry = Object.entries(plan.currency_prices ?? {}).find(
-    ([configuredCurrency]) =>
-      configuredCurrency.trim().toUpperCase() === target
+    ([configuredCurrency]) => configuredCurrency.trim().toUpperCase() === target
   )
   const amount = Number(entry?.[1])
-  return Number.isFinite(amount) && amount > 0 ? amount : undefined
+  return Number.isFinite(amount) && amount >= 0 ? amount : undefined
 }
 
 export function resolveSubscriptionPlanGridCurrency(

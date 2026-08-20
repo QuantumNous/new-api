@@ -40,6 +40,7 @@ describe('defaultCurrencyForLanguage', () => {
   test('maps the active interface language and defaults to USD', () => {
     expect(defaultCurrencyForLanguage('pt')).toBe('BRL')
     expect(defaultCurrencyForLanguage('pt-BR')).toBe('BRL')
+    expect(defaultCurrencyForLanguage('pt-PT')).toBe('USD')
     expect(defaultCurrencyForLanguage('ja-JP')).toBe('JPY')
     expect(defaultCurrencyForLanguage('zh-CN')).toBe('USD')
     expect(defaultCurrencyForLanguage(undefined)).toBe('USD')
@@ -146,6 +147,23 @@ describe('resolveEffectiveStripeCheckoutCurrency', () => {
         prices,
         presetAmounts: [20, 50],
         currencyTouched: false,
+      })
+    ).toBe('JPY')
+  })
+
+  test('falls back to an available complete currency when USD is not configured', () => {
+    const prices = parseStripeCurrencyPrices({
+      BRL: { 20: 9990 },
+      JPY: { 20: 3000, 50: 7500 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'pt-BR',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
       })
     ).toBe('JPY')
   })
