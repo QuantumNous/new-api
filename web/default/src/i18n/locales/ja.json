@@ -6681,6 +6681,7 @@
     "No selected users can be verified": "確認できるユーザーが選択されていません",
     "Website": "ウェブサイト",
     "Website (optional)": "ウェブサイト（任意）",
-    "Honeypot": "ハニーポット"
+    "Honeypot": "ハニーポット",
+    "Include disabled users": "無効なユーザーを含める"
   }
 }

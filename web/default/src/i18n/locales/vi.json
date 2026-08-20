@@ -6681,6 +6681,7 @@
     "No selected users can be verified": "Không có người dùng đã chọn nào có thể xác minh",
     "Website": "Trang web",
     "Website (optional)": "Trang web (tùy chọn)",
-    "Honeypot": "Honeypot"
+    "Honeypot": "Honeypot",
+    "Include disabled users": "Bao gồm người dùng bị vô hiệu hóa"
   }
 }

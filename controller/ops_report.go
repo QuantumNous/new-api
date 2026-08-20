@@ -148,10 +148,11 @@ type opsPaymentRow struct {
 }
 
 type opsReportData struct {
-	GeneratedAt    int64            `json:"generated_at"`
-	Days           int              `json:"days"`
-	DauScope       string           `json:"dau_scope"`
-	Daily          []opsDailyRow    `json:"daily"`
+	GeneratedAt     int64  `json:"generated_at"`
+	Days            int    `json:"days"`
+	DauScope        string `json:"dau_scope"`
+	IncludeDisabled bool   `json:"include_disabled"`
+	Daily           []opsDailyRow    `json:"daily"`
 	WeeklyFunnel   []opsFunnelRow   `json:"weekly_funnel"`
 	CampaignFunnel []opsCampaignRow `json:"campaign_funnel"`
 	KeywordFunnel  []opsKeywordRow  `json:"keyword_funnel"`
@@ -199,9 +200,12 @@ var (
 	// orders), cached separately from the windowed report so a days switch
 	// does not re-run the expensive logs-table scan. buildOpsReport's
 	// day-windowed slices (DAU, ads) are NOT part of this cache.
-	opsAggsCache   map[int]*opsUserAgg
-	opsAggsCacheAt time.Time
-	opsAggsMutex   sync.Mutex
+	// Two caches: one per include_disabled denominator, so switching the report
+	// filter does not cross-contaminate the funnel numbers.
+	opsAggsCacheEnabled map[int]*opsUserAgg
+	opsAggsCacheAll     map[int]*opsUserAgg
+	opsAggsCacheAt      time.Time
+	opsAggsMutex        sync.Mutex
 )
 
 // GetOpsReport handles GET /api/ops_report?days=N&dau_scope=plg|all (admin only).
@@ -217,17 +221,19 @@ func GetOpsReport(c *gin.Context) {
 	if dauScope != "all" {
 		dauScope = "plg"
 	}
+	includeDisabled := c.Query("include_disabled") == "1" || c.Query("include_disabled") == "true"
 
 	opsReportMutex.Lock()
 	defer opsReportMutex.Unlock()
 	if opsReportCache != nil && opsReportCache.Days == days &&
 		opsReportCache.DauScope == dauScope &&
+		opsReportCache.IncludeDisabled == includeDisabled &&
 		time.Since(opsReportAggsAt) < opsReportCacheTTL {
 		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": opsReportCache})
 		return
 	}
 
-	report, aggsAt, err := buildOpsReport(days, dauScope)
+	report, aggsAt, err := buildOpsReport(days, dauScope, includeDisabled)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -288,8 +294,8 @@ func opsUserCountry(u *model.OpsPlgUser) string {
 // every funnel rollup reads: user metadata, log/token stats, and paid/refunded
 // orders. It is deliberately kept separate from the day-windowed slices (DAU,
 // ads) so it can be cached once regardless of the selected day range.
-func buildOpsAggs() (map[int]*opsUserAgg, error) {
-	users, err := model.GetOpsPlgUsers()
+func buildOpsAggs(includeDisabled bool) (map[int]*opsUserAgg, error) {
+	users, err := model.GetOpsPlgUsers(includeDisabled)
 	if err != nil {
 		return nil, err
 	}
@@ -368,23 +374,31 @@ func buildOpsAggs() (map[int]*opsUserAgg, error) {
 // of the report: GetOpsUserLogStats scans the whole logs history for the plg
 // cohort no matter which day range is selected, so caching it here keeps a
 // 7/30/60/90 switch from re-running that scan each time.
-func getOpsAggs() (map[int]*opsUserAgg, time.Time, error) {
+func getOpsAggs(includeDisabled bool) (map[int]*opsUserAgg, time.Time, error) {
 	opsAggsMutex.Lock()
 	defer opsAggsMutex.Unlock()
-	if opsAggsCache != nil && time.Since(opsAggsCacheAt) < opsReportCacheTTL {
-		return opsAggsCache, opsAggsCacheAt, nil
+	cache := opsAggsCacheEnabled
+	if includeDisabled {
+		cache = opsAggsCacheAll
 	}
-	aggs, err := buildOpsAggs()
+	if cache != nil && time.Since(opsAggsCacheAt) < opsReportCacheTTL {
+		return cache, opsAggsCacheAt, nil
+	}
+	aggs, err := buildOpsAggs(includeDisabled)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
-	opsAggsCache = aggs
+	if includeDisabled {
+		opsAggsCacheAll = aggs
+	} else {
+		opsAggsCacheEnabled = aggs
+	}
 	opsAggsCacheAt = time.Now()
 	return aggs, opsAggsCacheAt, nil
 }
 
-func buildOpsReport(days int, dauScope string) (*opsReportData, time.Time, error) {
-	aggs, aggsAt, err := getOpsAggs()
+func buildOpsReport(days int, dauScope string, includeDisabled bool) (*opsReportData, time.Time, error) {
+	aggs, aggsAt, err := getOpsAggs(includeDisabled)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -401,7 +415,7 @@ func buildOpsReport(days int, dauScope string) (*opsReportData, time.Time, error
 	dayStarts := opsPacificDayStarts(days)
 	startTs := dayStarts[0]
 
-	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope}
+	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope, IncludeDisabled: includeDisabled}
 	if dauScope == "all" {
 		allDaily, err := model.GetOpsAllKeyDailyUsage(dayStarts)
 		if err != nil {

@@ -190,7 +190,7 @@ func buildOpsStripeReport(days int) (*opsStripeReport, error) {
 	startTs := ((now+off)/86400)*86400 - off - int64(days-1)*86400
 	report := &opsStripeReport{GeneratedAt: now, Days: days}
 
-	users, err := model.GetOpsPlgUsers()
+	users, err := model.GetOpsPlgUsers(false) // Stripe report uses the same enabled-only denominator
 	if err != nil {
 		return nil, err
 	}

@@ -35,6 +35,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
 import { SectionPageLayout } from '@/components/layout'
 import { AdsDailyTab } from './ads-daily-tab'
 import {
@@ -946,6 +947,9 @@ export function OpsReport() {
   const [days, setDays] = useState(30)
   const [dauScope, setDauScope] = useState<OpsDauScope>('plg')
   const [tab, setTab] = useState<TabValue>(initialTab)
+  // Default denominator excludes disabled (banned / honeypot) accounts so the
+  // funnel reflects valid signups; toggle to include them for troubleshooting.
+  const [includeDisabled, setIncludeDisabled] = useState(false)
 
   const handleTabChange = (value: string) => {
     setTab(value as TabValue)
@@ -953,8 +957,8 @@ export function OpsReport() {
   }
 
   const reportQuery = useQuery({
-    queryKey: opsReportQueryKeys.report(days, dauScope),
-    queryFn: () => getOpsReport(days, dauScope),
+    queryKey: opsReportQueryKeys.report(days, dauScope, includeDisabled),
+    queryFn: () => getOpsReport(days, dauScope, includeDisabled),
   })
   const report = reportQuery.data?.data
 
@@ -994,6 +998,16 @@ export function OpsReport() {
             </Button>
           ))}
         </div>
+        <label className='ml-2 flex cursor-pointer items-center gap-2'>
+          <Switch
+            checked={includeDisabled}
+            onCheckedChange={setIncludeDisabled}
+            aria-label={t('Include disabled users')}
+          />
+          <span className='text-muted-foreground text-sm'>
+            {t('Include disabled users')}
+          </span>
+        </label>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         {reportQuery.isLoading || !report ? (

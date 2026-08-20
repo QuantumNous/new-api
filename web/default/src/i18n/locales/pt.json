@@ -6681,6 +6681,7 @@
     "No selected users can be verified": "Nenhum usuário selecionado pode ser verificado",
     "Website": "Site",
     "Website (optional)": "Site (opcional)",
-    "Honeypot": "Honeypot"
+    "Honeypot": "Honeypot",
+    "Include disabled users": "Incluir usuários desativados"
   }
 }

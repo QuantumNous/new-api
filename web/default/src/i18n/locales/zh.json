@@ -6681,6 +6681,7 @@
     "No selected users can be verified": "没有可验证邮箱的用户",
     "Website": "网站",
     "Website (optional)": "网站（选填）",
-    "Honeypot": "蜜罐"
+    "Honeypot": "蜜罐",
+    "Include disabled users": "包含禁用用户"
   }
 }
