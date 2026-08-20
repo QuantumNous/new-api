@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,9 @@ func GetPerfMetricsSummary(c *gin.Context) {
 	}
 
 	activeGroups := append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
-	result, err := perfmetrics.QuerySummaryAll(hours, activeGroups)
+	groups := resolvePerfSummaryGroups(c.GetInt("role"), c.GetString("group"), activeGroups)
+
+	result, err := perfmetrics.QuerySummaryAll(hours, groups)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -79,4 +82,18 @@ func filterActiveGroups(groups []perfmetrics.GroupResult) []perfmetrics.GroupRes
 		_, ok := activeRatios[g.Group]
 		return ok || g.Group == "auto"
 	})
+}
+
+// resolvePerfSummaryGroups 依据调用者角色决定性能汇总的分组范围：
+// 超级管理员/匿名返回全部活跃分组；受限用户返回「活跃分组 ∩ 可见分组」（fail-closed）。
+func resolvePerfSummaryGroups(role int, userGroup string, activeGroups []string) []string {
+	visible, unrestricted := service.GetUserVisibleGroups(role, userGroup)
+	if unrestricted {
+		return activeGroups
+	}
+	return resolvePerfSummaryGroupsWithVisible(activeGroups, visible)
+}
+
+func resolvePerfSummaryGroupsWithVisible(activeGroups, visible []string) []string {
+	return lo.Intersect(activeGroups, visible)
 }
