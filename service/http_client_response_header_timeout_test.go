@@ -1,10 +1,13 @@
 package service
 
 import (
+	"math"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+
+	"github.com/stretchr/testify/require"
 )
 
 // The relay transport must bound how long it waits for upstream response headers.
@@ -17,16 +20,25 @@ func TestNewRelayHTTPTransportResponseHeaderTimeout(t *testing.T) {
 
 	t.Run("applies configured timeout", func(t *testing.T) {
 		common.RelayResponseHeaderTimeout = 42
-		got := newRelayHTTPTransport().ResponseHeaderTimeout
-		if want := 42 * time.Second; got != want {
-			t.Fatalf("ResponseHeaderTimeout = %v, want %v", got, want)
-		}
+		require.Equal(t, 42*time.Second, newRelayHTTPTransport().ResponseHeaderTimeout)
 	})
 
 	t.Run("zero keeps it unset", func(t *testing.T) {
 		common.RelayResponseHeaderTimeout = 0
-		if got := newRelayHTTPTransport().ResponseHeaderTimeout; got != 0 {
-			t.Fatalf("ResponseHeaderTimeout = %v, want 0 (disabled)", got)
-		}
+		require.Zero(t, newRelayHTTPTransport().ResponseHeaderTimeout)
+	})
+
+	t.Run("negative keeps it unset", func(t *testing.T) {
+		common.RelayResponseHeaderTimeout = -1
+		require.Zero(t, newRelayHTTPTransport().ResponseHeaderTimeout)
+	})
+
+	// A value large enough to overflow time.Duration must not wrap into a tiny
+	// positive timeout, which would cut every relay request.
+	t.Run("overflowing value is clamped", func(t *testing.T) {
+		common.RelayResponseHeaderTimeout = math.MaxInt64
+		got := newRelayHTTPTransport().ResponseHeaderTimeout
+		require.Positive(t, got)
+		require.Equal(t, time.Duration(maxTimeoutSeconds)*time.Second, got)
 	})
 }

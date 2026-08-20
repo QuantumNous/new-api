@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -71,6 +72,10 @@ func ValidateSSRFProtectedFetchURL(urlStr string) error {
 	return validateURLWithCurrentFetchSetting(urlStr, true)
 }
 
+// maxTimeoutSeconds is the largest number of seconds that still converts to a
+// time.Duration without overflowing (~292 years).
+const maxTimeoutSeconds = int(math.MaxInt64 / int64(time.Second))
+
 func newRelayHTTPTransport() *http.Transport {
 	var transport *http.Transport
 	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok && defaultTransport != nil {
@@ -100,8 +105,14 @@ func newRelayHTTPTransport() *http.Transport {
 	// This only covers the wait for the headers; streaming after the headers arrive
 	// is not affected. Set RELAY_RESPONSE_HEADER_TIMEOUT=0 to restore the old
 	// unbounded behaviour.
-	if common.RelayResponseHeaderTimeout > 0 {
-		transport.ResponseHeaderTimeout = time.Duration(common.RelayResponseHeaderTimeout) * time.Second
+	if seconds := common.RelayResponseHeaderTimeout; seconds > 0 {
+		// Clamp before converting: seconds beyond maxTimeoutSeconds overflow
+		// time.Duration and can wrap into a tiny positive timeout, which would cut
+		// every relay request instead of only the stuck ones.
+		if seconds > maxTimeoutSeconds {
+			seconds = maxTimeoutSeconds
+		}
+		transport.ResponseHeaderTimeout = time.Duration(seconds) * time.Second
 	}
 	transport.ForceAttemptHTTP2 = true
 	if common.TLSInsecureSkipVerify {
