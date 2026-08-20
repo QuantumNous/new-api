@@ -89,6 +89,16 @@ func TestCodexServiceEgressZeroOriginalIdentityMatrix(t *testing.T) {
 	for _, row := range rows {
 		t.Run(row.name, func(t *testing.T) {
 			all := serviceEgressHeaderString(row.header) + "\n" + string(row.body)
+			switch row.name {
+			case "oauth refresh", "oauth exchange":
+				require.Equal(t, "/oauth/token", row.path)
+			case "models":
+				require.Equal(t, "/backend-api/codex/models", row.path)
+			case "usage":
+				require.Equal(t, "/backend-api/wham/usage", row.path)
+			case "reset credit":
+				require.Equal(t, "/backend-api/wham/rate-limit-reset-credits/consume", row.path)
+			}
 			require.NotContains(t, all, marker)
 			require.Equal(t, "codex_cli_rs", row.header.Get("originator"))
 			require.Equal(t, "codex-cli/0.145.8", row.header.Get("User-Agent"))

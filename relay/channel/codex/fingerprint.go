@@ -451,3 +451,32 @@ func stripCompactOriginalMetadataRaw(body []byte) ([]byte, bool, error) {
 	}
 	return rewritten, changed, nil
 }
+
+func validateCompactPassThroughFullBody(raw []byte) error {
+	if len(raw) == 0 {
+		return errors.New("codex channel: full fingerprint compact request body is empty")
+	}
+	var body map[string]any
+	if err := common.Unmarshal(raw, &body); err != nil {
+		return errors.New("codex channel: invalid full fingerprint compact request json")
+	}
+	if body == nil {
+		return errors.New("codex channel: full fingerprint compact request body must be an object")
+	}
+	rawMetadata, ok := body["client_metadata"]
+	if !ok {
+		return nil
+	}
+	metadata, ok := rawMetadata.(map[string]any)
+	if !ok {
+		return errors.New("codex channel: full fingerprint compact client_metadata must be an object")
+	}
+	metadataJSON := gjson.GetBytes(raw, "client_metadata")
+	if len(metadataJSON.Raw) > maxCodexMetadataBytes {
+		return errors.New("codex channel: full fingerprint compact client_metadata is too large")
+	}
+	if exceedsJSONDepth(metadata, maxCodexMetadataDepth) {
+		return errors.New("codex channel: full fingerprint compact client_metadata is too deeply nested")
+	}
+	return nil
+}

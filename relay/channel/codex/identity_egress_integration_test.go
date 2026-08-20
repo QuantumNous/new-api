@@ -162,6 +162,12 @@ func TestCodexEgressZeroOriginalMatrix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := run(tt.name, tt.path, tt.relayMode, tt.passThrough, tt.build)
 			all := codexEgressHeaderString(got.header) + "\n" + string(got.body)
+			switch tt.relayMode {
+			case relayconstant.RelayModeResponsesCompact:
+				require.Equal(t, "/backend-api/codex/responses/compact", got.path)
+			default:
+				require.Equal(t, "/backend-api/codex/responses", got.path)
+			}
 			require.NotContains(t, all, marker)
 			require.Equal(t, "Bearer trusted-token", got.header.Get("Authorization"))
 			require.Equal(t, "trusted-account", got.header.Get("chatgpt-account-id"))

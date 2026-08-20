@@ -220,22 +220,32 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 			if err != nil {
 				return nil, fmt.Errorf("read codex compact pass-through request body: %w", err)
 			}
-			rewrittenBody, changed, err := stripCompactOriginalMetadataRaw(rawBody)
-			if err != nil {
-				return nil, err
-			}
-			if changed {
-				body, size, closer, err := relaycommon.NewOutboundJSONBody(rewrittenBody)
-				if err != nil {
-					return nil, fmt.Errorf("store rewritten codex compact pass-through request body: %w", err)
-				}
-				defer closer.Close()
-				rewrittenBody = nil
-				info.UpstreamRequestBodySize = size
-				requestBody = body
-			} else {
+			if ids == nil {
 				requestBody = bytes.NewReader(rawBody)
 				info.UpstreamRequestBodySize = int64(len(rawBody))
+			} else {
+				if ids.mode == fingerprintFull {
+					if err := validateCompactPassThroughFullBody(rawBody); err != nil {
+						return nil, err
+					}
+				}
+				rewrittenBody, changed, err := stripCompactOriginalMetadataRaw(rawBody)
+				if err != nil {
+					return nil, err
+				}
+				if changed {
+					body, size, closer, err := relaycommon.NewOutboundJSONBody(rewrittenBody)
+					if err != nil {
+						return nil, fmt.Errorf("store rewritten codex compact pass-through request body: %w", err)
+					}
+					defer closer.Close()
+					rewrittenBody = nil
+					info.UpstreamRequestBodySize = size
+					requestBody = body
+				} else {
+					requestBody = bytes.NewReader(rawBody)
+					info.UpstreamRequestBodySize = int64(len(rawBody))
+				}
 			}
 		}
 	}

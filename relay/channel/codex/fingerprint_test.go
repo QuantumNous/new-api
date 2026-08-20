@@ -400,6 +400,71 @@ func TestFingerprintCompactPassThroughDropsOriginalMetadataAndKeepsHeaders(t *te
 	require.NotEmpty(t, upstreamHeader.Get("x-client-request-id"))
 }
 
+func TestFingerprintCompactPassThroughOffPreservesBody(t *testing.T) {
+	service.InitHttpClient()
+	var upstreamBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:               relayconstant.RelayModeResponsesCompact,
+		UpstreamRequestBodySize: 4096,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: server.URL,
+			ApiKey:         `{"access_token":"token","account_id":"account"}`,
+			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "off", PassThroughBodyEnabled: true},
+		},
+	}
+	rawBody := `{"model":"gpt-5","client_metadata":{"session_id":"client-value"},"metadata":{"kept":true}}`
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(rawBody))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+	require.JSONEq(t, rawBody, string(upstreamBody))
+}
+
+func TestFingerprintCompactPassThroughFullRejectsInvalidBodies(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	service.InitHttpClient()
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	for _, rawBody := range []string{`not-json`, `"scalar"`, `[{"not":"object"}]`} {
+		t.Run(rawBody, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+			info := &relaycommon.RelayInfo{
+				RelayMode: relayconstant.RelayModeResponsesCompact,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl:       server.URL,
+					ApiKey:               `{"access_token":"token","account_id":"account"}`,
+					CodexFingerprintSeed: hardeningSeed,
+					ChannelSetting:       dto.ChannelSettings{CodexFingerprintMode: "full", PassThroughBodyEnabled: true},
+				},
+			}
+
+			resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(rawBody))
+			require.Error(t, err)
+			require.Nil(t, resp)
+		})
+	}
+	require.Zero(t, requests)
+}
+
 func TestFingerprintRawBodyReplacesNonObjectMetadata(t *testing.T) {
 	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
