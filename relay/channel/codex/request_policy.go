@@ -16,9 +16,18 @@ const (
 
 var codexDropHeaders = []string{
 	"Cookie",
+	"User-Agent",
 	"traceparent",
 	"tracestate",
 	"baggage",
+	"OpenAI-Client",
+	"OpenAI-Client-Version",
+	"X-OpenAI-Client",
+	"X-OpenAI-Client-Version",
+	"X-Codex-Client-Version",
+	"X-Codex-CLI-Version",
+	"X-Codex-Version",
+	"Codex-Version",
 	"Accept-Language",
 	"OpenAI-Locale",
 	"OpenAI-Timeout-Ms",
@@ -49,6 +58,7 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 	for _, name := range codexDropHeaders {
 		req.Header.Del(name)
 	}
+	req.Header.Set("User-Agent", "")
 	dropUnknownCodexHeaders(req.Header)
 
 	if info == nil {
@@ -89,7 +99,11 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 
 func dropUnknownCodexHeaders(header http.Header) {
 	for name := range header {
-		if strings.HasPrefix(strings.ToLower(name), "x-codex-") {
+		lower := strings.ToLower(name)
+		if lower == "x-codex-turn-metadata" {
+			continue
+		}
+		if strings.HasPrefix(lower, "x-codex-") {
 			header.Del(name)
 		}
 	}

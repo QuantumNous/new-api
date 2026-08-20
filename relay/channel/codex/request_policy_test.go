@@ -80,6 +80,96 @@ func TestCodexHeaderAllowlistDropsIdentitySideChannels(t *testing.T) {
 	require.Equal(t, "transport-marker", upstream.Get("X-Request-Id"))
 }
 
+func TestCodexHeaderAllowlistDropsClientVersionIdentityHeaders(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	service.InitHttpClient()
+
+	var upstream http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(server.Close)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := codexPolicyRelayInfo(server.URL, relayconstant.RelayModeResponses, fingerprintOff)
+	info.ChannelMeta.HeadersOverride = map[string]any{
+		"User-Agent":              "attacker-codex-cli/9.9.9",
+		"OpenAI-Client":           "attacker-client",
+		"OpenAI-Client-Version":   "9.9.9",
+		"X-OpenAI-Client":         "attacker-x-client",
+		"X-OpenAI-Client-Version": "9.9.9",
+		"X-Codex-Client-Version":  "9.9.9",
+		"X-Codex-CLI-Version":     "9.9.9",
+		"X-Codex-Version":         "9.9.9",
+		"Codex-Version":           "9.9.9",
+		"X-Request-Id":            "transport-marker",
+	}
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(`{"model":"gpt-5"}`))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+
+	for _, name := range []string{
+		"User-Agent",
+		"OpenAI-Client",
+		"OpenAI-Client-Version",
+		"X-OpenAI-Client",
+		"X-OpenAI-Client-Version",
+		"X-Codex-Client-Version",
+		"X-Codex-CLI-Version",
+		"X-Codex-Version",
+		"Codex-Version",
+	} {
+		require.Empty(t, upstream.Get(name), "header %s must not forward override-controlled identity", name)
+	}
+	require.Equal(t, "transport-marker", upstream.Get("X-Request-Id"))
+}
+
+func TestCodexFinalizerRewritesOverriddenTurnMetadata(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	service.InitHttpClient()
+
+	var upstream http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(server.Close)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("session-id", "client-session")
+	info := codexPolicyRelayInfo(server.URL, relayconstant.RelayModeResponses, fingerprintFull)
+	info.ChannelMeta.HeadersOverride = map[string]any{
+		"X-Codex-Turn-Metadata": `{"installation_id":"attacker-install","session_id":"attacker-session","thread_id":"attacker-thread","turn_id":"attacker-turn","window_id":"attacker-window"}`,
+	}
+	out, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{Model: "gpt-5"})
+	require.NoError(t, err)
+	ids := fingerprintIDs(c, info)
+	require.NotNil(t, ids)
+	payload, err := common.Marshal(out)
+	require.NoError(t, err)
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(string(payload)))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+
+	turnMetadata := upstream.Get("X-Codex-Turn-Metadata")
+	require.NotEmpty(t, turnMetadata)
+	require.Contains(t, turnMetadata, ids.installationID)
+	require.Contains(t, turnMetadata, ids.sessionID)
+	require.Contains(t, turnMetadata, ids.threadID)
+	require.Contains(t, turnMetadata, ids.turnID)
+	require.Contains(t, turnMetadata, ids.windowID)
+	require.NotContains(t, turnMetadata, "attacker-")
+}
+
 func TestExistingCodexRouteSwitchRejectsSuffixSmuggling(t *testing.T) {
 	adaptor := &Adaptor{}
 	tests := []struct {
