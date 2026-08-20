@@ -6,6 +6,7 @@ import { I18nextProvider, initReactI18next } from 'react-i18next'
 import {
   CodexIdentitySettingsSection,
   buildCodexIdentityOptionUpdates,
+  formatSyncTime,
   type CodexIdentityFormValues,
 } from './codex-identity-settings-section'
 
@@ -68,5 +69,11 @@ describe('Codex identity settings', () => {
     expect(html).toContain('CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE')
     expect(html).toContain('readOnly')
     expect(html).not.toContain('seed')
+  })
+
+  test('formats backend RFC3339 and legacy Unix sync timestamps', () => {
+    expect(formatSyncTime('2026-08-20T12:34:56Z')).toContain('2026')
+    expect(formatSyncTime('1787200000')).toContain('2026')
+    expect(formatSyncTime('')).toBe('')
   })
 })

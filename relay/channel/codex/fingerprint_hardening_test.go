@@ -137,21 +137,34 @@ func TestFullMetadataBoundsIgnoreLargeAndNestedNonMetadataFields(t *testing.T) {
 
 func TestOAuthKeyIgnoresOpenAIDeviceID(t *testing.T) {
 	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
-		ApiKey: `{
-			"access_token":"token",
-			"account_id":"account",
-			"openai_device_id":"018f89db-7792-7b5e-a360-openai-device"
-		}`,
-		ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "full"},
-	}}
-	header := http.Header{}
+	buildHeader := func(deviceID string) http.Header {
+		t.Helper()
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+		c.Request.Header.Set("session-id", "client-session")
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+			CodexFingerprintSeed: hardeningSeed,
+			ApiKey: `{
+				"access_token":"token",
+				"account_id":"account",
+				"openai_device_id":"` + deviceID + `"
+			}`,
+			ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "full"},
+		}}
+		header := http.Header{}
 
-	err := (&Adaptor{}).SetupRequestHeader(c, &header, info)
-	require.Error(t, err)
-	require.Empty(t, header.Get("x-codex-installation-id"))
+		err := (&Adaptor{}).SetupRequestHeader(c, &header, info)
+		require.NoError(t, err)
+		return header
+	}
+
+	first := buildHeader("018f89db-7792-7b5e-a360-openai-device-a")
+	second := buildHeader("018f89db-7792-7b5e-a360-openai-device-b")
+	require.NotEmpty(t, first.Get("x-codex-installation-id"))
+	require.Equal(t, first.Get("x-codex-installation-id"), second.Get("x-codex-installation-id"))
+	require.Equal(t, first.Get("session-id"), second.Get("session-id"))
+	require.Equal(t, first.Get("x-client-request-id"), second.Get("x-client-request-id"))
+	require.Equal(t, first.Get("x-codex-window-id"), second.Get("x-codex-window-id"))
 }
 
 func TestFullSanitizeRawAndTypedMatch(t *testing.T) {

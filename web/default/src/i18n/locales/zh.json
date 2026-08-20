@@ -6579,7 +6579,7 @@
     "Feature": "设为精选",
     "No additional public models found": "没有找到其他公开模型",
     "Codex Fingerprint Convergence": "Codex 指纹收敛",
-    "Off (passthrough, default)": "关闭（透传，默认）",
+    "Off (passthrough)": "关闭（透传）",
     "Device only": "仅设备",
     "Device + Session": "设备+会话",
     "Full convergence": "完全收敛",

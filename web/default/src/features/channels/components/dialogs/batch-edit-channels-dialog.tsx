@@ -280,9 +280,7 @@ export function BatchEditChannelsDialog({
               <SelectValue placeholder={t('Leave empty to keep current')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='off'>
-                {t('Off (passthrough, default)')}
-              </SelectItem>
+              <SelectItem value='off'>{t('Off (passthrough)')}</SelectItem>
               <SelectItem value='device'>{t('Device only')}</SelectItem>
               <SelectItem value='session'>{t('Device + Session')}</SelectItem>
               <SelectItem value='full'>{t('Full convergence')}</SelectItem>

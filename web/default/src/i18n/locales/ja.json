@@ -6579,7 +6579,7 @@
     "Feature": "注目に追加",
     "No additional public models found": "追加の公開モデルは見つかりません",
     "Codex Fingerprint Convergence": "Codex フィンガープリント統合",
-    "Off (passthrough, default)": "オフ（そのまま転送、デフォルト）",
+    "Off (passthrough)": "オフ（そのまま転送）",
     "Device only": "デバイスのみ",
     "Device + Session": "デバイス＋セッション",
     "Full convergence": "完全統合",

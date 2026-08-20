@@ -99,10 +99,18 @@ export function buildCodexIdentityOptionUpdates(
   return updates
 }
 
-function formatSyncTime(value: string): string {
-  const seconds = Number(value)
-  if (!Number.isFinite(seconds) || seconds <= 0) return ''
-  return new Date(seconds * 1000).toLocaleString()
+export function formatSyncTime(value: string): string {
+  const raw = value.trim()
+  if (raw === '') return ''
+
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return new Date(seconds * 1000).toLocaleString()
+  }
+
+  const parsed = Date.parse(raw)
+  if (!Number.isFinite(parsed)) return ''
+  return new Date(parsed).toLocaleString()
 }
 
 export function CodexIdentitySettingsSection({

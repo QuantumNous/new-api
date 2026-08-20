@@ -6579,7 +6579,7 @@
     "Feature": "Feature",
     "No additional public models found": "No additional public models found",
     "Codex Fingerprint Convergence": "Codex Fingerprint Convergence",
-    "Off (passthrough, default)": "Off (passthrough, default)",
+    "Off (passthrough)": "Off (passthrough)",
     "Device only": "Device only",
     "Device + Session": "Device + Session",
     "Full convergence": "Full convergence",

@@ -6579,7 +6579,7 @@
     "Feature": "Đặt nổi bật",
     "No additional public models found": "Không tìm thấy mô hình công khai khác",
     "Codex Fingerprint Convergence": "Hợp nhất dấu vân tay Codex",
-    "Off (passthrough, default)": "Tắt (chuyển tiếp nguyên trạng, mặc định)",
+    "Off (passthrough)": "Tắt (chuyển tiếp nguyên trạng)",
     "Device only": "Chỉ thiết bị",
     "Device + Session": "Thiết bị + phiên",
     "Full convergence": "Hợp nhất đầy đủ",

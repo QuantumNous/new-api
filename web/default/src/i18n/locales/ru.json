@@ -6579,7 +6579,7 @@
     "Feature": "Добавить в избранное",
     "No additional public models found": "Другие публичные модели не найдены",
     "Codex Fingerprint Convergence": "Сведение отпечатка Codex",
-    "Off (passthrough, default)": "Выкл. (передавать как есть, по умолчанию)",
+    "Off (passthrough)": "Выкл. (передавать как есть)",
     "Device only": "Только устройство",
     "Device + Session": "Устройство + сессия",
     "Full convergence": "Полное сведение",

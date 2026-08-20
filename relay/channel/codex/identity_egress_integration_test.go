@@ -178,6 +178,67 @@ func TestCodexEgressZeroOriginalMatrix(t *testing.T) {
 	}
 }
 
+func TestCodexIdentityKillSwitchPreservesLegacyInferenceIdentity(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	service.InitHttpClient()
+	common.OptionMapRWMutex.Lock()
+	previous := common.OptionMap
+	common.OptionMap = map[string]string{
+		"CodexClientVersion":         "0.145.7",
+		"CodexEnforceClientIdentity": "false",
+	}
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previous
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	var captured capturedCodexEgressRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		captured = capturedCodexEgressRequest{header: r.Header.Clone(), body: body}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(server.Close)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("session-id", "client-session")
+	info := codexPolicyRelayInfo(server.URL, relayconstant.RelayModeResponses, fingerprintFull)
+	info.ChannelMeta.HeadersOverride = map[string]any{
+		"User-Agent":            "legacy-codex-client/1.2.3",
+		"originator":            "legacy-originator",
+		"OpenAI-Client-Version": "legacy-version",
+	}
+	out, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model:          "gpt-5",
+		Input:          json.RawMessage(`"ping"`),
+		ClientMetadata: json.RawMessage(`{"session_id":"client-session","cwd":"/tmp"}`),
+	})
+	require.NoError(t, err)
+	payload, err := common.Marshal(out)
+	require.NoError(t, err)
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(string(payload)))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+
+	require.Equal(t, "legacy-codex-client/1.2.3", captured.header.Get("User-Agent"))
+	require.Equal(t, "legacy-originator", captured.header.Get("originator"))
+	require.Equal(t, "legacy-version", captured.header.Get("OpenAI-Client-Version"))
+	require.NotEqual(t, "codex-cli/0.145.7", captured.header.Get("User-Agent"))
+	require.NotEqual(t, "codex_cli_rs", captured.header.Get("originator"))
+	require.NotEqual(t, "0.145.7", captured.header.Get("OpenAI-Client-Version"))
+	require.NotContains(t, string(captured.body), "client-session")
+	require.NotContains(t, string(captured.body), "/tmp")
+	require.NotEmpty(t, captured.header.Get("x-codex-installation-id"))
+	require.NotEmpty(t, captured.header.Get("session-id"))
+}
+
 func TestCodexIdentityStableAcrossRestartAndReplicaButRotatesAcrossCloneNamespace(t *testing.T) {
 	now := time.Unix(1787236800, 123000000)
 	info := func() *relaycommon.RelayInfo {
@@ -240,6 +301,11 @@ func TestCodexIdentityStableAcrossRestartAndReplicaButRotatesAcrossCloneNamespac
 	require.NotEqual(t, first.SessionID, clone.SessionID)
 	require.NotEqual(t, first.ThreadID, clone.ThreadID)
 	require.NotEqual(t, first.WindowID, clone.WindowID)
+}
+
+type capturedCodexEgressRequest struct {
+	header http.Header
+	body   []byte
 }
 
 func codexEgressHeaderString(header http.Header) string {

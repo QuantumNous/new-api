@@ -6579,7 +6579,7 @@
     "Feature": "Destacar",
     "No additional public models found": "No se encontraron más modelos públicos",
     "Codex Fingerprint Convergence": "Convergencia de huella de Codex",
-    "Off (passthrough, default)": "Desactivado (pasar sin cambios, predeterminado)",
+    "Off (passthrough)": "Desactivado (pasar sin cambios)",
     "Device only": "Solo dispositivo",
     "Device + Session": "Dispositivo + sesión",
     "Full convergence": "Convergencia completa",

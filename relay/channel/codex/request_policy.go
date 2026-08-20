@@ -17,10 +17,19 @@ const (
 
 var codexDropHeaders = []string{
 	"Cookie",
-	"User-Agent",
 	"traceparent",
 	"tracestate",
 	"baggage",
+	"Accept-Language",
+	"OpenAI-Locale",
+	"OpenAI-Timeout-Ms",
+	"X-Codex-Beta-Features",
+	"X-Codex-Turn-State",
+	"X-Codex-Attestation",
+}
+
+var codexIdentityDropHeaders = []string{
+	"User-Agent",
 	"OpenAI-Client",
 	"OpenAI-Client-Version",
 	"X-OpenAI-Client",
@@ -29,12 +38,6 @@ var codexDropHeaders = []string{
 	"X-Codex-CLI-Version",
 	"X-Codex-Version",
 	"Codex-Version",
-	"Accept-Language",
-	"OpenAI-Locale",
-	"OpenAI-Timeout-Ms",
-	"X-Codex-Beta-Features",
-	"X-Codex-Turn-State",
-	"X-Codex-Attestation",
 }
 
 // FinalizeRequest is the last Codex egress policy gate. It runs after channel
@@ -59,7 +62,13 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 	for _, name := range codexDropHeaders {
 		req.Header.Del(name)
 	}
-	req.Header.Set("User-Agent", "")
+	enforceClientIdentity := service.IsCodexClientIdentityEnforced()
+	if enforceClientIdentity {
+		for _, name := range codexIdentityDropHeaders {
+			req.Header.Del(name)
+		}
+		req.Header.Set("User-Agent", "")
+	}
 	dropUnknownCodexHeaders(req.Header, true)
 
 	if info == nil {
@@ -84,8 +93,10 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("chatgpt-account-id", accountID)
 	req.Header.Set("OpenAI-Beta", codexRequiredBeta)
-	req.Header.Set("originator", codexOriginator)
-	service.ApplyCodexInferenceIdentity(req.Header, service.ResolveCodexClientIdentity())
+	if enforceClientIdentity {
+		req.Header.Set("originator", codexOriginator)
+		service.ApplyCodexInferenceIdentity(req.Header, service.ResolveCodexClientIdentity())
+	}
 	req.Header.Set("Content-Type", "application/json")
 	if info.IsStream {
 		req.Header.Set("Accept", "text/event-stream")
