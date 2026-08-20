@@ -101,13 +101,13 @@ useEChart(
     }))
 
     return {
-      grid: { left: 56, right: 46, top: 40, bottom: 26 },
+      grid: { left: 52, right: 42, top: 32, bottom: 22 },
       legend: {
         top: 0,
         left: 'center',
-        itemWidth: 12,
-        itemHeight: 12,
-        itemGap: 14,
+        itemWidth: 10,
+        itemHeight: 10,
+        itemGap: 12,
         icon: 'circle',
         textStyle: { color: p.textTertiary, fontSize: 10 },
         inactiveColor: p.borderSubtle,
@@ -220,7 +220,7 @@ useEChart(
 
     <div
       v-if="loading"
-      class="h-80 grow animate-pulse rounded-xl bg-[var(--surface-muted)]"
+      class="h-[240px] grow animate-pulse rounded-xl bg-[var(--surface-muted)]"
     />
     <EmptyState
       v-else-if="!hasData"
@@ -231,7 +231,7 @@ useEChart(
     <div
       v-else
       ref="el"
-      class="h-80 w-full grow"
+      class="h-[240px] w-full grow"
       role="img"
       :aria-label="t('dashboard.tokenTrend.title')"
     />
