@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'bun:test'
 import {
   isPlaygroundChatModelName,
-  isVideoGenModelName,
+  isSupportedPlaygroundModelName,
 } from './playground-model-filter'
 
 describe('isPlaygroundChatModelName', () => {
@@ -36,36 +36,26 @@ describe('isPlaygroundChatModelName', () => {
     }
   })
 
-  test('allowlists chat-capable image models (nano-banana / Gemini image)', () => {
-    // These generate an image via /v1/chat/completions and return it as a
-    // markdown data-URI, which the Playground renders inline — so they must be
-    // selectable despite matching the `-image` non-chat pattern.
+  test('keeps only implemented Gemini image families selectable', () => {
     for (const model of [
-      'nano-banana',
-      'google/nano-banana',
-      'gemini-2.5-flash-image',
-      'google/gemini-2.5-flash-image',
-      'gemini-2.5-flash-image-preview',
-      'gemini-3-pro-image',
-      'gemini-3.1-flash-image',
-      'gemini-3.1-flash-lite-image',
+      'nano-banana-pro-preview',
+      'gemini-3-pro-image-preview',
+      'gemini-3.1-flash-image-preview',
     ]) {
-      expect(isPlaygroundChatModelName(model)).toBe(true)
+      expect(isSupportedPlaygroundModelName(model)).toBe(true)
+      expect(isPlaygroundChatModelName(model)).toBe(false)
     }
   })
 
-  test('allowlists supported veo video-gen models so they are selectable', () => {
-    // These do NOT run through chat completions — the send path detects them and
-    // drives the async /v1/videos flow — but they must be selectable in the model
-    // picker despite matching the `veo`/`video` non-chat pattern.
+  test('keeps implemented video families selectable but out of first-run chat', () => {
     for (const model of [
       'veo-3.1-fast-generate-preview',
       'veo-3.1-generate-preview',
-      'veo-3.0-generate-preview',
-      'veo-3.0-fast-generate-preview',
       'google/veo-3.1-fast-generate-preview',
+      'bytedance/seedance-2.0-fast',
     ]) {
-      expect(isPlaygroundChatModelName(model)).toBe(true)
+      expect(isSupportedPlaygroundModelName(model)).toBe(true)
+      expect(isPlaygroundChatModelName(model)).toBe(false)
     }
   })
 
@@ -97,42 +87,24 @@ describe('isPlaygroundChatModelName', () => {
     }
   })
 
-  describe('isVideoGenModelName', () => {
-    test('matches supported veo *generate* video models', () => {
-      for (const model of [
-        'veo-3.1-fast-generate-preview',
-        'veo-3.1-generate-preview',
-        'veo-3.0-generate-preview',
-        'veo-3.0-fast-generate-preview',
-        'google/veo-3.1-fast-generate-preview',
-      ]) {
-        expect(isVideoGenModelName(model)).toBe(true)
-      }
-    })
-
-    test('does not match chat / image / other video families', () => {
-      for (const model of [
-        'gpt-4o',
-        'gemini-2.5-flash-image',
-        'veo-3',
-        'veo-2.0',
-        'sora-2',
-        'bytedance/seedance-2.0-fast',
-        'kling-v1',
-        '',
-        '   ',
-      ]) {
-        expect(isVideoGenModelName(model)).toBe(false)
-      }
-      expect(isVideoGenModelName(null)).toBe(false)
-      expect(isVideoGenModelName({})).toBe(false)
-    })
-  })
-
   test('rejects invalid runtime model values', () => {
     expect(isPlaygroundChatModelName('')).toBe(false)
     expect(isPlaygroundChatModelName('   ')).toBe(false)
     expect(isPlaygroundChatModelName(null)).toBe(false)
     expect(isPlaygroundChatModelName({})).toBe(false)
+  })
+
+  test('allows the concrete image and video families implemented by Playground', () => {
+    for (const model of [
+      'gpt-image-2',
+      'gemini-3-pro-image-preview',
+      'gemini-3.1-flash-image-preview',
+      'nano-banana-pro-preview',
+      'grok-imagine-image',
+      'veo-3.1-generate-preview',
+      'bytedance/seedance-2.0-fast',
+    ]) {
+      expect(isSupportedPlaygroundModelName(model)).toBe(true)
+    }
   })
 })

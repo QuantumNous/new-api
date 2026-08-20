@@ -22,7 +22,6 @@ export {
   formatTimestamp,
   formatModelCount,
   formatSpeedSpecs,
-  formatWindowSummary,
   formatMediaValue,
   parseFeatureLines,
 } from './format'

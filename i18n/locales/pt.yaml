@@ -144,8 +144,6 @@ quota.user_insufficient: "Cota de usuário insuficiente, cota restante: {{.Quota
 quota.topup_hint: "Adicione créditos em {{.URL}} para continuar."
 quota.pre_consume_failed: "Falha na pré-dedução de cota, cota restante do usuário: {{.Remaining}}, cota de pré-dedução necessária: {{.Required}}"
 quota.subscription_insufficient: "Cota de assinatura insuficiente ou nenhuma assinatura configurada: {{.Detail}}"
-quota.subscription_window_5h_exceeded: "A janela de uso de 5 horas do seu plano está cheia. A capacidade é liberada conforme o uso antigo expira (cerca de {{.Minutes}} minutos para a próxima liberação). Adicione saldo para continuar sem esperar."
-quota.subscription_window_week_exceeded: "A janela de uso semanal do seu plano está cheia. Ela reinicia em cerca de {{.Hours}} horas. Adicione saldo para continuar sem esperar."
 quota.token_insufficient: "Cota do token insuficiente, cota restante do token: {{.Remain}}, cota necessária: {{.Required}}"
 quota.user_insufficient_need: "Cota de usuário insuficiente, cota do usuário: {{.Quota}}, cota necessária: {{.Required}}"
 

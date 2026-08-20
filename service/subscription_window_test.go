@@ -126,6 +126,23 @@ func TestSubscriptionFundingWeightedRounding(t *testing.T) {
 	}
 }
 
+func TestSubscriptionFundingDoesNotExposeLegacyWindowSnapshot(t *testing.T) {
+	guard := &subscriptionWindowGuard{
+		subId:      12,
+		limit5h:    100,
+		limitWeek:  200,
+		reserved:   10,
+		bucketHeld: map[string]int64{"legacy": 10},
+	}
+	if setupSnapshot := guard.Snapshot(); setupSnapshot == nil {
+		t.Fatal("test setup must represent a legacy active window guard")
+	}
+	funding := &SubscriptionFunding{}
+	if snapshot := funding.WindowSnapshot(); snapshot != nil {
+		t.Fatalf("legacy window snapshot must be inactive, got %+v", snapshot)
+	}
+}
+
 func TestReserveSubscriptionWindows5hLimit(t *testing.T) {
 	setupWindowTestRedis(t)
 	info := &model.SubscriptionWindowInfo{

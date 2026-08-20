@@ -160,8 +160,9 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			return ""
 		}(),
-		"amount_options":   amountOptions,
-		"stripe_price_ids": buildStripeTopUpPriceIDs(amountOptions),
+		"amount_options":         amountOptions,
+		"stripe_price_ids":       buildStripeTopUpPriceIDs(amountOptions),
+		"stripe_currency_prices": buildStripeTopUpCurrencyPrices(amountOptions),
 		// Pure subscription mode keeps wallet top-ups at face value. Legacy
 		// discount/bonus settings remain readable by old admin code but are not
 		// advertised or applied to new top-ups.
@@ -186,6 +187,50 @@ func buildStripeTopUpPriceIDs(amountOptions []int) map[int]string {
 		}
 	}
 	return priceIDs
+}
+
+func buildStripeTopUpCurrencyPrices(amountOptions []int) map[string]map[int]int64 {
+	currencyPrices := make(map[string]map[int]int64, len(stripeTopUpPriceContract))
+	if strings.TrimSpace(setting.StripeApiSecret) != "" {
+		for _, amount := range amountOptions {
+			priceID := strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount)))
+			if priceID == "" {
+				continue
+			}
+			stripePrices, err := cachedStripeTopUpCurrencyPrices(priceID)
+			if err != nil && len(stripePrices) == 0 {
+				continue
+			}
+			for currency, amountMinor := range stripePrices {
+				expectedAmountMinor, ok := expectedStripeTopUpAmountMinor(currency, int64(amount))
+				if !ok || amountMinor != expectedAmountMinor {
+					continue
+				}
+				if currencyPrices[currency] == nil {
+					currencyPrices[currency] = map[int]int64{}
+				}
+				currencyPrices[currency][amount] = amountMinor
+			}
+		}
+		return currencyPrices
+	}
+
+	for currency, contractPrices := range stripeTopUpPriceContract {
+		for _, amount := range amountOptions {
+			if strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount))) == "" {
+				continue
+			}
+			amountMinor, ok := contractPrices[int64(amount)]
+			if !ok || amountMinor <= 0 {
+				continue
+			}
+			if currencyPrices[currency] == nil {
+				currencyPrices[currency] = map[int]int64{}
+			}
+			currencyPrices[currency][amount] = amountMinor
+		}
+	}
+	return currencyPrices
 }
 
 func buildTopUpPayMethods(payMethods []map[string]string, enablePaddle bool) []map[string]string {

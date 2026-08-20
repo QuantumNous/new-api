@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
+import type { MediaGenerationRequest } from './lib/media-generation'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -32,6 +33,28 @@ export async function sendChatCompletion(
   payload: ChatCompletionRequest
 ): Promise<ChatCompletionResponse> {
   const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function sendMediaGeneration(
+  request: MediaGenerationRequest,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const res = await api.post(request.endpoint, request.payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function fetchPlaygroundVideoTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const res = await api.get(`/pg/videos/${encodeURIComponent(taskId)}`, {
+    signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data

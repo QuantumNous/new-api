@@ -171,6 +171,35 @@ describe('getRecallPriceDiscount', () => {
     })
   })
 
+  test('previews a fixed JPY discount as a zero-decimal amount', () => {
+    expect(
+      getRecallPriceDiscount(
+        {
+          ...claimView,
+          discount: {
+            ...claimView.discount,
+            type: 'fixed',
+            amount_off: 500,
+            currency: 'JPY',
+            minimum_amount: 1000,
+            minimum_amount_currency: 'JPY',
+          },
+        },
+        1,
+        'subscription',
+        3000,
+        'JPY',
+        1_700_000_000
+      )
+    ).toMatchObject({
+      type: 'fixed',
+      originalAmount: 3000,
+      discountAmount: 500,
+      discountedAmount: 2500,
+      currency: 'JPY',
+    })
+  })
+
   test('rejects fixed discounts with mismatched currency', () => {
     expect(
       getRecallPriceDiscount(

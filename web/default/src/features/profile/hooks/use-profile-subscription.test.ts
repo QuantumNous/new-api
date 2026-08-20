@@ -51,12 +51,6 @@ const buildCurrentSubscription = (
     max_purchase_per_user: 0,
     total_amount: 100_000,
   },
-  usage_limits: {
-    window_5h_used: 0,
-    window_5h_reset_at: 0,
-    window_week_used: 0,
-    window_week_reset_at: 0,
-  },
   ...overrides,
 })
 
@@ -97,18 +91,6 @@ describe('loadProfileSubscriptionSummary', () => {
             amount_remaining: 75_000,
             unlimited: false,
           },
-          window_5h: {
-            total: 20_000,
-            used: 5_000,
-            remaining: 15_000,
-            unlimited: false,
-          },
-          window_7d: {
-            total: 80_000,
-            used: 20_000,
-            remaining: 60_000,
-            unlimited: false,
-          },
           media_credits: {
             total: 120,
             used: 35,
@@ -129,24 +111,6 @@ describe('loadProfileSubscriptionSummary', () => {
       remainingDays: 19,
       resetAt: 0,
       usagePercent: 25,
-      window5h: {
-        totalQuota: 20_000,
-        usedQuota: 5_000,
-        remainingQuota: 15_000,
-        unlimited: false,
-        notIncluded: false,
-        resetAt: 0,
-        usagePercent: 25,
-      },
-      window7d: {
-        totalQuota: 80_000,
-        usedQuota: 20_000,
-        remainingQuota: 60_000,
-        unlimited: false,
-        notIncluded: false,
-        resetAt: 0,
-        usagePercent: 25,
-      },
       mediaCredits: {
         totalQuota: 120,
         usedQuota: 35,

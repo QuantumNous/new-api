@@ -986,7 +986,7 @@ func TestRecurringSubscriptionDTOsRequiresSupportForNonActionableProviderStatuse
 	}
 }
 
-func TestGetSubscriptionSelfReturnsCurrentEntitlementQuotaReadModel(t *testing.T) {
+func TestGetSubscriptionSelfReturnsCurrentEntitlementQuotaReadModelWithoutShortWindows(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 	insertSubscriptionControllerUser(t, 915)
 	now := common.GetTimestamp()
@@ -1064,18 +1064,8 @@ func TestGetSubscriptionSelfReturnsCurrentEntitlementQuotaReadModel(t *testing.T
 	require.Equal(t, float64(1550), monthly["remaining"])
 	require.Equal(t, float64(now+3600), monthly["reset_at"])
 	require.Equal(t, false, monthly["unlimited"])
-
-	window5h := data["window_5h"].(map[string]any)
-	require.Equal(t, float64(0), window5h["used"])
-	require.Equal(t, float64(entitlementWindow5h), window5h["total"])
-	require.Equal(t, float64(entitlementWindow5h), window5h["remaining"])
-	require.Equal(t, false, window5h["unlimited"])
-
-	window7d := data["window_7d"].(map[string]any)
-	require.Equal(t, float64(0), window7d["used"])
-	require.Equal(t, float64(entitlementWindowWeek), window7d["total"])
-	require.Equal(t, float64(entitlementWindowWeek), window7d["remaining"])
-	require.Equal(t, false, window7d["unlimited"])
+	require.NotContains(t, data, "window_5h")
+	require.NotContains(t, data, "window_7d")
 
 	media := data["media_credits"].(map[string]any)
 	require.Equal(t, float64(25), media["used"])
@@ -1083,9 +1073,18 @@ func TestGetSubscriptionSelfReturnsCurrentEntitlementQuotaReadModel(t *testing.T
 	require.Equal(t, float64(0), media["remaining"])
 	require.Equal(t, float64(now+3600), media["reset_at"])
 	require.Equal(t, false, media["unlimited"])
+
+	current := data["current_subscription"].(map[string]any)
+	require.NotContains(t, current, "usage_limits")
+	currentSubscription := current["subscription"].(map[string]any)
+	require.NotContains(t, currentSubscription, "window_5h_amount")
+	require.NotContains(t, currentSubscription, "window_week_amount")
+	currentPlan := current["plan"].(map[string]any)
+	require.NotContains(t, currentPlan, "window_5h_amount")
+	require.NotContains(t, currentPlan, "window_week_amount")
 }
 
-func TestGetSubscriptionSelfReturnsZeroQuotaReadModelWithoutSubscription(t *testing.T) {
+func TestGetSubscriptionSelfReturnsZeroQuotaReadModelWithoutSubscriptionOrShortWindows(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 	insertSubscriptionControllerUser(t, 916)
 
@@ -1103,7 +1102,7 @@ func TestGetSubscriptionSelfReturnsZeroQuotaReadModelWithoutSubscription(t *test
 	require.Equal(t, float64(0), data["remaining_days"])
 	require.Equal(t, "", data["renewal_source"])
 	require.Equal(t, "", data["renewal_status"])
-	for _, key := range []string{"monthly_bucket", "window_5h", "window_7d", "media_credits"} {
+	for _, key := range []string{"monthly_bucket", "media_credits"} {
 		bucket := data[key].(map[string]any)
 		require.Equal(t, float64(0), bucket["used"], key)
 		require.Equal(t, float64(0), bucket["total"], key)
@@ -1111,10 +1110,12 @@ func TestGetSubscriptionSelfReturnsZeroQuotaReadModelWithoutSubscription(t *test
 		require.Equal(t, float64(0), bucket["reset_at"], key)
 		require.Equal(t, false, bucket["unlimited"], key)
 	}
+	require.NotContains(t, data, "window_5h")
+	require.NotContains(t, data, "window_7d")
 	require.Nil(t, data["current_subscription"])
 }
 
-func TestGetSubscriptionSelfReadsWindowUsageCounters(t *testing.T) {
+func TestGetSubscriptionSelfOmitsShortWindowUsageCounters(t *testing.T) {
 	setupSubscriptionControllerTestDB(t)
 	insertSubscriptionControllerUser(t, 917)
 	mr, err := miniredis.Run()
@@ -1184,10 +1185,10 @@ func TestGetSubscriptionSelfReadsWindowUsageCounters(t *testing.T) {
 	var envelope map[string]any
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &envelope))
 	data := envelope["data"].(map[string]any)
-	require.Equal(t, float64(75), data["window_5h"].(map[string]any)["used"])
-	require.Equal(t, float64(425), data["window_5h"].(map[string]any)["remaining"])
-	require.Equal(t, float64(250), data["window_7d"].(map[string]any)["used"])
-	require.Equal(t, float64(750), data["window_7d"].(map[string]any)["remaining"])
+	require.Contains(t, data, "monthly_bucket")
+	require.Contains(t, data, "media_credits")
+	require.NotContains(t, data, "window_5h")
+	require.NotContains(t, data, "window_7d")
 }
 
 func TestGetSubscriptionPlansAnnotatesTierRankAndRelation(t *testing.T) {
@@ -1265,7 +1266,7 @@ func TestGetSubscriptionPlansAnnotatesTierRankAndRelation(t *testing.T) {
 	require.Equal(t, []string{model.SubscriptionPaymentModeStripeRecurring}, paymentModes[9913])
 }
 
-func TestGetSubscriptionPlansExposesConfiguredUsageLimits(t *testing.T) {
+func TestGetSubscriptionPlansExposesConfiguredUsageLimitsWithoutShortWindowFields(t *testing.T) {
 	enablePaymentComplianceForSubscriptionControllerTest(t)
 	setupSubscriptionControllerTestDB(t)
 	require.NoError(t, model.DB.Create(&model.SubscriptionPlan{
@@ -1295,8 +1296,8 @@ func TestGetSubscriptionPlansExposesConfiguredUsageLimits(t *testing.T) {
 	items := envelope["data"].([]any)
 	require.Len(t, items, 1)
 	plan := items[0].(map[string]any)["plan"].(map[string]any)
-	require.Equal(t, float64(500), plan["window_5h_amount"])
-	require.Equal(t, float64(2000), plan["window_week_amount"])
+	require.NotContains(t, plan, "window_5h_amount")
+	require.NotContains(t, plan, "window_week_amount")
 	require.Equal(t, float64(75), plan["media_credits_monthly"])
 }
 
