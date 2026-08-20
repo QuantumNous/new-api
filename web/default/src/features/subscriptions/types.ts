@@ -110,16 +110,8 @@ export interface UserSubscriptionRecord {
   provider_binding?: SubscriptionProviderBindingSummary
 }
 
-export interface SubscriptionUsageLimits {
-  window_5h_used: number
-  window_5h_reset_at: number
-  window_week_used: number
-  window_week_reset_at: number
-}
-
 export interface CurrentSubscriptionRecord extends UserSubscriptionRecord {
   plan: SubscriptionPlan
-  usage_limits: SubscriptionUsageLimits
 }
 
 // ============================================================================
@@ -490,8 +482,6 @@ export interface SelfSubscriptionData {
   current_period?: SubscriptionCurrentPeriod
   quota?: SubscriptionQuota
   monthly_bucket?: SubscriptionUsageWindow
-  window_5h?: SubscriptionUsageWindow
-  window_7d?: SubscriptionUsageWindow
   media_credits?: SubscriptionUsageWindow
   remaining_days?: number
   renewal_source?: SubscriptionRenewalSource

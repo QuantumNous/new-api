@@ -262,15 +262,10 @@ export function CurrentPlanCard(props: CurrentPlanCardProps) {
           </div>
         </div>
 
-        <div className='grid gap-3 lg:grid-cols-3'>
+        <div className='grid gap-3 lg:grid-cols-2'>
           <UsageWindowMeter
-            label={t('5-hour limit')}
-            window={props.selfData.window_5h}
-            secondary
-          />
-          <UsageWindowMeter
-            label={t('7-day limit')}
-            window={props.selfData.window_7d}
+            label={t('Monthly model quota')}
+            window={props.selfData.monthly_bucket}
             secondary
           />
           <UsageWindowMeter

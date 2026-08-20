@@ -82,8 +82,6 @@ function plan(id: number, title: string, price: number): PlanRecord {
       allow_balance_pay: true,
       max_purchase_per_user: 0,
       total_amount: price * 1000,
-      window_5h_amount: price * 100,
-      window_week_amount: price * 250,
       media_credits_monthly: price,
       payment_modes: ['stripe_recurring', 'balance_one_period'],
     },
@@ -332,7 +330,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('aria-label="Refresh subscription plans"')
   })
 
-  test('renders a read-only current card with correct badges and only the three active usage meters', () => {
+  test('renders a read-only current card with correct badges and only monthly plus media usage meters', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
         contract: {
@@ -373,8 +371,13 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
           amount_remaining: 13000,
           unlimited: false,
         },
-        window_5h: { used: 200, total: 2000, remaining: 1800, reset_at: 1 },
-        window_7d: { used: 1000, total: 5000, remaining: 4000, reset_at: 1 },
+        monthly_bucket: {
+          used: 7000,
+          total: 20000,
+          remaining: 13000,
+          reset_at: 1,
+          unlimited: false,
+        },
         media_credits: { used: 3, total: 20, remaining: 17, reset_at: 1 },
       })
     )
@@ -387,14 +390,15 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Auto-renew enabled')
     expect(html).not.toContain('Renewal time')
     expect(html).not.toContain('future charge')
-    expect(html.match(/data-wallet-usage-meter=/g)?.length).toBe(3)
-    expect(html.match(/data-wallet-secondary-meter=/g)?.length).toBe(3)
-    expect(html).not.toContain('data-wallet-usage-meter="Monthly model quota"')
-    expect(html).toContain('data-wallet-usage-meter="5-hour limit"')
-    expect(html).toContain('data-wallet-usage-meter="7-day limit"')
+    expect(html.match(/data-wallet-usage-meter=/g)?.length).toBe(2)
+    expect(html.match(/data-wallet-secondary-meter=/g)?.length).toBe(2)
+    expect(html).toContain('data-wallet-usage-meter="Monthly model quota"')
     expect(html).toContain('data-wallet-usage-meter="Media generation credits"')
-    expect(html).toContain('$0.0004 / $0.004 used')
-    expect(html).toContain('$0.002 / $0.01 used')
+    expect(html).not.toContain('data-wallet-usage-meter="5-hour limit"')
+    expect(html).not.toContain('data-wallet-usage-meter="7-day limit"')
+    expect(html).not.toContain('5-hour limit')
+    expect(html).not.toContain('7-day limit')
+    expect(html).toContain('$0.014 / $0.04 used')
     expect(html).toContain('3 / 20 used')
     expect(html).not.toContain('Cancel auto-renewal')
     expect(html).not.toContain('Resume auto-renewal')
@@ -1027,7 +1031,9 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
 
     expect(mediaMeter).toContain('Not included')
     expect(mediaMeter).not.toContain('Unlimited')
-    expect(html).toContain('data-wallet-usage-meter="5-hour limit"')
+    expect(html).toContain('data-wallet-usage-meter="Monthly model quota"')
+    expect(html).not.toContain('data-wallet-usage-meter="5-hour limit"')
+    expect(html).not.toContain('data-wallet-usage-meter="7-day limit"')
     expect(html).toContain('No usage limit')
   })
 
@@ -1055,12 +1061,13 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Media generation credits: Unlimited')
   })
 
-  test('labels plan card rolling quotas and media credits explicitly', () => {
+  test('labels plan card monthly quota and media credits without short-window quotas', () => {
     const html = renderWalletCard()
 
-    expect(html).toContain('5-hour limit: $0.002')
-    expect(html).toContain('7-day limit: $0.005')
+    expect(html).toContain('Monthly model quota: $0.02')
     expect(html).toContain('Media generation credits: 10 credits')
+    expect(html).not.toContain('5-hour limit')
+    expect(html).not.toContain('7-day limit')
     expect(html).not.toContain('5-hour: $0.002')
     expect(html).not.toContain('7-day: $0.005')
     expect(html).not.toContain('Image + video: 10 credits')

@@ -35,8 +35,6 @@ export type ProfileUsageWindowSummary = {
 export type ProfileSubscriptionSummary = ProfileUsageWindowSummary & {
   planTitle: string
   remainingDays: number | null
-  window5h: ProfileUsageWindowSummary
-  window7d: ProfileUsageWindowSummary
   mediaCredits: ProfileUsageWindowSummary
 }
 
@@ -197,8 +195,6 @@ export function buildProfileSubscriptionSummary(
     remainingDays: normalizeRemainingDays(data?.remaining_days),
     resetAt: 0,
     usagePercent: monthlySummary.usagePercent,
-    window5h: normalizeUsageWindow(data?.window_5h),
-    window7d: normalizeUsageWindow(data?.window_7d),
     mediaCredits: normalizeUsageWindow(data?.media_credits, 'media'),
   }
 }

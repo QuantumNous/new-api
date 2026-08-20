@@ -49,12 +49,6 @@ const buildCurrentSubscription = (
     max_purchase_per_user: 0,
     total_amount: 100_000,
   },
-  usage_limits: {
-    window_5h_used: 0,
-    window_5h_reset_at: 0,
-    window_week_used: 0,
-    window_week_reset_at: 0,
-  },
   ...overrides,
 })
 
@@ -73,7 +67,7 @@ const expectAdapterExport = () => {
 }
 
 describe('buildProfileSubscriptionSummary', () => {
-  test('builds an active Pro summary from canonical monthly and window buckets', () => {
+  test('builds an active Pro summary from canonical monthly and media buckets', () => {
     const buildProfileSubscriptionSummary = expectAdapterExport()
 
     expect(
@@ -89,19 +83,6 @@ describe('buildProfileSubscriptionSummary', () => {
           amount_total: 100_000,
           amount_used: 25_000,
           amount_remaining: 75_000,
-          unlimited: false,
-        },
-        window_5h: {
-          total: 20_000,
-          used: 5_000,
-          remaining: 15_000,
-          unlimited: false,
-        },
-        window_7d: {
-          total: 80_000,
-          used: 20_000,
-          remaining: 60_000,
-          reset_at: 1_716_000_000,
           unlimited: false,
         },
         media_credits: {
@@ -123,24 +104,6 @@ describe('buildProfileSubscriptionSummary', () => {
       remainingDays: 19,
       resetAt: 0,
       usagePercent: 25,
-      window5h: {
-        totalQuota: 20_000,
-        usedQuota: 5_000,
-        remainingQuota: 15_000,
-        unlimited: false,
-        notIncluded: false,
-        resetAt: 0,
-        usagePercent: 25,
-      },
-      window7d: {
-        totalQuota: 80_000,
-        usedQuota: 20_000,
-        remainingQuota: 60_000,
-        unlimited: false,
-        notIncluded: false,
-        resetAt: 1_716_000_000,
-        usagePercent: 25,
-      },
       mediaCredits: {
         totalQuota: 120,
         usedQuota: 35,
@@ -352,103 +315,37 @@ describe('buildProfileSubscriptionSummary', () => {
     })
   })
 
-  test('normalizes short usage windows at adapter boundaries', () => {
+  test('does not synthesize short-window summaries when backend omits them', () => {
     const buildProfileSubscriptionSummary = expectAdapterExport()
 
-    expect(
-      buildProfileSubscriptionSummary({
-        current_subscription: buildCurrentSubscription(),
-        window_5h: {
-          total: 10,
-          used: 4,
-          remaining: 6,
-          unlimited: false,
-        },
-        window_7d: {
-          total: 0,
-          used: 4,
-          remaining: 0,
-          unlimited: false,
-        },
-      })
-    ).toMatchObject({
-      window5h: {
-        totalQuota: 10,
-        usedQuota: 4,
-        remainingQuota: 6,
+    const summary = buildProfileSubscriptionSummary({
+      current_subscription: buildCurrentSubscription(),
+      monthly_bucket: {
+        total: 10,
+        used: 4,
+        remaining: 6,
         unlimited: false,
-        usagePercent: 40,
       },
-      window7d: {
-        totalQuota: 0,
-        usedQuota: 4,
-        remainingQuota: 0,
-        unlimited: true,
-        notIncluded: false,
-        usagePercent: 0,
+      media_credits: {
+        total: 40,
+        used: 12,
+        remaining: 28,
+        unlimited: false,
       },
     })
 
-    expect(
-      buildProfileSubscriptionSummary({
-        current_subscription: buildCurrentSubscription(),
-        window_5h: {
-          total: 10,
-          used: 12,
-          unlimited: false,
-        },
-        window_7d: {
-          total: -10,
-          used: -1,
-          remaining: -5,
-          unlimited: false,
-        },
-      })
-    ).toMatchObject({
-      window5h: {
-        totalQuota: 10,
+    expect(summary).toMatchObject({
+      totalQuota: 10,
+      usedQuota: 4,
+      remainingQuota: 6,
+      mediaCredits: {
+        totalQuota: 40,
         usedQuota: 12,
-        remainingQuota: 0,
-        unlimited: false,
-        usagePercent: 100,
-      },
-      window7d: {
-        totalQuota: 0,
-        usedQuota: 0,
-        remainingQuota: 0,
-        unlimited: true,
-        notIncluded: false,
-        usagePercent: 0,
+        remainingQuota: 28,
       },
     })
-
-    expect(
-      buildProfileSubscriptionSummary({
-        current_subscription: buildCurrentSubscription(),
-        window_5h: {
-          total: Number.NaN,
-          used: Number.POSITIVE_INFINITY,
-          remaining: Number.NEGATIVE_INFINITY,
-          unlimited: false,
-        },
-      })
-    ).toMatchObject({
-      window5h: {
-        totalQuota: 0,
-        usedQuota: 0,
-        remainingQuota: 0,
-        unlimited: true,
-        usagePercent: 0,
-      },
-      window7d: {
-        totalQuota: 0,
-        usedQuota: 0,
-        remainingQuota: 0,
-        unlimited: true,
-        notIncluded: false,
-        usagePercent: 0,
-      },
-    })
+    expect(summary && 'window5h' in summary).toBe(false)
+    expect(summary && 'window7d' in summary).toBe(false)
   })
 
   test('normalizes media credits separately from quota windows', () => {
@@ -457,12 +354,6 @@ describe('buildProfileSubscriptionSummary', () => {
     expect(
       buildProfileSubscriptionSummary({
         current_subscription: buildCurrentSubscription(),
-        window_5h: {
-          total: 0,
-          used: 4,
-          remaining: 0,
-          unlimited: false,
-        },
         media_credits: {
           total: 40,
           used: 12,
@@ -472,15 +363,6 @@ describe('buildProfileSubscriptionSummary', () => {
         },
       })
     ).toMatchObject({
-      window5h: {
-        totalQuota: 0,
-        usedQuota: 4,
-        remainingQuota: 0,
-        unlimited: true,
-        notIncluded: false,
-        resetAt: 0,
-        usagePercent: 0,
-      },
       mediaCredits: {
         totalQuota: 40,
         usedQuota: 12,

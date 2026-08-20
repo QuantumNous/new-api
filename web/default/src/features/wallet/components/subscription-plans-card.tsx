@@ -261,18 +261,10 @@ function buildRenewalLifecyclePrecondition(
 
 function getPlanEntitlements(plan: PlanRecord['plan'], t: Translate) {
   const monthly = Number(plan.total_amount || 0)
-  const window5h = Number(plan.window_5h_amount || 0)
-  const window7d = Number(plan.window_week_amount || 0)
   const media = Number(plan.media_credits_monthly || 0)
   return [
     t('Monthly model quota: {{value}}', {
       value: monthly > 0 ? formatQuota(monthly) : t('Unlimited'),
-    }),
-    t('5-hour limit: {{value}}', {
-      value: window5h > 0 ? formatQuota(window5h) : t('Unlimited'),
-    }),
-    t('7-day limit: {{value}}', {
-      value: window7d > 0 ? formatQuota(window7d) : t('Unlimited'),
     }),
     t('Media generation credits: {{value}}', {
       value:
