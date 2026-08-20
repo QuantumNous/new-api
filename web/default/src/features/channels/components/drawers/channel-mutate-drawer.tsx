@@ -137,6 +137,7 @@ import {
   inspectSolanaPrivateKey,
   resolveBlockRunCreateBaseURL,
   resolveBlockRunPaymentChainChange,
+  resolveCodexFingerprintModeForChannelType,
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
@@ -631,16 +632,13 @@ export function ChannelMutateDrawer({
       form.setValue('multi_key_mode', 'single')
     }
 
-    if (
-      currentType === 57 &&
-      form.getValues('codex_fingerprint_mode') === 'off'
-    ) {
-      form.setValue('codex_fingerprint_mode', 'full')
-    } else if (
-      currentType !== 57 &&
-      form.getValues('codex_fingerprint_mode') === 'full'
-    ) {
-      form.setValue('codex_fingerprint_mode', 'off')
+    const currentCodexFingerprintMode = form.getValues('codex_fingerprint_mode')
+    const nextCodexFingerprintMode = resolveCodexFingerprintModeForChannelType(
+      currentType,
+      currentCodexFingerprintMode
+    )
+    if (nextCodexFingerprintMode !== currentCodexFingerprintMode) {
+      form.setValue('codex_fingerprint_mode', nextCodexFingerprintMode)
     }
 
     // Type 45 (VolcEngine) - set default base_url

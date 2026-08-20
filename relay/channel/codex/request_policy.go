@@ -72,9 +72,12 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 	dropUnknownCodexHeaders(req.Header, true)
 
 	if info == nil {
+		req.Header.Del("Authorization")
+		req.Header.Del("chatgpt-account-id")
+		req.Header.Del("OpenAI-Beta")
 		req.Header.Del("X-Codex-Turn-Metadata")
 		dropUnknownCodexHeaders(req.Header, false)
-		return nil
+		return &codexPolicyError{"codex channel: relay info is required"}
 	}
 
 	oauthKey, err := ParseOAuthKey(strings.TrimSpace(info.ApiKey))
@@ -95,7 +98,7 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 	req.Header.Set("OpenAI-Beta", codexRequiredBeta)
 	if enforceClientIdentity {
 		req.Header.Set("originator", codexOriginator)
-		service.ApplyCodexInferenceIdentity(req.Header, service.ResolveCodexClientIdentity())
+		service.ApplyCodexInferenceIdentitySnapshot(req.Header, service.ResolveCodexClientIdentity())
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if info.IsStream {
@@ -109,6 +112,8 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 		return err
 	}
 	if ids == nil {
+		// Fingerprint mode "off" intentionally has no staged identity. Keep the
+		// authenticated request valid while removing any client-supplied metadata.
 		req.Header.Del("X-Codex-Turn-Metadata")
 		dropUnknownCodexHeaders(req.Header, false)
 		return nil

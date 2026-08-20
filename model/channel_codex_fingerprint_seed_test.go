@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
@@ -132,6 +133,47 @@ func TestEnsureCodexFingerprintSeedConcurrentCompareAndSet(t *testing.T) {
 	require.Equal(t, observed, stored.CodexFingerprintSeed)
 }
 
+func TestBackfillCodexFingerprintSeedsUsesBoundedKeysetQueries(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channels := make([]Channel, 0, codexFingerprintSeedBackfillBatchSize+7)
+	for i := 0; i < codexFingerprintSeedBackfillBatchSize+7; i++ {
+		seed := "018f89db-7792-7b5e-a360-7fd9279fd725"
+		if i >= codexFingerprintSeedBackfillBatchSize+5 {
+			seed = "invalid-seed"
+		}
+		channels = append(channels, Channel{
+			Type:                 constant.ChannelTypeCodex,
+			Key:                  `{"access_token":"at","account_id":"acct"}`,
+			Name:                 "seed-backfill",
+			Status:               common.ChannelStatusEnabled,
+			Models:               "gpt-5-codex",
+			Group:                "default",
+			CodexFingerprintSeed: seed,
+		})
+	}
+	require.NoError(t, DB.CreateInBatches(&channels, 100).Error)
+
+	queryCount := 0
+	const callbackName = "test:count_codex_seed_backfill_queries"
+	require.NoError(t, DB.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "channels" {
+			queryCount++
+		}
+	}))
+
+	require.NoError(t, BackfillCodexFingerprintSeeds())
+	require.LessOrEqual(t, queryCount, 3)
+	require.NoError(t, DB.Callback().Query().Remove(callbackName))
+
+	var repaired []Channel
+	require.NoError(t, DB.Where("id IN ?", []int{channels[len(channels)-2].Id, channels[len(channels)-1].Id}).Find(&repaired).Error)
+	require.Len(t, repaired, 2)
+	for _, channel := range repaired {
+		requireUUIDString(t, channel.CodexFingerprintSeed)
+		require.NotEqual(t, "invalid-seed", channel.CodexFingerprintSeed)
+	}
+}
+
 func TestNonCodexAndOffChannelsDoNotMintSeed(t *testing.T) {
 	setupCodexFingerprintSeedTestDB(t)
 	nonCodex := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeOpenAI, common.ChannelStatusEnabled, "")
@@ -164,6 +206,59 @@ func TestEnableChannelByTagMintsSeedForLegacyDisabledCodexChannel(t *testing.T) 
 	require.NoError(t, DB.First(&stored, "id = ?", channel.Id).Error)
 	require.Equal(t, common.ChannelStatusEnabled, stored.Status)
 	requireUUIDString(t, stored.CodexFingerprintSeed)
+}
+
+func TestEnableChannelByTagRollsBackWhenSeedUpdateFails(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	tag := "rollback-codex"
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusManuallyDisabled, "")
+	require.NoError(t, DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("tag", tag).Error)
+
+	updates := 0
+	const callbackName = "test:fail_codex_seed_update"
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "channels" {
+			return
+		}
+		updates++
+		if updates == 2 {
+			tx.AddError(errors.New("forced seed update failure"))
+		}
+	}))
+
+	err := EnableChannelByTag(tag)
+	require.ErrorContains(t, err, "forced seed update failure")
+	require.NoError(t, DB.Callback().Update().Remove(callbackName))
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, "id = ?", channel.Id).Error)
+	require.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
+	require.Empty(t, stored.CodexFingerprintSeed)
+}
+
+func TestChannelUpdateRollsBackWhenAbilityRefreshFails(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusManuallyDisabled, "")
+	originalName := channel.Name
+
+	const callbackName = "test:fail_channel_ability_refresh"
+	require.NoError(t, DB.Callback().Delete().Before("gorm:delete").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "abilities" {
+			tx.AddError(errors.New("forced ability refresh failure"))
+		}
+	}))
+
+	channel.Name = "partially-updated"
+	channel.Status = common.ChannelStatusEnabled
+	err := channel.Update()
+	require.ErrorContains(t, err, "forced ability refresh failure")
+	require.NoError(t, DB.Callback().Delete().Remove(callbackName))
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, "id = ?", channel.Id).Error)
+	require.Equal(t, originalName, stored.Name)
+	require.Equal(t, common.ChannelStatusManuallyDisabled, stored.Status)
+	require.Empty(t, stored.CodexFingerprintSeed)
 }
 
 func TestUpdateChannelStatusMintsSeedForLegacyAutoDisabledCodexChannel(t *testing.T) {

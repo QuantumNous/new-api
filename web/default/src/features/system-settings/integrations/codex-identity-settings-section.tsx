@@ -40,7 +40,7 @@ import {
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
-import { useUpdateOption } from '../hooks/use-update-option'
+import { useUpdateOptionsBulk } from '../hooks/use-update-option'
 
 export type CodexIdentityFormValues = {
   CodexClientUserAgent: string
@@ -57,7 +57,7 @@ type CodexIdentityUpdate = {
     | 'CodexClientVersion'
     | 'CodexAutoSyncClientVersion'
     | 'CodexEnforceClientIdentity'
-  value: string | boolean
+  value: string
 }
 
 export function buildCodexIdentityOptionUpdates(
@@ -85,7 +85,7 @@ export function buildCodexIdentityOptionUpdates(
   ) {
     updates.push({
       key: 'CodexAutoSyncClientVersion',
-      value: values.CodexAutoSyncClientVersion,
+      value: String(values.CodexAutoSyncClientVersion),
     })
   }
   if (
@@ -93,7 +93,7 @@ export function buildCodexIdentityOptionUpdates(
   ) {
     updates.push({
       key: 'CodexEnforceClientIdentity',
-      value: values.CodexEnforceClientIdentity,
+      value: String(values.CodexEnforceClientIdentity),
     })
   }
   return updates
@@ -119,7 +119,7 @@ export function CodexIdentitySettingsSection({
   defaultValues: CodexIdentityFormValues
 }) {
   const { t } = useTranslation()
-  const updateOption = useUpdateOption()
+  const updateOptions = useUpdateOptionsBulk()
   const form = useForm<CodexIdentityFormValues>({ defaultValues })
 
   useResetForm(form, defaultValues)
@@ -130,9 +130,7 @@ export function CodexIdentitySettingsSection({
       toast.info(t('No changes to save'))
       return
     }
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
-    }
+    await updateOptions.mutateAsync({ options: updates })
   }
 
   return (
@@ -141,7 +139,7 @@ export function CodexIdentitySettingsSection({
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)} autoComplete='off'>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending || form.formState.isSubmitting}
+            isSaving={updateOptions.isPending || form.formState.isSubmitting}
             saveLabel='Save Codex identity settings'
           />
 

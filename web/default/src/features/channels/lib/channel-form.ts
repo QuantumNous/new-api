@@ -30,7 +30,16 @@ export const BLOCKRUN_SOLANA_API_URL = 'https://sol.blockrun.ai/api'
 export type BlockRunPaymentChain = 'base' | 'solana'
 
 const CODEX_FINGERPRINT_MODES = ['off', 'device', 'session', 'full'] as const
-type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
+export type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
+
+export function resolveCodexFingerprintModeForChannelType(
+  channelType: number,
+  currentMode: CodexFingerprintMode | undefined
+): CodexFingerprintMode {
+  if (channelType !== 57) return 'off'
+  if (!currentMode || currentMode === 'off') return 'full'
+  return currentMode
+}
 
 const ASSET_MATERIALIZATION_PROVIDERS = [
   'seedance_proxy',

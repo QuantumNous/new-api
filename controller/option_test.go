@@ -154,6 +154,41 @@ func TestUpdateOptionsBulkPersistsLogSettingsAtomically(t *testing.T) {
 	}
 }
 
+func TestUpdateOptionsBulkPersistsCodexIdentitySettingsAtomically(t *testing.T) {
+	db := setupOptionControllerTestDB(t)
+
+	ctx, recorder := newOptionRequestContext(t, map[string]any{
+		"options": []map[string]any{
+			{"key": "CodexClientUserAgent", "value": "codex-cli/0.145.0 linux-x64"},
+			{"key": "CodexClientVersion", "value": "0.145.0"},
+			{"key": "CodexAutoSyncClientVersion", "value": "false"},
+			{"key": "CodexEnforceClientIdentity", "value": "true"},
+		},
+	})
+	UpdateOptions(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected bulk Codex identity update to succeed, got message: %s", response.Message)
+	}
+
+	want := map[string]string{
+		"CodexClientUserAgent":       "codex-cli/0.145.0 linux-x64",
+		"CodexClientVersion":         "0.145.0",
+		"CodexAutoSyncClientVersion": "false",
+		"CodexEnforceClientIdentity": "true",
+	}
+	for key, value := range want {
+		var option model.Option
+		if err := db.First(&option, "key = ?", key).Error; err != nil {
+			t.Fatalf("failed to load %s: %v", key, err)
+		}
+		if option.Value != value {
+			t.Fatalf("unexpected %s value: %q", key, option.Value)
+		}
+	}
+}
+
 func TestUpdateOptionsBulkRejectsUnsupportedKeysWithoutPartialWrite(t *testing.T) {
 	db := setupOptionControllerTestDB(t)
 

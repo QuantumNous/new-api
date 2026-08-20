@@ -46,6 +46,15 @@ func ApplyCodexInferenceIdentity(header http.Header, identity CodexClientIdentit
 	if header == nil || !IsCodexClientIdentityEnforced() {
 		return
 	}
+	ApplyCodexInferenceIdentitySnapshot(header, identity)
+}
+
+// ApplyCodexInferenceIdentitySnapshot applies a caller-owned enforcement
+// decision without rereading mutable configuration between check and use.
+func ApplyCodexInferenceIdentitySnapshot(header http.Header, identity CodexClientIdentity) {
+	if header == nil {
+		return
+	}
 	header.Set("User-Agent", identity.UserAgent)
 	header.Set("originator", identity.Originator)
 	header.Set(codexClientVersionHeader, identity.Version)

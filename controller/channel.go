@@ -1150,12 +1150,6 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled {
-		if _, err := model.EnsureCodexFingerprintSeed(channel.Id); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	}
 	model.InitChannelCache()
 	service.ResetProxyClientCache()
 	channel.Key = ""

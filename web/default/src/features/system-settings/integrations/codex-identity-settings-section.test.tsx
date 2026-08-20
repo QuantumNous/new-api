@@ -48,8 +48,8 @@ describe('Codex identity settings', () => {
         value: 'codex-cli/0.144.0 darwin-arm64',
       },
       { key: 'CodexClientVersion', value: '0.145.1' },
-      { key: 'CodexAutoSyncClientVersion', value: false },
-      { key: 'CodexEnforceClientIdentity', value: false },
+      { key: 'CodexAutoSyncClientVersion', value: 'false' },
+      { key: 'CodexEnforceClientIdentity', value: 'false' },
     ])
   })
 

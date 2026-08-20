@@ -89,6 +89,24 @@ func TestCodexUserAgentVersionIsRebuilt(t *testing.T) {
 	require.Equal(t, "codex_cli_rs", identity.Originator)
 }
 
+func TestApplyCodexInferenceIdentitySnapshotDoesNotRereadKillSwitch(t *testing.T) {
+	withCodexIdentityOptions(t, map[string]string{
+		"CodexEnforceClientIdentity": "false",
+	})
+	header := http.Header{}
+	identity := CodexClientIdentity{
+		UserAgent:  "codex-cli/0.145.0 test-suite",
+		Originator: "codex_cli_rs",
+		Version:    "0.145.0",
+	}
+
+	ApplyCodexInferenceIdentitySnapshot(header, identity)
+
+	require.Equal(t, identity.UserAgent, header.Get("User-Agent"))
+	require.Equal(t, identity.Originator, header.Get("originator"))
+	require.Equal(t, identity.Version, header.Get(codexClientVersionHeader))
+}
+
 func TestCredentialIdentityOmitsVersion(t *testing.T) {
 	withCodexIdentityOptions(t, map[string]string{
 		"CodexClientVersion":   "0.145.4",

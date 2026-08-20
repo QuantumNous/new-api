@@ -198,8 +198,9 @@ func FetchCodexModels(
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("ChatGPT-Account-Id", accountID)
 	req.Header.Set("Accept", "application/json")
-	if IsCodexClientIdentityEnforced() {
-		ApplyCodexInferenceIdentity(req.Header, identity)
+	enforceIdentity := IsCodexClientIdentityEnforced()
+	if enforceIdentity {
+		ApplyCodexInferenceIdentitySnapshot(req.Header, identity)
 	} else {
 		req.Header.Set("User-Agent", "codex-cli/"+clientVersion)
 	}

@@ -242,9 +242,15 @@ func TestCodexFinalizerDropsTurnMetadataWithoutFingerprintIDs(t *testing.T) {
 
 func TestFinalizeCodexRequestDropsTurnMetadataWithoutRelayInfo(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "https://chatgpt.example/backend-api/codex/responses", nil)
+	req.Header.Set("Authorization", "Bearer attacker")
+	req.Header.Set("chatgpt-account-id", "attacker-account")
+	req.Header.Set("OpenAI-Beta", "attacker-beta")
 	req.Header.Set("X-Codex-Turn-Metadata", `{"installation_id":"attacker-install"}`)
 
-	require.NoError(t, FinalizeCodexRequest(req, nil))
+	require.ErrorContains(t, FinalizeCodexRequest(req, nil), "relay info is required")
+	require.Empty(t, req.Header.Get("Authorization"))
+	require.Empty(t, req.Header.Get("chatgpt-account-id"))
+	require.Empty(t, req.Header.Get("OpenAI-Beta"))
 	require.Empty(t, req.Header.Get("X-Codex-Turn-Metadata"))
 }
 

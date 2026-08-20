@@ -119,6 +119,24 @@ func TestInvalidFullMetadataFailsClosed(t *testing.T) {
 	}
 }
 
+func TestFullMetadataBoundsRunBeforeWholeBodyUnmarshal(t *testing.T) {
+	fingerprint := hardeningFingerprint(t, fingerprintFull, "original-session")
+	oversized := []byte(`{"client_metadata":{"padding":"` + strings.Repeat("x", maxCodexMetadataBytes) + `"},"broken":`)
+
+	rewritten, err := SanitizeCodexRequestBody(oversized, fingerprint, fingerprintFull)
+
+	require.ErrorContains(t, err, "client_metadata is too large")
+	require.Nil(t, rewritten)
+}
+
+func TestCompactFullMetadataBoundsRunBeforeWholeBodyUnmarshal(t *testing.T) {
+	oversized := []byte(`{"client_metadata":{"padding":"` + strings.Repeat("x", maxCodexMetadataBytes) + `"},"broken":`)
+
+	err := validateCompactPassThroughFullBody(oversized)
+
+	require.ErrorContains(t, err, "client_metadata is too large")
+}
+
 func TestFullMetadataBoundsIgnoreLargeAndNestedNonMetadataFields(t *testing.T) {
 	fingerprint := hardeningFingerprint(t, fingerprintFull, "original-session")
 	raw := []byte(`{

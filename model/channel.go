@@ -578,6 +578,32 @@ func validCodexFingerprintSeed(seed string) bool {
 	return err == nil
 }
 
+const codexFingerprintSeedBackfillBatchSize = 200
+
+func repairCodexFingerprintSeed(db *gorm.DB, channel *Channel) (bool, error) {
+	if channel == nil || channel.Type != constant.ChannelTypeCodex || channel.Status != common.ChannelStatusEnabled {
+		return false, nil
+	}
+	if validCodexFingerprintSeed(channel.CodexFingerprintSeed) {
+		return false, nil
+	}
+
+	invalidValue := channel.CodexFingerprintSeed
+	nextSeed := uuid.NewString()
+	result := db.Model(&Channel{}).
+		Where("id = ? AND type = ? AND status = ? AND codex_fingerprint_seed = ?",
+			channel.Id, constant.ChannelTypeCodex, common.ChannelStatusEnabled, invalidValue).
+		Update("codex_fingerprint_seed", nextSeed)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return false, nil
+	}
+	channel.CodexFingerprintSeed = nextSeed
+	return true, nil
+}
+
 func EnsureCodexFingerprintSeed(channelID int) (string, error) {
 	for {
 		var channel Channel
@@ -593,33 +619,46 @@ func EnsureCodexFingerprintSeed(channelID int) (string, error) {
 			return channel.CodexFingerprintSeed, nil
 		}
 
-		invalidValue := channel.CodexFingerprintSeed
-		nextSeed := uuid.NewString()
-		result := DB.Model(&Channel{}).
-			Where("id = ? AND type = ? AND status = ? AND codex_fingerprint_seed = ?",
-				channelID, constant.ChannelTypeCodex, common.ChannelStatusEnabled, invalidValue).
-			Update("codex_fingerprint_seed", nextSeed)
-		if result.Error != nil {
-			return "", result.Error
+		repaired, err := repairCodexFingerprintSeed(DB, &channel)
+		if err != nil {
+			return "", err
 		}
-		if result.RowsAffected == 1 {
+		if repaired {
 			refreshLocalChannelCacheAndPublishChanged()
-			return nextSeed, nil
+			return channel.CodexFingerprintSeed, nil
 		}
 	}
 }
 
 func BackfillCodexFingerprintSeeds() error {
-	var ids []int
-	if err := DB.Model(&Channel{}).
-		Where("type = ? AND status = ?", constant.ChannelTypeCodex, common.ChannelStatusEnabled).
-		Pluck("id", &ids).Error; err != nil {
-		return err
-	}
-	for _, id := range ids {
-		if _, err := EnsureCodexFingerprintSeed(id); err != nil {
+	lastID := 0
+	repairedAny := false
+	for {
+		var channels []Channel
+		if err := DB.Select("id", "type", "status", "codex_fingerprint_seed").
+			Where("type = ? AND status = ? AND id > ?", constant.ChannelTypeCodex, common.ChannelStatusEnabled, lastID).
+			Order("id ASC").
+			Limit(codexFingerprintSeedBackfillBatchSize).
+			Find(&channels).Error; err != nil {
 			return err
 		}
+		if len(channels) == 0 {
+			break
+		}
+		for i := range channels {
+			lastID = channels[i].Id
+			repaired, err := repairCodexFingerprintSeed(DB, &channels[i])
+			if err != nil {
+				return err
+			}
+			repairedAny = repairedAny || repaired
+		}
+		if len(channels) < codexFingerprintSeedBackfillBatchSize {
+			break
+		}
+	}
+	if repairedAny {
+		refreshLocalChannelCacheAndPublishChanged()
 	}
 	return nil
 }
@@ -702,31 +741,23 @@ func (channel *Channel) update(forceMaxConcurrency bool) error {
 			}
 		}
 	}
-	if forceMaxConcurrency {
-		return DB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Model(channel).Updates(channel).Error; err != nil {
-				return err
-			}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(channel).Updates(channel).Error; err != nil {
+			return err
+		}
+		if forceMaxConcurrency {
 			if err := tx.Model(channel).Update("max_concurrency", channel.MaxConcurrency).Error; err != nil {
 				return err
 			}
-			if err := tx.Model(channel).First(channel, "id = ?", channel.Id).Error; err != nil {
-				return err
-			}
-			return channel.UpdateAbilities(tx)
-		})
-	}
-	var err error
-	err = DB.Model(channel).Updates(channel).Error
-	if err != nil {
-		return err
-	}
-	DB.Model(channel).First(channel, "id = ?", channel.Id)
-	err = channel.UpdateAbilities(nil)
-	if err != nil {
-		return err
-	}
-	return nil
+		}
+		if err := tx.Model(channel).First(channel, "id = ?", channel.Id).Error; err != nil {
+			return err
+		}
+		if _, err := repairCodexFingerprintSeed(tx, channel); err != nil {
+			return err
+		}
+		return channel.UpdateAbilities(tx)
+	})
 }
 
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
@@ -994,16 +1025,14 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			channel.Status = status
 			shouldUpdateAbilities = true
 		}
+		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled &&
+			!validCodexFingerprintSeed(channel.CodexFingerprintSeed) {
+			channel.CodexFingerprintSeed = uuid.NewString()
+		}
 		err = channel.SaveWithoutKey()
 		if err != nil {
 			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
 			return false
-		}
-		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled {
-			if _, err := EnsureCodexFingerprintSeed(channel.Id); err != nil {
-				common.SysLog(fmt.Sprintf("failed to ensure codex fingerprint seed: channel_id=%d, error=%v", channel.Id, err))
-				return false
-			}
 		}
 	}
 	publishChannelsChanged()
@@ -1011,22 +1040,24 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 }
 
 func EnableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error
-	if err != nil {
-		return err
-	}
-	var ids []int
-	if err = DB.Model(&Channel{}).
-		Where("tag = ? AND type = ? AND status = ?", tag, constant.ChannelTypeCodex, common.ChannelStatusEnabled).
-		Pluck("id", &ids).Error; err != nil {
-		return err
-	}
-	for _, id := range ids {
-		if _, err = EnsureCodexFingerprintSeed(id); err != nil {
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error; err != nil {
 			return err
 		}
-	}
-	if err = UpdateAbilityStatusByTag(tag, true); err != nil {
+		var channels []Channel
+		if err := tx.Select("id", "type", "status", "codex_fingerprint_seed").
+			Where("tag = ? AND type = ? AND status = ?", tag, constant.ChannelTypeCodex, common.ChannelStatusEnabled).
+			Find(&channels).Error; err != nil {
+			return err
+		}
+		for i := range channels {
+			if _, err := repairCodexFingerprintSeed(tx, &channels[i]); err != nil {
+				return err
+			}
+		}
+		return updateAbilityStatusByTagWithDB(tx, tag, true)
+	})
+	if err != nil {
 		return err
 	}
 	publishChannelsChanged()

@@ -6,6 +6,7 @@ import {
   channelFormSchema,
   hasAdvancedSettingsValues,
   inspectSolanaPrivateKey,
+  resolveCodexFingerprintModeForChannelType,
   resolveBlockRunCreateBaseURL,
   resolveBlockRunPaymentChainChange,
   transformChannelToFormDefaults,
@@ -56,6 +57,21 @@ const baseChannel: Channel = {
   },
   settings: '{}',
 }
+
+describe('Codex fingerprint mode type switching', () => {
+  test('preserves explicit Codex modes and clears every mode for non-Codex types', () => {
+    expect(resolveCodexFingerprintModeForChannelType(57, 'off')).toBe('full')
+    expect(resolveCodexFingerprintModeForChannelType(57, 'device')).toBe(
+      'device'
+    )
+    expect(resolveCodexFingerprintModeForChannelType(57, 'session')).toBe(
+      'session'
+    )
+    expect(resolveCodexFingerprintModeForChannelType(1, 'device')).toBe('off')
+    expect(resolveCodexFingerprintModeForChannelType(1, 'session')).toBe('off')
+    expect(resolveCodexFingerprintModeForChannelType(1, 'full')).toBe('off')
+  })
+})
 
 const codexFormValues = {
   ...CHANNEL_FORM_DEFAULT_VALUES,

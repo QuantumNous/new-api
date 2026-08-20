@@ -333,6 +333,9 @@ func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode st
 	if len(raw) == 0 {
 		return nil, errors.New("codex channel: full fingerprint request body is empty")
 	}
+	if err := validateFullFingerprintMetadataRaw(raw, false); err != nil {
+		return nil, err
+	}
 	var body map[string]any
 	if err := common.Unmarshal(raw, &body); err != nil {
 		return nil, errors.New("codex channel: invalid full fingerprint request json")
@@ -346,13 +349,6 @@ func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode st
 		metadata, ok := rawMetadata.(map[string]any)
 		if !ok {
 			return nil, errors.New("codex channel: full fingerprint client_metadata must be an object")
-		}
-		metadataJSON := gjson.GetBytes(raw, "client_metadata")
-		if len(metadataJSON.Raw) > maxCodexMetadataBytes {
-			return nil, errors.New("codex channel: full fingerprint client_metadata is too large")
-		}
-		if exceedsJSONDepth(metadata, maxCodexMetadataDepth) {
-			return nil, errors.New("codex channel: full fingerprint client_metadata is too deeply nested")
 		}
 		if session, ok := metadata["session_id"].(string); ok {
 			originalSession = strings.TrimSpace(session)
@@ -369,29 +365,59 @@ func SanitizeCodexRequestBody(raw []byte, fingerprint *CodexFingerprint, mode st
 	return out, nil
 }
 
-func exceedsJSONDepth(value any, maxDepth int) bool {
-	var walk func(any, int) bool
-	walk = func(v any, depth int) bool {
-		if depth > maxDepth {
-			return true
-		}
-		switch typed := v.(type) {
-		case map[string]any:
-			for _, child := range typed {
-				if walk(child, depth+1) {
-					return true
-				}
-			}
-		case []any:
-			for _, child := range typed {
-				if walk(child, depth+1) {
-					return true
-				}
-			}
-		}
-		return false
+func validateFullFingerprintMetadataRaw(raw []byte, compact bool) error {
+	metadata := gjson.GetBytes(raw, "client_metadata")
+	if !metadata.Exists() {
+		return nil
 	}
-	return walk(value, 1)
+	prefix := "codex channel: full fingerprint"
+	if compact {
+		prefix += " compact"
+	}
+	if !metadata.IsObject() {
+		return errors.New(prefix + " client_metadata must be an object")
+	}
+	if len(metadata.Raw) > maxCodexMetadataBytes {
+		return errors.New(prefix + " client_metadata is too large")
+	}
+	if exceedsJSONRawDepth([]byte(metadata.Raw), maxCodexMetadataDepth) {
+		return errors.New(prefix + " client_metadata is too deeply nested")
+	}
+	return nil
+}
+
+func exceedsJSONRawDepth(raw []byte, maxDepth int) bool {
+	depth := 0
+	inString := false
+	escaped := false
+	for _, b := range raw {
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if b == '\\' {
+				escaped = true
+				continue
+			}
+			if b == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch b {
+		case '"':
+			inString = true
+		case '{', '[':
+			depth++
+			if depth > maxDepth {
+				return true
+			}
+		case '}', ']':
+			depth--
+		}
+	}
+	return false
 }
 
 func applyFingerprintBodyRaw(body []byte, ids *codexFingerprintIDs) ([]byte, bool, error) {
@@ -456,6 +482,9 @@ func validateCompactPassThroughFullBody(raw []byte) error {
 	if len(raw) == 0 {
 		return errors.New("codex channel: full fingerprint compact request body is empty")
 	}
+	if err := validateFullFingerprintMetadataRaw(raw, true); err != nil {
+		return err
+	}
 	var body map[string]any
 	if err := common.Unmarshal(raw, &body); err != nil {
 		return errors.New("codex channel: invalid full fingerprint compact request json")
@@ -467,16 +496,8 @@ func validateCompactPassThroughFullBody(raw []byte) error {
 	if !ok {
 		return nil
 	}
-	metadata, ok := rawMetadata.(map[string]any)
-	if !ok {
+	if _, ok := rawMetadata.(map[string]any); !ok {
 		return errors.New("codex channel: full fingerprint compact client_metadata must be an object")
-	}
-	metadataJSON := gjson.GetBytes(raw, "client_metadata")
-	if len(metadataJSON.Raw) > maxCodexMetadataBytes {
-		return errors.New("codex channel: full fingerprint compact client_metadata is too large")
-	}
-	if exceedsJSONDepth(metadata, maxCodexMetadataDepth) {
-		return errors.New("codex channel: full fingerprint compact client_metadata is too deeply nested")
 	}
 	return nil
 }
