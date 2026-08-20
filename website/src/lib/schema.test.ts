@@ -128,6 +128,21 @@ describe("blog structured data", () => {
     expect(graph["@graph"]).toContainEqual(expect.objectContaining({ "@type": "WebSite", url: "https://flatkey.ai" }));
   });
 
+  test("uses the Brazilian Portuguese BCP47 tag in JSON-LD language fields", () => {
+    const graph = buildBlogIndexSchema({
+      locale: "pt",
+      title: "Blog da flatkey.ai",
+      description: "Guias de API e produto.",
+    });
+
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "Blog",
+        inLanguage: "pt-BR",
+      })
+    );
+  });
+
   test("builds CollectionPage schema for a blog category", () => {
     const graph = buildBlogCategorySchema({
       locale: "en",

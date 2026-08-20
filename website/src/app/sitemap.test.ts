@@ -29,7 +29,9 @@ describe("sitemap", () => {
       }) as typeof fetch;
 
       const { default: sitemap } = await import("./sitemap");
-      const urls = (await sitemap()).map((entry) => entry.url);
+      const entries = await sitemap();
+      const urls = entries.map((entry) => entry.url);
+      const promoEntry = entries.find((entry) => entry.url === "https://flatkey.ai/pt/5-credit-promo");
 
       expect(urls.some((url) => url.includes("?vendor="))).toBe(false);
       expect(urls).not.toContain("https://flatkey.ai/models/gpt-api");
@@ -38,6 +40,10 @@ describe("sitemap", () => {
       expect(urls).toContain("https://flatkey.ai/claude-api");
       expect(urls).toContain("https://flatkey.ai/pt/5-credit-promo");
       expect(urls).not.toContain("https://flatkey.ai/5-credit-promo");
+      expect(promoEntry?.alternates?.languages).toMatchObject({
+        "pt-BR": "https://flatkey.ai/pt/5-credit-promo",
+      });
+      expect(promoEntry?.alternates?.languages).not.toHaveProperty("pt-PT");
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -364,7 +364,7 @@ const BLOG_DATE_LOCALES: Record<Locale, string> =withIdFallback({
   zh: "zh-CN",
   es: "es-ES",
   fr: "fr-FR",
-  pt: "pt-PT",
+  pt: "pt-BR",
   ru: "ru-RU",
   ja: "ja-JP",
   vi: "vi-VN",
