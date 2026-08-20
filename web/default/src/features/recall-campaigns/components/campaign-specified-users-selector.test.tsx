@@ -31,13 +31,7 @@ type MockMultiSelectProps = {
   selected: string[]
 }
 
-type MockTextareaProps = {
-  disabled?: boolean
-  id?: string
-  onBlur?: () => void
-  onChange?: React.ChangeEventHandler<HTMLTextAreaElement>
-  value?: string
-}
+type MockTextareaProps = React.ComponentProps<'textarea'>
 
 const apiCalls: Array<{ ids?: number[]; keyword?: string }> = []
 const userFixtures = new Map<string, MockUser[]>()
@@ -252,15 +246,7 @@ mock.module('@/components/multi-select', () => ({
 mock.module('@/components/ui/textarea', () => ({
   Textarea: (props: MockTextareaProps) => {
     latestTextareaProps = props
-    return (
-      <textarea
-        id={props.id}
-        disabled={props.disabled}
-        onBlur={props.onBlur}
-        onChange={props.onChange}
-        value={props.value}
-      />
-    )
+    return <textarea {...props} />
   },
 }))
 
