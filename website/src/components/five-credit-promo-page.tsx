@@ -18,12 +18,12 @@ const steps = [
 ];
 
 const models = [
+  { name: "Claude", logo: "/logos/claude.svg" },
+  { name: "GPT", logo: "/logos/openai.svg" },
   { name: "DeepSeek", logo: "/logos/deepseek.svg" },
   { name: "Qwen", logo: "/logos/qwen.svg" },
   { name: "Kimi", logo: "/logos/moonshotai.svg" },
-  { name: "Seedance", logo: "/assets/model-pages/seedance-2-0-hero.png" },
-  { name: "Claude", logo: "/logos/claude.svg" },
-  { name: "GPT", logo: "/logos/openai.svg" },
+  { name: "Seedance", logo: "/logos/bytedance.svg" },
 ];
 
 const reasons = [

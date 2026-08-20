@@ -19,8 +19,12 @@ describe("FiveCreditPromoPage", () => {
     expect(html).toContain("Claude");
     expect(html).toContain("GPT");
     expect(html).not.toContain("GLM");
+    const modelSection = html.slice(html.indexOf("Modelos disponíveis"));
+    expect(modelSection.indexOf("Claude")).toBeLessThan(modelSection.indexOf("DeepSeek"));
+    expect(modelSection.indexOf("GPT")).toBeLessThan(modelSection.indexOf("DeepSeek"));
     expect(html).toContain("/logos/deepseek.svg");
     expect(html).toContain("/logos/moonshotai.svg");
+    expect(html).toContain("/logos/bytedance.svg");
     expect(html).toContain(PROMO_CLAIM_URL.replaceAll("&", "&amp;"));
   });
 
