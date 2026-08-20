@@ -553,7 +553,7 @@ func TestTokenSpaceMaterialTechMobiProcessingBindingRefreshesWithGetOnly(t *test
 
 func TestTechMobiAssetBindingMalformedExplicitConfigRematerializesProcessingBinding(t *testing.T) {
 	newAssetServiceTestDB(t)
-	installAssetServiceTestDeps(t)
+	store := installAssetServiceTestDeps(t)
 	asset := insertMaterializeAsset(t, "ast_techmobi_malformed_explicit_processing")
 	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeTechMobiVideo, dto.AssetMaterializationSettings{
 		Provider:       "tokenspace_material",
@@ -577,22 +577,35 @@ func TestTechMobiAssetBindingMalformedExplicitConfigRematerializesProcessingBind
 		UpdatedAt:       100,
 	}).Error)
 	materializer := &recordingAssetMaterializer{
-		getErr: errors.New("TechMobi processing rows must not be refreshed from opaque asset URLs"),
+		getErr:        errors.New("TechMobi processing rows must not be refreshed from opaque asset URLs"),
+		createAssetID: "asset://new-techmobi-binding",
 	}
 	restore := registerAssetMaterializerForTest(t, constant.ChannelTypeTechMobiVideo, materializer)
 	defer restore()
 
-	result, handled, err := handleProcessingAssetBinding(context.Background(), &asset, channel, bindingScope, options.Model, options.APIKey, "asset://historical-processing", 2, 0)
+	result, err := MaterializeAssetBinding(context.Background(), AssetBindingRequest{
+		UserID:       asset.UserId,
+		PublicID:     asset.PublicId,
+		Channel:      channel,
+		LeaseOwner:   "node-a",
+		PollLimit:    2,
+		PollDelay:    0,
+		LeaseTTL:     time.Minute,
+		ExpectedType: "Image",
+		Model:        options.Model,
+		APIKey:       options.APIKey,
+	})
 
 	require.NoError(t, err)
-	require.False(t, handled)
-	require.Empty(t, result.RewriteURI)
+	require.Equal(t, "asset://new-techmobi-binding", result.RewriteURI)
 	require.Zero(t, atomic.LoadInt64(&materializer.getCalls))
+	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.createCalls))
+	require.Len(t, store.signed, 1, "rematerialization must sign the recoverable source")
 	var binding model.AssetBinding
 	require.NoError(t, model.DB.First(&binding, "asset_id = ? AND channel_id = ? AND binding_scope = ?", asset.Id, channel.Id, bindingScope).Error)
-	require.Equal(t, model.AssetStatusFailed, binding.Status)
-	require.Equal(t, AssetMaterializeErrorProcessing, binding.ErrorCode)
-	require.Equal(t, "asset://historical-processing", binding.UpstreamAssetId)
+	require.Equal(t, model.AssetStatusActive, binding.Status)
+	require.Equal(t, "asset://new-techmobi-binding", binding.UpstreamAssetId)
+	require.EqualValues(t, 1, binding.AttemptCount)
 }
 
 func TestTechMobiAssetBindingHistoricalProcessingOpaqueAssetRematerializes(t *testing.T) {
