@@ -696,6 +696,10 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
+	if !callerCanAssignGroup(myRole, c.GetString("group"), updatedUser.Group) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
 	}
@@ -1000,6 +1004,24 @@ func DeleteSelf(c *gin.Context) {
 	return
 }
 
+// callerCanAssignGroup 校验非超级管理员为用户指派的分组是否在其可见分组集合内。
+// 空 targetGroup 交由既有默认逻辑处理，视为合法。超级管理员不受限。
+func callerCanAssignGroup(role int, userGroup, targetGroup string) bool {
+	if targetGroup == "" {
+		return true
+	}
+	visible, unrestricted := service.GetUserVisibleGroups(role, userGroup)
+	if unrestricted {
+		return true
+	}
+	for _, g := range visible {
+		if g == targetGroup {
+			return true
+		}
+	}
+	return false
+}
+
 func CreateUser(c *gin.Context) {
 	var user model.User
 	err := common.DecodeJson(c.Request.Body, &user)
@@ -1020,12 +1042,17 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
+	if !callerCanAssignGroup(myRole, c.GetString("group"), user.Group) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
-		Role:        user.Role, // 保持管理员设置的角色
+		Role:        user.Role,  // 保持管理员设置的角色
+		Group:       user.Group, // 受 callerCanAssignGroup 校验；空值由模型默认处理
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
