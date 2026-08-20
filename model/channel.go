@@ -161,6 +161,26 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 	return query.Where(channelGroupFilterCondition(), channelGroupFilterPattern(group))
 }
 
+// ApplyChannelGroupFilterAny 对 groups 中任一分组命中的渠道做 OR 过滤。
+// 复用单分组的跨库 LIKE 条件；归一化后为空时 fail-closed（返回空结果集），
+// 避免受限用户在无可见分组时退化为全量。
+func ApplyChannelGroupFilterAny(query *gorm.DB, groups []string) *gorm.DB {
+	conditions := make([]string, 0, len(groups))
+	args := make([]interface{}, 0, len(groups))
+	for _, g := range groups {
+		g = NormalizeChannelGroupFilter(g)
+		if g == "" {
+			continue
+		}
+		conditions = append(conditions, channelGroupFilterCondition())
+		args = append(args, channelGroupFilterPattern(g))
+	}
+	if len(conditions) == 0 {
+		return query.Where("1 = 0")
+	}
+	return query.Where(strings.Join(conditions, " OR "), args...)
+}
+
 // Value implements driver.Valuer interface
 func (c ChannelInfo) Value() (driver.Value, error) {
 	return common.Marshal(&c)
