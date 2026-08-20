@@ -53,7 +53,9 @@ Deployment causes one intentional identity transition for already-enabled channe
 
 ### 2. Fingerprint derivation and mutation
 
-Keep the existing four modes and explicit opt-in default:
+Keep the existing four modes. New Codex channels default to `full`; existing
+channels preserve their stored mode, and missing/invalid persisted values remain
+`off` for backward compatibility:
 
 - `off`: no fingerprint mutation.
 - `device`: stable installation ID only.
@@ -120,7 +122,10 @@ Reuse and harden Flatkey's existing `openai/codex` release lookup rather than cr
 
 ### 5. Administration surface
 
-Keep the existing per-channel convergence selector. Do not expose the seed.
+Keep the existing per-channel convergence selector and make `full` the selected
+and persisted default for newly created Codex channels. Editing an existing
+channel must preserve its current mode unless the administrator changes it.
+Do not expose the seed.
 
 Add global Codex identity settings for:
 
@@ -130,7 +135,10 @@ Add global Codex identity settings for:
 - read-only last synced version/source timestamp
 - emergency identity-enforcement toggle
 
-New user-visible copy must use all supported frontend locales. Defaults are convergence `off`, automatic version synchronization enabled, and outbound identity enforcement enabled.
+New user-visible copy must use all supported frontend locales. Defaults are new
+Codex channel convergence `full`, automatic version synchronization enabled, and
+outbound identity enforcement enabled. Existing channels without an explicit
+mode remain `off`; deployment does not mass-enable convergence.
 
 ## Error handling and rollback
 
@@ -155,6 +163,7 @@ Tests must prove:
 - manifest query/header version rules
 - stable-only auto-sync, manual precedence, stale-on-error behavior, and cache invalidation
 - existing Codex fingerprint, OAuth refresh, usage, model-fetch, and relay tests remain green
+- new Codex channel forms persist `full` while existing missing/off modes remain unchanged
 
 ## Deployment impact
 
