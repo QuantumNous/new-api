@@ -80,7 +80,7 @@ func TestCodexHeaderAllowlistDropsIdentitySideChannels(t *testing.T) {
 	require.Equal(t, "transport-marker", upstream.Get("X-Request-Id"))
 }
 
-func TestCodexHeaderAllowlistDropsClientVersionIdentityHeaders(t *testing.T) {
+func TestCodexHeaderAllowlistReplacesClientVersionIdentityHeaders(t *testing.T) {
 	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	service.InitHttpClient()
 
@@ -113,10 +113,10 @@ func TestCodexHeaderAllowlistDropsClientVersionIdentityHeaders(t *testing.T) {
 	require.NotNil(t, resp)
 	_ = resp.(*http.Response).Body.Close()
 
+	require.Equal(t, "codex-cli/0.144.0", upstream.Get("User-Agent"))
+	require.Equal(t, "0.144.0", upstream.Get("OpenAI-Client-Version"))
 	for _, name := range []string{
-		"User-Agent",
 		"OpenAI-Client",
-		"OpenAI-Client-Version",
 		"X-OpenAI-Client",
 		"X-OpenAI-Client-Version",
 		"X-Codex-Client-Version",
@@ -127,6 +127,49 @@ func TestCodexHeaderAllowlistDropsClientVersionIdentityHeaders(t *testing.T) {
 		require.Empty(t, upstream.Get(name), "header %s must not forward override-controlled identity", name)
 	}
 	require.Equal(t, "transport-marker", upstream.Get("X-Request-Id"))
+}
+
+func TestInferenceIdentityIncludesVersion(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	service.InitHttpClient()
+	common.OptionMapRWMutex.Lock()
+	previous := common.OptionMap
+	common.OptionMap = map[string]string{
+		"CodexClientVersion":   "0.145.7",
+		"CodexClientUserAgent": "codex-cli/0.100.1 relay-suite",
+	}
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previous
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	var upstream http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstream = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(server.Close)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := codexPolicyRelayInfo(server.URL, relayconstant.RelayModeResponses, fingerprintOff)
+	info.ChannelMeta.HeadersOverride = map[string]any{
+		"User-Agent":            "attacker-codex-cli/9.9.9",
+		"originator":            "attacker-originator",
+		"OpenAI-Client-Version": "9.9.9",
+	}
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, strings.NewReader(`{"model":"gpt-5"}`))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.(*http.Response).Body.Close()
+
+	require.Equal(t, "codex-cli/0.145.7 relay-suite", upstream.Get("User-Agent"))
+	require.Equal(t, "codex_cli_rs", upstream.Get("originator"))
+	require.Equal(t, "0.145.7", upstream.Get("OpenAI-Client-Version"))
 }
 
 func TestCodexFinalizerRewritesOverriddenTurnMetadata(t *testing.T) {

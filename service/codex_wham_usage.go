@@ -41,6 +41,7 @@ func FetchCodexWhamUsage(
 	if req.Header.Get("originator") == "" {
 		req.Header.Set("originator", "codex_cli_rs")
 	}
+	ApplyCodexInferenceIdentity(req.Header, ResolveCodexClientIdentity())
 
 	resp, err := client.Do(req)
 	if err != nil {

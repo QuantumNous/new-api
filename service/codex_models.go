@@ -166,6 +166,10 @@ func FetchCodexModels(
 	if clientVersion == "" {
 		return 0, nil, fmt.Errorf("codex channel: client_version is required")
 	}
+	identity := ResolveCodexClientIdentity()
+	if validClientVersion, ok := NormalizeCodexClientVersion(clientVersion); ok {
+		identity = resolveCodexClientIdentityForVersion(validClientVersion)
+	}
 
 	modelsURL, err := url.Parse(baseURL + "/backend-api/codex/models")
 	if err != nil {
@@ -195,8 +199,12 @@ func FetchCodexModels(
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("ChatGPT-Account-Id", accountID)
-	req.Header.Set("User-Agent", "codex-cli/"+clientVersion)
 	req.Header.Set("Accept", "application/json")
+	if IsCodexClientIdentityEnforced() {
+		ApplyCodexInferenceIdentity(req.Header, identity)
+	} else {
+		req.Header.Set("User-Agent", "codex-cli/"+clientVersion)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

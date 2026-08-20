@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -84,6 +85,7 @@ func finalizeCodexRequest(c *gin.Context, req *http.Request, info *relaycommon.R
 	req.Header.Set("chatgpt-account-id", accountID)
 	req.Header.Set("OpenAI-Beta", codexRequiredBeta)
 	req.Header.Set("originator", codexOriginator)
+	service.ApplyCodexInferenceIdentity(req.Header, service.ResolveCodexClientIdentity())
 	req.Header.Set("Content-Type", "application/json")
 	if info.IsStream {
 		req.Header.Set("Accept", "text/event-stream")
