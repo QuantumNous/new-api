@@ -82,6 +82,8 @@ var defaultCacheRatio = map[string]float64{
 	"claude-opus-4-8-high":                0.1,
 	"claude-opus-4-8-medium":              0.1,
 	"claude-opus-4-8-low":                 0.1,
+	// grok-4.6 official API: cached input $0.5/M vs input $2/M -> cache ratio 0.25
+	"grok-4.6": 0.25,
 }
 
 var defaultCreateCacheRatio = map[string]float64{

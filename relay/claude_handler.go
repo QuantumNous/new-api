@@ -26,11 +26,11 @@ func shouldClaudeUseResponsesBridge(info *relaycommon.RelayInfo) bool {
 		return false
 	}
 
-	// Codex has no native /v1/messages upstream endpoint. Always bridge Claude
-	// requests through Chat Completions -> Responses, even when a global or
-	// per-channel pass-through switch is enabled; raw Claude passthrough cannot
-	// succeed against the Codex backend.
-	if info.ApiType == constant.APITypeCodex {
+	// Codex/Grok have no native /v1/messages upstream endpoint. Always bridge
+	// Claude requests through Chat Completions -> Responses, even when a global
+	// or per-channel pass-through switch is enabled; raw Claude passthrough
+	// cannot succeed against these backends.
+	if info.ApiType == constant.APITypeCodex || info.ApiType == constant.APITypeGrokSubscription {
 		return true
 	}
 	if info.ChannelType == constant.ChannelTypeCopilot {

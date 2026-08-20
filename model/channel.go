@@ -75,6 +75,10 @@ type Channel struct {
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+
+	// GrokAuthState 是 113(Grok Subscription) 渠道的非秘密认证状态投影，
+	// 仅在 GetChannel detail 动态填充、不落库（gorm:"-"）。绝不含 token/verifier/last_error/lease。
+	GrokAuthState *GrokAuthStateView `json:"grok_auth_state,omitempty" gorm:"-"`
 }
 
 type ChannelInfo struct {
@@ -469,6 +473,19 @@ func BatchInsertChannels(channels []Channel) error {
 				tx.Rollback()
 				return err
 			}
+			if channel_.Type == constant.ChannelTypeGrokSubscription {
+				status := GrokAuthStatusPending
+				if strings.TrimSpace(channel_.Key) != "" {
+					status = GrokAuthStatusActive
+				}
+				if err := upsertGrokChannelState(tx, &GrokChannelState{
+					ChannelID:  channel_.Id,
+					AuthStatus: status,
+				}); err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
 		}
 	}
 	if err := tx.Commit().Error; err != nil {
@@ -693,6 +710,41 @@ func UpdateChannelKeyForType(id int, channelType int, key string) error {
 	}
 	publishChannelsChanged()
 	return nil
+}
+
+// CompareAndSwapChannelKey 仅当 Channel.Key 仍等于 oldKey 时原子写入 newKey（乐观锁 CAS）。
+// Channel 表无 revision 列，用旧 key 值比对作为乐观条件。返回是否成功换入。
+// 用于 Grok OAuth 刷新：并发节点各自刷新时，只有 key 未被别人换过的那次能写回，其余得 ErrRefreshConflict 重试。
+func CompareAndSwapChannelKey(id int, channelType int, oldKey, newKey string) (bool, error) {
+	if oldKey == newKey {
+		return false, errors.New("grok cas: new key equals old key")
+	}
+	var swapped bool
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Channel{}).
+			Where("id = ? AND type = ? AND key = ?", id, channelType, oldKey).
+			Update("key", newKey)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			swapped = false
+			return nil // CAS 失败：key 已被并发换过，或 id/type 不匹配
+		}
+		swapped = true
+		var channel Channel
+		if err := tx.Where("id = ? AND type = ?", id, channelType).First(&channel).Error; err != nil {
+			return err
+		}
+		return channel.UpdateAbilities(tx)
+	})
+	if err != nil {
+		return false, err
+	}
+	if swapped {
+		publishChannelsChanged()
+	}
+	return swapped, nil
 }
 
 func (channel *Channel) Delete() error {

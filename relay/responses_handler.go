@@ -20,12 +20,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// responsesCompactAPITypeAllowed 报告某 api type 是否允许走 /v1/responses/compact。
+// 单点白名单，便于测试与维护。
+func responsesCompactAPITypeAllowed(apiType int) bool {
+	switch apiType {
+	case appconstant.APITypeOpenAI, appconstant.APITypeCodex, appconstant.APITypeGrokSubscription:
+		return true
+	default:
+		return false
+	}
+}
+
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
-		switch info.ApiType {
-		case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
-		default:
+		if !responsesCompactAPITypeAllowed(info.ApiType) {
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
 				types.ErrorCodeInvalidRequest,

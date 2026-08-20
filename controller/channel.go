@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
@@ -398,6 +400,19 @@ func GetChannel(c *gin.Context) {
 	}
 	if channel != nil {
 		clearChannelInfo(channel)
+		// 113(Grok Subscription) 渠道：附带非秘密认证状态投影，供管理 UI 显示 pending/active/needs_reauth 徽章。
+		// 白名单投影（model.NewGrokAuthStateView），绝不含 token/verifier/last_error/lease。
+		if channel.Type == constant.ChannelTypeGrokSubscription {
+			if st, err := model.GetGrokChannelState(channel.Id); err == nil {
+				channel.GrokAuthState = model.NewGrokAuthStateView(st)
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				// 真实 DB 错误（连接断/死锁）须与 record-not-found 区分：记一行脱敏日志
+				// （只含 channelID + err，绝不打整个 state 以免带出 LastError），
+				// 但不阻断 detail 返回——保持原有正确行为，前端仍据缺省显示 pending。
+				common.SysError(fmt.Sprintf("grok auth state load failed for channel %d: %v", channel.Id, err))
+			}
+			// record-not-found（渠道刚建未授权）属正常高频路径：静默不填充，前端缺省显示 pending。
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -467,8 +482,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel.MaxConcurrency < 0 {
 		return fmt.Errorf("channel max concurrency cannot be negative")
 	}
-	if channel.Type == constant.ChannelTypeCopilot && channel.ChannelInfo.IsMultiKey {
-		return fmt.Errorf("Copilot channel does not support multi-key mode")
+	if channel.ChannelInfo.IsMultiKey &&
+		(channel.Type == constant.ChannelTypeCopilot || channel.Type == constant.ChannelTypeGrokSubscription) {
+		return fmt.Errorf("%s channel does not support multi-key mode", constant.GetChannelTypeName(channel.Type))
 	}
 
 	// 校验 channel settings
@@ -482,7 +498,9 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	// 如果是添加操作，检查 channel 是否为空。Copilot credentials are
 	// acquired only through its Device Flow after the channel has been saved.
 	if isAdd {
-		if channel == nil || (channel.Key == "" && channel.Type != constant.ChannelTypeCopilot) {
+		if channel == nil || (channel.Key == "" &&
+			channel.Type != constant.ChannelTypeCopilot &&
+			channel.Type != constant.ChannelTypeGrokSubscription) {
 			return fmt.Errorf("channel cannot be empty")
 		}
 
@@ -526,6 +544,16 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 			}
 			if v, ok := keyMap["account_id"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
 				return fmt.Errorf("Codex key JSON must include account_id")
+			}
+		}
+	}
+
+	// Grok Subscription 版本化 OAuth 凭证校验（仅当提供 Key 时；空 Key 走 OAuth 待授权）。
+	if channel.Type == constant.ChannelTypeGrokSubscription {
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if trimmedKey != "" {
+			if _, err := groksubscription.ParseCredential(trimmedKey); err != nil {
+				return fmt.Errorf("Grok subscription key invalid: %w", err)
 			}
 		}
 	}
@@ -725,7 +753,12 @@ func AddChannel(c *gin.Context) {
 
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
-		if key == "" && addChannelRequest.Channel.Type != constant.ChannelTypeCopilot {
+		// Copilot and Grok Subscription create an empty-key channel first and
+		// acquire the credential later via their post-save OAuth flow, so an
+		// empty key must be preserved rather than skipped for those types.
+		if key == "" &&
+			addChannelRequest.Channel.Type != constant.ChannelTypeCopilot &&
+			addChannelRequest.Channel.Type != constant.ChannelTypeGrokSubscription {
 			continue
 		}
 		localChannel := addChannelRequest.Channel

@@ -30,3 +30,13 @@ func TestCopilotChannelTypeUsesDedicatedAPIType(t *testing.T) {
 		t.Fatalf("Copilot API type = %d, want %d", apiType, constant.APITypeCopilot)
 	}
 }
+
+func TestGrokSubscriptionAPITypeMapping(t *testing.T) {
+	apiType, ok := ChannelType2APIType(constant.ChannelTypeGrokSubscription)
+	if !ok {
+		t.Fatalf("ChannelType2APIType(GrokSubscription) ok = false, want true")
+	}
+	if apiType != constant.APITypeGrokSubscription {
+		t.Fatalf("GrokSubscription API type = %d, want %d", apiType, constant.APITypeGrokSubscription)
+	}
+}

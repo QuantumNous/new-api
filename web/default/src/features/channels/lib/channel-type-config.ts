@@ -229,6 +229,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Save the channel first, then authorize it with GitHub Device Flow.',
     },
   },
+  113: {
+    id: 113,
+    name: CHANNEL_TYPES[113],
+    icon: 'openai', // generic fallback icon; no dedicated lowercase icon name exists in this config set yet
+    defaultBaseUrl: '', // Grok uses OAuth + managed CLI proxy host; no user-configurable base URL (getDefaultBaseUrl falls back to '')
+    hints: {
+      baseUrl: 'Managed automatically; no base URL needed',
+      other:
+        'Save the channel first, then connect a Grok subscription account via OAuth.',
+    },
+  },
 }
 
 /**

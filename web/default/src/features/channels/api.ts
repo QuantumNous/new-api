@@ -108,6 +108,22 @@ export type CopilotDevicePollResponse = {
   }
 }
 
+// 与 xAI public client / sub2api 流程登记的 loopback URI 保持 byte-match。
+// 后端同样会固定为该值，避免旧前端缓存继续发送 localhost 回调。
+export const GROK_OAUTH_REDIRECT_URI = 'http://127.0.0.1:56121/callback'
+
+export type GrokPKCEStartResponse = {
+  success: boolean
+  message?: string
+  data?: { authorize_url?: string; flow_id?: string; state?: string }
+}
+
+export type GrokAuthStatusResponse = {
+  success: boolean
+  message?: string
+  data?: { status?: string; quota_snapshot?: string; key?: string }
+}
+
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
@@ -407,6 +423,58 @@ export async function consumeCodexReset(
     `/api/channel/${channelId}/codex/reset-credit`,
     {},
     channelActionConfig({ disableDuplicate: true })
+  )
+  return res.data
+}
+
+// ============================================================================
+// Grok Subscription Channel Operations
+// ============================================================================
+
+export async function startGrokPKCE(
+  channelId: number,
+  redirectUri: string
+): Promise<GrokPKCEStartResponse> {
+  const res = await api.post(
+    '/api/channel/grok/pkce/start',
+    { channel_id: channelId, redirect_uri: redirectUri },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function completeGrokPKCE(
+  flowId: string,
+  code: string,
+  state: string
+): Promise<GrokAuthStatusResponse> {
+  const res = await api.post(
+    '/api/channel/grok/pkce/complete',
+    { flow_id: flowId, code, state },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function importGrokRefreshToken(
+  channelId: number,
+  refreshToken: string
+): Promise<GrokAuthStatusResponse> {
+  const res = await api.post(
+    '/api/channel/grok/import',
+    { channel_id: channelId, refresh_token: refreshToken },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function refreshGrokState(
+  channelId: number
+): Promise<GrokAuthStatusResponse> {
+  const res = await api.post(
+    '/api/channel/grok/refresh',
+    { channel_id: channelId },
+    channelActionConfig()
   )
   return res.data
 }

@@ -72,6 +72,16 @@ export const channelSchema = z.object({
     multi_key_mode: 'random',
   }),
   settings: z.string().default('{}'), // other_settings JSON
+  // Grok Subscription (type 113) non-secret auth-state projection, filled by GetChannel detail only.
+  // Never carries token/verifier/last_error/lease — see model.GrokAuthStateView.
+  grok_auth_state: z
+    .object({
+      auth_status: z.string(),
+      billing_plan: z.string().nullish(),
+      tier_raw: z.string().nullish(),
+      last_refresh_at: z.number().nullish(),
+    })
+    .nullish(),
 })
 
 export type Channel = z.infer<typeof channelSchema>

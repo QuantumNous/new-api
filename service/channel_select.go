@@ -253,7 +253,9 @@ func channelSupportsRequestedEndpoint(channel *model.Channel, modelName string, 
 		return channelSupportsOpenAIResponses(channel.Type)
 	case constant.EndpointTypeOpenAIResponseCompact:
 		apiType, ok := common.ChannelType2APIType(channel.Type)
-		return ok && (apiType == constant.APITypeOpenAI || apiType == constant.APITypeCodex)
+		return ok && (apiType == constant.APITypeOpenAI ||
+			apiType == constant.APITypeCodex ||
+			apiType == constant.APITypeGrokSubscription)
 	case constant.EndpointTypeAnthropic:
 		if channel.Type == constant.ChannelTypeBlockRun {
 			return true
@@ -285,6 +287,7 @@ func channelSupportsOpenAIResponses(channelType int) bool {
 		constant.APITypeOpenRouter,
 		constant.APITypeXinference,
 		constant.APITypeXai,
+		constant.APITypeGrokSubscription,
 		constant.APITypePerplexity,
 		constant.APITypeVolcEngine,
 		constant.APITypeCodex,

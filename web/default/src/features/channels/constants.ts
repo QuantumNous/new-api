@@ -90,13 +90,14 @@ export const CHANNEL_TYPES = {
   110: 'MiniMax H3',
   111: 'ModelAPISeedance',
   112: 'GitHub Copilot',
+  113: 'Grok Subscription',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 3, 41, 48, 42, 34, 20, 100, 4, 40, 27, 25, 17, 26, 15, 46,
   23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21, 44, 2, 5, 36,
   50, 51, 52, 53, 54, 55, 56, 58, 101, 102, 103, 104, 105, 107, 109, 110, 111,
-  112,
+  112, 113,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -417,10 +418,12 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
   111: 'API key from the provider',
   112: 'Copilot authorization is available after saving the channel',
+  113: 'Filled automatically via Grok OAuth authorization after saving; no manual key needed',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
   3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
   8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
   37: 'Dify channels only support chatflow and agent, and agent does not support images',
+  113: 'Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually',
 }

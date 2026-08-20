@@ -72,7 +72,8 @@ const (
 	ChannelTypeMiniMaxH3        = 110 // MiniMax H3 async video API
 	ChannelTypeModelAPISeedance = 111 // ModelAPI Seedance 2.5 async video API; whitelabel
 	ChannelTypeCopilot          = 112 // GitHub Copilot Chat Completions API
-	ChannelTypeDummy            = 113 // this one is only for count, do not add any channel after this
+	ChannelTypeGrokSubscription = 113 // Grok Subscription: OAuth/PKCE 订阅账号，CLI 网关文本 + api.x.ai 媒体
+	ChannelTypeDummy            = 114 // this one is only for count, do not add any channel after this
 )
 
 var ChannelBaseURLs = []string{
@@ -154,6 +155,7 @@ var ChannelBaseURLs = []string{
 	"https://api.minimax.io",                  // 110 MiniMaxH3
 	"https://api.modelapi.co",                 // 111 ModelAPISeedance
 	"https://api.githubcopilot.com",           // 112 Copilot
+	"",                                        // 113 GrokSubscription (host fixed in adaptor; no custom base URL)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -225,6 +227,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeMiniMaxH3:        "MiniMaxH3",
 	ChannelTypeModelAPISeedance: "ModelAPISeedance",
 	ChannelTypeCopilot:          "Copilot",
+	ChannelTypeGrokSubscription: "GrokSubscription",
 }
 
 func GetChannelTypeName(channelType int) string {

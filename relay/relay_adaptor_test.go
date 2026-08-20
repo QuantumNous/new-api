@@ -20,6 +20,16 @@ func TestGetAdaptorCopilot(t *testing.T) {
 	}
 }
 
+func TestGetAdaptorGrokSubscription(t *testing.T) {
+	adaptor := GetAdaptor(constant.APITypeGrokSubscription)
+	if adaptor == nil {
+		t.Fatalf("GetAdaptor(APITypeGrokSubscription) = nil")
+	}
+	if got := adaptor.GetChannelName(); got != "grok_subscription" {
+		t.Fatalf("channel name = %q, want grok_subscription", got)
+	}
+}
+
 func TestGetTaskAdaptor_JimengProxy(t *testing.T) {
 	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeJimengProxy)))
 	if adaptor == nil {

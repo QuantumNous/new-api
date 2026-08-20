@@ -53,6 +53,7 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
@@ -114,6 +115,8 @@ import {
   getGroups,
   getPrefillGroups,
   refreshCodexCredential,
+  refreshGrokState,
+  importGrokRefreshToken,
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
@@ -154,10 +157,17 @@ import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
+import {
+  resolveGrokAuthorizationView,
+  resolveGrokCreateTypeSwitch,
+  resolveGrokCredentialTextareaValue,
+  resolveGrokOAuthAuthorizedKeyDecision,
+} from '../../lib/grok-oauth'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import { CopilotDeviceFlowDialog } from '../dialogs/copilot-device-flow-dialog'
+import { GrokOAuthDialog } from '../dialogs/grok-oauth-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
 import {
   MissingModelsConfirmationDialog,
@@ -272,6 +282,12 @@ export function ChannelMutateDrawer({
   const [copilotDeviceFlowOpen, setCopilotDeviceFlowOpen] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
+  const [grokOAuthDialogOpen, setGrokOAuthDialogOpen] = useState(false)
+  const [isGrokCredentialRefreshing, setIsGrokCredentialRefreshing] =
+    useState(false)
+  const [grokImportOpen, setGrokImportOpen] = useState(false)
+  const [grokRefreshTokenInput, setGrokRefreshTokenInput] = useState('')
+  const [isGrokImporting, setIsGrokImporting] = useState(false)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
@@ -384,6 +400,16 @@ export function ChannelMutateDrawer({
       resetDoubaoApiUnlock()
     }
   }, [open, resetDoubaoApiUnlock])
+
+  // Clear the Grok refresh-token plaintext when the user switches the channel
+  // type away from 113: the type-113 block unmounts but its input value would
+  // otherwise linger in state (design §14: refresh-token plaintext must not
+  // persist once its input is gone). Setter is a stable ref.
+  useEffect(() => {
+    if (currentType !== 113) {
+      setGrokRefreshTokenInput('')
+    }
+  }, [currentType])
 
   // Helper computed values
   const isBatchMode =
@@ -745,6 +771,57 @@ export function ChannelMutateDrawer({
     }
   }, [channelId, queryClient, t])
 
+  const handleRefreshGrokCredential = useCallback(async () => {
+    if (!channelId) return
+    setIsGrokCredentialRefreshing(true)
+    try {
+      const res = await refreshGrokState(channelId)
+      if (!res.success) {
+        if (res.data?.status === 'needs_reauth') {
+          throw new Error(
+            res.message ||
+              t('Authorization expired, please re-authorize this channel')
+          )
+        }
+        throw new Error(res.message || t('Failed to refresh credential'))
+      }
+      toast.success(t('Credential refreshed'))
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Refresh failed'))
+    } finally {
+      setIsGrokCredentialRefreshing(false)
+    }
+  }, [channelId, queryClient, t])
+
+  const handleImportGrokRefreshToken = useCallback(async () => {
+    if (!channelId) return
+    const token = grokRefreshTokenInput.trim()
+    if (!token) {
+      toast.error(t('Please enter a refresh token'))
+      return
+    }
+    setIsGrokImporting(true)
+    try {
+      const res = await importGrokRefreshToken(channelId, token)
+      if (!res.success) {
+        throw new Error(res.message || t('Failed to import refresh token'))
+      }
+      toast.success(t('Refresh token imported'))
+      setGrokRefreshTokenInput('')
+      setGrokImportOpen(false)
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Import failed'))
+    } finally {
+      setIsGrokImporting(false)
+    }
+  }, [channelId, grokRefreshTokenInput, queryClient, t])
+
   // Unified function to update models
   const updateModels = useCallback(
     (newModels: string[], merge: boolean = false) => {
@@ -940,8 +1017,15 @@ export function ChannelMutateDrawer({
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
-      // Validate key is required when creating
-      if (!isEditing && data.type !== 112 && !data.key?.trim()) {
+      // Validate key is required when creating.
+      // 112 (Copilot) and 113 (Grok Subscription) acquire their credential
+      // through a post-save OAuth flow, so an empty key is expected there.
+      if (
+        !isEditing &&
+        data.type !== 112 &&
+        data.type !== 113 &&
+        !data.key?.trim()
+      ) {
         form.setError('key', {
           type: 'manual',
           message: ERROR_MESSAGES.REQUIRED_KEY,
@@ -1059,10 +1143,67 @@ export function ChannelMutateDrawer({
       if (!v) {
         form.reset(CHANNEL_FORM_DEFAULT_VALUES)
         setAdvancedSettingsOpen(false)
+        // Clear Grok sensitive/transient state on close: the refresh-token
+        // plaintext must never linger in memory (design §14: clear sensitive
+        // state after the dialog closes). Setters are stable refs, so the
+        // callback deps below stay unchanged.
+        setGrokRefreshTokenInput('')
+        setGrokImportOpen(false)
+        setGrokOAuthDialogOpen(false)
       }
     },
     [onOpenChange, form]
   )
+
+  // Grok Subscription (type 113) auth-state badge. Extracted per repo convention
+  // (see codex-usage-dialog.tsx statusBadge) instead of an inline JSX IIFE.
+  const grokAuthBadge = (() => {
+    const grokAuthStatus = channelData?.data?.grok_auth_state?.auth_status
+    const grokAuthorizationView = resolveGrokAuthorizationView({
+      isEditing,
+      formKey: currentKey,
+      serverStatus: grokAuthStatus,
+    })
+    if (grokAuthorizationView === 'authorized-unsaved') {
+      return (
+        <StatusBadge
+          variant='success'
+          size='sm'
+          copyable={false}
+          label={t('Authorized — not saved')}
+        />
+      )
+    }
+    if (grokAuthorizationView === 'active') {
+      return (
+        <StatusBadge
+          variant='success'
+          size='sm'
+          copyable={false}
+          label={t('Authorized')}
+        />
+      )
+    }
+    if (grokAuthorizationView === 'needs-reauth') {
+      return (
+        <StatusBadge
+          variant='danger'
+          size='sm'
+          copyable={false}
+          label={t('Needs re-authorization')}
+        />
+      )
+    }
+    return (
+      <StatusBadge
+        variant='warning'
+        size='sm'
+        pulse
+        copyable={false}
+        label={t('Pending authorization')}
+      />
+    )
+  })()
 
   return (
     <>
@@ -1137,6 +1278,30 @@ export function ChannelMutateDrawer({
                                     Number.isInteger(nextType) &&
                                     nextType > 0
                                   ) {
+                                    const currentFormKey =
+                                      form.getValues('key')
+                                    const grokTypeSwitch =
+                                      resolveGrokCreateTypeSwitch({
+                                        isEditing,
+                                        currentType: form.getValues('type'),
+                                        nextType,
+                                        formKey: currentFormKey,
+                                      })
+                                    if (grokTypeSwitch.closeTransientState) {
+                                      if (grokTypeSwitch.key !== currentFormKey) {
+                                        form.setValue(
+                                          'key',
+                                          grokTypeSwitch.key,
+                                          {
+                                            shouldDirty: true,
+                                            shouldValidate: true,
+                                          }
+                                        )
+                                      }
+                                      setGrokRefreshTokenInput('')
+                                      setGrokImportOpen(false)
+                                      setGrokOAuthDialogOpen(false)
+                                    }
                                     field.onChange(nextType)
                                   }
                                 }}
@@ -1992,6 +2157,14 @@ export function ChannelMutateDrawer({
                         control={form.control}
                         name='key'
                         render={({ field }) => {
+                          const keyFieldValue =
+                            resolveGrokCredentialTextareaValue({
+                              channelType: currentType,
+                              isEditing,
+                              formKey: field.value,
+                            })
+                          const isGrokCreateKeyMasked =
+                            currentType === 113 && !isEditing
                           const keyPlaceholder = (() => {
                             if (isEditing) {
                               return t('Leave empty to keep existing key')
@@ -2036,6 +2209,8 @@ export function ChannelMutateDrawer({
                                   placeholder={keyPlaceholder}
                                   rows={isBatchMode ? 8 : 4}
                                   {...field}
+                                  value={keyFieldValue}
+                                  readOnly={isGrokCreateKeyMasked}
                                 />
                               </FormControl>
                               <FormDescription>
@@ -2221,6 +2396,120 @@ export function ChannelMutateDrawer({
                         </div>
                       )}
 
+                      {currentType === 113 && (
+                        <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='flex flex-col gap-0.5'>
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <div className='text-sm font-semibold'>
+                                  {t('Grok Authorization')}
+                                </div>
+                                {grokAuthBadge}
+                              </div>
+                              <div className='text-muted-foreground text-xs'>
+                                {isEditing
+                                  ? t(
+                                      'Authorize this saved channel with Grok OAuth, or import an existing refresh token.'
+                                    )
+                                  : t(
+                                      'Authorize with Grok OAuth, then save the channel once.'
+                                    )}
+                              </div>
+                            </div>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setGrokOAuthDialogOpen(true)}
+                              >
+                                <Link2 className='mr-2 h-4 w-4' />
+                                {t('Authorize')}
+                              </Button>
+                              {isEditing && channelId && (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={handleRefreshGrokCredential}
+                                  disabled={isGrokCredentialRefreshing}
+                                >
+                                  {isGrokCredentialRefreshing ? (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <RefreshCw className='mr-2 h-4 w-4' />
+                                  )}
+                                  {isGrokCredentialRefreshing
+                                    ? t('Refreshing...')
+                                    : t('Refresh credential')}
+                                </Button>
+                              )}
+                              {isEditing && channelId && (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => setGrokImportOpen(true)}
+                                >
+                                  <Link2 className='mr-2 h-4 w-4' />
+                                  {t('Import refresh token')}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {grokImportOpen && isEditing && channelId && (
+                            <div className='flex flex-col gap-2'>
+                              <div className='text-sm font-medium'>
+                                {t('Refresh token')}
+                              </div>
+                              <Input
+                                type='password'
+                                value={grokRefreshTokenInput}
+                                onChange={(e) =>
+                                  setGrokRefreshTokenInput(e.target.value)
+                                }
+                                placeholder={t(
+                                  'Paste an existing Grok refresh token'
+                                )}
+                                autoComplete='off'
+                                spellCheck={false}
+                              />
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  onClick={handleImportGrokRefreshToken}
+                                  disabled={isGrokImporting}
+                                >
+                                  {isGrokImporting && (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  )}
+                                  {t('Import')}
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => {
+                                    setGrokRefreshTokenInput('')
+                                    setGrokImportOpen(false)
+                                  }}
+                                >
+                                  {t('Cancel')}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          <Alert>
+                            <AlertDescription>
+                              {t(
+                                'Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually'
+                              )}
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
+
                       {currentType === 112 && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
@@ -2327,6 +2616,37 @@ export function ChannelMutateDrawer({
                           onAuthorized={() => {
                             void queryClient.invalidateQueries({
                               queryKey: channelsQueryKeys.detail(channelId),
+                            })
+                          }}
+                        />
+                      )}
+
+                      {currentType === 113 && (
+                        <GrokOAuthDialog
+                          channelId={channelId ?? undefined}
+                          open={grokOAuthDialogOpen}
+                          onOpenChange={setGrokOAuthDialogOpen}
+                          onAuthorized={(key) => {
+                            const decision =
+                              resolveGrokOAuthAuthorizedKeyDecision({
+                                channelId,
+                                currentType: form.getValues('type'),
+                                key,
+                              })
+                            if (decision.action === 'store') {
+                              form.setValue('key', decision.key, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                              return
+                            }
+                            if (decision.action === 'ignore') {
+                              return
+                            }
+                            void queryClient.invalidateQueries({
+                              queryKey: channelsQueryKeys.detail(
+                                decision.channelId
+                              ),
                             })
                           }}
                         />

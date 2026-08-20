@@ -81,6 +81,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeElevenLabs
 	case constant.ChannelTypeCopilot:
 		apiType = constant.APITypeCopilot
+	case constant.ChannelTypeGrokSubscription:
+		apiType = constant.APITypeGrokSubscription
 	case constant.ChannelTypeJimengProxy:
 		// JimengProxy (iptag/jimeng-api) speaks the OpenAI wire protocol
 		// (/v1/images/generations, Bearer auth), so reuse the generic OpenAI adaptor.

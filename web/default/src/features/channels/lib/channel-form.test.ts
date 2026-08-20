@@ -11,6 +11,10 @@ import {
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
 } from './channel-form'
+import {
+  resolveGrokCreateTypeSwitch,
+  resolveGrokCredentialTextareaValue,
+} from './grok-oauth'
 
 const baseChannel: Channel = {
   id: 1,
@@ -148,6 +152,61 @@ describe('GitHub Copilot credential mode', () => {
     expect(single.success).toBe(true)
     expect(batch.success).toBe(false)
     expect(multiToSingle.success).toBe(false)
+  })
+})
+
+describe('Grok OAuth create payload', () => {
+  test('carries the generated credential only in the final create payload', () => {
+    const credential =
+      '{"version":1,"type":"grok_subscription","access_token":"at","token_type":"Bearer","expires_at":1786900000}'
+    const payload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'grok',
+      type: 113,
+      key: credential,
+      models: 'grok-4',
+    })
+
+    expect(payload.mode).toBe('single')
+    expect(payload.channel.key).toBe(credential)
+  })
+
+  test('keeps empty-key pending creation available', () => {
+    const payload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'pending-grok',
+      type: 113,
+      key: '',
+      models: 'grok-4',
+    })
+
+    expect(payload.channel.key).toBeNull()
+  })
+
+  test('removes a pending Grok credential before non-Grok display and create payload', () => {
+    const credential =
+      '{"version":1,"type":"grok_subscription","access_token":"at","token_type":"Bearer","expires_at":1786900000}'
+    const switchResult = resolveGrokCreateTypeSwitch({
+      isEditing: false,
+      currentType: 113,
+      nextType: 1,
+      formKey: credential,
+    })
+    const visibleKey = resolveGrokCredentialTextareaValue({
+      channelType: 1,
+      isEditing: false,
+      formKey: switchResult.key,
+    })
+    const payload = transformFormDataToCreatePayload({
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'openai-after-grok',
+      type: 1,
+      key: switchResult.key,
+      models: 'gpt-4o',
+    })
+
+    expect(visibleKey).toBe('')
+    expect(payload.channel.key).toBeNull()
   })
 })
 
