@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'bun:test'
 import {
   buildMediaGenerationRequest,
+  normalizeMediaGenerationSettings,
   resolveMediaGenerationProfile,
   resolvePlaygroundModelKind,
 } from './media-generation'
@@ -105,7 +106,22 @@ describe('Playground media model profiles', () => {
     ])
   })
 
-  test('Veo high resolutions normalize duration to eight seconds', () => {
+  test('Veo configuration normalizes high resolution duration to eight seconds', () => {
+    const profile = resolveMediaGenerationProfile('veo-3.1-generate-preview')
+
+    expect(profile).toBeDefined()
+    expect(
+      normalizeMediaGenerationSettings(profile!, {
+        resolution: '4k',
+        duration: 4,
+        aspectRatio: '16:9',
+      }).duration
+    ).toBe(8)
+  })
+})
+
+describe('Playground media request building', () => {
+  test('does not silently rewrite configured Veo duration while building the request', () => {
     const request = buildMediaGenerationRequest(
       'A cinematic sunrise',
       'veo-3.1-generate-preview',
@@ -124,7 +140,7 @@ describe('Playground media model profiles', () => {
         model: 'veo-3.1-generate-preview',
         group: 'plg',
         prompt: 'A cinematic sunrise',
-        duration: 8,
+        duration: 4,
         metadata: {
           resolution: '4k',
           aspectRatio: '16:9',
@@ -132,9 +148,6 @@ describe('Playground media model profiles', () => {
       },
     })
   })
-})
-
-describe('Playground media request building', () => {
   test('builds the GPT Image 2 image endpoint payload', () => {
     const request = buildMediaGenerationRequest(
       'A red paper boat',

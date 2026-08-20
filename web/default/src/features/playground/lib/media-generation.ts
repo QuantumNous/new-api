@@ -508,13 +508,16 @@ export function buildMediaGenerationRequest(
 ): MediaGenerationRequest | undefined {
   const profile = resolveMediaGenerationProfile(model)
   if (!profile) return undefined
-  const normalized = normalizeMediaGenerationSettings(profile, settings)
+
+  // The Playground state normalizes settings when the user edits them. Keep
+  // request construction serialization-only so the submitted values always
+  // match the values visible in the parameter panel.
 
   if (profile.family === 'gpt-image') {
     return {
       kind: 'image',
       endpoint: '/pg/images/generations',
-      payload: buildGptImagePayload(prompt, model, group, normalized),
+      payload: buildGptImagePayload(prompt, model, group, settings),
     }
   }
   if (profile.family === 'grok-image') {
@@ -525,8 +528,8 @@ export function buildMediaGenerationRequest(
         model,
         group,
         prompt,
-        n: normalized.count,
-        response_format: normalized.responseFormat,
+        n: settings.count,
+        response_format: settings.responseFormat,
       },
     }
   }
@@ -537,18 +540,12 @@ export function buildMediaGenerationRequest(
     return {
       kind: 'image',
       endpoint: '/pg/chat/completions',
-      payload: buildGeminiImagePayload(prompt, model, group, normalized),
+      payload: buildGeminiImagePayload(prompt, model, group, settings),
     }
   }
   return {
     kind: 'video',
     endpoint: '/pg/videos',
-    payload: buildVideoPayload(
-      prompt,
-      model,
-      group,
-      profile.family,
-      normalized
-    ),
+    payload: buildVideoPayload(prompt, model, group, profile.family, settings),
   }
 }
