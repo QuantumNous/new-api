@@ -12,6 +12,11 @@ The behavioral source of truth is limited to these Sub2 commits:
 - `bb6c3b4f6` — one outbound identity resolver for Codex inference and credential-adjacent paths.
 - `a34123959` — real-client auth header shape and model-manifest version consistency.
 
+The later `forever94yu/sub2api` fork is reference evidence, not a source of
+truth. Its frontend new-create default is useful, but its deterministic
+full-mode turn/time values, unconditional non-empty `prompt_cache_key` rewrite,
+and legacy edit defaulting are intentionally not copied.
+
 ## Non-goals
 
 - Account selection, weights, sticky sessions, concurrency slots, or account pools.
@@ -78,8 +83,9 @@ Capture the original body `client_metadata.session_id`. Rewrite root `prompt_cac
 
 Typed and raw JSON paths must have identical semantics. Chat, responses,
 passthrough, image, and compact requests all use the same convergence policy;
-compact is no longer an identity bypass when convergence is enabled. Retry
-staging must clear stale IDs before resolving a new channel.
+compact and image receive converged headers, while body fields are rewritten
+only where that endpoint already supports them. Retry staging must clear stale
+IDs before resolving a new channel.
 
 ### 3. Full-mode zero-original hardening
 
@@ -94,19 +100,22 @@ Body policy:
 - Unknown `client_metadata` fields are dropped and the clean request continues.
 - Invalid JSON, unsafe shape, or an over-limit metadata object fails before the
   upstream request instead of falling back to original passthrough bytes.
-- Apply the same sanitizer before Codex request bodies or errors are persisted
-  or emitted to logs.
+- Add marker-based regression tests around the existing relay log/error paths.
+  Add redaction only at a call site where a marker test proves original
+  metadata or credentials are currently emitted; do not introduce a new global
+  logging subsystem speculatively.
 
 Header policy:
 
-- After channel header overrides, rebuild the exact Codex outbound allowlist.
+- After channel header overrides, remove known client-origin identity side
+  channels and rewrite server-owned Codex identity headers from trusted state.
 - Drop client/override Cookie, distributed-trace, locale, timeout, opaque beta,
   turn-state, attestation, and unknown `x-codex-*` headers.
-- Recreate required auth, media, canonical identity, beta, and converged-ID
-  headers from trusted server state.
-- Use exact endpoint allowlists for inference, compact, models, OAuth, usage,
-  reset-credit, and administrative probe requests; do not append arbitrary
-  client path suffixes.
+- Preserve endpoint-specific transport headers, then recreate required auth,
+  media, canonical identity, beta, and converged-ID headers from trusted server
+  state. Do not clear unrelated server-owned transport headers wholesale.
+- Keep Flatkey's existing exact Codex route switch. Lock its hard-coded paths
+  with regression tests instead of adding a second request-class/path router.
 
 Flatkey does not honor `openai_device_id` or another client/admin supplied
 installation ID. Installation identity always derives from the system-managed
@@ -216,10 +225,10 @@ Tests must prove:
 - UUIDv7 turn IDs and one shared turn timestamp
 - typed/raw body parity and guarded `prompt_cache_key` rewrite
 - full-mode metadata rebuild drops environment/tool/trace fields and unknown keys
-- final header allowlisting removes client/override identity side channels
+- post-override header normalization removes client/override identity side channels
 - compact, image, passthrough, usage, model, OAuth, and admin probe paths share the policy
 - invalid metadata fails closed and retry state cannot leak across channels
-- exact endpoint allowlists reject suffix/path smuggling
+- existing exact endpoint routing remains locked against suffix/path smuggling
 - deployment namespaces isolate cloned databases and missing production namespace fails closed
 - inference identity tuple is coherent after header overrides
 - credential-face requests omit `version`
