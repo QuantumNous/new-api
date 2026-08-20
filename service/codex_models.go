@@ -119,6 +119,7 @@ func fetchLatestCodexClientVersion(ctx context.Context, client *http.Client, rel
 	}
 
 	var release struct {
+		TagName    string `json:"tag_name"`
 		Name       string `json:"name"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
@@ -126,12 +127,9 @@ func fetchLatestCodexClientVersion(ctx context.Context, client *http.Client, rel
 	if err := common.DecodeJson(resp.Body, &release); err != nil {
 		return "", err
 	}
-	if release.Draft || release.Prerelease {
-		return "", fmt.Errorf("latest codex release is not stable")
-	}
-	version := strings.TrimSpace(release.Name)
-	if version == "" {
-		return "", fmt.Errorf("latest codex release has no version name")
+	version, err := parseStableOfficialCodexReleaseVersion(release.TagName, release.Name, release.Draft, release.Prerelease)
+	if err != nil {
+		return "", err
 	}
 	return version, nil
 }
