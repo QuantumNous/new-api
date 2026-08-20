@@ -66,7 +66,6 @@ function model(name: string, quota: number): ModelShare {
     model: name,
     ratio: 0,
     quota,
-    standard_quota: Math.round(quota * 1.25),
     requests: 100,
     tokens: quota * 600,
   }

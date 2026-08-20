@@ -5,6 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import SystemStatusCard from '@/components/console/dashboard/SystemStatusCard.vue'
 import i18n, { loadMessageDomain, setLocale } from '@/i18n'
 import type { SystemMetrics } from '@/composables/useDashboard'
+import { useAppStore } from '@/stores'
 
 beforeAll(async () => {
   await loadMessageDomain('console')
@@ -46,6 +47,21 @@ describe('SystemStatusCard', () => {
     expect(wrapper.find('[data-status-reachable]').attributes()).toMatchObject({
       'data-status-reachable': 'false',
     })
+  })
+
+  it('does not report online before the system metrics request succeeds', () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const app = useAppStore()
+    app.phase = 'ready'
+    app.statusReachable = true
+    const wrapper = mount(SystemStatusCard, {
+      props: { metrics: null },
+      global: { plugins: [pinia, i18n] },
+    })
+
+    expect(wrapper.text()).toContain('UNKNOWN')
+    expect(wrapper.text()).not.toContain('ONLINE')
   })
 
   it('renders placeholders rather than zeroes when metrics are unavailable', () => {

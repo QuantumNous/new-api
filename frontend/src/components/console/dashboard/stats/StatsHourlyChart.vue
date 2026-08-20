@@ -5,11 +5,13 @@ import { useI18n } from 'vue-i18n'
 import { useEChart } from '@/charts/useEChart'
 import { lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import type { HourlyPoint } from '@/composables/useDashboardStats'
 
 const props = defineProps<{
   hourly: HourlyPoint[]
   loading?: boolean
+  error?: string | null
 }>()
 
 const { t } = useI18n()
@@ -98,6 +100,12 @@ useEChart(
     <div
       v-if="loading"
       class="h-52 grow animate-pulse rounded-xl bg-[var(--surface-muted)] sm:h-44 xl:h-36"
+    />
+    <EmptyState
+      v-else-if="error || !hourly.length"
+      class="grow"
+      :title="error ? t('dashboard.loadFailed') : t('dashboard.stats.noData')"
+      :hint="error || undefined"
     />
     <div
       v-else

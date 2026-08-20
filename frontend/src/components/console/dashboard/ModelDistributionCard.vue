@@ -239,12 +239,7 @@ function highlight(rowIndex: number, on: boolean) {
               <th
                 class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
               >
-                {{ t('dashboard.modelDist.actual') }}
-              </th>
-              <th
-                class="sticky top-0 z-10 bg-[var(--surface-solid)] px-2.5 pb-2.5 text-right font-semibold"
-              >
-                {{ t('dashboard.modelDist.standard') }}
+                {{ t('dashboard.modelDist.spend') }}
               </th>
             </tr>
           </thead>
@@ -301,17 +296,9 @@ function highlight(rowIndex: number, on: boolean) {
               </td>
               <td
                 class="px-2.5 py-2.5 text-right font-semibold tabular-nums"
-                :style="{ color: 'var(--status-success-text)' }"
+                :style="{ color: 'var(--text-primary)' }"
               >
                 {{ formatQuota(m.quota) }}
-              </td>
-              <td
-                class="px-2.5 py-2.5 text-right tabular-nums text-[var(--text-tertiary)]"
-                :class="{
-                  'line-through decoration-1': m.standard_quota > m.quota,
-                }"
-              >
-                {{ formatQuota(m.standard_quota) }}
               </td>
             </tr>
           </tbody>

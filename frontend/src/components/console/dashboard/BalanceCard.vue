@@ -11,8 +11,8 @@ import { formatQuota } from '@/utils/format'
 
 const props = withDefaults(
   defineProps<{
-    quota: number
-    usedQuota?: number
+    quota: number | null
+    usedQuota?: number | null
     todayQuota?: number
     monthQuota?: number
     /** rolling daily burn used for the runway estimate */
@@ -33,14 +33,19 @@ const router = useRouter()
 const { hidden, toggle } = useBalanceVisibility()
 
 const display = computed(() =>
-  hidden.value ? '••••••••' : formatQuota(props.quota)
+  props.quota === null
+    ? '--'
+    : hidden.value
+      ? '••••••••'
+      : formatQuota(props.quota)
 )
 
 // Usage ratio: how much of total balance has been consumed this billing period
-const totalBalance = computed(() => props.quota + props.usedQuota)
+const usedQuota = computed(() => props.usedQuota ?? 0)
+const totalBalance = computed(() => (props.quota ?? 0) + usedQuota.value)
 const usedPercent = computed(() =>
   totalBalance.value > 0
-    ? Math.min(100, Math.round((props.usedQuota / totalBalance.value) * 100))
+    ? Math.min(100, Math.round((usedQuota.value / totalBalance.value) * 100))
     : 0
 )
 const meterColor = computed(() => {
@@ -52,6 +57,9 @@ const meterColor = computed(() => {
 /** Remaining share of the balance drives the health indicator. */
 const remainPercent = computed(() => 100 - usedPercent.value)
 const health = computed(() => {
+  if (props.quota === null) {
+    return { tone: 'neutral' as const, label: t('dashboard.unknown') }
+  }
   if (remainPercent.value < 10) {
     return {
       tone: 'danger' as const,
@@ -67,7 +75,7 @@ const health = computed(() => {
 /** Runway in whole days; null when there is nothing to extrapolate from. */
 const runwayDays = computed(() => {
   const burn = props.dailyBurn ?? props.todayQuota ?? 0
-  if (burn <= 0 || props.quota <= 0) return null
+  if (burn <= 0 || props.quota === null || props.quota <= 0) return null
   return Math.floor(props.quota / burn)
 })
 

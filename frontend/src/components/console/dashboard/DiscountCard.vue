@@ -1,41 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
-import type { ModelShare, UserDiscounts } from '@/composables/useDashboard'
-import { formatQuota } from '@/utils/format'
+import EmptyState from '@/components/common/EmptyState.vue'
+import type { UserDiscounts } from '@/composables/useDashboard'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     discounts: UserDiscounts | null
-    /** Per-model spend, used to total what the discount actually returned. */
-    models?: ModelShare[]
     loading?: boolean
   }>(),
-  { models: () => [], loading: false }
+  { loading: false }
 )
 
 const { t } = useI18n()
-
-const saving = computed(() =>
-  props.discounts
-    ? Math.round((1 - props.discounts.effective_ratio) * 1000) / 10
-    : 0
-)
-
-/**
- * Money the discount actually returned, summed from the per-model list rather
- * than inferred from the ratio — the ratio is the headline rate, this is what it
- * came to on real traffic.
- */
-const savedAmount = computed(() =>
-  props.models.reduce((sum, m) => sum + (m.standard_quota - m.quota), 0)
-)
-
-const standardTotal = computed(() =>
-  props.models.reduce((sum, m) => sum + m.standard_quota, 0)
-)
 </script>
 
 <template>
@@ -144,9 +122,6 @@ const standardTotal = computed(() =>
             <p class="text-xs text-[var(--text-tertiary)]">
               {{ t('dashboard.discount.effective') }}
             </p>
-            <p class="mt-0.5 text-sm text-[var(--text-secondary)]">
-              {{ t('dashboard.discount.savingDesc', { pct: saving }) }}
-            </p>
           </div>
           <div class="text-right">
             <p class="text-2xl font-bold tabular-nums text-[var(--accent)]">
@@ -155,35 +130,13 @@ const standardTotal = computed(() =>
           </div>
         </div>
       </div>
-
-      <!--
-        What the rate came to on real traffic. The ratio above is a rate; this is
-        the amount, so the card ends on something concrete — pinned to the bottom
-        edge when the row runs taller.
-      -->
-      <div
-        v-if="savedAmount > 0"
-        class="mt-auto rounded-xl bg-[var(--surface-muted)] px-3.5 py-3"
-      >
-        <div class="flex items-baseline justify-between gap-3">
-          <span class="text-xs text-[var(--text-tertiary)]">
-            {{ t('dashboard.discount.savedAmount') }}
-          </span>
-          <span
-            class="font-bold tabular-nums text-[var(--status-success-text)]"
-          >
-            {{ formatQuota(savedAmount) }}
-          </span>
-        </div>
-        <div
-          class="mt-1.5 flex items-baseline justify-between gap-3 text-[11px] text-[var(--text-tertiary)]"
-        >
-          <span>{{ t('dashboard.discount.standardTotal') }}</span>
-          <span class="tabular-nums line-through decoration-1">
-            {{ formatQuota(standardTotal) }}
-          </span>
-        </div>
-      </div>
     </div>
+
+    <EmptyState
+      v-else
+      class="grow"
+      :title="t('dashboard.stats.noData')"
+      :hint="t('dashboard.discount.emptyHint')"
+    />
   </ConsoleCard>
 </template>

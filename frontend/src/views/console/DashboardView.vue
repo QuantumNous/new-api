@@ -17,6 +17,7 @@ import AutoRoutePanel from '@/components/console/dashboard/autoroute/AutoRoutePa
 import ContactFloatBall from '@/components/console/ContactFloatBall.vue'
 import PageHero from '@/components/console/PageHero.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import { useDashboard } from '@/composables/useDashboard'
 import { useDashboardStats } from '@/composables/useDashboardStats'
 import { useUsageDistribution } from '@/composables/useUsageDistribution'
@@ -36,6 +37,7 @@ const {
   system,
   limits,
   discounts,
+  error: dashboardError,
   loadSystem,
   load,
 } = useDashboard()
@@ -172,10 +174,7 @@ const rangeOptions = computed(() => [
         />
 
         <!-- Skeleton -->
-        <div
-          v-if="loading"
-          class="grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3"
-        >
+        <div v-if="loading" class="grid gap-4 sm:gap-5 xl:grid-cols-3">
           <div
             v-for="i in 6"
             :key="i"
@@ -196,12 +195,19 @@ const rangeOptions = computed(() => [
         shrink and the container waits for the canvas, so the column never
         comes back down.
       -->
+        <EmptyState
+          v-else-if="dashboardError"
+          class="min-h-64"
+          :title="$t('dashboard.loadFailed')"
+          :hint="dashboardError"
+        />
+
         <div v-else class="grid gap-4 sm:gap-5 xl:grid-cols-3">
           <!-- 总额度（限速已并入 KPI 条的 RPM 格） -->
           <BalanceCard
             class="min-w-0"
-            :quota="stats?.quota ?? 0"
-            :used-quota="stats?.used_quota ?? 0"
+            :quota="stats?.quota ?? null"
+            :used-quota="stats?.used_quota ?? null"
             :today-quota="stats?.today_quota"
             :month-quota="stats?.month_quota"
             :daily-burn="dailyBurn"
@@ -226,7 +232,6 @@ const rangeOptions = computed(() => [
           <DiscountCard
             class="min-w-0"
             :discounts="discounts"
-            :models="share"
             :loading="loading"
           />
           <!-- 模型消费分布 -->
@@ -281,6 +286,7 @@ const rangeOptions = computed(() => [
           :comparison="statsComposable.data.value?.comparison ?? null"
           :flow="statsComposable.data.value?.flow ?? []"
           :loading="statsComposable.loading.value"
+          :error="statsComposable.error.value"
         />
         <!--
         Row-aligned pair: the capped model table sets the height and the hourly
@@ -297,6 +303,7 @@ const rangeOptions = computed(() => [
             class="min-w-0"
             :hourly="statsComposable.data.value?.hourly ?? []"
             :loading="statsComposable.loading.value"
+            :error="statsComposable.error.value"
           />
         </div>
       </div>

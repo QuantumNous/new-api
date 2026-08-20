@@ -52,10 +52,12 @@ export function useDashboardStats() {
   const customStart = ref<string>('')
   const customEnd = ref<string>('')
   const data = ref<StatsPeriod | null>(null)
+  const error = ref<string | null>(null)
   const statsRequest = useLatestRequest()
 
   async function load() {
     loading.value = true
+    error.value = null
     const params: Record<string, string> = {
       range: range.value,
       tz_offset: String(-new Date().getTimezoneOffset()),
@@ -72,15 +74,16 @@ export function useDashboardStats() {
     if (result.stale) return
     loading.value = false
     if (!result.ok) {
-      toast.error(
+      const message =
         result.error instanceof ApiError
           ? result.error.message
           : t('common.failed')
-      )
+      error.value = message
+      toast.error(message)
       return
     }
     data.value = result.value
   }
 
-  return { loading, range, customStart, customEnd, data, load }
+  return { loading, range, customStart, customEnd, data, error, load }
 }

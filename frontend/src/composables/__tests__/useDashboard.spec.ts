@@ -71,6 +71,71 @@ describe('useDashboard', () => {
     wrapper.unmount()
   })
 
+  it('keeps the usage dashboard available when token trend is unavailable', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path) => {
+      if (path === '/api/data/self') return [] as never
+      if (path === '/api/next/dashboard/token-trend') {
+        throw new Error('token trend unavailable')
+      }
+      if (path === '/api/next/dashboard/system-status') {
+        return { bandwidth_series: null } as never
+      }
+      throw new Error(`unexpected dashboard request: ${path}`)
+    })
+    const { state, wrapper } = mountDashboardState()
+
+    await state.load()
+
+    expect(state.stats.value).not.toBeNull()
+    expect(state.tokenTrend.value).toEqual([])
+    expect(state.error.value).toBeNull()
+    expect(get).toHaveBeenCalledWith('/api/next/dashboard/token-trend', {
+      range: '30d',
+      tz_offset: expect.any(String),
+    })
+    wrapper.unmount()
+  })
+
+  it('aggregates flow by local date and fills days without usage', async () => {
+    vi.useFakeTimers()
+    const now = new Date(2026, 7, 20, 12)
+    vi.setSystemTime(now)
+    const endTimestamp = now.getTime() / 1000
+    const startTimestamp = endTimestamp - 29 * 86_400
+    const row = {
+      model_name: 'gpt-4o',
+      created_at: new Date(2026, 7, 19, 23, 30).getTime() / 1000,
+      count: 2,
+      quota: 500_000,
+      token_used: 100,
+    }
+    vi.spyOn(api, 'get').mockImplementation(async (path, params) => {
+      if (path === '/api/data/self') {
+        return params?.start_timestamp === startTimestamp
+          ? [row]
+          : ([] as never)
+      }
+      if (path === '/api/next/dashboard/token-trend') return [] as never
+      if (path === '/api/next/dashboard/system-status') {
+        return { bandwidth_series: null } as never
+      }
+      throw new Error(`unexpected dashboard request: ${path}`)
+    })
+    const { state, wrapper } = mountDashboardState()
+
+    await state.load()
+
+    expect(state.flow.value).toHaveLength(30)
+    expect(state.flow.value[0]).toMatchObject({ consume: 0, requests: 0 })
+    expect(
+      state.flow.value.find((point) => point.date === '2026-08-19')
+    ).toMatchObject({ consume: 500_000, requests: 2 })
+    expect(state.flow.value.every((point) => point.date.length === 10)).toBe(
+      true
+    )
+    wrapper.unmount()
+  })
+
   it('loads monthly spend from the local calendar-month boundary', async () => {
     vi.useFakeTimers()
     const now = new Date(2026, 7, 31, 12)

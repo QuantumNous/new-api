@@ -16,19 +16,15 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { phase, statusReachable, versionLabel } = storeToRefs(useAppStore())
+const metricsAvailable = computed(
+  () => props.metrics !== null && props.metrics !== undefined
+)
 
 const apiState = computed(() => {
-  if (phase.value === 'ready' && statusReachable.value) {
+  if (phase.value === 'loading') {
     return {
-      color: 'var(--status-success)',
-      label: t('dashboard.online'),
-      pulse: true,
-    }
-  }
-  if (phase.value === 'degraded' && statusReachable.value) {
-    return {
-      color: 'var(--status-warning)',
-      label: t('dashboard.degraded'),
+      color: 'var(--status-info)',
+      label: t('dashboard.loading'),
       pulse: false,
     }
   }
@@ -39,10 +35,25 @@ const apiState = computed(() => {
       pulse: false,
     }
   }
-  if (phase.value === 'loading') {
+  if (
+    phase.value === 'ready' &&
+    statusReachable.value &&
+    metricsAvailable.value
+  ) {
     return {
-      color: 'var(--status-info)',
-      label: t('dashboard.loading'),
+      color: 'var(--status-success)',
+      label: t('dashboard.online'),
+      pulse: true,
+    }
+  }
+  if (
+    phase.value === 'degraded' &&
+    statusReachable.value &&
+    metricsAvailable.value
+  ) {
+    return {
+      color: 'var(--status-warning)',
+      label: t('dashboard.degraded'),
       pulse: false,
     }
   }
@@ -268,10 +279,7 @@ const successColor = computed(() => rateColor(successRate.value))
 </script>
 
 <template>
-  <ConsoleCard
-    data-system-status-card
-    stretch
-  >
+  <ConsoleCard data-system-status-card stretch>
     <template #title>
       <div class="flex min-w-0 items-center gap-2">
         <h2 class="truncate text-sm font-semibold text-[var(--text-primary)]">
@@ -330,7 +338,7 @@ const successColor = computed(() => rateColor(successRate.value))
       <div
         v-for="tile in tiles"
         :key="tile.key"
-        class="group relative flex h-[100px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-colors duration-300 hover:bg-[var(--surface-hover)]"
+        class="group relative flex h-[108px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-colors duration-300 hover:bg-[var(--surface-hover)]"
         data-system-status-tile
         :data-metric="tile.key"
       >

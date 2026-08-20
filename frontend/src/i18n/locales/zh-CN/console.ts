@@ -91,6 +91,7 @@ export default {
     statTodayRequests: '今日请求',
     statTodayTokens: '今日 Token',
     statAvgTpm: '平均 TPM',
+    loadFailed: '仪表盘数据加载失败',
     kpiCaption: {
       rpm: '每分钟请求数',
     },
@@ -107,9 +108,7 @@ export default {
       personal: '个人折扣',
       personalDesc: '按量阶梯专属 {pct} 折',
       effective: '综合倍率',
-      savingDesc: '约享 {pct}% 优惠',
-      savedAmount: '已省金额',
-      standardTotal: '标准价合计',
+      emptyHint: '当前账户暂无可用的折扣明细',
     },
     balanceHint: {
       healthy: '余额充足',
@@ -132,8 +131,7 @@ export default {
       model: '模型',
       requests: '请求',
       tokens: 'Token',
-      actual: '实际',
-      standard: '标准',
+      spend: '消费',
       share: '占比',
       others: '其他 {n} 个模型',
       modelsUsed: '个模型',

@@ -34,10 +34,7 @@ export interface UserDiscounts {
 export interface ModelShare {
   model: string
   ratio: number
-  /** billed spend */
   quota: number
-  /** same traffic at list price */
-  standard_quota: number
   requests: number
   tokens: number
 }
@@ -73,6 +70,22 @@ export interface FlowPoint {
 
 const DAY_SECONDS = 86_400
 const MAX_SELF_USAGE_RANGE_SECONDS = 30 * DAY_SECONDS
+
+function localDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function recentLocalDateKeys(now = new Date(), days = 30): string[] {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() - (days - index - 1))
+    return localDateKey(date)
+  })
+}
 
 export function getLocalDayStartTimestamp(now = new Date()): number {
   return Math.floor(
@@ -144,6 +157,7 @@ export function useDashboard() {
   const system = ref<SystemMetrics | null>(null)
   const limits = ref<UserLimits | null>(null)
   const discounts = ref<UserDiscounts | null>(null)
+  const error = ref<string | null>(null)
 
   async function loadSystem() {
     const result = await Promise.allSettled([
@@ -154,107 +168,108 @@ export function useDashboard() {
 
   async function load() {
     loading.value = true
-    try {
-      {
-        const endTimestamp = Math.floor(Date.now() / 1000)
-        const startTimestamp = endTimestamp - 29 * DAY_SECONDS
-        const monthStartTimestamp = getLocalMonthStartTimestamp()
-        const [usage, trendResponse, monthUsage] = await Promise.all([
-          fetchSelfUsage(startTimestamp, endTimestamp),
-          api.get<TokenTrendPoint[]>('/api/next/dashboard/token-trend', {
-            range: '30d',
-            tz_offset: String(-new Date().getTimezoneOffset()),
-          }),
-          fetchSelfUsage(monthStartTimestamp, endTimestamp),
-        ])
-        const previousResult = await Promise.allSettled([
-          fetchSelfUsage(startTimestamp - 30 * DAY_SECONDS, startTimestamp - 1),
-        ])
-        const previousUsage =
-          previousResult[0]?.status === 'fulfilled'
-            ? previousResult[0].value
-            : []
-        const todayStart = getLocalDayStartTimestamp()
-        const totalQuota = usage.reduce((sum, row) => sum + row.quota, 0)
-        const totalRequests = usage.reduce((sum, row) => sum + row.count, 0)
-        const previousQuota = previousUsage.reduce(
-          (sum, row) => sum + row.quota,
-          0
-        )
-        const previousRequests = previousUsage.reduce(
-          (sum, row) => sum + row.count,
-          0
-        )
-        stats.value = {
-          quota: auth.user?.quota ?? 0,
-          used_quota: auth.user?.used_quota ?? 0,
-          today_quota: usage
-            .filter((row) => row.created_at >= todayStart)
-            .reduce((sum, row) => sum + row.quota, 0),
-          month_quota: monthUsage.reduce((sum, row) => sum + row.quota, 0),
-          today_requests: usage
-            .filter((row) => row.created_at >= todayStart)
-            .reduce((sum, row) => sum + row.count, 0),
-          total_requests: totalRequests,
-          month_quota_delta:
-            previousQuota > 0
-              ? ((totalQuota - previousQuota) / previousQuota) * 100
-              : 0,
-          month_requests_delta:
-            previousRequests > 0
-              ? ((totalRequests - previousRequests) / previousRequests) * 100
-              : 0,
-        }
-        const modelRows = new Map<string, ModelShare>()
-        const dayRows = new Map<string, FlowPoint>()
-        for (const row of usage) {
-          const current = modelRows.get(row.model_name) ?? {
-            model: row.model_name,
-            ratio: 1,
-            quota: 0,
-            standard_quota: 0,
-            requests: 0,
-            tokens: 0,
-          }
-          current.quota += row.quota
-          current.standard_quota += row.quota
-          current.requests += row.count
-          current.tokens += row.token_used
-          modelRows.set(row.model_name, current)
+    error.value = null
+    const endTimestamp = Math.floor(Date.now() / 1000)
+    const startTimestamp = endTimestamp - 29 * DAY_SECONDS
+    const monthStartTimestamp = getLocalMonthStartTimestamp()
+    const [usageResult, trendResult, monthResult] = await Promise.allSettled([
+      fetchSelfUsage(startTimestamp, endTimestamp),
+      api.get<TokenTrendPoint[]>('/api/next/dashboard/token-trend', {
+        range: '30d',
+        tz_offset: String(-new Date().getTimezoneOffset()),
+      }),
+      fetchSelfUsage(monthStartTimestamp, endTimestamp),
+    ])
 
-          const date = new Date(row.created_at * 1000)
-            .toISOString()
-            .slice(0, 10)
-          const day = dayRows.get(date) ?? {
-            date,
-            consume: 0,
-            requests: 0,
-            topup: 0,
-          }
-          day.consume += row.quota
-          day.requests += row.count
-          dayRows.set(date, day)
-        }
-        share.value = [...modelRows.values()].map((row) => ({
-          ...row,
-          ratio: totalQuota > 0 ? row.quota / totalQuota : 0,
-        }))
-        flow.value = [...dayRows.values()].sort((a, b) =>
-          a.date.localeCompare(b.date)
-        )
-        tokenTrend.value = trendResponse
-        await loadSystem()
-        limits.value = null
-        discounts.value = null
-        return
-      }
-    } catch (error) {
-      toast.error(
-        error instanceof ApiError ? error.message : t('common.failed')
-      )
-    } finally {
+    tokenTrend.value =
+      trendResult.status === 'fulfilled' ? trendResult.value : []
+    if (usageResult.status !== 'fulfilled') {
+      const message =
+        usageResult.reason instanceof ApiError
+          ? usageResult.reason.message
+          : t('common.failed')
+      error.value = message
+      toast.error(message)
+      await loadSystem()
       loading.value = false
+      return
     }
+
+    const usage = usageResult.value
+    const monthUsage =
+      monthResult.status === 'fulfilled' ? monthResult.value : []
+    const previousResult = await Promise.allSettled([
+      fetchSelfUsage(startTimestamp - 30 * DAY_SECONDS, startTimestamp - 1),
+    ])
+    const previousUsage =
+      previousResult[0]?.status === 'fulfilled' ? previousResult[0].value : []
+    const todayStart = getLocalDayStartTimestamp()
+    const totalQuota = usage.reduce((sum, row) => sum + row.quota, 0)
+    const totalRequests = usage.reduce((sum, row) => sum + row.count, 0)
+    const previousQuota = previousUsage.reduce((sum, row) => sum + row.quota, 0)
+    const previousRequests = previousUsage.reduce(
+      (sum, row) => sum + row.count,
+      0
+    )
+    stats.value = {
+      quota: auth.user?.quota ?? 0,
+      used_quota: auth.user?.used_quota ?? 0,
+      today_quota: usage
+        .filter((row) => row.created_at >= todayStart)
+        .reduce((sum, row) => sum + row.quota, 0),
+      month_quota:
+        monthResult.status === 'fulfilled'
+          ? monthUsage.reduce((sum, row) => sum + row.quota, 0)
+          : undefined,
+      today_requests: usage
+        .filter((row) => row.created_at >= todayStart)
+        .reduce((sum, row) => sum + row.count, 0),
+      total_requests: totalRequests,
+      month_quota_delta:
+        previousQuota > 0
+          ? ((totalQuota - previousQuota) / previousQuota) * 100
+          : 0,
+      month_requests_delta:
+        previousRequests > 0
+          ? ((totalRequests - previousRequests) / previousRequests) * 100
+          : 0,
+    }
+
+    const modelRows = new Map<string, ModelShare>()
+    const dateKeys = recentLocalDateKeys()
+    const dayRows = new Map<string, FlowPoint>(
+      dateKeys.map((date) => [
+        date,
+        { date, consume: 0, requests: 0, topup: 0 },
+      ])
+    )
+    for (const row of usage) {
+      const current = modelRows.get(row.model_name) ?? {
+        model: row.model_name,
+        ratio: 0,
+        quota: 0,
+        requests: 0,
+        tokens: 0,
+      }
+      current.quota += row.quota
+      current.requests += row.count
+      current.tokens += row.token_used
+      modelRows.set(row.model_name, current)
+
+      const date = localDateKey(new Date(row.created_at * 1000))
+      const day = dayRows.get(date)
+      if (day) {
+        day.consume += row.quota
+        day.requests += row.count
+      }
+    }
+    share.value = [...modelRows.values()].map((row) => ({
+      ...row,
+      ratio: totalQuota > 0 ? row.quota / totalQuota : 0,
+    }))
+    flow.value = dateKeys.map((date) => dayRows.get(date)!)
+    await loadSystem()
+    loading.value = false
   }
 
   return {
@@ -266,6 +281,7 @@ export function useDashboard() {
     system,
     limits,
     discounts,
+    error,
     loadSystem,
     load,
   }

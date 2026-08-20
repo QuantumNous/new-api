@@ -91,6 +91,7 @@ export default {
     statTodayRequests: 'Today requests',
     statTodayTokens: 'Today tokens',
     statAvgTpm: 'Avg TPM',
+    loadFailed: 'Dashboard data could not be loaded',
     kpiCaption: {
       rpm: 'Requests per minute',
     },
@@ -107,9 +108,7 @@ export default {
       personal: 'Personal discount',
       personalDesc: 'Volume-tier extra {pct}% off',
       effective: 'Effective rate',
-      savingDesc: 'Saving ~{pct}%',
-      savedAmount: 'Saved',
-      standardTotal: 'At list price',
+      emptyHint: 'Discount details are not available for this account',
     },
     balanceHint: {
       healthy: 'Healthy',
@@ -132,8 +131,7 @@ export default {
       model: 'Model',
       requests: 'Requests',
       tokens: 'Tokens',
-      actual: 'Actual',
-      standard: 'Standard',
+      spend: 'Spend',
       share: 'Share',
       others: '{n} other models',
       modelsUsed: 'models',

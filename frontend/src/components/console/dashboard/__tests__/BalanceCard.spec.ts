@@ -40,4 +40,15 @@ describe('BalanceCard', () => {
       '$3.00'
     )
   })
+
+  it('does not turn a missing balance into a zero balance', () => {
+    const wrapper = mount(BalanceCard, {
+      props: { quota: null },
+      global: { plugins: [i18n] },
+    })
+
+    expect(wrapper.text()).toContain('--')
+    expect(wrapper.text()).not.toContain('$0.00')
+    expect(wrapper.text()).toContain('UNKNOWN')
+  })
 })

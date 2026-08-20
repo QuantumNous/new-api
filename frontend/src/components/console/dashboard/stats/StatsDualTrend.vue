@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useEChart } from '@/charts/useEChart'
 import { areaGradient, lineMood } from '@/charts/themePreset'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import type { FlowPoint } from '@/composables/useDashboard'
 import type { StatsComparison, StatsKpi } from '@/composables/useDashboardStats'
 import { formatNumber, formatQuota } from '@/utils/format'
@@ -24,6 +25,7 @@ const props = defineProps<{
   comparison: StatsComparison | null
   flow: FlowPoint[]
   loading?: boolean
+  error?: string | null
 }>()
 
 const { t } = useI18n()
@@ -234,7 +236,7 @@ useEChart(
               class="truncate text-xl font-bold tabular-nums text-[var(--text-primary)] sm:text-2xl"
               data-trend-spend
             >
-              {{ formatQuota(kpi?.totalQuota ?? 0) }}
+              {{ kpi ? formatQuota(kpi.totalQuota) : '—' }}
             </strong>
             <span
               v-if="
@@ -267,7 +269,7 @@ useEChart(
               class="truncate text-xl font-bold tabular-nums text-[var(--signal)] sm:text-2xl"
               data-trend-requests
             >
-              {{ formatNumber(kpi?.totalRequests ?? 0) }}
+              {{ kpi ? formatNumber(kpi.totalRequests) : '—' }}
             </strong>
             <span
               v-if="
@@ -311,6 +313,12 @@ useEChart(
     <div
       v-if="loading"
       class="mt-4 h-64 grow animate-pulse rounded-xl bg-[var(--surface-muted)] sm:h-56"
+    />
+    <EmptyState
+      v-else-if="error || !flow.length"
+      class="mt-4 grow"
+      :title="error ? t('dashboard.loadFailed') : t('dashboard.stats.noData')"
+      :hint="error || undefined"
     />
     <div
       v-else
