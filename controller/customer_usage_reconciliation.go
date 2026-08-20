@@ -74,27 +74,6 @@ type customerUsageSummaryResponse struct {
 	GeneratedAt   string                          `json:"generated_at"`
 }
 
-type customerUsageAdjustment struct {
-	AdjustmentID        string `json:"adjustment_id"`
-	CustomerID          string `json:"customer_id"`
-	EventType           string `json:"event_type"`
-	SourceTransactionID string `json:"source_transaction_id,omitempty"`
-	AmountDeltaUSD      string `json:"amount_delta_usd"`
-	Currency            string `json:"currency"`
-	OccurredAt          string `json:"occurred_at"`
-	ReasonCode          string `json:"reason_code"`
-}
-
-type customerUsageAdjustmentsResponse struct {
-	SchemaVersion string                    `json:"schema_version"`
-	Provider      string                    `json:"provider"`
-	CustomerID    string                    `json:"customer_id"`
-	Period        usagePeriod               `json:"period"`
-	Adjustments   []customerUsageAdjustment `json:"adjustments"`
-	Pagination    usagePagination           `json:"pagination"`
-	GeneratedAt   string                    `json:"generated_at"`
-}
-
 type customerUsageCursor struct {
 	Version    int    `json:"v"`
 	Kind       string `json:"kind"`
@@ -359,50 +338,3 @@ func GetCustomerUsageSummary(c *gin.Context) {
 	})
 }
 
-// GetCustomerUsageAdjustments serves GET /usage/customer-adjustments.
-func GetCustomerUsageAdjustments(c *gin.Context) {
-	customerID, _, ok := parseCustomerUsageCustomer(c, c.Query("customer_id"))
-	if !ok {
-		return
-	}
-	startUnix, endUnix, startT, endT, ok := parseCustomerUsageTimeRange(c)
-	if !ok {
-		return
-	}
-	limit, ok := parseCustomerUsageLimit(c)
-	if !ok {
-		return
-	}
-	cursor := customerUsageCursor{}
-	if raw := c.Query("cursor"); raw != "" {
-		var valid bool
-		cursor, valid = decodeCustomerUsageCursor(raw, "adjustments", customerID, startUnix, endUnix)
-		if !valid {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_cursor"})
-			return
-		}
-	}
-	adjustments, err := model.QueryCustomerUsageAdjustmentsAfterCursor(customerID, startUnix, endUnix, limit+1, cursor.OccurredAt, cursor.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "query customer adjustments failed"})
-		return
-	}
-	hasMore := len(adjustments) > limit
-	if hasMore {
-		adjustments = adjustments[:limit]
-	}
-	nextCursor := ""
-	if hasMore {
-		last := adjustments[len(adjustments)-1]
-		nextCursor, err = encodeCustomerUsageCursor("adjustments", customerID, startUnix, endUnix, last.OccurredAt, last.Id)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "encode cursor failed"})
-			return
-		}
-	}
-	items := make([]customerUsageAdjustment, 0, len(adjustments))
-	for _, adjustment := range adjustments {
-		items = append(items, customerUsageAdjustment{AdjustmentID: adjustment.AdjustmentID, CustomerID: strconv.Itoa(customerID), EventType: adjustment.EventType, SourceTransactionID: adjustment.SourceTransactionID, AmountDeltaUSD: quotaToUSD(adjustment.AmountDeltaQuota), Currency: usageReconCurrency, OccurredAt: usageFormatTime(time.Unix(adjustment.OccurredAt, 0)), ReasonCode: adjustment.ReasonCode})
-	}
-	c.JSON(http.StatusOK, customerUsageAdjustmentsResponse{SchemaVersion: customerUsageSchemaVersion, Provider: usageReconProvider, CustomerID: strconv.Itoa(customerID), Period: usagePeriod{Start: usageFormatTime(startT), End: usageFormatTime(endT), Timezone: "UTC"}, Adjustments: items, Pagination: usagePagination{Mode: "cursor", Limit: limit, NextCursor: nextCursor, HasMore: hasMore}, GeneratedAt: usageFormatTime(time.Now())})
-}

@@ -305,8 +305,7 @@ func customerUsageQuery(customerID int, startUnix, endUnix int64) *gorm.DB {
 }
 
 // QueryCustomerUsageLogsAfterCursor returns only successful consumption facts for
-// one Customer. Refund logs are intentionally excluded; explicit adjustments use
-// CustomerUsageAdjustment instead.
+// one Customer. Refund and manual adjustment accounting is outside this feed.
 func QueryCustomerUsageLogsAfterCursor(customerID int, startUnix, endUnix int64, limit int, cursorCreatedAt int64, cursorID int) ([]*Log, error) {
 	if customerID <= 0 {
 		return nil, nil

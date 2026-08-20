@@ -28,7 +28,6 @@ func TestSetUsageReconciliationRouter(t *testing.T) {
 		"/usage/customers/:customer_id": http.MethodGet,
 		"/usage/customer-transactions":  http.MethodGet,
 		"/usage/customer-summary":       http.MethodGet,
-		"/usage/customer-adjustments":   http.MethodGet,
 	}
 	got := map[string]string{}
 	for _, ri := range engine.Routes() {

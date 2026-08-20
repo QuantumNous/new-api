@@ -36,5 +36,4 @@ func SetUsageReconciliationRouter(router *gin.Engine) {
 	customerUsage.GET("/customers/:customer_id", controller.GetCustomerUsageCustomer)
 	customerUsage.GET("/customer-transactions", controller.GetCustomerUsageTransactions)
 	customerUsage.GET("/customer-summary", controller.GetCustomerUsageSummary)
-	customerUsage.GET("/customer-adjustments", controller.GetCustomerUsageAdjustments)
 }

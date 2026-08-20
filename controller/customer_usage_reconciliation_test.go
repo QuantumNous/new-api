@@ -19,7 +19,6 @@ func customerUsageEngine() *gin.Engine {
 	r.GET("/usage/customers/:customer_id", GetCustomerUsageCustomer)
 	r.GET("/usage/customer-transactions", GetCustomerUsageTransactions)
 	r.GET("/usage/customer-summary", GetCustomerUsageSummary)
-	r.GET("/usage/customer-adjustments", GetCustomerUsageAdjustments)
 	return r
 }
 
@@ -28,7 +27,7 @@ func customerUsageWindow() (time.Time, time.Time) {
 	return end.Add(-time.Hour), end
 }
 
-func TestCustomerUsageSnapshotTransactionsSummaryAndAdjustments(t *testing.T) {
+func TestCustomerUsageSnapshotTransactionsAndSummary(t *testing.T) {
 	setupUsageDB(t)
 	start, end := customerUsageWindow()
 	if err := model.DB.Create(&model.User{Id: 1842, Username: "acme@example.com", DisplayName: "Acme AI", Status: common.UserStatusEnabled}).Error; err != nil {
@@ -42,9 +41,6 @@ func TestCustomerUsageSnapshotTransactionsSummaryAndAdjustments(t *testing.T) {
 	seedUsageLog(t, &model.Log{UserId: 1842, ChannelId: 302, TokenId: 88, TokenName: "acme-production", ModelName: "gpt-4o", PromptTokens: 1, CompletionTokens: 2, Quota: 30, CreatedAt: start.Add(10 * time.Minute).Unix(), Other: `{}`})
 	seedUsageLog(t, &model.Log{UserId: 1843, ChannelId: 302, TokenId: 99, ModelName: "gpt-4o", PromptTokens: 99, CompletionTokens: 99, Quota: 999, CreatedAt: start.Add(8 * time.Minute).Unix(), Other: `{}`})
 	seedUsageLog(t, &model.Log{UserId: 1842, Type: model.LogTypeRefund, ChannelId: 302, Quota: -6150, CreatedAt: start.Add(15 * time.Minute).Unix(), Other: `{"task_id":"legacy-refund"}`})
-	if err := model.CreateCustomerUsageAdjustment(&model.CustomerUsageAdjustment{AdjustmentID: "refund:task_8c6", CustomerID: 1842, EventType: "REFUND", SourceTransactionID: strconv.Itoa(first.Id), AmountDeltaQuota: -6150, ReasonCode: "ASYNC_TASK_FAILED", OccurredAt: start.Add(20 * time.Minute).Unix()}); err != nil {
-		t.Fatal(err)
-	}
 
 	e := customerUsageEngine()
 	window := "start=" + start.Format(time.RFC3339) + "&end=" + end.Format(time.RFC3339)
@@ -84,10 +80,6 @@ func TestCustomerUsageSnapshotTransactionsSummaryAndAdjustments(t *testing.T) {
 		t.Fatalf("summary totals=%v", totals)
 	}
 
-	code, adjustments, body := doUsageGET(t, e, "/usage/customer-adjustments?customer_id=1842&"+window+"&limit=1000")
-	if code != http.StatusOK {
-		t.Fatalf("adjustments status=%d body=%s", code, body)
-	}
 	items := adjustments["adjustments"].([]interface{})
 	if len(items) != 1 || items[0].(map[string]interface{})["adjustment_id"] != "refund:task_8c6" {
 		t.Fatalf("adjustments=%v", adjustments)
