@@ -6707,6 +6707,22 @@
     "Website": "Site web",
     "Website (optional)": "Site web (facultatif)",
     "Honeypot": "Honeypot",
-    "Include disabled users": "Inclure les utilisateurs désactivés"
+    "Include disabled users": "Inclure les utilisateurs désactivés",
+    "Codex Identity": "Identité Codex",
+    "Save Codex identity settings": "Enregistrer les paramètres d'identité Codex",
+    "Codex User-Agent override": "Remplacement du User-Agent Codex",
+    "Optional canonical Codex CLI User-Agent suffix. The version is rebuilt from the effective client version.": "Suffixe User-Agent canonique optionnel pour Codex CLI. La version est reconstruite à partir de la version effective du client.",
+    "Manual Codex client version": "Version manuelle du client Codex",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "La version manuelle prévaut sur les versions synchronisées. Les versions inférieures à 0.144.0 ou les valeurs invalides reviennent à la version sûre intégrée.",
+    "Synced Codex client version": "Version synchronisée du client Codex",
+    "Read-only latest stable official release captured by the automatic sync.": "Dernière version officielle stable capturée par la synchronisation automatique, en lecture seule.",
+    "Last Codex version sync": "Dernière synchronisation de version Codex",
+    "Automatic release checks run every six hours.": "Les vérifications automatiques des versions s’exécutent toutes les six heures.",
+    "Auto-sync Codex client version": "Synchroniser automatiquement la version du client Codex",
+    "Keep the synced version current from official stable releases.": "Maintenir la version synchronisée à jour depuis les versions officielles stables.",
+    "Enforce Codex client identity": "Appliquer l’identité du client Codex",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Interrupteur d’urgence. Désactivez-le uniquement pour revenir sur l’application de l’identité sortante canonique.",
+    "Deployment namespace required": "Espace de noms de déploiement requis",
+    "Set CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE consistently on console and router replicas before using full convergence in production.": "Définissez CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE de façon cohérente sur les réplicas console et routeur avant d’utiliser la convergence complète en production."
   }
 }

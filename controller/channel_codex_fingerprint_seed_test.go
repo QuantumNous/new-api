@@ -150,3 +150,32 @@ func TestCodexSeedCannotBeSuppliedOrSerialized(t *testing.T) {
 	require.NotContains(t, string(payload), "codex_fingerprint_seed")
 	require.NotContains(t, string(payload), stored.CodexFingerprintSeed)
 }
+
+func TestAddCodexChannelDefaultsFingerprintModeToFull(t *testing.T) {
+	setupChannelCodexFingerprintSeedTestDB(t)
+
+	ctx, recorder := newChannelSeedJSONContext(http.MethodPost, "/api/channel", codexChannelCreateBody(""))
+	AddChannel(ctx)
+	requireChannelSeedAPIStatus(t, recorder)
+
+	var defaulted model.Channel
+	require.NoError(t, model.DB.First(&defaulted, "type = ?", constant.ChannelTypeCodex).Error)
+	require.Equal(t, "full", defaulted.GetSetting().CodexFingerprintMode)
+
+	ctx, recorder = newChannelSeedJSONContext(http.MethodPost, "/api/channel", codexChannelCreateBody(`"setting":"{\"codex_fingerprint_mode\":\"session\"}"`))
+	AddChannel(ctx)
+	requireChannelSeedAPIStatus(t, recorder)
+
+	var explicit model.Channel
+	require.NoError(t, model.DB.Order("id DESC").First(&explicit, "type = ?", constant.ChannelTypeCodex).Error)
+	require.Equal(t, "session", explicit.GetSetting().CodexFingerprintMode)
+
+	openAIBody := `{"mode":"single","channel":{"type":` + strconv.Itoa(constant.ChannelTypeOpenAI) + `,"key":"sk-test","name":"openai","status":1,"models":"gpt-4o","group":"default"}}`
+	ctx, recorder = newChannelSeedJSONContext(http.MethodPost, "/api/channel", openAIBody)
+	AddChannel(ctx)
+	requireChannelSeedAPIStatus(t, recorder)
+
+	var nonCodex model.Channel
+	require.NoError(t, model.DB.First(&nonCodex, "type = ?", constant.ChannelTypeOpenAI).Error)
+	require.Empty(t, nonCodex.GetSetting().CodexFingerprintMode)
+}

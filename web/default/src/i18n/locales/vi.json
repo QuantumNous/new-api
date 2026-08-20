@@ -6707,6 +6707,22 @@
     "Website": "Trang web",
     "Website (optional)": "Trang web (tùy chọn)",
     "Honeypot": "Honeypot",
-    "Include disabled users": "Bao gồm người dùng bị vô hiệu hóa"
+    "Include disabled users": "Bao gồm người dùng bị vô hiệu hóa",
+    "Codex Identity": "Danh tính Codex",
+    "Save Codex identity settings": "Lưu cài đặt danh tính Codex",
+    "Codex User-Agent override": "Ghi đè User-Agent Codex",
+    "Optional canonical Codex CLI User-Agent suffix. The version is rebuilt from the effective client version.": "Hậu tố User-Agent chuẩn của Codex CLI, không bắt buộc. Phiên bản được dựng lại từ phiên bản client hiệu lực.",
+    "Manual Codex client version": "Phiên bản client Codex thủ công",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "Phiên bản thủ công ưu tiên hơn bản phát hành đã đồng bộ. Phiên bản dưới 0.144.0 hoặc giá trị không hợp lệ sẽ dùng phiên bản an toàn tích hợp.",
+    "Synced Codex client version": "Phiên bản client Codex đã đồng bộ",
+    "Read-only latest stable official release captured by the automatic sync.": "Bản phát hành chính thức ổn định mới nhất do tự động đồng bộ ghi nhận, chỉ đọc.",
+    "Last Codex version sync": "Lần đồng bộ phiên bản Codex gần nhất",
+    "Automatic release checks run every six hours.": "Kiểm tra bản phát hành tự động chạy sáu giờ một lần.",
+    "Auto-sync Codex client version": "Tự động đồng bộ phiên bản client Codex",
+    "Keep the synced version current from official stable releases.": "Giữ phiên bản đã đồng bộ cập nhật theo các bản phát hành chính thức ổn định.",
+    "Enforce Codex client identity": "Bắt buộc danh tính client Codex",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Công tắc khẩn cấp. Chỉ tắt để hoàn tác việc bắt buộc danh tính gửi ra chuẩn.",
+    "Deployment namespace required": "Cần namespace triển khai",
+    "Set CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE consistently on console and router replicas before using full convergence in production.": "Đặt CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE nhất quán trên các bản sao console và router trước khi dùng hội tụ đầy đủ trong production."
   }
 }

@@ -131,6 +131,7 @@ import {
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  buildNewChannelFormDefaults,
   BLOCKRUN_BASE_API_URL,
   BLOCKRUN_SOLANA_API_URL,
   inspectSolanaPrivateKey,
@@ -614,7 +615,7 @@ export function ChannelMutateDrawer({
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
     } else if (!isEditing) {
-      form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      form.reset(buildNewChannelFormDefaults())
       setAdvancedSettingsOpen(false)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
@@ -628,6 +629,18 @@ export function ChannelMutateDrawer({
 
     if (currentType === 112 && multiKeyMode !== 'single') {
       form.setValue('multi_key_mode', 'single')
+    }
+
+    if (
+      currentType === 57 &&
+      form.getValues('codex_fingerprint_mode') === 'off'
+    ) {
+      form.setValue('codex_fingerprint_mode', 'full')
+    } else if (
+      currentType !== 57 &&
+      form.getValues('codex_fingerprint_mode') === 'full'
+    ) {
+      form.setValue('codex_fingerprint_mode', 'off')
     }
 
     // Type 45 (VolcEngine) - set default base_url
@@ -1141,7 +1154,7 @@ export function ChannelMutateDrawer({
     (v: boolean) => {
       onOpenChange(v)
       if (!v) {
-        form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+        form.reset(buildNewChannelFormDefaults())
         setAdvancedSettingsOpen(false)
         // Clear Grok sensitive/transient state on close: the refresh-token
         // plaintext must never linger in memory (design §14: clear sensitive

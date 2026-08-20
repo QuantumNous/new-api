@@ -6707,6 +6707,22 @@
     "Website": "网站",
     "Website (optional)": "网站（选填）",
     "Honeypot": "蜜罐",
-    "Include disabled users": "包含禁用用户"
+    "Include disabled users": "包含禁用用户",
+    "Codex Identity": "Codex 身份",
+    "Save Codex identity settings": "保存 Codex 身份设置",
+    "Codex User-Agent override": "Codex User-Agent 覆盖",
+    "Optional canonical Codex CLI User-Agent suffix. The version is rebuilt from the effective client version.": "可选的规范 Codex CLI User-Agent 后缀。版本号会根据最终生效的客户端版本重建。",
+    "Manual Codex client version": "手动 Codex 客户端版本",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "手动版本优先于同步版本。低于 0.144.0 或无效的值会回退到内置安全版本。",
+    "Synced Codex client version": "已同步的 Codex 客户端版本",
+    "Read-only latest stable official release captured by the automatic sync.": "自动同步捕获的最新官方稳定版本，只读。",
+    "Last Codex version sync": "上次 Codex 版本同步",
+    "Automatic release checks run every six hours.": "自动发布检查每六小时运行一次。",
+    "Auto-sync Codex client version": "自动同步 Codex 客户端版本",
+    "Keep the synced version current from official stable releases.": "从官方稳定版本保持同步版本最新。",
+    "Enforce Codex client identity": "强制 Codex 客户端身份",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "紧急熔断开关。仅在回滚规范出站身份强制时关闭。",
+    "Deployment namespace required": "需要部署命名空间",
+    "Set CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE consistently on console and router replicas before using full convergence in production.": "在生产环境使用完整收敛前，请在控制台和路由器副本上一致设置 CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE。"
   }
 }

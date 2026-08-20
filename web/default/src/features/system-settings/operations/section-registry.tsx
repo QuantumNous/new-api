@@ -17,15 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { CodexIdentitySettingsSection } from '../integrations/codex-identity-settings-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
 import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
-import { ChannelConcurrencySection } from './channel-concurrency-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ChannelConcurrencySection } from './channel-concurrency-section'
 
 function displaySMTPFromAliases(value: string): string {
   return value
@@ -104,6 +105,22 @@ const OPERATIONS_SECTIONS = [
             settings['codex_model_governance_setting.official_lifecycle_terms'],
           'codex_model_governance_setting.alert_cooldown_minutes':
             settings['codex_model_governance_setting.alert_cooldown_minutes'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'codex-identity',
+    titleKey: 'Codex Identity',
+    build: (settings: OperationsSettings) => (
+      <CodexIdentitySettingsSection
+        defaultValues={{
+          CodexClientUserAgent: settings.CodexClientUserAgent,
+          CodexClientVersion: settings.CodexClientVersion,
+          CodexSyncedClientVersion: settings.CodexSyncedClientVersion,
+          CodexSyncedClientVersionAt: settings.CodexSyncedClientVersionAt,
+          CodexAutoSyncClientVersion: settings.CodexAutoSyncClientVersion,
+          CodexEnforceClientIdentity: settings.CodexEnforceClientIdentity,
         }}
       />
     ),

@@ -644,6 +644,23 @@ type AddChannelRequest struct {
 	Channel                   *model.Channel        `json:"channel"`
 }
 
+func defaultNewCodexFingerprintMode(channel *model.Channel) {
+	if channel == nil || channel.Type != constant.ChannelTypeCodex {
+		return
+	}
+	if channel.Setting != nil && strings.TrimSpace(*channel.Setting) != "" {
+		var raw map[string]any
+		if err := common.Unmarshal([]byte(*channel.Setting), &raw); err == nil {
+			if _, exists := raw["codex_fingerprint_mode"]; exists {
+				return
+			}
+		}
+	}
+	setting := channel.GetSetting()
+	setting.CodexFingerprintMode = "full"
+	channel.SetSetting(setting)
+}
+
 func getVertexArrayKeys(keys string) ([]string, error) {
 	if keys == "" {
 		return nil, nil
@@ -696,6 +713,7 @@ func AddChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Copilot channels support one credential only"})
 		return
 	}
+	defaultNewCodexFingerprintMode(addChannelRequest.Channel)
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
 	keys := make([]string, 0)

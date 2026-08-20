@@ -6707,6 +6707,22 @@
     "Website": "Веб-сайт",
     "Website (optional)": "Веб-сайт (необязательно)",
     "Honeypot": "Приманка",
-    "Include disabled users": "Включить отключенных пользователей"
+    "Include disabled users": "Включить отключенных пользователей",
+    "Codex Identity": "Идентичность Codex",
+    "Save Codex identity settings": "Сохранить настройки идентичности Codex",
+    "Codex User-Agent override": "Переопределение User-Agent Codex",
+    "Optional canonical Codex CLI User-Agent suffix. The version is rebuilt from the effective client version.": "Необязательный суффикс канонического User-Agent Codex CLI. Версия пересобирается из эффективной версии клиента.",
+    "Manual Codex client version": "Ручная версия клиента Codex",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "Ручная версия имеет приоритет над синхронизированной. Версии ниже 0.144.0 или неверные значения используют встроенную безопасную версию.",
+    "Synced Codex client version": "Синхронизированная версия клиента Codex",
+    "Read-only latest stable official release captured by the automatic sync.": "Последний стабильный официальный релиз, полученный автоматической синхронизацией. Только для чтения.",
+    "Last Codex version sync": "Последняя синхронизация версии Codex",
+    "Automatic release checks run every six hours.": "Автоматическая проверка релизов выполняется каждые шесть часов.",
+    "Auto-sync Codex client version": "Автосинхронизация версии клиента Codex",
+    "Keep the synced version current from official stable releases.": "Поддерживать синхронизированную версию актуальной по официальным стабильным релизам.",
+    "Enforce Codex client identity": "Принудительно применять идентичность клиента Codex",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "Аварийный выключатель. Отключайте только для отката принудительной канонической исходящей идентичности.",
+    "Deployment namespace required": "Требуется пространство имен развертывания",
+    "Set CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE consistently on console and router replicas before using full convergence in production.": "Задайте CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE одинаково на репликах консоли и маршрутизатора перед использованием полной конвергенции в production."
   }
 }

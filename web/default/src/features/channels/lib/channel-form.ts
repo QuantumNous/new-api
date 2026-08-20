@@ -634,6 +634,16 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_ignored_models: '',
 }
 
+export function buildNewChannelFormDefaults(
+  channelType = CHANNEL_FORM_DEFAULT_VALUES.type
+): ChannelFormValues {
+  return {
+    ...CHANNEL_FORM_DEFAULT_VALUES,
+    type: channelType,
+    codex_fingerprint_mode: channelType === 57 ? 'full' : 'off',
+  }
+}
+
 // ============================================================================
 // Transform Functions
 // ============================================================================

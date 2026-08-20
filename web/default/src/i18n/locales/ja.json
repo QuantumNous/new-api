@@ -6707,6 +6707,22 @@
     "Website": "ウェブサイト",
     "Website (optional)": "ウェブサイト（任意）",
     "Honeypot": "ハニーポット",
-    "Include disabled users": "無効なユーザーを含める"
+    "Include disabled users": "無効なユーザーを含める",
+    "Codex Identity": "Codex ID",
+    "Save Codex identity settings": "Codex ID 設定を保存",
+    "Codex User-Agent override": "Codex User-Agent 上書き",
+    "Optional canonical Codex CLI User-Agent suffix. The version is rebuilt from the effective client version.": "任意の正規 Codex CLI User-Agent サフィックスです。バージョンは有効なクライアントバージョンから再構築されます。",
+    "Manual Codex client version": "手動 Codex クライアントバージョン",
+    "Manual version wins over synced releases. Versions below 0.144.0 or invalid values fall back to the built-in safe version.": "手動バージョンは同期されたリリースより優先されます。0.144.0 未満または無効な値は組み込みの安全なバージョンにフォールバックします。",
+    "Synced Codex client version": "同期済み Codex クライアントバージョン",
+    "Read-only latest stable official release captured by the automatic sync.": "自動同期で取得された最新の公式安定版です。読み取り専用です。",
+    "Last Codex version sync": "最後の Codex バージョン同期",
+    "Automatic release checks run every six hours.": "自動リリース確認は 6 時間ごとに実行されます。",
+    "Auto-sync Codex client version": "Codex クライアントバージョンを自動同期",
+    "Keep the synced version current from official stable releases.": "公式安定版から同期バージョンを最新に保ちます。",
+    "Enforce Codex client identity": "Codex クライアント ID を強制",
+    "Emergency kill switch. Disable only to roll back canonical outbound identity enforcement.": "緊急停止スイッチです。正規の送信 ID 強制をロールバックする場合のみ無効にしてください。",
+    "Deployment namespace required": "デプロイ名前空間が必要です",
+    "Set CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE consistently on console and router replicas before using full convergence in production.": "本番で完全収束を使う前に、コンソールとルーターのレプリカで CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE を一貫して設定してください。"
   }
 }
