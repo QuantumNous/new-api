@@ -38,7 +38,7 @@ services:
       # - SESSION_COOKIE_TRUSTED_URL=https://example.com,https://admin.example.com
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       postgres:
         condition: service_healthy
     networks:
@@ -48,6 +48,11 @@ services:
     image: redis:7-alpine
     container_name: new-api-dev-redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - dev-network
 

@@ -12,10 +12,13 @@
 #
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
 
-version: '3.4' # For compatibility with older Docker versions
+version: '2.4' # For compatibility with older Docker versions
 
 services:
   new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: calciumion/new-api:latest
     container_name: new-api
     restart: always
@@ -53,8 +56,10 @@ services:
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
 
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 #      - mysql  # Uncomment if using MySQL
 #      - clickhouse  # Uncomment if using ClickHouse for LOG_SQL_DSN
     networks:
@@ -70,6 +75,11 @@ services:
     container_name: redis
     restart: always
     command: ["redis-server", "--requirepass", "123456"]  # ⚠️ IMPORTANT: Change this password in production!
+    healthcheck:
+      test: ["CMD", "redis-cli", "--requirepass", "123456", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - new-api-network
 
