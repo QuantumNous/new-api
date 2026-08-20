@@ -21,8 +21,6 @@ import (
 
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
-	info.SendResponseCount++
-
 	if info.ContentToReasoningEnabled() {
 		responses, err := info.TransformContentToReasoningStream(data)
 		if err != nil {
@@ -33,6 +31,7 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 			if err != nil {
 				return err
 			}
+			info.SendResponseCount++
 			if err := handleStreamFormat(c, info, string(responseData), forceFormat, false); err != nil {
 				return err
 			}
@@ -40,6 +39,7 @@ func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string
 		return nil
 	}
 
+	info.SendResponseCount++
 	return handleStreamFormat(c, info, data, forceFormat, thinkToContent)
 }
 
