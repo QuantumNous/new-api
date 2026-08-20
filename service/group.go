@@ -40,6 +40,22 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 	return groupsCopy
 }
 
+// GetUserVisibleGroups 返回某用户在分组维度上可见的分组集合。
+// 超级管理员与未登录/游客返回 unrestricted=true（不做分组过滤）；
+// 其余角色返回 unrestricted=false，groups 为 user.Group 经 GetUserUsableGroups
+// 展开后的分组名集合，该集合恒包含用户自身分组（fail-closed 的下界）。
+func GetUserVisibleGroups(role int, userGroup string) (groups []string, unrestricted bool) {
+	if role >= common.RoleRootUser || role < common.RoleCommonUser {
+		return nil, true
+	}
+	usable := GetUserUsableGroups(userGroup)
+	groups = make([]string, 0, len(usable))
+	for name := range usable {
+		groups = append(groups, name)
+	}
+	return groups, false
+}
+
 func GroupInUserUsableGroups(userGroup, groupName string) bool {
 	_, ok := GetUserUsableGroups(userGroup)[groupName]
 	return ok
