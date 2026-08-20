@@ -513,58 +513,6 @@ export function SubscriptionsMutateDrawer({
                     <p className='text-destructive text-sm'>{tierRankError}</p>
                   ) : null}
                 </FormItem>
-
-                <FormField
-                  control={form.control}
-                  name='window_5h_amount'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('5-hour window limit')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='number'
-                          min={0}
-                          onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
-                          }
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          '0 disables this window limit. The value is converted to quota units when saved.'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name='window_week_amount'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('7-day window limit')}</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type='number'
-                          min={0}
-                          onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
-                          }
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {t(
-                          '0 disables this window limit. The value is converted to quota units when saved.'
-                        )}
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
 
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>

@@ -29,6 +29,22 @@ import {
 const t = ((key: string) => key) as TFunction
 
 describe('subscription plan local price form fields', () => {
+  test('omits retired short-window quotas while preserving monthly and media quotas', () => {
+    const payload = formValuesToPlanPayload({
+      ...PLAN_FORM_DEFAULTS,
+      title: 'Monthly media plan',
+      total_amount: 12.5,
+      media_credits_monthly: 300,
+      window_5h_amount: 1.25,
+      window_week_amount: 7.5,
+    })
+
+    expect(payload.plan).not.toHaveProperty('window_5h_amount')
+    expect(payload.plan).not.toHaveProperty('window_week_amount')
+    expect(payload.plan.total_amount).toBe(6250000)
+    expect(payload.plan.media_credits_monthly).toBe(300)
+  })
+
   test('serializes blank Pix and UPI local prices as null', () => {
     const payload = formValuesToPlanPayload({
       ...PLAN_FORM_DEFAULTS,
