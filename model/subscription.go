@@ -736,6 +736,11 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			entitlementPlan = plan
 			logPlanTitle = plan.Title
 		}
+		// Serialize per-user purchase-limit checks across different orders.
+		var userRow User
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
+			return err
+		}
 		subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, entitlementPlan, "order")
 		if err != nil {
 			return err

@@ -64,14 +64,23 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup())})
 		return
 	}
+	if req.Amount > 10000 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量不能大于 10000"})
+		return
+	}
 	id := c.GetInt("id")
 	group, err := model.GetUserGroup(id, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
+	if rejectInvalidCreditedQuota(c, id, getStripeCreditedQuota(req.Amount, group)) {
+		return
+	}
+
 	quote := getStripeWalletQuote(req.Amount, group)
 	if quote.Amount.LessThanOrEqual(decimal.NewFromFloat(0.01)) {
+
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
 	}
@@ -109,6 +118,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	id := c.GetInt("id")
 	user, err := model.GetUserById(id, false)
 	if err != nil || user == nil {
+
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 获取充值用户失败 user_id=%d error=%q", id, func() string {
 			if err == nil {
 				return "user not found"
@@ -119,9 +129,14 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
+	if rejectInvalidCreditedQuota(c, id, getStripeCreditedQuota(req.Amount, user.Group)) {
+		return
+	}
+
 	quote := getStripeWalletQuote(req.Amount, user.Group)
 	if quote.Amount.LessThanOrEqual(decimal.NewFromFloat(0.01)) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
+
 		return
 	}
 
@@ -473,8 +488,19 @@ func genStripeCheckoutSession(referenceID string, bindingToken string, customerI
 	return createStripeCheckoutSession(params)
 }
 
+func getStripeCreditedQuota(amount int64, group string) decimal.Decimal {
+	ratio := common.GetTopupGroupRatio(group)
+	if ratio == 0 {
+		ratio = 1
+	}
+	return decimal.NewFromInt(amount).
+		Mul(decimal.NewFromFloat(ratio)).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+}
+
 func getStripeWalletQuote(amount int64, group string) stripeWalletQuote {
 	dAmount := decimal.NewFromInt(amount)
+
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
 	}

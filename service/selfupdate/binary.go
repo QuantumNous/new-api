@@ -17,25 +17,15 @@ import (
 // lookupExecutable is os.Executable; overridable in tests.
 var lookupExecutable = os.Executable
 
-// SelectBinaryAsset picks the binary asset and optional checksum asset for the
-// given GOOS/GOARCH from a release asset list.
-//
-// Asset naming rules (QuantumNous/new-api releases):
-//   - windows/amd64: name ends with ".exe" or contains "windows"
-//   - darwin/*:      contains "macos" or "darwin"
-//   - linux/arm64:   contains "arm64"
-//   - linux/amd64:   matches "new-api-v*" without arm64/macos/windows/.exe,
-//     OR contains "linux" and not arm64
-//
-// Checksum file: prefer "checksums-{goos}.txt"; also accept "checksums.txt".
-// If a checksum asset exists for this platform, it is required; if none at all
-// exists, checksum is nil.  Callers that receive a nil checksum asset should
-// note that verification is skipped; ApplyBinaryUpdate treats it as an error.
+// SelectBinaryAsset picks a conservatively classified binary asset and optional
+// checksum asset for GOOS/GOARCH. Update paths must use
+// SelectReleaseBinaryAsset so the selected asset is also bound to its release
+// tag and has a safe basename.
 func SelectBinaryAsset(assets []Asset, goos, goarch string) (binary *Asset, checksum *Asset, err error) {
+	bestRank := -1
 	for i := range assets {
 		a := &assets[i]
-		name := a.Name
-		lower := strings.ToLower(name)
+		lower := strings.ToLower(a.Name)
 
 		// Skip non-binary assets (checksum files, text files, etc.).
 		if strings.HasSuffix(lower, ".txt") || strings.HasSuffix(lower, ".md") {
@@ -52,28 +42,70 @@ func SelectBinaryAsset(assets []Asset, goos, goarch string) (binary *Asset, chec
 				binary = a
 			}
 		case "linux":
-			if goarch == "arm64" {
-				if strings.Contains(lower, "arm64") {
-					binary = a
-				}
-			} else {
-				// amd64: must not contain arm64/macos/darwin/windows/.exe
-				if strings.Contains(lower, "arm64") ||
-					strings.Contains(lower, "macos") ||
-					strings.Contains(lower, "darwin") ||
-					strings.Contains(lower, "windows") ||
-					strings.HasSuffix(lower, ".exe") {
-					continue
-				}
-				// Match "new-api-v*" pattern or name containing "linux"
-				if strings.HasPrefix(lower, "new-api-v") || strings.Contains(lower, "linux") {
-					binary = a
-				}
+			if strings.Contains(lower, "macos") ||
+				strings.Contains(lower, "darwin") ||
+				strings.Contains(lower, "windows") ||
+				strings.HasSuffix(lower, ".exe") {
+				continue
+			}
+			rank, ok := linuxBinaryAssetRank(lower, goarch)
+			if ok && rank > bestRank {
+				binary = a
+				bestRank = rank
 			}
 		}
 	}
 
-	// Collect checksum candidates.
+	checksum = selectChecksumAsset(assets, goos)
+	if binary == nil {
+		return nil, nil, fmt.Errorf("no binary asset found for %s/%s", goos, goarch)
+	}
+	return binary, checksum, nil
+}
+
+// SelectReleaseBinaryAsset selects a binary whose filename exactly matches the
+// project's supported release naming scheme for TagName. It rejects ambiguous
+// candidates rather than letting release asset order decide which executable is
+// installed.
+func SelectReleaseBinaryAsset(rel *ReleaseInfo, goos, goarch string) (binary *Asset, checksum *Asset, err error) {
+	if rel == nil {
+		return nil, nil, fmt.Errorf("release information is required")
+	}
+	if !isSafeReleaseTag(rel.TagName) {
+		return nil, nil, fmt.Errorf("release tag is invalid")
+	}
+	candidates, err := releaseBinaryAssetNames(rel.TagName, goos, goarch)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, candidate := range candidates {
+		for i := range rel.Assets {
+			a := &rel.Assets[i]
+			if a.Name != candidate {
+				continue
+			}
+			if !isSafeAssetBasename(a.Name) {
+				return nil, nil, fmt.Errorf("release binary asset name %q is unsafe", a.Name)
+			}
+			if binary != nil {
+				return nil, nil, fmt.Errorf("multiple binary assets match release %q for %s/%s", rel.TagName, goos, goarch)
+			}
+			binary = a
+		}
+		if binary != nil {
+			break
+		}
+	}
+
+	checksum = selectChecksumAsset(rel.Assets, goos)
+	if binary == nil {
+		return nil, checksum, fmt.Errorf("no binary asset found for %s/%s", goos, goarch)
+	}
+	return binary, checksum, nil
+}
+
+func selectChecksumAsset(assets []Asset, goos string) *Asset {
 	platformKey := map[string]string{
 		"linux":   "checksums-linux.txt",
 		"darwin":  "checksums-macos.txt",
@@ -91,15 +123,150 @@ func SelectBinaryAsset(assets []Asset, goos, goarch string) (binary *Asset, chec
 		}
 	}
 	if platformSum != nil {
-		checksum = platformSum
-	} else if genericSum != nil {
-		checksum = genericSum
+		return platformSum
 	}
+	return genericSum
+}
 
-	if binary == nil {
-		return nil, nil, fmt.Errorf("no binary asset found for %s/%s", goos, goarch)
+func linuxBinaryAssetRank(name, goarch string) (int, bool) {
+	if goarch == "amd64" {
+		if tag, ok := releaseTagAfterPrefix(name, "new-api-"); ok && !isExplicitLinuxArchitectureAsset(tag) {
+			return 3, true
+		}
 	}
-	return binary, checksum, nil
+	for _, alias := range linuxAliasesForGOARCH(goarch) {
+		if _, ok := releaseTagAfterPrefix(name, "new-api-"+alias+"-"); ok {
+			return 2, true
+		}
+		if _, ok := releaseTagAfterPrefix(name, "new-api-linux-"+alias+"-"); ok {
+			return 2, true
+		}
+	}
+	return 0, false
+}
+
+func isExplicitLinuxArchitectureAsset(value string) bool {
+	for _, token := range strings.FieldsFunc(value, func(r rune) bool {
+		return r == '-' || r == '.' || r == '_'
+	}) {
+		if linuxArchitectureToken(token) {
+			return true
+		}
+	}
+	return false
+}
+
+func linuxArchitectureToken(token string) bool {
+	switch token {
+	case "386", "i386", "i486", "i586", "i686", "x86", "x64", "amd64", "x86_64",
+		"arm", "armv5", "armv6", "armv7", "armhf", "arm64", "aarch64", "arm64v8",
+		"loong64", "loongarch64", "mips", "mipsle", "mips64", "mips64le", "ppc64",
+		"powerpc64", "ppc64le", "powerpc64le", "riscv64", "s390x":
+		return true
+	}
+	return false
+}
+
+func releaseBinaryAssetNames(releaseTag, goos, goarch string) ([]string, error) {
+	switch goos {
+	case "linux":
+		return linuxReleaseBinaryNames(releaseTag, goarch), nil
+	case "darwin":
+		if goarch != "amd64" {
+			return nil, fmt.Errorf("no supported release asset naming for %s/%s", goos, goarch)
+		}
+		return []string{"new-api-macos-" + releaseTag}, nil
+	case "windows":
+		if goarch != "amd64" {
+			return nil, fmt.Errorf("no supported release asset naming for %s/%s", goos, goarch)
+		}
+		return []string{"new-api-" + releaseTag + ".exe"}, nil
+	default:
+		return nil, fmt.Errorf("no supported release asset naming for %s/%s", goos, goarch)
+	}
+}
+
+func linuxReleaseBinaryNames(releaseTag, goarch string) []string {
+	var candidates []string
+	if goarch == "amd64" {
+		candidates = append(candidates, "new-api-"+releaseTag)
+	}
+	for _, alias := range linuxAliasesForGOARCH(goarch) {
+		candidates = append(candidates,
+			"new-api-"+alias+"-"+releaseTag,
+			"new-api-linux-"+alias+"-"+releaseTag,
+		)
+	}
+	return candidates
+}
+
+func isSafeReleaseTag(tag string) bool {
+	if tag == "" || len(tag) > 128 || tag != strings.TrimSpace(tag) {
+		return false
+	}
+	if !isASCIIAlphaNumeric(tag[0]) && tag[0] != '_' {
+		return false
+	}
+	for i := 1; i < len(tag); i++ {
+		if !isASCIIAlphaNumeric(tag[i]) && tag[i] != '_' && tag[i] != '.' && tag[i] != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+func isSafeAssetBasename(name string) bool {
+	if name == "" || name != filepath.Base(name) || strings.ContainsAny(name, "/\\\x00\r\n") || name == "." || name == ".." {
+		return false
+	}
+	return !strings.HasPrefix(name, "..") && !strings.HasSuffix(name, "..")
+}
+
+func releaseTagAfterPrefix(name, prefix string) (string, bool) {
+	if !strings.HasPrefix(name, prefix) {
+		return "", false
+	}
+	tag := strings.TrimPrefix(name, prefix)
+	return tag, isSafeReleaseTag(tag)
+}
+
+func isASCIIAlphaNumeric(value byte) bool {
+	return value >= 'a' && value <= 'z' ||
+		value >= 'A' && value <= 'Z' ||
+		value >= '0' && value <= '9'
+}
+
+func linuxAliasesForGOARCH(goarch string) []string {
+	switch goarch {
+	case "386":
+		return []string{"386", "i386", "i486", "i586", "i686", "x86"}
+	case "amd64":
+		return []string{"amd64", "x86_64", "x86-64", "x64"}
+	case "arm":
+		return []string{"arm", "armv5", "armv6", "armv7", "armhf"}
+	case "arm64":
+		return []string{"arm64", "aarch64", "arm64v8"}
+	case "loong64":
+		return []string{"loong64", "loongarch64"}
+	case "mips":
+		return []string{"mips"}
+	case "mipsle":
+		return []string{"mipsle"}
+	case "mips64":
+		return []string{"mips64"}
+	case "mips64le":
+		return []string{"mips64le"}
+	case "ppc64":
+		return []string{"ppc64", "powerpc64"}
+	case "ppc64le":
+		return []string{"ppc64le", "powerpc64le"}
+	case "riscv64":
+		return []string{"riscv64"}
+	case "s390x":
+		return []string{"s390x"}
+	default:
+		return []string{goarch}
+	}
 }
 
 // ParseChecksumFile scans a sha256sum-style checksum file for fileName and
@@ -136,7 +303,7 @@ func ParseChecksumFile(data []byte, fileName string) (wantHex string, err error)
 //  5. chmod 0755 (Unix)
 //  6. Backup current exe → <exe>.backup; rename new → exe; restore on failure
 func ApplyBinaryUpdate(ctx context.Context, client GitHubClient, rel *ReleaseInfo, goos, goarch string) error {
-	binAsset, sumAsset, err := SelectBinaryAsset(rel.Assets, goos, goarch)
+	binAsset, sumAsset, err := SelectReleaseBinaryAsset(rel, goos, goarch)
 	if err != nil {
 		return fmt.Errorf("asset selection: %w", err)
 	}
