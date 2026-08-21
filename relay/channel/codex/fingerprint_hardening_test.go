@@ -108,6 +108,7 @@ func TestInvalidFullMetadataFailsClosed(t *testing.T) {
 		{name: "scalar metadata", raw: []byte(`{"model":"gpt-5","client_metadata":"opaque"}`)},
 		{name: "excessive nesting", raw: []byte(tooDeep)},
 		{name: "excessive size", raw: []byte(`{"model":"gpt-5","client_metadata":{"session_id":"original-session","padding":"` + strings.Repeat("x", maxCodexMetadataBytes) + `"}}`)},
+		{name: "duplicate metadata keys", raw: []byte(`{"model":"gpt-5","client_metadata":{"session_id":"small"},"client_metadata":{"padding":"` + strings.Repeat("x", maxCodexMetadataBytes) + `"}}`)},
 	}
 
 	for _, tt := range cases {

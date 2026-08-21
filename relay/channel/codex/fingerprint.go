@@ -1,9 +1,12 @@
 package codex
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -382,6 +385,78 @@ func validateFullFingerprintMetadataRaw(raw []byte, compact bool) error {
 	}
 	if exceedsJSONRawDepth([]byte(metadata.Raw), maxCodexMetadataDepth) {
 		return errors.New(prefix + " client_metadata is too deeply nested")
+	}
+	if err := rejectDuplicateJSONKeys(raw); err != nil {
+		return errors.New(prefix + " request contains duplicate or invalid json keys")
+	}
+	return nil
+}
+
+func rejectDuplicateJSONKeys(raw []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	if err := consumeJSONValue(decoder); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		if err == nil {
+			return errors.New("multiple json values")
+		}
+		return err
+	}
+	return nil
+}
+
+func consumeJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delim, ok := token.(json.Delim)
+	if !ok {
+		return nil
+	}
+	switch delim {
+	case '{':
+		seen := make(map[string]struct{})
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return errors.New("json object key is not a string")
+			}
+			if _, exists := seen[key]; exists {
+				return fmt.Errorf("duplicate json key %q", key)
+			}
+			seen[key] = struct{}{}
+			if err := consumeJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		closing, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if closing != json.Delim('}') {
+			return errors.New("json object is not closed")
+		}
+	case '[':
+		for decoder.More() {
+			if err := consumeJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		closing, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if closing != json.Delim(']') {
+			return errors.New("json array is not closed")
+		}
+	case '}', ']':
+		return errors.New("unexpected json closing delimiter")
 	}
 	return nil
 }

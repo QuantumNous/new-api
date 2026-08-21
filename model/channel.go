@@ -1032,7 +1032,7 @@ func EnableChannelByTag(tag string) error {
 	if err != nil {
 		return err
 	}
-	publishChannelsChanged()
+	refreshLocalChannelCacheAndPublishChanged()
 	return nil
 }
 
