@@ -332,13 +332,13 @@ const successColor = computed(() => rateColor(successRate.value))
     </template>
 
     <div
-      class="grid grid-cols-2 content-start gap-3 py-1"
+      class="grid grid-cols-2 content-start gap-2.5 py-0.5 sm:gap-3"
       data-system-status-grid
     >
       <div
         v-for="tile in tiles"
         :key="tile.key"
-        class="group relative flex h-[108px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 py-2.5 transition-colors duration-300 hover:bg-[var(--surface-hover)] sm:h-[116px]"
+        class="group relative flex h-[88px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 pt-2 pb-1.5 transition-colors duration-300 hover:bg-[var(--surface-hover)] sm:h-[92px] sm:py-2"
         data-system-status-tile
         :data-metric="tile.key"
       >
@@ -383,7 +383,7 @@ const successColor = computed(() => rateColor(successRate.value))
 
         <div
           v-if="tile.key === 'cpu'"
-          class="mt-auto flex items-end justify-between gap-2 pt-2"
+          class="mt-auto flex items-end justify-between gap-2 pt-0.5"
           data-cpu-gauge
         >
           <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
@@ -437,8 +437,10 @@ const successColor = computed(() => rateColor(successRate.value))
         </div>
 
         <template v-else-if="tile.key === 'memory'">
-          <p class="mt-auto flex items-baseline gap-1 whitespace-nowrap pt-2">
-            <span class="text-lg font-bold leading-tight tabular-nums">
+          <p class="mt-auto flex items-baseline gap-1 whitespace-nowrap pt-0.5">
+            <span
+              class="text-base font-bold leading-tight tabular-nums sm:text-[17px]"
+            >
               {{ tile.value }}
             </span>
             <span
@@ -449,7 +451,7 @@ const successColor = computed(() => rateColor(successRate.value))
             </span>
           </p>
           <div
-            class="mt-2 grid h-2.5 grid-cols-10 gap-1"
+            class="mt-1.5 grid h-2 grid-cols-10 gap-1"
             data-memory-segments
             aria-hidden="true"
           >
@@ -464,7 +466,7 @@ const successColor = computed(() => rateColor(successRate.value))
 
         <template v-else-if="tile.key === 'bandwidth'">
           <p
-            class="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-2 text-[11px] font-bold leading-tight tabular-nums"
+            class="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-0.5 text-[11px] font-bold leading-tight tabular-nums"
           >
             <template v-if="tile.bandwidth">
               <span
@@ -484,20 +486,20 @@ const successColor = computed(() => rateColor(successRate.value))
             </template>
             <span v-else class="text-[var(--text-tertiary)]">--</span>
           </p>
-          <div v-if="tile.series" class="mt-1" data-bandwidth-sparkline>
+          <div v-if="tile.series" class="mt-0.5" data-bandwidth-sparkline>
             <MiniSparkline
               :points="tile.series.down"
               :secondary="tile.series.up"
               color="var(--glow)"
               secondary-color="var(--accent)"
-              :height="28"
+              :height="22"
             />
           </div>
         </template>
 
         <div
           v-else
-          class="mt-auto flex items-end justify-between gap-1.5 pt-2"
+          class="mt-auto flex items-end justify-between gap-1.5 pt-0.5"
           data-disk-gauge
         >
           <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
@@ -517,7 +519,7 @@ const successColor = computed(() => rateColor(successRate.value))
           <MiniRing
             :percent="tile.percent ?? 0"
             :color="tile.color"
-            :size="40"
+            :size="34"
             :indeterminate="tile.percent === null"
           />
         </div>
@@ -525,7 +527,7 @@ const successColor = computed(() => rateColor(successRate.value))
     </div>
 
     <div
-      class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3 text-xs"
+      class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-2 text-[11px] sm:pt-2.5"
     >
       <span class="flex items-center gap-1.5 text-[var(--text-tertiary)]">
         <svg
