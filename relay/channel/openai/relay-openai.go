@@ -144,8 +144,30 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				logger.LogError(c, "error processing stream token data: "+err.Error())
 				sr.Error(err)
 			}
+
+			// Detect upstream business errors embedded in the SSE stream (e.g.
+			// rate_limit_exceeded). When detected before any data has been
+			// sent to the client (SendResponseCount == 0), abort the stream so
+			// the caller can retry with a different channel.
+			if info.SendResponseCount == 0 {
+				if isErr, errMsg := isOpenAITextStreamErrorChunk(data); isErr {
+					logger.LogError(c, "upstream stream returned error before sending data: "+errMsg)
+					sr.Stop(fmt.Errorf("upstream stream error: %s", errMsg))
+					return
+				}
+			}
 		}
 	})
+
+	// Return an error when the stream failed before any data was sent to the
+	// client so the retry loop can fall back to another channel.
+	if info.StreamStatus != nil && !info.StreamStatus.IsNormalEnd() && info.SendResponseCount == 0 {
+		return usage, types.NewOpenAIError(
+			fmt.Errorf("upstream stream failed before sending data: %s", info.StreamStatus.Summary()),
+			types.ErrorCodeBadResponseStatusCode,
+			http.StatusInternalServerError,
+		)
+	}
 
 	// 对音频模型，从倒数第二个stream data中提取usage信息
 	if isAudioModel && secondLastStreamData != "" {
