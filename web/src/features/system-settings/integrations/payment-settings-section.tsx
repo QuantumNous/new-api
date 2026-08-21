@@ -1697,7 +1697,7 @@ export function PaymentSettingsSection({
                     <li>
                       {t('Webhook URL:')}{' '}
                       <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
-                        {'<ServerAddress>/api/user/dogpay/notify'}
+                        {'<ServerAddress>/api/dogpay/webhook'}
                       </code>
                     </li>
                     <li>{t('Configure in your DogPay dashboard')}</li>

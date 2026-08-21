@@ -439,23 +439,21 @@ func GetDogPayCurrencyConfigs(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func DogPayNotify(c *gin.Context) {
+func DogPayWebhook(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.String(http.StatusBadRequest, "failure")
 		return
 	}
-
 	providedSignature := c.GetHeader("wh-signature")
 	if providedSignature == "" {
 		providedSignature = c.GetHeader("X-Webhook-Signature")
 	}
-	if !service.VerifyDogPayWebhookSignature(setting.DogPaySecret, body, providedSignature) {
+	if !service.VerifyDogPayWebhookSignature(setting.DogPayAppId, body, providedSignature) {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("DogPay webhook 验签失败 client_ip=%s", c.ClientIP()))
 		c.String(http.StatusUnauthorized, "failure")
 		return
 	}
-
 	var req DogPayNotifyRequest
 	if err = common.Unmarshal(body, &req); err != nil {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("DogPay webhook JSON 解析失败 client_ip=%s error=%q", c.ClientIP(), err.Error()))

@@ -157,33 +157,40 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
 
 /**
  * Get minimum topup amount from topup info
+ * Returns the minimum value across all enabled payment methods
  */
 export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   if (!topupInfo) {
     return DEFAULT_MIN_TOPUP
   }
 
-  if (topupInfo.enable_online_topup) {
-    return topupInfo.min_topup
+  const candidates: number[] = []
+
+  if (topupInfo.enable_online_topup && topupInfo.min_topup > 0) {
+    candidates.push(topupInfo.min_topup)
   }
 
-  if (topupInfo.enable_stripe_topup) {
-    return topupInfo.stripe_min_topup
+  if (topupInfo.enable_stripe_topup && topupInfo.stripe_min_topup > 0) {
+    candidates.push(topupInfo.stripe_min_topup)
   }
 
-  if (topupInfo.enable_waffo_topup) {
-    return topupInfo.waffo_min_topup || DEFAULT_MIN_TOPUP
+  if (topupInfo.enable_waffo_topup && topupInfo.waffo_min_topup && topupInfo.waffo_min_topup > 0) {
+    candidates.push(topupInfo.waffo_min_topup)
   }
 
-  if (topupInfo.enable_waffo_pancake_topup) {
-    return topupInfo.waffo_pancake_min_topup || DEFAULT_MIN_TOPUP
+  if (topupInfo.enable_waffo_pancake_topup && topupInfo.waffo_pancake_min_topup && topupInfo.waffo_pancake_min_topup > 0) {
+    candidates.push(topupInfo.waffo_pancake_min_topup)
   }
 
-  if (topupInfo.enable_dogpay_topup) {
-    return topupInfo.dogpay_min_topup || DEFAULT_MIN_TOPUP
+  if (topupInfo.enable_dogpay_topup && topupInfo.dogpay_min_topup && topupInfo.dogpay_min_topup > 0) {
+    candidates.push(topupInfo.dogpay_min_topup)
   }
 
-  return DEFAULT_MIN_TOPUP
+  if (candidates.length === 0) {
+    return DEFAULT_MIN_TOPUP
+  }
+
+  return Math.min(...candidates)
 }
 
 /**
