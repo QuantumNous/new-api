@@ -397,7 +397,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
               :class="
                 i === activePreset
                   ? 'bg-[var(--accent-soft)] font-medium text-[var(--accent-text)]'
-                  : 'text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-primary)]'
               "
               @click="applyPreset(p.s, p.e)"
             >
@@ -411,7 +411,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
             <div class="mb-2 flex items-center justify-between px-1">
               <button
                 type="button"
-                class="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring sm:h-7 sm:w-7"
+                class="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-primary)] focus-ring sm:h-7 sm:w-7"
                 :aria-label="t('logs.prevMonth')"
                 @click="shiftAnchor(-1)"
               >
@@ -436,7 +436,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
               </div>
               <button
                 type="button"
-                class="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring sm:h-7 sm:w-7"
+                class="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-primary)] focus-ring sm:h-7 sm:w-7"
                 :aria-label="t('logs.nextMonth')"
                 @click="shiftAnchor(1)"
               >
@@ -486,7 +486,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
                         ? 'font-semibold'
                         : inRange(c.key)
                           ? 'bg-[var(--accent-soft)]'
-                          : 'hover:bg-[var(--surface-muted)]',
+                          : 'hover:bg-[var(--state-hover-layer)]',
                     ]"
                     @click="pick(c.key)"
                     @focus="focusKey = c.key"
@@ -523,7 +523,7 @@ function onDayKeydown(event: KeyboardEvent, key: string): void {
               <div class="flex shrink-0 items-center gap-2">
                 <button
                   type="button"
-                  class="rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)] focus-ring"
+                  class="rounded-lg px-3 py-1.5 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-primary)] focus-ring"
                   @click="clear"
                 >
                   {{ t('logs.clear') }}

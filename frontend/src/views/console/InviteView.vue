@@ -10,6 +10,9 @@ import AmountInput from '@/components/common/AmountInput.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
+import ErrorBanner from '@/components/common/ErrorBanner.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
+import SegmentedToggle from '@/components/common/SegmentedToggle.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useInvite } from '@/composables/useInvite'
 import { formatDate, formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
@@ -17,6 +20,7 @@ import { formatDate, formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
 const { t } = useI18n()
 const {
   info,
+  loadError,
   inviteLink,
   transferOpen,
   transferDollars,
@@ -63,13 +67,20 @@ onMounted(load)
             {{ t('invite.heroTotal') }}
           </p>
           <p
-            class="text-3xl font-bold tracking-tight text-[var(--text-primary)]"
+            class="display-number text-3xl tracking-tight text-[var(--text-primary)]"
           >
             {{ info ? formatQuota(info.reward_total) : '--' }}
           </p>
         </div>
       </template>
     </PageHero>
+
+    <ErrorBanner
+      v-if="loadError"
+      class="mt-5"
+      :message="loadError"
+      @retry="load()"
+    />
 
     <!-- stat cards -->
     <div class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -169,26 +180,16 @@ onMounted(load)
                 t('invite.people', { count: info?.invited ?? 0 })
               }}</StatusChip>
             </h3>
-            <div class="flex gap-1 rounded-lg bg-[var(--surface-muted)] p-0.5">
-              <button
-                v-for="s in ['recent', 'early'] as SortMode[]"
-                :key="s"
-                type="button"
-                class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
-                :style="
-                  sort === s
-                    ? 'background:var(--surface-solid);color:var(--text-primary)'
-                    : 'color:var(--text-tertiary)'
-                "
-                @click="sort = s"
-              >
-                {{
-                  s === 'recent'
-                    ? t('invite.sortRecent')
-                    : t('invite.sortEarly')
-                }}
-              </button>
-            </div>
+            <SegmentedToggle
+              :model-value="sort"
+              size="sm"
+              :options="[
+                { value: 'recent', label: t('invite.sortRecent') },
+                { value: 'early', label: t('invite.sortEarly') },
+              ]"
+              :label="t('invite.invitees')"
+              @update:model-value="sort = $event as SortMode"
+            />
           </div>
 
           <ul
@@ -242,10 +243,7 @@ onMounted(load)
     <!-- chart + reward balance -->
     <div class="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
       <InviteMonthChart v-if="info" :series="info.monthly_series" />
-      <div
-        v-else
-        class="h-72 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-      />
+      <SkeletonBlock v-else class="h-72" />
 
       <InviteRewardCard
         v-if="info"
@@ -256,10 +254,7 @@ onMounted(load)
         :readonly="readOnly"
         @transfer="transferOpen = true"
       />
-      <div
-        v-else
-        class="h-72 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-      />
+      <SkeletonBlock v-else class="h-72" />
     </div>
 
     <!-- how it works -->

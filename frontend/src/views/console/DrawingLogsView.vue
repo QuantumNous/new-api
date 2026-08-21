@@ -12,6 +12,7 @@ import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
@@ -280,10 +281,12 @@ async function copyResultUrl(row: DrawingLogItem): Promise<void> {
     <!-- mobile cards -->
     <section class="lg:hidden" :aria-label="t('relayLogs.drawingBreadcrumb')">
       <div v-if="loading" class="space-y-3" aria-busy="true">
-        <div
+        <SkeletonBlock
           v-for="index in Math.min(pageSize, 5)"
           :key="index"
-          class="h-36 animate-pulse rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+          bordered
+          rounded="xl"
+          class="h-36"
         />
       </div>
 

@@ -21,8 +21,11 @@ const props = withDefaults(
 )
 
 const classes = computed(() => {
-  const base =
-    'pencil-control inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all focus-ring disabled:cursor-not-allowed disabled:opacity-50'
+  // stamp opts out of pencil-control: that utility forces sketch radii and
+  // shadows with !important, which would erase the seal geometry below.
+  const base = `${
+    props.variant === 'stamp' ? '' : 'pencil-control '
+  }inline-flex items-center justify-center gap-2 whitespace-nowrap font-semibold transition-all focus-ring disabled:cursor-not-allowed disabled:opacity-50`
   const sizes = {
     sm: 'h-8 px-3 text-xs',
     md: 'h-10 px-4 text-sm',
@@ -34,26 +37,22 @@ const classes = computed(() => {
       'sketch-sm bg-[var(--accent)] text-[var(--accent-contrast)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] shadow-[var(--button-shadow)] hover:shadow-[var(--button-shadow-hover)]',
     // Outlined: 1.5px border, hand-drawn radius, paper-surface fill
     secondary:
-      'sketch-sm border-[length:var(--sketch-border-width)] border-[var(--border-default)] bg-[var(--surface-solid)] text-[var(--text-primary)] hover:bg-[var(--surface-muted)] hover:border-[var(--border-strong)]',
+      'sketch-sm border-[length:var(--sketch-border-width)] border-[var(--border-default)] bg-[var(--surface-solid)] text-[var(--text-primary)] hover:bg-[var(--state-hover-layer)] active:bg-[var(--state-press-layer)] hover:border-[var(--border-strong)]',
     // Danger: rust-red fill, text-inverse holds contrast in both themes
     danger:
-      'sketch-sm bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-90',
+      'sketch-sm bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-90 active:opacity-80',
     // Ghost: brush-highlight appears on hover via group/pseudo approach
     ghost:
-      'sketch-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]',
+      'sketch-sm text-[var(--text-secondary)] hover:bg-[var(--state-hover-layer)] active:bg-[var(--state-press-layer)] hover:text-[var(--text-primary)]',
     // Stamp: vermilion-ink seal style for special actions. Geometry stays fixed.
     stamp:
-      'bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-90 shadow-[var(--stamp-shadow)]',
+      'rounded-[4px_6px_5px_5px/5px_4px_6px_4px] bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-90 active:opacity-80 shadow-[var(--stamp-shadow)]',
   }
-  // stamp uses its own border-radius (more square, seal-like)
-  const radiusOverride =
-    props.variant === 'stamp' ? 'rounded-[4px_6px_5px_5px/5px_4px_6px_4px]' : ''
 
   return [
     base,
     sizes[props.size],
     variants[props.variant],
-    radiusOverride,
     props.block ? 'w-full' : '',
   ]
     .filter(Boolean)

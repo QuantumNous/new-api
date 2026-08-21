@@ -4,8 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 import { ApiError } from '@/api/types'
-import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import PageHero from '@/components/console/PageHero.vue'
+import StatTileGrid from '@/components/common/StatTileGrid.vue'
 import FlowChart from '@/components/console/wallet/FlowChart.vue'
 import RedeemPanel from '@/components/console/wallet/RedeemPanel.vue'
 import TopupPanel from '@/components/console/wallet/TopupPanel.vue'
@@ -13,13 +13,14 @@ import TopupRecords from '@/components/console/wallet/TopupRecords.vue'
 import type { DashboardStats, FlowPoint } from '@/composables/useDashboard'
 import {
   fetchSelfUsage,
+  getLocalDayStartTimestamp,
   getLocalMonthStartTimestamp,
   useBalanceVisibility,
 } from '@/composables/useDashboard'
 import { useLatestRequest } from '@/composables/useLatestRequest'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
+import { formatNumber, formatQuota, QUOTA_PER_DOLLAR } from '@/utils/format'
 
 type WalletStats = DashboardStats
 
@@ -31,6 +32,7 @@ const { hidden, toggle } = useBalanceVisibility()
 
 const stats = ref<WalletStats | null>(null)
 const flow = ref<FlowPoint[]>([])
+const todayConsume = ref(0)
 const refreshKey = ref(0)
 const paymentMethod = ref('epay')
 const loading = ref(false)
@@ -69,6 +71,16 @@ const statCards = computed(() => {
       value: formatQuota(average),
       sub: t('wallet.statDailyAvgSub', { days: dayCount.value }),
     },
+    {
+      label: t('wallet.statTodayConsume'),
+      value: formatQuota(todayConsume.value),
+      sub: t('wallet.statTodayConsumeSub'),
+    },
+    {
+      label: t('wallet.statMonthRequests'),
+      value: formatNumber(current.total_requests),
+      sub: t('wallet.statMonthRequestsSub'),
+    },
   ]
 })
 
@@ -91,10 +103,14 @@ async function loadStats(): Promise<void> {
   }
   const rows = result.value
   const monthQuota = rows.reduce((sum, row) => sum + row.quota, 0)
+  const todayStart = getLocalDayStartTimestamp()
+  todayConsume.value = rows
+    .filter((row) => row.created_at >= todayStart)
+    .reduce((sum, row) => sum + row.quota, 0)
   const byDay = new Map<string, FlowPoint>()
   for (const row of rows) {
     const date = new Date(row.created_at * 1000).toISOString().slice(0, 10)
-    const point = byDay.get(date) ?? { date, consume: 0, requests: 0, topup: 0 }
+    const point = byDay.get(date) ?? { date, consume: 0, requests: 0 }
     point.consume += row.quota
     point.requests += row.count
     byDay.set(date, point)
@@ -131,12 +147,12 @@ onMounted(() => void loadStats())
         <div class="flex items-center gap-3" :aria-busy="loading">
           <p class="font-mono tracking-tight text-[var(--text-primary)]">
             <span class="text-lg text-[var(--text-tertiary)]">$</span>
-            <span class="text-5xl font-bold">
+            <span class="display-number text-5xl">
               {{ hidden ? '••••••' : stats ? balanceDollars : '—' }}
             </span>
             <span
               v-if="!hidden && stats"
-              class="text-xl text-[var(--text-secondary)]"
+              class="display-number text-xl text-[var(--text-secondary)]"
             >
               .{{ balanceCents }}
             </span>
@@ -172,23 +188,7 @@ onMounted(() => void loadStats())
       </template>
     </PageHero>
 
-    <ConsoleCard :padded="false" class="mb-6">
-      <div
-        class="grid grid-cols-2 divide-x divide-y divide-[var(--border-subtle)] lg:grid-cols-4 lg:divide-y-0"
-      >
-        <div v-for="card in statCards" :key="card.label" class="px-5 py-4">
-          <p class="text-xs text-[var(--text-tertiary)]">{{ card.label }}</p>
-          <p
-            class="mt-1 text-2xl font-bold tabular-nums text-[var(--text-primary)]"
-          >
-            {{ card.value }}
-          </p>
-          <p class="mt-0.5 text-xs text-[var(--text-tertiary)]">
-            {{ card.sub }}
-          </p>
-        </div>
-      </div>
-    </ConsoleCard>
+    <StatTileGrid class="mb-6" :tiles="statCards" :columns="4" />
 
     <div class="mb-6 grid gap-6 xl:grid-cols-[1fr_380px]">
       <TopupPanel

@@ -30,8 +30,8 @@ const palette = {
 } as unknown as ChartPalette
 
 const flow: FlowPoint[] = [
-  { date: '07-26', consume: 500_000, requests: 10, topup: 0 },
-  { date: '07-27', consume: 1_000_000, requests: 20, topup: 0 },
+  { date: '07-26', consume: 500_000, requests: 10 },
+  { date: '07-27', consume: 1_000_000, requests: 20 },
 ]
 
 beforeAll(async () => {

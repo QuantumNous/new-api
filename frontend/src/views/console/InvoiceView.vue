@@ -8,6 +8,7 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import FormField from '@/components/common/FormField.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
 import TextInput from '@/components/common/TextInput.vue'
@@ -209,32 +210,55 @@ onMounted(() => {
             />
           </FormField>
 
-          <!-- Submit -->
-          <ConsoleButton
-            type="submit"
-            size="lg"
-            block
-            disabled
-            aria-describedby="invoice-contact-owner-note"
-            :title="t('invoice.contactOwner')"
-          >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-              class="shrink-0"
+          <!-- Submit: online submission stays fail-closed until the backend
+               ships /api/invoice/apply; the reason must stay visible here. -->
+          <div class="space-y-3">
+            <p
+              id="invoice-submit-note"
+              class="flex items-start gap-2 text-xs leading-5 text-[var(--status-info-text)]"
             >
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <path d="m9 11 3 3L22 4" />
-            </svg>
-            {{ t('invoice.submit') }}
-          </ConsoleButton>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                class="mt-0.5 shrink-0"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+              {{ t('invoice.submitOfflineNote') }}
+            </p>
+            <ConsoleButton
+              type="submit"
+              size="lg"
+              block
+              disabled
+              aria-describedby="invoice-submit-note"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                class="shrink-0"
+              >
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
+              {{ t('invoice.submit') }}
+            </ConsoleButton>
+          </div>
         </form>
       </ConsoleCard>
 
@@ -249,11 +273,7 @@ onMounted(() => {
 
           <!-- Loading skeleton -->
           <div v-if="loading" class="space-y-3 p-5">
-            <div
-              v-for="i in 3"
-              :key="i"
-              class="h-16 animate-pulse rounded-xl bg-[var(--surface-muted)]"
-            />
+            <SkeletonBlock v-for="i in 3" :key="i" rounded="xl" class="h-16" />
           </div>
 
           <!-- Empty state -->
@@ -269,7 +289,7 @@ onMounted(() => {
             <div
               v-for="inv in invoices"
               :key="inv.id"
-              class="flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-[var(--surface-muted)]"
+              class="flex flex-col gap-2 px-5 py-4 transition-colors hover:bg-[var(--state-hover-layer)]"
             >
               <!-- Title + status -->
               <div class="flex items-start justify-between gap-3">

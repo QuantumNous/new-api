@@ -21,6 +21,7 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import FieldVisibilityMenu from '@/components/common/FieldVisibilityMenu.vue'
 import FilterSelect, {
   type SelectOption,
@@ -29,7 +30,7 @@ import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import Breadcrumb from '@/components/console/Breadcrumb.vue'
+import PageHero from '@/components/console/PageHero.vue'
 import RedemptionCodeCell from '@/components/console/redemption/RedemptionCodeCell.vue'
 import RedemptionGenerateModal from '@/components/console/redemption/RedemptionGenerateModal.vue'
 import RedemptionSuccessModal from '@/components/console/redemption/RedemptionSuccessModal.vue'
@@ -319,45 +320,39 @@ function exportCsv() {
 <template>
   <div>
     <!-- Page header -->
-    <header
-      class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+    <PageHero
+      :title="t('redemption.title')"
+      :crumbs="[t('nav.groupAdmin'), t('nav.redemptionManagement')]"
     >
-      <div class="min-w-0">
-        <Breadcrumb
-          :crumbs="[t('nav.groupAdmin'), t('nav.redemptionManagement')]"
-          spacing="mb-2"
-        />
-        <h1 class="text-2xl font-bold text-[var(--text-primary)]">
-          {{ t('redemption.title') }}
-        </h1>
-        <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
-          {{ t('redemption.resultCount', { count: total }) }}
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <ConsoleButton
-          variant="secondary"
-          :loading="refreshing"
-          :disabled="isCrudBusy || isBulkBusy"
-          @click="load({ background: true })"
-        >
-          <RefreshCw v-if="!refreshing" :size="15" aria-hidden="true" />
-          {{ t('redemption.refreshList') }}
-        </ConsoleButton>
-        <ConsoleButton
-          variant="secondary"
-          :disabled="rows.length === 0"
-          @click="exportCsv"
-        >
-          <Download :size="15" aria-hidden="true" />
-          {{ t('redemption.exportCsv') }}
-        </ConsoleButton>
-        <ConsoleButton :disabled="!canManage" @click="openGenerate">
-          <Plus :size="16" aria-hidden="true" />
-          {{ t('redemption.generateCodes') }}
-        </ConsoleButton>
-      </div>
-    </header>
+      <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
+        {{ t('redemption.resultCount', { count: total }) }}
+      </p>
+      <template #actions>
+        <div class="flex items-center gap-2">
+          <ConsoleButton
+            variant="secondary"
+            :loading="refreshing"
+            :disabled="isCrudBusy || isBulkBusy"
+            @click="load({ background: true })"
+          >
+            <RefreshCw v-if="!refreshing" :size="15" aria-hidden="true" />
+            {{ t('redemption.refreshList') }}
+          </ConsoleButton>
+          <ConsoleButton
+            variant="secondary"
+            :disabled="rows.length === 0"
+            @click="exportCsv"
+          >
+            <Download :size="15" aria-hidden="true" />
+            {{ t('redemption.exportCsv') }}
+          </ConsoleButton>
+          <ConsoleButton :disabled="!canManage" @click="openGenerate">
+            <Plus :size="16" aria-hidden="true" />
+            {{ t('redemption.generateCodes') }}
+          </ConsoleButton>
+        </div>
+      </template>
+    </PageHero>
 
     <ConsoleCard :padded="false">
       <!-- Toolbar -->
@@ -627,12 +622,8 @@ function exportCsv() {
             aria-hidden="true"
           >
             <div v-for="i in 5" :key="i" class="space-y-3 p-4">
-              <div
-                class="h-4 w-1/2 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
-              <div
-                class="h-10 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
+              <SkeletonBlock rounded="md" class="h-4 w-1/2" />
+              <SkeletonBlock rounded="md" class="h-10" />
             </div>
           </div>
           <EmptyState

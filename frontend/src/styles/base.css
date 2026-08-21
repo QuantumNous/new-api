@@ -91,6 +91,19 @@ a {
   outline-offset: 2px;
 }
 
+/* Explicit opt-in class used across interactive components. Mirrors the
+   global :focus-visible contract so the intent survives any future scoping
+   of the global rule; night adds the MD focus halo. */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+html.dark .focus-ring:focus-visible {
+  outline-color: var(--focus-ring);
+  box-shadow: var(--focus-halo);
+}
+
 /* 手账纸纹：AI 和纸 tile（日间）/ 丝绒暗纹（夜间），透明度已烘焙进素材。 */
 .texture-paper {
   background-image: var(--paper-texture-img);

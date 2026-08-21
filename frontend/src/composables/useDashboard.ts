@@ -65,7 +65,6 @@ export interface FlowPoint {
   date: string
   consume: number
   requests: number
-  topup: number
 }
 
 const DAY_SECONDS = 86_400
@@ -238,10 +237,7 @@ export function useDashboard() {
     const modelRows = new Map<string, ModelShare>()
     const dateKeys = recentLocalDateKeys()
     const dayRows = new Map<string, FlowPoint>(
-      dateKeys.map((date) => [
-        date,
-        { date, consume: 0, requests: 0, topup: 0 },
-      ])
+      dateKeys.map((date) => [date, { date, consume: 0, requests: 0 }])
     )
     for (const row of usage) {
       const current = modelRows.get(row.model_name) ?? {

@@ -25,7 +25,7 @@ import SearchInput from '@/components/common/SearchInput.vue'
 import SegmentedToggle from '@/components/common/SegmentedToggle.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import Breadcrumb from '@/components/console/Breadcrumb.vue'
+import PageHero from '@/components/console/PageHero.vue'
 import OrderDetailModal from '@/components/console/orders/OrderDetailModal.vue'
 import {
   getOrderExportValues,
@@ -240,55 +240,49 @@ onBeforeUnmount(() => exportController?.abort())
 
 <template>
   <div>
-    <header
-      class="mb-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+    <PageHero
+      :title="t('orders.title')"
+      :crumbs="[t('nav.groupAdmin'), t('nav.orderManagement')]"
     >
-      <div class="min-w-0">
-        <Breadcrumb
-          :crumbs="[t('nav.groupAdmin'), t('nav.orderManagement')]"
-          spacing="mb-2"
-        />
-        <h1 class="text-2xl font-bold text-[var(--text-primary)]">
-          {{ t('orders.title') }}
-        </h1>
-        <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
-          {{
-            activeTab === 'list'
-              ? t('orders.resultCount', {
-                  count: total,
-                  revenue: formatAdminOrderAmount(filteredEpayRevenue, 'CNY'),
-                })
-              : t('orders.rangeSummary', {
-                  days: range,
-                  revenue: formatAdminOrderAmount(
-                    stats?.total_revenue ?? 0,
-                    'CNY'
-                  ),
-                })
-          }}
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <!-- Export follows the list's filters, so it is only offered there. -->
-        <ConsoleButton
-          v-if="activeTab === 'list'"
-          variant="secondary"
-          :disabled="loading || total === 0"
-          @click="exportOpen = true"
-        >
-          <Download :size="15" />
-          {{ t('orders.export') }}
-        </ConsoleButton>
-        <ConsoleButton
-          variant="secondary"
-          :loading="refreshing || statsRefreshing"
-          @click="refreshAll"
-        >
-          <RefreshCw v-if="!refreshing && !statsRefreshing" :size="15" />
-          {{ t('orders.refresh') }}
-        </ConsoleButton>
-      </div>
-    </header>
+      <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
+        {{
+          activeTab === 'list'
+            ? t('orders.resultCount', {
+                count: total,
+                revenue: formatAdminOrderAmount(filteredEpayRevenue, 'CNY'),
+              })
+            : t('orders.rangeSummary', {
+                days: range,
+                revenue: formatAdminOrderAmount(
+                  stats?.total_revenue ?? 0,
+                  'CNY'
+                ),
+              })
+        }}
+      </p>
+      <template #actions>
+        <div class="flex items-center gap-2">
+          <!-- Export follows the list's filters, so it is only offered there. -->
+          <ConsoleButton
+            v-if="activeTab === 'list'"
+            variant="secondary"
+            :disabled="loading || total === 0"
+            @click="exportOpen = true"
+          >
+            <Download :size="15" />
+            {{ t('orders.export') }}
+          </ConsoleButton>
+          <ConsoleButton
+            variant="secondary"
+            :loading="refreshing || statsRefreshing"
+            @click="refreshAll"
+          >
+            <RefreshCw v-if="!refreshing && !statsRefreshing" :size="15" />
+            {{ t('orders.refresh') }}
+          </ConsoleButton>
+        </div>
+      </template>
+    </PageHero>
 
     <!-- 7/30/90-day range toggle — right-aligned, between header and tabs -->
     <div class="mb-0 flex justify-end">

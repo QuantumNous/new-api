@@ -25,6 +25,7 @@ import ConsoleModal from '@/components/common/ConsoleModal.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import FormField from '@/components/common/FormField.vue'
 import IconButton from '@/components/common/IconButton.vue'
@@ -754,10 +755,12 @@ onBeforeUnmount(() => {
 
     <section class="lg:hidden" :aria-label="t('logs.breadcrumb.1')">
       <div v-if="loading" class="space-y-3" aria-busy="true">
-        <div
+        <SkeletonBlock
           v-for="index in Math.min(pageSize, 5)"
           :key="index"
-          class="h-56 animate-pulse rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+          bordered
+          rounded="xl"
+          class="h-56"
         />
       </div>
 

@@ -71,12 +71,12 @@ function onKeydown(event: KeyboardEvent, index: number) {
       :class="[
         size === 'sm'
           ? 'h-11 px-2.5 text-xs sm:h-8'
-          : 'h-11 px-3.5 text-sm sm:h-9',
+          : 'h-11 px-3.5 text-sm sm:h-10',
         opt.label
           ? ''
           : size === 'sm'
             ? 'w-11 px-0 sm:w-8'
-            : 'w-11 px-0 sm:w-9',
+            : 'w-11 px-0 sm:w-10',
         model === opt.value
           ? 'seg-active text-[var(--text-primary)]'
           : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--state-hover-layer)] rounded-lg',

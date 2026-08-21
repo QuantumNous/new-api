@@ -11,6 +11,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TicketImageLightbox from '@/components/console/tickets/TicketImageLightbox.vue'
 import TicketReplyBox from '@/components/console/tickets/TicketReplyBox.vue'
@@ -470,10 +471,11 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
 
         <div class="subtle-scroll min-h-0 flex-1 overflow-y-auto">
           <div v-if="queueLoading" class="space-y-1 p-2">
-            <div
+            <SkeletonBlock
               v-for="index in 7"
               :key="index"
-              class="h-24 animate-pulse rounded-md bg-[var(--surface-muted)]"
+              rounded="md"
+              class="h-24"
             />
           </div>
           <div
@@ -608,7 +610,7 @@ onBeforeUnmount(() => window.clearTimeout(searchTimer))
             <div class="flex items-start gap-3">
               <button
                 type="button"
-                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus-ring lg:hidden"
+                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--state-hover-layer)] focus-ring lg:hidden"
                 :aria-label="t('tickets.detail.backToList')"
                 @click="showQueue"
               >

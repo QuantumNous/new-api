@@ -14,6 +14,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import IconButton from '@/components/common/IconButton.vue'
@@ -426,16 +427,10 @@ onBeforeUnmount(() => {
             data-key-mobile-skeleton-row
             class="space-y-4 p-4"
           >
-            <div
-              class="h-5 w-2/3 animate-pulse rounded bg-[var(--surface-muted)]"
-            />
+            <SkeletonBlock rounded="md" class="h-5 w-2/3" />
             <div class="grid grid-cols-2 gap-3">
-              <div
-                class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
-              <div
-                class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
+              <SkeletonBlock rounded="md" class="h-14" />
+              <SkeletonBlock rounded="md" class="h-14" />
             </div>
           </div>
         </div>

@@ -1028,7 +1028,7 @@ onMounted(() => {
         v-if="setupQRCode"
         :src="setupQRCode"
         :alt="t('settings.twoFAQRCodeAlt')"
-        class="size-36 rounded-lg border border-[var(--border-subtle)] bg-white p-3"
+        class="size-36 rounded-lg border border-[var(--border-subtle)] bg-[#ffffff] p-3"
       />
       <div
         class="w-full rounded-lg bg-[var(--surface-muted)] px-4 py-3 text-center font-mono text-xs text-[var(--text-secondary)]"

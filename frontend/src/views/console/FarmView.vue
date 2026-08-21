@@ -11,6 +11,8 @@ import PetDock from '@/components/console/farm/PetDock.vue'
 import LeaderTable from '@/components/console/farm/LeaderTable.vue'
 import RewardTierCard from '@/components/console/farm/RewardTierCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import ErrorBanner from '@/components/common/ErrorBanner.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import { useFarm } from '@/composables/useFarm'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import type { LeaderPeriod } from '@/types/farm'
@@ -19,6 +21,7 @@ const { t } = useI18n()
 const { readOnly } = useFeatureAccess('farm', 'disabled')
 const {
   loading,
+  loadError,
   acting,
   farmState,
   plots,
@@ -93,12 +96,10 @@ onMounted(load)
     >
       <!-- loading skeleton -->
       <div v-if="loading" class="grid gap-5 lg:grid-cols-2">
-        <div
-          v-for="i in 4"
-          :key="i"
-          class="h-56 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-        />
+        <SkeletonBlock v-for="i in 4" :key="i" class="h-56" />
       </div>
+
+      <ErrorBanner v-else-if="loadError" :message="loadError" @retry="load()" />
 
       <template v-else>
         <!-- Tab: My Farm -->
@@ -158,10 +159,8 @@ onMounted(load)
             :state="rebateState"
             :loading="rebateLoading"
           />
-          <div
-            v-else-if="rebateLoading"
-            class="h-72 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-          />
+          <SkeletonBlock v-else-if="rebateLoading" class="h-72" />
+          <ErrorBanner v-else @retry="loadRebate()" />
         </div>
       </template>
     </div>

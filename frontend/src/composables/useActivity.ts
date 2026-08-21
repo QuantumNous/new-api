@@ -24,6 +24,7 @@ export function useActivity() {
     ongoing: 0,
   })
   const loading = ref(true)
+  const loadError = ref<string | null>(null)
   const claiming = ref(false)
 
   const ongoing = computed(() =>
@@ -35,6 +36,7 @@ export function useActivity() {
 
   async function load() {
     loading.value = true
+    loadError.value = null
     try {
       const data = await api.get<{
         activities: Activity[]
@@ -43,9 +45,10 @@ export function useActivity() {
       activities.value = data.activities
       summary.value = data.summary
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof ApiError ? error.message : t('common.failed')
-      )
+      loadError.value = message
+      toast.error(message)
     } finally {
       loading.value = false
     }
@@ -87,6 +90,7 @@ export function useActivity() {
     activities,
     summary,
     loading,
+    loadError,
     claiming,
     ongoing,
     ended,

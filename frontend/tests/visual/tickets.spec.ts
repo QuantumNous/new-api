@@ -57,7 +57,7 @@ for (const theme of ['light', 'dark'] as const satisfies VisualTheme[]) {
       const workspace = page.getByLabel('工单处理区')
       if (viewport.name === 'desktop') {
         await expect(
-          page.getByRole('heading', { name: '工单管理', exact: true })
+          page.getByRole('heading', { name: '工单队列', exact: true })
         ).toBeVisible()
       }
       await expect(

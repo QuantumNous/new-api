@@ -10,6 +10,7 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TicketReplyBox from '@/components/console/tickets/TicketReplyBox.vue'
 import TicketThreadMessage from '@/components/console/tickets/TicketThreadMessage.vue'
@@ -35,7 +36,8 @@ const messages = ref<TicketMessage[]>([])
 const loading = ref(true)
 const notFound = ref(false)
 const loadFailed = ref(false)
-const submitting = ref(false)
+const replying = ref(false)
+const statusChanging = ref(false)
 const confirmClose = ref(false)
 const lightbox = ref({ open: false, url: '' })
 const replyBox = ref<InstanceType<typeof TicketReplyBox> | null>(null)
@@ -50,7 +52,8 @@ async function load(id = ticketId.value) {
   mutationSequence += 1
   ticket.value = null
   messages.value = []
-  submitting.value = false
+  replying.value = false
+  statusChanging.value = false
   confirmClose.value = false
   if (!Number.isSafeInteger(id) || id <= 0) {
     loading.value = false
@@ -87,10 +90,10 @@ async function load(id = ticketId.value) {
 }
 
 async function sendReply(payload: { content: string; attachments: File[] }) {
-  if (readOnly.value || !ticket.value || submitting.value) return
+  if (readOnly.value || !ticket.value || replying.value) return
   const id = ticket.value.id
   const sequence = ++mutationSequence
-  submitting.value = true
+  replying.value = true
   try {
     const body = new FormData()
     body.set('content', payload.content)
@@ -113,15 +116,15 @@ async function sendReply(payload: { content: string; attachments: File[] }) {
       toast.error(error instanceof ApiError ? error.message : String(error))
     }
   } finally {
-    if (sequence === mutationSequence) submitting.value = false
+    if (sequence === mutationSequence) replying.value = false
   }
 }
 
 async function changeStatus(next: 'open' | 'closed') {
-  if (readOnly.value || !ticket.value || submitting.value) return
+  if (readOnly.value || !ticket.value || statusChanging.value) return
   const id = ticket.value.id
   const sequence = ++mutationSequence
-  submitting.value = true
+  statusChanging.value = true
   try {
     const data = await api.patch<{ ticket: TicketMeta }>(
       `/api/next/tickets/${id}/status`,
@@ -141,7 +144,7 @@ async function changeStatus(next: 'open' | 'closed') {
     }
   } finally {
     if (sequence === mutationSequence) {
-      submitting.value = false
+      statusChanging.value = false
       confirmClose.value = false
     }
   }
@@ -184,8 +187,8 @@ watch(ticketId, (id) => void load(id), { immediate: true })
 
     <!-- loading -->
     <div v-if="loading" class="space-y-4">
-      <div class="sketch-lg h-28 animate-pulse bg-[var(--surface-muted)]" />
-      <div class="sketch-lg h-48 animate-pulse bg-[var(--surface-muted)]" />
+      <SkeletonBlock class="sketch-lg h-28" />
+      <SkeletonBlock class="sketch-lg h-48" />
     </div>
 
     <!-- load failure -->
@@ -261,7 +264,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
             v-if="ticket.status !== 'closed'"
             variant="secondary"
             size="sm"
-            :loading="submitting"
+            :loading="statusChanging"
             :disabled="readOnly"
             @click="confirmClose = true"
           >
@@ -271,7 +274,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
             v-else
             variant="secondary"
             size="sm"
-            :loading="submitting"
+            :loading="statusChanging"
             :disabled="readOnly"
             @click="changeStatus('open')"
           >
@@ -297,7 +300,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
       <ConsoleCard v-if="ticket.status !== 'closed'">
         <TicketReplyBox
           ref="replyBox"
-          :submitting="submitting"
+          :submitting="replying"
           :readonly="readOnly"
           @submit="sendReply"
         />
@@ -319,7 +322,7 @@ watch(ticketId, (id) => void load(id), { immediate: true })
       :title="t('tickets.detail.confirmCloseTitle')"
       :message="t('tickets.detail.confirmCloseMessage')"
       :confirm-text="t('tickets.closeTicket')"
-      :loading="submitting"
+      :loading="statusChanging"
       @confirm="changeStatus('closed')"
       @cancel="confirmClose = false"
     />

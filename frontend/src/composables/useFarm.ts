@@ -30,6 +30,7 @@ export function useFarm() {
   const auth = useAuthStore()
 
   const loading = ref(true)
+  const loadError = ref<string | null>(null)
   const acting = ref(false)
 
   const farmState = ref<FarmState | null>(null)
@@ -50,6 +51,7 @@ export function useFarm() {
 
   async function load() {
     loading.value = true
+    loadError.value = null
     try {
       const data = await api.get<{
         state: FarmState
@@ -66,9 +68,10 @@ export function useFarm() {
       pet.value = data.pet
       mine.value = data.mine
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof ApiError ? error.message : t('common.failed')
-      )
+      loadError.value = message
+      toast.error(message)
     } finally {
       loading.value = false
     }
@@ -221,6 +224,7 @@ export function useFarm() {
 
   return {
     loading,
+    loadError,
     acting,
     farmState,
     plots,

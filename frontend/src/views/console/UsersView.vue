@@ -23,13 +23,14 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import FieldVisibilityMenu from '@/components/common/FieldVisibilityMenu.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import Breadcrumb from '@/components/console/Breadcrumb.vue'
+import PageHero from '@/components/console/PageHero.vue'
 import UserAffiliateModal from '@/components/console/users/UserAffiliateModal.vue'
 import UserAvatar from '@/components/console/users/UserAvatar.vue'
 import UserFormModal from '@/components/console/users/UserFormModal.vue'
@@ -371,40 +372,34 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
 
 <template>
   <div>
-    <header
-      class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+    <PageHero
+      :title="t('users.title')"
+      :crumbs="[t('nav.groupAdmin'), t('nav.userManagement')]"
     >
-      <div class="min-w-0">
-        <Breadcrumb
-          :crumbs="[t('nav.groupAdmin'), t('nav.userManagement')]"
-          spacing="mb-2"
-        />
-        <h1 class="display-title text-2xl font-bold text-[var(--text-primary)]">
-          {{ t('users.title') }}
-        </h1>
-        <p
-          class="mt-1 text-xs tabular-nums text-[var(--text-tertiary)]"
-          aria-live="polite"
-        >
-          {{ t('users.resultCount', { count: total }) }}
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <ConsoleButton
-          variant="secondary"
-          :loading="refreshing"
-          :disabled="isCrudBusy || isBulkBusy"
-          @click="load({ background: true })"
-        >
-          <RefreshCw v-if="!refreshing" :size="15" />
-          {{ t('users.refreshList') }}
-        </ConsoleButton>
-        <ConsoleButton :disabled="!canMutate" @click="openCreate">
-          <Plus :size="16" />
-          {{ t('users.createUser') }}
-        </ConsoleButton>
-      </div>
-    </header>
+      <p
+        class="mt-1 text-xs tabular-nums text-[var(--text-tertiary)]"
+        aria-live="polite"
+      >
+        {{ t('users.resultCount', { count: total }) }}
+      </p>
+      <template #actions>
+        <div class="flex items-center gap-2">
+          <ConsoleButton
+            variant="secondary"
+            :loading="refreshing"
+            :disabled="isCrudBusy || isBulkBusy"
+            @click="load({ background: true })"
+          >
+            <RefreshCw v-if="!refreshing" :size="15" />
+            {{ t('users.refreshList') }}
+          </ConsoleButton>
+          <ConsoleButton :disabled="!canMutate" @click="openCreate">
+            <Plus :size="16" />
+            {{ t('users.createUser') }}
+          </ConsoleButton>
+        </div>
+      </template>
+    </PageHero>
 
     <ConsoleCard :padded="false">
       <div
@@ -733,16 +728,10 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
             aria-hidden="true"
           >
             <div v-for="index in 5" :key="index" class="space-y-4 p-4">
-              <div
-                class="h-5 w-2/3 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
+              <SkeletonBlock rounded="md" class="h-5 w-2/3" />
               <div class="grid grid-cols-2 gap-3">
-                <div
-                  class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
-                />
-                <div
-                  class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
-                />
+                <SkeletonBlock rounded="md" class="h-14" />
+                <SkeletonBlock rounded="md" class="h-14" />
               </div>
             </div>
           </div>

@@ -18,6 +18,7 @@ export default {
     loading: 'Loading…',
     refresh: 'Refresh',
     retry: 'Retry',
+    loadFailed: 'Failed to load',
     appError: {
       label: 'Application error',
       title: 'This page could not be rendered',

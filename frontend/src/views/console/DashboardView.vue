@@ -18,6 +18,8 @@ import ContactFloatBall from '@/components/console/ContactFloatBall.vue'
 import PageHero from '@/components/console/PageHero.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SegmentedToggle from '@/components/common/SegmentedToggle.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import { useDashboard } from '@/composables/useDashboard'
 import { useDashboardStats } from '@/composables/useDashboardStats'
 import { useUsageDistribution } from '@/composables/useUsageDistribution'
@@ -131,10 +133,10 @@ watch(
 )
 
 const rangeOptions = computed(() => [
-  { key: 'today', label: t('dashboard.stats.rangeToday') },
-  { key: '7d', label: t('dashboard.stats.range7d') },
-  { key: '30d', label: t('dashboard.stats.range30d') },
-  { key: 'custom', label: t('dashboard.stats.rangeCustom') },
+  { value: 'today', label: t('dashboard.stats.rangeToday') },
+  { value: '7d', label: t('dashboard.stats.range7d') },
+  { value: '30d', label: t('dashboard.stats.range30d') },
+  { value: 'custom', label: t('dashboard.stats.rangeCustom') },
 ])
 </script>
 
@@ -175,11 +177,7 @@ const rangeOptions = computed(() => [
 
         <!-- Skeleton -->
         <div v-if="loading" class="grid gap-4 sm:gap-5 xl:grid-cols-3">
-          <div
-            v-for="i in 6"
-            :key="i"
-            class="h-48 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-          />
+          <SkeletonBlock v-for="i in 6" :key="i" class="h-48" />
         </div>
 
         <!--
@@ -249,24 +247,14 @@ const rangeOptions = computed(() => [
       <div v-else-if="activeTab === 'stats'" class="space-y-4 sm:space-y-5">
         <!-- Range picker — same segmented control as the trend card's mode toggle -->
         <div class="flex flex-wrap items-center gap-3">
-          <div
-            class="grid w-full grid-cols-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-muted)] p-0.5 text-sm sm:w-auto"
-          >
-            <button
-              v-for="opt in rangeOptions"
-              :key="opt.key"
-              type="button"
-              class="min-w-0 rounded-lg px-2 py-1.5 font-medium transition-all focus-ring sm:px-3"
-              :class="
-                statsComposable.range.value === opt.key
-                  ? 'bg-[var(--surface-solid)] text-[var(--text-primary)] shadow-sm'
-                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-              "
-              @click="statsComposable.range.value = opt.key as StatsRange"
-            >
-              {{ opt.label }}
-            </button>
-          </div>
+          <SegmentedToggle
+            :model-value="statsComposable.range.value"
+            :options="rangeOptions"
+            :label="t('dashboard.stats.rangeLabel')"
+            @update:model-value="
+              statsComposable.range.value = $event as StatsRange
+            "
+          />
 
           <DateRangePicker
             v-if="statsComposable.range.value === 'custom'"

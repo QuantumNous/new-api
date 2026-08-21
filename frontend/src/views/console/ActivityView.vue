@@ -12,6 +12,12 @@ import ActivityCard from '@/components/console/activity/ActivityCard.vue'
 import CheckinCard from '@/components/console/activity/CheckinCard.vue'
 import NewcomerCard from '@/components/console/activity/NewcomerCard.vue'
 import ActivityEntryCard from '@/components/console/ActivityEntryCard.vue'
+import ErrorBanner from '@/components/common/ErrorBanner.vue'
+import SectionHeading from '@/components/common/SectionHeading.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
+import StatTileGrid, {
+  type StatTile,
+} from '@/components/common/StatTileGrid.vue'
 import { useActivity } from '@/composables/useActivity'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useThemedAsset } from '@/composables/useThemedAsset'
@@ -20,7 +26,8 @@ import { formatQuota } from '@/utils/format'
 
 const { t } = useI18n()
 const router = useRouter()
-const { activities, loading, claiming, load, checkin, claim } = useActivity()
+const { activities, loading, loadError, claiming, load, checkin, claim } =
+  useActivity()
 const farmBanner = useThemedAsset(farmDayBanner, farmNightBanner)
 const bigameBanner = useThemedAsset(bigameDayBanner, bigameNightBanner)
 const { disabled: farmDisabled } = useFeatureAccess('farm', 'disabled')
@@ -54,6 +61,26 @@ const inviteAct = computed(
       Extract<Activity, { kind: 'invite' }> | undefined
 )
 
+const inviteTiles = computed<StatTile[]>(() => {
+  const invite = inviteAct.value?.invite
+  if (!invite) return []
+  return [
+    { label: t('activity.invite.invited'), value: String(invite.invited) },
+    {
+      label: t('activity.invite.rewardTotal'),
+      value: formatQuota(invite.reward_total),
+    },
+    {
+      label: t('activity.invite.effectiveRate'),
+      value: `${invite.effective_rate_percent}%`,
+    },
+    {
+      label: t('activity.invite.frozenReward'),
+      value: formatQuota(invite.frozen_reward),
+    },
+  ]
+})
+
 onMounted(load)
 </script>
 
@@ -68,11 +95,9 @@ onMounted(load)
 
     <!-- ② 大型玩法入口 -->
     <section>
-      <p
-        class="mb-3 text-xs font-semibold uppercase tracking-widest text-[var(--text-tertiary)]"
-      >
+      <SectionHeading class="mb-3">
         {{ t('activity.bigActivities') }}
-      </p>
+      </SectionHeading>
       <div class="grid gap-4 md:grid-cols-2">
         <ActivityEntryCard
           :title="$t('nav.farm')"
@@ -103,14 +128,12 @@ onMounted(load)
     <section>
       <!-- section header + refresh -->
       <div class="mb-4 flex items-center justify-between">
-        <p
-          class="text-xs font-semibold uppercase tracking-widest text-[var(--text-tertiary)]"
-        >
+        <SectionHeading>
           {{ t('activity.dailyTasks') }}
-        </p>
+        </SectionHeading>
         <button
           type="button"
-          class="rounded-lg p-1.5 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-secondary)] focus-ring"
+          class="rounded-lg p-1.5 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--state-hover-layer)] hover:text-[var(--text-secondary)] focus-ring"
           :disabled="refreshing"
           :aria-label="t('activity.refresh')"
           :title="t('activity.refresh')"
@@ -133,15 +156,18 @@ onMounted(load)
 
       <!-- loading skeleton -->
       <div v-if="loading" class="grid gap-5 lg:grid-cols-2">
-        <div
+        <SkeletonBlock
           v-for="i in 3"
           :key="i"
-          class="h-64 animate-pulse rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-solid)]"
+          bordered
+          class="h-64"
           :class="{ 'lg:col-span-2': i === 3 }"
         />
       </div>
 
       <!-- activity cards grid -->
+      <ErrorBanner v-else-if="loadError" :message="loadError" @retry="load()" />
+
       <div v-else class="grid gap-5 lg:grid-cols-2">
         <!-- 每日签到 -->
         <CheckinCard
@@ -172,48 +198,7 @@ onMounted(load)
             :claim-label="t('activity.invite.goInvite')"
             @claim="router.push({ name: 'invite' })"
           >
-            <div class="flex flex-wrap gap-3 sm:flex-nowrap">
-              <div
-                class="flex flex-1 items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
-              >
-                <span class="text-sm text-[var(--text-secondary)]">{{
-                  t('activity.invite.invited')
-                }}</span>
-                <span class="font-semibold text-[var(--text-primary)]">{{
-                  inviteAct.invite.invited
-                }}</span>
-              </div>
-              <div
-                class="flex flex-1 items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
-              >
-                <span class="text-sm text-[var(--text-secondary)]">{{
-                  t('activity.invite.rewardTotal')
-                }}</span>
-                <span class="font-semibold text-[var(--accent-text)]">{{
-                  formatQuota(inviteAct.invite.reward_total)
-                }}</span>
-              </div>
-              <div
-                class="flex flex-1 items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
-              >
-                <span class="text-sm text-[var(--text-secondary)]">{{
-                  t('activity.invite.effectiveRate')
-                }}</span>
-                <span class="font-semibold text-[var(--text-primary)]">{{
-                  `${inviteAct.invite.effective_rate_percent}%`
-                }}</span>
-              </div>
-              <div
-                class="flex flex-1 items-center justify-between rounded-xl border border-[var(--border-subtle)] px-4 py-3"
-              >
-                <span class="text-sm text-[var(--text-secondary)]">{{
-                  t('activity.invite.frozenReward')
-                }}</span>
-                <span class="font-semibold text-[var(--text-primary)]">{{
-                  formatQuota(inviteAct.invite.frozen_reward)
-                }}</span>
-              </div>
-            </div>
+            <StatTileGrid :tiles="inviteTiles" :columns="4" />
           </ActivityCard>
         </div>
       </div>

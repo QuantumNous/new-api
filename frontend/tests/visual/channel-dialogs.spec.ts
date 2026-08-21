@@ -96,6 +96,16 @@ async function configureChannels(page: Page): Promise<() => void> {
     })
   })
 
+  // Group model tests write an audit record before the batch starts; a failed
+  // audit aborts the run, so the fixture must acknowledge it.
+  await page.route('**/api/next/admin/channels/lab-audit', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, message: '', data: null }),
+    })
+  )
+
   holdTests()
   return () => {
     releaseGate()
@@ -177,7 +187,7 @@ for (const theme of [
       ).toHaveCount(0)
 
       await page
-        .locator('[aria-label="测试 Anthropic 分组的渠道响应"]:visible')
+        .locator('[aria-label="测试 Anthropic Lab 分组的渠道响应"]:visible')
         .click()
       const groupDialog = page.getByRole('dialog', {
         name: '批量测试渠道响应',

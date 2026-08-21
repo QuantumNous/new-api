@@ -18,6 +18,7 @@ export default {
     loading: '加载中…',
     refresh: '刷新',
     retry: '重试',
+    loadFailed: '加载失败',
     appError: {
       label: '应用错误',
       title: '此页面暂时无法显示',

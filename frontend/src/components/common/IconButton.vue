@@ -27,7 +27,7 @@ defineExpose({
     :class="
       tone === 'danger'
         ? 'enabled:hover:bg-[var(--status-danger-soft)] enabled:hover:text-[var(--status-danger-text)]'
-        : 'enabled:hover:bg-[var(--surface-muted)] enabled:hover:text-[var(--text-primary)]'
+        : 'enabled:hover:bg-[var(--state-hover-layer)] enabled:hover:text-[var(--text-primary)]'
     "
   >
     <slot />

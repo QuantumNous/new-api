@@ -40,7 +40,9 @@ for (const theme of ['light', 'dark'] satisfies VisualTheme[]) {
       }
     })
 
-    expect(geometry.chartHeight).toBeGreaterThanOrEqual(280)
+    // Compressed card layout (7678a383): chart is h-52 (208px) on mobile and
+    // lg:h-60 (240px) on desktop — floors guard the designed scale.
+    expect(geometry.chartHeight).toBeGreaterThanOrEqual(220)
     expect(geometry.tableHeight).toBeGreaterThan(0)
     expect(geometry.centerDelta).toBeLessThan(2)
     await assertNoHorizontalOverflow(page)
@@ -63,6 +65,6 @@ for (const theme of ['light', 'dark'] satisfies VisualTheme[]) {
 
     expect(mobile.pageOverflow).toBe(0)
     expect(mobile.tableOverflow).toBeGreaterThan(0)
-    expect(mobile.chartHeight).toBeGreaterThanOrEqual(220)
+    expect(mobile.chartHeight).toBeGreaterThanOrEqual(200)
   })
 }

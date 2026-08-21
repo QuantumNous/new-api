@@ -31,9 +31,21 @@
 
 新组件优先使用 `--surface-container-*`、`--shape-*`、`--state-*` 和 `--elevation-*`，普通内容依靠 tonal surface 与细描边表达层级，只有重点卡片和浮层使用明显高程。
 
+## 控件与交互状态约定
+
+- 高度刻度（全控件族统一，对齐 ConsoleButton）：`sm=32 / md=40 / lg=48`；移动端触控目标一律 ≥44px（`h-11` 起步，桌面再收缩到对应档位）。下划线输入件固定 `h-11`（视觉审计契约值，不得响应式收缩；SearchInput 现存 `sm:h-10` 为待收敛的已知偏差）。
+- 悬停反馈统一使用 `--state-hover-layer`；骨架屏底色仍用 `--surface-muted`（非交互语义，勿混用）。
+- 按压反馈：primary 走 `--accent-active`，secondary/ghost 走 `--state-press-layer`，danger/stamp 用透明度阶梯（hover 0.9 / active 0.8）。
+- 大数字一律使用 `.display-number`（日间浓墨 700、夜间雅致 500 由令牌控制），不得手写 font-bold 替代。
+- 小节标题使用 common/SectionHeading（`.section-heading`）；统计瓦片使用 common/StatTileGrid；骨架屏使用 common/SkeletonBlock。禁止在视图内重造这三类 markup。
+- 空态容器约定：页面级整块空态（替代整页内容）裸用 EmptyState；若空态占据卡片网格中的一个内容位或替代某张卡片的内部，则用与该内容位同宽的表面容器（ConsoleCard `:padded=false` 或等价 bordered 容器）包裹，保证空态不悬浮在页面底色上。
+- 卡片栅格断点约定：新增页面的多卡网格默认 `lg` 起两栏、`xl` 起三栏；仪表盘与钱包现存的两栏 `xl` 布局为已知例外，随各自改版收敛，不为对齐而单独返工。
+
 ## 品牌与媒体例外
 
 外部供应商 Logo 保留官方品牌色；活动 Banner、游戏和农场插画保留业务强调色。为保证媒体文字可读性，可以使用 `--media-scrim-strong/medium/soft` 黑色遮罩，不得在组件内复制固定暗色渐变。除供应商品牌色外，Canvas 与 ECharts 的结构色必须从 CSS 语义令牌解析。
+
+2FA 二维码容器是唯一的功能性纯白例外：扫码识别要求固定 `#ffffff` 底色，不随主题切换（AccountSecurityPanel）。
 
 ## 套餐自定义配色例外
 

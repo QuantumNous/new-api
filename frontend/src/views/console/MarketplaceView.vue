@@ -9,6 +9,7 @@ import type { MarketListing, Merchant } from '@/types/console'
 import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import HealthMeter from '@/components/common/HealthMeter.vue'
 import MultiFilterSelect from '@/components/common/MultiFilterSelect.vue'
@@ -336,11 +337,7 @@ onMounted(load)
 
       <!-- loading skeleton -->
       <div v-if="loading" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <div
-          v-for="i in 6"
-          :key="i"
-          class="h-52 animate-pulse rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface-muted)]"
-        />
+        <SkeletonBlock v-for="i in 6" :key="i" bordered class="h-52" />
       </div>
 
       <!-- empty -->

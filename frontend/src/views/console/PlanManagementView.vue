@@ -24,6 +24,8 @@ import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
+import StatTileGrid from '@/components/common/StatTileGrid.vue'
 import FilterSelect, {
   type SelectOption,
 } from '@/components/common/FilterSelect.vue'
@@ -31,7 +33,7 @@ import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import Breadcrumb from '@/components/console/Breadcrumb.vue'
+import PageHero from '@/components/console/PageHero.vue'
 import PlanFormModal from '@/components/console/plans/PlanFormModal.vue'
 import { useAdminPlans } from '@/composables/useAdminPlans'
 import { useToast } from '@/composables/useToast'
@@ -345,53 +347,34 @@ onMounted(() => void loadChannelNames())
 <template>
   <div>
     <!-- Page header -->
-    <header
-      class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+    <PageHero
+      :title="t('planManagement.title')"
+      :crumbs="[t('nav.groupAdmin'), t('nav.planManagement')]"
     >
-      <div class="min-w-0">
-        <Breadcrumb
-          :crumbs="[t('nav.groupAdmin'), t('nav.planManagement')]"
-          spacing="mb-2"
-        />
-        <h1 class="text-2xl font-bold text-[var(--text-primary)]">
-          {{ t('planManagement.title') }}
-        </h1>
-        <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
-          {{ t('planManagement.resultCount', { count: total }) }}
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <ConsoleButton
-          variant="secondary"
-          :loading="refreshing"
-          :disabled="isCrudBusy || isBulkBusy"
-          @click="load({ background: true })"
-        >
-          <RefreshCw v-if="!refreshing" :size="15" aria-hidden="true" />
-          {{ t('planManagement.refreshList') }}
-        </ConsoleButton>
-        <ConsoleButton :disabled="!canManage" @click="openCreate">
-          <Plus :size="16" aria-hidden="true" />
-          {{ t('planManagement.createPlan') }}
-        </ConsoleButton>
-      </div>
-    </header>
+      <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
+        {{ t('planManagement.resultCount', { count: total }) }}
+      </p>
+      <template #actions>
+        <div class="flex items-center gap-2">
+          <ConsoleButton
+            variant="secondary"
+            :loading="refreshing"
+            :disabled="isCrudBusy || isBulkBusy"
+            @click="load({ background: true })"
+          >
+            <RefreshCw v-if="!refreshing" :size="15" aria-hidden="true" />
+            {{ t('planManagement.refreshList') }}
+          </ConsoleButton>
+          <ConsoleButton :disabled="!canManage" @click="openCreate">
+            <Plus :size="16" aria-hidden="true" />
+            {{ t('planManagement.createPlan') }}
+          </ConsoleButton>
+        </div>
+      </template>
+    </PageHero>
 
     <!-- Commercial summary -->
-    <ConsoleCard :padded="false" class="mb-6">
-      <div
-        class="grid grid-cols-2 divide-x divide-y divide-[var(--border-subtle)] lg:grid-cols-4 lg:divide-y-0"
-      >
-        <div v-for="card in statCards" :key="card.label" class="px-5 py-4">
-          <p class="text-xs text-[var(--text-tertiary)]">{{ card.label }}</p>
-          <p
-            class="display-number mt-1 font-mono text-2xl tabular-nums text-[var(--text-primary)]"
-          >
-            {{ card.value }}
-          </p>
-        </div>
-      </div>
-    </ConsoleCard>
+    <StatTileGrid class="mb-6" :tiles="statCards" :columns="4" />
 
     <ConsoleCard :padded="false">
       <!-- Toolbar -->
@@ -772,12 +755,8 @@ onMounted(() => void loadChannelNames())
             aria-hidden="true"
           >
             <div v-for="i in 5" :key="i" class="space-y-3 p-4">
-              <div
-                class="h-4 w-1/2 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
-              <div
-                class="h-10 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
+              <SkeletonBlock rounded="md" class="h-4 w-1/2" />
+              <SkeletonBlock rounded="md" class="h-10" />
             </div>
           </div>
           <EmptyState

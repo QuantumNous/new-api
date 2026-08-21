@@ -23,6 +23,7 @@ export function useBigame() {
   const auth = useAuthStore()
 
   const loading = ref(true)
+  const loadError = ref<string | null>(null)
   const spinning = ref(false)
   const opening = ref(false)
 
@@ -37,6 +38,7 @@ export function useBigame() {
 
   async function load() {
     loading.value = true
+    loadError.value = null
     try {
       const data = await api.get<{
         wallet: GameWallet
@@ -49,9 +51,10 @@ export function useBigame() {
       prizes.value = data.prizes
       records.value = data.records
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof ApiError ? error.message : t('common.failed')
-      )
+      loadError.value = message
+      toast.error(message)
     } finally {
       loading.value = false
     }
@@ -141,6 +144,7 @@ export function useBigame() {
 
   return {
     loading,
+    loadError,
     spinning,
     opening,
     wallet,

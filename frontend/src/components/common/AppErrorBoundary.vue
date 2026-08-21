@@ -72,7 +72,7 @@ function retry() {
         </button>
         <a
           href="/"
-          class="pencil-control sketch-sm inline-flex h-10 items-center justify-center border border-[var(--border-default)] bg-[var(--surface-solid)] px-4 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-muted)] focus-ring"
+          class="pencil-control sketch-sm inline-flex h-10 items-center justify-center border border-[var(--border-default)] bg-[var(--surface-solid)] px-4 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--state-hover-layer)] focus-ring"
           data-handdrawn="control"
         >
           {{ t('common.appError.home') }}

@@ -230,14 +230,6 @@ const accountStats = computed(() => [
               {{ formatCompact(auth.user?.request_count ?? 0) }}
             </dd>
           </div>
-          <div>
-            <dt class="text-[11px] text-[var(--text-tertiary)]">
-              {{ t('profile.maxConcurrency') }}
-            </dt>
-            <dd class="mt-1 text-sm font-semibold text-[var(--text-primary)]">
-              500
-            </dd>
-          </div>
         </dl>
       </div>
 
@@ -362,6 +354,8 @@ const accountStats = computed(() => [
 </template>
 
 <style scoped>
+/* Hand-drawn tilt and brush shadows are day-only per THEMES.md; night keeps
+   the same boxes as straight hairlines so no layout shifts on theme switch. */
 .profile-identity::before {
   position: absolute;
   top: 0.75rem;
@@ -371,6 +365,9 @@ const accountStats = computed(() => [
   background: var(--border-subtle);
   content: '';
   opacity: 0.65;
+}
+
+html.light .profile-identity::before {
   transform: rotate(-0.18deg);
 }
 
@@ -385,6 +382,9 @@ const accountStats = computed(() => [
   height: 2px;
   margin-bottom: 0.45rem;
   background: var(--border-strong);
+}
+
+html.light .profile-settings-stroke {
   box-shadow: 0 5px 0 -4px var(--accent);
   opacity: 0.75;
   transform: rotate(-0.22deg);

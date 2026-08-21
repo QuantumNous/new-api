@@ -7,6 +7,8 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SectionHeading from '@/components/common/SectionHeading.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import PageHero from '@/components/console/PageHero.vue'
 import CurrentPlanCard from '@/components/console/plans/CurrentPlanCard.vue'
 import PlanCard from '@/components/console/plans/PlanCard.vue'
@@ -102,13 +104,9 @@ onMounted(() => void load())
       <!-- what the caller holds -->
       <div v-if="loading && !subscription" class="mb-6">
         <ConsoleCard :title="t('plans.currentSubscription')">
-          <div class="space-y-3" aria-hidden="true">
-            <div
-              class="h-8 w-40 animate-pulse rounded bg-[var(--surface-muted)]"
-            />
-            <div
-              class="h-2 w-full animate-pulse rounded bg-[var(--surface-muted)]"
-            />
+          <div class="space-y-3">
+            <SkeletonBlock rounded="md" class="h-8 w-40" />
+            <SkeletonBlock rounded="md" class="h-2 w-full" />
           </div>
         </ConsoleCard>
       </div>
@@ -126,11 +124,7 @@ onMounted(() => void load())
         class="grid gap-5 md:grid-cols-2 xl:grid-cols-3"
         aria-hidden="true"
       >
-        <div
-          v-for="i in 3"
-          :key="i"
-          class="h-96 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-        />
+        <SkeletonBlock v-for="i in 3" :key="i" class="h-96" />
       </div>
 
       <ConsoleCard v-else-if="plans.length === 0" :padded="false">
@@ -143,7 +137,9 @@ onMounted(() => void load())
       <template v-else>
         <!-- traffic packs -->
         <section v-if="trafficPlans.length" class="mb-8">
-          <h2 class="section-heading mb-1">{{ t('plans.trafficSection') }}</h2>
+          <SectionHeading class="mb-1">
+            {{ t('plans.trafficSection') }}
+          </SectionHeading>
           <p class="mb-4 text-xs text-[var(--text-tertiary)]">
             {{ t('plans.trafficSectionHint') }}
           </p>
@@ -164,9 +160,9 @@ onMounted(() => void load())
 
         <!-- subscription packs -->
         <section v-if="subscriptionPlans.length">
-          <h2 class="section-heading mb-1">
+          <SectionHeading class="mb-1">
             {{ t('plans.subscriptionSection') }}
-          </h2>
+          </SectionHeading>
           <p class="mb-4 text-xs text-[var(--text-tertiary)]">
             {{ t('plans.subscriptionSectionHint') }}
           </p>

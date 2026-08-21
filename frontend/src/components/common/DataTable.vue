@@ -581,7 +581,7 @@ onBeforeUnmount(() => {
             </tr>
             <tr
               v-else
-              class="row-divider transition-colors last:border-0 hover:bg-[var(--surface-muted)]"
+              class="row-divider transition-colors last:border-0 hover:bg-[var(--state-hover-layer)]"
               :data-selected="
                 selected.includes(row[rowKey] as string | number)
                   ? 'true'

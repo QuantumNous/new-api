@@ -40,7 +40,9 @@ async function expectStableTileHeights(card: Locator): Promise<void> {
     )
   expect(heights).toHaveLength(4)
   expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1)
-  expect(Math.min(...heights)).toBeGreaterThanOrEqual(108)
+  // Compressed tile scale (64a2164f): mobile 88px / desktop sm:92px. The
+  // floor guards against future edits collapsing the metric rows.
+  expect(Math.min(...heights)).toBeGreaterThanOrEqual(88)
 }
 
 for (const theme of ['light', 'dark'] satisfies VisualTheme[]) {

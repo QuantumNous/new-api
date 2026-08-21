@@ -146,7 +146,7 @@ onClickOutside(root, closeMenu)
 </script>
 
 <template>
-  <div ref="root" class="relative" :class="size === 'sm' ? 'h-9' : 'h-10'">
+  <div ref="root" class="relative" :class="size === 'sm' ? 'h-8' : 'h-10'">
     <button
       :id="triggerId"
       type="button"

@@ -90,13 +90,13 @@ const colors = SERIES_TOKENS
             class="group border-t border-[var(--border-subtle)] transition-colors hover:bg-[var(--surface-hover)]"
           >
             <td class="px-3 py-2.5">
-              <span class="flex items-center gap-2.5">
+              <span class="flex min-w-0 items-center gap-2.5">
                 <span
                   class="h-2 w-2 shrink-0 rounded-full ring-2 ring-[var(--surface-solid)] shadow-sm transition-transform group-hover:scale-125"
                   :style="{ background: colors[i % colors.length] }"
                 />
                 <span
-                  class="max-w-[150px] truncate font-mono text-xs font-medium text-[var(--text-primary)]"
+                  class="min-w-0 max-w-[150px] truncate font-mono text-xs font-medium text-[var(--text-primary)]"
                   :title="row.model"
                 >
                   {{ row.model }}
@@ -122,7 +122,7 @@ const colors = SERIES_TOKENS
               <!-- mini progress bar -->
               <div class="flex items-center justify-end gap-2">
                 <div
-                  class="pencil-progress h-1.5 w-20 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                  class="pencil-progress h-1.5 w-16 overflow-hidden rounded-full bg-[var(--surface-muted)]"
                 >
                   <div
                     class="h-full rounded-full transition-all duration-300"

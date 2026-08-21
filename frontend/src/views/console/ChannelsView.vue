@@ -27,13 +27,14 @@ import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import CapacityMeter from '@/components/common/CapacityMeter.vue'
 import DataTable, { type TableColumn } from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import FieldVisibilityMenu from '@/components/common/FieldVisibilityMenu.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import Breadcrumb from '@/components/console/Breadcrumb.vue'
+import PageHero from '@/components/console/PageHero.vue'
 import ChannelFormModal from '@/components/console/channels/ChannelFormModal.vue'
 import ChannelInlineNumber from '@/components/console/channels/ChannelInlineNumber.vue'
 import ChannelMobileList from '@/components/console/channels/ChannelMobileList.vue'
@@ -707,45 +708,39 @@ async function runBulkStatus(
 
 <template>
   <div>
-    <header
-      class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+    <PageHero
+      :title="t('channels.title')"
+      :crumbs="[t('nav.groupAdmin'), t('nav.channelManagement')]"
     >
-      <div class="min-w-0">
-        <Breadcrumb
-          :crumbs="[t('nav.groupAdmin'), t('nav.channelManagement')]"
-          spacing="mb-2"
-        />
-        <h1 class="text-2xl font-bold text-[var(--text-primary)]">
-          {{ t('channels.title') }}
-        </h1>
-        <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
-          {{ t('channels.resultCount', { count: total }) }}
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <ConsoleButton variant="secondary" @click="openLegacyChannels">
-          <ExternalLink :size="15" />
-          {{ t('channels.advancedLegacy') }}
-        </ConsoleButton>
-        <ConsoleButton
-          variant="secondary"
-          :loading="refreshing"
-          :disabled="isBatchBusy || isCrudBusy || isBulkBusy"
-          @click="load({ background: true })"
-        >
-          <RefreshCw v-if="!refreshing" :size="15" />
-          {{ t('channels.refreshList') }}
-        </ConsoleButton>
-        <ConsoleButton
-          v-if="canSensitiveWrite"
-          :disabled="!canMutate"
-          @click="openCreate"
-        >
-          <Plus :size="16" />
-          {{ t('channels.createChannel') }}
-        </ConsoleButton>
-      </div>
-    </header>
+      <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
+        {{ t('channels.resultCount', { count: total }) }}
+      </p>
+      <template #actions>
+        <div class="flex items-center gap-2">
+          <ConsoleButton variant="secondary" @click="openLegacyChannels">
+            <ExternalLink :size="15" />
+            {{ t('channels.advancedLegacy') }}
+          </ConsoleButton>
+          <ConsoleButton
+            variant="secondary"
+            :loading="refreshing"
+            :disabled="isBatchBusy || isCrudBusy || isBulkBusy"
+            @click="load({ background: true })"
+          >
+            <RefreshCw v-if="!refreshing" :size="15" />
+            {{ t('channels.refreshList') }}
+          </ConsoleButton>
+          <ConsoleButton
+            v-if="canSensitiveWrite"
+            :disabled="!canMutate"
+            @click="openCreate"
+          >
+            <Plus :size="16" />
+            {{ t('channels.createChannel') }}
+          </ConsoleButton>
+        </div>
+      </template>
+    </PageHero>
 
     <ConsoleCard :padded="false">
       <div
@@ -1420,16 +1415,10 @@ async function runBulkStatus(
             aria-hidden="true"
           >
             <div v-for="index in 5" :key="index" class="space-y-4 p-4">
-              <div
-                class="h-5 w-2/3 animate-pulse rounded bg-[var(--surface-muted)]"
-              />
+              <SkeletonBlock rounded="md" class="h-5 w-2/3" />
               <div class="grid grid-cols-2 gap-3">
-                <div
-                  class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
-                />
-                <div
-                  class="h-14 animate-pulse rounded bg-[var(--surface-muted)]"
-                />
+                <SkeletonBlock rounded="md" class="h-14" />
+                <SkeletonBlock rounded="md" class="h-14" />
               </div>
             </div>
           </div>

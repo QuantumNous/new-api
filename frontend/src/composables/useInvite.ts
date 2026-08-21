@@ -18,6 +18,7 @@ export function useInvite() {
 
   const info = ref<InviteInfo | null>(null)
   const loading = ref(true)
+  const loadError = ref<string | null>(null)
   const inviteLink = ref('')
 
   const transferOpen = ref(false)
@@ -26,14 +27,16 @@ export function useInvite() {
 
   async function load() {
     loading.value = true
+    loadError.value = null
     try {
       const data = await api.get<InviteInfo>('/api/next/invite/self')
       info.value = data
       inviteLink.value = `${window.location.origin}/auth/sign-up?aff=${data.code}`
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof ApiError ? error.message : t('common.failed')
-      )
+      loadError.value = message
+      toast.error(message)
     } finally {
       loading.value = false
     }
@@ -113,6 +116,7 @@ export function useInvite() {
   return {
     info,
     loading,
+    loadError,
     inviteLink,
     transferOpen,
     transferDollars,

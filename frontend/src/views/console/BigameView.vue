@@ -8,6 +8,9 @@ import MilestoneTrack from '@/components/console/bigame/MilestoneTrack.vue'
 import SpinWheelCard from '@/components/console/bigame/SpinWheelCard.vue'
 import BlindBoxCard from '@/components/console/bigame/BlindBoxCard.vue'
 import PrizeInventory from '@/components/console/bigame/PrizeInventory.vue'
+import ErrorBanner from '@/components/common/ErrorBanner.vue'
+import SectionHeading from '@/components/common/SectionHeading.vue'
+import SkeletonBlock from '@/components/common/SkeletonBlock.vue'
 import { useBigame } from '@/composables/useBigame'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 
@@ -15,6 +18,7 @@ const { t } = useI18n()
 const { readOnly } = useFeatureAccess('bigame', 'disabled')
 const {
   loading,
+  loadError,
   spinning,
   opening,
   wallet,
@@ -57,12 +61,10 @@ onMounted(load)
 
     <!-- loading skeleton -->
     <div v-if="loading" class="grid gap-5 lg:grid-cols-2">
-      <div
-        v-for="i in 4"
-        :key="i"
-        class="h-56 animate-pulse rounded-2xl bg-[var(--surface-muted)]"
-      />
+      <SkeletonBlock v-for="i in 4" :key="i" class="h-56" />
     </div>
+
+    <ErrorBanner v-else-if="loadError" :message="loadError" @retry="load()" />
 
     <template v-else>
       <GameHero v-if="wallet" :wallet="wallet" />
@@ -77,11 +79,9 @@ onMounted(load)
 
       <!-- game hall -->
       <div>
-        <h2
-          class="mb-3 text-sm font-semibold uppercase tracking-wider text-[var(--text-tertiary)]"
-        >
+        <SectionHeading class="mb-3">
           {{ t('bigame.gameHall') }}
-        </h2>
+        </SectionHeading>
         <div class="grid gap-5 lg:grid-cols-2">
           <SpinWheelCard
             :prizes="prizes"
