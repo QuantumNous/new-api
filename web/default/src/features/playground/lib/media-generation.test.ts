@@ -76,17 +76,27 @@ describe('Playground media model profiles', () => {
     const profile = resolveMediaGenerationProfile('gpt-image-2')
 
     expect(profile?.family).toBe('gpt-image')
+    expect(profile?.defaults.size).toBe('1024x1024')
     expect(profile?.fields.map((field) => field.key)).toEqual([
       'count',
-      'size',
       'quality',
       'outputFormat',
       'background',
       'compression',
     ])
     expect(
-      profile?.fields.find((field) => field.key === 'size')?.labelKey
-    ).toBe('Resolution')
+      profile?.fields.find((field) => field.key === 'size')
+    ).toBeUndefined()
+  })
+
+  test('GPT Image 2 normalizes stale sizes to the only relay-supported size', () => {
+    const profile = resolveMediaGenerationProfile('gpt-image-2')
+
+    expect(
+      normalizeMediaGenerationSettings(profile!, {
+        size: '1536x1024',
+      }).size
+    ).toBe('1024x1024')
   })
 
   test('Seedance duration uses the shared localized seconds unit', () => {
@@ -171,7 +181,7 @@ describe('Playground media request building', () => {
         group: 'plg',
         prompt: 'A red paper boat',
         n: 2,
-        size: '1536x1024',
+        size: '1024x1024',
         quality: 'high',
         response_format: 'b64_json',
         output_format: 'webp',
