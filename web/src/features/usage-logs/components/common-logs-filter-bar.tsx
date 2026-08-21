@@ -22,6 +22,7 @@ import type { Table } from '@tanstack/react-table'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -38,10 +39,18 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
+import {
+  DEFAULT_MODEL_NAME_MODE,
+  LOG_TYPE_ALL_VALUE,
+  LOG_TYPE_FILTERS,
+  MODEL_NAME_MODE_VALUES,
+  MODEL_NAME_SEARCH_MAX_LENGTH,
+  MODEL_NAME_SEARCH_MIN_LENGTH,
+} from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
-import type { CommonLogFilters } from '../types'
+import type { CommonLogFilters, ModelNameMode } from '../types'
+import { CommonLogsExportButton } from './common-logs-export-button'
 import { CommonLogsStats } from './common-logs-stats'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import {
@@ -77,6 +86,10 @@ function getLogTypeValue(value: unknown): LogTypeValue {
     : LOG_TYPE_ALL_VALUE
 }
 
+function getModelNameMode(value: unknown): ModelNameMode {
+  return value === 'exact' ? 'exact' : DEFAULT_MODEL_NAME_MODE
+}
+
 function buildSearchSourceKey(values: {
   startTime?: unknown
   endTime?: unknown
@@ -87,6 +100,7 @@ function buildSearchSourceKey(values: {
   username?: unknown
   requestId?: unknown
   upstreamRequestId?: unknown
+  modelNameMode?: unknown
   type?: unknown
 }) {
   return [
@@ -99,6 +113,7 @@ function buildSearchSourceKey(values: {
     values.username,
     values.requestId,
     values.upstreamRequestId,
+    values.modelNameMode,
     Array.isArray(values.type) ? values.type.join(',') : values.type,
   ]
     .map((value) => String(value ?? ''))
@@ -132,6 +147,7 @@ export function CommonLogsFilterBar<TData>(
       username: searchParams.username,
       requestId: searchParams.requestId,
       upstreamRequestId: searchParams.upstreamRequestId,
+      modelNameMode: searchParams.modelNameMode,
       type: searchParams.type,
     }
     const filters: CommonLogFilters = {
@@ -141,6 +157,7 @@ export function CommonLogsFilterBar<TData>(
       endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
       channel: searchParams.channel || undefined,
       model: searchParams.model || undefined,
+      modelNameMode: getModelNameMode(searchParams.modelNameMode),
       token: searchParams.token || undefined,
       group: searchParams.group || undefined,
       username: searchParams.username || undefined,
@@ -162,6 +179,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.username,
     searchParams.requestId,
     searchParams.upstreamRequestId,
+    searchParams.modelNameMode,
     searchParams.type,
   ])
   const [draft, setDraft] = useState<CommonLogDraft>(() => searchState)
@@ -186,7 +204,28 @@ export function CommonLogsFilterBar<TData>(
   )
 
   const handleApply = useCallback(() => {
-    const filterParams = buildSearchParams(filters, 'common')
+    const modelName = filters.model?.trim() ?? ''
+    const modelNameLength = [...modelName].length
+    const modelNameMode = filters.modelNameMode ?? DEFAULT_MODEL_NAME_MODE
+    if (
+      modelName &&
+      modelNameMode === 'contains' &&
+      (modelNameLength < MODEL_NAME_SEARCH_MIN_LENGTH ||
+        modelNameLength > MODEL_NAME_SEARCH_MAX_LENGTH)
+    ) {
+      toast.error(
+        t('Name must be between {{min}} and {{max}} characters', {
+          min: MODEL_NAME_SEARCH_MIN_LENGTH,
+          max: MODEL_NAME_SEARCH_MAX_LENGTH,
+        })
+      )
+      return false
+    }
+
+    const filterParams = buildSearchParams(
+      { ...filters, model: modelName || undefined },
+      'common'
+    )
     navigate({
       to: '/usage-logs/$section',
       params: { section: 'common' },
@@ -198,15 +237,21 @@ export function CommonLogsFilterBar<TData>(
     })
     queryClient.invalidateQueries({ queryKey: ['logs'] })
     queryClient.invalidateQueries({ queryKey: ['usage-logs-stats'] })
-  }, [filters, logType, navigate, queryClient])
+    return true
+  }, [filters, logType, navigate, queryClient, t])
 
   const handleReset = useCallback(() => {
     const { start, end } = getDefaultTimeRange()
-    const resetFilters: CommonLogFilters = { startTime: start, endTime: end }
+    const resetFilters: CommonLogFilters = {
+      startTime: start,
+      endTime: end,
+      modelNameMode: DEFAULT_MODEL_NAME_MODE,
+    }
     const resetSearch = {
       type: [LOG_TYPE_ALL_VALUE],
       startTime: start.getTime(),
       endTime: end.getTime(),
+      modelNameMode: undefined,
     }
     setDraft({
       sourceKey: buildSearchSourceKey(resetSearch),
@@ -241,6 +286,13 @@ export function CommonLogsFilterBar<TData>(
     !!filters.upstreamRequestId
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
+  const modelNameMode = filters.modelNameMode ?? DEFAULT_MODEL_NAME_MODE
+  const modelNameLength = [...(filters.model?.trim() ?? '')].length
+  const modelNameInvalid =
+    modelNameLength > 0 &&
+    modelNameMode === 'contains' &&
+    (modelNameLength < MODEL_NAME_SEARCH_MIN_LENGTH ||
+      modelNameLength > MODEL_NAME_SEARCH_MAX_LENGTH)
   const hasAdditionalFilters =
     !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
 
@@ -260,6 +312,19 @@ export function CommonLogsFilterBar<TData>(
       })),
     [t]
   )
+  const modelNameModeItems = useMemo(
+    () =>
+      MODEL_NAME_MODE_VALUES.map((value) => ({
+        value,
+        label: t(value === 'exact' ? 'Exact Match' : 'Contains Match'),
+      })),
+    [t]
+  )
+  const modelNameModeLabel =
+    modelNameModeItems.find(
+      (mode) =>
+        mode.value === (filters.modelNameMode ?? DEFAULT_MODEL_NAME_MODE)
+    )?.label ?? t('Contains Match')
   const logTypeLabel =
     logTypeItems.find((type) => type.value === logType)?.label ?? t('All Types')
 
@@ -269,24 +334,27 @@ export function CommonLogsFilterBar<TData>(
     </div>
   )
   const sensitiveToggle = (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={() => setSensitiveVisible(!sensitiveVisible)}
-            aria-label={sensitiveVisible ? t('Hide') : t('Show')}
-            className='text-muted-foreground hover:text-foreground size-7'
-          />
-        }
-      >
-        {sensitiveVisible ? <Eye /> : <EyeOff />}
-      </TooltipTrigger>
-      <TooltipContent>
-        {sensitiveVisible ? t('Hide') : t('Show')}
-      </TooltipContent>
-    </Tooltip>
+    <>
+      <CommonLogsExportButton table={props.table} />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={() => setSensitiveVisible(!sensitiveVisible)}
+              aria-label={sensitiveVisible ? t('Hide') : t('Show')}
+              className='text-muted-foreground hover:text-foreground size-7'
+            />
+          }
+        >
+          {sensitiveVisible ? <Eye /> : <EyeOff />}
+        </TooltipTrigger>
+        <TooltipContent>
+          {sensitiveVisible ? t('Hide') : t('Show')}
+        </TooltipContent>
+      </Tooltip>
+    </>
   )
 
   const dateRangeFilter = (
@@ -302,13 +370,43 @@ export function CommonLogsFilterBar<TData>(
     </LogsFilterField>
   )
   const modelFilter = (
-    <LogsFilterField>
-      <LogsFilterInput
-        placeholder={t('Model Name')}
-        value={filters.model || ''}
-        onChange={(e) => handleChange('model', e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
+    <LogsFilterField wide>
+      <div className='grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,0.65fr)]'>
+        <LogsFilterInput
+          placeholder={t('Model Name')}
+          value={filters.model || ''}
+          maxLength={
+            modelNameMode === 'contains'
+              ? MODEL_NAME_SEARCH_MAX_LENGTH
+              : undefined
+          }
+          aria-invalid={modelNameInvalid || undefined}
+          onChange={(e) => handleChange('model', e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+        <Select
+          items={modelNameModeItems}
+          value={modelNameMode}
+          onValueChange={(value) =>
+            handleChange('modelNameMode', getModelNameMode(value))
+          }
+        >
+          <SelectTrigger className='min-w-0' aria-label={t('Match Mode')}>
+            <SelectValue className='min-w-0 truncate'>
+              {modelNameModeLabel}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              {modelNameModeItems.map((mode) => (
+                <SelectItem key={mode.value} value={mode.value}>
+                  {mode.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
     </LogsFilterField>
   )
   const groupFilter = (

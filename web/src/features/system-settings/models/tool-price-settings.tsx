@@ -22,10 +22,11 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { StaticDataTable } from '@/components/data-table'
+import { JsonCodeEditor } from '@/components/json-code-editor'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Field, FieldError } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -40,12 +41,20 @@ const DEFAULT_PRICES: Record<string, number> = {
   'web_search_preview:gpt-4.1-mini*': 25.0,
   file_search: 2.5,
   google_search: 14.0,
+  image_generation: 150.0,
 }
 
 type ToolPriceRow = {
   id: number
   key: string
-  price: number
+  price: string
+}
+
+function parseToolPrice(value: string): number | null {
+  if (value.trim() === '') return null
+  const price = Number(value)
+  if (!Number.isFinite(price) || price < 0) return null
+  return price
 }
 
 function rowsToObject(rows: ToolPriceRow[]): Record<string, number> {
@@ -53,7 +62,9 @@ function rowsToObject(rows: ToolPriceRow[]): Record<string, number> {
   for (const row of rows) {
     const k = row.key.trim()
     if (!k) continue
-    prices[k] = Number(row.price) || 0
+    const price = parseToolPrice(row.price)
+    if (price === null) continue
+    prices[k] = price
   }
   return prices
 }
@@ -62,7 +73,7 @@ function objectToRows(prices: Record<string, number>): ToolPriceRow[] {
   return Object.entries(prices).map(([key, price], index) => ({
     id: index + 1,
     key,
-    price: Number(price) || 0,
+    price: String(price),
   }))
 }
 
@@ -78,7 +89,18 @@ function parseInitialPrices(
       !Array.isArray(parsed) &&
       Object.keys(parsed as object).length > 0
     ) {
-      return parsed as Record<string, number>
+      const validPrices: Record<string, number> = {}
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+          validPrices[key] = value
+        }
+      }
+      // Merge defaults first so newly introduced tools appear for old stored
+      // configs, while explicit stored values (including 0) still win.
+      return {
+        ...DEFAULT_PRICES,
+        ...validPrices,
+      }
     }
   } catch {
     // fall through to defaults
@@ -111,6 +133,15 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
   }, [defaultValue])
 
   const currentPrices = useMemo(() => rowsToObject(rows), [rows])
+  const invalidRowIds = useMemo(
+    () =>
+      new Set(
+        rows
+          .filter((row) => parseToolPrice(row.price) === null)
+          .map((row) => row.id)
+      ),
+    [rows]
+  )
 
   const syncFromRows = useCallback((nextRows: ToolPriceRow[]) => {
     setRows(nextRows)
@@ -127,7 +158,19 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
           setJsonError(t('JSON must be an object'))
           return
         }
-        const nextRows = objectToRows(parsed as Record<string, number>)
+        const prices: Record<string, number> = {}
+        for (const [key, value] of Object.entries(parsed)) {
+          if (
+            typeof value !== 'number' ||
+            !Number.isFinite(value) ||
+            value < 0
+          ) {
+            setJsonError(t('Please enter a valid number'))
+            return
+          }
+          prices[key] = value
+        }
+        const nextRows = objectToRows(prices)
         setRows(nextRows)
         setNextRowId(nextRows.length + 1)
         setJsonError('')
@@ -139,7 +182,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
   )
 
   const updateRow = useCallback(
-    (id: number, field: 'key' | 'price', value: string | number) => {
+    (id: number, field: 'key' | 'price', value: string) => {
       syncFromRows(
         rows.map((r) => (r.id === id ? { ...r, [field]: value } : r))
       )
@@ -148,7 +191,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
   )
 
   const addRow = useCallback(() => {
-    const newRow: ToolPriceRow = { id: nextRowId, key: '', price: 0 }
+    const newRow: ToolPriceRow = { id: nextRowId, key: '', price: '0' }
     setNextRowId((prev) => prev + 1)
     syncFromRows([...rows, newRow])
   }, [nextRowId, rows, syncFromRows])
@@ -178,6 +221,10 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
   }, [jsonText, t])
 
   const handleSave = useCallback(async () => {
+    if (invalidRowIds.size > 0) {
+      toast.error(t('Please enter a valid number'))
+      return
+    }
     if (editMode === 'json' && jsonError) {
       toast.error(t('Please fix JSON errors before saving'))
       return
@@ -186,7 +233,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
       key: OPTION_KEY,
       value: JSON.stringify(currentPrices),
     })
-  }, [currentPrices, editMode, jsonError, t, updateOption])
+  }, [currentPrices, editMode, invalidRowIds.size, jsonError, t, updateOption])
 
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
@@ -276,17 +323,29 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
               id: 'price',
               header: t('Price ($/1K calls)'),
               className: 'w-[200px]',
-              cell: (row) => (
-                <Input
-                  type='number'
-                  min={0}
-                  step={0.5}
-                  value={row.price}
-                  onChange={(e) =>
-                    updateRow(row.id, 'price', Number(e.target.value) || 0)
-                  }
-                />
-              ),
+              cell: (row) => {
+                const isInvalid = invalidRowIds.has(row.id)
+                return (
+                  <Field data-invalid={isInvalid}>
+                    <Input
+                      type='number'
+                      min={0}
+                      step={0.5}
+                      value={row.price}
+                      aria-invalid={isInvalid}
+                      aria-label={`${t('Price ($/1K calls)')}: ${row.key || t('Tool identifier')}`}
+                      onChange={(e) =>
+                        updateRow(row.id, 'price', e.target.value)
+                      }
+                    />
+                    {isInvalid ? (
+                      <FieldError>
+                        {t('Please enter a valid number')}
+                      </FieldError>
+                    ) : null}
+                  </Field>
+                )
+              },
             },
             {
               id: 'actions',
@@ -308,12 +367,11 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
         />
       ) : (
         <div className='space-y-2'>
-          <Textarea
+          <JsonCodeEditor
             value={jsonText}
-            onChange={(e) => handleJsonChange(e.target.value)}
-            className='font-mono text-sm'
-            rows={12}
-            spellCheck={false}
+            onChange={handleJsonChange}
+            heightClassName='h-72 min-h-72 max-h-72'
+            aria-invalid={Boolean(jsonError)}
           />
           {jsonError && <p className='text-destructive text-sm'>{jsonError}</p>}
         </div>
@@ -323,7 +381,9 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
         <Button
           onClick={handleSave}
           disabled={
-            updateOption.isPending || (editMode === 'json' && !!jsonError)
+            updateOption.isPending ||
+            invalidRowIds.size > 0 ||
+            (editMode === 'json' && !!jsonError)
           }
         >
           {t('Save tool prices')}

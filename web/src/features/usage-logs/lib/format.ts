@@ -92,6 +92,67 @@ export function isViolationFeeLog(other: LogOtherData | null): boolean {
   )
 }
 
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function hasLegacySearchSurcharge(
+  enabled: boolean | undefined,
+  count: number | undefined,
+  price: number | undefined
+): boolean {
+  return (
+    enabled === true &&
+    isPositiveFiniteNumber(count) &&
+    isPositiveFiniteNumber(price)
+  )
+}
+
+/**
+ * Check whether a consume log includes an actual tool-call surcharge.
+ * Structured surcharge items cover current logs, while the legacy fields keep
+ * historical Web Search, File Search, and Image Generation logs visible.
+ */
+export function hasToolSurcharge(other: LogOtherData | null): boolean {
+  if (!other) return false
+
+  const hasStructuredSurcharge =
+    Array.isArray(other.tool_surcharges) &&
+    other.tool_surcharges.some(
+      (item) =>
+        typeof item?.name === 'string' &&
+        item.name.trim() !== '' &&
+        isPositiveFiniteNumber(item.count) &&
+        isPositiveFiniteNumber(item.price)
+    )
+  if (hasStructuredSurcharge) return true
+
+  if (
+    hasLegacySearchSurcharge(
+      other.web_search,
+      other.web_search_call_count,
+      other.web_search_price
+    )
+  ) {
+    return true
+  }
+
+  if (
+    hasLegacySearchSurcharge(
+      other.file_search,
+      other.file_search_call_count,
+      other.file_search_price
+    )
+  ) {
+    return true
+  }
+
+  return (
+    other.image_generation_call === true &&
+    isPositiveFiniteNumber(other.image_generation_call_price)
+  )
+}
+
 /**
  * Parse the 'other' field from JSON string to object
  */
@@ -103,6 +164,25 @@ export function parseLogOther(other: string): LogOtherData | null {
     // eslint-disable-next-line no-console
     console.error('Failed to parse log other field:', error)
     return null
+  }
+}
+
+export function getReasoningEffortVariant(
+  effort: string | undefined
+): StatusBadgeProps['variant'] {
+  switch (effort?.trim().toLowerCase()) {
+    case 'max':
+    case 'xhigh':
+    case 'high':
+      return 'orange'
+    case 'medium':
+      return 'yellow'
+    case 'low':
+    case 'minimal':
+      return 'green'
+    case 'none':
+    default:
+      return 'grey'
   }
 }
 

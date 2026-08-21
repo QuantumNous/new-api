@@ -33,4 +33,10 @@ type Provider interface {
 
 	// GetProviderPrefix returns the prefix for auto-generated usernames (e.g., "github_")
 	GetProviderPrefix() string
+
+	// ProviderUserIDColumn returns the users-table column that stores this provider's
+	// user ID, used by bind flows to update only the binding column instead of
+	// writing back a full user snapshot. Providers that persist bindings elsewhere
+	// (e.g. the user_oauth_bindings table) return an empty string.
+	ProviderUserIDColumn() string
 }

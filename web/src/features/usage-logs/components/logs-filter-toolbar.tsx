@@ -51,7 +51,7 @@ interface LogsFilterToolbarProps<TData> {
   advancedFilterCount?: number
   searchLoading?: boolean
   onReset: () => void
-  onSearch: () => void
+  onSearch: () => boolean | void
   className?: string
 }
 
@@ -102,7 +102,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   }
 
   const handleMobileSearch = () => {
-    props.onSearch()
+    if (props.onSearch() === false) return
     setMobileFiltersOpen(false)
   }
 

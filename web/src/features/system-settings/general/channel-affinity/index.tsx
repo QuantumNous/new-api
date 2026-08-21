@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 
 import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
+import { JsonCodeEditor } from '@/components/json-code-editor'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -35,7 +36,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Textarea } from '@/components/ui/textarea'
 
 import { SettingsSwitchField } from '../../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../../components/settings-page-context'
@@ -661,11 +661,14 @@ export function ChannelAffinitySection(props: Props) {
           />
         ) : (
           <div className='grid gap-1.5'>
-            <Label>{t('Rules JSON')}</Label>
-            <Textarea
-              className='min-h-[300px] font-mono text-xs'
+            <Label htmlFor='channel-affinity-rules-json'>
+              {t('Rules JSON')}
+            </Label>
+            <JsonCodeEditor
+              id='channel-affinity-rules-json'
               value={jsonText}
-              onChange={(e) => setJsonText(e.target.value)}
+              onChange={setJsonText}
+              heightClassName='h-[300px] min-h-[300px] max-h-[300px]'
             />
           </div>
         )}

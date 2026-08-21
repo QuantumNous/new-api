@@ -33,6 +33,10 @@ import {
   OAUTH_BIND_RESULT_MESSAGE,
 } from '@/features/auth/constants'
 import { watchOAuthPopupClosed } from '@/features/auth/lib/oauth-bind-window'
+import {
+  getOAuthSessionStorage,
+  markOAuthBindPopup,
+} from '@/features/auth/lib/oauth-callback-mode'
 import type { CustomOAuthProviderInfo } from '@/features/auth/types'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
@@ -40,15 +44,13 @@ import { api } from '@/lib/api'
 import {
   buildDiscordOAuthUrl,
   buildGitHubOAuthUrl,
+  indexCustomOAuthBindings,
   buildLinuxDOOAuthUrl,
   buildOIDCOAuthUrl,
+  type CustomOAuthBinding,
 } from '@/lib/oauth'
 
-import {
-  getSelfOAuthBindings,
-  unbindCustomOAuth,
-  type CustomOAuthBinding,
-} from '../../api'
+import { getSelfOAuthBindings, unbindCustomOAuth } from '../../api'
 import type { UserProfile, BindingItem } from '../../types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
 import { TelegramBindDialog } from '../dialogs/telegram-bind-dialog'
@@ -108,6 +110,10 @@ export function AccountBindingsTab({
   const customProviders = status?.custom_oauth_providers as
     | CustomOAuthProviderInfo[]
     | undefined
+  const customBindingsByProviderId = useMemo(
+    () => indexCustomOAuthBindings(customBindings),
+    [customBindings]
+  )
 
   const fetchCustomBindings = useCallback(async () => {
     if (!customProviders || customProviders.length === 0) return
@@ -175,6 +181,15 @@ export function AccountBindingsTab({
       try {
         const state = await createOAuthFlow(provider, 'bind')
         if (pendingOAuthBinding.current !== pending || popup.closed) return
+        // Stamp the popup while it is still same-origin (about:blank). Tying
+        // the mark to this state prevents a stale popup from claiming a later
+        // login callback. If storage is blocked, do not navigate into a
+        // callback that cannot safely identify the bind flow.
+        if (
+          !markOAuthBindPopup(getOAuthSessionStorage(popup), provider, state)
+        ) {
+          throw new Error('OAuth bind popup storage is unavailable')
+        }
         pending.state = state
         popup.location.replace(buildUrl(state))
       } catch {
@@ -461,9 +476,7 @@ export function AccountBindingsTab({
           </p>
           <div className='grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3'>
             {customProviders.map((provider) => {
-              const binding = customBindings.find(
-                (b) => b.provider_id === String(provider.id)
-              )
+              const binding = customBindingsByProviderId.get(provider.id)
               const isBound = !!binding
               return (
                 <div
@@ -487,7 +500,7 @@ export function AccountBindingsTab({
                       </div>
                       <p className='text-muted-foreground truncate text-xs'>
                         {isBound
-                          ? binding?.external_id || t('Bound')
+                          ? binding?.provider_user_id || t('Bound')
                           : t('Not bound')}
                       </p>
                     </div>

@@ -7,9 +7,19 @@ import (
 	"gorm.io/gorm"
 )
 
+// Ranking reads the hourly pre-aggregated quota_data dashboard table rather
+// than the raw logs table: one leaderboard refresh stays a small grouped scan
+// even when logs holds tens of millions of rows, and the numbers keep matching
+// the rest of the dashboard, which is fed by the same table.
+const (
+	rankingTokenSumExpr = "COALESCE(sum(token_used), 0)"
+	rankingQuotaSumExpr = "COALESCE(sum(quota), 0)"
+)
+
 type RankingQuotaTotal struct {
 	ModelName   string `json:"model_name"`
 	TotalTokens int64  `json:"total_tokens"`
+	TotalQuota  int64  `json:"total_quota"`
 }
 
 type RankingQuotaBucket struct {
@@ -21,11 +31,15 @@ type RankingQuotaBucket struct {
 func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal, error) {
 	var rows []RankingQuotaTotal
 	query := DB.Table("quota_data").
-		Select("model_name, sum(token_used) as total_tokens").
+		Select("model_name, " + rankingTokenSumExpr + " as total_tokens, " + rankingQuotaSumExpr + " as total_quota").
 		Where("model_name <> ''").
 		Group("model_name").
-		Having("sum(token_used) > 0").
-		Order("total_tokens DESC")
+		// Per-request billing charges quota without reporting tokens, so a
+		// token-only filter would silently drop those models from the board.
+		Having(rankingTokenSumExpr + " > 0 OR " + rankingQuotaSumExpr + " > 0").
+		Order("total_tokens DESC").
+		Order("total_quota DESC").
+		Order("model_name ASC")
 	query = applyRankingQuotaTimeRange(query, startTime, endTime)
 	err := query.Find(&rows).Error
 	return rows, err
@@ -38,17 +52,23 @@ func GetRankingQuotaBuckets(startTime int64, endTime int64, bucketSize int64) ([
 	bucketExpr := rankingBucketExpr(bucketSize)
 	var rows []RankingQuotaBucket
 	query := DB.Table("quota_data").
-		Select(fmt.Sprintf("model_name, %s as bucket, sum(token_used) as tokens", bucketExpr)).
+		Select(fmt.Sprintf("model_name, %s as bucket, %s as tokens", bucketExpr, rankingTokenSumExpr)).
 		Where("model_name <> ''").
 		Group(fmt.Sprintf("model_name, %s", bucketExpr)).
-		Having("sum(token_used) > 0").
-		Order("bucket ASC")
+		Having(rankingTokenSumExpr + " > 0").
+		Order("bucket ASC").
+		Order("model_name ASC")
 	query = applyRankingQuotaTimeRange(query, startTime, endTime)
 	err := query.Find(&rows).Error
 	return rows, err
 }
 
+// rankingBucketExpr buckets quota_data.created_at, so it must follow the main
+// database dialect: quota_data lives in the main database, not the log database.
 func rankingBucketExpr(bucketSize int64) string {
+	if common.UsingMainDatabase(common.DatabaseTypeClickHouse) {
+		return fmt.Sprintf("intDiv(created_at, %d) * %d", bucketSize, bucketSize)
+	}
 	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
 		return fmt.Sprintf("FLOOR(created_at / %d) * %d", bucketSize, bucketSize)
 	}

@@ -48,6 +48,8 @@ export type ModelRanking = {
   category: RankingCategoryId
   /** Total tokens routed through this model in the period. */
   total_tokens: number
+  /** Total quota charged by usage logs in the period. */
+  total_quota: number
   /** Share of all tokens served (0..1). */
   share: number
   /** Period-over-period change in token volume (%). */

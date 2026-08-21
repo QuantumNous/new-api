@@ -41,7 +41,7 @@ type oidcUser struct {
 }
 
 func (p *OIDCProvider) GetName() string {
-	return "OIDC"
+	return system_setting.GetOIDCSettings().GetEffectiveDisplayName()
 }
 
 func (p *OIDCProvider) IsEnabled() bool {
@@ -174,4 +174,9 @@ func (p *OIDCProvider) SetProviderUserID(user *model.User, providerUserID string
 
 func (p *OIDCProvider) GetProviderPrefix() string {
 	return "oidc_"
+}
+
+// ProviderUserIDColumn returns the users-table column storing this provider's user ID.
+func (p *OIDCProvider) ProviderUserIDColumn() string {
+	return "oidc_id"
 }

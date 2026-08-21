@@ -31,6 +31,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { JsonCodeEditor } from '@/components/json-code-editor'
 import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import {
@@ -59,7 +60,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Textarea } from '@/components/ui/textarea'
 
 import {
   checkClusterNameAvailability,
@@ -702,10 +702,14 @@ export function CreateDeploymentDrawer({
                     <FormItem>
                       <FormLabel>{t('Environment variables (JSON)')}</FormLabel>
                       <FormControl>
-                        <Textarea
-                          className='min-h-24 font-mono text-xs'
+                        <JsonCodeEditor
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          textareaRef={field.ref}
                           placeholder='{"KEY":"VALUE"}'
-                          {...field}
+                          heightClassName='h-40 min-h-40 max-h-40'
                         />
                       </FormControl>
                       <FormMessage />
@@ -722,10 +726,14 @@ export function CreateDeploymentDrawer({
                         {t('Secret environment variables (JSON)')}
                       </FormLabel>
                       <FormControl>
-                        <Textarea
-                          className='min-h-24 font-mono text-xs'
+                        <JsonCodeEditor
+                          value={field.value || ''}
+                          onChange={field.onChange}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          textareaRef={field.ref}
                           placeholder='{"SECRET":"VALUE"}'
-                          {...field}
+                          heightClassName='h-40 min-h-40 max-h-40'
                         />
                       </FormControl>
                       <FormMessage />

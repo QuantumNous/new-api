@@ -64,6 +64,11 @@ web/           — Frontend (React 19, Rsbuild, Base UI, Tailwind)
 
 ### Backend Rules
 
+**relaykit module independence:** The `relaykit/` Go module MUST remain independently buildable.
+
+- Code under `relaykit/` MUST NOT import or depend on packages from the root `new-api` module, or rely on root-only configuration, generated files, or workspace wiring.
+- Any change affecting `relaykit/` or its public APIs MUST be verified with `cd relaykit && GOWORK=off go build ./...`; a successful root-module build is not sufficient.
+
 **JSON package:** All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:
 
 - `common.Marshal(v any) ([]byte, error)`

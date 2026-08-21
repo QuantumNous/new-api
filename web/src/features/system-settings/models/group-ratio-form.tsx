@@ -26,6 +26,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { JsonCodeEditor } from '@/components/json-code-editor'
 import {
   Accordion,
   AccordionContent,
@@ -42,6 +43,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
@@ -50,7 +52,6 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 
 import {
   SettingsForm,
@@ -59,6 +60,7 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { safeJsonParse } from '../utils/json-parser'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
@@ -68,6 +70,7 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
 }
@@ -169,6 +172,34 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               userUsableGroups={form.watch('UserUsableGroups')}
               groupGroupRatio={form.watch('GroupGroupRatio')}
               autoGroups={form.watch('AutoGroups')}
+              maxTokenAutoGroupsField={
+                <FormField
+                  control={form.control}
+                  name='MaxTokenAutoGroups'
+                  render={({ field, fieldState }) => (
+                    <FormItem data-invalid={fieldState.invalid}>
+                      <FormLabel>
+                        {t('Maximum custom groups per token')}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...safeNumberFieldProps(field)}
+                          type='number'
+                          min={1}
+                          step={1}
+                          aria-invalid={fieldState.invalid}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              }
               groupSpecialUsableGroup={form.watch('GroupSpecialUsableGroup')}
               onChange={(field, value) =>
                 handleFieldChange(field as keyof GroupFormValues, value)
@@ -215,7 +246,13 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem>
                   <FormLabel>{t('Group ratios')}</FormLabel>
                   <FormControl>
-                    <Textarea rows={8} {...field} />
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                    />
                   </FormControl>
                   <FormDescription>
                     {t(
@@ -234,7 +271,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem>
                   <FormLabel>{t('Top-up group ratios')}</FormLabel>
                   <FormControl>
-                    <Textarea rows={6} {...field} />
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
                   </FormControl>
                   <FormDescription>
                     {t(
@@ -254,7 +298,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem>
                   <FormLabel>{t('Selectable groups')}</FormLabel>
                   <FormControl>
-                    <Textarea rows={6} {...field} />
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
                   </FormControl>
                   <FormDescription>
                     {t(
@@ -273,7 +324,13 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem>
                   <FormLabel>{t('Inter-group overrides')}</FormLabel>
                   <FormControl>
-                    <Textarea rows={8} {...field} />
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                    />
                   </FormControl>
                   <FormDescription>
                     {t('Nested JSON: source group →')}{' '}
@@ -294,11 +351,43 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem>
                   <FormLabel>{t('Auto assignment order')}</FormLabel>
                   <FormControl>
-                    <Textarea rows={6} {...field} />
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
                   </FormControl>
                   <FormDescription>
                     {t(
                       'JSON array of group identifiers. When enabled below, new tokens rotate through this list.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='MaxTokenAutoGroups'
+              render={({ field, fieldState }) => (
+                <FormItem data-invalid={fieldState.invalid}>
+                  <FormLabel>{t('Maximum custom groups per token')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...safeNumberFieldProps(field)}
+                      type='number'
+                      min={1}
+                      step={1}
+                      aria-invalid={fieldState.invalid}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Limits only token-specific Auto snapshots. Global Auto inheritance remains unlimited.'
                     )}
                   </FormDescription>
                   <FormMessage />
@@ -313,7 +402,13 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 <FormItem>
                   <FormLabel>{t('Special usable group rules')}</FormLabel>
                   <FormControl>
-                    <Textarea rows={8} {...field} />
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                    />
                   </FormControl>
                   <FormDescription>
                     {t(

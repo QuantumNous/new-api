@@ -61,7 +61,9 @@ func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/limited", remoteAddr).Code)
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/limited", remoteAddr).Code)
-	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/limited", remoteAddr).Code)
+	limitedResponse := performRateLimitRequest(router, "/limited", remoteAddr)
+	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
+	assert.Equal(t, "37", limitedResponse.Header().Get("Retry-After"))
 
 	key := redisIPRateLimitKey("TEST", "192.0.2.10")
 	count, err := redisServer.Get(key)

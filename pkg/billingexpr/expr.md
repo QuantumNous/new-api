@@ -116,7 +116,31 @@ Request-conditional multipliers are appended to the expression after a `|||` sep
 tier("base", p * 5 + c * 25)|||when(header("anthropic-beta") has "fast-mode") * 6
 ```
 
-These are parsed and applied separately by the request rule system.
+These factors are stored as ordinary multiplication in the final expression (for example, `(tier(...)) * (condition ? 6 : 1)`) and run in the same billing program.
+
+### Request Rule Tracing
+
+At compile time, the engine instruments ternary factors with this exact shape:
+
+```
+<request-probe condition> ? <numeric literal> : 1
+```
+
+The condition must reference at least one request probe (`param`, `header`, `hour`, `minute`, `weekday`, `month`, or `day`). Both branches must be numeric literals and the fallback must equal `1`. Other conditionals, including `(condition ? 2 : 1.5)`, are evaluated normally but are not traced. Integer-only factors use an integer-preserving trace callback, so instrumentation does not change expressions that require an integer operand (for example, `%`). The internal trace callback names are reserved and cannot be used in stored expressions.
+
+The compiled cache stores the canonical condition and multiplier for every instrumented node. Each run starts with the full detected rule list marked as unmatched; callbacks mark rules that actually evaluate true. Rules skipped by normal expression short-circuiting remain unmatched. This keeps the expression's numeric result unchanged and avoids reparsing it on each request.
+
+Settlement copies the actual run's traces into the consume log as:
+
+```json
+{
+  "request_rules": [
+    { "cond": "param(\"service_tier\") == \"fast\"", "multiplier": 2, "matched": true }
+  ]
+}
+```
+
+The usage-log UI treats `request_rules` as the authoritative rule list and renders directly from it. It parses `cond` only to produce a friendly label and falls back to the canonical condition text when that parser does not recognize the condition. Pricing pages without log context continue to parse the stored expression for display.
 
 ---
 
@@ -159,7 +183,7 @@ When a request arrives and the model uses `tiered_expr` billing:
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
 3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
 4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`
-5. Creates `BillingSnapshot` (frozen state for settlement) and stores on `RelayInfo`
+5. Creates `BillingSnapshot` and stores it on `RelayInfo`. Expression and request state stay frozen for settlement. An auto-group retry refreshes group-dependent fields from the selected group before the next upstream attempt. If a free initial group skipped pre-consume and the retry selects a paid group, the billing session is created before that attempt. If an existing session moves to a more expensive group, its reservation is raised to that group's estimate before sending; cheaper groups are refunded only after actual usage is settled.
 
 ### 4. Settlement (Actual Billing)
 
@@ -173,7 +197,7 @@ After the upstream response returns with actual token usage:
    - For Claude-format APIs (input_tokens is text-only): no adjustment needed
 
 2. `TryTieredSettle(relayInfo, params)`:
-   - Uses the frozen `BillingSnapshot` from pre-consume
+   - Uses the captured `BillingSnapshot`, whose group-dependent fields have been refreshed from the final selected group
    - Re-runs the expression with actual token counts
    - Converts via `quotaConversion()` (version-dispatched)
    - Returns actual quota
@@ -182,9 +206,9 @@ After the upstream response returns with actual token usage:
 
 **Files**: `service/log_info_generate.go`, `web/src/helpers/render.jsx`
 
-Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), and `matched_tier` to the log's `other` JSON.
+Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), `matched_tier`, and the structured `request_rules` trace list to the log's `other` JSON.
 
-Frontend: Detects `billing_mode === "tiered_expr"`, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders pricing breakdown.
+Frontend: Detects `billing_mode === "tiered_expr"`, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders request multipliers from `request_rules` when present. Without log traces, it falls back to parsing the stored expression.
 
 ---
 

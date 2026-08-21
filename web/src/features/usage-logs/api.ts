@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import { buildQueryParams } from './lib/utils'
+import { buildQueryParams } from './lib/query'
 import type {
   GetLogsParams,
   GetLogsResponse,
   GetLogStatsParams,
   GetLogStatsResponse,
+  ExportLogsParams,
+  ExportLogsResult,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   UserInfo,
@@ -83,6 +85,22 @@ export const getLogStats = (params: GetLogStatsParams = {}) =>
 export const getUserLogStats = (
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
 ) => fetchLogStats('/api/log', params, false)
+
+export async function exportLogsCsv(
+  params: ExportLogsParams
+): Promise<ExportLogsResult> {
+  const res = await api.get<Blob>('/api/log/export', {
+    params: buildQueryParams(params as unknown as Record<string, unknown>),
+    responseType: 'blob',
+    disableDuplicate: true,
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
+  return {
+    blob: res.data,
+    contentDisposition: res.headers['content-disposition'],
+  }
+}
 
 export async function getUserInfo(
   userId: number

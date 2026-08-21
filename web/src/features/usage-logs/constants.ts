@@ -21,7 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
  */
 import type { StatusBadgeProps } from '@/components/status-badge'
 
-import type { LogStatistics, LogCategory } from './types'
+import type { LogStatistics, LogCategory, ModelNameMode } from './types'
 
 // ============================================================================
 // Default Values
@@ -43,6 +43,14 @@ export const DEFAULT_LOGS_DATA = {
   items: [],
   total: 0,
 }
+
+/**
+ * Matching modes supported by the usage-log model-name filter.
+ */
+export const MODEL_NAME_MODE_VALUES = ['contains', 'exact'] as const
+export const DEFAULT_MODEL_NAME_MODE: ModelNameMode = 'contains'
+export const MODEL_NAME_SEARCH_MIN_LENGTH = 2
+export const MODEL_NAME_SEARCH_MAX_LENGTH = 128
 
 // ============================================================================
 // Log Type Enum
