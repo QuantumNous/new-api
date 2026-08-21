@@ -137,7 +137,7 @@ type OnlineCopy = {
     local: ReactNode;
     mostPopular: string;
     payAsYouGo: string;
-    payCta: string;
+    payCta: (price: string) => string;
     perMonth: string;
     payWith: string;
     paymentMethods: PaymentMethodLabels;
@@ -299,7 +299,7 @@ const en: OnlineCopy = {
     local: <>Stripe Checkout · Adaptive Pricing (BRL/INR/CNY/EUR) · bank transfer & invoicing via <u>Enterprise billing</u> · cancel anytime — new users start with $1 free credit</>,
     mostPopular: "MOST POPULAR",
     payAsYouGo: "Starter top-up",
-    payCta: "Subscribe Pro $30/mo sign in",
+    payCta: (price) => `Subscribe Pro ${price}/mo sign in`,
     perMonth: "/mo",
     payWith: paymentMethodCopy.en.payWith,
     paymentMethods: paymentMethodCopy.en.methods,
@@ -501,7 +501,7 @@ const zh: OnlineCopy = {
     local: <>Stripe Checkout · 自适应定价 (BRL/INR/CNY/EUR) · 企业账单支持银行转账与发票 · 随时取消，新用户送 $1 免费额度</>,
     mostPopular: "最受欢迎",
     payAsYouGo: "起始充值",
-    payCta: "订阅 Pro $30/月并登录",
+    payCta: (price) => `订阅 Pro ${price}/月并登录`,
     perMonth: "/月",
     payWith: paymentMethodCopy.zh.payWith,
     paymentMethods: paymentMethodCopy.zh.methods,
@@ -562,7 +562,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · Precios adaptativos (BRL/INR/CNY/EUR) · transferencia bancaria y facturación mediante <u>facturación empresarial</u> · cancela cuando quieras; los nuevos usuarios empiezan con $1 de crédito gratis</>,
     mostPopular: "MÁS POPULAR",
     payAsYouGo: "Recarga inicial",
-    payCta: "Suscríbete a Pro por $30/mes e inicia sesión",
+    payCta: (price) => `Suscríbete a Pro por ${price}/mes e inicia sesión`,
     perMonth: "/mes",
     payWith: paymentMethodCopy.es.payWith,
     paymentMethods: paymentMethodCopy.es.methods,
@@ -610,7 +610,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · Tarification adaptative (BRL/INR/CNY/EUR) · virement bancaire et facturation via <u>facturation entreprise</u> · annulation à tout moment; les nouveaux utilisateurs commencent avec $1 de crédit gratuit</>,
     mostPopular: "LE PLUS POPULAIRE",
     payAsYouGo: "Recharge de départ",
-    payCta: "S'abonner à Pro pour $30/mois et se connecter",
+    payCta: (price) => `S'abonner à Pro pour ${price}/mois et se connecter`,
     perMonth: "/mois",
     payWith: paymentMethodCopy.fr.payWith,
     paymentMethods: paymentMethodCopy.fr.methods,
@@ -658,7 +658,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · Preços adaptativos (BRL/INR/CNY/EUR) · transferência bancária e faturamento via <u>cobrança empresarial</u> · cancele quando quiser; novos usuários começam com $1 de crédito grátis</>,
     mostPopular: "MAIS POPULAR",
     payAsYouGo: "Recarga inicial",
-    payCta: "Assine Pro por $30/mês e entre",
+    payCta: (price) => `Assine Pro por ${price}/mês e entre`,
     perMonth: "/mês",
     payWith: paymentMethodCopy.pt.payWith,
     paymentMethods: paymentMethodCopy.pt.methods,
@@ -706,7 +706,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · адаптивные цены (BRL/INR/CNY/EUR) · банковский перевод и счета через <u>корпоративный биллинг</u> · отмена в любое время; новые пользователи начинают с бесплатного кредита $1</>,
     mostPopular: "ПОПУЛЯРНО",
     payAsYouGo: "Стартовое пополнение",
-    payCta: "Оформить Pro за $30/мес. и войти",
+    payCta: (price) => `Оформить Pro за ${price}/мес. и войти`,
     perMonth: "/мес.",
     payWith: paymentMethodCopy.ru.payWith,
     paymentMethods: paymentMethodCopy.ru.methods,
@@ -754,7 +754,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · 適応型価格 (BRL/INR/CNY/EUR) · <u>エンタープライズ請求</u>で銀行振込と請求書に対応 · いつでも解約可能。新規ユーザーは $1 の無料クレジットから開始</>,
     mostPopular: "一番人気",
     payAsYouGo: "初回チャージ",
-    payCta: "Pro を $30/月で登録してログイン",
+    payCta: (price) => `Pro を ${price}/月で登録してログイン`,
     perMonth: "/月",
     payWith: paymentMethodCopy.ja.payWith,
     paymentMethods: paymentMethodCopy.ja.methods,
@@ -802,7 +802,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · giá thích ứng (BRL/INR/CNY/EUR) · chuyển khoản ngân hàng và hóa đơn qua <u>thanh toán doanh nghiệp</u> · hủy bất cứ lúc nào; người dùng mới bắt đầu với $1 credit miễn phí</>,
     mostPopular: "PHỔ BIẾN NHẤT",
     payAsYouGo: "Nạp khởi đầu",
-    payCta: "Đăng ký Pro $30/tháng và đăng nhập",
+    payCta: (price) => `Đăng ký Pro ${price}/tháng và đăng nhập`,
     perMonth: "/tháng",
     payWith: paymentMethodCopy.vi.payWith,
     paymentMethods: paymentMethodCopy.vi.methods,
@@ -850,7 +850,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · adaptive Preise (BRL/INR/CNY/EUR) · Banküberweisung und Rechnungen über <u>Enterprise-Abrechnung</u> · jederzeit kündbar; neue Nutzer starten mit $1 Gratisguthaben</>,
     mostPopular: "BELIEBT",
     payAsYouGo: "Startguthaben",
-    payCta: "Pro für $30/Monat abonnieren und anmelden",
+    payCta: (price) => `Pro für ${price}/Monat abonnieren und anmelden`,
     perMonth: "/Monat",
     payWith: paymentMethodCopy.de.payWith,
     paymentMethods: paymentMethodCopy.de.methods,
@@ -898,7 +898,7 @@ const localizedPricingCopy = {
     local: <>Stripe Checkout · harga adaptif (BRL/INR/CNY/EUR) · transfer bank dan faktur melalui <u>penagihan perusahaan</u> · batalkan kapan saja; pengguna baru mulai dengan kredit gratis $1</>,
     mostPopular: "PALING POPULER",
     payAsYouGo: "Top-up awal",
-    payCta: "Berlangganan Pro $30/bulan dan masuk",
+    payCta: (price) => `Berlangganan Pro ${price}/bulan dan masuk`,
     perMonth: "/bulan",
     payWith: paymentMethodCopy.id.payWith,
     paymentMethods: paymentMethodCopy.id.methods,

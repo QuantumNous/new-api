@@ -72,4 +72,34 @@ describe("OnlinePricingPage", () => {
       expect(html).not.toContain("300 media credits / mo");
     }
   });
+
+  test("localizes only payable prices for Portuguese and Japanese", async () => {
+    const { OnlinePricingPage } = await import("./online-pricing-page");
+    const cases = [
+      {
+        locale: "pt",
+        prices: ["R$ 49,90", "R$ 149,90", "R$ 499,90"],
+        cta: "Assine Pro por R$ 149,90/mês e entre",
+        retainedUsdCopy: "Até $45 de uso de modelos / mês",
+      },
+      {
+        locale: "ja",
+        prices: ["¥1,500", "¥4,500", "¥15,000"],
+        cta: "Pro を ¥4,500/月で登録してログイン",
+        retainedUsdCopy: "月あたり最大 $45 のモデル利用",
+      },
+    ] as const;
+
+    for (const item of cases) {
+      const html = renderToStaticMarkup(<OnlinePricingPage locale={item.locale} />);
+      for (const price of item.prices) {
+        expect(html).toContain(`<b>${price}</b>`);
+      }
+      expect(html).toContain(item.cta);
+      expect(html).toContain(item.retainedUsdCopy);
+      expect(html).not.toContain("<b>$10</b>");
+      expect(html).not.toContain("<b>$30</b>");
+      expect(html).not.toContain("<b>$100</b>");
+    }
+  });
 });

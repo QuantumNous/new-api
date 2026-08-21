@@ -15,27 +15,44 @@ const paymentMethods = [
 
 type PaymentMethod = (typeof paymentMethods)[number];
 type PlanName = "go" | "pro" | "max";
+type PaymentCurrency = "USD" | "BRL" | "JPY";
 
 const plans = [
   {
     href: subscriptionSignupHref("go"),
     hot: false,
     name: "Go",
-    price: "$10",
+    prices: { BRL: 49.9, JPY: 1_500, USD: 10 },
   },
   {
     href: subscriptionSignupHref("pro"),
     hot: true,
     name: "Pro",
-    price: "$30",
+    prices: { BRL: 149.9, JPY: 4_500, USD: 30 },
   },
   {
     href: subscriptionSignupHref("max"),
     hot: false,
     name: "Max",
-    price: "$100",
+    prices: { BRL: 499.9, JPY: 15_000, USD: 100 },
   },
 ] as const;
+
+function paymentCurrency(locale: Locale): PaymentCurrency {
+  if (locale === "pt") return "BRL";
+  if (locale === "ja") return "JPY";
+  return "USD";
+}
+
+function formatPaymentPrice(locale: Locale, prices: Readonly<Record<PaymentCurrency, number>>): string {
+  const currency = paymentCurrency(locale);
+  const amount = prices[currency];
+  if (currency === "BRL") {
+    return `R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  if (currency === "JPY") return `¥${amount.toLocaleString("ja-JP")}`;
+  return `$${amount.toLocaleString("en-US")}`;
+}
 
 function subscriptionPaymentMethod(kind: PaymentMethod["kind"]) {
   if (kind === "card") return "stripe_recurring";
@@ -59,6 +76,11 @@ export function OnlinePricingPage(props: { locale: Locale }) {
 
 export function OnlinePricingPlansSection(props: { locale: Locale }) {
   const copy = getOnlineStaticCopy(props.locale);
+  const displayedPlans = plans.map((plan) => ({
+    ...plan,
+    price: formatPaymentPrice(props.locale, plan.prices),
+  }));
+  const proPrice = displayedPlans.find((plan) => plan.name === "Pro")!.price;
   return (
     <>
       <style>{`
@@ -70,7 +92,7 @@ export function OnlinePricingPlansSection(props: { locale: Locale }) {
           {copy.pricing.sub}
         </p>
         <div className="tiers">
-          {plans.map((plan) => {
+          {displayedPlans.map((plan) => {
             const planCopy = copy.pricing.plans[plan.name];
             return (
             <div className={`tier${plan.hot ? " hot" : ""}`} key={plan.name}>
@@ -107,7 +129,7 @@ export function OnlinePricingPlansSection(props: { locale: Locale }) {
           </div>
         </div>
         <OnlinePaymentMethodPicker
-          ctaLabel={copy.pricing.payCta}
+          ctaLabel={copy.pricing.payCta(proPrice)}
           methods={paymentMethods.map((method, index) => ({
             ...method,
             ctaHref: subscriptionSignupHref("pro", subscriptionPaymentMethod(method.kind)),
