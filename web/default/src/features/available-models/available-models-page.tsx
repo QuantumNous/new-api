@@ -54,7 +54,7 @@ export function getAvailableModelsViewState(options: {
 
 function ModelAccessSkeleton() {
   return (
-    <div className='mx-auto grid w-full max-w-7xl gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]'>
+    <div className='grid w-full gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]'>
       <div className='hidden flex-col gap-2 lg:flex'>
         <Skeleton className='h-4 w-24' />
         <Skeleton className='h-36 w-full rounded-xl' />
@@ -138,11 +138,7 @@ export function AvailableModels() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>
-        <span className='mx-auto block w-full max-w-7xl'>
-          {t('Available Models')}
-        </span>
-      </SectionPageLayout.Title>
+      <SectionPageLayout.Title>{t('Available Models')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <OperationDocumentationLink />
       </SectionPageLayout.Actions>

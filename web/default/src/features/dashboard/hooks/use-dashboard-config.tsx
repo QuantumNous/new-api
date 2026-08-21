@@ -25,6 +25,7 @@ import {
   Flame,
   TrendingUp,
   Activity,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -83,6 +84,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
 }
 
 export function useSummaryCardsConfig(totals: {
+  balanceDisplay: string
   todayUsageDisplay: string
   usedDisplay: string
   requestCountDisplay: string
@@ -92,6 +94,15 @@ export function useSummaryCardsConfig(totals: {
   const { t } = useTranslation()
 
   return [
+    {
+      key: 'balance',
+      title: t('Available balance'),
+      value: totals.balanceDisplay,
+      description: totals.currencyEnabled
+        ? `${t('Remaining quota')} (${totals.currencyLabel})`
+        : t('Remaining quota'),
+      icon: Wallet,
+    },
     {
       key: 'todayUsage',
       title: t('Last 24h usage'),

@@ -6743,6 +6743,25 @@
     "Video generation timed out": "A geração de vídeo excedeu o tempo limite",
     "Generation was interrupted": "A geração foi interrompida",
     "Your browser does not support video playback.": "Seu navegador não oferece suporte à reprodução de vídeo.",
-    "%": "%"
+    "%": "%",
+    "A healthy balance keeps your work and API calls from being interrupted. Top up now, or invite friends to earn reward credits, so you can keep building with costs under control.": "Com saldo suficiente, seu trabalho e suas chamadas de API não são interrompidos. Recarregue agora ou convide amigos para ganhar créditos de recompensa e continuar criando com os custos sob controle.",
+    "Available models": "Modelos disponíveis",
+    "Boost balance": "Aumentar saldo",
+    "Boost your balance": "Aumente seu saldo",
+    "Current available balance": "Saldo disponível atual",
+    "Dynamic pricing": "Preços dinâmicos",
+    "Earn credits": "Ganhe créditos",
+    "Keep your balance ready whenever you need it": "Mantenha saldo disponível sempre que precisar",
+    "Lowest {{category}} price": "Menor preço de {{category}}",
+    "Model catalog overview": "Visão geral do catálogo de modelos",
+    "Model type": "Tipo de modelo",
+    "Not callable": "Não invocável",
+    "Official price": "Preço oficial",
+    "Per 1M input tokens": "Por 1 milhão de tokens de entrada",
+    "Per 1M input tokens · some models bill per request": "Por 1 milhão de tokens de entrada · alguns modelos são cobrados por requisição",
+    "Price depends on request size and options.": "O preço depende do tamanho da requisição e das opções escolhidas.",
+    "Quick start": "Integração rápida",
+    "Quick top-up": "Recarga rápida",
+    "Save {{percent}}%": "Economize {{percent}}%"
   }
 }

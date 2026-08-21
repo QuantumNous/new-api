@@ -89,14 +89,27 @@ function getPreferredKey(keys: ApiKey[]): ApiKey | null {
   return keys.find((item) => item.status === 1) ?? keys[0] ?? null
 }
 
-export function OverviewDashboard() {
+export type OverviewDashboardProps = {
+  /**
+   * Model handed over from the model catalog's "Quick start" action. It seeds
+   * the example picker so the integration samples open on the model the user
+   * came from; an explicit pick in the dialog still wins from then on.
+   */
+  handoffModel?: string
+}
+
+export function OverviewDashboard({
+  handoffModel,
+}: OverviewDashboardProps = {}) {
   const user = useAuthStore((state) => state.auth.user)
   const { status } = useApiInfo()
   const [openIntegration, setOpenIntegration] = useState<IntegrationId | null>(
     null
   )
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null)
-  const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState<string | null>(
+    handoffModel?.trim() || null
+  )
 
   const serverAddress = useMemo(() => {
     const statusRecord = status as Record<string, unknown> | null

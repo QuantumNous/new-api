@@ -16,40 +16,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
-
-const WELCOME_NOTICE_DISMISSED_STORAGE_KEY =
-  'dashboard_overview_welcome_dismissed'
-
-function getWelcomeNoticeDismissed(): boolean {
-  if (typeof window === 'undefined') return true
-  // Private mode or a restricted WebView can throw on any storage access.
-  try {
-    return (
-      window.localStorage.getItem(WELCOME_NOTICE_DISMISSED_STORAGE_KEY) === '1'
-    )
-  } catch {
-    return false
-  }
-}
+import { isNewAccount } from './new-account'
+import {
+  hasSeenWelcomeNotice,
+  markWelcomeNoticeSeen,
+} from './welcome-notice-persistence'
 
 export function OverviewHero() {
   const { t } = useTranslation()
-  const [noticeDismissed, setNoticeDismissed] = useState(
-    getWelcomeNoticeDismissed
+  const user = useAuthStore((state) => state.auth.user)
+  const userId = user?.id ?? null
+
+  // The greeting belongs to a brand-new account's first visit only: a used
+  // account never sees it, and a new one sees it exactly once.
+  const [showNotice, setShowNotice] = useState(
+    () => isNewAccount(user) && !hasSeenWelcomeNotice(userId)
   )
 
-  const handleDismiss = () => {
-    setNoticeDismissed(true)
-    try {
-      window.localStorage.setItem(WELCOME_NOTICE_DISMISSED_STORAGE_KEY, '1')
-    } catch {
-      // Storage is unavailable; the dismissal lives for this session only.
-    }
-  }
+  // Rendering is what counts as "shown" — a user who reads the banner and
+  // navigates away without clicking Dismiss has still seen it.
+  useEffect(() => {
+    if (!showNotice) return
+    markWelcomeNoticeSeen(userId)
+  }, [showNotice, userId])
 
   return (
     <div className='flex flex-col gap-6'>
@@ -67,7 +61,7 @@ export function OverviewHero() {
         </p>
       </div>
 
-      {!noticeDismissed && (
+      {showNotice && (
         <div className='bg-primary/5 border-primary/20 flex items-start gap-3 rounded-xl border p-4'>
           <div className='flex-1'>
             <div className='font-semibold'>{t('Welcome to Flatkey')}</div>
@@ -80,7 +74,7 @@ export function OverviewHero() {
           <Button
             variant='ghost'
             size='sm'
-            onClick={handleDismiss}
+            onClick={() => setShowNotice(false)}
             aria-label={t('Dismiss')}
           >
             <X data-icon='inline-start' />

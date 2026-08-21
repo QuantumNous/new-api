@@ -6743,6 +6743,25 @@
     "Video generation timed out": "Quá thời gian tạo video",
     "Generation was interrupted": "Quá trình tạo đã bị gián đoạn",
     "Your browser does not support video playback.": "Trình duyệt của bạn không hỗ trợ phát video.",
-    "%": "%"
+    "%": "%",
+    "A healthy balance keeps your work and API calls from being interrupted. Top up now, or invite friends to earn reward credits, so you can keep building with costs under control.": "Số dư dồi dào giúp công việc và các lệnh gọi API của bạn không bị gián đoạn. Hãy nạp tiền ngay, hoặc mời bạn bè để nhận tín dụng thưởng và tiếp tục xây dựng với chi phí trong tầm kiểm soát.",
+    "Available models": "Mô hình khả dụng",
+    "Boost balance": "Tăng số dư",
+    "Boost your balance": "Tăng số dư của bạn",
+    "Current available balance": "Số dư khả dụng hiện tại",
+    "Dynamic pricing": "Định giá động",
+    "Earn credits": "Kiếm tín dụng",
+    "Keep your balance ready whenever you need it": "Luôn sẵn số dư bất cứ khi nào bạn cần",
+    "Lowest {{category}} price": "Giá {{category}} thấp nhất",
+    "Model catalog overview": "Tổng quan danh mục mô hình",
+    "Model type": "Loại mô hình",
+    "Not callable": "Không thể gọi",
+    "Official price": "Giá chính thức",
+    "Per 1M input tokens": "Mỗi 1 triệu token đầu vào",
+    "Per 1M input tokens · some models bill per request": "Mỗi 1 triệu token đầu vào · một số mô hình tính phí theo lượt gọi",
+    "Price depends on request size and options.": "Giá phụ thuộc vào kích thước yêu cầu và các tùy chọn.",
+    "Quick start": "Tích hợp nhanh",
+    "Quick top-up": "Nạp tiền nhanh",
+    "Save {{percent}}%": "Tiết kiệm {{percent}}%"
   }
 }

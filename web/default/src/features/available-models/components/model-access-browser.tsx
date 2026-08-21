@@ -33,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { useModelCatalogPrices } from '../hooks/use-model-catalog-prices'
 import { resolveModelRatioContext } from '../lib/model-access'
 import {
   ALL_MODEL_VENDORS,
@@ -42,16 +43,31 @@ import {
   getModelAccessScopeModelCounts,
   getModelAccessScopeModels,
   getModelAccessUnavailableScopeModels,
+  getModelVendorFilterCounts,
   getModelVendorFilters,
+  getVisibleVendorFilters,
   isFixedModelAccessView,
   reconcileModelVendorFilterState,
   resolveModelAccessScope,
   UNLABELLED_MODEL_VENDOR,
   type ModelVendorFilter,
 } from '../lib/model-access-browser'
+import {
+  resolveCatalogPrice,
+  resolveCatalogPriceRatio,
+} from '../lib/model-catalog-price'
+import { getModelCatalogSummary } from '../lib/model-catalog-summary'
+import {
+  ALL_MODEL_CATEGORIES,
+  filterModelsByCategory,
+  getModelCategoryFilters,
+  getModelCategoryLabel,
+  type ModelCategoryFilter,
+} from '../lib/model-catalog-type'
 import type { UserModelAccess } from '../types'
-import { ModelAccessList } from './model-access-list'
 import { ModelAccessScopeRail } from './model-access-scope-rail'
+import { ModelCatalogGrid } from './model-catalog-grid'
+import { ModelCatalogSummaryStrip } from './model-catalog-summary-strip'
 
 type ModelAccessBrowserProps = {
   access: UserModelAccess
@@ -62,6 +78,9 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   const fixedView = isFixedModelAccessView(access)
   const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [category, setCategory] =
+    useState<ModelCategoryFilter>(ALL_MODEL_CATEGORIES)
+  const priceIndex = useModelCatalogPrices()
 
   const activeScopeId = resolveModelAccessScope(access, selectedScopeId)
   const ratioContext = resolveModelRatioContext(access, activeScopeId)
@@ -96,13 +115,48 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   }
   const activeVendor = reconciledVendorState.value
 
+  // Category chips describe the whole scope, so switching vendor never makes a
+  // type disappear from the row; the counts still follow the vendor selection.
+  const categoryFilters = useMemo(
+    () => getModelCategoryFilters(scopeModels),
+    [scopeModels]
+  )
+  const vendorCounts = useMemo(
+    () =>
+      getModelVendorFilterCounts(filterModelsByCategory(scopeModels, category)),
+    [category, scopeModels]
+  )
+  const visibleVendorFilters = getVisibleVendorFilters(
+    vendorFilters,
+    vendorCounts,
+    activeVendor
+  )
+
+  // A category that vanished with the scope must not keep filtering silently.
+  const activeCategory = categoryFilters.some(
+    (option) => option.value === category
+  )
+    ? category
+    : ALL_MODEL_CATEGORIES
+  if (activeCategory !== category) {
+    setCategory(ALL_MODEL_CATEGORIES)
+  }
+
   const visibleModels = useMemo(
-    () => filterModelAccessModels(scopeModels, query, activeVendor),
-    [activeVendor, query, scopeModels]
+    () =>
+      filterModelsByCategory(
+        filterModelAccessModels(scopeModels, query, activeVendor),
+        activeCategory
+      ),
+    [activeCategory, activeVendor, query, scopeModels]
   )
   const visibleUnavailableModels = useMemo(
-    () => filterModelAccessModels(unavailableScopeModels, query, activeVendor),
-    [activeVendor, query, unavailableScopeModels]
+    () =>
+      filterModelsByCategory(
+        filterModelAccessModels(unavailableScopeModels, query, activeVendor),
+        activeCategory
+      ),
+    [activeCategory, activeVendor, query, unavailableScopeModels]
   )
   const selectedScope = access.groups.find(
     (scope) => scope.id === activeScopeId
@@ -111,8 +165,33 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
     ? t('View models and compatible endpoints available to your account.')
     : t('View models supported by each access group and compatible endpoint.')
 
+  // The summary describes the whole scope, not the active filters: it is the
+  // page's "what do I have" answer and should not shrink as the user narrows.
+  const summary = useMemo(
+    () =>
+      getModelCatalogSummary(
+        scopeModels.map((model) => ({
+          model,
+          price: resolveCatalogPrice(priceIndex.get(model.id), {
+            ratio: resolveCatalogPriceRatio({
+              modelId: model.id,
+              modelRatios: ratioContext.modelRatios,
+              defaultRatio: ratioContext.defaultRatio,
+            }),
+          }),
+        }))
+      ),
+    [
+      priceIndex,
+      ratioContext.defaultRatio,
+      ratioContext.modelRatios,
+      scopeModels,
+    ]
+  )
+
   const clearFilters = () => {
     setQuery('')
+    setCategory(ALL_MODEL_CATEGORIES)
     setVendorState(createModelVendorFilterState(vendorFilters, activeScopeId))
   }
 
@@ -121,34 +200,8 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   }
 
   const catalog = (
-    <div className='flex min-w-0 flex-col gap-3'>
-      {fixedView && (
-        <Card size='sm'>
-          <CardHeader>
-            <CardTitle>{t('Current account scope')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className='text-muted-foreground text-sm' aria-live='polite'>
-              {t('{{count}} models available', { count: scopeModels.length })}
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button
-              size='sm'
-              className='w-full justify-between sm:w-auto'
-              render={<Link to='/keys' search={getCreateKeySearch()} />}
-            >
-              {t('Create API Key')}
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                strokeWidth={2}
-                data-icon='inline-end'
-                aria-hidden='true'
-              />
-            </Button>
-          </CardFooter>
-        </Card>
-      )}
+    <div className='flex min-w-0 flex-col gap-4'>
+      <ModelCatalogSummaryStrip summary={summary} />
 
       {!fixedView && (
         <div className='flex flex-col gap-2 lg:hidden'>
@@ -249,6 +302,34 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
 
         <div className='flex flex-col gap-1.5'>
           <span className='text-muted-foreground text-xs font-medium'>
+            {t('Model type')}
+          </span>
+          <div className='overflow-x-auto pb-0.5'>
+            <ToggleGroup
+              value={[activeCategory]}
+              variant='outline'
+              size='sm'
+              aria-label={t('Model type')}
+              onValueChange={(values) => {
+                if (values[0]) {
+                  setCategory(values[0] as ModelCategoryFilter)
+                }
+              }}
+            >
+              {categoryFilters.map((option) => (
+                <ToggleGroupItem key={option.value} value={option.value}>
+                  {getModelCategoryLabel(option.value, t)}
+                  <span className='text-muted-foreground ml-1 tabular-nums'>
+                    {option.count}
+                  </span>
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+        </div>
+
+        <div className='flex flex-col gap-1.5'>
+          <span className='text-muted-foreground text-xs font-medium'>
             {t('Model vendors')}
           </span>
           <div className='overflow-x-auto pb-0.5'>
@@ -269,13 +350,16 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
                 }
               }}
             >
-              {vendorFilters.map((option) => (
+              {visibleVendorFilters.map((option) => (
                 <ToggleGroupItem key={option.value} value={option.value}>
                   {option.value === ALL_MODEL_VENDORS
                     ? t('All')
                     : option.value === UNLABELLED_MODEL_VENDOR
                       ? t('Unlabelled vendor')
                       : option.label}
+                  <span className='text-muted-foreground ml-1 tabular-nums'>
+                    {vendorCounts.get(option.value) ?? 0}
+                  </span>
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
@@ -283,10 +367,11 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
         </div>
       </div>
 
-      <ModelAccessList
+      <ModelCatalogGrid
         defaultRatio={ratioContext.defaultRatio}
         modelRatios={ratioContext.modelRatios}
         models={visibleModels}
+        priceIndex={priceIndex}
         scopeIsEmpty={scopeModels.length === 0}
         onClearFilters={clearFilters}
       />
@@ -310,10 +395,11 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
               })}
             </Badge>
           </div>
-          <ModelAccessList
+          <ModelCatalogGrid
             defaultRatio={ratioContext.defaultRatio}
             modelRatios={ratioContext.modelRatios}
             models={visibleUnavailableModels}
+            priceIndex={priceIndex}
             scopeIsEmpty={false}
             onClearFilters={clearFilters}
           />
@@ -323,7 +409,7 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
   )
 
   return (
-    <div className='mx-auto flex w-full max-w-7xl flex-col gap-4'>
+    <div className='flex w-full min-w-0 flex-col gap-4'>
       <p className='text-muted-foreground max-w-3xl text-sm'>{description}</p>
       {fixedView ? (
         catalog

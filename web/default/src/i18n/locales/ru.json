@@ -6743,6 +6743,25 @@
     "Video generation timed out": "Время ожидания генерации видео истекло",
     "Generation was interrupted": "Генерация была прервана",
     "Your browser does not support video playback.": "Ваш браузер не поддерживает воспроизведение видео.",
-    "%": "%"
+    "%": "%",
+    "A healthy balance keeps your work and API calls from being interrupted. Top up now, or invite friends to earn reward credits, so you can keep building with costs under control.": "Достаточный баланс не даёт прерывать работу и вызовы API. Пополните счёт сейчас или пригласите друзей и получите бонусные кредиты, чтобы продолжать работу с контролем расходов.",
+    "Available models": "Доступные модели",
+    "Boost balance": "Пополнить баланс",
+    "Boost your balance": "Увеличьте баланс",
+    "Current available balance": "Текущий доступный баланс",
+    "Dynamic pricing": "Динамическая тарификация",
+    "Earn credits": "Заработать кредиты",
+    "Keep your balance ready whenever you need it": "Пусть баланса всегда хватает, когда он нужен",
+    "Lowest {{category}} price": "Минимальная цена: {{category}}",
+    "Model catalog overview": "Обзор каталога моделей",
+    "Model type": "Тип модели",
+    "Not callable": "Недоступна для вызова",
+    "Official price": "Официальная цена",
+    "Per 1M input tokens": "За 1 млн входных токенов",
+    "Per 1M input tokens · some models bill per request": "За 1 млн входных токенов · некоторые модели тарифицируются за запрос",
+    "Price depends on request size and options.": "Цена зависит от размера запроса и выбранных параметров.",
+    "Quick start": "Быстрое подключение",
+    "Quick top-up": "Быстрое пополнение",
+    "Save {{percent}}%": "Экономия {{percent}}%"
   }
 }

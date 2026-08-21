@@ -6743,6 +6743,25 @@
     "Video generation timed out": "動画生成がタイムアウトしました",
     "Generation was interrupted": "生成が中断されました",
     "Your browser does not support video playback.": "お使いのブラウザーは動画再生に対応していません。",
-    "%": "%"
+    "%": "%",
+    "A healthy balance keeps your work and API calls from being interrupted. Top up now, or invite friends to earn reward credits, so you can keep building with costs under control.": "残高に余裕があれば、作業も API 呼び出しも中断されません。今すぐチャージするか、友だちを招待して特典クレジットを獲得し、コストを抑えながら開発を続けましょう。",
+    "Available models": "利用可能なモデル",
+    "Boost balance": "残高を追加",
+    "Boost your balance": "残高を増やす",
+    "Current available balance": "現在の利用可能残高",
+    "Dynamic pricing": "動的課金",
+    "Earn credits": "クレジットを獲得",
+    "Keep your balance ready whenever you need it": "必要なときにいつでも足りる残高を",
+    "Lowest {{category}} price": "{{category}}の最低価格",
+    "Model catalog overview": "モデルカタログの概要",
+    "Model type": "モデルタイプ",
+    "Not callable": "呼び出し不可",
+    "Official price": "公式価格",
+    "Per 1M input tokens": "100万入力トークンあたり",
+    "Per 1M input tokens · some models bill per request": "100万入力トークンあたり · 一部のモデルはリクエスト単位で課金",
+    "Price depends on request size and options.": "価格はリクエストのサイズとオプションによって変わります。",
+    "Quick start": "クイック接続",
+    "Quick top-up": "クイックチャージ",
+    "Save {{percent}}%": "{{percent}}% お得"
   }
 }

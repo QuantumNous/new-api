@@ -44,12 +44,27 @@ export type ModelVendorFilterState = {
   value: ModelVendorFilter
 }
 
+/**
+ * Endpoints that carry no signal as a badge.
+ *
+ * Nearly every model in the catalog speaks the OpenAI-compatible protocol, so
+ * labelling each one costs a badge slot and distinguishes nothing. The special
+ * OpenAI endpoints that *do* say something ("openai-video" → Video) resolve to
+ * their own label in {@link getModelEndpointLabel} and are not generic.
+ */
+export function isGenericModelEndpoint(endpoint: string): boolean {
+  return endpoint === 'openai' || endpoint === 'openai-response'
+}
+
 export function getModelEndpointLabel(endpoint: string, t: TFunction): string {
-  if (endpoint === 'openai-video') return t('Video')
+  if (endpoint === 'openai-video' || endpoint === 'video') return t('Video')
+  if (endpoint === 'video-to-music') return t('Audio')
   if (endpoint.startsWith('openai')) return t('OpenAI Compatible')
   if (endpoint === 'anthropic') return t('Anthropic Compatible')
   if (endpoint === 'gemini') return t('Gemini Compatible')
   if (endpoint === 'image-generation') return t('Image Generation')
+  if (endpoint === 'embeddings') return t('Embeddings')
+  if (endpoint === 'jina-rerank') return t('Rerank')
   return endpoint
 }
 
@@ -156,6 +171,26 @@ export function getModelVendorFilterSignature(
   return filterOptions.map((option) => option.value).join('\u0000')
 }
 
+/**
+ * Vendor chips worth rendering for the current model-type selection.
+ *
+ * A chip whose count is zero leads to a guaranteed-empty list, so it is
+ * dropped — except the one currently selected, which must stay visible for the
+ * user to see (and undo) the filter that emptied the page.
+ */
+export function getVisibleVendorFilters(
+  filterOptions: readonly ModelVendorFilterOption[],
+  counts: ReadonlyMap<ModelVendorFilter, number>,
+  activeVendor: ModelVendorFilter
+): ModelVendorFilterOption[] {
+  return filterOptions.filter(
+    (option) =>
+      option.value === ALL_MODEL_VENDORS ||
+      option.value === activeVendor ||
+      (counts.get(option.value) ?? 0) > 0
+  )
+}
+
 export function resolveModelVendorSelection(
   filterOptions: readonly ModelVendorFilterOption[],
   selection: ModelVendorFilter
@@ -163,6 +198,24 @@ export function resolveModelVendorSelection(
   return filterOptions.some((option) => option.value === selection)
     ? selection
     : ALL_MODEL_VENDORS
+}
+
+/**
+ * Model count behind each vendor filter, keyed the same way as the filter
+ * options — so vendor spelling variants collapse into one entry, matching how
+ * {@link getModelVendorFilters} dedupes them.
+ */
+export function getModelVendorFilterCounts(
+  models: readonly ModelAccessModel[]
+): Map<ModelVendorFilter, number> {
+  const counts = new Map<ModelVendorFilter, number>([
+    [ALL_MODEL_VENDORS, models.length],
+  ])
+  for (const model of models) {
+    const value = modelVendorFilterValue(model)
+    counts.set(value, (counts.get(value) ?? 0) + 1)
+  }
+  return counts
 }
 
 export function createModelVendorFilterState(

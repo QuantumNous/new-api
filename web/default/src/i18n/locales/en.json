@@ -6743,6 +6743,25 @@
     "Video generation timed out": "Video generation timed out",
     "Generation was interrupted": "Generation was interrupted",
     "Your browser does not support video playback.": "Your browser does not support video playback.",
-    "%": "%"
+    "%": "%",
+    "A healthy balance keeps your work and API calls from being interrupted. Top up now, or invite friends to earn reward credits, so you can keep building with costs under control.": "A healthy balance keeps your work and API calls from being interrupted. Top up now, or invite friends to earn reward credits, so you can keep building with costs under control.",
+    "Available models": "Available models",
+    "Boost balance": "Boost balance",
+    "Boost your balance": "Boost your balance",
+    "Current available balance": "Current available balance",
+    "Dynamic pricing": "Dynamic pricing",
+    "Earn credits": "Earn credits",
+    "Keep your balance ready whenever you need it": "Keep your balance ready whenever you need it",
+    "Lowest {{category}} price": "Lowest {{category}} price",
+    "Model catalog overview": "Model catalog overview",
+    "Model type": "Model type",
+    "Not callable": "Not callable",
+    "Official price": "Official price",
+    "Per 1M input tokens": "Per 1M input tokens",
+    "Per 1M input tokens · some models bill per request": "Per 1M input tokens · some models bill per request",
+    "Price depends on request size and options.": "Price depends on request size and options.",
+    "Quick start": "Quick start",
+    "Quick top-up": "Quick top-up",
+    "Save {{percent}}%": "Save {{percent}}%"
   }
 }

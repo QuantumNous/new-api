@@ -30,8 +30,11 @@ import {
   getModelAccessScopeModels,
   getModelAccessUnavailableScopeModels,
   getModelVendorFilterSignature,
+  getModelVendorFilterCounts,
   getModelVendorFilters,
+  getVisibleVendorFilters,
   isFixedModelAccessView,
+  isGenericModelEndpoint,
   normalizeModelAvailabilityStatus,
   reconcileModelVendorFilterState,
   resolveModelAccessScope,
@@ -255,6 +258,76 @@ describe('available models browser filters', () => {
     ])
   })
 
+  test('counts the models behind each vendor filter', () => {
+    const counts = getModelVendorFilterCounts(models)
+
+    expect(counts.get(ALL_MODEL_VENDORS)).toBe(3)
+    expect(counts.get('vendor:openai')).toBe(1)
+    expect(counts.get('vendor:example labs')).toBe(1)
+    expect(counts.get(UNLABELLED_MODEL_VENDOR)).toBe(1)
+  })
+
+  test('groups vendor spelling variants into a single count', () => {
+    const counts = getModelVendorFilterCounts([
+      ...models,
+      {
+        ...models[0],
+        id: 'openai-duplicate',
+        vendor: { id: 99, name: 'openai' },
+      },
+    ])
+
+    expect(counts.get('vendor:openai')).toBe(2)
+    expect(counts.get(ALL_MODEL_VENDORS)).toBe(4)
+  })
+
+  test('hides vendor filters that would yield no models', () => {
+    const options = getModelVendorFilters(models)
+    const counts = new Map([
+      [ALL_MODEL_VENDORS, 3],
+      ['vendor:openai', 0],
+      ['vendor:example labs', 1],
+      [UNLABELLED_MODEL_VENDOR, 2],
+    ])
+
+    expect(
+      getVisibleVendorFilters(options, counts, ALL_MODEL_VENDORS).map(
+        (option) => option.value
+      )
+    ).toEqual([
+      ALL_MODEL_VENDORS,
+      'vendor:example labs',
+      UNLABELLED_MODEL_VENDOR,
+    ])
+  })
+
+  // Dropping the active chip would leave the user unable to see, or undo, the
+  // filter that just emptied the list.
+  test('keeps the active vendor visible even at zero', () => {
+    const options = getModelVendorFilters(models)
+    const counts = new Map([
+      [ALL_MODEL_VENDORS, 3],
+      ['vendor:openai', 0],
+    ])
+
+    expect(
+      getVisibleVendorFilters(options, counts, 'vendor:openai').map(
+        (option) => option.value
+      )
+    ).toContain('vendor:openai')
+  })
+
+  test('always keeps the all-vendors option', () => {
+    const options = getModelVendorFilters(models)
+    const counts = new Map([[ALL_MODEL_VENDORS, 0]])
+
+    expect(
+      getVisibleVendorFilters(options, counts, ALL_MODEL_VENDORS).map(
+        (option) => option.value
+      )
+    ).toEqual([ALL_MODEL_VENDORS])
+  })
+
   test('preserves valid vendor selections across equivalent option arrays', () => {
     const openAiFilters = getModelVendorFilters([models[0]])
     expect(resolveModelVendorSelection(openAiFilters, 'vendor:openai')).toBe(
@@ -344,7 +417,25 @@ describe('available models browser filters', () => {
     expect(getModelEndpointLabel('openai-video', t)).toBe('Video')
     expect(getModelEndpointLabel('anthropic', t)).toBe('Anthropic Compatible')
     expect(getModelEndpointLabel('gemini', t)).toBe('Gemini Compatible')
-    expect(getModelEndpointLabel('jina-rerank', t)).toBe('jina-rerank')
+    expect(getModelEndpointLabel('jina-rerank', t)).toBe('Rerank')
+  })
+
+  // A bare `video` endpoint used to fall through as the raw string, so a video
+  // card showed both a translated "Video" badge and a lowercase "video" one.
+  test('labels the bare video and video-to-music endpoints', () => {
+    expect(getModelEndpointLabel('video', t)).toBe('Video')
+    expect(getModelEndpointLabel('video-to-music', t)).toBe('Audio')
+    expect(getModelEndpointLabel('embeddings', t)).toBe('Embeddings')
+  })
+
+  // The OpenAI-compatible protocol is near-universal here, so it is dropped as
+  // a badge — but only the plain variants; `openai-video` says something.
+  test('treats only the plain OpenAI protocols as generic', () => {
+    expect(isGenericModelEndpoint('openai')).toBe(true)
+    expect(isGenericModelEndpoint('openai-response')).toBe(true)
+    expect(isGenericModelEndpoint('openai-video')).toBe(false)
+    expect(isGenericModelEndpoint('anthropic')).toBe(false)
+    expect(isGenericModelEndpoint('embeddings')).toBe(false)
   })
 
   test('keeps temporary failures callable while filtering vendors', () => {

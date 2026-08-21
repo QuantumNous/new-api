@@ -170,6 +170,7 @@ export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
+  const { model: handoffModel } = route.useSearch()
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
@@ -274,7 +275,9 @@ export function Dashboard() {
               )}
             </div>
           )}
-          {activeSection === 'overview' && <OverviewDashboard />}
+          {activeSection === 'overview' && (
+            <OverviewDashboard handoffModel={handoffModel} />
+          )}
           {activeSection === 'models' && (
             <>
               <FadeIn>

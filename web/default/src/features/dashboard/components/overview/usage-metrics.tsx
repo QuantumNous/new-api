@@ -16,26 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
 import { useStatus } from '@/hooks/use-status'
+import { Button } from '@/components/ui/button'
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import { StatCard } from '../ui/stat-card'
+import { BoostBalanceDialog } from './boost-balance-dialog'
 
 export function UsageMetrics() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const { status, loading } = useStatus()
+  const [boostOpen, setBoostOpen] = useState(false)
 
+  const balance = Number(user?.quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
   const requestCount = Number(user?.request_count ?? 0)
 
@@ -76,7 +80,10 @@ export function UsageMetrics() {
       ? statusCurrencyFlag
       : currencyEnabledFromStore
 
+  const balanceDisplay = formatQuota(balance)
+
   const items = useSummaryCardsConfig({
+    balanceDisplay,
     // A failed trend query reads as "unavailable", never as zero usage.
     todayUsageDisplay: usageTrendQuery.isError ? '—' : formatQuota(recentUsage),
     usedDisplay: formatQuota(usedQuota),
@@ -103,7 +110,7 @@ export function UsageMetrics() {
         </Link>
       </div>
 
-      <StaggerContainer className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+      <StaggerContainer className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
         {items.map((item) => (
           <StaggerItem
             key={item.key}
@@ -114,6 +121,18 @@ export function UsageMetrics() {
               value={item.value}
               description={item.description}
               icon={item.icon}
+              action={
+                item.key === 'balance' ? (
+                  <Button
+                    variant='ghost'
+                    size='xs'
+                    onClick={() => setBoostOpen(true)}
+                  >
+                    <Sparkles data-icon='inline-start' />
+                    {t('Boost balance')}
+                  </Button>
+                ) : undefined
+              }
               loading={
                 loading ||
                 // isLoading (not isPending) so a signed-out disabled query
@@ -124,6 +143,13 @@ export function UsageMetrics() {
           </StaggerItem>
         ))}
       </StaggerContainer>
+
+      <BoostBalanceDialog
+        open={boostOpen}
+        onOpenChange={setBoostOpen}
+        balanceDisplay={balanceDisplay}
+        loading={loading}
+      />
     </section>
   )
 }
