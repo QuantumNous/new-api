@@ -92,6 +92,10 @@ var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
 
+// PayloadLogEnabled is the platform-wide business-payload logging switch.
+// OFF by default: relay request/response bodies are never captured or stored.
+var PayloadLogEnabled = false
+
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
