@@ -99,7 +99,15 @@ export interface MediaGenerationRequest {
 
 const imageRatios = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9']
 
-const videoRatios = ['16:9', '9:16', '1:1', '4:3', '3:4']
+const seedance20Ratios = [
+  'adaptive',
+  '16:9',
+  '4:3',
+  '1:1',
+  '3:4',
+  '9:16',
+  '21:9',
+]
 
 const GPT_IMAGE_SIZE = '1024x1024'
 
@@ -236,43 +244,47 @@ const veoProfile: MediaGenerationProfile = {
   noteKey: 'Veo 1080p and 4K output requires an 8-second duration.',
 }
 
-const seedance20Profile: MediaGenerationProfile = {
-  kind: 'video',
-  family: 'seedance-2.0',
-  defaults: {
-    resolution: '1080p',
-    duration: 8,
-    aspectRatio: '16:9',
-    seed: -1,
-    generateAudio: true,
-  },
-  fields: [
-    selectField('resolution', 'Resolution', ['480p', '720p', '1080p', '4K']),
-    selectField('aspectRatio', 'Aspect ratio', videoRatios),
-    {
-      key: 'duration',
-      labelKey: 'Duration',
-      control: 'number',
-      min: 4,
-      max: 15,
-      step: 1,
-      unitKey: 'seconds',
+function createSeedance20Profile(
+  resolutions: string[]
+): MediaGenerationProfile {
+  return {
+    kind: 'video',
+    family: 'seedance-2.0',
+    defaults: {
+      resolution: '720p',
+      duration: 5,
+      aspectRatio: 'adaptive',
+      generateAudio: true,
     },
-    {
-      key: 'seed',
-      labelKey: 'Seed',
-      control: 'number',
-      min: -1,
-      max: 2147483647,
-      step: 1,
-    },
-    {
-      key: 'generateAudio',
-      labelKey: 'Generate audio',
-      control: 'switch',
-    },
-  ],
+    fields: [
+      selectField('resolution', 'Resolution', resolutions),
+      selectField('aspectRatio', 'Aspect ratio', seedance20Ratios),
+      {
+        key: 'duration',
+        labelKey: 'Duration',
+        control: 'number',
+        min: 4,
+        max: 15,
+        step: 1,
+        unitKey: 'seconds',
+      },
+      {
+        key: 'generateAudio',
+        labelKey: 'Generate audio',
+        control: 'switch',
+      },
+    ],
+  }
 }
+
+const seedance20FullProfile = createSeedance20Profile([
+  '480p',
+  '720p',
+  '1080p',
+  '4k',
+])
+
+const seedance20EconomyProfile = createSeedance20Profile(['480p', '720p'])
 
 const unsupportedPatterns = [
   /(^|[-_/])(?:dall[ -]?e|imagen|flux|stable-diffusion|sdxl|midjourney|jimeng|qwen-image|z-image)(?:$|[-_/])/,
@@ -339,7 +351,12 @@ export function resolveMediaGenerationProfile(
   }
   if (normalized.includes('seedance')) {
     if (/2(?:[.-]|-)?0/.test(normalized)) {
-      return cloneProfile(seedance20Profile)
+      const isEconomyVariant = /(?:^|[-_/])(?:fast|mini)(?:$|[-_/])/.test(
+        normalized
+      )
+      return cloneProfile(
+        isEconomyVariant ? seedance20EconomyProfile : seedance20FullProfile
+      )
     }
   }
   return undefined
@@ -472,7 +489,6 @@ function buildVideoPayload(
       resolution: settings.resolution,
       ratio: settings.aspectRatio,
       duration: settings.duration,
-      seed: settings.seed,
       generate_audio: settings.generateAudio,
     }
   }

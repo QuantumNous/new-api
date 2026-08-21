@@ -107,6 +107,86 @@ describe('Playground media model profiles', () => {
     ).toBe('seconds')
   })
 
+  test('Seedance Base and Pro expose the full supported parameter set', () => {
+    const modelNames = [
+      'seedance-2.0',
+      'seedance2.0-pro',
+      'seedance-2.0-pro',
+      'bytedance/seedance-2.0-pro-20260811',
+      'doubao/doubao-seedance-2-0-260128',
+    ]
+
+    for (const modelName of modelNames) {
+      const profile = resolveMediaGenerationProfile(modelName)
+
+      expect(profile?.defaults).toEqual({
+        resolution: '720p',
+        duration: 5,
+        aspectRatio: 'adaptive',
+        generateAudio: true,
+      })
+      expect(
+        profile?.fields
+          .find((field) => field.key === 'resolution')
+          ?.options.map((option) => option.value)
+      ).toEqual(['480p', '720p', '1080p', '4k'])
+      expect(
+        profile?.fields
+          .find((field) => field.key === 'aspectRatio')
+          ?.options.map((option) => option.value)
+      ).toEqual(['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16', '21:9'])
+      expect(profile?.fields.map((field) => field.key)).not.toContain('seed')
+    }
+  })
+
+  test('Seedance Fast and Mini expose only their supported resolutions', () => {
+    const modelNames = [
+      'bytedance/seedance-2.0-fast',
+      'seedance-2.0-fast-20260811',
+      'seedance-2.0-mini',
+      'seedance2.0-mini',
+      'doubao/doubao-seedance-2-0-fast-260128',
+    ]
+
+    for (const modelName of modelNames) {
+      const profile = resolveMediaGenerationProfile(modelName)
+
+      expect(profile?.defaults).toEqual({
+        resolution: '720p',
+        duration: 5,
+        aspectRatio: 'adaptive',
+        generateAudio: true,
+      })
+      expect(
+        profile?.fields
+          .find((field) => field.key === 'resolution')
+          ?.options.map((option) => option.value)
+      ).toEqual(['480p', '720p'])
+      expect(
+        profile?.fields
+          .find((field) => field.key === 'aspectRatio')
+          ?.options.map((option) => option.value)
+      ).toEqual(['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16', '21:9'])
+      expect(profile?.fields.map((field) => field.key)).not.toContain('seed')
+    }
+  })
+
+  test('Seedance Fast and Mini normalize stale unsupported resolutions', () => {
+    const fastProfile = resolveMediaGenerationProfile('seedance-2.0-fast')
+    const miniProfile = resolveMediaGenerationProfile('seedance-2.0-mini')
+
+    expect(
+      normalizeMediaGenerationSettings(fastProfile!, {
+        resolution: '1080p',
+      }).resolution
+    ).toBe('720p')
+    expect(
+      normalizeMediaGenerationSettings(miniProfile!, {
+        resolution: '4K',
+      }).resolution
+    ).toBe('720p')
+  })
+
   test('Grok image does not invent unsupported quality or resolution controls', () => {
     const profile = resolveMediaGenerationProfile('grok-imagine-image')
 
@@ -253,13 +333,13 @@ describe('Playground media request building', () => {
     })
   })
 
-  test('builds the official Seedance content request and preserves explicit values', () => {
+  test('builds the official Seedance content request without stale seed', () => {
     const request = buildMediaGenerationRequest(
       'A dancer in the rain',
       'bytedance/seedance-2.0',
       'plg',
       {
-        resolution: '1080p',
+        resolution: '4k',
         aspectRatio: '9:16',
         duration: 12,
         seed: 0,
@@ -275,12 +355,12 @@ describe('Playground media request building', () => {
         group: 'plg',
         prompt: 'A dancer in the rain',
         content: [{ type: 'text', text: 'A dancer in the rain' }],
-        resolution: '1080p',
+        resolution: '4k',
         ratio: '9:16',
         duration: 12,
-        seed: 0,
         generate_audio: false,
       },
     })
+    expect(request?.payload).not.toHaveProperty('seed')
   })
 })
