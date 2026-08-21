@@ -78,7 +78,6 @@ describe('Playground media model profiles', () => {
     expect(profile?.family).toBe('gpt-image')
     expect(profile?.defaults.size).toBe('1024x1024')
     expect(profile?.fields.map((field) => field.key)).toEqual([
-      'count',
       'quality',
       'outputFormat',
       'background',
@@ -87,16 +86,36 @@ describe('Playground media model profiles', () => {
     expect(
       profile?.fields.find((field) => field.key === 'size')
     ).toBeUndefined()
+    expect(
+      profile?.fields
+        .find((field) => field.key === 'outputFormat')
+        ?.options.map((option) => option.value)
+    ).toEqual(['png', 'jpeg'])
+    expect(
+      profile?.fields
+        .find((field) => field.key === 'background')
+        ?.options.map((option) => option.value)
+    ).toEqual(['auto', 'opaque'])
+    expect(
+      profile?.fields.find((field) => field.key === 'compression')?.visibleWhen
+        ?.values
+    ).toEqual(['jpeg'])
   })
 
-  test('GPT Image 2 normalizes stale sizes to the only relay-supported size', () => {
+  test('GPT Image 2 normalizes stale unsupported settings to safe values', () => {
     const profile = resolveMediaGenerationProfile('gpt-image-2')
 
-    expect(
-      normalizeMediaGenerationSettings(profile!, {
-        size: '1536x1024',
-      }).size
-    ).toBe('1024x1024')
+    const settings = normalizeMediaGenerationSettings(profile!, {
+      count: 2,
+      size: '1536x1024',
+      outputFormat: 'webp',
+      background: 'transparent',
+    })
+
+    expect(settings.count).toBe(1)
+    expect(settings.size).toBe('1024x1024')
+    expect(settings.outputFormat).toBe('png')
+    expect(settings.background).toBe('auto')
   })
 
   test('Seedance duration uses the shared localized seconds unit', () => {
@@ -238,7 +257,7 @@ describe('Playground media request building', () => {
       },
     })
   })
-  test('builds the GPT Image 2 image endpoint payload', () => {
+  test('builds a safe GPT Image 2 payload from stale unsupported settings', () => {
     const request = buildMediaGenerationRequest(
       'A red paper boat',
       'gpt-image-2',
@@ -260,14 +279,41 @@ describe('Playground media request building', () => {
         model: 'gpt-image-2',
         group: 'plg',
         prompt: 'A red paper boat',
-        n: 2,
+        n: 1,
         size: '1024x1024',
         quality: 'high',
         response_format: 'b64_json',
-        output_format: 'webp',
-        background: 'transparent',
-        output_compression: 82,
+        output_format: 'png',
+        background: 'auto',
       },
+    })
+  })
+
+  test('keeps GPT Image 2 JPEG compression in the request', () => {
+    const request = buildMediaGenerationRequest(
+      'A red paper boat',
+      'gpt-image-2',
+      'plg',
+      {
+        count: 1,
+        quality: 'auto',
+        outputFormat: 'jpeg',
+        background: 'opaque',
+        compression: 50,
+      }
+    )
+
+    expect(request?.payload).toEqual({
+      model: 'gpt-image-2',
+      group: 'plg',
+      prompt: 'A red paper boat',
+      n: 1,
+      size: '1024x1024',
+      quality: 'auto',
+      response_format: 'b64_json',
+      output_format: 'jpeg',
+      background: 'opaque',
+      output_compression: 50,
     })
   })
 

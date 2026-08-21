@@ -139,24 +139,15 @@ const gptImageProfile: MediaGenerationProfile = {
     compression: 90,
   },
   fields: [
-    {
-      key: 'count',
-      labelKey: 'Image count',
-      control: 'number',
-      min: 1,
-      max: 10,
-      step: 1,
-    },
     selectField('quality', 'Quality', [
       { value: 'auto', labelKey: 'Auto' },
       { value: 'low', labelKey: 'Low' },
       { value: 'medium', labelKey: 'Medium' },
       { value: 'high', labelKey: 'High' },
     ]),
-    selectField('outputFormat', 'Output format', ['png', 'jpeg', 'webp']),
+    selectField('outputFormat', 'Output format', ['png', 'jpeg']),
     selectField('background', 'Background', [
       { value: 'auto', labelKey: 'Auto' },
-      { value: 'transparent', labelKey: 'Transparent' },
       { value: 'opaque', labelKey: 'Opaque' },
     ]),
     {
@@ -169,7 +160,7 @@ const gptImageProfile: MediaGenerationProfile = {
       unitKey: '%',
       visibleWhen: {
         key: 'outputFormat',
-        values: ['jpeg', 'webp'],
+        values: ['jpeg'],
       },
     },
   ],
@@ -416,6 +407,7 @@ export function normalizeMediaGenerationSettings(
   })
 
   if (profile.family === 'gpt-image') {
+    normalized.count = 1
     normalized.size = GPT_IMAGE_SIZE
   }
 
@@ -434,18 +426,20 @@ function buildGptImagePayload(
   group: string,
   settings: MediaGenerationSettings
 ): Record<string, unknown> {
+  const outputFormat = settings.outputFormat === 'jpeg' ? 'jpeg' : 'png'
+  const background = settings.background === 'opaque' ? 'opaque' : 'auto'
   const payload: Record<string, unknown> = {
     model,
     group,
     prompt,
-    n: settings.count,
+    n: 1,
     size: GPT_IMAGE_SIZE,
     quality: settings.quality,
     response_format: 'b64_json',
-    output_format: settings.outputFormat,
-    background: settings.background,
+    output_format: outputFormat,
+    background,
   }
-  if (settings.outputFormat === 'jpeg' || settings.outputFormat === 'webp') {
+  if (outputFormat === 'jpeg') {
     payload.output_compression = settings.compression
   }
   return payload
