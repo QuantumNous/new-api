@@ -35,7 +35,7 @@ type AssetModelCoverageTarget struct {
 	SpecificChannelId int    `json:"-" gorm:"index"`
 	ChannelId         int    `json:"-" gorm:"index"`
 	MappedModel       string `json:"-" gorm:"type:varchar(191)"`
-	BindingScope      string `json:"-" gorm:"type:varchar(80)"`
+	BindingScope      string `json:"-" gorm:"type:varchar(128)"`
 	CredentialIndex   int    `json:"-"`
 	CandidateIndex    int    `json:"-"`
 	Generation        int64  `json:"-"`
@@ -53,7 +53,7 @@ type AssetModelReadiness struct {
 	ModelName        string `json:"-" gorm:"type:varchar(191);uniqueIndex:idx_asset_model_readiness_identity"`
 	TargetGeneration int64  `json:"-" gorm:"index"`
 	ChannelId        int    `json:"-" gorm:"index"`
-	BindingScope     string `json:"-" gorm:"type:varchar(80)"`
+	BindingScope     string `json:"-" gorm:"type:varchar(128)"`
 	Status           string `json:"-" gorm:"type:varchar(24);index"`
 	ErrorClass       string `json:"-" gorm:"type:varchar(48);index"`
 	AttemptCount     int    `json:"-"`

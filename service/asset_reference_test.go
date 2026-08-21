@@ -717,7 +717,7 @@ func TestTokenSpaceMaterialConfiguredAssetTypeAllowsImageVideoAndAudio(t *testin
 	require.True(t, channelCanConsumeAssetType(tokenSpaceChannel, "Audio"))
 }
 
-func TestSeedanceProxyCapabilityRejectsAudio(t *testing.T) {
+func TestSeedanceProxyCapabilitySupportsAudio(t *testing.T) {
 	seedanceProxyChannel := &model.Channel{
 		Type:          constant.ChannelTypeBytePlus,
 		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid","group_id":"grp_shared_aigc"}}`,
@@ -725,7 +725,7 @@ func TestSeedanceProxyCapabilityRejectsAudio(t *testing.T) {
 
 	require.True(t, channelCanConsumeAssetType(seedanceProxyChannel, "Image"))
 	require.True(t, channelCanConsumeAssetType(seedanceProxyChannel, "Video"))
-	require.False(t, channelCanConsumeAssetType(seedanceProxyChannel, "Audio"))
+	require.True(t, channelCanConsumeAssetType(seedanceProxyChannel, "Audio"))
 }
 
 func TestTokenSpaceMaterialIncompleteConfigurationFailsClosedForAllAssetTypes(t *testing.T) {

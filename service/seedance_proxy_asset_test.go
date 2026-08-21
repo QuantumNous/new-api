@@ -219,33 +219,46 @@ func TestSeedanceProxyAssetMaterializerClassifies429WithBoundedRetryAfter(t *tes
 	require.True(t, IsRetryableAssetMaterializeError(err))
 }
 
-func TestSeedanceProxyAssetMaterializerRejectsAudioAssetTypeDefinitively(t *testing.T) {
+func TestSeedanceProxyAssetMaterializerCreatesAudioAsset(t *testing.T) {
 	channel := &model.Channel{
-		Id:            156,
-		Type:          constant.ChannelTypeBytePlus,
-		Key:           "seedance-key",
-		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid/v1/base/","group_id":"grp_shared_aigc"}}`,
+		Id:   156,
+		Type: constant.ChannelTypeBytePlus,
+		Key:  "seedance-key",
 	}
 
-	called := false
+	var seenRequest seedanceProxyAssetCreateRequest
+	var seenAuthorization string
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, seedanceProxyAssetUploadPath, r.URL.Path)
+		seenAuthorization = r.Header.Get("Authorization")
+		require.NoError(t, common.DecodeJson(r.Body, &seenRequest))
+		_, _ = w.Write([]byte(`{"Result":{"Id":"upstream-audio","GroupId":"grp_shared_aigc"}}`))
+	}))
+	defer server.Close()
+	channel.OtherSettings = `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"` + server.URL + `","group_id":"grp_shared_aigc"}}`
+
 	originalFactory := seedanceProxyAssetHTTPClientFactory
 	seedanceProxyAssetHTTPClientFactory = func(channel *model.Channel) (*http.Client, error) {
-		called = true
-		return nil, nil
+		return server.Client(), nil
 	}
 	t.Cleanup(func() { seedanceProxyAssetHTTPClientFactory = originalFactory })
 
 	materializer, err := assetMaterializerForChannel(channel)
 	require.NoError(t, err)
 
-	_, err = materializer.CreateAsset(context.Background(), AssetMaterializeInput{
+	result, err := materializer.CreateAsset(context.Background(), AssetMaterializeInput{
 		Asset:     model.Asset{PublicId: "ast_audio", AssetType: "Audio"},
 		Channel:   channel,
 		APIKey:    "seedance-key",
 		SourceURL: "https://source.example.invalid/audio.mp3",
 	})
-	require.Error(t, err)
-	require.False(t, called)
-	require.Equal(t, AssetMaterializeErrorDefinitive, AssetMaterializeErrorClass(err))
-	require.False(t, IsRetryableAssetMaterializeError(err))
+	require.NoError(t, err)
+	require.Equal(t, "upstream-audio", result.UpstreamAssetID)
+	require.Equal(t, "grp_shared_aigc", result.UpstreamGroupID)
+	require.Equal(t, model.AssetStatusProcessing, result.Status)
+	require.Equal(t, "Bearer seedance-key", seenAuthorization)
+	require.Equal(t, "grp_shared_aigc", seenRequest.GroupID)
+	require.Equal(t, "https://source.example.invalid/audio.mp3", seenRequest.URL)
+	require.Equal(t, "Audio", seenRequest.AssetType)
 }

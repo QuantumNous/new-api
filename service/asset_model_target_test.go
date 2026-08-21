@@ -380,7 +380,7 @@ func TestResolveAssetModelTargetOptionsReloadsTokenSpaceCredentialIndex(t *testi
 	require.Equal(t, 1, index)
 }
 
-func TestSeedanceProxyCapabilityRejectsAudioRegardlessOfLegacyChannelType(t *testing.T) {
+func TestSeedanceProxyCapabilitySupportsAudioRegardlessOfLegacyChannelType(t *testing.T) {
 	channel := &model.Channel{
 		Type:          constant.ChannelTypeBytePlus,
 		Key:           "seedance-key",
@@ -389,7 +389,7 @@ func TestSeedanceProxyCapabilityRejectsAudioRegardlessOfLegacyChannelType(t *tes
 
 	require.True(t, channelCanConsumeAssetType(channel, "Image"))
 	require.True(t, channelCanConsumeAssetType(channel, "Video"))
-	require.False(t, channelCanConsumeAssetType(channel, "Audio"))
+	require.True(t, channelCanConsumeAssetType(channel, "Audio"))
 }
 
 func TestExplicitSeedanceProxyOverridesModelAPISourceURLCapability(t *testing.T) {

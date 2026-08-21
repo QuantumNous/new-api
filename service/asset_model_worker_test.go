@@ -738,7 +738,7 @@ func TestPrepareAssetModelReadinessActivatesExactProviderBindingSet(t *testing.T
 	require.Equal(t, siblingTarget.BindingScope, sibling.BindingScope)
 }
 
-func TestPrepareAssetModelBindingRejectsSeedanceProxyAudioBeforeProviderWrite(t *testing.T) {
+func TestPrepareAssetModelBindingAllowsSeedanceProxyAudioProviderWrite(t *testing.T) {
 	newAssetModelWorkerTestDB(t)
 	installAssetServiceTestDeps(t)
 	asset := insertMaterializeAsset(t, "ast_worker_seedance_audio")
@@ -748,45 +748,53 @@ func TestPrepareAssetModelBindingRejectsSeedanceProxyAudioBeforeProviderWrite(t 
 	}).Error)
 	asset.AssetType = "Audio"
 
-	priority := int64(80)
-	weight := uint(50)
-	channel := &model.Channel{
-		Id:            181,
-		Type:          constant.ChannelTypeBytePlus,
-		Key:           "seedance-worker-key",
-		Status:        common.ChannelStatusEnabled,
-		Name:          "seedance-worker-audio-channel",
-		Group:         "default",
-		Models:        "seedance-2.0",
-		Priority:      &priority,
-		Weight:        &weight,
-		ModelMapping:  func() *string { value := `{"seedance-2.0":"doubao/seedance-pro"}`; return &value }(),
-		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"https://asset-gateway.example.invalid","group_id":"grp_shared_aigc"}}`,
-	}
-	require.NoError(t, model.DB.Create(channel).Error)
-
-	options := AssetMaterializeOptions{Model: "doubao/seedance-pro", APIKey: channel.Key}
-	bindingScope, err := assetBindingScopeForChannel(channel, options)
-	require.NoError(t, err)
-	target := model.AssetModelCoverageTarget{ChannelId: channel.Id, BindingScope: bindingScope}
-
+	var seenRequest seedanceProxyAssetCreateRequest
 	providerCalled := false
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		providerCalled = true
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, seedanceProxyAssetUploadPath, r.URL.Path)
+		require.NoError(t, common.DecodeJson(r.Body, &seenRequest))
+		_, _ = io.WriteString(w, `{"Result":{"Id":"upstream-audio","GroupId":"grp_shared_aigc","Status":"Active"}}`)
+	}))
+	defer server.Close()
+
+	insertAssetModelTargetChannel(t, assetModelTargetChannelSeed{
+		ID:            181,
+		ChannelType:   constant.ChannelTypeBytePlus,
+		Group:         "default",
+		ModelName:     "seedance-2.0",
+		Priority:      80,
+		Weight:        50,
+		Key:           "seedance-worker-key",
+		Mapping:       `{"seedance-2.0":"doubao/seedance-pro"}`,
+		OtherSettings: `{"asset_materialization":{"provider":"seedance_proxy","gateway_base_url":"` + server.URL + `","group_id":"grp_shared_aigc"}}`,
+	})
+	scope := AssetModelScope{ScopeKey: "scope-worker-seedance-audio", Groups: []string{"default"}, ModelNames: []string{"seedance-2.0"}}
+	target, err := ensureAssetModelCoverageTargetAt(scope, "seedance-2.0", "owner", 90)
+	require.NoError(t, err)
+	channel, err := loadAssetModelReadinessChannel(target.ChannelId)
+	require.NoError(t, err)
+	options, _, err := ResolveAssetModelTargetOptions(*target, channel)
+	require.NoError(t, err)
+
 	originalFactory := seedanceProxyAssetHTTPClientFactory
 	seedanceProxyAssetHTTPClientFactory = func(*model.Channel) (*http.Client, error) {
-		providerCalled = true
-		return nil, nil
+		return server.Client(), nil
 	}
 	t.Cleanup(func() { seedanceProxyAssetHTTPClientFactory = originalFactory })
 
-	_, err = prepareAssetModelBinding(context.Background(), asset, target, channel, options, "node-a", 100)
-	var definitiveErr assetModelBindingDefinitiveError
-	require.ErrorAs(t, err, &definitiveErr)
-	require.Equal(t, AssetMaterializeErrorDefinitive, definitiveErr.class)
-	require.False(t, providerCalled)
+	result, err := prepareAssetModelBinding(context.Background(), asset, *target, channel, options, "node-a", 100)
+	require.NoError(t, err)
+	require.True(t, providerCalled)
+	require.Equal(t, "Audio", seenRequest.AssetType)
+	require.Equal(t, "grp_shared_aigc", seenRequest.GroupID)
+	require.Equal(t, "upstream-audio", result.UpstreamAssetId)
+	require.Equal(t, model.AssetStatusActive, result.Status)
 
 	var bindingCount int64
 	require.NoError(t, model.DB.Model(&model.AssetBinding{}).Where("asset_id = ?", asset.Id).Count(&bindingCount).Error)
-	require.Zero(t, bindingCount)
+	require.EqualValues(t, 1, bindingCount)
 }
 
 func TestPrepareAssetModelBindingAllowsTokenSpaceAudioBeforeProviderWrite(t *testing.T) {

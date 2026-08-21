@@ -271,6 +271,11 @@ func migrateDB() error {
 	if err := migrateQuotaLifecycleStateCycleColumns(); err != nil {
 		return err
 	}
+	// Provider binding scopes include a version prefix plus a SHA-256 digest.
+	// Widen legacy schemas before workers try to persist those full identities.
+	if err := migrateAssetBindingScopeColumns(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(migrationModelValues(orderedMigrationModels())...)
 	if err != nil {
@@ -1144,6 +1149,80 @@ func quotaLifecycleColumnTypeLength(columnType string) (int64, bool) {
 		return 0, false
 	}
 	return length, true
+}
+
+func migrateAssetBindingScopeColumns() error {
+	if DB == nil {
+		return nil
+	}
+
+	targets := []struct {
+		model     any
+		tableName string
+	}{
+		{model: &AssetBinding{}, tableName: "asset_bindings"},
+		{model: &AssetModelCoverageTarget{}, tableName: "asset_model_coverage_targets"},
+		{model: &AssetModelReadiness{}, tableName: "asset_model_readinesses"},
+	}
+	for _, target := range targets {
+		if !DB.Migrator().HasTable(target.model) || !DB.Migrator().HasColumn(target.model, "binding_scope") {
+			continue
+		}
+
+		columnTypes, err := DB.Migrator().ColumnTypes(target.model)
+		if err != nil {
+			return fmt.Errorf("failed to inspect %s.binding_scope: %w", target.tableName, err)
+		}
+		var current gorm.ColumnType
+		for _, columnType := range columnTypes {
+			if strings.EqualFold(columnType.Name(), "binding_scope") {
+				current = columnType
+				break
+			}
+		}
+		if current == nil || assetBindingScopeColumnIsWideEnough(current) {
+			continue
+		}
+		if err := DB.Migrator().AlterColumn(target.model, "BindingScope"); err != nil {
+			return fmt.Errorf("failed to widen %s.binding_scope to varchar(%d): %w", target.tableName, AssetBindingScopeMaxLength, err)
+		}
+	}
+	return nil
+}
+
+func assetBindingScopeColumnIsWideEnough(columnType gorm.ColumnType) bool {
+	if declaredType, ok := columnType.ColumnType(); ok {
+		declaredType = strings.ToLower(strings.TrimSpace(declaredType))
+		if length, ok := quotaLifecycleColumnTypeLength(declaredType); ok {
+			return length < 0 || length >= AssetBindingScopeMaxLength
+		}
+		switch declaredType {
+		case "text", "tinytext", "mediumtext", "longtext", "clob":
+			return true
+		case "varchar", "character varying":
+			if length, ok := columnType.Length(); ok {
+				return length < 0 || length >= AssetBindingScopeMaxLength
+			}
+			return false
+		}
+	}
+
+	databaseType := strings.ToLower(strings.TrimSpace(columnType.DatabaseTypeName()))
+	if length, ok := quotaLifecycleColumnTypeLength(databaseType); ok {
+		return length < 0 || length >= AssetBindingScopeMaxLength
+	}
+	switch databaseType {
+	case "text", "tinytext", "mediumtext", "longtext", "clob":
+		return true
+	case "varchar", "character varying":
+		if length, ok := columnType.Length(); ok {
+			return length < 0 || length >= AssetBindingScopeMaxLength
+		}
+		return false
+	default:
+		// Unknown non-character metadata is not safe to rewrite automatically.
+		return true
+	}
 }
 
 // migrateSubscriptionPlanPriceAmount migrates price_amount column from float/double to decimal(10,6)
