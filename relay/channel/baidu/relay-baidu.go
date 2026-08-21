@@ -178,6 +178,15 @@ func baiduEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 		return types.NewError(fmt.Errorf("%s", baiduResponse.ErrorMsg), types.ErrorCodeBadResponseBody), nil
 	}
 	fullTextResponse := embeddingResponseBaidu2OpenAI(&baiduResponse)
+	// F-26 family: Baidu embedding responses may omit usage; without a
+	// fallback the settle charges 0 and the pre-consume is refunded, making
+	// embeddings free. Fall back to the local request estimate.
+	if fullTextResponse.Usage.TotalTokens == 0 && fullTextResponse.Usage.PromptTokens == 0 && fullTextResponse.Usage.CompletionTokens == 0 {
+		fullTextResponse.Usage = dto.Usage{
+			PromptTokens: info.GetEstimatePromptTokens(),
+			TotalTokens:  info.GetEstimatePromptTokens(),
+		}
+	}
 	jsonResponse, err := json.Marshal(fullTextResponse)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeBadResponseBody), nil

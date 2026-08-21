@@ -275,11 +275,17 @@ func difyHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respons
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
+	usage := difyResponse.MetaData.Usage
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		// F-58: fall back to the estimate when the upstream omits usage so
+		// non-stream Dify chat requests are not billed as zero.
+		usage = *service.ResponseText2Usage(c, difyResponse.Answer, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	fullTextResponse := dto.OpenAITextResponse{
 		Id:      difyResponse.ConversationId,
 		Object:  "chat.completion",
 		Created: common.GetTimestamp(),
-		Usage:   difyResponse.MetaData.Usage,
+		Usage:   usage,
 	}
 	choice := dto.OpenAITextResponseChoice{
 		Index: 0,
@@ -297,5 +303,5 @@ func difyHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respons
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
 	c.Writer.Write(jsonResponse)
-	return &difyResponse.MetaData.Usage, nil
+	return &usage, nil
 }

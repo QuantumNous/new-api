@@ -59,6 +59,12 @@ func RerankHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 		CompletionTokens: 0,
 		TotalTokens:      aliResponse.Usage.TotalTokens,
 	}
+	// F-53: fallback to the prompt estimate when the upstream omits usage so
+	// rerank requests are not billed as zero (F-26 residual for ali).
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.TotalTokens = usage.PromptTokens
+	}
 	rerankResponse := dto.RerankResponse{
 		Results: aliResponse.Output.Results,
 		Usage:   usage,

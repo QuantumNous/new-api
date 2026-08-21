@@ -122,11 +122,21 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		imageN = *request.N
 	}
 
+	usageZero := usage.(*dto.Usage).TotalTokens == 0 && usage.(*dto.Usage).PromptTokens == 0
 	if usage.(*dto.Usage).TotalTokens == 0 {
 		usage.(*dto.Usage).TotalTokens = 1
 	}
 	if usage.(*dto.Usage).PromptTokens == 0 {
 		usage.(*dto.Usage).PromptTokens = 1
+	}
+
+	// F-52: ensure per-image count ratio is set for UsePrice-priced image
+	// channels whose adaptor does not report it (e.g. Replicate), so n>1
+	// requests are billed per generated image instead of once. Only apply the
+	// multiplier when the adaptor reported no usage: adaptors that already
+	// embed the image count in usage (e.g. ali) must not be multiplied again.
+	if usageZero && imageN > 0 && info.PriceData.UsePrice && !info.PriceData.HasOtherRatio("n") {
+		info.PriceData.AddOtherRatio("n", float64(imageN))
 	}
 
 	quality := request.Quality

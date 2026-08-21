@@ -346,6 +346,20 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 	}
 
 	// 构造OpenAI格式响应
+	usage := dto.Usage{
+		PromptTokens:     novaResp.Usage.InputTokens,
+		CompletionTokens: novaResp.Usage.OutputTokens,
+		TotalTokens:      novaResp.Usage.TotalTokens,
+	}
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		// F-60: fall back to the estimate when the upstream omits usage so
+		// Nova requests are not billed as zero.
+		var text string
+		if len(novaResp.Output.Message.Content) > 0 {
+			text = novaResp.Output.Message.Content[0].Text
+		}
+		usage = *service.ResponseText2Usage(c, text, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	response := dto.OpenAITextResponse{
 		Id:      helper.GetResponseID(c),
 		Object:  "chat.completion",
@@ -359,13 +373,9 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 			},
 			FinishReason: "stop",
 		}},
-		Usage: dto.Usage{
-			PromptTokens:     novaResp.Usage.InputTokens,
-			CompletionTokens: novaResp.Usage.OutputTokens,
-			TotalTokens:      novaResp.Usage.TotalTokens,
-		},
+		Usage: usage,
 	}
 
 	c.JSON(http.StatusOK, response)
-	return nil, &response.Usage
+	return nil, &usage
 }

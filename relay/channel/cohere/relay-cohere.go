@@ -98,75 +98,83 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 		return 0, nil, nil
 	})
-	dataChan := make(chan string)
-	stopChan := make(chan bool)
+	// F-29: the reader goroutine must not block forever on an unbuffered
+	// channel when the client disconnects mid-stream (gin's c.Stream returns,
+	// leaving no receiver -> goroutine + upstream connection leak per request).
+	// A small buffer plus a done-select lets the reader exit promptly on
+	// client disconnect; stopChan send is non-blocking so EOF also cannot
+	// strand the goroutine.
+	dataChan := make(chan string, 64)
 	go func() {
 		for scanner.Scan() {
 			data := scanner.Text()
-			dataChan <- data
+			select {
+			case dataChan <- data:
+			case <-c.Request.Context().Done():
+				return
+			}
 		}
 		if err := scanner.Err(); err != nil {
 			common.SysLog("error reading stream: " + err.Error())
 		}
-		stopChan <- true
+		close(dataChan)
 	}()
 	helper.SetEventStreamHeaders(c)
 	isFirst := true
 	c.Stream(func(w io.Writer) bool {
-		select {
-		case data := <-dataChan:
-			if isFirst {
-				isFirst = false
-				info.FirstResponseTime = time.Now()
-			}
-			data = strings.TrimSuffix(data, "\r")
-			var cohereResp CohereResponse
-			err := json.Unmarshal([]byte(data), &cohereResp)
-			if err != nil {
-				common.SysLog("error unmarshalling stream response: " + err.Error())
-				return true
-			}
-			var openaiResp dto.ChatCompletionsStreamResponse
-			openaiResp.Id = responseId
-			openaiResp.Created = createdTime
-			openaiResp.Object = "chat.completion.chunk"
-			openaiResp.Model = info.UpstreamModelName
-			if cohereResp.IsFinished {
-				finishReason := stopReasonCohere2OpenAI(cohereResp.FinishReason)
-				openaiResp.Choices = []dto.ChatCompletionsStreamResponseChoice{
-					{
-						Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{},
-						Index:        0,
-						FinishReason: &finishReason,
-					},
-				}
-				if cohereResp.Response != nil {
-					usage.PromptTokens = cohereResp.Response.Meta.BilledUnits.InputTokens
-					usage.CompletionTokens = cohereResp.Response.Meta.BilledUnits.OutputTokens
-				}
-			} else {
-				openaiResp.Choices = []dto.ChatCompletionsStreamResponseChoice{
-					{
-						Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
-							Role:    "assistant",
-							Content: &cohereResp.Text,
-						},
-						Index: 0,
-					},
-				}
-				responseText += cohereResp.Text
-			}
-			jsonStr, err := json.Marshal(openaiResp)
-			if err != nil {
-				common.SysLog("error marshalling stream response: " + err.Error())
-				return true
-			}
-			c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonStr)})
-			return true
-		case <-stopChan:
+		data, ok := <-dataChan
+		if !ok {
 			c.Render(-1, common.CustomEvent{Data: "data: [DONE]"})
 			return false
 		}
+		if isFirst {
+			isFirst = false
+			info.FirstResponseTime = time.Now()
+		}
+		data = strings.TrimSuffix(data, "\r")
+		var cohereResp CohereResponse
+		err := json.Unmarshal([]byte(data), &cohereResp)
+		if err != nil {
+			common.SysLog("error unmarshalling stream response: " + err.Error())
+			return true
+		}
+		var openaiResp dto.ChatCompletionsStreamResponse
+		openaiResp.Id = responseId
+		openaiResp.Created = createdTime
+		openaiResp.Object = "chat.completion.chunk"
+		openaiResp.Model = info.UpstreamModelName
+		if cohereResp.IsFinished {
+			finishReason := stopReasonCohere2OpenAI(cohereResp.FinishReason)
+			openaiResp.Choices = []dto.ChatCompletionsStreamResponseChoice{
+				{
+					Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{},
+					Index:        0,
+					FinishReason: &finishReason,
+				},
+			}
+			if cohereResp.Response != nil {
+				usage.PromptTokens = cohereResp.Response.Meta.BilledUnits.InputTokens
+				usage.CompletionTokens = cohereResp.Response.Meta.BilledUnits.OutputTokens
+			}
+		} else {
+			openaiResp.Choices = []dto.ChatCompletionsStreamResponseChoice{
+				{
+					Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+						Role:    "assistant",
+						Content: &cohereResp.Text,
+					},
+					Index: 0,
+				},
+			}
+			responseText += cohereResp.Text
+		}
+		jsonStr, err := json.Marshal(openaiResp)
+		if err != nil {
+			common.SysLog("error marshalling stream response: " + err.Error())
+			return true
+		}
+		c.Render(-1, common.CustomEvent{Data: "data: " + string(jsonStr)})
+		return true
 	})
 	if usage.PromptTokens == 0 {
 		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
@@ -190,6 +198,11 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	usage.PromptTokens = cohereResp.Meta.BilledUnits.InputTokens
 	usage.CompletionTokens = cohereResp.Meta.BilledUnits.OutputTokens
 	usage.TotalTokens = cohereResp.Meta.BilledUnits.InputTokens + cohereResp.Meta.BilledUnits.OutputTokens
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		// F-55: fall back to the estimate (prompt+completion+total) when the
+		// upstream omits usage, so generated output is not billed as zero.
+		usage = *service.ResponseText2Usage(c, cohereResp.Text, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 
 	var openaiResp dto.TextResponse
 	openaiResp.Id = cohereResp.ResponseId

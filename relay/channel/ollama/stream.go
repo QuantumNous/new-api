@@ -104,6 +104,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	helper.SetEventStreamHeaders(c)
 	scanner := helper.NewStreamScanner(resp.Body)
 	usage := &dto.Usage{}
+	var responseText strings.Builder
 	var model = info.UpstreamModelName
 	var responseId = common.GetUUID()
 	var created = time.Now().Unix()
@@ -148,6 +149,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 				}},
 			}
 			if content != "" {
+				responseText.WriteString(content)
 				delta.Choices[0].Delta.SetContentString(content)
 			}
 			if chunk.Message != nil && len(chunk.Message.Thinking) > 0 {
@@ -189,6 +191,11 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			if data, err := common.Marshal(stop); err == nil {
 				_ = helper.StringData(c, string(data))
 			}
+		}
+		if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+			// F-62: apply the estimate before the usage frame is emitted so the
+			// client sees the same usage that settlement will bill.
+			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		}
 		// emit usage frame
 		if final := helper.GenerateFinalUsageResponse(responseId, created, model, *usage); final != nil {
@@ -303,6 +310,11 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 	created := toUnix(lastChunk.CreatedAt)
 	usage := &dto.Usage{PromptTokens: lastChunk.PromptEvalCount, CompletionTokens: lastChunk.EvalCount, TotalTokens: lastChunk.PromptEvalCount + lastChunk.EvalCount}
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		// F-62: fall back to the estimate when the upstream omits usage so
+		// non-stream ollama chat is not billed as zero.
+		usage = service.ResponseText2Usage(c, aggContent.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
 	content := aggContent.String()
 	finishReason := lastChunk.DoneReason
 	if finishReason == "" {
