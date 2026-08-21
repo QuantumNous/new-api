@@ -30,14 +30,16 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	clientVersion, err := GetLatestCodexClientVersion(ctx, &client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Codex client version: %w", err)
-	}
-
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
 		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeCodex]
+	}
+	clientVersion := ResolveCodexClientIdentity().Version
+	if !IsCodexClientIdentityEnforced() {
+		clientVersion, err = GetLatestCodexClientVersion(ctx, &client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get Codex client version: %w", err)
+		}
 	}
 	return fetchCodexChannelModels(ctx, channel, baseURL, &client, clientVersion)
 }

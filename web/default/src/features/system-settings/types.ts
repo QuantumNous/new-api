@@ -357,6 +357,12 @@ export type OperationsSettings = {
   'codex_model_governance_setting.official_source_urls': string[]
   'codex_model_governance_setting.official_lifecycle_terms': string[]
   'codex_model_governance_setting.alert_cooldown_minutes': number
+  CodexClientUserAgent: string
+  CodexClientVersion: string
+  CodexSyncedClientVersion: string
+  CodexSyncedClientVersionAt: string
+  CodexAutoSyncClientVersion: boolean
+  CodexEnforceClientIdentity: boolean
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

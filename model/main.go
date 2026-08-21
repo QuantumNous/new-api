@@ -308,6 +308,9 @@ func migrateDB() error {
 			return err
 		}
 	}
+	if err := BackfillCodexFingerprintSeeds(); err != nil {
+		return err
+	}
 	return migrateStartupInvitationValue()
 }
 
@@ -481,6 +484,9 @@ func migrateDBFast() error {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
 		}
+	}
+	if err := BackfillCodexFingerprintSeeds(); err != nil {
+		return err
 	}
 	if err := migrateStartupInvitationValue(); err != nil {
 		return err

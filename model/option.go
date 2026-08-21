@@ -271,6 +271,12 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableStatusCodes"] = operation_setting.AutomaticDisableStatusCodesToString()
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
+	common.OptionMap["CodexClientUserAgent"] = ""
+	common.OptionMap["CodexClientVersion"] = ""
+	common.OptionMap["CodexSyncedClientVersion"] = "0.144.0"
+	common.OptionMap["CodexSyncedClientVersionAt"] = ""
+	common.OptionMap["CodexAutoSyncClientVersion"] = strconv.FormatBool(true)
+	common.OptionMap["CodexEnforceClientIdentity"] = strconv.FormatBool(true)
 
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()

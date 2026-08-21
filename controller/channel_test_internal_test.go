@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -219,6 +220,69 @@ func TestNormalizeChannelTestEndpointCodexKeepsNonAnthropicProtocols(t *testing.
 			require.Equal(t, string(endpointType), endpoint)
 		})
 	}
+}
+
+func TestCodexChannelTestUsesProductionResponsesPathAndIdentity(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	setupChannelCodexFingerprintSeedTestDB(t)
+	withSelfUseModeEnabled(t)
+	originalRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = originalRedisEnabled })
+	require.NoError(t, model.DB.AutoMigrate(&model.User{}))
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       7001,
+		Username: "codex-channel-test",
+		Role:     common.RoleRootUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+		Quota:    100000,
+	}).Error)
+	service.InitHttpClient()
+
+	var upstreamPath string
+	var upstreamHeader http.Header
+	var upstreamBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		upstreamPath = r.URL.Path
+		upstreamHeader = r.Header.Clone()
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_channel_test","object":"response","created_at":1787236800,"model":"gpt-5-codex","output":[{"type":"message","content":[{"type":"output_text","text":"pong"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	channel := &model.Channel{
+		Id:                   9001,
+		Name:                 "codex-channel-test",
+		Type:                 constant.ChannelTypeCodex,
+		Key:                  `{"access_token":"token","account_id":"account"}`,
+		Status:               common.ChannelStatusEnabled,
+		BaseURL:              common.GetPointer(server.URL),
+		Models:               "gpt-5-codex",
+		Group:                "default",
+		CodexFingerprintSeed: "018f89db-7792-7b5e-a360-7fd9279fd725",
+	}
+	channel.SetSetting(dto.ChannelSettings{CodexFingerprintMode: "full"})
+
+	result := testChannelWithOptions(
+		channel,
+		7001,
+		"gpt-5-codex",
+		string(constant.EndpointTypeOpenAIResponse),
+		false,
+		channelTestOptions{ExpectPong: true, SkipLog: true},
+	)
+
+	require.NoError(t, result.localErr)
+	require.Nil(t, result.newAPIError)
+	require.Equal(t, "/backend-api/codex/responses", upstreamPath)
+	require.Equal(t, "Bearer token", upstreamHeader.Get("Authorization"))
+	require.Equal(t, "account", upstreamHeader.Get("chatgpt-account-id"))
+	require.NotEmpty(t, upstreamHeader.Get("x-codex-installation-id"))
+	require.NotContains(t, string(upstreamBody), "channel-test")
 }
 
 func TestBuildScheduledChannelTestAlertMarksAutoDisabled(t *testing.T) {

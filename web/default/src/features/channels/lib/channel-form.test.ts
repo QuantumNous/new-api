@@ -2,9 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import type { Channel } from '../types'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  buildNewChannelFormDefaults,
   channelFormSchema,
   hasAdvancedSettingsValues,
   inspectSolanaPrivateKey,
+  resolveCodexFingerprintModeForChannelType,
   resolveBlockRunCreateBaseURL,
   resolveBlockRunPaymentChainChange,
   transformChannelToFormDefaults,
@@ -55,6 +57,21 @@ const baseChannel: Channel = {
   },
   settings: '{}',
 }
+
+describe('Codex fingerprint mode type switching', () => {
+  test('preserves explicit Codex modes and clears every mode for non-Codex types', () => {
+    expect(resolveCodexFingerprintModeForChannelType(57, 'off')).toBe('full')
+    expect(resolveCodexFingerprintModeForChannelType(57, 'device')).toBe(
+      'device'
+    )
+    expect(resolveCodexFingerprintModeForChannelType(57, 'session')).toBe(
+      'session'
+    )
+    expect(resolveCodexFingerprintModeForChannelType(1, 'device')).toBe('off')
+    expect(resolveCodexFingerprintModeForChannelType(1, 'session')).toBe('off')
+    expect(resolveCodexFingerprintModeForChannelType(1, 'full')).toBe('off')
+  })
+})
 
 const codexFormValues = {
   ...CHANNEL_FORM_DEFAULT_VALUES,
@@ -211,8 +228,18 @@ describe('Grok OAuth create payload', () => {
 })
 
 describe('Codex fingerprint convergence settings', () => {
-  test('defaults new and missing Codex fingerprint modes to off', () => {
+  test('defaults a new Codex channel to full but preserves existing missing mode', () => {
     expect(CHANNEL_FORM_DEFAULT_VALUES.codex_fingerprint_mode).toBe('off')
+
+    const createPayload = transformFormDataToCreatePayload({
+      ...buildNewChannelFormDefaults(57),
+      name: 'codex',
+      key: '{"access_token":"at","account_id":"acct"}',
+      models: 'gpt-5-codex',
+    })
+    expect(JSON.parse(createPayload.channel.setting || '{}')).toMatchObject({
+      codex_fingerprint_mode: 'full',
+    })
 
     const defaults = transformChannelToFormDefaults({
       ...baseChannel,
@@ -221,6 +248,20 @@ describe('Codex fingerprint convergence settings', () => {
     })
 
     expect(defaults.codex_fingerprint_mode).toBe('off')
+  })
+
+  test('preserves existing off mode while editing a Codex channel', () => {
+    const defaults = transformChannelToFormDefaults({
+      ...baseChannel,
+      type: 57,
+      setting: JSON.stringify({ codex_fingerprint_mode: 'off' }),
+    })
+    const payload = transformFormDataToUpdatePayload(defaults, 57)
+
+    expect(defaults.codex_fingerprint_mode).toBe('off')
+    expect(JSON.parse(payload.setting || '{}')).not.toHaveProperty(
+      'codex_fingerprint_mode'
+    )
   })
 
   test('falls back to off for invalid persisted Codex fingerprint modes', () => {

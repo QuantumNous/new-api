@@ -568,32 +568,40 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 
 func UpdateAbilityStatus(channelId int, status bool) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
-			return err
-		}
-		if status {
-			_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, []int{channelId})
-			return err
-		}
-		return nil
+		return updateAbilityStatusWithDB(tx, channelId, status)
 	})
+}
+
+func updateAbilityStatusWithDB(tx *gorm.DB, channelId int, status bool) error {
+	if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
+		return err
+	}
+	if !status {
+		return nil
+	}
+	_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, []int{channelId})
+	return err
 }
 
 func UpdateAbilityStatusByTag(tag string, status bool) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error; err != nil {
-			return err
-		}
-		if !status {
-			return nil
-		}
-		var channelIDs []int
-		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Pluck("id", &channelIDs).Error; err != nil {
-			return err
-		}
-		_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, channelIDs)
-		return err
+		return updateAbilityStatusByTagWithDB(tx, tag, status)
 	})
+}
+
+func updateAbilityStatusByTagWithDB(tx *gorm.DB, tag string, status bool) error {
+	if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error; err != nil {
+		return err
+	}
+	if !status {
+		return nil
+	}
+	var channelIDs []int
+	if err := tx.Model(&Channel{}).Where("tag = ?", tag).Pluck("id", &channelIDs).Error; err != nil {
+		return err
+	}
+	_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, channelIDs)
+	return err
 }
 
 func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {

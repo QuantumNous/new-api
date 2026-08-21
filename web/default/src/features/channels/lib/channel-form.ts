@@ -30,7 +30,16 @@ export const BLOCKRUN_SOLANA_API_URL = 'https://sol.blockrun.ai/api'
 export type BlockRunPaymentChain = 'base' | 'solana'
 
 const CODEX_FINGERPRINT_MODES = ['off', 'device', 'session', 'full'] as const
-type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
+export type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
+
+export function resolveCodexFingerprintModeForChannelType(
+  channelType: number,
+  currentMode: CodexFingerprintMode | undefined
+): CodexFingerprintMode {
+  if (channelType !== 57) return 'off'
+  if (!currentMode || currentMode === 'off') return 'full'
+  return currentMode
+}
 
 const ASSET_MATERIALIZATION_PROVIDERS = [
   'seedance_proxy',
@@ -632,6 +641,16 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+}
+
+export function buildNewChannelFormDefaults(
+  channelType = CHANNEL_FORM_DEFAULT_VALUES.type
+): ChannelFormValues {
+  return {
+    ...CHANNEL_FORM_DEFAULT_VALUES,
+    type: channelType,
+    codex_fingerprint_mode: channelType === 57 ? 'full' : 'off',
+  }
 }
 
 // ============================================================================

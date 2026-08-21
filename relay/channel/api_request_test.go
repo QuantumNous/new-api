@@ -360,6 +360,63 @@ func TestDoApiRequestUsesGinRequestContext(t *testing.T) {
 	}
 }
 
+func TestFinalizeRequestRunsAfterHeaderOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	var upstreamHeader http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHeader = r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(server.Close)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"User-Agent":           "override-ua",
+				"Authorization":        "Bearer override",
+				"Cookie":               "client-cookie=1",
+				"X-Codex-Attestation":  "client-attestation",
+				"X-Codex-Unknown-Side": "client-side",
+			},
+		},
+	}
+
+	resp, err := DoApiRequest(finalizingRequestAdaptor{requestContextAdaptor: requestContextAdaptor{url: server.URL}}, ctx, info, strings.NewReader(`{}`))
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	_ = resp.Body.Close()
+
+	require.Equal(t, "trusted-ua", upstreamHeader.Get("User-Agent"))
+	require.Equal(t, "Bearer trusted", upstreamHeader.Get("Authorization"))
+	require.Empty(t, upstreamHeader.Get("Cookie"))
+	require.Empty(t, upstreamHeader.Get("X-Codex-Attestation"))
+	require.Empty(t, upstreamHeader.Get("X-Codex-Unknown-Side"))
+}
+
+type finalizingRequestAdaptor struct {
+	requestContextAdaptor
+}
+
+func (a finalizingRequestAdaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	req.Set("User-Agent", "setup-ua")
+	req.Set("Authorization", "Bearer setup")
+	return nil
+}
+
+func (a finalizingRequestAdaptor) FinalizeRequest(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+	req.Header.Set("User-Agent", "trusted-ua")
+	req.Header.Set("Authorization", "Bearer trusted")
+	req.Header.Del("Cookie")
+	req.Header.Del("X-Codex-Attestation")
+	req.Header.Del("X-Codex-Unknown-Side")
+	return nil
+}
+
 type requestContextAdaptor struct {
 	url string
 }

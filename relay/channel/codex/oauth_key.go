@@ -16,6 +16,10 @@ type OAuthKey struct {
 	Email       string `json:"email,omitempty"`
 	Type        string `json:"type,omitempty"`
 	Expired     string `json:"expired,omitempty"`
+
+	// OpenAIDeviceID may exist in imported Codex key JSON, but request
+	// fingerprints are derived only from the server-owned channel seed.
+	OpenAIDeviceID string `json:"openai_device_id,omitempty"`
 }
 
 func ParseOAuthKey(raw string) (*OAuthKey, error) {

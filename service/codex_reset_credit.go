@@ -70,6 +70,7 @@ func ConsumeCodexResetCredit(
 	req.Header.Set("sec-fetch-mode", "no-cors")
 	req.Header.Set("sec-fetch-dest", "empty")
 	req.Header.Set("priority", "u=4, i")
+	ApplyCodexInferenceIdentity(req.Header, ResolveCodexClientIdentity())
 
 	resp, err := client.Do(req)
 	if err != nil {

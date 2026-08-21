@@ -34,7 +34,7 @@ func shouldAutoRefreshCodexChannelStatus(status int) bool {
 
 func StartCodexCredentialAutoRefreshTask() {
 	codexCredentialRefreshOnce.Do(func() {
-		if !common.IsMasterNode {
+		if !isMasterOrConsoleTaskLane() {
 			return
 		}
 

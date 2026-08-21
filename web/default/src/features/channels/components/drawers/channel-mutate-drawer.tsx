@@ -53,7 +53,6 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
@@ -103,6 +102,7 @@ import {
 } from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
+import { StatusBadge } from '@/components/status-badge'
 import {
   SecureVerificationDialog,
   useSecureVerification,
@@ -131,11 +131,13 @@ import {
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  buildNewChannelFormDefaults,
   BLOCKRUN_BASE_API_URL,
   BLOCKRUN_SOLANA_API_URL,
   inspectSolanaPrivateKey,
   resolveBlockRunCreateBaseURL,
   resolveBlockRunPaymentChainChange,
+  resolveCodexFingerprintModeForChannelType,
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
@@ -154,21 +156,21 @@ import {
   hasAdvancedSettingsValues,
 } from '../../lib'
 import {
-  collectInvalidStatusCodeEntries,
-  collectNewDisallowedStatusCodeRedirects,
-} from '../../lib/status-code-risk-guard'
-import {
   resolveGrokAuthorizationView,
   resolveGrokCreateTypeSwitch,
   resolveGrokCredentialTextareaValue,
   resolveGrokOAuthAuthorizedKeyDecision,
 } from '../../lib/grok-oauth'
+import {
+  collectInvalidStatusCodeEntries,
+  collectNewDisallowedStatusCodeRedirects,
+} from '../../lib/status-code-risk-guard'
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
 import { CopilotDeviceFlowDialog } from '../dialogs/copilot-device-flow-dialog'
-import { GrokOAuthDialog } from '../dialogs/grok-oauth-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
+import { GrokOAuthDialog } from '../dialogs/grok-oauth-dialog'
 import {
   MissingModelsConfirmationDialog,
   type MissingModelsAction,
@@ -614,7 +616,7 @@ export function ChannelMutateDrawer({
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
     } else if (!isEditing) {
-      form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      form.reset(buildNewChannelFormDefaults())
       setAdvancedSettingsOpen(false)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
@@ -628,6 +630,15 @@ export function ChannelMutateDrawer({
 
     if (currentType === 112 && multiKeyMode !== 'single') {
       form.setValue('multi_key_mode', 'single')
+    }
+
+    const currentCodexFingerprintMode = form.getValues('codex_fingerprint_mode')
+    const nextCodexFingerprintMode = resolveCodexFingerprintModeForChannelType(
+      currentType,
+      currentCodexFingerprintMode
+    )
+    if (nextCodexFingerprintMode !== currentCodexFingerprintMode) {
+      form.setValue('codex_fingerprint_mode', nextCodexFingerprintMode)
     }
 
     // Type 45 (VolcEngine) - set default base_url
@@ -1141,7 +1152,7 @@ export function ChannelMutateDrawer({
     (v: boolean) => {
       onOpenChange(v)
       if (!v) {
-        form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+        form.reset(buildNewChannelFormDefaults())
         setAdvancedSettingsOpen(false)
         // Clear Grok sensitive/transient state on close: the refresh-token
         // plaintext must never linger in memory (design §14: clear sensitive
@@ -1278,8 +1289,7 @@ export function ChannelMutateDrawer({
                                     Number.isInteger(nextType) &&
                                     nextType > 0
                                   ) {
-                                    const currentFormKey =
-                                      form.getValues('key')
+                                    const currentFormKey = form.getValues('key')
                                     const grokTypeSwitch =
                                       resolveGrokCreateTypeSwitch({
                                         isEditing,
@@ -1288,7 +1298,9 @@ export function ChannelMutateDrawer({
                                         formKey: currentFormKey,
                                       })
                                     if (grokTypeSwitch.closeTransientState) {
-                                      if (grokTypeSwitch.key !== currentFormKey) {
+                                      if (
+                                        grokTypeSwitch.key !== currentFormKey
+                                      ) {
                                         form.setValue(
                                           'key',
                                           grokTypeSwitch.key,
@@ -2247,16 +2259,17 @@ export function ChannelMutateDrawer({
                                           {t(
                                             'Enter new key to update, or leave empty to keep current key'
                                           )}
-                                          {isMultiKeyChannel && currentType !== 112 && (
-                                            <span className='text-warning mt-1 block'>
-                                              {t(
-                                                'Multi-key channel: Keys will be'
-                                              )}{' '}
-                                              {keyMode === 'replace'
-                                                ? t('replaced')
-                                                : t('appended')}
-                                            </span>
-                                          )}
+                                          {isMultiKeyChannel &&
+                                            currentType !== 112 && (
+                                              <span className='text-warning mt-1 block'>
+                                                {t(
+                                                  'Multi-key channel: Keys will be'
+                                                )}{' '}
+                                                {keyMode === 'replace'
+                                                  ? t('replaced')
+                                                  : t('appended')}
+                                              </span>
+                                            )}
                                         </>
                                       ) : isBatchMode ? (
                                         t(
@@ -2554,7 +2567,7 @@ export function ChannelMutateDrawer({
                               <Select
                                 items={[
                                   {
-                                    label: t('Off (passthrough, default)'),
+                                    label: t('Off (passthrough)'),
                                     value: 'off',
                                   },
                                   { label: t('Device only'), value: 'device' },
@@ -2577,7 +2590,7 @@ export function ChannelMutateDrawer({
                                 </FormControl>
                                 <SelectContent>
                                   <SelectItem value='off'>
-                                    {t('Off (passthrough, default)')}
+                                    {t('Off (passthrough)')}
                                   </SelectItem>
                                   <SelectItem value='device'>
                                     {t('Device only')}
@@ -2652,109 +2665,111 @@ export function ChannelMutateDrawer({
                         />
                       )}
 
-                      {isEditing && isMultiKeyChannel && currentType !== 112 && (
-                        <FormField
-                          control={form.control}
-                          name='key_mode'
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t('Key Update Mode')}</FormLabel>
-                              <Select
-                                items={[
-                                  {
-                                    value: 'append',
-                                    label: t('Append to existing keys'),
-                                  },
-                                  {
-                                    value: 'replace',
-                                    label: t('Replace all existing keys'),
-                                  },
-                                ]}
-                                onValueChange={field.onChange}
-                                value={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent alignItemWithTrigger={false}>
-                                  <SelectGroup>
-                                    <SelectItem value='append'>
-                                      {t('Append to existing keys')}
-                                    </SelectItem>
-                                    <SelectItem value='replace'>
-                                      {t('Replace all existing keys')}
-                                    </SelectItem>
-                                  </SelectGroup>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                {field.value === 'replace'
-                                  ? t(
-                                      'Replace mode: Will completely replace all existing keys'
-                                    )
-                                  : t(
-                                      'Append mode: New keys will be added to the end of the existing key list'
-                                    )}
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+                      {isEditing &&
+                        isMultiKeyChannel &&
+                        currentType !== 112 && (
+                          <FormField
+                            control={form.control}
+                            name='key_mode'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Key Update Mode')}</FormLabel>
+                                <Select
+                                  items={[
+                                    {
+                                      value: 'append',
+                                      label: t('Append to existing keys'),
+                                    },
+                                    {
+                                      value: 'replace',
+                                      label: t('Replace all existing keys'),
+                                    },
+                                  ]}
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent alignItemWithTrigger={false}>
+                                    <SelectGroup>
+                                      <SelectItem value='append'>
+                                        {t('Append to existing keys')}
+                                      </SelectItem>
+                                      <SelectItem value='replace'>
+                                        {t('Replace all existing keys')}
+                                      </SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  {field.value === 'replace'
+                                    ? t(
+                                        'Replace mode: Will completely replace all existing keys'
+                                      )
+                                    : t(
+                                        'Append mode: New keys will be added to the end of the existing key list'
+                                      )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
 
                       {!isEditing &&
                         currentType !== 112 &&
                         multiKeyMode === 'multi_to_single' && (
-                        <FormField
-                          control={form.control}
-                          name='multi_key_type'
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t('Multi-Key Strategy')}</FormLabel>
-                              <Select
-                                items={[
-                                  { value: 'random', label: t('Random') },
-                                  { value: 'polling', label: t('Polling') },
-                                ]}
-                                onValueChange={field.onChange}
-                                value={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent alignItemWithTrigger={false}>
-                                  <SelectGroup>
-                                    <SelectItem value='random'>
-                                      {t('Random')}
-                                    </SelectItem>
-                                    <SelectItem value='polling'>
-                                      {t('Polling')}
-                                    </SelectItem>
-                                  </SelectGroup>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                {multiKeyType === 'polling' ? (
-                                  <span className='text-warning'>
-                                    {t(
-                                      'Polling mode requires Redis and memory cache, otherwise performance will be significantly degraded'
-                                    )}
-                                  </span>
-                                ) : (
-                                  t(
-                                    'Randomly select a key from the pool for each request'
-                                  )
-                                )}
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+                          <FormField
+                            control={form.control}
+                            name='multi_key_type'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Multi-Key Strategy')}</FormLabel>
+                                <Select
+                                  items={[
+                                    { value: 'random', label: t('Random') },
+                                    { value: 'polling', label: t('Polling') },
+                                  ]}
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent alignItemWithTrigger={false}>
+                                    <SelectGroup>
+                                      <SelectItem value='random'>
+                                        {t('Random')}
+                                      </SelectItem>
+                                      <SelectItem value='polling'>
+                                        {t('Polling')}
+                                      </SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  {multiKeyType === 'polling' ? (
+                                    <span className='text-warning'>
+                                      {t(
+                                        'Polling mode requires Redis and memory cache, otherwise performance will be significantly degraded'
+                                      )}
+                                    </span>
+                                  ) : (
+                                    t(
+                                      'Randomly select a key from the pool for each request'
+                                    )
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
                     </ChannelAuthSection>
                   </ChannelApiAccessSection>
 

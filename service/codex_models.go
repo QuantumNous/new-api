@@ -119,6 +119,7 @@ func fetchLatestCodexClientVersion(ctx context.Context, client *http.Client, rel
 	}
 
 	var release struct {
+		TagName    string `json:"tag_name"`
 		Name       string `json:"name"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
@@ -126,12 +127,9 @@ func fetchLatestCodexClientVersion(ctx context.Context, client *http.Client, rel
 	if err := common.DecodeJson(resp.Body, &release); err != nil {
 		return "", err
 	}
-	if release.Draft || release.Prerelease {
-		return "", fmt.Errorf("latest codex release is not stable")
-	}
-	version := strings.TrimSpace(release.Name)
-	if version == "" {
-		return "", fmt.Errorf("latest codex release has no version name")
+	version, err := parseStableOfficialCodexReleaseVersion(release.TagName, release.Name, release.Draft, release.Prerelease)
+	if err != nil {
+		return "", err
 	}
 	return version, nil
 }
@@ -166,6 +164,10 @@ func FetchCodexModels(
 	if clientVersion == "" {
 		return 0, nil, fmt.Errorf("codex channel: client_version is required")
 	}
+	identity := ResolveCodexClientIdentity()
+	if validClientVersion, ok := NormalizeCodexClientVersion(clientVersion); ok {
+		identity = resolveCodexClientIdentityForVersion(validClientVersion)
+	}
 
 	modelsURL, err := url.Parse(baseURL + "/backend-api/codex/models")
 	if err != nil {
@@ -195,8 +197,13 @@ func FetchCodexModels(
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("ChatGPT-Account-Id", accountID)
-	req.Header.Set("User-Agent", "codex-cli/"+clientVersion)
 	req.Header.Set("Accept", "application/json")
+	enforceIdentity := IsCodexClientIdentityEnforced()
+	if enforceIdentity {
+		ApplyCodexInferenceIdentitySnapshot(req.Header, identity)
+	} else {
+		req.Header.Set("User-Agent", "codex-cli/"+clientVersion)
+	}
 
 	resp, err := client.Do(req)
 	if err != nil {

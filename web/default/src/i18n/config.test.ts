@@ -264,6 +264,45 @@ describe('i18n operational Activity and Recall copy', () => {
     ).toBe('Отменено {{count}} сообщений в очереди')
   })
 
+  test('Codex off fingerprint copy is not described as default', () => {
+    for (const [locale, translations] of Object.entries(localeTranslations)) {
+      const copy = translations['Off (passthrough)']
+      expect(copy, `${locale} is missing Codex off copy`).toBeTruthy()
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('default')
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('默认')
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('défaut')
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('predeterminado')
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('по умолчанию')
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('デフォルト')
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('mặc định')
+      expect(
+        copy.toLowerCase(),
+        `${locale} off copy must not say default`
+      ).not.toContain('padrão')
+    }
+  })
+
   test('registers dynamic Activity and Recall copy in static keys', () => {
     for (const key of dynamicOperationalActivityCopyKeys) {
       expect(STATIC_I18N_KEYS).toContain(key)

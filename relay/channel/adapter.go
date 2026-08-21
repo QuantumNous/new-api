@@ -31,6 +31,10 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+type RequestFinalizer interface {
+	FinalizeRequest(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

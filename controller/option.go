@@ -255,7 +255,14 @@ func isBulkOptionUpdateKey(key string) bool {
 		return true
 	}
 	switch key {
-	case "SidebarModulesAdmin", "LogConsumeEnabled", model.OptionKeyCompanyLogRoutingEnabled, model.OptionKeyPlaygroundDefaultModel:
+	case "SidebarModulesAdmin",
+		"LogConsumeEnabled",
+		model.OptionKeyCompanyLogRoutingEnabled,
+		model.OptionKeyPlaygroundDefaultModel,
+		"CodexClientUserAgent",
+		"CodexClientVersion",
+		"CodexAutoSyncClientVersion",
+		"CodexEnforceClientIdentity":
 		return true
 	default:
 		return false
