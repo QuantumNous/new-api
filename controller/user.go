@@ -28,8 +28,9 @@ import (
 )
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	PasswordCipher string `json:"password_cipher,omitempty"`
 }
 
 var (
@@ -50,6 +51,23 @@ func Login(c *gin.Context) {
 	}
 	username := loginRequest.Username
 	password := loginRequest.Password
+	// Browser clients send password_cipher (RSA-PKCS1v15, base64). When
+	// present, decrypt it into Password and clear the plaintext field.
+	// Plaintext fallback is allowed while PasswordEncryptionRequired is
+	// false so non-browser clients (curl, SDKs) keep working.
+	if loginRequest.PasswordCipher != "" {
+		plain, err := common.DecryptPassword(loginRequest.PasswordCipher)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("Login password decryption failed for user %s: %v", username, err))
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		password = plain
+		loginRequest.Password = plain
+	} else if common.IsPasswordEncryptionRequired() {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	if username == "" || password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
