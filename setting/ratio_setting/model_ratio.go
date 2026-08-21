@@ -336,6 +336,8 @@ var defaultModelPrice = map[string]float64{
 	// Upstream cost is $0.05/s (480p) – $0.07/s (720p); these cover 720p with margin.
 	"grok-imagine-video":     0.09,
 	"grok-imagine-video-1.5": 0.11,
+	// xAI Grok Imagine image subscription media (per image).
+	"grok-imagine-image-2.0": 0.04,
 	// Sonilo video-to-music retail rate. The adaptor multiplies by billable
 	// seconds (10-second minimum) and variants, then settles on actual duration.
 	"sonilo-video-to-music": 0.009,

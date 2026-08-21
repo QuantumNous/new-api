@@ -64,11 +64,41 @@ func TestGetEndpointTypesByChannelType_ModelAPISeedance(t *testing.T) {
 }
 
 func TestGrokSubscriptionEndpointTypes(t *testing.T) {
-	got := GetEndpointTypesByChannelType(constant.ChannelTypeGrokSubscription, "grok-4")
-	if !containsEndpointType(got, constant.EndpointTypeOpenAIResponse) {
-		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAIResponse, got)
-	}
-	if !containsEndpointType(got, constant.EndpointTypeOpenAI) {
-		t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAI, got)
+	t.Run("text model advertises text endpoints only", func(t *testing.T) {
+		got := GetEndpointTypesByChannelType(constant.ChannelTypeGrokSubscription, "grok-4.6")
+		if !containsEndpointType(got, constant.EndpointTypeOpenAIResponse) {
+			t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAIResponse, got)
+		}
+		if !containsEndpointType(got, constant.EndpointTypeOpenAI) {
+			t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAI, got)
+		}
+		if containsEndpointType(got, constant.EndpointTypeOpenAIVideo) {
+			t.Fatalf("text Grok subscription model must not advertise video, got %v", got)
+		}
+		if containsEndpointType(got, constant.EndpointTypeImageGeneration) {
+			t.Fatalf("text Grok subscription model must not advertise image generation, got %v", got)
+		}
+	})
+
+	t.Run("image model advertises image generation first", func(t *testing.T) {
+		got := GetEndpointTypesByChannelType(constant.ChannelTypeGrokSubscription, "grok-imagine-image-2.0")
+		if len(got) == 0 || got[0] != constant.EndpointTypeImageGeneration {
+			t.Fatalf("expected image generation first, got %v", got)
+		}
+		if containsEndpointType(got, constant.EndpointTypeOpenAIVideo) {
+			t.Fatalf("image Grok subscription model must not advertise video, got %v", got)
+		}
+	})
+
+	for _, modelName := range []string{"grok-imagine-video-1.5", "grok-imagine-video"} {
+		t.Run(modelName+" advertises openai video", func(t *testing.T) {
+			got := GetEndpointTypesByChannelType(constant.ChannelTypeGrokSubscription, modelName)
+			if !containsEndpointType(got, constant.EndpointTypeOpenAIVideo) {
+				t.Fatalf("expected endpoints to contain %q, got %v", constant.EndpointTypeOpenAIVideo, got)
+			}
+			if containsEndpointType(got, constant.EndpointTypeImageGeneration) {
+				t.Fatalf("video Grok subscription model must not advertise image generation, got %v", got)
+			}
+		})
 	}
 }

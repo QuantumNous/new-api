@@ -609,6 +609,7 @@ type grokAuthHandlerResponse struct {
 		Status        string `json:"status"`
 		Key           string `json:"key"`
 		QuotaSnapshot string `json:"quota_snapshot"`
+		BillingStatus string `json:"billing_status"`
 	} `json:"data"`
 }
 
@@ -815,6 +816,9 @@ func TestGrokAuthPKCECompleteHandlerAcceptsSub2AuthorizationInputs(t *testing.T)
 
 			var exchangedCode string
 			restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.String() != groksubscription.OAuthToken {
+					return grokJSONResponse(http.StatusServiceUnavailable, `{}`), nil
+				}
 				require.NoError(t, req.ParseForm())
 				exchangedCode = req.Form.Get("code")
 				return grokJSONResponse(200, `{"access_token":"at-h","refresh_token":"rt-h","token_type":"Bearer","expires_in":3600}`), nil
@@ -976,6 +980,45 @@ func TestGrokAuthRefreshHandler(t *testing.T) {
 	require.True(t, resp.Success)
 	require.Equal(t, model.GrokAuthStatusActive, resp.Data.Status)
 	require.Equal(t, `{"remaining":7}`, resp.Data.QuotaSnapshot)
+}
+
+func TestGrokAuthRefreshHandlerKeepsOAuthActiveWhenBillingProbeUnavailable(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	setGrokCipherKey(t)
+	ch := seedGrokChannel(t)
+	oldCred := groksubscription.Credential{Version: 1, Type: "grok_subscription", AccessToken: "old-at", RefreshToken: "old-rt", TokenType: "Bearer", ExpiresAt: time.Now().Unix() + 60}
+	serialized, err := oldCred.Serialize()
+	require.NoError(t, err)
+	require.NoError(t, model.UpdateChannelKeyForType(ch.Id, constant.ChannelTypeGrokSubscription, serialized))
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{
+		ChannelID:         ch.Id,
+		AuthStatus:        model.GrokAuthStatusActive,
+		QuotaSnapshot:     `{"version":1,"plan":"SuperGrok","monthly":{"status_code":200},"weekly":{"status_code":503}}`,
+		BillingObservedAt: 100,
+		BillingPlan:       "SuperGrok",
+	}))
+	restore := SetGrokAuthHTTPDoerForTest(grokDoerFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() == groksubscription.OAuthToken {
+			return grokJSONResponse(200, `{"access_token":"new-at3","token_type":"Bearer","expires_in":3600}`), nil
+		}
+		return nil, errors.New("probe transport failed with secret-token-like-detail")
+	}))
+	defer restore()
+
+	ctx, rec := newGrokAuthRequestContext(t, `{"channel_id":`+strconv.Itoa(ch.Id)+`}`)
+	GrokRefreshHandler(ctx)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	resp := decodeGrokAuthResponse(t, rec)
+	require.True(t, resp.Success)
+	require.Equal(t, model.GrokAuthStatusActive, resp.Data.Status)
+	require.Equal(t, "unavailable", resp.Data.BillingStatus)
+	require.NotContains(t, rec.Body.String(), "secret-token-like-detail")
+	st, err := model.GetGrokChannelState(ch.Id)
+	require.NoError(t, err)
+	require.Equal(t, model.GrokAuthStatusActive, st.AuthStatus)
+	require.Equal(t, int64(100), st.BillingObservedAt)
+	require.Equal(t, "SuperGrok", st.BillingPlan)
 }
 
 // TestGrokRefreshShouldMarkNeedsReauth 守护设计 §6.3 的失败分类：

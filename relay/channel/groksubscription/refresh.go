@@ -16,6 +16,14 @@ var (
 	ErrRefreshConflict = errors.New("grok refresh: revision CAS conflict")
 )
 
+type RefreshHTTPStatusError struct {
+	StatusCode int
+}
+
+func (e RefreshHTTPStatusError) Error() string {
+	return fmt.Sprintf("grok refresh: token endpoint status %d", e.StatusCode)
+}
+
 // maxTokenResponseBytes 限制读取上游响应体，防超大响应。
 const maxTokenResponseBytes = 1 << 20
 
@@ -83,7 +91,7 @@ func (r *Refresher) Refresh(ctx context.Context, channelID int) (Credential, err
 	// status==200 时读取异常会被后续 json.Unmarshal 失败或空 access_token 检查兜住（均 fail-closed）。
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if resp.StatusCode != http.StatusOK {
-		return Credential{}, fmt.Errorf("grok refresh: token endpoint status %d", resp.StatusCode)
+		return Credential{}, RefreshHTTPStatusError{StatusCode: resp.StatusCode}
 	}
 	var tr tokenResponse
 	if err := json.Unmarshal(body, &tr); err != nil {

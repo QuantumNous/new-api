@@ -236,6 +236,12 @@ func requestedEndpointType(c *gin.Context) constant.EndpointType {
 	if strings.HasPrefix(path, "/v1/responses") {
 		return constant.EndpointTypeOpenAIResponse
 	}
+	if strings.HasPrefix(path, "/v1/images/generations") || strings.HasPrefix(path, "/v1/images/edits") {
+		return constant.EndpointTypeImageGeneration
+	}
+	if strings.HasPrefix(path, "/v1/videos") || strings.HasPrefix(path, "/v1/video/generations") {
+		return constant.EndpointTypeOpenAIVideo
+	}
 	if strings.HasPrefix(path, "/v1/video-to-music") {
 		return constant.EndpointTypeVideoToMusic
 	}

@@ -1006,3 +1006,88 @@ func TestCanonicalResolutionsMatchConsoleVocabulary(t *testing.T) {
 		}
 	}
 }
+
+func TestGrokSubscriptionDefaultVideoPriceRulesMergeWithoutGlobalMutation(t *testing.T) {
+	admin := []VideoPriceRule{
+		{Model: "grok-imagine-video", Match: map[string]string{"action": "extend", "has_video": "true"},
+			PricePerSecond: 9, Basis: BasisOutputDuration},
+		{Model: "custom", Match: map[string]string{"resolution": "480p"},
+			PricePerSecond: 1, Basis: BasisOutputDuration},
+	}
+	merged := GetGrokSubscriptionVideoPriceRules(admin)
+
+	if !IsVideoModelConfigured(merged, "grok-imagine-video") {
+		t.Fatal("administrator override model must stay configured")
+	}
+	if !IsVideoModelConfigured(merged, "grok-imagine-video-1.5") {
+		t.Fatal("missing Grok Subscription model must receive defaults")
+	}
+	if !IsVideoModelConfigured(merged, "custom") {
+		t.Fatal("unrelated administrator model was dropped")
+	}
+
+	countLegacy := 0
+	for _, r := range merged {
+		if r.Model == "grok-imagine-video" {
+			countLegacy++
+			if r.PricePerSecond != 9 {
+				t.Fatalf("administrator rules must replace defaults as a coherent model set, got %+v", r)
+			}
+		}
+	}
+	if countLegacy != 1 {
+		t.Fatalf("legacy model rule count = %d, want only the admin override", countLegacy)
+	}
+
+	global := GetVideoPriceRules()
+	if IsVideoModelConfigured(global, "grok-imagine-video") || IsVideoModelConfigured(global, "grok-imagine-video-1.5") {
+		t.Fatal("Grok Subscription defaults must not be published into the global administrator table")
+	}
+}
+
+func TestValidateVideoPriceRulesRejectsGrokEditOutputDuration(t *testing.T) {
+	rules := []VideoPriceRule{
+		{Model: "grok-imagine-video", Match: map[string]string{"action": "edit", "has_video": "true"},
+			PricePerSecond: 0.09, Basis: BasisOutputDuration},
+	}
+	if err := ValidateVideoPriceRules(rules); err == nil {
+		t.Fatal("Grok edit rules must not use output_duration")
+	}
+}
+
+func TestValidateVideoPriceRulesAcceptsGrokEditTotalDuration(t *testing.T) {
+	rules := []VideoPriceRule{
+		{Model: "grok-imagine-video-1.5", Match: map[string]string{"action": "edit", "has_video": "true"},
+			PricePerSecond: 0.11, Basis: BasisTotalDuration, FallbackSeconds: 8.7},
+	}
+	if err := ValidateVideoPriceRules(rules); err != nil {
+		t.Fatalf("Grok edit total_duration rule must stay valid: %v", err)
+	}
+}
+
+func TestGrokSubscriptionDefaultVideoPriceRulesCoverDocumentedActionsAndResolutions(t *testing.T) {
+	rules := GetGrokSubscriptionVideoPriceRules(nil)
+	if err := ValidateVideoPriceRules(rules); err != nil {
+		t.Fatalf("default rules must validate: %v", err)
+	}
+
+	required := []struct {
+		model string
+		match map[string]string
+	}{
+		{"grok-imagine-video", map[string]string{"action": "generate", "resolution": "480p", "has_video": "false"}},
+		{"grok-imagine-video", map[string]string{"action": "generate", "resolution": "720p", "has_video": "false"}},
+		{"grok-imagine-video", map[string]string{"action": "edit", "has_video": "true"}},
+		{"grok-imagine-video", map[string]string{"action": "extend", "has_video": "true"}},
+		{"grok-imagine-video-1.5", map[string]string{"action": "generate", "resolution": "480p", "has_video": "false"}},
+		{"grok-imagine-video-1.5", map[string]string{"action": "generate", "resolution": "720p", "has_video": "false"}},
+		{"grok-imagine-video-1.5", map[string]string{"action": "generate", "resolution": "1080p", "has_video": "false"}},
+		{"grok-imagine-video-1.5", map[string]string{"action": "edit", "has_video": "true"}},
+		{"grok-imagine-video-1.5", map[string]string{"action": "extend", "has_video": "true"}},
+	}
+	for _, req := range required {
+		if _, ok := FindVideoPriceRule(rules, req.model, req.match); !ok {
+			t.Fatalf("missing default rule for model=%s match=%v", req.model, req.match)
+		}
+	}
+}

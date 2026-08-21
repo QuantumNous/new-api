@@ -332,13 +332,13 @@ func ExecutePreparedTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo, pref
 		return &TaskSubmitResult{
 			Platform:            platform,
 			Quota:               preflight.Quota,
-			OutcomeMayBeUnknown: true,
+			OutcomeMayBeUnknown: !channel.IsDefinitelyNotSent(err),
 		}, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		statusCode := resp.StatusCode
 		taskErr := taskSubmitStatusError(platform, resp)
-		if statusCode >= http.StatusInternalServerError {
+		if taskSubmitStatusMayBeUnknown(platform, statusCode) {
 			return &TaskSubmitResult{
 				Platform:            platform,
 				Quota:               preflight.Quota,
@@ -387,6 +387,15 @@ func ExecutePreparedTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo, pref
 		Platform:       platform,
 		Quota:          finalQuota,
 	}, nil
+}
+
+func taskSubmitStatusMayBeUnknown(platform constant.TaskPlatform, statusCode int) bool {
+	if platform == constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeGrokSubscription)) {
+		return statusCode == http.StatusUnauthorized ||
+			statusCode == http.StatusTooManyRequests ||
+			statusCode >= http.StatusInternalServerError
+	}
+	return statusCode >= http.StatusInternalServerError
 }
 
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {

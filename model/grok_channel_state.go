@@ -29,6 +29,7 @@ type GrokChannelState struct {
 	BillingPlan           string `json:"billing_plan" gorm:"type:varchar(64)"`
 	TierRaw               string `json:"tier_raw" gorm:"type:varchar(64)"`
 	QuotaSnapshot         string `json:"quota_snapshot" gorm:"type:text"`
+	BillingObservedAt     int64  `json:"billing_observed_at" gorm:"not null;default:0"`
 	RefreshLeaseOwner     string `json:"-" gorm:"type:varchar(128)"`
 	RefreshLeaseExpiresAt int64  `json:"refresh_lease_expires_at"`
 	LastRefreshAt         int64  `json:"last_refresh_at"`
@@ -39,7 +40,14 @@ type GrokChannelState struct {
 
 func (GrokChannelState) TableName() string { return "grok_channel_states" }
 
-// UpsertGrokChannelState 按 channel_id 插入或覆盖（created_at 除外，保持首次写入值；见测试 TestGrokChannelStateUpsertPreservesCreatedAt）。
+type GrokBillingObservation struct {
+	ObservedAt    int64
+	BillingPlan   string
+	TierRaw       string
+	QuotaSnapshot string
+}
+
+// UpsertGrokChannelState 按 channel_id 插入或更新认证/lease/刷新状态；billing 快照字段只能通过 SaveGrokBillingObservation 更新。
 func UpsertGrokChannelState(st *GrokChannelState) error {
 	return upsertGrokChannelState(DB, st)
 }
@@ -53,9 +61,48 @@ func upsertGrokChannelState(db *gorm.DB, st *GrokChannelState) error {
 	}
 	st.UpdatedAt = GetDBTimestamp()
 	return db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "channel_id"}},
-		UpdateAll: true,
+		Columns: []clause.Column{{Name: "channel_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"auth_status",
+			"refresh_lease_owner",
+			"refresh_lease_expires_at",
+			"last_refresh_at",
+			"last_error",
+			"updated_at",
+		}),
 	}).Create(st).Error
+}
+
+func SaveGrokBillingObservation(channelID int, leaseOwner string, observation GrokBillingObservation) (bool, error) {
+	now := GetDBTimestamp()
+	if now <= 0 {
+		return false, errors.New("grok billing observation: database time unavailable")
+	}
+	return SaveGrokBillingObservationAt(channelID, leaseOwner, now, observation)
+}
+
+// SaveGrokBillingObservationAt conditionally writes billing evidence while the
+// caller still owns a live refresh lease. leaseNow must come from the same
+// database clock used when the lease was acquired.
+func SaveGrokBillingObservationAt(channelID int, leaseOwner string, leaseNow int64, observation GrokBillingObservation) (bool, error) {
+	if channelID <= 0 || leaseOwner == "" || leaseNow <= 0 || observation.ObservedAt <= 0 {
+		return false, errors.New("grok billing observation: invalid args")
+	}
+	owner := leaseOwner
+	observedAt := observation.ObservedAt
+	res := DB.Model(&GrokChannelState{}).
+		Where("channel_id = ? AND refresh_lease_owner = ? AND refresh_lease_expires_at > ? AND (billing_observed_at IS NULL OR billing_observed_at <= ?)", channelID, owner, leaseNow, observedAt).
+		Updates(map[string]any{
+			"quota_snapshot":      observation.QuotaSnapshot,
+			"billing_plan":        observation.BillingPlan,
+			"tier_raw":            observation.TierRaw,
+			"billing_observed_at": observedAt,
+			"updated_at":          observedAt,
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
 }
 
 // GrokAuthStateView 是 GrokChannelState 的非秘密子集（白名单投影，绝不含 LastError/lease/token/quota）。

@@ -196,3 +196,20 @@ func TestRefreshTokenRejectsNonPositiveExpiresIn(t *testing.T) {
 		}
 	})
 }
+
+// TestRefreshTokenTransportErrorIsRetryableAndDoesNotImpugnAuthStatus 守护“瞬时刷新失败不应直接标记 needs_reauth”：
+// 只有明确的无 refresh_token、401/403 才能把渠道打入 needs_reauth。变异验证：若把任何 refresh 错误都当 reauth，
+// 这里会把 active 状态错误改成 needs_reauth。
+func TestRefreshTokenTransportErrorIsRetryableAndDoesNotImpugnAuthStatus(t *testing.T) {
+	store := &fakeStore{
+		key:      `{"version":1,"type":"grok_subscription","access_token":"old","refresh_token":"rt","token_type":"Bearer","expires_at":1000}`,
+		revision: 4,
+	}
+	doer := doerFunc(func(req *http.Request) (*http.Response, error) {
+		return nil, errors.New("dial tcp: transient network failure")
+	})
+	r := NewRefresher(store, doer, func() int64 { return 2000 })
+	if _, err := r.Refresh(context.Background(), 5); err == nil {
+		t.Fatalf("transport error must fail refresh")
+	}
+}

@@ -30,6 +30,7 @@ var whitelabelChannels = map[int]struct{}{
 	constant.ChannelTypeBytePlus:         {},
 	constant.ChannelTypeModelAPISeedance: {},
 	constant.ChannelTypeXaiGrokVideo:     {},
+	constant.ChannelTypeGrokSubscription: {},
 	constant.ChannelTypeSonilo:           {},
 }
 

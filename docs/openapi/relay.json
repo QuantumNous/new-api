@@ -1261,95 +1261,66 @@
     },
     "/v1/images/generations": {
       "post": {
-        "summary": "生成图像(qwen-image)",
+        "summary": "生成图像（OpenAI 兼容，含 Grok Subscription）",
         "deprecated": false,
-        "description": " 百炼qwen-image系列图片生成",
+        "description": "OpenAI 兼容图片生成接口。Grok Subscription 使用模型 grok-imagine-image-2.0；prompt 必填，n 为 1-10，response_format 为 url 或 b64_json，resolution 为 1k 或 2k，quality 为 low 或 medium，aspect_ratio 使用实现支持的比例集合。",
         "operationId": "createImage",
         "tags": [
           "图片生成/Qwen千问"
         ],
+        "x-flatkey-grok-subscription": {
+          "model": "grok-imagine-image-2.0",
+          "response": "OpenAI 图片响应；不会返回上游地址或凭据。"
+        },
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "model": {
-                    "type": "string"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/QwenImageGenerationRequest"
                   },
-                  "input": {
-                    "type": "object",
-                    "properties": {
-                      "messages": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "role": {
-                              "type": "string"
-                            },
-                            "content": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "text": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
+                  {
+                    "$ref": "#/components/schemas/GrokImageGenerationRequest"
+                  }
+                ]
+              },
+              "examples": {
+                "qwen": {
+                  "summary": "Qwen 图片生成",
+                  "value": {
+                    "model": "qwen-image-plus",
+                    "input": {
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": [
+                            {
+                              "text": "一副典雅庄重的中式厅堂图像"
                             }
-                          }
+                          ]
                         }
-                      }
+                      ]
                     },
-                    "required": [
-                      "messages"
-                    ]
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "properties": {
-                      "negative_prompt": {
-                        "type": "string"
-                      },
-                      "prompt_extend": {
-                        "type": "boolean"
-                      },
-                      "watermark": {
-                        "type": "boolean"
-                      },
-                      "size": {
-                        "type": "string"
-                      }
+                    "parameters": {
+                      "prompt_extend": true,
+                      "watermark": false,
+                      "size": "1328*1328"
                     }
                   }
                 },
-                "required": [
-                  "model",
-                  "input"
-                ]
-              },
-              "example": {
-                "model": "qwen-image-plus",
-                "input": {
-                  "messages": [
-                    {
-                      "role": "user",
-                      "content": [
-                        {
-                          "text": "一副典雅庄重的对联悬挂于厅堂之中，房间是个安静古典的中式布置，桌子上放着一些青花瓷，对联上左书“义本生知人机同道善思新”，右书“通云赋智乾坤启数高志远”， 横批“智启通义”，字体飘逸，在中间挂着一幅中国风的画作，内容是岳阳楼。"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "parameters": {
-                  "negative_prompt": "",
-                  "prompt_extend": true,
-                  "watermark": false,
-                  "size": "1328*1328"
+                "grok_subscription": {
+                  "summary": "Grok Subscription 图片生成",
+                  "value": {
+                    "model": "grok-imagine-image-2.0",
+                    "prompt": "A lighthouse above a stormy sea",
+                    "n": 1,
+                    "response_format": "url",
+                    "aspect_ratio": "16:9",
+                    "resolution": "2k",
+                    "quality": "medium"
+                  }
                 }
               }
             }
@@ -1377,83 +1348,101 @@
     },
     "/v1/images/edits": {
       "post": {
-        "summary": "编辑图像(qwen-image-edit)",
+        "summary": "编辑图像（OpenAI 兼容，含 Grok Subscription）",
         "deprecated": false,
-        "description": " 百炼qwen-image系列图片生成",
+        "description": "OpenAI 兼容图片编辑接口。Grok Subscription 使用模型 grok-imagine-image-2.0；prompt 必填，接受 1-3 个 JSON 或 multipart 图片引用。mask、user、file_id、storage_options 和不支持的文件类型会被拒绝。",
         "operationId": "createImage",
         "tags": [
           "图片生成/Qwen千问"
         ],
+        "x-flatkey-grok-subscription": {
+          "model": "grok-imagine-image-2.0",
+          "image_references": "1-3",
+          "response": "OpenAI 图片响应；不会返回上游地址或凭据。"
+        },
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "model": {
-                    "type": "string"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/QwenImageEditRequest"
                   },
-                  "input": {
-                    "type": "object",
-                    "properties": {
-                      "messages": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "role": {
-                              "type": "string"
+                  {
+                    "$ref": "#/components/schemas/GrokImageEditJSONRequest"
+                  }
+                ]
+              },
+              "examples": {
+                "qwen": {
+                  "summary": "Qwen 图片编辑",
+                  "value": {
+                    "model": "qwen-image-edit-plus",
+                    "input": {
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": [
+                            {
+                              "image": "https://example.com/source.png"
                             },
-                            "content": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "image": {
-                                    "type": "string"
-                                  },
-                                  "text": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
+                            {
+                              "text": "把背景替换为森林"
                             }
-                          }
+                          ]
                         }
-                      }
+                      ]
                     },
-                    "required": [
-                      "messages"
-                    ]
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "properties": {
-                      "n": {
-                        "type": "integer"
-                      },
-                      "negative_prompt": {
-                        "type": "string"
-                      },
-                      "prompt_extend": {
-                        "type": "boolean"
-                      },
-                      "watermark": {
-                        "type": "boolean"
-                      },
-                      "size": {
-                        "type": "string"
-                      }
+                    "parameters": {
+                      "n": 2,
+                      "prompt_extend": true,
+                      "watermark": false
                     }
                   }
                 },
-                "required": [
-                  "model",
-                  "input"
-                ]
+                "grok_subscription": {
+                  "summary": "Grok Subscription JSON 图片编辑",
+                  "value": {
+                    "model": "grok-imagine-image-2.0",
+                    "prompt": "Turn the sky purple",
+                    "images": [
+                      "https://example.com/source-a.png",
+                      {
+                        "image_url": {
+                          "url": "https://example.com/source-b.jpg"
+                        }
+                      }
+                    ],
+                    "n": 1,
+                    "response_format": "url",
+                    "aspect_ratio": "16:9",
+                    "resolution": "1k",
+                    "quality": "low"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GrokImageEditMultipartRequest"
               },
-              "example": "{\n    \"model\": \"qwen-image-edit-plus\",\n    \"input\": {\n        \"messages\": [\n            {\n                \"role\": \"user\",\n                \"content\": [\n                    {\n                        \"image\": \"https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/fpakfo/image36.webp\"\n                    },\n                    {\n                        \"text\": \"生成一张符合深度图的图像，遵循以下描述：一辆红色的破旧的自行车停在一条泥泞的小路上，背景是茂密的原始森林\"\n                    }\n                ]\n            }\n        ]\n    },\n    \"parameters\": {\n        \"n\": 2,\n        \"negative_prompt\": \" \",\n        \"prompt_extend\": true,\n        \"watermark\": false\n    }"
+              "encoding": {
+                "image": {
+                  "style": "form"
+                }
+              },
+              "example": {
+                "model": "grok-imagine-image-2.0",
+                "prompt": "Add warm evening light",
+                "image": [
+                  "<JPEG or PNG file; repeat image for up to three files>"
+                ],
+                "n": 1,
+                "response_format": "url",
+                "resolution": "1k",
+                "quality": "medium"
+              }
             }
           }
         },
@@ -1481,11 +1470,20 @@
       "post": {
         "summary": "创建视频 ",
         "deprecated": false,
-        "description": "OpenAI 兼容的视频生成接口。\n\n参考文档: https://platform.openai.com/docs/api-reference/videos/create\n",
+        "description": "OpenAI 兼容的视频生成接口。Grok Subscription 使用模型 grok-imagine-video-1.5 或 grok-imagine-video；提交返回公开 task_*，完成后 metadata.url 仅指向 Flatkey /v1/videos/{task_id}/content 代理。内部请求标识、临时媒体地址和供应商凭据不会返回。\n",
         "operationId": "createVideo",
         "tags": [
           "视频生成/Sora兼容格式"
         ],
+        "x-flatkey-grok-subscription": {
+          "submit_path": "/v1/videos",
+          "alias_path": "/v1/video/generations",
+          "actions": {
+            "grok-imagine-video-1.5": ["generate"],
+            "grok-imagine-video": ["generate", "edit", "extend"]
+          },
+          "ambiguous_media_writes": "不会自动重放"
+        },
         "parameters": [],
         "requestBody": {
           "content": {
@@ -5157,6 +5155,353 @@
           }
         }
       },
+      "QwenImageGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "negative_prompt": {
+                "type": "string"
+              },
+              "prompt_extend": {
+                "type": "boolean"
+              },
+              "watermark": {
+                "type": "boolean"
+              },
+              "size": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "QwenImageEditRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "image": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "integer"
+              },
+              "negative_prompt": {
+                "type": "string"
+              },
+              "prompt_extend": {
+                "type": "boolean"
+              },
+              "watermark": {
+                "type": "boolean"
+              },
+              "size": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "GrokImageGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "enum": [
+              "grok-imagine-image-2.0"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ]
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3",
+              "2:1",
+              "1:2",
+              "19.5:9",
+              "9:19.5",
+              "20:9",
+              "9:20",
+              "auto"
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "1k",
+              "2k"
+            ]
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium"
+            ]
+          }
+        }
+      },
+      "GrokImageReference": {
+        "description": "HTTPS URL、JPEG/PNG data URI，或包含 url、b64_json、image_url.url 之一的对象。",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "anyOf": [
+              {
+                "required": [
+                  "url"
+                ]
+              },
+              {
+                "required": [
+                  "b64_json"
+                ]
+              },
+              {
+                "required": [
+                  "image_url"
+                ]
+              }
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "b64_json": {
+                "type": "string"
+              },
+              "image_url": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "GrokImageEditJSONRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/GrokImageGenerationRequest"
+          },
+          {
+            "type": "object",
+            "description": "编辑接受 1-3 个图片引用；单图编辑不得设置 aspect_ratio。mask、user、file_id、storage_options 不受支持。",
+            "anyOf": [
+              {
+                "required": [
+                  "image"
+                ]
+              },
+              {
+                "required": [
+                  "images"
+                ]
+              }
+            ],
+            "properties": {
+              "image": {
+                "$ref": "#/components/schemas/GrokImageReference"
+              },
+              "images": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {
+                  "$ref": "#/components/schemas/GrokImageReference"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "GrokImageEditMultipartRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt",
+          "image"
+        ],
+        "description": "image 可重复 1-3 次（image、image[] 或 image[0..2]），每项为 HTTPS URL 或 JPEG/PNG 文件。mask、user、file_id、storage_options 不受支持。",
+        "properties": {
+          "model": {
+            "type": "string",
+            "enum": [
+              "grok-imagine-image-2.0"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "image": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "description": "JPEG/PNG 文件或 HTTPS URL",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "binary",
+                  "description": "JPEG/PNG 上传文件"
+                },
+                {
+                  "type": "string",
+                  "format": "uri",
+                  "pattern": "^https://",
+                  "description": "HTTPS 图片 URL"
+                }
+              ]
+            }
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ]
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "仅多图编辑可用；取值集合与 GrokImageGenerationRequest 相同。"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "1k",
+              "2k"
+            ]
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium"
+            ]
+          }
+        }
+      },
       "ImageGenerationRequest": {
         "type": "object",
         "required": [
@@ -5682,7 +6027,7 @@
       },
       "VideoRequest": {
         "type": "object",
-        "description": "视频生成请求",
+        "description": "视频生成请求。Grok Subscription 使用 model、prompt 和可选 action（generate/edit/extend）；公开提交入口为 /v1/videos，/v1/video/generations 为兼容别名。",
         "properties": {
           "model": {
             "type": "string",
@@ -5745,6 +6090,19 @@
             "additionalProperties": true,
             "properties": {}
           }
+        },
+        "x-flatkey-grok-subscription": {
+          "models": {
+            "grok-imagine-video-1.5": {
+              "actions": ["generate"],
+              "duration_seconds": "1-15"
+            },
+            "grok-imagine-video": {
+              "actions": ["generate", "edit", "extend"],
+              "duration_seconds": "generate 1-15; extend 2-10"
+            }
+          },
+          "completed_url": "/v1/videos/{task_id}/content"
         }
       },
       "VideoResponse": {
@@ -5917,7 +6275,7 @@
       },
       "OpenAIVideo": {
         "type": "object",
-        "description": "OpenAI 兼容的视频对象",
+        "description": "OpenAI 兼容的视频对象。Grok Subscription 完成时 metadata.url 仅为 Flatkey /v1/videos/{task_id}/content 代理地址。",
         "properties": {
           "id": {
             "type": "string",
@@ -5984,7 +6342,7 @@
           },
           "metadata": {
             "type": "object",
-            "description": "额外元数据",
+            "description": "额外元数据；对于 Grok Subscription，url 为公开 Flatkey 内容代理地址。",
             "additionalProperties": true,
             "properties": {}
           }

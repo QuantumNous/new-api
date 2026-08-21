@@ -54,7 +54,9 @@ type GrokPKCEStartResult struct {
 // GrokPKCECompleteResult 是 PKCE 授权完成的结果。
 // Key 只在未绑定渠道的 flow 中返回；已绑定渠道的凭证只写回 Channel.Key。
 type GrokPKCECompleteResult struct {
-	Key string
+	Key           string
+	ChannelID     int
+	BillingStatus string
 }
 
 // GrokPKCEStart 生成 PKCE verifier/challenge + state，构造 authorize URL，
@@ -289,7 +291,7 @@ func GrokPKCEComplete(flowID, code, state, ownerToken string) (GrokPKCECompleteR
 	if err := model.ConsumeGrokAuthFlow(flowID, ownerToken); err != nil {
 		return GrokPKCECompleteResult{}, err
 	}
-	return GrokPKCECompleteResult{}, nil
+	return GrokPKCECompleteResult{ChannelID: flow.ChannelID}, nil
 }
 
 // grokFlowOwnerToken 从 flowID 推导 claim 用的 owner token：同一 flow 的重试幂等
@@ -604,6 +606,12 @@ func GrokPKCECompleteHandler(c *gin.Context) {
 	if result.Key != "" {
 		data["key"] = result.Key
 	}
+	if result.ChannelID > 0 {
+		result.BillingStatus = groksubscription.RefreshMediaBillingStatusWithHTTPDoer(c.Request.Context(), result.ChannelID, grokAuthHTTPDoer)
+	}
+	if result.BillingStatus != "" {
+		data["billing_status"] = result.BillingStatus
+	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": data})
 }
 
@@ -626,7 +634,8 @@ func GrokImportHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, body)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"status": model.GrokAuthStatusActive}})
+	billingStatus := groksubscription.RefreshMediaBillingStatusWithHTTPDoer(c.Request.Context(), req.ChannelID, grokAuthHTTPDoer)
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"status": model.GrokAuthStatusActive, "billing_status": billingStatus}})
 }
 
 func GrokRefreshHandler(c *gin.Context) {
@@ -652,11 +661,13 @@ func GrokRefreshHandler(c *gin.Context) {
 	if st, err := model.GetGrokChannelState(req.ChannelID); err == nil && st != nil {
 		quotaSnapshot = st.QuotaSnapshot
 	}
+	billingStatus := groksubscription.RefreshMediaBillingStatusWithHTTPDoer(c.Request.Context(), req.ChannelID, grokAuthHTTPDoer)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
 			"status":         model.GrokAuthStatusActive,
 			"quota_snapshot": quotaSnapshot,
+			"billing_status": billingStatus,
 		},
 	})
 }

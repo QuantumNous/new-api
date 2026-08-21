@@ -83,6 +83,10 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to retrieve channel information")
 		return
 	}
+	if channel.Type == constant.ChannelTypeGrokSubscription {
+		proxyGrokSubscriptionVideoContent(c, task, channel)
+		return
+	}
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"

@@ -31,6 +31,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return "", errUnsupportedEndpoint
 	}
 	switch info.RelayMode {
+	case relayconstant.RelayModeImagesGenerations:
+		return XAIImagesGenerationsURL, nil
+	case relayconstant.RelayModeImagesEdits:
+		return XAIImagesEditsURL, nil
 	case relayconstant.RelayModeResponses, relayconstant.RelayModeChatCompletions, relayconstant.RelayModeResponsesCompact:
 		return CLIProxyBase + CLIResponsesPath, nil
 	default:
@@ -47,8 +51,24 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	// info.ApiKey 是 *ChannelMeta 指针嵌入的 promoted field：ChannelMeta 为 nil 时
 	// 解引用 info.ApiKey 会 panic。生产路径 InitChannelMeta 恒先构造 ChannelMeta，
 	// 此处仍 fail closed 防御，避免误用路径下崩溃。
-	if c == nil || info == nil || info.ChannelMeta == nil {
+	if c == nil || c.Request == nil || info == nil || info.ChannelMeta == nil {
 		return errors.New("grok subscription channel: invalid relay context")
+	}
+	if isGrokImageMode(info) {
+		cred, err := ensureMediaCredentialForImage(c.Request.Context(), info.ChannelId, true)
+		if err != nil {
+			if errors.Is(err, ErrMediaSubscriptionRequired) {
+				return types.NewOpenAIError(errors.New("media subscription required"), types.ErrorCode("media_subscription_required"), http.StatusForbidden, types.ErrOptionWithSkipRetry())
+			}
+			return types.NewOpenAIError(errors.New("grok media credential unavailable"), types.ErrorCodeChannelInvalidKey, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+		}
+		for key := range *header {
+			header.Del(key)
+		}
+		header.Set("Authorization", "Bearer "+cred.AccessToken)
+		header.Set("Accept", "application/json")
+		header.Set("Content-Type", "application/json")
+		return nil
 	}
 	// 纵深防御：注入 Bearer / CLI identity 前，先断言目标 host 就是 CLI proxy。
 	// 里程碑 A GetRequestURL 恒定路由到 CLI proxy；里程碑 B 一旦让 URL 动态化
@@ -77,6 +97,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	header.Set("User-Agent", CLIUserAgentPrefix+CLIClientVersion())
 	header.Set("X-Request-Id", common.GetUUID())
 	return nil
+}
+
+func isGrokImageMode(info *relaycommon.RelayInfo) bool {
+	return info != nil && (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits)
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
@@ -142,6 +166,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
 	switch info.RelayMode {
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return openai.OpenaiHandlerWithUsage(c, info, resp)
 	case relayconstant.RelayModeResponsesCompact:
 		// Grok 上游走 CLI proxy /v1/responses，回普通 Responses JSON（非 OpenAI
 		// compact 格式），故用本包 clean-room handler，而非
@@ -177,8 +203,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(*gin.Context, *relaycommon.RelayInfo, 
 func (a *Adaptor) ConvertAudioRequest(*gin.Context, *relaycommon.RelayInfo, dto.AudioRequest) (io.Reader, error) {
 	return nil, errUnsupportedEndpoint
 }
-func (a *Adaptor) ConvertImageRequest(*gin.Context, *relaycommon.RelayInfo, dto.ImageRequest) (any, error) {
-	return nil, errUnsupportedEndpoint
+func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	return convertGrokImageRequest(c, info, request)
 }
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
 	return nil, errUnsupportedEndpoint

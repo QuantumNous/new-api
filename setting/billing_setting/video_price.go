@@ -122,6 +122,11 @@ func ValidateVideoPriceRules(rules []VideoPriceRule) error {
 				"video price rule %d (model %s): basis must be %s or %s, got %q",
 				i, r.Model, BasisOutputDuration, BasisTotalDuration, r.Basis)
 		}
+		if strings.HasPrefix(r.Model, "grok-imagine-video") && r.Match["action"] == "edit" && r.Basis == BasisOutputDuration {
+			return fmt.Errorf(
+				"video price rule %d (model %s): action edit must use %s, got %s",
+				i, r.Model, BasisTotalDuration, BasisOutputDuration)
+		}
 	}
 	// Two rules for one model are ambiguous only when they have equal constraint
 	// counts AND could both match the same request: there is then no principled
@@ -396,6 +401,50 @@ func GetVideoPriceRules() []VideoPriceRule {
 	videoPriceSettingMu.RLock()
 	defer videoPriceSettingMu.RUnlock()
 	return append([]VideoPriceRule(nil), videoPriceSetting.VideoPriceRules...)
+}
+
+var grokSubscriptionDefaultVideoPriceRules = []VideoPriceRule{
+	{Model: "grok-imagine-video", Match: map[string]string{"action": "generate", "resolution": "480p", "has_video": "false"}, PricePerSecond: 0.09, Basis: BasisOutputDuration},
+	{Model: "grok-imagine-video", Match: map[string]string{"action": "generate", "resolution": "720p", "has_video": "false"}, PricePerSecond: 0.09, Basis: BasisOutputDuration},
+	{Model: "grok-imagine-video", Match: map[string]string{"action": "edit", "has_video": "true"}, PricePerSecond: 0.09, Basis: BasisTotalDuration, FallbackSeconds: 8.7},
+	{Model: "grok-imagine-video", Match: map[string]string{"action": "extend", "has_video": "true"}, PricePerSecond: 0.09, Basis: BasisOutputDuration},
+	{Model: "grok-imagine-video-1.5", Match: map[string]string{"action": "generate", "resolution": "480p", "has_video": "false"}, PricePerSecond: 0.11, Basis: BasisOutputDuration},
+	{Model: "grok-imagine-video-1.5", Match: map[string]string{"action": "generate", "resolution": "720p", "has_video": "false"}, PricePerSecond: 0.11, Basis: BasisOutputDuration},
+	{Model: "grok-imagine-video-1.5", Match: map[string]string{"action": "generate", "resolution": "1080p", "has_video": "false"}, PricePerSecond: 0.11, Basis: BasisOutputDuration},
+	{Model: "grok-imagine-video-1.5", Match: map[string]string{"action": "edit", "has_video": "true"}, PricePerSecond: 0.11, Basis: BasisTotalDuration, FallbackSeconds: 8.7},
+	{Model: "grok-imagine-video-1.5", Match: map[string]string{"action": "extend", "has_video": "true"}, PricePerSecond: 0.11, Basis: BasisOutputDuration},
+}
+
+// GetGrokSubscriptionVideoPriceRules returns the administrator table plus
+// Grok Subscription defaults for only the Grok models missing from that table.
+// If an administrator defines any rule for a Grok model, that model's whole
+// default set is replaced by the administrator's coherent rule set.
+func GetGrokSubscriptionVideoPriceRules(adminRules []VideoPriceRule) []VideoPriceRule {
+	rules := append([]VideoPriceRule(nil), adminRules...)
+	configured := map[string]bool{}
+	for _, r := range adminRules {
+		if r.Model != "" {
+			configured[r.Model] = true
+		}
+	}
+	for _, r := range grokSubscriptionDefaultVideoPriceRules {
+		if configured[r.Model] {
+			continue
+		}
+		rules = append(rules, cloneVideoPriceRule(r))
+	}
+	return rules
+}
+
+func cloneVideoPriceRule(r VideoPriceRule) VideoPriceRule {
+	if r.Match != nil {
+		match := make(map[string]string, len(r.Match))
+		for k, v := range r.Match {
+			match[k] = v
+		}
+		r.Match = match
+	}
+	return r
 }
 
 // UpdateVideoPriceSettingFromMap applies an administrator save to the live rule

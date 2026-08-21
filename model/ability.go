@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -32,9 +33,19 @@ type AbilityWithChannel struct {
 	ChannelType int `json:"channel_type"`
 }
 
+var grokMediaAbilityModels = []string{
+	"grok-imagine-image-2.0",
+	"grok-imagine-video-1.5",
+	"grok-imagine-video",
+}
+
 type codexAbilityGovernanceState struct {
 	Disabled bool
 	Removed  bool
+}
+
+func GrokMediaAbilityModels() []string {
+	return append([]string(nil), grokMediaAbilityModels...)
 }
 
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
@@ -563,6 +574,74 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 		return tx.Commit().Error
 	}
 
+	return nil
+}
+
+func SyncGrokMediaAbilities(channelID int, eligible bool) error {
+	if channelID <= 0 {
+		return errors.New("grok media abilities: invalid channel id")
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var channel Channel
+		if err := tx.Where("id = ? AND type = ?", channelID, constant.ChannelTypeGrokSubscription).First(&channel).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("channel_id = ? AND model IN ?", channelID, grokMediaAbilityModels).Delete(&Ability{}).Error; err != nil {
+			return err
+		}
+		if !eligible {
+			return nil
+		}
+
+		groups := channel.GetGroups()
+		if len(groups) == 0 {
+			groups = []string{""}
+		}
+		enabled := channel.Status == common.ChannelStatusEnabled
+		abilities := make([]Ability, 0, len(groups)*len(grokMediaAbilityModels))
+		seen := make(map[string]struct{}, len(groups)*len(grokMediaAbilityModels))
+		for _, group := range groups {
+			for _, modelName := range grokMediaAbilityModels {
+				key := group + "|" + modelName
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				abilities = append(abilities, Ability{
+					Group:     group,
+					Model:     modelName,
+					ChannelId: channel.Id,
+					Enabled:   enabled,
+					Priority:  channel.Priority,
+					Weight:    uint(channel.GetWeight()),
+					Tag:       channel.Tag,
+				})
+			}
+		}
+		for _, chunk := range lo.Chunk(abilities, 50) {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "group"}, {Name: "model"}, {Name: "channel_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"enabled",
+					"priority",
+					"weight",
+					"tag",
+				}),
+			}).Create(&chunk).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if common.MemoryCacheEnabled {
+		InitChannelCache()
+	}
+	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels); err != nil {
+		common.SysError("pubsub: failed to publish channels change: " + err.Error())
+	}
 	return nil
 }
 

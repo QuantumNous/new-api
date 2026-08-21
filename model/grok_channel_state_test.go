@@ -70,11 +70,227 @@ func TestGrokChannelStateUpsert(t *testing.T) {
 	}
 }
 
+func TestGrokBillingObservationConditionalWriteIsMonotonicAndLeaseOwned(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	now := GetDBTimestamp()
+	require.NoError(t, UpsertGrokChannelState(&GrokChannelState{
+		ChannelID:             113,
+		AuthStatus:            GrokAuthStatusActive,
+		RefreshLeaseOwner:     "node-A",
+		RefreshLeaseExpiresAt: now + 300,
+	}))
+
+	wrote, err := SaveGrokBillingObservation(113, "node-A", GrokBillingObservation{
+		ObservedAt:    1700000100,
+		BillingPlan:   "SuperGrok",
+		TierRaw:       "premium-plus",
+		QuotaSnapshot: `{"remaining":100}`,
+	})
+	require.NoError(t, err)
+	require.True(t, wrote)
+
+	got, err := GetGrokChannelState(113)
+	require.NoError(t, err)
+	require.Equal(t, int64(1700000100), got.BillingObservedAt)
+	require.Equal(t, "SuperGrok", got.BillingPlan)
+	require.Equal(t, "premium-plus", got.TierRaw)
+	require.Equal(t, `{"remaining":100}`, got.QuotaSnapshot)
+	require.Equal(t, int64(1700000100), got.UpdatedAt)
+
+	for _, tc := range []struct {
+		name        string
+		leaseOwner  string
+		observation GrokBillingObservation
+	}{
+		{
+			name:       "older timestamp",
+			leaseOwner: "node-A",
+			observation: GrokBillingObservation{
+				ObservedAt:    1700000099,
+				BillingPlan:   "StalePlan",
+				TierRaw:       "stale-tier",
+				QuotaSnapshot: `{"remaining":1}`,
+			},
+		},
+		{
+			name:       "wrong lease owner",
+			leaseOwner: "node-B",
+			observation: GrokBillingObservation{
+				ObservedAt:    1700000200,
+				BillingPlan:   "WrongOwnerPlan",
+				TierRaw:       "wrong-owner-tier",
+				QuotaSnapshot: `{"remaining":3}`,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wrote, err := SaveGrokBillingObservation(113, tc.leaseOwner, tc.observation)
+			require.NoError(t, err)
+			require.False(t, wrote)
+
+			got, err := GetGrokChannelState(113)
+			require.NoError(t, err)
+			require.Equal(t, int64(1700000100), got.BillingObservedAt)
+			require.Equal(t, "SuperGrok", got.BillingPlan)
+			require.Equal(t, "premium-plus", got.TierRaw)
+			require.Equal(t, `{"remaining":100}`, got.QuotaSnapshot)
+			require.Equal(t, int64(1700000100), got.UpdatedAt)
+		})
+	}
+
+	wrote, err = SaveGrokBillingObservation(113, "node-A", GrokBillingObservation{
+		ObservedAt:    1700000100,
+		BillingPlan:   "SameTimePlan",
+		TierRaw:       "same-time-tier",
+		QuotaSnapshot: `{"remaining":2}`,
+	})
+	require.NoError(t, err)
+	require.True(t, wrote)
+	got, err = GetGrokChannelState(113)
+	require.NoError(t, err)
+	require.Equal(t, int64(1700000100), got.BillingObservedAt)
+	require.Equal(t, "SameTimePlan", got.BillingPlan)
+	require.Equal(t, "same-time-tier", got.TierRaw)
+	require.Equal(t, `{"remaining":2}`, got.QuotaSnapshot)
+}
+
+func TestGrokBillingObservationRejectsExpiredSameOwnerLease(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	now := GetDBTimestamp()
+	require.NoError(t, UpsertGrokChannelState(&GrokChannelState{
+		ChannelID:             116,
+		AuthStatus:            GrokAuthStatusActive,
+		RefreshLeaseOwner:     "node-A",
+		RefreshLeaseExpiresAt: now - 1,
+		BillingObservedAt:     1700000100,
+		BillingPlan:           "ExistingPlan",
+		TierRaw:               "existing-tier",
+		QuotaSnapshot:         `{"remaining":50}`,
+		UpdatedAt:             1700000100,
+	}))
+	before, err := GetGrokChannelState(116)
+	require.NoError(t, err)
+
+	wrote, err := SaveGrokBillingObservation(116, "node-A", GrokBillingObservation{
+		ObservedAt:    1700000200,
+		BillingPlan:   "StaleWorkerPlan",
+		TierRaw:       "stale-worker-tier",
+		QuotaSnapshot: `{"remaining":1}`,
+	})
+	require.NoError(t, err)
+	require.False(t, wrote)
+
+	got, err := GetGrokChannelState(116)
+	require.NoError(t, err)
+	require.Equal(t, int64(1700000100), got.BillingObservedAt)
+	require.Equal(t, "ExistingPlan", got.BillingPlan)
+	require.Equal(t, "existing-tier", got.TierRaw)
+	require.Equal(t, `{"remaining":50}`, got.QuotaSnapshot)
+	require.Equal(t, before.UpdatedAt, got.UpdatedAt)
+}
+
+func TestGrokBillingObservationAcceptsLegacyNullObservedAt(t *testing.T) {
+	originalDB := DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	DB = db
+	t.Cleanup(func() { DB = originalDB })
+
+	require.NoError(t, DB.Exec(`CREATE TABLE grok_channel_states (
+		channel_id integer PRIMARY KEY,
+		auth_status text,
+		billing_plan text,
+		tier_raw text,
+		quota_snapshot text,
+		billing_observed_at integer NULL,
+		refresh_lease_owner text,
+		refresh_lease_expires_at integer,
+		last_refresh_at integer,
+		last_error text,
+		created_at integer,
+		updated_at integer
+	)`).Error)
+	require.NoError(t, DB.Exec(`INSERT INTO grok_channel_states (
+		channel_id,
+		auth_status,
+		billing_observed_at,
+		refresh_lease_owner,
+		refresh_lease_expires_at
+	) VALUES (?, ?, NULL, ?, ?)`, 115, GrokAuthStatusActive, "node-A", GetDBTimestamp()+300).Error)
+
+	wrote, err := SaveGrokBillingObservation(115, "node-A", GrokBillingObservation{
+		ObservedAt:    1700000300,
+		BillingPlan:   "SuperGrok",
+		TierRaw:       "premium-plus",
+		QuotaSnapshot: `{"remaining":100}`,
+	})
+	require.NoError(t, err)
+	require.True(t, wrote)
+
+	got, err := GetGrokChannelState(115)
+	require.NoError(t, err)
+	require.Equal(t, int64(1700000300), got.BillingObservedAt)
+	require.Equal(t, "SuperGrok", got.BillingPlan)
+	require.Equal(t, "premium-plus", got.TierRaw)
+	require.Equal(t, `{"remaining":100}`, got.QuotaSnapshot)
+}
+
+func TestGrokBillingObservationRejectsInvalidInputs(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	for _, tc := range []struct {
+		name       string
+		channelID  int
+		leaseOwner string
+		observedAt int64
+	}{
+		{name: "missing channel", channelID: 0, leaseOwner: "node-A", observedAt: 1},
+		{name: "missing owner", channelID: 1, leaseOwner: "", observedAt: 1},
+		{name: "missing observed time", channelID: 1, leaseOwner: "node-A", observedAt: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wrote, err := SaveGrokBillingObservation(tc.channelID, tc.leaseOwner, GrokBillingObservation{ObservedAt: tc.observedAt})
+			require.Error(t, err)
+			require.False(t, wrote)
+		})
+	}
+}
+
+func TestGrokAuthStateUpsertPreservesBillingObservedAt(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	require.NoError(t, UpsertGrokChannelState(&GrokChannelState{
+		ChannelID:         114,
+		AuthStatus:        GrokAuthStatusActive,
+		BillingObservedAt: 1700000100,
+		BillingPlan:       "SuperGrok",
+		TierRaw:           "premium-plus",
+		QuotaSnapshot:     `{"remaining":100}`,
+	}))
+
+	require.NoError(t, UpsertGrokChannelState(&GrokChannelState{
+		ChannelID:  114,
+		AuthStatus: GrokAuthStatusNeedsReauth,
+	}))
+
+	got, err := GetGrokChannelState(114)
+	require.NoError(t, err)
+	require.Equal(t, GrokAuthStatusNeedsReauth, got.AuthStatus)
+	require.Equal(t, int64(1700000100), got.BillingObservedAt)
+	require.Equal(t, "SuperGrok", got.BillingPlan)
+	require.Equal(t, "premium-plus", got.TierRaw)
+	require.Equal(t, `{"remaining":100}`, got.QuotaSnapshot)
+}
+
+func TestGrokAuthStateBillingObservedAtMigratesAsColumn(t *testing.T) {
+	setupGrokChannelStateTestDB(t)
+	require.True(t, DB.Migrator().HasColumn(&GrokChannelState{}, "billing_observed_at"))
+}
+
 func TestGrokChannelStateNeverStoresSecrets(t *testing.T) {
 	allowed := map[string]struct{}{
 		"ChannelID": {}, "AuthStatus": {}, "BillingPlan": {}, "TierRaw": {},
-		"QuotaSnapshot": {}, "RefreshLeaseOwner": {}, "RefreshLeaseExpiresAt": {},
-		"LastRefreshAt": {}, "LastError": {}, "CreatedAt": {}, "UpdatedAt": {},
+		"QuotaSnapshot": {}, "BillingObservedAt": {}, "RefreshLeaseOwner": {},
+		"RefreshLeaseExpiresAt": {}, "LastRefreshAt": {}, "LastError": {},
+		"CreatedAt": {}, "UpdatedAt": {},
 	}
 	assertOnlyAllowedFields(t, GrokChannelState{}, allowed)
 }

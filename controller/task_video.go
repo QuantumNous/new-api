@@ -79,9 +79,13 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 	if privateData.Key != "" {
 		key = privateData.Key
 	}
+	if channel.Type == constant.ChannelTypeGrokSubscription {
+		key = ""
+	}
 	resp, err := service.FetchTaskWithContext(ctx, adaptor, baseURL, key, map[string]any{
-		"task_id": taskId,
-		"action":  task.Action,
+		"task_id":    taskId,
+		"action":     task.Action,
+		"channel_id": channel.Id,
 	}, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)

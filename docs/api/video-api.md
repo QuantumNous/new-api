@@ -255,13 +255,29 @@ curl https://你的服务/v1/video/generations \
 - **白标约束**：`metadata.url` 返回代理路径 `/v1/videos/{task_id}/content`，**绝不暴露 `vidgen.x.ai` 真实地址**；真实地址留在 `task.Data`，由 `controller.VideoProxy` 经 `ExtractUpstreamVideoURL` 服务端取回；失败信息经 `ScrubBrandedText` 脱敏（品牌词含 `xai`/`grok`/`x.ai`/`vidgen.x.ai`）；公开任务 ID 为 `task_xxxx`，不透传上游 `request_id`
 - **取视频**：`/v1/videos/{task_id}/content` **全局匿名**可取（见 §7）；服务端拉取 `vidgen.x.ai` 直链时不带鉴权头（该直链为公开/预签名地址，已实测 HTTP 200 免鉴权）
 
+### 6.11 Grok Subscription 图片（Flatkey 白标能力）
+
+当渠道具备 `grok-imagine-image-2.0` 能力时，使用现有 OpenAI 图片接口。客户端只接触 Flatkey 地址和错误格式；服务端负责资格检查、计费和上游鉴权。
+
+- **生成**：`POST /v1/images/generations`。`model` 必须为 `grok-imagine-image-2.0`，`prompt` 必填，`n` 为 1–10（默认 1）。`response_format` 仅支持 `url` 或 `b64_json`；`resolution` 仅支持 `1k`/`2k`；`quality` 仅支持 `low`/`medium`；`aspect_ratio` 支持 `1:1`、`16:9`、`9:16`、`4:3`、`3:4`、`3:2`、`2:3`、`2:1`、`1:2`、`19.5:9`、`9:19.5`、`20:9`、`9:20`、`auto`。
+- **编辑**：`POST /v1/images/edits`。`prompt` 必填，接受 1–3 个图片引用；JSON 可使用 URL、`b64_json` 或 `{ "url": "..." }`/`{ "image_url": { "url": "..." } }`，multipart 可重复提交 `image` 字段或上传 JPEG/PNG 文件。`mask`、`user`、`file_id`、`storage_options` 以及不支持的文件类型会被拒绝；单图编辑不接受 `aspect_ratio`。
+- **响应与计费**：响应保持 OpenAI 图片格式，计费使用 Flatkey 的模型配置。资格不足或没有合格媒体渠道时返回本地错误，不会转到文本渠道。
+
+### 6.12 Grok Subscription 视频（Flatkey 白标能力）
+
+- **提交**：`POST /v1/videos`（已支持的客户端可继续使用 `POST /v1/video/generations` 别名）。请求体使用同一 JSON 形状：`model`、`prompt`、可选 `action`（默认 `generate`，也可为 `edit` 或 `extend`）及动作对应的媒体字段。
+- **模型/动作**：`grok-imagine-video-1.5` 仅支持 `generate`；`grok-imagine-video` 支持 `generate`、`edit`、`extend`。具体组合、参考图片/视频/声音字段和互斥规则按请求校验执行。
+- **通用限制**：生成时长为 1–15 秒；`grok-imagine-video` 分辨率为 `480p`/`720p`，`grok-imagine-video-1.5` 另支持无参考输入的 `1080p`；宽高比支持 `1:1`、`16:9`、`9:16`、`4:3`、`3:4`、`3:2`、`2:3`。生成最多接受 7 张参考图片和 3 个参考声音；编辑/扩展必须提供一个视频引用，编辑不接受时长，扩展时长为 2–10 秒（默认 6 秒）。省略生成时长时默认 5 秒。
+- **轮询/下载**：提交返回公开的 Flatkey `task_*`；使用 `GET /v1/videos/{task_id}` 轮询。完成响应的 `metadata.url`/`result_url` 始终是 `GET /v1/videos/{task_id}/content`，不会返回内部请求标识或临时媒体地址。内容代理在临时地址失效时最多刷新一次，客户仍只看到同一个公开地址。
+- **错误边界**：无效请求为 400；没有合格的订阅媒体渠道为本地 403 风格错误；认证失败为 401；限流为 429；其余提交、轮询或内容代理失败为通用服务错误。媒体写请求结果不确定时不会自动重放，以避免重复生成和重复计费。
+
 ---
 
 ## 7. 视频代理下载（`GET /v1/videos/{task_id}/content`）
 
-`controller/video_proxy.go`：**全局匿名可取**（免鉴权）——不可猜的 32 位随机 `task_id` 即访问凭证，代理地址可直接 `<video src>` 内嵌。用任务 ID 查任务（带令牌/会话时按 user 限定，否则 `GetByOnlyTaskId` 仅按 task_id 查）→ 仅当任务成功才放行 → 服务端从上游真实 URL 拉取视频（带 SSRF 防护）→ 以二进制 `video/mp4` 流式回传，设 `Cache-Control: public, max-age=86400`。客户端始终看不到上游域名。
+`controller/video_proxy.go`：**全局匿名可取**（免鉴权）——不可猜的 32 位随机 `task_id` 即访问凭证，代理地址可直接 `<video src>` 内嵌。用任务 ID 查任务（带令牌/会话时按 user 限定，否则 `GetByOnlyTaskId` 仅按 task_id 查）→ 仅当任务成功才放行 → 服务端从私有结果引用拉取视频（带 SSRF 防护）→ 以二进制流式回传，设 `Cache-Control: public, max-age=86400`。Grok Subscription 内容地址失效时只在原任务上下文内刷新一次；客户始终只看到 Flatkey 代理 URL。
 
-> ⚠️ 部署提示：若开启了 SSRF 域名白名单(`DomainFilterMode`)，需把 `blockrun.ai`（及各上游视频直链域名）加入白名单，否则代理下载会被 403 拦截。
+> ⚠️ 部署提示：若开启了 SSRF 域名白名单（`DomainFilterMode`），需要允许已配置渠道的媒体下载域名，否则代理下载会被 403 拦截。
 
 ---
 

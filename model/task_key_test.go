@@ -33,6 +33,18 @@ func TestInitTaskPersistsModelAPISeedanceSelectedKeyForPolling(t *testing.T) {
 	require.Equal(t, "modelapi-selected-key", task.PrivateData.Key)
 }
 
+func TestTaskKeyGrokSubscriptionOAuthIsNeverPersisted(t *testing.T) {
+	task := InitTask(constant.TaskPlatform("113"), &relaycommon.RelayInfo{
+		UserId: 7,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeGrokSubscription,
+			ApiKey:      `{"access_token":"oauth-access","refresh_token":"oauth-refresh","expires_at":4102444800}`,
+		},
+	})
+
+	require.Empty(t, task.PrivateData.Key)
+}
+
 func TestTechMobiSubmittingFencePreservesSelectedKeyAfterExpiry(t *testing.T) {
 	truncateTables(t)
 

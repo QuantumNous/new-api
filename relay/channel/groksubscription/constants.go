@@ -31,9 +31,15 @@ const (
 
 // CLI proxy base 与 responses 路径。
 const (
-	CLIProxyBase     = "https://cli-chat-proxy.grok.com"
-	CLIResponsesPath = "/v1/responses"
+	CLIProxyBase             = "https://cli-chat-proxy.grok.com"
+	CLIResponsesPath         = "/v1/responses"
+	BillingMonthlyPath       = "/billing"
+	BillingWeeklyCreditsPath = "/billing?format=credits"
+	XAIImagesGenerationsURL  = "https://api.x.ai/v1/images/generations"
+	XAIImagesEditsURL        = "https://api.x.ai/v1/images/edits"
 )
+
+const GrokImageModel = "grok-imagine-image-2.0"
 
 // CLI identity headers（设计 §8.2）。仅发往 CLI proxy。
 const (
@@ -55,6 +61,7 @@ const ChannelName = "grok_subscription"
 // 均在 2026-05-15 被 xAI 退役（仅存重定向），已移除以免预填出无法计费的死模型。
 var DefaultModelList = []string{
 	"grok-4.6",
+	GrokImageModel,
 }
 
 // CLIClientVersion 读环境变量覆盖，校验 semver 且不低于 CLIClientVersionMin，非法回退默认。

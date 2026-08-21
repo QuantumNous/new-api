@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +12,9 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -58,19 +61,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 
-	// codex 图像必须走 ConvertImageRequest 合成 Responses + image_generation body：
-	// 原始 OpenAI /v1/images body 与上游 /backend-api/codex/responses 结构不兼容，
-	// 直接透传会导致 info.IsStream 永不置位、上游 400，图像静默损坏。
-	// 因此对 codex 图像路径强制忽略 PassThrough（全局/渠道级），仅缩小到本 ApiType，
-	// 不影响其它渠道的透传行为。ImageHelper 仅在图像 relay mode 下被调用，故此处
-	// 判断 ApiType 即等价于「codex 渠道 + 图像模式」。
-	codexImagePath := info.ApiType == constant.APITypeCodex
+	forceImageConversion := shouldForceImageConversion(info)
 	tempURLSupportedImageChannel := info.ApiType == constant.APITypeCodex || info.ApiType == constant.APITypeBlockRun
 	if imageReq.TempUrl != nil && *imageReq.TempUrl && !tempURLSupportedImageChannel {
 		return types.NewErrorWithStatusCode(fmt.Errorf("temp_url is only supported for codex and blockrun image channels"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	if !codexImagePath && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
+	if !forceImageConversion && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -83,9 +80,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			if apiErr, ok := err.(*types.NewAPIError); ok {
 				return apiErr
 			}
-			// codex 图像的 ConvertImageRequest 错误均为入参校验类（response_format /
-			// 模型前缀 / 缺少 image / mask 读取失败），属客户端输入错误，返回 400 而非 500。
-			if codexImagePath {
+			// Codex/Grok subscription image conversion errors are local request
+			// validation or paid-media gate decisions. Do not retry another channel
+			// or turn them into generic upstream 500s.
+			if forceImageConversion {
 				return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 			}
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
@@ -109,7 +107,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				}
 			}
 
-			logger.LogDebug(c, "image request body: %s", jsonData)
+			logImageRequestBodyForDebug(c, info, jsonData)
 			body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 			if err != nil {
 				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -131,6 +129,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		if c.Writer.Written() {
 			return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
 		}
+		if shouldSkipRetryForGrokImagePostError(info, err) {
+			return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+		}
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
 	var httpResp *http.Response
@@ -145,6 +146,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 				// reset status code 重置状态码
 				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+				if shouldSkipRetryForGrokImagePostStatus(info, httpResp.StatusCode) {
+					newAPIError = types.NewError(newAPIError, types.ErrorCodeBadResponseStatusCode, types.ErrOptionWithSkipRetry())
+				}
 				return newAPIError
 			}
 		}
@@ -152,6 +156,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
+		newAPIError = sanitizeGrokImageDoResponseError(info, newAPIError)
 		// BlockRun settlement is irreversible the moment a poll observes
 		// "completed". If cost signals were captured, the upstream has been (or
 		// will be) charged — a late client disconnect / body-write failure must
@@ -221,4 +226,53 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
+}
+
+func shouldForceImageConversion(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	// Codex images must synthesize a Responses image_generation request for the
+	// backend-api endpoint. Grok subscription images must run local validation,
+	// paid media gating, and OAuth/header isolation before any upstream call.
+	return info.ApiType == constant.APITypeCodex || info.ApiType == constant.APITypeGrokSubscription
+}
+
+func shouldSkipRetryForGrokImagePostError(info *relaycommon.RelayInfo, err error) bool {
+	return isGrokSubscriptionImage(info) && err != nil && !relaychannel.IsDefinitelyNotSent(err)
+}
+
+func shouldSkipRetryForGrokImagePostStatus(info *relaycommon.RelayInfo, statusCode int) bool {
+	if !isGrokSubscriptionImage(info) {
+		return false
+	}
+	return statusCode == http.StatusUnauthorized ||
+		statusCode == http.StatusTooManyRequests ||
+		statusCode >= http.StatusInternalServerError
+}
+
+func sanitizeGrokImageDoResponseError(info *relaycommon.RelayInfo, err *types.NewAPIError) *types.NewAPIError {
+	if !isGrokSubscriptionImage(info) || err == nil {
+		return err
+	}
+	return types.NewOpenAIError(
+		errors.New("upstream image response was invalid"),
+		types.ErrorCodeBadResponseBody,
+		err.StatusCode,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func isGrokSubscriptionImage(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ApiType == constant.APITypeGrokSubscription
+}
+
+func logImageRequestBodyForDebug(c *gin.Context, info *relaycommon.RelayInfo, jsonData []byte) {
+	if info != nil && info.ChannelMeta != nil &&
+		info.ApiType == constant.APITypeGrokSubscription &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		logger.LogDebug(c, "image request body: [redacted grok image payload]")
+		return
+	}
+	logger.LogDebug(c, "image request body: %s", jsonData)
 }

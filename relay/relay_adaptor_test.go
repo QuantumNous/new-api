@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel/copilot"
 	"github.com/QuantumNous/new-api/relay/channel/task/byteplus"
+	taskgroksubscription "github.com/QuantumNous/new-api/relay/channel/task/groksubscription"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
 	"github.com/QuantumNous/new-api/relay/channel/task/modelapiseedance"
@@ -27,6 +28,16 @@ func TestGetAdaptorGrokSubscription(t *testing.T) {
 	}
 	if got := adaptor.GetChannelName(); got != "grok_subscription" {
 		t.Fatalf("channel name = %q, want grok_subscription", got)
+	}
+}
+
+func TestGetTaskAdaptor_GrokSubscription(t *testing.T) {
+	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeGrokSubscription)))
+	if _, ok := adaptor.(*taskgroksubscription.TaskAdaptor); !ok {
+		t.Fatalf("adaptor type = %T, want *groksubscription.TaskAdaptor", adaptor)
+	}
+	if got := adaptor.GetChannelName(); got != "grok_subscription_video" {
+		t.Fatalf("channel name = %q, want grok_subscription_video", got)
 	}
 }
 

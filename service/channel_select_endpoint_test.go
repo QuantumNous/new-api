@@ -339,9 +339,7 @@ func TestChannelSupportsRequestEndpointDoesNotFilterLegacyEndpointModes(t *testi
 		{"anthropic messages", "/v1/messages", "glm-5.2"},
 		{"gemini generate content", "/v1beta/models/gemini-2.5-flash:generateContent", "gemini-2.5-flash"},
 		{"embeddings", "/v1/embeddings", "text-embedding-3-small"},
-		{"image generation", "/v1/images/generations", "gpt-image-2"},
 		{"rerank", "/v1/rerank", "jina-reranker-v2-base-multilingual"},
-		{"video", "/v1/video/generations", "sora-2"},
 	}
 
 	for _, tc := range cases {
@@ -400,9 +398,7 @@ func TestRequestedEndpointTypeDoesNotFilterLegacyEndpointModes(t *testing.T) {
 		{"gemini v1beta", "/v1beta/models/gemini-2.5-flash:generateContent"},
 		{"gemini v1", "/v1/models/gemini-2.5-flash:generateContent"},
 		{"embeddings", "/v1/embeddings"},
-		{"image generation", "/v1/images/generations"},
 		{"rerank", "/v1/rerank"},
-		{"video", "/v1/video/generations"},
 	}
 
 	for _, tc := range cases {
@@ -417,6 +413,30 @@ func TestRequestedEndpointTypeDoesNotFilterLegacyEndpointModes(t *testing.T) {
 	}
 }
 
+func TestRequestedEndpointTypeRoutesGrokImagesAndVideos(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want constant.EndpointType
+	}{
+		{"image generations", "/v1/images/generations", constant.EndpointTypeImageGeneration},
+		{"image edits", "/v1/images/edits", constant.EndpointTypeImageGeneration},
+		{"openai videos", "/v1/videos", constant.EndpointTypeOpenAIVideo},
+		{"shared video generations", "/v1/video/generations", constant.EndpointTypeOpenAIVideo},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, tc.path, nil)
+
+			require.Equal(t, tc.want, requestedEndpointType(ctx))
+		})
+	}
+}
+
 func TestVideoToMusicEndpointSelectsOnlySonilo(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
@@ -426,4 +446,69 @@ func TestVideoToMusicEndpointSelectsOnlySonilo(t *testing.T) {
 	require.Equal(t, constant.EndpointTypeVideoToMusic, requestedEndpointType(ctx))
 	require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{Type: constant.ChannelTypeSonilo}, "sonilo-video-to-music"))
 	require.False(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{Type: constant.ChannelTypeElevenLabs}, "sonilo-video-to-music"))
+}
+
+func TestCacheGetRandomSatisfiedChannelRequiresGrokMediaAbilityButKeepsTextSelection(t *testing.T) {
+	setupChannelSelectEndpointTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	priority := int64(100)
+	weight := uint(1000)
+	require.NoError(t, model.DB.Create(&model.Channel{
+		Id:       130,
+		Type:     constant.ChannelTypeGrokSubscription,
+		Key:      "grok-oauth",
+		Name:     "grok-subscription",
+		Status:   common.ChannelStatusEnabled,
+		Priority: &priority,
+		Weight:   &weight,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "standard",
+		Model:     "grok-4.6",
+		ChannelId: 130,
+		Enabled:   true,
+		Priority:  &priority,
+		Weight:    weight,
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		Group:     "standard",
+		Model:     "grok-imagine-video-1.5",
+		ChannelId: 130,
+		Enabled:   false,
+		Priority:  &priority,
+		Weight:    weight,
+	}).Error)
+	model.InitChannelCache()
+
+	videoCtxRecorder := httptest.NewRecorder()
+	videoCtx, _ := gin.CreateTestContext(videoCtxRecorder)
+	videoCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+
+	channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:        videoCtx,
+		TokenGroup: "standard",
+		ModelName:  "grok-imagine-video-1.5",
+		Retry:      common.GetPointer(0),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "standard", selectedGroup)
+	require.Nil(t, channel)
+
+	textCtxRecorder := httptest.NewRecorder()
+	textCtx, _ := gin.CreateTestContext(textCtxRecorder)
+	textCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+
+	channel, selectedGroup, err = CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:        textCtx,
+		TokenGroup: "standard",
+		ModelName:  "grok-4.6",
+		Retry:      common.GetPointer(0),
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "standard", selectedGroup)
+	require.NotNil(t, channel)
+	require.Equal(t, 130, channel.Id)
 }

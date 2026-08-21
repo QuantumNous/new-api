@@ -520,6 +520,21 @@ func TestModelAPISeedanceAssetTaskWorkerPersistsSelectedKeyAfterAcceptance(t *te
 	require.Equal(t, "modelapi-key-b", stored.PrivateData.Key)
 }
 
+func TestGrokAssetTaskWorkerPollingKeyPolicyDoesNotPersistOAuth(t *testing.T) {
+	key := taskPollingKey(&model.Channel{
+		Id:   113,
+		Type: constant.ChannelTypeGrokSubscription,
+		Key:  `{"access_token":"oauth-access","refresh_token":"oauth-refresh","expires_at":4102444800}`,
+	}, &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeGrokSubscription,
+			ApiKey:      `{"access_token":"oauth-access","refresh_token":"oauth-refresh","expires_at":4102444800}`,
+		},
+	})
+
+	require.Empty(t, key)
+}
+
 func TestTechMobiAssetTaskWorkerRequeuesProcessingBindingThenSubmitsWhenActive(t *testing.T) {
 	restoreDB := useControllerAssetTaskDBForTest(t)
 	defer restoreDB()
