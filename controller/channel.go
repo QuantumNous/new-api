@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -522,14 +523,14 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 			if !strings.HasPrefix(trimmedKey, "{") {
 				return fmt.Errorf("Codex key must be a valid JSON object")
 			}
-			var keyMap map[string]any
-			if err := common.Unmarshal([]byte(trimmedKey), &keyMap); err != nil {
+			oauthKey, err := codex.ParseOAuthKey(trimmedKey)
+			if err != nil {
 				return fmt.Errorf("Codex key must be a valid JSON object")
 			}
-			if v, ok := keyMap["access_token"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
+			if strings.TrimSpace(oauthKey.AccessToken) == "" {
 				return fmt.Errorf("Codex key JSON must include access_token")
 			}
-			if v, ok := keyMap["account_id"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
+			if strings.TrimSpace(oauthKey.AccountID) == "" {
 				return fmt.Errorf("Codex key JSON must include account_id")
 			}
 		}

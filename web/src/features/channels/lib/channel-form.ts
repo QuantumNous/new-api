@@ -155,17 +155,24 @@ function isOptionalStatusCodeMapping(value: string | undefined): boolean {
   }
 }
 
+function hasCodexOAuthTokens(value: Record<string, unknown>): boolean {
+  return (
+    typeof value.access_token === 'string' &&
+    value.access_token.trim().length > 0 &&
+    typeof value.account_id === 'string' &&
+    value.account_id.trim().length > 0
+  )
+}
+
 function isCodexCredential(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
     if (parsed === undefined) return true
-    return (
-      isJsonObjectValue(parsed) &&
-      typeof parsed.access_token === 'string' &&
-      parsed.access_token.trim().length > 0 &&
-      typeof parsed.account_id === 'string' &&
-      parsed.account_id.trim().length > 0
-    )
+    if (!isJsonObjectValue(parsed)) return false
+    if (hasCodexOAuthTokens(parsed)) return true
+    // Codex CLI nests the OAuth credential under `tokens` in ~/.codex/auth.json;
+    // accept that layout too so the file can be pasted directly.
+    return isJsonObjectValue(parsed.tokens) && hasCodexOAuthTokens(parsed.tokens)
   } catch {
     return false
   }
