@@ -280,7 +280,7 @@ const successColor = computed(() => rateColor(successRate.value))
 </script>
 
 <template>
-  <ConsoleCard data-system-status-card stretch>
+  <ConsoleCard data-system-status-card stretch :padded="false">
     <template #title>
       <div class="flex min-w-0 items-center gap-2">
         <h2 class="truncate text-sm font-semibold text-[var(--text-primary)]">
@@ -331,225 +331,229 @@ const successColor = computed(() => rateColor(successRate.value))
       </div>
     </template>
 
-    <div
-      class="grid grid-cols-2 content-start gap-2.5 py-0.5 sm:gap-3"
-      data-system-status-grid
-    >
+    <div class="flex grow flex-col px-5 pt-2 pb-3 sm:pb-3.5">
       <div
-        v-for="tile in tiles"
-        :key="tile.key"
-        class="group relative flex h-[88px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 pt-2 pb-1.5 transition-colors duration-300 hover:bg-[var(--surface-hover)] sm:h-[92px] sm:py-2"
-        data-system-status-tile
-        :data-metric="tile.key"
+        class="grid grid-cols-2 content-start gap-2.5 sm:gap-3"
+        data-system-status-grid
       >
-        <div class="flex items-center justify-between gap-1.5">
-          <p
-            class="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]"
-          >
-            <ArrowUpDown
-              v-if="tile.key === 'bandwidth'"
-              :size="13"
-              :stroke-width="1.8"
-              aria-hidden="true"
-              data-bandwidth-icon
-            />
-            <svg
-              v-else-if="tile.icon"
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path :d="tile.icon" />
-            </svg>
-            <span class="truncate">{{ tile.label }}</span>
-          </p>
-          <span
-            v-if="tile.percent !== null"
-            class="shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums"
-            :style="{
-              color: tile.color,
-              background: `color-mix(in srgb, ${tile.color} 14%, transparent)`,
-            }"
-          >
-            {{ Math.round(tile.percent) }}%
-          </span>
-        </div>
-
         <div
-          v-if="tile.key === 'cpu'"
-          class="mt-auto flex items-end justify-between gap-2 pt-0.5"
-          data-cpu-gauge
+          v-for="tile in tiles"
+          :key="tile.key"
+          class="group relative flex h-[88px] min-w-0 flex-col overflow-hidden rounded-xl bg-[var(--surface-muted)] px-3 pt-2 pb-1.5 transition-colors duration-300 hover:bg-[var(--surface-hover)] sm:h-[92px] sm:py-2"
+          data-system-status-tile
+          :data-metric="tile.key"
         >
-          <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
-            <span
-              class="whitespace-nowrap text-2xl font-bold leading-none tabular-nums"
-              :style="{ color: tile.color }"
+          <div class="flex items-center justify-between gap-1.5">
+            <p
+              class="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]"
             >
-              {{ tile.value }}
-            </span>
+              <ArrowUpDown
+                v-if="tile.key === 'bandwidth'"
+                :size="13"
+                :stroke-width="1.8"
+                aria-hidden="true"
+                data-bandwidth-icon
+              />
+              <svg
+                v-else-if="tile.icon"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path :d="tile.icon" />
+              </svg>
+              <span class="truncate">{{ tile.label }}</span>
+            </p>
             <span
-              v-if="tile.unit"
-              class="text-[10px] text-[var(--text-tertiary)]"
+              v-if="tile.percent !== null"
+              class="shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums"
+              :style="{
+                color: tile.color,
+                background: `color-mix(in srgb, ${tile.color} 14%, transparent)`,
+              }"
             >
-              {{ tile.unit }}
+              {{ Math.round(tile.percent) }}%
             </span>
-          </p>
-          <svg
-            class="h-9 w-16 shrink-0"
-            viewBox="0 0 64 38"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M8 32a24 24 0 0 1 48 0"
-              stroke="color-mix(in srgb, var(--text-primary) 12%, transparent)"
-              stroke-width="4"
-              stroke-linecap="round"
-            />
-            <path
-              v-if="cpuGauge.percent !== null"
-              d="M8 32a24 24 0 0 1 48 0"
-              :stroke="tile.color"
-              stroke-width="4"
-              stroke-linecap="round"
-              :stroke-dasharray="Math.PI * 24"
-              :stroke-dashoffset="cpuGauge.dashOffset"
-              data-cpu-gauge-active
-            />
-            <line
-              v-if="cpuGauge.percent !== null"
-              x1="32"
-              y1="32"
-              :x2="cpuGauge.needleX"
-              :y2="cpuGauge.needleY"
-              stroke="var(--text-primary)"
-              stroke-width="2.2"
-              stroke-linecap="round"
-            />
-            <circle cx="32" cy="32" r="3" fill="var(--text-primary)" />
-          </svg>
-        </div>
+          </div>
 
-        <template v-else-if="tile.key === 'memory'">
-          <p class="mt-auto flex items-baseline gap-1 whitespace-nowrap pt-0.5">
-            <span
-              class="text-base font-bold leading-tight tabular-nums sm:text-[17px]"
-            >
-              {{ tile.value }}
-            </span>
-            <span
-              v-if="tile.unit"
-              class="text-[10px] text-[var(--text-tertiary)]"
-            >
-              {{ tile.unit }}
-            </span>
-          </p>
           <div
-            class="mt-1.5 grid h-2 grid-cols-10 gap-1"
-            data-memory-segments
-            aria-hidden="true"
+            v-if="tile.key === 'cpu'"
+            class="mt-auto flex items-end justify-between gap-2 pt-0.5"
+            data-cpu-gauge
           >
-            <span
-              v-for="index in 10"
-              :key="index"
-              class="min-w-0 rounded-sm transition-[background,opacity,box-shadow] duration-500"
-              :style="memorySegmentStyle(tile.percent, index - 1)"
-            />
-          </div>
-        </template>
-
-        <template v-else-if="tile.key === 'bandwidth'">
-          <p
-            class="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-0.5 text-[11px] font-bold leading-tight tabular-nums"
-          >
-            <template v-if="tile.bandwidth">
+            <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
               <span
-                data-bandwidth-direction="up"
-                class="shrink-0 whitespace-nowrap"
-                style="color: var(--accent)"
+                class="whitespace-nowrap text-2xl font-bold leading-none tabular-nums"
+                :style="{ color: tile.color }"
               >
-                ↑{{ tile.bandwidth.up }}
+                {{ tile.value }}
               </span>
               <span
-                data-bandwidth-direction="down"
-                class="shrink-0 whitespace-nowrap"
-                style="color: var(--glow)"
+                v-if="tile.unit"
+                class="text-[10px] text-[var(--text-tertiary)]"
               >
-                ↓{{ tile.bandwidth.down }}
+                {{ tile.unit }}
               </span>
-            </template>
-            <span v-else class="text-[var(--text-tertiary)]">--</span>
-          </p>
-          <div v-if="tile.series" class="mt-0.5" data-bandwidth-sparkline>
-            <MiniSparkline
-              :points="tile.series.down"
-              :secondary="tile.series.up"
-              color="var(--glow)"
-              secondary-color="var(--accent)"
-              :height="22"
+            </p>
+            <svg
+              class="h-9 w-16 shrink-0"
+              viewBox="0 0 64 38"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 32a24 24 0 0 1 48 0"
+                stroke="color-mix(in srgb, var(--text-primary) 12%, transparent)"
+                stroke-width="4"
+                stroke-linecap="round"
+              />
+              <path
+                v-if="cpuGauge.percent !== null"
+                d="M8 32a24 24 0 0 1 48 0"
+                :stroke="tile.color"
+                stroke-width="4"
+                stroke-linecap="round"
+                :stroke-dasharray="Math.PI * 24"
+                :stroke-dashoffset="cpuGauge.dashOffset"
+                data-cpu-gauge-active
+              />
+              <line
+                v-if="cpuGauge.percent !== null"
+                x1="32"
+                y1="32"
+                :x2="cpuGauge.needleX"
+                :y2="cpuGauge.needleY"
+                stroke="var(--text-primary)"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+              <circle cx="32" cy="32" r="3" fill="var(--text-primary)" />
+            </svg>
+          </div>
+
+          <template v-else-if="tile.key === 'memory'">
+            <p
+              class="mt-auto flex items-baseline gap-1 whitespace-nowrap pt-0.5"
+            >
+              <span
+                class="text-base font-bold leading-tight tabular-nums sm:text-[17px]"
+              >
+                {{ tile.value }}
+              </span>
+              <span
+                v-if="tile.unit"
+                class="text-[10px] text-[var(--text-tertiary)]"
+              >
+                {{ tile.unit }}
+              </span>
+            </p>
+            <div
+              class="mt-1.5 grid h-2 grid-cols-10 gap-1"
+              data-memory-segments
+              aria-hidden="true"
+            >
+              <span
+                v-for="index in 10"
+                :key="index"
+                class="min-w-0 rounded-sm transition-[background,opacity,box-shadow] duration-500"
+                :style="memorySegmentStyle(tile.percent, index - 1)"
+              />
+            </div>
+          </template>
+
+          <template v-else-if="tile.key === 'bandwidth'">
+            <p
+              class="mt-auto flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-0.5 text-[11px] font-bold leading-tight tabular-nums"
+            >
+              <template v-if="tile.bandwidth">
+                <span
+                  data-bandwidth-direction="up"
+                  class="shrink-0 whitespace-nowrap"
+                  style="color: var(--accent)"
+                >
+                  ↑{{ tile.bandwidth.up }}
+                </span>
+                <span
+                  data-bandwidth-direction="down"
+                  class="shrink-0 whitespace-nowrap"
+                  style="color: var(--glow)"
+                >
+                  ↓{{ tile.bandwidth.down }}
+                </span>
+              </template>
+              <span v-else class="text-[var(--text-tertiary)]">--</span>
+            </p>
+            <div v-if="tile.series" class="mt-0.5" data-bandwidth-sparkline>
+              <MiniSparkline
+                :points="tile.series.down"
+                :secondary="tile.series.up"
+                color="var(--glow)"
+                secondary-color="var(--accent)"
+                :height="22"
+              />
+            </div>
+          </template>
+
+          <div
+            v-else
+            class="mt-auto flex items-end justify-between gap-1.5 pt-0.5"
+            data-disk-gauge
+          >
+            <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+              <span
+                class="text-base font-bold leading-tight tabular-nums"
+                :style="{ color: tile.color }"
+              >
+                {{ tile.value }}
+              </span>
+              <span
+                v-if="tile.unit"
+                class="text-[9px] text-[var(--text-tertiary)]"
+              >
+                {{ tile.unit }}
+              </span>
+            </p>
+            <MiniRing
+              :percent="tile.percent ?? 0"
+              :color="tile.color"
+              :size="34"
+              :indeterminate="tile.percent === null"
             />
           </div>
-        </template>
-
-        <div
-          v-else
-          class="mt-auto flex items-end justify-between gap-1.5 pt-0.5"
-          data-disk-gauge
-        >
-          <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
-            <span
-              class="text-base font-bold leading-tight tabular-nums"
-              :style="{ color: tile.color }"
-            >
-              {{ tile.value }}
-            </span>
-            <span
-              v-if="tile.unit"
-              class="text-[9px] text-[var(--text-tertiary)]"
-            >
-              {{ tile.unit }}
-            </span>
-          </p>
-          <MiniRing
-            :percent="tile.percent ?? 0"
-            :color="tile.color"
-            :size="34"
-            :indeterminate="tile.percent === null"
-          />
         </div>
       </div>
-    </div>
 
-    <div
-      class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-2 text-[11px] sm:pt-2.5"
-    >
-      <span class="flex items-center gap-1.5 text-[var(--text-tertiary)]">
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path
-            d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01"
-          />
-        </svg>
-        {{ t('dashboard.systemStatus.version') }}
-      </span>
-      <span class="font-mono text-[var(--text-secondary)]">{{
-        versionLabel
-      }}</span>
+      <div
+        class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-2.5 text-[11px]"
+      >
+        <span class="flex items-center gap-1.5 text-[var(--text-tertiary)]">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01"
+            />
+          </svg>
+          {{ t('dashboard.systemStatus.version') }}
+        </span>
+        <span class="font-mono text-[var(--text-secondary)]">{{
+          versionLabel
+        }}</span>
+      </div>
     </div>
   </ConsoleCard>
 </template>
