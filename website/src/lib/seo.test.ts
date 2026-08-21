@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildMetadata } from "./seo";
+import { buildMetadata, HOMEPAGE_SOCIAL_IMAGE } from "./seo";
 
 describe("buildMetadata", () => {
   test("adds a default social image for Open Graph and Twitter metadata", () => {
@@ -30,6 +30,22 @@ describe("buildMetadata", () => {
     ]);
     expect(metadata.twitter?.images).toEqual([
       "https://cdn.example.test/post.png",
+    ]);
+  });
+
+  test("uses the homepage social image when supplied by the homepage route", () => {
+    const metadata = buildMetadata({
+      title: "flatkey homepage",
+      description: "One key for frontier models and tools.",
+      pathname: "/",
+      image: HOMEPAGE_SOCIAL_IMAGE,
+    });
+
+    expect(metadata.openGraph?.images).toEqual([
+      { url: "https://flatkey.ai/assets/og-image.png" },
+    ]);
+    expect(metadata.twitter?.images).toEqual([
+      "https://flatkey.ai/assets/og-image.png",
     ]);
   });
 });

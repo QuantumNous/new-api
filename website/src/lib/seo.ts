@@ -4,6 +4,7 @@ import { DEFAULT_LOCALE, LOCALES, type Locale, localeAlternates, localeLanguageT
 export const SITE_ORIGIN = "https://flatkey.ai";
 export const SITE_NAME = "flatkey.ai";
 export const DEFAULT_SOCIAL_IMAGE = `${SITE_ORIGIN}/flatkey-logo-light.png`;
+export const HOMEPAGE_SOCIAL_IMAGE = `${SITE_ORIGIN}/assets/og-image.png`;
 
 export type SeoInput = {
   title: string;

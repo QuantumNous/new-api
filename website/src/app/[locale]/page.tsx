@@ -4,7 +4,7 @@ import { OnlineHomePage } from "@/components/online-home-page";
 import { AmplitudeHomePageTracker } from "@/components/amplitude-home-page-tracker";
 import { hasConsoleSessionHintFromRequestCookieStore } from "@/lib/console-session-hint";
 import { DEFAULT_LOCALE, isLocale, LOCALES } from "@/lib/locales";
-import { buildMetadata } from "@/lib/seo";
+import { buildMetadata, HOMEPAGE_SOCIAL_IMAGE } from "@/lib/seo";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -29,6 +29,7 @@ export async function generateMetadata(props: Props) {
       : "flatkey routes your requests to official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs, with 100+ frontier models and 1,000+ AI tools behind one key.",
     pathname: "/",
     locale: params.locale,
+    image: HOMEPAGE_SOCIAL_IMAGE,
   });
 }
 
