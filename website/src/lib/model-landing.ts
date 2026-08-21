@@ -738,6 +738,10 @@ function buildGenericMediaLandingConfig(model: PricingModel): ModelConfig | null
   const price = GENERIC_MEDIA_PRICE_BY_KIND[kind];
   const displayName = model.model_name;
   const officialName = model.vendor_name ?? "Provider";
+  const liveSecond = model.display_pricing?.prices.second?.plg ?? model.display_pricing?.prices.second?.configured;
+  const liveOfficialSecond = model.display_pricing?.prices.second?.configured ?? liveSecond;
+  const liveFlatkeyPrice = liveSecond != null ? formatPriceLiteral(liveSecond) : price.flatkey;
+  const liveOfficialPrice = liveOfficialSecond != null ? formatPriceLiteral(liveOfficialSecond) : price.official;
   return {
     slug: encodeURIComponent(model.model_name),
     modelIds: [model.model_name],
@@ -750,14 +754,14 @@ function buildGenericMediaLandingConfig(model: PricingModel): ModelConfig | null
       fields: GENERIC_MEDIA_FIELDS[kind],
     },
     officialName,
-    officialPrice: model.model_price ? formatPriceLiteral(model.model_price) : price.official,
-    flatkeyPrice: model.model_price ? formatPriceLiteral(model.model_price * 0.53) : price.flatkey,
-    estFlatkey: model.model_price ? formatPriceLiteral(model.model_price * 0.53) : price.flatkey,
-    estOfficial: model.model_price ? formatPriceLiteral(model.model_price) : price.official,
+    officialPrice: liveOfficialPrice,
+    flatkeyPrice: liveFlatkeyPrice,
+    estFlatkey: liveFlatkeyPrice,
+    estOfficial: liveOfficialPrice,
     examplePrompt: examplePromptForMediaKind(kind, displayName),
     priceUnit: price.priceUnit,
     rows: [
-      { label: "Live flatkey pricing", flatkey: model.model_price ? formatPriceLiteral(model.model_price * 0.53) : price.flatkey, official: model.model_price ? formatPriceLiteral(model.model_price) : price.official },
+      { label: "Live flatkey pricing", flatkey: liveFlatkeyPrice, official: liveOfficialPrice },
       { label: "Live model data from pricing API", flatkey: "", value: officialName },
       { label: "Coverage", flatkey: "", value: "Text · image · video · audio" },
     ],

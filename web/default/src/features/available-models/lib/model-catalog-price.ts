@@ -33,6 +33,12 @@ export type CatalogPrice =
   | { kind: 'none' }
   | { kind: 'dynamic' }
   | {
+      kind: 'second'
+      priceUSD: number
+      officialUSD: number | null
+      discountPercent: number | null
+    }
+  | {
       kind: 'request'
       priceUSD: number
       officialUSD: number | null
@@ -115,6 +121,14 @@ export function resolveCatalogPrice(
 
   const ratio = isUsableNumber(options.ratio) ? options.ratio : 1
   const discountPercent = resolveOfficialDiscount(ratio)
+
+  const displayPair = model.display_pricing?.prices.second
+  const displayValue = displayPair?.plg ?? displayPair?.configured
+  if (model.display_pricing?.billing_kind === 'per_second' && isUsableNumber(displayValue)) {
+    const official = displayPair?.configured ?? displayValue
+    const discounted = official > 0 && displayValue < official
+    return { kind: 'second', priceUSD: displayValue, officialUSD: discounted ? official : null, discountPercent: discounted ? Math.round((1 - displayValue / official) * 100) : null }
+  }
 
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
     const official = isUsableNumber(model.model_price) ? model.model_price : 0

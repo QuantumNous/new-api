@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getPricing } from '@/features/pricing/api'
+import { api } from '@/lib/api'
 import type { PricingModel } from '@/features/pricing/types'
 import { buildCatalogPriceIndex } from '../lib/model-catalog-price'
 
@@ -33,7 +34,15 @@ import { buildCatalogPriceIndex } from '../lib/model-catalog-price'
 export function useModelCatalogPrices(): ReadonlyMap<string, PricingModel> {
   const pricingQuery = useQuery({
     queryKey: ['pricing'],
-    queryFn: getPricing,
+    queryFn: async () => {
+      const [pricing, website] = await Promise.all([
+        getPricing(),
+        api.get('/api/website/pricing', { params: { group: 'plg' } }).then((res) => res.data).catch(() => null),
+      ])
+      const displayPricing = website?.display_pricing as Record<string, PricingModel['display_pricing']> | undefined
+      if (!displayPricing) return pricing
+      return { ...pricing, data: pricing.data.map((model) => ({ ...model, display_pricing: displayPricing[model.model_name] })) }
+    },
     staleTime: 5 * 60 * 1000,
     retry: false,
   })

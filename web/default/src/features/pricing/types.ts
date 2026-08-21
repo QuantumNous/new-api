@@ -55,6 +55,10 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  display_pricing?: {
+    billing_kind: 'per_second' | 'request' | 'token' | 'tiered_expr'
+    prices: Partial<Record<'second' | 'request' | 'input' | 'output' | 'cache' | 'create_cache' | 'image' | 'audio_input' | 'audio_output', { configured?: number; plg?: number; from?: boolean }>>
+  }
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   availability_status?: ModelAvailabilityStatus

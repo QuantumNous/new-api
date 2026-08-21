@@ -155,6 +155,15 @@ function ModelPricePanel(props: { price: CatalogPrice }) {
     )
   }
 
+  if (price.kind === 'second') {
+    return (
+      <div className='mt-auto flex flex-col gap-2 border-t pt-4'>
+        <PriceHeader label={t('Per second')} discountPercent={price.discountPercent} />
+        <PriceRow label={t('Price')} value={formatUnitPrice(price.priceUSD)} official={price.officialUSD === null ? null : formatUnitPrice(price.officialUSD)} />
+      </div>
+    )
+  }
+
   return (
     <div className='mt-auto flex flex-col gap-2 border-t pt-4'>
       <PriceHeader

@@ -65,6 +65,7 @@ import {
   getModelFamilyKey,
   getOfficialPriceUsd,
   isTokenBasedModel,
+  resolveModelDisplayPrice,
   type PricingModel,
 } from "@/lib/pricing";
 import type { RankedModel, RankingsData } from "@/lib/rankings-live";
@@ -1894,6 +1895,15 @@ function buildFlatkeyPriceRows(
   }
 
   if (!isTokenBasedModel(model)) {
+    const perSecond = resolveModelDisplayPrice(model, 'second', 'plg', groupRatio);
+    if (perSecond) {
+      const official = perSecond.configured ?? perSecond.value;
+      const flatkey = perSecond.value;
+      return {
+        note,
+        rows: [{ label: t("Price / second"), flatkey: `${formatUsdPrice(flatkey)} ${t("/ second")}`, official: `${formatUsdPrice(official)} ${t("/ second")}`, flatkeyPercent: pricePercent(flatkey, official), officialPercent: 100 }],
+      };
+    }
     const official = getOfficialPriceUsd(model);
     const listed = official * getBestGroupRatio(model, groupRatio);
     const flatkey = discountedPriceUsd(listed);

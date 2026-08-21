@@ -7,7 +7,7 @@ import {
   resolveModelLandingModels,
 } from "@/lib/model-landing";
 import { modelPublicPath, resolvePublicModel } from "@/lib/model-public";
-import { getPricingData, getVendorName } from "@/lib/pricing";
+import { getPricingData, getVendorName, WEBSITE_PUBLIC_PRICING_GROUP } from "@/lib/pricing";
 import { fetchRankingsData } from "@/lib/rankings-live";
 import { buildMetadata } from "@/lib/seo";
 import { getSkagLandingMetadataInput } from "@/lib/skag-landing";
@@ -36,7 +36,7 @@ export async function generateMetadata(props: Props) {
       pathname: `/models/${config.slug}`,
     });
   }
-  const pricing = await getPricingData();
+  const pricing = await getPricingData(WEBSITE_PUBLIC_PRICING_GROUP);
   const model = resolvePublicModel(pricing.models, params.slug);
   if (!model) return {};
   const modelWithVendor = {
@@ -57,7 +57,7 @@ export default async function Page(props: Props) {
   if (params.slug === "claude-api") redirect("/claude-api");
 
   const config = getModelLandingConfig(params.slug);
-  const [pricing, rankings] = await Promise.all([getPricingData(), fetchRankingsData()]);
+  const [pricing, rankings] = await Promise.all([getPricingData(WEBSITE_PUBLIC_PRICING_GROUP), fetchRankingsData()]);
   const models = pricing.models.map((model) => ({
     ...model,
     vendor_name: model.vendor_name ?? getVendorName(model, pricing.vendors),
