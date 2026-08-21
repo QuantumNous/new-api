@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
 import MiniRing from '@/components/console/dashboard/MiniRing.vue'
 import MiniSparkline from '@/components/console/dashboard/MiniSparkline.vue'
+import PrecisionTickDial from '@/components/console/dashboard/PrecisionTickDial.vue'
 import type { SystemMetrics } from '@/composables/useDashboard'
 import { useAppStore } from '@/stores'
 
@@ -322,14 +323,10 @@ const successColor = computed(() => rateColor(successRate.value))
             {{ successRate === null ? '--' : `${formatMetric(successRate)}%` }}
           </p>
         </div>
-        <MiniRing
-          :percent="successRate ?? 0"
+        <PrecisionTickDial
+          :percent="successRate"
           :color="successColor"
-          :size="46"
-          :stroke-width="4.5"
-          :indeterminate="successRate === null"
-          data-success-rate-ring
-          :data-success-rate-state="successRate === null ? 'unknown' : 'value'"
+          :size="38"
         />
       </div>
     </template>

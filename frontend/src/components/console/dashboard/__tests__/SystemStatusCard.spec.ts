@@ -126,14 +126,9 @@ describe('SystemStatusCard', () => {
     const ring = wrapper.find('[data-success-rate-ring]')
     expect(ring.exists()).toBe(true)
     expect(ring.attributes('data-success-rate-state')).toBe('value')
-    expect(
-      ring.find('circle[stroke-dasharray]').attributes('stroke-width')
-    ).toBe('4.5')
-    expect(
-      ring.find('circle[stroke-dasharray]').attributes('stroke-dashoffset')
-    ).not.toBe(
-      ring.find('circle[stroke-dasharray]').attributes('stroke-dasharray')
-    )
+    expect(ring.find('svg').attributes('width')).toBe('38')
+    expect(ring.findAll('.tick-active').length).toBeGreaterThan(0)
+    expect(ring.findAll('.tick-standby')).toHaveLength(0)
   })
 
   it('uses an indeterminate neutral ring when success rate is unavailable', () => {
@@ -146,8 +141,8 @@ describe('SystemStatusCard', () => {
 
     const ring = wrapper.find('[data-success-rate-ring]')
     expect(ring.attributes('data-success-rate-state')).toBe('unknown')
-    expect(ring.find('circle[stroke-dasharray="3 4"]').exists()).toBe(true)
-    expect(ring.find('circle[stroke-dashoffset]').exists()).toBe(false)
+    expect(ring.findAll('.tick-standby')).toHaveLength(20)
+    expect(ring.findAll('.tick-active')).toHaveLength(0)
   })
 
   it('uses a distinct visual gauge for each system resource', () => {
