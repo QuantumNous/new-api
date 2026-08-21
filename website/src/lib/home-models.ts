@@ -11,9 +11,9 @@ import {
   sortPricingModelsBySeries,
   type GroupModelRatio,
   type PricingData,
+  type ModelDirectoryMetadata,
   type PricingModel,
 } from "./pricing";
-import { getModelMeta, inferSeries } from "./model-directory-meta";
 
 export type HomePricedModel = {
   name: string;
@@ -39,6 +39,7 @@ export type HomePricedModel = {
   series?: string;
   contextTokens?: number | null;
   top10?: number;
+  directoryMetadata?: ModelDirectoryMetadata;
   // Lobehub static-svg icon key rendered by ModelLogo; derived from the model
   // name because the pricing payload's icon fields are empty in production.
   iconKey: string;
@@ -152,13 +153,13 @@ export function buildRowsForModels(
       const billingUnit = modelBillingUnit(model, displayPrice?.unit);
       const inputFilterUsd = billingUnit === "token" ? inputPrice?.value : discountedUsd;
       const outputFilterUsd = billingUnit === "token" ? outputPrice?.value : discountedUsd;
-      const directoryMeta = getModelMeta(model.model_name);
+      const directoryMeta = model.directory_metadata;
       return {
         name: model.model_name,
         // The metadata table is authoritative for the author: the payload
         // leaves vendor_id empty for some models (Macaron, Veo, Gemma) and
         // would otherwise fall back to the literal "AI".
-        vendor: directoryMeta?.vendor ?? vendor,
+        vendor: directoryMeta?.author ?? vendor,
         official: usesParsedDisplayPrice && officialDisplayPrice ? officialDisplayPrice.text : formatUsdPrice(official),
         discounted: usesParsedDisplayPrice ? displayPrice.text : formatUsdPrice(discountedUsd),
         officialUsd: usesParsedDisplayPrice && officialDisplayPrice ? officialDisplayPrice.value : official,
@@ -175,9 +176,10 @@ export function buildRowsForModels(
         endpointTypes: model.supported_endpoint_types ?? [],
         priceUnit: displayPrice ? normalizeDisplayUnit(displayPrice.unit) : isTokenBasedModel(model) ? "per 1M tokens" : "per request",
         pricePrefix: displayPrice?.from ? "from" : undefined,
-        series: directoryMeta?.series ?? inferSeries(model.model_name),
-        contextTokens: directoryMeta?.contextTokens ?? null,
-        top10: directoryMeta?.top10,
+        series: directoryMeta?.series,
+        contextTokens: directoryMeta?.context_tokens ?? null,
+        top10: directoryMeta?.top_ten_rank,
+        directoryMetadata: directoryMeta,
         iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
       };
     });

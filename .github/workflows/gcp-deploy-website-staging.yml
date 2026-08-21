@@ -104,7 +104,6 @@ jobs:
             SITE_ORIGIN=${{ env.SITE_ORIGIN }}
             NEXT_PUBLIC_AMPLITUDE_API_KEY=${{ vars.NEXT_PUBLIC_AMPLITUDE_API_KEY }}
             COOKIE_SESSION_DOMAIN=${{ steps.compute_cookie_domain.outputs.cookie_domain }}
-            NEXT_PUBLIC_MODEL_DIRECTORY_STAGING_PREVIEW=true
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/website:staging-latest

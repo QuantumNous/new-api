@@ -1,4 +1,4 @@
-import { MODEL_DIRECTORY_META } from "./model-directory-meta-data";
+import type { ModelDirectoryMetadata } from "./pricing";
 
 // Directory metadata that the pricing API does not carry: input modalities,
 // context window, use-case categories, release date and distillability. The
@@ -12,30 +12,7 @@ import { MODEL_DIRECTORY_META } from "./model-directory-meta-data";
 
 export type Modality = "text" | "image" | "file" | "audio" | "video";
 
-export type ModelDirectoryMeta = {
-  series: string;
-  /**
-   * Who built the model. Sourced here rather than from the pricing payload so
-   * the label is stable — the payload leaves vendor_id empty for some models
-   * (Macaron, Veo, Gemma), which would otherwise fall back to a placeholder.
-   */
-  vendor: string;
-  /**
-   * Where the model is officially served (author API plus the clouds it ships
-   * to). Empty for models whose availability is not documented.
-   */
-  providers: string[];
-  modalities: Modality[];
-  /** null for image / video / TTS / music models with no token context window. */
-  contextTokens: number | null;
-  categories: string[];
-  distillable: boolean;
-  /** ISO date (YYYY-MM-DD); null when the release date is unknown. */
-  releasedAt: string | null;
-  rank: number;
-  /** Position on the popularity board, when the model is on it. */
-  top10?: number;
-};
+export type ModelDirectoryMeta = ModelDirectoryMetadata;
 
 export type AgeBand = "new" | "1-3m" | "3-6m" | "6-12m" | "12m+";
 
@@ -63,10 +40,6 @@ export const PRICE_BANDS = [
 ] as const;
 
 export type PriceBandId = (typeof PRICE_BANDS)[number]["id"];
-
-export function getModelMeta(modelName: string): ModelDirectoryMeta | undefined {
-  return MODEL_DIRECTORY_META[modelName];
-}
 
 /**
  * Price band for a live USD-per-unit figure. Bands are half-open [min, max) so
@@ -147,13 +120,12 @@ const SERIES_PATTERNS: Array<[RegExp, string]> = [
 ];
 
 /** Series present in the live catalogue, ordered by the table's own ranking. */
-export function seriesForModels(modelNames: string[]): string[] {
+export function seriesForModels(metadataRows: Array<ModelDirectoryMetadata | undefined>): string[] {
   const bestRank = new Map<string, number>();
-  for (const name of modelNames) {
-    const meta = getModelMeta(name);
-    const series = meta?.series ?? inferSeries(name);
-    if (!series) continue;
-    const rank = meta?.rank ?? Number.MAX_SAFE_INTEGER;
+  for (const meta of metadataRows) {
+    if (!meta) continue;
+    const series = meta.series;
+    const rank = meta.popularity_rank ?? Number.MAX_SAFE_INTEGER;
     const current = bestRank.get(series);
     if (current == null || rank < current) bestRank.set(series, rank);
   }
@@ -161,19 +133,18 @@ export function seriesForModels(modelNames: string[]): string[] {
 }
 
 /** Model authors present in the live catalogue, most models first. */
-export function vendorsForModels(modelNames: string[]): string[] {
-  return countedValues(modelNames, (meta) => (meta.vendor ? [meta.vendor] : []));
+export function vendorsForModels(metadataRows: Array<ModelDirectoryMetadata | undefined>): string[] {
+  return countedValues(metadataRows, (meta) => (meta.author ? [meta.author] : []));
 }
 
 /** Serving providers present in the live catalogue, most models first. */
-export function providersForModels(modelNames: string[]): string[] {
-  return countedValues(modelNames, (meta) => meta.providers ?? []);
+export function providersForModels(metadataRows: Array<ModelDirectoryMetadata | undefined>): string[] {
+  return countedValues(metadataRows, (meta) => meta.providers);
 }
 
-function countedValues(modelNames: string[], pick: (meta: ModelDirectoryMeta) => string[]): string[] {
+function countedValues(metadataRows: Array<ModelDirectoryMetadata | undefined>, pick: (meta: ModelDirectoryMeta) => string[]): string[] {
   const counts = new Map<string, number>();
-  for (const name of modelNames) {
-    const meta = getModelMeta(name);
+  for (const meta of metadataRows) {
     if (!meta) continue;
     for (const value of pick(meta)) counts.set(value, (counts.get(value) ?? 0) + 1);
   }
@@ -181,10 +152,10 @@ function countedValues(modelNames: string[], pick: (meta: ModelDirectoryMeta) =>
 }
 
 /** Categories present in the live catalogue, most common first. */
-export function categoriesForModels(modelNames: string[]): string[] {
+export function categoriesForModels(metadataRows: Array<ModelDirectoryMetadata | undefined>): string[] {
   const counts = new Map<string, number>();
-  for (const name of modelNames) {
-    for (const category of getModelMeta(name)?.categories ?? []) {
+  for (const meta of metadataRows) {
+    for (const category of meta?.categories ?? []) {
       counts.set(category, (counts.get(category) ?? 0) + 1);
     }
   }

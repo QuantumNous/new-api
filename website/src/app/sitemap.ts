@@ -140,7 +140,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Single-series directory views are indexable landing pages ("Claude API
   // pricing"), so they need to be discoverable. Any richer filter combination
   // is noindex — see model-directory-seo.ts — and is deliberately absent here.
-  const seriesEntries = seriesForModels(pricing.models.map((model) => model.model_name)).flatMap((series) =>
+  const seriesEntries = seriesForModels(pricing.models.map((model) => model.directory_metadata)).flatMap((series) =>
     queryEntry("/models", `series=${encodeURIComponent(series)}`, 0.72, "daily")
   );
 

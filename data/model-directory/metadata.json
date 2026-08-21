@@ -1,0 +1,2940 @@
+[
+  {
+    "model_name": "bytedance/seedance-2.0",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 101,
+    "status": 1
+  },
+  {
+    "model_name": "bytedance/seedance-2.0-fast",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 102,
+    "status": 1
+  },
+  {
+    "model_name": "claude-3-5-haiku-20241022",
+    "author": "Anthropic",
+    "providers": [
+      "Anthropic",
+      "Amazon Bedrock",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 200000,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia"
+    ],
+    "released_at": "2024-10-22",
+    "distillable": false,
+    "popularity_rank": 103,
+    "status": 1
+  },
+  {
+    "model_name": "claude-fable-5",
+    "author": "Anthropic",
+    "providers": [
+      "Amazon Bedrock",
+      "Anthropic",
+      "Azure",
+      "Claude Platform on AWS",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Legal",
+      "Health",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 95,
+    "top_ten_rank": 5,
+    "status": 1
+  },
+  {
+    "model_name": "claude-haiku-4-5-20251001",
+    "author": "Anthropic",
+    "providers": [
+      "Anthropic",
+      "Amazon Bedrock",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 200000,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 19,
+    "status": 1
+  },
+  {
+    "model_name": "claude-opus-4-5",
+    "author": "Anthropic",
+    "providers": [
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 200000,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 77,
+    "status": 1
+  },
+  {
+    "model_name": "claude-opus-4-6",
+    "author": "Anthropic",
+    "providers": [
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 76,
+    "status": 1
+  },
+  {
+    "model_name": "claude-opus-4-7",
+    "author": "Anthropic",
+    "providers": [
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 17,
+    "status": 1
+  },
+  {
+    "model_name": "claude-opus-4-8",
+    "author": "Anthropic",
+    "providers": [
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 16,
+    "status": 1
+  },
+  {
+    "model_name": "claude-opus-5",
+    "author": "Anthropic",
+    "providers": [
+      "Amazon Bedrock",
+      "Anthropic",
+      "Azure",
+      "Claude Platform on AWS",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 14,
+    "top_ten_rank": 9,
+    "status": 1
+  },
+  {
+    "model_name": "claude-sonnet-4-5",
+    "author": "Anthropic",
+    "providers": [
+      "Amazon Bedrock",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Legal",
+      "Health",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 20,
+    "status": 1
+  },
+  {
+    "model_name": "claude-sonnet-4-5-20250929",
+    "author": "Anthropic",
+    "providers": [
+      "Amazon Bedrock",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Legal",
+      "Health",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 96,
+    "status": 1
+  },
+  {
+    "model_name": "claude-sonnet-4-6",
+    "author": "Anthropic",
+    "providers": [
+      "Amazon Bedrock",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Legal",
+      "Health",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 18,
+    "status": 1
+  },
+  {
+    "model_name": "claude-sonnet-5",
+    "author": "Anthropic",
+    "providers": [
+      "Amazon Bedrock",
+      "Anthropic",
+      "Azure",
+      "Claude Platform on AWS",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Claude",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Legal",
+      "Health",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 15,
+    "status": 1
+  },
+  {
+    "model_name": "deepseek-v3",
+    "author": "DeepSeek",
+    "providers": [
+      "Alibaba",
+      "Baidu",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "DeepSeek",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": true,
+    "popularity_rank": 75,
+    "status": 1
+  },
+  {
+    "model_name": "deepseek-v3.1",
+    "author": "DeepSeek",
+    "providers": [
+      "Alibaba",
+      "Baidu",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "DeepSeek",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": true,
+    "popularity_rank": 13,
+    "status": 1
+  },
+  {
+    "model_name": "deepseek-v3.2",
+    "author": "DeepSeek",
+    "providers": [
+      "Alibaba",
+      "Baidu",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "DeepSeek",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": true,
+    "popularity_rank": 12,
+    "status": 1
+  },
+  {
+    "model_name": "deepseek-v3.2-thinking",
+    "author": "DeepSeek",
+    "providers": [
+      "Alibaba",
+      "Baidu",
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "DeepSeek",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": true,
+    "popularity_rank": 11,
+    "status": 1
+  },
+  {
+    "model_name": "deepseek-v4-flash",
+    "author": "DeepSeek",
+    "providers": [
+      "Alibaba",
+      "Azure",
+      "Baidu",
+      "DeepSeek"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "DeepSeek",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 9,
+    "top_ten_rank": 1,
+    "status": 1
+  },
+  {
+    "model_name": "deepseek-v4-pro",
+    "author": "DeepSeek",
+    "providers": [
+      "Alibaba",
+      "Azure",
+      "Baidu",
+      "DeepSeek"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "DeepSeek",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 10,
+    "top_ten_rank": 4,
+    "status": 1
+  },
+  {
+    "model_name": "deepseek-v4-pro-0813",
+    "author": "DeepSeek",
+    "providers": [
+      "Alibaba",
+      "DeepSeek"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "DeepSeek",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 91,
+    "status": 1
+  },
+  {
+    "model_name": "doubao/doubao-seedance-2-0-260128",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 104,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.0-flash",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-02-05",
+    "distillable": false,
+    "popularity_rank": 105,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-flash",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 62,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-flash-image",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 60,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-flash-lite",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 66,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-flash-preview-tts",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 89,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-flash-tts",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 74,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-pro",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 59,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-pro-preview-tts",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 90,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-2.5-pro-tts",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 73,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3-flash-preview",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 61,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3-pro-image",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 47,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.1-flash-image",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 29,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.1-flash-lite",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 27,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.1-flash-lite-image",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 30,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.1-flash-lite-preview",
+    "author": "Google",
+    "providers": [
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 28,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.1-flash-tts-preview",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": null,
+    "series": "Gemini",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 31,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.1-pro-preview",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 25,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.1-pro-preview-customtools",
+    "author": "Google",
+    "providers": [
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 26,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.5-flash",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 42,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.5-flash-lite",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 54,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.6-flash",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 43,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-3.7-flash",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-08-20",
+    "distillable": false,
+    "popularity_rank": 44,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-embedding-001",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": 8192,
+    "series": "Gemini",
+    "categories": [
+      "Technology"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 65,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-flash-latest",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 55,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-flash-lite-latest",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 64,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-pro-latest",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio",
+      "video"
+    ],
+    "context_tokens": 1048576,
+    "series": "Gemini",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 50,
+    "status": 1
+  },
+  {
+    "model_name": "gemini-robotics-er-1.6-preview",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": 128000,
+    "series": "Gemini",
+    "categories": [
+      "Science",
+      "Technology"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 88,
+    "status": 1
+  },
+  {
+    "model_name": "gemma-4-26b-a4b-it",
+    "author": "Google",
+    "providers": [
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": 128000,
+    "series": "Gemma",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 83,
+    "status": 1
+  },
+  {
+    "model_name": "gemma-4-31b-it",
+    "author": "Google",
+    "providers": [
+      "Google"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": 128000,
+    "series": "Gemma",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 82,
+    "status": 1
+  },
+  {
+    "model_name": "glm-4.7",
+    "author": "Zhipu AI",
+    "providers": [
+      "Google",
+      "Z.AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 204800,
+    "series": "GLM",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": true,
+    "popularity_rank": 57,
+    "status": 1
+  },
+  {
+    "model_name": "glm-5",
+    "author": "Zhipu AI",
+    "providers": [
+      "Amazon Bedrock",
+      "Baidu",
+      "Z.AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 204800,
+    "series": "GLM",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 49,
+    "status": 1
+  },
+  {
+    "model_name": "glm-5-turbo",
+    "author": "Zhipu AI",
+    "providers": [
+      "Z.AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 204800,
+    "series": "GLM",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 52,
+    "status": 1
+  },
+  {
+    "model_name": "glm-5.1",
+    "author": "Zhipu AI",
+    "providers": [
+      "Alibaba",
+      "Baidu",
+      "Z.AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 204800,
+    "series": "GLM",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 48,
+    "status": 1
+  },
+  {
+    "model_name": "glm-5.2",
+    "author": "Zhipu AI",
+    "providers": [
+      "Alibaba",
+      "Baidu",
+      "Z.AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GLM",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": true,
+    "popularity_rank": 37,
+    "top_ten_rank": 10,
+    "status": 1
+  },
+  {
+    "model_name": "glm-5.3",
+    "author": "Zhipu AI",
+    "providers": [
+      "Z.AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GLM",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": true,
+    "popularity_rank": 92,
+    "top_ten_rank": 3,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-4.1-mini",
+    "author": "OpenAI",
+    "providers": [
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 79,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-4o",
+    "author": "OpenAI",
+    "providers": [
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file",
+      "audio"
+    ],
+    "context_tokens": 128000,
+    "series": "GPT",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 78,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-4o-mini",
+    "author": "OpenAI",
+    "providers": [
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 24,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5-mini",
+    "author": "OpenAI",
+    "providers": [
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 400000,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 45,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5.4",
+    "author": "OpenAI",
+    "providers": [
+      "Amazon Bedrock",
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 41,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5.4-mini",
+    "author": "OpenAI",
+    "providers": [
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 400000,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 39,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5.4-nano",
+    "author": "OpenAI",
+    "providers": [
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 400000,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 51,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5.5",
+    "author": "OpenAI",
+    "providers": [
+      "Amazon Bedrock",
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 22,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5.6-luna",
+    "author": "OpenAI",
+    "providers": [
+      "Amazon Bedrock",
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 21,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5.6-sol",
+    "author": "OpenAI",
+    "providers": [
+      "Amazon Bedrock",
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Legal",
+      "Finance",
+      "Health",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 23,
+    "top_ten_rank": 2,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-5.6-terra",
+    "author": "OpenAI",
+    "providers": [
+      "Amazon Bedrock",
+      "Azure",
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "GPT",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Legal",
+      "Health",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 40,
+    "status": 1
+  },
+  {
+    "model_name": "gpt-image-2",
+    "author": "OpenAI",
+    "providers": [
+      "OpenAI"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "GPT",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 44,
+    "status": 1
+  },
+  {
+    "model_name": "grok-imagine-image",
+    "author": "xAI",
+    "providers": [
+      "xAI"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Grok",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-05-26",
+    "distillable": false,
+    "popularity_rank": 71,
+    "status": 1
+  },
+  {
+    "model_name": "grok-imagine-image-pro",
+    "author": "xAI",
+    "providers": [
+      "xAI"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Grok",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 69,
+    "status": 1
+  },
+  {
+    "model_name": "grok-imagine-image-quality",
+    "author": "xAI",
+    "providers": [
+      "xAI"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Grok",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 68,
+    "status": 1
+  },
+  {
+    "model_name": "grok-imagine-video",
+    "author": "xAI",
+    "providers": [
+      "xAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Grok",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 72,
+    "status": 1
+  },
+  {
+    "model_name": "grok-imagine-video-1.5",
+    "author": "xAI",
+    "providers": [
+      "xAI"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Grok",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 70,
+    "status": 1
+  },
+  {
+    "model_name": "jimeng-image-4.5",
+    "author": "ByteDance",
+    "providers": [
+      "Jimeng"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Jimeng",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 106,
+    "status": 1
+  },
+  {
+    "model_name": "jimeng-image-5.0-lite",
+    "author": "ByteDance",
+    "providers": [
+      "Jimeng"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Jimeng",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 107,
+    "status": 1
+  },
+  {
+    "model_name": "jimeng-video-3.0-fast",
+    "author": "ByteDance",
+    "providers": [
+      "Jimeng"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Jimeng",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 108,
+    "status": 1
+  },
+  {
+    "model_name": "jimeng-video-3.0-pro",
+    "author": "ByteDance",
+    "providers": [
+      "Jimeng"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Jimeng",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 109,
+    "status": 1
+  },
+  {
+    "model_name": "jimeng-video-seedance-2.0",
+    "author": "ByteDance",
+    "providers": [
+      "Jimeng"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 110,
+    "status": 1
+  },
+  {
+    "model_name": "jimeng-video-seedance-2.0-fast",
+    "author": "ByteDance",
+    "providers": [
+      "Jimeng"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 111,
+    "status": 1
+  },
+  {
+    "model_name": "jimeng-video-seedance-2.0-mini",
+    "author": "ByteDance",
+    "providers": [
+      "Jimeng"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 112,
+    "status": 1
+  },
+  {
+    "model_name": "kimi-k2.5",
+    "author": "Moonshot AI",
+    "providers": [
+      "Amazon Bedrock",
+      "Moonshot AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 262144,
+    "series": "Kimi",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": true,
+    "popularity_rank": 7,
+    "status": 1
+  },
+  {
+    "model_name": "kimi-k2.6",
+    "author": "Moonshot AI",
+    "providers": [
+      "Baidu",
+      "Moonshot AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 262144,
+    "series": "Kimi",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 6,
+    "status": 1
+  },
+  {
+    "model_name": "kimi-k3",
+    "author": "Moonshot AI",
+    "providers": [
+      "Moonshot AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Kimi",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": true,
+    "popularity_rank": 5,
+    "top_ten_rank": 6,
+    "status": 1
+  },
+  {
+    "model_name": "macaron-v1-coding-venti",
+    "author": "Macaron",
+    "providers": [
+      "Macaron"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Macaron",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "Technology"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 84,
+    "status": 1
+  },
+  {
+    "model_name": "macaron-v1-tall",
+    "author": "Macaron",
+    "providers": [
+      "Macaron"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": 262144,
+    "series": "Macaron",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 86,
+    "status": 1
+  },
+  {
+    "model_name": "macaron-v1-venti",
+    "author": "Macaron",
+    "providers": [
+      "Macaron"
+    ],
+    "modalities": [
+      "text"
+    ],
+    "context_tokens": 1048576,
+    "series": "Macaron",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 85,
+    "status": 1
+  },
+  {
+    "model_name": "MiniMax-H3",
+    "author": "MiniMax",
+    "providers": [
+      "Minimax"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video",
+      "audio"
+    ],
+    "context_tokens": null,
+    "series": "MiniMax",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 1,
+    "top_ten_rank": 7,
+    "status": 1
+  },
+  {
+    "model_name": "minimax-m2",
+    "author": "MiniMax",
+    "providers": [
+      "Google",
+      "Minimax"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 204800,
+    "series": "MiniMax",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": true,
+    "popularity_rank": 4,
+    "status": 1
+  },
+  {
+    "model_name": "minimax-m2.5",
+    "author": "MiniMax",
+    "providers": [
+      "Minimax"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 204800,
+    "series": "MiniMax",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 3,
+    "status": 1
+  },
+  {
+    "model_name": "minimax-m2.7",
+    "author": "MiniMax",
+    "providers": [
+      "Minimax"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 204800,
+    "series": "MiniMax",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 2,
+    "status": 1
+  },
+  {
+    "model_name": "mirothinker-1-7-deepresearch",
+    "author": "MiroMind AI",
+    "providers": [
+      "MiroMind AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "MiroThinker",
+    "categories": [
+      "Academia",
+      "Science",
+      "Technology"
+    ],
+    "released_at": "2026-08-01",
+    "distillable": true,
+    "popularity_rank": 113,
+    "status": 1
+  },
+  {
+    "model_name": "mirothinker-1-7-deepresearch-mini",
+    "author": "MiroMind AI",
+    "providers": [
+      "MiroMind AI"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "MiroThinker",
+    "categories": [
+      "Academia",
+      "Science",
+      "Technology"
+    ],
+    "released_at": "2026-08-01",
+    "distillable": true,
+    "popularity_rank": 114,
+    "status": 1
+  },
+  {
+    "model_name": "nano-banana-pro-preview",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Nano Banana",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 38,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.5-27b",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 56,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.5-35b-a3b",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 81,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.5-397b-a17b",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 58,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.5-flash",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Trivia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 67,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.5-plus",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 63,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.5-plus-2026-02-15",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 128000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 80,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.6-max-preview",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 35,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.6-plus",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 256000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": true,
+    "popularity_rank": 36,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.7-max",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": true,
+    "popularity_rank": 33,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.7-plus",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 256000,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Roleplay",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Translation",
+      "Trivia",
+      "Academia"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": true,
+    "popularity_rank": 34,
+    "status": 1
+  },
+  {
+    "model_name": "qwen3.8-max",
+    "author": "Alibaba",
+    "providers": [
+      "Alibaba"
+    ],
+    "modalities": [
+      "text",
+      "file"
+    ],
+    "context_tokens": 1048576,
+    "series": "Qwen",
+    "categories": [
+      "Programming",
+      "Marketing",
+      "SEO",
+      "Technology",
+      "Science",
+      "Translation",
+      "Finance",
+      "Academia"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": true,
+    "popularity_rank": 32,
+    "status": 1
+  },
+  {
+    "model_name": "seedance-2.0",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 115,
+    "status": 1
+  },
+  {
+    "model_name": "seedance-2.0-fast",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 116,
+    "status": 1
+  },
+  {
+    "model_name": "seedance-2.0-mini",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-01-28",
+    "distillable": false,
+    "popularity_rank": 117,
+    "status": 1
+  },
+  {
+    "model_name": "seedance-2.0-pro",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-04-06",
+    "distillable": false,
+    "popularity_rank": 93,
+    "status": 1
+  },
+  {
+    "model_name": "seedance-2.5",
+    "author": "ByteDance",
+    "providers": [
+      "ByteDance"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Seedance",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-08-04",
+    "distillable": false,
+    "popularity_rank": 94,
+    "top_ten_rank": 8,
+    "status": 1
+  },
+  {
+    "model_name": "sonilo-video-to-music",
+    "author": "Sonilo",
+    "providers": [
+      "Sonilo"
+    ],
+    "modalities": [
+      "text",
+      "video"
+    ],
+    "context_tokens": null,
+    "series": "Sonilo",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2026-06-20",
+    "distillable": false,
+    "popularity_rank": 87,
+    "status": 1
+  },
+  {
+    "model_name": "veo-3.1-fast-generate-preview",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Veo",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 53,
+    "status": 1
+  },
+  {
+    "model_name": "veo-3.1-generate-preview",
+    "author": "Google",
+    "providers": [
+      "Google",
+      "Google AI Studio"
+    ],
+    "modalities": [
+      "text",
+      "image"
+    ],
+    "context_tokens": null,
+    "series": "Veo",
+    "categories": [
+      "Marketing"
+    ],
+    "released_at": "2025-11-22",
+    "distillable": false,
+    "popularity_rank": 46,
+    "status": 1
+  }
+]

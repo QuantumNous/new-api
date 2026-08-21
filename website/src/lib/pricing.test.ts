@@ -105,6 +105,57 @@ describe("publicPricingUrl", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  test("keeps valid model directory metadata from the pricing payload", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      const metadata = {
+        author: "OpenAI",
+        providers: ["OpenAI"],
+        modalities: ["text", "image"],
+        context_tokens: 128000,
+        series: "GPT",
+        categories: ["Programming"],
+        released_at: "2026-08-01",
+        distillable: false,
+        popularity_rank: 2,
+        top_ten_rank: 1,
+      };
+      globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({
+        success: true,
+        data: [{ model_name: "gpt-5", quota_type: 0, model_ratio: 1, completion_ratio: 1, directory_metadata: metadata }],
+      }), { status: 200 }))) as typeof fetch;
+
+      const data = await getPricingData("plg");
+
+      expect(data.models[0]?.directory_metadata).toEqual(metadata);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test("drops malformed model directory metadata without dropping pricing", async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({
+        success: true,
+        data: [{
+          model_name: "gpt-5",
+          quota_type: 0,
+          model_ratio: 1,
+          completion_ratio: 1,
+          directory_metadata: { author: "OpenAI", providers: [], modalities: ["text"], context_tokens: 0 },
+        }],
+      }), { status: 200 }))) as typeof fetch;
+
+      const data = await getPricingData("plg");
+
+      expect(data.models).toHaveLength(1);
+      expect(data.models[0]?.directory_metadata).toBeUndefined();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("sortPricingModelsBySeries", () => {

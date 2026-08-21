@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-08-21T15:25:58.298Z",
-  "source": "https://console.flatkey.ai/api/website/pricing",
-  "modelCount": 91,
+  "generatedAt": "2026-08-21T15:26:15.572Z",
+  "source": "https://console.flatkey.ai/api/website/pricing?group=plg",
+  "modelCount": 89,
   "metadataCount": 0,
   "issues": [
     {
@@ -1498,48 +1498,6 @@
     {
       "modelId": "minimax-m2.7",
       "modelName": "minimax-m2.7",
-      "field": "metadata",
-      "status": "unknown-model",
-      "kind": "coverage",
-      "currentValue": "undefined",
-      "affectedFilters": [
-        "metadata",
-        "vendor",
-        "providers",
-        "modalities",
-        "context",
-        "series",
-        "categories",
-        "age",
-        "distillable"
-      ],
-      "backfillSqlEligible": false,
-      "reviewStatus": "pending"
-    },
-    {
-      "modelId": "mirothinker-1-7-deepresearch",
-      "modelName": "mirothinker-1-7-deepresearch",
-      "field": "metadata",
-      "status": "unknown-model",
-      "kind": "coverage",
-      "currentValue": "undefined",
-      "affectedFilters": [
-        "metadata",
-        "vendor",
-        "providers",
-        "modalities",
-        "context",
-        "series",
-        "categories",
-        "age",
-        "distillable"
-      ],
-      "backfillSqlEligible": false,
-      "reviewStatus": "pending"
-    },
-    {
-      "modelId": "mirothinker-1-7-deepresearch-mini",
-      "modelName": "mirothinker-1-7-deepresearch-mini",
       "field": "metadata",
       "status": "unknown-model",
       "kind": "coverage",

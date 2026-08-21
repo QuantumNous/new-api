@@ -43,9 +43,8 @@ import { directoryHref, parseDirectorySearch, toggleDirectoryFilter } from "@/li
 import type { GroupModelRatio, PricingModel, PricingVendor } from "@/lib/pricing";
 
 // The /models directory: a featured carousel, a faceted filter sidebar, and the
-// pricing table. All pricing, latency and health figures come from the live API
-// via buildRowsForModels; only the filter dimensions the API cannot supply come
-// from the static metadata table.
+// pricing table. Pricing and directory metadata both come from the public
+// pricing API; the database is the runtime source for every filter facet.
 
 type Props = {
   locale: Locale;
@@ -108,6 +107,7 @@ export function ModelsDirectory(props: Props) {
           // live payload so a reprice re-sorts on the next render.
           officialUsd: row.officialUsd,
           endpointTypes: row.endpointTypes,
+          metadata: row.directoryMetadata,
         })
       ),
     [finalPriced]
@@ -124,8 +124,8 @@ export function ModelsDirectory(props: Props) {
   );
 
   const groups = useMemo(
-    () => buildFilterGroups(props.locale, rows.map((row) => row.name)),
-    [props.locale, rows]
+    () => buildFilterGroups(props.locale, finalPriced.map((row) => row.directoryMetadata)),
+    [props.locale, finalPriced]
   );
   const featured = useMemo(() => buildFeaturedSlides(props.models.map((model) => model.model_name)), [props.models]);
   const canReset = hasActiveFilters(filters) || sort !== "rank";
@@ -316,7 +316,7 @@ function toTableRow(name: string, priced: Map<string, HomePricedModel>) {
   };
 }
 
-function buildFilterGroups(locale: Locale, modelNames: string[]): FilterGroup[] {
+function buildFilterGroups(locale: Locale, metadataRows: Array<HomePricedModel["directoryMetadata"]>): FilterGroup[] {
   const copy = getDirectoryCopy(locale);
   return [
     {
@@ -350,24 +350,24 @@ function buildFilterGroups(locale: Locale, modelNames: string[]): FilterGroup[] 
       key: "vendors",
       label: copy.groupVendors,
       defaultOpen: true,
-      options: vendorsForModels(modelNames).map((value) => ({ value, label: value })),
+      options: vendorsForModels(metadataRows).map((value) => ({ value, label: value })),
     },
     {
       key: "providers",
       label: copy.groupProviders,
       // Where each model is officially served. Sourced from the metadata table
       // because the pricing payload does not expose a routing map yet.
-      options: providersForModels(modelNames).map((value) => ({ value, label: value })),
+      options: providersForModels(metadataRows).map((value) => ({ value, label: value })),
     },
     {
       key: "series",
       label: copy.groupSeries,
-      options: seriesForModels(modelNames).map((value) => ({ value, label: value })),
+      options: seriesForModels(metadataRows).map((value) => ({ value, label: value })),
     },
     {
       key: "categories",
       label: copy.groupCategories,
-      options: categoriesForModels(modelNames).map((value) => ({ value, label: categoryLabel(locale, value) })),
+      options: categoriesForModels(metadataRows).map((value) => ({ value, label: categoryLabel(locale, value) })),
     },
     {
       key: "age",

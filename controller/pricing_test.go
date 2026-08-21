@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -353,6 +354,181 @@ func withWebsiteDisplayPricingBuilder(
 	buildWebsiteDisplayPricing = builder
 }
 
+func withModelDirectoryMetadataLoader(
+	t *testing.T,
+	loader func([]string) (map[string]model.ModelDirectoryMetadataView, error),
+) {
+	t.Helper()
+	invalidateWebsiteMetadataCache()
+	previous := getEnabledModelDirectoryMetadataMap
+	t.Cleanup(func() {
+		getEnabledModelDirectoryMetadataMap = previous
+		invalidateWebsiteMetadataCache()
+	})
+	getEnabledModelDirectoryMetadataMap = loader
+}
+
+func TestBuildWebsitePublicGroupPricingPayloadAttachesExactDirectoryMetadata(t *testing.T) {
+	pricing := []model.Pricing{
+		{ModelName: "gpt-5", EnableGroup: []string{"plg"}},
+		{ModelName: "gpt-5-mini", EnableGroup: []string{"plg"}},
+	}
+	metadata := model.ModelDirectoryMetadataView{
+		Author: "OpenAI", Providers: []string{"OpenAI"}, Modalities: []string{"text"},
+		Series: "GPT", Categories: []string{"coding"}, ReleasedAt: "2026-08-01",
+	}
+	var requested []string
+	withModelDirectoryMetadataLoader(t, func(modelNames []string) (map[string]model.ModelDirectoryMetadataView, error) {
+		requested = append([]string(nil), modelNames...)
+		return map[string]model.ModelDirectoryMetadataView{"gpt-5": metadata}, nil
+	})
+
+	payload := buildWebsitePublicGroupPricingPayload(pricing, nil, nil, nil, "plg", 0.9)
+	rows := payload["data"].([]model.Pricing)
+
+	require.Equal(t, []string{"gpt-5", "gpt-5-mini"}, requested)
+	require.Equal(t, &metadata, rows[0].DirectoryMetadata)
+	require.Nil(t, rows[1].DirectoryMetadata)
+	require.Nil(t, pricing[0].DirectoryMetadata, "source pricing cache must not be mutated")
+}
+
+func TestAttachModelDirectoryMetadataUsesIndependentPointersPerRow(t *testing.T) {
+	pricing := []model.Pricing{
+		{ModelName: "gpt-5", EnableGroup: []string{"plg"}},
+		{ModelName: "claude-4", EnableGroup: []string{"plg"}},
+	}
+	withModelDirectoryMetadataLoader(t, func([]string) (map[string]model.ModelDirectoryMetadataView, error) {
+		return map[string]model.ModelDirectoryMetadataView{
+			"gpt-5":    {Author: "OpenAI"},
+			"claude-4": {Author: "Anthropic"},
+		}, nil
+	})
+
+	rows := attachModelDirectoryMetadata(pricing)
+	require.NotNil(t, rows[0].DirectoryMetadata)
+	require.NotNil(t, rows[1].DirectoryMetadata)
+	require.NotSame(t, rows[0].DirectoryMetadata, rows[1].DirectoryMetadata)
+	require.Equal(t, "OpenAI", rows[0].DirectoryMetadata.Author)
+	require.Equal(t, "Anthropic", rows[1].DirectoryMetadata.Author)
+}
+
+func TestAttachModelDirectoryMetadataCachesLookupWithoutCachingPricingRows(t *testing.T) {
+	pricing := []model.Pricing{{ModelName: "gpt-5", EnableGroup: []string{"plg"}}}
+	lookupCount := 0
+	withModelDirectoryMetadataLoader(t, func([]string) (map[string]model.ModelDirectoryMetadataView, error) {
+		lookupCount++
+		return map[string]model.ModelDirectoryMetadataView{"gpt-5": {Author: "OpenAI"}}, nil
+	})
+
+	first := attachModelDirectoryMetadata(pricing)
+	second := attachModelDirectoryMetadata(pricing)
+
+	require.Equal(t, 1, lookupCount)
+	require.Nil(t, pricing[0].DirectoryMetadata)
+	require.NotSame(t, first[0].DirectoryMetadata, second[0].DirectoryMetadata)
+	require.Equal(t, "OpenAI", second[0].DirectoryMetadata.Author)
+}
+
+func TestAttachModelDirectoryMetadataRefreshesAfterCacheTTL(t *testing.T) {
+	previousNow := websiteMetadataNow
+	previousTTL := websiteMetadataCacheTTL
+	t.Cleanup(func() {
+		websiteMetadataNow = previousNow
+		websiteMetadataCacheTTL = previousTTL
+		invalidateWebsiteMetadataCache()
+	})
+	now := time.Unix(100, 0)
+	websiteMetadataNow = func() time.Time { return now }
+	websiteMetadataCacheTTL = time.Minute
+
+	lookupCount := 0
+	withModelDirectoryMetadataLoader(t, func([]string) (map[string]model.ModelDirectoryMetadataView, error) {
+		lookupCount++
+		return map[string]model.ModelDirectoryMetadataView{"gpt-5": {Author: "OpenAI"}}, nil
+	})
+	pricing := []model.Pricing{{ModelName: "gpt-5", EnableGroup: []string{"plg"}}}
+
+	attachModelDirectoryMetadata(pricing)
+	now = now.Add(59 * time.Second)
+	attachModelDirectoryMetadata(pricing)
+	require.Equal(t, 1, lookupCount)
+
+	now = now.Add(2 * time.Second)
+	attachModelDirectoryMetadata(pricing)
+	require.Equal(t, 2, lookupCount)
+}
+
+func TestAttachModelDirectoryMetadataCoalescesConcurrentCacheMisses(t *testing.T) {
+	previousTTL := websiteMetadataCacheTTL
+	t.Cleanup(func() {
+		websiteMetadataCacheTTL = previousTTL
+		invalidateWebsiteMetadataCache()
+	})
+	websiteMetadataCacheTTL = time.Hour
+
+	lookupCount := 0
+	var lookupMu sync.Mutex
+	withModelDirectoryMetadataLoader(t, func([]string) (map[string]model.ModelDirectoryMetadataView, error) {
+		lookupMu.Lock()
+		lookupCount++
+		lookupMu.Unlock()
+		time.Sleep(25 * time.Millisecond)
+		return map[string]model.ModelDirectoryMetadataView{"gpt-5": {Author: "OpenAI"}}, nil
+	})
+
+	pricing := []model.Pricing{{ModelName: "gpt-5", EnableGroup: []string{"plg"}}}
+	const callers = 16
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	for index := 0; index < callers; index++ {
+		go func() {
+			defer wg.Done()
+			rows := attachModelDirectoryMetadata(pricing)
+			require.NotNil(t, rows[0].DirectoryMetadata)
+		}()
+	}
+	wg.Wait()
+
+	lookupMu.Lock()
+	defer lookupMu.Unlock()
+	require.Equal(t, 1, lookupCount)
+}
+
+func TestCachedWebsiteMetadataDoesNotShareMutableFields(t *testing.T) {
+	withModelDirectoryMetadataLoader(t, func([]string) (map[string]model.ModelDirectoryMetadataView, error) {
+		contextTokens := int64(128000)
+		return map[string]model.ModelDirectoryMetadataView{
+			"gpt-5": {Providers: []string{"OpenAI"}, ContextTokens: &contextTokens},
+		}, nil
+	})
+	pricing := []model.Pricing{{ModelName: "gpt-5", EnableGroup: []string{"plg"}}}
+
+	first := attachModelDirectoryMetadata(pricing)
+	first[0].DirectoryMetadata.Providers[0] = "Mutated"
+	*first[0].DirectoryMetadata.ContextTokens = 1
+	second := attachModelDirectoryMetadata(pricing)
+
+	require.Equal(t, "OpenAI", second[0].DirectoryMetadata.Providers[0])
+	require.EqualValues(t, 128000, *second[0].DirectoryMetadata.ContextTokens)
+}
+
+func TestBuildWebsitePublicGroupPricingPayloadKeepsPricingWhenMetadataLookupFails(t *testing.T) {
+	pricing := []model.Pricing{
+		{ModelName: "gpt-5", EnableGroup: []string{"plg"}},
+		{ModelName: "gpt-5-mini", EnableGroup: []string{"plg"}},
+	}
+	withModelDirectoryMetadataLoader(t, func([]string) (map[string]model.ModelDirectoryMetadataView, error) {
+		return nil, errors.New("metadata database unavailable")
+	})
+
+	payload := buildWebsitePublicGroupPricingPayload(pricing, nil, nil, nil, "plg", 0.9)
+	rows := payload["data"].([]model.Pricing)
+
+	require.Len(t, rows, 2)
+	require.Nil(t, rows[0].DirectoryMetadata)
+	require.Nil(t, rows[1].DirectoryMetadata)
+}
+
 func withWebsitePricingModelSources(t *testing.T, pricing []model.Pricing) {
 	t.Helper()
 	previousPricingModels := getPricingModels
@@ -417,6 +593,9 @@ func TestBuildWebsitePricingPayloadDefaultIncludesDisplayPricingForVisibleModels
 	withGroupRatio(t, `{"default":1,"plg":0.9}`)
 	withUserUsableGroups(t, `{"default":"Default","plg":"PLG"}`)
 	withHiddenPricingModels(t, "hidden-model")
+	withModelDirectoryMetadataLoader(t, func([]string) (map[string]model.ModelDirectoryMetadataView, error) {
+		return map[string]model.ModelDirectoryMetadataView{}, nil
+	})
 	withWebsitePricingModelSources(t, []model.Pricing{
 		{ModelName: "captured-model", EnableGroup: []string{"plg", "vip"}},
 		{ModelName: "all-model", EnableGroup: []string{"all"}},
@@ -448,6 +627,22 @@ func TestBuildWebsitePricingPayloadDefaultIncludesDisplayPricingForVisibleModels
 	require.Contains(t, payload, "group_ratio")
 	require.Contains(t, payload, "group_model_ratio")
 	require.Contains(t, payload, "pricing_version")
+}
+
+func TestBuildWebsitePricingPayloadDefaultAttachesDirectoryMetadata(t *testing.T) {
+	withGroupRatio(t, `{"plg":0.9}`)
+	withUserUsableGroups(t, `{"plg":"PLG"}`)
+	metadata := model.ModelDirectoryMetadataView{Author: "OpenAI", Series: "GPT", Providers: []string{"OpenAI"}}
+	withModelDirectoryMetadataLoader(t, func(modelNames []string) (map[string]model.ModelDirectoryMetadataView, error) {
+		require.Equal(t, []string{"gpt-5"}, modelNames)
+		return map[string]model.ModelDirectoryMetadataView{"gpt-5": metadata}, nil
+	})
+	withWebsitePricingModelSources(t, []model.Pricing{{ModelName: "gpt-5", EnableGroup: []string{"plg"}}})
+
+	payload := buildWebsitePricingPayloadDefault()
+	rows := payload["data"].([]model.Pricing)
+	require.Len(t, rows, 1)
+	require.Equal(t, &metadata, rows[0].DirectoryMetadata)
 }
 
 func TestBuildWebsitePublicGroupPricingPayloadKeepsLegacyFieldsWhenDisplayPricingFails(t *testing.T) {

@@ -174,7 +174,18 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	})
 }
 
-func InitDB() (err error) {
+func InitDB() error {
+	return initDB(true)
+}
+
+// InitDBWithoutMigration opens the primary database for read-only workflows
+// such as import dry-runs. It deliberately skips all schema migrations and
+// other startup writes performed by InitDB.
+func InitDBWithoutMigration() error {
+	return initDB(false)
+}
+
+func initDB(runMigrations bool) (err error) {
 	db, err := chooseDB("SQL_DSN", false)
 	if err == nil {
 		if common.DebugEnabled {
@@ -195,7 +206,7 @@ func InitDB() (err error) {
 		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
-		if !common.IsMasterNode {
+		if !runMigrations || !common.IsMasterNode {
 			return nil
 		}
 		if common.UsingMySQL {
@@ -377,6 +388,7 @@ func orderedMigrationModels() []migrationModel {
 		{&AssetModelCoverageTarget{}, "AssetModelCoverageTarget"},
 		{&AssetModelReadiness{}, "AssetModelReadiness"},
 		{&Model{}, "Model"},
+		{&ModelDirectoryMetadata{}, "ModelDirectoryMetadata"},
 		{&Vendor{}, "Vendor"},
 		{&WebsiteFeaturedModel{}, "WebsiteFeaturedModel"},
 		{&PrefillGroup{}, "PrefillGroup"},

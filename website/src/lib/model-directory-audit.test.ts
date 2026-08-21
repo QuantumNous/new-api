@@ -388,6 +388,39 @@ describe("model directory metadata audit", () => {
 });
 
 describe("model directory audit CLI assembly", () => {
+  test("uses directory metadata attached by the database-backed pricing endpoint", () => {
+    const assembled = assembleAuditCatalogFromPricingPayload({
+      success: true,
+      data: [{
+        model_name: "gpt-test",
+        quota_type: 0,
+        model_ratio: 1,
+        completion_ratio: 1,
+        directory_metadata: {
+          author: "OpenAI",
+          providers: ["OpenAI"],
+          modalities: ["text"],
+          context_tokens: 128000,
+          series: "GPT",
+          categories: ["Programming"],
+          released_at: "2026-08-01",
+          distillable: false,
+        },
+      }],
+    });
+
+    expect(assembled.metadata["gpt-test"]).toEqual({
+      vendor: "OpenAI",
+      providers: ["OpenAI"],
+      modalities: ["text"],
+      contextTokens: 128000,
+      series: "GPT",
+      categories: ["Programming"],
+      releasedAt: "2026-08-01",
+      distillable: false,
+    });
+  });
+
   test("keeps live zero-priced catalogue records in the audit rows", () => {
     const rows = assembleAuditRowsFromPricingPayload({
       success: true,
@@ -527,6 +560,7 @@ describe("model directory audit CLI assembly", () => {
         billingUnit: "token",
         inputFilterUsd: 0.9,
         outputFilterUsd: 0,
+        outputPriceZeroAllowed: true,
       },
     ]);
 
@@ -537,8 +571,15 @@ describe("model directory audit CLI assembly", () => {
       metadata: { "input-only-token": COMPLETE_META },
     });
 
-    expect(issueKeys(report.issues)).toEqual(["invalid:input-only-token:outputFilterUsd"]);
-    expect(report.issues[0]?.currentValue).toBe(0);
+    expect(report.issues).toEqual([]);
+  });
+
+  test("accepts zero output pricing for an explicitly input-only model", () => {
+    const report = audit({
+      rows: [{ ...COMPLETE_ROW, outputFilterUsd: 0, outputPriceZeroAllowed: true }],
+    });
+
+    expect(report.issues).toEqual([]);
   });
 
   test("preserves display-priced zero as invalid current value instead of missing", () => {
@@ -627,6 +668,75 @@ describe("model directory audit CLI assembly", () => {
 });
 
 describe("model directory audit CLI runner", () => {
+	test("audits the full pricing scope by default", async () => {
+		let fetchedUrl = "";
+
+    await runModelDirectoryAuditCli({
+      env: { APP_CONSOLE_ORIGIN: "https://console.test", MODEL_DIRECTORY_AUDIT_OUT_DIR: "tmp/audit" },
+      fetchImpl: async (input) => {
+        fetchedUrl = String(input);
+        return new Response(JSON.stringify({ success: true, data: [] }), { status: 200 });
+      },
+      mkdirImpl: async () => {},
+      writeFileImpl: async () => {},
+      logImpl: () => {},
+      now: () => new Date("2026-08-21T00:00:00.000Z"),
+    });
+
+		expect(fetchedUrl).toBe("https://console.test/api/website/pricing");
+	});
+
+	test("uses an explicit group when the audit scope is configured", async () => {
+		let fetchedUrl = "";
+		const writtenPaths: string[] = [];
+
+		await runModelDirectoryAuditCli({
+			env: {
+				APP_CONSOLE_ORIGIN: "https://console.test",
+				MODEL_DIRECTORY_AUDIT_GROUP: "plg",
+				MODEL_DIRECTORY_AUDIT_OUT_DIR: "tmp/audit",
+			},
+			fetchImpl: async (input) => {
+				fetchedUrl = String(input);
+				return new Response(JSON.stringify({ success: true, data: [] }), { status: 200 });
+			},
+			mkdirImpl: async () => {},
+			writeFileImpl: async (path) => {
+				writtenPaths.push(String(path));
+			},
+			logImpl: () => {},
+			now: () => new Date("2026-08-21T00:00:00.000Z"),
+		});
+
+		expect(fetchedUrl).toBe("https://console.test/api/website/pricing?group=plg");
+		expect(writtenPaths.map((path) => path.replaceAll("\\", "/"))).toEqual([
+			"tmp/audit/production-model-directory-audit-plg.json",
+			"tmp/audit/production-model-directory-audit-plg.md",
+		]);
+	});
+
+	test("rejects unsupported audit groups before fetching or writing", async () => {
+		const calls: string[] = [];
+
+		await expect(
+			runModelDirectoryAuditCli({
+				env: { APP_CONSOLE_ORIGIN: "https://console.test", MODEL_DIRECTORY_AUDIT_GROUP: "internal" },
+				fetchImpl: async () => {
+					calls.push("fetch");
+					return new Response(JSON.stringify({ success: true, data: [] }), { status: 200 });
+				},
+				mkdirImpl: async () => {
+					calls.push("mkdir");
+				},
+				writeFileImpl: async () => {
+					calls.push("write");
+				},
+			})
+		).rejects.toThrow("unsupported audit group");
+
+		expect(calls).toEqual([]);
+	});
+
   test("rejects non-ok pricing fetch without writing or logging success", async () => {
     const calls: string[] = [];
 

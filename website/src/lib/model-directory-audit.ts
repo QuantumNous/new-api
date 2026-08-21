@@ -31,6 +31,8 @@ export type AuditModelDirectoryRow = {
   billingUnit?: string;
   inputFilterUsd?: number | null;
   outputFilterUsd?: number | null;
+  /** Input-only token models may legitimately have no output charge. */
+  outputPriceZeroAllowed?: boolean;
 };
 
 export type AuditModelDirectoryMetadata = {
@@ -233,7 +235,7 @@ function validateRowPricing(
     );
   }
   validatePrice(row, "inputFilterUsd", row.inputFilterUsd, ["inputPrice"], issues, suggestions);
-  validatePrice(row, "outputFilterUsd", row.outputFilterUsd, ["outputPrice"], issues, suggestions);
+  validatePrice(row, "outputFilterUsd", row.outputFilterUsd, ["outputPrice"], issues, suggestions, row.outputPriceZeroAllowed === true);
 }
 
 function validatePrice(
@@ -242,13 +244,14 @@ function validatePrice(
   value: number | null | undefined,
   affectedFilters: AffectedFilter[],
   issues: AuditIssue[],
-  suggestions: Record<string, TrustedSuggestion> | undefined
+  suggestions: Record<string, TrustedSuggestion> | undefined,
+  allowZero = false
 ) {
   if (value == null) {
     issues.push(makeIssue({ row, field, status: "missing", kind: "field", currentValue: value, affectedFilters, suggestions }));
     return;
   }
-  if (!Number.isFinite(value) || value <= 0) {
+  if (!Number.isFinite(value) || value < 0 || (value === 0 && !allowZero)) {
     issues.push(makeIssue({ row, field, status: "invalid", kind: "field", currentValue: value, affectedFilters, suggestions }));
   }
 }

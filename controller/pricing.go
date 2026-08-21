@@ -24,15 +24,28 @@ var (
 		body      []byte
 		expiresAt time.Time
 	}{}
-	buildWebsitePricingPayload = buildWebsitePricingPayloadDefault
-	buildWebsiteDisplayPricing = service.BuildWebsiteDisplayPricing
-	getPricingModels           = model.GetPricing
-	getPricingVendors          = model.GetVendors
-	getSupportedEndpointMap    = model.GetSupportedEndpointMap
+	websiteMetadataCacheTTL = time.Minute
+	websiteMetadataNow      = time.Now
+	websiteMetadataCache    = struct {
+		sync.RWMutex
+		entries map[string]websiteMetadataCacheEntry
+	}{entries: make(map[string]websiteMetadataCacheEntry)}
+	buildWebsitePricingPayload          = buildWebsitePricingPayloadDefault
+	buildWebsiteDisplayPricing          = service.BuildWebsiteDisplayPricing
+	getPricingModels                    = model.GetPricing
+	getPricingVendors                   = model.GetVendors
+	getSupportedEndpointMap             = model.GetSupportedEndpointMap
+	getEnabledModelDirectoryMetadataMap = model.GetEnabledModelDirectoryMetadataMap
 )
+
+type websiteMetadataCacheEntry struct {
+	metadata  map[string]model.ModelDirectoryMetadataView
+	expiresAt time.Time
+}
 
 func init() {
 	operation_setting.OnPricingVisibilityChanged(InvalidateWebsitePricingCache)
+	model.SetModelDirectoryMetadataChangedHook(InvalidateWebsitePricingCache)
 }
 
 // filterHiddenPricingModels 按后台配置的隐藏名单过滤定价列表。
@@ -236,10 +249,16 @@ func GetWebsitePricing(c *gin.Context) {
 
 func InvalidateWebsitePricingCache() {
 	websitePricingCache.Lock()
-	defer websitePricingCache.Unlock()
-
 	websitePricingCache.body = nil
 	websitePricingCache.expiresAt = time.Time{}
+	websitePricingCache.Unlock()
+	invalidateWebsiteMetadataCache()
+}
+
+func invalidateWebsiteMetadataCache() {
+	websiteMetadataCache.Lock()
+	websiteMetadataCache.entries = make(map[string]websiteMetadataCacheEntry)
+	websiteMetadataCache.Unlock()
 }
 
 func getCachedWebsitePricingJSON() ([]byte, error) {
@@ -275,6 +294,7 @@ func buildWebsitePricingPayloadDefault() gin.H {
 	usableGroup := service.GetUserUsableGroups("")
 	filteredPricing := filterHiddenPricingModels(filterPricingByUsableGroups(pricing, usableGroup))
 	filteredPricing = applyWebsiteFeaturedOrder(filteredPricing, getWebsiteFeaturedModelNames())
+	filteredPricing = attachModelDirectoryMetadata(filteredPricing)
 	groupRatio := map[string]float64{}
 	for group, ratio := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; ok {
@@ -305,6 +325,110 @@ func buildWebsiteDisplayPricingOrEmpty(pricing []model.Pricing, group string) ma
 	return displayPricing
 }
 
+func attachModelDirectoryMetadata(pricing []model.Pricing) []model.Pricing {
+	rows := append([]model.Pricing(nil), pricing...)
+	if len(rows) == 0 {
+		return rows
+	}
+
+	modelNames := make([]string, 0, len(rows))
+	for _, item := range rows {
+		if item.ModelName != "" {
+			modelNames = append(modelNames, item.ModelName)
+		}
+	}
+	metadataByName, err := getCachedEnabledModelDirectoryMetadataMap(modelNames)
+	if err != nil {
+		common.SysLog("failed to load model directory metadata: " + err.Error())
+		return rows
+	}
+	for index := range rows {
+		metadata, ok := metadataByName[rows[index].ModelName]
+		if !ok {
+			continue
+		}
+		metadataCopy := metadata
+		rows[index].DirectoryMetadata = &metadataCopy
+	}
+	return rows
+}
+
+func getCachedEnabledModelDirectoryMetadataMap(modelNames []string) (map[string]model.ModelDirectoryMetadataView, error) {
+	keyParts := make([]string, 0, len(modelNames))
+	seen := make(map[string]struct{}, len(modelNames))
+	for _, name := range modelNames {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		keyParts = append(keyParts, name)
+	}
+	sort.Strings(keyParts)
+	key := strings.Join(keyParts, "\x00")
+	now := websiteMetadataNow()
+
+	websiteMetadataCache.RLock()
+	entry, ok := websiteMetadataCache.entries[key]
+	if ok && now.Before(entry.expiresAt) {
+		metadata := cloneWebsiteMetadataMap(entry.metadata)
+		websiteMetadataCache.RUnlock()
+		return metadata, nil
+	}
+	websiteMetadataCache.RUnlock()
+
+	websiteMetadataCache.Lock()
+	defer websiteMetadataCache.Unlock()
+
+	// Re-check after acquiring the writer lock. This closes the miss race so a
+	// concurrent burst performs one database lookup instead of one per caller.
+	now = websiteMetadataNow()
+	if entry, ok := websiteMetadataCache.entries[key]; ok && now.Before(entry.expiresAt) {
+		return cloneWebsiteMetadataMap(entry.metadata), nil
+	}
+
+	metadata, err := getEnabledModelDirectoryMetadataMap(modelNames)
+	if err != nil {
+		return nil, err
+	}
+	websiteMetadataCache.entries[key] = websiteMetadataCacheEntry{
+		metadata:  cloneWebsiteMetadataMap(metadata),
+		expiresAt: now.Add(websiteMetadataCacheTTL),
+	}
+	return cloneWebsiteMetadataMap(metadata), nil
+}
+
+func cloneWebsiteMetadataMap(source map[string]model.ModelDirectoryMetadataView) map[string]model.ModelDirectoryMetadataView {
+	clone := make(map[string]model.ModelDirectoryMetadataView, len(source))
+	for name, metadata := range source {
+		clone[name] = cloneWebsiteMetadataView(metadata)
+	}
+	return clone
+}
+
+func cloneWebsiteMetadataView(source model.ModelDirectoryMetadataView) model.ModelDirectoryMetadataView {
+	clone := source
+	clone.Providers = append([]string(nil), source.Providers...)
+	clone.Modalities = append([]string(nil), source.Modalities...)
+	clone.Categories = append([]string(nil), source.Categories...)
+	if source.ContextTokens != nil {
+		value := *source.ContextTokens
+		clone.ContextTokens = &value
+	}
+	if source.PopularityRank != nil {
+		value := *source.PopularityRank
+		clone.PopularityRank = &value
+	}
+	if source.TopTenRank != nil {
+		value := *source.TopTenRank
+		clone.TopTenRank = &value
+	}
+	return clone
+}
+
 func buildWebsitePublicGroupPricingPayload(
 	pricing []model.Pricing,
 	vendors []model.PricingVendor,
@@ -320,6 +444,7 @@ func buildWebsitePublicGroupPricingPayload(
 	usableGroup := map[string]string{group: description}
 	visiblePricing := filterHiddenPricingModels(filterPricingByUsableGroups(pricing, usableGroup))
 	visiblePricing = applyWebsiteFeaturedOrder(visiblePricing, getWebsiteFeaturedModelNames())
+	visiblePricing = attachModelDirectoryMetadata(visiblePricing)
 
 	return gin.H{
 		"success":     true,

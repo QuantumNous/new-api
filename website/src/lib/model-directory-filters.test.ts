@@ -9,16 +9,59 @@ import {
   type DirectoryRow,
   type DirectoryFilters,
 } from "./model-directory-filters";
-import { ageBandFor, formatContextTokens, getModelMeta, priceBandFor, seriesForModels } from "./model-directory-meta";
-import { MODEL_DIRECTORY_META } from "./model-directory-meta-data";
+import { ageBandFor, formatContextTokens, priceBandFor, seriesForModels } from "./model-directory-meta";
+import type { ModelDirectoryMetadata } from "./pricing";
 import { directoryHref, directorySearchQuery, parseDirectorySearch, toggleDirectoryFilter } from "./model-directory-url";
 
 const NOW = new Date("2026-08-19T00:00:00Z");
 
+function metadata(
+  author: string,
+  series: string,
+  popularityRank: number,
+  overrides: Partial<ModelDirectoryMetadata> = {}
+): ModelDirectoryMetadata {
+  return {
+    author,
+    providers: [author],
+    modalities: ["text", "image"],
+    context_tokens: 128000,
+    series,
+    categories: ["Programming"],
+    released_at: "2026-04-06",
+    distillable: false,
+    popularity_rank: popularityRank,
+    ...overrides,
+  };
+}
+
+const TEST_METADATA: Record<string, ModelDirectoryMetadata> = {
+  "claude-opus-5": metadata("Anthropic", "Claude", 14, {
+    providers: ["Anthropic", "Claude Platform on AWS"],
+    context_tokens: 1048576,
+    top_ten_rank: 9,
+    released_at: "2026-08-04",
+  }),
+  "gpt-5.6-sol": metadata("OpenAI", "GPT", 23, {
+    providers: ["OpenAI", "Azure"], context_tokens: 1048576, top_ten_rank: 2, released_at: "2026-06-20",
+  }),
+  "gpt-4o-mini": metadata("OpenAI", "GPT", 24, { providers: ["OpenAI", "Azure"] }),
+  "deepseek-v4-pro": metadata("DeepSeek", "DeepSeek", 10, { top_ten_rank: 4, context_tokens: 1048576 }),
+  "seedance-2.5": metadata("ByteDance", "Seedance", 94, {
+    providers: ["ByteDance"], modalities: ["text", "image", "video"], context_tokens: null,
+    categories: ["Marketing"], top_ten_rank: 8, released_at: "2026-08-04",
+  }),
+  "gemini-2.5-flash": metadata("Google", "Gemini", 62, {
+    providers: ["Google"], modalities: ["text", "image", "file", "audio", "video"], context_tokens: 1048576,
+    released_at: "2025-05-26",
+  }),
+  "macaron-v1-venti": metadata("Macaron", "Macaron", 85, { providers: ["Macaron"], context_tokens: 1048576 }),
+};
+
 function rows(
   names: Array<{ name: string; vendor: string; inputUsd?: number; outputUsd?: number; officialUsd?: number }>
 ) {
-  return names.map((input) => buildDirectoryRow(input, NOW));
+  return names.map((input) => buildDirectoryRow({ ...input, metadata: TEST_METADATA[input.name] }, NOW));
 }
 
 const SAMPLE = rows([
@@ -204,7 +247,7 @@ describe("filter semantics", () => {
 
   test("the author comes from metadata, not the payload's placeholder vendor", () => {
     // The payload has no vendor for these, so getVendorName yields "AI".
-    const row = buildDirectoryRow({ name: "macaron-v1-venti", vendor: "AI" }, NOW);
+    const row = buildDirectoryRow({ name: "macaron-v1-venti", vendor: "AI", metadata: TEST_METADATA["macaron-v1-venti"] }, NOW);
     expect(row.author).toBe("Macaron");
     expect(filterDirectoryRows([row], withFilters({ vendors: ["Macaron"] }))).toHaveLength(1);
     expect(filterDirectoryRows([row], withFilters({ vendors: ["AI"] }))).toHaveLength(0);
@@ -212,8 +255,8 @@ describe("filter semantics", () => {
 
   test("providers is OR within itself and AND across groups", () => {
     const rows = [
-      buildDirectoryRow({ name: "claude-opus-5", vendor: "Anthropic" }, NOW),
-      buildDirectoryRow({ name: "gpt-5.6-sol", vendor: "OpenAI" }, NOW),
+      buildDirectoryRow({ name: "claude-opus-5", vendor: "Anthropic", metadata: TEST_METADATA["claude-opus-5"] }, NOW),
+      buildDirectoryRow({ name: "gpt-5.6-sol", vendor: "OpenAI", metadata: TEST_METADATA["gpt-5.6-sol"] }, NOW),
     ];
     // Claude Platform on AWS serves the Claude model but not the GPT one.
     const claudeOnly = filterDirectoryRows(rows, withFilters({ providers: ["Claude Platform on AWS"] }));
@@ -351,17 +394,10 @@ describe("unknown models degrade gracefully", () => {
     expect(filterDirectoryRows([unknown], withFilters({ inputPrice: ["2-5"] }))).toHaveLength(1);
   });
 
-  test("infer a series from the model name when the table has no entry", () => {
+  test("does not infer a series when database metadata is missing", () => {
     const inferred = buildDirectoryRow({ name: "claude-opus-9-future", vendor: "Anthropic" }, NOW);
-    expect(inferred.series).toBe("Claude");
-    expect(filterDirectoryRows([inferred], withFilters({ series: ["Claude"] }))).toHaveLength(1);
-  });
-
-  test("infer a series through a vendor/model namespace", () => {
-    // The catalogue serves some models as `vendor/model`; the series patterns
-    // anchor at the start, so the namespace has to be stripped first.
-    expect(buildDirectoryRow({ name: "bytedance/seedance-2.0-fast", vendor: "AI" }, NOW).series).toBe("Seedance");
-    expect(buildDirectoryRow({ name: "openai/gpt-9", vendor: "AI" }, NOW).series).toBe("GPT");
+    expect(inferred.series).toBeUndefined();
+    expect(filterDirectoryRows([inferred], withFilters({ series: ["Claude"] }))).toHaveLength(0);
   });
 });
 
@@ -465,26 +501,12 @@ describe("metadata table", () => {
     expect(formatContextTokens(null)).toBeUndefined();
   });
 
-  test("every entry carries the fields the filters depend on", () => {
-    for (const [name, meta] of Object.entries(MODEL_DIRECTORY_META)) {
-      expect(meta.series, `${name} series`).toBeTruthy();
-      expect(Array.isArray(meta.modalities), `${name} modalities`).toBe(true);
-      expect(Array.isArray(meta.categories), `${name} categories`).toBe(true);
-      expect(typeof meta.distillable, `${name} distillable`).toBe("boolean");
-      if (meta.releasedAt != null) {
-        expect(meta.releasedAt, `${name} releasedAt`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      }
-      if (meta.contextTokens != null) expect(meta.contextTokens, `${name} contextTokens`).toBeGreaterThan(0);
-    }
-  });
-
   test("series listing is ordered by the best rank in each family", () => {
-    const series = seriesForModels(["gpt-4o-mini", "deepseek-v4-flash", "claude-opus-5"]);
+    const series = seriesForModels([
+      metadata("OpenAI", "GPT", 24),
+      metadata("DeepSeek", "DeepSeek", 9),
+      metadata("Anthropic", "Claude", 14),
+    ]);
     expect(series).toEqual(["DeepSeek", "Claude", "GPT"]);
-  });
-
-  test("lookup is exact so a renamed model reports as missing rather than mismatched", () => {
-    expect(getModelMeta("claude-opus-5")).toBeDefined();
-    expect(getModelMeta("claude-opus-5 ")).toBeUndefined();
   });
 });

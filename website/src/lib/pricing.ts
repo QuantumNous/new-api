@@ -12,6 +12,19 @@ export type PricingVendor = {
   description?: string;
 };
 
+export type ModelDirectoryMetadata = {
+  author: string;
+  providers: string[];
+  modalities: Array<"text" | "image" | "file" | "audio" | "video">;
+  context_tokens: number | null;
+  series: string;
+  categories: string[];
+  released_at: string;
+  distillable: boolean;
+  popularity_rank?: number;
+  top_ten_rank?: number;
+};
+
 export type PricingModel = {
   id?: number;
   model_name: string;
@@ -44,6 +57,7 @@ export type PricingModel = {
   availability_reason?: string;
   availability_detected_at?: number;
   availability_checked_at?: number;
+  directory_metadata?: ModelDirectoryMetadata;
 };
 
 export type DisplayPricingUnit = "per_second" | "request" | "token" | "tiered_expr";
@@ -142,7 +156,7 @@ export async function getPricingData(group?: string): Promise<PricingData> {
     if (!payload.success) return emptyPricingData();
     const displayPricing = parseDisplayPricingMap(payload.display_pricing);
     return {
-      models: (payload.data ?? []).map((model) => attachDisplayPricing(model, displayPricing)),
+      models: (payload.data ?? []).map((model) => attachPricingPayloadData(model, displayPricing)),
       vendors: payload.vendors ?? [],
       groupRatio: payload.group_ratio ?? {},
       groupModelRatio: payload.group_model_ratio ?? {},
@@ -434,9 +448,73 @@ function getGroupRatio(model: PricingModel, group: string, fallbackGroupRatio: R
   return 1;
 }
 
-function attachDisplayPricing(model: PricingModel, displayPricing: Record<string, ModelDisplayPricing>): PricingModel {
+function attachPricingPayloadData(model: PricingModel, displayPricing: Record<string, ModelDisplayPricing>): PricingModel {
   const parsed = displayPricing[model.model_name];
-  return parsed ? { ...model, display_pricing: parsed } : model;
+  const directoryMetadata = parseModelDirectoryMetadata(model.directory_metadata);
+  return {
+    ...model,
+    ...(parsed ? { display_pricing: parsed } : {}),
+    ...(directoryMetadata ? { directory_metadata: directoryMetadata } : { directory_metadata: undefined }),
+  };
+}
+
+function parseModelDirectoryMetadata(value: unknown): ModelDirectoryMetadata | null {
+  if (!isRecord(value)) return null;
+  const author = parseRequiredString(value.author);
+  const providers = parseRequiredStringArray(value.providers);
+  const modalities = parseRequiredStringArray(value.modalities);
+  const series = parseRequiredString(value.series);
+  const categories = parseRequiredStringArray(value.categories);
+  const releasedAt = parseRequiredString(value.released_at);
+  const contextTokens = value.context_tokens;
+  if (
+    !author ||
+    !providers ||
+    !modalities ||
+    !modalities.every(isDirectoryModality) ||
+    !series ||
+    !categories ||
+    !releasedAt ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(releasedAt) ||
+    typeof value.distillable !== "boolean" ||
+    !(contextTokens === null || (typeof contextTokens === "number" && Number.isInteger(contextTokens) && contextTokens > 0))
+  ) {
+    return null;
+  }
+  const popularityRank = parseOptionalPositiveInteger(value.popularity_rank);
+  const topTenRank = parseOptionalPositiveInteger(value.top_ten_rank);
+  if (value.popularity_rank != null && popularityRank == null) return null;
+  if (value.top_ten_rank != null && (topTenRank == null || topTenRank > 10)) return null;
+  return {
+    author,
+    providers,
+    modalities: modalities as ModelDirectoryMetadata["modalities"],
+    context_tokens: contextTokens,
+    series,
+    categories,
+    released_at: releasedAt,
+    distillable: value.distillable,
+    ...(popularityRank == null ? {} : { popularity_rank: popularityRank }),
+    ...(topTenRank == null ? {} : { top_ten_rank: topTenRank }),
+  };
+}
+
+function parseRequiredString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+function parseRequiredStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const parsed = value.map(parseRequiredString);
+  return parsed.every((item): item is string => item != null) && new Set(parsed).size === parsed.length ? parsed : null;
+}
+
+function parseOptionalPositiveInteger(value: unknown): number | null {
+  return value == null ? null : typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function isDirectoryModality(value: string): value is ModelDirectoryMetadata["modalities"][number] {
+  return value === "text" || value === "image" || value === "file" || value === "audio" || value === "video";
 }
 
 function parseDisplayPricingMap(value: unknown): Record<string, ModelDisplayPricing> {

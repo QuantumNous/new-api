@@ -1,12 +1,11 @@
 import {
   ageBandFor,
-  getModelMeta,
-  inferSeries,
   priceBandFor,
   type AgeBand,
   type Modality,
   type PriceBandId,
 } from "./model-directory-meta";
+import type { ModelDirectoryMetadata } from "./pricing";
 
 // Filter engine for the /models directory. Mirrors the prototype's semantics:
 //
@@ -116,30 +115,31 @@ export type DirectoryRowInput = {
   /** Official (pre-discount) input rate, for the discount sort. */
   officialUsd?: number;
   endpointTypes?: string[];
+  metadata?: ModelDirectoryMetadata;
 };
 
 export function buildDirectoryRow(input: DirectoryRowInput, now: Date = new Date()): DirectoryRow {
-  const meta = getModelMeta(input.name);
-  const series = meta?.series ?? inferSeries(input.name);
+  const meta = input.metadata;
+  const series = meta?.series;
   return {
     name: input.name,
     vendor: input.vendor,
-    searchText: [input.name, input.vendor, meta?.vendor ?? "", series ?? "", ...(meta?.categories ?? []), ...(input.endpointTypes ?? [])]
+    searchText: [input.name, input.vendor, meta?.author ?? "", series ?? "", ...(meta?.categories ?? []), ...(input.endpointTypes ?? [])]
       .join(" ")
       .toLowerCase(),
     series,
-    author: meta?.vendor ?? input.vendor,
+    author: meta?.author ?? input.vendor,
     providers: meta?.providers ?? [],
     modalities: meta?.modalities ?? [],
-    contextTokens: meta?.contextTokens ?? null,
+    contextTokens: meta?.context_tokens ?? null,
     categories: meta?.categories ?? [],
     distillable: meta?.distillable,
-    age: ageBandFor(meta?.releasedAt, now),
+    age: ageBandFor(meta?.released_at, now),
     inputBand: priceBandFor(input.inputUsd ?? undefined),
     outputBand: priceBandFor(input.outputUsd ?? undefined),
-    rank: meta?.rank ?? Number.MAX_SAFE_INTEGER,
-    top10: meta?.top10,
-    releasedAt: meta?.releasedAt,
+    rank: meta?.popularity_rank ?? Number.MAX_SAFE_INTEGER,
+    top10: meta?.top_ten_rank,
+    releasedAt: meta?.released_at,
     saving: savingRatio(input.officialUsd, input.inputUsd ?? undefined),
   };
 }
