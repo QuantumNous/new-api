@@ -91,7 +91,7 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
   if (hasAny(['ernie'])) {
     return { icon: 'Wenxin.Color', label: 'Baidu' }
   }
-  if (hasAny(['spark'])) {
+  if (hasAny(['iflytek', 'sparkdesk'])) {
     return { icon: 'Spark.Color', label: 'iFlyTek' }
   }
   if (hasAny(['hunyuan'])) {
@@ -112,7 +112,7 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
   if (hasAny(['mistral-', 'mixtral-'])) {
     return { icon: 'Mistral.Color', label: 'Mistral' }
   }
-  if (hasAny(['llama-', 'meta-'])) {
+  if (hasAny(['muse-spark', 'llama-', 'meta-'])) {
     return { icon: 'Meta.Color', label: 'Meta' }
   }
   if (hasAny(['command-', 'cohere-'])) {
