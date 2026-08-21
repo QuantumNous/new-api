@@ -230,6 +230,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			if channel != nil {
+				service.ClearChannelErrorStreak(channel.Id)
+			}
 			return
 		}
 
@@ -365,9 +368,12 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
-		gopool.Go(func() {
-			service.DisableChannel(channelError, err.ErrorWithStatusCode())
-		})
+		userID := c.GetInt("id")
+		if service.RecordChannelErrorAndShouldDisable(channelError.ChannelId, userID) {
+			gopool.Go(func() {
+				service.DisableChannel(channelError, err.ErrorWithStatusCode())
+			})
+		}
 	}
 
 	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
@@ -556,6 +562,9 @@ func RelayTask(c *gin.Context) {
 
 		result, taskErr = relay.RelayTaskSubmit(c, relayInfo)
 		if taskErr == nil {
+			if channel != nil {
+				service.ClearChannelErrorStreak(channel.Id)
+			}
 			break
 		}
 

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -25,6 +26,20 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	clientConn := info.ClientWs
 	targetConn := info.TargetWs
 
+	// F-39: an idle WebSocket (no client messages, no pings) must not hold the
+	// connection forever (slowloris resource exhaustion, uncharged idle
+	// sessions). Enforce a message-size cap and a read deadline refreshed on
+	// activity; gorilla auto-replies to client pings, and the pong handler
+	// refreshes the deadline so well-behaved keep-alive clients stay alive.
+	const realtimeReadLimit = 8 << 20
+	const realtimeReadTimeout = 90 * time.Second
+	clientConn.SetReadLimit(realtimeReadLimit)
+	clientConn.SetPongHandler(func(string) error {
+		return clientConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
+	})
+	targetConn.SetReadLimit(realtimeReadLimit)
+	targetConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
+
 	clientClosed := make(chan struct{})
 	targetClosed := make(chan struct{})
 	sendChan := make(chan []byte, 100)
@@ -46,6 +61,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 			case <-c.Done():
 				return
 			default:
+				_ = clientConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
 				_, message, err := clientConn.ReadMessage()
 				if err != nil {
 					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -106,6 +122,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 			case <-c.Done():
 				return
 			default:
+				_ = targetConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
 				_, message, err := targetConn.ReadMessage()
 				if err != nil {
 					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -209,6 +226,11 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 		logger.LogError(c, "realtime error: "+err.Error())
 	case <-c.Done():
 	}
+
+	// Close both connections so whichever reader is still blocked in
+	// ReadMessage unblocks promptly instead of waiting out the read deadline.
+	_ = clientConn.Close()
+	_ = targetConn.Close()
 
 	if usage.TotalTokens != 0 {
 		_ = preConsumeUsage(c, info, usage, sumUsage)

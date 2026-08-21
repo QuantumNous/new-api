@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -10,6 +12,67 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
+
+// channelDisableWindow / channelDisableThreshold / channelDisableMinUsers
+// implement a windowed, multi-user gate before an upstream error may
+// auto-disable a channel. F-24: without a gate, a single request that hits an
+// upstream quota/rate-limit message (e.g. "You exceeded your current quota")
+// disables the whole channel for every user. Requiring several error events
+// from at least two distinct users inside a short window makes accidental or
+// single-account triggered disables materially harder while still catching
+// genuinely broken channels.
+const (
+	channelDisableErrorWindow      = 60 * time.Second
+	channelDisableErrorThreshold   = 3
+	channelDisableMinDistinctUsers = 2
+)
+
+type channelErrorStreak struct {
+	mu          sync.Mutex
+	windowStart time.Time
+	users       map[int]struct{}
+	count       int
+}
+
+var channelErrorStreaks sync.Map // channelID int -> *channelErrorStreak
+
+// RecordChannelErrorAndShouldDisable records an auto-ban-worthy error for a
+// channel and reports whether the disable threshold has been crossed.
+func RecordChannelErrorAndShouldDisable(channelID int, userID int) bool {
+	if userID <= 0 {
+		// Unauthenticated/background errors: treat as one distinct pseudo-user
+		// so a genuinely broken channel still converges with enough events.
+		userID = -1
+	}
+	now := time.Now()
+	raw, _ := channelErrorStreaks.LoadOrStore(channelID, &channelErrorStreak{
+		windowStart: now,
+		users:       make(map[int]struct{}),
+	})
+	s := raw.(*channelErrorStreak)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if now.Sub(s.windowStart) > channelDisableErrorWindow {
+		s.windowStart = now
+		s.users = make(map[int]struct{})
+		s.count = 0
+	}
+	s.users[userID] = struct{}{}
+	s.count++
+	if s.count >= channelDisableErrorThreshold && len(s.users) >= channelDisableMinDistinctUsers {
+		// Only delete the streak if it is still the live entry: a concurrent
+		// ClearChannelErrorStreak plus a new error may have replaced it, and
+		// deleting the new streak would discard fresh error events.
+		return channelErrorStreaks.CompareAndDelete(channelID, s)
+	}
+	return false
+}
+
+// ClearChannelErrorStreak resets the disable gate for a channel after a
+// successful request.
+func ClearChannelErrorStreak(channelID int) {
+	channelErrorStreaks.Delete(channelID)
+}
 
 func formatNotifyType(channelId int, status int) string {
 	return fmt.Sprintf("%s_%d_%d", dto.NotifyTypeChannelUpdate, channelId, status)
