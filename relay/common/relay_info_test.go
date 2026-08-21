@@ -176,3 +176,21 @@ func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	info.InitChannelMeta(ctx)
 	assert.Equal(t, "max", info.ReasoningEffort)
 }
+
+func TestRelayInfoConvOptionsCopiesAnthropicMessagesExcludeCache(t *testing.T) {
+	enabled := &RelayInfo{
+		ChannelMeta: &ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{AnthropicMessagesExcludeCache: true},
+		},
+	}
+	assert.True(t, enabled.ConvOptions().Claude.AnthropicMessagesExcludeCache)
+
+	unset := &RelayInfo{ChannelMeta: &ChannelMeta{}}
+	assert.False(t, unset.ConvOptions().Claude.AnthropicMessagesExcludeCache)
+
+	noMeta := &RelayInfo{}
+	assert.False(t, noMeta.ConvOptions().Claude.AnthropicMessagesExcludeCache)
+
+	var nilInfo *RelayInfo
+	assert.False(t, nilInfo.ConvOptions().Claude.AnthropicMessagesExcludeCache)
+}

@@ -36,6 +36,11 @@ type ClaudeOptions struct {
 	// standalone relaykit users must supply one or guarantee max_tokens on
 	// every request.
 	DefaultMaxTokens func(modelName string) int
+	// AnthropicMessagesExcludeCache subtracts cache read and cache creation
+	// from Anthropic Messages input_tokens because the upstream counted those
+	// tokens inside prompt_tokens, and zeros message_start input so clients
+	// do not keep the pre-usage estimate. Default false.
+	AnthropicMessagesExcludeCache bool
 }
 
 type GeminiOptions struct {
