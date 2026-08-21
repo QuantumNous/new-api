@@ -26,7 +26,7 @@ import type { z } from 'zod'
 
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
-import { Turnstile } from '@/components/turnstile'
+import { Captcha } from '@/components/captcha'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -44,7 +44,7 @@ import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
-import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
+import { useCaptcha } from '@/features/auth/hooks/use-captcha'
 import {
   getAffiliateCode,
   saveAffiliateCode,
@@ -65,17 +65,19 @@ export function SignUpForm({
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [captchaWidgetKey, setCaptchaWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
   const {
-    isTurnstileEnabled,
-    turnstileSiteKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-  } = useTurnstile()
+    provider: captchaProvider,
+    isCaptchaEnabled,
+    captchaSiteKey,
+    captchaToken,
+    setCaptchaToken,
+    captcha,
+    validateCaptcha,
+  } = useCaptcha('register')
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
@@ -83,8 +85,8 @@ export function SignUpForm({
     isActive,
     sendCode,
   } = useEmailVerification({
-    turnstileToken,
-    validateTurnstile,
+    captcha,
+    validateCaptcha,
   })
 
   const form = useForm<z.infer<typeof registerFormSchema>>({
@@ -107,7 +109,7 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
+  const captchaReady = !isCaptchaEnabled || Boolean(captchaToken)
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -156,7 +158,7 @@ export function SignUpForm({
       }
     }
 
-    if (!validateTurnstile()) return
+    if (!validateCaptcha()) return
 
     setIsLoading(true)
     try {
@@ -166,13 +168,15 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
-        turnstile: turnstileToken,
+        captcha,
       })
 
       if (res?.success) {
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {
+        setCaptchaToken('')
+        setCaptchaWidgetKey((current) => current + 1)
         toast.error(res?.message || t('Failed to create account'))
       }
     } catch {
@@ -184,8 +188,8 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     if (await sendCode(emailValue || '')) {
-      setTurnstileToken('')
-      setTurnstileWidgetKey((current) => current + 1)
+      setCaptchaToken('')
+      setCaptchaWidgetKey((current) => current + 1)
     }
   }
 
@@ -336,7 +340,7 @@ export function SignUpForm({
                   isSendingCode ||
                   isActive ||
                   !emailValue ||
-                  !turnstileReady
+                  !captchaReady
                 }
                 onClick={handleSendVerificationCode}
               >
@@ -346,13 +350,15 @@ export function SignUpForm({
           </>
         )}
 
-        {/* Turnstile */}
-        {isTurnstileEnabled && (
+        {/* Captcha */}
+        {isCaptchaEnabled && (
           <div className='mt-2'>
-            <Turnstile
-              key={turnstileWidgetKey}
-              siteKey={turnstileSiteKey}
-              onVerify={setTurnstileToken}
+            <Captcha
+              key={captchaWidgetKey}
+              provider={captchaProvider}
+              captchaKey={captchaSiteKey}
+              purpose='register'
+              onVerify={setCaptchaToken}
             />
           </div>
         )}
@@ -371,7 +377,7 @@ export function SignUpForm({
           disabled={
             isLoading ||
             (requiresLegalConsent && !agreedToLegal) ||
-            !turnstileReady
+            !captchaReady
           }
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}

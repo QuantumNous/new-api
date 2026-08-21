@@ -203,13 +203,58 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "TurnstileCheckEnabled":
-		if option.Value == "true" && common.TurnstileSiteKey == "" {
+		if option.Value == "true" && (common.TurnstileSiteKey == "" || common.TurnstileSecretKey == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
+				"message": "无法启用 Turnstile 校验，请先填写 Site Key 和 Secret Key！",
 			})
 
 			return
+		}
+		// 多验证渠道互斥：启用 Turnstile 时自动禁用 GeeTest 与 Corptcha
+		if option.Value == "true" {
+			for _, key := range []string{"GeeTestCheckEnabled", "CorptchaCheckEnabled"} {
+				if err := model.UpdateOption(key, "false"); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+			}
+		}
+	case "GeeTestCheckEnabled":
+		if option.Value == "true" && (common.GeeTestCaptchaId == "" || common.GeeTestCaptchaKey == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 GeeTest 校验，请先填写 Captcha ID 和 Captcha Key！",
+			})
+
+			return
+		}
+		// 多验证渠道互斥：启用 GeeTest 时自动禁用 Turnstile 与 Corptcha
+		if option.Value == "true" {
+			for _, key := range []string{"TurnstileCheckEnabled", "CorptchaCheckEnabled"} {
+				if err := model.UpdateOption(key, "false"); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+			}
+		}
+	case "CorptchaCheckEnabled":
+		if option.Value == "true" && (common.CorptchaSiteId == "" || common.CorptchaSecret == "") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 Corptcha 校验，请先填写 Site ID 和 Secret！",
+			})
+
+			return
+		}
+		// 多验证渠道互斥：启用 Corptcha 时自动禁用 Turnstile 与 GeeTest
+		if option.Value == "true" {
+			for _, key := range []string{"TurnstileCheckEnabled", "GeeTestCheckEnabled"} {
+				if err := model.UpdateOption(key, "false"); err != nil {
+					common.ApiError(c, err)
+					return
+				}
+			}
 		}
 	case "TelegramOAuthEnabled":
 		if option.Value == "true" && common.TelegramBotToken == "" {

@@ -157,6 +157,15 @@ export type AuthSettings = {
   TurnstileCheckEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
+  GeeTestCheckEnabled: boolean
+  GeeTestCaptchaId: string
+  GeeTestCaptchaKey: string
+  CorptchaCheckEnabled: boolean
+  CorptchaSiteId: string
+  CorptchaSecret: string
+  CaptchaLoginEnabled: boolean
+  CaptchaRegisterEnabled: boolean
+  CaptchaResetEnabled: boolean
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string

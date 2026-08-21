@@ -67,6 +67,12 @@ var LinuxDOOAuthEnabled = false
 var WeChatAuthEnabled = false
 var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
+var GeeTestCheckEnabled = false
+
+// 人机验证保护的应用场景开关，默认全部开启
+var CaptchaLoginEnabled = true
+var CaptchaRegisterEnabled = true
+var CaptchaResetEnabled = true
 var RegisterEnabled = true
 
 var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
@@ -117,6 +123,15 @@ var WeChatAccountQRCodeImageURL = ""
 
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
+
+var GeeTestCaptchaId = ""
+var GeeTestCaptchaKey = ""
+var GeeTestApiServer = "https://gcaptcha4.geetest.com"
+
+var CorptchaCheckEnabled = false
+var CorptchaSiteId = ""
+var CorptchaSecret = ""
+var CorptchaApiServer = "https://cpt-api.25y.cn"
 
 var TelegramBotToken = ""
 var TelegramBotName = ""
