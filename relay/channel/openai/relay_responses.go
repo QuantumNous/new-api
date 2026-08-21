@@ -30,6 +30,9 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if hasResponsesFailedStatus(responsesResponse.Status) {
+		return nil, newResponsesFailedError(c, &responsesResponse, resp.StatusCode)
+	}
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
@@ -84,6 +87,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var responseTextBuilder strings.Builder
 	imageCounter := &relaycommon.ImageGenerationCallCounter{}
 	imageCommitted := false
+	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -92,6 +96,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 			sr.Error(err)
+			return
+		}
+		if streamResponse.Type == "response.failed" {
+			streamErr = newResponsesFailedError(c, streamResponse.Response, resp.StatusCode)
+			sendResponsesStreamData(c, streamResponse, data)
+			sr.Stop(streamErr)
 			return
 		}
 		sendResponsesStreamData(c, streamResponse, data)
@@ -131,7 +141,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				imageCounter.Commit(info)
 				imageCommitted = true
 			}
-		case "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+		case "response.incomplete", "response.cancelled", "response.canceled":
 			if !imageCommitted {
 				imageCounter.Reset()
 				imageCounter.Commit(info)
@@ -157,6 +167,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+	if streamErr != nil {
+		return nil, streamErr
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
