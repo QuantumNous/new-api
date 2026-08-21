@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Check, RotateCcw, Send, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CodeBlockEditor } from '@/components/ai-elements/code-block'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 
 import { getMessageEditorState } from '../../lib'
@@ -45,28 +47,44 @@ export function PlaygroundMessageEditor({
   originalText,
 }: PlaygroundMessageEditorProps) {
   const { t } = useTranslation()
+  const [showLeaveDialog, setShowLeaveDialog] = useState(false)
   const { canSave, hasChanged, showSaveAndSubmit } = getMessageEditorState(
     message,
     editText,
     originalText
   )
 
+  useEffect(() => {
+    if (!hasChanged) return
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+      return ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasChanged])
+
+  const leaveEdit = () => {
+    setShowLeaveDialog(false)
+    onCancelEdit?.(false)
+  }
+
   const handleCancel = () => {
-    if (
-      hasChanged &&
-      !window.confirm(
-        t('You have unsaved changes. Are you sure you want to leave?')
-      )
-    ) {
+    if (hasChanged) {
+      setShowLeaveDialog(true)
       return
     }
 
-    onCancelEdit?.(false)
+    leaveEdit()
   }
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
       event.preventDefault()
+      if (showLeaveDialog) return
       handleCancel()
       return
     }
@@ -133,23 +151,37 @@ export function PlaygroundMessageEditor({
   )
 
   return (
-    <CodeBlockEditor
-      actions={editorActions}
-      ariaLabel={t('Edit')}
-      className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch] group-[.is-user]:max-w-[85%] sm:group-[.is-user]:max-w-[62ch] md:group-[.is-user]:max-w-[68ch] lg:group-[.is-user]:max-w-[72ch]'
-      language='markdown'
-      onChange={onEditTextChange}
-      onKeyDown={handleKeyDown}
-      rows={8}
-      title={
-        <span className='inline-flex items-center gap-2'>
-          <span>{t('Edit')}</span>
-          <span className='text-muted-foreground/80 normal-case'>
-            {hasChanged ? t('Unsaved changes') : t('No changes')}
+    <>
+      <CodeBlockEditor
+        actions={editorActions}
+        ariaLabel={t('Edit')}
+        className='my-0 group-[.is-assistant]:w-full group-[.is-assistant]:max-w-[78ch] group-[.is-user]:max-w-[85%] sm:group-[.is-user]:max-w-[62ch] md:group-[.is-user]:max-w-[68ch] lg:group-[.is-user]:max-w-[72ch]'
+        language='markdown'
+        onChange={onEditTextChange}
+        onKeyDown={handleKeyDown}
+        rows={8}
+        title={
+          <span className='inline-flex items-center gap-2'>
+            <span>{t('Edit')}</span>
+            <span className='text-muted-foreground/80 normal-case'>
+              {hasChanged ? t('Unsaved changes') : t('No changes')}
+            </span>
           </span>
-        </span>
-      }
-      value={editText}
-    />
+        }
+        value={editText}
+      />
+      <ConfirmDialog
+        cancelBtnText={t('Stay')}
+        confirmText={t('Leave')}
+        desc={t('You have unsaved changes. Are you sure you want to leave?')}
+        destructive
+        handleConfirm={leaveEdit}
+        onOpenChange={(open) => {
+          if (!open) setShowLeaveDialog(false)
+        }}
+        open={showLeaveDialog}
+        title={t('Unsaved changes')}
+      />
+    </>
   )
 }
