@@ -1,11 +1,9 @@
 package openai
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -83,72 +81,11 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	}
 	defer service.CloseResponseBodyGracefully(resp)
 
-	accumulator := relayconvert.NewResponsesBufferedAccumulator()
-	var finalResponse *dto.OpenAIResponsesResponse
-	var streamErr *types.NewAPIError
-
-	scanner := helper.NewStreamScanner(resp.Body)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if len(line) < 6 || line[:5] != "data:" {
-			continue
-		}
-		data := line[5:]
-		data = strings.TrimSpace(data)
-		if data == "" || data == "[DONE]" {
-			if data == "[DONE]" {
-				break
-			}
-			continue
-		}
-
-		var streamResp dto.ResponsesStreamResponse
-		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
-			logger.LogError(c, "failed to unmarshal buffered responses stream event: "+err.Error())
-			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-			break
-		}
-		accumulator.ProcessEvent(&streamResp)
-		switch streamResp.Type {
-		case "response.completed", "response.done", "response.incomplete":
-			finalResponse = streamResp.Response
-			if streamResp.Type == "response.incomplete" {
-				if finalResponse == nil {
-					finalResponse = &dto.OpenAIResponsesResponse{}
-				}
-				if len(finalResponse.Status) == 0 {
-					finalResponse.Status = []byte(`"incomplete"`)
-				}
-			}
-		case "response.failed", "response.error":
-			if streamResp.Response != nil {
-				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
-					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
-					break
-				}
-			}
-			streamErr = types.NewOpenAIError(fmt.Errorf("responses stream error: %s", streamResp.Type), types.ErrorCodeBadResponse, http.StatusInternalServerError)
-		}
-		if streamErr != nil || finalResponse != nil {
-			break
-		}
+	buffered, apiErr := bufferResponsesStreamFinalResponse(c, info, resp)
+	if apiErr != nil {
+		return nil, apiErr
 	}
-	if streamErr != nil {
-		return nil, streamErr
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
-	}
-	if finalResponse == nil {
-		finalResponse = &dto.OpenAIResponsesResponse{
-			ID:        helper.GetResponseID(c),
-			CreatedAt: int(time.Now().Unix()),
-			Model:     info.UpstreamModelName,
-			Status:    []byte(`"completed"`),
-		}
-	}
-	accumulator.SupplementResponseOutput(finalResponse)
+	finalResponse := buffered.response
 
 	chatResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatOpenAI, finalResponse)
 	if err != nil {
@@ -181,6 +118,7 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
 	}
 
+	setBufferedJSONResponseContentType(resp)
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 	return usage, nil
 }

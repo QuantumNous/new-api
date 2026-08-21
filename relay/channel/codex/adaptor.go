@@ -1,8 +1,10 @@
 package codex
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -110,6 +112,27 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if info != nil && info.RelayMode == relayconstant.RelayModeResponses {
+		body, err := io.ReadAll(requestBody)
+		if err != nil {
+			return nil, fmt.Errorf("read codex responses request body: %w", err)
+		}
+
+		var fields map[string]json.RawMessage
+		if err := common.Unmarshal(body, &fields); err != nil {
+			return nil, fmt.Errorf("decode codex responses request body: %w", err)
+		}
+		if fields == nil {
+			return nil, errors.New("codex responses request body must be a JSON object")
+		}
+		fields["stream"] = json.RawMessage("true")
+		body, err = common.Marshal(fields)
+		if err != nil {
+			return nil, fmt.Errorf("encode codex responses request body: %w", err)
+		}
+		requestBody = bytes.NewReader(body)
+	}
+
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
@@ -123,6 +146,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeResponses:
 		if info.IsStream {
 			return openai.OaiResponsesStreamHandler(c, info, resp)
+		}
+		// Codex Responses requests are always streamed upstream by DoRequest;
+		// buffer the SSE stream into one JSON response for non-streaming clients.
+		if resp != nil && strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
+			return openai.OaiResponsesBufferedStreamHandler(c, info, resp)
 		}
 		return openai.OaiResponsesHandler(c, info, resp)
 	default:
@@ -190,7 +218,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,
 	// which can be rejected by the upstream. Force the exact media type.
 	req.Set("Content-Type", "application/json")
-	if info.IsStream {
+	// RelayModeResponses is always streamed upstream by DoRequest, so its Accept
+	// must ask for SSE even when the client requested a buffered response.
+	if info.IsStream || info.RelayMode == relayconstant.RelayModeResponses {
 		req.Set("Accept", "text/event-stream")
 	} else if req.Get("Accept") == "" {
 		req.Set("Accept", "application/json")
