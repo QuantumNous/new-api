@@ -19,75 +19,58 @@ type HomeModelLogoProps = {
   vendor?: string;
 };
 
+// Logo tiles are white so every mark sits on the same neutral surface and the
+// row reads as one column. The only exception is a mark that is itself white or
+// near-white, which needs a dark tile to stay visible — INK_TILE below.
+const WHITE_TILE = "#FFFFFF";
+const TILE_BORDER = "rgba(226, 232, 240, 0.95)";
+const INK_TILE = "#101014";
+const INK_TILE_BORDER = "rgba(255, 255, 255, 0.14)";
+
 const DEFAULT_LOGO: LogoSpec = {
-  background: "#F8F7FF",
-  border: "rgba(109, 40, 217, 0.18)",
+  background: WHITE_TILE,
+  border: TILE_BORDER,
   fallbackColor: "#4C1D95",
   label: "Model",
 };
 
+function tile(src: string, label: string, fallbackColor: string): LogoSpec {
+  return { src, label, background: WHITE_TILE, border: TILE_BORDER, fallbackColor };
+}
+
+/** For marks drawn in white, which would vanish on a white tile. */
+function inkTile(src: string, label: string): LogoSpec {
+  return { src, label, background: INK_TILE, border: INK_TILE_BORDER, fallbackColor: "#FFFFFF" };
+}
+
 const LOGO_SPECS: Array<{ match: RegExp; spec: LogoSpec }> = [
-  {
-    match: /openai|gpt|(^|\s)o[1-9]|dall-e|sora|codex/,
-    spec: { src: "/assets/logos/openai.svg", label: "OpenAI", background: "#F6F6F6", border: "rgba(17, 17, 17, 0.14)", fallbackColor: "#111111" },
-  },
-  {
-    match: /anthropic|claude/,
-    spec: { src: "/assets/logos/claude.svg", label: "Claude", background: "#FFF3EE", border: "rgba(217, 119, 87, 0.22)", fallbackColor: "#D97757" },
-  },
-  {
-    match: /google|gemini|imagen|veo/,
-    spec: { src: "/assets/logos/googlegemini.svg", label: "Gemini", background: "#F4F0FF", border: "rgba(66, 133, 244, 0.2)", fallbackColor: "#4285F4" },
-  },
-  {
-    match: /deepseek|deep-seek/,
-    spec: { src: "/assets/logos/deepseek.svg", label: "DeepSeek", background: "#EEF3FF", border: "rgba(77, 107, 254, 0.22)", fallbackColor: "#4D6BFE" },
-  },
-  {
-    match: /kimi|moonshot/,
-    spec: { src: "/assets/logos/moonshotai.svg", label: "Kimi", background: "#F2F5F8", border: "rgba(22, 25, 30, 0.16)", fallbackColor: "#16191E" },
-  },
-  {
-    match: /qwen|alibaba|aliyun|通义/,
-    spec: { src: "/assets/logos/qwen.svg", label: "Qwen", background: "#F2F1FF", border: "rgba(97, 92, 237, 0.2)", fallbackColor: "#615CED" },
-  },
-  {
-    match: /minimax/,
-    spec: { src: "/assets/logos/minimax.svg", label: "MiniMax", background: "#FFF0F3", border: "rgba(242, 63, 93, 0.2)", fallbackColor: "#F23F5D" },
-  },
-  {
-    match: /bytedance|doubao|seedance/,
-    spec: { src: "/assets/logos/bytedance.svg", label: "ByteDance", background: "#EEF6FF", border: "rgba(60, 140, 255, 0.2)", fallbackColor: "#3C8CFF" },
-  },
-  {
-    match: /meta|llama/,
-    spec: { src: "/assets/logos/meta.svg", label: "Meta", background: "#EFF6FF", border: "rgba(4, 103, 223, 0.2)", fallbackColor: "#0467DF" },
-  },
-  {
-    match: /mistral/,
-    spec: { src: "/assets/logos/mistralai.svg", label: "Mistral", background: "#FFF7ED", border: "rgba(250, 82, 15, 0.2)", fallbackColor: "#FA520F" },
-  },
-  {
-    match: /perplexity/,
-    spec: { src: "/assets/logos/perplexity.svg", label: "Perplexity", background: "#EFFBFC", border: "rgba(32, 128, 141, 0.2)", fallbackColor: "#20808D" },
-  },
-  {
-    match: /ollama/,
-    spec: { src: "/assets/logos/ollama.svg", label: "Ollama", background: "#F4F4FA", border: "rgba(23, 22, 58, 0.18)", fallbackColor: "#17163A" },
-  },
-  {
-    match: /nvidia/,
-    spec: { src: "/assets/logos/nvidia.svg", label: "NVIDIA", background: "#F1FAE8", border: "rgba(118, 185, 0, 0.22)", fallbackColor: "#76B900" },
-  },
-  {
-    match: /baidu|ernie|文心/,
-    spec: { src: "/logos/baidu.svg", label: "Baidu", background: "#EEF3FF", border: "rgba(41, 50, 225, 0.2)", fallbackColor: "#2932E1" },
-  },
-  {
-    match: /huggingface|hugging-face/,
-    spec: { src: "/assets/logos/huggingface.svg", label: "Hugging Face", background: "#FFF8E7", border: "rgba(255, 210, 30, 0.28)", fallbackColor: "#8A5A00" },
-  },
+  { match: /openai|gpt|(^|\s)o[1-9]|dall-e|sora|codex/, spec: tile("/assets/logos/openai.svg", "OpenAI", "#111111") },
+  { match: /anthropic|claude/, spec: tile("/assets/logos/claude.svg", "Claude", "#D97757") },
+  { match: /google|gemini|imagen|veo|gemma|nano-banana/, spec: tile("/assets/logos/googlegemini.svg", "Gemini", "#4285F4") },
+  { match: /deepseek|deep-seek/, spec: tile("/assets/logos/deepseek.svg", "DeepSeek", "#4D6BFE") },
+  { match: /kimi|moonshot/, spec: tile("/assets/logos/moonshotai.svg", "Kimi", "#16191E") },
+  { match: /qwen|alibaba|aliyun|通义/, spec: tile("/assets/logos/qwen.svg", "Qwen", "#615CED") },
+  { match: /minimax/, spec: tile("/assets/logos/minimax.svg", "MiniMax", "#F23F5D") },
+  { match: /bytedance|doubao|seedance|seedream/, spec: tile("/assets/logos/bytedance.svg", "ByteDance", "#3C8CFF") },
+  { match: /zhipu|glm|chatglm|z\.ai|z-ai|智谱/, spec: tile("/assets/logos/zai.svg", "Z.ai", "#2D2D2D") },
+  { match: /grok|xai|x\.ai/, spec: tile("/assets/logos/xai.svg", "xAI", "#0B0B0F") },
+  { match: /macaron/, spec: tile("/assets/logos/macaron.svg", "Macaron", "#E879A6") },
+  { match: /sonilo/, spec: tile("/assets/logos/sonilo.svg", "Sonilo", "#8B5CF6") },
+  { match: /kuaishou|kling|快手/, spec: tile("/assets/logos/kuaishou.svg", "Kuaishou", "#FF4906") },
+  { match: /elevenlabs|eleven-labs/, spec: tile("/assets/logos/elevenlabs.svg", "ElevenLabs", "#000000") },
+  { match: /alibabacloud|aliyun-cloud/, spec: tile("/assets/logos/alibabacloud.svg", "Alibaba Cloud", "#FF6A00") },
+  { match: /meta|llama/, spec: tile("/assets/logos/meta.svg", "Meta", "#0467DF") },
+  { match: /mistral/, spec: tile("/assets/logos/mistralai.svg", "Mistral", "#FA520F") },
+  { match: /perplexity/, spec: tile("/assets/logos/perplexity.svg", "Perplexity", "#20808D") },
+  { match: /ollama/, spec: tile("/assets/logos/ollama.svg", "Ollama", "#17163A") },
+  { match: /nvidia/, spec: tile("/assets/logos/nvidia.svg", "NVIDIA", "#76B900") },
+  { match: /baidu|ernie|文心/, spec: tile("/logos/baidu.svg", "Baidu", "#2932E1") },
+  { match: /huggingface|hugging-face/, spec: tile("/assets/logos/huggingface.svg", "Hugging Face", "#8A5A00") },
 ];
+
+// Vendors with no local asset yet: a lettered tile, dark so the monogram reads
+// like a mark rather than looking like a failed image.
+const MONOGRAM_TILES: Array<{ match: RegExp; label: string }> = [];
 
 export function resolveHomeModelLogo(input: { iconKey?: string; modelName: string; vendor?: string }): LogoSpec {
   const identity = `${input.modelName} ${input.vendor ?? ""}`
@@ -95,6 +78,9 @@ export function resolveHomeModelLogo(input: { iconKey?: string; modelName: strin
     .replace(/[_./:]+/g, " ");
   const fromIdentity = LOGO_SPECS.find((entry) => entry.match.test(identity))?.spec;
   if (fromIdentity) return fromIdentity;
+
+  const monogram = MONOGRAM_TILES.find((entry) => entry.match.test(identity));
+  if (monogram) return { ...DEFAULT_LOGO, background: INK_TILE, border: INK_TILE_BORDER, fallbackColor: "#FFFFFF", label: monogram.label };
 
   const iconKey = (input.iconKey ?? "").toLowerCase().replace(/[_./:]+/g, " ");
   return LOGO_SPECS.find((entry) => entry.match.test(iconKey))?.spec ?? DEFAULT_LOGO;

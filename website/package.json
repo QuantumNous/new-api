@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "PORT=4000 next start -p 4000",
     "start:standalone": "rm -rf .next/standalone/.next/static .next/standalone/public && mkdir -p .next/standalone/.next && cp -R .next/static .next/standalone/.next/static && cp -R public .next/standalone/public && PORT=4000 HOSTNAME=0.0.0.0 node .next/standalone/server.js",
+    "audit:model-directory": "bun scripts/audit-model-directory-metadata.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint ."
   },

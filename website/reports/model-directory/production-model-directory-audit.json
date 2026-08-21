@@ -1,0 +1,585 @@
+{
+  "generatedAt": "2026-08-21T05:11:04.542Z",
+  "source": "https://console.flatkey.ai/api/website/pricing",
+  "modelCount": 103,
+  "metadataCount": 96,
+  "issues": [
+    {
+      "modelId": "gemini-embedding-001",
+      "modelName": "gemini-embedding-001",
+      "field": "outputFilterUsd",
+      "status": "invalid",
+      "kind": "field",
+      "currentValue": 0,
+      "affectedFilters": [
+        "outputPrice"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "claude-haiku-4-5-20251001",
+      "modelName": "claude-haiku-4-5-20251001",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "deepseek-v3.1",
+      "modelName": "deepseek-v3.1",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-3.1-flash-tts-preview",
+      "modelName": "gemini-3.1-flash-tts-preview",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-embedding-001",
+      "modelName": "gemini-embedding-001",
+      "field": "categories",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "categories"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-embedding-001",
+      "modelName": "gemini-embedding-001",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-flash-latest",
+      "modelName": "gemini-flash-latest",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-flash-lite-latest",
+      "modelName": "gemini-flash-lite-latest",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-flash-lite-latest",
+      "modelName": "gemini-flash-lite-latest",
+      "field": "releasedAt",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": null,
+      "affectedFilters": [
+        "age"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-pro-latest",
+      "modelName": "gemini-pro-latest",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-robotics-er-1.6-preview",
+      "modelName": "gemini-robotics-er-1.6-preview",
+      "field": "categories",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "categories"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemini-robotics-er-1.6-preview",
+      "modelName": "gemini-robotics-er-1.6-preview",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gemma-4-31b-it",
+      "modelName": "gemma-4-31b-it",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "gpt-image-2",
+      "modelName": "gpt-image-2",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "grok-imagine-image",
+      "modelName": "grok-imagine-image",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "grok-imagine-image-pro",
+      "modelName": "grok-imagine-image-pro",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "grok-imagine-image-pro",
+      "modelName": "grok-imagine-image-pro",
+      "field": "releasedAt",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": null,
+      "affectedFilters": [
+        "age"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "grok-imagine-image-quality",
+      "modelName": "grok-imagine-image-quality",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "grok-imagine-video",
+      "modelName": "grok-imagine-video",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "grok-imagine-video-1.5",
+      "modelName": "grok-imagine-video-1.5",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "macaron-v1-coding-venti",
+      "modelName": "macaron-v1-coding-venti",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "macaron-v1-tall",
+      "modelName": "macaron-v1-tall",
+      "field": "categories",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "categories"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "macaron-v1-tall",
+      "modelName": "macaron-v1-tall",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "macaron-v1-venti",
+      "modelName": "macaron-v1-venti",
+      "field": "categories",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "categories"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "macaron-v1-venti",
+      "modelName": "macaron-v1-venti",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "MiniMax-H3",
+      "modelName": "MiniMax-H3",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "nano-banana-pro-preview",
+      "modelName": "nano-banana-pro-preview",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "qwen3.5-plus-2026-02-15",
+      "modelName": "qwen3.5-plus-2026-02-15",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "seedance-2.0-pro",
+      "modelName": "seedance-2.0-pro",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "seedance-2.5",
+      "modelName": "seedance-2.5",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "sonilo-video-to-music",
+      "modelName": "sonilo-video-to-music",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "veo-3.1-fast-generate-preview",
+      "modelName": "veo-3.1-fast-generate-preview",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "veo-3.1-generate-preview",
+      "modelName": "veo-3.1-generate-preview",
+      "field": "providers",
+      "status": "missing",
+      "kind": "field",
+      "currentValue": [],
+      "affectedFilters": [
+        "providers"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "eleven_multilingual_v2",
+      "modelName": "eleven_multilingual_v2",
+      "field": "metadata",
+      "status": "unknown-model",
+      "kind": "coverage",
+      "currentValue": "undefined",
+      "affectedFilters": [
+        "metadata",
+        "vendor",
+        "providers",
+        "modalities",
+        "context",
+        "series",
+        "categories",
+        "age",
+        "distillable"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "eleven_sound_v1",
+      "modelName": "eleven_sound_v1",
+      "field": "metadata",
+      "status": "unknown-model",
+      "kind": "coverage",
+      "currentValue": "undefined",
+      "affectedFilters": [
+        "metadata",
+        "vendor",
+        "providers",
+        "modalities",
+        "context",
+        "series",
+        "categories",
+        "age",
+        "distillable"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "mirothinker-1-7-deepresearch",
+      "modelName": "mirothinker-1-7-deepresearch",
+      "field": "metadata",
+      "status": "unknown-model",
+      "kind": "coverage",
+      "currentValue": "undefined",
+      "affectedFilters": [
+        "metadata",
+        "vendor",
+        "providers",
+        "modalities",
+        "context",
+        "series",
+        "categories",
+        "age",
+        "distillable"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "mirothinker-1-7-deepresearch-mini",
+      "modelName": "mirothinker-1-7-deepresearch-mini",
+      "field": "metadata",
+      "status": "unknown-model",
+      "kind": "coverage",
+      "currentValue": "undefined",
+      "affectedFilters": [
+        "metadata",
+        "vendor",
+        "providers",
+        "modalities",
+        "context",
+        "series",
+        "categories",
+        "age",
+        "distillable"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "seedance-2.0",
+      "modelName": "seedance-2.0",
+      "field": "metadata",
+      "status": "unknown-model",
+      "kind": "coverage",
+      "currentValue": "undefined",
+      "affectedFilters": [
+        "metadata",
+        "vendor",
+        "providers",
+        "modalities",
+        "context",
+        "series",
+        "categories",
+        "age",
+        "distillable"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "seedance-2.0-fast",
+      "modelName": "seedance-2.0-fast",
+      "field": "metadata",
+      "status": "unknown-model",
+      "kind": "coverage",
+      "currentValue": "undefined",
+      "affectedFilters": [
+        "metadata",
+        "vendor",
+        "providers",
+        "modalities",
+        "context",
+        "series",
+        "categories",
+        "age",
+        "distillable"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    },
+    {
+      "modelId": "seedance-2.0-mini",
+      "modelName": "seedance-2.0-mini",
+      "field": "metadata",
+      "status": "unknown-model",
+      "kind": "coverage",
+      "currentValue": "undefined",
+      "affectedFilters": [
+        "metadata",
+        "vendor",
+        "providers",
+        "modalities",
+        "context",
+        "series",
+        "categories",
+        "age",
+        "distillable"
+      ],
+      "backfillSqlEligible": false,
+      "reviewStatus": "pending"
+    }
+  ],
+  "wroteProduction": false
+}

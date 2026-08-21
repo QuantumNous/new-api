@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ModelLogo } from "@/components/pricing-model-browser";
+import { HomeModelLogo } from "@/components/home-model-logo";
 import { DailyHealthBars } from "@/components/home-health-bars";
 import { formatHealthSuccessRate, getJitteredSuccessRate } from "@/lib/health-display";
-import type { HomeCopy } from "@/lib/home-copy";
 import {
   fetchHealthSummary,
   fetchModelTrend,
@@ -16,18 +15,41 @@ import {
 } from "@/lib/home-live";
 import type { HomePricedModel } from "@/lib/home-models";
 import { localizePath, type Locale } from "@/lib/locales";
+import { formatContextTokens } from "@/lib/model-directory-meta";
 import { modelPublicPath } from "@/lib/model-public";
 
+// Column labels. The directory supplies the full set; the pricing explorer
+// supplies only the original five, and the extra columns are skipped rather
+// than rendered blank.
+export type ModelsDirectoryTableCopy = {
+  colModel: string;
+  colOfficial: string;
+  colLatency: string;
+  colHealth: string;
+  /** The discounted-price column; named colFlatkey by the pricing explorer. */
+  colFlatkey?: string;
+  colOurPrice?: string;
+  /** Supplying these opts the row into the extra directory columns. */
+  colDiscount?: string;
+  colContext?: string;
+};
+
 type Props = {
-  copy: HomeCopy["table"];
+  copy: ModelsDirectoryTableCopy;
   rows: HomePricedModel[];
   locale?: Locale;
 };
 
 const DEFAULT_TTFT_MS = 600;
 const DEFAULT_HEALTH_SUCCESS_RATE = 100;
-const HEALTH_BAR_COUNT = 5;
+const HEALTH_BAR_COUNT = 15;
 const DAY_SECONDS = 24 * 60 * 60;
+/**
+ * `getVendorName`'s fallback for models the pricing payload leaves without a
+ * vendor. It is a placeholder, not a real author, so neither the table label
+ * nor the model-authors filter should present it as one.
+ */
+export const PLACEHOLDER_VENDOR = "AI";
 
 // /models directory: every priced model as one row — official price struck
 // through vs the group-ratio price (the hero number), TTFT latency, and a
@@ -59,13 +81,18 @@ export function ModelsDirectoryTable(props: Props) {
   if (props.rows.length === 0) return null;
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-violet-500/16 bg-white/72 shadow-[0_24px_70px_-52px_rgba(91,33,182,0.78)] backdrop-blur-sm dark:bg-white/[0.04]">
-      <table className="w-full min-w-[760px] border-collapse text-sm">
+    <div className="overflow-hidden rounded-2xl border border-[#E7E4EC] bg-white shadow-[0_1px_2px_rgba(24,14,38,0.04),0_12px_32px_-24px_rgba(24,14,38,0.18)] dark:border-white/10 dark:bg-white/[0.03]">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[980px] border-collapse text-sm">
         <thead>
-          <tr className="text-muted-foreground/80 border-b border-violet-500/12 text-left text-[11px] font-bold tracking-[0.1em] uppercase">
+          <tr className="border-b border-[#EFECF3] bg-[#FBFAFC] text-left text-[11px] font-bold tracking-[0.08em] text-[#6B7280] uppercase dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
             <th className="px-5 py-3.5 font-bold">{props.copy.colModel}</th>
             <th className="px-3 py-3.5 text-right font-bold">{props.copy.colOfficial}</th>
-            <th className="px-3 py-3.5 text-right font-bold text-violet-700 dark:text-violet-300">{props.copy.colFlatkey}</th>
+            <th className="px-3 py-3.5 text-right font-bold text-[#4C1D95] dark:text-violet-300">
+              {props.copy.colOurPrice ?? props.copy.colFlatkey}
+            </th>
+            {props.copy.colDiscount ? <th className="px-3 py-3.5 text-right font-bold">{props.copy.colDiscount}</th> : null}
+            {props.copy.colContext ? <th className="px-3 py-3.5 text-right font-bold">{props.copy.colContext}</th> : null}
             <th className="px-3 py-3.5 text-right font-bold">{props.copy.colLatency}</th>
             <th className="w-[220px] px-5 py-3.5 text-left font-bold">{props.copy.colHealth}</th>
           </tr>
@@ -78,12 +105,15 @@ export function ModelsDirectoryTable(props: Props) {
               perf={summary[row.name]}
               trend={trends[row.name] ?? []}
               healthLabel={props.copy.colHealth}
+              showDiscount={props.copy.colDiscount != null}
+              showContext={props.copy.colContext != null}
               locale={props.locale}
               onVisible={() => loadTrend(row.name)}
             />
           ))}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }
@@ -93,6 +123,8 @@ function DirectoryRow(props: {
   perf: HomePerfSummary | undefined;
   trend: HomeTrendPoint[];
   healthLabel: string;
+  showDiscount: boolean;
+  showContext: boolean;
   locale?: Locale;
   onVisible: () => void;
 }) {
@@ -127,33 +159,56 @@ function DirectoryRow(props: {
       : getJitteredSuccessRate(measuredSuccessRate, row.name) ?? measuredSuccessRate;
   const formattedSuccessRate = measuredSuccessRate == null ? "100%" : formatHealthSuccessRate(displaySuccessRate);
   const healthTrend = buildDirectoryHealthTrend(trend);
+  const contextLabel = formatContextTokens(row.contextTokens);
+  const discount = discountPercent(row.officialUsd, row.discountedUsd);
+  const attribution = attributionLabel(row.vendor, row.series);
 
   return (
-    <tr ref={ref} className="border-b border-violet-500/8 transition-colors last:border-b-0 hover:bg-violet-500/4">
+    <tr ref={ref} className="border-b border-[#F1EFF5] transition-colors last:border-b-0 hover:bg-[#FAF9FC] dark:border-white/[0.055] dark:hover:bg-white/[0.03]">
       <td className="max-w-[280px] px-5 py-3">
         {props.locale ? (
           <Link
             href={localizePath(modelPublicPath(row.name), props.locale)}
             className="flex items-center gap-2.5 hover:opacity-80"
           >
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-500/15 bg-violet-500/6">
-              <ModelLogo iconKey={row.iconKey} fallback={row.name.charAt(0).toUpperCase()} size={18} />
-            </span>
+            <HomeModelLogo
+              iconKey={row.iconKey}
+              modelName={row.name}
+              vendor={row.vendor}
+              fallback={row.name.charAt(0).toUpperCase()}
+              surfaceSize={30}
+              imageSize={18}
+            />
             <span className="min-w-0">
-              <span className="block truncate font-mono text-[13px] font-semibold tracking-tight underline-offset-2 hover:underline">
-                {row.name}
+              <span className="flex items-center gap-1.5">
+                <span className="truncate font-mono text-[13px] font-semibold tracking-tight underline-offset-2 hover:underline">
+                  {row.name}
+                </span>
+                {row.top10 ? <TopBadge rank={row.top10} /> : null}
               </span>
-              <span className="text-muted-foreground/70 block text-[11px]">{row.vendor}</span>
+              <span className="text-muted-foreground/70 block truncate text-[11px]">
+                {attribution}
+              </span>
             </span>
           </Link>
         ) : (
           <div className="flex items-center gap-2.5">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-violet-500/15 bg-violet-500/6">
-              <ModelLogo iconKey={row.iconKey} fallback={row.name.charAt(0).toUpperCase()} size={18} />
-            </span>
+            <HomeModelLogo
+              iconKey={row.iconKey}
+              modelName={row.name}
+              vendor={row.vendor}
+              fallback={row.name.charAt(0).toUpperCase()}
+              surfaceSize={30}
+              imageSize={18}
+            />
             <span className="min-w-0">
-              <span className="block truncate font-mono text-[13px] font-semibold tracking-tight">{row.name}</span>
-              <span className="text-muted-foreground/70 block text-[11px]">{row.vendor}</span>
+              <span className="flex items-center gap-1.5">
+                <span className="truncate font-mono text-[13px] font-semibold tracking-tight">{row.name}</span>
+                {row.top10 ? <TopBadge rank={row.top10} /> : null}
+              </span>
+              <span className="text-muted-foreground/70 block truncate text-[11px]">
+                {attribution}
+              </span>
             </span>
           </div>
         )}
@@ -164,6 +219,20 @@ function DirectoryRow(props: {
       <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
         <PriceCell price={row.discounted} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} />
       </td>
+      {props.showDiscount ? (
+        <td className="px-3 py-3 text-right font-mono text-[13px]">
+          {discount == null ? (
+            <span className="text-muted-foreground/60">—</span>
+          ) : (
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">-{discount.toFixed(1)}% ↓</span>
+          )}
+        </td>
+      ) : null}
+      {props.showContext ? (
+        <td className="px-3 py-3 text-right font-mono text-[13px]">
+          {contextLabel ?? <span className="text-muted-foreground/60">—</span>}
+        </td>
+      ) : null}
       <td className="px-3 py-3 text-right font-mono text-[13px]">{formatLatencyMs(latencyMs)}</td>
       <td className="px-5 py-3">
         <div className="flex items-center gap-3">
@@ -177,6 +246,39 @@ function DirectoryRow(props: {
       </td>
     </tr>
   );
+}
+
+/**
+ * Sub-label under the model name: "Vendor · Series".
+ *
+ * `getVendorName` falls back to the literal "AI" for models whose payload has
+ * no vendor, which reads as a fake author in the table. Treat that placeholder
+ * as absent: show the series alone, and the model name alone when neither is
+ * known, rather than attributing the model to "AI".
+ */
+export function attributionLabel(vendor: string | undefined, series: string | undefined): string {
+  const realVendor = vendor && vendor !== PLACEHOLDER_VENDOR ? vendor : undefined;
+  if (realVendor && series) return `${realVendor} · ${series}`;
+  return realVendor ?? series ?? "";
+}
+
+/** Popularity-board position, shown next to the model name. */
+function TopBadge(props: { rank: number }) {  return (
+    <span className="shrink-0 rounded bg-amber-400/20 px-1.5 py-0.5 font-sans text-[9px] font-black tracking-wide text-amber-700 uppercase dark:bg-amber-300/15 dark:text-amber-300">
+      TOP {props.rank}
+    </span>
+  );
+}
+
+/**
+ * Saving against the official rate. Returns null when there is nothing to
+ * compare against, so an unpriced row shows "—" rather than a misleading 0%.
+ */
+export function discountPercent(officialUsd: number, discountedUsd: number): number | null {
+  if (!Number.isFinite(officialUsd) || !Number.isFinite(discountedUsd)) return null;
+  if (officialUsd <= 0 || discountedUsd < 0) return null;
+  const percent = (1 - discountedUsd / officialUsd) * 100;
+  return percent < 0 ? null : percent;
 }
 
 function PriceCell(props: { price: string; unit?: string; prefix?: string; struck?: boolean }) {

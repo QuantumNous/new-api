@@ -247,6 +247,74 @@ export function buildRankingsSchema(input: RankingsSchemaInput): JsonLdGraph {
   ]);
 }
 
+type ModelsDirectorySchemaInput = {
+  locale: Locale;
+  title: string;
+  description: string;
+  /** Models in display order; `offer` prices are USD per the model's own unit. */
+  items: Array<{
+    name: string;
+    path: string;
+    position: number;
+    vendor?: string;
+    priceUsd?: number;
+    priceUnit?: string;
+  }>;
+  totalCount: number;
+};
+
+/**
+ * Directory schema for /models: a CollectionPage carrying an ItemList of the
+ * catalogue. Each entry is a Product with an Offer so the listed price is
+ * eligible for rich results, and `numberOfItems` reports the full catalogue
+ * rather than the truncated render window.
+ */
+export function buildModelsDirectorySchema(input: ModelsDirectorySchemaInput): JsonLdGraph {
+  const directoryPath = localizePath("/models", input.locale);
+  const directoryUrl = absoluteUrl(directoryPath);
+
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "CollectionPage",
+      name: input.title,
+      description: input.description,
+      url: directoryUrl,
+      inLanguage: input.locale,
+      isPartOf: websiteSchema(),
+      publisher: organizationSchema(),
+      mainEntity: {
+        "@type": "ItemList",
+        name: input.title,
+        numberOfItems: input.totalCount,
+        itemListElement: input.items.map((item) => ({
+          "@type": "ListItem",
+          position: item.position,
+          item: {
+            "@type": "Product",
+            name: item.name,
+            url: absoluteUrl(item.path),
+            ...(item.vendor ? { brand: { "@type": "Brand", name: item.vendor } } : {}),
+            ...(item.priceUsd != null && item.priceUsd > 0
+              ? {
+                  offers: {
+                    "@type": "Offer",
+                    price: item.priceUsd,
+                    priceCurrency: "USD",
+                    availability: "https://schema.org/InStock",
+                    url: directoryUrl,
+                    ...(item.priceUnit ? { description: item.priceUnit } : {}),
+                  },
+                }
+              : {}),
+          },
+        })),
+      },
+    },
+    breadcrumbSchema([{ name: input.title, item: directoryUrl }]),
+  ]);
+}
+
 function graph(items: JsonLdObject[]): JsonLdGraph {
   return {
     "@context": "https://schema.org",

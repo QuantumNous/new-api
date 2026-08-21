@@ -4,6 +4,7 @@ import { CLI_LANDING_PATH, HIGGSFIELD_ALTERNATIVE_PATH } from "@/lib/cli-landing
 import { LOCALES, type Locale, localeLanguageTag, localizePath } from "@/lib/locales";
 import { getMarketPathnames } from "@/lib/market-landing";
 import { getModelLandingPathnames } from "@/lib/model-landing";
+import { seriesForModels } from "@/lib/model-directory-meta";
 import { modelPublicPath } from "@/lib/model-public";
 import { getSkagLandingLocales, SKAG_LANDING_SLUGS, skagLandingPath } from "@/lib/skag-landing";
 import { getToolsAdLandingPathnames } from "@/lib/tools-ad-landing";
@@ -27,6 +28,26 @@ function entry(
     priority,
     alternates: {
       languages: Object.fromEntries(locales.map((locale) => [localeLanguageTag(locale), `${base}${localizePath(pathname, locale)}`])),
+    },
+  }));
+}
+
+/** Like `entry`, but for a filtered view whose state lives in the query string. */
+function queryEntry(
+  pathname: string,
+  query: string,
+  priority: number,
+  changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"]
+) {
+  return LOCALES.map((locale) => ({
+    url: `${base}${localizePath(pathname, locale)}?${query}`,
+    lastModified: new Date(),
+    changeFrequency,
+    priority,
+    alternates: {
+      languages: Object.fromEntries(
+        LOCALES.map((alternate) => [localeLanguageTag(alternate), `${base}${localizePath(pathname, alternate)}?${query}`])
+      ),
     },
   }));
 }
@@ -116,6 +137,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       };
     });
   });
+  // Single-series directory views are indexable landing pages ("Claude API
+  // pricing"), so they need to be discoverable. Any richer filter combination
+  // is noindex — see model-directory-seo.ts — and is deliberately absent here.
+  const seriesEntries = seriesForModels(pricing.models.map((model) => model.model_name)).flatMap((series) =>
+    queryEntry("/models", `series=${encodeURIComponent(series)}`, 0.72, "daily")
+  );
+
   return [
     ...staticEntries,
     ...marketEntries,
@@ -123,6 +151,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...skagLandingEntries,
     ...toolsAdLandingEntries,
     ...modelPublicEntries,
+    ...seriesEntries,
     ...categoryEntries,
     ...postEntries,
   ];
