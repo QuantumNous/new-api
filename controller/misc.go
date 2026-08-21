@@ -282,7 +282,11 @@ func SendEmailVerification(c *gin.Context) {
 		return
 	}
 	code := common.GenerateVerificationCode(6)
-	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
+	if err := common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose); err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to store email verification code for %s: %s", email, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgRetryLater)
+		return
+	}
 	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
 	content := fmt.Sprintf("<p>您好，你正在进行%s邮箱验证。</p>"+
 		"<p>您的验证码为: <strong>%s</strong></p>"+
@@ -307,7 +311,11 @@ func SendPasswordResetEmail(c *gin.Context) {
 	}
 	if _, err := model.GetUniqueUserByEmail(email); err == nil {
 		code := common.GenerateVerificationCode(0)
-		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
+		if err := common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to store password reset code for %s: %s", email, err.Error()))
+			c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+			return
+		}
 		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
 		subject := fmt.Sprintf("%s密码重置", common.SystemName)
 		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
@@ -344,13 +352,22 @@ func ResetPassword(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if !common.VerifyCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose) {
+	valid, remaining, err := common.ConsumeVerificationCodeWithTTL(req.Email, req.Token, common.PasswordResetPurpose)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume password reset code for %s: %s", req.Email, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgRetryLater)
+		return
+	}
+	if !valid {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordResetLinkInvalid)
 		return
 	}
 	password := common.GenerateVerificationCode(12)
 	err = model.ResetUserPasswordByEmail(req.Email, password)
 	if err != nil {
+		if restoreErr := common.RestoreVerificationCodeIfAbsent(req.Email, req.Token, common.PasswordResetPurpose, remaining); restoreErr != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to restore password reset code for %s after reset failure: %s", req.Email, restoreErr.Error()))
+		}
 		if errors.Is(err, model.ErrEmailNotFound) || errors.Is(err, model.ErrEmailAmbiguous) {
 			common.ApiErrorI18n(c, i18n.MsgUserPasswordResetLinkInvalid)
 			return
@@ -358,7 +375,6 @@ func ResetPassword(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.DeleteKey(req.Email, common.PasswordResetPurpose)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
