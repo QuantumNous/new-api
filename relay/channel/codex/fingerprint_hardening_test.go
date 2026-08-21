@@ -154,6 +154,21 @@ func TestFullMetadataBoundsIgnoreLargeAndNestedNonMetadataFields(t *testing.T) {
 	require.Equal(t, fingerprint.SessionID, gjson.GetBytes(rewritten, "client_metadata.session_id").String())
 }
 
+func TestFullFingerprintRejectsExcessiveNonMetadataNesting(t *testing.T) {
+	fingerprint := hardeningFingerprint(t, fingerprintFull, "original-session")
+	depth := 128
+	nested := strings.Repeat("[", depth) + "null" + strings.Repeat("]", depth)
+	raw := []byte(`{"model":"gpt-5","deep":` + nested + `,"client_metadata":{"session_id":"original-session"}}`)
+
+	err := rejectDuplicateJSONKeys(raw, maxCodexRequestJSONDepth)
+	require.ErrorContains(t, err, "json nesting exceeds maximum depth")
+
+	rewritten, err := SanitizeCodexRequestBody(raw, fingerprint, fingerprintFull)
+
+	require.Error(t, err)
+	require.Nil(t, rewritten)
+}
+
 func TestOAuthKeyIgnoresOpenAIDeviceID(t *testing.T) {
 	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	buildHeader := func(deviceID string) http.Header {

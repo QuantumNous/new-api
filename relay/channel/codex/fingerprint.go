@@ -23,6 +23,9 @@ import (
 const fingerprintContextKey = "codex_fingerprint_ids"
 const maxCodexMetadataBytes = 64 * 1024
 const maxCodexMetadataDepth = 10
+// Keep the whole-request guard above normal tool-schema nesting while bounding
+// recursive duplicate-key scanning for attacker-controlled JSON.
+const maxCodexRequestJSONDepth = 100
 
 func clientSessionID(c *gin.Context) string {
 	if c == nil || c.Request == nil {
@@ -386,15 +389,15 @@ func validateFullFingerprintMetadataRaw(raw []byte, compact bool) error {
 	if exceedsJSONRawDepth([]byte(metadata.Raw), maxCodexMetadataDepth) {
 		return errors.New(prefix + " client_metadata is too deeply nested")
 	}
-	if err := rejectDuplicateJSONKeys(raw); err != nil {
+	if err := rejectDuplicateJSONKeys(raw, maxCodexRequestJSONDepth); err != nil {
 		return errors.New(prefix + " request contains duplicate or invalid json keys")
 	}
 	return nil
 }
 
-func rejectDuplicateJSONKeys(raw []byte) error {
+func rejectDuplicateJSONKeys(raw []byte, maxDepth int) error {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
-	if err := consumeJSONValue(decoder); err != nil {
+	if err := consumeJSONValue(decoder, 0, maxDepth); err != nil {
 		return err
 	}
 	if _, err := decoder.Token(); err != io.EOF {
@@ -406,7 +409,7 @@ func rejectDuplicateJSONKeys(raw []byte) error {
 	return nil
 }
 
-func consumeJSONValue(decoder *json.Decoder) error {
+func consumeJSONValue(decoder *json.Decoder, depth, maxDepth int) error {
 	token, err := decoder.Token()
 	if err != nil {
 		return err
@@ -415,6 +418,10 @@ func consumeJSONValue(decoder *json.Decoder) error {
 	if !ok {
 		return nil
 	}
+	if depth >= maxDepth {
+		return errors.New("json nesting exceeds maximum depth")
+	}
+	nestedDepth := depth + 1
 	switch delim {
 	case '{':
 		seen := make(map[string]struct{})
@@ -431,7 +438,7 @@ func consumeJSONValue(decoder *json.Decoder) error {
 				return fmt.Errorf("duplicate json key %q", key)
 			}
 			seen[key] = struct{}{}
-			if err := consumeJSONValue(decoder); err != nil {
+			if err := consumeJSONValue(decoder, nestedDepth, maxDepth); err != nil {
 				return err
 			}
 		}
@@ -444,7 +451,7 @@ func consumeJSONValue(decoder *json.Decoder) error {
 		}
 	case '[':
 		for decoder.More() {
-			if err := consumeJSONValue(decoder); err != nil {
+			if err := consumeJSONValue(decoder, nestedDepth, maxDepth); err != nil {
 				return err
 			}
 		}
