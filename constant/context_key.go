@@ -83,6 +83,10 @@ const (
 	// ContextKeyBlockRunPaymentState stores request-scoped signed-payment state.
 	// Value type: *relay/common.BlockRunPaymentState.
 	ContextKeyBlockRunPaymentState ContextKey = "blockrun_payment_state"
+	// ContextKeyBlockRunOriginalError stores the upstream/channel error captured
+	// before BlockRun signed-payment errors are normalized for the client.
+	// Value type: *types.NewAPIError. It is used only for the database error log.
+	ContextKeyBlockRunOriginalError ContextKey = "blockrun_original_error"
 
 	// ContextKeyRequestSamplingEligible marks user-facing text LLM relay
 	// requests that may be considered for optional request-parameter sampling.

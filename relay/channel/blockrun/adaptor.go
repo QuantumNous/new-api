@@ -399,11 +399,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 		relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeRejected, false)
 		// Signature was rejected (insufficient balance, replay, expired window,
 		// payTo mismatch, …). Do NOT loop — every signed attempt risks an
-		// on-chain settle. Never surface the upstream body: it may echo the full
-		// payment signature and must not reach API errors or logs.
-		_, _ = io.CopyN(io.Discard, retryResp.Body, 512<<10)
-		_ = retryResp.Body.Close()
-		return nil, errors.New("blockrun: payment signature rejected by upstream (status 402 after signing)")
+		// on-chain settle. Keep only a bounded, allowlisted, sanitized upstream
+		// error detail for the operator log; the controller still replaces it
+		// with the fixed client-facing message.
+		return nil, signedPaymentRejectionError(retryResp, paymentB64)
 	}
 	return resolveImageResult(c, info, retryResp, paymentB64)
 }
@@ -437,9 +436,7 @@ func (a *Adaptor) doSolanaPaymentRequest(c *gin.Context, info *relaycommon.Relay
 
 		if staleRetries >= len(backoffs) || !isStaleSolanaPaymentResponse(retryResp) {
 			relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeRejected, false)
-			_, _ = io.CopyN(io.Discard, retryResp.Body, 512<<10)
-			_ = retryResp.Body.Close()
-			return nil, errors.New("blockrun: payment signature rejected by upstream (status 402 after signing)")
+			return nil, signedPaymentRejectionError(retryResp, paymentB64)
 		}
 
 		// Discard the stale signed transaction and return to an unsigned

@@ -454,6 +454,12 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	}
 
 	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
+		logErr := err
+		if isBlockRunPaidError(err) {
+			if originalErr, ok := common.GetContextKeyType[*types.NewAPIError](c, constant.ContextKeyBlockRunOriginalError); ok && originalErr != nil {
+				logErr = originalErr
+			}
+		}
 		// 保存错误日志到mysql中
 		userId := c.GetInt("id")
 		tokenName := c.GetString("token_name")
@@ -466,9 +472,9 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		if c.Request != nil && c.Request.URL != nil {
 			other["request_path"] = c.Request.URL.Path
 		}
-		other["error_type"] = err.GetErrorType()
-		other["error_code"] = err.GetErrorCode()
-		other["status_code"] = err.StatusCode
+		other["error_type"] = logErr.GetErrorType()
+		other["error_code"] = logErr.GetErrorCode()
+		other["status_code"] = logErr.StatusCode
 		other["channel_id"] = channelId
 		other["channel_name"] = channelError.ChannelName
 		other["channel_type"] = channelType
@@ -489,7 +495,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, channelType, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		model.RecordErrorLog(c, userId, channelId, channelType, modelName, tokenName, logErr.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
 }
@@ -499,10 +505,12 @@ func normalizeBlockRunPaymentError(c *gin.Context, err *types.NewAPIError) *type
 	if !ok || !state.Attempted {
 		return err
 	}
+	delete(c.Keys, string(constant.ContextKeyBlockRunOriginalError))
 	if err == nil {
 		relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeSucceeded, false)
 		return nil
 	}
+	common.SetContextKey(c, constant.ContextKeyBlockRunOriginalError, err)
 	streamTruncated := c != nil && c.Writer != nil && c.Writer.Written()
 	if state.Outcome == relaycommon.BlockRunPaymentOutcomeRejected || err.StatusCode == http.StatusPaymentRequired {
 		relaycommon.UpdateBlockRunPaymentOutcome(c, relaycommon.BlockRunPaymentOutcomeRejected, streamTruncated)

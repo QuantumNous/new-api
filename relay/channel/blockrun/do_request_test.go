@@ -2,6 +2,7 @@ package blockrun
 
 import (
 	"encoding/base64"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -94,7 +95,6 @@ func TestBlockRunDoRequest_ResponsesX402DoubleHop(t *testing.T) {
 }
 
 func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
-	const upstreamSecret = "Payment-Signature eyJmdWxsX3NpZ25hdHVyZSI6InNlY3JldC1zZW50aW5lbCJ9"
 	var (
 		mu       sync.Mutex
 		requests []blockRunRecordedRequest
@@ -111,7 +111,18 @@ func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
 			w.Header().Set(headerPaymentRequired, paymentRequiredHeader(t, baseURL+"/v1/responses"))
 		}
 		w.WriteHeader(http.StatusPaymentRequired)
-		_, _ = w.Write([]byte(`{"error":"signature rejected","echo":"` + upstreamSecret + `"}`))
+		responseBody, marshalErr := common.Marshal(map[string]any{
+			"error": map[string]any{
+				"message": "insufficient balance; Payment-Signature " + r.Header.Get(headerPaymentSignature),
+				"code":    "PAYMENT_REJECTED",
+				"reason":  "insufficient_funds",
+			},
+		})
+		if marshalErr != nil {
+			t.Errorf("marshal rejection response: %v", marshalErr)
+			return
+		}
+		_, _ = w.Write(responseBody)
 	}))
 	defer srv.Close()
 	t.Cleanup(service.ResetProxyClientCache)
@@ -119,11 +130,20 @@ func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
 	body := `{"model":"openai/gpt-5.4","input":"ping","stream_options":{"include_usage":true}}`
 	ctx := blockRunRequestContext()
 	resp, err := (&Adaptor{}).DoRequest(ctx, blockRunResponsesRequestInfo(baseURL, srv.URL), strings.NewReader(body))
-	if err == nil || !strings.Contains(err.Error(), "status 402 after signing") {
-		t.Fatalf("expected signed 402 hard failure, got resp=%v err=%v", resp, err)
+	var apiErr *types.NewAPIError
+	if err == nil || !errors.As(err, &apiErr) {
+		t.Fatalf("expected typed signed 402 hard failure, got resp=%v err=%v", resp, err)
 	}
-	if strings.Contains(err.Error(), upstreamSecret) {
-		t.Fatalf("signed 402 error leaked upstream response body: %v", err)
+	if apiErr.StatusCode != http.StatusPaymentRequired || apiErr.GetErrorCode() != types.ErrorCodeBadResponseStatusCode || !types.IsSkipRetryError(apiErr) {
+		t.Fatalf("signed 402 error semantics changed: status=%d code=%s skip_retry=%t", apiErr.StatusCode, apiErr.GetErrorCode(), types.IsSkipRetryError(apiErr))
+	}
+	if !strings.Contains(err.Error(), "insufficient balance") ||
+		!strings.Contains(err.Error(), "PAYMENT_REJECTED") ||
+		!strings.Contains(err.Error(), "insufficient_funds") {
+		t.Fatalf("signed 402 error omitted upstream rejection detail: %v", err)
+	}
+	if strings.Contains(err.Error(), "payment signature rejected by upstream") {
+		t.Fatalf("signed 402 error kept the gateway fallback instead of upstream detail: %v", err)
 	}
 
 	mu.Lock()
@@ -135,6 +155,9 @@ func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
 	if got[0].signature != "" || got[1].signature == "" {
 		t.Fatalf("unexpected signature sequence: first=%t second=%t", got[0].signature != "", got[1].signature != "")
 	}
+	if strings.Contains(err.Error(), got[1].signature) {
+		t.Fatalf("signed 402 error leaked payment signature: %v", err)
+	}
 	if got[0].body != got[1].body || strings.Contains(got[0].body, "stream_options") {
 		t.Fatalf("request body changed across payment retry: %#v", got)
 	}
@@ -142,8 +165,8 @@ func TestBlockRunDoRequest_ResponsesSecond402Stops(t *testing.T) {
 	if !ok || state.Outcome != relaycommon.BlockRunPaymentOutcomeRejected {
 		t.Fatalf("signed 402 payment state = %#v, want rejected", state)
 	}
-	if strings.Contains(state.Reconciliation, upstreamSecret) || strings.Contains(string(state.Outcome), upstreamSecret) {
-		t.Fatalf("signed 402 loggable payment state leaked upstream response body: %#v", state)
+	if strings.Contains(state.Reconciliation, got[1].signature) || strings.Contains(string(state.Outcome), got[1].signature) {
+		t.Fatalf("signed 402 loggable payment state leaked payment signature: %#v", state)
 	}
 }
 
