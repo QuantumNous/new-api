@@ -515,58 +515,60 @@ const successColor = computed(() => rateColor(successRate.value))
             </div>
           </template>
 
-        <div
-          v-else
-          class="mt-auto flex items-end justify-between gap-1.5 pt-0.5"
-          data-disk-gauge
-        >
-          <p class="flex min-w-0 items-baseline whitespace-nowrap">
-            <template v-if="tile.disk">
-              <span
-                class="font-mono text-xl font-bold leading-none tabular-nums sm:text-2xl"
-                :style="{ color: tile.color }"
-              >
-                {{ tile.disk.used }}
-              </span>
-              <span
-                class="mx-1 text-xs font-semibold text-[var(--text-tertiary)] opacity-60"
-              >
-                /
-              </span>
-              <span
-                class="font-mono text-xs font-semibold tabular-nums text-[var(--text-tertiary)] sm:text-[13px]"
-              >
-                {{ tile.disk.total }}
-              </span>
-              <span
-                v-if="tile.unit"
-                class="ml-1 text-[9px] font-mono text-[var(--text-tertiary)] opacity-80"
-              >
-                {{ tile.unit }}
-              </span>
-            </template>
-            <template v-else>
-              <span
-                class="text-base font-bold leading-tight tabular-nums"
-                :style="{ color: tile.color }"
-              >
-                {{ tile.value }}
-              </span>
-              <span
-                v-if="tile.unit"
-                class="ml-0.5 text-[9px] text-[var(--text-tertiary)]"
-              >
-                {{ tile.unit }}
-              </span>
-            </template>
-          </p>
-          <MiniRing
-            :percent="tile.percent ?? 0"
-            :color="tile.color"
-            :size="34"
-            :indeterminate="tile.percent === null"
-          />
-        </div>
+          <div
+            v-else
+            class="mt-auto flex items-center justify-between gap-2 pb-0.5"
+            data-disk-gauge
+          >
+            <p
+              class="flex min-w-0 -translate-y-0.5 items-baseline whitespace-nowrap"
+            >
+              <template v-if="tile.disk">
+                <span
+                  class="font-mono text-xl font-bold leading-none tabular-nums sm:text-2xl"
+                  :style="{ color: tile.color }"
+                >
+                  {{ tile.disk.used }}
+                </span>
+                <span
+                  class="mx-1 text-xs font-semibold text-[var(--text-tertiary)] opacity-60"
+                >
+                  /
+                </span>
+                <span
+                  class="font-mono text-xs font-semibold tabular-nums text-[var(--text-tertiary)] sm:text-[13px]"
+                >
+                  {{ tile.disk.total }}
+                </span>
+                <span
+                  v-if="tile.unit"
+                  class="ml-1 text-[9px] font-mono text-[var(--text-tertiary)] opacity-80"
+                >
+                  {{ tile.unit }}
+                </span>
+              </template>
+              <template v-else>
+                <span
+                  class="text-base font-bold leading-tight tabular-nums"
+                  :style="{ color: tile.color }"
+                >
+                  {{ tile.value }}
+                </span>
+                <span
+                  v-if="tile.unit"
+                  class="ml-0.5 text-[9px] text-[var(--text-tertiary)]"
+                >
+                  {{ tile.unit }}
+                </span>
+              </template>
+            </p>
+            <MiniRing
+              :percent="tile.percent ?? 0"
+              :color="tile.color"
+              :size="34"
+              :indeterminate="tile.percent === null"
+            />
+          </div>
         </div>
       </div>
 
