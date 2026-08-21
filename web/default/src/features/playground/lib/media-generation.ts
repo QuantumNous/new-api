@@ -101,6 +101,8 @@ const imageRatios = ['1:1', '3:2', '2:3', '4:3', '3:4', '16:9', '9:16', '21:9']
 
 const videoRatios = ['16:9', '9:16', '1:1', '4:3', '3:4']
 
+const GPT_IMAGE_SIZE = '1024x1024'
+
 function selectField(
   key: MediaParameterKey,
   labelKey: string,
@@ -122,7 +124,7 @@ const gptImageProfile: MediaGenerationProfile = {
   family: 'gpt-image',
   defaults: {
     count: 1,
-    size: 'auto',
+    size: GPT_IMAGE_SIZE,
     quality: 'auto',
     outputFormat: 'png',
     background: 'auto',
@@ -137,12 +139,6 @@ const gptImageProfile: MediaGenerationProfile = {
       max: 10,
       step: 1,
     },
-    selectField('size', 'Resolution', [
-      'auto',
-      '1024x1024',
-      '1536x1024',
-      '1024x1536',
-    ]),
     selectField('quality', 'Quality', [
       { value: 'auto', labelKey: 'Auto' },
       { value: 'low', labelKey: 'Low' },
@@ -402,6 +398,10 @@ export function normalizeMediaGenerationSettings(
     }
   })
 
+  if (profile.family === 'gpt-image') {
+    normalized.size = GPT_IMAGE_SIZE
+  }
+
   if (
     profile.family === 'veo-3.1' &&
     (normalized.resolution === '1080p' || normalized.resolution === '4k')
@@ -422,7 +422,7 @@ function buildGptImagePayload(
     group,
     prompt,
     n: settings.count,
-    size: settings.size,
+    size: GPT_IMAGE_SIZE,
     quality: settings.quality,
     response_format: 'b64_json',
     output_format: settings.outputFormat,
