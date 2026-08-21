@@ -108,7 +108,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	var responseId = common.GetUUID()
 	var created = time.Now().Unix()
 	var toolCallIndex int
-	start := helper.GenerateStartEmptyResponse(responseId, created, model, nil)
+	start := helper.GenerateStartEmptyResponse(responseId, dto.UnixTimeRaw(created), model, nil)
 	if data, err := common.Marshal(start); err == nil {
 		_ = helper.StringData(c, string(data))
 	}
@@ -140,7 +140,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			delta := dto.ChatCompletionsStreamResponse{
 				Id:      responseId,
 				Object:  "chat.completion.chunk",
-				Created: created,
+				Created: dto.UnixTimeRaw(created),
 				Model:   model,
 				Choices: []dto.ChatCompletionsStreamResponseChoice{{
 					Index: 0,
@@ -185,13 +185,13 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			finishReason = constant.FinishReasonToolCalls
 		}
 		// emit stop delta
-		if stop := helper.GenerateStopResponse(responseId, created, model, finishReason); stop != nil {
+		if stop := helper.GenerateStopResponse(responseId, dto.UnixTimeRaw(created), model, finishReason); stop != nil {
 			if data, err := common.Marshal(stop); err == nil {
 				_ = helper.StringData(c, string(data))
 			}
 		}
 		// emit usage frame
-		if final := helper.GenerateFinalUsageResponse(responseId, created, model, *usage); final != nil {
+		if final := helper.GenerateFinalUsageResponse(responseId, dto.UnixTimeRaw(created), model, *usage); final != nil {
 			if data, err := common.Marshal(final); err == nil {
 				_ = helper.StringData(c, string(data))
 			}
@@ -325,7 +325,7 @@ func ollamaChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		Id:      common.GetUUID(),
 		Model:   model,
 		Object:  "chat.completion",
-		Created: created,
+		Created: dto.UnixTimeRaw(created),
 		Choices: []dto.OpenAITextResponseChoice{{
 			Index:        0,
 			Message:      msg,

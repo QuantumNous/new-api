@@ -107,7 +107,7 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 	fullTextResponse := dto.OpenAITextResponse{
 		Id:      fmt.Sprintf("chatcmpl-%s", kitutil.GetUUID()),
 		Object:  "chat.completion",
-		Created: kitutil.GetTimestamp(),
+		Created: dto.UnixTimeRaw(kitutil.GetTimestamp()),
 	}
 	var responseText string
 	var responseThinking string
@@ -393,7 +393,7 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	}
 	if oaiResponse != nil {
 		oaiResponse.Id = claudeInfo.ResponseId
-		oaiResponse.Created = claudeInfo.Created
+		oaiResponse.Created = dto.UnixTimeRaw(claudeInfo.Created)
 		oaiResponse.Model = claudeInfo.Model
 	}
 	return true

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -40,7 +39,7 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 	out := &dto.OpenAIResponsesResponse{
 		ID:        id,
 		Object:    "response",
-		CreatedAt: chatCreatedAt(resp.Created),
+		CreatedAt: resp.Created,
 		Status:    []byte(`"completed"`),
 		Model:     resp.Model,
 		Output:    make([]dto.ResponsesOutput, 0),
@@ -199,24 +198,6 @@ func chatArgumentsRawMessage(arguments string) []byte {
 		return []byte(`""`)
 	}
 	return raw
-}
-
-func chatCreatedAt(created any) int {
-	switch v := created.(type) {
-	case int:
-		return v
-	case int64:
-		return int(v)
-	case float64:
-		return int(v)
-	case float32:
-		return int(v)
-	case string:
-		if parsed := kitutil.String2Int(v); parsed != 0 {
-			return parsed
-		}
-	}
-	return int(time.Now().Unix())
 }
 
 func responsesStreamEvent(eventType string, payload dto.ResponsesStreamResponse) ChatToResponsesStreamEvent {

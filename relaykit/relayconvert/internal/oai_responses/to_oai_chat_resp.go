@@ -65,8 +65,6 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 
 	usage := UsageFromResponsesUsage(resp.Usage)
 
-	created := resp.CreatedAt
-
 	var toolCalls []dto.ToolCallResponse
 	if len(resp.Output) > 0 {
 		for _, out := range resp.Output {
@@ -113,7 +111,7 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	out := &dto.OpenAITextResponse{
 		Id:      id,
 		Object:  "chat.completion",
-		Created: created,
+		Created: resp.CreatedAt,
 		Model:   resp.Model,
 		Choices: []dto.OpenAITextResponseChoice{
 			{

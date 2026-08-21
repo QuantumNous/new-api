@@ -165,7 +165,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		usage.TotalTokens = chatData.Usage.TokenCount
 
 		finishReason := "stop"
-		stopResponse := helper.GenerateStopResponse(id, common.GetTimestamp(), info.UpstreamModelName, finishReason)
+		stopResponse := helper.GenerateStopResponse(id, dto.UnixTimeRaw(common.GetTimestamp()), info.UpstreamModelName, finishReason)
 		helper.ObjectData(c, stopResponse)
 
 	case "conversation.message.delta":
@@ -189,7 +189,7 @@ func handleCozeEvent(c *gin.Context, event string, data string, responseText *st
 		openaiResponse := dto.ChatCompletionsStreamResponse{
 			Id:      id,
 			Object:  "chat.completion.chunk",
-			Created: common.GetTimestamp(),
+			Created: dto.UnixTimeRaw(common.GetTimestamp()),
 			Model:   info.UpstreamModelName,
 		}
 

@@ -11,7 +11,7 @@ import (
 func TestResponsesResponseToChatCompletionsPreservesTextAndToolCalls(t *testing.T) {
 	resp := &dto.OpenAIResponsesResponse{
 		ID:        "resp_1",
-		CreatedAt: 123,
+		CreatedAt: dto.UnixTimeRaw(123),
 		Model:     "gpt-test",
 		Status:    []byte(`"completed"`),
 		Output: []dto.ResponsesOutput{
@@ -46,6 +46,16 @@ func TestResponsesResponseToChatCompletionsPreservesTextAndToolCalls(t *testing.
 	assert.Equal(t, "lookup", toolCalls[0].Function.Name)
 	assert.Equal(t, `{"q":"x"}`, toolCalls[0].Function.Arguments)
 	assert.Equal(t, 7, usage.TotalTokens)
+}
+
+func TestResponsesResponseToChatKeepsFloatCreated(t *testing.T) {
+	resp := &dto.OpenAIResponsesResponse{
+		CreatedAt: dto.UnixTime("1786588600.0"),
+		Status:    []byte(`"completed"`),
+	}
+	chat, _, err := ResponsesResponseToChatCompletionsResponse(resp, "chatcmpl_1")
+	require.NoError(t, err)
+	assert.Equal(t, "1786588600.0", string(chat.Created))
 }
 
 func TestResponsesResponseToChatCompletionsPreservesReasoningSummary(t *testing.T) {
@@ -433,10 +443,25 @@ func TestResponsesBufferedAccumulatorDoesNotDuplicatePendingArgsWithOutputIndexA
 	assert.Empty(t, acc.pendingByItemID)
 }
 
+func TestResponsesStreamUsesUpstreamCreatedAtOverPrefill(t *testing.T) {
+	state := NewResponsesToChatStreamState("gpt-test", false)
+	state.ID = "chatcmpl_test"
+	state.Created = dto.UnixTimeRaw(111)
+	chunks := mustStreamChunks(t, state, &dto.ResponsesStreamResponse{
+		Type: responsesEventCreated,
+		Response: &dto.OpenAIResponsesResponse{
+			CreatedAt: dto.UnixTime("1786588600.0"),
+			Model:     "gpt-test",
+		},
+	})
+	require.NotEmpty(t, chunks)
+	assert.Equal(t, "1786588600.0", string(chunks[0].Created))
+}
+
 func newTestResponsesStreamState() *ResponsesToChatStreamState {
 	state := NewResponsesToChatStreamState("gpt-test", false)
 	state.ID = "chatcmpl_test"
-	state.Created = 123
+	state.Created = dto.UnixTimeRaw(123)
 	return state
 }
 

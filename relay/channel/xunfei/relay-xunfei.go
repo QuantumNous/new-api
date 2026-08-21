@@ -73,7 +73,7 @@ func responseXunfei2OpenAI(response *XunfeiChatResponse) *dto.OpenAITextResponse
 	}
 	fullTextResponse := dto.OpenAITextResponse{
 		Object:  "chat.completion",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Choices: []dto.OpenAITextResponseChoice{choice},
 		Usage:   response.Payload.Usage.Text,
 	}
@@ -95,7 +95,7 @@ func streamResponseXunfei2OpenAI(xunfeiResponse *XunfeiChatResponse) *dto.ChatCo
 	}
 	response := dto.ChatCompletionsStreamResponse{
 		Object:  "chat.completion.chunk",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Model:   "SparkDesk",
 		Choices: []dto.ChatCompletionsStreamResponseChoice{choice},
 	}

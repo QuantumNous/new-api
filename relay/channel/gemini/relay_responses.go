@@ -126,7 +126,7 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 	usage, streamAPIError := geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
 		response, isStop := streamResponseGeminiChat2OpenAI(geminiResponse)
 		response.Id = responseID
-		response.Created = created
+		response.Created = dto.UnixTimeRaw(created)
 		response.Model = info.UpstreamModelName
 
 		if response.IsToolCall() {
@@ -159,7 +159,7 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 			return false
 		}
 		if isStop {
-			return sendChunk(helper.GenerateStopResponse(responseID, created, info.UpstreamModelName, finishReason))
+			return sendChunk(helper.GenerateStopResponse(responseID, dto.UnixTimeRaw(created), info.UpstreamModelName, finishReason))
 		}
 		return true
 	})

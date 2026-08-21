@@ -131,7 +131,7 @@ func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamRespon
 	}
 }
 
-func handleLastResponse(lastStreamData string, responseId *string, createAt *int64,
+func handleLastResponse(lastStreamData string, responseId *string, createAt *dto.UnixTime,
 	systemFingerprint *string, model *string, usage **dto.Usage,
 	containStreamUsage *bool, info *relaycommon.RelayInfo,
 	shouldSendLastResp *bool) error {
@@ -160,7 +160,7 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 }
 
 func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStreamData string,
-	responseId string, createAt int64, model string, systemFingerprint string,
+	responseId string, createAt dto.UnixTime, model string, systemFingerprint string,
 	usage *dto.Usage, containStreamUsage bool) {
 
 	switch info.RelayFormat {

@@ -142,7 +142,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 
 	responses := &dto.OpenAIResponsesResponse{
 		ID:        "resp_1",
-		CreatedAt: 123,
+		CreatedAt: dto.UnixTimeRaw(123),
 		Model:     "gpt-test",
 		Status:    []byte(`"completed"`),
 		Output: []dto.ResponsesOutput{
@@ -574,7 +574,7 @@ func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 		Status:    []byte(`"completed"`),
 		Model:     "gpt-test",
 		Output:    []dto.ResponsesOutput{},
-		CreatedAt: 123,
+		CreatedAt: dto.UnixTimeRaw(123),
 		Usage: &dto.Usage{
 			InputTokens:  12,
 			OutputTokens: 8,
@@ -630,7 +630,7 @@ func textRegistryChatResponse() *dto.OpenAITextResponse {
 	return &dto.OpenAITextResponse{
 		Id:      "chatcmpl_1",
 		Model:   "gpt-test",
-		Created: 123,
+		Created: dto.UnixTimeRaw(123),
 		Choices: []dto.OpenAITextResponseChoice{
 			{
 				Index:        0,
@@ -645,7 +645,7 @@ func textRegistryChatResponse() *dto.OpenAITextResponse {
 func textRegistryResponsesResponse() *dto.OpenAIResponsesResponse {
 	return &dto.OpenAIResponsesResponse{
 		ID:        "resp_1",
-		CreatedAt: 123,
+		CreatedAt: dto.UnixTimeRaw(123),
 		Model:     "gpt-test",
 		Status:    []byte(`"completed"`),
 		Output: []dto.ResponsesOutput{
