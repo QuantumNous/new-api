@@ -1,12 +1,14 @@
 package claude
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -222,6 +224,47 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	if claudeInfo.ResponseText.String() != "hello" {
 		t.Errorf("ResponseText = %q, want %q", claudeInfo.ResponseText.String(), "hello")
 	}
+}
+
+func TestHandleStreamFinalResponseRefreshesIncompleteBillingUsage(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-test"},
+	}
+	info.SetEstimatePromptTokens(100)
+
+	partialText := strings.Repeat("partial cancellation output ", 64)
+	var responseText strings.Builder
+	responseText.WriteString(partialText)
+	claudeInfo := &ClaudeResponseInfo{
+		ResponseText: responseText,
+		Usage: &dto.Usage{
+			PromptTokens:     100,
+			CompletionTokens: 1,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens:         100_000,
+				CachedCreationTokens: 120_000,
+			},
+			ClaudeCacheCreation5mTokens: 120_000,
+			BillingUsage: dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{
+				InputTokens:              100,
+				OutputTokens:             1,
+				CacheReadInputTokens:     100_000,
+				CacheCreationInputTokens: 120_000,
+			}),
+		},
+		Done: false,
+	}
+
+	HandleStreamFinalResponse(c, info, claudeInfo)
+
+	assert.Greater(t, claudeInfo.Usage.CompletionTokens, 1)
+	require.NotNil(t, claudeInfo.Usage.BillingUsage)
+	require.NotNil(t, claudeInfo.Usage.BillingUsage.ClaudeUsage)
+	assert.Equal(t, claudeInfo.Usage.CompletionTokens, claudeInfo.Usage.BillingUsage.ClaudeUsage.OutputTokens)
+	assert.Equal(t, 100, claudeInfo.Usage.BillingUsage.ClaudeUsage.InputTokens)
+	assert.Equal(t, 100_000, claudeInfo.Usage.BillingUsage.ClaudeUsage.CacheReadInputTokens)
+	assert.Equal(t, 120_000, claudeInfo.Usage.BillingUsage.ClaudeUsage.CacheCreationInputTokens)
 }
 
 func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {

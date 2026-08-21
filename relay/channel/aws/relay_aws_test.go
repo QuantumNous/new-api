@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -377,6 +379,7 @@ func TestAwsStreamHandlerStopsAtClientCancellationAndKeepsPartialBillingUsage(t 
 
 	producerResults := make(chan error, 1)
 	upstreamContexts := make(chan context.Context, 1)
+	partialText := strings.Repeat("partial cancellation output ", 64)
 	client := newAwsTestClient(awsHTTPClientFunc(func(request *http.Request) (*http.Response, error) {
 		upstreamContexts <- request.Context()
 		reader, writer := io.Pipe()
@@ -385,7 +388,7 @@ func TestAwsStreamHandlerStopsAtClientCancellationAndKeepsPartialBillingUsage(t 
 			initialEvents := []string{
 				`{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","model":"claude-test","content":[],"usage":{"input_tokens":100,"output_tokens":1}}}`,
 				`{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`,
-				`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"partial"}}`,
+				fmt.Sprintf(`{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":%q}}`, partialText),
 			}
 			for _, event := range initialEvents {
 				if err := writeAwsStreamEvent(writer, event); err != nil {
@@ -400,9 +403,10 @@ func TestAwsStreamHandlerStopsAtClientCancellationAndKeepsPartialBillingUsage(t 
 		return newAwsStreamResponse(request, reader), nil
 	}))
 
-	responseWriter := newAwsNotifyingResponseWriter("partial")
+	responseWriter := newAwsNotifyingResponseWriter(partialText)
 	c := newAwsTestContext(responseWriter, requestContext)
 	adaptor := &Adaptor{AwsClient: client, AwsReq: newAwsStreamInput()}
+	info := newAwsTestRelayInfo()
 
 	type handlerResult struct {
 		err   *relaytypes.NewAPIError
@@ -410,7 +414,7 @@ func TestAwsStreamHandlerStopsAtClientCancellationAndKeepsPartialBillingUsage(t 
 	}
 	results := make(chan handlerResult, 1)
 	go func() {
-		err, usage := awsStreamHandler(c, newAwsTestRelayInfo(), adaptor)
+		err, usage := awsStreamHandler(c, info, adaptor)
 		results <- handlerResult{err: err, usage: usage}
 	}()
 
@@ -444,8 +448,12 @@ func TestAwsStreamHandlerStopsAtClientCancellationAndKeepsPartialBillingUsage(t 
 	assert.Equal(t, dto.BillingUsageSourceClaudeMessages, result.usage.BillingUsage.Source)
 	assert.Equal(t, dto.BillingUsageSemanticAnthropic, result.usage.BillingUsage.Semantic)
 	assert.Equal(t, 100, result.usage.BillingUsage.ClaudeUsage.InputTokens)
-	assert.Equal(t, 1, result.usage.BillingUsage.ClaudeUsage.OutputTokens)
-	assert.Equal(t, bodyLengthBeforeCancel, responseWriter.Body.Len())
+	assert.Greater(t, result.usage.CompletionTokens, 1)
+	assert.Equal(t, result.usage.CompletionTokens, result.usage.BillingUsage.ClaudeUsage.OutputTokens)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
+	require.ErrorIs(t, info.StreamStatus.EndError, context.Canceled)
+	assert.GreaterOrEqual(t, responseWriter.Body.Len(), bodyLengthBeforeCancel)
 	assert.NotContains(t, responseWriter.Body.String(), "[DONE]")
 
 	release()
