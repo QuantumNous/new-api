@@ -97,10 +97,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
 			case types.RelayFormatClaude:
-				c.JSON(newAPIError.StatusCode, gin.H{
-					"type":  "error",
-					"error": newAPIError.ToClaudeError(),
-				})
+				c.JSON(newAPIError.StatusCode, newAPIError.ToClaudeErrorResponse(c.GetString(common.RequestIdKey)))
 			default:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"error": newAPIError.ToOpenAIError(),
@@ -125,9 +122,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
 	}
+	isClaudeCountTokens := relayFormat == types.RelayFormatClaude &&
+		relayInfo.RelayMode == relayconstant.RelayModeClaudeCountTokens
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
-	needCountToken := constant.CountToken
+	needCountToken := constant.CountToken && !isClaudeCountTokens
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
 	if needSensitiveCheck || needCountToken {
@@ -145,41 +144,43 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}
 
-	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
-		return
-	}
-
-	relayInfo.SetEstimatePromptTokens(tokens)
-
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
-		return
-	}
-
-	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
-	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
-		if newAPIError != nil {
+	if !isClaudeCountTokens {
+		tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
 			return
 		}
-	}
 
-	defer func() {
-		// Only return quota if downstream failed and quota was actually pre-consumed
-		if newAPIError != nil {
-			newAPIError = service.NormalizeViolationFeeError(newAPIError)
-			if relayInfo.Billing != nil {
-				relayInfo.Billing.Refund(c)
-			}
-			service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
+		relayInfo.SetEstimatePromptTokens(tokens)
+
+		priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
+		if err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
+			return
 		}
-	}()
+
+		// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
+
+		if priceData.FreeModel {
+			logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
+		} else {
+			newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
+			if newAPIError != nil {
+				return
+			}
+		}
+
+		defer func() {
+			// Only return quota if downstream failed and quota was actually pre-consumed
+			if newAPIError != nil {
+				newAPIError = service.NormalizeViolationFeeError(newAPIError)
+				if relayInfo.Billing != nil {
+					relayInfo.Billing.Refund(c)
+				}
+				service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
+			}
+		}()
+	}
 
 	retryParam := &service.RetryParam{
 		Ctx:         c,
@@ -200,9 +201,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
-			newAPIError = billingErr
-			break
+		if !isClaudeCountTokens {
+			if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
+				newAPIError = billingErr
+				break
+			}
 		}
 
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
@@ -221,7 +224,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
 		case types.RelayFormatClaude:
-			newAPIError = relay.ClaudeHelper(c, relayInfo)
+			if isClaudeCountTokens {
+				newAPIError = relay.ClaudeCountTokensHelper(c, relayInfo)
+			} else {
+				newAPIError = relay.ClaudeHelper(c, relayInfo)
+			}
 		case types.RelayFormatGemini:
 			newAPIError = geminiRelayHandler(c, relayInfo)
 		default:

@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -204,6 +205,10 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		err = HandleStreamResponseData(c, info, claudeInfo, data)
 		if err != nil {
 			sr.Stop(err)
+			return
+		}
+		if claudeInfo.MessageStopReceived {
+			sr.Done()
 		}
 	})
 	if err != nil {
@@ -285,4 +290,25 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 		return nil, handleErr
 	}
 	return claudeInfo.Usage, nil
+}
+
+func ClaudeCountTokensHandler(c *gin.Context, resp *http.Response) *types.NewAPIError {
+	if resp == nil || resp.Body == nil {
+		return types.NewClaudeError(errors.New("empty Claude count_tokens response"), types.ErrorCodeEmptyResponse, http.StatusBadGateway)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return types.NewClaudeError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusBadGateway)
+	}
+	var response dto.ClaudeCountTokensResponse
+	if err := common.Unmarshal(responseBody, &response); err != nil {
+		return types.NewClaudeError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+	if response.InputTokens == nil || *response.InputTokens < 0 {
+		return types.NewClaudeError(errors.New("invalid Claude count_tokens response"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+	service.IOCopyBytesGracefully(c, resp, responseBody)
+	return nil
 }

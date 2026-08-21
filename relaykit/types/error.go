@@ -23,6 +23,12 @@ type ClaudeError struct {
 	Message string `json:"message,omitempty"`
 }
 
+type ClaudeErrorResponse struct {
+	Type      string      `json:"type"`
+	Error     ClaudeError `json:"error"`
+	RequestID string      `json:"request_id,omitempty"`
+}
+
 type ErrorType string
 
 const (
@@ -88,14 +94,15 @@ const (
 )
 
 type NewAPIError struct {
-	Err            error
-	RelayError     any
-	skipRetry      bool
-	recordErrorLog *bool
-	errorType      ErrorType
-	errorCode      ErrorCode
-	StatusCode     int
-	Metadata       json.RawMessage
+	Err             error
+	RelayError      any
+	skipRetry       bool
+	recordErrorLog  *bool
+	errorType       ErrorType
+	errorCode       ErrorCode
+	StatusCode      int
+	Metadata        json.RawMessage
+	claudeRequestID string
 }
 
 // Unwrap enables errors.Is / errors.As to work with NewAPIError by exposing the underlying error.
@@ -215,9 +222,13 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 	switch e.errorType {
 	case ErrorTypeOpenAIError:
 		if openAIError, ok := e.RelayError.(OpenAIError); ok {
+			code := ""
+			if openAIError.Code != nil {
+				code = fmt.Sprintf("%v", openAIError.Code)
+			}
 			result = ClaudeError{
 				Message: e.Error(),
-				Type:    fmt.Sprintf("%v", openAIError.Code),
+				Type:    normalizeClaudeErrorType(e.StatusCode, openAIError.Type, code, string(e.errorCode)),
 			}
 		}
 	case ErrorTypeClaudeError:
@@ -227,8 +238,11 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 	default:
 		result = ClaudeError{
 			Message: e.Error(),
-			Type:    string(e.errorType),
+			Type:    normalizeClaudeErrorType(e.StatusCode, string(e.errorCode), string(e.errorType)),
 		}
+	}
+	if result.Type == "" {
+		result.Type = normalizeClaudeErrorType(e.StatusCode, string(e.errorCode))
 	}
 	if e.errorCode != ErrorCodeCountTokenFailed {
 		result.Message = kitutil.MaskSensitiveInfo(result.Message)
@@ -237,6 +251,90 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 		result.Message = string(e.errorType)
 	}
 	return result
+}
+
+func (e *NewAPIError) ToClaudeErrorResponse(fallbackRequestID ...string) ClaudeErrorResponse {
+	requestID := e.claudeRequestID
+	if requestID == "" && len(fallbackRequestID) > 0 {
+		requestID = strings.TrimSpace(fallbackRequestID[0])
+	}
+	return ClaudeErrorResponse{
+		Type:      "error",
+		Error:     e.ToClaudeError(),
+		RequestID: requestID,
+	}
+}
+
+func normalizeClaudeErrorType(statusCode int, candidates ...string) string {
+	for _, candidate := range candidates {
+		switch strings.ToLower(strings.TrimSpace(candidate)) {
+		case "invalid_request_error":
+			return "invalid_request_error"
+		case "invalid_request", "bad_request", "bad_request_body", "context_length_exceeded":
+			return "invalid_request_error"
+		case "authentication_error":
+			return "authentication_error"
+		case "invalid_api_key", "unauthorized", "unauthorized_error":
+			return "authentication_error"
+		case "billing_error":
+			return "billing_error"
+		case "payment_required":
+			return "billing_error"
+		case "permission_error":
+			return "permission_error"
+		case "access_denied", "forbidden":
+			return "permission_error"
+		case "not_found_error":
+			return "not_found_error"
+		case "model_not_found":
+			return "not_found_error"
+		case "conflict_error":
+			return "conflict_error"
+		case "conflict":
+			return "conflict_error"
+		case "request_too_large":
+			return "request_too_large"
+		case "rate_limit_error":
+			return "rate_limit_error"
+		case "rate_limit_exceeded", "insufficient_quota":
+			return "rate_limit_error"
+		case "overloaded_error":
+			return "overloaded_error"
+		case "timeout_error":
+			return "timeout_error"
+		case "gateway_timeout":
+			return "timeout_error"
+		case "api_error":
+			return "api_error"
+		}
+	}
+
+	switch statusCode {
+	case http.StatusBadRequest:
+		return "invalid_request_error"
+	case http.StatusUnauthorized:
+		return "authentication_error"
+	case http.StatusPaymentRequired:
+		return "billing_error"
+	case http.StatusForbidden:
+		return "permission_error"
+	case http.StatusNotFound:
+		return "not_found_error"
+	case http.StatusConflict:
+		return "conflict_error"
+	case http.StatusRequestEntityTooLarge:
+		return "request_too_large"
+	case http.StatusTooManyRequests:
+		return "rate_limit_error"
+	case http.StatusGatewayTimeout, 524:
+		return "timeout_error"
+	case http.StatusServiceUnavailable, 529:
+		return "overloaded_error"
+	}
+	if statusCode >= 400 && statusCode < 500 {
+		return "invalid_request_error"
+	}
+	return "api_error"
 }
 
 type NewAPIErrorOptions func(*NewAPIError)
@@ -286,6 +384,13 @@ func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAP
 		Code:    errorCode,
 	}
 	return WithOpenAIError(openaiError, statusCode, ops...)
+}
+
+func NewClaudeError(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	return WithClaudeError(ClaudeError{
+		Message: err.Error(),
+		Type:    normalizeClaudeErrorType(statusCode, string(errorCode)),
+	}, statusCode, ops...)
 }
 
 func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
@@ -387,6 +492,12 @@ func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.recordErrorLog = kitutil.GetPointer(false)
+	}
+}
+
+func ErrOptionWithClaudeRequestID(requestID string) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.claudeRequestID = strings.TrimSpace(requestID)
 	}
 }
 
