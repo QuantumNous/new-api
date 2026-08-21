@@ -1,0 +1,156 @@
+name: Publish commit image to GHCR
+
+# Builds a multi-arch image on every push and pushes it to GitHub Container
+# Registry (ghcr.io) using the automatically-provided GITHUB_TOKEN. No secret
+# credential is required.
+
+on:
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  group: ghcr-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prepare:
+    name: Prepare image metadata
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      branch: ${{ steps.meta.outputs.branch }}
+      branch_tag: ${{ steps.meta.outputs.branch_tag }}
+      version: ${{ steps.meta.outputs.version }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      is_default_branch: ${{ steps.meta.outputs.is_default_branch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Resolve image metadata
+        id: meta
+        run: |
+          IMAGE="ghcr.io/$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          BRANCH="$GITHUB_REF_NAME"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+
+          BRANCH_TAG="$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g; s/^[.-]+//; s/[.-]+$//')"
+          BRANCH_TAG="${BRANCH_TAG:0:105}"
+          BRANCH_TAG="$(printf '%s' "$BRANCH_TAG" | sed -E 's/[.-]+$//')"
+          if [ -z "$BRANCH_TAG" ]; then
+            echo "::error::Branch '$BRANCH' cannot be converted to a valid Docker tag"
+            exit 1
+          fi
+
+          VERSION="${BRANCH_TAG}-${SHORT_SHA}"
+
+          IS_DEFAULT_BRANCH=false
+          if [ "$BRANCH" = "${{ github.event.repository.default_branch }}" ]; then
+            IS_DEFAULT_BRANCH=true
+          fi
+
+          {
+            echo "image=$IMAGE"
+            echo "branch=$BRANCH"
+            echo "branch_tag=$BRANCH_TAG"
+            echo "version=$VERSION"
+            echo "short_sha=$SHORT_SHA"
+            echo "is_default_branch=$IS_DEFAULT_BRANCH"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build and push (${{ matrix.arch }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Write VERSION
+        run: printf '%s\n' "${{ needs.prepare.outputs.version }}" > VERSION
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ needs.prepare.outputs.image }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: |
+            ${{ needs.prepare.outputs.image }}:sha-${{ needs.prepare.outputs.short_sha }}-${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+  manifest:
+    name: Assemble multi-arch manifest
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push manifests
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+          BRANCH_TAG: ${{ needs.prepare.outputs.branch_tag }}
+          IS_DEFAULT_BRANCH: ${{ needs.prepare.outputs.is_default_branch }}
+        run: |
+          docker buildx imagetools create \
+            -t "${IMAGE}:sha-${SHORT_SHA}" \
+            "${IMAGE}:sha-${SHORT_SHA}-amd64" \
+            "${IMAGE}:sha-${SHORT_SHA}-arm64"
+
+          docker buildx imagetools create \
+            -t "${IMAGE}:${BRANCH_TAG}" \
+            "${IMAGE}:sha-${SHORT_SHA}-amd64" \
+            "${IMAGE}:sha-${SHORT_SHA}-arm64"
+
+          if [ "$IS_DEFAULT_BRANCH" = "true" ]; then
+            docker buildx imagetools create \
+              -t "${IMAGE}:latest" \
+              "${IMAGE}:sha-${SHORT_SHA}-amd64" \
+              "${IMAGE}:sha-${SHORT_SHA}-arm64"
+          fi
