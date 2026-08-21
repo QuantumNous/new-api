@@ -100,12 +100,19 @@ function loadColor(percent: number | null): string {
   return 'var(--glow)'
 }
 
-/** Disk uses amber/accent by default, shifting to warning/danger under high usage. */
+/**
+ * Disk usage color gradient:
+ * - < 60%: healthy & abundant (glow green or accent gold)
+ * - 60% ~ 75%: moderate usage (accent gold)
+ * - 75% ~ 88%: watchful warning (amber warning gold)
+ * - >= 88%: critical high load (status danger coral red)
+ */
 function diskColor(percent: number | null): string {
   if (percent === null) return 'var(--text-tertiary)'
-  if (percent >= 90) return 'var(--status-danger)'
-  if (percent >= 70) return 'var(--status-warning)'
-  return 'var(--accent)'
+  if (percent >= 88) return 'var(--status-danger)'
+  if (percent >= 75) return 'var(--status-warning)'
+  if (percent >= 60) return 'var(--accent)'
+  return 'var(--glow)'
 }
 
 /** Success rate reads the other way round — high is good. */
@@ -167,6 +174,7 @@ interface MetricTile {
   value: string
   unit: string
   bandwidth?: { up: string; down: string }
+  disk?: { used: string; total: string }
   /** 0-100 usage against a ceiling; null when the metric is unavailable. */
   percent: number | null
   /** Shared-scale throughput history, for metrics with no ceiling. */
@@ -234,6 +242,13 @@ const tiles = computed<MetricTile[]>(() => {
           ? '--'
           : `${formatStorage(diskUsed)} / ${formatStorage(diskTotal)}`,
       unit: diskUsed === null || diskTotal === null ? '' : 'GB',
+      disk:
+        diskUsed !== null && diskTotal !== null
+          ? {
+              used: formatStorage(diskUsed),
+              total: formatStorage(diskTotal),
+            }
+          : undefined,
       percent: diskPercent,
       color: diskColor(diskPercent),
     },
@@ -500,12 +515,37 @@ const successColor = computed(() => rateColor(successRate.value))
             </div>
           </template>
 
-          <div
-            v-else
-            class="mt-auto flex items-end justify-between gap-1.5 pt-0.5"
-            data-disk-gauge
-          >
-            <p class="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+        <div
+          v-else
+          class="mt-auto flex items-end justify-between gap-1.5 pt-0.5"
+          data-disk-gauge
+        >
+          <p class="flex min-w-0 items-baseline whitespace-nowrap">
+            <template v-if="tile.disk">
+              <span
+                class="font-mono text-xl font-bold leading-none tabular-nums sm:text-2xl"
+                :style="{ color: tile.color }"
+              >
+                {{ tile.disk.used }}
+              </span>
+              <span
+                class="mx-1 text-xs font-semibold text-[var(--text-tertiary)] opacity-60"
+              >
+                /
+              </span>
+              <span
+                class="font-mono text-xs font-semibold tabular-nums text-[var(--text-tertiary)] sm:text-[13px]"
+              >
+                {{ tile.disk.total }}
+              </span>
+              <span
+                v-if="tile.unit"
+                class="ml-1 text-[9px] font-mono text-[var(--text-tertiary)] opacity-80"
+              >
+                {{ tile.unit }}
+              </span>
+            </template>
+            <template v-else>
               <span
                 class="text-base font-bold leading-tight tabular-nums"
                 :style="{ color: tile.color }"
@@ -514,18 +554,19 @@ const successColor = computed(() => rateColor(successRate.value))
               </span>
               <span
                 v-if="tile.unit"
-                class="text-[9px] text-[var(--text-tertiary)]"
+                class="ml-0.5 text-[9px] text-[var(--text-tertiary)]"
               >
                 {{ tile.unit }}
               </span>
-            </p>
-            <MiniRing
-              :percent="tile.percent ?? 0"
-              :color="tile.color"
-              :size="34"
-              :indeterminate="tile.percent === null"
-            />
-          </div>
+            </template>
+          </p>
+          <MiniRing
+            :percent="tile.percent ?? 0"
+            :color="tile.color"
+            :size="34"
+            :indeterminate="tile.percent === null"
+          />
+        </div>
         </div>
       </div>
 
