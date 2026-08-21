@@ -164,10 +164,10 @@ function highlight(rowIndex: number, on: boolean) {
 
     <div
       v-if="loading"
-      class="grid grow gap-4 lg:gap-6 lg:grid-cols-[minmax(18rem,20rem)_minmax(0,1fr)]"
+      class="grid grow gap-4 lg:gap-5 md:grid-cols-[minmax(12rem,14rem)_minmax(0,1fr)] lg:grid-cols-[minmax(13rem,15rem)_minmax(0,1fr)]"
     >
       <div
-        class="h-56 animate-pulse rounded-full bg-[var(--surface-muted)] lg:h-[300px]"
+        class="h-52 animate-pulse rounded-full bg-[var(--surface-muted)] lg:h-60"
         data-model-distribution-chart
       />
       <div class="self-center space-y-2.5">
@@ -188,7 +188,7 @@ function highlight(rowIndex: number, on: boolean) {
 
     <div
       v-else
-      class="grid grow gap-4 lg:gap-6 lg:grid-cols-[minmax(18rem,20rem)_minmax(0,1fr)]"
+      class="grid grow gap-4 lg:gap-5 md:grid-cols-[minmax(12rem,14rem)_minmax(0,1fr)] lg:grid-cols-[minmax(13rem,15rem)_minmax(0,1fr)]"
     >
       <!--
         Donut sized to fill its column rather than sit in a fixed box. min-w-0:
@@ -197,31 +197,32 @@ function highlight(rowIndex: number, on: boolean) {
       -->
       <div
         ref="el"
-        class="h-56 w-full min-w-0 self-center lg:h-[300px]"
+        class="h-52 w-full min-w-0 self-center lg:h-60"
         role="img"
         :aria-label="t('dashboard.modelDist.title')"
         data-model-distribution-chart
       />
 
       <!--
-        Every model is listed, so the body scrolls instead of the card growing
-        without bound. The header stays put so the columns remain readable.
+        Every model is listed, so the body scrolls vertically instead of the card
+        growing without bound. Columns flex to fill available width so horizontal
+        scrolling is avoided wherever possible.
       -->
       <div
-        class="subtle-scroll max-h-56 min-w-0 self-center overflow-y-auto overflow-x-auto pr-2 lg:max-h-[300px]"
+        class="subtle-scroll max-h-56 min-w-0 self-center overflow-y-auto overflow-x-auto pr-1 sm:pr-2 lg:max-h-64"
         role="region"
         tabindex="0"
         :aria-label="t('dashboard.modelDist.title')"
         data-model-distribution-table
         data-model-distribution-scroll
       >
-        <table class="w-full min-w-[560px] border-collapse text-sm">
+        <table class="w-full min-w-full border-collapse text-sm">
           <colgroup>
-            <col class="w-[34%]" />
-            <col class="w-[13%]" />
-            <col class="w-[15%]" />
-            <col class="w-[22%]" />
+            <col class="w-[30%]" />
+            <col class="w-[12%]" />
             <col class="w-[16%]" />
+            <col class="w-[24%]" />
+            <col class="w-[18%]" />
           </colgroup>
           <!--
             Sticky lives on the cells, not on thead: with border-collapse the
@@ -232,27 +233,27 @@ function highlight(rowIndex: number, on: boolean) {
               class="border-b border-[var(--border-subtle)] text-[11px] tracking-wider text-[var(--text-tertiary)]"
             >
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-3 py-2.5 text-left font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2 py-2 text-left font-semibold sm:px-2.5"
               >
                 {{ t('dashboard.modelDist.model') }}
               </th>
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-1.5 py-2 text-right font-semibold sm:px-2"
               >
                 {{ t('dashboard.modelDist.requests') }}
               </th>
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2.5 py-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-1.5 py-2 text-right font-semibold sm:px-2"
               >
                 {{ t('dashboard.modelDist.tokens') }}
               </th>
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-3 py-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2 py-2 text-right font-semibold sm:px-2.5"
               >
                 {{ t('dashboard.modelDist.share') }}
               </th>
               <th
-                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-3 py-2.5 text-right font-semibold"
+                class="sticky top-0 z-10 whitespace-nowrap bg-[var(--surface-table-header)] px-2 py-2 text-right font-semibold sm:px-2.5"
               >
                 {{ t('dashboard.modelDist.spend') }}
               </th>
@@ -266,14 +267,14 @@ function highlight(rowIndex: number, on: boolean) {
               @mouseenter="highlight(i, true)"
               @mouseleave="highlight(i, false)"
             >
-              <td class="px-3 py-2.5">
-                <span class="flex min-w-0 items-center gap-2.5">
+              <td class="px-2 py-2 sm:px-2.5">
+                <span class="flex min-w-0 items-center gap-2">
                   <span
                     class="h-2 w-2 shrink-0 rounded-full ring-2 ring-[var(--surface-solid)] shadow-sm transition-transform group-hover:scale-125"
                     :style="{ background: swatchColor(i) }"
                   />
                   <span
-                    class="max-w-[170px] truncate font-mono text-xs font-medium text-[var(--text-primary)]"
+                    class="max-w-[110px] truncate font-mono text-xs font-medium text-[var(--text-primary)] sm:max-w-[130px] lg:max-w-[160px]"
                     :title="m.model"
                   >
                     {{ m.model }}
@@ -281,19 +282,19 @@ function highlight(rowIndex: number, on: boolean) {
                 </span>
               </td>
               <td
-                class="px-2.5 py-2.5 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)]"
+                class="px-1.5 py-2 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)] sm:px-2"
               >
                 {{ formatNumber(m.requests) }}
               </td>
               <td
-                class="px-2.5 py-2.5 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)]"
+                class="px-1.5 py-2 text-right font-mono text-xs tabular-nums text-[var(--text-secondary)] sm:px-2"
               >
                 {{ formatCompact(m.tokens) }}
               </td>
-              <td class="px-3 py-2.5 text-right">
-                <div class="flex items-center justify-end gap-2">
+              <td class="px-2 py-2 text-right sm:px-2.5">
+                <div class="flex items-center justify-end gap-1.5 sm:gap-2">
                   <div
-                    class="pencil-progress h-1.5 w-16 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                    class="pencil-progress h-1.5 w-10 overflow-hidden rounded-full bg-[var(--surface-muted)] sm:w-14 md:w-16"
                   >
                     <div
                       class="h-full rounded-full transition-all duration-300"
@@ -304,14 +305,14 @@ function highlight(rowIndex: number, on: boolean) {
                     />
                   </div>
                   <span
-                    class="w-11 shrink-0 text-right font-mono text-xs tabular-nums text-[var(--text-tertiary)]"
+                    class="w-9 shrink-0 text-right font-mono text-xs tabular-nums text-[var(--text-tertiary)] sm:w-11"
                   >
                     {{ modelSharePercent(m.quota) }}%
                   </span>
                 </div>
               </td>
               <td
-                class="px-3 py-2.5 text-right font-mono text-xs font-semibold tabular-nums text-[var(--text-primary)] dark:text-[var(--accent-text)]"
+                class="px-2 py-2 text-right font-mono text-xs font-semibold tabular-nums text-[var(--text-primary)] dark:text-[var(--accent-text)] sm:px-2.5"
               >
                 {{ formatQuota(m.quota) }}
               </td>

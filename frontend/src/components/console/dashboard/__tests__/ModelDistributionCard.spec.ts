@@ -149,7 +149,7 @@ describe('ModelDistributionCard', () => {
     expect(wrapper.find('[data-model-distribution-chart]').exists()).toBe(true)
     expect(wrapper.find('[data-model-distribution-table]').exists()).toBe(true)
     expect(wrapper.find('[data-model-distribution-scroll]').exists()).toBe(true)
-    expect(wrapper.find('table').classes()).toContain('min-w-[560px]')
+    expect(wrapper.find('table').classes()).toContain('min-w-full')
     expect(wrapper.findAll('thead th')).toHaveLength(5)
     for (const header of wrapper.findAll('thead th')) {
       expect(header.classes()).toContain('whitespace-nowrap')
