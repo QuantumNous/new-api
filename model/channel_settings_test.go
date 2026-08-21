@@ -98,3 +98,93 @@ func TestAdvancedCustomChannelRequiresModelListRouteOnlyWhenUpdateChecksEnabled(
 		})
 	}
 }
+
+func TestContentToReasoningSettingsValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		channel *Channel
+		wantErr string
+	}{
+		{
+			name: "enabled with default markers",
+			channel: func() *Channel {
+				channel := &Channel{}
+				channel.SetOtherSettings(dto.ChannelOtherSettings{
+					ContentToReasoning: &dto.ContentToReasoningSettings{Enabled: true},
+				})
+				return channel
+			}(),
+		},
+		{
+			name: "enabled with paired markers",
+			channel: func() *Channel {
+				channel := &Channel{}
+				channel.SetOtherSettings(dto.ChannelOtherSettings{
+					ContentToReasoning: &dto.ContentToReasoningSettings{
+						Enabled: true,
+						Markers: []dto.ContentToReasoningMarkerPair{
+							{Start: "<think>", End: "</think>"},
+							{Start: "[think]", End: "[/think]"},
+						},
+					},
+				})
+				return channel
+			}(),
+		},
+		{
+			name: "incomplete marker rejected",
+			channel: func() *Channel {
+				channel := &Channel{}
+				channel.SetOtherSettings(dto.ChannelOtherSettings{
+					ContentToReasoning: &dto.ContentToReasoningSettings{
+						Enabled: true,
+						Markers: []dto.ContentToReasoningMarkerPair{
+							{Start: "<think>", End: ""},
+						},
+					},
+				})
+				return channel
+			}(),
+			wantErr: "both start and end",
+		},
+		{
+			name: "disabled with invalid marker is tolerated",
+			channel: func() *Channel {
+				channel := &Channel{}
+				channel.SetOtherSettings(dto.ChannelOtherSettings{
+					ContentToReasoning: &dto.ContentToReasoningSettings{
+						Enabled: false,
+						Markers: []dto.ContentToReasoningMarkerPair{
+							{Start: "<think>", End: ""},
+						},
+					},
+				})
+				return channel
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.channel.ValidateSettings()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestContentToReasoningConflictsWithThinkingToContent(t *testing.T) {
+	channel := &Channel{}
+	channel.SetSetting(dto.ChannelSettings{ThinkingToContent: true})
+	channel.SetOtherSettings(dto.ChannelOtherSettings{
+		ContentToReasoning: &dto.ContentToReasoningSettings{Enabled: true},
+	})
+
+	err := channel.ValidateSettings()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot both be enabled")
+}

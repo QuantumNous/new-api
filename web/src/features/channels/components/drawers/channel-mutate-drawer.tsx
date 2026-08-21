@@ -286,6 +286,8 @@ const SENSITIVE_FORM_FIELDS = [
   'azure_responses_version',
   'force_format',
   'thinking_to_content',
+  'content_to_reasoning_enabled',
+  'content_to_reasoning_markers',
   'proxy',
   'http_protocol',
   'http2_connection_shards',
@@ -342,6 +344,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.system_prompt?.trim() ||
     values.force_format ||
     values.thinking_to_content ||
+    values.content_to_reasoning_enabled ||
+    values.content_to_reasoning_markers?.trim() ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     (values.http_protocol && values.http_protocol !== 'auto') ||
@@ -748,6 +752,12 @@ export function ChannelMutateDrawer({
   const currentHeaderOverride = form.watch('header_override')
   const currentForceFormat = form.watch('force_format')
   const currentThinkingToContent = form.watch('thinking_to_content')
+  const currentContentToReasoningEnabled = form.watch(
+    'content_to_reasoning_enabled'
+  )
+  const currentContentToReasoningMarkers = form.watch(
+    'content_to_reasoning_markers'
+  )
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
@@ -1020,6 +1030,8 @@ export function ChannelMutateDrawer({
   const extraSettingsConfigured = Boolean(
     currentForceFormat ||
     currentThinkingToContent ||
+    currentContentToReasoningEnabled ||
+    currentContentToReasoningMarkers?.trim() ||
     currentPassThroughBodyEnabled ||
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
@@ -4119,8 +4131,63 @@ export function ChannelMutateDrawer({
                                       <Switch
                                         checked={field.value}
                                         onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='content_to_reasoning_enabled'
+                                render={({ field }) => (
+                                  <FormItem className='px-4 py-3'>
+                                    <div className='flex items-center justify-between'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Content to Reasoning')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Convert marker-delimited thinking text into reasoning_content'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </div>
+                                    {field.value && (
+                                      <FormField
+                                        control={form.control}
+                                        name='content_to_reasoning_markers'
+                                        render={({ field: markersField }) => (
+                                          <FormItem className='pt-3'>
+                                            <FormLabel>
+                                              {t('Markers')}
+                                            </FormLabel>
+                                            <FormControl>
+                                              <Textarea
+                                                rows={3}
+                                                placeholder={t(
+                                                  '[{"start":"<mm:think>","end":"</mm:think>"}]'
+                                                )}
+                                                {...markersField}
+                                              />
+                                            </FormControl>
+                                            <FormDescription>
+                                              {t(
+                                                'JSON array of paired start and end markers. Leave empty to use the default markers.'
+                                              )}
+                                            </FormDescription>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
                                       />
-                                    </FormControl>
+                                    )}
                                   </FormItem>
                                 )}
                               />
@@ -4559,11 +4626,11 @@ export function ChannelMutateDrawer({
                                               />
                                             </FormControl>
                                           </FormItem>
-                                        )}
-                                      />
-                                    )}
+                                  )}
+                                />
+                              )}
 
-                                    <FormField
+                              <FormField
                                       control={form.control}
                                       name='allow_speed'
                                       render={({ field }) => (

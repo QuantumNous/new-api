@@ -109,6 +109,17 @@ export interface ChannelOtherSettings {
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
   advanced_custom?: AdvancedCustomConfig
+  content_to_reasoning?: ContentToReasoningSettings
+}
+
+export interface ContentToReasoningSettings {
+  enabled: boolean
+  markers?: ContentToReasoningMarkerPair[]
+}
+
+export interface ContentToReasoningMarkerPair {
+  start: string
+  end: string
 }
 
 export interface AdvancedCustomConfig {

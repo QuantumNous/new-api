@@ -122,6 +122,34 @@ function isOptionalJsonObject(value: string | undefined): boolean {
   }
 }
 
+function parseContentToReasoningMarkers(
+  value: string | undefined
+): { start: string; end: string }[] | undefined {
+  if (!value?.trim()) return undefined
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return undefined
+    const markers = parsed.map((item) => {
+      if (typeof item !== 'object' || item === null) return null
+      const start = String(item.start || '').trim()
+      const end = String(item.end || '').trim()
+      if (!start || !end) return null
+      return { start, end }
+    })
+    if (markers.some((item) => item === null)) return undefined
+    return markers as { start: string; end: string }[]
+  } catch {
+    return undefined
+  }
+}
+
+function isOptionalContentToReasoningMarkers(
+  value: string | undefined
+): boolean {
+  if (!value?.trim()) return true
+  return parseContentToReasoningMarkers(value) !== undefined
+}
+
 function isOptionalModelMapping(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -255,6 +283,14 @@ export const channelFormSchema = z
     // Channel extra settings (stored in setting JSON, not sent directly)
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
+    content_to_reasoning_enabled: z.boolean().optional(),
+    content_to_reasoning_markers: z
+      .string()
+      .optional()
+      .refine(
+        isOptionalContentToReasoningMarkers,
+        'Markers must be a JSON array of objects with start and end strings'
+      ),
     proxy: z
       .string()
       .optional()
@@ -430,6 +466,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Channel extra settings
   force_format: false,
   thinking_to_content: false,
+  content_to_reasoning_enabled: false,
+  content_to_reasoning_markers: '',
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
@@ -518,6 +556,8 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let contentToReasoningEnabled = false
+  let contentToReasoningMarkers = ''
 
   if (channel.settings) {
     try {
@@ -545,6 +585,24 @@ export function transformChannelToFormDefaults(
         : ''
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
+      }
+      if (
+        parsed.content_to_reasoning &&
+        typeof parsed.content_to_reasoning === 'object'
+      ) {
+        const contentToReasoning = parsed.content_to_reasoning as Record<
+          string,
+          unknown
+        >
+        contentToReasoningEnabled = contentToReasoning.enabled === true
+        if (
+          Array.isArray(contentToReasoning.markers) &&
+          contentToReasoning.markers.length > 0
+        ) {
+          contentToReasoningMarkers = JSON.stringify(
+            contentToReasoning.markers
+          )
+        }
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -597,6 +655,8 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     advanced_custom: advancedCustom,
+    content_to_reasoning_enabled: contentToReasoningEnabled,
+    content_to_reasoning_markers: contentToReasoningMarkers,
   }
 }
 
@@ -725,6 +785,17 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
 
   settingsObj.disable_task_polling_sleep =
     formData.disable_task_polling_sleep === true
+
+  if (formData.content_to_reasoning_enabled) {
+    const markers = parseContentToReasoningMarkers(
+      formData.content_to_reasoning_markers
+    )
+    settingsObj.content_to_reasoning = markers
+      ? { enabled: true, markers }
+      : { enabled: true }
+  } else if ('content_to_reasoning' in settingsObj) {
+    delete settingsObj.content_to_reasoning
+  }
 
   // Upstream model update settings (for model-fetchable channel types)
   if (MODEL_FETCHABLE_TYPES.has(formData.type)) {
