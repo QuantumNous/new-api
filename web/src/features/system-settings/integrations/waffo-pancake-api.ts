@@ -27,6 +27,15 @@ export interface CatalogProduct {
   id: string
   name: string
   status: string
+  prices: CatalogProductPrice[]
+}
+
+export interface CatalogProductPrice {
+  currency: string
+  priceInfo: {
+    amount: string
+    taxCategory: string
+  }
 }
 
 export interface CatalogStore {
@@ -58,15 +67,21 @@ interface BackendBody<T> {
 
 export type CatalogResponse = BackendBody<{ stores: CatalogStore[] }>
 export type PairResponse = BackendBody<PairResult>
-export type SaveResponse = BackendBody<{ product_id: string; store_id: string }>
+export type SaveResponse = BackendBody<{
+  product_id: string
+  store_id: string
+  currency: string
+  unit_price: number
+  min_topup: number
+}>
 
 export async function listWaffoPancakeCatalog(
   merchantID: string,
   privateKey: string
 ): Promise<CatalogResponse> {
-  const res = await api.get<CatalogResponse>(
+  const res = await api.post<CatalogResponse>(
     '/api/option/waffo-pancake/catalog',
-    { params: { merchant_id: merchantID, private_key: privateKey } }
+    { merchant_id: merchantID, private_key: privateKey }
   )
   return res.data
 }
@@ -90,6 +105,9 @@ export async function saveWaffoPancakeConfig(params: {
   returnURL: string
   storeID: string
   productID: string
+  currency: string
+  unitPrice: number
+  minTopup: number
 }): Promise<SaveResponse> {
   const res = await api.post<SaveResponse>('/api/option/waffo-pancake/save', {
     merchant_id: params.merchantID,
@@ -97,6 +115,9 @@ export async function saveWaffoPancakeConfig(params: {
     return_url: params.returnURL,
     store_id: params.storeID,
     product_id: params.productID,
+    currency: params.currency,
+    unit_price: params.unitPrice,
+    min_topup: params.minTopup,
   })
   return res.data
 }

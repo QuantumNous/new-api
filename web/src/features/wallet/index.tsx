@@ -16,12 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
-import { useStatus } from '@/hooks/use-status'
-import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
@@ -32,10 +30,11 @@ import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
-import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from './constants'
+import { PAYMENT_TYPES } from './constants'
 import {
   useTopupInfo,
   usePayment,
+  canConfirmPayment,
   useAffiliate,
   useRedemption,
   useCreemPayment,
@@ -44,7 +43,7 @@ import {
 } from './hooks'
 import {
   getDefaultPaymentType,
-  getMinTopupAmount,
+  getPaymentMethodMinTopup,
   dispatchSelectedPayment,
 } from './lib'
 import type {
@@ -79,22 +78,13 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const paymentSelectionIdRef = useRef(0)
 
-  const { status } = useStatus()
-  const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
-
-  // Calculate effective exchange rate - when display type is USD, use rate of 1
-  const effectiveUsdExchangeRate = useMemo(() => {
-    return currency?.quotaDisplayType === 'USD'
-      ? 1
-      : currency?.usdExchangeRate || 1
-  }, [currency?.quotaDisplayType, currency?.usdExchangeRate])
   const {
-    amount: paymentAmount,
-    calculating,
     processing,
     calculatePaymentAmount,
+    getPaymentQuote,
     processPayment,
   } = usePayment()
   const {
@@ -141,11 +131,13 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     if (topupInfo && !topupAmountInitializedRef.current) {
       topupAmountInitializedRef.current = true
-      const minTopup = getMinTopupAmount(topupInfo)
-      setTopupAmount(minTopup)
-
-      // Calculate initial payment amount with default payment type
       const defaultPaymentType = getDefaultPaymentType(topupInfo)
+      const minTopup = getPaymentMethodMinTopup(
+        topupInfo,
+        undefined,
+        defaultPaymentType
+      )
+      setTopupAmount(minTopup)
       calculatePaymentAmount(minTopup, defaultPaymentType)
     }
   }, [topupInfo, calculatePaymentAmount])
@@ -155,36 +147,93 @@ export function Wallet(props: WalletProps) {
     return selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
   }, [selectedPaymentMethod, topupInfo])
 
+  const currentPaymentType = getCurrentPaymentType()
+  const currentQuote = getPaymentQuote(topupAmount, currentPaymentType)
+  const getCurrentPaymentQuote = useCallback(
+    (amount: number) => getPaymentQuote(amount, currentPaymentType),
+    [currentPaymentType, getPaymentQuote]
+  )
+  const currentPaymentMinimum = getPaymentMethodMinTopup(
+    topupInfo,
+    selectedPaymentMethod,
+    currentPaymentType
+  )
+  const canConfirmCurrentPayment = canConfirmPayment(
+    selectedPaymentMethod,
+    topupAmount,
+    currentPaymentMinimum,
+    currentQuote
+  )
+
+  useEffect(() => {
+    if (!topupInfo || topupAmount < currentPaymentMinimum) {
+      return
+    }
+
+    calculatePaymentAmount(topupAmount, currentPaymentType)
+  }, [
+    calculatePaymentAmount,
+    currentPaymentMinimum,
+    currentPaymentType,
+    topupAmount,
+    topupInfo,
+  ])
+
+  useEffect(() => {
+    if (!topupInfo || currentPaymentMinimum <= 0) {
+      return
+    }
+
+    presetAmounts
+      .filter((preset) => preset.value >= currentPaymentMinimum)
+      .forEach((preset) => {
+        void calculatePaymentAmount(preset.value, currentPaymentType)
+      })
+  }, [
+    calculatePaymentAmount,
+    currentPaymentMinimum,
+    currentPaymentType,
+    presetAmounts,
+    topupInfo,
+  ])
+
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
+    paymentSelectionIdRef.current += 1
+    setConfirmDialogOpen(false)
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
-    calculatePaymentAmount(preset.value, getCurrentPaymentType())
   }
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
+    paymentSelectionIdRef.current += 1
+    setConfirmDialogOpen(false)
     setTopupAmount(amount)
     setSelectedPreset(null)
-    calculatePaymentAmount(amount, getCurrentPaymentType())
   }
 
   // Handle payment method selection
   const handlePaymentMethodSelect = async (method: PaymentMethod) => {
+    const minimum = getPaymentMethodMinTopup(topupInfo, method)
+    if (topupAmount < minimum) {
+      return
+    }
+
+    const selectionId = paymentSelectionIdRef.current + 1
+    paymentSelectionIdRef.current = selectionId
     setSelectedPaymentMethod(method)
     setSelectedWaffoMethodIndex(null)
     setPaymentLoading(method.type)
 
     try {
-      // Validate minimum topup
-      const minTopup = getMinTopupAmount(topupInfo)
-      if (topupAmount < minTopup) {
-        return
+      const quote = await calculatePaymentAmount(topupAmount, method.type)
+      if (
+        quote.status === 'ready' &&
+        paymentSelectionIdRef.current === selectionId
+      ) {
+        setConfirmDialogOpen(true)
       }
-
-      // Calculate payment amount and show confirmation dialog
-      await calculatePaymentAmount(topupAmount, method.type)
-      setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
     }
@@ -192,7 +241,7 @@ export function Wallet(props: WalletProps) {
 
   // Handle payment confirmation
   const handlePaymentConfirm = async () => {
-    if (!selectedPaymentMethod) return
+    if (!selectedPaymentMethod || !canConfirmCurrentPayment) return
 
     const success = await dispatchSelectedPayment(
       selectedPaymentMethod,
@@ -254,6 +303,8 @@ export function Wallet(props: WalletProps) {
     index: number
   ) => {
     const loadingKey = `waffo-${index}`
+    const selectionId = paymentSelectionIdRef.current + 1
+    paymentSelectionIdRef.current = selectionId
     setSelectedPaymentMethod({
       name: method.name,
       type: PAYMENT_TYPES.WAFFO,
@@ -263,17 +314,20 @@ export function Wallet(props: WalletProps) {
     setPaymentLoading(loadingKey)
 
     try {
-      await calculatePaymentAmount(topupAmount, PAYMENT_TYPES.WAFFO)
-      setConfirmDialogOpen(true)
+      const quote = await calculatePaymentAmount(
+        topupAmount,
+        PAYMENT_TYPES.WAFFO
+      )
+      if (
+        quote.status === 'ready' &&
+        paymentSelectionIdRef.current === selectionId
+      ) {
+        setConfirmDialogOpen(true)
+      }
     } finally {
       setPaymentLoading(null)
     }
   }
-
-  // Get discount rate for current topup amount
-  const getDiscountRate = useCallback(() => {
-    return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
-  }, [topupInfo, topupAmount])
 
   const handleSubscriptionAvailabilityChange = useCallback(
     (available: boolean) => {
@@ -305,8 +359,9 @@ export function Wallet(props: WalletProps) {
                   onSelectPreset={handleSelectPreset}
                   topupAmount={topupAmount}
                   onTopupAmountChange={handleTopupAmountChange}
-                  paymentAmount={paymentAmount}
-                  calculating={calculating}
+                  paymentQuote={currentQuote}
+                  getPaymentQuote={getCurrentPaymentQuote}
+                  currentPaymentMinimum={currentPaymentMinimum}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
                   paymentLoading={paymentLoading}
                   redemptionCode={redemptionCode}
@@ -315,15 +370,12 @@ export function Wallet(props: WalletProps) {
                   redeeming={redeeming}
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
-                  priceRatio={(status?.price as number) || 1}
-                  usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
                   enableCreemTopup={topupInfo?.enable_creem_topup}
                   onCreemProductSelect={handleCreemProductSelect}
                   enableWaffoTopup={topupInfo?.enable_waffo_topup}
                   waffoPayMethods={topupInfo?.waffo_pay_methods}
-                  waffoMinTopup={topupInfo?.waffo_min_topup}
                   onWaffoMethodSelect={handleWaffoMethodSelect}
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
@@ -357,12 +409,10 @@ export function Wallet(props: WalletProps) {
         onOpenChange={setConfirmDialogOpen}
         onConfirm={handlePaymentConfirm}
         topupAmount={topupAmount}
-        paymentAmount={paymentAmount}
+        quote={currentQuote}
         paymentMethod={selectedPaymentMethod}
-        calculating={calculating}
         processing={processing || waffoProcessing || pancakeProcessing}
-        discountRate={getDiscountRate()}
-        usdExchangeRate={effectiveUsdExchangeRate}
+        canConfirm={canConfirmCurrentPayment}
       />
 
       <TransferDialog

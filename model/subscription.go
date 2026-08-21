@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -36,7 +37,16 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+	ErrSubscriptionEntitlementInvalid = errors.New("subscription entitlement snapshot invalid")
 )
+
+const SubscriptionEntitlementSnapshotVersion = 1
+
+type SubscriptionPaymentSettlement struct {
+	Amount   string
+	Currency string
+	StoreID  string
+}
 
 const (
 	subscriptionPlanCacheNamespace     = "new-api:subscription_plan:v1"
@@ -210,12 +220,111 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 	}
 }
 
+type SubscriptionEntitlementSnapshot struct {
+	PlanTitle               string `json:"plan_title"`
+	DurationUnit            string `json:"duration_unit"`
+	DurationValue           int    `json:"duration_value"`
+	CustomSeconds           int64  `json:"custom_seconds"`
+	TotalAmount             int64  `json:"total_amount"`
+	QuotaResetPeriod        string `json:"quota_reset_period"`
+	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds"`
+	UpgradeGroup            string `json:"upgrade_group"`
+	DowngradeGroup          string `json:"downgrade_group"`
+	AllowWalletOverflow     bool   `json:"allow_wallet_overflow"`
+	MaxPurchasePerUser      int    `json:"max_purchase_per_user"`
+}
+
+func NewSubscriptionEntitlementSnapshot(plan *SubscriptionPlan) (*SubscriptionEntitlementSnapshot, error) {
+	if plan == nil || plan.Id <= 0 || plan.MaxPurchasePerUser < 0 {
+		return nil, ErrSubscriptionEntitlementInvalid
+	}
+	if _, err := calcPlanEndTime(time.Unix(0, 0), plan); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSubscriptionEntitlementInvalid, err)
+	}
+	resetPeriod := NormalizeResetPeriod(plan.QuotaResetPeriod)
+	if resetPeriod == SubscriptionResetCustom && plan.QuotaResetCustomSeconds <= 0 {
+		return nil, ErrSubscriptionEntitlementInvalid
+	}
+	allowWalletOverflow := true
+	if plan.AllowWalletOverflow != nil {
+		allowWalletOverflow = *plan.AllowWalletOverflow
+	}
+	return &SubscriptionEntitlementSnapshot{
+		PlanTitle:               plan.Title,
+		DurationUnit:            plan.DurationUnit,
+		DurationValue:           plan.DurationValue,
+		CustomSeconds:           plan.CustomSeconds,
+		TotalAmount:             plan.TotalAmount,
+		QuotaResetPeriod:        resetPeriod,
+		QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
+		UpgradeGroup:            strings.TrimSpace(plan.UpgradeGroup),
+		DowngradeGroup:          strings.TrimSpace(plan.DowngradeGroup),
+		AllowWalletOverflow:     allowWalletOverflow,
+		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
+	}, nil
+}
+
+func (s *SubscriptionEntitlementSnapshot) Marshal() (string, error) {
+	if s == nil {
+		return "", ErrSubscriptionEntitlementInvalid
+	}
+	data, err := json.Marshal(s)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func decodeSubscriptionEntitlementSnapshot(order *SubscriptionOrder) (*SubscriptionEntitlementSnapshot, error) {
+	if order == nil || order.EntitlementSnapshotVersion != SubscriptionEntitlementSnapshotVersion ||
+		strings.TrimSpace(order.EntitlementSnapshot) == "" {
+		return nil, ErrSubscriptionEntitlementInvalid
+	}
+	var snapshot SubscriptionEntitlementSnapshot
+	if err := json.Unmarshal([]byte(order.EntitlementSnapshot), &snapshot); err != nil {
+		return nil, ErrSubscriptionEntitlementInvalid
+	}
+	plan := snapshot.subscriptionPlan(order.PlanId)
+	validated, err := NewSubscriptionEntitlementSnapshot(plan)
+	if err != nil {
+		return nil, err
+	}
+	validated.PlanTitle = snapshot.PlanTitle
+	return validated, nil
+}
+
+func (s *SubscriptionEntitlementSnapshot) subscriptionPlan(planId int) *SubscriptionPlan {
+	allowWalletOverflow := s.AllowWalletOverflow
+	return &SubscriptionPlan{
+		Id:                      planId,
+		Title:                   s.PlanTitle,
+		DurationUnit:            s.DurationUnit,
+		DurationValue:           s.DurationValue,
+		CustomSeconds:           s.CustomSeconds,
+		TotalAmount:             s.TotalAmount,
+		QuotaResetPeriod:        s.QuotaResetPeriod,
+		QuotaResetCustomSeconds: s.QuotaResetCustomSeconds,
+		UpgradeGroup:            s.UpgradeGroup,
+		DowngradeGroup:          s.DowngradeGroup,
+		AllowWalletOverflow:     &allowWalletOverflow,
+		MaxPurchasePerUser:      s.MaxPurchasePerUser,
+	}
+}
+
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
 	Id     int     `json:"id"`
 	UserId int     `json:"user_id" gorm:"index"`
 	PlanId int     `json:"plan_id" gorm:"index"`
 	Money  float64 `json:"money"`
+
+	// Immutable payment and entitlement expectations captured when the order is created.
+	PaymentExpectationVersion  int     `json:"-" gorm:"default:0"`
+	ExpectedAmount             float64 `json:"-"`
+	ExpectedCurrency           string  `json:"-" gorm:"type:varchar(16);default:''"`
+	ExpectedStoreID            string  `json:"-" gorm:"type:varchar(255);default:''"`
+	EntitlementSnapshotVersion int     `json:"-" gorm:"default:0"`
+	EntitlementSnapshot        string  `json:"-" gorm:"type:text"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
@@ -502,7 +611,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := GetDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -566,7 +675,7 @@ func refreshSubscriptionUserGroupCache(userId int, operation string) {
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
 // expectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
 // actualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
-func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string) error {
+func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, settlement ...SubscriptionPaymentSettlement) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -593,20 +702,46 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
-		if err != nil {
-			return err
+		if order.PaymentProvider == PaymentProviderWaffoPancake {
+			if len(settlement) != 1 || order.PaymentExpectationVersion != 1 ||
+				strings.TrimSpace(order.ExpectedCurrency) == "" || strings.TrimSpace(order.ExpectedStoreID) == "" {
+				return ErrPaymentSettlementMismatch
+			}
+			providerAmount, parseErr := decimal.NewFromString(strings.TrimSpace(settlement[0].Amount))
+			if parseErr != nil || providerAmount.LessThanOrEqual(decimal.Zero) {
+				return ErrPaymentSettlementMismatch
+			}
+			providerCurrency := strings.ToUpper(strings.TrimSpace(settlement[0].Currency))
+			providerStoreID := strings.TrimSpace(settlement[0].StoreID)
+			expectedAmount := decimal.NewFromFloat(order.ExpectedAmount).Round(2)
+			if !providerAmount.Round(2).Equal(expectedAmount) ||
+				providerCurrency != strings.ToUpper(strings.TrimSpace(order.ExpectedCurrency)) ||
+				providerStoreID == "" || providerStoreID != strings.TrimSpace(order.ExpectedStoreID) {
+				return ErrPaymentSettlementMismatch
+			}
 		}
-		if !plan.Enabled {
-			// still allow completion for already purchased orders
+		var entitlementPlan *SubscriptionPlan
+		if order.PaymentProvider == PaymentProviderWaffoPancake {
+			snapshot, err := decodeSubscriptionEntitlementSnapshot(&order)
+			if err != nil {
+				return err
+			}
+			entitlementPlan = snapshot.subscriptionPlan(order.PlanId)
+			logPlanTitle = snapshot.PlanTitle
+		} else {
+			plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
+			if err != nil {
+				return err
+			}
+			entitlementPlan = plan
+			logPlanTitle = plan.Title
 		}
-		// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
-		// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
+		// Serialize per-user purchase-limit checks across different orders.
 		var userRow User
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
 			return err
 		}
-		subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		subscription, err := CreateUserSubscriptionFromPlanTx(tx, order.UserId, entitlementPlan, "order")
 		if err != nil {
 			return err
 		}
@@ -628,7 +763,6 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			return err
 		}
 		logUserId = order.UserId
-		logPlanTitle = plan.Title
 		logMoney = order.Money
 		logPaymentMethod = order.PaymentMethod
 		return nil
@@ -718,11 +852,6 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	}
 	groupChanged := false
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		// 与 CompleteSubscriptionOrder 一致：先锁用户行，再做购买次数检查。
-		var userRow User
-		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&userRow).Error; err != nil {
-			return err
-		}
 		subscription, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
 		if err == nil {
 			groupChanged = subscription.PrevUserGroup != ""
@@ -748,8 +877,9 @@ func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
 	}
 	quota := decimal.NewFromFloat(priceAmount).
 		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
-		Ceil()
-	return common.QuotaFromDecimalStrict(quota)
+		Ceil().
+		IntPart()
+	return int(quota), nil
 }
 
 // PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.

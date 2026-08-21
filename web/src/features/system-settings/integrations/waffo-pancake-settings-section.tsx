@@ -46,6 +46,9 @@ export type WaffoPancakeSettingsValues = {
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string
+  WaffoPancakeCurrency: string
+  WaffoPancakeUnitPrice: number
+  WaffoPancakeMinTopUp: number
 }
 
 export interface WaffoPancakeBinding {
@@ -116,6 +119,41 @@ export function WaffoPancakeSettingsSection({
     if (!chosenStoreID) return []
     return catalog.find((s) => s.id === chosenStoreID)?.onetimeProducts ?? []
   }, [catalog, chosenStoreID])
+
+  const selectedProduct = React.useMemo(
+    () =>
+      productsForChosenStore.find((product) => product.id === chosenProductID),
+    [productsForChosenStore, chosenProductID]
+  )
+  const selectedCurrency = values.WaffoPancakeCurrency.trim().toUpperCase()
+  const currencySelectItems = React.useMemo(() => {
+    if (!selectedProduct) return []
+    return selectedProduct.prices.map((price) => ({
+      value: price.currency.trim().toUpperCase(),
+      label: `${price.currency.trim().toUpperCase()} · ${price.priceInfo.amount} · ${price.priceInfo.taxCategory}`,
+    }))
+  }, [selectedProduct])
+
+  React.useEffect(() => {
+    if (!selectedProduct) {
+      if (selectedCurrency) onValueChange('WaffoPancakeCurrency', '')
+      return
+    }
+
+    const currencies = selectedProduct.prices.map((price) =>
+      price.currency.trim().toUpperCase()
+    )
+    if (currencies.length === 1 && selectedCurrency !== currencies[0]) {
+      onValueChange('WaffoPancakeCurrency', currencies[0])
+      return
+    }
+    if (
+      selectedCurrency &&
+      !currencies.some((currency) => currency === selectedCurrency)
+    ) {
+      onValueChange('WaffoPancakeCurrency', '')
+    }
+  }, [onValueChange, selectedCurrency, selectedProduct])
 
   // Raw-ID fallback items render the trigger before the catalog loads or
   // when the saved entity has been deleted upstream.
@@ -450,6 +488,40 @@ export function WaffoPancakeSettingsSection({
           </p>
         </div>
 
+        <div className='grid gap-1.5'>
+          <Label>{t('Unit price (selected currency / USD)')}</Label>
+          <Input
+            type='number'
+            step='0.01'
+            min={0.01}
+            value={values.WaffoPancakeUnitPrice}
+            onChange={(event) =>
+              onValueChange('WaffoPancakeUnitPrice', Number(event.target.value))
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Amount charged for each USD of balance, before group ratios and amount discounts.'
+            )}
+          </p>
+        </div>
+
+        <div className='grid gap-1.5'>
+          <Label>{t('Minimum top-up (USD)')}</Label>
+          <Input
+            type='number'
+            step='1'
+            min={1}
+            value={values.WaffoPancakeMinTopUp}
+            onChange={(event) =>
+              onValueChange('WaffoPancakeMinTopUp', Number(event.target.value))
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Smallest balance amount a user can purchase through Pancake.')}
+          </p>
+        </div>
+
         {/*
           Binding section — split into two visually distinct paths:
           (A) "Use existing" pair from the loaded catalog — only rendered when
@@ -550,6 +622,7 @@ export function WaffoPancakeSettingsSection({
                         storeID: value ?? '',
                         productID: '',
                       })
+                      onValueChange('WaffoPancakeCurrency', '')
                     }}
                   >
                     <SelectTrigger className='w-full'>
@@ -570,12 +643,13 @@ export function WaffoPancakeSettingsSection({
                   <Select
                     items={productSelectItems}
                     value={chosenProductID}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
                       onSelectedBindingChange((previous) => ({
                         ...previous,
                         productID: value ?? '',
                       }))
-                    }
+                      onValueChange('WaffoPancakeCurrency', '')
+                    }}
                     disabled={!chosenStoreID || productSelectItems.length === 0}
                   >
                     <SelectTrigger className='w-full'>
@@ -590,6 +664,36 @@ export function WaffoPancakeSettingsSection({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className='grid gap-1.5'>
+                <Label>{t('Checkout currency')}</Label>
+                <Select
+                  items={currencySelectItems}
+                  value={selectedCurrency}
+                  onValueChange={(value) =>
+                    onValueChange('WaffoPancakeCurrency', value ?? '')
+                  }
+                  disabled={currencySelectItems.length === 0}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue placeholder={t('Select a currency')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {currencySelectItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className='text-muted-foreground text-xs'>
+                  {currencySelectItems.length === 1
+                    ? t('Automatically selected from this product.')
+                    : t(
+                        'Required when the selected product supports multiple currencies.'
+                      )}
+                </p>
               </div>
             </>
           ) : null}

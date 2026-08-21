@@ -25,23 +25,17 @@ func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	confirmPaymentComplianceForTest(t)
 	originalAPISecret := setting.StripeApiSecret
 	originalWebhookSecret := setting.StripeWebhookSecret
-	originalPriceID := setting.StripePriceId
 	t.Cleanup(func() {
 		setting.StripeApiSecret = originalAPISecret
 		setting.StripeWebhookSecret = originalWebhookSecret
-		setting.StripePriceId = originalPriceID
 	})
 
 	setting.StripeWebhookSecret = ""
 	setting.StripeApiSecret = "sk_test_123"
-	setting.StripePriceId = "price_123"
 	require.False(t, isStripeWebhookEnabled())
 
 	setting.StripeWebhookSecret = "whsec_test"
 	require.True(t, isStripeWebhookEnabled())
-
-	setting.StripePriceId = ""
-	require.False(t, isStripeWebhookEnabled())
 }
 
 func TestCreemWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
@@ -116,28 +110,40 @@ func TestWaffoPancakeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	confirmPaymentComplianceForTest(t)
 	originalMerchantID := setting.WaffoPancakeMerchantID
 	originalPrivateKey := setting.WaffoPancakePrivateKey
+	originalStoreID := setting.WaffoPancakeStoreID
 	originalProductID := setting.WaffoPancakeProductID
+	originalCurrency := setting.WaffoPancakeCurrency
 	t.Cleanup(func() {
 		setting.WaffoPancakeMerchantID = originalMerchantID
 		setting.WaffoPancakePrivateKey = originalPrivateKey
+		setting.WaffoPancakeStoreID = originalStoreID
 		setting.WaffoPancakeProductID = originalProductID
+		setting.WaffoPancakeCurrency = originalCurrency
 	})
 
-	// Presence of all three credentials enables the gateway. Webhook public
-	// keys are bundled in the SDK and there is no separate Enabled toggle —
-	// clear any of the three fields to disable.
-	setting.WaffoPancakeMerchantID = ""
-	setting.WaffoPancakePrivateKey = "private"
-	setting.WaffoPancakeProductID = "product"
-	require.False(t, isWaffoPancakeWebhookEnabled())
-
 	setting.WaffoPancakeMerchantID = "merchant"
+	setting.WaffoPancakePrivateKey = "private"
+	setting.WaffoPancakeStoreID = "store"
+	setting.WaffoPancakeProductID = "product"
+	setting.WaffoPancakeCurrency = "USD"
 	require.True(t, isWaffoPancakeWebhookEnabled())
+
+	setting.WaffoPancakeMerchantID = ""
+	require.False(t, isWaffoPancakeWebhookEnabled())
+	setting.WaffoPancakeMerchantID = "merchant"
+
+	setting.WaffoPancakeStoreID = ""
+	require.False(t, isWaffoPancakeWebhookEnabled())
+	setting.WaffoPancakeStoreID = "store"
+
+	setting.WaffoPancakeCurrency = ""
+	require.False(t, isWaffoPancakeWebhookEnabled())
+	setting.WaffoPancakeCurrency = "USD"
 
 	setting.WaffoPancakeProductID = ""
 	require.False(t, isWaffoPancakeWebhookEnabled())
-
 	setting.WaffoPancakeProductID = "product"
+
 	setting.WaffoPancakePrivateKey = ""
 	require.False(t, isWaffoPancakeWebhookEnabled())
 }

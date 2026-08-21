@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/shopspring/decimal"
 	pancake "github.com/waffo-com/waffo-pancake-sdk-go"
 )
 
@@ -21,6 +24,7 @@ type WaffoPancakePriceSnapshot struct {
 // OrderMerchantExternalID = our trade_no; Pancake echoes it back in webhooks.
 type WaffoPancakeCreateSessionParams struct {
 	ProductID               string
+	Currency                string
 	BuyerIdentity           string
 	PriceSnapshot           *WaffoPancakePriceSnapshot
 	BuyerEmail              string
@@ -100,6 +104,13 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 	if params == nil {
 		return nil, fmt.Errorf("missing checkout params")
 	}
+	if strings.TrimSpace(params.ProductID) == "" {
+		return nil, fmt.Errorf("missing product id")
+	}
+	currency := strings.ToUpper(strings.TrimSpace(params.Currency))
+	if currency == "" {
+		return nil, fmt.Errorf("missing checkout currency")
+	}
 	if strings.TrimSpace(params.BuyerIdentity) == "" {
 		return nil, fmt.Errorf("missing buyer identity")
 	}
@@ -114,7 +125,7 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 	sdkParams := pancake.AuthenticatedCheckoutParams{
 		CreateCheckoutSessionParams: pancake.CreateCheckoutSessionParams{
 			ProductID:               params.ProductID,
-			Currency:                "USD",
+			Currency:                currency,
 			BuyerEmail:              optionalString(params.BuyerEmail),
 			ExpiresInSeconds:        params.ExpiresInSeconds,
 			OrderMerchantExternalID: optionalString(params.OrderMerchantExternalID),
@@ -271,6 +282,24 @@ func CreateWaffoPancakePrimaryStore(ctx context.Context, merchantID, privateKey 
 	return storeRes.Store.ID, nil
 }
 
+func normalizeWaffoPancakePlanProductAmount(amount string) (string, error) {
+	amount = strings.TrimSpace(amount)
+	if amount == "" {
+		return "", fmt.Errorf("plan price is required")
+	}
+	parsed, err := decimal.NewFromString(amount)
+	if err != nil || !parsed.IsPositive() {
+		return "", fmt.Errorf("plan price must be a positive decimal amount")
+	}
+	if parsed.Exponent() < -2 {
+		return "", fmt.Errorf("plan price supports at most two decimal places")
+	}
+	if parsed.GreaterThan(decimal.NewFromInt(9999)) {
+		return "", fmt.Errorf("plan price cannot exceed 9999")
+	}
+	return parsed.StringFixed(2), nil
+}
+
 // CreateWaffoPancakeProductForPlan mints (and publishes) a Pancake
 // OnetimeProduct priced at `amount` USD, used as a subscription plan's
 // SubscriptionPlan.WaffoPancakeProductId.
@@ -287,9 +316,9 @@ func CreateWaffoPancakeProductForPlan(ctx context.Context, merchantID, privateKe
 	if name == "" {
 		return "", fmt.Errorf("plan name is required")
 	}
-	amount = strings.TrimSpace(amount)
-	if amount == "" {
-		return "", fmt.Errorf("plan price is required")
+	amount, err := normalizeWaffoPancakePlanProductAmount(amount)
+	if err != nil {
+		return "", err
 	}
 	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
 	if err != nil {
@@ -384,25 +413,44 @@ func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, 
 	}, nil
 }
 
-// SaveWaffoPancakeConfig persists the operator-controlled fields atomically
-// at the end of the configuration flow via model.UpdateOptionsBulk (single
-// DB transaction). A blank privateKey is treated as "keep current"
-// (Stripe-style API-secret UX) and is omitted from the bulk payload.
-func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID string) error {
+// SaveWaffoPancakeConfig validates the chosen store/product/currency against
+// Pancake, then persists all wallet settings through one DB transaction. A
+// blank privateKey retains the stored secret.
+func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID, currency string, unitPrice float64, minTopUp int) error {
 	merchantID = strings.TrimSpace(merchantID)
+	privateKey = strings.TrimSpace(privateKey)
 	storeID = strings.TrimSpace(storeID)
 	productID = strings.TrimSpace(productID)
 	if merchantID == "" || storeID == "" || productID == "" {
 		return fmt.Errorf("merchant id, store id, and product id are required to save")
 	}
+	if math.IsNaN(unitPrice) || math.IsInf(unitPrice, 0) || unitPrice <= 0 {
+		return fmt.Errorf("unit price must be greater than zero")
+	}
+	if minTopUp < 1 {
+		return fmt.Errorf("minimum top-up must be at least one")
+	}
+
+	effectivePrivateKey := privateKey
+	if effectivePrivateKey == "" {
+		effectivePrivateKey = setting.WaffoPancakePrivateKey
+	}
+	resolved, err := ResolveWaffoPancakeProduct(ctx, merchantID, effectivePrivateKey, storeID, productID, currency)
+	if err != nil {
+		return fmt.Errorf("validate Waffo Pancake product binding: %w", err)
+	}
+
 	values := map[string]string{
 		"WaffoPancakeMerchantID": merchantID,
 		"WaffoPancakeReturnURL":  strings.TrimSpace(returnURL),
 		"WaffoPancakeStoreID":    storeID,
 		"WaffoPancakeProductID":  productID,
+		"WaffoPancakeCurrency":   resolved.Currency,
+		"WaffoPancakeUnitPrice":  strconv.FormatFloat(unitPrice, 'f', -1, 64),
+		"WaffoPancakeMinTopUp":   strconv.Itoa(minTopUp),
 	}
-	if pk := strings.TrimSpace(privateKey); pk != "" {
-		values["WaffoPancakePrivateKey"] = pk
+	if privateKey != "" {
+		values["WaffoPancakePrivateKey"] = privateKey
 	}
 	if err := model.UpdateOptionsBulk(values); err != nil {
 		return fmt.Errorf("persist Waffo Pancake config: %w", err)
@@ -410,14 +458,94 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	return nil
 }
 
+type WaffoPancakeCatalogPriceInfo struct {
+	Amount      string `json:"amount"`
+	TaxCategory string `json:"taxCategory"`
+}
+
+type WaffoPancakeCatalogPrice struct {
+	Currency  string                       `json:"currency"`
+	PriceInfo WaffoPancakeCatalogPriceInfo `json:"priceInfo"`
+}
+
 type WaffoPancakeCatalogProduct struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Status string `json:"status"`
+	ID     string                     `json:"id"`
+	Name   string                     `json:"name"`
+	Status string                     `json:"status"`
+	Prices []WaffoPancakeCatalogPrice `json:"prices"`
+}
+
+type resolvedWaffoPancakeCatalogProduct struct {
+	Amount      string
+	Currency    string
+	TaxCategory string
+}
+
+func resolveWaffoPancakeCatalogProductPrice(prices []WaffoPancakeCatalogPrice, selectedCurrency string) (WaffoPancakeCatalogPrice, error) {
+	selectedCurrency = strings.ToUpper(strings.TrimSpace(selectedCurrency))
+	if selectedCurrency != "" {
+		for _, price := range prices {
+			if strings.EqualFold(strings.TrimSpace(price.Currency), selectedCurrency) {
+				return validateWaffoPancakeCatalogPrice(price)
+			}
+		}
+		return WaffoPancakeCatalogPrice{}, fmt.Errorf("selected currency %q is not supported by this product", selectedCurrency)
+	}
+
+	if len(prices) == 0 {
+		return WaffoPancakeCatalogPrice{}, fmt.Errorf("product has no supported currencies")
+	}
+	if len(prices) > 1 {
+		return WaffoPancakeCatalogPrice{}, fmt.Errorf("product supports multiple currencies; select one explicitly")
+	}
+	return validateWaffoPancakeCatalogPrice(prices[0])
+}
+
+func validateWaffoPancakeCatalogPrice(price WaffoPancakeCatalogPrice) (WaffoPancakeCatalogPrice, error) {
+	price.Currency = strings.ToUpper(strings.TrimSpace(price.Currency))
+	price.PriceInfo.Amount = strings.TrimSpace(price.PriceInfo.Amount)
+	price.PriceInfo.TaxCategory = strings.TrimSpace(price.PriceInfo.TaxCategory)
+	if price.Currency == "" {
+		return WaffoPancakeCatalogPrice{}, fmt.Errorf("product price is missing a currency")
+	}
+	if _, err := normalizeWaffoPancakePlanProductAmount(price.PriceInfo.Amount); err != nil {
+		return WaffoPancakeCatalogPrice{}, fmt.Errorf("product price for currency %q is invalid: %w", price.Currency, err)
+	}
+	if price.PriceInfo.TaxCategory == "" {
+		return WaffoPancakeCatalogPrice{}, fmt.Errorf("product price for currency %q is missing a tax category", price.Currency)
+	}
+	return price, nil
+}
+
+func resolveWaffoPancakeCatalogProduct(products []WaffoPancakeCatalogProduct, productID, selectedCurrency string) (resolvedWaffoPancakeCatalogProduct, error) {
+	productID = strings.TrimSpace(productID)
+	if productID == "" {
+		return resolvedWaffoPancakeCatalogProduct{}, fmt.Errorf("product id is required")
+	}
+
+	for _, product := range products {
+		if strings.TrimSpace(product.ID) != productID {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(product.Status), "active") {
+			return resolvedWaffoPancakeCatalogProduct{}, fmt.Errorf("Waffo Pancake product %q is not active", productID)
+		}
+		price, err := resolveWaffoPancakeCatalogProductPrice(product.Prices, selectedCurrency)
+		if err != nil {
+			return resolvedWaffoPancakeCatalogProduct{}, fmt.Errorf("resolve Waffo Pancake product %q price: %w", productID, err)
+		}
+		return resolvedWaffoPancakeCatalogProduct{
+			Amount:      price.PriceInfo.Amount,
+			Currency:    price.Currency,
+			TaxCategory: price.PriceInfo.TaxCategory,
+		}, nil
+	}
+
+	return resolvedWaffoPancakeCatalogProduct{}, fmt.Errorf("Waffo Pancake product %q not found", productID)
 }
 
 // WaffoPancakeCatalogStore nests its OnetimeProducts so the UI can render a
-// dependent store→product select without a second round-trip.
+// dependent store-to-product select without a second round-trip.
 type WaffoPancakeCatalogStore struct {
 	ID              string                       `json:"id"`
 	Name            string                       `json:"name"`
@@ -430,54 +558,91 @@ type WaffoPancakeCatalog struct {
 	Stores []WaffoPancakeCatalogStore `json:"stores"`
 }
 
-// ListWaffoPancakeCatalog queries Pancake's GraphQL `stores` for the
-// merchant's stores + onetime products. A successful call also proves
-// the supplied credentials authenticate (doubles as a credential probe).
+func listWaffoPancakeStoreProducts(ctx context.Context, client *pancake.Client, storeID string) ([]WaffoPancakeCatalogProduct, error) {
+	type queryShape struct {
+		OnetimeProducts []WaffoPancakeCatalogProduct `json:"onetimeProducts"`
+	}
+	resp, err := pancake.GraphQLQuery[queryShape](ctx, client, pancake.GraphQLParams{
+		Query: `query ($storeId: String!) {
+			onetimeProducts(storeId: $storeId, filter: { status: { eq: "active" } }) {
+				id
+				name
+				status
+				prices {
+					currency
+					priceInfo { amount taxCategory }
+				}
+			}
+		}`,
+		Variables: map[string]any{"storeId": storeID},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Errors) > 0 {
+		return nil, fmt.Errorf("waffo pancake product query returned %d errors: %s", len(resp.Errors), resp.Errors[0].Message)
+	}
+	return resp.Data.OnetimeProducts, nil
+}
+
+// ResolveWaffoPancakeProduct re-queries Pancake before checkout or config save
+// so a stale catalog cannot select a removed product, currency, or tax class.
+func ResolveWaffoPancakeProduct(ctx context.Context, merchantID, privateKey, storeID, productID, selectedCurrency string) (resolvedWaffoPancakeCatalogProduct, error) {
+	storeID = strings.TrimSpace(storeID)
+	if storeID == "" {
+		return resolvedWaffoPancakeCatalogProduct{}, fmt.Errorf("store id is required")
+	}
+	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
+	if err != nil {
+		return resolvedWaffoPancakeCatalogProduct{}, err
+	}
+	products, err := listWaffoPancakeStoreProducts(ctx, client, storeID)
+	if err != nil {
+		return resolvedWaffoPancakeCatalogProduct{}, fmt.Errorf("query Waffo Pancake store products: %w", err)
+	}
+	return resolveWaffoPancakeCatalogProduct(products, productID, selectedCurrency)
+}
+
+// ResolveConfiguredWaffoPancakeProduct validates the persisted wallet binding
+// immediately before a checkout is created.
+func ResolveConfiguredWaffoPancakeProduct(ctx context.Context) (resolvedWaffoPancakeCatalogProduct, error) {
+	return ResolveWaffoPancakeProduct(
+		ctx,
+		setting.WaffoPancakeMerchantID,
+		setting.WaffoPancakePrivateKey,
+		setting.WaffoPancakeStoreID,
+		setting.WaffoPancakeProductID,
+		setting.WaffoPancakeCurrency,
+	)
+}
+
+// ListWaffoPancakeCatalog queries stores then the documented store-scoped
+// onetimeProducts query so every displayed product carries its price metadata.
 func ListWaffoPancakeCatalog(ctx context.Context, merchantID, privateKey string) (*WaffoPancakeCatalog, error) {
 	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
 	if err != nil {
 		return nil, err
 	}
 
-	type queryShape struct {
+	type storesQuery struct {
 		Stores []WaffoPancakeCatalogStore `json:"stores"`
 	}
-	// `limit: 100` because the API returns a single store when limit is
-	// omitted, even for multi-store merchants. Bump to paginated fetches
-	// (via `offset`) if real catalogs ever cross the cap.
-	resp, err := pancake.GraphQLQuery[queryShape](ctx, client, pancake.GraphQLParams{
-		Query: `query {
-			stores(limit: 100) {
-				id
-				name
-				status
-				prodEnabled
-				onetimeProducts {
-					id
-					name
-					status
-				}
-			}
-		}`,
+	resp, err := pancake.GraphQLQuery[storesQuery](ctx, client, pancake.GraphQLParams{
+		Query: `query { stores(limit: 100) { id name status prodEnabled } }`,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("query Waffo Pancake catalog: %w", err)
 	}
 	if len(resp.Errors) > 0 {
-		return nil, fmt.Errorf("waffo pancake catalog query returned %d errors: %s",
-			len(resp.Errors), resp.Errors[0].Message)
+		return nil, fmt.Errorf("waffo pancake catalog query returned %d errors: %s", len(resp.Errors), resp.Errors[0].Message)
 	}
-	// Drop non-active products. Operators should only see items they can
-	// actually bind without later hitting "product unavailable" at checkout.
 	stores := resp.Data.Stores
 	for i := range stores {
-		active := stores[i].OnetimeProducts[:0]
-		for _, p := range stores[i].OnetimeProducts {
-			if strings.EqualFold(strings.TrimSpace(p.Status), "active") {
-				active = append(active, p)
-			}
+		products, err := listWaffoPancakeStoreProducts(ctx, client, stores[i].ID)
+		if err != nil {
+			return nil, fmt.Errorf("query Waffo Pancake products for store %q: %w", stores[i].ID, err)
 		}
-		stores[i].OnetimeProducts = active
+		stores[i].OnetimeProducts = products
 	}
 	return &WaffoPancakeCatalog{Stores: stores}, nil
 }
