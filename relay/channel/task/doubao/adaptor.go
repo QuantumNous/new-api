@@ -57,6 +57,7 @@ type requestPayload struct {
 	Priority         *dto.IntValue  `json:"priority,omitempty"`
 	Resolution       string         `json:"resolution,omitempty"`
 	Ratio            string         `json:"ratio,omitempty"`
+	OutputFormat     string         `json:"output_format,omitempty"`
 	Duration         *dto.IntValue  `json:"duration,omitempty"`
 	Frames           *dto.IntValue  `json:"frames,omitempty"`
 	Seed             *dto.IntValue  `json:"seed,omitempty"`
