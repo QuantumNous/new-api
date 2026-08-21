@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -101,6 +102,46 @@ func TestConvertImageRequestPreservesNativeJSONImages(t *testing.T) {
 		{Type: "image_url", URL: "https://example.com/one.png"},
 		{Type: "image_url", URL: "https://example.com/two.png"},
 	}, request.Images)
+}
+
+func TestConvertImageRequestRejectsStreaming(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, test := range []struct {
+		name      string
+		relayMode int
+	}{
+		{name: "generation", relayMode: relayconstant.RelayModeImagesGenerations},
+		{name: "edit", relayMode: relayconstant.RelayModeImagesEdits},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			stream := true
+			request := dto.ImageRequest{
+				Model:  "grok-imagine-image",
+				Prompt: "edit",
+				Stream: &stream,
+			}
+
+			converted, err := (&Adaptor{}).ConvertImageRequest(
+				ginTestContext(),
+				&relaycommon.RelayInfo{RelayMode: test.relayMode},
+				request,
+			)
+			require.Nil(t, converted)
+			require.Error(t, err)
+			apiErr, ok := err.(*types.NewAPIError)
+			require.True(t, ok)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+			require.Equal(t, types.ErrorCodeInvalidRequest, apiErr.GetErrorCode())
+			require.EqualError(t, apiErr, "xAI image generation and editing do not support streaming")
+		})
+	}
+}
+
+func ginTestContext() *gin.Context {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewBufferString(`{}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	return c
 }
 
 type fileFixture struct {
