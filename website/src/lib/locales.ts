@@ -26,7 +26,7 @@ export const LOCALE_LANGUAGE_TAGS: Record<Locale, string> = {
   zh: "zh-CN",
   es: "es-ES",
   fr: "fr-FR",
-  pt: "pt-PT",
+  pt: "pt-BR",
   ru: "ru-RU",
   ja: "ja-JP",
   vi: "vi-VN",

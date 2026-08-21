@@ -27,7 +27,7 @@ describe("resolveLocaleFromPathname", () => {
 describe("regional language metadata", () => {
   test("maps every route locale to one stable BCP47 tag", () => {
     expect(LOCALES.map(localeLanguageTag)).toEqual([
-      "en-US", "zh-CN", "es-ES", "fr-FR", "pt-PT",
+      "en-US", "zh-CN", "es-ES", "fr-FR", "pt-BR",
       "ru-RU", "ja-JP", "vi-VN", "de-DE", "id-ID",
     ]);
   });
@@ -36,6 +36,7 @@ describe("regional language metadata", () => {
     expect(localeAlternates("/pricing")).toMatchObject({
       "en-US": "https://flatkey.ai/pricing",
       "zh-CN": "https://flatkey.ai/zh/pricing",
+      "pt-BR": "https://flatkey.ai/pt/pricing",
       "ja-JP": "https://flatkey.ai/ja/pricing",
     });
   });

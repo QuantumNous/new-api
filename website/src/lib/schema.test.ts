@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildBasePageSchema,
   buildBlogArticleSchema,
   buildBlogCategorySchema,
   buildBlogIndexSchema,
@@ -8,6 +9,51 @@ import {
   stringifyJsonLd,
 } from "./schema";
 
+describe("sitewide structured data", () => {
+  test("builds a reusable WebPage schema with localized URL and breadcrumbs", () => {
+    const graph = buildBasePageSchema({
+      locale: "zh",
+      pathname: "/models",
+    });
+
+    expect(graph["@context"]).toBe("https://schema.org");
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "WebPage",
+        url: "https://flatkey.ai/zh/models",
+        inLanguage: "zh-CN",
+        isPartOf: expect.objectContaining({ "@type": "WebSite" }),
+        publisher: expect.objectContaining({ "@type": "Organization" }),
+      })
+    );
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://flatkey.ai/zh" },
+          { "@type": "ListItem", position: 2, name: "Models", item: "https://flatkey.ai/zh/models" },
+        ],
+      })
+    );
+  });
+
+  test("keeps English breadcrumb home at the site root", () => {
+    const graph = buildBasePageSchema({
+      locale: "en",
+      pathname: "/pricing",
+    });
+
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://flatkey.ai/" },
+          { "@type": "ListItem", position: 2, name: "Pricing", item: "https://flatkey.ai/pricing" },
+        ],
+      })
+    );
+  });
+});
 describe("homepage structured data", () => {
   test("builds product and navigation schema for rich homepage search results", () => {
     const graph = buildHomepageSchema({
@@ -126,6 +172,21 @@ describe("blog structured data", () => {
       })
     );
     expect(graph["@graph"]).toContainEqual(expect.objectContaining({ "@type": "WebSite", url: "https://flatkey.ai" }));
+  });
+
+  test("uses the Brazilian Portuguese BCP47 tag in JSON-LD language fields", () => {
+    const graph = buildBlogIndexSchema({
+      locale: "pt",
+      title: "Blog da flatkey.ai",
+      description: "Guias de API e produto.",
+    });
+
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "Blog",
+        inLanguage: "pt-BR",
+      })
+    );
   });
 
   test("builds CollectionPage schema for a blog category", () => {
