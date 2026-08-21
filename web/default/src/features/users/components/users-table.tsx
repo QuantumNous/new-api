@@ -87,6 +87,7 @@ export function UsersTable() {
       { columnId: 'role', searchKey: 'role', type: 'array' },
       { columnId: 'language', searchKey: 'language', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'string' },
+      { columnId: 'country', searchKey: 'country', type: 'string' },
       { columnId: 'paid', searchKey: 'paid', type: 'array' },
       { columnId: 'email_verified', searchKey: 'email_verified', type: 'array' },
     ],
@@ -106,6 +107,9 @@ export function UsersTable() {
   const groupFilter =
     (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
     ''
+  const countryFilter =
+    (columnFilters.find((filter) => filter.id === 'country')?.value as string) ??
+    ''
   const statusFilterValue = statusFilter[0] ?? ''
   const roleFilterValue = roleFilter[0] ?? ''
   const languageFilterValue = languageFilter[0] ?? ''
@@ -119,6 +123,13 @@ export function UsersTable() {
       | string[]
       | undefined) ?? []
   const emailVerifiedFilterValue = emailVerifiedFilter[0] ?? ''
+  const setCountryFilter = (value: string | null) => {
+    const normalized = value?.trim().toUpperCase() ?? ''
+    onColumnFiltersChange((previous) => {
+      const next = previous.filter((filter) => filter.id !== 'country')
+      return normalized ? [...next, { id: 'country', value: normalized }] : next
+    })
+  }
   let emailVerifiedParam: boolean | undefined
   if (emailVerifiedFilterValue === '1') {
     emailVerifiedParam = true
@@ -155,6 +166,7 @@ export function UsersTable() {
       roleFilterValue,
       languageFilterValue,
       groupFilter,
+      countryFilter,
       paidFilterValue,
       emailVerifiedFilterValue,
       refreshTrigger,
@@ -166,6 +178,7 @@ export function UsersTable() {
         Boolean(roleFilterValue) ||
         Boolean(languageFilterValue) ||
         Boolean(groupFilter) ||
+        Boolean(countryFilter) ||
         Boolean(paidFilterValue) ||
         Boolean(emailVerifiedFilterValue)
       const params = {
@@ -182,6 +195,7 @@ export function UsersTable() {
               role: roleFilterValue,
               language: languageFilterValue,
               group: groupFilter,
+              country: countryFilter,
               paid: paidFilterValue === '1',
               email_verified: emailVerifiedParam,
             })
@@ -265,18 +279,31 @@ export function UsersTable() {
       toolbarProps={{
         searchPlaceholder: t('Filter by ID, username, name or email...'),
         additionalSearch: (
-          <Combobox
-            options={groupOptions}
-            value={groupFilter}
-            onValueChange={(value) =>
-              table.getColumn('group')?.setFilterValue(value || undefined)
-            }
-            placeholder={t('Group')}
-            searchPlaceholder={t('Group')}
-            emptyText={t('No group found.')}
-            allowCustomValue
-            className='w-full sm:w-[150px] lg:w-[180px]'
-          />
+          <div className='flex flex-wrap gap-2'>
+            <Combobox
+              options={groupOptions}
+              value={groupFilter}
+              onValueChange={(value) =>
+                table.getColumn('group')?.setFilterValue(value || undefined)
+              }
+              placeholder={t('Group')}
+              searchPlaceholder={t('Group')}
+              emptyText={t('No group found.')}
+              allowCustomValue
+              className='w-full sm:w-[150px] lg:w-[180px]'
+            />
+            <Combobox
+              options={[]}
+              value={countryFilter}
+              onValueChange={setCountryFilter}
+              placeholder={t('Country')}
+              searchPlaceholder={t('Country code, e.g. MA')}
+              emptyText={t('Enter an ISO country code')}
+              allowCustomValue
+              commitCustomValueOnEnter
+              className='w-full sm:w-[150px] lg:w-[180px]'
+            />
+          </div>
         ),
         filters: [
           {

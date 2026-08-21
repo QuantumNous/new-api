@@ -1327,6 +1327,10 @@ func handleConfigUpdate(key, value string) (bool, error) {
 		return true, system_setting.UpdateRegistrationSecuritySettingsFromMap(map[string]string{configKey: value})
 	}
 
+	if configName == "registration_country" {
+		return true, operation_setting.UpdateRegistrationCountrySettingFromMap(map[string]string{configKey: value})
+	}
+
 	// The generic path below calls config.UpdateConfigFromMap, a raw setter that
 	// runs neither NormalizeAndValidate nor the module lock. The video price
 	// table needs both: unvalidated rules let FindVideoPriceRule decide prices by

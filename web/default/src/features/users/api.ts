@@ -58,6 +58,7 @@ export async function searchUsers(
     language = '',
     paid = false,
     email_verified,
+    country = '',
     p = 1,
     page_size = 10,
   } = params
@@ -71,6 +72,7 @@ export async function searchUsers(
   if (email_verified !== undefined) {
     queryParams.set('email_verified', email_verified ? '1' : '0')
   }
+  if (country) queryParams.set('country', country)
   queryParams.set('p', String(p))
   queryParams.set('page_size', String(page_size))
   const res = await api.get(`/api/user/search?${queryParams.toString()}`)

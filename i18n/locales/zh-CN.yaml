@@ -132,6 +132,7 @@ user.quota_change_zero: "额度变更量不能为0"
 registration_email.domain_invalid: "邮箱域名无效"
 registration_email.subdomain_rejected: "暂不允许使用二级域名邮箱注册"
 registration_email.domain_unavailable: "该邮箱域名当前无法注册"
+registration_country.blocked: "抱歉，当前 Flatkey 对您的国家暂不支持"
 
 # Quota messages
 quota.negative: "额度不能为负数！"

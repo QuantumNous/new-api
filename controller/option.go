@@ -251,6 +251,9 @@ type OptionsUpdateRequest struct {
 }
 
 func isBulkOptionUpdateKey(key string) bool {
+	if strings.HasPrefix(key, "registration_country.") {
+		return true
+	}
 	if strings.HasPrefix(key, "registration_security.") {
 		return true
 	}

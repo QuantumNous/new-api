@@ -331,6 +331,9 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'registration_country.enabled': boolean
+  'registration_country.blocked_countries': string[]
+  'registration_country.auto_disable_countries': string[]
   ChannelDisableThreshold: string
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean

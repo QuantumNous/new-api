@@ -131,6 +131,7 @@ user.quota_change_zero: "Quota change amount cannot be zero"
 registration_email.domain_invalid: "The email domain is invalid"
 registration_email.subdomain_rejected: "Registration with a subdomain email address is not allowed"
 registration_email.domain_unavailable: "Registration with this email domain is currently unavailable"
+registration_country.blocked: "Sorry, Flatkey is currently not available in your country"
 
 # Quota messages
 quota.negative: "Quota cannot be negative!"

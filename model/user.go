@@ -68,6 +68,7 @@ type User struct {
 	StripeCardBound         bool           `json:"stripe_card_bound" gorm:"default:false;column:stripe_card_bound"`
 	NewUserBonusGiven       bool           `json:"new_user_bonus_given" gorm:"default:false;column:new_user_bonus_given"`
 	RegistrationIP          string         `json:"registration_ip,omitempty" gorm:"type:varchar(64);column:registration_ip;index"`
+	RegistrationCountry     string         `json:"registration_country,omitempty" gorm:"type:varchar(2);column:registration_country;index"`
 	IsEnterprise            bool           `json:"is_enterprise" gorm:"default:false;column:is_enterprise"` // enterprise users retain the group concept; PLG (non-enterprise) users are forced to the plg group with groups hidden
 	// PaidAmount is the lifetime total of successful top-ups (USD) for this
 	// user. It is not persisted on the user row — FillPaidAmounts aggregates it
@@ -89,10 +90,10 @@ type User struct {
 	// IsHoneypot marks accounts created by a honeypot (hidden field) submission.
 	// Such accounts are created already disabled; the flag lets admins
 	// distinguish them from manually-disabled accounts in the users table.
-	IsHoneypot bool `json:"is_honeypot" gorm:"default:false;column:is_honeypot"`
-	StripeCardFingerprint   string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
-	CreatedAt               int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	LastLoginAt             int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	IsHoneypot            bool   `json:"is_honeypot" gorm:"default:false;column:is_honeypot"`
+	StripeCardFingerprint string `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
+	CreatedAt             int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	LastLoginAt           int64  `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	// Primary Accept-Language tag observed at the most recent login
 	// (e.g. "zh-CN"). Analytics-only: surfaced in the ops report to explain
 	// currency/locale mismatches; never used for authorization.
@@ -376,7 +377,7 @@ func recallAudienceUserLikePattern(keyword string) string {
 	return "%" + escaped + "%"
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, language string, paid bool, emailVerified *bool, startIdx int, num int) ([]*User, int64, error) {
+func SearchUsers(keyword string, group string, role *int, status *int, language string, paid bool, emailVerified *bool, country string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -432,31 +433,32 @@ func SearchUsers(keyword string, group string, role *int, status *int, language 
 		}
 	}
 	query = applyUserLanguageFilter(query, language)
+	country = strings.ToUpper(strings.TrimSpace(country))
+	if country != "" {
+		query = query.Where("registration_country = ?", country)
+	}
+	return searchUsersWithQuery(query, startIdx, num, users, total, tx)
 
-	// 获取总数
-	err = query.Count(&total).Error
-	if err != nil {
+}
+
+// searchUsersWithQuery keeps the ordinary SQL pagination path separate from
+// country filtering, which is resolved from the embedded IP database in Go.
+func searchUsersWithQuery(query *gorm.DB, startIdx, num int, users []*User, total int64, tx *gorm.DB) ([]*User, int64, error) {
+	if err := query.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
-
-	// 获取分页数据
-	err = query.Omit("password").Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error
-	if err != nil {
+	if err := query.Omit("password").Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
-
-	// 提交事务
-	if err = tx.Commit().Error; err != nil {
+	if err := tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
-
 	if err := FillPaidAmounts(users); err != nil {
 		common.SysError("failed to fill paid amounts for user search: " + err.Error())
 	}
 	FillIPCountries(users)
-
 	return users, total, nil
 }
 
@@ -520,6 +522,50 @@ func resolveIPCountry(ip string) string {
 		return ""
 	}
 	return country
+}
+
+// ResolveIPCountry resolves an IP to an ISO country code using the embedded
+// database. It returns an empty string for private, malformed, or unknown IPs.
+func ResolveIPCountry(ip string) string {
+	return resolveIPCountry(ip)
+}
+
+// BackfillRegistrationCountries populates the indexed registration country
+// for legacy users without changing their stored IP or login history.
+func BackfillRegistrationCountries() error {
+	lastID := 0
+	for {
+		var batch []*User
+		if err := DB.Where("id > ? AND (registration_country = '' OR registration_country IS NULL) AND (registration_ip <> '' OR last_login_ip <> '')", lastID).Order("id").Limit(500).Find(&batch).Error; err != nil {
+			return err
+		}
+		if len(batch) == 0 {
+			return nil
+		}
+		lastID = batch[len(batch)-1].Id
+		updates := make(map[int]string, len(batch))
+		for _, user := range batch {
+			ip := user.RegistrationIP
+			if ip == "" {
+				ip = user.LastLoginIp
+			}
+			country := ResolveIPCountry(ip)
+			if country == "" {
+				continue
+			}
+			updates[user.Id] = country
+		}
+		if err := DB.Transaction(func(tx *gorm.DB) error {
+			for id, country := range updates {
+				if err := tx.Model(&User{}).Where("id = ?", id).Update("registration_country", country).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
 }
 
 func applyUserLanguageFilter(query *gorm.DB, language string) *gorm.DB {

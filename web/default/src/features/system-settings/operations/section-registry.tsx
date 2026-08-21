@@ -27,6 +27,7 @@ import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { ChannelConcurrencySection } from './channel-concurrency-section'
+import { RegistrationCountrySection } from './registration-country-section'
 
 function displaySMTPFromAliases(value: string): string {
   return value
@@ -47,6 +48,21 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'registration-country',
+    titleKey: 'Country Registration',
+    build: (settings: OperationsSettings) => (
+      <RegistrationCountrySection
+        defaultValues={{
+          'registration_country.enabled': settings['registration_country.enabled'],
+          'registration_country.blocked_countries':
+            settings['registration_country.blocked_countries'],
+          'registration_country.auto_disable_countries':
+            settings['registration_country.auto_disable_countries'],
         }}
       />
     ),
