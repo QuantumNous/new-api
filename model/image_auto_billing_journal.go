@@ -675,15 +675,15 @@ func findImageAutoBillingToken(db *gorm.DB, userId, tokenId int) (*Token, error)
 }
 
 // RefreshImageAutoBillingQuotaCaches invalidates quota caches after a committed
-// ledger transaction. Each invalidation atomically advances a Redis generation
-// and deletes the hash, so an older database snapshot cannot overwrite a newer
-// debit from this or another application instance. The token key is loaded by
-// id and is never stored in the durable journal.
+// ledger transaction. Each invalidation raises a short-lived fence and deletes
+// the hash, so an older database snapshot cannot overwrite a newer debit from
+// this or another application instance. The token key is loaded by id and is
+// never stored in the durable journal.
 func RefreshImageAutoBillingQuotaCaches(userId, tokenId int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	if err := invalidateUserCache(userId); err != nil {
+	if err := invalidateUserQuotaCacheForMutation(userId); err != nil {
 		return err
 	}
 	token, err := findImageAutoBillingToken(DB, userId, tokenId)
@@ -696,5 +696,5 @@ func RefreshImageAutoBillingQuotaCaches(userId, tokenId int) error {
 		}
 		return nil
 	}
-	return cacheDeleteToken(token.Key)
+	return invalidateTokenCacheForMutation(token.Key)
 }

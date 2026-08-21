@@ -21,23 +21,12 @@ const (
 )
 
 var batchUpdateStores []map[int]int
-var batchUpdatePendingStores []map[int]int
 var batchUpdateLocks []sync.Mutex
 
 func init() {
 	for i := 0; i < BatchUpdateTypeCount; i++ {
 		batchUpdateStores = append(batchUpdateStores, make(map[int]int))
-		batchUpdatePendingStores = append(batchUpdatePendingStores, make(map[int]int))
 		batchUpdateLocks = append(batchUpdateLocks, sync.Mutex{})
-	}
-}
-
-func addNewQuotaRecord(type_ int, id int, value int) {
-	batchUpdateLocks[type_].Lock()
-	defer batchUpdateLocks[type_].Unlock()
-	batchUpdateStores[type_][id] += value
-	if value < 0 {
-		batchUpdatePendingStores[type_][id] += value
 	}
 }
 
@@ -79,13 +68,10 @@ func batchUpdate() {
 
 	common.SysLog("batch update started")
 	stores := make([]map[int]int, BatchUpdateTypeCount)
-	pendingStores := make([]map[int]int, BatchUpdateTypeCount)
 	for i := 0; i < BatchUpdateTypeCount; i++ {
 		batchUpdateLocks[i].Lock()
 		stores[i] = batchUpdateStores[i]
-		pendingStores[i] = batchUpdatePendingStores[i]
 		batchUpdateStores[i] = make(map[int]int)
-		batchUpdatePendingStores[i] = make(map[int]int)
 		batchUpdateLocks[i].Unlock()
 	}
 
@@ -99,17 +85,6 @@ func batchUpdate() {
 				err := increaseTokenQuota(key, value)
 				if err != nil {
 					common.SysLog("failed to batch update token quota: " + err.Error())
-					continue
-				}
-				if common.RedisEnabled {
-					token, err := GetTokenById(key)
-					if err != nil {
-						common.SysLog("failed to load token after batch quota update: " + err.Error())
-						continue
-					}
-					if err := cacheAcknowledgeTokenQuotaPendingDelta(token.Key, int64(pendingStores[i][key])); err != nil {
-						common.SysLog("failed to acknowledge token quota cache delta: " + err.Error())
-					}
 				}
 			case BatchUpdateTypeChannelUsedQuota:
 				updateChannelUsedQuota(key, value)
@@ -132,16 +107,7 @@ func batchUpdate() {
 		userIDs[key] = struct{}{}
 	}
 	for key := range userIDs {
-		quotaDelta := userQuotaStore[key]
-		_, hasQuotaUpdate := userQuotaStore[key]
-		if err := updateUserQuotaUsedQuotaAndRequestCount(key, quotaDelta, usedQuotaStore[key], requestCountStore[key]); err != nil {
-			continue
-		}
-		if common.RedisEnabled && hasQuotaUpdate {
-			if err := cacheAcknowledgeUserQuotaPendingDelta(key, int64(pendingStores[BatchUpdateTypeUserQuota][key])); err != nil {
-				common.SysLog("failed to acknowledge user quota cache delta: " + err.Error())
-			}
-		}
+		updateUserQuotaUsedQuotaAndRequestCount(key, userQuotaStore[key], usedQuotaStore[key], requestCountStore[key])
 	}
 	common.SysLog("batch update finished")
 }

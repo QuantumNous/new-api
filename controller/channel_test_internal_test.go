@@ -2,9 +2,11 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -97,23 +99,25 @@ func TestNewAPIChannelRegistration(t *testing.T) {
 	assert.Empty(t, constant.ChannelBaseURLs[constant.ChannelTypeNewAPI])
 }
 
-func TestResponsesCompactAPITypeSupport(t *testing.T) {
+func TestResponsesCompactChannelSupport(t *testing.T) {
 	tests := []struct {
-		name    string
-		apiType int
-		want    bool
+		name        string
+		channelType int
+		apiType     int
+		want        bool
 	}{
-		{name: "OpenAI", apiType: constant.APITypeOpenAI, want: true},
-		{name: "Codex", apiType: constant.APITypeCodex, want: true},
-		{name: "Advanced Custom", apiType: constant.APITypeAdvancedCustom, want: true},
-		{name: "Sub2API", apiType: constant.APITypeSub2API, want: true},
-		{name: "New API", apiType: constant.APITypeNewAPI, want: true},
-		{name: "Anthropic", apiType: constant.APITypeAnthropic, want: false},
+		{name: "OpenAI", channelType: constant.ChannelTypeOpenAI, apiType: constant.APITypeOpenAI, want: true},
+		{name: "Azure", channelType: constant.ChannelTypeAzure, apiType: constant.APITypeOpenAI, want: true},
+		{name: "Codex", channelType: constant.ChannelTypeCodex, apiType: constant.APITypeCodex, want: true},
+		{name: "Advanced Custom", channelType: constant.ChannelTypeAdvancedCustom, apiType: constant.APITypeAdvancedCustom, want: true},
+		{name: "Sub2API", channelType: constant.ChannelTypeSub2API, apiType: constant.APITypeSub2API, want: true},
+		{name: "New API", channelType: constant.ChannelTypeNewAPI, apiType: constant.APITypeNewAPI, want: true},
+		{name: "Anthropic", channelType: constant.ChannelTypeAnthropic, apiType: constant.APITypeAnthropic, want: false},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.want, common.IsResponsesCompactAPIType(test.apiType))
+			assert.Equal(t, test.want, common.SupportsResponsesCompact(test.channelType, test.apiType))
 		})
 	}
 }
@@ -425,4 +429,127 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	require.Equal(t, http.StatusConflict, recorder.Code)
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
 	require.Contains(t, recorder.Body.String(), "已有通道测试任务正在运行或等待中")
+}
+
+func TestSelectChannelsForAutomaticTestAutoBanOnlyUsesEligibleChannels(t *testing.T) {
+	autoBanEnabled := 1
+	autoBanDisabled := 0
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled, AutoBan: &autoBanEnabled},
+		{Id: 2, Status: common.ChannelStatusEnabled, AutoBan: &autoBanDisabled},
+		{Id: 3, Status: common.ChannelStatusAutoDisabled, AutoBan: &autoBanEnabled},
+		{Id: 4, Status: common.ChannelStatusManuallyDisabled, AutoBan: &autoBanEnabled},
+		{Id: 5, Status: common.ChannelStatusEnabled},
+	}
+
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeAutoBanOnly, false)
+
+	require.Len(t, selected, 2)
+	require.Equal(t, 1, selected[0].Id)
+	require.Equal(t, 3, selected[1].Id)
+}
+
+func TestRunChannelTestWorkersHonorsConfiguredConcurrency(t *testing.T) {
+	originalInterval := common.RequestInterval
+	common.RequestInterval = 0
+	t.Cleanup(func() { common.RequestInterval = originalInterval })
+
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusEnabled},
+		{Id: 3, Status: common.ChannelStatusEnabled},
+		{Id: 4, Status: common.ChannelStatusEnabled},
+	}
+	started := make(chan struct{}, len(channels))
+	release := make(chan struct{})
+	var active atomic.Int32
+	var maxActive atomic.Int32
+	progress := make([]int, 0, len(channels)+1)
+	summaryResult := make(chan channelTestSummary, 1)
+
+	go func() {
+		summaryResult <- runChannelTestWorkers(
+			context.Background(),
+			channels,
+			2,
+			func(_ context.Context, _ *model.Channel) channelTestSummary {
+				current := active.Add(1)
+				defer active.Add(-1)
+				for {
+					observed := maxActive.Load()
+					if current <= observed || maxActive.CompareAndSwap(observed, current) {
+						break
+					}
+				}
+				started <- struct{}{}
+				<-release
+				return channelTestSummary{Tested: 1, Succeeded: 1}
+			},
+			func(processed, _ int) {
+				progress = append(progress, processed)
+			},
+		)
+	}()
+
+	<-started
+	<-started
+	select {
+	case <-started:
+		t.Fatal("started more channel tests than the configured concurrency")
+	default:
+	}
+	close(release)
+
+	summary := <-summaryResult
+
+	assert.Equal(t, int32(2), maxActive.Load())
+	assert.Equal(t, channelTestSummary{Tested: 4, Succeeded: 4}, summary)
+	assert.Equal(t, []int{0, 1, 2, 3, 4}, progress)
+}
+
+func TestRunChannelTestWorkersStopsAfterCancellation(t *testing.T) {
+	originalInterval := common.RequestInterval
+	common.RequestInterval = 0
+	t.Cleanup(func() { common.RequestInterval = originalInterval })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusEnabled},
+		{Id: 3, Status: common.ChannelStatusEnabled},
+		{Id: 4, Status: common.ChannelStatusEnabled},
+	}
+	started := make(chan struct{}, len(channels))
+	progress := make([]int, 0, 1)
+	summaryResult := make(chan channelTestSummary, 1)
+
+	go func() {
+		summaryResult <- runChannelTestWorkers(
+			ctx,
+			channels,
+			2,
+			func(ctx context.Context, _ *model.Channel) channelTestSummary {
+				started <- struct{}{}
+				<-ctx.Done()
+				return channelTestSummary{Tested: 1, Succeeded: 1}
+			},
+			func(processed, _ int) {
+				progress = append(progress, processed)
+			},
+		)
+	}()
+
+	<-started
+	<-started
+	cancel()
+
+	summary := <-summaryResult
+
+	select {
+	case <-started:
+		t.Fatal("started another channel test after cancellation")
+	default:
+	}
+	assert.Equal(t, channelTestSummary{Tested: 2, Succeeded: 2}, summary)
+	assert.Equal(t, []int{0}, progress)
 }

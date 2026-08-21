@@ -346,11 +346,21 @@ func (channel *Channel) Save() error {
 	return DB.Save(channel).Error
 }
 
-func (channel *Channel) SaveWithoutKey() error {
+// saveStatusState persists only the fields owned by the channel status flow.
+// Keeping this allowlist here prevents a stale channel snapshot from
+// overwriting credentials, accounting counters, or channel configuration.
+func (channel *Channel) saveStatusState() error {
 	if channel.Id == 0 {
 		return errors.New("channel ID is 0")
 	}
-	return DB.Omit("key").Save(channel).Error
+	updates := map[string]any{
+		"status":     channel.Status,
+		"other_info": channel.OtherInfo,
+	}
+	if channel.ChannelInfo.IsMultiKey {
+		updates["channel_info"] = channel.ChannelInfo
+	}
+	return DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
 }
 
 func GetAllChannels(startIdx int, num int, selectAll bool, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
@@ -744,6 +754,11 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	}
 
 	if channel.ChannelInfo.IsMultiKey {
+		// ChannelInfo stores both multi-key status and the polling cursor. Hold
+		// the same per-channel lock only across the handler write so another
+		// writer cannot save a stale JSON snapshot over this one, and release it
+		// before the cache publish below (CacheReplaceChannelAfterStatusUpdate
+		// re-acquires the same per-channel lock; sync.Mutex is not reentrant).
 		pollingLock := GetChannelPollingLock(channelId)
 		pollingLock.Lock()
 		handlerMultiKeyUpdate(channel, usingKey, status, reason)

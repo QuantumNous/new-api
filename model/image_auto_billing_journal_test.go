@@ -125,68 +125,88 @@ func TestRefreshOpenImageAutoBillingQuotaCachesSkipsDeletedToken(t *testing.T) {
 
 func TestRefreshImageAutoBillingQuotaCachesRejectsStaleCacheRefills(t *testing.T) {
 	db := setupImageAutoBillingModelTestDB(t)
-	cache := startImageAutoBillingRedis(t)
-	user := User{Id: 504, Username: "versioned-cache-user", Password: "password", Quota: 900}
-	token := Token{Id: 604, UserId: user.Id, Key: "versioned-cache-token", RemainQuota: 900}
+	server := startImageAutoBillingRedis(t)
+	user := User{Id: 504, Username: "fenced-cache-user", Password: "image-auto-fence-test", AuthVersion: 1, Quota: 900}
+	token := Token{Id: 604, UserId: user.Id, Key: "fenced-cache-token", RemainQuota: 900}
 	require.NoError(t, db.Create(&user).Error)
 	require.NoError(t, db.Create(&token).Error)
 	require.NoError(t, populateUserCache(user))
-	require.NoError(t, cacheSetToken(token))
-
-	userVersion, err := imageAutoUserQuotaCacheVersion(user.Id)
-	require.NoError(t, err)
-	tokenVersion, err := imageAutoTokenQuotaCacheVersion(token.Key)
+	_, err := cacheInitToken(token)
 	require.NoError(t, err)
 
 	require.NoError(t, RefreshImageAutoBillingQuotaCaches(user.Id, token.Id))
-	require.False(t, cache.Exists(getUserCacheKey(user.Id)))
-	require.False(t, cache.Exists(tokenCacheKey(token.Key)))
+	require.False(t, server.Exists(getUserCacheKey(user.Id)))
+	require.False(t, server.Exists(getTokenCacheKey(token.Key)))
 
 	// A debit that races with invalidation sees a cache miss and must not create
 	// a partial hash. A stale DB reader from the previous version cannot revive it.
-	require.NoError(t, cacheIncrUserQuotaPending(user.Id, -100))
-	require.NoError(t, cacheIncrTokenQuotaPending(token.Key, -100))
-	require.False(t, cache.Exists(getUserCacheKey(user.Id)))
-	require.False(t, cache.Exists(tokenCacheKey(token.Key)))
+	result, err := cacheApplyUserQuotaDelta(user.Id, -100)
+	require.NoError(t, err)
+	require.Equal(t, cacheQuotaMiss, result)
+	result, err = cacheApplyTokenQuotaDelta(token.Id, token.Key, -100)
+	require.NoError(t, err)
+	require.Equal(t, cacheQuotaMiss, result)
+	require.False(t, server.Exists(getUserCacheKey(user.Id)))
+	require.False(t, server.Exists(getTokenCacheKey(token.Key)))
 
-	written, err := populateUserCacheAtImageAutoQuotaCacheVersion(user, userVersion)
+	// While the quota fence is active, a stale DB snapshot cannot repopulate the cache.
+	require.NoError(t, populateUserCache(user))
+	require.False(t, server.Exists(getUserCacheKey(user.Id)))
+	code, err := cacheInitToken(token)
 	require.NoError(t, err)
-	require.False(t, written)
-	written, err = cacheSetTokenAtImageAutoQuotaCacheVersion(token, tokenVersion)
-	require.NoError(t, err)
-	require.False(t, written)
+	assert.Zero(t, code)
+	require.False(t, server.Exists(getTokenCacheKey(token.Key)))
 }
 
-func TestQuotaCacheMissRefillAppliesPendingUserAndTokenDebits(t *testing.T) {
+func TestQuotaDeltaOnCacheMissDoesNotCreatePartialHash(t *testing.T) {
 	db := setupImageAutoBillingModelTestDB(t)
-	startImageAutoBillingRedis(t)
-	user := User{Id: 505, Username: "pending-cache-user", Password: "password", Quota: 900}
-	token := Token{Id: 605, UserId: user.Id, Key: "pending-cache-token", RemainQuota: 900}
+	server := startImageAutoBillingRedis(t)
+	user := User{Id: 505, Username: "delta-cache-user", Password: "image-auto-fence-test", AuthVersion: 1, Quota: 900}
+	token := Token{Id: 605, UserId: user.Id, Key: "delta-cache-token", RemainQuota: 900}
 	require.NoError(t, db.Create(&user).Error)
 	require.NoError(t, db.Create(&token).Error)
 
-	require.NoError(t, cacheIncrUserQuotaPending(user.Id, -100))
-	require.NoError(t, cacheIncrTokenQuotaPending(token.Key, -100))
-	userVersion, err := imageAutoUserQuotaCacheVersion(user.Id)
+	// A delta on a cold cache must return Miss and must not create a partial hash.
+	result, err := cacheApplyUserQuotaDelta(user.Id, -100)
 	require.NoError(t, err)
-	tokenVersion, err := imageAutoTokenQuotaCacheVersion(token.Key)
+	assert.Equal(t, cacheQuotaMiss, result)
+	require.False(t, server.Exists(getUserCacheKey(user.Id)))
+
+	result, err = cacheApplyTokenQuotaDelta(token.Id, token.Key, -100)
 	require.NoError(t, err)
-	written, err := populateUserCacheAtImageAutoQuotaCacheVersion(user, userVersion)
+	assert.Equal(t, cacheQuotaMiss, result)
+	require.False(t, server.Exists(getTokenCacheKey(token.Key)))
+
+	// After populating from DB, the cached balance reflects the committed DB state.
+	require.NoError(t, populateUserCache(user))
+	code, err := cacheInitToken(token)
 	require.NoError(t, err)
-	require.True(t, written)
-	written, err = cacheSetTokenAtImageAutoQuotaCacheVersion(token, tokenVersion)
-	require.NoError(t, err)
-	require.True(t, written)
+	assert.Equal(t, 1, code)
 
 	cachedUser, err := cacheGetUserBase(user.Id)
 	require.NoError(t, err)
+	assert.Equal(t, 900, cachedUser.Quota)
 	cachedToken, err := cacheGetTokenByKey(token.Key)
 	require.NoError(t, err)
-	require.Equal(t, 800, cachedUser.Quota)
-	require.Equal(t, 800, cachedToken.RemainQuota)
+	assert.Equal(t, 900, cachedToken.RemainQuota)
+
+	// A delta applied after population decrements the cached value.
+	result, err = cacheApplyUserQuotaDelta(user.Id, -100)
+	require.NoError(t, err)
+	assert.Equal(t, cacheQuotaOK, result)
+	result, err = cacheApplyTokenQuotaDelta(token.Id, token.Key, -100)
+	require.NoError(t, err)
+	assert.Equal(t, cacheQuotaOK, result)
+
+	cachedUser, err = cacheGetUserBase(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, 800, cachedUser.Quota)
+	cachedToken, err = cacheGetTokenByKey(token.Key)
+	require.NoError(t, err)
+	assert.Equal(t, 800, cachedToken.RemainQuota)
 }
 
-func TestBatchQuotaFlushAcknowledgesPendingDeltasBeforeCacheRefill(t *testing.T) {
+func TestBatchQuotaFlushPersistsDeltasAndCacheRefillReflectsCommittedState(t *testing.T) {
 	db := setupImageAutoBillingModelTestDB(t)
 	startImageAutoBillingRedis(t)
 	oldBatchUpdateEnabled := common.BatchUpdateEnabled
@@ -196,107 +216,36 @@ func TestBatchQuotaFlushAcknowledgesPendingDeltasBeforeCacheRefill(t *testing.T)
 	for i := 0; i < BatchUpdateTypeCount; i++ {
 		batchUpdateLocks[i].Lock()
 		batchUpdateStores[i] = make(map[int]int)
-		batchUpdatePendingStores[i] = make(map[int]int)
 		batchUpdateLocks[i].Unlock()
 	}
 
-	user := User{Id: 506, Username: "batch-pending-user", Password: "password", Quota: 900}
-	token := Token{Id: 606, UserId: user.Id, Key: "batch-pending-token", RemainQuota: 900}
+	user := User{Id: 506, Username: "batch-flush-user", Password: "image-auto-fence-test", AuthVersion: 1, Quota: 900}
+	token := Token{Id: 606, UserId: user.Id, Key: "batch-flush-token", RemainQuota: 900}
 	require.NoError(t, db.Create(&user).Error)
 	require.NoError(t, db.Create(&token).Error)
 
-	require.NoError(t, DecreaseUserQuota(user.Id, 100, false))
-	require.NoError(t, DecreaseTokenQuota(token.Id, token.Key, 100))
+	addNewRecord(BatchUpdateTypeUserQuota, user.Id, -100)
+	addNewRecord(BatchUpdateTypeTokenQuota, token.Id, -100)
 	batchUpdate()
 
 	require.NoError(t, db.First(&user, user.Id).Error)
 	require.NoError(t, db.First(&token, token.Id).Error)
-	require.Equal(t, 800, user.Quota)
-	require.Equal(t, 800, token.RemainQuota)
+	assert.Equal(t, 800, user.Quota)
+	assert.Equal(t, 800, token.RemainQuota)
 
-	userVersion, err := imageAutoUserQuotaCacheVersion(user.Id)
+	// Cache population from DB reflects the committed state.
+	require.NoError(t, populateUserCache(user))
+	code, err := cacheInitToken(token)
 	require.NoError(t, err)
-	tokenVersion, err := imageAutoTokenQuotaCacheVersion(token.Key)
-	require.NoError(t, err)
-	written, err := populateUserCacheAtImageAutoQuotaCacheVersion(user, userVersion)
-	require.NoError(t, err)
-	require.True(t, written)
-	written, err = cacheSetTokenAtImageAutoQuotaCacheVersion(token, tokenVersion)
-	require.NoError(t, err)
-	require.True(t, written)
+	assert.Equal(t, 1, code)
 
 	cachedUser, err := cacheGetUserBase(user.Id)
 	require.NoError(t, err)
+	assert.Equal(t, 800, cachedUser.Quota)
 	cachedToken, err := cacheGetTokenByKey(token.Key)
 	require.NoError(t, err)
-	require.Equal(t, 800, cachedUser.Quota)
-	require.Equal(t, 800, cachedToken.RemainQuota)
+	assert.Equal(t, 800, cachedToken.RemainQuota)
 }
-
-func TestBatchQuotaAcknowledgementPreservesNewerPendingDelta(t *testing.T) {
-	db := setupImageAutoBillingModelTestDB(t)
-	cache := startImageAutoBillingRedis(t)
-	user := User{Id: 507, Username: "overlap-pending-user", Password: "password", Quota: 900}
-	require.NoError(t, db.Create(&user).Error)
-
-	// The first queued debit is visible through a pre-flush refill but remains
-	// pending until its database commit is acknowledged.
-	require.NoError(t, cacheIncrUserQuotaPending(user.Id, -100))
-	version, err := imageAutoUserQuotaCacheVersion(user.Id)
-	require.NoError(t, err)
-	written, err := populateUserCacheAtImageAutoQuotaCacheVersion(user, version)
-	require.NoError(t, err)
-	require.True(t, written)
-
-	// A newer debit arrives after the first batch snapshot. Acknowledging the
-	// old batch must preserve this -50 delta and invalidate the raced cache.
-	require.NoError(t, cacheIncrUserQuotaPending(user.Id, -50))
-	require.NoError(t, decreaseUserQuota(user.Id, 100))
-	require.NoError(t, cacheAcknowledgeUserQuotaPendingDelta(user.Id, -100))
-	require.False(t, cache.Exists(getUserCacheKey(user.Id)))
-
-	require.NoError(t, db.First(&user, user.Id).Error)
-	version, err = imageAutoUserQuotaCacheVersion(user.Id)
-	require.NoError(t, err)
-	written, err = populateUserCacheAtImageAutoQuotaCacheVersion(user, version)
-	require.NoError(t, err)
-	require.True(t, written)
-	cachedUser, err := cacheGetUserBase(user.Id)
-	require.NoError(t, err)
-	require.Equal(t, 750, cachedUser.Quota)
-}
-
-func TestBatchPositiveQuotaCacheMissDoesNotCreateReplayablePendingCredit(t *testing.T) {
-	db := setupImageAutoBillingModelTestDB(t)
-	startImageAutoBillingRedis(t)
-	oldBatchUpdateEnabled := common.BatchUpdateEnabled
-	common.BatchUpdateEnabled = true
-	t.Cleanup(func() { common.BatchUpdateEnabled = oldBatchUpdateEnabled })
-
-	for i := 0; i < BatchUpdateTypeCount; i++ {
-		batchUpdateLocks[i].Lock()
-		batchUpdateStores[i] = make(map[int]int)
-		batchUpdatePendingStores[i] = make(map[int]int)
-		batchUpdateLocks[i].Unlock()
-	}
-
-	user := User{Id: 508, Username: "positive-pending-user", Password: "password", Quota: 900}
-	require.NoError(t, db.Create(&user).Error)
-	require.NoError(t, IncreaseUserQuota(user.Id, 100, false))
-	batchUpdate()
-
-	require.NoError(t, db.First(&user, user.Id).Error)
-	require.Equal(t, 1000, user.Quota)
-	version, err := imageAutoUserQuotaCacheVersion(user.Id)
-	require.NoError(t, err)
-	written, err := populateUserCacheAtImageAutoQuotaCacheVersion(user, version)
-	require.NoError(t, err)
-	require.True(t, written)
-	cachedUser, err := cacheGetUserBase(user.Id)
-	require.NoError(t, err)
-	require.Equal(t, 1000, cachedUser.Quota)
-}
-
 func TestReconcileImageAutoBillingRefundsWalletAfterTokenDeletion(t *testing.T) {
 	db := setupImageAutoBillingModelTestDB(t)
 	require.NoError(t, db.Create(&User{Id: 502, Username: "refund-user", Password: "password", Quota: 600}).Error)

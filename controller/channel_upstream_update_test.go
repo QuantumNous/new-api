@@ -168,6 +168,15 @@ func TestFetchAdvancedCustomModelsRedactsQueryKeyFromTransportErrors(t *testing.
 		Err: errors.New("connection refused"),
 	}, secret)
 	require.EqualError(t, direct, "connection refused")
+
+	queryValue := "prefix-" + secret
+	queryError := sanitizeAdvancedCustomRequestError(
+		errors.New("dial "+queryValue+": connection refused"),
+		queryValue,
+		baseURL+"/v1/models?custom-token="+url.QueryEscape(queryValue),
+	)
+	require.NotContains(t, queryError.Error(), queryValue)
+	require.EqualError(t, queryError, "dial [REDACTED]: connection refused")
 }
 
 func TestFetchOrdinaryOpenAIModelsKeepsExistingEmptyDataBehavior(t *testing.T) {
