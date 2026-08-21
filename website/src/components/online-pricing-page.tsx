@@ -34,7 +34,7 @@ const plans = [
     href: subscriptionSignupHref("max"),
     hot: false,
     name: "Max",
-    prices: { BRL: 499.9, JPY: 15_000, USD: 100 },
+    prices: { BRL: 499, JPY: 15_000, USD: 100 },
   },
 ] as const;
 
@@ -48,7 +48,10 @@ function formatPaymentPrice(locale: Locale, prices: Readonly<Record<PaymentCurre
   const currency = paymentCurrency(locale);
   const amount = prices[currency];
   if (currency === "BRL") {
-    return `R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `R$ ${amount.toLocaleString("pt-BR", {
+      minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+      maximumFractionDigits: 2,
+    })}`;
   }
   if (currency === "JPY") return `¥${amount.toLocaleString("ja-JP")}`;
   return `$${amount.toLocaleString("en-US")}`;

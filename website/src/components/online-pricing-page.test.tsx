@@ -78,7 +78,7 @@ describe("OnlinePricingPage", () => {
     const cases = [
       {
         locale: "pt",
-        prices: ["R$ 49,90", "R$ 149,90", "R$ 499,90"],
+        prices: ["R$ 49,90", "R$ 149,90", "R$ 499"],
         cta: "Assine Pro por R$ 149,90/mês e entre",
         retainedUsdCopy: "Até $45 de uso de modelos / mês",
       },
@@ -97,6 +97,7 @@ describe("OnlinePricingPage", () => {
       }
       expect(html).toContain(item.cta);
       expect(html).toContain(item.retainedUsdCopy);
+      if (item.locale === "pt") expect(html).not.toContain("<b>R$ 499,90</b>");
       expect(html).not.toContain("<b>$10</b>");
       expect(html).not.toContain("<b>$30</b>");
       expect(html).not.toContain("<b>$100</b>");
