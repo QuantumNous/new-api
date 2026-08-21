@@ -143,7 +143,7 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 	if finalResponse == nil {
 		finalResponse = &dto.OpenAIResponsesResponse{
 			ID:        helper.GetResponseID(c),
-			CreatedAt: int(time.Now().Unix()),
+			CreatedAt: dto.UnixTimestamp(time.Now().Unix()),
 			Model:     info.UpstreamModelName,
 			Status:    []byte(`"completed"`),
 		}
