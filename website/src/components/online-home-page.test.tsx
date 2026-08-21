@@ -13,7 +13,8 @@ function hrefBeforeText(html: string, text: string): string {
 
 describe("OnlineHomePage", () => {
   const signupHref = "https://console.flatkey.ai/sign-up?lng=en";
-  const keysHref = "https://console.flatkey.ai/sign-up?redirect=%2Fkeys&lng=en";
+  const overviewHref =
+    "https://console.flatkey.ai/sign-up?redirect=%2Fdashboard%2Foverview&lng=en";
 
   test("routes home auth CTAs to console signup when no session hint exists", async () => {
     const { OnlineHomePage } = await import("./online-home-page");
@@ -22,7 +23,7 @@ describe("OnlineHomePage", () => {
     );
 
     expect(hrefBeforeText(html, "Get up to 40 USD free credits")).toBe(
-      keysHref,
+      overviewHref,
     );
     expect(hrefBeforeText(html, "Get started")).toBe(signupHref);
   });
@@ -34,19 +35,19 @@ describe("OnlineHomePage", () => {
     );
 
     expect(hrefBeforeText(html, "Get up to 40 USD free credits")).toBe(
-      keysHref,
+      overviewHref,
     );
     expect(hrefBeforeText(html, "Get started")).toBe(signupHref);
   });
 
-  test("keeps the free-credits CTA pointed at API keys in a non-English locale", async () => {
+  test("keeps the free-credits CTA pointed at the console overview in a non-English locale", async () => {
     const { OnlineHomePage } = await import("./online-home-page");
     const html = renderToStaticMarkup(
       await OnlineHomePage({ locale: "zh" }),
     );
 
     expect(hrefBeforeText(html, "最高领取 40 美元免费额度")).toBe(
-      "https://console.flatkey.ai/sign-up?redirect=%2Fkeys&lng=zh",
+      "https://console.flatkey.ai/sign-up?redirect=%2Fdashboard%2Foverview&lng=zh",
     );
   });
 });

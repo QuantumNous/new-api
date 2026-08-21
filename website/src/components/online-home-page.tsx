@@ -301,12 +301,14 @@ export async function OnlineHomePage(props: OnlineHomePageProps) {
   const modelPrice = (price: string) =>
     price === "Early access" ? t("md.early", price) : price;
   const authActionHref = consoleUrl("/sign-up", `lng=${props.locale}`);
-  // The free-credits CTA promises an API key, so land on the console API Keys tab
-  // once the visitor is authenticated (the console honors ?redirect= after sign-up,
-  // after switching to sign-in, and skips the form entirely when already logged in).
-  const keysActionHref = consoleUrl(
+  // The free-credits CTA is the fast path to a first API call, so land on the console
+  // dashboard overview once the visitor is authenticated -- it carries the key picker
+  // and the copy-paste integration examples in one screen (the console honors
+  // ?redirect= after sign-up, after switching to sign-in, and skips the form entirely
+  // when already logged in).
+  const overviewActionHref = consoleUrl(
     "/sign-up",
-    `redirect=${encodeURIComponent("/keys")}&lng=${props.locale}`,
+    `redirect=${encodeURIComponent("/dashboard/overview")}&lng=${props.locale}`,
   );
   const authActionLabel = copy.home.ctaKey;
   const finalCtaLabel = t("cta.b1", "Get started");
@@ -350,7 +352,7 @@ export async function OnlineHomePage(props: OnlineHomePageProps) {
             </h1>
             <p className="sub">{copy.home.sub}</p>
             <div className="heroCtas">
-              <Link className="btn big heroPrimary" href={keysActionHref}>
+              <Link className="btn big heroPrimary" href={overviewActionHref}>
                 {authActionLabel}
               </Link>
               <Link
