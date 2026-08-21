@@ -85,10 +85,10 @@ func PostSetup(c *gin.Context) {
 			return
 		}
 
-		if len(req.Password) < 8 {
+		if !common.ValidatePasswordLength(req.Password) {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "密码长度至少为8个字符",
+				"message": "密码长度必须为8到20个字符，且不能包含过多多字节字符",
 			})
 			return
 		}

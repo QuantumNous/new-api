@@ -17,10 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ShieldCheck } from 'lucide-react'
-import type { UseFormReturn } from 'react-hook-form'
+import { useWatch, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { PasswordInput } from '@/components/password-input'
+import {
+  PasswordConfirmationStatus,
+  PasswordStrength,
+} from '@/components/password-strength'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   FormControl,
@@ -40,6 +44,12 @@ interface AdminStepProps {
 
 export function AdminStep({ form, rootInitialized }: AdminStepProps) {
   const { t } = useTranslation()
+  const passwordValue = useWatch({ control: form.control, name: 'password' })
+  const confirmationValue = useWatch({
+    control: form.control,
+    name: 'confirmPassword',
+  })
+
   if (rootInitialized) {
     return (
       <Alert className='border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/40'>
@@ -83,10 +93,10 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
         render={({ field }) => (
           <FormItem>
             <FormLabel>{t('Password')}</FormLabel>
-            <FormControl>
+            <FormControl describedBy='setup-admin-password-strength'>
               <PasswordInput
                 {...field}
-                placeholder={t('Set a secure password (min. 8 characters)')}
+                placeholder={t('Enter password (8-20 characters)')}
                 autoComplete='new-password'
                 onChange={(event) => {
                   form.clearErrors('password')
@@ -94,6 +104,10 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
                 }}
               />
             </FormControl>
+            <PasswordStrength
+              id='setup-admin-password-strength'
+              value={passwordValue}
+            />
             <FormMessage />
           </FormItem>
         )}
@@ -105,7 +119,7 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
         render={({ field }) => (
           <FormItem className='sm:col-span-2'>
             <FormLabel>{t('Confirm password')}</FormLabel>
-            <FormControl>
+            <FormControl describedBy='setup-admin-password-confirmation-status'>
               <PasswordInput
                 {...field}
                 placeholder={t('Repeat the administrator password')}
@@ -116,6 +130,11 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
                 }}
               />
             </FormControl>
+            <PasswordConfirmationStatus
+              id='setup-admin-password-confirmation-status'
+              password={passwordValue}
+              confirmation={confirmationValue}
+            />
             <FormMessage />
           </FormItem>
         )}

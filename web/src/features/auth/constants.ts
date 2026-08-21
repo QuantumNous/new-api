@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+import { getPasswordValidationMessageKey } from '@/components/password-strength-utils'
+
 // ============================================================================
 // Form Schemas
 // ============================================================================
@@ -31,16 +33,27 @@ export const registerFormSchema = z
   .object({
     username: z.string().min(1, 'Please enter your username'),
     email: z.string().optional(),
-    password: z
-      .string()
-      .min(1, 'Please enter your password')
-      .min(8, 'Password must be between 8 and 20 characters')
-      .max(20, 'Password must be at most 20 characters long'),
+    password: z.string().min(1, 'Please enter your password'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match.",
-    path: ['confirmPassword'],
+  .superRefine((data, context) => {
+    const passwordMessage = data.password
+      ? getPasswordValidationMessageKey(data.password)
+      : null
+    if (passwordMessage) {
+      context.addIssue({
+        code: 'custom',
+        message: passwordMessage,
+        path: ['password'],
+      })
+    }
+    if (data.password !== data.confirmPassword) {
+      context.addIssue({
+        code: 'custom',
+        message: "Passwords don't match.",
+        path: ['confirmPassword'],
+      })
+    }
   })
 
 export const forgotPasswordFormSchema = z.object({
