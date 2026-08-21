@@ -33,6 +33,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { formatQuota } from '@/lib/format'
 
@@ -56,6 +64,7 @@ const quotaSchema = z.object({
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
+  DefaultUserGroup: z.string().min(1),
   general_setting: z.object({
     docs_link: z.string(),
   }),
@@ -74,11 +83,13 @@ function formatQuotaInputValue(value: QuotaInputValue): string {
 type QuotaSettingsSectionProps = {
   defaultValues: QuotaFormValues
   complianceConfirmed?: boolean
+  groupOptions?: string[]
 }
 
 export function QuotaSettingsSection({
   defaultValues,
   complianceConfirmed = true,
+  groupOptions = [],
 }: QuotaSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -281,6 +292,45 @@ export function QuotaSettingsSection({
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            <FormField
+              control={form.control}
+              name='DefaultUserGroup'
+              render={({ field }) => {
+                const options = Array.from(
+                  new Set([...(groupOptions ?? []), field.value].filter(Boolean))
+                )
+                return (
+                  <FormItem>
+                    <FormLabel>{t('Default User Group')}</FormLabel>
+                    <Select
+                      items={options.map((g) => ({ value: g, label: g }))}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('Select a group')} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {options.map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {g}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t('Group assigned to newly registered users. Must exist in Group Ratio settings.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
             />
 
             <FormField
