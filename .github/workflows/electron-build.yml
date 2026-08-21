@@ -75,15 +75,18 @@ jobs:
             MINOR=${BASH_REMATCH[2]}
             PATCH=${BASH_REMATCH[3]}
             REST=${BASH_REMATCH[4]}
-          
+
             VERSION="$MAJOR.$MINOR.$PATCH"
-          
+
             # If there's extra content, append it without adding -dev
             if [[ -n "$REST" ]]; then
               VERSION="$VERSION$REST"
             fi
+          else
+            # Keep non-semver release tags (for example rc25th1) valid for npm.
+            VERSION="0.0.0-$VERSION"
           fi
-          npm version $VERSION --no-git-tag-version --allow-same-version
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install Electron dependencies
         run: |
