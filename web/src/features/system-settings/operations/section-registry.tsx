@@ -86,6 +86,7 @@ const OPERATIONS_SECTIONS = [
         defaultValues={{
           WorkerUrl: settings.WorkerUrl,
           WorkerValidKey: settings.WorkerValidKey,
+          UserOutboundRequestsEnabled: settings.UserOutboundRequestsEnabled,
           WorkerAllowHttpImageRequestEnabled:
             settings.WorkerAllowHttpImageRequestEnabled,
         }}
