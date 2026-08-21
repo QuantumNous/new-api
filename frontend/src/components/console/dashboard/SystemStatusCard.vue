@@ -331,9 +331,9 @@ const successColor = computed(() => rateColor(successRate.value))
       </div>
     </template>
 
-    <div class="flex grow flex-col px-5 pt-2 pb-3 sm:pb-3.5">
+    <div class="flex grow flex-col px-5 pt-3 pb-3 sm:pb-3.5">
       <div
-        class="grid grid-cols-2 content-start gap-2.5 sm:gap-3"
+        class="mb-3.5 grid grid-cols-2 content-start gap-2.5 sm:mb-4 sm:gap-3"
         data-system-status-grid
       >
         <div
@@ -530,7 +530,7 @@ const successColor = computed(() => rateColor(successRate.value))
       </div>
 
       <div
-        class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-2.5 text-[11px]"
+        class="mt-auto flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-2.5 text-[11px] sm:pt-3"
       >
         <span class="flex items-center gap-1.5 text-[var(--text-tertiary)]">
           <svg
