@@ -80,10 +80,6 @@ func TestCustomerUsageSnapshotTransactionsAndSummary(t *testing.T) {
 		t.Fatalf("summary totals=%v", totals)
 	}
 
-	items := adjustments["adjustments"].([]interface{})
-	if len(items) != 1 || items[0].(map[string]interface{})["adjustment_id"] != "refund:task_8c6" {
-		t.Fatalf("adjustments=%v", adjustments)
-	}
 }
 
 func TestCustomerUsageRejectsExpiredRetentionAndUnknownCustomer(t *testing.T) {

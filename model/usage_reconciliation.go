@@ -297,7 +297,7 @@ func QueryBlockRunUsageLogsAfterCursor(channelIDs []int, startUnix, endUnix int6
 
 func customerUsageQuery(customerID int, startUnix, endUnix int64) *gorm.DB {
 	tx := LOG_DB.Model(&Log{}).
-		Where("user_id = ? AND type = ? AND created_at >= ? AND created_at < ?", customerID, LogTypeConsume, startUnix, endUnix)
+		Where("user_id = ? AND created_at >= ? AND created_at < ? AND type = ?", customerID, startUnix, endUnix, LogTypeConsume)
 	if LOG_DB.Dialector.Name() == "mysql" {
 		tx = tx.Clauses(hints.ForceIndex("idx_logs_user_created_type"))
 	}
