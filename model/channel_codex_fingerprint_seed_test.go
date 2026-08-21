@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -192,6 +193,30 @@ func TestNonCodexAndOffChannelsDoNotMintSeed(t *testing.T) {
 	require.Len(t, stored, 2)
 	require.Empty(t, stored[0].CodexFingerprintSeed)
 	require.Empty(t, stored[1].CodexFingerprintSeed)
+}
+
+func TestCodexFingerprintSeedValidationRequiresCanonicalNonNilUUID(t *testing.T) {
+	for _, seed := range []string{
+		uuid.Nil.String(),
+		strings.ToUpper("018f89db-7792-7b5e-a360-7fd9279fd725"),
+		"018f89db77927b5ea3607fd9279fd725",
+	} {
+		require.False(t, validCodexFingerprintSeed(seed), seed)
+	}
+	require.True(t, validCodexFingerprintSeed("018f89db-7792-7b5e-a360-7fd9279fd725"))
+}
+
+func TestChannelUpdateClearsSeedWhenChangingToNonCodex(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusEnabled, "018f89db-7792-7b5e-a360-7fd9279fd725")
+	channel.Type = constant.ChannelTypeOpenAI
+
+	require.NoError(t, channel.Update())
+
+	var updated Channel
+	require.NoError(t, DB.First(&updated, channel.Id).Error)
+	require.Equal(t, constant.ChannelTypeOpenAI, updated.Type)
+	require.Empty(t, updated.CodexFingerprintSeed)
 }
 
 func TestEnableChannelByTagMintsSeedForLegacyDisabledCodexChannel(t *testing.T) {

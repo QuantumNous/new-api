@@ -23,6 +23,7 @@ import (
 const fingerprintContextKey = "codex_fingerprint_ids"
 const maxCodexMetadataBytes = 64 * 1024
 const maxCodexMetadataDepth = 10
+
 // Keep the whole-request guard above normal tool-schema nesting while bounding
 // recursive duplicate-key scanning for attacker-controlled JSON.
 const maxCodexRequestJSONDepth = 100
@@ -131,7 +132,8 @@ func ResolveCodexFingerprint(info *relaycommon.RelayInfo, originalSession string
 	if seed == "" {
 		return nil, errors.New("codex channel: fingerprint seed is required")
 	}
-	if _, err := uuid.Parse(seed); err != nil {
+	parsedSeed, err := uuid.Parse(seed)
+	if err != nil || parsedSeed == uuid.Nil || seed != parsedSeed.String() {
 		return nil, errors.New("codex channel: fingerprint seed must be a canonical uuid")
 	}
 	deploymentNamespace := strings.TrimSpace(os.Getenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE"))
@@ -198,8 +200,8 @@ func rewriteTurnMetadata(raw string, ids *codexFingerprintIDs) string {
 		return raw
 	}
 	var metadata map[string]any
-	if common.Unmarshal([]byte(raw), &metadata) != nil {
-		return raw
+	if err := common.Unmarshal([]byte(raw), &metadata); err != nil || metadata == nil {
+		metadata = make(map[string]any)
 	}
 	metadata["installation_id"] = ids.installationID
 	if ids.mode != fingerprintDevice {

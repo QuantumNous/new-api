@@ -574,8 +574,9 @@ func (channel *Channel) GetStatusCodeMapping() string {
 }
 
 func validCodexFingerprintSeed(seed string) bool {
-	_, err := uuid.Parse(seed)
-	return err == nil
+	trimmed := strings.TrimSpace(seed)
+	parsed, err := uuid.Parse(trimmed)
+	return err == nil && parsed != uuid.Nil && trimmed == parsed.String()
 }
 
 const codexFingerprintSeedBackfillBatchSize = 200
@@ -752,6 +753,13 @@ func (channel *Channel) update(forceMaxConcurrency bool) error {
 		}
 		if err := tx.Model(channel).First(channel, "id = ?", channel.Id).Error; err != nil {
 			return err
+		}
+		if channel.Type != constant.ChannelTypeCodex && channel.CodexFingerprintSeed != "" {
+			if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).
+				Update("codex_fingerprint_seed", "").Error; err != nil {
+				return err
+			}
+			channel.CodexFingerprintSeed = ""
 		}
 		if _, err := repairCodexFingerprintSeed(tx, channel); err != nil {
 			return err
@@ -1175,7 +1183,7 @@ func UpdateCodexFingerprintModeByIds(ids []int, mode string) error {
 	if strings.EqualFold(strings.TrimSpace(mode), "off") {
 		mode = ""
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var channels []Channel
 		if err := tx.Where("id IN ?", ids).Find(&channels).Error; err != nil {
 			return err
@@ -1190,9 +1198,19 @@ func UpdateCodexFingerprintModeByIds(ids []int, mode string) error {
 			if err := tx.Model(&Channel{}).Where("id = ?", channels[i].Id).Update("setting", channels[i].Setting).Error; err != nil {
 				return err
 			}
+			if mode != "" {
+				if _, err := repairCodexFingerprintSeed(tx, &channels[i]); err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	refreshLocalChannelCacheAndPublishChanged()
+	return nil
 }
 
 func UpdateChannelUsedQuota(id int, quota int) {

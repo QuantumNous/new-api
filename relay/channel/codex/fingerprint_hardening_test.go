@@ -14,6 +14,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -117,6 +118,20 @@ func TestInvalidFullMetadataFailsClosed(t *testing.T) {
 			require.Error(t, err)
 			require.Nil(t, rewritten)
 		})
+	}
+}
+
+func TestResolveCodexFingerprintRejectsNonCanonicalSeeds(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	for _, seed := range []string{
+		uuid.Nil.String(),
+		strings.ToUpper(hardeningSeed),
+		strings.ReplaceAll(hardeningSeed, "-", ""),
+	} {
+		info := hardeningInfo(fingerprintFull)
+		info.ChannelMeta.CodexFingerprintSeed = seed
+		_, err := ResolveCodexFingerprint(info, "client", time.Unix(1700000000, 0))
+		require.Error(t, err, seed)
 	}
 }
 

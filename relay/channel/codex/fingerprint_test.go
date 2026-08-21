@@ -196,6 +196,37 @@ func TestFingerprintDeviceRewritesTurnMetadata(t *testing.T) {
 	require.Contains(t, metadata["x-codex-turn-metadata"], ids.installationID)
 }
 
+func TestFingerprintTurnMetadataNullAndNonObjectValuesRebuilt(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelId: 7, CodexFingerprintSeed: hardeningSeed, ChannelSetting: dto.ChannelSettings{CodexFingerprintMode: "device"}}}
+	ids := resolveFingerprintIDs(info, "client")
+
+	for _, raw := range []string{"null", "[]", "123"} {
+		t.Run(raw, func(t *testing.T) {
+			var rewritten string
+			require.NotPanics(t, func() {
+				rewritten = rewriteTurnMetadata(raw, ids)
+			})
+			parsed := gjson.Parse(rewritten)
+			require.True(t, parsed.IsObject())
+			require.Equal(t, ids.installationID, parsed.Get("installation_id").String())
+		})
+	}
+
+	body := map[string]any{"client_metadata": map[string]any{"x-codex-turn-metadata": "null"}}
+	require.NotPanics(t, func() {
+		require.True(t, applyFingerprintBody(body, ids))
+	})
+	metadata := body["client_metadata"].(map[string]any)
+	require.Equal(t, ids.installationID, gjson.Parse(metadata["x-codex-turn-metadata"].(string)).Get("installation_id").String())
+
+	rawBody, changed, err := applyFingerprintBodyRaw([]byte(`{"client_metadata":{"x-codex-turn-metadata":"null"}}`), ids)
+	require.NoError(t, err)
+	require.True(t, changed)
+	rewrittenTurnMetadata := gjson.GetBytes(rawBody, "client_metadata.x-codex-turn-metadata").String()
+	require.Equal(t, ids.installationID, gjson.Parse(rewrittenTurnMetadata).Get("installation_id").String())
+}
+
 func TestFingerprintPassThroughRawBodySharesHeaderIDsAndPreservesFields(t *testing.T) {
 	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
 	service.InitHttpClient()

@@ -188,6 +188,18 @@ func TestUpdateCodexFingerprintModeByIdsOffRemovesSettingKey(t *testing.T) {
 	require.NotContains(t, decoded, "codex_fingerprint_mode")
 }
 
+func TestUpdateCodexFingerprintModeByIdsEnablingMintsSeed(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusEnabled, "")
+
+	require.NoError(t, UpdateCodexFingerprintModeByIds([]int{channel.Id}, "full"))
+
+	var updated Channel
+	require.NoError(t, DB.First(&updated, channel.Id).Error)
+	require.Equal(t, "full", updated.GetSetting().CodexFingerprintMode)
+	requireUUIDString(t, updated.CodexFingerprintSeed)
+}
+
 // TestEditChannelsByIdsMaxConcurrency verifies batch max_concurrency updates,
 // including writing 0 (clear the limit) which a struct-based Updates would skip.
 func TestEditChannelsByIdsMaxConcurrency(t *testing.T) {
