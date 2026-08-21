@@ -284,33 +284,39 @@ func Register(c *gin.Context) {
 	// 获取插入后的用户ID
 	var insertedUser model.User
 	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
+		// 用户已写入但读取失败，强制回滚以避免孤立账号
+		_ = model.DB.Unscoped().Where("username = ?", cleanUser.Username).Delete(&model.User{}).Error
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
-	// 生成默认令牌
+	// 生成默认令牌（失败则回滚用户，避免数据库留下孤立账号）
 	if constant.GenerateDefaultToken {
-		key, err := common.GenerateKey()
-		if err != nil {
-			common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
-			common.SysLog("failed to generate token key: " + err.Error())
-			return
-		}
-		// 生成默认令牌
-		token := model.Token{
-			UserId:             insertedUser.Id, // 使用插入后的用户ID
-			Name:               cleanUser.Username + "的初始令牌",
-			Key:                key,
-			CreatedTime:        common.GetTimestamp(),
-			AccessedTime:       common.GetTimestamp(),
-			ExpiredTime:        -1,     // 永不过期
-			RemainQuota:        500000, // 示例额度
-			UnlimitedQuota:     true,
-			ModelLimitsEnabled: false,
-		}
-		if setting.DefaultUseAutoGroup {
-			token.Group = "auto"
-		}
-		if err := token.Insert(); err != nil {
+		txErr := model.DB.Transaction(func(tx *gorm.DB) error {
+			key, err := common.GenerateKey()
+			if err != nil {
+				return err
+			}
+			token := model.Token{
+				UserId:             insertedUser.Id, // 使用插入后的用户ID
+				Name:               cleanUser.Username + "的初始令牌",
+				Key:                key,
+				CreatedTime:        common.GetTimestamp(),
+				AccessedTime:       common.GetTimestamp(),
+				ExpiredTime:        -1, // 永不过期
+				RemainQuota:        500000,
+				UnlimitedQuota:     true,
+				ModelLimitsEnabled: false,
+			}
+			if setting.DefaultUseAutoGroup {
+				token.Group = "auto"
+			}
+			return tx.Create(&token).Error
+		})
+		if txErr != nil {
+			// 默认令牌生成失败：回滚用户插入，避免数据库里留下没有令牌的孤立账号
+			if rbErr := model.DB.Unscoped().Where("username = ?", cleanUser.Username).Delete(&model.User{}).Error; rbErr != nil {
+				common.SysLog(fmt.Sprintf("failed to rollback user %s after token generation failure: %v", cleanUser.Username, rbErr))
+			}
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 			return
 		}
