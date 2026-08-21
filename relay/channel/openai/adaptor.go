@@ -36,11 +36,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Adaptor implements the OpenAI-compatible channel adaptor, handling request
+// conversion, header setup, and response dispatch for OpenAI, Azure, and
+// other OpenAI-compatible upstreams.
 type Adaptor struct {
 	ChannelType    int
 	ResponseFormat string
 }
 
+// ConvertGeminiRequest converts a Gemini chat request to the upstream request body.
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
 	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
 	if err != nil {
@@ -53,6 +57,7 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	return a.ConvertOpenAIRequest(c, info, openaiRequest)
 }
 
+// ConvertClaudeRequest converts a Claude request to the upstream request body.
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
 	//if !strings.Contains(request.Model, "claude") {
 	//	return nil, fmt.Errorf("you are using openai channel type with path /v1/messages, only claude model supported convert, but got %s", request.Model)
@@ -72,6 +77,12 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if !ok {
 		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
 	}
+	// Preserve the original stream flag from the Claude request. The format
+	// converter may not carry it over, and ConvertOpenAIRequest needs it to
+	// set info.IsStream correctly for DoResponse routing.
+	if request.Stream != nil {
+		aiRequest.Stream = request.Stream
+	}
 	//if common.DebugEnabled {
 	//	println(fmt.Sprintf("convert claude to openai request result: %s", common.GetJsonString(aiRequest)))
 	//	// Save request body to file for debugging
@@ -89,6 +100,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	return a.ConvertOpenAIRequest(c, info, aiRequest)
 }
 
+// Init initializes the adaptor with channel metadata from RelayInfo.
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 
@@ -102,6 +114,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	}
 }
 
+// GetRequestURL returns the upstream endpoint URL based on relay mode and channel configuration.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == relayconstant.RelayModeRealtime {
 		if strings.HasPrefix(info.ChannelBaseUrl, "https://") {
@@ -180,6 +193,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	}
 }
 
+// SetupRequestHeader sets authentication and routing headers on the upstream request.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, header)
 	if info.ChannelType == constant.ChannelTypeAzure {
@@ -241,11 +255,54 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	return nil
 }
 
+// ConvertOpenAIRequest transforms a client-side GeneralOpenAIRequest into the
+// upstream-specific request body. When the channel has ForceUpstreamStream
+// enabled and the client requested non-streaming, it forces stream=true on the
+// upstream request and sets UpstreamStreamForced so DoResponse routes through
+// the buffered SSE aggregation handler.
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
+	// Reset forced-stream flags on each retry attempt. RelayInfo is reused
+	// across retries (controller/relay.go), so flags set by a previous
+	// channel must not leak into the current one.
+	info.IsStream = lo.FromPtrOr(request.Stream, false)
+	info.UpstreamStreamForced = false
+	// Force upstream streaming when channel requests it and client asked for non-stream.
+	// The SSE response will be aggregated by OaiBufferedStreamHandler in DoResponse.
+	// Do NOT set info.IsStream here -- DoApiRequest uses it to set SSE headers
+	// and start a ping goroutine for the downstream client, which would corrupt
+	// the non-streaming JSON response. DoResponse routes on UpstreamStreamForced
+	// directly, independent of IsStream.
+	if info.ChannelSetting.ForceUpstreamStream && !info.IsStream {
+		request.Stream = lo.ToPtr(true)
+		info.UpstreamStreamForced = true
+		// Inject stream_options.include_usage so the upstream returns actual
+		// usage in the final SSE chunk. Without this, the buffered handler
+		// falls back to estimated token counts, hurting billing accuracy.
+		if info.SupportStreamOptions && request.StreamOptions == nil {
+			request.StreamOptions = &dto.StreamOptions{
+				IncludeUsage: true,
+			}
+		}
+	}
+	// Strip StreamOptions for channels that don't support them, but only
+	// when we did not inject it ourselves via ForceUpstreamStream. The
+	// forced-stream path (above) injects IncludeUsage for billing accuracy;
+	// nil-ing it here would make that injection dead code for any channel
+	// whose type is not OpenAI/Azure (e.g. DeepSeek with SupportStreamOptions).
+	// However, when the channel does not support StreamOptions at all
+	// (SupportStreamOptions=false), we must still strip them — even in
+	// forced-stream mode — to avoid sending unsupported fields upstream.
+	//
+	// Ordering dependency: shouldPreserveStreamOptions reads
+	// info.UpstreamStreamForced which is set inside the ForceUpstreamStream
+	// block above (line ~261). This guard MUST stay below that block.
+	shouldPreserveStreamOptions := info.UpstreamStreamForced && info.SupportStreamOptions
+	if !shouldPreserveStreamOptions &&
+		info.ChannelType != constant.ChannelTypeOpenAI &&
+		info.ChannelType != constant.ChannelTypeAzure {
 		request.StreamOptions = nil
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
@@ -366,14 +423,17 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	return request, nil
 }
 
+// ConvertRerankRequest converts a rerank request to the upstream request body.
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
 	return request, nil
 }
 
+// ConvertEmbeddingRequest converts an embedding request to the upstream request body.
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
 	return request, nil
 }
 
+// ConvertAudioRequest converts an audio request to the upstream request body.
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	a.ResponseFormat = request.ResponseFormat
 	if info.RelayMode == relayconstant.RelayModeAudioSpeech {
@@ -440,6 +500,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 }
 
+// ConvertImageRequest converts an image generation request to the upstream request body.
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
@@ -601,6 +662,7 @@ func detectImageMimeType(filename string) string {
 	}
 }
 
+// ConvertOpenAIResponsesRequest converts an OpenAI Responses API request to the upstream request body.
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	//  转换模型推理力度后缀
 	effort, originModel := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(request.Model)
@@ -620,6 +682,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return request, nil
 }
 
+// DoRequest executes the upstream HTTP request and returns the raw response.
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	if info.RelayMode == relayconstant.RelayModeAudioTranscription ||
 		info.RelayMode == relayconstant.RelayModeAudioTranslation ||
@@ -632,6 +695,10 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	}
 }
 
+// DoResponse dispatches the upstream HTTP response to the appropriate handler
+// based on relay mode and stream state. When UpstreamStreamForced is true, it
+// routes to OaiBufferedStreamHandler to aggregate the upstream SSE into a
+// single JSON response for the non-streaming client.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeRealtime:
@@ -659,7 +726,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeResponsesCompact:
 		usage, err = OaiResponsesCompactionHandler(c, resp)
 	default:
-		if info.IsStream {
+		if info.UpstreamStreamForced {
+			// Forced upstream stream: the upstream returned SSE but the client
+			// asked for non-streaming. Aggregate into a single JSON response.
+			usage, err = OaiBufferedStreamHandler(c, info, resp)
+		} else if info.IsStream {
 			usage, err = OaiStreamHandler(c, info, resp)
 		} else {
 			usage, err = OpenaiHandler(c, info, resp)
@@ -668,6 +739,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	return
 }
 
+// GetModelList returns the list of models configured for this channel.
 func (a *Adaptor) GetModelList() []string {
 	switch a.ChannelType {
 	case constant.ChannelType360:
@@ -685,6 +757,7 @@ func (a *Adaptor) GetModelList() []string {
 	}
 }
 
+// GetChannelName returns the human-readable channel type name.
 func (a *Adaptor) GetChannelName() string {
 	switch a.ChannelType {
 	case constant.ChannelType360:
