@@ -1,0 +1,158 @@
+.Button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2rem;
+  padding: 0 0.75rem;
+  margin: 0;
+  border: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  color: oklch(14.5% 0 0deg);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+    color: white;
+  }
+
+  @media (hover: hover) {
+    &:hover:not([data-disabled]) {
+      background-color: oklch(97% 0 0deg);
+
+      @media (prefers-color-scheme: dark) {
+        background-color: oklch(26.9% 0 0deg);
+      }
+    }
+  }
+
+  &:active:not([data-disabled]) {
+    background-color: oklch(92.2% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      background-color: oklch(37.1% 0 0deg);
+    }
+  }
+
+  &[data-disabled] {
+    color: oklch(55.6% 0 0deg);
+    border-color: oklch(55.6% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      color: oklch(70.8% 0 0deg);
+      border-color: oklch(70.8% 0 0deg);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: -1px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.Backdrop {
+  position: fixed;
+  min-height: 100dvh;
+  inset: 0;
+  background-color: black;
+  opacity: 0.2;
+  transition: opacity 150ms;
+
+  /* iOS 26+: Ensure the backdrop covers the entire visible viewport. */
+  @supports (-webkit-touch-callout: none) {
+    position: absolute;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    opacity: 0.5;
+  }
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+  }
+}
+
+.Popup {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24rem;
+  max-width: calc(100vw - 3rem);
+  margin-top: -2rem;
+  padding: 1rem;
+  border: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+  color: oklch(14.5% 0 0deg);
+  box-shadow: 0.25rem 0.25rem 0 rgb(0 0 0 / 12%);
+  transition:
+    transform 100ms ease-out,
+    opacity 100ms ease-out;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+    color: white;
+    box-shadow: none;
+  }
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+}
+
+.Intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.Title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 700;
+}
+
+.Description {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: oklch(43.9% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    color: oklch(70.8% 0 0deg);
+  }
+}
+
+.Actions {
+  display: flex;
+  justify-content: end;
+  gap: 0.75rem;
+}
+
+.Container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}

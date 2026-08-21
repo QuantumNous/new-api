@@ -1,0 +1,29 @@
+.vchart {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  padding: 0!important;
+}
+
+.cs-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  margin: 0px;
+}
+
+.cs-canvas-hidden {
+  opacity: 0;
+  visibility: hidden;
+  display: none;
+}
+
+.cs-tooltip-canvas {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}

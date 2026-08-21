@@ -1,0 +1,138 @@
+{
+  "name": "tailwindcss",
+  "version": "4.3.3",
+  "description": "A utility-first CSS framework for rapidly building custom user interfaces.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tailwindlabs/tailwindcss.git",
+    "directory": "packages/tailwindcss"
+  },
+  "bugs": "https://github.com/tailwindlabs/tailwindcss/issues",
+  "homepage": "https://tailwindcss.com",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "build": "tsup-node --env.NODE_ENV production",
+    "dev": "tsup-node --env.NODE_ENV development --watch",
+    "test:ui": "playwright test"
+  },
+  "exports": {
+    ".": {
+      "style": "./index.css",
+      "types": "./src/index.ts",
+      "require": "./dist/lib.js",
+      "import": "./src/index.ts"
+    },
+    "./colors": {
+      "require": "./src/compat/colors.cts",
+      "import": "./src/compat/colors.ts"
+    },
+    "./colors.js": {
+      "require": "./src/compat/colors.cts",
+      "import": "./src/compat/colors.ts"
+    },
+    "./lib/util/flattenColorPalette": {
+      "require": "./src/compat/flatten-color-palette.cts",
+      "import": "./src/compat/flatten-color-palette.ts"
+    },
+    "./lib/util/flattenColorPalette.js": {
+      "require": "./src/compat/flatten-color-palette.cts",
+      "import": "./src/compat/flatten-color-palette.ts"
+    },
+    "./defaultTheme": {
+      "require": "./src/compat/default-theme.cts",
+      "import": "./src/compat/default-theme.ts"
+    },
+    "./defaultTheme.js": {
+      "require": "./src/compat/default-theme.cts",
+      "import": "./src/compat/default-theme.ts"
+    },
+    "./plugin": {
+      "require": "./src/plugin.cts",
+      "import": "./src/plugin.ts"
+    },
+    "./plugin.js": {
+      "require": "./src/plugin.cts",
+      "import": "./src/plugin.ts"
+    },
+    "./package.json": "./package.json",
+    "./index.css": "./index.css",
+    "./index": "./index.css",
+    "./preflight.css": "./preflight.css",
+    "./preflight": "./preflight.css",
+    "./theme.css": "./theme.css",
+    "./theme": "./theme.css",
+    "./utilities.css": "./utilities.css",
+    "./utilities": "./utilities.css"
+  },
+  "publishConfig": {
+    "provenance": true,
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/lib.d.mts",
+        "style": "./index.css",
+        "require": "./dist/lib.js",
+        "import": "./dist/lib.mjs"
+      },
+      "./plugin": {
+        "require": "./dist/plugin.js",
+        "import": "./dist/plugin.mjs"
+      },
+      "./plugin.js": {
+        "require": "./dist/plugin.js",
+        "import": "./dist/plugin.mjs"
+      },
+      "./defaultTheme": {
+        "require": "./dist/default-theme.js",
+        "import": "./dist/default-theme.mjs"
+      },
+      "./defaultTheme.js": {
+        "require": "./dist/default-theme.js",
+        "import": "./dist/default-theme.mjs"
+      },
+      "./colors": {
+        "require": "./dist/colors.js",
+        "import": "./dist/colors.mjs"
+      },
+      "./colors.js": {
+        "require": "./dist/colors.js",
+        "import": "./dist/colors.mjs"
+      },
+      "./lib/util/flattenColorPalette": {
+        "require": "./dist/flatten-color-palette.js",
+        "import": "./dist/flatten-color-palette.mjs"
+      },
+      "./lib/util/flattenColorPalette.js": {
+        "require": "./dist/flatten-color-palette.js",
+        "import": "./dist/flatten-color-palette.mjs"
+      },
+      "./package.json": "./package.json",
+      "./index.css": "./index.css",
+      "./index": "./index.css",
+      "./preflight.css": "./preflight.css",
+      "./preflight": "./preflight.css",
+      "./theme.css": "./theme.css",
+      "./theme": "./theme.css",
+      "./utilities.css": "./utilities.css",
+      "./utilities": "./utilities.css"
+    }
+  },
+  "style": "index.css",
+  "files": [
+    "dist",
+    "index.css",
+    "preflight.css",
+    "theme.css",
+    "utilities.css"
+  ],
+  "devDependencies": {
+    "@jridgewell/remapping": "^2.3.5",
+    "@tailwindcss/oxide": "workspace:^",
+    "@types/node": "catalog:",
+    "dedent": "catalog:",
+    "lightningcss": "catalog:",
+    "magic-string": "^0.30.21",
+    "source-map-js": "^1.2.1"
+  }
+}

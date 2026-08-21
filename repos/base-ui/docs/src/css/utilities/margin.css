@@ -1,0 +1,25 @@
+@layer utilities {
+  .bui-mt-5 {
+    margin-top: 1.25rem;
+  }
+
+  .bui-mb-6 {
+    margin-bottom: 1.5rem;
+  }
+
+  .bui-ml--0\.5 {
+    margin-left: -0.125rem;
+  }
+
+  .bui-ml-a {
+    margin-left: auto;
+  }
+
+  .bui-mr-1 {
+    margin-right: 0.25rem;
+  }
+
+  .bui-my-4 {
+    margin-block: 1rem;
+  }
+}

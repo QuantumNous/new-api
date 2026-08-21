@@ -1,0 +1,85 @@
+---
+description: 'Configure whether to enable gzip compression for static assets served by the dev server or preview server.'
+---
+
+# server.compress
+
+- **Type:**
+
+```ts
+type Compress =
+  | boolean
+  | {
+      filter?: (req: IncomingMessage, res: ServerResponse) => boolean;
+      level?: number;
+    };
+```
+
+- **Default:** `true`
+
+Configure whether to enable [gzip compression](https://developer.mozilla.org/en-US/docs/Glossary/gzip_compression) for static assets served by the dev server or preview server.
+
+## Disable compression
+
+To disable the gzip compression, set `compress` to `false`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    compress: false,
+  },
+};
+```
+
+## Options
+
+### filter
+
+- **Type:** `(req: IncomingMessage, res: ServerResponse) => boolean`
+- **Default:** `undefined`
+- **Version:** `>= v1.4.4`
+
+A function that determines whether a response should be compressed.
+
+Returns `true` to compress the response, `false` to skip compression.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    compress: {
+      filter: (req) => {
+        if (req.url?.includes('/foo')) {
+          return false;
+        }
+        return true;
+      },
+    },
+  },
+};
+```
+
+### level
+
+- **Type:** `number`
+- **Default:**
+  - Dev server: `1` (zlib.constants.Z_BEST_SPEED)
+  - Preview server: `6` (zlib.constants.Z_DEFAULT_COMPRESSION)
+- **Version:** `>= v1.4.4`
+
+Used to set the level of zlib compression applied to responses. A higher level will result in better compression, but will take longer to complete; a lower level will result in less compression, but will be much faster. This value is an integer in the range of 0 (no compression) to 9 (maximum compression).
+
+Rsbuild dev server uses [zlib.constants.Z_BEST_SPEED](https://nodejs.org/api/zlib.html#constants) as the default compression level, which provides the best compression performance. The preview server sets `level` to [zlib.constants.Z_DEFAULT_COMPRESSION](https://nodejs.org/api/zlib.html#constants) by default.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    compress: {
+      level: 6,
+    },
+  },
+};
+```
+
+:::tip
+In actual production environments, web servers like Nginx or Apache are commonly used, which may use different compression levels. Therefore, you might observe differences between the file sizes after gzip compression in your local environment compared to production.
+:::

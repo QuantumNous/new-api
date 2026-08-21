@@ -1,0 +1,20 @@
+{
+  "extends": "@scripts/config/tsconfig",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "helper",
+    "playwright.config.ts",
+    "cases/**/*.test.ts",
+    "cases/**/*.config.ts",
+    "cases/javascript-api/server-custom-message/src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../packages/core"
+    }
+  ],
+  "exclude": ["**/node_modules", "**/.*/", "**/test-temp-*"]
+}

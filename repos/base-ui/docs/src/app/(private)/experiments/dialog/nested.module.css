@@ -1,0 +1,276 @@
+@keyframes dialog-opening-transform {
+  from {
+    transform: translate(-50%, -35%) scale(0.8) translateY(0);
+  }
+
+  to {
+    transform: translate(-50%, -50%) scale(calc(pow(0.95, var(--nested-dialogs))))
+      translateY(calc(-30px * var(--nested-dialogs)));
+  }
+}
+
+@keyframes dialog-opening-opacity {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@keyframes dialog-closing {
+  from {
+    transform: translate(-50%, -50%) scale(calc(pow(0.95, var(--nested-dialogs))))
+      translateY(calc(-30px * var(--nested-dialogs)));
+    opacity: 1;
+    visibility: visible;
+  }
+
+  to {
+    transform: translate(-50%, -35%) scale(0.8, calc(pow(0.95, var(--nested-dialogs))))
+      translateY(calc(-30px * var(--nested-dialogs)));
+    opacity: 0.5;
+    visibility: hidden;
+  }
+}
+
+@keyframes backdrop-opening {
+  from {
+    backdrop-filter: blur(1px);
+    opacity: 0;
+  }
+
+  to {
+    backdrop-filter: blur(6px);
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@keyframes backdrop-closing {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(6px);
+  }
+
+  to {
+    backdrop-filter: blur(1px);
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.dialog {
+  --transition-duration: 150ms;
+
+  background: #fff;
+  border: 1px solid #f5f5f5;
+  min-width: 300px;
+  max-width: 500px;
+  border-radius: 4px;
+  box-shadow: rgb(0 0 0 / 0.2) 0 18px 50px -10px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  padding: 16px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  opacity: calc(pow(0.95, var(--nested-dialogs)));
+
+  &.withTransitions {
+    transition:
+      transform var(--transition-duration) ease-in,
+      opacity var(--transition-duration) ease-in;
+
+    &[data-ending-style] {
+      transform: translate(-50%, -35%) scale(0.8, calc(pow(0.95, var(--nested-dialogs))))
+        translateY(calc(-30px * var(--nested-dialogs)));
+      opacity: 0;
+    }
+
+    &[data-open] {
+      &[data-starting-style] {
+        transform: translate(-50%, -35%) scale(0.8) translateY(0);
+        opacity: 0;
+      }
+
+      transform: translate(-50%, -50%) scale(calc(pow(0.95, var(--nested-dialogs))))
+        translateY(calc(-30px * var(--nested-dialogs)));
+      transition:
+        transform var(--transition-duration) ease-out,
+        opacity var(--transition-duration) ease-out;
+    }
+  }
+
+  &.withAnimations {
+    transform: translate(-50%, -35%) scale(0.8, 0.9) translateY(0);
+
+    &[data-open] {
+      animation:
+        dialog-opening-transform var(--transition-duration) ease-out,
+        dialog-opening-opacity var(--transition-duration) ease-out forwards;
+      transform: translate(-50%, -50%) scale(calc(pow(0.95, var(--nested-dialogs))))
+        translateY(calc(-30px * var(--nested-dialogs)));
+      transition: transform var(--transition-duration) ease-out;
+    }
+
+    &[data-ending-style] {
+      animation: dialog-closing var(--transition-duration) ease-in forwards;
+    }
+  }
+
+  &.withReactSpringTransition {
+    top: 50vh;
+    left: 50vw;
+    visibility: visible;
+    opacity: 1;
+  }
+}
+
+.backdrop {
+  background: radial-gradient(#cecdcf36, #8b94ab47);
+  z-index: 0;
+  position: fixed;
+  inset: 0;
+
+  &.withTransitions {
+    transition:
+      backdrop-filter 300ms ease-in,
+      opacity 300ms ease-in,
+      visibility 300ms step-end;
+
+    &[data-open] {
+      &[data-starting-style] {
+        opacity: 0;
+        backdrop-filter: blur(1px);
+      }
+
+      backdrop-filter: blur(6px);
+      opacity: 1;
+      visibility: visible;
+      transition:
+        backdrop-filter 500ms ease-out,
+        opacity 500ms ease-out;
+    }
+  }
+
+  &.withAnimations {
+    &[data-open] {
+      animation: backdrop-opening 500ms ease-out forwards;
+    }
+
+    &[data-ending-style] {
+      animation: backdrop-closing 500ms ease-in forwards;
+    }
+  }
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 16px;
+  font-family: 'IBM Plex Sans', sans-serif;
+
+  & h1 {
+    font-family: 'General Sans', sans-serif;
+    font-weight: 600;
+    font-size: 2rem;
+  }
+
+  & h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+
+  & label {
+    font-size: 0.8333rem;
+  }
+
+  & label + label {
+    margin-left: 16px;
+  }
+}
+
+.springWrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.button {
+  background: #eee;
+  padding: 8px 16px;
+  border: 1px solid #d8d8d8;
+  border-radius: 4px;
+  font-family: inherit;
+
+  &:hover {
+    background: #ffbf2b;
+  }
+
+  &:focus-visible {
+    outline: 2px solid #ffbf2b;
+  }
+
+  &:active {
+    background: #cc9922;
+    border-color: #cc9922;
+
+    &:focus-visible {
+      outline-color: #cc9922;
+    }
+  }
+}
+
+.form {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+
+  & input[type='text'],
+  & textarea {
+    padding: 8px;
+    border: 1px solid #d8d8d8;
+    border-radius: 4px;
+    font-family: inherit;
+    box-sizing: border-box;
+  }
+
+  & textarea {
+    resize: vertical;
+    min-height: 100px;
+    width: 100%;
+  }
+
+  & > * {
+    flex: 1 0 auto;
+    margin: 0;
+  }
+}
+
+.controls {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+  border-top: 1px solid #d8d8d8;
+  padding-top: 16px;
+
+  & > * {
+    flex: 1 1 50%;
+    margin: 0;
+  }
+}
+
+.demo {
+  margin-right: 8px;
+}

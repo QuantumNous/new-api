@@ -1,0 +1,38 @@
+{
+  "search.useIgnoreFiles": true,
+  "search.exclude": {
+    "**/.git": true,
+    "**/dist": true,
+    "**/dist-*": true,
+    "**/coverage": true,
+    "**/compiled": true,
+    "**/doc_build": true,
+    "**/node_modules": true,
+    "**/tsconfig.tsbuildinfo": true
+  },
+  "files.exclude": {
+    "**/.DS_Store": true
+  },
+  "mdx.validate.validateFileLinks": "ignore",
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "json.schemas": [
+    {
+      "fileMatch": ["**/_meta.json"],
+      "url": "./website/node_modules/@rspress/core/meta-json-schema.json"
+    },
+    {
+      "fileMatch": ["**/_nav.json"],
+      "url": "./website/node_modules/@rspress/core/nav-json-schema.json"
+    }
+  ],
+  "[typescript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[mdx]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  }
+}

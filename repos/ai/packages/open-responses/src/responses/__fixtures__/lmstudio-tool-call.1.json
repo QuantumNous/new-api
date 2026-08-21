@@ -1,0 +1,77 @@
+{
+  "id": "resp_930de53bd4b5933673481fa630f3dc5f58027a2c67598a2a",
+  "object": "response",
+  "created_at": 1769005553,
+  "completed_at": 1769005560,
+  "status": "completed",
+  "incomplete_details": null,
+  "model": "mistralai/ministral-3-14b-reasoning",
+  "previous_response_id": null,
+  "instructions": null,
+  "output": [
+    {
+      "id": "fc_ru0kcno9erlzp8573yub",
+      "call_id": "call_2866856768160095",
+      "type": "function_call",
+      "name": "weather",
+      "arguments": "{\"location\":\"San Francisco\"}",
+      "status": "completed"
+    }
+  ],
+  "error": null,
+  "tools": [
+    {
+      "type": "function",
+      "name": "weather",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string",
+            "description": "The location to get the weather for"
+          }
+        },
+        "required": ["location"],
+        "additionalProperties": false
+      },
+      "strict": false,
+      "description": "Get the weather in a location"
+    }
+  ],
+  "tool_choice": "required",
+  "truncation": "auto",
+  "parallel_tool_calls": true,
+  "text": {
+    "format": {
+      "type": "text"
+    }
+  },
+  "top_p": 0.95,
+  "presence_penalty": 0,
+  "frequency_penalty": 1.1,
+  "top_logprobs": 0,
+  "temperature": 0.1,
+  "reasoning": {
+    "summary": null,
+    "effort": null
+  },
+  "usage": {
+    "input_tokens": 1189,
+    "output_tokens": 11,
+    "total_tokens": 1200,
+    "input_tokens_details": {
+      "cached_tokens": 891
+    },
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  },
+  "max_output_tokens": 512,
+  "max_tool_calls": null,
+  "store": true,
+  "background": false,
+  "service_tier": "default",
+  "metadata": {},
+  "safety_identifier": null,
+  "prompt_cache_key": null
+}

@@ -1,0 +1,45 @@
+engines:
+  duplication:
+    enabled: true
+    config:
+      languages:
+        - ruby
+        - javascript:
+            mass_threshold: 58
+        - python
+        - php
+  eslint:
+    # Disabled since this engine used a different set of version of
+    # `@typescript/eslint` and `typescript`
+    #
+    # @see https://github.com/i18next/i18next/pull/2098
+    enabled: false
+    channel: "eslint-8"
+  fixme:
+    enabled: true
+ratings:
+  paths:
+    - 'src/**/*'
+exclude_paths:
+  - test/
+  - coverage/
+  - dist/
+  - 'i18next.js'
+  - 'i18next.min.js'
+  - 'index.d.ts'
+  - 'rollup.config.js'
+  - 'vitest.config.mts'
+  - 'vitest.workspace.mts'
+checks:
+  file-lines:
+    config:
+      threshold: 300
+  method-lines:
+    config:
+      threshold: 70
+  complex-logic:
+    config:
+      threshold: 5
+  nested-control-flow:
+    config:
+      threshold: 5

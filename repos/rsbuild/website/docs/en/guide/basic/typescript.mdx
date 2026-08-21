@@ -1,0 +1,163 @@
+---
+description: 'Rsbuild supports TypeScript by default, allowing you to directly use .ts and .tsx files in your project.'
+---
+
+# TypeScript
+
+Rsbuild supports TypeScript by default, allowing you to directly use `.ts` and `.tsx` files in your project.
+
+## TypeScript transformation
+
+Rsbuild uses [SWC](/guide/configuration/swc) by default for transforming TypeScript code to JavaScript, and also supports switching to [Babel](/plugins/list/plugin-babel) for transformation.
+
+### Isolated modules
+
+Unlike the native TypeScript compiler, tools like SWC and Babel compile each file separately and cannot determine whether an imported name is a type or value. When using TypeScript in Rsbuild, enable the [verbatimModuleSyntax](https://www.typescriptlang.org/tsconfig/#verbatimModuleSyntax) or [isolatedModules](https://typescriptlang.org/tsconfig/#isolatedModules) option in `tsconfig.json`:
+
+- For TypeScript >= 5.0.0, use the `verbatimModuleSyntax` option, which enables the `isolatedModules` option by default:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "verbatimModuleSyntax": true
+  }
+}
+```
+
+- For TypeScript < 5.0.0, use the `isolatedModules` option:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "isolatedModules": true
+  }
+}
+```
+
+The `isolatedModules` option prevents syntax that SWC and Babel cannot compile correctly, such as cross-file type references. It guides you toward correct usage:
+
+```ts
+// Wrong
+export { SomeType } from './types';
+
+// Correct
+export type { SomeType } from './types';
+```
+
+> See [SWC - Migrating from tsc](https://swc.rs/docs/migrating-from-tsc) for more details about the differences between SWC and tsc.
+
+## Preset types
+
+`@rsbuild/core` provides preset type definitions, including CSS files, CSS Modules, static assets, `import.meta`, and other types.
+
+Add the preset types to `compilerOptions.types` in `tsconfig.json`:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["@rsbuild/core/types"]
+  }
+}
+```
+
+If your project already has `compilerOptions.types`, append `@rsbuild/core/types` to the existing list.
+
+> See [types.d.ts](https://github.com/web-infra-dev/rsbuild/blob/main/packages/core/types.d.ts) for the complete preset type definitions that Rsbuild includes.
+
+## Type checking
+
+When transpiling TypeScript code using tools like SWC and Babel, type checking isn't performed.
+
+### Type check plugin
+
+To enable type checking, you can use the [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check) plugin. This plugin runs TypeScript type checking in a separate process and internally integrates [ts-checker-rspack-plugin](https://github.com/rstackjs/ts-checker-rspack-plugin).
+
+The plugin supports type checking in both dev and build modes, helping you catch type errors early in development.
+
+Refer to [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check) for usage instructions.
+
+### Using tsc
+
+You can also use [tsc](https://www.typescriptlang.org/docs/handbook/compiler-options.html) directly for type checking by adding a `type-check` step to your `build` script. This approach only performs type checking after the build and doesn't run during dev mode.
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build && npm run type-check",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  }
+}
+```
+
+For Vue applications, use [vue-tsc](https://github.com/vuejs/language-tools/tree/master/packages/tsc) instead of `tsc`. It supports Vue SFCs in addition to TypeScript files.
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build && npm run type-check",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vue-tsc": "^3.0.0"
+  }
+}
+```
+
+## tsconfig.json Path
+
+Rsbuild reads the `tsconfig.json` file from the root directory by default. Use [source.tsconfigPath](/config/source/tsconfig-path) to configure a custom tsconfig.json file path.
+
+```ts
+export default {
+  source: {
+    tsconfigPath: './tsconfig.custom.json',
+  },
+};
+```
+
+## Path extensions
+
+When importing another module in a TypeScript module, TypeScript allows using the `.js` file extension:
+
+```ts title="src/index.ts"
+// The actual referenced module could be `./some-module.ts` or `./some-module.tsx`
+import { someFn } from './some-module.js';
+```
+
+Rsbuild supports this feature through Rspack's [extensionAlias](https://rspack.rs/config/resolve#resolveextensionalias) configuration. In TypeScript projects, Rsbuild adds the following configuration by default:
+
+```js
+const rspackConfig = {
+  resolve: {
+    extensionAlias: {
+      '.js': ['.js', '.ts', '.tsx'],
+      '.jsx': ['.jsx', '.tsx'],
+    },
+  },
+};
+```
+
+This means:
+
+- You can use the `.js` extension to import `.ts` or `.tsx` files.
+- You can use the `.jsx` extension to import `.tsx` files.
+
+## Decorators version
+
+Rsbuild does not read the `experimentalDecorators` option in `tsconfig.json`. Instead, it provides the [decorators.version](/config/source/decorators#decoratorsversion) option to specify the decorator version.
+
+By default, Rsbuild uses the `2023-11` decorators version. You can set it to `legacy` or other versions when needed:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: 'legacy',
+    },
+  },
+};
+```

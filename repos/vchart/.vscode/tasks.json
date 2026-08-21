@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "web",
+      "type": "shell",
+      "isBackground": true,
+      "command": "${workspaceFolder}/node_modules/.bin/tsc",
+      "args": [
+        "${file}",
+        "--outFile",
+        "${workspaceFolder}/packages/vchart/test/dist/index.js",
+        "--strict",
+        "--experimentalDecorators",
+        "--sourceMap",
+        "--skipLibCheck",
+        "--watch"
+      ],
+      "problemMatcher": ["$tsc-watch"]
+    }
+  ]
+}

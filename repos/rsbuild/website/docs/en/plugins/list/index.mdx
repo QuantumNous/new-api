@@ -1,0 +1,97 @@
+---
+description: 'You can read about the functionality of Rsbuild plugins and how to develop an Rsbuild plugin in the Plugin System documentation.'
+---
+
+# Plugin list
+
+## Plugin system
+
+You can read about the functionality of Rsbuild plugins and how to develop an Rsbuild plugin in the [Plugin System](/plugins/dev/index) documentation.
+
+## Using plugins
+
+Register plugins with the [plugins](/config/plugins) option in Rsbuild config.
+
+With Rsbuild's JavaScript API, register plugins with [addPlugins](/api/javascript-api/instance#rsbuildaddplugins).
+
+## Official plugins
+
+The following are official plugins that can be used in Rsbuild.
+
+### React
+
+Plugins available for the React:
+
+- [@rsbuild/plugin-react](/plugins/list/plugin-react): Support for React.
+- [@rsbuild/plugin-svgr](/plugins/list/plugin-svgr): Support convert SVG to React components.
+- [@rsbuild/plugin-styled-components](https://github.com/rsbuild-contrib/rsbuild-plugin-styled-components): Provide compile-time support for styled-components.
+
+### Vue
+
+Plugins available for the Vue:
+
+- [@rsbuild/plugin-vue](/plugins/list/plugin-vue): Support for Vue 3 SFC (Single File Components).
+- [@rsbuild/plugin-vue-jsx](https://github.com/rstackjs/rsbuild-plugin-vue-jsx): Support for Vue 3 JSX / TSX syntax.
+- [@rsbuild/plugin-vue2](https://github.com/rstackjs/rsbuild-plugin-vue2): Support for Vue 2 SFC (Single File Components).
+- [@rsbuild/plugin-vue2-jsx](https://github.com/rstackjs/rsbuild-plugin-vue2-jsx): Support for Vue 2 JSX / TSX syntax.
+
+### Preact
+
+Plugins available for the Preact:
+
+- [@rsbuild/plugin-preact](/plugins/list/plugin-preact): Support for Preact.
+
+### Svelte
+
+Plugins available for the Svelte:
+
+- [@rsbuild/plugin-svelte](/plugins/list/plugin-svelte): Support for Svelte components (`.svelte` files).
+
+### Solid
+
+Plugins available for the Solid:
+
+- [@rsbuild/plugin-solid](/plugins/list/plugin-solid): Support for Solid.
+
+### Common
+
+The following are common framework-agnostic plugins:
+
+- [@rsbuild/plugin-assets-retry](https://github.com/rstackjs/rsbuild-plugin-assets-retry): Used to automatically resend requests when static assets fail to load.
+- [@rsbuild/plugin-babel](/plugins/list/plugin-babel): Support for Babel transpilation capabilities.
+- [@rsbuild/plugin-tailwindcss](/plugins/list/plugin-tailwindcss): Use Tailwind CSS v4.
+- [@rsbuild/plugin-sass](/plugins/list/plugin-sass): Use Sass as the CSS preprocessor.
+- [@rsbuild/plugin-less](/plugins/list/plugin-less): Use Less as the CSS preprocessor.
+- [@rsbuild/plugin-basic-ssl](https://github.com/rstackjs/rsbuild-plugin-basic-ssl): Generate an untrusted, self-signed certificate for the HTTPS server.
+- [@rsbuild/plugin-eslint](https://github.com/rstackjs/rsbuild-plugin-eslint): Run ESLint checks during the compilation.
+- [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check): Run TypeScript type checker on a separate process.
+- [@rsbuild/plugin-image-compress](https://github.com/rstackjs/rsbuild-plugin-image-compress): Compress the image assets.
+- [@rsbuild/plugin-mdx](https://github.com/rstackjs/rsbuild-plugin-mdx): Provide support for MDX.
+- [@rsbuild/plugin-node-polyfill](https://github.com/rstackjs/rsbuild-plugin-node-polyfill): Used to inject polyfills of Node core modules in the browser side.
+- [@rsbuild/plugin-source-build](https://github.com/rstackjs/rsbuild-plugin-source-build): This plugin is designed for the monorepo scenario. It supports referencing source code from other subdirectories and performs build and hot update.
+- [@rsbuild/plugin-check-syntax](https://github.com/rstackjs/rsbuild-plugin-check-syntax): Check the syntax compatibility of output files and determine if there are any advanced syntaxes that could cause compatibility issues.
+- [@rsbuild/plugin-css-minimizer](https://github.com/rstackjs/rsbuild-plugin-css-minimizer): Customize the CSS minimizer, switching to [cssnano](https://github.com/cssnano/cssnano) or other tools for CSS compression.
+- [@rsbuild/plugin-typed-css-modules](https://github.com/rstackjs/rsbuild-plugin-typed-css-modules): Generate TypeScript declaration file for CSS Modules.
+- [@rsbuild/plugin-pug](https://github.com/rstackjs/rsbuild-plugin-pug): Support for the Pug template engine.
+- [@rsbuild/plugin-rem](https://github.com/rstackjs/rsbuild-plugin-rem): Implements the rem adaptive layout for mobile pages.
+- [@rsbuild/plugin-umd](https://github.com/rstackjs/rsbuild-plugin-umd): Generate outputs in UMD format.
+- [@rsbuild/plugin-yaml](https://github.com/rstackjs/rsbuild-plugin-yaml): Import YAML files and convert them into JavaScript objects.
+- [@rsbuild/plugin-toml](https://github.com/rstackjs/rsbuild-plugin-toml): Import TOML files and convert them into JavaScript objects.
+
+:::tip
+You can find the source code of all official plugins in [web-infra-dev/rsbuild](https://github.com/web-infra-dev/rsbuild) and [rstackjs](https://github.com/rstackjs).
+:::
+
+## Community plugins
+
+You can check out the Rsbuild plugins provided by the community at [awesome-rstack - Rsbuild Plugins](https://github.com/rstackjs/awesome-rstack#rsbuild-plugins).
+
+You can also discover more Rsbuild plugins on npm by searching for the keyword [rsbuild-plugin](https://npmjs.com/search?q=rsbuild-plugin&ranking=popularity).
+
+### React
+
+- [rsbuild-plugin-react-router](https://github.com/rstackjs/rsbuild-plugin-react-router): Provides seamless integration with React Router.
+
+### Angular
+
+- [@ng-rsbuild/plugin-angular](https://github.com/nrwl/angular-rspack): Allows you to build Angular applications easily.

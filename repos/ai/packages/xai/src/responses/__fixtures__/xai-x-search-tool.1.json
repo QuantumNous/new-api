@@ -1,0 +1,149 @@
+{
+  "created_at": 1761768904,
+  "id": "84c1a8ea-1f29-4a33-1049-0ed3561b0f64_us-east-1",
+  "max_output_tokens": null,
+  "model": "grok-4-fast-reasoning",
+  "object": "response",
+  "output": [
+    {
+      "arguments": "{\"query\":\"AI artificial intelligence\",\"limit\":20,\"from_date\":\"2025-10-01\",\"to_date\":\"2025-10-29\",\"min_score_threshold\":0.2}",
+      "call_id": "",
+      "name": "x_semantic_search",
+      "type": "x_search_call",
+      "id": "fc_84c1a8ea-1f29-4a33-1049-0ed3561b0f64_us-east-1_0",
+      "status": "completed"
+    },
+    {
+      "content": [
+        {
+          "type": "output_text",
+          "text": "### What People Are Saying About AI on X (as of Late October 2025)\n\nBased on recent posts on X (formerly Twitter), discussions about AI are buzzing with a mix of excitement, technical deep dives, and cautious optimism. The conversation heavily revolves around **Artificial General Intelligence (AGI)** as the holy grail of AI development, with frequent references to a new paper from AI luminaries like Yoshua Bengio, Eric Schmidt, Gary Marcus, and Max Tegmark. People are debating definitions, progress, limitations, and real-world applications. Here's a breakdown of the main themes from the top relevant posts (focusing on the last month):\n\n#### 1. **Defining AGI and Its Distance from Current AI**\n   - A huge focus is on clarifying what AGI really means. Multiple users cite the aforementioned paper, which defines AGI as an AI system that \"matches or exceeds the cognitive versatility and proficiency of a well-educated adult\" across 10 core cognitive areas (e.g., reasoning, memory, math, language, perception).\n     - Example: @jiqizhixin shared the paper, noting that models like GPT-4 and GPT-5 score poorly (e.g., 0% on long-term memory), emphasizing AGI isn't here yet.\n     - @alex_prompter broke it down simply: GPT-4 is at 27% toward AGI, GPT-5 at 58%, but gaps in continuous learning persist. They called it a \"clear benchmark\" without hype.\n     - @AskPerplexity and @flowersslop echoed this, describing AGI as broadly adaptable like humans, not just narrow tools like today's chatbots.\n   - ASI (Artificial Superintelligence) gets mentioned as the next step beyond AGI—AI surpassing humans in *all* domains, including creativity and strategy. @SciTechera tied it to the \"Singularity,\" where AI self-improves uncontrollably.\n   - Skepticism: @Newaxeman called AI an \"advanced search engine\" aggregating conventional wisdom, questioning deeper intelligence claims.\n\n#### 2. **Progress and Timelines Toward AGI**\n   - Optimism is high but grounded. @bindureddy (CEO of Abacus.AI) boldly predicted AGI (AI replacing humans in digital tasks) is \"just a couple of years away,\" citing missing pieces like context, tools, and self-awareness that labs are tackling.\n   - @slow_developer referenced OpenAI and DeepMind's 5-level AGI framework: Current models are past Level 2 (emerging intelligence) and into early Level 3 (competent in complex tasks with supervision), but not fully autonomous yet.\n   - @timmur_ stressed AGI requires efficient learning across open-ended tasks with minimal data—something no model achieves today, but \"we will solve it eventually.\"\n   - Broader view: @FrnkNlsn recommended the book *Artificial Intelligence: A Modern Approach* by Russell and Norvig for a comprehensive overview, highlighting topics like knowledge representation and multi-agent systems.\n\n#### 3. **Types of AI and Distinctions**\n   - Users are educating on AI's varieties to cut through confusion:\n     - @y00ngipurrs differentiated analytical AI (e.g., for medicine, fraud detection) from generative AI (e.g., ChatGPT for text/art).\n     - @techyoutbe contrasted AI agents (task-specific automators) with \"agentic AI\" (autonomous systems for long-term planning and multi-domain reasoning).\n     - @SukhSandhu listed what AI *is* (data processor, pattern recognizer, task automator) vs. what it's *not* (conscious, emotional, intuitively moral). They warned of biases in training data.\n   - @AITECHio hyped proactive \"AI agents\" that set goals and execute workflows autonomously, predicting one for every task from finance to on-chain automation.\n\n#### 4. **Applications, Projects, and Broader Impacts**\n   - AI's practical side shines in Web3 and business contexts. @O_H_JAY highlighted crypto projects advancing AGI/ASI, like @SentientAGI (decentralized AGI networks), @AGI_XT (AI automation on Solana), and @StoryProtocol (on-chain IP for AI models). They urged getting in early during market dips.\n   - @Voa_De_Voa discussed combining AI with compute and robotics for \"autonomous intelligence,\" but flagged centralized control as a risk.\n   - @DeviprasadSD positioned AGI as a future horizon for reasoning across any task, still in research.\n   - @zolayolanetwork and @davilagrau amplified the AGI definition paper, linking it to blockchain and cognitive tools.\n\n#### Overall Sentiment\n- **Positive/Visionary**: Excitement about AI augmenting human capabilities (e.g., @hailstorm_9 called AGI \"augmentation, not automation\"). Many see it transforming industries like healthcare, finance, and creative work.\n- **Cautious/Realistic**: Emphasis on limitations—current AI is \"narrow\" and lacks true understanding or adaptability. No one's claiming AGI is imminent without caveats.\n- **Volume and Engagement**: These posts garnered thousands of likes/views, with high engagement on definitions and project lists. Discussions are technical but accessible, often with images, threads, or links to papers/arXiv.\n\nThis is a snapshot from ~20 recent, highly relevant posts. AI chatter on X is evolving fast—trends like AGI benchmarks and agentic systems are dominating. If you want deeper dives into specific posts, users, or subtopics (e.g., AI ethics or tools), let me know!",
+          "logprobs": [],
+          "annotations": [
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1982033415697514642"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1983126826739228851"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1978543466042040366"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1982845451188720069"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1981716983168040972"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1977864424770990183"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1979019210870395155"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1981725084059668849"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1982159004857217324"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1982984027209630067"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1979140575476764920"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1978340270413377544"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1975597769089032357"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1979729023413670239"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1979892126969209017"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1974520747503792531"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1977071347584135287"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1983115564005626367"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1981679355345686727"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/1982892944261582868"
+            }
+          ]
+        }
+      ],
+      "id": "msg_84c1a8ea-1f29-4a33-1049-0ed3561b0f64_us-east-1",
+      "role": "assistant",
+      "type": "message",
+      "status": "completed"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "temperature": null,
+  "text": {
+    "format": {
+      "type": "text"
+    }
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "x_search"
+    }
+  ],
+  "top_p": null,
+  "usage": {
+    "input_tokens": 8397,
+    "input_tokens_details": {
+      "cached_tokens": 608
+    },
+    "output_tokens": 1805,
+    "output_tokens_details": {
+      "reasoning_tokens": 580
+    },
+    "total_tokens": 10202,
+    "num_sources_used": 0,
+    "num_server_side_tools_used": 1
+  },
+  "user": null,
+  "incomplete_details": null,
+  "status": "completed",
+  "store": true,
+  "metadata": {}
+}

@@ -1,0 +1,17 @@
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01RNdvgjHoLmx2THF9AVj3KK","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":589,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"mcp_tool_use","id":"mcptoolu_017CuqaJcXe5ZHJjaz3KS1AT","name":"echo","input":{},"server_name":"echo"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"mess"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"age\": "}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"hello wo"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"rld\"}"}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"mcp_tool_result","tool_use_id":"mcptoolu_017CuqaJcXe5ZHJjaz3KS1AT","is_error":false,"content":[{"type":"text","text":"Tool echo: hello world"}]}}
+{"type":"content_block_stop","index":1}
+{"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"The echo tool responde"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"d back with: **hello world**\n\nIt simply echoed back"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":" the exact message that was sent to it."}}
+{"type":"content_block_stop","index":2}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":1250,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":83,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0}}}
+{"type":"message_stop"}

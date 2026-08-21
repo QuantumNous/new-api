@@ -1,0 +1,16 @@
+A callback function that is triggered after running the production build. You can access the build result information via the [stats](https://rspack.rs/api/javascript-api/stats) parameter.
+
+Moreover, you can use `isWatch` to determine whether it is watch mode, and use `isFirstCompile` to determine whether it is the first build on watch mode.
+
+- **Type:**
+
+```ts
+function OnAfterBuild(
+  callback: (params: {
+    isFirstCompile: boolean;
+    isWatch: boolean;
+    stats?: Stats | MultiStats;
+    environments: Record<string, EnvironmentContext>;
+  }) => Promise<void> | void,
+): void;
+```

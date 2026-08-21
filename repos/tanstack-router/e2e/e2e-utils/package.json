@@ -1,0 +1,41 @@
+{
+  "name": "@tanstack/router-e2e-utils",
+  "private": true,
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "build": "vite build",
+    "test:eslint": "eslint ./src",
+    "test:unit": "exit 0; vitest --typecheck"
+  },
+  "type": "module",
+  "types": "dist/types/index.d.ts",
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "get-port-please": "^3.2.0",
+    "vite": "^8.0.14",
+    "vite-plugin-dts": "^4.5.4"
+  }
+}

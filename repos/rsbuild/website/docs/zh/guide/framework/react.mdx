@@ -1,0 +1,260 @@
+---
+description: '在这篇文档中，你可以了解到如何基于 Rsbuild 来构建一个 React 应用。'
+---
+
+# React
+
+在这篇文档中，你可以了解到如何基于 Rsbuild 来构建一个 React 应用。
+
+## 创建 React 应用
+
+使用 [create-rsbuild](/guide/start/quick-start#create-an-rsbuild-application) 来创建一个基于 Rsbuild 的 React 应用，运行以下命令：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+  }}
+/>
+
+然后在 `Select framework` 时选择 `React` 即可。
+
+## 全栈框架 \{#full-stack-frameworks}
+
+以下全栈 React 框架基于 Rsbuild 构建，并复用 Rsbuild 的插件生态。
+
+### TanStack Start
+
+[TanStack Start](https://tanstack.com/start/latest) 是一个由 TanStack Router 驱动的全栈 React 框架。它提供整页文档 SSR、流式渲染、Server Functions、客户端/服务端构建等能力。
+
+- [文档](https://tanstack.com/start/latest)
+- [基础示例](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/tanstack-start)
+- [RSC 示例](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/tanstack-start-rsc)
+
+你可以运行以下命令来一键初始化 TanStack Start 示例项目：
+
+```bash
+npx giget gh:rstackjs/rstack-examples/rsbuild/tanstack-start tanstack-start
+cd tanstack-start
+pnpm i
+```
+
+### Modern.js
+
+[Modern.js](https://github.com/web-infra-dev/modern.js) 是一个基于 Rsbuild 实现的渐进式 Web 开发框架，为 React 应用提供开箱即用的全栈开发能力。
+
+## 在已有项目中使用 React
+
+为了能够编译 React 的 JSX 语法，你需要注册 Rsbuild 的 [React 插件](/plugins/list/plugin-react)，插件会自动添加构建一个 React 应用所需的配置。
+
+例如，在 `rsbuild.config.ts` 中注册：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [pluginReact()],
+});
+```
+
+:::tip
+对于使用 Create React App 的项目，可以参考 [CRA 迁移指南](/guide/migration/cra)。
+:::
+
+## 使用 SVGR
+
+Rsbuild 支持调用 [SVGR](https://react-svgr.com/)，将 SVG 图片转换为一个 React 组件使用。
+
+如果你需要使用 SVGR，需要注册 Rsbuild 的 [SVGR 插件](/plugins/list/plugin-svgr)。
+
+## React Fast Refresh
+
+Rsbuild 使用 React 官方的 [Fast Refresh](https://npmjs.com/package/react-refresh) 能力来进行组件热更新。
+
+注意 React Refresh 要求组件按照规范的方式编写，否则热更新可能无效，你可以使用 [eslint-plugin-react-refresh](https://github.com/ArnaudBarre/eslint-plugin-react-refresh) 进行校验。
+
+比如，如果 React 组件的热更新无法生效，或者是热更新后 React 组件的 state 丢失，这通常是因为你的 React 组件使用了匿名函数。在 React Fast Refresh 的官方实践中，要求组件不能为匿名函数，否则热更新后无法保留 React 组件的 state。
+
+以下是一些错误用法的例子：
+
+```tsx
+// 错误写法 1
+export default function () {
+  return <div>Hello World</div>;
+}
+
+// 错误写法 2
+export default () => <div>Hello World</div>;
+```
+
+正确用法是给每个组件函数声明一个名称：
+
+```tsx
+// 正确写法 1
+export default function MyComponent() {
+  return <div>Hello World</div>;
+}
+
+// 正确写法 2
+const MyComponent = () => <div>Hello World</div>;
+
+export default MyComponent;
+```
+
+## React Compiler
+
+React Compiler 是一个构建时工具，它可以自动优化你的 React 应用。它支持纯 JavaScript，并且了解 React 的规则，因此你无需重写任何代码即可使用它。
+
+:::tip
+在开始使用 React Compiler 之前，建议阅读 [React Compiler 文档](https://zh-hans.react.dev/learn/react-compiler)，以了解 React Compiler 的功能、当前状态和使用方法。
+:::
+
+Rsbuild 支持两种方式启用 React Compiler：
+
+- 推荐：通过 [@rsbuild/plugin-react](/plugins/list/plugin-react#reactcompiler) 启用 Rust 版本的 React Compiler。该方案配置更简单，构建性能更好。
+- 可选：如果你正在维护已有的 Babel 配置、使用较旧版本的 Rsbuild，或需要基于 Babel 插件进行自定义，可以通过 [@rsbuild/plugin-babel 使用 React Compiler](/plugins/list/plugin-babel#use-react-compiler)。
+
+### 如何使用
+
+如果你使用 Rsbuild 2.1.0+，可以直接通过 `@rsbuild/plugin-react` 启用 Rust 版本的 React Compiler：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      reactCompiler: true,
+    }),
+  ],
+});
+```
+
+对于 React 17 和 18 的项目，需要安装 [react-compiler-runtime](https://npmjs.com/package/react-compiler-runtime)，并指定 `target`：
+
+```ts title="rsbuild.config.ts"
+pluginReact({
+  reactCompiler: {
+    target: '18', // '17' | '18' | '19'
+  },
+});
+```
+
+更多用法参考 [@rsbuild/plugin-react - reactCompiler](/plugins/list/plugin-react#reactcompiler)。
+
+## 路由
+
+### TanStack Router
+
+[TanStack Router](https://tanstack.com/router/) 是一个类型安全的 React 路由，内置数据获取、缓存和一流的 search-param API。
+
+TanStack Router 提供了 `@tanstack/router-plugin` 来与 Rsbuild 集成，该插件支持基于文件的路由，详见：
+
+- [安装指南](https://tanstack.com/router/latest/docs/framework/react/installation/with-rspack)
+- [示例项目](https://github.com/TanStack/router/tree/main/examples/react/quickstart-rspack-file-based)
+
+### React Router
+
+[React Router](https://reactrouter.com/) 是一个以用户为中心、注重标准的 React 多策略路由库。
+
+- 如果你想将 React Router 作为库来使用，只需按照官方文档操作即可，无需额外配置。
+- 如果你想将 React Router 作为框架来使用，社区正在开发一个实验性的 Rsbuild 插件，参考 [rsbuild-plugin-react-router](https://github.com/rstackjs/rsbuild-plugin-react-router)。
+
+## CSS-in-JS
+
+参考 [CSS-in-JS](/guide/styling/css-in-js) 了解如何在 Rsbuild 中使用 CSS-in-JS。
+
+## 自定义 JSX \{#customize-jsx}
+
+Rsbuild 使用 SWC 来编译 JSX，你可以自定义编译后的 JSX 代码所使用的函数：
+
+- 当 JSX 的 runtime 为 `automatic` 时，使用 [importSource](/plugins/list/plugin-react#swcreactoptionsimportsource) 来自定义 JSX runtime 的导入路径，比如从 Preact 或 Emotion 中引入。
+- 当 JSX 的 runtime 为 `classic` 时，使用 `pragma` 和 `pragmaFrag` 来指定 JSX 函数和 Fragment 组件。
+
+> `@rsbuild/plugin-react` 默认使用的 JSX runtime 为 `automatic`，详见 [swcReactOptions.runtime](/plugins/list/plugin-react#swcreactoptionsruntime)。
+
+### 通过配置
+
+通过 `@rsbuild/plugin-react` 的 [swcReactOptions](/plugins/list/plugin-react#swcreactoptions) 来配置。
+
+- 当 `runtime` 为 `automatic` 时：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      swcReactOptions: {
+        runtime: 'automatic',
+        importSource: '@emotion/react',
+      },
+    }),
+  ],
+});
+```
+
+- 当 `runtime` 为 `classic` 时：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      swcReactOptions: {
+        runtime: 'classic',
+        pragma: 'h',
+        pragmaFrag: 'Fragment',
+      },
+    }),
+  ],
+});
+```
+
+### 通过注释
+
+你也可以通过在单个 JSX 或 TSX 文件顶部添加特定注释来自定义 JSX 行为，这些注释的优先级会高于配置项。
+
+- 当 JSX 的 runtime 为 `automatic` 时：
+
+```tsx title="App.tsx"
+/** @jsxImportSource custom-jsx-library */
+
+const App = () => {
+  return <div>Hello World</div>;
+};
+```
+
+- 当 JSX 的 runtime 为 `classic` 时：
+
+```tsx title="App.tsx"
+/** @jsx Preact.h */
+/** @jsxFrag Preact.Fragment */
+
+const App = () => {
+  return <div>Hello World</div>;
+};
+```
+
+## React Server Components
+
+为了在 React 应用中使用 React Server Components（RSC），你可以使用 [rsbuild-plugin-rsc](https://github.com/rstackjs/rsbuild-plugin-rsc) 插件。
+
+该插件基于 [Environments API](/guide/advanced/environments#environment-api) 封装了 RSC 场景所需的核心能力，使你能够在同一应用中统一组织服务端组件与客户端组件，简化接入与配置过程。
+
+## 性能分析
+
+### React Scan
+
+React Scan 可以自动检测 React 应用中的性能问题。
+
+参考 [React Scan - Rsbuild Guide](https://github.com/aidenybai/react-scan/blob/main/docs/installation/rsbuild.md) 了解如何在 Rsbuild 中使用 React Scan。

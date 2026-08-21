@@ -1,0 +1,62 @@
+# domain_map.yaml
+# Library: @tanstack/solid-router
+# Version: 1.166.2
+# Date: 2026-03-08
+# Status: reviewed
+
+library:
+  name: '@tanstack/solid-router'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Solid bindings for TanStack Router. Accessor<T> returns,
+    Solid primitives, createLink, @solidjs/meta head management.
+  primary_framework: 'solid'
+
+domains:
+  - name: 'Solid Router Bindings'
+    slug: 'solid-router-bindings'
+    description: >-
+      Solid-specific components, hooks, and primitives for
+      TanStack Router. Accessor-based returns, createLink,
+      and @solidjs/meta integration.
+
+skills:
+  - name: 'Solid Router'
+    slug: 'solid-router'
+    domain: 'solid-router-bindings'
+    description: >-
+      Solid bindings for TanStack Router. Accessor<T> returns,
+      Solid primitives, createLink, @solidjs/meta head management.
+    type: framework
+    packages:
+      - '@tanstack/solid-router'
+    covers:
+      - Solid-specific router components
+      - Accessor<T> return types
+      - createLink component factory
+      - Solid primitives integration
+      - '@solidjs/meta head management'
+    tasks:
+      - 'Set up TanStack Router in a Solid app'
+      - 'Create type-safe links with createLink'
+      - 'Manage document head with @solidjs/meta'
+    failure_modes:
+      - mistake: 'Unwrapping accessors incorrectly'
+        mechanism: >-
+          Solid Router returns Accessor<T> instead of raw values.
+          Destructuring or reading outside reactive context loses
+          reactivity and causes stale data.
+        priority: HIGH
+        status: active
+
+      - mistake: 'Using React Router APIs instead of Solid equivalents'
+        mechanism: >-
+          Solid Router provides a Link component plus createLink
+          for custom wrappers, and uses Solid-specific primitives
+          instead of React hooks. Mixing React or React Router
+          patterns into Solid Router causes type/runtime errors.
+        priority: MEDIUM
+        status: active
+
+gaps: []

@@ -1,0 +1,13 @@
+@layer utilities {
+  .bui-ta-l {
+    text-align: left;
+  }
+
+  .bui-ta-c {
+    text-align: center;
+  }
+
+  .bui-ta-r {
+    text-align: right;
+  }
+}

@@ -1,0 +1,45 @@
+.Container {
+  display: flex;
+  gap: 1rem;
+  text-wrap: nowrap;
+}
+
+.Separator {
+  width: 1px;
+  background-color: oklch(87% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    background-color: oklch(37.1% 0 0deg);
+  }
+}
+
+.Link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: oklch(14.5% 0 0deg);
+  text-decoration-color: oklch(87% 0 0deg);
+  text-decoration-thickness: 1px;
+  text-decoration-line: none;
+  text-underline-offset: 2px;
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+    text-decoration-color: oklch(37.1% 0 0deg);
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-line: underline;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: 2px;
+    text-decoration-line: none;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}

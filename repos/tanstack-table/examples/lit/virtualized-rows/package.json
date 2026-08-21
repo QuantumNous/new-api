@@ -1,0 +1,22 @@
+{
+  "name": "tanstack-lit-table-virtualized-rows",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "start": "vite"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^8.4.1",
+    "@tanstack/lit-table": "^8.21.3",
+    "@tanstack/lit-virtual": "^3.8.3",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@rollup/plugin-replace": "^5.0.7",
+    "typescript": "5.4.5",
+    "vite": "^5.3.2"
+  }
+}

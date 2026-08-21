@@ -1,0 +1,92 @@
+---
+description: '设置图片、字体、媒体等静态资源被自动内联为 base64 的体积阈值。'
+---
+
+# output.dataUriLimit
+
+- **类型：**
+
+```ts
+type DataUriLimit =
+  | number
+  | {
+      svg?: number;
+      font?: number;
+      image?: number;
+      media?: number;
+      assets?: number;
+    };
+```
+
+- **默认值：**
+
+```js
+const defaultDatUriLimit = {
+  svg: 4096,
+  font: 4096,
+  image: 4096,
+  media: 4096,
+  assets: 4096,
+};
+```
+
+设置图片、字体、媒体等静态资源被自动内联为 base64 的体积阈值。
+
+默认情况下，体积小于 4KiB 的图片、字体、媒体等文件，会自动经过 Base64 编码，内联到页面中，不再会发送独立的 HTTP 请求。
+
+你可以通过修改 `dataUriLimit` 参数来调整这个阈值。
+
+其中：
+
+- `svg`：表示 SVG 图片的体积阈值。
+- `font`：表示字体文件的体积阈值。
+- `image`：表示非 SVG 图片的体积阈值。
+- `media`：表示视频等媒体资源的体积阈值。
+- `assets`：其他静态资源的体积阈值。例如 [扩展静态资源类型](/guide/basic/static-assets#extend-asset-types) 中定义的资源。
+
+> 查看 [静态资源内联](/guide/optimization/inline-assets) 了解更多。
+
+## 示例
+
+- 内联小于 10KiB 的所有静态资源：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    dataUriLimit: 10 * 1024,
+  },
+};
+```
+
+- 禁用静态资源内联：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    dataUriLimit: 0,
+  },
+};
+```
+
+- 内联所有静态资源：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    dataUriLimit: Number.MAX_SAFE_INTEGER,
+  },
+};
+```
+
+- 设置图片资源的阈值为 5KiB，不内联视频资源：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    dataUriLimit: {
+      image: 5 * 1024,
+      media: 0,
+    },
+  },
+};
+```

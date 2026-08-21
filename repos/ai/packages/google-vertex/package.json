@@ -1,0 +1,124 @@
+{
+  "name": "@ai-sdk/google-vertex",
+  "version": "5.0.22",
+  "type": "module",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "docs/**/*",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "!src/**/__snapshots__",
+    "!src/**/__fixtures__",
+    "CHANGELOG.md",
+    "README.md",
+    "edge.d.ts",
+    "anthropic/edge.d.ts",
+    "anthropic/index.d.ts",
+    "maas/edge.d.ts",
+    "maas/index.d.ts",
+    "xai/edge.d.ts",
+    "xai/index.d.ts"
+  ],
+  "directories": {
+    "doc": "./docs"
+  },
+  "scripts": {
+    "build": "pnpm clean && tsup --tsconfig tsconfig.build.json",
+    "build:watch": "pnpm clean && tsup --watch",
+    "clean": "del-cli dist docs *.tsbuildinfo",
+    "prepack": "mkdir -p docs && cp ../../content/providers/01-ai-sdk-providers/16-google-vertex.mdx ./docs/",
+    "postpack": "del-cli docs",
+    "type-check": "tsc --build",
+    "test": "pnpm test:node && pnpm test:edge",
+    "test:update": "pnpm test:node -u",
+    "test:watch": "vitest --config vitest.node.config.js",
+    "test:edge": "vitest --config vitest.edge.config.js --run",
+    "test:node": "vitest --config vitest.node.config.js --run"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./edge": {
+      "types": "./dist/edge/index.d.ts",
+      "import": "./dist/edge/index.js",
+      "default": "./dist/edge/index.js"
+    },
+    "./anthropic": {
+      "types": "./dist/anthropic/index.d.ts",
+      "import": "./dist/anthropic/index.js",
+      "default": "./dist/anthropic/index.js"
+    },
+    "./anthropic/edge": {
+      "types": "./dist/anthropic/edge/index.d.ts",
+      "import": "./dist/anthropic/edge/index.js",
+      "default": "./dist/anthropic/edge/index.js"
+    },
+    "./maas": {
+      "types": "./dist/maas/index.d.ts",
+      "import": "./dist/maas/index.js",
+      "default": "./dist/maas/index.js"
+    },
+    "./maas/edge": {
+      "types": "./dist/maas/edge/index.d.ts",
+      "import": "./dist/maas/edge/index.js",
+      "default": "./dist/maas/edge/index.js"
+    },
+    "./xai": {
+      "types": "./dist/xai/index.d.ts",
+      "import": "./dist/xai/index.js",
+      "default": "./dist/xai/index.js"
+    },
+    "./xai/edge": {
+      "types": "./dist/xai/edge/index.d.ts",
+      "import": "./dist/xai/edge/index.js",
+      "default": "./dist/xai/edge/index.js"
+    }
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "workspace:*",
+    "@ai-sdk/google": "workspace:*",
+    "@ai-sdk/openai-compatible": "workspace:*",
+    "@ai-sdk/provider": "workspace:*",
+    "@ai-sdk/provider-utils": "workspace:*",
+    "google-auth-library": "^10.6.2"
+  },
+  "devDependencies": {
+    "@ai-sdk/test-server": "workspace:*",
+    "@types/node": "22.19.19",
+    "@vercel/ai-tsconfig": "workspace:*",
+    "tsup": "^8.5.1",
+    "typescript": "5.8.3",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "zod": "^3.25.76 || ^4.1.8"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "homepage": "https://ai-sdk.dev/docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vercel/ai",
+    "directory": "packages/google-vertex"
+  },
+  "bugs": {
+    "url": "https://github.com/vercel/ai/issues"
+  },
+  "keywords": [
+    "ai"
+  ]
+}

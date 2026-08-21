@@ -1,0 +1,89 @@
+---
+description: '定义 HTML 模板的文件路径，可以是相对路径或绝对路径。'
+---
+
+# html.template
+
+- **类型：** `string | Function`
+
+定义 HTML 模板的文件路径，可以是相对路径或绝对路径。
+
+如果没有指定 `template`，默认会使用 Rsbuild 内置的 HTML 模板：
+
+```html
+<!DOCTYPE html>
+<html>
+  <head></head>
+  <body>
+    <div id="<%= mountId %>"></div>
+  </body>
+</html>
+```
+
+### 字符串用法
+
+例如，使用 `static/index.html` 文件替代默认 HTML 模板，可以添加如下设置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    template: './static/index.html',
+  },
+};
+```
+
+### 函数用法
+
+- **类型：**
+
+```ts
+type TemplateFunction = (context: {
+  value: string;
+  entryName: string;
+}) => string | void | Promise<string | void>;
+```
+
+当 `html.template` 为 Function 类型时，函数接收一个对象作为入参，对象的值包括：
+
+- `value`：Rsbuild 的默认 template 配置。
+- `entryName`: 当前入口的名称。
+
+在 MPA（多页面应用）场景下，你可以基于入口名称返回不同的 `template` 路径，从而为每个页面设置不同的模板：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    template({ entryName }) {
+      const templates = {
+        foo: './static/foo.html',
+        bar: './static/bar.html',
+      };
+      return templates[entryName] || './static/index.html';
+    },
+  },
+};
+```
+
+你也可以使用异步函数加载模板路径：
+
+```ts title="rsbuild.config.ts"
+import fs from 'node:fs/promises';
+
+export default {
+  html: {
+    async template({ entryName }) {
+      const templates = JSON.parse(await fs.readFile('./templates.json', 'utf-8')) as Record<
+        string,
+        string
+      >;
+      return templates[entryName] || './static/index.html';
+    },
+  },
+};
+```
+
+## 版本历史
+
+| 版本   | 变更内容                              |
+| ------ | ------------------------------------- |
+| v2.0.8 | 新增对 `html.template` 异步函数的支持 |

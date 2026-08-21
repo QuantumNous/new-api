@@ -1,0 +1,18 @@
+`onBeforeBuild` 是在执行生产模式构建前触发的回调函数。
+
+你可以通过 `bundlerConfigs` 参数获取到 Rspack 配置数组，数组中可能包含一份或多份 [Rspack 配置](https://rspack.rs/zh/config/)，这取决于是否配置了多个 [environments](/config/environments)。
+
+另外，你可以通过 `isWatch` 判断是否是 watch 模式，并在 watch 模式下通过 `isFirstCompile` 来判断是否为首次构建。
+
+- **类型：**
+
+```ts
+function OnBeforeBuild(
+  callback: (params: {
+    isWatch: boolean;
+    isFirstCompile: boolean;
+    bundlerConfigs?: Rspack.Configuration[];
+    environments: Record<string, EnvironmentContext>;
+  }) => Promise<void> | void,
+): void;
+```

@@ -1,0 +1,37 @@
+{
+  "status": "completed",
+  "usage": {
+    "total_tokens": 556,
+    "total_input_tokens": 56,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 56
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 54,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 446
+  },
+  "created": "2026-05-15T18:52:23Z",
+  "updated": "2026-05-15T18:52:23Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "signature": "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",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "The most famous landmark in **Barcelona** is undoubtedly the **Sagrada Família**.\n\nIt's an unfinished Roman Catholic minor basilica designed by Catalan architect Antoni Gaudí, and it's an iconic symbol of the city known worldwide for its unique and intricate architecture.",
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-2.5-flash"
+}

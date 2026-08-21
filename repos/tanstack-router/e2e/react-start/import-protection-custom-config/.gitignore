@@ -1,0 +1,23 @@
+node_modules
+package-lock.json
+yarn.lock
+.DS_Store
+.cache
+.env
+.vercel
+.output
+/build/
+/api/
+/server/build
+/public/build
+.env.sentry-build-plugin
+/test-results/
+/playwright-report/
+/dist/
+*.log
+violations.*.json
+error-build-result.json
+error-dev-result.json
+# The root .gitignore ignores `lib` globally (build output).
+# Override here so src/lib/ test fixtures are tracked.
+!src/lib/

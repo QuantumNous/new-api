@@ -1,0 +1,49 @@
+# It is best to ignoring editor and system files in a local .gitignore configuration file.
+# However, in order to prevent issues, they are ignored here.
+.DS_STORE
+.idea
+# IntelliJ IDEA module file
+*.iml
+*.log
+/.eslintcache
+/coverage/
+/docs/.env.local
+/docs/.next/
+/docs/export/
+/docs/public/feed/
+/docs/reference/temp/*
+/test/regressions/screenshots/
+# created by netlify dev (to perform local debug)
+.netlify
+build/
+build-tests/
+node_modules/
+package-lock.json
+size-snapshot.json
+# vale downloaded config
+.github/styles/
+.nx/cache/
+.nx/workspace-data/
+
+# Remove if you want to pregenerate the docs md files
+docs/public/llms.txt
+docs/public/llms-full.txt
+docs/public/index.md
+docs/public/react
+packages/react/published-docs/
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Claude
+.claude/settings.local.json
+.claude/worktrees/
+
+# Testing
+test-results/
+
+# Benchmark results
+test/performance/benchmarks/results.json

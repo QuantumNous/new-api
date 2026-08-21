@@ -1,0 +1,125 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - name: Windows
+            os: windows-latest
+
+          - name: Linux
+            os: namespace-profile-default
+
+          - name: macOS
+            os: macos-14
+
+        integration:
+          - upgrade
+          - vite
+          - cli
+          - postcss
+          - oxide
+          - webpack
+
+        # Exclude windows and macos from being built on feature branches
+        run-all:
+          - ${{ github.ref == 'refs/heads/main' || contains(github.event.pull_request.body, '[ci-all]') }}
+        exclude:
+          - run-all: false
+            runner:
+              name: Windows
+          - run-all: false
+            runner:
+              name: macOS
+
+    runs-on: ${{ matrix.runner.os }}
+    timeout-minutes: 30
+
+    name: ${{ matrix.runner.name }} /  ${{ matrix.integration }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Cargo already skips downloading dependencies if they already exist
+      - name: Cache cargo
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      # Cache the `oxide` Rust build
+      - name: Cache oxide build
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ./crates/node/*.node
+            ./crates/node/*.wasm
+            ./crates/node/index.d.ts
+            ./crates/node/index.js
+            ./crates/node/browser.js
+            ./crates/node/tailwindcss-oxide.wasi-browser.js
+            ./crates/node/tailwindcss-oxide.wasi.cjs
+            ./crates/node/wasi-worker-browser.mjs
+            ./crates/node/wasi-worker.mjs
+          key: ${{ runner.os }}-oxide-${{ hashFiles('./crates/**/*') }}
+
+      - name: Setup WASM target
+        run: rustup target add wasm32-wasip1-threads
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm run build
+        env:
+          CARGO_PROFILE_RELEASE_LTO: 'off'
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER: 'lld-link'
+
+      - name: Test ${{ matrix.integration }}
+        run: pnpm run test:integrations ./integrations/${{ matrix.integration }}
+        env:
+          GITHUB_WORKSPACE: ${{ github.workspace }}
+
+  notify:
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.tests.result == 'failure' }}
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Discord
+        uses: discord-actions/message@5c7149c81a83146e5d01f142be1bf87a61831c4d # v2
+        with:
+          webhookUrl: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          message: 'The [most recent ${{ github.workflow }} workflow](<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>) on the `main` branch has failed.'

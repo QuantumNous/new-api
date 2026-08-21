@@ -1,0 +1,277 @@
+---
+description: 'This guide explains how to migrate a Vite project to Rsbuild.'
+---
+
+# Vite
+
+This guide explains how to migrate a Vite project to Rsbuild.
+
+## Installing dependencies
+
+First, replace Vite's npm dependencies with Rsbuild's equivalents.
+
+import { PackageManagerTabs } from '@theme';
+
+- Remove Vite dependencies:
+
+<PackageManagerTabs command="remove vite" />
+
+- Install Rsbuild dependencies:
+
+<PackageManagerTabs command="add @rsbuild/core -D" />
+
+## Updating npm scripts
+
+Next, update the npm scripts in your package.json to run Rsbuild CLI commands.
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev": "vite", // [!code --]
+    "build": "vite build", // [!code --]
+    "preview": "vite preview", // [!code --]
+    "dev": "rsbuild", // [!code ++]
+    "build": "rsbuild build", // [!code ++]
+    "preview": "rsbuild preview" // [!code ++]
+  }
+}
+```
+
+## Create configuration file
+
+Create an Rsbuild configuration file named `rsbuild.config.ts` alongside package.json, and add the following content:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  plugins: [],
+});
+```
+
+## Build entry
+
+The default build entry points for Rsbuild and Vite are different. Vite uses `index.html` as the default entry, while Rsbuild auto-detects a `src/index.*` module such as `src/index.ts` or `src/index.js`.
+
+When migrating from Vite to Rsbuild, use Rsbuild's [source.entry](/config/source/entry) to set the build entry and [html.template](/config/html/template) to set the template.
+
+Using a newly created Vite project as an example, first delete the `<script>` tags from `index.html`:
+
+```html title="index.html"
+<!-- [!code --] -->
+<script type="module" src="/src/main.ts"></script>
+```
+
+Then add the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    template: './index.html',
+  },
+  source: {
+    entry: {
+      index: './src/main.ts',
+    },
+  },
+};
+```
+
+Rsbuild automatically injects the `<script>` tags into the generated HTML files during the build.
+
+## Migrating plugins
+
+Most common Vite plugins can be easily migrated to Rsbuild plugins, such as:
+
+| Vite                                                                                       | Rsbuild                                                                                        |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| [@vitejs/plugin-react](https://npmjs.com/package/@vitejs/plugin-react)                     | [@rsbuild/plugin-react](/plugins/list/plugin-react)                                            |
+| [@vitejs/plugin-react-swc](https://npmjs.com/package/@vitejs/plugin-react-swc)             | [@rsbuild/plugin-react](/plugins/list/plugin-react)                                            |
+| [@tailwindcss/vite](https://npmjs.com/package/@tailwindcss/vite)                           | [@rsbuild/plugin-tailwindcss](/plugins/list/plugin-tailwindcss)                                |
+| [@vitejs/plugin-vue](https://npmjs.com/package/@vitejs/plugin-vue)                         | [@rsbuild/plugin-vue](/plugins/list/plugin-vue)                                                |
+| [@vitejs/plugin-vue2](https://npmjs.com/package/@vitejs/plugin-vue2)                       | [@rsbuild/plugin-vue2](https://github.com/rstackjs/rsbuild-plugin-vue2)                        |
+| [@vitejs/plugin-vue-jsx](https://npmjs.com/package/@vitejs/plugin-vue-jsx)                 | [@rsbuild/plugin-vue-jsx](https://github.com/rstackjs/rsbuild-plugin-vue-jsx)                  |
+| [@vitejs/plugin-vue2-jsx](https://npmjs.com/package/@vitejs/plugin-vue2-jsx)               | [@rsbuild/plugin-vue2-jsx](https://github.com/rstackjs/rsbuild-plugin-vue2-jsx)                |
+| [@vitejs/plugin-basic-ssl](https://npmjs.com/package/@vitejs/plugin-basic-ssl)             | [@rsbuild/plugin-basic-ssl](https://github.com/rstackjs/rsbuild-plugin-basic-ssl)              |
+| [@vitejs/plugin-legacy](https://npmjs.com/package/@vitejs/plugin-legacy)                   | No need to use, see [Browser compatibility](/guide/advanced/browser-compatibility) for details |
+| [@sveltejs/vite-plugin-svelte](https://npmjs.com/package/@sveltejs/vite-plugin-svelte)     | [@rsbuild/plugin-svelte](/plugins/list/plugin-svelte)                                          |
+| [vite-plugin-svgr](https://npmjs.com/package/vite-plugin-svgr)                             | [@rsbuild/plugin-svgr](/plugins/list/plugin-svgr)                                              |
+| [vite-plugin-checker](https://npmjs.com/package/vite-plugin-checker)                       | [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check)            |
+| [vite-plugin-eslint](https://npmjs.com/package/vite-plugin-eslint)                         | [@rsbuild/plugin-eslint](https://github.com/rstackjs/rsbuild-plugin-eslint)                    |
+| [vite-plugin-static-copy](https://npmjs.com/package/vite-plugin-static-copy)               | [output.copy](/config/output/copy)                                                             |
+| [vite-plugin-node-polyfills](https://npmjs.com/package/vite-plugin-node-polyfills)         | [@rsbuild/plugin-node-polyfill](https://github.com/rstackjs/rsbuild-plugin-node-polyfill)      |
+| [vite-plugin-solid](https://npmjs.com/package/vite-plugin-solid)                           | [@rsbuild/plugin-solid](/plugins/list/plugin-solid)                                            |
+| [@preact/preset-vite](https://npmjs.com/package/@preact/preset-vite)                       | [@rsbuild/plugin-preact](/plugins/list/plugin-preact)                                          |
+| [@tanstack/router-plugin/vite](https://npmjs.com/package/@tanstack/router-plugin)          | [@tanstack/router-plugin/rsbuild](https://npmjs.com/package/@tanstack/router-plugin)           |
+| [@sentry/vite-plugin](https://npmjs.com/package/@sentry/vite-plugin)                       | [@sentry/webpack-plugin](https://npmjs.com/package/@sentry/webpack-plugin)                     |
+| [vite-plugin-full-reload](https://npmjs.com/package/vite-plugin-full-reload)               | [dev.watchFiles](/config/dev/watch-files)                                                      |
+| [vite-plugin-html](https://npmjs.com/package/vite-plugin-html)                             | [html.template](/config/html/template)                                                         |
+| [vite-plugin-css-injected-by-js](https://npmjs.com/package/vite-plugin-css-injected-by-js) | [output.injectStyles](/config/output/inject-styles)                                            |
+
+> Refer to [Plugin list](/plugins/list/index) to learn more about available plugins.
+
+## Config migration
+
+Here is the corresponding Rsbuild configuration for each Vite option:
+
+| Vite                                  | Rsbuild                                                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| root                                  | [root](/config/root)                                                                              |
+| mode                                  | [mode](/config/mode)                                                                              |
+| base                                  | [server.base](/config/server/base)                                                                |
+| define                                | [source.define](/config/source/define)                                                            |
+| plugins                               | [plugins](/config/plugins)                                                                        |
+| appType                               | [server.historyApiFallback](/config/server/history-api-fallback)                                  |
+| envDir                                | [Env directory](/guide/advanced/env-vars#env-directory)                                           |
+| logLevel                              | [logLevel](/config/log-level)                                                                     |
+| cacheDir                              | [buildCache](/config/performance/build-cache)                                                     |
+| publicDir                             | [server.publicDir](/config/server/public-dir)                                                     |
+| customLogger                          | [customLogger](/config/custom-logger)                                                             |
+| assetsInclude                         | [source.assetsInclude](/config/source/assets-include)                                             |
+| resolve.alias                         | [resolve.alias](/config/resolve/alias)                                                            |
+| resolve.dedupe                        | [resolve.dedupe](/config/resolve/dedupe)                                                          |
+| resolve.extensions                    | [resolve.extensions](/config/resolve/extensions)                                                  |
+| resolve.conditions                    | [resolve.conditionNames](/config/resolve/condition-names)                                         |
+| resolve.mainFields                    | [resolve.mainFields](/config/resolve/main-fields)                                                 |
+| resolve.preserveSymlinks              | [tools.rspack.resolve.symlinks](/config/tools/rspack)                                             |
+| html.cspNonce                         | [security.nonce](/config/security/nonce)                                                          |
+| css.modules                           | [output.cssModules](/config/output/css-modules)                                                   |
+| css.postcss                           | [tools.postcss](/config/tools/postcss)                                                            |
+| css.preprocessorOptions.sass          | [pluginSass](/plugins/list/plugin-sass)                                                           |
+| css.preprocessorOptions.less          | [pluginLess](/plugins/list/plugin-less)                                                           |
+| css.preprocessorOptions.stylus        | [pluginStylus](https://github.com/rstackjs/rsbuild-plugin-stylus)                                 |
+| css.devSourcemap                      | [output.sourceMap](/config/output/source-map)                                                     |
+| css.lightningcss                      | [tools.lightningcssLoader](/config/tools/lightningcss-loader)                                     |
+| server.host, preview.host             | [server.host](/config/server/host)                                                                |
+| server.port, preview.port             | [server.port](/config/server/port)                                                                |
+| server.cors, preview.cors             | [server.cors](/config/server/cors)                                                                |
+| server.strictPort, preview.strictPort | [server.strictPort](/config/server/strict-port)                                                   |
+| server.https, preview.https           | [server.https](/config/server/https)                                                              |
+| server.open, preview.open             | [server.open](/config/server/open)                                                                |
+| server.proxy, preview.proxy           | [server.proxy](/config/server/proxy)                                                              |
+| server.headers, preview.headers       | [server.headers](/config/server/headers)                                                          |
+| server.hmr                            | [dev.hmr](/config/dev/hmr), [dev.client](/config/dev/client)                                      |
+| server.middlewareMode                 | [server.middlewareMode](/config/server/middleware-mode)                                           |
+| build.target, build.cssTarget         | [Browserslist](/guide/advanced/browserslist)                                                      |
+| build.outDir, build.assetsDir         | [output.distPath](/config/output/dist-path)                                                       |
+| build.assetsInlineLimit               | [output.dataUriLimit](/config/output/data-uri-limit)                                              |
+| build.cssMinify                       | [output.minify](/config/output/minify)                                                            |
+| build.sourcemap                       | [output.sourceMap](/config/output/source-map)                                                     |
+| build.lib                             | Use [Rslib](https://github.com/web-infra-dev/rslib)                                               |
+| build.manifest                        | [output.manifest](/config/output/manifest)                                                        |
+| build.ssrEmitAssets                   | [output.emitAssets](/config/output/emit-assets)                                                   |
+| build.minify, build.terserOptions     | [output.minify](/config/output/minify)                                                            |
+| build.emptyOutDir                     | [output.cleanDistPath](/config/output/clean-dist-path)                                            |
+| build.copyPublicDir                   | [server.publicDir](/config/server/public-dir)                                                     |
+| build.reportCompressedSize            | [performance.printFileSize](/config/performance/print-file-size)                                  |
+| ssr.external                          | [output.autoExternal](/config/output/auto-external), [output.externals](/config/output/externals) |
+| ssr.noExternal                        | [output.autoExternal.exclude](/config/output/auto-external#exclude)                               |
+| ssr, worker                           | [environments](/config/environments)                                                              |
+
+Notes:
+
+- The table above doesn't cover every Vite option; feel free to add more.
+
+## Server port
+
+Vite's dev server uses port `5173` by default, while Rsbuild uses port `3000` by default. If your project depends on `5173`, you can keep Vite's original port with the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    port: 5173,
+  },
+};
+```
+
+## Environment variables
+
+Vite injects environment variables starting with `VITE_` into the client code by default, while Rsbuild injects environment variables starting with `PUBLIC_` by default (see [public variables](/guide/advanced/env-vars#public-variables)).
+
+To match Vite's behavior, you can manually call Rsbuild's [loadEnv](/api/javascript-api/core#loadenv) method to read environment variables starting with `VITE_`, and inject them into the client code through the [source.define](/config/source/define) config.
+
+```ts title="rsbuild.config.ts"
+import { defineConfig, loadEnv } from '@rsbuild/core';
+
+const { publicVars } = loadEnv({ prefixes: ['VITE_'] });
+
+export default defineConfig({
+  source: {
+    define: publicVars,
+  },
+});
+```
+
+Rsbuild injects the following [environment variables](/guide/advanced/env-vars) by default:
+
+- `import.meta.env.MODE`
+- `import.meta.env.BASE_URL`
+- `import.meta.env.PROD`
+- `import.meta.env.DEV`
+- `import.meta.env.SSR`
+
+## Preset types
+
+Vite provides some preset type definitions through `vite/client`. When migrating to Rsbuild, replace it with the [preset types](/guide/basic/typescript#preset-types) provided by `@rsbuild/core`:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["vite/client"], // [!code --]
+    "types": ["@rsbuild/core/types"] // [!code ++]
+  }
+}
+```
+
+## Web Workers
+
+When migrating worker query imports from Vite, Rsbuild supports `?worker` and `?worker&inline`:
+
+```ts
+import Worker from './worker.ts?worker';
+import InlineWorker from './worker.ts?worker&inline';
+```
+
+Rsbuild does not support Vite's `?worker&url` query suffix. If you use it to create a dedicated worker, migrate to the standard `new Worker()` constructor syntax instead:
+
+```ts
+const worker = new Worker(new URL('./worker.ts', import.meta.url), {
+  type: 'module',
+});
+```
+
+Rsbuild also does not support Vite's `?sharedworker`, `?sharedworker&inline`, or `?sharedworker&url` query suffixes. To preserve shared worker behavior, use the standard `new SharedWorker()` constructor syntax instead:
+
+```ts
+const sharedWorker = new SharedWorker(new URL('./worker.ts', import.meta.url), {
+  type: 'module',
+});
+```
+
+The constructor syntax also lets you pass standard `WorkerOptions` or `SharedWorkerOptions`, such as `name`, `type`, and `credentials`. See [Web Workers](/guide/basic/web-workers) for more details.
+
+## Glob import
+
+Rsbuild >= 2.0.8 is compatible with [import.meta.glob()](https://rspack.rs/api/runtime-api/module-variables#importmetaglob), so you can keep the Vite code unchanged when migrating to Rsbuild.
+
+## vite-tsconfig-paths
+
+Rsbuild supports TypeScript's `paths` option as alias out of the box, so you can remove the `vite-tsconfig-paths` dependency directly.
+
+See [Path aliases](/guide/advanced/alias) for more details.
+
+## Migrating Vite plugins
+
+See [Vite plugin](/guide/migration/vite-plugin) to learn how to migrate Vite plugins.
+
+## Validating results
+
+After completing the steps above, the basic migration from Vite to Rsbuild is complete. You can now run the `npm run dev` command to try starting the dev server.
+
+If you encounter issues during the build process, debug using the error log, or check the Vite configuration for any settings that haven't been migrated to Rsbuild.
+
+## Contents supplement
+
+This document covers only part of the migration process. If you have content to add, feel free to contribute via a pull request 🤝.
+
+> The documentation for rsbuild can be found in the [rsbuild/website](https://github.com/web-infra-dev/rsbuild/tree/main/website) directory.

@@ -1,0 +1,332 @@
+---
+description: 'Rsbuild 2.0 正式发布，升级 Rspack 2.0，引入 RSC 支持和更现代的默认行为。'
+date: 2026-04-22 12:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 2.0 发布
+
+_2026 年 4 月 22 日_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v2.0.png)
+
+我们很高兴地宣布 Rsbuild 2.0 已经正式发布！
+
+Rsbuild 是一个由 Rspack 驱动的现代 Web 应用构建工具，也是 Rstack 生态的重要基础设施。围绕 Rsbuild，我们陆续打造了一系列上层工具，包括 [Rspress](https://github.com/web-infra-dev/rspress)、[Rslib](https://github.com/web-infra-dev/rslib)、[Rstest](https://github.com/web-infra-dev/rstest)、[Storybook Rsbuild](https://github.com/rstackjs/storybook-rsbuild) 等。这些工具通过 Rsbuild 共享统一的构建能力与插件体系，在应用开发、库构建、文档站点以及测试等场景中提供一致的开发体验。
+
+自 1.0 发布以来，Rsbuild 的 npm 周下载量已增长超过 **15 倍**，并成为 Rspack 新项目的首选构建工具。与此同时，越来越多团队从 webpack、Create React App 等工具迁移至 Rsbuild，并在构建效率和开发体验上获得了提升。
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-2-0-downloads.png)
+
+为了帮助生态平稳升级到 2.0，我们投入了三个月进行验证与打磨，期间发布了 20 多个预览版本。目前，Rslib、Rstest、Rspress、Storybook Rsbuild 和 Modern.js 均已完成升级，并在生产环境中稳定运行。
+
+2.0 版本的主要改进包括：
+
+- 新特性：
+  - [升级 Rspack 2.0](#upgrade-to-rspack-20)
+  - [React Server Components 支持](#react-server-components-support)
+  - [开发服务器与客户端通信](#dev-server-client-communication)
+  - [支持扩展内置 Server](#extending-the-built-in-server)
+  - [支持自定义 logger](#custom-logger-support)
+  - [更易用的拆包配置](#easier-chunk-splitting-configuration)
+  - [create-rsbuild 模板更新](#create-rsbuild-template-updates)
+- 更轻量：
+  - [默认依赖从 13 个减少到 4 个](#reduced-dependencies)
+- 更安全：
+  - [默认仅监听 'localhost'](#default-host-change)
+  - [Proxy 中间件升级，支持 HTTP/2 代理](#proxy-middleware-upgrade)
+- 更现代：
+  - [Pure ESM 包](#pure-esm-package)
+  - [不再支持 Node.js 18](#nodejs-support)
+  - [默认目标环境更新](#updated-default-targets)
+  - [默认输出 ESM Node.js 产物](#esm-nodejs-output)
+  - [默认使用 '2023-11' 装饰器版本](#updated-decorator-version)
+
+## 升级 Rspack 2.0 \{#upgrade-to-rspack-20}
+
+Rsbuild 2.0 基于 Rspack 2.0 实现，因此也继承了 Rspack 2.0 在构建性能、产物优化和底层能力上的一系列改进。
+
+参考 [Rspack 2.0 博客](https://rspack.rs/zh/blog/announcing-2-0) 了解这部分变更。
+
+## React Server Components 支持 \{#react-server-components-support}
+
+[React Server Components](https://react.dev/reference/rsc/server-components) (RSC) 是一种预先渲染的 React 组件类型，它将数据获取与组件逻辑结合起来，并减少发送到客户端的 JavaScript。
+
+为了帮助基于 Rsbuild 的 Web 应用或框架更便捷地使用 RSC，我们提供了 [rsbuild-plugin-rsc](https://github.com/rstackjs/rsbuild-plugin-rsc) 插件。该插件基于 Rspack 内置的 RSC 能力实现，并借助 Rsbuild 的 [Environments API](/guide/advanced/environments) 对 client 与 server 等多环境进行统一组织，降低了接入与配置成本。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import { pluginRSC } from 'rsbuild-plugin-rsc';
+
+export default defineConfig({
+  plugins: [
+    pluginReact(),
+    pluginRSC({
+      // Plugin options
+    }),
+  ],
+  environments: {
+    server: {
+      // Server config...
+    },
+    client: {
+      // Client config...
+    },
+  },
+});
+```
+
+目前该插件仍处于实验阶段。它已经能够运行 React Router 的 [RSC 示例](https://github.com/rstackjs/rsbuild-plugin-rsc/tree/main/examples/react-router)，也已经在 [Modern.js 框架](https://modernjs.dev/guides/basic-features/render/rsc) 中落地使用。
+
+另外，我们也在与 [TanStack](https://tanstack.com/) 团队展开合作，计划在后续版本中提供对 [TanStack Start](https://tanstack.com/start) 和 [TanStack 的 RSC](https://tanstack.com/blog/react-server-components) 的支持。TanStack Start 是一个基于 TanStack Router 构建的全栈框架，我们非常期待结合双方的能力，共同探索 RSC 在不同场景下的更多可能性。
+
+## 开发服务器与客户端通信 \{#dev-server-client-communication}
+
+在支持 React Server Components 的过程中，我们发现一些场景需要在开发服务器与浏览器之间进行通信。例如，服务端完成某些操作后，需要主动通知客户端执行对应逻辑。
+
+为此，Rsbuild 2.0 提供了一组通信 API：
+
+- 服务端可通过 [hot.send](/api/javascript-api/environment-api#hotsend) 向当前 environment 对应的客户端发送消息
+- 客户端可通过 `import.meta.webpackHot.on` 监听这些自定义事件
+
+这些 API 复用了现有的 HMR 通道，无需额外创建 WebSocket 连接。同时，消息仅会发送到匹配的 environment，避免不必要的广播。
+
+例如，当服务端状态发生变化时，通知客户端更新，而不是触发整页刷新：
+
+- 在服务端触发消息：
+
+```ts title="rsbuild.config.ts"
+server.environments.web.hot.send('data-change', {
+  count: 1,
+});
+```
+
+- 在客户端监听消息：
+
+```ts title="src/dev-sync.ts"
+if (import.meta.webpackHot) {
+  import.meta.webpackHot.on('data-change', ({ count }) => {
+    console.log('data updated:', count);
+  });
+}
+```
+
+## 扩展内置 Server \{#extending-the-built-in-server}
+
+Rsbuild 2.0 新增了 [server.setup](/config/server/setup) 选项，用于在开发服务器或预览服务器启动时执行初始化逻辑。
+
+该选项相较于原有的 `server.setupMiddlewares` 更为强大，用于对 Rsbuild 内置服务器进行定制，例如注册中间件、执行启动前任务，或根据 dev / preview 模式注入不同逻辑。通过 `server.setup`，这些能力可以直接在 Rsbuild 配置中完成。
+
+例如，为本地开发和预览环境添加一个简单的接口：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === '/api/health') {
+          res.end('ok');
+          return;
+        }
+        next();
+      });
+    },
+  },
+};
+```
+
+## 支持自定义 logger \{#custom-logger-support}
+
+通过新增的 [customLogger](/config/custom-logger) 选项，你可以为多个 Rsbuild 实例自定义不同的 logger。
+
+这允许你为不同 Rsbuild 实例设置不同的日志级别、输出前缀，或者接入自定义的日志系统，而无需修改 [全局 logger 实例](/api/javascript-api/core#logger)。
+
+```ts title="rsbuild.config.ts"
+import { createLogger, defineConfig } from '@rsbuild/core';
+
+const customLogger = createLogger({
+  level: 'warn',
+  prefix: '[web]',
+});
+
+export default defineConfig({
+  customLogger,
+});
+```
+
+> 查看 [日志指南](/guide/advanced/logging) 了解更多。
+
+## 更易用的拆包配置 \{#easier-chunk-splitting-configuration}
+
+在 1.x 中，Rsbuild 通过 [performance.chunkSplit](https://v1.rsbuild.rs/config/performance/chunk-split) 封装了常见的拆包策略，但它的设计与 Rspack 的 `splitChunks` 差异较大，开发者需要额外理解 `strategy`、`forceSplitting` 等概念。对于 coding agent 来说，也难以直接生成符合社区习惯的 `splitChunks` 配置，通常还需要进行额外转换。
+
+因此，Rsbuild 2.0 提供了新的 [splitChunks](/config/split-chunks) 选项。它的行为与 Rspack 的 `splitChunks` 完全对齐，并通过额外的 `preset` 选项来提供预设配置。
+
+例如，使用 `per-package` 预设将每个 package 拆分成一个独立的 chunk：
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'per-package',
+    chunks: 'all',
+  },
+};
+```
+
+> `performance.chunkSplit` 已在 2.0 中废弃，但现有配置仍可继续使用。建议参考 [迁移 performance.chunkSplit](/guide/upgrade/v1-to-v2#migrate-performancechunksplit) 进行迁移。
+
+## create-rsbuild 模板更新 \{#create-rsbuild-template-updates}
+
+在核心能力升级的同时，我们也更新了 `create-rsbuild` 中的模板，使新项目的初始化流程更加贴近当前的开发实践：
+
+- 默认生成 `AGENTS.md` 文件，并支持在初始化时安装 [rsbuild-best-practices](https://github.com/rstackjs/agent-skills?tab=readme-ov-file#rsbuild-skills) 等 Agent Skills。
+- 创建 React 项目时，可以选择 [React Compiler](/guide/framework/react#react-compiler) 作为可选工具。
+- 新增对 [Rslint](https://github.com/web-infra-dev/rslint) 的实验性支持，Rslint 是基于 `typescript-go` 的高性能代码检查工具。
+- 移除过时的 React 18 和 Vue 2 模板。
+
+## 精简依赖 \{#reduced-dependencies}
+
+Rsbuild 2.0 对默认依赖进行了精简，将仅在特定场景下使用的包移出默认依赖，使默认依赖的数量从 13 个减少到 4 个，安装体积约减少 2 MB。
+
+本次调整主要涉及：
+
+- 不再默认安装 [core-js](https://www.npmjs.com/package/core-js)，在使用 [output.polyfill](/config/output/polyfill) 时需要手动安装。
+- 不再默认安装 [@module-federation/runtime-tools](https://www.npmjs.com/package/@module-federation/runtime-tools)，在使用 [moduleFederation.options](/config/module-federation/options) 时需要手动安装，Module Federation 2.0 不受影响。
+- 移除 [webpack-bundle-analyzer](https://www.npmjs.com/package/webpack-bundle-analyzer) 依赖，推荐使用 [Rsdoctor](/guide/debug/rsdoctor) 进行产物分析，或自行安装和注册 `webpack-bundle-analyzer`。
+
+## 默认 host 变化 \{#default-host-change}
+
+[server.host](/config/server/host) 的默认值从 `'0.0.0.0'` 调整为 `'localhost'`。开发和预览服务器默认仅监听本机，不再对局域网内的其他设备开放。
+
+这一调整遵循「默认安全」的原则。在大多数本地开发场景中，开发服务器无需对外暴露。仅监听本机地址可以减少意外暴露，降低在共享网络环境中被扫描或攻击的风险。
+
+如果你需要在局域网设备上访问页面，可以显式开启网络访问：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '0.0.0.0',
+  },
+};
+```
+
+也可以通过 CLI 的 `--host` 参数快速开启：
+
+```bash
+rsbuild --host
+```
+
+## Proxy 中间件升级 \{#proxy-middleware-upgrade}
+
+开发服务器使用的 [http-proxy-middleware](https://github.com/chimurai/http-proxy-middleware) 已经从 v2 升级至最新的 v4 版本，同时其底层依赖从已经停止维护的 [http-proxy](https://www.npmjs.com/package/http-proxy) 切换为由 [unjs 社区](https://github.com/unjs) 积极维护的 [httpxy](https://npmx.dev/package/httpxy)。
+
+这主要带来几点改进：
+
+- 支持 HTTP/2 代理
+- 解决已知的安全问题
+- 不再依赖 Node.js 已废弃的 `url.parse()` API
+
+> `server.proxy` 的部分字段已发生变更，升级时请参考 [从 v1 升级到 v2](/guide/upgrade/v1-to-v2#proxy-middleware-upgraded)。
+
+## Pure ESM 包 \{#pure-esm-package}
+
+[@rsbuild/core](https://www.npmjs.com/package/@rsbuild/core) 现在以 pure ESM 包的形式发布，并移除了自身的 CommonJS 构建产物。这一调整仅影响 Rsbuild 本身的发布形式，使安装体积减少了约 500KB。
+
+在 Node.js 20 及以上版本中，运行时已原生支持通过 [require(esm)](https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require) 加载 ESM 模块。因此，对大多数仍通过 JavaScript API 使用 Rsbuild 的项目来说，这一变更通常不会带来实际影响，也无需额外修改现有代码。
+
+## Node.js 支持 \{#nodejs-support}
+
+从 2.0 开始，Rsbuild 最低支持的 Node.js 版本为 `20.19+` 或 `22.12+`。由于 Node.js 18 已于 2025 年 4 月底结束维护，2.0 也不再继续支持该版本。
+
+> 我们通常会在某个 Node.js 版本进入 EOL 约一年后再移除支持，以为社区和用户预留更充足的升级时间。
+
+## 默认目标环境更新 \{#updated-default-targets}
+
+Rsbuild 2.0 调整了默认的目标环境，使产物面向更现代的浏览器和 Node.js 版本。
+
+对于 Web 产物，默认的 browserslist 现在对齐到 [Baseline](https://web-platform-dx.github.io/web-features/) 的广泛可用范围。这里选取的是 [2025-05-01](https://browsersl.ist/#q=baseline+widely+available+on+2025-05-01) 对应的目标集，表示截至该时间点已被主流浏览器广泛支持的 Web 平台能力。
+
+默认值变化如下：
+
+- Chrome 87 → 107
+- Edge 88 → 107
+- Firefox 78 → 104
+- Safari 14 → 16
+
+这意味着在未显式配置 browserslist 的情况下，Rsbuild 会默认输出更现代的 JavaScript 和 CSS，同时减少语法降级和 polyfill 的引入。
+
+对于 Node.js 产物，默认目标版本也从 Node.js 16 提升至 Node.js 20。
+
+如果你已经通过 `.browserslistrc`、`package.json#browserslist` 或 [output.overrideBrowserslist](/config/output/override-browserslist) 显式配置了目标环境，则不会受到上述调整的影响。
+
+## ESM Node.js 产物 \{#esm-nodejs-output}
+
+在构建 Node.js 产物时，相比 Rsbuild v1 默认输出压缩后的 CommonJS 代码，Rsbuild 2.0 现在会默认输出未压缩的 ES modules 代码。
+
+这一调整更符合现代 Node 应用的主流实践。同时，服务端代码默认不压缩，有助于保留清晰的调试堆栈，提升问题排查效率。
+
+需要注意的是，运行时需要具备加载 ESM 的能力。例如在 `package.json` 中设置 `"type": "module"`，或者使用 `.mjs` 作为输出文件扩展名。如果你的项目仍依赖 CommonJS，可以显式切回原有行为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    module: false,
+    minify: true,
+  },
+};
+```
+
+## 装饰器版本更新 \{#updated-decorator-version}
+
+随着底层 SWC 支持 `2023-11` 装饰器版本，Rsbuild 将 [decorators.version](/config/source/decorators#decoratorsversion) 默认值从 `2022-03` 调整为 `2023-11`。
+
+`2023-11` 是当前最新的提案版本，对应 2023 年 11 月 TC39 会议后的规范，同时也是 Babel 8 的默认行为。如果你需要保留旧行为，可以显式指定版本：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: '2022-03',
+    },
+  },
+};
+```
+
+## 升级至 Rsbuild 2.0
+
+对于大多数项目来说，升级到 Rsbuild 2.0 是一个相对平滑的过程。尽管 2.0 引入了一些默认行为调整和不兼容变更，但大多数变更都提供了清晰的迁移路径，通常无需修改业务代码。
+
+如果你正在使用支持 skills 的 coding agent，可以安装 [rsbuild-v2-upgrade](https://github.com/rstackjs/agent-skills#rsbuild-v2-upgrade) skill，由 agent 自动协助完成依赖升级、配置调整和迁移检查，减少手动操作成本。
+
+```bash
+npx skills add rstackjs/agent-skills --skill rsbuild-v2-upgrade
+```
+
+完整的升级指南及所有不兼容变更，请参考 [从 v1 升级到 v2](/guide/upgrade/v1-to-v2)。
+
+## 致谢
+
+Rsbuild 由 Rstack 团队主导开发，同时也离不开社区贡献者与所有用户的共同参与。自 1.0 发布以来，许多开发者通过贡献推动了 Rsbuild 的演进，在此感谢所有参与其中的朋友：
+
+{/* cspell:disable */}
+
+[@9aoy](https://github.com/9aoy)、[@adammark](https://github.com/adammark)、[@ahabhgk](https://github.com/ahabhgk)、[@alexUXUI](https://github.com/alexUXUI)、[@bodia-uz](https://github.com/bodia-uz)、[@Brennvo](https://github.com/Brennvo)、[@caohuilin](https://github.com/caohuilin)、[@Cheese-Yu](https://github.com/Cheese-Yu)、[@chenjiahan](https://github.com/chenjiahan)、[@Chevindu](https://github.com/Chevindu)、[@Colin3191](https://github.com/Colin3191)、[@colinaaa](https://github.com/colinaaa)、
+[@CPunisher](https://github.com/CPunisher)、[@davide97g](https://github.com/davide97g)、[@Deku-nattsu](https://github.com/Deku-nattsu)、[@DeveshSapkale](https://github.com/DeveshSapkale)、[@dovigod](https://github.com/dovigod)、[@Draculabo](https://github.com/Draculabo)、[@easy1090](https://github.com/yifancong)、[@escaton](https://github.com/escaton)、[@fansenze](https://github.com/fansenze)、[@fi3ework](https://github.com/fi3ework)、[@gaoachao](https://github.com/gaoachao)、[@GiveMe-A-Name](https://github.com/GiveMe-A-Name)、
+[@GRAMMAC1](https://github.com/GRAMMAC1)、[@hai-x](https://github.com/hai-x)、[@hangCode2001](https://github.com/nice-hang)、[@hardfist](https://github.com/hardfist)、[@hasnum-stack](https://github.com/hasnum-stack)、[@htoooth](https://github.com/htoooth)、[@Huxpro](https://github.com/Huxpro)、[@ianzone](https://github.com/ianzone)、[@iceprosurface](https://github.com/iceprosurface)、[@inottn](https://github.com/inottn)、[@jerrykingxyz](https://github.com/jerrykingxyz)、[@jkzing](https://github.com/jkzing)、
+[@JounQin](https://github.com/JounQin)、[@JSerFeng](https://github.com/JSerFeng)、[@JSH-data](https://github.com/JSH-data)、[@junhea](https://github.com/junhea)、[@junxiongchu](https://github.com/junxiongchu)、[@lguzzon](https://github.com/lguzzon)、[@LingyuCoder](https://github.com/LingyuCoder)、[@lluisemper](https://github.com/lluisemper)、[@lxKylin](https://github.com/lxKylin)、[@mhutter](https://github.com/mhutter)、[@miownag](https://github.com/miownag)、[@mycoin](https://github.com/mycoin)、
+[@nikhilsnayak](https://github.com/nikhilsnayak)、[@notzheng](https://github.com/notzheng)、[@Nsttt](https://github.com/Nsttt)、[@nyqykk](https://github.com/nyqykk)、[@puxiao](https://github.com/puxiao)、[@qmakani](https://github.com/qmakani)、[@quininer](https://github.com/quininer)、[@RobHannay](https://github.com/RobHannay)、[@roli-lpci](https://github.com/roli-lpci)、[@s-chance](https://github.com/s-chance)、[@s-r-x](https://github.com/s-r-x)、[@sagar-dwivedi](https://github.com/sagar-dwivedi)、
+[@Sang-Sang33](https://github.com/Sang-Sang33)、[@schu34](https://github.com/schu34)、[@ScriptedAlchemy](https://github.com/ScriptedAlchemy)、[@Shucei](https://github.com/Shucei)、[@shulaoda](https://github.com/shulaoda)、[@Simon-He95](https://github.com/Simon-He95)、[@slobo](https://github.com/slobo)、[@snatvb](https://github.com/snatvb)、[@SoonIter](https://github.com/SoonIter)、[@stormslowly](https://github.com/stormslowly)、[@SyMind](https://github.com/SyMind)、[@T9-Forever](https://github.com/T9-Forever)、
+[@thinkasany](https://github.com/thinkasany)、[@Timeless0911](https://github.com/Timeless0911)、[@TinsFox](https://github.com/TinsFox)、[@valorkin](https://github.com/valorkin)、[@vegerot](https://github.com/vegerot)、[@VenDream](https://github.com/VenDream)、[@wangi4myself](https://github.com/wangi4myself)、[@wChenonly](https://github.com/wChenonly)、[@wjw99830](https://github.com/wjw99830)、[@wralith](https://github.com/wralith)、[@wxiaoyun](https://github.com/wxiaoyun)、[@xbzhang2020](https://github.com/xbzhang2020)、
+[@xc2](https://github.com/xc2)、[@xettri](https://github.com/xettri)、[@xiaohp](https://github.com/xiaohp)、[@xuexb](https://github.com/xuexb)、[@xun082](https://github.com/xun082)、[@yifancong](https://github.com/yifancong)、[@ymq001](https://github.com/ymq001)、[@zackarychapple](https://github.com/zackarychapple)、[@zalishchuk](https://github.com/zalishchuk)、[@zoolsher](https://github.com/zoolsher)
+
+{/* cspell:enable */}

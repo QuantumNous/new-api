@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "display": "TypeScript Library",
+    "extends": "./base.json",
+    "compilerOptions": {
+        "lib": [
+            "dom",
+            "dom.iterable",
+            "ES2018"
+        ],
+        "module": "ESNext",
+        "target": "ES2018",
+        "stripInternal": true
+    },
+}

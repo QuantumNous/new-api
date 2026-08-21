@@ -1,0 +1,154 @@
+// Rstest Snapshot v1
+
+exports[`plugin-tailwindcss > should add tailwindcss loader to CSS rule 1`] = `
+[
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "oneOf": [
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resolve": {
+          "preferRelative": true,
+        },
+        "resourceQuery": /\\[\\?&\\]url\\(\\?:&\\|=\\|\\$\\)/,
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/dist/cssUrlLoader.mjs",
+            "options": {
+              "filename": "static/css/[name].css",
+              "modules": {
+                "auto": true,
+                "exportGlobals": false,
+                "exportLocalsConvention": "camelCase",
+                "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                "namedExport": false,
+              },
+            },
+          },
+          {
+            "loader": "<ROOT>/packages/core/compiled/css-loader/index.js",
+            "options": {
+              "exportType": "string",
+              "importLoaders": 2,
+              "modules": false,
+              "sourceMap": false,
+            },
+          },
+          {
+            "loader": "builtin:lightningcss-loader",
+            "options": {
+              "errorRecovery": true,
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+          },
+          {
+            "loader": "<PNPM_INNER>/@tailwindcss/webpack/dist/index.js",
+            "options": {
+              "base": "<ROOT>",
+              "optimize": false,
+            },
+          },
+        ],
+      },
+      {
+        "resolve": {
+          "preferRelative": true,
+        },
+        "resourceQuery": /\\[\\?&\\]inline\\(\\?:&\\|=\\|\\$\\)/,
+        "sideEffects": true,
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/compiled/css-loader/index.js",
+            "options": {
+              "exportType": "string",
+              "importLoaders": 2,
+              "modules": false,
+              "sourceMap": false,
+            },
+          },
+          {
+            "loader": "builtin:lightningcss-loader",
+            "options": {
+              "errorRecovery": true,
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+          },
+          {
+            "loader": "<PNPM_INNER>/@tailwindcss/webpack/dist/index.js",
+            "options": {
+              "base": "<ROOT>",
+              "optimize": false,
+            },
+          },
+        ],
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "resolve": {
+          "preferRelative": true,
+        },
+        "sideEffects": true,
+        "use": [
+          {
+            "loader": "<PNPM_INNER>/@rspack/core/dist/cssExtractLoader.js",
+          },
+          {
+            "loader": "<ROOT>/packages/core/compiled/css-loader/index.js",
+            "options": {
+              "importLoaders": 2,
+              "modules": {
+                "auto": true,
+                "exportGlobals": false,
+                "exportLocalsConvention": "camelCase",
+                "localIdentName": "[path][name]__[local]-[hash:base64:6]",
+                "namedExport": false,
+              },
+              "sourceMap": false,
+            },
+          },
+          {
+            "loader": "builtin:lightningcss-loader",
+            "options": {
+              "errorRecovery": true,
+              "targets": [
+                "chrome >= 107",
+                "edge >= 107",
+                "firefox >= 104",
+                "safari >= 16",
+              ],
+            },
+          },
+          {
+            "loader": "<PNPM_INNER>/@tailwindcss/webpack/dist/index.js",
+            "options": {
+              "base": "<ROOT>",
+              "optimize": false,
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.css\\$/,
+  },
+]
+`;

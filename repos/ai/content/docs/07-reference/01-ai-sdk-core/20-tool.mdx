@@ -1,0 +1,248 @@
+---
+title: tool
+description: Helper function for tool type inference
+---
+
+# `tool()`
+
+Tool is a helper function that infers the tool input and context for its `execute` method and lifecycle callbacks.
+
+It does not have any runtime behavior, but it helps TypeScript infer the types for the tool callbacks.
+
+Without this helper function, TypeScript is unable to connect the `inputSchema` and `contextSchema` properties to the tool callbacks,
+and the callback argument types cannot be inferred.
+
+For the full model of `runtimeContext`, `toolsContext`, tool `context`, and
+sensitive context filtering, see [Runtime and Tool
+Context](/docs/ai-sdk-core/runtime-and-tool-context).
+
+The `Tool` type is a union of four tool kinds:
+
+- `FunctionTool`: a user-defined function-style tool with known input and output types.
+- `DynamicTool`: a function-style tool defined at runtime, with `unknown` input and output types.
+- `ProviderDefinedTool`: a provider-defined tool that your code executes.
+- `ProviderExecutedTool`: a provider-defined tool that the provider executes.
+
+```ts highlight={"1,4,9,10"}
+import { tool } from 'ai';
+import { z } from 'zod';
+
+export const weatherTool = tool({
+  description: 'Get the weather in a location',
+  inputSchema: z.object({
+    location: z.string().describe('The location to get the weather for'),
+  }),
+  // location below is inferred to be a string:
+  execute: async ({ location }) => ({
+    location,
+    temperature: 72 + Math.floor(Math.random() * 21) - 10,
+  }),
+});
+```
+
+## Import
+
+<Snippet text={`import { tool } from "ai"`} prompt={false} />
+
+## API Signature
+
+### Parameters
+
+<PropertiesTable
+  content={[
+    {
+      name: 'tool',
+      type: 'Tool',
+      description: 'The tool definition.',
+      properties: [
+        {
+          type: 'Tool',
+          parameters: [
+            {
+              name: 'description',
+              isOptional: true,
+              type: 'string | ((options: { context: CONTEXT; experimental_sandbox?: Experimental_SandboxSession }) => string)',
+              description:
+                'Information about the purpose of the tool including details on how and when it can be used by the model. Provide a string for a fixed description, or a function to derive the description from the tool-specific context and optional experimental sandbox before each model call.',
+            },
+            {
+              name: 'title',
+              isOptional: true,
+              type: 'string',
+              description:
+                'Deprecated. Use `providerMetadata` for source-specific tool display metadata.',
+            },
+            {
+              name: 'needsApproval',
+              isOptional: true,
+              type: 'boolean | ((input: INPUT, options: { toolCallId: string; messages: ModelMessage[]; context: CONTEXT }) => boolean | Promise<boolean>)',
+              description:
+                'Deprecated. For `generateText`, `streamText`, and `ToolLoopAgent`, configure approval with `toolApproval` instead. Existing `needsApproval` usages still work as a compatibility fallback. When used, it can be a boolean or a function that receives the tool input plus execution metadata, including the typed `context`.',
+            },
+            {
+              name: 'inputSchema',
+              type: 'Zod Schema | JSON Schema',
+              description:
+                'The schema of the input that the tool expects. The language model will use this to generate the input. It is also used to validate the output of the language model. Use descriptions to make the input understandable for the language model. You can either pass in a Zod schema or a JSON schema (using the `jsonSchema` function).',
+            },
+            {
+              name: 'inputExamples',
+              isOptional: true,
+              type: 'Array<{ input: INPUT }>',
+              description:
+                'An optional list of input examples that show the language model what the input should look like.',
+            },
+            {
+              name: 'contextSchema',
+              isOptional: true,
+              type: 'Zod Schema | JSON Schema',
+              description:
+                "An optional schema that describes the tool-specific context expected by the tool. When provided, the `context` type in `execute`, `needsApproval`, and the input lifecycle callbacks is inferred from this schema. The value is supplied via the tool's entry in `toolsContext`.",
+            },
+            {
+              name: 'strict',
+              isOptional: true,
+              type: 'boolean',
+              description:
+                'Strict mode setting for the tool. Providers that support strict mode will use this setting to determine how the input should be generated. Strict mode will always produce valid inputs, but it might limit what input schemas are supported.',
+            },
+            {
+              name: 'execute',
+              isOptional: true,
+              type: 'async (input: INPUT, options: ToolExecutionOptions<CONTEXT>) => RESULT | Promise<RESULT> | AsyncIterable<RESULT>',
+              description:
+                'An async function that is called with the arguments from the tool call and produces a result or a results iterable. If an iterable is provided, all results but the last one are considered preliminary. If not provided, the tool will not be executed automatically.',
+              properties: [
+                {
+                  type: 'ToolExecutionOptions<CONTEXT>',
+                  parameters: [
+                    {
+                      name: 'toolCallId',
+                      type: 'string',
+                      description:
+                        'The ID of the tool call. You can use it e.g. when sending tool-call related information with stream data.',
+                    },
+                    {
+                      name: 'messages',
+                      type: 'ModelMessage[]',
+                      description:
+                        'Messages that were sent to the language model to initiate the response that contained the tool call. The messages do not include the system prompt nor the assistant response that contained the tool call.',
+                    },
+                    {
+                      name: 'abortSignal',
+                      type: 'AbortSignal',
+                      isOptional: true,
+                      description:
+                        'An optional abort signal that indicates that the overall operation should be aborted.',
+                    },
+                    {
+                      name: 'context',
+                      type: 'CONTEXT',
+                      description:
+                        'Tool-specific context passed into tool execution. When `contextSchema` is provided, this type is inferred from that schema and supplied from the matching entry in `toolsContext`.',
+                    },
+                    {
+                      name: 'experimental_sandbox',
+                      type: 'Experimental_SandboxSession',
+                      isOptional: true,
+                      description:
+                        'Optional experimental sandbox environment passed from the generation or agent call. Use it when a tool needs to execute commands or code in an experimental sandbox.',
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              name: 'outputSchema',
+              isOptional: true,
+              type: 'Zod Schema | JSON Schema',
+              description:
+                'The schema of the output that the tool produces. Used for type inference.',
+            },
+            {
+              name: 'toModelOutput',
+              isOptional: true,
+              type: '({toolCallId: string; input: INPUT; output: OUTPUT}) => ToolResultOutput | PromiseLike<ToolResultOutput>',
+              description:
+                'Optional conversion function that maps the tool result to an output that can be used by the language model. If not provided, the tool result will be sent as a JSON object. This function is invoked on the server by "convertToModelMessages", so ensure that you pass the same "tools" (ToolSet) to both "convertToModelMessages" and "streamText" (or other generation APIs).',
+            },
+            {
+              name: 'onInputStart',
+              isOptional: true,
+              type: '(options: ToolExecutionOptions<CONTEXT>) => void | PromiseLike<void>',
+              description:
+                'Optional function that is called when the model starts generating the tool input. In non-streaming contexts, it is called immediately before onInputAvailable.',
+            },
+            {
+              name: 'onInputDelta',
+              isOptional: true,
+              type: '(options: { inputTextDelta: string } & ToolExecutionOptions<CONTEXT>) => void | PromiseLike<void>',
+              description:
+                'Optional function that is called when an argument streaming delta is available. Only called when the tool is used in a streaming context.',
+            },
+            {
+              name: 'onInputAvailable',
+              isOptional: true,
+              type: '(options: { input: INPUT } & ToolExecutionOptions<CONTEXT>) => void | PromiseLike<void>',
+              description:
+                'Optional function that is called when a tool call can be started, even if the execute function is not provided.',
+            },
+            {
+              name: 'providerOptions',
+              isOptional: true,
+              type: 'ProviderOptions',
+              description:
+                'Additional provider-specific metadata. They are passed through to the provider from the AI SDK and enable provider-specific functionality that can be fully encapsulated in the provider.',
+            },
+            {
+              name: 'metadata',
+              isOptional: true,
+              type: 'JSONObject',
+              description:
+                "Optional metadata about the tool itself (e.g. its source). It is propagated onto the resulting tool call's toolMetadata so consumers can read it from tool call/result parts and UI message parts. Useful for sources of dynamic tools (e.g. an MCP server) to identify themselves.",
+            },
+            {
+              name: 'type',
+              isOptional: true,
+              type: "'function' | 'dynamic' | 'provider'",
+              description:
+                'The type of the tool. Defaults to "function" for regular tools. Use "dynamic" for tools defined at runtime and "provider" for provider-specific tools.',
+            },
+            {
+              name: 'id',
+              isOptional: true,
+              type: '`${string}.${string}`',
+              description:
+                'The ID of a provider tool. Must follow the format `<provider-name>.<unique-tool-name>`. Required when type is "provider".',
+            },
+            {
+              name: 'isProviderExecuted',
+              isOptional: true,
+              type: 'boolean',
+              description:
+                'Whether a provider tool is executed by the provider. Set to `false` for `ProviderDefinedTool` and `true` for `ProviderExecutedTool`. Required when type is "provider".',
+            },
+            {
+              name: 'args',
+              isOptional: true,
+              type: 'Record<string, unknown>',
+              description:
+                'The arguments for configuring a provider tool. Must match the expected arguments defined by the provider for this tool. Required when type is "provider".',
+            },
+            {
+              name: 'supportsDeferredResults',
+              isOptional: true,
+              type: 'boolean',
+              description:
+                'Whether a provider-executed tool supports results that arrive without a matching tool call in the current response. Only available for `ProviderExecutedTool`.',
+            },
+          ],
+        },
+      ],
+    },
+  ]}
+/>
+
+### Returns
+
+The tool that was passed in.

@@ -1,0 +1,5 @@
+@layer utilities {
+  .bui-ol-n {
+    outline: none;
+  }
+}

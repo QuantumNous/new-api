@@ -1,0 +1,11 @@
+@url-query-color: red;
+
+.url-query {
+  &-less {
+    color: @url-query-color;
+
+    &::after {
+      content: 'compiled';
+    }
+  }
+}

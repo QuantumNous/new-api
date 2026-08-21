@@ -1,0 +1,20 @@
+body {
+  font-family: sans-serif;
+  margin: 0;
+  padding: 16px;
+}
+
+.app-styled {
+  color: #333;
+  background-color: #f0f0f0;
+}
+
+nav {
+  display: flex;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+
+nav a.active {
+  font-weight: bold;
+}

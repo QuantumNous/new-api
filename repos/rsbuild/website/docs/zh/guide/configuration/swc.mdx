@@ -1,0 +1,112 @@
+---
+description: 'SWC（Speedy Web Compiler）是基于 Rust 语言编写的高性能 JavaScript 和 TypeScript 转译和压缩工具。SWC 提供与 Babel 和 Terser 相似的能力，在单线程上它比 Babel 快 20 倍，在四核上它比 Babel 快 70 倍。'
+---
+
+# 配置 SWC
+
+[SWC](https://github.com/swc-project/swc)（Speedy Web Compiler）是基于 Rust 语言编写的高性能 JavaScript 和 TypeScript 转译和压缩工具。SWC 提供与 Babel 和 Terser 相似的能力，在单线程上它比 Babel 快 20 倍，在四核上它比 Babel 快 70 倍。
+
+Rsbuild 默认启用 SWC 的以下功能：
+
+- 通过 Rspack 的 [builtin:swc-loader](https://rspack.rs/zh/guide/features/builtin-swc-loader) 来转换 JavaScript 和 TypeScript 代码，它是 [swc-loader](https://github.com/swc-project/pkgs/tree/main/packages/swc-loader) 的 Rust 版本。
+- 通过 Rspack 的 [SwcJsMinimizerRspackPlugin](https://rspack.rs/zh/plugins/rspack/swc-js-minimizer-rspack-plugin) 来压缩 JavaScript 代码。
+
+## Loader 选项
+
+`builtin:swc-loader` 的选项与 JS 版本的 `swc-loader` 一致。Rsbuild 暴露了一些选项来配置 `builtin:swc-loader`：
+
+- [tools.swc](/config/tools/swc)：用于配置 `builtin:swc-loader` 的选项。
+- [source.include](/config/source/include)：用于指定需要被 SWC 编译的文件。
+- [source.exclude](/config/source/exclude)：用于排除不需要被 SWC 编译的文件。
+
+下面是一些示例：
+
+### 注册 SWC 插件
+
+`tools.swc` 可以用于注册 SWC 的 Wasm 插件，比如注册 [@swc/plugin-styled-components](https://npmjs.com/package/@swc/plugin-styled-components)：
+
+```js
+export default {
+  tools: {
+    swc: {
+      jsc: {
+        experimental: {
+          plugins: [['@swc/plugin-styled-components', {}]],
+        },
+      },
+    },
+  },
+};
+```
+
+> 你可以通过 [awesome-swc](https://github.com/swc-contrib/awesome-swc) 仓库查看社区中可用的 SWC 插件。
+
+### SWC 插件版本
+
+请注意，SWC 的插件仍然是一个实验性功能，目前 SWC 的 Wasm 插件是不向后兼容的，SWC 插件的版本与 Rspack 依赖的 `swc_core` 版本存在强耦合关系。
+
+这意味着，你需要选择和当前 `swc_core` 版本匹配的 SWC 插件，才能使它正常执行。如果你使用的 SWC 插件版本与 Rspack 依赖的 `swc_core` 版本不匹配，Rspack 在执行构建时会抛出错误，请参考 [Rspack 常见问题 - SWC 插件版本不匹配](https://rspack.rs/zh/errors/swc-plugin-version) 进行处理。
+
+### 启用 Emotion 支持
+
+启用 `builtin:swc-loader` 对 Emotion 支持的示例：
+
+```js
+export default {
+  tools: {
+    swc: {
+      jsc: {
+        experimental: {
+          plugins: [['@swc/plugin-emotion', {}]],
+        },
+      },
+    },
+  },
+};
+```
+
+更多选项可参考 [@swc/plugin-emotion](https://npmjs.com/package/@swc/plugin-emotion)。
+
+### 启用 Relay 支持
+
+启用 `builtin:swc-loader` 对 Relay 支持的示例：
+
+```js
+export default {
+  tools: {
+    swc: {
+      jsc: {
+        experimental: {
+          plugins: [['@swc/plugin-relay', {}]],
+        },
+      },
+    },
+  },
+};
+```
+
+更多选项可参考 [@swc/plugin-relay](https://npmjs.com/package/@swc/plugin-relay)。
+
+## Minimizer 选项
+
+Rsbuild 提供了 [output.minify.js](/config/output/minify) 选项来配置 SwcJsMinimizerRspackPlugin，下面是一些示例：
+
+### 排除文件
+
+通过 `exclude` 选项可以排除某些文件，不进行压缩：
+
+```ts
+export default {
+  output: {
+    minify: {
+      jsOptions: {
+        exclude: /foo\/bar/,
+      },
+    },
+  },
+};
+```
+
+## 切换压缩器
+
+查看 [output.minify - 切换压缩器](/config/output/minify#switching-minifier) 文档了解如何切换到其他 JavaScript 压缩器。

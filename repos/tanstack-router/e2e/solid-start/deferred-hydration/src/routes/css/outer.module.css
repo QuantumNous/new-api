@@ -1,0 +1,9 @@
+.heading {
+  color: rgb(11, 31, 53);
+}
+
+.outerBox {
+  background-color: rgb(242, 250, 255);
+  color: rgb(12, 34, 56);
+  padding: 12px;
+}

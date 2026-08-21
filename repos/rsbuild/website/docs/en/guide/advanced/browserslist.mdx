@@ -1,0 +1,224 @@
+---
+description: 'Rsbuild supports using Browserslist to specify which browsers should be supported in your web application.'
+---
+
+# Browserslist
+
+Rsbuild supports using [Browserslist](https://browsersl.ist/) to specify which browsers should be supported in your web application.
+
+## What is browserslist
+
+Since different browsers support ECMAScript and CSS features differently, developers need to specify the correct browser range for web applications.
+
+[Browserslist](https://browsersl.ist/) lets you specify which browsers your web application can run in. It provides a configuration for specifying browser ranges. Browserslist has become an industry standard, used by libraries such as SWC, Lightning CSS, Babel, ESLint, PostCSS, and webpack.
+
+When you specify a browser range through Browserslist, Rsbuild compiles JavaScript and CSS code to match the specified syntax.
+
+## Polyfill injection
+
+If you enable [output.polyfill](/config/output/polyfill), Rsbuild will also inject the corresponding polyfill code based on browserslist. **When you only need to support more modern browsers, the build process will introduce less compatibility code and polyfills, reducing the bundle size.**
+
+1. Install the [core-js](https://github.com/zloirock/core-js) dependency:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add core-js" />
+
+2. Enable polyfill injection in the config file:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'usage',
+  },
+};
+```
+
+For example, when you need to be compatible with IE11, Rsbuild will compile the code to ES5 and inject the polyfills required by IE11 through `core-js`.
+
+> Please refer to [Browser compatibility](/guide/advanced/browser-compatibility) for more information.
+
+## Default values
+
+Rsbuild sets different default Browserslist values according to [output.target](/config/output/target). You can also explicitly set Browserslist in your project to make the compatibility scope clearer.
+
+### Web target
+
+If `output.target` is `web`, Rsbuild will use the following Browserslist by default:
+
+```yaml title=".browserslistrc"
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+```
+
+> This browser range matches [Baseline](https://web-platform-dx.github.io/web-features/) widely available as of [2025-05-01](https://browsersl.ist/#q=baseline+widely+available+on+2025-05-01).
+
+### Node target
+
+If `output.target` is `node`, Rsbuild will default to outputting bundles that run on Node.js 20.0 or later.
+
+```yaml title=".browserslistrc"
+node >= 20
+```
+
+### Web Workers target
+
+If `output.target` is `web-worker`, Rsbuild will default to using the following Browserslist (consistent with the `web` target):
+
+```yaml title=".browserslistrc"
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+```
+
+## Set browserslist
+
+You can set the Browserslist value in the `package.json` or `.browserslistrc` file in the root directory of the current project.
+
+### Example
+
+Set via `browserslist` in `package.json`:
+
+```json title="package.json"
+{
+  "browserslist": ["iOS >= 9", "Android >= 4.4", "last 2 versions", "> 0.2%", "not dead"]
+}
+```
+
+Set via a separate `.browserslistrc` file:
+
+```yaml title=".browserslistrc"
+iOS >= 9
+Android >= 4.4
+last 2 versions
+> 0.2%
+not dead
+```
+
+### Effective scope
+
+By default, the `.browserslistrc` file only applies to browser-side bundles, including the `web` and `web-worker` target types.
+
+When building multiple targets simultaneously, for example if the targets contain both `web` and `node`, only the `web` bundles will be affected by the `.browserslistrc` file. To make changes to the `node` bundles, you can use the `output.overrideBrowserslist` configuration below.
+
+### Set by env
+
+You can set different browserslist configurations based on `NODE_ENV` to specify different browser ranges for development and production.
+
+For example, set values based on keys in the `package.json`:
+
+```json title="package.json"
+{
+  "browserslist": {
+    "production": ["chrome >= 107", "edge >= 107", "firefox >= 104", "safari >= 16"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+  }
+}
+```
+
+Or in `.browserslistrc`:
+
+```yaml title=".browserslistrc"
+[production]
+chrome >= 107
+edge >= 107
+firefox >= 104
+safari >= 16
+
+[development]
+last 1 chrome version
+last 1 firefox version
+last 1 safari version
+```
+
+### Override via config
+
+In addition to the standard usage above, Rsbuild also provides [output.overrideBrowserslist](/config/output/override-browserslist) config, which can also set the Browserslist value.
+
+`overrideBrowserslist` can be set to an array with the same syntax as `browserslistrc`, but it has a higher priority than `browserslistrc`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4', 'last 2 versions', '> 0.2%', 'not dead'],
+  },
+};
+```
+
+In most cases, we recommend using the `.browserslistrc` file rather than the `overrideBrowserslist` config. The `.browserslistrc` file is the standard config file, making it more general and recognizable by other libraries in the community.
+
+## Commonly used browserslist
+
+The following are some commonly used Browserslist configurations. Choose according to your project type.
+
+### Desktop web application
+
+For desktop web applications, if you need to be compatible with IE 11 browsers, you can set Browserslist to:
+
+```yaml title=".browserslistrc"
+> 0.5%
+not dead
+IE 11
+```
+
+The above Browserslist will compile the code to ES5. For the specific browser list, please check [browserslist.dev](https://browserslist.dev/?q=PiAwLjUlLCBub3QgZGVhZCwgSUUgMTE%3D).
+
+If you don't need to be compatible with IE 11, you can adjust browserslist for more performant output, such as:
+
+- Set to browsers that support native ES Modules:
+
+```yaml title=".browserslistrc"
+chrome >= 87
+edge >= 88
+firefox >= 78
+safari >= 14
+```
+
+- Set to browsers that support ES6:
+
+```yaml title=".browserslistrc"
+chrome >= 51
+edge >= 15
+firefox >= 54
+safari >= 10
+ios_saf >= 10
+```
+
+### Mobile web application
+
+For mobile web applications, mainly compatible with `iOS` and `Android` systems, we usually set browserslist as:
+
+```yaml title=".browserslistrc"
+iOS >= 9
+Android >= 4.4
+last 2 versions
+> 0.2%
+not dead
+```
+
+The above browserslist will compile the code to ES5, which is compatible with most mobile scenarios on the market. For the detailed browser list, please check [browserslist.dev](https://browserslist.dev/?q=aU9TID49IDksIEFuZHJvaWQgPj0gNC40LCBsYXN0IDIgdmVyc2lvbnMsID4gMC4yJSwgbm90IGRlYWQ%3D).
+
+![](https://assets.rspack.rs/rsbuild/assets/browserslist-dev-example.png)
+
+You can also choose to use ES6 or higher, which will make the page perform better. The corresponding Browserslist is as follows:
+
+```yaml title=".browserslistrc"
+iOS >= 10
+Chrome >= 51
+> 0.5%
+not dead
+not op_mini all
+```
+
+## Query browser support
+
+When developing, we need to know the browser support for certain features or APIs. You can check on the [caniuse](https://caniuse.com/) website.
+
+For example, to check browser support for `Promise`, just enter `Promise` in [caniuse](https://caniuse.com/), and you can see the following results:
+
+![](https://assets.rspack.rs/rsbuild/assets/caniuse-promise-example.png)
+
+As can be seen from the above table, `Promise` is natively supported in Chrome 33 and iOS 8, but not in IE 11.

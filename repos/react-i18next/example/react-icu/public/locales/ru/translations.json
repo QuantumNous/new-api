@@ -1,0 +1,19 @@
+{
+  "title": "Добро пожаловать в React и react-i18next",
+  "description.part1": "Что би начать, отредактируйте <1>src/App.js</1> и сохраните, что бы обновилось.",
+  "description.part2": "Переключайте языки между английским, немецким и русским чуть выше.",
+  "icu": "{numPersons, plural, =0 {\nнет людей} one {# персона} few {# персоны} many {# персон} other {# персон}}",
+  "icu_and_trans": "Мы пригласили <0>{numPersons, plural, =0 {никого} one {# персону} few {# персоны} many {# персон} other {# персон}}</0>.",
+  "Welcome, {name}!": "Добро пожаловать, {name}!",
+  "Welcome, <0>{name}</0>!": "Добро пожаловать, <0>{name}</0>!",
+  "Trainers: {trainersCount, number}": "Тренера: {trainersCount, number}",
+  "Trainers: <0>{trainersCount, number}</0>!": "Тренера: <0>{trainersCount, number}</0>!",
+  "Caught on {catchDate, date, full}": "Пойман в {catchDate, date, full}",
+  "Caught on <0>{catchDate, date, full}</0>!": "Пойман в <0>{catchDate, date, full}</0>!",
+  "{gender, select,  male {He avoids bugs.} female {She avoids bugs.} other {They avoid bugs.}}": "{gender, select,  male {Он избегает ошибок.} female {Она избегает ошибок.} other {Они избегают ошибок.}}",
+  "{gender, select,  male {<0>He</0> avoids bugs.} female {<1>She</1> avoids bugs.} other {<2>They</2> avoid bugs.}}": "{gender, select,  male {<0>Он</0> избегает ошибок.} female {<1>Она</1> избегает ошибок.} other {<2>Они</2> избегают ошибок.}}",
+  "{itemsCount1, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount1, plural,  =0 {Нет ни одной штуки} one {Есть # штука.} few {Есть # штуки.} many {Есть # штук.} other {Есть # штук.}}",
+  "{itemsCount2, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount2, plural,  =0 {Нет ни одной штуки} one {Есть # штука.} few {Есть # штуки.} many {Есть # штук.} other {Есть # штук.}}",
+  "{itemsCount3, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount3, plural,  =0 {Нет ни одной штуки} one {Есть # штука.} few {Есть # штуки.} many {Есть # штук.} other {Есть # штук.}}",
+  "testKey": "{itemsCount3, plural,  =0 {Нет <0>ни одной</0> штуки. } one {Есть <0>#</0> штука.} few {Есть <0>#</0> штуки.} many {Есть <0>#</0> штук.} other {Есть <0>#</0> штук.}}"
+}

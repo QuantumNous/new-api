@@ -1,0 +1,44 @@
+[
+  {
+    "text": "Guide",
+    "link": "/guide/start/",
+    "activeMatch": "/guide/"
+  },
+  {
+    "text": "Config",
+    "link": "/config/",
+    "activeMatch": "/config/"
+  },
+  {
+    "text": "Plugin",
+    "link": "/plugins/list/",
+    "activeMatch": "/plugins/"
+  },
+  {
+    "text": "API",
+    "link": "/api/start/",
+    "activeMatch": "/api/"
+  },
+  {
+    "text": "Blog",
+    "link": "/blog/",
+    "activeMatch": "/blog/"
+  },
+  {
+    "text": "Version",
+    "items": [
+      {
+        "text": "Changelog",
+        "link": "https://github.com/web-infra-dev/rsbuild/releases"
+      },
+      {
+        "text": "Rsbuild 1.x Docs",
+        "link": "https://v1.rsbuild.rs/"
+      },
+      {
+        "text": "Rsbuild 0.x Docs",
+        "link": "https://v0.rsbuild.rs/"
+      }
+    ]
+  }
+]
