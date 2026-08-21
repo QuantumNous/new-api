@@ -37,6 +37,7 @@ import (
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
+	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
@@ -134,7 +135,14 @@ func GetAdaptor(apiType int) channel.Adaptor {
 }
 
 func GetTaskPlatform(c *gin.Context) constant.TaskPlatform {
+	return GetTaskPlatformForModel(c, "")
+}
+
+func GetTaskPlatformForModel(c *gin.Context, upstreamModel string) constant.TaskPlatform {
 	channelType := c.GetInt("channel_type")
+	if channelType == constant.ChannelTypeMiniMax && upstreamModel == hailuov2.ModelName {
+		return constant.TaskPlatformMiniMaxV2
+	}
 	if channelType > 0 {
 		return constant.TaskPlatform(strconv.Itoa(channelType))
 	}
@@ -147,6 +155,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 	//	return &aiproxy.Adaptor{}
 	case constant.TaskPlatformSuno:
 		return &suno.TaskAdaptor{}
+	case constant.TaskPlatformMiniMaxV2:
+		return &hailuov2.TaskAdaptor{}
 	}
 	if channelType, err := strconv.ParseInt(string(platform), 10, 64); err == nil {
 		switch channelType {

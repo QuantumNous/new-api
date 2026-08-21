@@ -23,10 +23,11 @@ import (
 )
 
 type TaskSubmitResult struct {
-	UpstreamTaskID string
-	TaskData       []byte
-	Platform       constant.TaskPlatform
-	Quota          int
+	UpstreamTaskID          string
+	TaskData                []byte
+	Platform                constant.TaskPlatform
+	Quota                   int
+	AdjustBillingOnComplete bool
 	//PerCallPrice   types.PriceData
 }
 
@@ -145,10 +146,19 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
 	info.InitChannelMeta(c)
 
-	// 1. 确定 platform → 创建适配器 → 验证请求
-	platform := constant.TaskPlatform(c.GetString("platform"))
+	// 1. 先应用模型映射，再按上游模型选择任务协议。
+	// MiniMax V1/V2 共用渠道类型，但异步查询协议不同，因此 platform 必须随任务持久化。
+	explicitPlatform := constant.TaskPlatform(c.GetString("platform"))
+	platform := explicitPlatform
+	modelName := info.OriginModelName
+	if modelName != "" {
+		info.UpstreamModelName = modelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
+	}
 	if platform == "" {
-		platform = GetTaskPlatform(c)
+		platform = GetTaskPlatformForModel(c, info.UpstreamModelName)
 	}
 	adaptor := GetTaskAdaptor(platform)
 	if adaptor == nil {
@@ -159,17 +169,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		return nil, taskErr
 	}
 
-	// 2. 确定模型名称
-	modelName := info.OriginModelName
+	// 2. 无显式模型的旧任务接口仍按 action 推导模型名。
 	if modelName == "" {
 		modelName = service.CoverTaskActionToModelName(platform, info.Action)
-	}
-
-	// 2.5 应用渠道的模型映射（与同步任务对齐）
-	info.OriginModelName = modelName
-	info.UpstreamModelName = modelName
-	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
-		return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		info.OriginModelName = modelName
+		info.UpstreamModelName = modelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
 	}
 
 	// 3. 预生成公开 task ID（仅首次）
@@ -251,11 +258,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		}
 	}
 
+	_, adjustBillingOnComplete := adaptor.(channel.CompletionBillingAdaptor)
 	return &TaskSubmitResult{
-		UpstreamTaskID: upstreamTaskID,
-		TaskData:       taskData,
-		Platform:       platform,
-		Quota:          finalQuota,
+		UpstreamTaskID:          upstreamTaskID,
+		TaskData:                taskData,
+		Platform:                platform,
+		Quota:                   finalQuota,
+		AdjustBillingOnComplete: adjustBillingOnComplete,
 	}, nil
 }
 
