@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { OnlineHomePage } from "@/components/online-home-page";
+import { AmplitudeHomePageTracker } from "@/components/amplitude-home-page-tracker";
 import { hasConsoleSessionHintFromRequestCookieStore } from "@/lib/console-session-hint";
 import { buildMetadata } from "@/lib/seo";
 
@@ -13,11 +14,14 @@ export const metadata = buildMetadata({
 export default async function Page() {
   const requestCookies = await cookies();
   return (
-    <OnlineHomePage
-      hasConsoleSessionHint={hasConsoleSessionHintFromRequestCookieStore(
-        requestCookies,
-      )}
-      locale="en"
-    />
+    <>
+      <AmplitudeHomePageTracker />
+      <OnlineHomePage
+        hasConsoleSessionHint={hasConsoleSessionHintFromRequestCookieStore(
+          requestCookies,
+        )}
+        locale="en"
+      />
+    </>
   );
 }

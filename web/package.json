@@ -16,5 +16,8 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "sse.js": "^2.8.0"
+  },
+  "dependencies": {
+    "@amplitude/unified": "^1"
   }
 }

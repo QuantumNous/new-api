@@ -25,17 +25,6 @@ import {
   useLocation,
 } from '@tanstack/react-router'
 import i18n from '@/i18n/config'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
-import { captureAdsAttribution } from '@/lib/analytics/attribution'
-import {
-  identifyMixpanelUser,
-  trackMixpanelPageView,
-} from '@/lib/analytics/mixpanel'
-import { getSelf } from '@/lib/api'
-import { getPublicPathLanguage, isPublicWebsitePath } from '@/lib/public-locale'
 import { getLanguagePreferenceCookie } from '@/i18n/language-preference-cookie'
 import {
   applyInterfaceLanguage,
@@ -43,6 +32,17 @@ import {
   persistUserLanguageCookie,
   syncUserLanguagePreferenceToDatabase,
 } from '@/i18n/user-language-preference'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/stores/auth-store'
+import {
+  identifyAmplitudeUser,
+  trackAmplitudePageView,
+} from '@/lib/analytics/amplitude'
+import { captureAdsAttribution } from '@/lib/analytics/attribution'
+import { getSelf } from '@/lib/api'
+import { getPublicPathLanguage, isPublicWebsitePath } from '@/lib/public-locale'
 import { ThemeCustomizationProvider } from '@/context/theme-customization-provider'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Toaster } from '@/components/ui/sonner'
@@ -77,7 +77,7 @@ function UserLanguagePreferenceSync() {
         }
       }
     }
-    identifyMixpanelUser(user)
+    identifyAmplitudeUser(user)
   }, [i18n, setUser, user])
 
   useEffect(() => {
@@ -144,7 +144,7 @@ function RootComponent() {
   }, [location.pathname])
 
   useEffect(() => {
-    trackMixpanelPageView(location.pathname, window.location.search)
+    trackAmplitudePageView(location.pathname, window.location.search)
   }, [location.pathname, location.search])
 
   return (

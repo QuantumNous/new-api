@@ -567,7 +567,7 @@ export function SiteHeader(props: Props) {
 
     const refresh = async () => {
       try {
-        const response = await fetch("/api/mixpanel/current-user", {
+        const response = await fetch("/api/current-user", {
           cache: "no-store",
           credentials: "same-origin",
           headers: { accept: "application/json" },

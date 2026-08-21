@@ -23,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CircleCheck, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { trackAmplitudeEvent } from '@/lib/analytics/amplitude'
 import {
   getAdsAttributionPayload,
   isPtFirstCallTopupExperiment,
@@ -35,7 +36,6 @@ import {
   trackSignupConversion,
   ensureGtagLoaded,
 } from '@/lib/analytics/gtag'
-import { trackMixpanelEvent } from '@/lib/analytics/mixpanel'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { trackYahooSignupConversion } from '@/lib/analytics/yahoo'
 import { cn } from '@/lib/utils'
@@ -315,7 +315,7 @@ export function SignUpForm({
         trackAdsFunnelEvent('flatkey_signup_success', {
           method: 'password',
         })
-        trackMixpanelEvent('sign_up_completed', {
+        trackAmplitudeEvent('sign_up_completed', {
           sign_up_method: 'password',
           platform: 'web',
           product_surface: 'console',
@@ -431,7 +431,7 @@ export function SignUpForm({
           name='website'
           render={({ field }) => (
             <FormItem
-              className='pointer-events-none absolute -left-[9999px] top-auto h-px w-px opacity-0'
+              className='pointer-events-none absolute top-auto -left-[9999px] h-px w-px opacity-0'
               aria-hidden='true'
             >
               <FormLabel className='sr-only'>

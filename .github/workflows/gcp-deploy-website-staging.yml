@@ -102,6 +102,7 @@ jobs:
             APP_CONSOLE_ORIGIN=${{ env.APP_CONSOLE_ORIGIN }}
             ROUTER_ORIGIN=${{ env.ROUTER_ORIGIN }}
             SITE_ORIGIN=${{ env.SITE_ORIGIN }}
+            NEXT_PUBLIC_AMPLITUDE_API_KEY=${{ vars.NEXT_PUBLIC_AMPLITUDE_API_KEY }}
             COOKIE_SESSION_DOMAIN=${{ steps.compute_cookie_domain.outputs.cookie_domain }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}

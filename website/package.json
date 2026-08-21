@@ -12,6 +12,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@amplitude/unified": "^1",
     "@base-ui/react": "^1.6.0",
     "@tailwindcss/postcss": "^4.3.0",
     "class-variance-authority": "^0.7.1",

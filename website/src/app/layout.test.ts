@@ -64,7 +64,6 @@ describe("RootDocument performance policy", () => {
   test("loads GTM early while keeping non-critical scripts lazy", () => {
     expect(ROOT_DOCUMENT_PERFORMANCE_POLICY.gtmStrategy).toBe("afterInteractive");
     expect(ROOT_DOCUMENT_PERFORMANCE_POLICY.livechatStrategy).toBe("lazyOnload");
-    expect(ROOT_DOCUMENT_PERFORMANCE_POLICY.mixpanelStrategy).toBe("lazyOnload");
   });
 
   test("defers livechat network work until idle or user intent", () => {

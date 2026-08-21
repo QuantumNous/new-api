@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.json(
       { success: false, message: "Failed to fetch current user" },
-      { status: 502, headers: { "cache-control": "no-store" } }
+      { status: 502, headers: { "cache-control": "no-store" } },
     );
   }
 }

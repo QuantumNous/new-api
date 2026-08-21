@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { create } from 'zustand'
-import { resetMixpanelIdentity } from '@/lib/analytics/mixpanel'
+import { resetAmplitudeIdentity } from '@/lib/analytics/amplitude'
 import { clearPendingPostLoginRedirect } from '@/features/auth/lib/storage'
 
 export type UserPermissions = {
@@ -120,7 +120,7 @@ export const useAuthStore = create<AuthState>()((set) => {
           if (!options?.preservePendingPostLoginRedirect) {
             clearPendingPostLoginRedirect()
           }
-          resetMixpanelIdentity()
+          resetAmplitudeIdentity()
           return {
             ...state,
             auth: { ...state.auth, user: null },

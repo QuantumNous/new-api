@@ -21,8 +21,8 @@ import { PartyPopper, Wallet2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { resumeAmplitudeAfterRecallClaim } from '@/lib/analytics/amplitude'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
-import { resumeMixpanelAfterRecallClaim } from '@/lib/analytics/mixpanel'
 import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
 import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
@@ -355,7 +355,7 @@ export function Wallet(props: WalletProps) {
       `${url.pathname}${sanitizedSearch}${url.hash}`
     )
     consumePendingPostLoginRedirect()
-    resumeMixpanelAfterRecallClaim()
+    resumeAmplitudeAfterRecallClaim()
   }, [props.initialRecallClaim])
 
   useEffect(() => {

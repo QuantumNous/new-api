@@ -28,7 +28,7 @@ import i18n from 'i18next'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
-import { identifyMixpanelUser } from '@/lib/analytics/mixpanel'
+import { identifyAmplitudeUser } from '@/lib/analytics/amplitude'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
 import {
@@ -68,7 +68,7 @@ export function useAuthRedirect() {
         const user = self.data as User
         freshUser = user
         auth.setUser(user)
-        identifyMixpanelUser(user)
+        identifyAmplitudeUser(user)
 
         // Update user ID if not already set
         if (user.id) {

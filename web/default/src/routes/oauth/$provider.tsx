@@ -28,6 +28,10 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import {
+  identifyAmplitudeUser,
+  trackAmplitudeEvent,
+} from '@/lib/analytics/amplitude'
+import {
   getAdsAttributionPayload,
   isPtFirstCallTopupExperiment,
   parseAttributionPayload,
@@ -38,10 +42,6 @@ import {
   trackAdsFunnelEvent,
   trackSignupConversion,
 } from '@/lib/analytics/gtag'
-import {
-  identifyMixpanelUser,
-  trackMixpanelEvent,
-} from '@/lib/analytics/mixpanel'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { trackYahooSignupConversion } from '@/lib/analytics/yahoo'
 import { api, getSelf } from '@/lib/api'
@@ -208,7 +208,7 @@ function OAuthCallback() {
             method: 'oauth',
             provider,
           })
-          trackMixpanelEvent('sign_up_completed', {
+          trackAmplitudeEvent('sign_up_completed', {
             sign_up_method: 'oauth',
             provider,
             platform: 'web',
@@ -225,7 +225,7 @@ function OAuthCallback() {
           }
           if (selfResponse?.success && selfResponse.data) {
             useAuthStore.getState().auth.setUser(selfResponse.data)
-            identifyMixpanelUser(selfResponse.data)
+            identifyAmplitudeUser(selfResponse.data)
             try {
               if (
                 typeof window !== 'undefined' &&

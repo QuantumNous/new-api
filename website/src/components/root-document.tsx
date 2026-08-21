@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { GoogleOneTapPrompt } from "@/components/google-one-tap-prompt";
 import { SiteConfigProvider } from "@/components/site-config-provider";
 import { buildLanguagePreferenceCookieWrites } from "@/lib/language-routing";
-import { MIXPANEL_BROWSER_SCRIPT } from "@/lib/mixpanel";
 import { localeLanguageTag, type Locale } from "@/lib/locales";
 import { SITE_ORIGIN, consoleUrl } from "@/lib/origins";
 import type { PublicSiteSettings } from "@/lib/public-site-settings";
@@ -17,7 +16,6 @@ const LIVECHAT_EMBED_SRC =
 
 export const ROOT_DOCUMENT_PERFORMANCE_POLICY = {
   gtmStrategy: "afterInteractive",
-  mixpanelStrategy: "lazyOnload",
   livechatStrategy: "lazyOnload",
 } as const;
 
@@ -42,7 +40,10 @@ export function buildLanguagePreferenceSyncScript(
   locale: Locale,
   cookieDomain?: string,
 ): string {
-  const cookieWrites = buildLanguagePreferenceCookieWrites(locale, cookieDomain);
+  const cookieWrites = buildLanguagePreferenceCookieWrites(
+    locale,
+    cookieDomain,
+  );
   return `(function(){try{var cookies=${JSON.stringify(cookieWrites)};for(var i=0;i<cookies.length;i++){document.cookie=cookies[i];}}catch(_){}})();`;
 }
 
@@ -150,18 +151,25 @@ export function RootDocument({
     return_to: "/",
   });
   const googleOneTapCookieDomain = googleOneTapStateCookieDomain();
-  const languageCookieDomain = process.env.COOKIE_SESSION_DOMAIN?.trim() || undefined;
+  const languageCookieDomain =
+    process.env.COOKIE_SESSION_DOMAIN?.trim() || undefined;
 
   return (
     <html lang={localeLanguageTag(lang)} suppressHydrationWarning>
       <body>
         <script
           dangerouslySetInnerHTML={{
-            __html: buildLanguagePreferenceSyncScript(lang, languageCookieDomain),
+            __html: buildLanguagePreferenceSyncScript(
+              lang,
+              languageCookieDomain,
+            ),
           }}
         />
         {bodyStart}
-        <Script id="google-tag-manager" strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.gtmStrategy}>
+        <Script
+          id="google-tag-manager"
+          strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.gtmStrategy}
+        >
           {`
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -170,7 +178,9 @@ export function RootDocument({
             })(window,document,'script','dataLayer',${JSON.stringify(GTM_IDS[0])});
             ${GTM_IDS.slice(1)
               .map(
-                (id) => `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                (
+                  id,
+                ) => `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
             j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
             'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
@@ -178,9 +188,6 @@ export function RootDocument({
               )
               .join("\n            ")}
           `}
-        </Script>
-        <Script id="mixpanel-consent-gated" strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.mixpanelStrategy}>
-          {MIXPANEL_BROWSER_SCRIPT}
         </Script>
         <noscript>
           {GTM_IDS.map((id) => (
@@ -204,7 +211,10 @@ export function RootDocument({
           )}
         />
         <SiteConfigProvider docsUrl={docsUrl}>{children}</SiteConfigProvider>
-        <Script id="solvea-livechat-bootstrap" strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.livechatStrategy}>
+        <Script
+          id="solvea-livechat-bootstrap"
+          strategy={ROOT_DOCUMENT_PERFORMANCE_POLICY.livechatStrategy}
+        >
           {LIVECHAT_BOOTSTRAP_SCRIPT}
         </Script>
       </body>
