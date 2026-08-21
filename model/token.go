@@ -14,6 +14,7 @@ import (
 type Token struct {
 	Id                 int            `json:"id"`
 	UserId             int            `json:"user_id" gorm:"index"`
+	Username           string         `json:"username" gorm:"->"` // 所属用户名，JOIN users 只读填充
 	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
 	Status             int            `json:"status" gorm:"default:1"`
 	Name               string         `json:"name" gorm:"index" `
@@ -210,6 +211,56 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 
 	// 再分页查数据
 	err = baseQuery.Order("id desc").Offset(offset).Limit(limit).Find(&tokens).Error
+	if err != nil {
+		common.SysError("failed to search tokens: " + err.Error())
+		return nil, 0, errors.New("搜索令牌失败")
+	}
+	return tokens, total, nil
+}
+
+// SearchTokensAdmin 管理员搜索所有令牌，支持可选 user_id 筛选。
+// user_id 为 0 时不按用户过滤。
+func SearchTokensAdmin(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+	if limit <= 0 || limit > searchHardLimit {
+		limit = searchHardLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	if token != "" {
+		token = strings.TrimPrefix(token, "sk-")
+	}
+
+	baseQuery := DB.Table("tokens").
+		Select("tokens.*, users.username").
+		Joins("LEFT JOIN users ON tokens.user_id = users.id")
+	if userId != 0 {
+		baseQuery = baseQuery.Where("tokens.user_id = ?", userId)
+	}
+
+	if keyword != "" {
+		keywordPattern, err := sanitizeLikePattern(keyword)
+		if err != nil {
+			return nil, 0, err
+		}
+		baseQuery = baseQuery.Where("tokens.name LIKE ? ESCAPE '!'", keywordPattern)
+	}
+	if token != "" {
+		tokenPattern, err := sanitizeLikePattern(token)
+		if err != nil {
+			return nil, 0, err
+		}
+		baseQuery = baseQuery.Where("tokens."+commonKeyCol+" LIKE ? ESCAPE '!'", tokenPattern)
+	}
+
+	err = baseQuery.Count(&total).Error
+	if err != nil {
+		common.SysError("failed to count search tokens: " + err.Error())
+		return nil, 0, errors.New("搜索令牌失败")
+	}
+
+	err = baseQuery.Order("tokens.id desc").Offset(offset).Limit(limit).Find(&tokens).Error
 	if err != nil {
 		common.SysError("failed to search tokens: " + err.Error())
 		return nil, 0, errors.New("搜索令牌失败")
@@ -441,6 +492,33 @@ func CountUserTokens(userId int) (int64, error) {
 	return total, err
 }
 
+// GetAllTokensAdmin 管理员查看所有令牌，可选按 user_id 筛选。
+// user_id 为 0 时不按用户过滤，返回全系统令牌。
+func GetAllTokensAdmin(userId int, offset int, limit int) ([]*Token, error) {
+	var tokens []*Token
+	query := DB.Table("tokens").
+		Select("tokens.*, users.username").
+		Joins("LEFT JOIN users ON tokens.user_id = users.id").
+		Order("tokens.id desc").
+		Limit(limit).Offset(offset)
+	if userId != 0 {
+		query = query.Where("tokens.user_id = ?", userId)
+	}
+	err := query.Find(&tokens).Error
+	return tokens, err
+}
+
+// CountTokensAdmin 管理员统计令牌数量，可选按 user_id 筛选。
+func CountTokensAdmin(userId int) (int64, error) {
+	var total int64
+	query := DB.Model(&Token{})
+	if userId != 0 {
+		query = query.Where("user_id = ?", userId)
+	}
+	err := query.Count(&total).Error
+	return total, err
+}
+
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
 func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	if len(ids) == 0 {
@@ -470,10 +548,54 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	return len(tokens), nil
 }
 
+// BatchDeleteTokensAdmin 管理员批量删除令牌（不带 userId 过滤），返回成功删除数量。
+// 清理被删令牌的 Redis 缓存。
+func BatchDeleteTokensAdmin(ids []int) (int, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("ids 不能为空！")
+	}
+
+	tx := DB.Begin()
+
+	var tokens []Token
+	if err := tx.Where("id IN (?)", ids).Find(&tokens).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Where("id IN (?)", ids).Delete(&Token{}).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	if common.RedisEnabled {
+		gopool.Go(func() {
+			for _, t := range tokens {
+				_ = cacheDeleteToken(t.Key)
+			}
+		})
+	}
+
+	return len(tokens), nil
+}
+
 func GetTokenKeysByIds(ids []int, userId int) ([]Token, error) {
 	var tokens []Token
 	err := DB.Select("id", commonKeyCol).
 		Where("user_id = ? AND id IN (?)", userId, ids).
+		Find(&tokens).Error
+	return tokens, err
+}
+
+// GetTokenKeysByIdsAdmin 管理员按 ID 列表获取令牌 Key（不校验 user_id）。
+func GetTokenKeysByIdsAdmin(ids []int) ([]Token, error) {
+	var tokens []Token
+	err := DB.Select("id", "user_id", commonKeyCol).
+		Where("id IN (?)", ids).
 		Find(&tokens).Error
 	return tokens, err
 }

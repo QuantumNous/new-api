@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import type { Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -46,6 +46,7 @@ import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { getApiKeys, searchApiKeys } from '../api'
+import { searchUserOptions } from '@/features/users/api'
 import {
   API_KEY_STATUS,
   API_KEY_STATUS_OPTIONS,
@@ -188,9 +189,20 @@ function ApiKeysMobileList({
 
 export function ApiKeysTable() {
   const { t } = useTranslation()
-  const { refreshTrigger } = useApiKeys()
+  const { refreshTrigger, isRoot } = useApiKeys()
   const [now, setNow] = useState(() => Date.now())
-  const columns = useApiKeysColumns(now)
+
+  const columns = useApiKeysColumns(now, isRoot)
+
+  // 一次性加载所有用户（含令牌数），供用户名筛选全量渲染
+  const { data: userOptions } = useQuery({
+    queryKey: ['admin-user-options'],
+    queryFn: () => searchUserOptions(true), // 用户名筛选需要每用户令牌数及总数
+    enabled: isRoot,
+    staleTime: 60_000,
+    select: (res) =>
+      res.success && res.data ? res.data : { options: [], total: 0 },
+  })
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -216,8 +228,28 @@ export function ApiKeysTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: '_tokenSearch', searchKey: 'token', type: 'string' },
+      ...(isRoot
+        ? [{ columnId: 'username', searchKey: 'user_id', type: 'array' as const }]
+        : []),
     ],
   })
+
+  const userIdFilter = useMemo(
+    () => (columnFilters.find((f) => f.id === 'username')?.value as string[]) || [],
+    [columnFilters]
+  )
+
+  const usernameFilterOptions = useMemo(() => {
+    const users = (userOptions?.options ?? []).map((option) => ({
+      label: option.username,
+      value: String(option.user_id),
+      count: option.count,
+    }))
+    return [
+      { label: t('All users'), value: 'all', count: userOptions?.total ?? 0 },
+      ...users,
+    ]
+  }, [userOptions, t, userIdFilter])
 
   const {
     value: tokenFilter,
@@ -240,18 +272,28 @@ export function ApiKeysTable() {
       globalFilter,
       tokenFilter,
       refreshTrigger,
+      isRoot,
+      columnFilters,
     ],
     queryFn: async () => {
+      const userIdFilter = columnFilters.find((f) => f.id === 'username')
+        ?.value as string[] | undefined
+      const userId =
+        userIdFilter?.[0] && userIdFilter[0] !== 'all'
+          ? Number(userIdFilter[0])
+          : undefined
       const result = shouldSearch
         ? await searchApiKeys({
             keyword: globalFilter,
             token: tokenFilter,
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
+            user_id: userId,
           })
         : await getApiKeys({
             p: pagination.pageIndex + 1,
             size: pagination.pageSize,
+            user_id: userId,
           })
 
       if (!result.success) {
@@ -324,6 +366,16 @@ export function ApiKeysTable() {
             options: API_KEY_STATUS_OPTIONS,
             singleSelect: true,
           },
+          ...(isRoot
+            ? [
+                {
+                  columnId: 'username',
+                  title: t('Username'),
+                  options: usernameFilterOptions,
+                  singleSelect: true,
+                },
+              ]
+            : []),
         ],
       }}
       mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}

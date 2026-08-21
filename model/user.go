@@ -490,6 +490,67 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 	return users, total, nil
 }
 
+// UserOption 表示筛选下拉中的一个用户选项及其令牌数量。
+type UserOption struct {
+	UserId   int    `json:"user_id"`
+	Username string `json:"username"`
+	Count    int64  `json:"count"`
+}
+
+// SearchUserOptions 返回用户选项（user_id + username，可选含令牌数量 count）。
+// includeCount 为 false 时不统计令牌数量（省去 JOIN + COUNT），供无需数量的场景使用。
+func SearchUserOptions(includeCount bool) (options []UserOption, totalTokens int64, err error) {
+	// 无需令牌数量：直接查用户 id + username。
+	if !includeCount {
+		var rows []struct {
+			UserId   int
+			Username string
+		}
+		err = DB.Table("users").
+			Select("id AS user_id, username").
+			Where("deleted_at IS NULL").
+			Order("username asc").
+			Scan(&rows).Error
+		if err != nil {
+			return nil, 0, err
+		}
+		options = make([]UserOption, 0, len(rows))
+		for _, row := range rows {
+			options = append(options, UserOption{UserId: row.UserId, Username: row.Username})
+		}
+		return options, 0, nil
+	}
+
+	// 与下方按用户分组统计保持同一作用域：仅统计可见（未软删除）用户的令牌
+	if err = DB.Model(&Token{}).
+		Joins("JOIN users ON tokens.user_id = users.id AND users.deleted_at IS NULL").
+		Count(&totalTokens).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []struct {
+		UserId   int
+		Username string
+		Count    int64
+	}
+	err = DB.Table("users").
+		Select("users.id AS user_id, users.username, COUNT(tokens.id) AS count").
+		Joins("LEFT JOIN tokens ON tokens.user_id = users.id AND tokens.deleted_at IS NULL").
+		Where("users.deleted_at IS NULL").
+		Group("users.id, users.username").
+		Order("users.username asc").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	options = make([]UserOption, 0, len(rows))
+	for _, row := range rows {
+		options = append(options, UserOption{UserId: row.UserId, Username: row.Username, Count: row.Count})
+	}
+	return options, totalTokens, nil
+}
+
 func GetUserById(id int, selectAll bool) (*User, error) {
 	if id == 0 {
 		return nil, errors.New("id 为空！")

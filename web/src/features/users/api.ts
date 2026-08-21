@@ -83,6 +83,23 @@ export async function searchUsers(
 }
 
 /**
+ * Get username options for filter dropdowns (lightweight: username column only)
+ */
+export async function searchUserOptions(
+  includeTokenCounts = false
+): Promise<
+  ApiResponse<{
+    options: { user_id: number; username: string; count: number }[]
+    total: number
+  }>
+> {
+  const queryParams = new URLSearchParams()
+  queryParams.set('include_token_counts', String(includeTokenCounts))
+  const res = await api.get(`/api/user/options?${queryParams.toString()}`)
+  return res.data
+}
+
+/**
  * Get single user by ID
  */
 export async function getUser(id: number): Promise<ApiResponse<User>> {

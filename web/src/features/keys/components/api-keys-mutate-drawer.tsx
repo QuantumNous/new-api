@@ -50,6 +50,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
@@ -66,6 +67,8 @@ import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
+import { searchUserOptions } from '@/features/users/api'
 
 import {
   createApiKey,
@@ -103,7 +106,35 @@ export function ApiKeysMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const currentRowId = currentRow?.id
-  const { triggerRefresh } = useApiKeys()
+  const { triggerRefresh, isRoot } = useApiKeys()
+  const authUser = useAuthStore((s) => s.auth.user)
+  const [targetUserId, setTargetUserId] = useState<number>(
+    () => authUser?.id ?? 0
+  )
+
+  // 一次性加载所有用户，供目标用户选择器全量渲染。
+  // 独立 queryKey + staleTime 0：每次打开抽屉都重新请求；无需令牌数量。
+  const { data: userOptions } = useQuery({
+    queryKey: ['admin-user-options', 'target'],
+    queryFn: () => searchUserOptions(), // 目标用户选择器无需令牌数量（默认不统计）
+    enabled: open && isRoot,
+    staleTime: 0,
+    select: (res) =>
+      res.success && res.data ? res.data : { options: [], total: 0 },
+  })
+
+  // 目标用户选项：确保默认目标（当前登录用户）始终在列表中，避免加载失败时显示原始 id。
+  const targetUserOptions = useMemo(() => {
+    const options = (userOptions?.options ?? []).map((option) => ({
+      value: String(option.user_id),
+      label: option.username,
+    }))
+    if (authUser && !options.some((o) => o.value === String(authUser.id))) {
+      options.unshift({ value: String(authUser.id), label: authUser.username })
+    }
+    return options
+  }, [userOptions, authUser])
+
   const { status, loading: statusLoading } = useStatus()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -204,6 +235,10 @@ export function ApiKeysMutateDrawer({
       setInitializedTarget(null)
       return
     }
+    // Reset targetUserId to self when drawer opens
+    if (isRoot && !isUpdate && authUser?.id) {
+      setTargetUserId(authUser.id)
+    }
     if (
       !groupsFetched ||
       groupsFetching ||
@@ -252,6 +287,8 @@ export function ApiKeysMutateDrawer({
     availableAutoGroupNames,
     maxAutoGroups,
     initializedTarget,
+    isRoot,
+    authUser?.id,
   ])
 
   const formTarget =
@@ -306,6 +343,7 @@ export function ApiKeysMutateDrawer({
               i === 0 && data.name
                 ? data.name
                 : `${data.name || 'default'}-${Math.random().toString(36).slice(2, 8)}`,
+            ...(isRoot && { user_id: targetUserId }),
           })
           if (result.success) {
             successCount++
@@ -411,6 +449,21 @@ export function ApiKeysMutateDrawer({
                   </FormItem>
                 )}
               />
+
+              {isRoot && !isUpdate && (
+                <FormItem>
+                  <FormLabel>{t('Target User')}</FormLabel>
+                  <FormControl>
+                    <ComboboxInput
+                      className='w-full'
+                      placeholder={t('Search users...')}
+                      value={String(targetUserId)}
+                      onValueChange={(v) => setTargetUserId(Number(v))}
+                      options={targetUserOptions}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
 
               <FormField
                 control={form.control}
