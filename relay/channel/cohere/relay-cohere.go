@@ -128,7 +128,7 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 			var openaiResp dto.ChatCompletionsStreamResponse
 			openaiResp.Id = responseId
-			openaiResp.Created = createdTime
+			openaiResp.Created = dto.UnixTimeRaw(createdTime)
 			openaiResp.Object = "chat.completion.chunk"
 			openaiResp.Model = info.UpstreamModelName
 			if cohereResp.IsFinished {
@@ -193,7 +193,7 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	var openaiResp dto.TextResponse
 	openaiResp.Id = cohereResp.ResponseId
-	openaiResp.Created = createdTime
+	openaiResp.Created = dto.UnixTimeRaw(createdTime)
 	openaiResp.Object = "chat.completion"
 	openaiResp.Model = info.UpstreamModelName
 	openaiResp.Usage = usage

@@ -250,7 +250,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	wantsBase64 := imageReq != nil && strings.EqualFold(imageReq.ResponseFormat, "b64_json")
 
 	imageResponse := dto.ImageResponse{
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Data:    make([]dto.ImageData, 0),
 	}
 

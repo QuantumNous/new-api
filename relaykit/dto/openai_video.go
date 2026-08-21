@@ -20,9 +20,10 @@ type OpenAIVideo struct {
 	Model              string            `json:"model"`
 	Status             string            `json:"status"` // Should use VideoStatus constants: VideoStatusQueued, VideoStatusInProgress, VideoStatusCompleted, VideoStatusFailed
 	Progress           int               `json:"progress"`
-	CreatedAt          int64             `json:"created_at"`
-	CompletedAt        int64             `json:"completed_at,omitempty"`
-	ExpiresAt          int64             `json:"expires_at,omitempty"`
+	CreatedAt          UnixTime          `json:"created_at"`
+	UpdatedAt          UnixTime          `json:"updated_at,omitempty"`
+	CompletedAt        UnixTime          `json:"completed_at,omitempty"`
+	ExpiresAt          UnixTime          `json:"expires_at,omitempty"`
 	Seconds            string            `json:"seconds,omitempty"`
 	Size               string            `json:"size,omitempty"`
 	RemixedFromVideoID string            `json:"remixed_from_video_id,omitempty"`

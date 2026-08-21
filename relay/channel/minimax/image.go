@@ -155,7 +155,7 @@ func normalizeMiniMaxResponseFormat(responseFormat string) string {
 
 func responseMiniMax2OpenAIImage(response *MiniMaxImageResponse, info *relaycommon.RelayInfo) (*dto.ImageResponse, error) {
 	imageResponse := &dto.ImageResponse{
-		Created: info.StartTime.Unix(),
+		Created: dto.UnixTimeRaw(info.StartTime.Unix()),
 	}
 
 	for _, imageURL := range response.Data.ImageURLs {

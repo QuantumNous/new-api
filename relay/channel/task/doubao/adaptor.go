@@ -95,8 +95,8 @@ type responseTask struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
 	} `json:"error"`
-	CreatedAt int64 `json:"created_at"`
-	UpdatedAt int64 `json:"updated_at"`
+	CreatedAt dto.UnixTime `json:"created_at"`
+	UpdatedAt dto.UnixTime `json:"updated_at"`
 }
 
 // ============================
@@ -231,7 +231,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
-	ov.CreatedAt = time.Now().Unix()
+	ov.CreatedAt = dto.UnixTimeRaw(time.Now().Unix())
 	ov.Model = info.OriginModelName
 
 	c.JSON(http.StatusOK, ov)
@@ -357,8 +357,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
 	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
-	openAIVideo.CreatedAt = originTask.CreatedAt
-	openAIVideo.CompletedAt = originTask.UpdatedAt
+	openAIVideo.CreatedAt = dto.UnixTimeRaw(originTask.CreatedAt)
+	if updated := dto.UnixTimeRawNonZero(originTask.UpdatedAt); updated != nil {
+		openAIVideo.UpdatedAt = updated
+		openAIVideo.CompletedAt = updated
+	}
 	openAIVideo.Model = originTask.Properties.OriginModelName
 
 	if dResp.Status == "failed" {

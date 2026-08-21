@@ -206,7 +206,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
-	ov.CreatedAt = time.Now().Unix()
+	ov.CreatedAt = dto.UnixTimeRaw(time.Now().Unix())
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
 	return jResp.Data.TaskID, responseBody, nil
@@ -463,8 +463,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
 	openAIVideo.SetMetadata("url", jimengResp.Data.VideoUrl)
-	openAIVideo.CreatedAt = originTask.CreatedAt
-	openAIVideo.CompletedAt = originTask.UpdatedAt
+	openAIVideo.CreatedAt = dto.UnixTimeRaw(originTask.CreatedAt)
+	if updated := dto.UnixTimeRawNonZero(originTask.UpdatedAt); updated != nil {
+		openAIVideo.UpdatedAt = updated
+		openAIVideo.CompletedAt = updated
+	}
 
 	if jimengResp.Code != 10000 {
 		openAIVideo.Error = &dto.OpenAIVideoError{

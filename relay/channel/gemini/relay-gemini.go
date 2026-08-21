@@ -217,7 +217,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		response, isStop := streamResponseGeminiChat2OpenAI(geminiResponse)
 
 		response.Id = id
-		response.Created = createAt
+		response.Created = dto.UnixTimeRaw(createAt)
 		response.Model = info.UpstreamModelName
 		if response.IsToolCall() {
 			finishReason = constant.FinishReasonToolCalls
@@ -253,7 +253,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		logger.LogDebug(c, "info.SendResponseCount = %d", info.SendResponseCount)
 		if info.SendResponseCount == 0 {
 			// send first response
-			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
+			emptyResponse := helper.GenerateStartEmptyResponse(id, dto.UnixTimeRaw(createAt), info.UpstreamModelName, nil)
 			if response.IsToolCall() {
 				if len(emptyResponse.Choices) > 0 && len(response.Choices) > 0 {
 					toolCalls := response.Choices[0].Delta.ToolCalls
@@ -288,7 +288,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		}
 		if isStop {
 			if info.RelayFormat != types.RelayFormatClaude {
-				_ = handleStream(c, info, helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason))
+				_ = handleStream(c, info, helper.GenerateStopResponse(id, dto.UnixTimeRaw(createAt), info.UpstreamModelName, finishReason))
 			}
 		}
 		return true
@@ -298,9 +298,9 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		return usage, err
 	}
 
-	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)
+	response := helper.GenerateFinalUsageResponse(id, dto.UnixTimeRaw(createAt), info.UpstreamModelName, *usage)
 	if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil && !info.ClaudeConvertInfo.Done {
-		response = helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason)
+		response = helper.GenerateStopResponse(id, dto.UnixTimeRaw(createAt), info.UpstreamModelName, finishReason)
 		response.Usage = usage
 	}
 	handleErr := handleFinalStream(c, info, response)
@@ -452,7 +452,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 
 	// convert to openai format response
 	openAIResponse := dto.ImageResponse{
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Data:    make([]dto.ImageData, 0, len(geminiResponse.Predictions)),
 	}
 

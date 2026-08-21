@@ -349,7 +349,7 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 	response := dto.OpenAITextResponse{
 		Id:      helper.GetResponseID(c),
 		Object:  "chat.completion",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Model:   info.UpstreamModelName,
 		Choices: []dto.OpenAITextResponseChoice{{
 			Index: 0,

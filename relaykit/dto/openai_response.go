@@ -25,7 +25,7 @@ func (s *SimpleResponse) GetOpenAIError() *types.OpenAIError {
 type TextResponse struct {
 	Id      string                     `json:"id"`
 	Object  string                     `json:"object"`
-	Created int64                      `json:"created"`
+	Created UnixTime                   `json:"created"`
 	Model   string                     `json:"model"`
 	Choices []OpenAITextResponseChoice `json:"choices"`
 	Usage   `json:"usage"`
@@ -41,7 +41,7 @@ type OpenAITextResponse struct {
 	Id      string                     `json:"id"`
 	Model   string                     `json:"model"`
 	Object  string                     `json:"object"`
-	Created any                        `json:"created"`
+	Created UnixTime                   `json:"created"`
 	Choices []OpenAITextResponseChoice `json:"choices"`
 	Error   any                        `json:"error,omitempty"`
 	Usage   `json:"usage"`
@@ -142,7 +142,7 @@ type FunctionResponse struct {
 type ChatCompletionsStreamResponse struct {
 	Id                string                                `json:"id"`
 	Object            string                                `json:"object"`
-	Created           int64                                 `json:"created"`
+	Created           UnixTime                              `json:"created"`
 	Model             string                                `json:"model"`
 	SystemFingerprint *string                               `json:"system_fingerprint"`
 	Choices           []ChatCompletionsStreamResponseChoice `json:"choices"`
@@ -244,13 +244,13 @@ type Usage struct {
 }
 
 type OpenAIVideoResponse struct {
-	Id        string `json:"id" example:"file-abc123"`
-	Object    string `json:"object" example:"file"`
-	Bytes     int64  `json:"bytes" example:"120000"`
-	CreatedAt int64  `json:"created_at" example:"1677610602"`
-	ExpiresAt int64  `json:"expires_at" example:"1677614202"`
-	Filename  string `json:"filename" example:"mydata.jsonl"`
-	Purpose   string `json:"purpose" example:"fine-tune"`
+	Id        string   `json:"id" example:"file-abc123"`
+	Object    string   `json:"object" example:"file"`
+	Bytes     int64    `json:"bytes" example:"120000"`
+	CreatedAt UnixTime `json:"created_at" example:"1677610602"`
+	ExpiresAt UnixTime `json:"expires_at" example:"1677614202"`
+	Filename  string   `json:"filename" example:"mydata.jsonl"`
+	Purpose   string   `json:"purpose" example:"fine-tune"`
 }
 
 type InputTokenDetails struct {
@@ -293,7 +293,7 @@ type OutputTokenDetails struct {
 type OpenAIResponsesResponse struct {
 	ID                 string             `json:"id"`
 	Object             string             `json:"object"`
-	CreatedAt          int                `json:"created_at"`
+	CreatedAt          UnixTime           `json:"created_at"`
 	Status             json.RawMessage    `json:"status"`
 	Error              any                `json:"error,omitempty"`
 	IncompleteDetails  *IncompleteDetails `json:"incomplete_details,omitempty"`

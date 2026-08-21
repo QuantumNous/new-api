@@ -80,7 +80,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 	fullTextResponse := dto.OpenAITextResponse{
 		Id:      id,
 		Object:  "chat.completion",
-		Created: created,
+		Created: dto.UnixTimeRaw(created),
 		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Candidates)),
 	}
 	isToolCall := false
@@ -317,7 +317,7 @@ func (s *GeminiToChatStreamState) ConvertChunk(geminiResponse *dto.GeminiChatRes
 		return nil
 	}
 	response.Id = s.id
-	response.Created = s.created
+	response.Created = dto.UnixTimeRaw(s.created)
 	response.Model = model
 	response.Usage = usage
 
@@ -371,7 +371,7 @@ func (s *GeminiToChatStreamState) terminalChunk(model string) *dto.ChatCompletio
 	return &dto.ChatCompletionsStreamResponse{
 		Id:      s.id,
 		Object:  "chat.completion.chunk",
-		Created: s.created,
+		Created: dto.UnixTimeRaw(s.created),
 		Model:   model,
 		Choices: []dto.ChatCompletionsStreamResponseChoice{
 			{

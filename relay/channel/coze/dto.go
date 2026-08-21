@@ -1,6 +1,10 @@
 package coze
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/QuantumNous/new-api/relaykit/dto"
+)
 
 type CozeError struct {
 	Code    int    `json:"code"`
@@ -38,7 +42,7 @@ type CozeChatResponseData struct {
 	Id             string        `json:"id"`
 	ConversationId string        `json:"conversation_id"`
 	BotId          string        `json:"bot_id"`
-	CreatedAt      int64         `json:"created_at"`
+	CreatedAt      dto.UnixTime  `json:"created_at"`
 	LastError      CozeError     `json:"last_error"`
 	Status         string        `json:"status"`
 	Usage          CozeChatUsage `json:"usage"`
@@ -65,9 +69,9 @@ type CozeChatV3MessageDetail struct {
 	ChatId           string          `json:"chat_id"`
 	Content          json.RawMessage `json:"content"`
 	MetaData         json.RawMessage `json:"meta_data"`
-	CreatedAt        int64           `json:"created_at"`
+	CreatedAt        dto.UnixTime    `json:"created_at"`
 	SectionId        string          `json:"section_id"`
-	UpdatedAt        int64           `json:"updated_at"`
+	UpdatedAt        dto.UnixTime    `json:"updated_at"`
 	ContentType      string          `json:"content_type"`
 	ConversationId   string          `json:"conversation_id"`
 	ReasoningContent string          `json:"reasoning_content"`

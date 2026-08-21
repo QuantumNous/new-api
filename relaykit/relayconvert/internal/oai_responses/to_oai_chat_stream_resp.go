@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -13,7 +12,7 @@ import (
 type ResponsesToChatStreamState struct {
 	ID           string
 	Model        string
-	Created      int64
+	Created      dto.UnixTime
 	IncludeUsage bool
 
 	Usage *dto.Usage
@@ -49,7 +48,6 @@ type responsesStreamTool struct {
 func NewResponsesToChatStreamState(model string, includeUsage bool) *ResponsesToChatStreamState {
 	return &ResponsesToChatStreamState{
 		Model:                    model,
-		Created:                  time.Now().Unix(),
 		IncludeUsage:             includeUsage,
 		Usage:                    &dto.Usage{},
 		toolByKey:                make(map[string]*responsesStreamTool),
@@ -128,8 +126,8 @@ func (s *ResponsesToChatStreamState) applyResponseMetadata(response *dto.OpenAIR
 	if response.Model != "" {
 		s.Model = response.Model
 	}
-	if response.CreatedAt != 0 {
-		s.Created = int64(response.CreatedAt)
+	if !dto.UnixTimeEmpty(response.CreatedAt) {
+		s.Created = response.CreatedAt
 	}
 	if response.Usage != nil {
 		s.Usage = UsageFromResponsesUsage(response.Usage)

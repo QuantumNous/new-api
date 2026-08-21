@@ -270,7 +270,7 @@ func asyncTaskWait(c *gin.Context, info *relaycommon.RelayInfo, taskID string) (
 
 func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, originBody []byte, info *relaycommon.RelayInfo, responseFormat string) *dto.ImageResponse {
 	imageResponse := dto.ImageResponse{
-		Created: info.StartTime.Unix(),
+		Created: dto.UnixTimeRaw(info.StartTime.Unix()),
 	}
 
 	if len(response.Output.Results) > 0 {

@@ -31,13 +31,13 @@ type Error struct {
 }
 
 type BaiduChatResponse struct {
-	Id               string    `json:"id"`
-	Object           string    `json:"object"`
-	Created          int64     `json:"created"`
-	Result           string    `json:"result"`
-	IsTruncated      bool      `json:"is_truncated"`
-	NeedClearHistory bool      `json:"need_clear_history"`
-	Usage            dto.Usage `json:"usage"`
+	Id               string       `json:"id"`
+	Object           string       `json:"object"`
+	Created          dto.UnixTime `json:"created"`
+	Result           string       `json:"result"`
+	IsTruncated      bool         `json:"is_truncated"`
+	NeedClearHistory bool         `json:"need_clear_history"`
+	Usage            dto.Usage    `json:"usage"`
 	Error
 }
 
@@ -60,7 +60,7 @@ type BaiduEmbeddingData struct {
 type BaiduEmbeddingResponse struct {
 	Id      string               `json:"id"`
 	Object  string               `json:"object"`
-	Created int64                `json:"created"`
+	Created dto.UnixTime         `json:"created"`
 	Data    []BaiduEmbeddingData `json:"data"`
 	Usage   dto.Usage            `json:"usage"`
 	Error
