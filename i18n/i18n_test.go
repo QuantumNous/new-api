@@ -33,3 +33,20 @@ func TestGetLangFromContextFallsThroughInvalidUserSettingToSharedLocaleCookie(t 
 
 	require.Equal(t, LangJa, GetLangFromContext(ctx))
 }
+
+func TestTranslateUsernameOrPasswordErrorAcrossFullLocales(t *testing.T) {
+	require.NoError(t, Init())
+
+	cases := map[string]string{
+		LangEn:   "Username or password is incorrect, or the account has been banned for policy violations",
+		LangZhCN: "用户名或密码错误，或因违规行为被封禁",
+		LangZhTW: "使用者名或密碼錯誤，或因違規行為被封禁",
+		LangPt:   "Nome de usuário ou senha incorretos, ou a conta foi banida por violação de regras",
+	}
+
+	for lang, expected := range cases {
+		t.Run(lang, func(t *testing.T) {
+			require.Equal(t, expected, Translate(lang, MsgUserUsernameOrPasswordError))
+		})
+	}
+}

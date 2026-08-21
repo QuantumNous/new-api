@@ -90,7 +90,7 @@ user.password_login_disabled: "O login por senha foi desabilitado pelo administr
 user.register_disabled: "O registro de novos usuários foi desabilitado pelo administrador"
 user.password_register_disabled: "O registro por senha foi desabilitado pelo administrador; use verificação por conta de terceiros"
 user.username_or_password_empty: "Nome de usuário ou senha vazio"
-user.username_or_password_error: "Nome de usuário ou senha incorreto, ou o usuário foi banido"
+user.username_or_password_error: "Nome de usuário ou senha incorretos, ou a conta foi banida por violação de regras"
 user.email_or_password_empty: "E-mail ou senha vazio!"
 user.exists: "O nome de usuário já existe ou foi excluído"
 user.not_exists: "O usuário não existe"
