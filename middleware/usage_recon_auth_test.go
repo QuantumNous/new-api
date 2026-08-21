@@ -64,3 +64,27 @@ func TestUsageReconAuth(t *testing.T) {
 		}
 	})
 }
+
+func TestCustomerUsageAuthUsesDedicatedCredential(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	os.Setenv(UsageReconTokenEnv, "channel-secret")
+	os.Setenv(CustomerUsageTokenEnv, "customer-secret")
+	t.Cleanup(func() { os.Unsetenv(UsageReconTokenEnv); os.Unsetenv(CustomerUsageTokenEnv) })
+	r := gin.New()
+	r.Use(CustomerUsageAuth())
+	r.GET("/usage/customer-summary", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+	request := httptest.NewRequest(http.MethodGet, "/usage/customer-summary", nil)
+	request.Header.Set("Authorization", "Bearer channel-secret")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, request)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("channel token status=%d", rec.Code)
+	}
+	request = httptest.NewRequest(http.MethodGet, "/usage/customer-summary", nil)
+	request.Header.Set("Authorization", "Bearer customer-secret")
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, request)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("customer token status=%d", rec.Code)
+	}
+}

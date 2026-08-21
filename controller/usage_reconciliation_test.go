@@ -31,7 +31,7 @@ func setupUsageDB(t *testing.T) {
 		t.Fatalf("sql db: %v", err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.Log{}, &model.Channel{}, &model.Token{}, &model.Ability{}); err != nil {
+	if err := db.AutoMigrate(&model.Log{}, &model.Channel{}, &model.Token{}, &model.Ability{}, &model.User{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	model.DB = db

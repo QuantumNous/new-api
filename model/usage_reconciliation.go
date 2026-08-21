@@ -30,6 +30,8 @@ type blockRunModelChannelRow struct {
 // and other wide diagnostic columns to keep transfer light on large windows.
 const usageReconLogColumns = "id, channel_id, token_id, token_name, model_name, prompt_tokens, completion_tokens, quota, use_time, is_stream, request_id, upstream_request_id, created_at, other"
 
+const customerUsageReconLogColumns = "id, user_id, channel_id, token_id, token_name, model_name, prompt_tokens, completion_tokens, quota, use_time, request_id, upstream_request_id, created_at, other"
+
 // ChannelTypesByNamePrefix returns every channel type number whose display name
 // in constant.ChannelTypeNames starts with the requested prefix
 // (case-insensitive).
@@ -287,6 +289,32 @@ func QueryBlockRunUsageLogsAfterCursor(channelIDs []int, startUnix, endUnix int6
 		Where("created_at >= ?", cursorCreatedAt).
 		Where("(created_at > ? OR (created_at = ? AND id > ?))", cursorCreatedAt, cursorCreatedAt, cursorID).
 		Select(usageReconLogColumns).
+		Order("created_at asc, id asc").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
+}
+
+func customerUsageQuery(customerID int, startUnix, endUnix int64) *gorm.DB {
+	tx := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND created_at >= ? AND created_at < ? AND type = ?", customerID, startUnix, endUnix, LogTypeConsume)
+	if LOG_DB.Dialector.Name() == "mysql" {
+		tx = tx.Clauses(hints.ForceIndex("idx_logs_user_created_type"))
+	}
+	return tx
+}
+
+// QueryCustomerUsageLogsAfterCursor returns only successful consumption facts for
+// one Customer. Refund and manual adjustment accounting is outside this feed.
+func QueryCustomerUsageLogsAfterCursor(customerID int, startUnix, endUnix int64, limit int, cursorCreatedAt int64, cursorID int) ([]*Log, error) {
+	if customerID <= 0 {
+		return nil, nil
+	}
+	var logs []*Log
+	err := customerUsageQuery(customerID, startUnix, endUnix).
+		Where("created_at >= ?", cursorCreatedAt).
+		Where("(created_at > ? OR (created_at = ? AND id > ?))", cursorCreatedAt, cursorCreatedAt, cursorID).
+		Select(customerUsageReconLogColumns).
 		Order("created_at asc, id asc").
 		Limit(limit).
 		Find(&logs).Error
