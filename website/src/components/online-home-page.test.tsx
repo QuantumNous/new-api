@@ -22,7 +22,7 @@ describe("OnlineHomePage", () => {
       await OnlineHomePage({ locale: "en" }),
     );
 
-    expect(hrefBeforeText(html, "Get up to 40 USD free credits")).toBe(
+    expect(hrefBeforeText(html, "Get Up to $40 in Free Credits")).toBe(
       overviewHref,
     );
     expect(hrefBeforeText(html, "Get started")).toBe(signupHref);
@@ -34,7 +34,7 @@ describe("OnlineHomePage", () => {
       await OnlineHomePage({ locale: "en", hasConsoleSessionHint: true }),
     );
 
-    expect(hrefBeforeText(html, "Get up to 40 USD free credits")).toBe(
+    expect(hrefBeforeText(html, "Get Up to $40 in Free Credits")).toBe(
       overviewHref,
     );
     expect(hrefBeforeText(html, "Get started")).toBe(signupHref);
@@ -46,7 +46,7 @@ describe("OnlineHomePage", () => {
       await OnlineHomePage({ locale: "zh" }),
     );
 
-    expect(hrefBeforeText(html, "最高领取 40 美元免费额度")).toBe(
+    expect(hrefBeforeText(html, "最高领取 $40 免费额度")).toBe(
       "https://console.flatkey.ai/sign-up?redirect=%2Fdashboard%2Foverview&lng=zh",
     );
   });
