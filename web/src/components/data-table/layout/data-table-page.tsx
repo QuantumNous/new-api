@@ -41,6 +41,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
 
+import { ErrorState } from '@/components/error-state'
 import { PageFooterPortal } from '@/components/layout/components/page-footer'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
@@ -91,6 +92,19 @@ export type DataTablePageProps<TData> = {
    * Refetch / background loading — dims the table without removing rows.
    */
   isFetching?: boolean
+
+  /**
+   * Initial query error. When provided, replaces the table with a retryable
+   * error state. Consumers should omit this when stale data remains available.
+   */
+  error?: unknown
+
+  /**
+   * Optional copy and retry action for the query error state.
+   */
+  errorTitle?: string
+  errorDescription?: string
+  onRetry?: () => void
 
   /**
    * Empty-state title (used for both desktop {@link TableEmpty} and mobile fallback).
@@ -310,6 +324,7 @@ export type DataTablePageProps<TData> = {
 export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
   const isMobile = useMediaQuery('(max-width: 640px)')
   const showMobile = isMobile && !props.hideMobile
+  const hasError = props.error !== undefined && props.error !== null
 
   const [internalViewMode, setInternalViewMode] = useDataTableViewMode({
     storageKey: props.viewModeStorageKey,
@@ -331,7 +346,7 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
   const toolbarNode = renderToolbar(props, viewToggle)
   const mobileNode = renderMobile(props, showMobile, cardViewActive, viewMode)
   const desktopNode = renderDesktop(props, showMobile, cardViewActive, viewMode)
-  const paginationNode = renderPagination(props)
+  const paginationNode = hasError ? null : renderPagination(props)
 
   return (
     <>
@@ -344,14 +359,26 @@ export function DataTablePage<TData>(props: DataTablePageProps<TData>) {
         )}
       >
         {toolbarNode}
-        {mobileNode}
-        {desktopNode}
-        {props.afterTable}
+        {hasError ? (
+          <ErrorState
+            error={props.error}
+            title={props.errorTitle}
+            description={props.errorDescription}
+            onRetry={props.onRetry}
+            className='min-h-0 flex-1'
+          />
+        ) : (
+          <>
+            {mobileNode}
+            {desktopNode}
+            {props.afterTable}
+          </>
+        )}
       </div>
 
       {/* Bulk actions are typically a fixed-position toolbar; let the consumer
           handle its own visibility, we just gate it to non-mobile. */}
-      {!showMobile && props.bulkActions}
+      {!hasError && !showMobile && props.bulkActions}
 
       {paginationNode}
     </>

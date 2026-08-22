@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next'
+
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,6 +18,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ErrorState } from '@/components/error-state'
 import { Main } from '@/components/layout'
 import {
   CardStaggerContainer,
@@ -36,7 +39,8 @@ import { TwoFACard } from './components/two-fa-card'
 import { useProfile } from './hooks'
 
 export function Profile() {
-  const { profile, loading, refreshProfile } = useProfile()
+  const { t } = useTranslation()
+  const { profile, error, loading, fetchProfile, refreshProfile } = useProfile()
   const { status } = useStatus()
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
 
@@ -46,6 +50,20 @@ export function Profile() {
   )
   const turnstileSiteKey = status?.turnstile_site_key || ''
   const canConfigureSidebar = permissions?.sidebar_settings !== false
+
+  if (!loading && error && !profile) {
+    return (
+      <Main>
+        <ErrorState
+          error={error}
+          title={t('Failed to load profile')}
+          description={t('Please try again later.')}
+          onRetry={() => void fetchProfile()}
+          className='min-h-0 flex-1'
+        />
+      </Main>
+    )
+  }
 
   return (
     <Main>

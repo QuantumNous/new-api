@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { t } from 'i18next'
 
 import { getCustomOAuthProviders } from '../api'
 
@@ -25,7 +26,10 @@ export function useCustomOAuthProviders() {
     queryKey: ['custom-oauth-providers'],
     queryFn: async () => {
       const res = await getCustomOAuthProviders()
-      return res.data ?? []
+      if (!res.success || !Array.isArray(res.data)) {
+        throw new Error(res.message || t('Request failed') || 'Request failed')
+      }
+      return res.data
     },
   })
 }

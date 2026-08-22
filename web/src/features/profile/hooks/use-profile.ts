@@ -33,6 +33,7 @@ import type {
 
 export function useProfile() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
 
@@ -44,14 +45,17 @@ export function useProfile() {
       }
       const response = await getUserProfile()
 
-      if (response.success && response.data) {
-        setProfile(response.data)
+      if (!response.success || !response.data) {
+        throw new Error(response.message || i18next.t('Failed to load profile'))
       }
-    } catch (error) {
+
+      setProfile(response.data)
+      setError(null)
+    } catch (fetchError) {
       // eslint-disable-next-line no-console
-      console.error('Failed to fetch profile:', error)
+      console.error('Failed to fetch profile:', fetchError)
       if (!silent) {
-        toast.error(i18next.t('Failed to load profile'))
+        setError(fetchError)
       }
     } finally {
       if (!silent) {
@@ -126,6 +130,7 @@ export function useProfile() {
 
   return {
     profile,
+    error,
     loading,
     updating,
     fetchProfile,
