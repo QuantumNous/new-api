@@ -82,3 +82,7 @@ type TaskAdaptor interface {
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
 }
+
+type TaskErrorParser interface {
+	ParseErrorResponse(statusCode int, body []byte) *taskdto.TaskError
+}

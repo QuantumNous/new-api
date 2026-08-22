@@ -34,6 +34,13 @@ type TaskPollingAdaptor interface {
 	AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int
 }
 
+// TaskPollingBillingClampAdaptor is an optional extension for adaptors whose
+// completion-time quota calculation can saturate. The polling service records
+// the returned clamp in the task billing log.
+type TaskPollingBillingClampAdaptor interface {
+	AdjustBillingOnCompleteWithClamp(task *model.Task, taskResult *relaycommon.TaskInfo) (int, *common.QuotaClamp)
+}
+
 // GetTaskAdaptorFunc 由 main 包注入，用于获取指定平台的任务适配器。
 // 打破 service -> relay -> relay/channel -> service 的循环依赖。
 var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
@@ -647,8 +654,15 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		return
 	}
 	// 1. 优先让 adaptor 决定最终额度
-	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+	actualQuota := 0
+	var clamp *common.QuotaClamp
+	if checkedAdaptor, ok := adaptor.(TaskPollingBillingClampAdaptor); ok {
+		actualQuota, clamp = checkedAdaptor.AdjustBillingOnCompleteWithClamp(task, taskResult)
+	} else {
+		actualQuota = adaptor.AdjustBillingOnComplete(task, taskResult)
+	}
+	if actualQuota > 0 {
+		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor billing adjustment", clamp)
 		return
 	}
 	// 2. 回退到 token 重算

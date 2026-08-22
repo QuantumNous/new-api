@@ -164,6 +164,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'SiftQ',
+    defaultBaseUrl: 'https://siftq.com/api/minimax/',
+    supportedModels: ['MiniMax-H3'],
+    hints: {
+      baseUrl: 'Default: https://siftq.com/api/minimax/',
+      key: 'SiftQ API Key',
+      models: 'MiniMax-H3',
+    },
+  },
 }
 
 /**

@@ -223,6 +223,11 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	}
 	if resp != nil && resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
+		if parser, ok := adaptor.(channel.TaskErrorParser); ok {
+			if taskErr := parser.ParseErrorResponse(resp.StatusCode, responseBody); taskErr != nil {
+				return nil, taskErr
+			}
+		}
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 

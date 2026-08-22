@@ -1127,6 +1127,7 @@ func TestNonTerminalUpdate_NoBilling(t *testing.T) {
 
 type mockAdaptor struct {
 	adjustReturn int
+	adjustClamp  *common.QuotaClamp
 }
 
 func (m *mockAdaptor) Init(_ *relaycommon.RelayInfo) {}
@@ -1136,6 +1137,9 @@ func (m *mockAdaptor) FetchTask(string, string, map[string]any, string) (*http.R
 func (m *mockAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) { return nil, nil }
 func (m *mockAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
 	return m.adjustReturn
+}
+func (m *mockAdaptor) AdjustBillingOnCompleteWithClamp(_ *model.Task, _ *relaycommon.TaskInfo) (int, *common.QuotaClamp) {
+	return m.adjustReturn, m.adjustClamp
 }
 
 // ===========================================================================
@@ -1225,4 +1229,37 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestSettle_NonPerCallBilling_RecordsAdaptorQuotaClamp(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 33, 33, 33
+	const initQuota, preConsumed, actualQuota = 10000, 1000, 1500
+
+	seedUser(t, userID, initQuota)
+	seedToken(t, tokenID, userID, "sk-checked-adaptor", 8000)
+	seedChannel(t, channelID)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	clamp := &common.QuotaClamp{
+		Op:       "QuotaFromFloat",
+		Kind:     common.QuotaClampOverflow,
+		Original: 3e9,
+		Clamped:  actualQuota,
+	}
+	adaptor := &mockAdaptor{adjustReturn: actualQuota, adjustClamp: clamp}
+
+	settleTaskBillingOnComplete(ctx, adaptor, task, &relaycommon.TaskInfo{Status: model.TaskStatusSuccess})
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	var other map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(log.Other), &other))
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	saturation, ok := adminInfo["quota_saturation"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, string(common.QuotaClampOverflow), saturation["kind"])
 }
