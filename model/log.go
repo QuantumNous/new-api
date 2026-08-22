@@ -285,6 +285,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
+	other = attachRequestTiming(c, other, true)
 	otherStr := common.MapToJsonStr(other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
@@ -349,6 +350,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
+	params.Other = attachRequestTiming(c, params.Other, false)
 	otherStr := common.MapToJsonStr(params.Other)
 	// 判断是否需要记录 IP
 	needRecordIp := false
@@ -401,6 +403,22 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			NodeName:  common.NodeName,
 		})
 	}
+}
+
+func attachRequestTiming(c *gin.Context, other map[string]interface{}, failed bool) map[string]interface{} {
+	session := common.GetRequestTimingSession(c)
+	if session == nil {
+		return other
+	}
+	snapshot := session.Snapshot(time.Now(), failed)
+	if snapshot == nil {
+		return other
+	}
+	if other == nil {
+		other = make(map[string]interface{})
+	}
+	other["request_timing"] = snapshot
+	return other
 }
 
 type RecordTaskBillingLogParams struct {

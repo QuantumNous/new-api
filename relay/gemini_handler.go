@@ -173,6 +173,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		requestBody = body
 	}
 
+	info.MarkUpstreamAttempt()
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		logger.LogError(c, "Do gemini request failed: "+err.Error())
@@ -184,7 +185,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	var httpResp *http.Response
 	if resp != nil {
 		httpResp = resp.(*http.Response)
-		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
+		info.SetStream(info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream"))
 		if httpResp.StatusCode != http.StatusOK {
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
