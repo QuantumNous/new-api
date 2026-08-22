@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { BadgeCell, BadgeListCell } from '@/components/data-table'
@@ -43,6 +45,50 @@ import { parseModelTags, formatEndpointsDisplay } from '../lib'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
+import { modelsQueryKeys } from '../lib/query-keys'
+import { api } from '@/lib/api'
+
+function SortOrderCell({ id, sortOrder }: { id: number; sortOrder: number }) {
+  const queryClient = useQueryClient()
+  const [value, setValue] = useState(sortOrder)
+  const savedRef = useRef(sortOrder)
+
+  const mutation = useMutation({
+    mutationFn: (newOrder: number) =>
+      api.put('/api/models/?sort_order_only=true', { id, sort_order: newOrder }),
+    onSuccess: (_data, newOrder) => {
+      savedRef.current = newOrder
+      queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
+    },
+    onError: () => {
+      setValue(savedRef.current)
+    },
+  })
+
+  function commit() {
+    if (value !== savedRef.current) {
+      mutation.mutate(value)
+    }
+  }
+
+  return (
+    <input
+      type='number'
+      min={0}
+      step={10}
+      value={value}
+      onChange={(e) => setValue(Number(e.target.value))}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur()
+        }
+      }}
+      className='w-16 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right font-mono text-xs tabular-nums outline-none transition-colors hover:border-border focus:border-ring focus:bg-background'
+      aria-label='Sort order'
+    />
+  )
+}
 
 function getCompactModelIcon(iconKey: string) {
   const baseIconKey = iconKey.split('.')[0]
@@ -100,6 +146,24 @@ export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
         return <TableId value={id} />
       },
       size: 64,
+    },
+
+    // Sort Order column
+    {
+      accessorKey: 'sort_order',
+      header: t('Sort'),
+      meta: { mobileHidden: true },
+      enableSorting: false,
+      cell: ({ row }) => {
+        const model = row.original
+        return (
+          <SortOrderCell
+            id={model.id}
+            sortOrder={model.sort_order ?? 0}
+          />
+        )
+      },
+      size: 90,
     },
 
     // Model Name column (with model icon)

@@ -22,6 +22,7 @@ import type {
   GetModelsParams,
   GetModelsResponse,
   GetModelResponse,
+  GetAllModelsForReorderResponse,
   GetVendorsResponse,
   GetVendorResponse,
   Model,
@@ -98,6 +99,26 @@ export async function updateModelStatus(
   status: number
 ): Promise<{ success: boolean; message?: string }> {
   const res = await api.put('/api/models/?status_only=true', { id, status })
+  return res.data
+}
+
+/**
+ * Get all models unpaginated — used by the drag-to-reorder view so rank
+ * numbers (1..N) are globally unique instead of colliding across pages.
+ */
+export async function getAllModelsForReorder(): Promise<GetAllModelsForReorderResponse> {
+  const res = await api.get('/api/models/all_for_reorder')
+  return res.data
+}
+
+/**
+ * Batch update sort order for the full reordered list (drag-to-reorder).
+ * Each item's sort_order is its 1-based rank in the new order.
+ */
+export async function reorderModels(
+  items: Array<{ id: number; sort_order: number }>
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.put('/api/models/reorder', { items })
   return res.data
 }
 
