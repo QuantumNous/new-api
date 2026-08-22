@@ -263,6 +263,15 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
 		case constant.RelayModeEmbeddings:
+			// Volcengine multimodal embedding models (e.g. doubao-embedding-vision-*)
+			// require the dedicated /api/v3/embeddings/multimodal endpoint and reject
+			// the standard /embeddings path with a 400 InvalidParameter error.
+			// Heuristic: route by model name keywords. Both the request model and the
+			// upstream model name are checked so model_mapping aliases still work.
+			if isVolcengineMultimodalEmbedding(info.UpstreamModelName) ||
+				isVolcengineMultimodalEmbedding(info.OriginModelName) {
+				return fmt.Sprintf("%s/api/v3/embeddings/multimodal", baseUrl), nil
+			}
 			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
 		//豆包的图生图也走generations接口: https://www.volcengine.com/docs/82379/1824121
 		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
@@ -399,4 +408,23 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// isVolcengineMultimodalEmbedding reports whether the given model name targets
+// Volcengine's multimodal (image+text) embedding endpoint, which requires the
+// `/api/v3/embeddings/multimodal` path instead of the standard `/embeddings`.
+//
+// The detection is keyword-based on the model name. We accept both the original
+// "vision" series (e.g. doubao-embedding-vision-241215, doubao-embedding-vision-251215)
+// and any future "multimodal" naming. Matching is case-insensitive so user-supplied
+// model_mapping aliases work even with mixed case.
+func isVolcengineMultimodalEmbedding(modelName string) bool {
+	if modelName == "" {
+		return false
+	}
+	lower := strings.ToLower(modelName)
+	if !strings.Contains(lower, "embedding") {
+		return false
+	}
+	return strings.Contains(lower, "vision") || strings.Contains(lower, "multimodal")
 }
