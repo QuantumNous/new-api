@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -77,21 +78,47 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	}
 	adaptor.Init(info)
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	// Claude (Anthropic) channels must never take the pass-through path: a raw
+	// /v1/responses body is not valid for the Claude Messages endpoint, so the
+	// request always has to go through the conversion branch below.
+	if info.ApiType != constant.APITypeAnthropic &&
+		(model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
 		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
-		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-		}
-		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
-		jsonData, err := common.Marshal(convertedRequest)
-		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		var jsonData []byte
+		if info.ApiType == constant.APITypeAnthropic {
+			// Claude upstream: convert the Responses request to Claude Messages and
+			// forward it to /v1/messages. info.RelayFormat stays
+			// RelayFormatOpenAIResponses so the Claude response pipeline
+			// (HandleClaudeResponseData / ClaudeResponsesStreamHandler) converts the
+			// upstream response back to OpenAI Responses format.
+			result, convErr := service.ConvertRequest(c, info, types.RelayFormatClaude, request)
+			if convErr != nil {
+				return types.NewError(convErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			claudeRequest, ok := result.Value.(*dto.ClaudeRequest)
+			if !ok {
+				return types.NewError(fmt.Errorf("expected Claude request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			relaycommon.AppendRequestConversionFromRequest(info, claudeRequest)
+			jsonData, err = common.Marshal(claudeRequest)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+		} else {
+			convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
+			jsonData, err = common.Marshal(convertedRequest)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
 		}
 
 		// remove disabled fields for OpenAI Responses API
