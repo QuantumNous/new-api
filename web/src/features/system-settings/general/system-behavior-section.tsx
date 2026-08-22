@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
@@ -39,17 +40,24 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import {
+  getSystemBehaviorOptionUpdates,
+  toSystemBehaviorFormValues,
+  type FlatSystemBehaviorOptions,
+  type SystemBehaviorFormValues,
+} from './system-behavior-settings'
 
 const behaviorSchema = z.object({
   DefaultCollapseSidebar: z.boolean(),
   DemoSiteEnabled: z.boolean(),
   SelfUseModeEnabled: z.boolean(),
+  openai_batch_setting: z.object({
+    enabled: z.boolean(),
+  }),
 })
 
-type BehaviorFormValues = z.infer<typeof behaviorSchema>
-
 type SystemBehaviorSectionProps = {
-  defaultValues: BehaviorFormValues
+  defaultValues: FlatSystemBehaviorOptions
 }
 
 export function SystemBehaviorSection({
@@ -57,20 +65,22 @@ export function SystemBehaviorSection({
 }: SystemBehaviorSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const formDefaults = useMemo(
+    () => toSystemBehaviorFormValues(defaultValues),
+    [defaultValues]
+  )
 
-  const form = useForm({
+  const form = useForm<SystemBehaviorFormValues>({
     resolver: zodResolver(behaviorSchema),
-    defaultValues,
+    defaultValues: formDefaults,
   })
 
-  useResetForm(form, defaultValues)
+  useResetForm(form, formDefaults)
 
-  const onSubmit = async (data: BehaviorFormValues) => {
-    const updates = Object.entries(data).filter(
-      ([key, value]) => value !== defaultValues[key as keyof BehaviorFormValues]
-    )
+  const onSubmit = async (data: SystemBehaviorFormValues) => {
+    const updates = getSystemBehaviorOptionUpdates(data, defaultValues)
 
-    for (const [key, value] of updates) {
+    for (const { key, value } of updates) {
       await updateOption.mutateAsync({ key, value })
     }
   }
@@ -134,6 +144,29 @@ export function SystemBehaviorSection({
                   <FormLabel>{t('Self-Use Mode')}</FormLabel>
                   <FormDescription>
                     {t('Optimize system for self-hosted single-user usage')}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='openai_batch_setting.enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('OpenAI Batch API')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Enable native File and Batch passthrough. New API does not currently settle Batch quota; upstream charges still apply.'
+                    )}
                   </FormDescription>
                 </SettingsSwitchContent>
                 <FormControl>

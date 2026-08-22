@@ -5316,6 +5316,10 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Native OpenAI Batch API": "OpenAI Batch API nguyên bản",
+    "Allow File and Batch API passthrough for this upstream": "Cho phép chuyển tiếp File API và Batch API tới upstream này",
+    "OpenAI Batch API": "OpenAI Batch API",
+    "Enable native File and Batch passthrough. New API does not currently settle Batch quota; upstream charges still apply.": "Bật chuyển tiếp File API và Batch API nguyên bản. New API hiện chưa quyết toán hạn mức Batch; phí upstream vẫn được áp dụng."
   }
 }

@@ -5316,6 +5316,10 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Native OpenAI Batch API": "原生 OpenAI Batch API",
+    "Allow File and Batch API passthrough for this upstream": "允許將 File 和 Batch API 透傳到此上游",
+    "OpenAI Batch API": "OpenAI Batch API",
+    "Enable native File and Batch passthrough. New API does not currently settle Batch quota; upstream charges still apply.": "啟用原生 File 和 Batch 透傳。New API 目前不結算 Batch 額度；上游費用仍會產生。"
   }
 }

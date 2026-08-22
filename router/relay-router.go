@@ -80,6 +80,18 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 	{
+		openAIResourceRouter := relayV1Router.Group("")
+		openAIResourceRouter.Use(middleware.PrepareOpenAIUpstreamResource())
+		openAIResourceRouter.Use(middleware.Distribute())
+		openAIResourceRouter.POST("/files", controller.RelayOpenAIUpstreamResource)
+		openAIResourceRouter.DELETE("/files/:id", controller.RelayOpenAIUpstreamResource)
+		openAIResourceRouter.GET("/files/:id", controller.RelayOpenAIUpstreamResource)
+		openAIResourceRouter.GET("/files/:id/content", controller.RelayOpenAIUpstreamResource)
+		openAIResourceRouter.POST("/batches", controller.RelayOpenAIUpstreamResource)
+		openAIResourceRouter.GET("/batches/:id", controller.RelayOpenAIUpstreamResource)
+		openAIResourceRouter.POST("/batches/:id/cancel", controller.RelayOpenAIUpstreamResource)
+	}
+	{
 		//http router
 		httpRouter := relayV1Router.Group("")
 		httpRouter.Use(middleware.Distribute())
@@ -158,10 +170,6 @@ func SetRelayRouter(router *gin.Engine) {
 		// not implemented
 		httpRouter.POST("/images/variations", controller.RelayNotImplemented)
 		httpRouter.GET("/files", controller.RelayNotImplemented)
-		httpRouter.POST("/files", controller.RelayNotImplemented)
-		httpRouter.DELETE("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id/content", controller.RelayNotImplemented)
 		httpRouter.POST("/fine-tunes", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes/:id", controller.RelayNotImplemented)
