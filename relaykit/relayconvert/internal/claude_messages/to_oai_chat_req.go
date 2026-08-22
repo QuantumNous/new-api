@@ -41,6 +41,12 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 	}
 
 	isOpenRouter := convmeta.OptionsOf(info).OpenRouterDialect
+	// cache_control is an Anthropic/OpenRouter-only field. Forwarding it to a
+	// plain OpenAI-compatible upstream both sends an unknown field and, worse,
+	// destroys prompt caching: clients move the breakpoint as the conversation
+	// grows, so the marker lands on a different message each request and
+	// truncates the upstream longest-common-prefix match at the point it moved.
+	keepCacheControl := isOpenRouter && strings.HasPrefix(convmeta.UpstreamModelName(info), "anthropic/claude")
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
 			effortBytes, _ := kitutil.Marshal(effort)
@@ -107,8 +113,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 				openAIMessage := dto.Message{
 					Role: "system",
 				}
-				isOpenRouterClaude := isOpenRouter && strings.HasPrefix(convmeta.UpstreamModelName(info), "anthropic/claude")
-				if isOpenRouterClaude {
+				if keepCacheControl {
 					systemMediaMessages := make([]dto.MediaContent, 0, len(systems))
 					for _, system := range systems {
 						message := dto.MediaContent{
@@ -151,9 +156,11 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 				switch mediaMsg.Type {
 				case "text", "input_text":
 					message := dto.MediaContent{
-						Type:         "text",
-						Text:         mediaMsg.GetText(),
-						CacheControl: mediaMsg.CacheControl,
+						Type: "text",
+						Text: mediaMsg.GetText(),
+					}
+					if keepCacheControl {
+						message.CacheControl = mediaMsg.CacheControl
 					}
 					mediaMessages = append(mediaMessages, message)
 				case "image":
@@ -207,7 +214,33 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 	}
 
 	openAIRequest.Messages = openAIMessages
+
+	// Forward the client's stable conversation identifier as prompt_cache_key.
+	// OpenAI routes requests sharing a cache key to the same cache node, which
+	// lifts the hit rate well above what prefix-hashing alone achieves on a
+	// shared tenant. Anthropic clients carry this as metadata.user_id; without
+	// it the converted request has no cache affinity at all.
+	if promptCacheKey := claudeRequestPromptCacheKey(claudeRequest); promptCacheKey != "" {
+		openAIRequest.PromptCacheKey = promptCacheKey
+	}
+
 	return &openAIRequest, nil
+}
+
+// claudeRequestPromptCacheKey extracts the stable per-conversation identifier an
+// Anthropic-format request carries in metadata.user_id. It returns "" when the
+// client sent no usable value, in which case the caller leaves prompt_cache_key
+// unset rather than inventing one: a key that varies between requests is worse
+// than no key, because it pins otherwise-cacheable requests to different nodes.
+func claudeRequestPromptCacheKey(claudeRequest dto.ClaudeRequest) string {
+	if len(claudeRequest.Metadata) == 0 {
+		return ""
+	}
+	var metadata dto.ClaudeMetadata
+	if err := kitutil.Unmarshal(claudeRequest.Metadata, &metadata); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(metadata.UserId)
 }
 
 func requestToJSONString(v interface{}) string {
