@@ -81,6 +81,14 @@ type FileObject struct {
 
 func GetModelConfig(model string) ModelConfig {
 	configs := map[string]ModelConfig{
+		"MiniMax-H3": {
+			Name:                 "MiniMax-H3",
+			DefaultResolution:    Resolution768P,
+			SupportedDurations:   []int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			SupportedResolutions: []string{Resolution768P, V2Resolution2K},
+			HasPromptOptimizer:   false,
+			HasFastPretreatment:  false,
+		},
 		"MiniMax-Hailuo-2.3": {
 			Name:                 "MiniMax-Hailuo-2.3",
 			DefaultResolution:    Resolution768P,
@@ -167,4 +175,70 @@ func GetModelConfig(model string) ModelConfig {
 		HasPromptOptimizer:   true,
 		HasFastPretreatment:  false,
 	}
+}
+
+// ---- MiniMax H3 V2 (Hailuo-03) DTOs ----
+
+type V2MediaURL struct {
+	URL string `json:"url"`
+}
+
+type V2ContentItem struct {
+	Type     string      `json:"type"`
+	Text     string      `json:"text,omitempty"`
+	ImageURL *V2MediaURL `json:"image_url,omitempty"`
+	VideoURL *V2MediaURL `json:"video_url,omitempty"`
+	AudioURL *V2MediaURL `json:"audio_url,omitempty"`
+	Role     string      `json:"role,omitempty"`
+}
+
+type VideoGenerationV2Request struct {
+	Model         string          `json:"model"`
+	Content       []V2ContentItem `json:"content"`
+	Resolution    string          `json:"resolution"`
+	Duration      int             `json:"duration"`
+	Ratio         string          `json:"ratio,omitempty"`
+	CallbackURL   string          `json:"callback_url,omitempty"`
+	AigcWatermark *bool           `json:"aigc_watermark,omitempty"`
+}
+
+type VideoGenerationV2Response struct {
+	TaskID string `json:"task_id"`
+}
+
+type V2TaskError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type V2TaskContent struct {
+	URL    string `json:"url,omitempty"`
+	Prompt string `json:"prompt,omitempty"`
+}
+
+type V2TaskUsage struct {
+	TotalSeconds    int `json:"total_seconds,omitempty"`
+	InputSeconds    int `json:"input_seconds,omitempty"`
+	OutputSeconds   int `json:"output_seconds,omitempty"`
+	InputImageCount int `json:"input_image_count,omitempty"`
+}
+
+type V2Task struct {
+	ID         string         `json:"id"`
+	Model      string         `json:"model"`
+	Status     string         `json:"status"`
+	Error      *V2TaskError   `json:"error,omitempty"`
+	CreatedAt  int64          `json:"created_at"`
+	UpdatedAt  int64          `json:"updated_at"`
+	Content    *V2TaskContent `json:"content,omitempty"`
+	Resolution string         `json:"resolution,omitempty"`
+	Duration   int            `json:"duration,omitempty"`
+	Usage      *V2TaskUsage   `json:"usage,omitempty"`
+	Ratio      string         `json:"ratio,omitempty"`
+	TaskType   string         `json:"task_type,omitempty"`
+	Modality   string         `json:"modality,omitempty"`
+}
+
+type V2QueryTaskResponse struct {
+	Task *V2Task `json:"task"`
 }
