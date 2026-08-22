@@ -40,6 +40,7 @@ export interface CustomOAuthProvider {
   email_field: string
   well_known: string
   auth_style: number // 0=auto, 1=params, 2=header
+  pkce_enabled: boolean
   access_policy: string
   access_denied_message: string
 }
@@ -73,6 +74,7 @@ export const customOAuthFormSchema = z.object({
   email_field: z.string().optional().default(''),
   well_known: z.string().optional().default(''),
   auth_style: z.number().int().min(0).max(2).default(0),
+  pkce_enabled: z.boolean().default(false),
   access_policy: z.string().optional().default(''),
   access_denied_message: z.string().optional().default(''),
 })
