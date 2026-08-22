@@ -71,6 +71,16 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
+
+	// Anthropic's /v1/messages/count_tokens — local estimate only. Mounted
+	// directly on relayV1Router so it inherits TokenAuth + RouteTag +
+	// SystemPerformanceCheck + ModelRequestRateLimit, but NOT
+	// middleware.Distribute(). No channel is selected, no quota is consumed.
+	// Anthropic's spec defines this endpoint as token-counting only; the
+	// project's Distribute pipeline would otherwise pick a channel + run
+	// PreConsume on a request that never reaches an upstream.
+	relayV1Router.POST("/messages/count_tokens", controller.ClaudeCountTokens)
+
 	{
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")
