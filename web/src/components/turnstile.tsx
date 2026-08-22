@@ -234,6 +234,7 @@ export function Turnstile(props: TurnstileProps) {
         renderWidget(api)
       })
       .catch((error: unknown) => {
+        if (!isActive()) return
         const errorCode: TurnstileErrorCode =
           error &&
           typeof error === 'object' &&

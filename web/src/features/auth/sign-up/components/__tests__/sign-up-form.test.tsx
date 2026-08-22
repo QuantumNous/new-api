@@ -90,6 +90,20 @@ describe('SignUpForm Turnstile flow', () => {
       turnstile: 'token-used-once',
     })
     await waitFor(() => expect(renderOptions).toHaveLength(2))
+
+    const secondVerify = renderOptions[1].callback as (token: string) => void
+    secondVerify('token-used-once-again')
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Create account' })
+      ).toBeEnabled()
+    )
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+
+    await waitFor(() => expect(testState.register).toHaveBeenCalledTimes(2))
+    expect(testState.register.mock.calls[1][0]).toMatchObject({
+      turnstile: 'token-used-once-again',
+    })
   })
 
   test('exposes an accessible error and retry action when Turnstile rendering fails', async () => {

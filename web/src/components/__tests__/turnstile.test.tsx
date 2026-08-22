@@ -47,7 +47,13 @@ describe('Turnstile', () => {
     document.head.innerHTML = ''
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    const script = document.querySelector('#cf-turnstile')
+    if (script) {
+      script.dispatchEvent(new Event(window.turnstile ? 'load' : 'error'))
+    }
+    await Promise.resolve()
+    await Promise.resolve()
     delete window.turnstile
     document.head.innerHTML = ''
   })
@@ -82,6 +88,25 @@ describe('Turnstile', () => {
     await waitFor(() => expect(api.render).toHaveBeenCalledTimes(1))
     expect(firstStatus).toEqual(['loading'])
     expect(secondStatus[0]).toBe('loading')
+  })
+
+  test('ignores a script load failure after the widget unmounts', async () => {
+    const onError = vi.fn()
+    const widget = render(
+      <Turnstile
+        siteKey='site-key'
+        onVerify={vi.fn()}
+        onError={onError}
+      />
+    )
+
+    widget.unmount()
+    dispatchScriptEvent('error')
+
+    await waitFor(() =>
+      expect(document.querySelector('#cf-turnstile')).toBeNull()
+    )
+    expect(onError).not.toHaveBeenCalled()
   })
 
   test('reports a load error and retries after the failed script is removed', async () => {
