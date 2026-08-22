@@ -367,41 +367,115 @@ func SearchModelScopeHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dt
 }
 
 // ============================================================
-// 其余四平台 Hub Search（骨架，待平台公开 API 明确后接入）
+// 其余三平台 Hub Search（骨架：均为 Python SDK 或无独立 REST 搜索 API）
 // ============================================================
 
-// SearchPaddleHubModels 飞桨 PaddleHub 模型搜索。
-// PaddleHub 模型中心暂未提供稳定的公开列表 API，当前返回明确错误。
+// SearchPaddleHubModels 飞桨 PaddleHub 模型搜索（骨架）。
+// PaddleHub 是 Python SDK（import paddlehub as hub / paddle.hub.list()），
+// 不提供独立的 REST 搜索端点。若需搜索，请在 Python 环境调用 paddle.hub.list()，
+// 或通过 repo_id 直接部署。
 func SearchPaddleHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
 	if _, err := model.GetModelSourceById(sourceId); err != nil {
 		return nil, fmt.Errorf("model source not found: %w", err)
 	}
-	return nil, fmt.Errorf("PaddleHub model search API is not yet integrated; please deploy models via repo_id directly")
+	return nil, fmt.Errorf("PaddleHub 仅支持 Python SDK (paddle.hub.list())，无独立 REST 搜索 API；请通过 repo_id 直接部署")
 }
 
-// SearchModelersHubModels 魔乐 Modelers 模型搜索（待接入）。
+// SearchModelersHubModels 魔乐 Modelers 模型搜索（骨架）。
+// 魔乐社区模型检索通过 openMind Hub Client（Python SDK）实现，无公开的
+// REST 列表端点（探测 /api/v1/models 等均 404）。若需搜索，请调用 openMind SDK，
+// 或通过 repo_id 直接部署。
 func SearchModelersHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
 	if _, err := model.GetModelSourceById(sourceId); err != nil {
 		return nil, fmt.Errorf("model source not found: %w", err)
 	}
-	return nil, fmt.Errorf("Modelers model search API is not yet integrated; please deploy models via repo_id directly")
+	return nil, fmt.Errorf("魔乐 Modelers 仅支持 openMind SDK，无公开 REST 搜索 API；请通过 repo_id 直接部署")
 }
 
-// SearchOpenIHubModels OpenI 启智模型搜索。
-// OpenI 提供公开的仓库 API，模型列表端点仍在确认中，当前保留骨架。
+// SearchOpenIHubModels OpenI 启智模型搜索（骨架）。
+// OpenI 启智暂无独立的公开模型搜索 REST API，模型主要通过 Web 界面或 Git
+// 仓库获取。若需搜索，请在 OpenI 平台查询，或通过 repo_id 直接部署。
 func SearchOpenIHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
 	if _, err := model.GetModelSourceById(sourceId); err != nil {
 		return nil, fmt.Errorf("model source not found: %w", err)
 	}
-	return nil, fmt.Errorf("OpenI model search API is not yet integrated; please deploy models via repo_id directly")
+	return nil, fmt.Errorf("OpenI 启智暂无公开 REST 搜索 API（通过 Web/Git 获取）；请通过 repo_id 直接部署")
 }
 
-// SearchMoArkHubModels 模力方舟 MoArk 模型搜索（待接入）。
+// SearchMoArkHubModels 模力方舟 MoArk 模型搜索（真实实现）。
+// MoArk 提供 OpenAI 兼容的 /v1/models 列表接口：未带 token 返回公开模型，
+// 带 Bearer Token 返回该资源包内模型。该接口返回列表（不支持服务端 search），
+// 故 query 在客户端按 id 子串过滤后返回前 limit 条。
 func SearchMoArkHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
-	if _, err := model.GetModelSourceById(sourceId); err != nil {
+	src, err := model.GetModelSourceById(sourceId)
+	if err != nil {
 		return nil, fmt.Errorf("model source not found: %w", err)
 	}
-	return nil, fmt.Errorf("MoArk model search API is not yet integrated; please deploy models via repo_id directly")
+
+	baseURL := "https://api.moark.com/v1/models"
+	httpReq, err := http.NewRequest("GET", baseURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("User-Agent", "New-API-MoArk-Client/1.0")
+
+	// 若配置了 Access Token，带上 Authorization（否则返回公开模型）
+	var cred dto.MoArkCredential
+	if src.DecodeConfig(&cred) == nil && strings.TrimSpace(cred.AccessToken) != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+cred.AccessToken)
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("MoArk request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("MoArk returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// OpenAI 兼容格式：{"object":"list","data":[{"id":"...","created":...}]}
+	var raw struct {
+		Object string `json:"object"`
+		Data   []struct {
+			Id      string `json:"id"`
+			Created int64  `json:"created"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse MoArk response: %w", err)
+	}
+
+	query := strings.ToLower(strings.TrimSpace(req.Query))
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	models := make([]dto.HFHubModelInfo, 0, limit)
+	for _, m := range raw.Data {
+		if query != "" && !strings.Contains(strings.ToLower(m.Id), query) {
+			continue
+		}
+		models = append(models, dto.HFHubModelInfo{Id: m.Id})
+		if len(models) >= limit {
+			break
+		}
+	}
+
+	return &dto.HFHubModelSearchResponse{Models: models, Total: len(models)}, nil
 }
 
 // ============================================================
