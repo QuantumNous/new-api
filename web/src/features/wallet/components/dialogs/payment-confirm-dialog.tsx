@@ -29,10 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Skeleton } from '@/components/ui/skeleton'
-
-import type { PaymentQuote } from '../../hooks/use-payment'
-import { formatCurrency, formatPaymentQuote, getPaymentIcon } from '../../lib'
+import { formatCurrency, getPaymentIcon } from '../../lib'
 import type { PaymentMethod } from '../../types'
 
 interface PaymentConfirmDialogProps {
@@ -40,10 +37,8 @@ interface PaymentConfirmDialogProps {
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
   topupAmount: number
-  quote?: PaymentQuote
   paymentMethod: PaymentMethod | undefined
   processing: boolean
-  canConfirm: boolean
 }
 
 export function PaymentConfirmDialog({
@@ -51,15 +46,10 @@ export function PaymentConfirmDialog({
   onOpenChange,
   onConfirm,
   topupAmount,
-  quote,
   paymentMethod,
   processing,
-  canConfirm,
 }: PaymentConfirmDialogProps) {
   const { t } = useTranslation()
-  const paymentAmount = quote?.amount ?? 0
-  const quoteLoading = quote?.status === 'loading'
-  const quoteReady = quote?.status === 'ready'
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -83,22 +73,9 @@ export function PaymentConfirmDialog({
             </span>
           </div>
 
-          <div className='flex items-center justify-between'>
-            <span className='text-muted-foreground text-sm'>
-              {t('You Pay')}
-            </span>
-            {quoteLoading ? (
-              <Skeleton className='h-6 w-24' />
-            ) : quoteReady ? (
-              <span className='text-2xl font-semibold'>
-                {formatPaymentQuote(paymentAmount, quote?.currency)}
-              </span>
-            ) : (
-              <span className='text-destructive text-sm font-medium'>
-                {t('Quote unavailable')}
-              </span>
-            )}
-          </div>
+          <p className='text-muted-foreground text-sm'>
+            {t('Final payment amount is calculated at checkout.')}
+          </p>
 
           <div className='border-t pt-4'>
             <div className='flex items-center justify-between'>
@@ -122,10 +99,7 @@ export function PaymentConfirmDialog({
           <AlertDialogCancel disabled={processing}>
             {t('Cancel')}
           </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={onConfirm}
-            disabled={processing || !canConfirm}
-          >
+          <AlertDialogAction onClick={onConfirm} disabled={processing}>
             {processing && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {t('Confirm Payment')}
           </AlertDialogAction>

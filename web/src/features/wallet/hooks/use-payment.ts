@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import i18next from 'i18next'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -197,46 +197,8 @@ export function canConfirmPayment(
   )
 }
 
-export function usePayment(
-  calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
-) {
-  const controllerRef = useRef<PaymentQuoteController | null>(null)
-  const calculatorsRef = useRef(calculators)
-  if (!controllerRef.current || calculatorsRef.current !== calculators) {
-    calculatorsRef.current = calculators
-    controllerRef.current = createPaymentQuoteController(calculators)
-  }
-  const controller = controllerRef.current
-  const [quotes, setQuotes] = useState<Record<string, PaymentQuote>>({})
+export function usePayment() {
   const [processing, setProcessing] = useState(false)
-
-  const calculatePaymentAmount = useCallback(
-    async (topupAmount: number, paymentType: string) => {
-      const request = controller.calculate(topupAmount, paymentType)
-      const loadingQuote = controller.getQuote(topupAmount, paymentType)
-      if (loadingQuote) {
-        setQuotes((currentQuotes) => ({
-          ...currentQuotes,
-          [getPaymentQuoteKey(paymentType, topupAmount)]: loadingQuote,
-        }))
-      }
-      const quote = await request
-      setQuotes((currentQuotes) => ({
-        ...currentQuotes,
-        [getPaymentQuoteKey(paymentType, topupAmount)]: quote,
-      }))
-      return quote
-    },
-    [controller]
-  )
-
-  const getPaymentQuote = useCallback(
-    (topupAmount: number, paymentType: string) => {
-      const key = getPaymentQuoteKey(paymentType, topupAmount)
-      return quotes[key] ?? controller.getQuote(topupAmount, paymentType)
-    },
-    [controller, quotes]
-  )
 
   // Process payment
   const processPayment = useCallback(
@@ -289,10 +251,7 @@ export function usePayment(
   )
 
   return {
-    quotes,
     processing,
-    calculatePaymentAmount,
-    getPaymentQuote,
     processPayment,
   }
 }

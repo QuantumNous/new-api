@@ -3342,6 +3342,7 @@
     "Payment Gateway": "Cổng thanh toán",
     "Payment initiated": "Đã khởi tạo thanh toán",
     "Payment Method": "Phương thức thanh toán",
+    "Final payment amount is calculated at checkout.": "Số tiền thanh toán cuối cùng được tính khi thanh toán.",
     "Payment method identifier": "Mã định danh phương thức thanh toán",
     "Payment method identifier is required": "Mã định danh phương thức thanh toán là bắt buộc",
     "Payment method name": "Tên phương thức thanh toán",

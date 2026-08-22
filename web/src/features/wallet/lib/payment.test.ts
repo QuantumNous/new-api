@@ -116,6 +116,58 @@ describe('payment dispatch', () => {
     expect(calls).toEqual(['waffo:120:3'])
   })
 
+  test('sends Waffo Pancake only to its dedicated processor', async () => {
+    const calls: string[] = []
+    const success = await dispatchSelectedPayment(
+      { name: 'Wechat Pay', type: PAYMENT_TYPES.WAFFO_PANCAKE },
+      120,
+      null,
+      {
+        regular: async () => {
+          calls.push('regular')
+          return false
+        },
+        waffo: async () => {
+          calls.push('waffo')
+          return false
+        },
+        waffoPancake: async (amount) => {
+          calls.push(`pancake:${amount}`)
+          return true
+        },
+      }
+    )
+
+    expect(success).toBe(true)
+    expect(calls).toEqual(['pancake:120'])
+  })
+
+  test('sends ordinary methods only to the regular processor', async () => {
+    const calls: string[] = []
+    const success = await dispatchSelectedPayment(
+      { name: 'Alipay', type: PAYMENT_TYPES.ALIPAY },
+      120,
+      null,
+      {
+        regular: async (amount, type) => {
+          calls.push(`regular:${amount}:${type}`)
+          return true
+        },
+        waffo: async () => {
+          calls.push('waffo')
+          return false
+        },
+        waffoPancake: async () => {
+          calls.push('pancake')
+          return false
+        },
+      }
+    )
+
+    expect(success).toBe(true)
+    expect(calls).toEqual(['regular:120:alipay'])
+  })
+
   test('does not create a Waffo order without a selected method index', async () => {
     let called = false
     const success = await dispatchSelectedPayment(

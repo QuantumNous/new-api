@@ -38,9 +38,9 @@ import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { PAYMENT_TYPES } from '../constants'
-import type { PaymentQuote } from '../hooks/use-payment'
 import {
-  formatPaymentQuote,
+  calculatePresetPricing,
+  formatCurrency,
   getDiscountLabel,
   getPaymentIcon,
   getPaymentMethodMinTopup,
@@ -61,17 +61,16 @@ interface RechargeFormCardProps {
   onSelectPreset: (preset: PresetAmount) => void
   topupAmount: number
   onTopupAmountChange: (amount: number) => void
-  paymentQuote?: PaymentQuote
-  getPaymentQuote: (topupAmount: number) => PaymentQuote | undefined
   currentPaymentMinimum: number
   onPaymentMethodSelect: (method: PaymentMethod) => void
-  paymentLoading: string | null
   redemptionCode: string
   onRedemptionCodeChange: (code: string) => void
   onRedeem: () => void
   redeeming: boolean
   topupLink?: string
   loading?: boolean
+  priceRatio?: number
+  usdExchangeRate?: number
   onOpenBilling?: () => void
   creemProducts?: CreemProduct[]
   enableCreemTopup?: boolean
@@ -89,17 +88,16 @@ export function RechargeFormCard({
   onSelectPreset,
   topupAmount,
   onTopupAmountChange,
-  paymentQuote,
-  getPaymentQuote,
   currentPaymentMinimum,
   onPaymentMethodSelect,
-  paymentLoading,
   redemptionCode,
   onRedemptionCodeChange,
   onRedeem,
   redeeming,
   topupLink,
   loading,
+  priceRatio = 1,
+  usdExchangeRate = 1,
   onOpenBilling,
   creemProducts,
   enableCreemTopup,
@@ -133,8 +131,21 @@ export function RechargeFormCard({
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
-  const hasStandardPaymentMethods =
-    Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
+  const configuredPaymentMethods = topupInfo?.pay_methods || []
+  const hasConfiguredWaffoPancake = configuredPaymentMethods.some(
+    (method) => method.type === PAYMENT_TYPES.WAFFO_PANCAKE
+  )
+  const paymentMethods: PaymentMethod[] =
+    enableWaffoPancakeTopup && !hasConfiguredWaffoPancake
+      ? [
+          ...configuredPaymentMethods,
+          {
+            name: t('Wechat Pay'),
+            type: PAYMENT_TYPES.WAFFO_PANCAKE,
+          },
+        ]
+      : configuredPaymentMethods
+  const hasStandardPaymentMethods = paymentMethods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const redemptionEnabled = topupInfo?.enable_redemption !== false
@@ -228,8 +239,12 @@ export function RechargeFormCard({
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
                         1.0
-                      const quote = getPaymentQuote(preset.value)
-                      const hasDiscount = discount > 0 && discount < 1
+                      const { actualPrice, hasDiscount } = calculatePresetPricing(
+                        preset.value,
+                        priceRatio,
+                        discount,
+                        usdExchangeRate
+                      )
                       return (
                         <Button
                           key={preset.value}
@@ -253,21 +268,7 @@ export function RechargeFormCard({
                             )}
                           </div>
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            {quote?.status === 'loading' ? (
-                              <Skeleton className='h-3 w-16' />
-                            ) : quote?.status === 'ready' ? (
-                              <>
-                                Pay{' '}
-                                {formatPaymentQuote(
-                                  quote.amount ?? 0,
-                                  quote.currency
-                                )}
-                              </>
-                            ) : (
-                              <span className='text-destructive'>
-                                {t('Quote unavailable')}
-                              </span>
-                            )}
+                            {t('Pay')} {formatCurrency(actualPrice)}
                           </div>
                         </Button>
                       )
@@ -293,25 +294,6 @@ export function RechargeFormCard({
                     placeholder={`Minimum ${currentPaymentMinimum}`}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
-                  <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
-                    <span className='text-muted-foreground truncate text-xs'>
-                      {t('Amount to pay:')}
-                    </span>
-                    {paymentQuote?.status === 'loading' ? (
-                      <Skeleton className='h-5 w-16' />
-                    ) : paymentQuote?.status === 'ready' ? (
-                      <span className='text-sm font-semibold'>
-                        {formatPaymentQuote(
-                          paymentQuote.amount ?? 0,
-                          paymentQuote.currency
-                        )}
-                      </span>
-                    ) : (
-                      <span className='text-destructive text-xs font-medium'>
-                        {t('Quote unavailable')}
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
 
@@ -321,7 +303,7 @@ export function RechargeFormCard({
                 </Label>
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
-                    {topupInfo?.pay_methods?.map((method) => {
+                    {paymentMethods.map((method) => {
                       const minTopup = getPaymentMethodMinTopup(
                         topupInfo,
                         method
@@ -341,7 +323,7 @@ export function RechargeFormCard({
                           key={method.type}
                           variant='outline'
                           onClick={() => onPaymentMethodSelect(method)}
-                          disabled={disabled || !!paymentLoading}
+                          disabled={disabled}
                           title={disabledReason}
                           aria-label={
                             disabledReason
@@ -350,15 +332,11 @@ export function RechargeFormCard({
                           }
                           className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
                         >
-                          {paymentLoading === method.type ? (
-                            <Loader2 className='h-4 w-4 animate-spin' />
-                          ) : (
-                            getPaymentIcon(
-                              method.type,
-                              'h-4 w-4',
-                              method.icon,
-                              method.name
-                            )
+                          {getPaymentIcon(
+                            method.type,
+                            'h-4 w-4',
+                            method.icon,
+                            method.name
                           )}
                           <span className='flex min-w-0 flex-col items-start gap-0.5'>
                             <span className='max-w-full truncate'>
@@ -406,7 +384,6 @@ export function RechargeFormCard({
                     </Label>
                     <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
                       {waffoPayMethods?.map((method, index) => {
-                        const loadingKey = `waffo-${index}`
                         const methodKey = `${method.payMethodType ?? 'unknown'}-${method.payMethodName ?? method.name}`
                         const waffoMin = getPaymentMethodMinTopup(
                           topupInfo,
@@ -423,27 +400,22 @@ export function RechargeFormCard({
                           ? `${t('Minimum:')} ${waffoMin}`
                           : undefined
 
-                        let methodIcon = getPaymentIcon('waffo')
-                        if (paymentLoading === loadingKey) {
-                          methodIcon = (
-                            <Loader2 className='h-4 w-4 animate-spin' />
-                          )
-                        } else if (method.icon) {
-                          methodIcon = (
-                            <img
-                              src={method.icon}
-                              alt={method.name}
-                              className='h-4 w-4 object-contain'
-                            />
-                          )
-                        }
+                        const methodIcon = method.icon ? (
+                          <img
+                            src={method.icon}
+                            alt={method.name}
+                            className='h-4 w-4 object-contain'
+                          />
+                        ) : (
+                          getPaymentIcon('waffo')
+                        )
 
                         const button = (
                           <Button
                             key={methodKey}
                             variant='outline'
                             onClick={() => onWaffoMethodSelect(method, index)}
-                            disabled={belowMin || !!paymentLoading}
+                            disabled={belowMin}
                             title={disabledReason}
                             aria-label={
                               disabledReason
@@ -481,71 +453,6 @@ export function RechargeFormCard({
                   </div>
                 )}
 
-              {enableWaffoPancakeTopup && (
-                <div className='space-y-2.5 sm:space-y-3'>
-                  <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                    {t('Waffo Pancake Payment')}
-                  </Label>
-                  {(() => {
-                    const minTopup = getPaymentMethodMinTopup(
-                      topupInfo,
-                      undefined,
-                      PAYMENT_TYPES.WAFFO_PANCAKE
-                    )
-                    const disabled = minTopup > topupAmount
-                    const disabledReason = disabled
-                      ? t('Minimum topup amount: {{amount}}', {
-                          amount: minTopup,
-                        })
-                      : undefined
-                    const method: PaymentMethod = {
-                      name: t('Wechat Pay'),
-                      type: PAYMENT_TYPES.WAFFO_PANCAKE,
-                    }
-                    const button = (
-                      <Button
-                        variant='outline'
-                        onClick={() => onPaymentMethodSelect(method)}
-                        disabled={disabled || !!paymentLoading}
-                        title={disabledReason}
-                        aria-label={
-                          disabledReason
-                            ? `${method.name}. ${disabledReason}`
-                            : method.name
-                        }
-                        className='min-h-14 min-w-0 justify-start gap-2 rounded-lg px-3 py-2 text-left'
-                      >
-                        {paymentLoading === method.type ? (
-                          <Loader2 className='h-4 w-4 animate-spin' />
-                        ) : (
-                          getPaymentIcon(method.type, 'h-4 w-4')
-                        )}
-                        <span className='flex min-w-0 flex-col items-start gap-0.5'>
-                          <span className='max-w-full truncate'>
-                            {method.name}
-                          </span>
-                          {disabled && (
-                            <span className='text-muted-foreground max-w-full truncate text-[11px] leading-4 font-normal'>
-                              {t('Minimum:')} {minTopup}
-                            </span>
-                          )}
-                        </span>
-                      </Button>
-                    )
-
-                    return disabled ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger render={button} />
-                          <TooltipContent>{disabledReason}</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : (
-                      button
-                    )
-                  })()}
-                </div>
-              )}
             </>
           )}
         </div>

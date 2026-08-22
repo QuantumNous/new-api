@@ -3342,6 +3342,7 @@
     "Payment Gateway": "支付网关",
     "Payment initiated": "已发起支付",
     "Payment Method": "付款方式",
+    "Final payment amount is calculated at checkout.": "最终支付金额将在结账时计算。",
     "Payment method identifier": "支付方式标识",
     "Payment method identifier is required": "支付方式标识不能为空",
     "Payment method name": "支付方式名称",

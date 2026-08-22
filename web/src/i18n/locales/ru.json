@@ -3342,6 +3342,7 @@
     "Payment Gateway": "Платежный шлюз",
     "Payment initiated": "Платёж инициирован",
     "Payment Method": "Способ оплаты",
+    "Final payment amount is calculated at checkout.": "Итоговая сумма платежа рассчитывается при оформлении заказа.",
     "Payment method identifier": "Идентификатор способа оплаты",
     "Payment method identifier is required": "Идентификатор способа оплаты обязателен",
     "Payment method name": "Название способа оплаты",

@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
@@ -34,7 +36,6 @@ import { PAYMENT_TYPES } from './constants'
 import {
   useTopupInfo,
   usePayment,
-  canConfirmPayment,
   useAffiliate,
   useRedemption,
   useCreemPayment,
@@ -69,7 +70,6 @@ export function Wallet(props: WalletProps) {
   const [selectedWaffoMethodIndex, setSelectedWaffoMethodIndex] = useState<
     number | null
   >(null)
-  const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
@@ -78,15 +78,16 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
-  const paymentSelectionIdRef = useRef(0)
 
+  const { status } = useStatus()
+  const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
-  const {
-    processing,
-    calculatePaymentAmount,
-    getPaymentQuote,
-    processPayment,
-  } = usePayment()
+  const effectiveUsdExchangeRate = useMemo(() => {
+    return currency?.quotaDisplayType === 'USD'
+      ? 1
+      : currency?.usdExchangeRate || 1
+  }, [currency?.quotaDisplayType, currency?.usdExchangeRate])
+  const { processing, processPayment } = usePayment()
   const {
     affiliateLink,
     loading: affiliateLoading,
@@ -138,9 +139,8 @@ export function Wallet(props: WalletProps) {
         defaultPaymentType
       )
       setTopupAmount(minTopup)
-      calculatePaymentAmount(minTopup, defaultPaymentType)
     }
-  }, [topupInfo, calculatePaymentAmount])
+  }, [topupInfo])
 
   // Get current payment type (selected or default)
   const getCurrentPaymentType = useCallback(() => {
@@ -148,58 +148,14 @@ export function Wallet(props: WalletProps) {
   }, [selectedPaymentMethod, topupInfo])
 
   const currentPaymentType = getCurrentPaymentType()
-  const currentQuote = getPaymentQuote(topupAmount, currentPaymentType)
-  const getCurrentPaymentQuote = useCallback(
-    (amount: number) => getPaymentQuote(amount, currentPaymentType),
-    [currentPaymentType, getPaymentQuote]
-  )
   const currentPaymentMinimum = getPaymentMethodMinTopup(
     topupInfo,
     selectedPaymentMethod,
     currentPaymentType
   )
-  const canConfirmCurrentPayment = canConfirmPayment(
-    selectedPaymentMethod,
-    topupAmount,
-    currentPaymentMinimum,
-    currentQuote
-  )
-
-  useEffect(() => {
-    if (!topupInfo || topupAmount < currentPaymentMinimum) {
-      return
-    }
-
-    calculatePaymentAmount(topupAmount, currentPaymentType)
-  }, [
-    calculatePaymentAmount,
-    currentPaymentMinimum,
-    currentPaymentType,
-    topupAmount,
-    topupInfo,
-  ])
-
-  useEffect(() => {
-    if (!topupInfo || currentPaymentMinimum <= 0) {
-      return
-    }
-
-    presetAmounts
-      .filter((preset) => preset.value >= currentPaymentMinimum)
-      .forEach((preset) => {
-        void calculatePaymentAmount(preset.value, currentPaymentType)
-      })
-  }, [
-    calculatePaymentAmount,
-    currentPaymentMinimum,
-    currentPaymentType,
-    presetAmounts,
-    topupInfo,
-  ])
 
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
-    paymentSelectionIdRef.current += 1
     setConfirmDialogOpen(false)
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
@@ -207,41 +163,26 @@ export function Wallet(props: WalletProps) {
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
-    paymentSelectionIdRef.current += 1
     setConfirmDialogOpen(false)
     setTopupAmount(amount)
     setSelectedPreset(null)
   }
 
   // Handle payment method selection
-  const handlePaymentMethodSelect = async (method: PaymentMethod) => {
+  const handlePaymentMethodSelect = (method: PaymentMethod) => {
     const minimum = getPaymentMethodMinTopup(topupInfo, method)
     if (topupAmount < minimum) {
       return
     }
 
-    const selectionId = paymentSelectionIdRef.current + 1
-    paymentSelectionIdRef.current = selectionId
     setSelectedPaymentMethod(method)
     setSelectedWaffoMethodIndex(null)
-    setPaymentLoading(method.type)
-
-    try {
-      const quote = await calculatePaymentAmount(topupAmount, method.type)
-      if (
-        quote.status === 'ready' &&
-        paymentSelectionIdRef.current === selectionId
-      ) {
-        setConfirmDialogOpen(true)
-      }
-    } finally {
-      setPaymentLoading(null)
-    }
+    setConfirmDialogOpen(true)
   }
 
   // Handle payment confirmation
   const handlePaymentConfirm = async () => {
-    if (!selectedPaymentMethod || !canConfirmCurrentPayment) return
+    if (!selectedPaymentMethod || topupAmount < currentPaymentMinimum) return
 
     const success = await dispatchSelectedPayment(
       selectedPaymentMethod,
@@ -298,35 +239,23 @@ export function Wallet(props: WalletProps) {
     }
   }
 
-  const handleWaffoMethodSelect = async (
-    method: WaffoPayMethod,
-    index: number
-  ) => {
-    const loadingKey = `waffo-${index}`
-    const selectionId = paymentSelectionIdRef.current + 1
-    paymentSelectionIdRef.current = selectionId
+  const handleWaffoMethodSelect = (method: WaffoPayMethod, index: number) => {
+    const minimum = getPaymentMethodMinTopup(
+      topupInfo,
+      undefined,
+      PAYMENT_TYPES.WAFFO
+    )
+    if (topupAmount < minimum) {
+      return
+    }
+
     setSelectedPaymentMethod({
       name: method.name,
       type: PAYMENT_TYPES.WAFFO,
       icon: method.icon,
     })
     setSelectedWaffoMethodIndex(index)
-    setPaymentLoading(loadingKey)
-
-    try {
-      const quote = await calculatePaymentAmount(
-        topupAmount,
-        PAYMENT_TYPES.WAFFO
-      )
-      if (
-        quote.status === 'ready' &&
-        paymentSelectionIdRef.current === selectionId
-      ) {
-        setConfirmDialogOpen(true)
-      }
-    } finally {
-      setPaymentLoading(null)
-    }
+    setConfirmDialogOpen(true)
   }
 
   const handleSubscriptionAvailabilityChange = useCallback(
@@ -359,17 +288,16 @@ export function Wallet(props: WalletProps) {
                   onSelectPreset={handleSelectPreset}
                   topupAmount={topupAmount}
                   onTopupAmountChange={handleTopupAmountChange}
-                  paymentQuote={currentQuote}
-                  getPaymentQuote={getCurrentPaymentQuote}
                   currentPaymentMinimum={currentPaymentMinimum}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
-                  paymentLoading={paymentLoading}
                   redemptionCode={redemptionCode}
                   onRedemptionCodeChange={setRedemptionCode}
                   onRedeem={handleRedeem}
                   redeeming={redeeming}
                   topupLink={topupInfo?.topup_link}
                   loading={topupLoading}
+                  priceRatio={(status?.price as number) || 1}
+                  usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
                   enableCreemTopup={topupInfo?.enable_creem_topup}
@@ -409,10 +337,8 @@ export function Wallet(props: WalletProps) {
         onOpenChange={setConfirmDialogOpen}
         onConfirm={handlePaymentConfirm}
         topupAmount={topupAmount}
-        quote={currentQuote}
         paymentMethod={selectedPaymentMethod}
         processing={processing || waffoProcessing || pancakeProcessing}
-        canConfirm={canConfirmCurrentPayment}
       />
 
       <TransferDialog
