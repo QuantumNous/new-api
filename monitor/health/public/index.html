@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DKU AI Service Gateway Monitor</title>
+<link rel="icon" href="https://newstatic.dukekunshan.edu.cn/favicon.png" type="image/png">
+<script src="tailwind.min.js"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: { colors: { primary: { DEFAULT: '#6366f1', 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5' } } } }
+};
+</script>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.timeline-segment { transition: all 0.15s ease; }
+.timeline-segment:hover { opacity: 0.8; transform: scaleY(1.15); z-index: 10; }
+.tooltip { position: absolute; z-index: 50; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+.tooltip.show { opacity: 1; }
+.card-hover { transition: all 0.3s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+.pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+.model-tags-collapsed { max-height: 3.2em; overflow: hidden; }
+.model-tags-expanded { max-height: none; }
+.model-toggle { cursor: pointer; user-select: none; }
+</style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen">
+
+<div id="app" class="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+  <!-- Header -->
+  <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight" data-i18n="title">API Health Monitor</h1>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" data-i18n="subtitle">渠道与模型可用性监控</p>
+    </div>
+    <div class="flex items-center gap-3 flex-wrap">
+      <!-- Period selector -->
+      <div class="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden text-sm">
+        <button onclick="setPeriod('1d')" id="btn-1d" class="px-3 py-1.5 period-btn font-medium">1D</button>
+        <button onclick="setPeriod('7d')" id="btn-7d" class="px-3 py-1.5 period-btn font-medium">7D</button>
+        <button onclick="setPeriod('15d')" id="btn-15d" class="px-3 py-1.5 period-btn font-medium">15D</button>
+        <button onclick="setPeriod('30d')" id="btn-30d" class="px-3 py-1.5 period-btn font-medium">30D</button>
+      </div>
+      <!-- Language -->
+      <button onclick="toggleLang()" id="lang-btn" class="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800">EN</button>
+      <!-- Theme -->
+      <button onclick="toggleTheme()" id="theme-btn" class="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
+        <svg id="icon-sun" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg id="icon-moon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      </button>
+      <!-- Refresh -->
+      <button onclick="manualRefresh()" id="refresh-btn" class="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800" title="Refresh">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4.49 9A8 8 0 0119.51 9M19.51 15A8 8 0 014.49 15"/></svg>
+      </button>
+      <span class="text-xs text-gray-400 dark:text-gray-500 inline-block min-w-[120px] text-right tabular-nums" id="refresh-timer"></span>
+    </div>
+  </header>
+
+  <!-- Overview Cards -->
+  <div id="overview" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8"></div>
+
+  <!-- Channel Cards -->
+  <h2 class="text-lg font-semibold mb-4" data-i18n="channels_title">渠道状态</h2>
+  <div id="channel-cards" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8"></div>
+
+  <!-- Model Availability -->
+  <h2 class="text-lg font-semibold mb-4" data-i18n="models_title">模型可用性</h2>
+  <div id="model-table" class="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mb-8"></div>
+</div>
+
+<!-- Tooltip container -->
+<div id="tooltip" class="tooltip bg-gray-900 dark:bg-gray-800 text-white rounded-xl shadow-xl p-3 text-xs max-w-64"></div>
+
+<script>
+// ============= i18n =============
+const I18N = {
+  zh: {
+    title: 'DKU AI Service Gateway Monitor',
+    subtitle: '渠道与模型可用性监控',
+    channels_title: '渠道状态',
+    models_title: '模型可用性',
+    total: '渠道总数',
+    operational: '正常',
+    failed: '异常',
+    unsupported: '不支持测试',
+    models: '可用模型',
+    unavailable_models: '不可用模型',
+    avg_latency: '平均延迟',
+    status_operational: '正常',
+    status_failed: '异常',
+    status_disabled: '已禁用',
+    status_auto_disabled: '自动禁用',
+    status_maintenance: '不支持测试',
+    type_label: '类型',
+    models_label: '模型',
+    latency: '响应延迟',
+    availability: '可用性',
+    success_rate: '成功',
+    no_data: '暂无数据',
+    past: '过去',
+    now: '现在',
+    history: '历史',
+    next_refresh: '下次刷新',
+    model_name: '模型名称',
+    provider: '提供渠道',
+    available: '可用',
+    status: '状态',
+    partial: '部分可用',
+    unavailable: '不可用',
+    last_test: '最后测试',
+    ago_min: '分钟前',
+    ago_hour: '小时前',
+    ago_day: '天前',
+    never: '从未测试',
+    error: '错误',
+  },
+  en: {
+    title: 'DKU AI Service Gateway Monitor',
+    subtitle: 'Channel & Model Availability Monitoring',
+    channels_title: 'Channel Status',
+    models_title: 'Model Availability',
+    total: 'Total Channels',
+    operational: 'Operational',
+    failed: 'Failed',
+    unsupported: 'Unsupported',
+    models: 'Models',
+    unavailable_models: 'Unavailable Models',
+    avg_latency: 'Avg Latency',
+    status_operational: 'Operational',
+    status_failed: 'Failed',
+    status_disabled: 'Disabled',
+    status_auto_disabled: 'Auto-Disabled',
+    status_maintenance: 'Test N/A',
+    type_label: 'Type',
+    models_label: 'Models',
+    latency: 'Latency',
+    availability: 'Availability',
+    success_rate: 'success',
+    no_data: 'No data',
+    past: 'Past',
+    now: 'Now',
+    history: 'History',
+    next_refresh: 'Next refresh',
+    model_name: 'Model',
+    provider: 'Provider',
+    available: 'Available',
+    status: 'Status',
+    partial: 'Partial',
+    unavailable: 'Unavailable',
+    last_test: 'Last Test',
+    ago_min: 'm ago',
+    ago_hour: 'h ago',
+    ago_day: 'd ago',
+    never: 'Never',
+    error: 'Error',
+  }
+};
+
+let currentLang = localStorage.getItem('health-lang') || 'zh';
+let currentPeriod = '1d';
+let currentTheme = localStorage.getItem('health-theme') || 'dark';
+let refreshCountdown = 60;
+let refreshInterval;
+let channelTimelines = {};
+
+function t(key) { return I18N[currentLang]?.[key] || key; }
+
+function toggleLang() {
+  currentLang = currentLang === 'zh' ? 'en' : 'zh';
+  localStorage.setItem('health-lang', currentLang);
+  document.getElementById('lang-btn').textContent = currentLang === 'zh' ? 'EN' : '中';
+  document.documentElement.lang = currentLang;
+  applyI18n();
+  renderAll();
+}
+
+function toggleTheme() {
+  currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('health-theme', currentTheme);
+  applyTheme();
+}
+
+function applyTheme() {
+  document.documentElement.classList.toggle('dark', currentTheme === 'dark');
+  document.getElementById('icon-sun').classList.toggle('hidden', currentTheme === 'dark');
+  document.getElementById('icon-moon').classList.toggle('hidden', currentTheme !== 'dark');
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.getElementById('lang-btn').textContent = currentLang === 'zh' ? 'EN' : '中';
+}
+
+function setPeriod(p) {
+  currentPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b => {
+    b.classList.remove('bg-primary', 'text-white');
+    b.classList.add('text-gray-600', 'dark:text-gray-400');
+  });
+  const btn = document.getElementById('btn-' + p);
+  btn.classList.add('bg-primary', 'text-white');
+  btn.classList.remove('text-gray-600', 'dark:text-gray-400');
+  fetchAvailabilityAndTimelines();
+  renderChannelCards();
+}
+
+// ============= Data =============
+let overviewData = {};
+let channelsData = [];
+let modelsData = [];
+let availabilityData = {};
+
+// Base path for API requests (handles Nginx sub-path proxy)
+const API_BASE = (() => {
+  const base = document.baseURI || window.location.href;
+  const url = new URL(base);
+  // Remove trailing index.html or slash, keep the directory path
+  let path = url.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+  return path || '';
+})();
+
+async function fetchAll() {
+  try {
+    const [ov, ch, md, av] = await Promise.all([
+      fetch(API_BASE + '/api/overview').then(r => r.json()),
+      fetch(API_BASE + '/api/channels').then(r => r.json()),
+      fetch(API_BASE + '/api/models').then(r => r.json()),
+      fetch(API_BASE + '/api/availability?period=' + currentPeriod).then(r => r.json()),
+    ]);
+    overviewData = ov;
+    channelsData = ch;
+    modelsData = md;
+    availabilityData = {};
+    for (const row of av) {
+      availabilityData[row.channel_id] = row;
+    }
+    // Fetch timelines for all channels
+    const timelines = await Promise.all(
+      ch.map(c => fetch(API_BASE + '/api/timeline/' + c.id + '?period=' + currentPeriod).then(r => r.json()).catch(() => []))
+    );
+    channelTimelines = {};
+    ch.forEach((c, i) => { channelTimelines[c.id] = timelines[i]; });
+    renderAll();
+  } catch (e) {
+    console.error('Fetch error:', e);
+  }
+}
+
+async function fetchAvailabilityAndTimelines() {
+  try {
+    const [av, ...timelines] = await Promise.all([
+      fetch(API_BASE + '/api/availability?period=' + currentPeriod).then(r => r.json()),
+      ...channelsData.map(c => fetch(API_BASE + '/api/timeline/' + c.id + '?period=' + currentPeriod).then(r => r.json()).catch(() => []))
+    ]);
+    availabilityData = {};
+    for (const row of av) {
+      availabilityData[row.channel_id] = row;
+    }
+    channelTimelines = {};
+    channelsData.forEach((c, i) => { channelTimelines[c.id] = timelines[i]; });
+    renderChannelCards();
+  } catch (e) { console.error(e); }
+}
+
+// ============= Render =============
+function renderAll() {
+  renderOverview();
+  renderChannelCards();
+  renderModelTable();
+}
+
+function getStatusInfo(status, isTestable) {
+  if (!isTestable) return { label: t('status_maintenance'), color: 'blue', dot: 'bg-blue-500', badge: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' };
+  if (status === 1) return { label: t('status_operational'), color: 'green', dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' };
+  if (status === 2) return { label: t('status_disabled'), color: 'gray', dot: 'bg-gray-400', badge: 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20' };
+  return { label: t('status_auto_disabled'), color: 'red', dot: 'bg-red-500', badge: 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20' };
+}
+
+function formatTime(unixTs) {
+  if (!unixTs) return t('never');
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - unixTs;
+  if (diff < 60) return '<1' + t('ago_min');
+  if (diff < 3600) return Math.floor(diff / 60) + t('ago_min');
+  if (diff < 86400) return Math.floor(diff / 3600) + t('ago_hour');
+  return Math.floor(diff / 86400) + t('ago_day');
+}
+
+function availabilityColor(pct) {
+  if (pct === null || pct === undefined) return '';
+  const hue = (Math.max(0, Math.min(100, pct)) / 100) * 120;
+  return `hsl(${hue} 80% 45%)`;
+}
+
+function renderOverview() {
+  const d = overviewData;
+  const cards = [
+    { label: t('total'), value: d.total_channels || 0, icon: '📊', color: 'from-blue-500/10 to-indigo-500/10 dark:from-blue-500/5 dark:to-indigo-500/5' },
+    { label: t('operational'), value: d.operational_channels || 0, icon: '✓', color: 'from-emerald-500/10 to-green-500/10 dark:from-emerald-500/5 dark:to-green-500/5', text: 'text-emerald-600 dark:text-emerald-400' },
+    { label: t('failed'), value: d.failed_channels || 0, icon: '✗', color: 'from-red-500/10 to-rose-500/10 dark:from-red-500/5 dark:to-rose-500/5', text: 'text-red-600 dark:text-red-400' },
+    { label: t('models'), value: d.total_models || 0, icon: '🤖', color: 'from-violet-500/10 to-purple-500/10 dark:from-violet-500/5 dark:to-purple-500/5' },
+    { label: t('unavailable_models'), value: d.unavailable_models || 0, icon: '⚠', color: 'from-amber-500/10 to-orange-500/10 dark:from-amber-500/5 dark:to-orange-500/5', text: 'text-amber-600 dark:text-amber-400' },
+    { label: t('avg_latency'), value: d.avg_response_time ? (d.avg_response_time / 1000).toFixed(1) + 's' : '—', icon: '⚡', color: 'from-amber-500/10 to-yellow-500/10 dark:from-amber-500/5 dark:to-yellow-500/5' },
+  ];
+  document.getElementById('overview').innerHTML = cards.map(c => `
+    <div class="rounded-2xl bg-gradient-to-br ${c.color} border border-gray-200/50 dark:border-gray-800/50 p-4 card-hover">
+      <div class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">${c.label}</div>
+      <div class="text-2xl font-bold ${c.text || ''}">${c.value}</div>
+    </div>
+  `).join('');
+}
+
+function renderChannelCards() {
+  const container = document.getElementById('channel-cards');
+  container.innerHTML = channelsData.map(ch => {
+    const si = getStatusInfo(ch.status, true);
+    const av = availabilityData[ch.id];
+    const timeline = channelTimelines[ch.id] || [];
+
+    const borderClass = 'border-gray-200 dark:border-gray-800 hover:border-primary/20';
+
+    const MAX_VISIBLE = 6;
+    const hasMore = ch.models.length > MAX_VISIBLE;
+    const allTags = ch.models.map(m =>
+      `<span class="inline-block rounded-md bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 text-[10px] font-mono text-gray-600 dark:text-gray-400">${m}</span>`
+    ).join('');
+    const modelTagsHtml = hasMore
+      ? `<div class="flex flex-wrap gap-1 mb-4 model-tags-collapsed" id="model-tags-${ch.id}">${allTags}</div>
+         <div class="flex justify-center mb-3">
+           <span class="model-toggle text-[10px] text-primary font-medium hover:underline" onclick="toggleModels(${ch.id}, ${ch.models.length - MAX_VISIBLE})" id="model-toggle-${ch.id}" data-collapsed="true">${currentLang === 'zh' ? '展开' : 'Expand'} (+${ch.models.length - MAX_VISIBLE})</span>
+         </div>`
+      : `<div class="flex flex-wrap gap-1 mb-4">${allTags}</div>`;
+
+    const metricsHtml = `
+      <div class="grid grid-cols-2 gap-3">
+        <div class="rounded-xl bg-gray-100/50 dark:bg-gray-800/50 p-3">
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">${t('latency')}</div>
+          <div class="font-mono text-lg font-medium">${ch.response_time ? ch.response_time + ' ms' : '—'}</div>
+        </div>
+        <div class="rounded-xl bg-gray-100/50 dark:bg-gray-800/50 p-3">
+          <div class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">${t('availability')}</div>
+          <div class="font-mono text-lg font-medium" style="color:${av ? availabilityColor(parseFloat(av.availability_pct)) : ''}">${av ? parseFloat(av.availability_pct).toFixed(2) + '%' : '—'}</div>
+        </div>
+      </div>
+    `;
+
+    const availabilityStatsHtml = av ? `
+      <div class="flex items-center justify-between rounded-lg bg-gray-100/30 dark:bg-gray-800/30 px-3 py-2 mt-3">
+        <div>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">${t('availability')} (${currentPeriod.replace('d', ' ' + (currentLang === 'zh' ? '天' : 'Days'))})</p>
+          <p class="text-[10px] text-gray-400">${av.success_count}/${av.total_count} ${t('success_rate')}</p>
+        </div>
+        <span class="font-mono text-sm font-bold" style="color:${availabilityColor(parseFloat(av.availability_pct))}">${parseFloat(av.availability_pct).toFixed(2)}%</span>
+      </div>
+    ` : `
+      <div class="flex items-center justify-between rounded-lg bg-gray-100/30 dark:bg-gray-800/30 px-3 py-2 mt-3">
+        <p class="text-[10px] text-gray-400">${t('no_data')}</p>
+        <span class="font-mono text-sm text-gray-400">—</span>
+      </div>
+    `;
+
+    const timelineHtml = renderTimeline(ch.id, timeline);
+
+    return `
+      <div class="group relative flex flex-col overflow-hidden rounded-2xl border ${borderClass} bg-white/40 dark:bg-gray-900/40 backdrop-blur-xl card-hover">
+        <div class="flex-1 p-4 sm:p-5">
+          <div class="flex items-start justify-between mb-3">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 mb-1">
+                <h3 class="text-base font-bold truncate">${ch.name}</h3>
+                <span class="shrink-0 inline-flex items-center rounded-lg border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${si.badge}">${si.label}</span>
+              </div>
+              <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <span class="rounded-md bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium">${ch.type_name}</span>
+                ${ch.test_time ? `<span>${t('last_test')}: ${formatTime(ch.test_time)}</span>` : ''}
+              </div>
+            </div>
+          </div>
+          ${modelTagsHtml}
+          ${metricsHtml}
+          ${availabilityStatsHtml}
+        </div>
+        ${timelineHtml ? `<div class="border-t border-gray-200/40 dark:border-gray-800/40 bg-gray-50/50 dark:bg-gray-900/50 px-5 py-4">${timelineHtml}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function renderTimeline(channelId, items) {
+  const SEGMENTS = 60;
+  // items are hourly buckets: { hour, total, success, failed, avg_time }
+  const segments = Array.from({ length: SEGMENTS }, (_, i) => items[i] || null);
+  const count = Math.min(items.length, SEGMENTS);
+
+  const bars = segments.map((seg, i) => {
+    if (!seg) return `<div class="flex-1 rounded-[1px] bg-gray-200/30 dark:bg-gray-700/30 h-full"></div>`;
+    const rate = seg.total > 0 ? seg.success / seg.total : 0;
+    let color;
+    if (seg.total === 0) color = 'bg-gray-300 dark:bg-gray-600';
+    else if (rate >= 0.95) color = 'bg-emerald-500';
+    else if (rate >= 0.8) color = 'bg-amber-500';
+    else color = 'bg-red-500';
+    const dt = new Date(seg.hour * 1000);
+    const timeStr = dt.toLocaleString();
+    const rateStr = (rate * 100).toFixed(1);
+    return `<div class="timeline-segment flex-1 rounded-[1px] ${color} h-full cursor-pointer"
+      data-tooltip="${rateStr}% | ${seg.success}/${seg.total} | ${timeStr}"
+      onmouseenter="showTooltip(event, this)" onmouseleave="hideTooltip()"></div>`;
+  }).reverse().join('');
+
+  // Calculate overall success rate from timeline data
+  const totalRequests = items.reduce((s, i) => s + i.total, 0);
+  const totalSuccess = items.reduce((s, i) => s + i.success, 0);
+  const overallRate = totalRequests > 0 ? ((totalSuccess / totalRequests) * 100).toFixed(2) : '—';
+
+  return `
+    <div class="space-y-2">
+      <div class="flex items-center justify-between text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+        <span>${t('history')} (${overallRate}%)</span>
+      </div>
+      <div class="relative h-7 w-full overflow-hidden rounded-sm bg-gray-200/20 dark:bg-gray-700/20">
+        <div class="flex h-full w-full gap-[1px] p-[1px]">${bars}</div>
+      </div>
+      <div class="flex justify-between text-[9px] uppercase tracking-widest text-gray-400/50">
+        <span>${t('past')}</span><span>${t('now')}</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderModelTable() {
+  const sorted = [...modelsData].sort((a, b) => {
+    if (a.available_count === a.total_count && b.available_count !== b.total_count) return -1;
+    if (a.available_count !== a.total_count && b.available_count === b.total_count) return 1;
+    return a.model.localeCompare(b.model);
+  });
+
+  const rows = sorted.map(m => {
+    const ratio = m.total_count > 0 ? m.available_count / m.total_count : 0;
+    let statusLabel, statusClass;
+    if (ratio === 1) { statusLabel = t('status_operational'); statusClass = 'text-emerald-600 dark:text-emerald-400'; }
+    else if (ratio > 0) { statusLabel = t('partial'); statusClass = 'text-amber-600 dark:text-amber-400'; }
+    else { statusLabel = t('unavailable'); statusClass = 'text-red-600 dark:text-red-400'; }
+
+    const channelNames = m.channels.map(c => {
+      const color = c.status === 1 && c.enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500';
+      return `<span class="${color} text-xs">${c.name}</span>`;
+    }).join(', ');
+
+    return `<tr class="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/50">
+      <td class="px-4 py-3 font-mono text-sm font-medium">${m.model}</td>
+      <td class="px-4 py-3 text-xs">${channelNames}</td>
+      <td class="px-4 py-3 text-sm font-medium">${m.available_count}/${m.total_count}</td>
+      <td class="px-4 py-3 text-sm font-medium ${statusClass}">${statusLabel}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('model-table').innerHTML = `
+    <table class="w-full text-left">
+      <thead><tr class="bg-gray-50 dark:bg-gray-900/80 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+        <th class="px-4 py-3">${t('model_name')}</th>
+        <th class="px-4 py-3">${t('provider')}</th>
+        <th class="px-4 py-3">${t('available')}</th>
+        <th class="px-4 py-3">${t('status')}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+// ============= Tooltip =============
+const tooltipEl = document.getElementById('tooltip');
+function showTooltip(e, el) {
+  const text = el.dataset.tooltip;
+  if (!text) return;
+  const parts = text.split(' | ');
+  tooltipEl.innerHTML = parts.map((p, i) => i === 0
+    ? `<div class="font-semibold mb-1">${p}</div>`
+    : `<div class="text-gray-300">${p}</div>`
+  ).join('');
+  tooltipEl.classList.add('show');
+  const rect = el.getBoundingClientRect();
+  tooltipEl.style.left = Math.min(rect.left, window.innerWidth - 260) + 'px';
+  tooltipEl.style.top = (rect.top - tooltipEl.offsetHeight - 8 + window.scrollY) + 'px';
+}
+function hideTooltip() { tooltipEl.classList.remove('show'); }
+
+function toggleModels(channelId, extraCount) {
+  const container = document.getElementById('model-tags-' + channelId);
+  const toggle = document.getElementById('model-toggle-' + channelId);
+  const collapsed = toggle.dataset.collapsed === 'true';
+  if (collapsed) {
+    container.classList.remove('model-tags-collapsed');
+    container.classList.add('model-tags-expanded');
+    toggle.textContent = currentLang === 'zh' ? '收起' : 'Collapse';
+    toggle.dataset.collapsed = 'false';
+  } else {
+    container.classList.add('model-tags-collapsed');
+    container.classList.remove('model-tags-expanded');
+    toggle.textContent = (currentLang === 'zh' ? '展开' : 'Expand') + ' (+' + extraCount + ')';
+    toggle.dataset.collapsed = 'true';
+  }
+}
+
+// ============= Init =============
+const REFRESH_INTERVAL = 600;
+
+function startRefreshTimer() {
+  refreshCountdown = REFRESH_INTERVAL;
+  clearInterval(refreshInterval);
+  refreshInterval = setInterval(() => {
+    refreshCountdown--;
+    const min = Math.floor(refreshCountdown / 60);
+    const sec = refreshCountdown % 60;
+    document.getElementById('refresh-timer').textContent = `${t('next_refresh')}: ${min}:${String(sec).padStart(2, '0')}`;
+    if (refreshCountdown <= 0) {
+      fetchAll();
+      refreshCountdown = REFRESH_INTERVAL;
+    }
+  }, 1000);
+}
+
+function manualRefresh() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+  fetchAll().then(() => {
+    refreshCountdown = REFRESH_INTERVAL;
+    btn.disabled = false;
+    btn.classList.remove('opacity-50');
+  });
+}
+
+applyTheme();
+applyI18n();
+setPeriod('1d');
+fetchAll();
+startRefreshTimer();
+</script>
+</body>
+</html>
