@@ -83,10 +83,14 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open sqlite db: %v", err)
 	}
+	originalDB := model.DB
+	originalLogDB := model.LOG_DB
 	model.DB = db
 	model.LOG_DB = db
 
 	t.Cleanup(func() {
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()
@@ -138,6 +142,8 @@ func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*g
 		t.Fatalf("failed to open %s db: %v", dialect, err)
 	}
 
+	originalDB := model.DB
+	originalLogDB := model.LOG_DB
 	model.DB = db
 	model.LOG_DB = db
 
@@ -148,6 +154,8 @@ func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*g
 	managedTokensTable := new(bool)
 
 	t.Cleanup(func() {
+		model.DB = originalDB
+		model.LOG_DB = originalLogDB
 		if *managedTokensTable && db.Migrator().HasTable("tokens") {
 			_ = db.Migrator().DropTable("tokens")
 		}

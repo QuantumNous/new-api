@@ -257,6 +257,10 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	// Add channel_id column to perf_metrics and rebuild unique index
+	if err := migratePerfMetricAddChannelId(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
