@@ -339,6 +339,9 @@ func InitResources() error {
 		return err
 	}
 
+	// 初始化默认模型来源配置（仅当 Redis 就绪后写入缓存）
+	model.InitDefaultModelSources()
+
 	perfmetrics.Init()
 
 	// 启动系统监控

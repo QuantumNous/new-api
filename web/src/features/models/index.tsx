@@ -34,6 +34,8 @@ import { ModelsDialogs } from './components/models-dialogs'
 import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
 import { ModelsTable } from './components/models-table'
+import { HFModelsTable } from './components/hf-models-table'
+import { ModelSourcesTable } from './components/model-sources-table'
 import { useModelDeploymentSettings } from './hooks/use-model-deployment-settings'
 import { deploymentsQueryKeys } from './lib'
 import {
@@ -50,6 +52,12 @@ const SECTION_META: Record<ModelsSectionId, { titleKey: string }> = {
   },
   deployments: {
     titleKey: 'Deployments',
+  },
+  sources: {
+    titleKey: 'Model Sources',
+  },
+  'hf-models': {
+    titleKey: 'Hugging Face Models',
   },
 }
 
@@ -111,6 +119,10 @@ function ModelsContent() {
             <div className='min-h-0 flex-1'>
               {activeSection === 'metadata' ? (
                 <ModelsTable />
+              ) : activeSection === 'sources' ? (
+                <ModelSourcesTable />
+              ) : activeSection === 'hf-models' ? (
+                <HFModelsTable />
               ) : (
                 <DeploymentsSection />
               )}

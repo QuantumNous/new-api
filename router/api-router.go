@@ -355,6 +355,26 @@ func SetApiRouter(router *gin.Engine) {
 			modelsRoute.DELETE("/:id", controller.DeleteModelMeta)
 		}
 
+		// Model source & HF model management
+		modelSourceRoute := adminRoute.Group("/model-sources")
+		{
+			modelSourceRoute.POST("/", controller.CreateModelSource)
+			modelSourceRoute.GET("/", controller.GetModelSources)
+			modelSourceRoute.GET("/:id", controller.GetModelSourceDetail)
+			modelSourceRoute.PUT("/:id", controller.UpdateModelSource)
+			modelSourceRoute.DELETE("/:id", controller.DeleteModelSource)
+		}
+
+		hfModelRoute := adminRoute.Group("/hf-models")
+		{
+			hfModelRoute.GET("/hub/search", controller.SearchHFHubModels)
+			hfModelRoute.POST("/deploy", controller.DeployHFModel)
+			hfModelRoute.GET("/", controller.GetHFModels)
+			hfModelRoute.GET("/:id", controller.GetHFModelDetail)
+			hfModelRoute.PUT("/:id/toggle", controller.ToggleHFModel)
+			hfModelRoute.DELETE("/:id", controller.DeleteHFModel)
+		}
+
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())

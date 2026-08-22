@@ -631,3 +631,222 @@ export async function checkClusterNameAvailability(name: string): Promise<{
   })
   return res.data
 }
+
+// ============================================================================
+// Model Source CRUD (六平台凭据管理)
+// ============================================================================
+
+export interface ModelSourceResponse {
+  id: number
+  source_type: string
+  label: string
+  enabled: boolean
+  remark?: string
+  has_credential: boolean
+  created_at: number
+  updated_at: number
+}
+
+export interface ModelSourceDetailResponse extends ModelSourceResponse {
+  config_json?: string
+}
+
+export interface ModelSourceCreatePayload {
+  source_type: 'huggingface' | 'modelscope' | 'paddlehub' | 'modelers' | 'openi' | 'moark'
+  label: string
+  enabled?: boolean
+  remark?: string
+  huggingface_credential?: { api_key: string; username?: string }
+  modelscope_credential?: { access_token: string }
+  paddlehub_credential?: { access_token?: string; access_key?: string; secret_key?: string }
+  modelers_credential?: { access_token: string }
+  openi_credential?: { access_token: string }
+  moark_credential?: { access_token: string }
+}
+
+/**
+ * List all model sources (platform credentials)
+ * GET /api/user/model-sources
+ */
+export async function getModelSources(): Promise<ModelSourceResponse[]> {
+  const res = await api.get('/api/user/model-sources/')
+  return res.data.data ?? []
+}
+
+/**
+ * Get single model source detail
+ * GET /api/user/model-sources/:id
+ */
+export async function getModelSourceDetail(
+  id: number
+): Promise<ModelSourceDetailResponse> {
+  const res = await api.get(`/api/user/model-sources/${id}`)
+  return res.data.data
+}
+
+/**
+ * Create a new model source (platform credential)
+ * POST /api/user/model-sources
+ */
+export async function createModelSource(
+  data: ModelSourceCreatePayload
+): Promise<ModelSourceResponse> {
+  const res = await api.post('/api/user/model-sources/', data)
+  return res.data.data
+}
+
+/**
+ * Update an existing model source
+ * PUT /api/user/model-sources/:id
+ */
+export async function updateModelSource(
+  id: number,
+  data: Partial<ModelSourceCreatePayload>
+): Promise<{ message: string }> {
+  const res = await api.put(`/api/user/model-sources/${id}`, data)
+  return res.data
+}
+
+/**
+ * Delete (soft-delete) a model source
+ * DELETE /api/user/model-sources/:id
+ */
+export async function deleteModelSource(
+  id: number
+): Promise<{ message: string }> {
+  const res = await api.delete(`/api/user/model-sources/${id}`)
+  return res.data
+}
+
+// ============================================================================
+// HuggingFace Model Management
+// ============================================================================
+
+export interface HFModelResponse {
+  id: number
+  source_id: number
+  source_label?: string
+  repo_id: string
+  file_name?: string
+  task?: string
+  local_path?: string
+  deployment_status: string
+  status_message?: string
+  error_detail?: string
+  port: number
+  gpu_ids?: string
+  max_concurrency: number
+  enabled: boolean
+  size_bytes?: number
+  sha256?: string
+  created_at: number
+  updated_at: number
+}
+
+export interface HFHubModelInfo {
+  id: string
+  sha?: string
+  card_data?: string
+  tags?: string[]
+  gated?: boolean
+  private?: boolean
+  likes?: number
+  downloads?: number
+}
+
+export interface HFHubSearchResponse {
+  models: HFHubModelInfo[]
+  total: number
+}
+
+export interface HFModelDeployPayload {
+  source_id: number
+  repo_id: string
+  file_name?: string
+  task?: string
+  port?: number
+  gpu_ids?: string
+  max_concurrency?: number
+}
+
+export interface HFModelDeployResponse {
+  model_id: number
+  repo_id: string
+  status: string
+  message: string
+}
+
+export interface HFModelTogglePayload {
+  enabled: boolean
+}
+
+/**
+ * Search HF Hub for public models
+ * GET /api/user/hf-models/hub/search?source_id=xxx&query=xxx&limit=20
+ */
+export async function searchHFHubModels(params: {
+  source_id: number
+  query?: string
+  author?: string
+  task?: string
+  limit?: number
+  offset?: number
+}): Promise<HFHubSearchResponse> {
+  const res = await api.get('/api/user/hf-models/hub/search', { params })
+  return res.data.data
+}
+
+/**
+ * Deploy / register a HF model locally
+ * POST /api/user/hf-models/deploy
+ */
+export async function deployHFModel(
+  data: HFModelDeployPayload
+): Promise<HFModelDeployResponse> {
+  const res = await api.post('/api/user/hf-models/deploy', data)
+  return res.data.data
+}
+
+/**
+ * List all deployed HF models
+ * GET /api/user/hf-models
+ */
+export async function getHFModels(): Promise<HFModelResponse[]> {
+  const res = await api.get('/api/user/hf-models/')
+  return res.data.data ?? []
+}
+
+/**
+ * Get single HF model detail
+ * GET /api/user/hf-models/:id
+ */
+export async function getHFModelDetail(
+  id: number
+): Promise<HFModelResponse> {
+  const res = await api.get(`/api/user/hf-models/${id}`)
+  return res.data.data
+}
+
+/**
+ * Toggle (enable/disable) a deployed HF model
+ * PUT /api/user/hf-models/:id/toggle
+ */
+export async function toggleHFModel(
+  id: number,
+  enabled: boolean
+): Promise<HFModelResponse> {
+  const res = await api.put(`/api/user/hf-models/${id}/toggle`, { enabled })
+  return res.data.data
+}
+
+/**
+ * Delete (soft-delete) a deployed HF model
+ * DELETE /api/user/hf-models/:id
+ */
+export async function deleteHFModel(
+  id: number
+): Promise<{ message: string }> {
+  const res = await api.delete(`/api/user/hf-models/${id}`)
+  return res.data
+}
+
