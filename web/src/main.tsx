@@ -34,6 +34,7 @@ import { applyFaviconToDom } from '@/lib/dom-utils'
 import '@/lib/dayjs'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
 import { handleServerError } from '@/lib/handle-server-error'
+import { applySeoFromStatus } from '@/lib/seo'
 
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -131,6 +132,7 @@ if (!rootElement) {
         const s = JSON.parse(saved)
         if (s?.system_name) apply(s.system_name)
         if (s?.logo) applyFaviconToDom(s.logo)
+        applySeoFromStatus(s)
       }
     } catch {
       /* empty */
@@ -147,6 +149,7 @@ if (!rootElement) {
           }
         }
         if (s?.logo) applyFaviconToDom(s.logo as string)
+        applySeoFromStatus(s as Record<string, unknown>)
       })
       .catch(() => {
         /* empty */

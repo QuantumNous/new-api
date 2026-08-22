@@ -42,6 +42,7 @@ import {
 } from '@/lib/auth-session'
 import { subscribeAuthSessionEvents } from '@/lib/auth-session-sync'
 import { resolveLegacyRoute } from '@/lib/legacy-route'
+import { applySeoFromStatus } from '@/lib/seo'
 import { useAuthStore } from '@/stores/auth-store'
 
 function RootComponent() {
@@ -50,6 +51,21 @@ function RootComponent() {
 
   // Load system configuration (logo, system name, etc.) from backend
   useSystemConfig({ autoLoad: true })
+
+  // Re-apply SEO meta tags on route navigation (non-home pages get noindex)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('status')
+      if (raw) {
+        const status = JSON.parse(raw) as Record<string, unknown>
+        applySeoFromStatus(status, {
+          path: window.location.pathname,
+        })
+      }
+    } catch {
+      /* empty */
+    }
+  })
 
   useEffect(() => {
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()

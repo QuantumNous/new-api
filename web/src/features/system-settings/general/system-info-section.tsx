@@ -31,6 +31,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
@@ -55,6 +56,15 @@ const _systemInfoSchema = z.object({
   legal: z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
+  }),
+  seo: z.object({
+    title: z.string().optional(),
+    titleSuffix: z.string().optional(),
+    description: z.string().optional(),
+    keywords: z.string().optional(),
+    siteUrl: z.string().optional(),
+    ogImage: z.string().optional(),
+    robotsIndex: z.string().optional(),
   }),
 })
 
@@ -84,6 +94,15 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
     },
+    seo: {
+      title: normalizeValue(defaultValues.seo?.title),
+      titleSuffix: normalizeValue(defaultValues.seo?.titleSuffix),
+      description: normalizeValue(defaultValues.seo?.description),
+      keywords: normalizeValue(defaultValues.seo?.keywords),
+      siteUrl: normalizeValue(defaultValues.seo?.siteUrl),
+      ogImage: normalizeValue(defaultValues.seo?.ogImage),
+      robotsIndex: normalizeValue(defaultValues.seo?.robotsIndex) || 'true',
+    },
   }
 
   const systemInfoSchemaWithI18n = z.object({
@@ -98,6 +117,15 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     legal: z.object({
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
+    }),
+    seo: z.object({
+      title: z.string().optional(),
+      titleSuffix: z.string().optional(),
+      description: z.string().optional(),
+      keywords: z.string().optional(),
+      siteUrl: z.string().optional(),
+      ogImage: z.string().optional(),
+      robotsIndex: z.string().optional(),
     }),
   })
 
@@ -313,6 +341,165 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                       )}
                     </FormDescription>
                     <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGrid>
+          </SettingsForm>
+        </Form>
+      </SettingsSection>
+
+      <SettingsSection title={t('SEO Settings')}>
+        <Form {...form}>
+          <SettingsForm onSubmit={handleSubmit}>
+            <SettingsFormGrid>
+              <FormField
+                control={form.control}
+                name='seo.title'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO Title (full)')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t(
+                          'Leave empty to use System Name + suffix'
+                        )}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='seo.titleSuffix'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO Title Suffix')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t(
+                          'e.g. AI大模型API网关|OpenAI兼容|统一分发平台'
+                        )}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Appended after system name when full title is empty: {Name} - {Suffix}'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='seo.description'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO Description')}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={3} {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Used for meta description and social previews')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='seo.keywords'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO Keywords')}</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Comma-separated keywords for search engines')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='seo.siteUrl'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO Site URL')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='https://yourdomain.com'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Canonical base URL for Open Graph and sitemap'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='seo.ogImage'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO OG Image URL')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='https://yourdomain.com/og-image.png'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Image shown in social media link previews')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='seo.robotsIndex'
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t('Allow Search Engine Indexing')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'When disabled, robots.txt will block all crawlers'
+                        )}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value === 'true'}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? 'true' : 'false')
+                        }
+                      />
+                    </FormControl>
                   </FormItem>
                 )}
               />
