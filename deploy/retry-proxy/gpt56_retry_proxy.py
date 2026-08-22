@@ -1,0 +1,361 @@
+#!/usr/bin/env python3
+import argparse
+import contextlib
+import json
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+RETRY_HTTP_CODES = {500, 502, 503, 504}
+STREAM_PRELUDE_EVENT_TYPES = {"response.created", "response.in_progress"}
+STREAM_PRELUDE_LIMIT = 64 * 1024
+HOP_BY_HOP_HEADERS = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+}
+
+
+class ProxyConfig:
+    upstream = "http://127.0.0.1:3000"
+    attempts = 5
+    timeout = 240
+    backoff = 0.8
+    upstream_concurrency = 800
+    upstream_slots = threading.BoundedSemaphore(upstream_concurrency)
+
+
+def is_response_failed(body: bytes) -> bool:
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line.startswith(b"data:"):
+            continue
+        payload = line[5:].strip()
+        if not payload or payload == b"[DONE]":
+            continue
+        try:
+            event = json.loads(payload.decode("utf-8", "replace"))
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "response.failed" or event.get("error"):
+            return True
+    return False
+
+
+def classify_sse_block(block: bytes) -> str:
+    payload_lines = []
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if line.startswith(b"data:"):
+            payload_lines.append(line[5:].strip())
+    if not payload_lines:
+        return "hold"
+
+    payload = b"\n".join(payload_lines)
+    if not payload or payload == b"[DONE]":
+        return "commit"
+    try:
+        event = json.loads(payload.decode("utf-8", "replace"))
+    except json.JSONDecodeError:
+        return "commit"
+    if event.get("type") == "response.failed" or event.get("error"):
+        return "retry"
+    if event.get("type") in STREAM_PRELUDE_EVENT_TYPES:
+        return "hold"
+    return "commit"
+
+
+def read_sse_block(response, max_bytes: int) -> tuple[bytes, bool, bool]:
+    lines = []
+    remaining = max_bytes
+    while remaining > 0:
+        line = response.readline(remaining)
+        if not line:
+            return b"".join(lines), True, False
+        lines.append(line)
+        remaining -= len(line)
+        if line in {b"\n", b"\r\n"}:
+            return b"".join(lines), False, False
+    return b"".join(lines), False, True
+
+
+def copy_headers(handler: BaseHTTPRequestHandler) -> dict:
+    headers = {}
+    for key, value in handler.headers.items():
+        if key.lower() in HOP_BY_HOP_HEADERS or key.lower() in {"host", "content-length"}:
+            continue
+        headers[key] = value
+    return headers
+
+
+class RetryProxyHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write("%s - %s\n" % (self.log_date_time_string(), fmt % args))
+
+    def do_GET(self):
+        self.handle_forwarding_request()
+
+    def do_POST(self):
+        self.handle_forwarding_request()
+
+    def do_PUT(self):
+        self.handle_forwarding_request()
+
+    def do_PATCH(self):
+        self.handle_forwarding_request()
+
+    def do_DELETE(self):
+        self.handle_forwarding_request()
+
+    def do_OPTIONS(self):
+        self.handle_forwarding_request()
+
+    def do_HEAD(self):
+        self.handle_forwarding_request()
+
+    def handle_forwarding_request(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        body = self.rfile.read(length) if length else b""
+        if self.command == "POST" and self.path.startswith("/v1/responses"):
+            if self.is_streaming_request(body):
+                self.forward_streaming(body)
+            else:
+                self.forward_with_retry(body)
+        else:
+            self.forward_once(body)
+
+    @staticmethod
+    def is_streaming_request(body: bytes) -> bool:
+        try:
+            return json.loads(body.decode("utf-8")).get("stream") is True
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            return False
+
+    def forward_streaming(self, body: bytes):
+        """Retry early SSE failures, then forward bytes once output begins."""
+        last_error = None
+        for attempt in range(1, ProxyConfig.attempts + 1):
+            try:
+                with ProxyConfig.upstream_slots:
+                    url = ProxyConfig.upstream + self.path
+                    req = urllib.request.Request(
+                        url,
+                        data=body,
+                        headers=copy_headers(self),
+                        method=self.command,
+                    )
+                    with urllib.request.urlopen(req, timeout=ProxyConfig.timeout) as resp:
+                        if resp.status != 200:
+                            response_body = resp.read()
+                            if resp.status in RETRY_HTTP_CODES and attempt < ProxyConfig.attempts:
+                                time.sleep(ProxyConfig.backoff * attempt)
+                                continue
+                            self.send_upstream_response(
+                                resp.status,
+                                dict(resp.headers.items()),
+                                response_body,
+                            )
+                            return
+
+                        response_headers = dict(resp.headers.items())
+                        prelude = bytearray()
+                        retry_early_failure = False
+                        while len(prelude) < STREAM_PRELUDE_LIMIT:
+                            remaining = STREAM_PRELUDE_LIMIT - len(prelude)
+                            block, reached_eof, reached_limit = read_sse_block(
+                                resp,
+                                remaining,
+                            )
+                            prelude.extend(block)
+                            classification = (
+                                "commit" if reached_limit else classify_sse_block(block)
+                            )
+                            if classification == "retry":
+                                retry_early_failure = True
+                                break
+                            if classification == "commit" or reached_eof or reached_limit:
+                                break
+
+                        if retry_early_failure:
+                            last_error = RuntimeError(
+                                "upstream emitted response.failed before output"
+                            )
+                            self.log_message(
+                                "retryable streaming responses failure attempt=%s",
+                                attempt,
+                            )
+                            if attempt < ProxyConfig.attempts:
+                                time.sleep(ProxyConfig.backoff * attempt)
+                                continue
+                            break
+
+                        self.send_stream_headers(resp.status, response_headers)
+                        if prelude:
+                            self.wfile.write(prelude)
+                            self.wfile.flush()
+                        while True:
+                            read_chunk = getattr(resp, "read1", resp.read)
+                            chunk = read_chunk(8192)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                            self.wfile.flush()
+                        return
+            except urllib.error.HTTPError as err:
+                response_body = err.read()
+                if err.code in RETRY_HTTP_CODES and attempt < ProxyConfig.attempts:
+                    time.sleep(ProxyConfig.backoff * attempt)
+                    continue
+                self.send_upstream_response(err.code, dict(err.headers.items()), response_body)
+                return
+            except (BrokenPipeError, ConnectionResetError):
+                return
+            except Exception as exc:
+                last_error = exc
+                if attempt < ProxyConfig.attempts:
+                    time.sleep(ProxyConfig.backoff * attempt)
+                    continue
+
+        payload = json.dumps(
+            {
+                "error": {
+                    "message": f"retry proxy upstream request failed: {last_error}",
+                    "type": "retry_proxy_error",
+                    "code": "upstream_request_failed",
+                }
+            }
+        ).encode("utf-8")
+        self.send_upstream_response(502, {"Content-Type": "application/json"}, payload)
+
+    def forward_once(self, body: bytes | None = None):
+        status, headers, response_body = self.request_upstream(body)
+        self.send_upstream_response(status, headers, response_body)
+
+    def forward_with_retry(self, body: bytes):
+        last = None
+        for attempt in range(1, ProxyConfig.attempts + 1):
+            status, headers, response_body = self.request_upstream(body)
+            failed_event = status == 200 and is_response_failed(response_body)
+            retriable_status = status in RETRY_HTTP_CODES
+            last = (status, headers, response_body)
+            if not failed_event and not retriable_status:
+                break
+            self.log_message(
+                "retryable responses failure attempt=%s status=%s failed_event=%s",
+                attempt,
+                status,
+                failed_event,
+            )
+            if attempt < ProxyConfig.attempts:
+                time.sleep(ProxyConfig.backoff * attempt)
+        status, headers, response_body = last
+        self.send_upstream_response(status, headers, response_body)
+
+    def request_upstream(self, body: bytes | None):
+        return self.request_upstream_path(self.path, body)
+
+    def request_upstream_path(self, path: str, body: bytes | None):
+        url = ProxyConfig.upstream + path
+        method = self.command
+        if path != self.path:
+            method = "POST"
+        headers = copy_headers(self)
+        if path != self.path:
+            headers["Content-Type"] = "application/json"
+        data = body if body is not None else None
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        slot = (
+            ProxyConfig.upstream_slots
+            if method == "POST" and path.startswith("/v1/responses")
+            else contextlib.nullcontext()
+        )
+        with slot:
+            try:
+                with urllib.request.urlopen(req, timeout=ProxyConfig.timeout) as resp:
+                    response_body = resp.read()
+                    return resp.status, dict(resp.headers.items()), response_body
+            except urllib.error.HTTPError as err:
+                return err.code, dict(err.headers.items()), err.read()
+            except Exception as exc:
+                payload = json.dumps(
+                    {
+                        "error": {
+                            "message": f"retry proxy upstream request failed: {exc}",
+                            "type": "retry_proxy_error",
+                            "code": "upstream_request_failed",
+                        }
+                    }
+                ).encode("utf-8")
+                return 502, {"Content-Type": "application/json"}, payload
+
+    def send_upstream_response(self, status: int, headers: dict, body: bytes):
+        self.close_connection = True
+        self.send_response(status)
+        for key, value in headers.items():
+            lower = key.lower()
+            if lower in HOP_BY_HOP_HEADERS or lower == "content-length":
+                continue
+            self.send_header(key, value)
+        self.send_header("Connection", "close")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def send_stream_headers(self, status: int, headers: dict):
+        self.close_connection = True
+        self.send_response(status)
+        for key, value in headers.items():
+            lower = key.lower()
+            if lower in HOP_BY_HOP_HEADERS or lower == "content-length":
+                continue
+            self.send_header(key, value)
+        self.send_header("Connection", "close")
+        self.end_headers()
+
+
+class RetryProxyServer(ThreadingHTTPServer):
+    request_queue_size = 128
+    daemon_threads = True
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--listen", default="0.0.0.0:3010")
+    parser.add_argument("--upstream", default=ProxyConfig.upstream)
+    parser.add_argument("--attempts", type=int, default=ProxyConfig.attempts)
+    parser.add_argument("--timeout", type=int, default=ProxyConfig.timeout)
+    parser.add_argument(
+        "--upstream-concurrency",
+        type=int,
+        default=ProxyConfig.upstream_concurrency,
+    )
+    args = parser.parse_args()
+
+    host, port_text = args.listen.rsplit(":", 1)
+    ProxyConfig.upstream = args.upstream.rstrip("/")
+    ProxyConfig.attempts = args.attempts
+    ProxyConfig.timeout = args.timeout
+    ProxyConfig.upstream_concurrency = args.upstream_concurrency
+    ProxyConfig.upstream_slots = threading.BoundedSemaphore(args.upstream_concurrency)
+    server = RetryProxyServer((host, int(port_text)), RetryProxyHandler)
+    print(
+        f"retry proxy listening on {host}:{port_text}, upstream={ProxyConfig.upstream}, attempts={ProxyConfig.attempts}, upstream_concurrency={args.upstream_concurrency}",
+        flush=True,
+    )
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
