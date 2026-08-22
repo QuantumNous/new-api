@@ -10,6 +10,11 @@ const (
 	ContextKeyOriginalModel    ContextKey = "original_model"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
+	// ContextKeyModelRestore holds the origin/upstream model name pair recorded
+	// when a channel model mapping renames the request model, so response
+	// writers can restore the client-facing name.
+	ContextKeyModelRestore ContextKey = "model_restore"
+
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"
 	ContextKeyTokenKey               ContextKey = "token_key"
