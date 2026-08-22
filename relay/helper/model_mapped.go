@@ -65,5 +65,10 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 	if request != nil {
 		request.SetModelName(info.UpstreamModelName)
 	}
+	if info.IsModelMapped {
+		rootcommon.SetModelRestore(c, info.OriginModelName, info.UpstreamModelName)
+	} else {
+		rootcommon.ClearModelRestore(c)
+	}
 	return nil
 }
