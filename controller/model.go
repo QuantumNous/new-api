@@ -151,7 +151,11 @@ func getPreferredModelOwners(modelNames []string, groups []string) map[string]st
 	return owners
 }
 
-func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.OpenAIModels {
+func buildOpenAIModel(
+	modelName string,
+	ownerByModel map[string]string,
+	limitsByModel map[string]model.ModelTokenLimits,
+) dto.OpenAIModels {
 	var oaiModel dto.OpenAIModels
 	if staticModel, ok := openAIModelsMap[modelName]; ok {
 		oaiModel = staticModel
@@ -167,6 +171,14 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 		oaiModel.OwnedBy = owner
 	}
 	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	if limits, ok := limitsByModel[modelName]; ok {
+		if limits.ContextWindow > 0 {
+			oaiModel.ContextWindow = limits.ContextWindow
+		}
+		if limits.MaxOutputTokens > 0 {
+			oaiModel.MaxOutputTokens = limits.MaxOutputTokens
+		}
+	}
 	return oaiModel
 }
 
@@ -253,13 +265,18 @@ func ListModels(c *gin.Context, modelType int) {
 		userModelNames = append(userModelNames, modelName)
 	}
 
+	limitsByModel, err := model.GetModelTokenLimits(userModelNames)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	ownerByModel := map[string]string{}
 	if len(ownerGroups) > 0 {
 		ownerByModel = getPreferredModelOwners(userModelNames, ownerGroups)
 	}
 	userOpenAiModels := make([]dto.OpenAIModels, 0, len(userModelNames))
 	for _, modelName := range userModelNames {
-		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel))
+		userOpenAiModels = append(userOpenAiModels, buildOpenAIModel(modelName, ownerByModel, limitsByModel))
 	}
 
 	switch modelType {
