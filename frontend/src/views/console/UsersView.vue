@@ -30,7 +30,7 @@ import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import PageHero from '@/components/console/PageHero.vue'
+import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import UserAffiliateModal from '@/components/console/users/UserAffiliateModal.vue'
 import UserAvatar from '@/components/console/users/UserAvatar.vue'
 import UserFormModal from '@/components/console/users/UserFormModal.vue'
@@ -372,34 +372,34 @@ async function runBulkStatus(action: 'enable' | 'disable'): Promise<void> {
 
 <template>
   <div>
-    <PageHero
-      :title="t('users.title')"
-      :crumbs="[t('nav.groupAdmin'), t('nav.userManagement')]"
-    >
-      <p
-        class="mt-1 text-xs tabular-nums text-[var(--text-tertiary)]"
-        aria-live="polite"
-      >
-        {{ t('users.resultCount', { count: total }) }}
-      </p>
-      <template #actions>
-        <div class="flex items-center gap-2">
-          <ConsoleButton
-            variant="secondary"
-            :loading="refreshing"
-            :disabled="isCrudBusy || isBulkBusy"
-            @click="load({ background: true })"
+    <PageBreadcrumb :crumbs="[t('nav.groupAdmin'), t('nav.userManagement')]">
+      <template #action>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span
+            class="hidden text-xs tabular-nums text-[var(--text-tertiary)] sm:inline"
+            aria-live="polite"
           >
-            <RefreshCw v-if="!refreshing" :size="15" />
-            {{ t('users.refreshList') }}
-          </ConsoleButton>
-          <ConsoleButton :disabled="!canMutate" @click="openCreate">
-            <Plus :size="16" />
-            {{ t('users.createUser') }}
-          </ConsoleButton>
+            {{ t('users.resultCount', { count: total }) }}
+          </span>
+          <div class="flex items-center gap-2">
+            <ConsoleButton
+              variant="secondary"
+              size="sm"
+              :loading="refreshing"
+              :disabled="isCrudBusy || isBulkBusy"
+              @click="load({ background: true })"
+            >
+              <RefreshCw v-if="!refreshing" :size="14" />
+              {{ t('users.refreshList') }}
+            </ConsoleButton>
+            <ConsoleButton size="sm" :disabled="!canMutate" @click="openCreate">
+              <Plus :size="14" />
+              {{ t('users.createUser') }}
+            </ConsoleButton>
+          </div>
         </div>
       </template>
-    </PageHero>
+    </PageBreadcrumb>
 
     <ConsoleCard :padded="false">
       <div

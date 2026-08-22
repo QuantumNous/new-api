@@ -1081,7 +1081,6 @@ export default {
   },
 
   orders: {
-    title: 'Order Management',
     tabOverview: 'Overview',
     tabList: 'Orders',
     refresh: 'Refresh',

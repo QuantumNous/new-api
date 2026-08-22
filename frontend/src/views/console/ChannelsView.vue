@@ -34,7 +34,7 @@ import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import PageHero from '@/components/console/PageHero.vue'
+import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import ChannelFormModal from '@/components/console/channels/ChannelFormModal.vue'
 import ChannelInlineNumber from '@/components/console/channels/ChannelInlineNumber.vue'
 import ChannelMobileList from '@/components/console/channels/ChannelMobileList.vue'
@@ -708,39 +708,47 @@ async function runBulkStatus(
 
 <template>
   <div>
-    <PageHero
-      :title="t('channels.title')"
-      :crumbs="[t('nav.groupAdmin'), t('nav.channelManagement')]"
-    >
-      <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
-        {{ t('channels.resultCount', { count: total }) }}
-      </p>
-      <template #actions>
-        <div class="flex items-center gap-2">
-          <ConsoleButton variant="secondary" @click="openLegacyChannels">
-            <ExternalLink :size="15" />
-            {{ t('channels.advancedLegacy') }}
-          </ConsoleButton>
-          <ConsoleButton
-            variant="secondary"
-            :loading="refreshing"
-            :disabled="isBatchBusy || isCrudBusy || isBulkBusy"
-            @click="load({ background: true })"
+    <PageBreadcrumb :crumbs="[t('nav.groupAdmin'), t('nav.channelManagement')]">
+      <template #action>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span
+            class="hidden text-xs tabular-nums text-[var(--text-tertiary)] sm:inline"
+            aria-live="polite"
           >
-            <RefreshCw v-if="!refreshing" :size="15" />
-            {{ t('channels.refreshList') }}
-          </ConsoleButton>
-          <ConsoleButton
-            v-if="canSensitiveWrite"
-            :disabled="!canMutate"
-            @click="openCreate"
-          >
-            <Plus :size="16" />
-            {{ t('channels.createChannel') }}
-          </ConsoleButton>
+            {{ t('channels.resultCount', { count: total }) }}
+          </span>
+          <div class="flex items-center gap-2">
+            <ConsoleButton
+              variant="secondary"
+              size="sm"
+              @click="openLegacyChannels"
+            >
+              <ExternalLink :size="14" />
+              {{ t('channels.advancedLegacy') }}
+            </ConsoleButton>
+            <ConsoleButton
+              variant="secondary"
+              size="sm"
+              :loading="refreshing"
+              :disabled="isBatchBusy || isCrudBusy || isBulkBusy"
+              @click="load({ background: true })"
+            >
+              <RefreshCw v-if="!refreshing" :size="14" />
+              {{ t('channels.refreshList') }}
+            </ConsoleButton>
+            <ConsoleButton
+              v-if="canSensitiveWrite"
+              size="sm"
+              :disabled="!canMutate"
+              @click="openCreate"
+            >
+              <Plus :size="14" />
+              {{ t('channels.createChannel') }}
+            </ConsoleButton>
+          </div>
         </div>
       </template>
-    </PageHero>
+    </PageBreadcrumb>
 
     <ConsoleCard :padded="false">
       <div

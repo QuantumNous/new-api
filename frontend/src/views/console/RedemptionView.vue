@@ -30,7 +30,7 @@ import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import TablePagination from '@/components/common/TablePagination.vue'
-import PageHero from '@/components/console/PageHero.vue'
+import PageBreadcrumb from '@/components/console/PageBreadcrumb.vue'
 import RedemptionCodeCell from '@/components/console/redemption/RedemptionCodeCell.vue'
 import RedemptionGenerateModal from '@/components/console/redemption/RedemptionGenerateModal.vue'
 import RedemptionSuccessModal from '@/components/console/redemption/RedemptionSuccessModal.vue'
@@ -320,39 +320,49 @@ function exportCsv() {
 <template>
   <div>
     <!-- Page header -->
-    <PageHero
-      :title="t('redemption.title')"
+    <PageBreadcrumb
       :crumbs="[t('nav.groupAdmin'), t('nav.redemptionManagement')]"
     >
-      <p class="mt-1 text-xs text-[var(--text-tertiary)]" aria-live="polite">
-        {{ t('redemption.resultCount', { count: total }) }}
-      </p>
-      <template #actions>
-        <div class="flex items-center gap-2">
-          <ConsoleButton
-            variant="secondary"
-            :loading="refreshing"
-            :disabled="isCrudBusy || isBulkBusy"
-            @click="load({ background: true })"
+      <template #action>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span
+            class="hidden text-xs tabular-nums text-[var(--text-tertiary)] sm:inline"
+            aria-live="polite"
           >
-            <RefreshCw v-if="!refreshing" :size="15" aria-hidden="true" />
-            {{ t('redemption.refreshList') }}
-          </ConsoleButton>
-          <ConsoleButton
-            variant="secondary"
-            :disabled="rows.length === 0"
-            @click="exportCsv"
-          >
-            <Download :size="15" aria-hidden="true" />
-            {{ t('redemption.exportCsv') }}
-          </ConsoleButton>
-          <ConsoleButton :disabled="!canManage" @click="openGenerate">
-            <Plus :size="16" aria-hidden="true" />
-            {{ t('redemption.generateCodes') }}
-          </ConsoleButton>
+            {{ t('redemption.resultCount', { count: total }) }}
+          </span>
+          <div class="flex items-center gap-2">
+            <ConsoleButton
+              variant="secondary"
+              size="sm"
+              :loading="refreshing"
+              :disabled="isCrudBusy || isBulkBusy"
+              @click="load({ background: true })"
+            >
+              <RefreshCw v-if="!refreshing" :size="14" aria-hidden="true" />
+              {{ t('redemption.refreshList') }}
+            </ConsoleButton>
+            <ConsoleButton
+              variant="secondary"
+              size="sm"
+              :disabled="rows.length === 0"
+              @click="exportCsv"
+            >
+              <Download :size="14" aria-hidden="true" />
+              {{ t('redemption.exportCsv') }}
+            </ConsoleButton>
+            <ConsoleButton
+              size="sm"
+              :disabled="!canManage"
+              @click="openGenerate"
+            >
+              <Plus :size="14" aria-hidden="true" />
+              {{ t('redemption.generateCodes') }}
+            </ConsoleButton>
+          </div>
         </div>
       </template>
-    </PageHero>
+    </PageBreadcrumb>
 
     <ConsoleCard :padded="false">
       <!-- Toolbar -->

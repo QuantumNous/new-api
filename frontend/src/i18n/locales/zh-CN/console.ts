@@ -1066,7 +1066,6 @@ export default {
   },
 
   orders: {
-    title: '订单管理',
     tabOverview: '经营概览',
     tabList: '订单列表',
     refresh: '刷新数据',
