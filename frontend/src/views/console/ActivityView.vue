@@ -10,6 +10,7 @@ import farmNightBanner from '@/assets/activity/farm-banner.webp'
 import ActivityHero from '@/components/console/activity/ActivityHero.vue'
 import ActivityCard from '@/components/console/activity/ActivityCard.vue'
 import CheckinCard from '@/components/console/activity/CheckinCard.vue'
+import TurnstileWidget from '@/components/auth/TurnstileWidget.vue'
 import NewcomerCard from '@/components/console/activity/NewcomerCard.vue'
 import ActivityEntryCard from '@/components/console/ActivityEntryCard.vue'
 import ErrorBanner from '@/components/common/ErrorBanner.vue'
@@ -21,11 +22,15 @@ import StatTileGrid, {
 import { useActivity } from '@/composables/useActivity'
 import { useFeatureAccess } from '@/composables/useFeatureAccess'
 import { useThemedAsset } from '@/composables/useThemedAsset'
+import { useAppStore } from '@/stores/app'
+import { useToast } from '@/composables/useToast'
 import type { Activity } from '@/types/console'
 import { formatQuota } from '@/utils/format'
 
 const { t } = useI18n()
 const router = useRouter()
+const app = useAppStore()
+const toast = useToast()
 const { activities, loading, loadError, claiming, load, checkin, claim } =
   useActivity()
 const farmBanner = useThemedAsset(farmDayBanner, farmNightBanner)
@@ -34,6 +39,39 @@ const { disabled: farmDisabled } = useFeatureAccess('farm', 'disabled')
 const { disabled: bigameDisabled } = useFeatureAccess('bigame', 'disabled')
 
 const refreshing = ref(false)
+const pendingCheckinId = ref<number | null>(null)
+const turnstileToken = ref('')
+const turnstileUnavailable = ref(false)
+const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+
+async function handleCheckin(id: number) {
+  await app.initialize()
+  if (!app.turnstileEnabled) {
+    await checkin(id)
+    return
+  }
+  if (!app.turnstileSiteKey || turnstileUnavailable.value) {
+    toast.error(t('common.turnstileUnavailable'))
+    return
+  }
+  pendingCheckinId.value = id
+  if (!turnstileToken.value) {
+    toast.error(t('common.turnstileRequired'))
+    return
+  }
+  await checkin(id, turnstileToken.value)
+  pendingCheckinId.value = null
+  turnstileWidget.value?.reset()
+}
+
+async function handleTurnstileVerified(token: string) {
+  turnstileToken.value = token
+  if (!token || pendingCheckinId.value === null) return
+  const id = pendingCheckinId.value
+  pendingCheckinId.value = null
+  await checkin(id, token)
+  turnstileWidget.value?.reset()
+}
 
 async function refresh() {
   refreshing.value = true
@@ -169,12 +207,21 @@ onMounted(load)
       <ErrorBanner v-else-if="loadError" :message="loadError" @retry="load()" />
 
       <div v-else class="grid gap-5 lg:grid-cols-2">
+        <TurnstileWidget
+          v-if="app.turnstileEnabled"
+          ref="turnstileWidget"
+          class="lg:col-span-2"
+          :site-key="app.turnstileSiteKey"
+          @verified="handleTurnstileVerified"
+          @unavailable="turnstileUnavailable = true"
+        />
+
         <!-- 每日签到 -->
         <CheckinCard
           v-if="checkinAct"
           :activity="checkinAct"
           :claiming="claiming"
-          @checkin="(id) => checkin(id)"
+          @checkin="handleCheckin"
         />
 
         <!-- 新人礼包 -->

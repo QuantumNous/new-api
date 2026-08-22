@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -313,6 +314,31 @@ func validateOptionPatch(values map[string]string) error {
 			if err := validateJSON(value); err != nil {
 				return err
 			}
+		}
+	}
+	oidcEndpointKeys := []string{
+		"oidc.authorization_endpoint",
+		"oidc.token_endpoint",
+		"oidc.user_info_endpoint",
+	}
+	if snapshot["oidc.enabled"] == "true" {
+		for _, key := range oidcEndpointKeys {
+			if !optionValuePresent(snapshot, key) {
+				return fmt.Errorf("无法启用 OIDC 登录，请先填入完整的 OIDC 端点配置")
+			}
+		}
+	}
+	for _, key := range append(oidcEndpointKeys, "oidc.well_known") {
+		_, changed := values[key]
+		if snapshot["oidc.enabled"] != "true" && !changed {
+			continue
+		}
+		value := strings.TrimSpace(snapshot[key])
+		if value == "" {
+			continue
+		}
+		if err := oauth.ValidateOAuthEndpoint(value); err != nil {
+			return fmt.Errorf("OIDC 端点必须使用可公开访问的 HTTPS 地址")
 		}
 	}
 	return nil

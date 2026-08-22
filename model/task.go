@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -101,9 +102,12 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	// Key remains only to read tasks created before credential references were
+	// introduced. New tasks must resolve credentials from their channel.
+	Key             string `json:"key,omitempty"`
+	ChannelKeyIndex int    `json:"channel_key_index,omitempty"`
+	UpstreamTaskID  string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
+	ResultURL       string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
@@ -178,10 +182,7 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	properties := Properties{}
 	privateData := TaskPrivateData{}
 	if relayInfo != nil && relayInfo.ChannelMeta != nil {
-		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
-			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi {
-			privateData.Key = relayInfo.ChannelMeta.ApiKey
-		}
+		privateData.ChannelKeyIndex = relayInfo.ChannelMeta.ChannelMultiKeyIndex
 		if relayInfo.UpstreamModelName != "" {
 			properties.UpstreamModelName = relayInfo.UpstreamModelName
 		}
@@ -211,6 +212,30 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 		PrivateData: privateData,
 	}
 	return t
+}
+
+// ResolveTaskChannelKey obtains a task credential from the channel at use time.
+// The persisted key is an explicit compatibility fallback for historical tasks
+// only; tasks created by InitTask never write a channel key to the database.
+func ResolveTaskChannelKey(channel *Channel, task *Task) string {
+	if task != nil {
+		if legacyKey := strings.TrimSpace(task.PrivateData.Key); legacyKey != "" {
+			return legacyKey
+		}
+	}
+	if channel == nil {
+		return ""
+	}
+
+	keyIndex := 0
+	if task != nil {
+		keyIndex = task.PrivateData.ChannelKeyIndex
+	}
+	keys := channel.GetKeys()
+	if keyIndex < 0 || keyIndex >= len(keys) {
+		return ""
+	}
+	return strings.TrimSpace(keys[keyIndex])
 }
 
 func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQueryParams) []*Task {

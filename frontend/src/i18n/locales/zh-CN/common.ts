@@ -57,5 +57,7 @@ export default {
     to: '至',
     noResults: '无匹配结果',
     unsavedChanges: '有未保存的更改',
+    turnstileRequired: '请先完成安全验证。',
+    turnstileUnavailable: '安全验证暂不可用，请刷新页面后重试。',
   },
 }

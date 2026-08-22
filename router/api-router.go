@@ -182,11 +182,7 @@ func SetApiRouter(router *gin.Engine) {
 				activityRoute.GET("/self", controller.NextGetActivities)
 				// Dual endpoint with POST /api/user/checkin; both delegate to
 				// model.UserCheckin so the business logic stays single-sourced.
-				// Known gap: the legacy route carries TurnstileCheck while the
-				// Vue frontend has no Turnstile integration at all (login,
-				// register, check-in). Before enabling TurnstileCheckEnabled
-				// in production, add Turnstile support to frontend/ first.
-				activityRoute.POST("/checkin", middleware.CriticalRateLimit(), controller.NextCheckin)
+				activityRoute.POST("/checkin", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.NextCheckin)
 				activityRoute.POST("/claim", middleware.CriticalRateLimit(), controller.NextClaimActivity)
 			}
 			walletRoute := nextRoute.Group("/wallet")

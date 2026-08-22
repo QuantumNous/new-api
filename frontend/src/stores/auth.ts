@@ -84,10 +84,11 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(
     username: string,
-    password: string
+    password: string,
+    turnstileToken?: string
   ): Promise<TwoFactorChallenge | null> {
     const api = await getAuthApi()
-    const data = await api.login(username, password)
+    const data = await api.login(username, password, turnstileToken)
     if ('require_2fa' in data) return data
     setAuthBundle(data)
     persist(data.user)

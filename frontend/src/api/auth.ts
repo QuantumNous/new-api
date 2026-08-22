@@ -37,9 +37,19 @@ async function refreshSession(): Promise<AuthBundle> {
 }
 
 export const authApi = {
-  async login(username: string, password: string): Promise<LoginResponse> {
+  async login(
+    username: string,
+    password: string,
+    turnstileToken?: string
+  ): Promise<LoginResponse> {
     return parseLoginResponse(
-      await api.post<unknown>('/api/user/login', { username, password }),
+      await api.post<unknown>(
+        '/api/user/login',
+        { username, password },
+        turnstileToken
+          ? { headers: { 'X-Turnstile-Token': turnstileToken } }
+          : undefined
+      ),
       '/api/user/login'
     )
   },
@@ -50,12 +60,22 @@ export const authApi = {
     })
     return parseAuthBundle(value) ?? invalidAuthResponse('/api/user/login/2fa')
   },
-  register: (payload: {
-    username: string
-    email: string
-    password: string
-    aff_code?: string
-  }) => api.post<{ message: string }>('/api/user/register', payload),
+  register: (
+    payload: {
+      username: string
+      email: string
+      password: string
+      aff_code?: string
+    },
+    turnstileToken?: string
+  ) =>
+    api.post<{ message: string }>(
+      '/api/user/register',
+      payload,
+      turnstileToken
+        ? { headers: { 'X-Turnstile-Token': turnstileToken } }
+        : undefined
+    ),
   validateAffiliate: (code: string) =>
     api.post<{ valid: boolean; attribution_days: number }>(
       '/api/next/invite/validate',

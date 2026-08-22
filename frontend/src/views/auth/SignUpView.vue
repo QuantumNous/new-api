@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import PasswordStrengthMeter from '@/components/auth/PasswordStrengthMeter.vue'
+import TurnstileWidget from '@/components/auth/TurnstileWidget.vue'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import FormField from '@/components/common/FormField.vue'
 import TextInput from '@/components/common/TextInput.vue'
@@ -31,6 +32,9 @@ const confirm = ref('')
 const affiliateCode = ref('')
 const affiliateValidating = ref(false)
 const loading = ref(false)
+const turnstileToken = ref('')
+const turnstileUnavailable = ref(false)
+const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null)
 const errors = reactive({
   username: '',
   email: '',
@@ -99,19 +103,34 @@ function validate(): boolean {
 
 async function submit() {
   if (loading.value || !validate() || !(await validateAffiliateCode())) return
+  await app.initialize()
+  if (app.turnstileEnabled) {
+    if (!app.turnstileSiteKey || turnstileUnavailable.value) {
+      toast.error(t('common.turnstileUnavailable'))
+      return
+    }
+    if (!turnstileToken.value) {
+      toast.error(t('common.turnstileRequired'))
+      return
+    }
+  }
   loading.value = true
   try {
-    await authApi.register({
-      username: username.value.trim(),
-      email: email.value.trim(),
-      password: password.value,
-      aff_code: affiliateCode.value.trim() || undefined,
-    })
+    await authApi.register(
+      {
+        username: username.value.trim(),
+        email: email.value.trim(),
+        password: password.value,
+        aff_code: affiliateCode.value.trim() || undefined,
+      },
+      turnstileToken.value || undefined
+    )
     clearAffiliateAttribution()
     toast.success(t('toast.registerSuccess'))
     await router.push({ name: 'sign-in' })
   } catch (error) {
     toast.error(error instanceof ApiError ? error.message : String(error))
+    if (app.turnstileEnabled) turnstileWidget.value?.reset()
   } finally {
     loading.value = false
   }
@@ -224,11 +243,22 @@ onMounted(async () => {
         </span>
       </FormField>
 
+      <TurnstileWidget
+        v-if="app.turnstileEnabled"
+        ref="turnstileWidget"
+        :site-key="app.turnstileSiteKey"
+        @verified="turnstileToken = $event"
+        @unavailable="turnstileUnavailable = true"
+      />
+
       <ConsoleButton
         type="submit"
         size="lg"
         block
         :loading="loading || affiliateValidating"
+        :disabled="
+          app.turnstileEnabled && (!turnstileToken || turnstileUnavailable)
+        "
       >
         {{ t('auth.continue') }}
       </ConsoleButton>

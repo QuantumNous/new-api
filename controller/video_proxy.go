@@ -91,10 +91,10 @@ func VideoProxy(c *gin.Context) {
 
 	switch channel.Type {
 	case constant.ChannelTypeGemini:
-		apiKey := task.PrivateData.Key
+		apiKey := model.ResolveTaskChannelKey(channel, task)
 		if apiKey == "" {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("Missing stored API key for Gemini task %s", taskID))
-			videoProxyError(c, http.StatusInternalServerError, "server_error", "API key not stored for task")
+			logger.LogError(c.Request.Context(), fmt.Sprintf("No available channel key for Gemini task %s", taskID))
+			videoProxyError(c, http.StatusBadGateway, "server_error", "API key is unavailable for this task")
 			return
 		}
 		videoURL, err = getGeminiVideoURL(channel, task, apiKey)

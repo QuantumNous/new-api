@@ -107,6 +107,12 @@ export const useAppStore = defineStore('app', () => {
   const affiliateRegistrationRequired = computed(() =>
     parseBoolean(status.value.affiliate_registration_required, false)
   )
+  const turnstileEnabled = computed(() =>
+    parseBoolean(status.value.turnstile_check, false)
+  )
+  const turnstileSiteKey = computed(
+    () => status.value.turnstile_site_key?.trim() || ''
+  )
   const modelCountLabel = computed(() =>
     modelCount.value === null ? '--' : String(modelCount.value)
   )
@@ -262,6 +268,8 @@ export const useAppStore = defineStore('app', () => {
     showAbout,
     registerEnabled,
     affiliateRegistrationRequired,
+    turnstileEnabled,
+    turnstileSiteKey,
     userAgreementEnabled,
     privacyPolicyEnabled,
     modelCountLabel,

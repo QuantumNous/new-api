@@ -39,6 +39,31 @@ func TestValidateOptionPatchUsesFinalOAuthState(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestValidateOptionPatchRequiresSafeCompleteOIDCEndpoints(t *testing.T) {
+	withOptionMap(t, map[string]string{
+		"oidc.client_id":     "client-id",
+		"oidc.client_secret": "client-secret",
+	})
+
+	assert.Error(t, validateOptionPatch(map[string]string{
+		"oidc.enabled": "true",
+	}))
+
+	assert.Error(t, validateOptionPatch(map[string]string{
+		"oidc.enabled":                "true",
+		"oidc.authorization_endpoint": "https://127.0.0.1/authorize",
+		"oidc.token_endpoint":         "https://8.8.8.8/token",
+		"oidc.user_info_endpoint":     "https://8.8.8.8/userinfo",
+	}))
+
+	assert.NoError(t, validateOptionPatch(map[string]string{
+		"oidc.enabled":                "true",
+		"oidc.authorization_endpoint": "https://8.8.8.8/authorize",
+		"oidc.token_endpoint":         "https://8.8.8.8/token",
+		"oidc.user_info_endpoint":     "https://8.8.8.8/userinfo",
+	}))
+}
+
 func TestUpdateOptionsBulkRejectsInvalidPatchBeforePersistence(t *testing.T) {
 	withOptionMap(t, map[string]string{
 		"GitHubClientId":     "",

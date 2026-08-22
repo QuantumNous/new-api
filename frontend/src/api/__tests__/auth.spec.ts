@@ -42,6 +42,18 @@ beforeEach(clearAuthBundle)
 afterEach(() => vi.restoreAllMocks())
 
 describe('authentication API', () => {
+  it('sends Turnstile tokens in request headers', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue(bundle)
+
+    await authApi.login('demo', 'password', 'turnstile-token')
+
+    expect(post).toHaveBeenCalledWith(
+      '/api/user/login',
+      { username: 'demo', password: 'password' },
+      { headers: { 'X-Turnstile-Token': 'turnstile-token' } }
+    )
+  })
+
   it('recovers a session mismatch before retrying logout', async () => {
     setAuthBundle(bundle)
     const replacement = {

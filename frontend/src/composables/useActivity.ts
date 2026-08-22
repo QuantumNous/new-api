@@ -54,12 +54,15 @@ export function useActivity() {
     }
   }
 
-  async function checkin(id: number) {
+  async function checkin(id: number, turnstileToken?: string) {
     claiming.value = true
     try {
       const res = await api.post<{ reward: number; streak: number }>(
         '/api/next/activity/checkin',
-        { activity_id: id }
+        { activity_id: id },
+        turnstileToken
+          ? { headers: { 'X-Turnstile-Token': turnstileToken } }
+          : undefined
       )
       toast.success(t('activity.checkin.success', { reward: res.reward }))
       await Promise.all([auth.fetchSelf(), load()])

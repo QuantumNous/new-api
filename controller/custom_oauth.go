@@ -2,7 +2,7 @@ package controller
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,6 +14,25 @@ import (
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/gin-gonic/gin"
 )
+
+func validateCustomOAuthProviderEndpoints(provider *model.CustomOAuthProvider) error {
+	if provider == nil {
+		return fmt.Errorf("missing OAuth provider")
+	}
+	for _, endpoint := range []string{
+		provider.AuthorizationEndpoint,
+		provider.TokenEndpoint,
+		provider.UserInfoEndpoint,
+	} {
+		if err := oauth.ValidateOAuthEndpoint(endpoint); err != nil {
+			return err
+		}
+	}
+	if provider.WellKnown != "" {
+		return oauth.ValidateOAuthEndpoint(provider.WellKnown)
+	}
+	return nil
+}
 
 // CustomOAuthProviderResponse is the response structure for custom OAuth providers
 // It excludes sensitive fields like client_secret
@@ -161,8 +180,8 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 	targetURL = strings.TrimSpace(targetURL)
 
 	parsedURL, err := url.Parse(targetURL)
-	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-		common.ApiErrorMsg(c, "Discovery URL 无效，仅支持 http/https")
+	if err != nil || parsedURL.Host == "" || oauth.ValidateOAuthEndpoint(targetURL) != nil {
+		common.ApiErrorMsg(c, "Discovery URL 无效，必须使用可公开访问的 HTTPS 地址")
 		return
 	}
 
@@ -176,21 +195,16 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 	}
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: 20 * time.Second}
+	client := oauth.NewOAuthEndpointHTTPClient(20 * time.Second)
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		common.ApiErrorMsg(c, "获取 Discovery 配置失败: "+err.Error())
+		common.ApiErrorMsg(c, "获取 Discovery 配置失败")
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		message := strings.TrimSpace(string(body))
-		if message == "" {
-			message = resp.Status
-		}
-		common.ApiErrorMsg(c, "获取 Discovery 配置失败: "+message)
+		common.ApiErrorMsg(c, "获取 Discovery 配置失败")
 		return
 	}
 
@@ -249,6 +263,10 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		AuthStyle:             req.AuthStyle,
 		AccessPolicy:          req.AccessPolicy,
 		AccessDeniedMessage:   req.AccessDeniedMessage,
+	}
+	if err := validateCustomOAuthProviderEndpoints(provider); err != nil {
+		common.ApiErrorMsg(c, "OAuth 端点无效，必须使用可公开访问的 HTTPS 地址")
+		return
 	}
 
 	if err := model.CreateCustomOAuthProvider(provider); err != nil {
@@ -379,6 +397,10 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	}
 	if req.AccessDeniedMessage != nil {
 		provider.AccessDeniedMessage = *req.AccessDeniedMessage
+	}
+	if err := validateCustomOAuthProviderEndpoints(provider); err != nil {
+		common.ApiErrorMsg(c, "OAuth 端点无效，必须使用可公开访问的 HTTPS 地址")
+		return
 	}
 
 	if err := model.UpdateCustomOAuthProvider(provider); err != nil {

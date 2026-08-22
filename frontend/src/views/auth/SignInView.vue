@@ -7,6 +7,7 @@ import { useRoute, useRouter } from 'vue-router'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import FormField from '@/components/common/FormField.vue'
 import TextInput from '@/components/common/TextInput.vue'
+import TurnstileWidget from '@/components/auth/TurnstileWidget.vue'
 import AuthLayout from '@/components/layout/AuthLayout.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -29,11 +30,28 @@ const twoFactorFlowToken = ref('')
 const twoFactorExpiresAt = ref(0)
 const showPassword = ref(false)
 const loading = ref(false)
+const turnstileToken = ref('')
+const turnstileUnavailable = ref(false)
+const turnstileWidget = ref<InstanceType<typeof TurnstileWidget> | null>(null)
+
+function turnstileReady(): boolean {
+  if (!app.turnstileEnabled) return true
+  if (!app.turnstileSiteKey || turnstileUnavailable.value) {
+    toast.error(t('common.turnstileUnavailable'))
+    return false
+  }
+  if (!turnstileToken.value) {
+    toast.error(t('common.turnstileRequired'))
+    return false
+  }
+  return true
+}
 
 function resetTwoFactor() {
   twoFactorFlowToken.value = ''
   twoFactorCode.value = ''
   twoFactorExpiresAt.value = 0
+  turnstileToken.value = ''
 }
 
 async function submit() {
@@ -51,7 +69,13 @@ async function submit() {
         twoFactorCode.value.trim()
       )
     } else {
-      const challenge = await auth.login(username.value, password.value)
+      await app.initialize()
+      if (!turnstileReady()) return
+      const challenge = await auth.login(
+        username.value,
+        password.value,
+        turnstileToken.value || undefined
+      )
       if (challenge) {
         twoFactorFlowToken.value = challenge.flow_token
         twoFactorExpiresAt.value = challenge.expires_at
@@ -64,6 +88,9 @@ async function submit() {
     await router.push(redirect || { name: 'dashboard' })
   } catch (error) {
     toast.error(error instanceof ApiError ? error.message : String(error))
+    if (!twoFactorFlowToken.value && app.turnstileEnabled) {
+      turnstileWidget.value?.reset()
+    }
   } finally {
     loading.value = false
   }
@@ -135,7 +162,25 @@ async function submit() {
         </RouterLink>
       </div>
 
-      <ConsoleButton type="submit" size="lg" block :loading="loading">
+      <TurnstileWidget
+        v-if="app.turnstileEnabled && !twoFactorFlowToken"
+        ref="turnstileWidget"
+        :site-key="app.turnstileSiteKey"
+        @verified="turnstileToken = $event"
+        @unavailable="turnstileUnavailable = true"
+      />
+
+      <ConsoleButton
+        type="submit"
+        size="lg"
+        block
+        :loading="loading"
+        :disabled="
+          !twoFactorFlowToken &&
+          app.turnstileEnabled &&
+          (!turnstileToken || turnstileUnavailable)
+        "
+      >
         {{ twoFactorFlowToken ? t('auth.verifyTwoFactor') : t('auth.signIn') }}
       </ConsoleButton>
       <button

@@ -58,5 +58,8 @@ export default {
     to: 'to',
     noResults: 'No results',
     unsavedChanges: 'Unsaved changes',
+    turnstileRequired: 'Complete the security verification first.',
+    turnstileUnavailable:
+      'Security verification is unavailable. Refresh the page and try again.',
   },
 }

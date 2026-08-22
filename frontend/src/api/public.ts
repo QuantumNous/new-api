@@ -15,6 +15,8 @@ export interface PublicStatus {
   HeaderNavModules?: unknown
   frontend_capabilities?: FrontendCapabilities
   next_frontend_enabled?: boolean
+  turnstile_check?: boolean
+  turnstile_site_key?: string
   start_time?: number
   github_oauth?: boolean
   github_client_id?: string
@@ -87,6 +89,7 @@ export function parsePublicStatus(value: unknown): PublicStatus {
     'privacy_policy_enabled',
     'uptime_kuma_enabled',
     'next_frontend_enabled',
+    'turnstile_check',
     'github_oauth',
     'discord_oauth',
     'linuxdo_oauth',
@@ -117,7 +120,14 @@ export function parsePublicStatus(value: unknown): PublicStatus {
     'oidc_client_id',
     'oidc_authorization_endpoint',
   ] as const
+  const statusStringKeys = ['turnstile_site_key'] as const
   for (const key of oauthStringKeys) {
+    if (value[key] !== undefined && typeof value[key] !== 'string') {
+      invalidResponse('/api/status')
+    }
+    if (typeof value[key] === 'string') result[key] = value[key]
+  }
+  for (const key of statusStringKeys) {
     if (value[key] !== undefined && typeof value[key] !== 'string') {
       invalidResponse('/api/status')
     }
