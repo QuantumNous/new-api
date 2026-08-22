@@ -78,6 +78,9 @@ var defaultCacheRatio = map[string]float64{
 	"claude-opus-4-8-high":                0.1,
 	"claude-opus-4-8-medium":              0.1,
 	"claude-opus-4-8-low":                 0.1,
+	"claude-fable-5":                      0.1,
+	"claude-sonnet-5":                     0.1,
+	"claude-opus-5":                       0.1,
 }
 
 var defaultCreateCacheRatio = map[string]float64{
@@ -123,6 +126,9 @@ var defaultCreateCacheRatio = map[string]float64{
 	"claude-opus-4-8-high":                1.25,
 	"claude-opus-4-8-medium":              1.25,
 	"claude-opus-4-8-low":                 1.25,
+	"claude-fable-5":                      1.25,
+	"claude-sonnet-5":                     1.25,
+	"claude-opus-5":                       1.25,
 }
 
 //var defaultCreateCacheRatio = map[string]float64{}
