@@ -29,6 +29,10 @@ export interface QuotaDataItem {
   model_name?: string
   created_at: number
   token_used?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
   count?: number
   quota?: number
 }
@@ -44,6 +48,22 @@ export interface FlowQuotaDataItem {
   channel_name?: string
   model_name?: string
   token_used?: number
+  count?: number
+  quota?: number
+}
+
+export interface ChannelQuotaReportItem {
+  channel_id: number
+  channel_name?: string
+  status?: number
+  response_time?: number
+  model_name?: string
+  created_at: number
+  token_used?: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
   count?: number
   quota?: number
 }
