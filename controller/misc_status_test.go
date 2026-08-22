@@ -92,6 +92,43 @@ func TestGetStatusIncludesConfiguredInviterRewardUSD(t *testing.T) {
 	}
 }
 
+func TestInviteRewardBadgeUSDUsesInviterRewardInSubscriptionMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalQuotaForInviter := common.QuotaForInviter
+	originalQuotaPerUnit := common.QuotaPerUnit
+	originalSubscriptionMode := common.InviteRewardSubscriptionMode
+	originalInviteeDiscountUSD := common.InviteFirstSubDiscountUSD
+	common.QuotaForInviter = 3_250_000
+	common.QuotaPerUnit = 500_000
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 4.5
+	t.Cleanup(func() {
+		common.QuotaForInviter = originalQuotaForInviter
+		common.QuotaPerUnit = originalQuotaPerUnit
+		common.InviteRewardSubscriptionMode = originalSubscriptionMode
+		common.InviteFirstSubDiscountUSD = originalInviteeDiscountUSD
+	})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/status", nil)
+
+	GetStatus(ctx)
+
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			InviteRewardBadgeUSD float64 `json:"invite_reward_badge_usd"`
+			InviterRewardUSD     float64 `json:"inviter_reward_usd"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.DecodeJson(recorder.Body, &response))
+	require.True(t, response.Success)
+	require.Equal(t, 6.5, response.Data.InviteRewardBadgeUSD)
+	require.Equal(t, 6.5, response.Data.InviterRewardUSD)
+}
+
 func TestGetStatusIncludesTokenBatchGroupCapability(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
