@@ -99,6 +99,46 @@ func TestStreamScannerHandler_EmptyBody(t *testing.T) {
 	assert.False(t, called.Load(), "handler should not be called for empty body")
 }
 
+func TestStreamScannerHandler_CodexCopiesEligibleUpstreamHeaders(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(""))
+	info.ChannelMeta.ChannelType = constant.ChannelTypeCodex
+	resp.Header = http.Header{
+		"X-Reasoning-Included": {"true"},
+		"X-Codex-Turn-State":   {"turn-state"},
+		"X-Upstream-Trace":     {"trace-id"},
+		"Set-Cookie":           {"first=1", "second=2"},
+		"Content-Length":       {"42"},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	assert.Equal(t, "true", c.Writer.Header().Get("X-Reasoning-Included"))
+	assert.Equal(t, "turn-state", c.Writer.Header().Get("X-Codex-Turn-State"))
+	assert.Equal(t, "trace-id", c.Writer.Header().Get("X-Upstream-Trace"))
+	assert.Equal(t, []string{"first=1", "second=2"}, c.Writer.Header().Values("Set-Cookie"))
+	assert.Empty(t, c.Writer.Header().Get("Content-Length"))
+}
+
+func TestStreamScannerHandler_NonCodexPreservesLegacyHeaderBehavior(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(""))
+	info.ChannelMeta.ChannelType = constant.ChannelTypeOpenAI
+	resp.Header = http.Header{
+		"X-Reasoning-Included": {"true"},
+		"X-Codex-Turn-State":   {"turn-state"},
+		"X-Upstream-Trace":     {"trace-id"},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	assert.Equal(t, "true", c.Writer.Header().Get("X-Reasoning-Included"))
+	assert.Equal(t, "turn-state", c.Writer.Header().Get("X-Codex-Turn-State"))
+	assert.Empty(t, c.Writer.Header().Get("X-Upstream-Trace"))
+}
+
 func TestStreamScannerHandler_1000Chunks(t *testing.T) {
 	t.Parallel()
 
