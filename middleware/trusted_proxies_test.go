@@ -44,6 +44,7 @@ func TestConfigureTrustedProxiesDefaultsToLoopbackAndPrivateNetworks(t *testing.
 		{name: "10 private network", remoteAddr: "10.20.30.40:12345"},
 		{name: "172 private network", remoteAddr: "172.20.0.2:12345"},
 		{name: "192 private network", remoteAddr: "192.168.10.2:12345"},
+		{name: "RFC 6598 shared address space", remoteAddr: "100.65.58.119:12345"},
 		{name: "IPv6 unique local network", remoteAddr: "[fd12:3456::2]:12345"},
 	}
 
