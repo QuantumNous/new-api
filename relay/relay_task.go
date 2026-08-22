@@ -406,6 +406,15 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
+			// 计量经 header 透传给下游（中转套娃），保持 body 为纯 OpenAI 标准结构
+			if ti, perr := adaptor.ParseTaskResult(originTask.Data); perr == nil && ti != nil && ti.TotalTokens > 0 {
+				if usageJSON, merr := common.Marshal(map[string]int{
+					"completion_tokens": ti.CompletionTokens,
+					"total_tokens":      ti.TotalTokens,
+				}); merr == nil {
+					c.Header("X-New-Api-Usage", string(usageJSON))
+				}
+			}
 			respBody = openAIVideoData
 			return
 		}
