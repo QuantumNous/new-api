@@ -128,7 +128,10 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if !ok {
 		return nil
 	}
-	req := v.(relaycommon.TaskSubmitReq)
+	req, ok := v.(relaycommon.TaskSubmitReq)
+	if !ok {
+		return nil
+	}
 
 	seconds := geminitask.ResolveVeoDuration(req.Metadata, req.Duration, req.Seconds)
 	resolution := geminitask.ResolveVeoResolution(req.Metadata, req.Size)
@@ -146,7 +149,10 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if !ok {
 		return nil, fmt.Errorf("request not found in context")
 	}
-	req := v.(relaycommon.TaskSubmitReq)
+	req, ok := v.(relaycommon.TaskSubmitReq)
+	if !ok {
+		return nil, fmt.Errorf("unexpected task_request type")
+	}
 
 	instance := geminitask.VeoInstance{Prompt: req.Prompt}
 	if img := geminitask.ExtractMultipartImage(c, info); img != nil {
@@ -156,6 +162,17 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			instance.Image = parsed
 			info.Action = constant.TaskActionGenerate
 		}
+	}
+	features, err := geminitask.ApplyVeoMetadataToInstance(req.Metadata, &instance)
+	if err != nil {
+		return nil, err
+	}
+	if features.HasLastFrame {
+		info.Action = constant.TaskActionFirstTailGenerate
+	} else if features.HasReferenceImages {
+		info.Action = constant.TaskActionReferenceGenerate
+	} else if features.HasImage {
+		info.Action = constant.TaskActionGenerate
 	}
 
 	params := &geminitask.VeoParameters{}
