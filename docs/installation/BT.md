@@ -73,7 +73,7 @@ services:
 
 ```bash
 cd /www/wwwroot/new-api
-docker-compose up -d
+docker compose up -d
 ```
 
 ***
@@ -129,7 +129,7 @@ volumes:
 docker pull calciumion/new-api:latest
 
 # 重启容器
-docker-compose down && docker-compose up -d
+docker compose down && docker compose up -d
 ```
 
 ***

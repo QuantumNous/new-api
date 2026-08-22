@@ -1,7 +1,7 @@
 # New-API Docker Compose Configuration
 # 
 # Quick Start:
-#   1. docker-compose up -d
+#   1. docker compose up -d
 #   2. Access at http://localhost:3000
 #
 # Using MySQL instead of PostgreSQL:
