@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"encoding/base64"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -239,27 +241,132 @@ func prepareImageAutoRequest(c *gin.Context, info *relaycommon.RelayInfo) (bool,
 }
 
 func countImageAutoReferenceImages(c *gin.Context) (int, error) {
-	if c == nil || c.Request == nil || !strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Content-Type")), "multipart/form-data") {
+	if c == nil || c.Request == nil {
 		return 0, nil
 	}
-	form, err := common.ParseMultipartFormReusable(c)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse image-auto references: %w", err)
-	}
-	c.Request.MultipartForm = form
-	count := 0
-	for field, files := range form.File {
-		isImage := field == "image" || field == "image[]"
-		if !isImage && strings.HasPrefix(field, "image[") && strings.HasSuffix(field, "]") {
-			index := strings.TrimSuffix(strings.TrimPrefix(field, "image["), "]")
-			parsedIndex, parseErr := strconv.Atoi(index)
-			isImage = index != "" && parseErr == nil && parsedIndex >= 0
+	contentType := strings.ToLower(c.Request.Header.Get("Content-Type"))
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		form, err := common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse image-auto references: %w", err)
 		}
-		if isImage {
-			count += len(files)
+		c.Request.MultipartForm = form
+		count := 0
+		for field, files := range form.File {
+			if isImageAutoMultipartImageField(field) {
+				count += len(files)
+			}
+		}
+		return count, nil
+	}
+	if strings.Contains(contentType, "json") {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read image-auto references: %w", err)
+		}
+		if _, err := storage.Seek(0, io.SeekStart); err != nil {
+			return 0, fmt.Errorf("failed to rewind image-auto references: %w", err)
+		}
+		raw, err := io.ReadAll(storage)
+		if err != nil {
+			return 0, fmt.Errorf("failed to read image-auto references: %w", err)
+		}
+		if _, err := storage.Seek(0, io.SeekStart); err != nil {
+			return 0, fmt.Errorf("failed to restore image-auto references: %w", err)
+		}
+		return countJSONImageReferences(raw), nil
+	}
+	return 0, nil
+}
+
+// isImageAutoMultipartImageField reports whether a multipart field name carries
+// reference images under the standard OpenAI naming: image, image[] (repeated),
+// or image[N] (indexed).
+func isImageAutoMultipartImageField(field string) bool {
+	if field == "image" || field == "image[]" {
+		return true
+	}
+	if strings.HasPrefix(field, "image[") && strings.HasSuffix(field, "]") {
+		index := strings.TrimSuffix(strings.TrimPrefix(field, "image["), "]")
+		parsedIndex, parseErr := strconv.Atoi(index)
+		return index != "" && parseErr == nil && parsedIndex >= 0
+	}
+	return false
+}
+
+// countJSONImageReferences counts reference images inside a JSON image request.
+// Providers differ in field names (OpenAI image/images, Aliyun input.images,
+// gpt-image-1 images[].image_url), so the counter keys on two signals together:
+// the field is image-named, and the value looks like an image reference (a URL,
+// a data: URL, or inline base64). Prompt text and unrelated strings can never be
+// counted because they are not under an image-named field. An unparseable body
+// yields zero references for admission; the routing plan still validates and
+// rejects unsafe input downstream.
+func countJSONImageReferences(payload []byte) int {
+	var root any
+	if err := common.Unmarshal(payload, &root); err != nil {
+		return 0
+	}
+	return countImageReferenceNodes(root, false)
+}
+
+// countImageReferenceNodes walks a decoded JSON value. inImageContext stays true
+// through a subtree rooted at an image-named field, so a string leaf inside it
+// (for example {"image_url": {"url": "..."}} or an array of references) is a
+// candidate reference rather than arbitrary text.
+func countImageReferenceNodes(value any, inImageContext bool) int {
+	switch v := value.(type) {
+	case map[string]any:
+		count := 0
+		for key, child := range v {
+			childContext := inImageContext || isImageReferenceField(key)
+			count += countImageReferenceNodes(child, childContext)
+		}
+		return count
+	case []any:
+		count := 0
+		for _, item := range v {
+			count += countImageReferenceNodes(item, inImageContext)
+		}
+		return count
+	case string:
+		if inImageContext && looksLikeImageReference(v) {
+			return 1
 		}
 	}
-	return count, nil
+	return 0
+}
+
+func isImageReferenceField(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "image", "images", "image_url", "imageurl":
+		return true
+	default:
+		return false
+	}
+}
+
+func looksLikeImageReference(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "data:") {
+		return true
+	}
+	// Inline base64 payloads (OpenAI image accepts base64 without a data: prefix).
+	// Real images base64-encode to thousands of characters; the high threshold
+	// keeps short prose under an image-named field from being mistaken for an image.
+	if len(trimmed) >= 128 {
+		if _, err := base64.StdEncoding.DecodeString(trimmed); err == nil {
+			return true
+		}
+		if _, err := base64.RawStdEncoding.DecodeString(trimmed); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func snapshotImageAutoRoutePricing(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) error {
