@@ -23,6 +23,12 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 	}
 
 	var messages []dto.Message
+	// Tool call ids are assigned sequentially across the whole request, and
+	// functionResponse parts are paired with earlier functionCall parts by
+	// function name (FIFO per name). Keeping this state outside the content
+	// loop is what makes the pairing survive the model->user content boundary.
+	callSeq := 0
+	pendingCallIDs := make(map[string][]string)
 	for _, content := range geminiRequest.Contents {
 		message := dto.Message{
 			Role: convertGeminiRoleToOpenAI(content.Role),
@@ -30,6 +36,11 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 
 		var mediaContents []dto.MediaContent
 		var toolCalls []dto.ToolCallRequest
+		// Tool messages are buffered so they are always emitted after the
+		// content-level message carrying the matching tool_calls; a content
+		// that mixes functionCall and functionResponse parts would otherwise
+		// produce a tool message ahead of its assistant message.
+		var pendingToolMessages []dto.Message
 		for _, part := range content.Parts {
 			if part.Text != "" {
 				mediaContent := dto.MediaContent{
@@ -58,8 +69,10 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 				}
 				mediaContents = append(mediaContents, mediaContent)
 			} else if part.FunctionCall != nil {
+				callSeq++
+				id := fmt.Sprintf("call_%d", callSeq)
 				toolCall := dto.ToolCallRequest{
-					ID:   fmt.Sprintf("call_%d", len(toolCalls)+1),
+					ID:   id,
 					Type: "function",
 					Function: dto.FunctionRequest{
 						Name:      part.FunctionCall.FunctionName,
@@ -67,13 +80,24 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 					},
 				}
 				toolCalls = append(toolCalls, toolCall)
+				pendingCallIDs[part.FunctionCall.FunctionName] = append(pendingCallIDs[part.FunctionCall.FunctionName], id)
 			} else if part.FunctionResponse != nil {
+				callID := ""
+				name := part.FunctionResponse.Name
+				if queue := pendingCallIDs[name]; len(queue) > 0 {
+					callID = queue[0]
+					pendingCallIDs[name] = queue[1:]
+				}
+				if callID == "" {
+					callSeq++
+					callID = fmt.Sprintf("call_%d", callSeq)
+				}
 				toolMessage := dto.Message{
 					Role:       "tool",
-					ToolCallId: fmt.Sprintf("call_%d", len(toolCalls)),
+					ToolCallId: callID,
 				}
 				toolMessage.SetStringContent(jsonutil.ToJSONString(part.FunctionResponse.Response))
-				messages = append(messages, toolMessage)
+				pendingToolMessages = append(pendingToolMessages, toolMessage)
 			}
 		}
 
@@ -88,6 +112,7 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 		if len(message.ParseContent()) > 0 || len(message.ToolCalls) > 0 {
 			messages = append(messages, message)
 		}
+		messages = append(messages, pendingToolMessages...)
 	}
 
 	openaiRequest.Messages = messages
