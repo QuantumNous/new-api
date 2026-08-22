@@ -145,6 +145,19 @@ export interface ManageUserQuotaPayload {
   value: number
 }
 
+export interface SendUserEmailPayload {
+  user_ids: number[]
+  subject: string
+  content: string
+}
+
+export interface SendUserEmailResult {
+  requested: number
+  sent: number
+  skipped: number
+  failed: number
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

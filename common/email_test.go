@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -293,6 +294,28 @@ func TestSendEmailUsesExplicitStartTLSWithInsecureCertificate(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for SMTP DATA")
 	}
+}
+
+func TestSendEmailRejectsHeaderLineBreaks(t *testing.T) {
+	err := SendEmail("Notice\r\nBcc: attacker@example.com", "receiver@example.com", "message")
+	require.EqualError(t, err, "email headers must not contain line breaks")
+
+	err = SendEmail("Notice", "receiver@example.com\r\nBcc: attacker@example.com", "message")
+	require.EqualError(t, err, "email headers must not contain line breaks")
+}
+
+func TestSendEmailContextHonorsCanceledContext(t *testing.T) {
+	withSMTPSettings(t)
+	SMTPServer = "127.0.0.1"
+	SMTPPort = 1
+	SMTPFrom = "sender@example.com"
+	SystemName = "New API"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := SendEmailContext(ctx, "Notice", "receiver@example.com", "message")
+
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestSendEmailExplicitStartTLSRequiresServerSupport(t *testing.T) {

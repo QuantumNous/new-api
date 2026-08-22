@@ -28,6 +28,8 @@ import type {
   UserFormData,
   ManageUserAction,
   ManageUserQuotaPayload,
+  SendUserEmailPayload,
+  SendUserEmailResult,
   ApiResponse,
 } from './types'
 
@@ -136,6 +138,16 @@ export async function adjustUserQuota(
   payload: ManageUserQuotaPayload
 ): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post('/api/user/manage', payload)
+  return res.data
+}
+
+/**
+ * Send a custom email to selected users.
+ */
+export async function sendUserEmail(
+  payload: SendUserEmailPayload
+): Promise<ApiResponse<SendUserEmailResult>> {
+  const res = await api.post('/api/user/email', payload)
   return res.data
 }
 
