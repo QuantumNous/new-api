@@ -23,9 +23,10 @@ import {
   Outlet,
   redirect,
   useNavigate,
+  useRouterState,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
-import { useEffect } from 'react'
+import { useEffect, type ReactElement } from 'react'
 
 import { NavigationProgress } from '@/components/navigation-progress'
 import { Toaster } from '@/components/ui/sonner'
@@ -42,14 +43,16 @@ import {
 } from '@/lib/auth-session'
 import { subscribeAuthSessionEvents } from '@/lib/auth-session-sync'
 import { resolveLegacyRoute } from '@/lib/legacy-route'
+import { applySeoFromStatus, readCachedStatus } from '@/lib/seo'
 import { useAuthStore } from '@/stores/auth-store'
 
-function RootComponent() {
+function RootComponent(): ReactElement {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   // Load system configuration (logo, system name, etc.) from backend
-  useSystemConfig({ autoLoad: true })
+  const { systemName } = useSystemConfig({ autoLoad: true })
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   useEffect(() => {
     const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
@@ -91,6 +94,21 @@ function RootComponent() {
       }),
     [navigate, queryClient]
   )
+
+  // Keep document title/robots in sync with route: long-tail only on homepage.
+  useEffect(() => {
+    try {
+      const status = readCachedStatus()
+      const name =
+        systemName || String(status?.system_name || '') || 'New API'
+      applySeoFromStatus(status || { system_name: name }, {
+        title: name,
+        path: pathname || '/',
+      })
+    } catch {
+      /* empty */
+    }
+  }, [pathname, systemName])
 
   return (
     <ThemeCustomizationProvider>

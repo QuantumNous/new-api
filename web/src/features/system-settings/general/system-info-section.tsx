@@ -31,6 +31,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
@@ -52,6 +53,13 @@ const _systemInfoSchema = z.object({
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
+  'SEO.Title': z.string().optional(),
+  'SEO.TitleSuffix': z.string().optional(),
+  'SEO.Description': z.string().optional(),
+  'SEO.Keywords': z.string().optional(),
+  'SEO.SiteURL': z.string().url().optional().or(z.literal('')),
+  'SEO.OGImage': z.string().refine(isOgImageValue).optional(),
+  'SEO.RobotsIndex': z.boolean().optional(),
   legal: z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
@@ -61,12 +69,29 @@ const _systemInfoSchema = z.object({
 type SystemInfoFormValues = z.infer<typeof _systemInfoSchema>
 
 type SystemInfoSectionProps = {
-  defaultValues: SystemInfoFormValues
+  // The option API returns booleans as strings, so accept the raw shape here
+  // and normalize below rather than forcing callers to pre-convert.
+  defaultValues: Omit<SystemInfoFormValues, 'SEO.RobotsIndex'> & {
+    'SEO.RobotsIndex'?: boolean | string
+  }
 }
 
 function normalizeValue(value: unknown): string {
   if (value === undefined || value === null) return ''
   return typeof value === 'string' ? value : String(value)
+}
+
+// The SEO renderer resolves a site-root-relative image path against the site
+// URL, so `/logo.png` (the field's placeholder) is valid even though z.url()
+// only accepts absolute URLs.
+function isOgImageValue(value: string): boolean {
+  if (value === '' || value.startsWith('/')) return true
+  try {
+    new URL(value)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
@@ -80,6 +105,17 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
     HomePageContent: normalizeValue(defaultValues.HomePageContent),
+    'SEO.Title': normalizeValue(defaultValues['SEO.Title']),
+    'SEO.TitleSuffix': normalizeValue(defaultValues['SEO.TitleSuffix']),
+    'SEO.Description': normalizeValue(defaultValues['SEO.Description']),
+    'SEO.Keywords': normalizeValue(defaultValues['SEO.Keywords']),
+    'SEO.SiteURL': normalizeValue(defaultValues['SEO.SiteURL']),
+    'SEO.OGImage': normalizeValue(defaultValues['SEO.OGImage']),
+    // Absent means enabled: the browser SEO layer treats a missing
+    // seo_robots_index as indexable, so only an explicit false disables it.
+    'SEO.RobotsIndex':
+      defaultValues['SEO.RobotsIndex'] !== false &&
+      defaultValues['SEO.RobotsIndex'] !== 'false',
     legal: {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
@@ -95,6 +131,18 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
+    'SEO.Title': z.string().optional(),
+    'SEO.TitleSuffix': z.string().optional(),
+    'SEO.Description': z.string().optional(),
+    'SEO.Keywords': z.string().optional(),
+    'SEO.SiteURL': z.string().url().optional().or(z.literal('')),
+    'SEO.OGImage': z
+      .string()
+      .refine(isOgImageValue, {
+        error: () => t('Enter a full URL or a path starting with /'),
+      })
+      .optional(),
+    'SEO.RobotsIndex': z.boolean().optional(),
     legal: z.object({
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
@@ -130,13 +178,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
       <SettingsSection title={t('System Information')}>
         <Form {...form}>
           <SettingsForm onSubmit={handleSubmit}>
-            <SettingsPageFormActions
-              onSave={handleSubmit}
-              onReset={handleReset}
-              isSaving={isSubmitting || updateOption.isPending}
-              isResetDisabled={!isDirty}
-            />
-            <FormDirtyIndicator isDirty={isDirty} />
             <SettingsFormGrid>
               <FormField
                 control={form.control}
@@ -266,7 +307,194 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                   )}
                 />
               </SettingsFormGridItem>
+            </SettingsFormGrid>
+          </SettingsForm>
+        </Form>
+      </SettingsSection>
 
+      <SettingsSection title={t('SEO Settings')}>
+        <Form {...form}>
+          <SettingsForm onSubmit={handleSubmit}>
+            <SettingsFormGrid>
+              <SettingsFormGridItem span='full'>
+                <FormField
+                  control={form.control}
+                  name={'SEO.Title' as any}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('SEO Title (full)')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('Leave empty to use System Name + suffix')}
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Full browser tab title. Supports long-tail keywords. Overrides suffix mode when set.')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsFormGridItem>
+
+              <SettingsFormGridItem span='full'>
+                <FormField
+                  control={form.control}
+                  name={'SEO.TitleSuffix' as any}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('SEO Title Suffix')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('e.g. AI大模型API网关|OpenAI兼容|统一分发平台')}
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Appended after system name when full title is empty: {Name} - {Suffix}')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsFormGridItem>
+
+              <SettingsFormGridItem span='full'>
+                <FormField
+                  control={form.control}
+                  name={'SEO.Description' as any}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('SEO Description')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          rows={3}
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Used for meta description and social previews')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsFormGridItem>
+
+              <FormField
+                control={form.control}
+                name={'SEO.Keywords' as any}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO Keywords')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Comma-separated keywords for search engines')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name={'SEO.SiteURL' as any}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO Site URL')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='https://example.com'
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Canonical base URL for Open Graph and sitemap')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name={'SEO.OGImage' as any}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('SEO OG Image URL')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='/logo.png'
+                        value={field.value ?? ''}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t('Image shown in social media link previews')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name={'SEO.RobotsIndex' as any}
+                render={({ field }) => (
+                  <FormItem className='flex items-center justify-between gap-4'>
+                    <div>
+                      <FormLabel>{t('Allow Search Engine Indexing')}</FormLabel>
+                      <FormDescription>
+                        {t('When disabled, robots.txt will block all crawlers')}
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value ?? true}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SettingsFormGrid>
+          </SettingsForm>
+        </Form>
+      </SettingsSection>
+
+      <SettingsSection title={t('Legal')}>
+        <Form {...form}>
+          <SettingsForm onSubmit={handleSubmit}>
+            <SettingsFormGrid>
               <FormField
                 control={form.control}
                 name='legal.user_agreement'
@@ -317,6 +545,13 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 )}
               />
             </SettingsFormGrid>
+            <SettingsPageFormActions
+              onSave={handleSubmit}
+              onReset={handleReset}
+              isSaving={isSubmitting || updateOption.isPending}
+              isResetDisabled={!isDirty}
+            />
+            <FormDirtyIndicator isDirty={isDirty} />
           </SettingsForm>
         </Form>
       </SettingsSection>

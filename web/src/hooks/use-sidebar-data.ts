@@ -29,6 +29,7 @@ import {
   Radio,
   ServerCog,
   Settings,
+  Share2,
   Ticket,
   User,
   Users,
@@ -109,6 +110,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('Invite Rebate'),
+            url: '/invite-rebate',
+            icon: Share2,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -133,6 +139,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Invite Rebates'),
+            url: '/invite-rebate/admin',
+            icon: Share2,
           },
           {
             title: t('Redemption Codes'),

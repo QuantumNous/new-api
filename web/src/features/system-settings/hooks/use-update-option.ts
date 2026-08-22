@@ -37,6 +37,16 @@ const STATUS_RELATED_KEYS = new Set([
   'general_setting.custom_currency_symbol',
   'general_setting.custom_currency_exchange_rate',
   'oidc.display_name',
+  'SystemName',
+  'Logo',
+  'ServerAddress',
+  'SEO.Title',
+  'SEO.TitleSuffix',
+  'SEO.Description',
+  'SEO.Keywords',
+  'SEO.SiteURL',
+  'SEO.OGImage',
+  'SEO.RobotsIndex',
 ])
 
 export function useUpdateOption() {

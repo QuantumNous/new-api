@@ -71,6 +71,13 @@ func InitOptionMap() {
 	common.OptionMap["HomePageContent"] = ""
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
+	common.OptionMap["SEO.Title"] = common.SEOTitle
+	common.OptionMap["SEO.TitleSuffix"] = common.SEOTitleSuffix
+	common.OptionMap["SEO.Description"] = common.SEODescription
+	common.OptionMap["SEO.Keywords"] = common.SEOKeywords
+	common.OptionMap["SEO.SiteURL"] = common.SEOSiteURL
+	common.OptionMap["SEO.OGImage"] = common.SEOOGImage
+	common.OptionMap["SEO.RobotsIndex"] = strconv.FormatBool(common.SEORobotsIndex)
 	common.OptionMap["Logo"] = common.Logo
 	common.OptionMap["ServerAddress"] = ""
 	common.OptionMap["WorkerUrl"] = system_setting.WorkerUrl
@@ -134,6 +141,10 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["InviteTopupRebateEnabled"] = strconv.FormatBool(common.InviteTopupRebateEnabled)
+	common.OptionMap["InviteTopupRebateRatioBp"] = strconv.Itoa(common.InviteTopupRebateRatioBp)
+	common.OptionMap["InviteTopupRebateBackfillMinutes"] = strconv.Itoa(common.InviteTopupRebateBackfillMinutes)
+	common.OptionMap["InviteTopupRebateEnabledAt"] = strconv.FormatInt(common.InviteTopupRebateEnabledAt, 10)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -326,6 +337,24 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TurnstileCheckEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
+		case "InviteTopupRebateEnabled":
+			// Every off→on transition restarts the eligibility window. Keeping an
+			// older stamp would let backfill reward top-ups that completed while
+			// the feature was switched off.
+			if boolValue && !common.InviteTopupRebateEnabled {
+				enabledAt := strconv.FormatInt(common.GetTimestamp(), 10)
+				// Persist before publishing the enabled state: if the write fails,
+				// nodes would otherwise grant against different cutoffs.
+				if err := DB.Save(&Option{
+					Key:   "InviteTopupRebateEnabledAt",
+					Value: enabledAt,
+				}).Error; err != nil {
+					return err
+				}
+				common.InviteTopupRebateEnabledAt, _ = strconv.ParseInt(enabledAt, 10, 64)
+				common.OptionMap["InviteTopupRebateEnabledAt"] = enabledAt
+			}
+			common.InviteTopupRebateEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
@@ -514,6 +543,20 @@ func updateOptionMap(key string, value string) (err error) {
 		common.Footer = value
 	case "SystemName":
 		common.SystemName = value
+	case "SEO.Title":
+		common.SEOTitle = value
+	case "SEO.TitleSuffix":
+		common.SEOTitleSuffix = value
+	case "SEO.Description":
+		common.SEODescription = value
+	case "SEO.Keywords":
+		common.SEOKeywords = value
+	case "SEO.SiteURL":
+		common.SEOSiteURL = value
+	case "SEO.OGImage":
+		common.SEOOGImage = value
+	case "SEO.RobotsIndex":
+		common.SEORobotsIndex = value == "true"
 	case "Logo":
 		common.Logo = value
 	case "WeChatServerAddress":
@@ -536,6 +579,34 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "InviteTopupRebateRatioBp":
+		if v, err := strconv.Atoi(value); err == nil {
+			if v < 0 {
+				v = 0
+			}
+			// hard cap 100% to avoid misconfig disasters
+			if v > 10000 {
+				v = 10000
+			}
+			common.InviteTopupRebateRatioBp = v
+		}
+	case "InviteTopupRebateBackfillMinutes":
+		if v, err := strconv.Atoi(value); err == nil {
+			if v < 1 {
+				v = 1
+			}
+			if v > 1440 {
+				v = 1440
+			}
+			common.InviteTopupRebateBackfillMinutes = v
+		}
+	case "InviteTopupRebateEnabledAt":
+		if v, err := strconv.ParseInt(value, 10, 64); err == nil {
+			if v < 0 {
+				v = 0
+			}
+			common.InviteTopupRebateEnabledAt = v
+		}
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

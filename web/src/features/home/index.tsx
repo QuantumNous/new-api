@@ -28,9 +28,11 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { CTA, Features, Hero, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
+import { useHomeSeo } from './hooks/use-home-seo'
 
 export function Home() {
   const { i18n, t } = useTranslation()
+  useHomeSeo()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const { resolvedTheme } = useTheme()
   const { auth } = useAuthStore()
