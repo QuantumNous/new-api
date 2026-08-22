@@ -2643,6 +2643,7 @@ func TestPurchaseSubscriptionBalanceThreeMonthsChargesFullPriceOnce(t *testing.T
 	require.Equal(t, common.TopUpStatusSuccess, result.Order.Status)
 	require.Equal(t, model.SubscriptionRenewalSourceWallet, result.Order.RenewalSource)
 	require.Equal(t, model.PaymentProviderBalance, result.Order.PaymentProvider)
+	require.NotContains(t, result.Order.PlanSnapshot, "media_credits_monthly")
 
 	var user model.User
 	require.NoError(t, model.DB.First(&user, "id = ?", 7303).Error)
@@ -2657,7 +2658,7 @@ func TestPurchaseSubscriptionBalanceThreeMonthsChargesFullPriceOnce(t *testing.T
 	require.Equal(t, float64(2), terms[0].AllocatedMoney)
 
 	require.NotNil(t, result.Entitlement)
-	require.Equal(t, int64(25), result.Entitlement.MediaCreditsTotal)
+	require.Zero(t, result.Entitlement.MediaCreditsTotal)
 	require.Zero(t, result.Entitlement.MediaCreditsUsed)
 }
 

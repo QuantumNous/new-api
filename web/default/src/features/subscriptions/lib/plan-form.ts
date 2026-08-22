@@ -73,7 +73,6 @@ export function getPlanFormSchema(t: TFunction) {
     model_count: z.coerce.number().min(0).optional(),
     rpm: z.coerce.number().min(0).optional(),
     concurrency: z.coerce.number().min(0).optional(),
-    media_credits_monthly: z.coerce.number().min(0).optional(),
     feature_lines: z.string().optional(),
   })
 }
@@ -103,7 +102,6 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   model_count: 0,
   rpm: 0,
   concurrency: 0,
-  media_credits_monthly: 0,
   feature_lines: '',
 }
 
@@ -131,7 +129,6 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     model_count: Number(plan.model_count || 0),
     rpm: 0,
     concurrency: Number(plan.concurrency || 0),
-    media_credits_monthly: Number(plan.media_credits_monthly || 0),
     feature_lines: plan.feature_lines || '',
   }
 }
@@ -140,10 +137,12 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
   const {
     window_5h_amount: _window5hAmount,
     window_week_amount: _windowWeekAmount,
+    media_credits_monthly: _mediaCreditsMonthly,
     ...planValues
   } = values as PlanFormValues & {
     window_5h_amount?: unknown
     window_week_amount?: unknown
+    media_credits_monthly?: unknown
   }
 
   return {
@@ -167,7 +166,6 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       model_count: Number(planValues.model_count || 0),
       rpm: 0,
       concurrency: Number(planValues.concurrency || 0),
-      media_credits_monthly: Number(planValues.media_credits_monthly || 0),
       feature_lines: planValues.feature_lines || '',
     },
   }

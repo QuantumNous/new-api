@@ -67,7 +67,7 @@ const expectAdapterExport = () => {
 }
 
 describe('buildProfileSubscriptionSummary', () => {
-  test('builds an active Pro summary from canonical monthly and media buckets', () => {
+  test('builds an active Pro summary from canonical monthly bucket and ignores legacy media bucket', () => {
     const buildProfileSubscriptionSummary = expectAdapterExport()
 
     expect(
@@ -93,6 +93,14 @@ describe('buildProfileSubscriptionSummary', () => {
           unlimited: false,
         },
         remaining_days: 19,
+      } as SelfSubscriptionDataResponse & {
+        media_credits: {
+          total: number
+          used: number
+          remaining: number
+          reset_at: number
+          unlimited: boolean
+        }
       })
     ).toEqual({
       planTitle: 'Pro',
@@ -104,15 +112,6 @@ describe('buildProfileSubscriptionSummary', () => {
       remainingDays: 19,
       resetAt: 0,
       usagePercent: 25,
-      mediaCredits: {
-        totalQuota: 120,
-        usedQuota: 35,
-        remainingQuota: 85,
-        unlimited: false,
-        notIncluded: false,
-        resetAt: 1_716_000_000,
-        usagePercent: 29.166666666666668,
-      },
     })
   })
 
@@ -332,91 +331,47 @@ describe('buildProfileSubscriptionSummary', () => {
         remaining: 28,
         unlimited: false,
       },
+    } as SelfSubscriptionDataResponse & {
+      media_credits: {
+        total: number
+        used: number
+        remaining: number
+        unlimited: boolean
+      }
     })
 
     expect(summary).toMatchObject({
       totalQuota: 10,
       usedQuota: 4,
       remainingQuota: 6,
-      mediaCredits: {
-        totalQuota: 40,
-        usedQuota: 12,
-        remainingQuota: 28,
-      },
     })
     expect(summary && 'window5h' in summary).toBe(false)
     expect(summary && 'window7d' in summary).toBe(false)
+    expect(summary && 'mediaCredits' in summary).toBe(false)
   })
 
-  test('normalizes media credits separately from quota windows', () => {
+  test('does not expose legacy media credits in profile summaries', () => {
     const buildProfileSubscriptionSummary = expectAdapterExport()
 
-    expect(
-      buildProfileSubscriptionSummary({
-        current_subscription: buildCurrentSubscription(),
-        media_credits: {
-          total: 40,
-          used: 12,
-          remaining: 28,
-          reset_at: 1_716_000_000,
-          unlimited: false,
-        },
-      })
-    ).toMatchObject({
-      mediaCredits: {
-        totalQuota: 40,
-        usedQuota: 12,
-        remainingQuota: 28,
+    const summary = buildProfileSubscriptionSummary({
+      current_subscription: buildCurrentSubscription(),
+      media_credits: {
+        total: 40,
+        used: 12,
+        remaining: 28,
+        reset_at: 1_716_000_000,
         unlimited: false,
-        notIncluded: false,
-        resetAt: 1_716_000_000,
-        usagePercent: 30,
       },
+    } as SelfSubscriptionDataResponse & {
+      media_credits: {
+        total: number
+        used: number
+        remaining: number
+        reset_at: number
+        unlimited: boolean
+      }
     })
 
-    expect(
-      buildProfileSubscriptionSummary({
-        current_subscription: buildCurrentSubscription(),
-        media_credits: {
-          total: 0,
-          used: 0,
-          remaining: 0,
-          unlimited: false,
-        },
-      })
-    ).toMatchObject({
-      mediaCredits: {
-        totalQuota: 0,
-        usedQuota: 0,
-        remainingQuota: 0,
-        unlimited: false,
-        notIncluded: true,
-        resetAt: 0,
-        usagePercent: 0,
-      },
-    })
-
-    expect(
-      buildProfileSubscriptionSummary({
-        current_subscription: buildCurrentSubscription(),
-        media_credits: {
-          total: 0,
-          used: 8,
-          remaining: 0,
-          reset_at: 1_716_000_000,
-          unlimited: true,
-        },
-      })
-    ).toMatchObject({
-      mediaCredits: {
-        totalQuota: 0,
-        usedQuota: 8,
-        remainingQuota: 0,
-        unlimited: false,
-        notIncluded: true,
-        resetAt: 1_716_000_000,
-        usagePercent: 0,
-      },
-    })
+    expect(summary && 'mediaCredits' in summary).toBe(false)
   })
 })

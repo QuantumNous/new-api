@@ -262,19 +262,16 @@ export function CurrentPlanCard(props: CurrentPlanCardProps) {
           </div>
         </div>
 
-        <div className='grid gap-3 lg:grid-cols-2'>
+        <a
+          href='/usage-logs'
+          className='block rounded-lg focus-visible:outline-none focus-visible:ring-2'
+        >
           <UsageWindowMeter
             label={t('Monthly model quota')}
             window={props.selfData.monthly_bucket}
             secondary
           />
-          <UsageWindowMeter
-            label={t('Media generation credits')}
-            window={props.selfData.media_credits}
-            secondary
-            media
-          />
-        </div>
+        </a>
 
         {renewalAction && props.selfData.renewal_source ? (
           <div className='flex justify-end'>

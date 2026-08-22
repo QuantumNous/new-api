@@ -145,7 +145,7 @@ type purchasePlanSnapshot struct {
 	TotalAmount         int64   `json:"total_amount"`
 	Window5hAmount      int64   `json:"window_5h_amount"`
 	WindowWeekAmount    int64   `json:"window_week_amount"`
-	MediaCreditsMonthly int64   `json:"media_credits_monthly"`
+	MediaCreditsMonthly int64   `json:"media_credits_monthly,omitempty"`
 	QuotaResetPeriod    string  `json:"quota_reset_period"`
 	UpgradeGroup        string  `json:"upgrade_group"`
 }
@@ -949,7 +949,6 @@ func applyBalancePrepaidPurchaseTx(tx *gorm.DB, user *model.User, contract *mode
 			GrantKey:             "prepaid:" + locked.TradeNo,
 			PaymentMode:          model.SubscriptionPaymentModePrepaid,
 			AmountTotal:          plan.TotalAmount,
-			MediaCreditsTotal:    plan.MediaCreditsMonthly,
 			Window5hAmount:       common.GetPointer(plan.Window5hAmount),
 			WindowWeekAmount:     common.GetPointer(plan.WindowWeekAmount),
 			UpgradeGroup:         common.GetPointer(plan.UpgradeGroup),
@@ -1369,19 +1368,18 @@ func markPrepaidPurchaseAppliedTx(tx *gorm.DB, contract *model.UserSubscriptionC
 
 func subscriptionPurchasePlanSnapshot(plan *model.SubscriptionPlan) (string, error) {
 	payload := purchasePlanSnapshot{
-		PlanID:              plan.Id,
-		Title:               plan.Title,
-		PriceAmount:         plan.PriceAmount,
-		Currency:            plan.Currency,
-		StripePriceID:       strings.TrimSpace(plan.StripePriceId),
-		DurationUnit:        plan.DurationUnit,
-		DurationValue:       plan.DurationValue,
-		TotalAmount:         plan.TotalAmount,
-		Window5hAmount:      plan.Window5hAmount,
-		WindowWeekAmount:    plan.WindowWeekAmount,
-		MediaCreditsMonthly: plan.MediaCreditsMonthly,
-		QuotaResetPeriod:    plan.QuotaResetPeriod,
-		UpgradeGroup:        plan.UpgradeGroup,
+		PlanID:           plan.Id,
+		Title:            plan.Title,
+		PriceAmount:      plan.PriceAmount,
+		Currency:         plan.Currency,
+		StripePriceID:    strings.TrimSpace(plan.StripePriceId),
+		DurationUnit:     plan.DurationUnit,
+		DurationValue:    plan.DurationValue,
+		TotalAmount:      plan.TotalAmount,
+		Window5hAmount:   plan.Window5hAmount,
+		WindowWeekAmount: plan.WindowWeekAmount,
+		QuotaResetPeriod: plan.QuotaResetPeriod,
+		UpgradeGroup:     plan.UpgradeGroup,
 	}
 	data, err := common.Marshal(payload)
 	if err != nil {

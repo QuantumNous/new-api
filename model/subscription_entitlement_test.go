@@ -97,6 +97,30 @@ func TestGrantEntitlementInputRejectsNegativeWindowLimits(t *testing.T) {
 	}
 }
 
+func TestGrantEntitlementDoesNotCreateMediaCreditBalance(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9102, "plg")
+	createEntitlementTestPlan(t, 9203, 100, "")
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:          9302,
+		UserId:      9102,
+		Status:      SubscriptionContractStatusActive,
+		PaymentMode: SubscriptionPaymentModeStripeRecurring,
+	}).Error)
+
+	input := grantInput(9302, 9102, 9203, "stripe:no-media-balance", 100, 200)
+	result, err := RotateCurrentEntitlement(input)
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.Zero(t, result.Entitlement.MediaCreditsTotal)
+	require.Zero(t, result.Entitlement.MediaCreditsUsed)
+	var stored UserSubscription
+	require.NoError(t, DB.First(&stored, "id = ?", result.Entitlement.Id).Error)
+	require.Zero(t, stored.MediaCreditsTotal)
+	require.Zero(t, stored.MediaCreditsUsed)
+}
+
 func TestRotateCurrentEntitlementArchivesOldAndCreatesSingleCurrent(t *testing.T) {
 	setupSubscriptionEntitlementTestDB(t)
 	createEntitlementTestUser(t, 9101, "plg")
@@ -219,6 +243,30 @@ func TestSubscriptionEntitlementGrantIdempotentAndConflict(t *testing.T) {
 	paymentModeConflict.PaymentMode = SubscriptionPaymentModeBalanceOnePeriod
 	_, err = RotateCurrentEntitlement(paymentModeConflict)
 	require.ErrorIs(t, err, ErrSubscriptionEntitlementGrantConflict)
+}
+
+func TestSubscriptionEntitlementGrantIdempotencyIgnoresLegacyMediaCredits(t *testing.T) {
+	setupSubscriptionEntitlementTestDB(t)
+	createEntitlementTestUser(t, 9113, "plg")
+	createEntitlementTestPlan(t, 9213, 100, "")
+	require.NoError(t, DB.Create(&UserSubscriptionContract{
+		Id:          9313,
+		UserId:      9113,
+		Status:      SubscriptionContractStatusActive,
+		PaymentMode: SubscriptionPaymentModeStripeRecurring,
+	}).Error)
+
+	input := grantInput(9313, 9113, 9213, "stripe:legacy-media-idempotent", 100, 200)
+	first, err := RotateCurrentEntitlement(input)
+	require.NoError(t, err)
+	require.True(t, first.Applied)
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", first.Entitlement.Id).
+		Update("media_credits_total", 77).Error)
+
+	replay, err := RotateCurrentEntitlement(input)
+	require.NoError(t, err)
+	require.False(t, replay.Applied)
+	require.Equal(t, first.Entitlement.Id, replay.Entitlement.Id)
 }
 
 func TestSubscriptionEntitlementGrantReplayWithoutReservationIgnoresLifecycleReservation(t *testing.T) {

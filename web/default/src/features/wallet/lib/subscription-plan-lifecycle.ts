@@ -114,7 +114,6 @@ export type WalletSelfSubscriptionData = Omit<
   current_period?: SubscriptionCurrentPeriod
   quota?: SubscriptionQuota
   monthly_bucket?: SubscriptionUsageWindow
-  media_credits?: SubscriptionUsageWindow
   remaining_days?: number
   renewal_source?: SubscriptionRenewalSource
   renewal_status?: SubscriptionRenewalStatus
@@ -156,14 +155,6 @@ const EMPTY_USAGE_WINDOW: SubscriptionUsageWindow = {
   remaining: 0,
   reset_at: 0,
   unlimited: true,
-}
-
-const EMPTY_MEDIA_USAGE_WINDOW: SubscriptionUsageWindow = {
-  used: 0,
-  total: 0,
-  remaining: 0,
-  reset_at: 0,
-  unlimited: false,
 }
 
 const DEFAULT_MIGRATION: WalletSelfSubscriptionData['migration'] = {
@@ -237,17 +228,6 @@ function normalizeContract(
   }
 }
 
-function normalizeMediaUsageWindow(
-  window: SubscriptionUsageWindow | undefined
-): SubscriptionUsageWindow {
-  const normalized = window ?? EMPTY_MEDIA_USAGE_WINDOW
-  if (Number(normalized.total ?? 0) > 0) return normalized
-  return {
-    ...normalized,
-    unlimited: false,
-  }
-}
-
 export function normalizeSelfSubscriptionData(
   data: SelfSubscriptionDataResponse | undefined
 ): WalletSelfSubscriptionData {
@@ -265,7 +245,6 @@ export function normalizeSelfSubscriptionData(
     current_period: data?.current_period ?? DEFAULT_CURRENT_PERIOD,
     quota: data?.quota ?? DEFAULT_QUOTA,
     monthly_bucket: data?.monthly_bucket ?? EMPTY_USAGE_WINDOW,
-    media_credits: normalizeMediaUsageWindow(data?.media_credits),
     remaining_days: data?.remaining_days,
     renewal_source: normalizeRenewalSource(data?.renewal_source),
     renewal_status: normalizeRenewalStatus(data?.renewal_status),

@@ -95,26 +95,3 @@ export function parseFeatureLines(plan: Partial<SubscriptionPlan>): string[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
 }
-
-// 300 credits ≈ 100 images / 75s standard video — anchored on the standard
-// tier of the public media price table (image 3 credits, video 4 credits/s).
-const IMAGE_CREDITS_PER_UNIT = 3
-const VIDEO_CREDITS_PER_SECOND = 4
-
-export function formatMediaValue(credits: number, t: TFunction): string {
-  let images = Math.floor(credits / IMAGE_CREDITS_PER_UNIT)
-  if (images >= 200) {
-    images = Math.floor(images / 100) * 100
-  }
-  const seconds = Math.floor(credits / VIDEO_CREDITS_PER_SECOND)
-  if (seconds >= 120) {
-    return t('≈ {{images}} images or {{minutes}} min of video', {
-      images,
-      minutes: Math.floor(seconds / 60),
-    })
-  }
-  return t('≈ {{images}} images or {{seconds}}s of video', {
-    images,
-    seconds,
-  })
-}

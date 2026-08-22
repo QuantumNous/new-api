@@ -124,7 +124,6 @@ func RenewWalletSubscriptionContract(contractID int64) (*WalletSubscriptionRenew
 			GrantKey:             renewalKey,
 			PaymentMode:          model.SubscriptionPaymentModePrepaid,
 			AmountTotal:          plan.TotalAmount,
-			MediaCreditsTotal:    plan.MediaCreditsMonthly,
 			Window5hAmount:       common.GetPointer(plan.Window5hAmount),
 			WindowWeekAmount:     common.GetPointer(plan.WindowWeekAmount),
 			UpgradeGroup:         common.GetPointer(plan.UpgradeGroup),
@@ -378,7 +377,6 @@ func walletRenewalAttemptGrantInputMatches(attempt walletRenewalAttempt) bool {
 		input.EndReasonForPrevious == model.SubscriptionEntitlementEndReasonRenewed &&
 		input.Source == model.PaymentMethodBalance &&
 		input.AmountTotal >= 0 &&
-		input.MediaCreditsTotal >= 0 &&
 		input.Window5hAmount != nil &&
 		*input.Window5hAmount >= 0 &&
 		input.WindowWeekAmount != nil &&
@@ -395,7 +393,6 @@ func walletRenewalEntitlementMatchesGrantInput(entitlement *model.UserSubscripti
 		entitlement.PlanId == input.PlanId &&
 		entitlement.ProviderBindingId == input.ProviderBindingId &&
 		entitlement.AmountTotal == input.AmountTotal &&
-		entitlement.MediaCreditsTotal == input.MediaCreditsTotal &&
 		walletRenewalWindowAmountMatches(entitlement.Window5hAmount, input.Window5hAmount) &&
 		walletRenewalWindowAmountMatches(entitlement.WindowWeekAmount, input.WindowWeekAmount) &&
 		strings.TrimSpace(entitlement.UpgradeGroup) == strings.TrimSpace(*input.UpgradeGroup) &&

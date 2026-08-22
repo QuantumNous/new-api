@@ -257,7 +257,7 @@ describe('normalizeSelfSubscriptionData', () => {
     expect(normalized.contract?.grace_period_end).toBe(2100)
   })
 
-  test('normalizes monthly and zero media usage without synthesizing short-window buckets', () => {
+  test('normalizes monthly usage and drops legacy media usage without synthesizing short-window buckets', () => {
     const normalized = normalizeSelfSubscriptionData({
       ...createBackendSelfData(false, false),
       monthly_bucket: {
@@ -274,13 +274,20 @@ describe('normalizeSelfSubscriptionData', () => {
         reset_at: 0,
         unlimited: true,
       },
-    } as SelfSubscriptionDataResponse)
+    } as SelfSubscriptionDataResponse & {
+      media_credits: {
+        used: number
+        total: number
+        remaining: number
+        reset_at: number
+        unlimited: boolean
+      }
+    })
 
     expect(normalized.monthly_bucket?.unlimited).toBe(true)
     expect('window_5h' in normalized).toBe(false)
     expect('window_7d' in normalized).toBe(false)
-    expect(normalized.media_credits?.total).toBe(0)
-    expect(normalized.media_credits?.unlimited).toBe(false)
+    expect('media_credits' in normalized).toBe(false)
   })
 
   test('uses an unlimited empty usage window when monthly bucket data is missing', () => {

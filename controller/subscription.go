@@ -49,7 +49,6 @@ type AdminSubscriptionPlanResponseDTO struct {
 	MaxPurchasePerUser      int      `json:"max_purchase_per_user"`
 	UpgradeGroup            string   `json:"upgrade_group"`
 	TotalAmount             int64    `json:"total_amount"`
-	MediaCreditsMonthly     int64    `json:"media_credits_monthly"`
 	QuotaResetPeriod        string   `json:"quota_reset_period"`
 	QuotaResetCustomSeconds int64    `json:"quota_reset_custom_seconds"`
 	ModelCount              int      `json:"model_count"`
@@ -78,7 +77,6 @@ type SubscriptionPlanPublicDTO struct {
 	MaxPurchasePerUser      int                `json:"max_purchase_per_user"`
 	UpgradeGroup            string             `json:"upgrade_group"`
 	TotalAmount             int64              `json:"total_amount"`
-	MediaCreditsMonthly     int64              `json:"media_credits_monthly"`
 	QuotaResetPeriod        string             `json:"quota_reset_period"`
 	QuotaResetCustomSeconds int64              `json:"quota_reset_custom_seconds"`
 	CreatedAt               int64              `json:"created_at"`
@@ -124,7 +122,6 @@ type SubscriptionSelfResponse struct {
 	CurrentPeriod          SubscriptionCurrentPeriodDTO               `json:"current_period"`
 	Quota                  SubscriptionQuotaDTO                       `json:"quota"`
 	MonthlyBucket          SubscriptionUsageWindowDTO                 `json:"monthly_bucket"`
-	MediaCredits           SubscriptionUsageWindowDTO                 `json:"media_credits"`
 	RemainingDays          int64                                      `json:"remaining_days"`
 	RenewalSource          string                                     `json:"renewal_source"`
 	RenewalStatus          string                                     `json:"renewal_status"`
@@ -137,28 +134,26 @@ type SubscriptionSelfResponse struct {
 }
 
 type SubscriptionSelfSubscriptionDTO struct {
-	Id                int    `json:"id"`
-	UserId            int    `json:"user_id"`
-	PlanId            int    `json:"plan_id"`
-	ContractId        int64  `json:"contract_id"`
-	CurrentSlot       *int   `json:"current_slot"`
-	AmountTotal       int64  `json:"amount_total"`
-	AmountUsed        int64  `json:"amount_used"`
-	MediaCreditsTotal int64  `json:"media_credits_total"`
-	MediaCreditsUsed  int64  `json:"media_credits_used"`
-	StartTime         int64  `json:"start_time"`
-	EndTime           int64  `json:"end_time"`
-	AccessEndTime     int64  `json:"access_end_time"`
-	EndReason         string `json:"end_reason"`
-	Status            string `json:"status"`
-	Source            string `json:"source"`
-	PaymentMode       string `json:"payment_mode"`
-	LastResetTime     int64  `json:"last_reset_time"`
-	NextResetTime     int64  `json:"next_reset_time"`
-	UpgradeGroup      string `json:"upgrade_group"`
-	PrevUserGroup     string `json:"prev_user_group"`
-	CreatedAt         int64  `json:"created_at"`
-	UpdatedAt         int64  `json:"updated_at"`
+	Id            int    `json:"id"`
+	UserId        int    `json:"user_id"`
+	PlanId        int    `json:"plan_id"`
+	ContractId    int64  `json:"contract_id"`
+	CurrentSlot   *int   `json:"current_slot"`
+	AmountTotal   int64  `json:"amount_total"`
+	AmountUsed    int64  `json:"amount_used"`
+	StartTime     int64  `json:"start_time"`
+	EndTime       int64  `json:"end_time"`
+	AccessEndTime int64  `json:"access_end_time"`
+	EndReason     string `json:"end_reason"`
+	Status        string `json:"status"`
+	Source        string `json:"source"`
+	PaymentMode   string `json:"payment_mode"`
+	LastResetTime int64  `json:"last_reset_time"`
+	NextResetTime int64  `json:"next_reset_time"`
+	UpgradeGroup  string `json:"upgrade_group"`
+	PrevUserGroup string `json:"prev_user_group"`
+	CreatedAt     int64  `json:"created_at"`
+	UpdatedAt     int64  `json:"updated_at"`
 }
 
 type SubscriptionSelfPlanDTO struct {
@@ -179,7 +174,6 @@ type SubscriptionSelfPlanDTO struct {
 	MaxPurchasePerUser      int      `json:"max_purchase_per_user"`
 	UpgradeGroup            string   `json:"upgrade_group"`
 	TotalAmount             int64    `json:"total_amount"`
-	MediaCreditsMonthly     int64    `json:"media_credits_monthly"`
 	QuotaResetPeriod        string   `json:"quota_reset_period"`
 	QuotaResetCustomSeconds int64    `json:"quota_reset_custom_seconds"`
 	ModelCount              int      `json:"model_count"`
@@ -396,7 +390,6 @@ func subscriptionPlanPublicDTO(plan *model.SubscriptionPlan) SubscriptionPlanPub
 		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
 		UpgradeGroup:            plan.UpgradeGroup,
 		TotalAmount:             plan.TotalAmount,
-		MediaCreditsMonthly:     plan.MediaCreditsMonthly,
 		QuotaResetPeriod:        plan.QuotaResetPeriod,
 		QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
 		CreatedAt:               plan.CreatedAt,
@@ -526,12 +519,6 @@ func buildSubscriptionSelfResponse(
 			currentEntitlement.NextResetTime,
 			currentEntitlement.AmountTotal == 0,
 		)
-		response.MediaCredits = subscriptionUsageWindowDTO(
-			currentEntitlement.MediaCreditsUsed,
-			currentEntitlement.MediaCreditsTotal,
-			currentEntitlement.NextResetTime,
-			false,
-		)
 	}
 	if pendingChange != nil && pendingChange.Id > 0 {
 		response.PendingChange = subscriptionSelfPendingChangeDTO(pendingChange)
@@ -591,28 +578,26 @@ func subscriptionSelfSubscriptionDTO(subscription *model.UserSubscription) *Subs
 		return nil
 	}
 	return &SubscriptionSelfSubscriptionDTO{
-		Id:                subscription.Id,
-		UserId:            subscription.UserId,
-		PlanId:            subscription.PlanId,
-		ContractId:        subscription.ContractId,
-		CurrentSlot:       subscription.CurrentSlot,
-		AmountTotal:       subscription.AmountTotal,
-		AmountUsed:        subscription.AmountUsed,
-		MediaCreditsTotal: subscription.MediaCreditsTotal,
-		MediaCreditsUsed:  subscription.MediaCreditsUsed,
-		StartTime:         subscription.StartTime,
-		EndTime:           subscription.EndTime,
-		AccessEndTime:     subscription.AccessEndTime,
-		EndReason:         subscription.EndReason,
-		Status:            subscription.Status,
-		Source:            subscription.Source,
-		PaymentMode:       subscription.PaymentMode,
-		LastResetTime:     subscription.LastResetTime,
-		NextResetTime:     subscription.NextResetTime,
-		UpgradeGroup:      subscription.UpgradeGroup,
-		PrevUserGroup:     subscription.PrevUserGroup,
-		CreatedAt:         subscription.CreatedAt,
-		UpdatedAt:         subscription.UpdatedAt,
+		Id:            subscription.Id,
+		UserId:        subscription.UserId,
+		PlanId:        subscription.PlanId,
+		ContractId:    subscription.ContractId,
+		CurrentSlot:   subscription.CurrentSlot,
+		AmountTotal:   subscription.AmountTotal,
+		AmountUsed:    subscription.AmountUsed,
+		StartTime:     subscription.StartTime,
+		EndTime:       subscription.EndTime,
+		AccessEndTime: subscription.AccessEndTime,
+		EndReason:     subscription.EndReason,
+		Status:        subscription.Status,
+		Source:        subscription.Source,
+		PaymentMode:   subscription.PaymentMode,
+		LastResetTime: subscription.LastResetTime,
+		NextResetTime: subscription.NextResetTime,
+		UpgradeGroup:  subscription.UpgradeGroup,
+		PrevUserGroup: subscription.PrevUserGroup,
+		CreatedAt:     subscription.CreatedAt,
+		UpdatedAt:     subscription.UpdatedAt,
 	}
 }
 
@@ -638,7 +623,6 @@ func subscriptionSelfPlanDTO(plan *model.SubscriptionPlan) *SubscriptionSelfPlan
 		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
 		UpgradeGroup:            plan.UpgradeGroup,
 		TotalAmount:             plan.TotalAmount,
-		MediaCreditsMonthly:     plan.MediaCreditsMonthly,
 		QuotaResetPeriod:        plan.QuotaResetPeriod,
 		QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
 		ModelCount:              plan.ModelCount,
@@ -675,7 +659,6 @@ func adminSubscriptionPlanResponseDTO(plan *model.SubscriptionPlan) AdminSubscri
 		MaxPurchasePerUser:      plan.MaxPurchasePerUser,
 		UpgradeGroup:            plan.UpgradeGroup,
 		TotalAmount:             plan.TotalAmount,
-		MediaCreditsMonthly:     plan.MediaCreditsMonthly,
 		QuotaResetPeriod:        plan.QuotaResetPeriod,
 		QuotaResetCustomSeconds: plan.QuotaResetCustomSeconds,
 		ModelCount:              plan.ModelCount,
@@ -1465,12 +1448,9 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
-	if req.Plan.MediaCreditsMonthly < 0 {
-		common.ApiErrorMsg(c, "媒体额度不能为负数")
-		return
-	}
 	req.Plan.Window5hAmount = 0
 	req.Plan.WindowWeekAmount = 0
+	req.Plan.MediaCreditsMonthly = 0
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -1540,12 +1520,9 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
-	if req.Plan.MediaCreditsMonthly < 0 {
-		common.ApiErrorMsg(c, "媒体额度不能为负数")
-		return
-	}
 	req.Plan.Window5hAmount = 0
 	req.Plan.WindowWeekAmount = 0
+	req.Plan.MediaCreditsMonthly = 0
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {

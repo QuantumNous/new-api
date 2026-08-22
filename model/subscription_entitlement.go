@@ -32,7 +32,6 @@ type GrantEntitlementInput struct {
 	GrantKey             string
 	PaymentMode          string
 	AmountTotal          int64
-	MediaCreditsTotal    int64
 	Window5hAmount       *int64
 	WindowWeekAmount     *int64
 	UpgradeGroup         *string
@@ -221,7 +220,7 @@ func rotateCurrentEntitlementTx(tx *gorm.DB, input GrantEntitlementInput, reserv
 		CurrentSlot:       &currentSlot,
 		AmountTotal:       input.AmountTotal,
 		AmountUsed:        0,
-		MediaCreditsTotal: input.MediaCreditsTotal,
+		MediaCreditsTotal: 0,
 		MediaCreditsUsed:  0,
 		Window5hAmount:    input.Window5hAmount,
 		WindowWeekAmount:  input.WindowWeekAmount,
@@ -376,9 +375,6 @@ func (input GrantEntitlementInput) validate() error {
 	if input.AmountTotal < 0 {
 		return errors.New("amount total must be >= 0")
 	}
-	if input.MediaCreditsTotal < 0 {
-		return errors.New("media credits total must be >= 0")
-	}
 	if input.Window5hAmount != nil && *input.Window5hAmount < 0 {
 		return errors.New("window 5h amount must be >= 0")
 	}
@@ -419,7 +415,6 @@ func grantMatchesInput(existing *UserSubscription, input GrantEntitlementInput) 
 		existing.PlanId == input.PlanId &&
 		existing.ProviderBindingId == input.ProviderBindingId &&
 		existing.AmountTotal == input.AmountTotal &&
-		existing.MediaCreditsTotal == input.MediaCreditsTotal &&
 		grantWindowAmountMatches(existing.Window5hAmount, input.Window5hAmount) &&
 		grantWindowAmountMatches(existing.WindowWeekAmount, input.WindowWeekAmount) &&
 		grantUpgradeGroupMatches(existing.UpgradeGroup, input.UpgradeGroup) &&
@@ -454,31 +449,29 @@ func (o *SubscriptionOrder) BeforeCreate(tx *gorm.DB) error {
 	}
 	plan.NormalizeDefaults()
 	payload := struct {
-		PlanID              int     `json:"plan_id"`
-		Title               string  `json:"title"`
-		PriceAmount         float64 `json:"price_amount"`
-		Currency            string  `json:"currency"`
-		DurationUnit        string  `json:"duration_unit"`
-		DurationValue       int     `json:"duration_value"`
-		TotalAmount         int64   `json:"total_amount"`
-		Window5hAmount      int64   `json:"window_5h_amount"`
-		WindowWeekAmount    int64   `json:"window_week_amount"`
-		MediaCreditsMonthly int64   `json:"media_credits_monthly"`
-		QuotaResetPeriod    string  `json:"quota_reset_period"`
-		UpgradeGroup        string  `json:"upgrade_group"`
+		PlanID           int     `json:"plan_id"`
+		Title            string  `json:"title"`
+		PriceAmount      float64 `json:"price_amount"`
+		Currency         string  `json:"currency"`
+		DurationUnit     string  `json:"duration_unit"`
+		DurationValue    int     `json:"duration_value"`
+		TotalAmount      int64   `json:"total_amount"`
+		Window5hAmount   int64   `json:"window_5h_amount"`
+		WindowWeekAmount int64   `json:"window_week_amount"`
+		QuotaResetPeriod string  `json:"quota_reset_period"`
+		UpgradeGroup     string  `json:"upgrade_group"`
 	}{
-		PlanID:              plan.Id,
-		Title:               plan.Title,
-		PriceAmount:         plan.PriceAmount,
-		Currency:            plan.Currency,
-		DurationUnit:        plan.DurationUnit,
-		DurationValue:       plan.DurationValue,
-		TotalAmount:         plan.TotalAmount,
-		Window5hAmount:      plan.Window5hAmount,
-		WindowWeekAmount:    plan.WindowWeekAmount,
-		MediaCreditsMonthly: plan.MediaCreditsMonthly,
-		QuotaResetPeriod:    plan.QuotaResetPeriod,
-		UpgradeGroup:        plan.UpgradeGroup,
+		PlanID:           plan.Id,
+		Title:            plan.Title,
+		PriceAmount:      plan.PriceAmount,
+		Currency:         plan.Currency,
+		DurationUnit:     plan.DurationUnit,
+		DurationValue:    plan.DurationValue,
+		TotalAmount:      plan.TotalAmount,
+		Window5hAmount:   plan.Window5hAmount,
+		WindowWeekAmount: plan.WindowWeekAmount,
+		QuotaResetPeriod: plan.QuotaResetPeriod,
+		UpgradeGroup:     plan.UpgradeGroup,
 	}
 	data, err := common.Marshal(payload)
 	if err != nil {

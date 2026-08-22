@@ -99,6 +99,14 @@ describe('loadProfileSubscriptionSummary', () => {
             unlimited: false,
           },
           remaining_days: 19,
+        } as SelfSubscriptionDataResponse & {
+          media_credits: {
+            total: number
+            used: number
+            remaining: number
+            reset_at: number
+            unlimited: boolean
+          }
         },
       }))
     ).resolves.toEqual({
@@ -111,15 +119,6 @@ describe('loadProfileSubscriptionSummary', () => {
       remainingDays: 19,
       resetAt: 0,
       usagePercent: 25,
-      mediaCredits: {
-        totalQuota: 120,
-        usedQuota: 35,
-        remainingQuota: 85,
-        unlimited: false,
-        notIncluded: false,
-        resetAt: 1_716_000_000,
-        usagePercent: 29.166666666666668,
-      },
     })
   })
 

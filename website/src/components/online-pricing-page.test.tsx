@@ -1,4 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 
 mock.module("server-only", () => ({}));
@@ -32,6 +34,8 @@ describe("OnlinePricingPage", () => {
     expect(html).toContain("%2Fassets%2Flogos%2Fpayment%2Fpix.jpg");
     expect(html).toContain("%2Fassets%2Flogos%2Fpayment%2Fupi.jpg");
     expect(html).toContain('src="/assets/logos/payment/alipay.svg"');
+    expect(html).toContain("All models");
+    expect(html).not.toContain("Text models");
     expect(html).not.toContain("B2B");
   });
 
@@ -51,15 +55,15 @@ describe("OnlinePricingPage", () => {
   test("localizes pricing plan details outside English", async () => {
     const { OnlinePricingPage } = await import("./online-pricing-page");
     const localizedCases = [
-      { locale: "zh", snippets: ["灵活定价", "适合个人与轻量日常使用", "文本模型", "每月 300 媒体额度", "定制", "/月"] },
-      { locale: "es", snippets: ["Precios flexibles", "Para uso individual y diario ligero", "Modelos de texto", "300 créditos multimedia / mes", "Personalizado", "/mes"] },
-      { locale: "fr", snippets: ["Tarifs flexibles", "Pour les particuliers", "Modèles de texte", "300 crédits média / mois", "Sur mesure", "/mois"] },
-      { locale: "pt", snippets: ["Preços flexíveis", "Para uso individual", "Modelos de texto", "300 créditos de mídia / mês", "Personalizado", "/mês"] },
-      { locale: "ru", snippets: ["Гибкие тарифы", "Для индивидуального", "Текстовые модели", "300 медиакредитов / мес.", "Индивидуально", "/мес."] },
-      { locale: "ja", snippets: ["柔軟な料金", "個人利用と軽い日常利用向け", "テキストモデル", "月 300 メディアクレジット", "カスタム", "/月"] },
-      { locale: "vi", snippets: ["Giá linh hoạt", "Cho cá nhân", "Model văn bản", "300 credit media / tháng", "Tùy chỉnh", "/tháng"] },
-      { locale: "de", snippets: ["Flexible Preise", "Für Einzelpersonen", "Textmodelle", "300 Medienguthaben / Monat", "Individuell", "/Monat"] },
-      { locale: "id", snippets: ["Harga fleksibel", "Untuk individu", "Model teks", "300 kredit media / bulan", "Kustom", "/bulan"] },
+      { locale: "zh", snippets: ["灵活定价", "适合个人与轻量日常使用", "全部模型", "每月最多 $45 模型用量", "定制", "/月"] },
+      { locale: "es", snippets: ["Precios flexibles", "Para uso individual y diario ligero", "Todos los modelos", "Hasta $45 de uso de modelos / mes", "Personalizado", "/mes"] },
+      { locale: "fr", snippets: ["Tarifs flexibles", "Pour les particuliers", "Tous les modèles", "Jusqu", "$45", "Sur mesure", "/mois"] },
+      { locale: "pt", snippets: ["Preços flexíveis", "Para uso individual", "Todos os modelos", "Até $45 de uso de modelos / mês", "Personalizado", "/mês"] },
+      { locale: "ru", snippets: ["Гибкие тарифы", "Для индивидуального", "Все модели", "До $45 использования моделей / мес.", "Индивидуально", "/мес."] },
+      { locale: "ja", snippets: ["柔軟な料金", "個人利用と軽い日常利用向け", "すべてのモデル", "月あたり最大 $45 のモデル利用", "カスタム", "/月"] },
+      { locale: "vi", snippets: ["Giá linh hoạt", "Cho cá nhân", "Tất cả model", "Tối đa $45 mức sử dụng model / tháng", "Tùy chỉnh", "/tháng"] },
+      { locale: "de", snippets: ["Flexible Preise", "Für Einzelpersonen", "Alle Modelle", "Bis zu $45 Modellnutzung / Monat", "Individuell", "/Monat"] },
+      { locale: "id", snippets: ["Harga fleksibel", "Untuk individu", "Semua model", "Hingga $45 penggunaan model / bulan", "Kustom", "/bulan"] },
     ] as const;
 
     for (const item of localizedCases) {
@@ -69,8 +73,27 @@ describe("OnlinePricingPage", () => {
       }
       expect(html).not.toContain("For individuals & light daily use");
       expect(html).not.toContain("Text models");
-      expect(html).not.toContain("300 media credits / mo");
+      expect(html).not.toMatch(/media credits|media quota|media credit|crédit(?:s)? média|créditos multimedia|медиакредит|メディアクレジット|媒体额度|მედиа/i);
     }
+  });
+
+  test("does not render a separate media-credit balance in any locale", async () => {
+    const { OnlinePricingPage } = await import("./online-pricing-page");
+    for (const locale of ["en", "zh", "es", "fr", "pt", "ru", "ja", "vi", "de", "id"] as const) {
+      const html = renderToStaticMarkup(<OnlinePricingPage locale={locale} />);
+      expect(html).not.toMatch(/media credits|media quota|media credit|crédit(?:s)? média|créditos multimedia|медиакредит|メディアクレジット|媒体额度/i);
+    }
+  });
+
+  test("does not publish legacy media-credit pricing copy", () => {
+    const publicCopy = readFileSync(path.join(process.cwd(), "public", "assets", "i18n.js"), "utf8");
+    const offerCopy = readFileSync(path.join(process.cwd(), "src", "components", "lp-limited-offer-modal.tsx"), "utf8");
+
+    const legacyMediaCreditCopy = /media credits?|image (?:and video )?credits?|video credits?|媒体额度|媒体点数|图像与视频额度|créditos? (?:de )?imagen(?: y v[ií]deo)?|crédits? image(?: et vidéo)?|кредиты? на изображения(?: и видео)?|画像・動画クレジット|hạn mức ảnh và video|Bild- und Video-Credits/i;
+
+    expect(publicCopy).not.toMatch(legacyMediaCreditCopy);
+    expect(offerCopy).not.toMatch(legacyMediaCreditCopy);
+    expect(publicCopy).not.toMatch(/"tu\.(?:mc|mv)[123]"/);
   });
 
   test("localizes only payable prices for Portuguese and Japanese", async () => {
