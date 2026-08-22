@@ -3,6 +3,7 @@ package channel
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -190,4 +191,53 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+type headerOverrideTaskAdaptor struct {
+	TaskAdaptor
+	upstreamURL string
+}
+
+func (a *headerOverrideTaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	return a.upstreamURL, nil
+}
+
+func (a *headerOverrideTaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
+	req.Header.Set("Authorization", "Bearer channel-key")
+	return nil
+}
+
+func TestDoTaskApiRequest_AppliesHeaderOverride(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	received := make(chan http.Header, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", strings.NewReader("{}"))
+	ctx.Request.Header.Set("Idempotency-Key", "idem-123")
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"*":                "",
+				"X-Upstream-Token": "override-token",
+			},
+		},
+	}
+
+	resp, err := DoTaskApiRequest(&headerOverrideTaskAdaptor{upstreamURL: upstream.URL}, ctx, info, strings.NewReader("{}"))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	headers := <-received
+	require.Equal(t, "idem-123", headers.Get("Idempotency-Key"))
+	require.Equal(t, "override-token", headers.Get("X-Upstream-Token"))
+	require.Equal(t, "Bearer channel-key", headers.Get("Authorization"))
 }
