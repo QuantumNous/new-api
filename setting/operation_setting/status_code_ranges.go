@@ -16,18 +16,25 @@ type StatusCodeRange struct {
 
 var AutomaticDisableStatusCodeRanges = []StatusCodeRange{{Start: 401, End: 401}}
 
-// Default behavior matches legacy hardcoded retry rules in controller/relay.go shouldRetry:
-// retry for 1xx, 3xx, 4xx(except 400/408), 5xx(except 504/524), and no retry for 2xx.
+// Default retry policy for the synchronous relay path: retry for 1xx, 3xx,
+// 4xx(except 400/408), and the full 5xx range including 504/524. Timeouts
+// (504/524) are now retried so the request fails over to another channel
+// instead of aborting on the first upstream timeout — the core cause of
+// "no available channel" errors when only the first channel timed out.
+// No retry for 2xx. This is fully overridable via AutomaticRetryStatusCodes.
 var AutomaticRetryStatusCodeRanges = []StatusCodeRange{
 	{Start: 100, End: 199},
 	{Start: 300, End: 399},
 	{Start: 401, End: 407},
 	{Start: 409, End: 499},
-	{Start: 500, End: 503},
-	{Start: 505, End: 523},
-	{Start: 525, End: 599},
+	{Start: 500, End: 599},
 }
 
+// alwaysSkipRetryStatusCodes protects the asynchronous task relay path
+// (midjourney/suno etc.) only. Retrying a timed-out async task can duplicate
+// submissions and double-charge, so 504/524 stay non-retryable there. The
+// synchronous relay path no longer consults this map — it treats
+// AutomaticRetryStatusCodeRanges as authoritative (see ShouldRetryByStatusCode).
 var alwaysSkipRetryStatusCodes = map[int]struct{}{
 	504: {},
 	524: {},
@@ -77,10 +84,13 @@ func IsAlwaysSkipRetryCode(errorCode types.ErrorCode) bool {
 	return exists
 }
 
+// ShouldRetryByStatusCode reports whether the synchronous relay path should
+// retry a given upstream status code. AutomaticRetryStatusCodeRanges is the
+// single source of truth — the alwaysSkipRetryStatusCodes map is intentionally
+// NOT consulted here so operators can enable/disable 504/524 retry purely via
+// configuration. (The async task relay still calls IsAlwaysSkipRetryStatusCode
+// directly for its own timeout protection.)
 func ShouldRetryByStatusCode(code int) bool {
-	if IsAlwaysSkipRetryStatusCode(code) {
-		return false
-	}
 	return shouldMatchStatusCodeRanges(AutomaticRetryStatusCodeRanges, code)
 }
 
