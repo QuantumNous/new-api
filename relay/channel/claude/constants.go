@@ -1,5 +1,8 @@
 package claude
 
+// AnthropicWorkspaceIDHeader selects an Anthropic workspace or Bedrock Mantle project.
+const AnthropicWorkspaceIDHeader = "anthropic-workspace-id"
+
 var ModelList = []string{
 	"claude-3-sonnet-20240229",
 	"claude-3-opus-20240229",

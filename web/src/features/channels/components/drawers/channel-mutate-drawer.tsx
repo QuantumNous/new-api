@@ -283,6 +283,7 @@ const SENSITIVE_FORM_FIELDS = [
   'is_enterprise_account',
   'vertex_key_type',
   'aws_key_type',
+  'anthropic_workspace_id',
   'azure_responses_version',
   'force_format',
   'thinking_to_content',
@@ -2350,6 +2351,35 @@ export function ChannelMutateDrawer({
                                         : t(
                                             'AK/SK mode: use AccessKey|SecretAccessKey|Region'
                                           )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {(currentType === 14 || currentType === 33) && (
+                              <FormField
+                                control={form.control}
+                                name='anthropic_workspace_id'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>
+                                      {t('Anthropic Workspace ID')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        autoComplete='off'
+                                        placeholder={t(
+                                          'e.g., wrkspc_... or proj_...'
+                                        )}
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Sent as anthropic-workspace-id to select the configured Anthropic workspace or Bedrock Mantle project.'
+                                      )}
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>

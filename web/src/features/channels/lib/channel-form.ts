@@ -268,6 +268,7 @@ export const channelFormSchema = z
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
+    anthropic_workspace_id: z.string().optional(), // Anthropic/AWS workspace or project
     azure_responses_version: z.string().optional(), // Azure specific
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
@@ -440,6 +441,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   is_enterprise_account: false,
   vertex_key_type: 'json',
   aws_key_type: 'ak_sk',
+  anthropic_workspace_id: '',
   azure_responses_version: '',
   // Field passthrough controls
   allow_service_tier: false,
@@ -506,6 +508,7 @@ export function transformChannelToFormDefaults(
   let azureResponsesVersion = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
+  let anthropicWorkspaceID = ''
   let allowServiceTier = false
   let disableStore = false
   let allowSafetyIdentifier = false
@@ -526,6 +529,10 @@ export function transformChannelToFormDefaults(
       azureResponsesVersion = parsed.azure_responses_version || ''
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
+      anthropicWorkspaceID =
+        typeof parsed.anthropic_workspace_id === 'string'
+          ? parsed.anthropic_workspace_id.trim()
+          : ''
       allowServiceTier = parsed.allow_service_tier === true
       disableStore = parsed.disable_store === true
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
@@ -585,6 +592,7 @@ export function transformChannelToFormDefaults(
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
     aws_key_type: awsKeyType,
+    anthropic_workspace_id: anthropicWorkspaceID,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
     allow_include_obfuscation: allowIncludeObfuscation,
@@ -671,6 +679,13 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.aws_key_type = formData.aws_key_type || 'ak_sk'
   } else if ('aws_key_type' in settingsObj) {
     delete settingsObj.aws_key_type
+  }
+
+  const anthropicWorkspaceID = formData.anthropic_workspace_id?.trim()
+  if ((formData.type === 14 || formData.type === 33) && anthropicWorkspaceID) {
+    settingsObj.anthropic_workspace_id = anthropicWorkspaceID
+  } else if ('anthropic_workspace_id' in settingsObj) {
+    delete settingsObj.anthropic_workspace_id
   }
 
   // Field passthrough controls:
