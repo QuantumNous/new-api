@@ -42,6 +42,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useDirection } from '@/context/direction-provider'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
@@ -170,20 +171,19 @@ function SidebarProvider({
 }
 
 function Sidebar({
-  side = 'left',
   variant = 'sidebar',
   collapsible = 'offcanvas',
   className,
   children,
-  dir,
+
   ...props
 }: React.ComponentProps<'div'> & {
-  side?: 'left' | 'right'
   variant?: 'sidebar' | 'floating' | 'inset'
   collapsible?: 'offcanvas' | 'icon' | 'none'
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
-
+  const { dir } = useDirection()
+  const side = dir === 'ltr' ? 'left' : 'right'
   if (collapsible === 'none') {
     return (
       <div
