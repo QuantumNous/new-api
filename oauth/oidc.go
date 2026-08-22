@@ -144,8 +144,8 @@ func (p *OIDCProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAu
 		return nil, err
 	}
 
-	if oidcUser.OpenID == "" || oidcUser.Email == "" {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] GetUserInfo failed: empty fields (sub=%s, email=%s)", oidcUser.OpenID, oidcUser.Email))
+	if oidcUser.OpenID == "" {
+		logger.LogError(ctx, "[OAuth-OIDC] GetUserInfo failed: empty sub")
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "OIDC"})
 	}
 
