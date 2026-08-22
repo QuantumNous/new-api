@@ -36,7 +36,8 @@ const baseTopupInfo: TopupInfo = {
 
 function renderRechargeFormCard(
   topupInfo: TopupInfo,
-  onPaymentMethodSelect = vi.fn()
+  onPaymentMethodSelect = vi.fn(),
+  topupAmount = 100
 ) {
   return render(
     <RechargeFormCard
@@ -44,10 +45,12 @@ function renderRechargeFormCard(
       presetAmounts={[]}
       selectedPreset={null}
       onSelectPreset={vi.fn()}
-      topupAmount={100}
+      topupAmount={topupAmount}
       onTopupAmountChange={vi.fn()}
-      currentPaymentMinimum={1}
+      paymentAmount={12.5}
+      calculating={false}
       onPaymentMethodSelect={onPaymentMethodSelect}
+      paymentLoading={null}
       redemptionCode=''
       onRedemptionCodeChange={vi.fn()}
       onRedeem={vi.fn()}
@@ -102,5 +105,61 @@ describe('RechargeFormCard payment methods', () => {
       screen.getByRole('button', { name: 'Waffo Card' })
     ).toBeInTheDocument()
     expect(screen.queryByText('Waffo Pancake Payment')).not.toBeInTheDocument()
+  })
+
+  test('keeps ordinary gateway minimum behavior from rc.23', () => {
+    renderRechargeFormCard(
+      {
+        ...baseTopupInfo,
+        enable_stripe_topup: true,
+        stripe_min_topup: 120,
+        pay_methods: [
+          {
+            name: 'Stripe',
+            type: PAYMENT_TYPES.STRIPE,
+          },
+        ],
+      },
+      vi.fn(),
+      100
+    )
+
+    expect(screen.getByRole('button', { name: 'Stripe' })).toBeEnabled()
+  })
+
+  test('keeps ordinary Waffo only in its indexed method section', () => {
+    renderRechargeFormCard({
+      ...baseTopupInfo,
+      pay_methods: [
+        ...baseTopupInfo.pay_methods,
+        {
+          name: 'Backend Waffo',
+          type: PAYMENT_TYPES.WAFFO,
+        },
+      ],
+    })
+
+    expect(
+      screen.queryByRole('button', { name: 'Backend Waffo' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Waffo Card' })).toBeInTheDocument()
+  })
+
+  test('uses the Pancake-specific minimum in the common payment grid', () => {
+    renderRechargeFormCard(
+      {
+        ...baseTopupInfo,
+        enable_waffo_pancake_topup: true,
+        waffo_pancake_min_topup: 120,
+      },
+      vi.fn(),
+      100
+    )
+
+    const pancakeButton = screen.getByRole('button', { name: /Wechat Pay/ })
+    expect(pancakeButton).toBeDisabled()
+    expect(pancakeButton).toHaveAccessibleName(
+      'Wechat Pay. Minimum topup amount: 120'
+    )
   })
 })

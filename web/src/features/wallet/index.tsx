@@ -32,7 +32,7 @@ import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
 import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
-import { PAYMENT_TYPES } from './constants'
+import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from './constants'
 import {
   useTopupInfo,
   usePayment,
@@ -44,6 +44,7 @@ import {
 } from './hooks'
 import {
   getDefaultPaymentType,
+  getMinTopupAmount,
   getPaymentMethodMinTopup,
   dispatchSelectedPayment,
 } from './lib'
@@ -70,6 +71,7 @@ export function Wallet(props: WalletProps) {
   const [selectedWaffoMethodIndex, setSelectedWaffoMethodIndex] = useState<
     number | null
   >(null)
+  const [paymentLoading, setPaymentLoading] = useState<string | null>(null)
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
@@ -82,12 +84,20 @@ export function Wallet(props: WalletProps) {
   const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+
+  // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
     return currency?.quotaDisplayType === 'USD'
       ? 1
       : currency?.usdExchangeRate || 1
   }, [currency?.quotaDisplayType, currency?.usdExchangeRate])
-  const { processing, processPayment } = usePayment()
+  const {
+    amount: paymentAmount,
+    calculating,
+    processing,
+    calculatePaymentAmount,
+    processPayment,
+  } = usePayment()
   const {
     affiliateLink,
     loading: affiliateLoading,
@@ -117,11 +127,15 @@ export function Wallet(props: WalletProps) {
   }, [])
 
   useEffect(() => {
+    // This effect intentionally starts the initial user-data request on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUser()
   }, [fetchUser])
 
   useEffect(() => {
     if (props.initialShowHistory) {
+      // The route flag is converted into controlled dialog state once on arrival.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBillingDialogOpen(true)
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -132,57 +146,62 @@ export function Wallet(props: WalletProps) {
   useEffect(() => {
     if (topupInfo && !topupAmountInitializedRef.current) {
       topupAmountInitializedRef.current = true
-      const defaultPaymentType = getDefaultPaymentType(topupInfo)
-      const minTopup = getPaymentMethodMinTopup(
-        topupInfo,
-        undefined,
-        defaultPaymentType
-      )
+      const minTopup = getMinTopupAmount(topupInfo)
       setTopupAmount(minTopup)
+
+      // Calculate initial payment amount with default payment type
+      const defaultPaymentType = getDefaultPaymentType(topupInfo)
+      calculatePaymentAmount(minTopup, defaultPaymentType)
     }
-  }, [topupInfo])
+  }, [topupInfo, calculatePaymentAmount])
 
   // Get current payment type (selected or default)
   const getCurrentPaymentType = useCallback(() => {
     return selectedPaymentMethod?.type || getDefaultPaymentType(topupInfo)
   }, [selectedPaymentMethod, topupInfo])
 
-  const currentPaymentType = getCurrentPaymentType()
-  const currentPaymentMinimum = getPaymentMethodMinTopup(
-    topupInfo,
-    selectedPaymentMethod,
-    currentPaymentType
-  )
-
   // Handle preset selection
   const handleSelectPreset = (preset: PresetAmount) => {
-    setConfirmDialogOpen(false)
     setTopupAmount(preset.value)
     setSelectedPreset(preset.value)
+    calculatePaymentAmount(preset.value, getCurrentPaymentType())
   }
 
   // Handle topup amount change
   const handleTopupAmountChange = (amount: number) => {
-    setConfirmDialogOpen(false)
     setTopupAmount(amount)
     setSelectedPreset(null)
+    calculatePaymentAmount(amount, getCurrentPaymentType())
   }
 
   // Handle payment method selection
-  const handlePaymentMethodSelect = (method: PaymentMethod) => {
-    const minimum = getPaymentMethodMinTopup(topupInfo, method)
-    if (topupAmount < minimum) {
-      return
-    }
-
+  const handlePaymentMethodSelect = async (method: PaymentMethod) => {
     setSelectedPaymentMethod(method)
     setSelectedWaffoMethodIndex(null)
-    setConfirmDialogOpen(true)
+    setPaymentLoading(method.type)
+
+    try {
+      // Preserve rc.23 minimum behavior for existing gateways. Pancake alone
+      // uses its gateway-specific minimum.
+      const minTopup =
+        method.type === PAYMENT_TYPES.WAFFO_PANCAKE
+          ? getPaymentMethodMinTopup(topupInfo, method)
+          : getMinTopupAmount(topupInfo)
+      if (topupAmount < minTopup) {
+        return
+      }
+
+      // Calculate payment amount and show confirmation dialog
+      await calculatePaymentAmount(topupAmount, method.type)
+      setConfirmDialogOpen(true)
+    } finally {
+      setPaymentLoading(null)
+    }
   }
 
   // Handle payment confirmation
   const handlePaymentConfirm = async () => {
-    if (!selectedPaymentMethod || topupAmount < currentPaymentMinimum) return
+    if (!selectedPaymentMethod) return
 
     const success = await dispatchSelectedPayment(
       selectedPaymentMethod,
@@ -239,24 +258,31 @@ export function Wallet(props: WalletProps) {
     }
   }
 
-  const handleWaffoMethodSelect = (method: WaffoPayMethod, index: number) => {
-    const minimum = getPaymentMethodMinTopup(
-      topupInfo,
-      undefined,
-      PAYMENT_TYPES.WAFFO
-    )
-    if (topupAmount < minimum) {
-      return
-    }
-
+  const handleWaffoMethodSelect = async (
+    method: WaffoPayMethod,
+    index: number
+  ) => {
+    const loadingKey = `waffo-${index}`
     setSelectedPaymentMethod({
       name: method.name,
       type: PAYMENT_TYPES.WAFFO,
       icon: method.icon,
     })
     setSelectedWaffoMethodIndex(index)
-    setConfirmDialogOpen(true)
+    setPaymentLoading(loadingKey)
+
+    try {
+      await calculatePaymentAmount(topupAmount, PAYMENT_TYPES.WAFFO)
+      setConfirmDialogOpen(true)
+    } finally {
+      setPaymentLoading(null)
+    }
   }
+
+  // Get discount rate for current topup amount
+  const getDiscountRate = useCallback(() => {
+    return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
+  }, [topupInfo, topupAmount])
 
   const handleSubscriptionAvailabilityChange = useCallback(
     (available: boolean) => {
@@ -288,8 +314,10 @@ export function Wallet(props: WalletProps) {
                   onSelectPreset={handleSelectPreset}
                   topupAmount={topupAmount}
                   onTopupAmountChange={handleTopupAmountChange}
-                  currentPaymentMinimum={currentPaymentMinimum}
+                  paymentAmount={paymentAmount}
+                  calculating={calculating}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
+                  paymentLoading={paymentLoading}
                   redemptionCode={redemptionCode}
                   onRedemptionCodeChange={setRedemptionCode}
                   onRedeem={handleRedeem}
@@ -304,6 +332,7 @@ export function Wallet(props: WalletProps) {
                   onCreemProductSelect={handleCreemProductSelect}
                   enableWaffoTopup={topupInfo?.enable_waffo_topup}
                   waffoPayMethods={topupInfo?.waffo_pay_methods}
+                  waffoMinTopup={topupInfo?.waffo_min_topup}
                   onWaffoMethodSelect={handleWaffoMethodSelect}
                   enableWaffoPancakeTopup={
                     topupInfo?.enable_waffo_pancake_topup
@@ -337,8 +366,12 @@ export function Wallet(props: WalletProps) {
         onOpenChange={setConfirmDialogOpen}
         onConfirm={handlePaymentConfirm}
         topupAmount={topupAmount}
+        paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
+        calculating={calculating}
         processing={processing || waffoProcessing || pancakeProcessing}
+        discountRate={getDiscountRate()}
+        usdExchangeRate={effectiveUsdExchangeRate}
       />
 
       <TransferDialog

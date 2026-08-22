@@ -50,23 +50,6 @@ export interface PaymentAmountCalculators {
   waffoPancake: AmountCalculator
 }
 
-export interface PaymentQuote {
-  paymentType: string
-  topupAmount: number
-  amount?: number
-  currency?: string
-  status: 'loading' | 'ready' | 'error'
-}
-
-export interface PaymentAmountResult {
-  amount: number
-  currency?: string
-}
-
-function isCurrencyCode(value: unknown): value is string {
-  return typeof value === 'string' && /^[A-Z]{3}$/.test(value)
-}
-
 const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
   regular: calculateAmount,
   stripe: calculateStripeAmount,
@@ -74,131 +57,53 @@ const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
   waffoPancake: calculateWaffoPancakeAmount,
 }
 
-export function getPaymentQuoteKey(paymentType: string, topupAmount: number) {
-  return `${paymentType}:${topupAmount}`
-}
-
 export async function requestPaymentAmount(
   topupAmount: number,
   paymentType: string,
   calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
-): Promise<PaymentAmountResult> {
+): Promise<number> {
   let calculator = calculators.regular
-  const isStripe = isStripePayment(paymentType)
-  const isWaffoPancake = isWaffoPancakePayment(paymentType)
-  const requiresProviderCurrency = isStripe || isWaffoPancake
-  if (isStripe) {
+  if (isStripePayment(paymentType)) {
     calculator = calculators.stripe
   } else if (isWaffoPayment(paymentType)) {
     calculator = calculators.waffo
-  } else if (isWaffoPancake) {
+  } else if (isWaffoPancakePayment(paymentType)) {
     calculator = calculators.waffoPancake
   }
 
   const response = await calculator({ amount: topupAmount })
-  const amount = Number(response.data)
-  const currency = requiresProviderCurrency ? response.currency : undefined
-  if (
-    !isApiSuccess(response) ||
-    !Number.isFinite(amount) ||
-    amount <= 0 ||
-    (requiresProviderCurrency && !isCurrencyCode(currency))
-  ) {
-    throw new Error(response.message || 'Payment amount calculation failed')
+  if (!isApiSuccess(response) || !response.data) {
+    return 0
   }
 
-  return { amount, currency }
-}
-
-export interface PaymentQuoteController {
-  getQuote: (
-    topupAmount: number,
-    paymentType: string
-  ) => PaymentQuote | undefined
-  calculate: (topupAmount: number, paymentType: string) => Promise<PaymentQuote>
-}
-
-export function createPaymentQuoteController(
-  calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
-): PaymentQuoteController {
-  const quotes: Record<string, PaymentQuote> = {}
-  const requestIds: Record<string, number> = {}
-  const inFlightRequests: Record<string, Promise<PaymentQuote>> = {}
-
-  const getQuote = (topupAmount: number, paymentType: string) =>
-    quotes[getPaymentQuoteKey(paymentType, topupAmount)]
-
-  const calculate = (topupAmount: number, paymentType: string) => {
-    const key = getPaymentQuoteKey(paymentType, topupAmount)
-    const cachedQuote = quotes[key]
-    if (cachedQuote?.status === 'ready') {
-      return Promise.resolve(cachedQuote)
-    }
-
-    const inFlightRequest = inFlightRequests[key]
-    if (inFlightRequest) {
-      return inFlightRequest
-    }
-
-    const requestId = (requestIds[key] || 0) + 1
-    requestIds[key] = requestId
-    quotes[key] = { paymentType, topupAmount, status: 'loading' }
-
-    const request = requestPaymentAmount(topupAmount, paymentType, calculators)
-      .then(({ amount, currency }) => {
-        const quote: PaymentQuote = {
-          paymentType,
-          topupAmount,
-          amount,
-          ...(currency ? { currency } : {}),
-          status: 'ready',
-        }
-        if (requestIds[key] === requestId) {
-          quotes[key] = quote
-        }
-        return quote
-      })
-      .catch(() => {
-        const quote: PaymentQuote = {
-          paymentType,
-          topupAmount,
-          status: 'error',
-        }
-        if (requestIds[key] === requestId) {
-          quotes[key] = quote
-        }
-        return quote
-      })
-      .finally(() => {
-        if (requestIds[key] === requestId) {
-          delete inFlightRequests[key]
-        }
-      })
-
-    inFlightRequests[key] = request
-    return request
-  }
-
-  return { getQuote, calculate }
-}
-
-export function canConfirmPayment(
-  paymentMethod: { type: string } | undefined,
-  topupAmount: number,
-  minimumTopup: number,
-  quote: PaymentQuote | undefined
-): boolean {
-  return (
-    !!paymentMethod &&
-    topupAmount >= minimumTopup &&
-    quote?.status === 'ready' &&
-    quote.paymentType === paymentMethod.type &&
-    quote.topupAmount === topupAmount
-  )
+  return Number.parseFloat(response.data)
 }
 
 export function usePayment() {
+  const [amount, setAmount] = useState<number>(0)
+  const [calculating, setCalculating] = useState(false)
   const [processing, setProcessing] = useState(false)
+
+  // Calculate payment amount
+  const calculatePaymentAmount = useCallback(
+    async (topupAmount: number, paymentType: string) => {
+      try {
+        setCalculating(true)
+        const calculatedAmount = await requestPaymentAmount(
+          topupAmount,
+          paymentType
+        )
+        setAmount(calculatedAmount)
+        return calculatedAmount
+      } catch {
+        setAmount(0)
+        return 0
+      } finally {
+        setCalculating(false)
+      }
+    },
+    []
+  )
 
   // Process payment
   const processPayment = useCallback(
@@ -224,12 +129,14 @@ export function usePayment() {
           return false
         }
 
+        // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
           window.open(response.data.pay_link as string, '_blank')
           toast.success(i18next.t('Redirecting to payment page...'))
           return true
         }
 
+        // Handle non-Stripe payment
         if (!isStripe && response.data) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
@@ -251,7 +158,11 @@ export function usePayment() {
   )
 
   return {
+    amount,
+    calculating,
     processing,
+    calculatePaymentAmount,
     processPayment,
+    setAmount,
   }
 }

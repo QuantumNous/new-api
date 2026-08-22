@@ -28,31 +28,56 @@ const paymentMethod: PaymentMethod = {
   type: PAYMENT_TYPES.WAFFO_PANCAKE,
 }
 
-function renderDialog(processing: boolean) {
+function renderDialog({
+  calculating = false,
+  processing = false,
+  paymentAmount = 80,
+  discountRate = 0.8,
+}: {
+  calculating?: boolean
+  processing?: boolean
+  paymentAmount?: number
+  discountRate?: number
+} = {}) {
   return render(
     <PaymentConfirmDialog
       open
       onOpenChange={vi.fn()}
       onConfirm={vi.fn()}
       topupAmount={100}
+      paymentAmount={paymentAmount}
       paymentMethod={paymentMethod}
+      calculating={calculating}
       processing={processing}
+      discountRate={discountRate}
     />
   )
 }
 
 describe('PaymentConfirmDialog', () => {
-  test('keeps confirmation available without a frontend quote', () => {
-    renderDialog(false)
+  test('shows the calculated payment amount and discount details', () => {
+    renderDialog()
 
+    expect(screen.getByText('You Pay')).toBeInTheDocument()
+    expect(screen.getByText('80')).toBeInTheDocument()
+    expect(screen.getByText('100')).toBeInTheDocument()
+    expect(screen.getByText('You save')).toBeInTheDocument()
+    expect(screen.getByText('20')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Confirm Payment' })).toBeEnabled()
     expect(
-      screen.getByText('Final payment amount is calculated at checkout.')
-    ).toBeInTheDocument()
+      screen.queryByText('Final payment amount is calculated at checkout.')
+    ).not.toBeInTheDocument()
+  })
+
+  test('keeps confirmation available while the payment amount recalculates', () => {
+    renderDialog({ calculating: true })
+
+    expect(screen.getByRole('button', { name: 'Confirm Payment' })).toBeEnabled()
+    expect(screen.queryByText('You save')).not.toBeInTheDocument()
   })
 
   test('disables confirmation only while payment processing is active', () => {
-    renderDialog(true)
+    renderDialog({ processing: true })
 
     expect(screen.getByRole('button', { name: 'Confirm Payment' })).toBeDisabled()
   })
