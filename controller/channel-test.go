@@ -50,6 +50,13 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
+	if channel != nil && service.ShouldChatCompletionsUseResponsesGlobal(
+		channel.Id,
+		channel.Type,
+		modelName,
+	) {
+		return string(constant.EndpointTypeOpenAIResponse)
+	}
 	return normalized
 }
 
