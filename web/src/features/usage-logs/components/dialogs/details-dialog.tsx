@@ -226,6 +226,7 @@ function BillingBreakdown(props: {
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
+  const isUTF8Bytes = other.billing_mode === 'utf8_bytes'
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -255,6 +256,14 @@ function BillingBreakdown(props: {
       rows.push({
         label: t('Matched Tier'),
         value: t('No matching results'),
+      })
+    }
+  } else if (isUTF8Bytes) {
+    rows.push({ label: t('Billing Mode'), value: t('UTF-8 bytes') })
+    if (other.model_ratio != null) {
+      rows.push({
+        label: t('Input'),
+        value: `${fmtPrice(baseInputUSD)}/M ${t('UTF-8 bytes')}`,
       })
     }
   } else if (isPerCall) {
@@ -419,8 +428,21 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   if (!hasTokens) return null
 
   const rows: Array<{ label: string; value: string }> = []
+  const isUTF8Bytes = other.billing_mode === 'utf8_bytes'
 
-  rows.push({ label: t('Input Tokens'), value: promptTokens.toLocaleString() })
+  rows.push({
+    label: isUTF8Bytes ? t('Input UTF-8 bytes') : t('Input Tokens'),
+    value: promptTokens.toLocaleString(),
+  })
+  if (isUTF8Bytes) {
+    return (
+      <DetailSection label={t('Usage Breakdown')}>
+        {rows.map((row) => (
+          <DetailRow key={row.label} label={row.label} value={row.value} mono />
+        ))}
+      </DetailSection>
+    )
+  }
   rows.push({
     label: t('Output Tokens'),
     value: completionTokens.toLocaleString(),

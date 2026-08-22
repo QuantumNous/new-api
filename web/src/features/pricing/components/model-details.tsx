@@ -67,7 +67,11 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getAvailableGroups,
+  isTokenBasedModel,
+  isUTF8BytesModel,
+} from '../lib/model-helpers'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import type {
   ModelCapability,
@@ -575,6 +579,7 @@ function PriceSection(props: {
 }) {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
+  const isUTF8Bytes = isUTF8BytesModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const baseGroupKey = '_base'
   const baseGroupRatioMap = { [baseGroupKey]: 1 }
@@ -586,10 +591,12 @@ function PriceSection(props: {
     groupRatioMultiplier: 1,
   })
 
-  const primaryPriceTypes: { label: string; type: PriceType }[] = [
-    { label: t('Input'), type: 'input' },
-    { label: t('Output'), type: 'output' },
-  ]
+  const primaryPriceTypes: { label: string; type: PriceType }[] = isUTF8Bytes
+    ? [{ label: t('Input'), type: 'input' }]
+    : [
+        { label: t('Input'), type: 'input' },
+        { label: t('Output'), type: 'output' },
+      ]
   const secondaryPriceTypes: {
     label: string
     type: PriceType
@@ -725,7 +732,9 @@ function PriceSection(props: {
     )
   }
 
-  const secondaryItems = secondaryPriceTypes.filter((p) => p.available)
+  const secondaryItems = isUTF8Bytes
+    ? []
+    : secondaryPriceTypes.filter((p) => p.available)
   const renderPrice = (type: PriceType) => (
     <>
       {formatGroupPrice(
@@ -739,7 +748,7 @@ function PriceSection(props: {
         baseGroupRatioMap
       )}
       <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
-        / {tokenUnitLabel}
+        / {tokenUnitLabel} {isUTF8Bytes && t('UTF-8 bytes')}
       </span>
     </>
   )
@@ -868,9 +877,11 @@ function GroupPricingSection(props: {
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
+  const isUTF8Bytes = isUTF8BytesModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
 
   const extraPriceTypes = useMemo(() => {
+    if (isUTF8Bytes) return []
     const types: { label: string; type: PriceType }[] = []
     if (props.model.cache_ratio != null) {
       types.push({ label: t('Cache'), type: 'cache' })
@@ -891,7 +902,7 @@ function GroupPricingSection(props: {
       types.push({ label: t('Audio Out'), type: 'audio_output' })
     }
     return types
-  }, [props.model, t])
+  }, [isUTF8Bytes, props.model, t])
 
   if (availableGroups.length === 0) {
     return (
@@ -1076,13 +1087,18 @@ function GroupPricingSection(props: {
                   cellClassName: 'py-2.5 text-right font-mono',
                   cell: (group: string) => renderGroupPrice(group, 'input'),
                 },
-                {
-                  id: 'output',
-                  header: t('Output'),
-                  className: `${thClass} text-right`,
-                  cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) => renderGroupPrice(group, 'output'),
-                },
+                ...(isUTF8Bytes
+                  ? []
+                  : [
+                      {
+                        id: 'output',
+                        header: t('Output'),
+                        className: `${thClass} text-right`,
+                        cellClassName: 'py-2.5 text-right font-mono',
+                        cell: (group: string) =>
+                          renderGroupPrice(group, 'output'),
+                      },
+                    ]),
                 ...extraPriceTypes.map((ep) => ({
                   id: ep.type,
                   header: ep.label,
@@ -1105,7 +1121,8 @@ function GroupPricingSection(props: {
       <div className='-mx-4 sm:mx-0'>
         {isTokenBased && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
-            {t('Prices shown per')} {tokenUnitLabel} tokens
+            {t('Prices shown per')} {tokenUnitLabel}{' '}
+            {isUTF8Bytes ? t('UTF-8 bytes') : t('tokens')}
           </p>
         )}
       </div>

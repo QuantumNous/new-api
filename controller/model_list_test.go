@@ -267,10 +267,16 @@ func TestGetUserModelsExpandsAutoGroupsInConfiguredOrder(t *testing.T) {
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+	})
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"zz-utf8-visible-model":7.5}`))
 	withTieredBillingConfig(t, map[string]string{
 		"zz-tiered-visible-model":      "tiered_expr",
 		"zz-tiered-empty-expr-model":   "tiered_expr",
 		"zz-tiered-missing-expr-model": "tiered_expr",
+		"zz-utf8-visible-model":        "utf8_bytes",
 	}, map[string]string{
 		"zz-tiered-visible-model":    `tier("base", p * 1 + c * 2)`,
 		"zz-tiered-empty-expr-model": "   ",
@@ -288,6 +294,7 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 		{Group: "default", Model: "zz-tiered-visible-model", ChannelId: 1, Enabled: true},
 		{Group: "default", Model: "zz-tiered-empty-expr-model", ChannelId: 1, Enabled: true},
 		{Group: "default", Model: "zz-tiered-missing-expr-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-utf8-visible-model", ChannelId: 1, Enabled: true},
 		{Group: "default", Model: "zz-unpriced-model", ChannelId: 1, Enabled: true},
 	}).Error)
 
@@ -302,6 +309,7 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.Contains(t, ids, "zz-tiered-visible-model")
 	require.NotContains(t, ids, "zz-tiered-empty-expr-model")
 	require.NotContains(t, ids, "zz-tiered-missing-expr-model")
+	require.Contains(t, ids, "zz-utf8-visible-model")
 	require.NotContains(t, ids, "zz-unpriced-model")
 
 	pricingByName := pricingByModelName(model.GetPricing())
@@ -319,6 +327,11 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.True(t, ok)
 	require.Empty(t, missingExprPricing.BillingMode)
 	require.Empty(t, missingExprPricing.BillingExpr)
+
+	utf8Pricing, ok := pricingByName["zz-utf8-visible-model"]
+	require.True(t, ok)
+	require.Equal(t, "utf8_bytes", utf8Pricing.BillingMode)
+	require.Empty(t, utf8Pricing.BillingExpr)
 }
 
 func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T) {
