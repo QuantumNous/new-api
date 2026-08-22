@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	hostcommon "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
@@ -58,6 +59,11 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 
 	if request != nil {
 		request.SetModelName(info.UpstreamModelName)
+	}
+	if info.IsModelMapped {
+		hostcommon.SetModelRestore(c, info.OriginModelName, info.UpstreamModelName)
+	} else {
+		hostcommon.ClearModelRestore(c)
 	}
 	return nil
 }
