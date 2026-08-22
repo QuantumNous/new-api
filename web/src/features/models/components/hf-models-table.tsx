@@ -34,7 +34,9 @@ const STATUS_COLORS: Record<string, string> = {
 export function HFModelsTable() {
   const { t } = useTranslation()
   const [models, setModels] = useState<HFModelResponse[]>([])
-  const [sources, setSources] = useState<Array<{ id: number; label: string }>>([])
+  const [sources, setSources] = useState<
+    Array<{ id: number; label: string; source_type: string }>
+  >([])
   const [loading, setLoading] = useState(true)
   const [deployOpen, setDeployOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -46,7 +48,13 @@ export function HFModelsTable() {
         getModelSources(),
       ])
       setModels(modelsData)
-      setSources(sourcesData.map((s) => ({ id: s.id, label: s.label })))
+      setSources(
+        sourcesData.map((s) => ({
+          id: s.id,
+          label: s.label,
+          source_type: s.source_type,
+        }))
+      )
     } catch (e) {
       toast.error(t('Failed to load HF models'))
     } finally {
@@ -200,7 +208,7 @@ function HFModelDeployForm({
   sources,
   onSubmit,
 }: {
-  sources: Array<{ id: number; label: string }>
+  sources: Array<{ id: number; label: string; source_type: string }>
   onSubmit: (data: HFModelDeployPayload) => void
 }) {
   const { t } = useTranslation()
@@ -269,7 +277,7 @@ function HFHubSearchDialog({
   sources,
   onDeploy,
 }: {
-  sources: Array<{ id: number; label: string }>
+  sources: Array<{ id: number; label: string; source_type: string }>
   onDeploy: (repoId: string, sourceId: number) => void
 }) {
   const { t } = useTranslation()
@@ -282,7 +290,13 @@ function HFHubSearchDialog({
     if (!query.trim() || !sourceId) return
     setLoading(true)
     try {
-      const resp = await searchHFHubModels({ source_id: sourceId, query: query.trim(), limit: 20 })
+      const src = sources.find((s) => s.id === sourceId)
+      const resp = await searchHFHubModels({
+        source_id: sourceId,
+        source_type: src?.source_type,
+        query: query.trim(),
+        limit: 20,
+      })
       setResults(resp.models)
     } catch (e) {
       toast.error(t('Search failed'))

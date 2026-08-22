@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -254,20 +255,203 @@ func SearchHFHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubM
 }
 
 // ============================================================
-// HF Model Local Deployment
+// Generic Hub Search Dispatch
+// ============================================================
+
+// SearchHubModels 是六平台 Hub 搜索的统一入口。sourceType 决定调用哪个平台的实现。
+func SearchHubModels(sourceId int, sourceType string, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
+	switch sourceType {
+	case model.SourceTypeHuggingFace:
+		return SearchHFHubModels(sourceId, req)
+	case model.SourceTypeModelScope:
+		return SearchModelScopeHubModels(sourceId, req)
+	case model.SourceTypePaddleHub:
+		return SearchPaddleHubModels(sourceId, req)
+	case model.SourceTypeModelers:
+		return SearchModelersHubModels(sourceId, req)
+	case model.SourceTypeOpenI:
+		return SearchOpenIHubModels(sourceId, req)
+	case model.SourceTypeMoArk:
+		return SearchMoArkHubModels(sourceId, req)
+	default:
+		return nil, fmt.Errorf("unsupported source type for hub search: %s", sourceType)
+	}
+}
+
+// ============================================================
+// ModelScope (魔搭社区) Hub Search
+// ============================================================
+
+// SearchModelScopeHubModels 调用魔搭社区 API 搜索公开模型。
+// 魔搭公开模型列表接口返回 PascalCase 字段，此处做归一化映射到 HFHubModelInfo。
+func SearchModelScopeHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
+	if _, err := model.GetModelSourceById(sourceId); err != nil {
+		return nil, fmt.Errorf("model source not found: %w", err)
+	}
+
+	baseURL := "https://modelscope.cn/api/v1/models"
+	params := []string{}
+	if strings.TrimSpace(req.Query) != "" {
+		params = append(params, "search="+url.QueryEscape(strings.TrimSpace(req.Query)))
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	params = append(params, fmt.Sprintf("page_size=%d", limit))
+	if req.Offset > 0 {
+		params = append(params, fmt.Sprintf("page=%d", (req.Offset/limit)+1))
+	}
+
+	url := baseURL
+	if len(params) > 0 {
+		url += "?" + strings.Join(params, "&")
+	}
+
+	httpReq, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("User-Agent", "New-API-ModelScope-Client/1.0")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("ModelScope request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("ModelScope returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// 魔搭返回 PascalCase 字段数组
+	var raw []struct {
+		Id        string   `json:"Id"`
+		Name      string   `json:"Name"`
+		Task      string   `json:"Task"`
+		Tags      []string `json:"Tags"`
+		Downloads int      `json:"Downloads"`
+		Likes     int      `json:"Likes"`
+		Private   bool     `json:"Private"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse ModelScope response: %w", err)
+	}
+
+	models := make([]dto.HFHubModelInfo, 0, len(raw))
+	for _, m := range raw {
+		repoId := m.Id
+		if repoId == "" {
+			repoId = m.Name
+		}
+		models = append(models, dto.HFHubModelInfo{
+			Id:        repoId,
+			Tags:      m.Tags,
+			Downloads: m.Downloads,
+			Likes:     m.Likes,
+			Private:   m.Private,
+		})
+	}
+
+	return &dto.HFHubModelSearchResponse{Models: models, Total: len(models)}, nil
+}
+
+// ============================================================
+// 其余四平台 Hub Search（骨架，待平台公开 API 明确后接入）
+// ============================================================
+
+// SearchPaddleHubModels 飞桨 PaddleHub 模型搜索。
+// PaddleHub 模型中心暂未提供稳定的公开列表 API，当前返回明确错误。
+func SearchPaddleHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
+	if _, err := model.GetModelSourceById(sourceId); err != nil {
+		return nil, fmt.Errorf("model source not found: %w", err)
+	}
+	return nil, fmt.Errorf("PaddleHub model search API is not yet integrated; please deploy models via repo_id directly")
+}
+
+// SearchModelersHubModels 魔乐 Modelers 模型搜索（待接入）。
+func SearchModelersHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
+	if _, err := model.GetModelSourceById(sourceId); err != nil {
+		return nil, fmt.Errorf("model source not found: %w", err)
+	}
+	return nil, fmt.Errorf("Modelers model search API is not yet integrated; please deploy models via repo_id directly")
+}
+
+// SearchOpenIHubModels OpenI 启智模型搜索。
+// OpenI 提供公开的仓库 API，模型列表端点仍在确认中，当前保留骨架。
+func SearchOpenIHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
+	if _, err := model.GetModelSourceById(sourceId); err != nil {
+		return nil, fmt.Errorf("model source not found: %w", err)
+	}
+	return nil, fmt.Errorf("OpenI model search API is not yet integrated; please deploy models via repo_id directly")
+}
+
+// SearchMoArkHubModels 模力方舟 MoArk 模型搜索（待接入）。
+func SearchMoArkHubModels(sourceId int, req *dto.HFModelSearchRequest) (*dto.HFHubModelSearchResponse, error) {
+	if _, err := model.GetModelSourceById(sourceId); err != nil {
+		return nil, fmt.Errorf("model source not found: %w", err)
+	}
+	return nil, fmt.Errorf("MoArk model search API is not yet integrated; please deploy models via repo_id directly")
+}
+
+// ============================================================
+// Model Local Deployment (通用六平台)
 // ============================================================
 
 const (
-	HFModelStorageDir = "data/models/huggingface"
+	// ModelStorageRoot 是所有平台模型本地存储的根目录。
+	ModelStorageRoot = "data/models"
 )
 
-// DeployHFModel 将 HF Hub 模型"注册"到本地记录表中。
+// HFModelStorageDir 保留向后兼容，指向 HF 平台的存储目录（函数求值见 modelSourceStorageDir）。
+var HFModelStorageDir = modelSourceStorageDir(model.SourceTypeHuggingFace)
+
+// modelSourceStorageDir 返回指定平台的模型存储目录。
+func modelSourceStorageDir(sourceType string) string {
+	if sourceType == "" {
+		sourceType = model.SourceTypeHuggingFace
+	}
+	return filepath.Join(ModelStorageRoot, sourceType)
+}
+
+// DeployModel 将指定平台的模型"注册"到本地记录表中（通用六平台）。
 // 实际权重文件拉取由外部 vLLM / llama.cpp 等推理引擎在启动时完成，
-// 此处只做元数据登记 + 状态追踪。
+// 此处只做元数据登记 + 状态追踪。sourceType 为空时从 ModelSource 推断。
+func DeployModel(sourceType string, sourceId int, req *dto.HFModelDeployRequest) (*model.DeployedModel, error) {
+	return deployModel(sourceType, sourceId, req)
+}
+
+// DeployHFModel 保留向后兼容：部署 HF 平台模型。
 func DeployHFModel(sourceId int, req *dto.HFModelDeployRequest) (*model.HuggingFaceModel, error) {
+	m, err := DeployModel(model.SourceTypeHuggingFace, sourceId, req)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func deployModel(fallbackSourceType string, sourceId int, req *dto.HFModelDeployRequest) (*model.DeployedModel, error) {
 	src, err := model.GetModelSourceById(sourceId)
 	if err != nil {
 		return nil, fmt.Errorf("model source not found: %w", err)
+	}
+	// 以 ModelSource 的 source_type 为权威；为空时回退到调用方传入值。
+	sourceType := strings.ToLower(strings.TrimSpace(src.SourceType))
+	if sourceType == "" {
+		sourceType = strings.ToLower(strings.TrimSpace(fallbackSourceType))
+	}
+	if sourceType == "" {
+		sourceType = model.SourceTypeHuggingFace
 	}
 
 	repoId := strings.TrimSpace(req.RepoId)
@@ -275,8 +459,8 @@ func DeployHFModel(sourceId int, req *dto.HFModelDeployRequest) (*model.HuggingF
 		return nil, fmt.Errorf("repo_id is required")
 	}
 
-	// 检查是否已存在
-	existing, _ := model.GetHuggingFaceModelByRepoId(sourceId, repoId)
+	// 检查是否已存在（按 source_type + source_id + repo_id）
+	existing, _ := model.GetDeployedModelByRepoId(sourceType, sourceId, repoId)
 	if existing != nil {
 		if existing.DeploymentStatus == "running" {
 			return existing, fmt.Errorf("model %s is already deployed and running", repoId)
@@ -285,6 +469,7 @@ func DeployHFModel(sourceId int, req *dto.HFModelDeployRequest) (*model.HuggingF
 		existing.DeploymentStatus = "idle"
 		existing.StatusMessage = "pending deployment"
 		existing.SourceId = sourceId
+		existing.SourceType = sourceType
 		existing.RepoId = repoId
 		if strings.TrimSpace(req.FileName) != "" {
 			existing.FileName = req.FileName
@@ -308,9 +493,10 @@ func DeployHFModel(sourceId int, req *dto.HFModelDeployRequest) (*model.HuggingF
 	}
 
 	// 新模型记录
-	localPath := filepath.Join(HFModelStorageDir, strings.ReplaceAll(repoId, "/", "_"))
-	m := &model.HuggingFaceModel{
+	localPath := filepath.Join(modelSourceStorageDir(sourceType), strings.ReplaceAll(repoId, "/", "_"))
+	m := &model.DeployedModel{
 		SourceId:         sourceId,
+		SourceType:       sourceType,
 		RepoId:           repoId,
 		FileName:         req.FileName,
 		Task:             req.Task,
@@ -322,6 +508,9 @@ func DeployHFModel(sourceId int, req *dto.HFModelDeployRequest) (*model.HuggingF
 		MaxConcurrency:   req.MaxConcurrency,
 		Enabled:          true,
 	}
+	if m.MaxConcurrency <= 0 {
+		m.MaxConcurrency = 1
+	}
 	if m.Port == 0 {
 		m.Port = findFreePort()
 	}
@@ -329,7 +518,7 @@ func DeployHFModel(sourceId int, req *dto.HFModelDeployRequest) (*model.HuggingF
 		return nil, err
 	}
 
-	common.SysLog(fmt.Sprintf("[HF] Registered model %s (source=%d, port=%d)", repoId, sourceId, m.Port))
+	common.SysLog(fmt.Sprintf("[%s] Registered model %s (source=%d, port=%d)", sourceType, repoId, sourceId, m.Port))
 	return m, nil
 }
 
@@ -360,59 +549,25 @@ func DeleteHFModel(id int) error {
 }
 
 // GetAllHFModels 获取所有 HF 模型
-func GetAllHFModels() ([]dto.HFModelResponse, error) {
-	models, err := model.GetAllHuggingFaceModels()
-	if err != nil {
-		return nil, err
-	}
+// modelSourceLabelMap 构建 source_id -> label 映射。
+func modelSourceLabelMap() map[int]string {
 	sourceMap := make(map[int]string)
-	sources, srcErr := model.GetAllModelSources()
-	if srcErr == nil {
-		for _, s := range sources {
-			sourceMap[s.Id] = s.Label
-		}
+	sources, err := model.GetAllModelSources()
+	if err != nil {
+		return sourceMap
 	}
-
-	result := make([]dto.HFModelResponse, 0, len(models))
-	for _, m := range models {
-		result = append(result, dto.HFModelResponse{
-			Id:               m.Id,
-			SourceId:         m.SourceId,
-			SourceLabel:      sourceMap[m.SourceId],
-			RepoId:           m.RepoId,
-			FileName:         m.FileName,
-			Task:             m.Task,
-			LocalPath:        m.LocalPath,
-			DeploymentStatus: m.DeploymentStatus,
-			StatusMessage:    m.StatusMessage,
-			ErrorDetail:      m.ErrorDetail,
-			Port:             m.Port,
-			GpuIds:           m.GpuIds,
-			MaxConcurrency:   m.MaxConcurrency,
-			Enabled:          m.Enabled,
-			SizeBytes:        m.SizeBytes,
-			Sha256:           m.Sha256,
-			CreatedAt:        m.CreatedAt,
-			UpdatedAt:        m.UpdatedAt,
-		})
+	for _, s := range sources {
+		sourceMap[s.Id] = s.Label
 	}
-	return result, nil
+	return sourceMap
 }
 
-// GetHFModelDetail 获取单个模型详情
-func GetHFModelDetail(id int) (*dto.HFModelResponse, error) {
-	m, err := model.GetHuggingFaceModelById(id)
-	if err != nil {
-		return nil, err
-	}
-	label := ""
-	src, srcErr := model.GetModelSourceById(m.SourceId)
-	if srcErr == nil {
-		label = src.Label
-	}
-	return &dto.HFModelResponse{
+// toHFModelResponse 将 DeployedModel 转换为响应 DTO。
+func toHFModelResponse(m model.DeployedModel, label string) dto.HFModelResponse {
+	return dto.HFModelResponse{
 		Id:               m.Id,
 		SourceId:         m.SourceId,
+		SourceType:       m.SourceType,
 		SourceLabel:      label,
 		RepoId:           m.RepoId,
 		FileName:         m.FileName,
@@ -429,7 +584,46 @@ func GetHFModelDetail(id int) (*dto.HFModelResponse, error) {
 		Sha256:           m.Sha256,
 		CreatedAt:        m.CreatedAt,
 		UpdatedAt:        m.UpdatedAt,
-	}, nil
+	}
+}
+
+// GetAllDeployedModels 获取指定平台的已部署模型；sourceType 为空则返回全部。
+func GetAllDeployedModels(sourceType string) ([]dto.HFModelResponse, error) {
+	models, err := model.GetAllDeployedModels(sourceType)
+	if err != nil {
+		return nil, err
+	}
+	sourceMap := modelSourceLabelMap()
+	result := make([]dto.HFModelResponse, 0, len(models))
+	for _, m := range models {
+		result = append(result, toHFModelResponse(m, sourceMap[m.SourceId]))
+	}
+	return result, nil
+}
+
+// GetAllHFModels 保留向后兼容：返回全部（六平台）已部署模型。
+func GetAllHFModels() ([]dto.HFModelResponse, error) {
+	return GetAllDeployedModels("")
+}
+
+// GetDeployedModelDetail 获取单个模型详情（带 source_type）。
+func GetDeployedModelDetail(id int) (*dto.HFModelResponse, error) {
+	m, err := model.GetHuggingFaceModelById(id)
+	if err != nil {
+		return nil, err
+	}
+	label := ""
+	src, srcErr := model.GetModelSourceById(m.SourceId)
+	if srcErr == nil {
+		label = src.Label
+	}
+	resp := toHFModelResponse(*m, label)
+	return &resp, nil
+}
+
+// GetHFModelDetail 保留向后兼容。
+func GetHFModelDetail(id int) (*dto.HFModelResponse, error) {
+	return GetDeployedModelDetail(id)
 }
 
 // ============================================================
@@ -443,15 +637,22 @@ func findFreePort() int {
 	return 0
 }
 
-// EnsureHFModelStorageDir 确保模型存储目录存在
+// EnsureHFModelStorageDir 确保 HF 模型存储目录存在（兼容）。
 func EnsureHFModelStorageDir() error {
 	return os.MkdirAll(HFModelStorageDir, 0755)
 }
 
-// InitHuggingFace 启动时初始化 HF 相关目录
+// EnsureModelStorageDir 确保指定平台的模型存储目录存在。
+func EnsureModelStorageDir(sourceType string) error {
+	return os.MkdirAll(modelSourceStorageDir(sourceType), 0755)
+}
+
+// InitHuggingFace 启动时初始化各平台模型存储目录。
 func InitHuggingFace() {
-	if err := EnsureHFModelStorageDir(); err != nil {
-		common.SysLog(fmt.Sprintf("[HF] failed to create storage dir: %v", err))
+	for _, st := range model.AllSourceTypes() {
+		if err := EnsureModelStorageDir(st); err != nil {
+			common.SysLog(fmt.Sprintf("[model] failed to create storage dir for %s: %v", st, err))
+		}
 	}
-	common.SysLog("[HF] model storage dir: " + HFModelStorageDir)
+	common.SysLog("[model] storage root: " + ModelStorageRoot)
 }

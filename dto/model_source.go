@@ -149,6 +149,7 @@ type HFModelToggleRequest struct {
 type HFModelResponse struct {
 	Id              int    `json:"id"`
 	SourceId        int    `json:"source_id"`
+	SourceType      string `json:"source_type,omitempty"`
 	SourceLabel     string `json:"source_label,omitempty"`
 	RepoId          string `json:"repo_id"`
 	FileName        string `json:"file_name,omitempty"`

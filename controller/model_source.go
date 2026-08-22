@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 
@@ -103,14 +101,19 @@ func DeleteModelSource(c *gin.Context) {
 // HuggingFace Model Management
 // ============================================================
 
-// SearchHFHubModels 搜索 HF Hub 公开模型
-// GET /api/admin/hf-hub/search
+// SearchHFHubModels 搜索模型 Hub 公开模型。
+// source_type 可选：不传时默认 huggingface，传入后按对应平台搜索。
+// GET /api/user/hf-models/hub/search?source_id=xxx&source_type=modelscope&query=xxx
 func SearchHFHubModels(c *gin.Context) {
 	sourceIdStr := c.Query("source_id")
 	sourceId, err := strconv.Atoi(sourceIdStr)
 	if err != nil || sourceId <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	sourceType := strings.TrimSpace(c.Query("source_type"))
+	if sourceType == "" {
+		sourceType = model.SourceTypeHuggingFace
 	}
 	req := &dto.HFModelSearchRequest{
 		SourceId: sourceId,
@@ -129,7 +132,7 @@ func SearchHFHubModels(c *gin.Context) {
 		}
 	}
 
-	resp, err := service.SearchHFHubModels(sourceId, req)
+	resp, err := service.SearchHubModels(sourceId, sourceType, req)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -137,15 +140,15 @@ func SearchHFHubModels(c *gin.Context) {
 	common.ApiSuccess(c, resp)
 }
 
-// DeployHFModel 注册/部署一个 HF 模型
-// POST /api/admin/hf-models/deploy
+// DeployHFModel 注册/部署一个模型（通用六平台，source_type 可从 source 推断）。
+// POST /api/user/hf-models/deploy
 func DeployHFModel(c *gin.Context) {
 	var req dto.HFModelDeployRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	m, err := service.DeployHFModel(req.SourceId, &req)
+	m, err := service.DeployModel("", req.SourceId, &req)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -158,10 +161,11 @@ func DeployHFModel(c *gin.Context) {
 	})
 }
 
-// GetHFModels 列出所有 HF 模型
-// GET /api/admin/hf-models
+// GetHFModels 列出已部署模型；source_type 可选（空则返回全部）。
+// GET /api/user/hf-models?source_type=modelscope
 func GetHFModels(c *gin.Context) {
-	resp, err := service.GetAllHFModels()
+	sourceType := strings.TrimSpace(c.Query("source_type"))
+	resp, err := service.GetAllDeployedModels(sourceType)
 	if err != nil {
 		common.ApiError(c, err)
 		return

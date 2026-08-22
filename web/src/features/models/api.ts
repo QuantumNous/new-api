@@ -725,6 +725,7 @@ export async function deleteModelSource(
 export interface HFModelResponse {
   id: number
   source_id: number
+  source_type?: string
   source_label?: string
   repo_id: string
   file_name?: string
@@ -781,11 +782,12 @@ export interface HFModelTogglePayload {
 }
 
 /**
- * Search HF Hub for public models
- * GET /api/user/hf-models/hub/search?source_id=xxx&query=xxx&limit=20
+ * Search platform Hub for public models (source_type 可选，默认 huggingface)
+ * GET /api/user/hf-models/hub/search?source_id=xxx&source_type=modelscope&query=xxx&limit=20
  */
 export async function searchHFHubModels(params: {
   source_id: number
+  source_type?: string
   query?: string
   author?: string
   task?: string
@@ -797,7 +799,7 @@ export async function searchHFHubModels(params: {
 }
 
 /**
- * Deploy / register a HF model locally
+ * Deploy / register a model locally (通用六平台，source_type 从 source 推断)
  * POST /api/user/hf-models/deploy
  */
 export async function deployHFModel(
@@ -808,11 +810,15 @@ export async function deployHFModel(
 }
 
 /**
- * List all deployed HF models
- * GET /api/user/hf-models
+ * List deployed models；source_type 可选（空则返回全部）
+ * GET /api/user/hf-models?source_type=modelscope
  */
-export async function getHFModels(): Promise<HFModelResponse[]> {
-  const res = await api.get('/api/user/hf-models/')
+export async function getHFModels(
+  sourceType?: string
+): Promise<HFModelResponse[]> {
+  const res = await api.get('/api/user/hf-models/', {
+    params: sourceType ? { source_type: sourceType } : undefined,
+  })
   return res.data.data ?? []
 }
 

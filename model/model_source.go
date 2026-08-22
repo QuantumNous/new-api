@@ -76,16 +76,19 @@ func AllSourceTypes() []string {
 }
 
 // ============================================================
-// HuggingFaceModel / HuggingFaceDeployment
+// ============================================================
+// DeployedModel — 通用模型部署记录
 // ============================================================
 
-// HuggingFaceModel 记录从 HF Hub 拉取并部署到本地推理引擎的模型。
-type HuggingFaceModel struct {
-	Id          int    `json:"id"`
-	SourceId    int    `json:"source_id" gorm:"index;not null"` // 关联 ModelSource
-	RepoId      string `json:"repo_id" gorm:"size:256;not null"` // 如 "gpt2" / "meta-llama/Llama-2-7b-chat-hf"
-	FileName    string `json:"file_name" gorm:"size:512"`         // 权重文件名，如 "pytorch_model.bin"
-	Task        string `json:"task" gorm:"size:64"`               // 推理任务：text-generation / text2text-generation 等
+// DeployedModel 记录从任意平台（HF Hub / 魔搭 / PaddleHub / 魔乐 / OpenI / 模力方舟）
+// 拉取并部署到本地推理引擎的模型。SourceType 区分平台。
+type DeployedModel struct {
+	Id         int    `json:"id"`
+	SourceId   int    `json:"source_id" gorm:"index;not null"`     // 关联 ModelSource
+	SourceType string `json:"source_type" gorm:"size:32;index;not null;default:'huggingface'"` // huggingface / modelscope / paddlehub / modelers / openi / moark
+	RepoId     string `json:"repo_id" gorm:"size:256;not null"`    // 仓库/模型 ID，如 \"gpt2\" / \"Qwen/Qwen2.5-7B-Instruct\"
+	FileName   string `json:"file_name" gorm:"size:512"`           // 权重文件名，如 \"pytorch_model.bin\"
+	Task       string `json:"task" gorm:"size:64"`                 // 推理任务：text-generation / text2text-generation 等
 
 	// LocalPath 本地存储路径（相对于 data/models/）
 	LocalPath string `json:"local_path" gorm:"size:512"`
@@ -110,23 +113,27 @@ type HuggingFaceModel struct {
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-func (HuggingFaceModel) TableName() string {
-	return "huggingface_models"
+// HuggingFaceModel 是 DeployedModel 的向后兼容别名（早期实现专用于 HF，
+// 现已泛化为六平台通用的部署表）。
+type HuggingFaceModel = DeployedModel
+
+func (DeployedModel) TableName() string {
+	return "model_deployments"
 }
 
 // IsRunnable 返回模型是否处于可运行状态。
-func (m HuggingFaceModel) IsRunnable() bool {
+func (m DeployedModel) IsRunnable() bool {
 	return m.Enabled && m.DeploymentStatus == "running"
 }
 
 // UpdateStatus 更新部署状态并写日志。
-func (m *HuggingFaceModel) UpdateStatus(status, message string) {
+func (m *DeployedModel) UpdateStatus(status, message string) {
 	m.DeploymentStatus = status
 	m.StatusMessage = message
 	m.UpdatedAt = time.Now().Unix()
 	if status == "error" {
 		RecordLog(0, LogTypeSystem,
-			fmt.Sprintf("[HF] 模型 %s 状态变更: %s — %s", m.RepoId, status, message))
+			fmt.Sprintf("[%s] 模型 %s 状态变更: %s — %s", m.SourceType, m.RepoId, status, message))
 	}
 }
 
@@ -160,17 +167,28 @@ func UpdateModelSourceConfig(id int, config string) error {
 }
 
 // ============================================================
-// HuggingFaceModel CRUD
+// DeployedModel CRUD
+// 以下方法同时提供带 SourceType 过滤的通用版本，
+// 以及不带过滤的旧版（等价于 sourceType="" 查询全部）。
 // ============================================================
 
-// GetAllHuggingFaceModels 获取所有 HF 模型（关联平台信息）。
-func GetAllHuggingFaceModels() ([]HuggingFaceModel, error) {
-	var list []HuggingFaceModel
-	err := DB.Order("id DESC").Find(&list).Error
+// GetAllDeployedModels 按 sourceType 获取模型列表；sourceType 为空则返回全部。
+func GetAllDeployedModels(sourceType string) ([]DeployedModel, error) {
+	var list []DeployedModel
+	q := DB.Order("id DESC")
+	if sourceType != "" {
+		q = q.Where("source_type = ?", sourceType)
+	}
+	err := q.Find(&list).Error
 	return list, err
 }
 
-// GetHuggingFaceModelById 按 ID 查询 HF 模型。
+// GetAllHuggingFaceModels 保留向后兼容：获取全部（含六平台）部署模型。
+func GetAllHuggingFaceModels() ([]HuggingFaceModel, error) {
+	return GetAllDeployedModels("")
+}
+
+// GetHuggingFaceModelById 按 ID 查询部署模型。
 func GetHuggingFaceModelById(id int) (*HuggingFaceModel, error) {
 	var m HuggingFaceModel
 	err := DB.First(&m, id).Error
@@ -180,7 +198,7 @@ func GetHuggingFaceModelById(id int) (*HuggingFaceModel, error) {
 	return &m, nil
 }
 
-// SaveHuggingFaceModel 保存（创建或更新）HF 模型记录。
+// SaveHuggingFaceModel 保存（创建或更新）部署模型记录。
 func SaveHuggingFaceModel(m *HuggingFaceModel) error {
 	if m.Id == 0 {
 		return DB.Create(m).Error
@@ -198,10 +216,20 @@ func GetHuggingFaceModelByRepoId(sourceId int, repoId string) (*HuggingFaceModel
 	return &m, nil
 }
 
-// DeleteHuggingFaceModel 软删除 HF 模型。
+// GetDeployedModelByRepoId 按 sourceType + sourceId + repoId 查询（唯一）。
+func GetDeployedModelByRepoId(sourceType string, sourceId int, repoId string) (*DeployedModel, error) {
+	var m DeployedModel
+	err := DB.Where("source_type = ? AND source_id = ? AND repo_id = ?", sourceType, sourceId, repoId).First(&m).Error
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// DeleteHuggingFaceModel 软删除部署模型记录。
 func DeleteHuggingFaceModel(id int) error {
 	now := time.Now().Unix()
-	return DB.Model(&HuggingFaceModel{}).Where("id = ?", id).
+	return DB.Model(&DeployedModel{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"deleted_at":        now,
 			"enabled":           false,
@@ -220,14 +248,6 @@ func GetRunningHuggingFaceModels() ([]HuggingFaceModel, error) {
 // ============================================================
 // AutoMigrate registration
 // ============================================================
-
-// RegisterModelSourceTables 在 main.go AutoMigrate 中调用，
-// 注册 model_sources 和 huggingface_models 两张表。
-func RegisterModelSourceTables() {
-	if err := DB.AutoMigrate(&ModelSource{}, &HuggingFaceModel{}); err != nil {
-		common.FatalLog("failed to auto-migrate model_sources / huggingface_models: " + err.Error())
-	}
-}
 
 // InitDefaultModelSources 在数据库迁移后执行，确保至少有一条 HF 配置。
 func InitDefaultModelSources() {
