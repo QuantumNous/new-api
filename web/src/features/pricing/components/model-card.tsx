@@ -140,7 +140,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     priceSummary = (
       <span className='text-muted-foreground whitespace-nowrap'>
         <span className='text-foreground font-mono font-semibold'>
-          {formatSeedancePerSecond(primary?.usd, {
+          {formatSeedancePerSecond(primary?.rmb, {
             showWithRecharge: showRechargePrice,
             priceRate,
             usdExchangeRate,

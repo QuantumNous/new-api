@@ -439,7 +439,7 @@ func updatePricing() {
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "seedance-token-sr-v1"
+		pricingMap[0].PricingVersion = "seedance-token-sr-v2"
 	}
 
 	// 刷新缓存映射，供高并发快速查询

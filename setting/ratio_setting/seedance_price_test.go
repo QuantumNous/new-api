@@ -3,6 +3,8 @@ package ratio_setting
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,16 +133,32 @@ func TestSettleSeedanceQuoteUsesActualTokensAndInferredDuration(t *testing.T) {
 	assert.Equal(t, expectedQuota, quota)
 }
 
+func TestQuotaFromRMBUsesSiteExchangeRate(t *testing.T) {
+	original := operation_setting.USDExchangeRate
+	t.Cleanup(func() {
+		operation_setting.USDExchangeRate = original
+	})
+
+	cost := SeedancePerSecondRMB(69, "720p")
+	operation_setting.USDExchangeRate = 7.3
+	highRate, _ := QuotaFromRMB(cost, 1)
+	operation_setting.USDExchangeRate = 1
+	oneToOne, _ := QuotaFromRMB(cost, 1)
+
+	assert.Greater(t, oneToOne, highRate)
+	assert.InDelta(t, float64(highRate)*7.3, float64(oneToOne), 2)
+}
+
 func TestBuildSeedancePublicPricingMarksSuperResolutionOutputs(t *testing.T) {
 	direct, ok := BuildSeedancePublicPricing([]string{"doubao-seedance-2-0-260128"}, false)
 	require.True(t, ok)
 	assert.False(t, direct.SuperResolution)
-	assert.InDelta(t, RMBToUSD(SeedancePerSecondRMB(69, "720p")), direct.TextPerSecondUSD["720p"], 1e-9)
+	assert.InDelta(t, SeedancePerSecondRMB(69, "720p"), direct.TextPerSecondRMB["720p"], 1e-9)
 
 	sr, ok := BuildSeedancePublicPricing([]string{"doubao-seedance-2-0-260128-se"}, true)
 	require.True(t, ok)
 	assert.True(t, sr.SuperResolution)
 	assert.InDelta(t, 0.02, sr.SRFrom480To720RMB, 1e-9)
-	assert.InDelta(t, RMBToUSD(SeedancePerSecondRMB(69, "480p")+0.02), sr.OutputTextPerSecondUSD["720p"], 1e-9)
-	assert.InDelta(t, RMBToUSD(SeedancePerSecondRMB(69, "720p")+0.04), sr.OutputTextPerSecondUSD["1080p"], 1e-9)
+	assert.InDelta(t, SeedancePerSecondRMB(69, "480p")+0.02, sr.OutputTextPerSecondRMB["720p"], 1e-9)
+	assert.InDelta(t, SeedancePerSecondRMB(69, "720p")+0.04, sr.OutputTextPerSecondRMB["1080p"], 1e-9)
 }

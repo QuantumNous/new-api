@@ -117,12 +117,10 @@ export type SeedancePublicPricing = {
   tokens_per_second?: Record<string, number>
   text_unit_price_rmb?: Record<string, number>
   video_unit_price_rmb?: Record<string, number>
-  text_per_second_usd?: Record<string, number>
-  video_per_second_usd?: Record<string, number>
+  text_per_second_rmb?: Record<string, number>
+  video_per_second_rmb?: Record<string, number>
   sr_480_to_720_rmb?: number
   sr_720_to_1080_rmb?: number
-  sr_480_to_720_usd?: number
-  sr_720_to_1080_usd?: number
-  output_text_per_second_usd?: Record<string, number>
-  output_video_per_second_usd?: Record<string, number>
+  output_text_per_second_rmb?: Record<string, number>
+  output_video_per_second_rmb?: Record<string, number>
 }

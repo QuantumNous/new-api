@@ -15,17 +15,17 @@ type SeedanceBillingSnapshot struct {
 }
 
 // SeedancePublicPricing is the user-facing Seedance quote attached to /api/pricing.
+// Per-second amounts are RMB so the pricing page can render the same numbers as
+// the admin Seedance table, then convert with the site display currency.
 type SeedancePublicPricing struct {
 	SuperResolution         bool               `json:"super_resolution"`
 	TokensPerSecond         map[string]float64 `json:"tokens_per_second"`
 	TextUnitPriceRMB        map[string]float64 `json:"text_unit_price_rmb"`
 	VideoUnitPriceRMB       map[string]float64 `json:"video_unit_price_rmb"`
-	TextPerSecondUSD        map[string]float64 `json:"text_per_second_usd"`
-	VideoPerSecondUSD       map[string]float64 `json:"video_per_second_usd"`
+	TextPerSecondRMB        map[string]float64 `json:"text_per_second_rmb"`
+	VideoPerSecondRMB       map[string]float64 `json:"video_per_second_rmb"`
 	SRFrom480To720RMB       float64            `json:"sr_480_to_720_rmb,omitempty"`
 	SRFrom720To1080RMB      float64            `json:"sr_720_to_1080_rmb,omitempty"`
-	SRFrom480To720USD       float64            `json:"sr_480_to_720_usd,omitempty"`
-	SRFrom720To1080USD      float64            `json:"sr_720_to_1080_usd,omitempty"`
-	OutputTextPerSecondUSD  map[string]float64 `json:"output_text_per_second_usd,omitempty"`
-	OutputVideoPerSecondUSD map[string]float64 `json:"output_video_per_second_usd,omitempty"`
+	OutputTextPerSecondRMB  map[string]float64 `json:"output_text_per_second_rmb,omitempty"`
+	OutputVideoPerSecondRMB map[string]float64 `json:"output_video_per_second_rmb,omitempty"`
 }

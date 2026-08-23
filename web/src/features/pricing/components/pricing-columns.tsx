@@ -181,7 +181,7 @@ export function usePricingColumns(
 
         if (isSeedancePricingModel(model)) {
           const primary = getSeedancePrimaryPerSecond(model, selectedGroup)
-          const formatted = formatSeedancePerSecond(primary?.usd, {
+          const formatted = formatSeedancePerSecond(primary?.rmb, {
             showWithRecharge: showRechargePrice,
             priceRate,
             usdExchangeRate,

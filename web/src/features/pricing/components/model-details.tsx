@@ -1042,9 +1042,9 @@ function GroupPricingSection(props: {
   }
 
   if (isSeedancePricingModel(props.model)) {
-    const usd = props.model.seedance.super_resolution
-      ? props.model.seedance.output_text_per_second_usd?.['720p']
-      : props.model.seedance.text_per_second_usd?.['720p']
+    const rmb = props.model.seedance.super_resolution
+      ? props.model.seedance.output_text_per_second_rmb?.['720p']
+      : props.model.seedance.text_per_second_rmb?.['720p']
     return (
       <section>
         <SectionTitle>{t('Pricing by Group')}</SectionTitle>
@@ -1059,7 +1059,7 @@ function GroupPricingSection(props: {
               >
                 <GroupBadge group={group} />
                 <span className='font-mono text-sm tabular-nums'>
-                  {formatSeedancePerSecond(usd, {
+                  {formatSeedancePerSecond(rmb, {
                     showWithRecharge: showRechargePrice,
                     priceRate: props.priceRate,
                     usdExchangeRate: props.usdExchangeRate,

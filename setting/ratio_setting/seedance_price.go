@@ -9,6 +9,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -429,12 +430,18 @@ func SeedancePerSecondRMB(unitPriceRMB float64, resolution string) float64 {
 	return SeedanceTokensPerSecond(resolution) / 1_000_000 * unitPriceRMB
 }
 
-func RMBToUSD(rmb float64) float64 {
-	return rmb / USD2RMB
+func SeedanceModelRatio(unitPriceRMB float64) float64 {
+	return usdPerMillion(unitPriceRMB / siteUSDExchangeRate())
 }
 
-func SeedanceModelRatio(unitPriceRMB float64) float64 {
-	return rmbPerMillion(unitPriceRMB)
+// siteUSDExchangeRate is the admin-configured USD:CNY ratio used to convert
+// Seedance RMB list prices into system USD / quota. Falls back to USD2RMB.
+func siteUSDExchangeRate() float64 {
+	rate := operation_setting.USDExchangeRate
+	if rate <= 0 {
+		return USD2RMB
+	}
+	return rate
 }
 
 func SeedanceSourceResolution(outputResolution string) string {
@@ -468,7 +475,7 @@ func CurrentSeedanceSuperResolution() SeedanceSuperResolutionPrice {
 }
 
 func QuotaFromRMB(rmb, groupRatio float64) (int, *common.QuotaClamp) {
-	return common.QuotaFromFloatChecked(rmb / USD2RMB * common.QuotaPerUnit * groupRatio)
+	return common.QuotaFromFloatChecked(rmb / siteUSDExchangeRate() * common.QuotaPerUnit * groupRatio)
 }
 
 type SeedanceQuoteInput struct {
@@ -564,8 +571,8 @@ func BuildSeedancePublicPricing(modelNames []string, superResolution bool) (*typ
 		return nil, false
 	}
 
-	textUSD := make(map[string]float64)
-	videoUSD := make(map[string]float64)
+	textRMB := make(map[string]float64)
+	videoRMB := make(map[string]float64)
 	tokensPerSecond := map[string]float64{
 		"480p":  SeedanceTokensPerSecond("480p"),
 		"720p":  SeedanceTokensPerSecond("720p"),
@@ -574,10 +581,10 @@ func BuildSeedancePublicPricing(modelNames []string, superResolution bool) (*typ
 	}
 	for _, resolution := range []string{"480p", "720p", "1080p", "4k"} {
 		if unit, found := lookupSeedanceCell(prices, resolution, false); found {
-			textUSD[resolution] = RMBToUSD(SeedancePerSecondRMB(unit, resolution))
+			textRMB[resolution] = SeedancePerSecondRMB(unit, resolution)
 		}
 		if unit, found := lookupSeedanceCell(prices, resolution, true); found {
-			videoUSD[resolution] = RMBToUSD(SeedancePerSecondRMB(unit, resolution))
+			videoRMB[resolution] = SeedancePerSecondRMB(unit, resolution)
 		}
 	}
 
@@ -586,8 +593,8 @@ func BuildSeedancePublicPricing(modelNames []string, superResolution bool) (*typ
 		TokensPerSecond:   tokensPerSecond,
 		TextUnitPriceRMB:  cloneFloatMap(prices.Text),
 		VideoUnitPriceRMB: cloneFloatMap(prices.Video),
-		TextPerSecondUSD:  textUSD,
-		VideoPerSecondUSD: videoUSD,
+		TextPerSecondRMB:  textRMB,
+		VideoPerSecondRMB: videoRMB,
 	}
 	if !superResolution {
 		return public, true
@@ -596,20 +603,18 @@ func BuildSeedancePublicPricing(modelNames []string, superResolution bool) (*typ
 	sr := CurrentSeedanceSuperResolution()
 	public.SRFrom480To720RMB = sr.From480To720
 	public.SRFrom720To1080RMB = sr.From720To1080
-	public.SRFrom480To720USD = RMBToUSD(sr.From480To720)
-	public.SRFrom720To1080USD = RMBToUSD(sr.From720To1080)
-	public.OutputTextPerSecondUSD = seedanceOutputPerSecondUSD(prices, false, sr)
-	public.OutputVideoPerSecondUSD = seedanceOutputPerSecondUSD(prices, true, sr)
+	public.OutputTextPerSecondRMB = seedanceOutputPerSecondRMB(prices, false, sr)
+	public.OutputVideoPerSecondRMB = seedanceOutputPerSecondRMB(prices, true, sr)
 	return public, true
 }
 
-func seedanceOutputPerSecondUSD(prices SeedanceModelPrice, hasVideo bool, sr SeedanceSuperResolutionPrice) map[string]float64 {
+func seedanceOutputPerSecondRMB(prices SeedanceModelPrice, hasVideo bool, sr SeedanceSuperResolutionPrice) map[string]float64 {
 	out := make(map[string]float64, 2)
 	if unit, found := lookupSeedanceCell(prices, "480p", hasVideo); found && sr.From480To720 > 0 {
-		out["720p"] = RMBToUSD(SeedancePerSecondRMB(unit, "480p") + sr.From480To720)
+		out["720p"] = SeedancePerSecondRMB(unit, "480p") + sr.From480To720
 	}
 	if unit, found := lookupSeedanceCell(prices, "720p", hasVideo); found && sr.From720To1080 > 0 {
-		out["1080p"] = RMBToUSD(SeedancePerSecondRMB(unit, "720p") + sr.From720To1080)
+		out["1080p"] = SeedancePerSecondRMB(unit, "720p") + sr.From720To1080
 	}
 	return out
 }

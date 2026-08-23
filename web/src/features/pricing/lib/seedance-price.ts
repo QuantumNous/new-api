@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatCurrencyFromUSD } from '@/lib/currency'
+import {
+  formatBillingCurrencyFromUSD,
+  getCurrencyDisplay,
+} from '@/lib/currency'
 
 import type { PricingModel, SeedancePublicPricing } from '../types'
 import { getDisplayGroupRatio } from './model-helpers'
@@ -34,6 +37,12 @@ function applyRechargeRate(
   return (price * priceRate) / usdExchangeRate
 }
 
+function siteUSDExchangeRate(override?: number) {
+  if (typeof override === 'number' && override > 0) return override
+  const { config } = getCurrencyDisplay()
+  return config.usdExchangeRate > 0 ? config.usdExchangeRate : 1
+}
+
 export function isSeedancePricingModel(
   model: PricingModel
 ): model is PricingModel & { seedance: SeedancePublicPricing } {
@@ -41,7 +50,7 @@ export function isSeedancePricingModel(
 }
 
 export function formatSeedancePerSecond(
-  usd: number | undefined,
+  rmb: number | undefined,
   options: {
     showWithRecharge?: boolean
     priceRate?: number
@@ -49,19 +58,21 @@ export function formatSeedancePerSecond(
     groupRatio?: number
   } = {}
 ) {
-  if (typeof usd !== 'number' || !Number.isFinite(usd) || usd < 0) {
+  if (typeof rmb !== 'number' || !Number.isFinite(rmb) || rmb < 0) {
     return ''
   }
   const groupRatio = options.groupRatio ?? 1
+  const exchangeRate = siteUSDExchangeRate(options.usdExchangeRate)
+  const usd = (rmb * groupRatio) / exchangeRate
   const price = applyRechargeRate(
-    usd * groupRatio,
+    usd,
     options.showWithRecharge ?? false,
     options.priceRate ?? 1,
-    options.usdExchangeRate ?? 1
+    exchangeRate
   )
-  return formatCurrencyFromUSD(price, {
+  return formatBillingCurrencyFromUSD(price, {
     digitsLarge: 4,
-    digitsSmall: 6,
+    digitsSmall: 4,
     abbreviate: false,
   })
 }
@@ -73,11 +84,11 @@ export function getSeedancePrimaryPerSecond(
   if (!isSeedancePricingModel(model)) return undefined
   const groupRatio = getDisplayGroupRatio(model, selectedGroup)
   const table = model.seedance.super_resolution
-    ? model.seedance.output_text_per_second_usd
-    : model.seedance.text_per_second_usd
-  const usd = table?.['720p'] ?? table?.['1080p'] ?? table?.['480p']
+    ? model.seedance.output_text_per_second_rmb
+    : model.seedance.text_per_second_rmb
+  const rmb = table?.['720p'] ?? table?.['1080p'] ?? table?.['480p']
   return {
-    usd,
+    rmb,
     groupRatio,
     superResolution: Boolean(model.seedance.super_resolution),
   }
@@ -90,7 +101,7 @@ export function seedanceDisplayResolutions(model: PricingModel) {
   }
   return SEEDANCE_OUTPUT_RESOLUTIONS.filter(
     (resolution) =>
-      model.seedance.text_per_second_usd?.[resolution] != null ||
-      model.seedance.video_per_second_usd?.[resolution] != null
+      model.seedance.text_per_second_rmb?.[resolution] != null ||
+      model.seedance.video_per_second_rmb?.[resolution] != null
   )
 }

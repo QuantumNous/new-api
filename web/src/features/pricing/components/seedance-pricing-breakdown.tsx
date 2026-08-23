@@ -50,16 +50,16 @@ export function SeedancePricingBreakdown({
   const resolutions = seedanceDisplayResolutions(model)
   const perSecondTable = seedance.super_resolution
     ? {
-        text: seedance.output_text_per_second_usd,
-        video: seedance.output_video_per_second_usd,
+        text: seedance.output_text_per_second_rmb,
+        video: seedance.output_video_per_second_rmb,
       }
     : {
-        text: seedance.text_per_second_usd,
-        video: seedance.video_per_second_usd,
+        text: seedance.text_per_second_rmb,
+        video: seedance.video_per_second_rmb,
       }
 
-  const formatUsd = (usd?: number) =>
-    formatSeedancePerSecond(usd, {
+  const formatRmb = (rmb?: number) =>
+    formatSeedancePerSecond(rmb, {
       showWithRecharge,
       priceRate,
       usdExchangeRate,
@@ -90,13 +90,13 @@ export function SeedancePricingBreakdown({
                   {resolution === '4k' ? '4K' : resolution}
                 </td>
                 <td className='px-3 py-2 text-right font-mono tabular-nums'>
-                  {formatUsd(perSecondTable.text?.[resolution])}
+                  {formatRmb(perSecondTable.text?.[resolution])}
                   <span className='text-muted-foreground/50 ml-1 text-[10px]'>
                     / {t('sec')}
                   </span>
                 </td>
                 <td className='px-3 py-2 text-right font-mono tabular-nums'>
-                  {formatUsd(perSecondTable.video?.[resolution])}
+                  {formatRmb(perSecondTable.video?.[resolution])}
                   <span className='text-muted-foreground/50 ml-1 text-[10px]'>
                     / {t('sec')}
                   </span>
