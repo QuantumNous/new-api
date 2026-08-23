@@ -187,7 +187,9 @@ export function SubscriptionPlansCard({
     }
   }
 
-  const hasActive = activeSubscriptions.length > 0
+  const hasActive = activeSubscriptions.some(
+    (sub) => (sub?.subscription?.start_time || 0) <= Date.now() / 1000
+  )
   const hasAny = allSubscriptions.length > 0
   const isAvailable = loading || plans.length > 0 || hasAny
   const disablePref = !hasActive
@@ -410,8 +412,13 @@ export function SubscriptionPlansCard({
                   const now = Date.now() / 1000
                   const isExpired = (subscription?.end_time || 0) < now
                   const isCancelled = subscription?.status === 'cancelled'
+                  // 续费接续产生的订阅在生效时间之前额度不可用，不能显示成生效中
+                  const isPending =
+                    subscription?.status === 'active' &&
+                    !isExpired &&
+                    (subscription?.start_time || 0) > now
                   const isActive =
-                    subscription?.status === 'active' && !isExpired
+                    subscription?.status === 'active' && !isExpired && !isPending
                   const nextResetTime = subscription?.next_reset_time ?? 0
                   let statusBadge = (
                     <StatusBadge
@@ -428,6 +435,14 @@ export function SubscriptionPlansCard({
                         copyable={false}
                       />
                     )
+                  } else if (isPending) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Scheduled')}
+                        variant='info'
+                        copyable={false}
+                      />
+                    )
                   } else if (isCancelled) {
                     statusBadge = (
                       <StatusBadge
@@ -439,7 +454,7 @@ export function SubscriptionPlansCard({
                   }
 
                   let endTimeLabel = t('Expired at')
-                  if (isActive) {
+                  if (isActive || isPending) {
                     endTimeLabel = t('Until')
                   } else if (isCancelled) {
                     endTimeLabel = t('Cancelled at')
@@ -467,6 +482,14 @@ export function SubscriptionPlansCard({
                           </span>
                         )}
                       </div>
+                      {isPending && (
+                        <div className='text-muted-foreground mt-1.5'>
+                          {t('Quota unlocks at')}{' '}
+                          {new Date(
+                            (subscription?.start_time || 0) * 1000
+                          ).toLocaleString()}
+                        </div>
+                      )}
                       <div className='text-muted-foreground mt-1.5'>
                         {endTimeLabel}{' '}
                         {new Date(
