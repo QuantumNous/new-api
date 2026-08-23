@@ -34,6 +34,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 import { positiveIntegerSchema } from '../utils/numeric-field'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
+import { SeedancePriceSettings } from './seedance-price-settings'
 import { ToolPriceSettings } from './tool-price-settings'
 import { UpstreamRatioSync } from './upstream-ratio-sync'
 import {
@@ -143,12 +144,14 @@ type RatioTabId =
   | 'unset-models'
   | 'groups'
   | 'tool-prices'
+  | 'seedance-prices'
   | 'upstream-sync'
 
 type RatioSettingsCardProps = {
   modelDefaults: ModelFormValues
   groupDefaults: GroupFormValues
   toolPricesDefault: string
+  seedancePricesDefault?: string
   titleKey?: string
   visibleTabs?: RatioTabId[]
 }
@@ -157,6 +160,7 @@ export function RatioSettingsCard({
   modelDefaults,
   groupDefaults,
   toolPricesDefault,
+  seedancePricesDefault = '{}',
   titleKey = 'Pricing Ratios',
   visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
 }: RatioSettingsCardProps) {
@@ -407,6 +411,7 @@ export function RatioSettingsCard({
     'unset-models': 'Unset price models',
     groups: 'Group ratios',
     'tool-prices': 'Tool prices',
+    'seedance-prices': 'Seedance prices',
     'upstream-sync': 'Upstream price sync',
   }
   const tabsGridClass =
@@ -416,6 +421,7 @@ export function RatioSettingsCard({
       3: 'grid-cols-3',
       4: 'grid-cols-4',
       5: 'grid-cols-5',
+      6: 'grid-cols-3 sm:grid-cols-6',
     }[visibleTabs.length] ?? 'grid-cols-4'
   const defaultTab = visibleTabs[0] ?? 'models'
 
@@ -444,6 +450,9 @@ export function RatioSettingsCard({
     }
     if (tab === 'tool-prices') {
       return <ToolPriceSettings defaultValue={toolPricesDefault} />
+    }
+    if (tab === 'seedance-prices') {
+      return <SeedancePriceSettings defaultValue={seedancePricesDefault} />
     }
     return (
       <UpstreamRatioSync

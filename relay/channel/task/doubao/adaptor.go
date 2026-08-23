@@ -19,6 +19,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -252,11 +253,12 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	hasVideo := lo.ContainsBy(payload.Content, func(item ContentItem) bool {
 		return item.Type == "video_url" || item.VideoURL != nil
 	})
-	modelName := info.UpstreamModelName
-	if modelName == "" {
-		modelName = info.OriginModelName
-	}
-	ratio, ok := GetVideoBillingRatio(modelName, payload.Resolution, hasVideo)
+	ratio, ok := ratio_setting.LookupSeedanceBillingRatio(
+		payload.Resolution,
+		hasVideo,
+		info.OriginModelName,
+		info.UpstreamModelName,
+	)
 	if !ok || ratio == 1.0 {
 		return nil
 	}

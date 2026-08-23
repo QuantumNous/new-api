@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/task/doubaomediakit"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -515,6 +516,15 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	if channel.Type == constant.ChannelTypeDoubaoVideoMediaKit {
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if isAdd || trimmedKey != "" {
+			if _, err := doubaomediakit.ParseCredentials(trimmedKey); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Codex OAuth key validation (optional, only when JSON object is provided)
 	if channel.Type == constant.ChannelTypeCodex {
 		trimmedKey := strings.TrimSpace(channel.Key)
@@ -622,6 +632,14 @@ func AddChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
+		})
+		return
+	}
+	if addChannelRequest.Channel.Type == constant.ChannelTypeDoubaoVideoMediaKit &&
+		addChannelRequest.Mode != "" && addChannelRequest.Mode != "single" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "DoubaoVideoMediaKit does not support batch or multi-key mode",
 		})
 		return
 	}

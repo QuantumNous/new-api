@@ -69,6 +69,31 @@ func (a *sunoFailurePollingAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *re
 	return 0
 }
 
+type stageTransitionPollingAdaptor struct {
+	nextTaskID string
+}
+
+func (a *stageTransitionPollingAdaptor) Init(_ *relaycommon.RelayInfo) {}
+
+func (a *stageTransitionPollingAdaptor) FetchTask(_ string, _ string, _ map[string]any, _ string) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"status":"running"}`)),
+	}, nil
+}
+
+func (a *stageTransitionPollingAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+	return &relaycommon.TaskInfo{
+		TaskID:   a.nextTaskID,
+		Status:   string(model.TaskStatusInProgress),
+		Progress: "30%",
+	}, nil
+}
+
+func (a *stageTransitionPollingAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
+	return 0
+}
+
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
@@ -223,6 +248,33 @@ func TestUpdateVideoTasksCanSkipPollingSleepPerChannel(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, adaptor.fetchCount())
+}
+
+func TestUpdateVideoSingleTaskPersistsMultiStageUpstreamTaskID(t *testing.T) {
+	truncate(t)
+
+	const channelID = 103
+	seedTaskPollingChannel(t, channelID, true)
+	task := seedPollingTask(t, channelID, "task_public_stage", "stage_generation")
+	task.Data = []byte(`{"status":"running"}`)
+	require.NoError(t, model.DB.Save(task).Error)
+	channel, err := model.CacheGetChannel(channelID)
+	require.NoError(t, err)
+	adaptor := &stageTransitionPollingAdaptor{nextTaskID: "stage_enhancement"}
+
+	err = updateVideoSingleTask(
+		context.Background(),
+		adaptor,
+		channel,
+		task.GetUpstreamTaskID(),
+		map[string]*model.Task{task.GetUpstreamTaskID(): task},
+	)
+
+	require.NoError(t, err)
+	var reloaded model.Task
+	require.NoError(t, model.DB.First(&reloaded, task.ID).Error)
+	assert.Equal(t, "task_public_stage", reloaded.TaskID)
+	assert.Equal(t, "stage_enhancement", reloaded.PrivateData.UpstreamTaskID)
 }
 
 func TestUpdateVideoTasksDefaultSleepDoesNotBlockOtherChannels(t *testing.T) {

@@ -140,6 +140,7 @@ import {
   ADD_MODE_OPTIONS,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
+  CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
@@ -153,6 +154,9 @@ import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
   CHANNEL_TYPE_ADVANCED_CUSTOM,
+  composeMediaKitKey,
+  DEFAULT_MEDIAKIT_BASE_URL,
+  parseMediaKitKey,
   channelFormSchema,
   channelsQueryKeys,
   getAdvancedCustomStats,
@@ -299,6 +303,9 @@ const SENSITIVE_FORM_FIELDS = [
   'allow_inference_geo',
   'allow_speed',
   'claude_beta_query',
+  'ark_api_key',
+  'mediakit_api_key',
+  'mediakit_base_url',
   'disable_task_polling_sleep',
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
@@ -726,6 +733,8 @@ export function ChannelMutateDrawer({
   const currentStatus = form.watch('status')
   const currentBaseUrl = form.watch('base_url')
   const currentKey = form.watch('key')
+  const currentArkAPIKey = form.watch('ark_api_key')
+  const currentMediaKitAPIKey = form.watch('mediakit_api_key')
   const currentOther = form.watch('other')
   const currentModels = form.watch('models')
   const currentName = form.watch('name')
@@ -779,7 +788,10 @@ export function ChannelMutateDrawer({
     reset: resetDoubaoApiUnlock,
   } = useHiddenClickUnlock({
     requiredClicks: 10,
-    disabled: currentType !== 45 || sensitiveLocked,
+    disabled:
+      (currentType !== 45 &&
+        currentType !== CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT) ||
+      sensitiveLocked,
     onUnlock: () => {
       toast.info(t('Doubao custom API address editing unlocked'))
     },
@@ -857,7 +869,9 @@ export function ChannelMutateDrawer({
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
   const supportsMultiKeyAddMode =
-    currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
+    currentType !== 57 &&
+    currentType !== CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT &&
+    !(currentType === 41 && vertexKeyType === 'api_key')
   const addModeOptions = useMemo(
     () =>
       supportsMultiKeyAddMode
@@ -962,18 +976,35 @@ export function ChannelMutateDrawer({
     formErrors.key_mode ||
     formErrors.vertex_key_type ||
     formErrors.aws_key_type ||
-    formErrors.azure_responses_version
+    formErrors.azure_responses_version ||
+    formErrors.ark_api_key ||
+    formErrors.mediakit_api_key ||
+    formErrors.mediakit_base_url
   )
   const modelsHaveErrors = Boolean(
     formErrors.models || formErrors.group || formErrors.model_mapping
   )
   const advancedHaveErrors =
     hasAdvancedSettingsErrors(formErrors) || Boolean(formErrors.advanced_custom)
-  const providerRequiresBaseUrl = [3, 8, 36, 45].includes(currentType)
+  const isVolcengineFamilyType =
+    currentType === 45 || currentType === CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT
+  const providerRequiresBaseUrl = [
+    3,
+    8,
+    36,
+    45,
+    CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT,
+  ].includes(currentType)
   const providerRequiresOther = [3, 18, 21, 39, 41, 49].includes(currentType)
   const identityComplete = Boolean(currentName?.trim() && currentType > 0)
+  const mediaKitKeysReady =
+    currentType !== CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT ||
+    Boolean(currentArkAPIKey?.trim() && currentMediaKitAPIKey?.trim())
   const credentialsComplete = Boolean(
-    (isEditing || currentKey?.trim()) &&
+    (isEditing ||
+      (currentType === CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT
+        ? mediaKitKeysReady
+        : currentKey?.trim())) &&
     (!providerRequiresBaseUrl || currentBaseUrl?.trim()) &&
     (!providerRequiresOther || currentOther?.trim())
   )
@@ -1276,11 +1307,20 @@ export function ChannelMutateDrawer({
   useEffect(() => {
     if (isEditing) return // Don't auto-set defaults when editing
 
-    // Type 45 (VolcEngine) - set default base_url
-    if (currentType === 45) {
+    // Type 45 (VolcEngine) / 61 (DoubaoVideoMediaKit) - set default base_url
+    if (
+      currentType === 45 ||
+      currentType === CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT
+    ) {
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
         form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
+      }
+    }
+    if (currentType === CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT) {
+      const currentMediaKitBaseUrl = form.getValues('mediakit_base_url')
+      if (!currentMediaKitBaseUrl || currentMediaKitBaseUrl === '') {
+        form.setValue('mediakit_base_url', DEFAULT_MEDIAKIT_BASE_URL)
       }
     }
 
@@ -1294,7 +1334,13 @@ export function ChannelMutateDrawer({
   }, [currentType, isEditing, form])
 
   useEffect(() => {
-    if (currentType !== 45 || currentBaseUrl !== 'doubao-coding-plan') return
+    if (
+      (currentType !== 45 &&
+        currentType !== CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT) ||
+      currentBaseUrl !== 'doubao-coding-plan'
+    ) {
+      return
+    }
 
     form.setValue('base_url', 'https://ark.cn-beijing.volces.com', {
       shouldDirty: false,
@@ -1629,8 +1675,39 @@ export function ChannelMutateDrawer({
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
-      // Validate key is required when creating
-      if (!isEditing && !data.key?.trim()) {
+      if (data.type === CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT) {
+        const arkAPIKey = data.ark_api_key?.trim() || ''
+        const mediaKitAPIKey = data.mediakit_api_key?.trim() || ''
+        if (!isEditing && (!arkAPIKey || !mediaKitAPIKey)) {
+          if (!arkAPIKey) {
+            form.setError('ark_api_key', {
+              type: 'manual',
+              message: t('Ark API Key is required'),
+            })
+          }
+          if (!mediaKitAPIKey) {
+            form.setError('mediakit_api_key', {
+              type: 'manual',
+              message: t('MediaKit API Key is required'),
+            })
+          }
+          return
+        }
+        if (
+          isEditing &&
+          (arkAPIKey || mediaKitAPIKey) &&
+          (!arkAPIKey || !mediaKitAPIKey)
+        ) {
+          form.setError(arkAPIKey ? 'mediakit_api_key' : 'ark_api_key', {
+            type: 'manual',
+            message: t('Both Ark and MediaKit API keys are required'),
+          })
+          return
+        }
+        if (arkAPIKey && mediaKitAPIKey) {
+          data.key = composeMediaKitKey(arkAPIKey, mediaKitAPIKey)
+        }
+      } else if (!isEditing && !data.key?.trim()) {
         form.setError('key', {
           type: 'manual',
           message: ERROR_MESSAGES.REQUIRED_KEY,
@@ -2655,93 +2732,124 @@ export function ChannelMutateDrawer({
                               </>
                             )}
 
-                            {/* VolcEngine (type 45) */}
-                            {currentType === 45 && !doubaoApiEditUnlocked && (
-                              <FormField
-                                control={form.control}
-                                name='base_url'
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel
-                                      className='cursor-pointer select-none'
-                                      onClick={handleApiConfigSecretClick}
-                                    >
-                                      {t('API Base URL *')}
-                                    </FormLabel>
-                                    <Select
-                                      items={[
-                                        {
-                                          value:
-                                            'https://ark.cn-beijing.volces.com',
-                                          label: t(
-                                            'https://ark.cn-beijing.volces.com'
-                                          ),
-                                        },
-                                        {
-                                          value:
-                                            'https://ark.ap-southeast.bytepluses.com',
-                                          label: t(
-                                            'https://ark.ap-southeast.bytepluses.com'
-                                          ),
-                                        },
-                                      ]}
-                                      onValueChange={field.onChange}
-                                      value={
-                                        field.value === 'doubao-coding-plan'
-                                          ? 'https://ark.cn-beijing.volces.com'
-                                          : field.value ||
-                                            'https://ark.cn-beijing.volces.com'
-                                      }
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent
-                                        alignItemWithTrigger={false}
+                            {/* VolcEngine / DoubaoVideoMediaKit Ark URL */}
+                            {isVolcengineFamilyType &&
+                              !doubaoApiEditUnlocked && (
+                                <FormField
+                                  control={form.control}
+                                  name='base_url'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel
+                                        className='cursor-pointer select-none'
+                                        onClick={handleApiConfigSecretClick}
                                       >
-                                        <SelectGroup>
-                                          <SelectItem value='https://ark.cn-beijing.volces.com'>
-                                            {t(
+                                        {t('API Base URL *')}
+                                      </FormLabel>
+                                      <Select
+                                        items={[
+                                          {
+                                            value:
+                                              'https://ark.cn-beijing.volces.com',
+                                            label: t(
                                               'https://ark.cn-beijing.volces.com'
-                                            )}
-                                          </SelectItem>
-                                          <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
-                                            {t(
+                                            ),
+                                          },
+                                          {
+                                            value:
+                                              'https://ark.ap-southeast.bytepluses.com',
+                                            label: t(
                                               'https://ark.ap-southeast.bytepluses.com'
-                                            )}
-                                          </SelectItem>
-                                        </SelectGroup>
-                                      </SelectContent>
-                                    </Select>
-                                    <FormDescription>
-                                      {t('Select the API endpoint region')}
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            )}
+                                            ),
+                                          },
+                                        ]}
+                                        onValueChange={field.onChange}
+                                        value={
+                                          field.value === 'doubao-coding-plan'
+                                            ? 'https://ark.cn-beijing.volces.com'
+                                            : field.value ||
+                                              'https://ark.cn-beijing.volces.com'
+                                        }
+                                      >
+                                        <FormControl>
+                                          <SelectTrigger>
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent
+                                          alignItemWithTrigger={false}
+                                        >
+                                          <SelectGroup>
+                                            <SelectItem value='https://ark.cn-beijing.volces.com'>
+                                              {t(
+                                                'https://ark.cn-beijing.volces.com'
+                                              )}
+                                            </SelectItem>
+                                            <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
+                                              {t(
+                                                'https://ark.ap-southeast.bytepluses.com'
+                                              )}
+                                            </SelectItem>
+                                          </SelectGroup>
+                                        </SelectContent>
+                                      </Select>
+                                      <FormDescription>
+                                        {t('Select the API endpoint region')}
+                                      </FormDescription>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
 
-                            {/* VolcEngine (type 45) - Custom API URL (unlocked) */}
-                            {currentType === 45 && doubaoApiEditUnlocked && (
+                            {/* VolcEngine / DoubaoVideoMediaKit custom Ark URL */}
+                            {isVolcengineFamilyType &&
+                              doubaoApiEditUnlocked && (
+                                <FormField
+                                  control={form.control}
+                                  name='base_url'
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>
+                                        {t('API Base URL *')}
+                                      </FormLabel>
+                                      <FormControl>
+                                        <Input
+                                          placeholder={t(
+                                            'e.g., https://ark.cn-beijing.volces.com'
+                                          )}
+                                          {...field}
+                                        />
+                                      </FormControl>
+                                      <FormDescription>
+                                        {t('Enter custom API endpoint URL')}
+                                      </FormDescription>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+
+                            {currentType ===
+                              CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT && (
                               <FormField
                                 control={form.control}
-                                name='base_url'
+                                name='mediakit_base_url'
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel>{t('API Base URL *')}</FormLabel>
+                                    <FormLabel>
+                                      {t('MediaKit Base URL')}
+                                    </FormLabel>
                                     <FormControl>
                                       <Input
-                                        placeholder={t(
-                                          'e.g., https://ark.cn-beijing.volces.com'
-                                        )}
+                                        placeholder={DEFAULT_MEDIAKIT_BASE_URL}
                                         {...field}
                                       />
                                     </FormControl>
                                     <FormDescription>
-                                      {t('Enter custom API endpoint URL')}
+                                      {t(
+                                        'MediaKit enhancement endpoint. Leave the default unless your region differs.'
+                                      )}
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>
@@ -2773,7 +2881,14 @@ export function ChannelMutateDrawer({
                             )}
 
                             {/* General base_url for other types */}
-                            {![3, 8, 22, 36, 45].includes(currentType) && (
+                            {![
+                              3,
+                              8,
+                              22,
+                              36,
+                              45,
+                              CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT,
+                            ].includes(currentType) && (
                               <FormField
                                 control={form.control}
                                 name='base_url'
@@ -2872,7 +2987,7 @@ export function ChannelMutateDrawer({
                             )}
 
                             <ChannelAuthSection>
-                              {!isEditing && (
+                              {!isEditing && supportsMultiKeyAddMode && (
                                 <FormField
                                   control={form.control}
                                   name='multi_key_mode'
@@ -2918,170 +3033,291 @@ export function ChannelMutateDrawer({
                                 />
                               )}
 
-                              <FormField
-                                control={form.control}
-                                name='key'
-                                render={({ field }) => {
-                                  let keyPlaceholder = t(
-                                    getKeyPromptForType(currentType)
-                                  )
-                                  if (isEditing) {
-                                    keyPlaceholder = t(
-                                      'Leave empty to keep existing key'
+                              {currentType !==
+                                CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT && (
+                                <FormField
+                                  control={form.control}
+                                  name='key'
+                                  render={({ field }) => {
+                                    let keyPlaceholder = t(
+                                      getKeyPromptForType(currentType)
                                     )
-                                  } else if (
-                                    currentType === 33 &&
-                                    awsKeyType === 'api_key' &&
-                                    isBatchMode
-                                  ) {
-                                    keyPlaceholder = t(
-                                      'Enter API Key, one per line, format: APIKey|Region'
-                                    )
-                                  } else if (
-                                    currentType === 33 &&
-                                    awsKeyType === 'api_key'
-                                  ) {
-                                    keyPlaceholder = t(
-                                      'Enter API Key, format: APIKey|Region'
-                                    )
-                                  } else if (
-                                    currentType === 33 &&
-                                    isBatchMode
-                                  ) {
-                                    keyPlaceholder = t(
-                                      'Enter key, one per line, format: AccessKey|SecretAccessKey|Region'
-                                    )
-                                  } else if (currentType === 33) {
-                                    keyPlaceholder = t(
-                                      'Enter key, format: AccessKey|SecretAccessKey|Region'
-                                    )
-                                  } else if (isBatchMode) {
-                                    keyPlaceholder = t(
-                                      'Enter one key per line for batch creation'
-                                    )
-                                  }
-
-                                  let keyDescription: ReactNode = t(
-                                    FIELD_DESCRIPTIONS.KEY
-                                  )
-                                  if (isEditing) {
-                                    let keyModeDescription = t(
-                                      'Append mode: New keys will be added to the end of the existing key list'
-                                    )
-                                    if (keyMode === 'replace') {
-                                      keyModeDescription = t(
-                                        'Replace mode: Will completely replace all existing keys'
+                                    if (isEditing) {
+                                      keyPlaceholder = t(
+                                        'Leave empty to keep existing key'
+                                      )
+                                    } else if (
+                                      currentType === 33 &&
+                                      awsKeyType === 'api_key' &&
+                                      isBatchMode
+                                    ) {
+                                      keyPlaceholder = t(
+                                        'Enter API Key, one per line, format: APIKey|Region'
+                                      )
+                                    } else if (
+                                      currentType === 33 &&
+                                      awsKeyType === 'api_key'
+                                    ) {
+                                      keyPlaceholder = t(
+                                        'Enter API Key, format: APIKey|Region'
+                                      )
+                                    } else if (
+                                      currentType === 33 &&
+                                      isBatchMode
+                                    ) {
+                                      keyPlaceholder = t(
+                                        'Enter key, one per line, format: AccessKey|SecretAccessKey|Region'
+                                      )
+                                    } else if (currentType === 33) {
+                                      keyPlaceholder = t(
+                                        'Enter key, format: AccessKey|SecretAccessKey|Region'
+                                      )
+                                    } else if (isBatchMode) {
+                                      keyPlaceholder = t(
+                                        'Enter one key per line for batch creation'
                                       )
                                     }
-                                    keyDescription = (
-                                      <>
-                                        {t(
-                                          'Enter new key to update, or leave empty to keep current key'
-                                        )}
-                                        {isMultiKeyChannel && (
-                                          <span className='text-warning mt-1 block'>
-                                            {keyModeDescription}
-                                          </span>
-                                        )}
-                                      </>
+
+                                    let keyDescription: ReactNode = t(
+                                      FIELD_DESCRIPTIONS.KEY
                                     )
-                                  } else if (isBatchMode) {
-                                    keyDescription = t(
-                                      'Enter one API key per line for batch creation'
-                                    )
-                                  }
-                                  return (
-                                    <FormItem>
-                                      <FormLabel>{t('API Key *')}</FormLabel>
-                                      <FormControl>
-                                        <Textarea
-                                          placeholder={keyPlaceholder}
-                                          rows={isBatchMode ? 8 : 4}
-                                          {...field}
-                                        />
-                                      </FormControl>
-                                      <FormDescription>
-                                        <div className='flex flex-col gap-2'>
-                                          <span>{keyDescription}</span>
-                                          {isBatchMode && (
-                                            <Button
-                                              type='button'
-                                              variant='outline'
-                                              size='sm'
-                                              onClick={handleDeduplicateKeys}
-                                              className='w-fit'
-                                            >
-                                              <Trash2 className='mr-2 h-4 w-4' />
-                                              {t('Remove Duplicates')}
-                                            </Button>
+                                    if (isEditing) {
+                                      let keyModeDescription = t(
+                                        'Append mode: New keys will be added to the end of the existing key list'
+                                      )
+                                      if (keyMode === 'replace') {
+                                        keyModeDescription = t(
+                                          'Replace mode: Will completely replace all existing keys'
+                                        )
+                                      }
+                                      keyDescription = (
+                                        <>
+                                          {t(
+                                            'Enter new key to update, or leave empty to keep current key'
                                           )}
-                                        </div>
-                                      </FormDescription>
-                                      {isEditing && canRevealChannelKey && (
-                                        <div className='border-border/60 mt-4 flex flex-col gap-3 border-y border-dashed py-4'>
-                                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                                            <div>
-                                              <p className='text-sm font-medium'>
-                                                {t('Current key')}
-                                              </p>
-                                              <p className='text-muted-foreground text-xs'>
-                                                {t(
-                                                  'Verification required to reveal the saved key.'
-                                                )}
-                                              </p>
-                                            </div>
-                                            <div className='flex items-center gap-2'>
+                                          {isMultiKeyChannel && (
+                                            <span className='text-warning mt-1 block'>
+                                              {keyModeDescription}
+                                            </span>
+                                          )}
+                                        </>
+                                      )
+                                    } else if (isBatchMode) {
+                                      keyDescription = t(
+                                        'Enter one API key per line for batch creation'
+                                      )
+                                    }
+                                    return (
+                                      <FormItem>
+                                        <FormLabel>{t('API Key *')}</FormLabel>
+                                        <FormControl>
+                                          <Textarea
+                                            placeholder={keyPlaceholder}
+                                            rows={isBatchMode ? 8 : 4}
+                                            {...field}
+                                          />
+                                        </FormControl>
+                                        <FormDescription>
+                                          <div className='flex flex-col gap-2'>
+                                            <span>{keyDescription}</span>
+                                            {isBatchMode && (
                                               <Button
                                                 type='button'
                                                 variant='outline'
                                                 size='sm'
-                                                onClick={handleRevealKey}
-                                                disabled={
-                                                  isChannelKeyLoading ||
-                                                  verificationState.loading
-                                                }
+                                                onClick={handleDeduplicateKeys}
+                                                className='w-fit'
                                               >
-                                                {isChannelKeyLoading ||
-                                                verificationState.loading ? (
-                                                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                                                ) : (
-                                                  <Eye className='mr-2 h-4 w-4' />
-                                                )}
-                                                {t('Reveal key')}
+                                                <Trash2 className='mr-2 h-4 w-4' />
+                                                {t('Remove Duplicates')}
                                               </Button>
-                                              <Button
-                                                type='button'
-                                                variant='ghost'
-                                                size='sm'
-                                                onClick={async () => {
-                                                  if (channelKey) {
-                                                    await copyToClipboard(
-                                                      channelKey
-                                                    )
-                                                  }
-                                                }}
-                                                disabled={!channelKey}
-                                              >
-                                                <Copy className='mr-2 h-4 w-4' />
-                                                {t('Copy')}
-                                              </Button>
-                                            </div>
-                                          </div>
-                                          <Input
-                                            readOnly
-                                            value={channelKey ?? ''}
-                                            placeholder={t(
-                                              'Hidden — verify to reveal'
                                             )}
-                                            className='font-mono'
+                                          </div>
+                                        </FormDescription>
+                                        {isEditing && canRevealChannelKey && (
+                                          <div className='border-border/60 mt-4 flex flex-col gap-3 border-y border-dashed py-4'>
+                                            <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                                              <div>
+                                                <p className='text-sm font-medium'>
+                                                  {t('Current key')}
+                                                </p>
+                                                <p className='text-muted-foreground text-xs'>
+                                                  {t(
+                                                    'Verification required to reveal the saved key.'
+                                                  )}
+                                                </p>
+                                              </div>
+                                              <div className='flex items-center gap-2'>
+                                                <Button
+                                                  type='button'
+                                                  variant='outline'
+                                                  size='sm'
+                                                  onClick={handleRevealKey}
+                                                  disabled={
+                                                    isChannelKeyLoading ||
+                                                    verificationState.loading
+                                                  }
+                                                >
+                                                  {isChannelKeyLoading ||
+                                                  verificationState.loading ? (
+                                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                                  ) : (
+                                                    <Eye className='mr-2 h-4 w-4' />
+                                                  )}
+                                                  {t('Reveal key')}
+                                                </Button>
+                                                <Button
+                                                  type='button'
+                                                  variant='ghost'
+                                                  size='sm'
+                                                  onClick={async () => {
+                                                    if (channelKey) {
+                                                      await copyToClipboard(
+                                                        channelKey
+                                                      )
+                                                    }
+                                                  }}
+                                                  disabled={!channelKey}
+                                                >
+                                                  <Copy className='mr-2 h-4 w-4' />
+                                                  {t('Copy')}
+                                                </Button>
+                                              </div>
+                                            </div>
+                                            <Input
+                                              readOnly
+                                              value={channelKey ?? ''}
+                                              placeholder={t(
+                                                'Hidden — verify to reveal'
+                                              )}
+                                              className='font-mono'
+                                            />
+                                          </div>
+                                        )}
+                                        <FormMessage />
+                                      </FormItem>
+                                    )
+                                  }}
+                                />
+                              )}
+
+                              {currentType ===
+                                CHANNEL_TYPE_DOUBAO_VIDEO_MEDIAKIT && (
+                                <div className='space-y-4'>
+                                  <FormField
+                                    control={form.control}
+                                    name='ark_api_key'
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>
+                                          {t('Ark API Key')}
+                                          {isEditing ? '' : ' *'}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='password'
+                                            autoComplete='off'
+                                            placeholder={
+                                              isEditing
+                                                ? t(
+                                                    'Leave empty to keep existing key'
+                                                  )
+                                                : t('Enter Ark API Key')
+                                            }
+                                            {...field}
                                           />
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  <FormField
+                                    control={form.control}
+                                    name='mediakit_api_key'
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormLabel>
+                                          {t('MediaKit API Key')}
+                                          {isEditing ? '' : ' *'}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='password'
+                                            autoComplete='off'
+                                            placeholder={
+                                              isEditing
+                                                ? t(
+                                                    'Leave empty to keep existing key'
+                                                  )
+                                                : t('Enter MediaKit API Key')
+                                            }
+                                            {...field}
+                                          />
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  {isEditing && canRevealChannelKey && (
+                                    <div className='border-border/60 mt-2 flex flex-col gap-3 border-y border-dashed py-4'>
+                                      <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                                        <div>
+                                          <p className='text-sm font-medium'>
+                                            {t('Current key')}
+                                          </p>
+                                          <p className='text-muted-foreground text-xs'>
+                                            {t(
+                                              'Verification required to reveal the saved key.'
+                                            )}
+                                          </p>
                                         </div>
-                                      )}
-                                      <FormMessage />
-                                    </FormItem>
-                                  )
-                                }}
-                              />
+                                        <Button
+                                          type='button'
+                                          variant='outline'
+                                          size='sm'
+                                          onClick={handleRevealKey}
+                                          disabled={
+                                            isChannelKeyLoading ||
+                                            verificationState.loading
+                                          }
+                                        >
+                                          {isChannelKeyLoading ||
+                                          verificationState.loading ? (
+                                            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                          ) : (
+                                            <Eye className='mr-2 h-4 w-4' />
+                                          )}
+                                          {t('Reveal key')}
+                                        </Button>
+                                      </div>
+                                      <Input
+                                        readOnly
+                                        value={
+                                          parseMediaKitKey(channelKey)
+                                            ?.ark_api_key ?? ''
+                                        }
+                                        placeholder={t(
+                                          'Hidden — verify to reveal'
+                                        )}
+                                        className='font-mono'
+                                        aria-label={t('Ark API Key')}
+                                      />
+                                      <Input
+                                        readOnly
+                                        value={
+                                          parseMediaKitKey(channelKey)
+                                            ?.mediakit_api_key ?? ''
+                                        }
+                                        placeholder={t(
+                                          'Hidden — verify to reveal'
+                                        )}
+                                        className='font-mono'
+                                        aria-label={t('MediaKit API Key')}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
 
                               {currentType === 57 && (
                                 <div className='border-border/60 flex flex-col gap-3 border-y py-4'>

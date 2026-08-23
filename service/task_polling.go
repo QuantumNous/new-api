@@ -412,9 +412,12 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	}
 	info := &relaycommon.RelayInfo{}
 	info.ChannelMeta = &relaycommon.ChannelMeta{
-		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
+		ChannelType:          cacheGetChannel.Type,
+		ChannelId:            cacheGetChannel.Id,
+		ChannelBaseUrl:       cacheGetChannel.GetBaseURL(),
+		ApiKey:               cacheGetChannel.Key,
+		ChannelOtherSettings: cacheGetChannel.GetOtherSettings(),
 	}
-	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
 	disablePollingSleep := cacheGetChannel.GetOtherSettings().DisableTaskPollingSleep
 	for i, taskId := range taskIds {
@@ -493,6 +496,11 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	task.Data = redactVideoResponseBody(responseBody)
+	if taskResult.TaskID != "" && taskResult.TaskID != task.TaskID && taskResult.TaskID != task.GetUpstreamTaskID() {
+		// Multi-stage adaptors can atomically move polling to the next upstream
+		// task without changing the stable, user-facing task ID.
+		task.PrivateData.UpstreamTaskID = taskResult.TaskID
+	}
 
 	logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
 

@@ -109,6 +109,7 @@ export interface ChannelOtherSettings {
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
   advanced_custom?: AdvancedCustomConfig
+  mediakit_base_url?: string
 }
 
 export interface AdvancedCustomConfig {

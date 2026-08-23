@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -89,26 +90,64 @@ func init() {
 			OwnedBy: "midjourney",
 		})
 	}
+	for i := 1; i < constant.ChannelTypeDummy; i++ {
+		taskAdaptor := relay.GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(i)))
+		if taskAdaptor == nil {
+			continue
+		}
+		channelName := taskAdaptor.GetChannelName()
+		for _, modelName := range taskAdaptor.GetModelList() {
+			openAIModels = append(openAIModels, dto.OpenAIModels{
+				Id:      modelName,
+				Object:  "model",
+				Created: 1626777600,
+				OwnedBy: channelName,
+			})
+		}
+	}
 	openAIModelsMap = make(map[string]dto.OpenAIModels)
 	for _, aiModel := range openAIModels {
 		openAIModelsMap[aiModel.Id] = aiModel
 	}
 	channelId2Models = make(map[int][]string)
-	for i := 1; i <= constant.ChannelTypeDummy; i++ {
+	for i := 1; i < constant.ChannelTypeDummy; i++ {
+		var models []string
 		apiType, success := common.ChannelType2APIType(i)
-		if !success || apiType == constant.APITypeAIProxyLibrary {
-			continue
+		if success && apiType != constant.APITypeAIProxyLibrary {
+			meta := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelType: i,
+			}}
+			adaptor := relay.GetAdaptor(apiType)
+			if adaptor != nil {
+				adaptor.Init(meta)
+				models = appendUniqueStrings(models, adaptor.GetModelList()...)
+			}
 		}
-		meta := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType: i,
-		}}
-		adaptor := relay.GetAdaptor(apiType)
-		adaptor.Init(meta)
-		channelId2Models[i] = adaptor.GetModelList()
+		if taskAdaptor := relay.GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(i))); taskAdaptor != nil {
+			models = appendUniqueStrings(models, taskAdaptor.GetModelList()...)
+		}
+		if len(models) > 0 {
+			channelId2Models[i] = models
+		}
 	}
 	openAIModels = lo.UniqBy(openAIModels, func(m dto.OpenAIModels) string {
 		return m.Id
 	})
+}
+
+func appendUniqueStrings(dst []string, values ...string) []string {
+	seen := make(map[string]struct{}, len(dst)+len(values))
+	for _, value := range dst {
+		seen[value] = struct{}{}
+	}
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		dst = append(dst, value)
+	}
+	return dst
 }
 
 func channelOwnerName(channelType int) string {
