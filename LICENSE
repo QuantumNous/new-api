@@ -629,7 +629,7 @@ to attach them to the start of each source file to most effectively
 state the exclusion of warranty; and each file should have at least
 the "copyright" line and a pointer to where the full notice is found.
 
-    <one line to give the program's name and a brief idea of what it does.>
+    shuanghua-api - 对于new-api的二次修改项目
     Copyright (C) 2026 烨染霜华
 
     This program is free software: you can redistribute it and/or modify
