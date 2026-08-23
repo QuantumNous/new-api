@@ -292,6 +292,31 @@ func TestStreamScannerHandler_PriorPingDoesNotUnlockUpstreamComment(t *testing.T
 		"a periodic ping must not make an upstream comment look like post-data traffic")
 	assert.NotContains(t, recorder.Body.String(), "upstream-private-heartbeat")
 	assert.Equal(t, 0, info.ReceivedResponseCount)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
+func TestStreamScannerHandler_HeaderOnlyFlushDoesNotUnlockUpstreamComment(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	body := "data: first\n\n: upstream-private-heartbeat\n\ndata: [DONE]\n"
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader(body))}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = FlushWriter(c)
+	})
+
+	assert.NotContains(t, recorder.Body.String(), ": PING\n\n",
+		"a header-only flush must not count as a downstream data frame")
+	assert.Equal(t, 1, info.ReceivedResponseCount)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 }
 
 func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {

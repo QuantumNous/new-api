@@ -247,7 +247,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				ExtendWriteDeadline(c)
 				writtenBefore := c.Writer.Size()
 				dataHandler(event.data, sr)
-				downstreamDataWritten = downstreamDataWritten || c.Writer.Size() > writtenBefore
+				writtenAfter := c.Writer.Size()
+				downstreamDataWritten = downstreamDataWritten ||
+					(writtenAfter > 0 && writtenAfter > writtenBefore)
 			}()
 			if sr.IsStopped() {
 				return
