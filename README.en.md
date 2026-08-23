@@ -122,6 +122,10 @@ docker compose up -d
 
 Fork Docker image: `yeranshuanghua/shuanghua-api:latest`
 
+This compose file waits for PostgreSQL and Redis to become healthy before starting the app. Use Docker Compose v2 (`docker compose`, not the legacy `docker-compose`). Check logs with `docker compose logs -f new-api`.
+
+If pulling `yeranshuanghua/shuanghua-api:latest` is slow or fails (common when Docker Hub is rate-limited or uncached), configure a registry mirror and run `docker compose pull && docker compose up -d`. You do **not** need to deploy QuantumNous/new-api first.
+
 ### Using Docker Compose (Recommended)
 
 ```bash

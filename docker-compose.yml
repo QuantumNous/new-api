@@ -1,24 +1,26 @@
-# New-API Docker Compose Configuration
-# 
+# Shuanghua-API Docker Compose Configuration
+#
 # Quick Start:
-#   1. docker-compose up -d
+#   1. docker compose up -d
 #   2. Access at http://localhost:3000
 #
 # Using MySQL instead of PostgreSQL:
-#   1. Comment out the postgres service and SQL_DSN line 15
-#   2. Uncomment the mysql service and SQL_DSN line 16
-#   3. Uncomment mysql in depends_on (line 28)
-#   4. Uncomment mysql_data in volumes section (line 64)
+#   1. Comment out the postgres service and the PostgreSQL SQL_DSN
+#   2. Uncomment the mysql service and the MySQL SQL_DSN
+#   3. Uncomment mysql in depends_on
+#   4. Uncomment mysql_data in the volumes section
 #
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
-
-version: '3.4' # For compatibility with older Docker versions
+#
+# Requires Docker Compose v2 (`docker compose`). The app container waits until
+# PostgreSQL and Redis report healthy, so a fresh clone does not race initdb.
 
 services:
   new-api:
     image: yeranshuanghua/shuanghua-api:latest
     container_name: new-api
     restart: always
+    init: true
     command: --log-dir /app/logs
     ports:
       - "3000:3000"
@@ -53,25 +55,35 @@ services:
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
 
     depends_on:
-      - redis
-      - postgres
-#      - mysql  # Uncomment if using MySQL
-#      - clickhouse  # Uncomment if using ClickHouse for LOG_SQL_DSN
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+#      mysql:
+#        condition: service_healthy  # Uncomment if using MySQL
+#      clickhouse:
+#        condition: service_healthy  # Uncomment if using ClickHouse for LOG_SQL_DSN
     networks:
       - new-api-network
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      retries: 3
+      retries: 8
+      start_period: 90s
 
   redis:
-    image: redis:latest
+    image: redis:7-alpine
     container_name: redis
     restart: always
     command: ["redis-server", "--requirepass", "123456"]  # ⚠️ IMPORTANT: Change this password in production!
     networks:
       - new-api-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   postgres:
     image: postgres:15
@@ -85,6 +97,12 @@ services:
       - pg_data:/var/lib/postgresql/data
     networks:
       - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 #    ports:
 #      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
 
@@ -99,6 +117,12 @@ services:
 #      - mysql_data:/var/lib/mysql
 #    networks:
 #      - new-api-network
+#    healthcheck:
+#      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p123456"]
+#      interval: 5s
+#      timeout: 5s
+#      retries: 20
+#      start_period: 30s
 #    ports:
 #      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
 
@@ -115,6 +139,12 @@ services:
 #      - clickhouse_data:/var/lib/clickhouse
 #    networks:
 #      - new-api-network
+#    healthcheck:
+#      test: ["CMD", "clickhouse-client", "--password", "123456", "-q", "SELECT 1"]
+#      interval: 10s
+#      timeout: 5s
+#      retries: 20
+#      start_period: 30s
 #    ports:
 #      - "8123:8123"  # HTTP interface, uncomment if you need external access
 #      - "9000:9000"  # Native interface used by the LOG_SQL_DSN example above

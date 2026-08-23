@@ -121,6 +121,10 @@ docker compose up -d
 
 Fork Docker イメージ: `yeranshuanghua/shuanghua-api:latest`
 
+この compose は PostgreSQL / Redis が healthy になってからアプリを起動します。Docker Compose v2（`docker compose`。旧 `docker-compose` ではありません）を使ってください。ログ確認: `docker compose logs -f new-api`。
+
+`yeranshuanghua/shuanghua-api:latest` の pull が遅い・失敗する場合（Docker Hub 未キャッシュやレート制限でよく起きます）は、レジストリミラーを設定してから `docker compose pull && docker compose up -d` を実行してください。公式 QuantumNous/new-api を先にデプロイする必要は**ありません**。
+
 ### Docker Composeを使用（推奨）
 
 ```bash

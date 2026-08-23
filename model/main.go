@@ -169,44 +169,47 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 }
 
 func InitDB() (err error) {
-	db, dbType, err := chooseDB("SQL_DSN", false)
-	if err == nil {
-		common.SetMainDatabaseType(dbType)
-		if os.Getenv("LOG_SQL_DSN") == "" {
-			common.SetLogDatabaseType(dbType)
-		}
-		initCol()
-		if common.DebugEnabled {
-			db = db.Debug()
-		}
-		DB = db
-		// MySQL charset/collation startup check: ensure Chinese-capable charset
-		if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
-			if err := checkMySQLChineseSupport(DB); err != nil {
-				panic(err)
-			}
-		}
-		sqlDB, err := DB.DB()
-		if err != nil {
-			return err
-		}
-		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
-		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
-
-		if !common.IsMasterNode {
-			return nil
-		}
-		if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
-			//_, _ = sqlDB.Exec("ALTER TABLE channels MODIFY model_mapping TEXT;") // TODO: delete this line when most users have upgraded
-		}
-		common.SysLog("database migration started")
-		err = migrateDB()
+	var db *gorm.DB
+	var dbType common.DatabaseType
+	err = common.RetryTransient("database", func() error {
+		var openErr error
+		db, dbType, openErr = chooseDB("SQL_DSN", false)
+		return openErr
+	})
+	if err != nil {
 		return err
-	} else {
-		common.FatalLog(err)
 	}
-	return err
+	common.SetMainDatabaseType(dbType)
+	if os.Getenv("LOG_SQL_DSN") == "" {
+		common.SetLogDatabaseType(dbType)
+	}
+	initCol()
+	if common.DebugEnabled {
+		db = db.Debug()
+	}
+	DB = db
+	// MySQL charset/collation startup check: ensure Chinese-capable charset
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+		if err := checkMySQLChineseSupport(DB); err != nil {
+			panic(err)
+		}
+	}
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return err
+	}
+	sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
+	sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
+	sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+
+	if !common.IsMasterNode {
+		return nil
+	}
+	if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+		//_, _ = sqlDB.Exec("ALTER TABLE channels MODIFY model_mapping TEXT;") // TODO: delete this line when most users have upgraded
+	}
+	common.SysLog("database migration started")
+	return migrateDB()
 }
 
 func InitLogDB() (err error) {
@@ -216,38 +219,41 @@ func InitLogDB() (err error) {
 		initCol()
 		return
 	}
-	db, dbType, err := chooseDB("LOG_SQL_DSN", true)
-	if err == nil {
-		common.SetLogDatabaseType(dbType)
-		initCol()
-		if common.DebugEnabled {
-			db = db.Debug()
-		}
-		LOG_DB = db
-		// If log DB is MySQL, also ensure Chinese-capable charset
-		if common.UsingLogDatabase(common.DatabaseTypeMySQL) {
-			if err := checkMySQLChineseSupport(LOG_DB); err != nil {
-				panic(err)
-			}
-		}
-		sqlDB, err := LOG_DB.DB()
-		if err != nil {
-			return err
-		}
-		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
-		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
-
-		if !common.IsMasterNode {
-			return nil
-		}
-		common.SysLog("database migration started")
-		err = migrateLOGDB()
+	var db *gorm.DB
+	var dbType common.DatabaseType
+	err = common.RetryTransient("log database", func() error {
+		var openErr error
+		db, dbType, openErr = chooseDB("LOG_SQL_DSN", true)
+		return openErr
+	})
+	if err != nil {
 		return err
-	} else {
-		common.FatalLog(err)
 	}
-	return err
+	common.SetLogDatabaseType(dbType)
+	initCol()
+	if common.DebugEnabled {
+		db = db.Debug()
+	}
+	LOG_DB = db
+	// If log DB is MySQL, also ensure Chinese-capable charset
+	if common.UsingLogDatabase(common.DatabaseTypeMySQL) {
+		if err := checkMySQLChineseSupport(LOG_DB); err != nil {
+			panic(err)
+		}
+	}
+	sqlDB, err := LOG_DB.DB()
+	if err != nil {
+		return err
+	}
+	sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
+	sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
+	sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+
+	if !common.IsMasterNode {
+		return nil
+	}
+	common.SysLog("database migration started")
+	return migrateLOGDB()
 }
 
 func migrateDB() error {

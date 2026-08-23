@@ -120,6 +120,10 @@ docker compose up -d
 
 目前 Fork Docker 鏡像：`yeranshuanghua/shuanghua-api:latest`
 
+此 compose 會等 PostgreSQL / Redis 健康後再啟動主服務。請使用 Docker Compose v2（`docker compose`，不是舊版 `docker-compose`）。查看日誌：`docker compose logs -f new-api`。
+
+若拉取 `yeranshuanghua/shuanghua-api:latest` 很慢或失敗（Docker Hub 未快取/限流時很常見），請設定鏡像加速後執行 `docker compose pull && docker compose up -d`。**不必**先部署官方 QuantumNous/new-api。
+
 ### 使用 Docker Compose（推薦）
 
 ```bash
