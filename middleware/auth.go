@@ -219,8 +219,10 @@ func writeDashboardAuthError(c *gin.Context, err error) {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_UNAUTHORIZED", "message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid)})
 		return
 	}
-	common.SysLog("dashboard authentication error: " + err.Error())
-	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"success": false, "code": "AUTH_INTERNAL_ERROR", "message": common.TranslateMessage(c, i18n.MsgDatabaseError)})
+	// 未识别的认证错误（含数据库 / Redis 连接异常、Session 缓存损坏等）统一降级为
+	// 401 并要求用户重新登录，避免前端渲染 500 错误页；底层错误已 SysLog 记录便于排查。
+	common.SysLog("dashboard authentication error (downgraded to 401): " + err.Error())
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_SESSION_REVOKED", "message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn)})
 }
 
 func RequirePermission(permission authz.Permission) func(c *gin.Context) {
@@ -302,10 +304,13 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 					"message": common.TranslateMessage(c, i18n.MsgTokenInvalid),
 				})
 			} else {
+				// Database/cache errors during token auth: downgrade to 401
+				// so the client re-authenticates instead of rendering a 500 page.
 				common.SysLog("TokenAuthReadOnly GetTokenByKey database error: " + err.Error())
-				c.JSON(http.StatusInternalServerError, gin.H{
+				c.JSON(http.StatusUnauthorized, gin.H{
 					"success": false,
-					"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
+					"code":    "AUTH_UNAUTHORIZED",
+					"message": common.TranslateMessage(c, i18n.MsgTokenInvalid),
 				})
 			}
 			c.Abort()
@@ -325,10 +330,12 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
+			// DB/cache error: downgrade to 401 rather than a 500 page.
 			common.SysLog(fmt.Sprintf("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
-			c.JSON(http.StatusInternalServerError, gin.H{
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
+				"code":    "AUTH_UNAUTHORIZED",
+				"message": common.TranslateMessage(c, i18n.MsgTokenInvalid),
 			})
 			c.Abort()
 			return

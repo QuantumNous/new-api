@@ -171,6 +171,9 @@ func writeAuthSessionError(c *gin.Context, err error) {
 		// code; without this log the underlying Redis/database/session
 		// failure is indistinguishable from the client side.
 		logger.LogError(c.Request.Context(), fmt.Sprintf("auth session internal error (%s %s): %v", c.Request.Method, c.Request.URL.Path, err))
+		// Downgrade to 401 so the frontend shows a re-login prompt instead
+		// of the generic 500 error page; the real error is logged server-side.
+		status, code = http.StatusUnauthorized, "AUTH_SESSION_REVOKED"
 	}
 	c.JSON(status, gin.H{"success": false, "code": code, "message": http.StatusText(status)})
 }
