@@ -213,15 +213,16 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			wg.Done()
 		}()
 		sr := newStreamResult(info.StreamStatus)
+		downstreamDataWritten := false
 		for event := range streamChan {
 			if event.heartbeat {
 				var err error
 				func() {
 					writeMutex.Lock()
 					defer writeMutex.Unlock()
-					// Keep the response uncommitted until a real downstream frame is written,
-					// so callers can still return or retry an upstream non-2xx response.
-					if !c.Writer.Written() {
+					// A generated ping may have committed the response already. Only a write
+					// from the data handler should unlock upstream heartbeat forwarding.
+					if !downstreamDataWritten {
 						return
 					}
 					ExtendWriteDeadline(c)
@@ -244,7 +245,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 				writeMutex.Lock()
 				defer writeMutex.Unlock()
 				ExtendWriteDeadline(c)
+				writtenBefore := c.Writer.Size()
 				dataHandler(event.data, sr)
+				downstreamDataWritten = downstreamDataWritten || c.Writer.Size() > writtenBefore
 			}()
 			if sr.IsStopped() {
 				return

@@ -270,6 +270,30 @@ func TestStreamScannerHandler_SkipsUpstreamCommentBeforeData(t *testing.T) {
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 }
 
+func TestStreamScannerHandler_PriorPingDoesNotUnlockUpstreamComment(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	require.NoError(t, PingData(c))
+	require.Equal(t, 1, strings.Count(recorder.Body.String(), ": PING\n\n"))
+
+	body := ": upstream-private-heartbeat\n\ndata: [DONE]\n"
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader(body))}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StringData(c, data)
+	})
+
+	assert.Equal(t, 1, strings.Count(recorder.Body.String(), ": PING\n\n"),
+		"a periodic ping must not make an upstream comment look like post-data traffic")
+	assert.NotContains(t, recorder.Body.String(), "upstream-private-heartbeat")
+	assert.Equal(t, 0, info.ReceivedResponseCount)
+}
+
 func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	t.Parallel()
 
