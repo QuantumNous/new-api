@@ -15,6 +15,18 @@ const (
 	RMB     = USD / USD2RMB
 )
 
+// usdPerMillion converts a USD list price per 1M tokens into the internal model ratio.
+// 1 ratio == $0.002 / 1K tokens == $2 / 1M tokens, so $1 / 1M tokens == 0.5.
+// The argument is float64 so expressions like `1 / 1000 * USD` cannot collapse to 0 via integer division.
+func usdPerMillion(usd float64) float64 {
+	return usd / 1000 * USD
+}
+
+// rmbPerMillion converts an RMB list price per 1M tokens into the internal model ratio.
+func rmbPerMillion(rmb float64) float64 {
+	return rmb / 1000 * RMB
+}
+
 // modelRatio
 // https://platform.openai.com/docs/models/model-endpoint-compatibility
 // https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Blfmc9dlf
@@ -222,15 +234,15 @@ var defaultModelRatio = map[string]float64{
 	"yi-34b-chat-0205":       0.18,
 	"yi-34b-chat-200k":       0.864,
 	"yi-vl-plus":             0.432,
-	"yi-large":               20.0 / 1000 * RMB,
-	"yi-medium":              2.5 / 1000 * RMB,
-	"yi-vision":              6.0 / 1000 * RMB,
-	"yi-medium-200k":         12.0 / 1000 * RMB,
-	"yi-spark":               1.0 / 1000 * RMB,
-	"yi-large-rag":           25.0 / 1000 * RMB,
-	"yi-large-turbo":         12.0 / 1000 * RMB,
-	"yi-large-preview":       20.0 / 1000 * RMB,
-	"yi-large-rag-preview":   25.0 / 1000 * RMB,
+	"yi-large":               rmbPerMillion(20),
+	"yi-medium":              rmbPerMillion(2.5),
+	"yi-vision":              rmbPerMillion(6),
+	"yi-medium-200k":         rmbPerMillion(12),
+	"yi-spark":               rmbPerMillion(1),
+	"yi-large-rag":           rmbPerMillion(25),
+	"yi-large-turbo":         rmbPerMillion(12),
+	"yi-large-preview":       rmbPerMillion(20),
+	"yi-large-rag-preview":   rmbPerMillion(25),
 	"command":                0.5,
 	"command-nightly":        0.5,
 	"command-light":          0.5,
@@ -243,10 +255,10 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
-	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
-	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
-	"llama-3-sonar-large-32k-chat":   1 / 1000 * USD,
-	"llama-3-sonar-large-32k-online": 1 / 1000 * USD,
+	"llama-3-sonar-small-32k-chat":   usdPerMillion(0.2),
+	"llama-3-sonar-small-32k-online": usdPerMillion(0.2),
+	"llama-3-sonar-large-32k-chat":   usdPerMillion(1),
+	"llama-3-sonar-large-32k-online": usdPerMillion(1),
 	// grok
 	"grok-3-beta":           1.5,
 	"grok-3-mini-beta":      0.15,
