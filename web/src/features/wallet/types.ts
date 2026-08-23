@@ -156,6 +156,15 @@ export interface TopupInfo {
   payment_compliance_confirmed?: boolean
   /** Current compliance terms version */
   payment_compliance_terms_version?: string
+  /** Invite recharge rebate rules shown to users */
+  invite_rebate?: InviteRebateInfo
+}
+
+export interface InviteRebateInfo {
+  /** Number of the invitee's first successful top-ups that generate a rebate */
+  times: number
+  /** Rebate percent of the amount actually paid, e.g. 15 means 15% */
+  percent: number
 }
 
 /**

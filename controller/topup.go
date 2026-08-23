@@ -120,6 +120,13 @@ func GetTopUpInfo(c *gin.Context) {
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":              common.TopUpLink,
+		"invite_rebate": func() gin.H {
+			times, percent := operation_setting.GetInviteRebateSetting().Normalized()
+			return gin.H{
+				"times":   times,
+				"percent": percent,
+			}
+		}(),
 	}
 	common.ApiSuccess(c, data)
 }

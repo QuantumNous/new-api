@@ -142,7 +142,9 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
-	case "QuotaForInviter", "QuotaForInvitee":
+	case "QuotaForInviter", "QuotaForInvitee",
+		operation_setting.InviteRebateTimesOptionKey,
+		operation_setting.InviteRebatePercentOptionKey:
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
 			return

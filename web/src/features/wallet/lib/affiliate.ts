@@ -27,3 +27,17 @@ export function generateAffiliateLink(affCode: string): string {
   if (typeof window === 'undefined') return ''
   return `${window.location.origin}/sign-up?aff=${affCode}`
 }
+
+export function isInviteRebateEnabled(
+  times: number | undefined,
+  percent: number | undefined
+): boolean {
+  return (times ?? 0) > 0 && (percent ?? 0) > 0
+}
+
+export function formatInviteRebatePercent(percent: number): string {
+  if (Number.isInteger(percent)) {
+    return String(percent)
+  }
+  return String(Number(percent.toFixed(4)))
+}

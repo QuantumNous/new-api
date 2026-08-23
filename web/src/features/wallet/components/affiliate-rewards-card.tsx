@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatQuota } from '@/lib/format'
 
+import { formatInviteRebatePercent, isInviteRebateEnabled } from '../lib'
 import type { UserWalletData } from '../types'
 
 interface AffiliateRewardsCardProps {
@@ -35,6 +36,8 @@ interface AffiliateRewardsCardProps {
   onTransfer: () => void
   complianceConfirmed?: boolean
   loading?: boolean
+  rebateTimes?: number
+  rebatePercent?: number
 }
 
 export function AffiliateRewardsCard({
@@ -43,8 +46,11 @@ export function AffiliateRewardsCard({
   onTransfer,
   complianceConfirmed = true,
   loading,
+  rebateTimes = 0,
+  rebatePercent = 0,
 }: AffiliateRewardsCardProps) {
   const { t } = useTranslation()
+  const rebateEnabled = isInviteRebateEnabled(rebateTimes, rebatePercent)
   if (loading) {
     return (
       <Card data-card-hover='false' className='bg-muted/20 py-0'>
@@ -73,10 +79,18 @@ export function AffiliateRewardsCard({
             <h3 className='truncate text-sm font-semibold'>
               {t('Referral Program')}
             </h3>
-            <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {t(
-                'Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.'
-              )}
+            <p className='text-muted-foreground line-clamp-2 text-xs'>
+              {rebateEnabled
+                ? t(
+                    'Earn {{percent}}% from the first {{times}} successful top-ups of each invited user, based on the amount actually paid after discounts. Rewards are credited directly to your balance.',
+                    {
+                      percent: formatInviteRebatePercent(rebatePercent),
+                      times: rebateTimes,
+                    }
+                  )
+                : t(
+                    'Earn rewards when users join through your referral link. Transfer accumulated rewards to your balance anytime.'
+                  )}
             </p>
           </div>
         </div>

@@ -55,6 +55,10 @@ const quotaSchema = z.object({
   PreConsumedQuota: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  invite_rebate_setting: z.object({
+    times: z.coerce.number().int().min(0).max(100),
+    percent: z.coerce.number().min(0).max(100),
+  }),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -115,7 +119,7 @@ export function QuotaSettingsSection({
         <Alert variant='destructive'>
           <AlertDescription>
             {t(
-              'Non-zero invitation rewards require compliance confirmation in Payment Gateway settings.'
+              'Non-zero invitation rewards and recharge rebates require compliance confirmation in Payment Gateway settings.'
             )}
           </AlertDescription>
         </Alert>
@@ -231,6 +235,64 @@ export function QuotaSettingsSection({
                     {t('Quota given to invited users ({{formattedQuota}})', {
                       formattedQuota: formatQuotaInputValue(field.value),
                     })}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='invite_rebate_setting.times'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Recharge Times')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Number of first successful top-ups from each invited user that generate a rebate. Only new invites are eligible. Set 0 to disable.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='invite_rebate_setting.percent'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Invite Recharge Percent')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Percent of the amount actually paid after discounts. Example: 100 at 10% off with 15% rebate credits 13.5 to the inviter. Set 0 to disable.'
+                    )}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

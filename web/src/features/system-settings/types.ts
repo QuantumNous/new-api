@@ -254,6 +254,8 @@ export type BillingSettings = {
   PreConsumedQuota: number
   QuotaForInviter: number
   QuotaForInvitee: number
+  'invite_rebate_setting.times': number
+  'invite_rebate_setting.percent': number
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean

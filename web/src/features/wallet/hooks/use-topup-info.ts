@@ -192,6 +192,10 @@ export function useTopupInfo() {
         waffo_pay_methods: parseWaffoPayMethods(
           response.data.waffo_pay_methods
         ),
+        invite_rebate: {
+          times: Number(response.data.invite_rebate?.times) || 0,
+          percent: Number(response.data.invite_rebate?.percent) || 0,
+        },
       }
 
       setTopupInfo(processedData)
