@@ -125,7 +125,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       } else {
         toast.error(response.message || t('Failed to update settings'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to update settings'))
     } finally {
       setLoading(false)
@@ -144,7 +144,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           onValueChange={(value) => {
             const nextValue = value.find((item) => item !== notifyType)
             if (nextValue)
-              updateField('notify_type', normalizeNotifyType(nextValue))
+              {updateField('notify_type', normalizeNotifyType(nextValue))}
           }}
           aria-label={t('Notification Method')}
           variant='outline'

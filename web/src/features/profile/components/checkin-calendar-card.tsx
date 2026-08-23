@@ -217,7 +217,15 @@ export function CheckinCalendarCard({
     return days
   }, [currentMonth])
 
-  const weekDays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+  const weekDays = [
+    t('Su'),
+    t('Mo'),
+    t('Tu'),
+    t('We'),
+    t('Th'),
+    t('Fr'),
+    t('Sa'),
+  ]
 
   if (!checkinEnabled) {
     return null
@@ -470,6 +478,16 @@ export function CheckinCalendarCard({
                   <ul className='list-disc space-y-1 pl-5'>
                     <li>
                       {t('Check in daily to receive random quota rewards')}
+                    </li>
+                    <li>
+                      {t('Daily reward range: {{min}} – {{max}}', {
+                        min: formatQuotaWithCurrency(
+                          checkinData?.min_quota || 0
+                        ),
+                        max: formatQuotaWithCurrency(
+                          checkinData?.max_quota || 0
+                        ),
+                      })}
                     </li>
                     <li>
                       {t('Rewards will be added directly to your balance')}

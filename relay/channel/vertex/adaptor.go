@@ -15,6 +15,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -185,13 +186,13 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 		}
 
-		if info.IsStream {
+		if info.IsStream && !gemini.IsImageAPIRelay(info) {
 			suffix = "streamGenerateContent?alt=sse"
 		} else {
 			suffix = "generateContent"
 		}
 
-		if strings.HasPrefix(info.UpstreamModelName, "imagen") {
+		if relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
 			suffix = "predict"
 		}
 		return a.getRequestUrl(info, info.UpstreamModelName, suffix)
@@ -234,7 +235,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if a.RequestMode == RequestModeGemini && strings.HasPrefix(info.UpstreamModelName, "imagen") {
+	if a.RequestMode == RequestModeGemini && relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
 		prompt := ""
 		for _, m := range request.Messages {
 			if m.Role == "user" {
@@ -359,8 +360,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			if info.RelayMode == constant.RelayModeGemini {
 				return gemini.GeminiTextGenerationHandler(c, info, resp)
 			} else {
-				if strings.HasPrefix(info.UpstreamModelName, "imagen") {
-					return gemini.GeminiImageHandler(c, info, resp)
+				if gemini.IsImageAPIRelay(info) {
+					return gemini.HandleGeminiImageAPIResponse(c, info, resp)
 				}
 				return gemini.GeminiChatHandler(c, info, resp)
 			}

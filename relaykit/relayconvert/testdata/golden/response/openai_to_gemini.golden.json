@@ -5,6 +5,10 @@
         "role": "model",
         "parts": [
           {
+            "text": "Deep thought.",
+            "thought": true
+          },
+          {
             "text": "The answer is 42."
           },
           {

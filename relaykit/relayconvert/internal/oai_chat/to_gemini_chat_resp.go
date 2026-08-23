@@ -54,6 +54,12 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta
 			Parts: make([]dto.GeminiPart, 0),
 		}
 
+		if reasoningText := choice.Message.GetReasoningContent(); reasoningText != "" {
+			content.Parts = append(content.Parts, dto.GeminiPart{
+				Text:    reasoningText,
+				Thought: true,
+			})
+		}
 		textContent := choice.Message.StringContent()
 		if textContent != "" {
 			part := dto.GeminiPart{
@@ -95,7 +101,9 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 	hasContent := false
 	hasFinishReason := false
 	for _, choice := range openAIResponse.Choices {
-		if len(choice.Delta.GetContentString()) > 0 || (choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0) {
+		if len(choice.Delta.GetContentString()) > 0 ||
+			choice.Delta.GetReasoningContent() != "" ||
+			len(choice.Delta.ToolCalls) > 0 {
 			hasContent = true
 		}
 		if choice.FinishReason != nil {
@@ -160,6 +168,13 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 		content := dto.GeminiChatContent{
 			Role:  "model",
 			Parts: make([]dto.GeminiPart, 0),
+		}
+
+		if reasoningText := choice.Delta.GetReasoningContent(); reasoningText != "" {
+			content.Parts = append(content.Parts, dto.GeminiPart{
+				Text:    reasoningText,
+				Thought: true,
+			})
 		}
 
 		// 处理工具调用

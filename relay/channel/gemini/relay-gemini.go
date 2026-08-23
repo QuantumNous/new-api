@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
@@ -431,6 +432,65 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 
 	service.IOCopyBytesGracefully(c, resp, jsonResponse)
+	return usage, nil
+}
+
+func IsImageAPIRelay(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.RelayFormat == types.RelayFormatOpenAIImage {
+		return true
+	}
+	switch info.RelayMode {
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		return true
+	default:
+		return false
+	}
+}
+
+func HandleGeminiImageAPIResponse(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
+		return GeminiImageHandler(c, info, resp)
+	}
+	return GeminiGenerateContentImageHandler(c, info, resp)
+}
+
+func GeminiGenerateContentImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, types.NewOpenAIError(readErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	_ = resp.Body.Close()
+
+	var geminiResponse dto.GeminiChatResponse
+	if jsonErr := common.Unmarshal(responseBody, &geminiResponse); jsonErr != nil {
+		return nil, types.NewOpenAIError(jsonErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	convertResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatOpenAIImage, &geminiResponse)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	imageResponse, ok := convertResult.Value.(*dto.ImageResponse)
+	if !ok {
+		return nil, types.NewOpenAIError(fmt.Errorf("expected OpenAI image response, got %T", convertResult.Value), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
+	jsonResponse, jsonErr := common.Marshal(imageResponse)
+	if jsonErr != nil {
+		return nil, types.NewError(jsonErr, types.ErrorCodeBadResponseBody)
+	}
+
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(resp.StatusCode)
+	_, _ = c.Writer.Write(jsonResponse)
+
+	usage := convertResult.Usage
+	if usage == nil {
+		usage = &dto.Usage{}
+	}
 	return usage, nil
 }
 

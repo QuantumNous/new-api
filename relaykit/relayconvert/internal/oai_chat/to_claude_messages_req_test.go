@@ -9,6 +9,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestOpenAIChatRequestToClaudeMessagesMapsEffortSuffixForAnyModel(t *testing.T) {
+	maxTokens := uint(1024)
+	got, err := OpenAIChatRequestToClaudeMessages(context.Background(), nil, dto.GeneralOpenAIRequest{
+		Model:     "claude-sonnet-4-5-high",
+		MaxTokens: &maxTokens,
+		Messages:  []dto.Message{{Role: "user", Content: "hi"}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "claude-sonnet-4-5", got.Model)
+	require.NotNil(t, got.Thinking)
+	assert.Equal(t, "adaptive", got.Thinking.Type)
+	assert.JSONEq(t, `{"effort":"high"}`, string(got.OutputConfig))
+}
+
+func TestOpenAIChatRequestToClaudeMessagesUsesThinkingLevel(t *testing.T) {
+	maxTokens := uint(1024)
+	got, err := OpenAIChatRequestToClaudeMessages(context.Background(), nil, dto.GeneralOpenAIRequest{
+		Model:           "claude-opus-4-6",
+		MaxTokens:       &maxTokens,
+		ReasoningEffort: "xhigh",
+		Messages:        []dto.Message{{Role: "user", Content: "hi"}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got.Thinking)
+	assert.Equal(t, "adaptive", got.Thinking.Type)
+	assert.Nil(t, got.Thinking.BudgetTokens)
+	assert.JSONEq(t, `{"effort":"max"}`, string(got.OutputConfig))
+}
+
 func TestOpenAIChatRequestToClaudeMessagesNormalizesToolInputSchema(t *testing.T) {
 	tests := []struct {
 		name       string

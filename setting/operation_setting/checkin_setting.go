@@ -26,6 +26,22 @@ func GetCheckinSetting() *CheckinSetting {
 	return &checkinSetting
 }
 
+// QuotaRange returns a non-negative, ordered [min, max] award range.
+// Inverted admin input is swapped so sequential option updates cannot break check-in.
+func (s CheckinSetting) QuotaRange() (min, max int) {
+	min, max = s.MinQuota, s.MaxQuota
+	if min < 0 {
+		min = 0
+	}
+	if max < 0 {
+		max = 0
+	}
+	if max < min {
+		return max, min
+	}
+	return min, max
+}
+
 // IsCheckinEnabled 是否启用签到功能
 func IsCheckinEnabled() bool {
 	return checkinSetting.Enabled
@@ -33,5 +49,5 @@ func IsCheckinEnabled() bool {
 
 // GetCheckinQuotaRange 获取签到额度范围
 func GetCheckinQuotaRange() (min, max int) {
-	return checkinSetting.MinQuota, checkinSetting.MaxQuota
+	return checkinSetting.QuotaRange()
 }

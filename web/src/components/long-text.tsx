@@ -55,11 +55,11 @@ export function LongText({
   }, [])
 
   if (!isOverflown)
-    return (
+    {return (
       <div ref={ref} className={cn('truncate', className)}>
         {children}
       </div>
-    )
+    )}
 
   return (
     <>

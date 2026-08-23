@@ -53,7 +53,11 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 	if modelName := convmeta.UpstreamModelName(info); modelName != "" {
 		upstreamModelName = modelName
 	}
-	if opts.Gemini.SupportsImagineModel(upstreamModelName) {
+	originModelName := ""
+	if info != nil {
+		originModelName = info.GetOriginModelName()
+	}
+	if opts.Gemini.SupportsImagineModel(upstreamModelName, req.Model, originModelName) {
 		geminiRequest.GenerationConfig.ResponseModalities = []string{"TEXT", "IMAGE"}
 	}
 	if err := applyResponsesTextToGemini(req.Text, geminiRequest); err != nil {

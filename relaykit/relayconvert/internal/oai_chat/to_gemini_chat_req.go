@@ -11,6 +11,7 @@ import (
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
@@ -37,7 +38,11 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		upstreamModelName = modelName
 	}
 
-	if opts.Gemini.SupportsImagineModel(upstreamModelName) {
+	originModelName := ""
+	if info != nil {
+		originModelName = info.GetOriginModelName()
+	}
+	if opts.Gemini.SupportsImagineModel(upstreamModelName, textRequest.Model, originModelName) {
 		geminiRequest.GenerationConfig.ResponseModalities = []string{
 			"TEXT",
 			"IMAGE",
@@ -59,7 +64,6 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 
 		if googleBody, ok := extraBody["google"].(map[string]interface{}); ok {
 			if !strings.HasSuffix(upstreamModelName, "-nothinking") {
-				adaptorWithExtraBody = true
 				if _, hasErrorParam := googleBody["thinkingConfig"]; hasErrorParam {
 					return nil, errors.New("extra_body.google.thinkingConfig is not supported, use extra_body.google.thinking_config instead")
 				}
@@ -69,6 +73,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 						return nil, errors.New("extra_body.google.thinking_config.thinkingBudget is not supported, use extra_body.google.thinking_config.thinking_budget instead")
 					}
 					var hasThinkingConfig bool
+					var includeThoughtsSet bool
 					var tempThinkingConfig dto.GeminiThinkingConfig
 
 					if thinkingBudget, exists := thinkingConfig["thinking_budget"]; exists {
@@ -86,6 +91,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 					if includeThoughts, exists := thinkingConfig["include_thoughts"]; exists {
 						if v, ok := includeThoughts.(bool); ok {
 							tempThinkingConfig.IncludeThoughts = v
+							includeThoughtsSet = true
 							hasThinkingConfig = true
 						} else {
 							return nil, errors.New("extra_body.google.thinking_config.include_thoughts must be a boolean")
@@ -93,14 +99,21 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 					}
 					if thinkingLevel, exists := thinkingConfig["thinking_level"]; exists {
 						if v, ok := thinkingLevel.(string); ok {
-							tempThinkingConfig.ThinkingLevel = v
+							tempThinkingConfig.ThinkingLevel = reasoning.GeminiThinkingLevel(v)
+							if tempThinkingConfig.ThinkingLevel == "" && strings.TrimSpace(v) != "" {
+								tempThinkingConfig.ThinkingLevel = v
+							}
 							hasThinkingConfig = true
 						} else {
 							return nil, errors.New("extra_body.google.thinking_config.thinking_level must be a string")
 						}
 					}
+					if hasThinkingConfig && !includeThoughtsSet && tempThinkingConfig.ThinkingLevel != "" {
+						tempThinkingConfig.IncludeThoughts = true
+					}
 
 					if hasThinkingConfig {
+						adaptorWithExtraBody = true
 						if geminiRequest.GenerationConfig.ThinkingConfig == nil {
 							geminiRequest.GenerationConfig.ThinkingConfig = &tempThinkingConfig
 						} else {
@@ -283,6 +296,16 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		}
 		shouldAttachThoughtSignature := (message.Role == "assistant" || message.Role == "model") && sharedgemini.ShouldAttachThoughtSignature(opts)
 		signatureAttached := false
+		if reasoningText := message.GetReasoningContent(); reasoningText != "" {
+			thoughtPart := dto.GeminiPart{
+				Text:    reasoningText,
+				Thought: true,
+			}
+			if shouldAttachThoughtSignature && sharedgemini.AttachThoughtSignatureBypass(opts, &thoughtPart) {
+				signatureAttached = true
+			}
+			parts = append(parts, thoughtPart)
+		}
 		if message.ToolCalls != nil {
 			for _, call := range message.ParseToolCalls() {
 				args := map[string]interface{}{}

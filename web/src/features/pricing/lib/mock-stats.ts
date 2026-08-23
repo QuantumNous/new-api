@@ -315,8 +315,7 @@ export function buildGroupPerformance(model: PricingModel): GroupPerformance[] {
   const spec = PROFILE_SPECS[profile]
   const baseSeed = hashStringToSeed(model.model_name)
 
-  return targets
-    .slice()
+  return [...targets]
     .sort((a, b) => a.localeCompare(b))
     .map<GroupPerformance>((group) => {
       const rand = seededRandom(baseSeed ^ hashStringToSeed(group))
@@ -817,8 +816,7 @@ export function buildRateLimits(model: PricingModel): RateLimit[] {
   const baseTpm = isHeavy ? 0 : isLight ? 1_000_000 : 200_000
   const baseRpd = isHeavy ? 1_000 : isLight ? 100_000 : 10_000
 
-  return targets
-    .slice()
+  return [...targets]
     .sort((a, b) => a.localeCompare(b))
     .map((group) => {
       const rand = seededRandom(baseSeed ^ hashStringToSeed(group))
@@ -837,6 +835,6 @@ export function formatRateLimit(value: number): string {
   if (value <= 0) return '—'
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000)
-    return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`
+    {return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`}
   return value.toLocaleString()
 }

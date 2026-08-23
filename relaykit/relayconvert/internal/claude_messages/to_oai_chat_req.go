@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
@@ -14,13 +15,6 @@ const (
 	webSearchMaxUsesMedium = 5
 	webSearchMaxUsesHigh   = 10
 )
-
-type openRouterRequestReasoning struct {
-	Enabled   bool   `json:"enabled"`
-	Effort    string `json:"effort,omitempty"`
-	MaxTokens int    `json:"max_tokens,omitempty"`
-	Exclude   bool   `json:"exclude,omitempty"`
-}
 
 func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
@@ -41,30 +35,20 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 	}
 
 	isOpenRouter := convmeta.OptionsOf(info).OpenRouterDialect
-	if isOpenRouter {
-		if effort := claudeRequest.GetEfforts(); effort != "" {
-			effortBytes, _ := kitutil.Marshal(effort)
-			openAIRequest.Verbosity = effortBytes
-		}
-		if claudeRequest.Thinking != nil {
-			var reasoningConfig openRouterRequestReasoning
-			if claudeRequest.Thinking.Type == "enabled" {
-				reasoningConfig = openRouterRequestReasoning{
-					Enabled:   true,
-					MaxTokens: claudeRequest.Thinking.GetBudgetTokens(),
-				}
-			} else if claudeRequest.Thinking.Type == "adaptive" {
-				reasoningConfig = openRouterRequestReasoning{
-					Enabled: true,
-				}
-			}
-			reasoningJSON, err := kitutil.Marshal(reasoningConfig)
+	if level := sharedclaude.ThinkingLevelFromClaudeRequest(&claudeRequest); level != "" {
+		openAIRequest.ReasoningEffort = level
+		if isOpenRouter {
+			reasoningJSON, err := kitutil.Marshal(sharedclaude.OpenRouterReasoning{
+				Enabled: true,
+				Effort:  level,
+			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
 			}
 			openAIRequest.Reasoning = reasoningJSON
 		}
-	} else if info != nil {
+	}
+	if info != nil {
 		thinkingSuffix := "-thinking"
 		if strings.HasSuffix(info.GetOriginModelName(), thinkingSuffix) &&
 			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {

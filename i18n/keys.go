@@ -215,6 +215,8 @@ const (
 	MsgCheckinAlreadyToday = "checkin.already_today"
 	MsgCheckinFailed       = "checkin.failed"
 	MsgCheckinQuotaFailed  = "checkin.quota_failed"
+	MsgCheckinSuccess      = "checkin.success"
+	MsgCheckinInvalidMonth = "checkin.invalid_month"
 )
 
 // Passkey related messages
@@ -328,11 +330,20 @@ const (
 
 // Custom OAuth provider related messages
 const (
-	MsgCustomOAuthNotFound          = "custom_oauth.not_found"
-	MsgCustomOAuthSlugEmpty         = "custom_oauth.slug_empty"
-	MsgCustomOAuthSlugExists        = "custom_oauth.slug_exists"
-	MsgCustomOAuthNameEmpty         = "custom_oauth.name_empty"
-	MsgCustomOAuthHasBindings       = "custom_oauth.has_bindings"
-	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
-	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
+	MsgCustomOAuthNotFound               = "custom_oauth.not_found"
+	MsgCustomOAuthSlugEmpty              = "custom_oauth.slug_empty"
+	MsgCustomOAuthSlugExists             = "custom_oauth.slug_exists"
+	MsgCustomOAuthSlugConflict           = "custom_oauth.slug_conflict"
+	MsgCustomOAuthNameEmpty              = "custom_oauth.name_empty"
+	MsgCustomOAuthHasBindings            = "custom_oauth.has_bindings"
+	MsgCustomOAuthBindingNotFound        = "custom_oauth.binding_not_found"
+	MsgCustomOAuthProviderIdInvalid      = "custom_oauth.provider_id_field_invalid"
+	MsgCustomOAuthDiscoveryURLRequired   = "custom_oauth.discovery_url_required"
+	MsgCustomOAuthDiscoveryURLInvalid    = "custom_oauth.discovery_url_invalid"
+	MsgCustomOAuthDiscoveryRequestFailed = "custom_oauth.discovery_request_failed"
+	MsgCustomOAuthDiscoveryFetchFailed   = "custom_oauth.discovery_fetch_failed"
+	MsgCustomOAuthDiscoveryParseFailed   = "custom_oauth.discovery_parse_failed"
+	MsgCustomOAuthBindingCheckFailed     = "custom_oauth.binding_check_failed"
+	MsgCustomOAuthUnbindSuccess          = "custom_oauth.unbind_success"
+	MsgCustomOAuthInvalidProviderId      = "custom_oauth.invalid_provider_id"
 )

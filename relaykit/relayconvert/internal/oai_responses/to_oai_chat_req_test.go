@@ -12,6 +12,26 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func TestResponsesRequestToChatCompletionsRequestMapsReasoningItems(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []any{
+			map[string]any{
+				"type": "reasoning",
+				"summary": []any{
+					map[string]any{"type": "summary_text", "text": "because"},
+				},
+			},
+			map[string]any{"role": "assistant", "content": "42"},
+		}),
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+	assert.Equal(t, "assistant", got.Messages[0].Role)
+	assert.Equal(t, "42", got.Messages[0].StringContent())
+	assert.Equal(t, "because", got.Messages[0].GetReasoningContent())
+}
+
 func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *testing.T) {
 	stream := true
 	temperature := 0.0

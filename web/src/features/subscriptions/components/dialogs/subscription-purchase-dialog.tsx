@@ -405,12 +405,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
             {hasEpay && (
               <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                 <Select
-                  items={[
-                    ...(props.epayMethods || []).map((m) => ({
+                  items={(props.epayMethods || []).map((m) => ({
                       value: m.type,
                       label: m.name || m.type,
-                    })),
-                  ]}
+                    }))}
                   value={selectedEpayMethod}
                   onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
                   disabled={limitReached}

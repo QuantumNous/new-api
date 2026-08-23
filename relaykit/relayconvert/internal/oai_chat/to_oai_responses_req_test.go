@@ -12,6 +12,22 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func TestChatCompletionsRequestToResponsesRequestPreservesAssistantReasoning(t *testing.T) {
+	reasoningText := "because"
+	got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+		Model: "gpt-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "why"},
+			{Role: "assistant", Content: "42", ReasoningContent: &reasoningText},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "reasoning", gjson.GetBytes(got.Input, "1.type").String())
+	assert.Equal(t, reasoningText, gjson.GetBytes(got.Input, "1.summary.0.text").String())
+	assert.Equal(t, "assistant", gjson.GetBytes(got.Input, "2.role").String())
+	assert.Equal(t, "42", gjson.GetBytes(got.Input, "2.content").String())
+}
+
 func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing.T) {
 	req := &dto.GeneralOpenAIRequest{
 		Model: "gpt-test",

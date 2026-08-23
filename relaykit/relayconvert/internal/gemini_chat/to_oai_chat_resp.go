@@ -95,6 +95,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 		}
 		if len(candidate.Content.Parts) > 0 {
 			var content strings.Builder
+			var reasoningContent strings.Builder
 			var inlineGrow int
 			for _, part := range candidate.Content.Parts {
 				if part.InlineData != nil {
@@ -113,6 +114,13 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 			}
 			var toolCalls []dto.ToolCallResponse
 			for _, part := range candidate.Content.Parts {
+				if part.Thought {
+					if reasoningContent.Len() > 0 {
+						reasoningContent.WriteByte('\n')
+					}
+					reasoningContent.WriteString(part.Text)
+					continue
+				}
 				if part.InlineData != nil {
 					if strings.HasPrefix(part.InlineData.MimeType, "image") {
 						writeSep()
@@ -134,8 +142,6 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 					if call := geminiResponseToolCall(&part); call != nil {
 						toolCalls = append(toolCalls, *call)
 					}
-				} else if part.Thought {
-					choice.Message.ReasoningContent = &part.Text
 				} else {
 					if part.ExecutableCode != nil {
 						writeSep()
@@ -160,6 +166,10 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 				isToolCall = true
 			}
 			choice.Message.SetStringContent(content.String())
+			if reasoningContent.Len() > 0 {
+				reasoningText := reasoningContent.String()
+				choice.Message.ReasoningContent = &reasoningText
+			}
 		}
 		if candidate.FinishReason != nil {
 			switch *candidate.FinishReason {
@@ -195,6 +205,7 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{},
 		}
 		var content strings.Builder
+		var reasoningContent strings.Builder
 		var inlineGrow int
 		for _, part := range candidate.Content.Parts {
 			if part.InlineData != nil {
@@ -212,7 +223,6 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			appended++
 		}
 		isTools := false
-		isThought := false
 		if candidate.FinishReason != nil {
 			switch *candidate.FinishReason {
 			case "STOP":
@@ -226,6 +236,10 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			}
 		}
 		for _, part := range candidate.Content.Parts {
+			if part.Thought {
+				reasoningContent.WriteString(part.Text)
+				continue
+			}
 			if part.InlineData != nil {
 				if strings.HasPrefix(part.InlineData.MimeType, "image") {
 					writeSep()
@@ -235,38 +249,41 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 					content.WriteString(part.InlineData.Data)
 					content.WriteByte(')')
 				}
-			} else if part.FunctionCall != nil {
+				continue
+			}
+			if part.FunctionCall != nil {
 				isTools = true
 				if call := geminiResponseToolCall(&part); call != nil {
 					call.SetIndex(len(choice.Delta.ToolCalls))
 					choice.Delta.ToolCalls = append(choice.Delta.ToolCalls, *call)
 				}
-			} else if part.Thought {
-				isThought = true
+				continue
+			}
+			if part.ExecutableCode != nil {
+				writeSep()
+				content.WriteString("```")
+				content.WriteString(part.ExecutableCode.Language)
+				content.WriteByte('\n')
+				content.WriteString(part.ExecutableCode.Code)
+				content.WriteString("\n```\n")
+				continue
+			}
+			if part.CodeExecutionResult != nil {
+				writeSep()
+				content.WriteString("```output\n")
+				content.WriteString(part.CodeExecutionResult.Output)
+				content.WriteString("\n```\n")
+				continue
+			}
+			if part.Text != "\n" {
 				writeSep()
 				content.WriteString(part.Text)
-			} else {
-				if part.ExecutableCode != nil {
-					writeSep()
-					content.WriteString("```")
-					content.WriteString(part.ExecutableCode.Language)
-					content.WriteByte('\n')
-					content.WriteString(part.ExecutableCode.Code)
-					content.WriteString("\n```\n")
-				} else if part.CodeExecutionResult != nil {
-					writeSep()
-					content.WriteString("```output\n")
-					content.WriteString(part.CodeExecutionResult.Output)
-					content.WriteString("\n```\n")
-				} else if part.Text != "\n" {
-					writeSep()
-					content.WriteString(part.Text)
-				}
 			}
 		}
-		if isThought {
-			choice.Delta.SetReasoningContent(content.String())
-		} else {
+		if reasoningContent.Len() > 0 {
+			choice.Delta.SetReasoningContent(reasoningContent.String())
+		}
+		if content.Len() > 0 {
 			choice.Delta.SetContentString(content.String())
 		}
 		if isTools {

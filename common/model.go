@@ -17,6 +17,10 @@ var (
 		"prefix:imagen-",
 		"flux-",
 		"flux.1-",
+		"nano-banana",
+		"flash-image",
+		"pro-image",
+		"image-generation",
 	}
 	OpenAITextModels = []string{
 		"gpt-",

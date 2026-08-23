@@ -9,6 +9,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestResponseOpenAI2ClaudeMapsReasoningContent(t *testing.T) {
+	reasoningText := "let me think"
+	resp := ResponseOpenAI2Claude(&dto.OpenAITextResponse{
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Message: dto.Message{
+					Role:             "assistant",
+					Content:          "answer",
+					ReasoningContent: &reasoningText,
+				},
+				FinishReason: "stop",
+			},
+		},
+	}, nil)
+	require.GreaterOrEqual(t, len(resp.Content), 2)
+	assert.Equal(t, "thinking", resp.Content[0].Type)
+	require.NotNil(t, resp.Content[0].Thinking)
+	assert.Equal(t, reasoningText, *resp.Content[0].Thinking)
+	assert.Equal(t, "text", resp.Content[1].Type)
+	assert.Equal(t, "answer", resp.Content[1].GetText())
+}
+
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 	tests := []struct {
 		name string

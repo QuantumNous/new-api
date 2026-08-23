@@ -69,6 +69,37 @@ func TestGeminiSafetySettingsReadNormalization(t *testing.T) {
 	}
 }
 
+func TestIsGeminiModelSupportImagine(t *testing.T) {
+	original := geminiSettings.SupportedImagineModels
+	t.Cleanup(func() {
+		geminiSettings.SupportedImagineModels = original
+	})
+	geminiSettings.SupportedImagineModels = []string{"my-custom-draw", "Nano-Banana"}
+
+	tests := []struct {
+		model string
+		want  bool
+	}{
+		{"nano-banana-2", true},
+		{"nano banana2", true},
+		{"google/nano-banana-2", true},
+		{"models/nano-banana-2", true},
+		{"gemini-3-pro-image", true},
+		{"gemini-2.5-flash-image-preview", true},
+		{"gemini-2.0-flash-exp-image-generation", true},
+		{"my-custom-draw", true},
+		{"MY-CUSTOM-DRAW", true},
+		{"my-custom-draw-v2", true},
+		{"gemini-2.5-pro", false},
+		{"imagen-4.0-generate-001", false},
+		{"google/imagen-4.0-generate-001", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, IsGeminiModelSupportImagine(tt.model), tt.model)
+	}
+}
+
 func TestValidateGeminiSafetySettings(t *testing.T) {
 	valid := []string{
 		`{}`,

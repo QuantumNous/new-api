@@ -8,6 +8,7 @@ import (
 	geminichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/gemini_chat"
 	oaichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_chat"
 	oairesponses "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_responses"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 )
 
@@ -29,6 +30,10 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 
 func ApplyGeminiThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, oaiRequest ...dto.GeneralOpenAIRequest) {
 	sharedgemini.ApplyThinkingConfig(geminiRequest, info, oaiRequest...)
+}
+
+func ApplyClaudeModelThinking(req *dto.ClaudeRequest, model string, adapterEnabled bool, preserveThinkingSuffix bool) string {
+	return sharedclaude.ApplyModelThinking(req, model, adapterEnabled, preserveThinkingSuffix)
 }
 
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {

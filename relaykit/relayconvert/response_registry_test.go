@@ -25,6 +25,7 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 		{lookupID: ResponseConverterOAIChatToGeminiChat, id: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterClaudeMessagesToOAIChat, id: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterGeminiChatToOAIChat, id: ConverterGeminiContentToOpenAIChat, from: types.RelayFormatGemini, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
+		{lookupID: ConverterGeminiContentToOpenAIImage, id: ConverterGeminiContentToOpenAIImage, from: types.RelayFormatGemini, to: types.RelayFormatOpenAIImage, quality: ResponseConverterQualityFair},
 		{
 			lookupID: responseConverterClaudeToGemini,
 			id:       requestConverterClaudeToGemini,

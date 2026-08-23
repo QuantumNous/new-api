@@ -1,5 +1,7 @@
 package convmeta
 
+import "strings"
+
 // Options is the per-request snapshot of host configuration that converters
 // consult. The host fills it from its settings system when constructing the
 // Meta (see relaycommon.RelayInfo.ConvOptions); relaykit users fill it
@@ -63,8 +65,19 @@ func (o *ClaudeOptions) DefaultMaxTokensFor(modelName string) (int, bool) {
 	return o.DefaultMaxTokens(modelName), true
 }
 
-func (o *GeminiOptions) SupportsImagineModel(modelName string) bool {
-	return o != nil && o.SupportsImagine != nil && o.SupportsImagine(modelName)
+func (o *GeminiOptions) SupportsImagineModel(modelNames ...string) bool {
+	if o == nil || o.SupportsImagine == nil {
+		return false
+	}
+	for _, modelName := range modelNames {
+		if strings.TrimSpace(modelName) == "" {
+			continue
+		}
+		if o.SupportsImagine(modelName) {
+			return true
+		}
+	}
+	return false
 }
 
 func (o *GeminiOptions) SafetySettingFor(category string) string {

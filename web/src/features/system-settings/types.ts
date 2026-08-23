@@ -197,13 +197,11 @@ export type ModelSettings = {
   'gemini.version_settings': string
   'gemini.supported_imagine_models': string
   'gemini.thinking_adapter_enabled': boolean
-  'gemini.thinking_adapter_budget_tokens_percentage': number
   'gemini.function_call_thought_signature_enabled': boolean
   'gemini.remove_function_response_id_enabled': boolean
   'claude.model_headers_settings': string
   'claude.default_max_tokens': string
   'claude.thinking_adapter_enabled': boolean
-  'claude.thinking_adapter_budget_tokens_percentage': number
   'grok.violation_deduction_enabled': boolean
   'grok.violation_deduction_amount': number
   ModelPrice: string

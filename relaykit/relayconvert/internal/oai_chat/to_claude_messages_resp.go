@@ -478,6 +478,12 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 	}
 	for _, choice := range openAIResponse.Choices {
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
+		if reasoningText := choice.Message.GetReasoningContent(); reasoningText != "" {
+			contents = append(contents, dto.ClaudeMediaMessage{
+				Type:     "thinking",
+				Thinking: kitutil.GetPointer(reasoningText),
+			})
+		}
 		textContent := choice.Message.StringContent()
 		toolCalls := choice.Message.ParseToolCalls()
 		if textContent != "" || len(toolCalls) == 0 {

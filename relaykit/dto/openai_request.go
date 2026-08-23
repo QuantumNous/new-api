@@ -1,9 +1,11 @@
 package dto
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -282,26 +284,107 @@ func (t *ToolCallRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (t ToolCallRequest) shouldMarshalFunction() bool {
+	if t.Type == "function" {
+		return true
+	}
+	return t.Function.Name != "" || t.Function.Arguments != "" || t.Function.Description != "" || t.Function.Parameters != nil
+}
+
 func (t ToolCallRequest) MarshalJSON() ([]byte, error) {
-	type alias ToolCallRequest
-	data, err := kitutil.Marshal(alias(t))
+	fields := make(map[string]json.RawMessage, 4+len(t.Extra))
+
+	if t.ID != "" {
+		idRaw, err := kitutil.Marshal(t.ID)
+		if err != nil {
+			return nil, err
+		}
+		fields["id"] = idRaw
+	}
+
+	typeRaw, err := kitutil.Marshal(t.Type)
 	if err != nil {
 		return nil, err
 	}
+	fields["type"] = typeRaw
 
-	var fields map[string]json.RawMessage
-	if err := kitutil.Unmarshal(data, &fields); err != nil {
-		return nil, err
+	if t.shouldMarshalFunction() {
+		fnRaw, err := kitutil.Marshal(t.Function)
+		if err != nil {
+			return nil, err
+		}
+		fields["function"] = fnRaw
 	}
-	if t.Type != "function" {
-		delete(fields, "function")
+
+	if len(t.Custom) > 0 {
+		fields["custom"] = append(json.RawMessage(nil), t.Custom...)
 	}
+
 	for key, value := range t.Extra {
 		if _, exists := fields[key]; !exists {
 			fields[key] = value
 		}
 	}
-	return kitutil.Marshal(fields)
+
+	return marshalJSONObject([]string{"id", "type", "function", "custom"}, fields)
+}
+
+func marshalJSONObject(order []string, fields map[string]json.RawMessage) ([]byte, error) {
+	if len(fields) == 0 {
+		return []byte("{}"), nil
+	}
+
+	var buf bytes.Buffer
+	buf.Grow(64)
+	buf.WriteByte('{')
+
+	written := make(map[string]struct{}, len(fields))
+	first := true
+	writeField := func(key string) error {
+		value, ok := fields[key]
+		if !ok {
+			return nil
+		}
+		if !first {
+			buf.WriteByte(',')
+		}
+		first = false
+		keyJSON, err := json.Marshal(key)
+		if err != nil {
+			return err
+		}
+		buf.Write(keyJSON)
+		buf.WriteByte(':')
+		if len(value) == 0 {
+			buf.WriteString("null")
+		} else {
+			buf.Write(value)
+		}
+		written[key] = struct{}{}
+		return nil
+	}
+
+	for _, key := range order {
+		if err := writeField(key); err != nil {
+			return nil, err
+		}
+	}
+
+	extras := make([]string, 0, len(fields))
+	for key := range fields {
+		if _, ok := written[key]; !ok {
+			extras = append(extras, key)
+		}
+	}
+	sort.Strings(extras)
+	for _, key := range extras {
+		if err := writeField(key); err != nil {
+			return nil, err
+		}
+	}
+
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
 }
 
 type FunctionRequest struct {
@@ -905,14 +988,14 @@ type OpenAIResponsesRequest struct {
 	Include json.RawMessage `json:"include,omitempty"`
 	// 在后台运行推理，暂时还不支持依赖的接口
 	// Background         json.RawMessage `json:"background,omitempty"`
-	Conversation       json.RawMessage `json:"conversation,omitempty"`
-	ContextManagement  json.RawMessage `json:"context_management,omitempty"`
-	Instructions       json.RawMessage `json:"instructions,omitempty"`
-	MaxOutputTokens    *uint           `json:"max_output_tokens,omitempty"`
-	TopLogProbs        *int            `json:"top_logprobs,omitempty"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
-	Moderation         json.RawMessage `json:"moderation,omitempty"`
-	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
+	Conversation      json.RawMessage `json:"conversation,omitempty"`
+	ContextManagement json.RawMessage `json:"context_management,omitempty"`
+	Instructions      json.RawMessage `json:"instructions,omitempty"`
+	MaxOutputTokens   *uint           `json:"max_output_tokens,omitempty"`
+	TopLogProbs       *int            `json:"top_logprobs,omitempty"`
+	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	Moderation        json.RawMessage `json:"moderation,omitempty"`
+	ParallelToolCalls json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	// FrequencyPenalty/PresencePenalty are not part of the official OpenAI
 	// Responses API; they are forwarded verbatim for OpenAI-compatible upstreams
 	// (e.g. vLLM) that accept them.

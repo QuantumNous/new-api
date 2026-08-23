@@ -142,23 +142,11 @@ func responsesFunctionDeclarationsToClaudeTools(functions []dto.FunctionRequest)
 
 func applyResponsesReasoningToClaude(req *dto.OpenAIResponsesRequest, claudeRequest *dto.ClaudeRequest) {
 	effort := ReasoningEffort(req)
-	switch effort {
-	case "low":
-		claudeRequest.Thinking = &dto.Thinking{
-			Type:         "enabled",
-			BudgetTokens: kitutil.GetPointer(1280),
-		}
-	case "medium":
-		claudeRequest.Thinking = &dto.Thinking{
-			Type:         "enabled",
-			BudgetTokens: kitutil.GetPointer(2048),
-		}
-	case "high":
-		claudeRequest.Thinking = &dto.Thinking{
-			Type:         "enabled",
-			BudgetTokens: kitutil.GetPointer(4096),
-		}
+	if effort == "" {
+		return
 	}
+	sharedclaude.ApplyThinkingLevel(claudeRequest, req.Model, effort)
+	sharedclaude.EnsureMaxTokensForThinking(claudeRequest)
 }
 
 func responsesInputContentToClaudeMediaMessages(c context.Context, content any) ([]dto.ClaudeMediaMessage, error) {

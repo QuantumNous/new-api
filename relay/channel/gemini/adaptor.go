@@ -99,12 +99,38 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
-		return nil, errors.New("not supported model for image generation, only imagen models are supported")
+	if relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
+		return convertImagenPredictRequest(request), nil
 	}
+	if !geminiNativeImageModelAllowed(info, request.Model) {
+		return nil, errors.New("not supported model for image generation; add it to Gemini native image models")
+	}
+	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, &request)
+	if err != nil {
+		return nil, err
+	}
+	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
+	}
+	return geminiRequest, nil
+}
 
-	// convert size to aspect ratio but allow user to specify aspect ratio
-	aspectRatio := "1:1" // default aspect ratio
+func geminiNativeImageModelAllowed(info *relaycommon.RelayInfo, requestModel string) bool {
+	names := []string{requestModel}
+	if info != nil {
+		names = append(names, info.UpstreamModelName, info.OriginModelName)
+	}
+	for _, name := range names {
+		if model_setting.IsGeminiModelSupportImagine(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func convertImagenPredictRequest(request dto.ImageRequest) dto.GeminiImageRequest {
+	aspectRatio := "1:1"
 	size := strings.TrimSpace(request.Size)
 	if size != "" {
 		if strings.Contains(size, ":") {
@@ -125,7 +151,6 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 	}
 
-	// build gemini imagen request
 	geminiRequest := dto.GeminiImageRequest{
 		Instances: []dto.GeminiImageInstance{
 			{
@@ -135,33 +160,24 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		Parameters: dto.GeminiImageParameters{
 			SampleCount:      int(lo.FromPtrOr(request.N, uint(1))),
 			AspectRatio:      aspectRatio,
-			PersonGeneration: "allow_adult", // default allow adult
+			PersonGeneration: "allow_adult",
 		},
 	}
 
-	// Set imageSize when quality parameter is specified
-	// Map quality parameter to imageSize (only supported by Standard and Ultra models)
-	// quality values: auto, high, medium, low (for gpt-image-1), hd, standard (for dall-e-3)
-	// imageSize values: 1K (default), 2K
-	// https://ai.google.dev/gemini-api/docs/imagen
-	// https://platform.openai.com/docs/api-reference/images/create
 	if request.Quality != "" {
-		imageSize := "1K" // default
+		imageSize := "1K"
 		switch request.Quality {
-		case "hd", "high":
+		case "hd", "high", "2K":
 			imageSize = "2K"
-		case "2K":
-			imageSize = "2K"
+		case "4K":
+			imageSize = "4K"
 		case "standard", "medium", "low", "auto", "1K":
-			imageSize = "1K"
-		default:
-			// unknown quality value, default to 1K
 			imageSize = "1K"
 		}
 		geminiRequest.Parameters.ImageSize = imageSize
 	}
 
-	return geminiRequest, nil
+	return geminiRequest
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -197,7 +213,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, info.UpstreamModelName, action), nil
 	}
 
-	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
+	if relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
 		return fmt.Sprintf("%s/%s/models/%s:predict", info.ChannelBaseUrl, version, info.UpstreamModelName), nil
 	}
 
@@ -212,7 +228,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	}
 
 	action := "generateContent"
-	if info.IsStream {
+	if info.IsStream && !IsImageAPIRelay(info) {
 		action = "streamGenerateContent?alt=sse"
 		if info.RelayMode == constant.RelayModeGemini {
 			info.DisablePing = true
@@ -325,7 +341,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 	}
 
-	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
+	if IsImageAPIRelay(info) {
+		return HandleGeminiImageAPIResponse(c, info, resp)
+	}
+	if relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
 		return GeminiImageHandler(c, info, resp)
 	}
 

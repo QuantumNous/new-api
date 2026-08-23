@@ -76,6 +76,16 @@ export function CheckinSettingsSection({
   const enabled = form.watch('enabled')
 
   async function onSubmit(values: Values) {
+    if (values.maxQuota < values.minQuota) {
+      form.setError('maxQuota', {
+        type: 'validate',
+        message: t(
+          'Maximum quota must be greater than or equal to minimum quota'
+        ),
+      })
+      return
+    }
+
     const updates: Array<{ key: string; value: string }> = []
 
     if (values.enabled !== defaultValues.enabled) {

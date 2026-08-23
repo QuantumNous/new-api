@@ -104,8 +104,6 @@ const MODELS_SECTIONS = [
               settings['gemini.supported_imagine_models'],
             thinking_adapter_enabled:
               settings['gemini.thinking_adapter_enabled'],
-            thinking_adapter_budget_tokens_percentage:
-              settings['gemini.thinking_adapter_budget_tokens_percentage'],
             function_call_thought_signature_enabled:
               settings['gemini.function_call_thought_signature_enabled'],
             remove_function_response_id_enabled:
@@ -126,8 +124,6 @@ const MODELS_SECTIONS = [
             default_max_tokens: settings['claude.default_max_tokens'],
             thinking_adapter_enabled:
               settings['claude.thinking_adapter_enabled'],
-            thinking_adapter_budget_tokens_percentage:
-              settings['claude.thinking_adapter_budget_tokens_percentage'],
           },
         }}
       />

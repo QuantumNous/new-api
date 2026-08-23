@@ -196,7 +196,7 @@ export function CreateDeploymentDrawer({
         map.set(key, { label: String(name), value: key })
       }
     })
-    return Array.from(map.values())
+    return [...map.values()]
   }, [replicasData])
 
   const { data: priceData, isLoading: _isLoadingPrice } = useQuery({
@@ -460,12 +460,10 @@ export function CreateDeploymentDrawer({
                     <FormItem>
                       <FormLabel>{t('Hardware type')}</FormLabel>
                       <Select
-                        items={[
-                          ...hardwareOptions.map((opt) => ({
+                        items={hardwareOptions.map((opt) => ({
                             value: opt.value,
                             label: opt.label,
-                          })),
-                        ]}
+                          }))}
                         value={field.value}
                         onValueChange={(v) => field.onChange(v)}
                         disabled={isLoadingHardware}

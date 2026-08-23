@@ -33,7 +33,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 
 import {
@@ -72,10 +71,6 @@ const schema = z.object({
       }
     }),
     thinking_adapter_enabled: z.boolean(),
-    thinking_adapter_budget_tokens_percentage: z.coerce
-      .number()
-      .min(0.1, { message: 'Must be at least 0.1' })
-      .max(1, { message: 'Must be 1 or less' }),
   }),
 })
 
@@ -86,7 +81,6 @@ type FlatClaudeSettings = {
   'claude.model_headers_settings': string
   'claude.default_max_tokens': string
   'claude.thinking_adapter_enabled': boolean
-  'claude.thinking_adapter_budget_tokens_percentage': number
 }
 
 type ClaudeSettingsCardProps = {
@@ -105,9 +99,6 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
     ),
     'claude.thinking_adapter_enabled':
       defaultValues.claude.thinking_adapter_enabled,
-    'claude.thinking_adapter_budget_tokens_percentage': Number(
-      defaultValues.claude.thinking_adapter_budget_tokens_percentage
-    ),
   })
 
   const buildFormDefaults = (
@@ -121,8 +112,6 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
         values.claude.default_max_tokens
       ),
       thinking_adapter_enabled: values.claude.thinking_adapter_enabled,
-      thinking_adapter_budget_tokens_percentage:
-        values.claude.thinking_adapter_budget_tokens_percentage,
     },
   })
 
@@ -145,9 +134,6 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
       ),
       'claude.thinking_adapter_enabled':
         defaultValues.claude.thinking_adapter_enabled,
-      'claude.thinking_adapter_budget_tokens_percentage': Number(
-        defaultValues.claude.thinking_adapter_budget_tokens_percentage
-      ),
     }
 
     form.reset(buildFormDefaults(defaultValues))
@@ -162,8 +148,6 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
         values.claude.default_max_tokens
       ),
       'claude.thinking_adapter_enabled': values.claude.thinking_adapter_enabled,
-      'claude.thinking_adapter_budget_tokens_percentage':
-        values.claude.thinking_adapter_budget_tokens_percentage,
     }
 
     const updates = (
@@ -254,7 +238,7 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
                     <FormLabel>{t('Thinking Suffix Adapter')}</FormLabel>
                     <FormDescription>
                       {t(
-                        'Adapt `-thinking` suffix requests to Anthropic native thinking behavior while keeping billing predictable.'
+                        'Maps -thinking and effort suffixes (-low, -medium, -high, -xhigh, -max) to Claude adaptive thinking.'
                       )}
                     </FormDescription>
                   </SettingsSwitchContent>
@@ -265,29 +249,6 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
                     />
                   </FormControl>
                 </SettingsSwitchItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='claude.thinking_adapter_budget_tokens_percentage'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Budget Tokens Ratio')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      value={String(field.value ?? '')}
-                      onChange={(event) => field.onChange(event.target.value)}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'Budget tokens = max tokens × ratio. Accepts a decimal between 0.1 and 1.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
               )}
             />
           </SettingsControlGroup>

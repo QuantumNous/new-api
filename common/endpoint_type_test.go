@@ -48,6 +48,27 @@ func TestOpenAIChannelLegacyModelEndpointTypeIsUnchanged(t *testing.T) {
 	)
 }
 
+func TestGeminiNativeImageModelsExposeImageGenerationEndpoint(t *testing.T) {
+	for _, model := range []string{
+		"nano-banana-2",
+		"gemini-2.5-flash-image",
+		"gemini-3-pro-image",
+		"gemini-2.0-flash-exp-image-generation",
+	} {
+		t.Run(model, func(t *testing.T) {
+			got := GetEndpointTypesByChannelType(constant.ChannelTypeGemini, model)
+			assert.Contains(t, got, constant.EndpointTypeImageGeneration)
+			assert.Contains(t, got, constant.EndpointTypeGemini)
+			assert.Contains(t, got, constant.EndpointTypeOpenAI)
+		})
+	}
+}
+
+func TestGenericImageSubstringDoesNotForceImageEndpoint(t *testing.T) {
+	got := GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, "stable-image-v1")
+	assert.NotContains(t, got, constant.EndpointTypeImageGeneration)
+}
+
 func TestXAIVideoModelsExposeVideoEndpoint(t *testing.T) {
 	for _, model := range []string{
 		"grok-imagine-video",

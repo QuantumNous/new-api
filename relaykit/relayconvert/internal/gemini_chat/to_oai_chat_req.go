@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/jsonutil"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
@@ -30,7 +31,12 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 
 		var mediaContents []dto.MediaContent
 		var toolCalls []dto.ToolCallRequest
+		var thoughtParts []string
 		for _, part := range content.Parts {
+			if part.Thought && part.Text != "" {
+				thoughtParts = append(thoughtParts, part.Text)
+				continue
+			}
 			if part.Text != "" {
 				mediaContent := dto.MediaContent{
 					Type: "text",
@@ -84,8 +90,12 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 		} else if len(mediaContents) > 0 {
 			message.SetMediaContent(mediaContents)
 		}
+		if len(thoughtParts) > 0 {
+			reasoningContent := strings.Join(thoughtParts, "\n")
+			message.ReasoningContent = &reasoningContent
+		}
 
-		if len(message.ParseContent()) > 0 || len(message.ToolCalls) > 0 {
+		if len(message.ParseContent()) > 0 || len(message.ToolCalls) > 0 || message.GetReasoningContent() != "" {
 			messages = append(messages, message)
 		}
 	}
@@ -109,6 +119,14 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 	}
 	if geminiRequest.GenerationConfig.CandidateCount != nil && *geminiRequest.GenerationConfig.CandidateCount > 0 {
 		openaiRequest.N = kitutil.GetPointer(*geminiRequest.GenerationConfig.CandidateCount)
+	}
+	if cfg := geminiRequest.GenerationConfig.ThinkingConfig; cfg != nil {
+		switch {
+		case cfg.ThinkingLevel != "":
+			openaiRequest.ReasoningEffort = reasoning.OpenAIReasoningEffort(cfg.ThinkingLevel)
+		case cfg.IncludeThoughts:
+			openaiRequest.ReasoningEffort = reasoning.LevelHigh
+		}
 	}
 
 	if len(geminiRequest.GetTools()) > 0 {

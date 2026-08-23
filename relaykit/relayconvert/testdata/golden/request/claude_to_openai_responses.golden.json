@@ -32,6 +32,10 @@
   ],
   "instructions": "You are a helpful assistant.",
   "max_output_tokens": 1024,
+  "reasoning": {
+    "effort": "high",
+    "summary": "detailed"
+  },
   "stream": true,
   "tools": [
     {

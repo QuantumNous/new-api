@@ -25,6 +25,7 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 		{converter: ConverterGeminiContentToOpenAIChat, from: types.RelayFormatGemini, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
 		{converter: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: RequestConverterQualityFair, advancedCustom: true},
 		{converter: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: RequestConverterQualityFair, advancedCustom: true},
+		{converter: ConverterOpenAIImageToGeminiContent, from: types.RelayFormatOpenAIImage, to: types.RelayFormatGemini, quality: RequestConverterQualityFair},
 		{converter: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: RequestConverterQualityGood, advancedCustom: true},
 		{converter: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: RequestConverterQualityGood, advancedCustom: true},
 		{
@@ -541,8 +542,9 @@ func TestConvertRequestResponsesToClaudeUsesDirectConverter(t *testing.T) {
 	assert.True(t, *claudeReq.Stream)
 	assert.Equal(t, maxOutputTokens, *claudeReq.MaxTokens)
 	require.NotNil(t, claudeReq.Thinking)
-	assert.Equal(t, "enabled", claudeReq.Thinking.Type)
-	assert.Equal(t, 2048, claudeReq.Thinking.GetBudgetTokens())
+	assert.Equal(t, "adaptive", claudeReq.Thinking.Type)
+	assert.Nil(t, claudeReq.Thinking.BudgetTokens)
+	assert.JSONEq(t, `{"effort":"medium"}`, string(claudeReq.OutputConfig))
 
 	tools, err := kitutil.Any2Type[[]*dto.Tool](claudeReq.Tools)
 	require.NoError(t, err)

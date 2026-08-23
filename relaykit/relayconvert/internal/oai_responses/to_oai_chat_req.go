@@ -160,12 +160,25 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 		if err := kitutil.Unmarshal(req.Input, &items); err != nil {
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
+		var pendingReasoning string
 		for _, item := range items {
+			if strings.TrimSpace(kitutil.Interface2String(item["type"])) == "reasoning" {
+				pendingReasoning += extractResponsesReasoningItemText(item)
+				continue
+			}
+			before := len(messages)
 			nextMessages, err := responsesInputItemToChatMessages(item, messages)
 			if err != nil {
 				return nil, err
 			}
+			if pendingReasoning != "" {
+				nextMessages = attachPendingReasoning(before, nextMessages, pendingReasoning)
+				pendingReasoning = ""
+			}
 			messages = nextMessages
+		}
+		if pendingReasoning != "" {
+			messages = appendReasoningToLastAssistant(messages, pendingReasoning)
 		}
 		return messages, nil
 	default:
@@ -571,4 +584,69 @@ func JSONString(raw json.RawMessage) (string, error) {
 
 func RawJSONPresent(raw json.RawMessage) bool {
 	return rawJSONPresent(raw)
+}
+
+func extractResponsesReasoningItemText(item map[string]any) string {
+	var sb strings.Builder
+	appendReasoningTexts(&sb, item["summary"])
+	appendReasoningTexts(&sb, item["content"])
+	return sb.String()
+}
+
+func appendReasoningTexts(sb *strings.Builder, value any) {
+	switch typed := value.(type) {
+	case []any:
+		for _, part := range typed {
+			writeReasoningPart(sb, part)
+		}
+	case []map[string]any:
+		for _, part := range typed {
+			writeReasoningPart(sb, part)
+		}
+	}
+}
+
+func writeReasoningPart(sb *strings.Builder, part any) {
+	partMap, ok := part.(map[string]any)
+	if !ok {
+		return
+	}
+	text := strings.TrimSpace(kitutil.Interface2String(partMap["text"]))
+	if text == "" {
+		return
+	}
+	sb.WriteString(text)
+}
+
+func attachPendingReasoning(before int, messages []dto.Message, text string) []dto.Message {
+	if strings.TrimSpace(text) == "" {
+		return messages
+	}
+	for i := before; i < len(messages); i++ {
+		if messages[i].Role == "assistant" {
+			messages[i].ReasoningContent = &text
+			return messages
+		}
+	}
+	return appendReasoningToLastAssistant(messages, text)
+}
+
+func appendReasoningToLastAssistant(messages []dto.Message, text string) []dto.Message {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return messages
+	}
+	if len(messages) == 0 || messages[len(messages)-1].Role != "assistant" {
+		msg := dto.Message{Role: "assistant"}
+		msg.ReasoningContent = &text
+		return append(messages, msg)
+	}
+	idx := len(messages) - 1
+	if existing := messages[idx].GetReasoningContent(); existing != "" {
+		combined := existing + text
+		messages[idx].ReasoningContent = &combined
+		return messages
+	}
+	messages[idx].ReasoningContent = &text
+	return messages
 }

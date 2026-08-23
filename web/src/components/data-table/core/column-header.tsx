@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Column } from '@tanstack/react-table'
+import type { Column } from '@tanstack/react-table'
 import {
   ArrowDown as ArrowDownIcon,
   ArrowUp as ArrowUpIcon,
