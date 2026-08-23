@@ -54,6 +54,8 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  /** Seedance token + optional super-resolution public quote */
+  seedance?: SeedancePublicPricing
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
@@ -109,3 +111,18 @@ export type PriceType =
   | 'audio_input'
   | 'audio_output'
 export type QuotaType = 0 | 1 // 0: token-based, 1: per-request
+
+export type SeedancePublicPricing = {
+  super_resolution?: boolean
+  tokens_per_second?: Record<string, number>
+  text_unit_price_rmb?: Record<string, number>
+  video_unit_price_rmb?: Record<string, number>
+  text_per_second_usd?: Record<string, number>
+  video_per_second_usd?: Record<string, number>
+  sr_480_to_720_rmb?: number
+  sr_720_to_1080_rmb?: number
+  sr_480_to_720_usd?: number
+  sr_720_to_1080_usd?: number
+  output_text_per_second_usd?: Record<string, number>
+  output_video_per_second_usd?: Record<string, number>
+}

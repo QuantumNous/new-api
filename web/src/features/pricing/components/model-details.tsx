@@ -69,6 +69,10 @@ import {
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  formatSeedancePerSecond,
+  isSeedancePricingModel,
+} from '../lib/seedance-price'
 import type {
   ModelCapability,
   PriceType,
@@ -79,6 +83,7 @@ import { DynamicPricingBreakdown } from './dynamic-pricing-breakdown'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelDetailsApi } from './model-details-api'
 import { ModelDetailsPerformance } from './model-details-performance'
+import { SeedancePricingBreakdown } from './seedance-pricing-breakdown'
 
 // ----------------------------------------------------------------------------
 // Local UI helpers
@@ -702,6 +707,21 @@ function PriceSection(props: {
     )
   }
 
+  if (isSeedancePricingModel(props.model)) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <SeedancePricingBreakdown
+          model={props.model}
+          showWithRecharge={props.showRechargePrice}
+          priceRate={props.priceRate}
+          usdExchangeRate={props.usdExchangeRate}
+          groupRatio={1}
+        />
+      </section>
+    )
+  }
+
   if (!isTokenBased) {
     return (
       <section>
@@ -1016,6 +1036,42 @@ function GroupPricingSection(props: {
           <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
             {t('Prices shown per')} {tokenUnitLabel} tokens
           </p>
+        </div>
+      </section>
+    )
+  }
+
+  if (isSeedancePricingModel(props.model)) {
+    const usd = props.model.seedance.super_resolution
+      ? props.model.seedance.output_text_per_second_usd?.['720p']
+      : props.model.seedance.text_per_second_usd?.['720p']
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <div className='space-y-2'>
+          {availableGroups.map((group) => {
+            const ratio = props.groupRatio[group] ?? 1
+            return (
+              <div
+                key={group}
+                className='flex items-center justify-between rounded-lg border px-3 py-2'
+              >
+                <GroupBadge group={group} />
+                <span className='font-mono text-sm tabular-nums'>
+                  {formatSeedancePerSecond(usd, {
+                    showWithRecharge: showRechargePrice,
+                    priceRate: props.priceRate,
+                    usdExchangeRate: props.usdExchangeRate,
+                    groupRatio: ratio,
+                  }) || '—'}
+                  <span className='text-muted-foreground/50 ml-1 text-[10px]'>
+                    / {t('sec')}
+                  </span>
+                </span>
+              </div>
+            )
+          })}
         </div>
       </section>
     )

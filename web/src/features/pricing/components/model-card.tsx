@@ -32,6 +32,11 @@ import {
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
+import {
+  formatSeedancePerSecond,
+  getSeedancePrimaryPerSecond,
+  isSeedancePricingModel,
+} from '../lib/seedance-price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -127,6 +132,24 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </span>
       )
     }
+  } else if (isSeedancePricingModel(props.model)) {
+    const primary = getSeedancePrimaryPerSecond(
+      props.model,
+      props.selectedGroup
+    )
+    priceSummary = (
+      <span className='text-muted-foreground whitespace-nowrap'>
+        <span className='text-foreground font-mono font-semibold'>
+          {formatSeedancePerSecond(primary?.usd, {
+            showWithRecharge: showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            groupRatio: primary?.groupRatio,
+          }) || '—'}
+        </span>{' '}
+        / {t('sec')}
+      </span>
+    )
   } else if (isTokenBased) {
     priceSummary = (
       <>

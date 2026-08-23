@@ -17,8 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const SEEDANCE_PRICE_OPTION_KEY = 'seedance_price_setting.prices'
+export const SEEDANCE_SUPER_RESOLUTION_OPTION_KEY =
+  'seedance_price_setting.super_resolution'
 
 export const SEEDANCE_RESOLUTIONS = ['480p', '720p', '1080p', '4k'] as const
+export const SEEDANCE_FRAME_RATE = 24
 
 export type SeedanceResolution = (typeof SEEDANCE_RESOLUTIONS)[number]
 
@@ -29,19 +32,92 @@ export type SeedanceModelPrice = {
 
 export type SeedancePriceTable = Record<string, SeedanceModelPrice>
 
+export type SeedanceSuperResolutionPrice = {
+  '480_to_720': number
+  '720_to_1080': number
+}
+
+export const SEEDANCE_PIXELS: Record<
+  SeedanceResolution,
+  { width: number; height: number }
+> = {
+  '480p': { width: 864, height: 480 },
+  '720p': { width: 1280, height: 720 },
+  '1080p': { width: 1920, height: 1080 },
+  '4k': { width: 3840, height: 2160 },
+}
+
 export const DEFAULT_SEEDANCE_PRICES: SeedancePriceTable = {
   'doubao-seedance-2-0-260128': {
-    text: { '480p': 46, '720p': 46, '1080p': 51, '4k': 26 },
-    video: { '480p': 28, '720p': 28, '1080p': 31, '4k': 16 },
+    text: { '480p': 69, '720p': 69, '1080p': 76.5, '4k': 39 },
+    video: { '480p': 42, '720p': 42, '1080p': 46.5, '4k': 24 },
   },
   'doubao-seedance-2-0-fast-260128': {
-    text: { '480p': 37, '720p': 37 },
-    video: { '480p': 22, '720p': 22 },
+    text: { '480p': 55.5, '720p': 55.5 },
+    video: { '480p': 33, '720p': 33 },
   },
   'doubao-seedance-2-5-260628': {
-    text: { '480p': 70, '720p': 70 },
-    video: { '480p': 42, '720p': 42 },
+    text: { '480p': 105, '720p': 105 },
+    video: { '480p': 63, '720p': 63 },
   },
+}
+
+export const DEFAULT_SEEDANCE_SUPER_RESOLUTION: SeedanceSuperResolutionPrice = {
+  '480_to_720': 0.02,
+  '720_to_1080': 0.04,
+}
+
+export function seedanceTokensPerSecond(resolution: SeedanceResolution) {
+  const size = SEEDANCE_PIXELS[resolution]
+  return (size.width * size.height * SEEDANCE_FRAME_RATE) / 1024
+}
+
+export function seedancePerSecondRMB(
+  unitPriceRMB: number,
+  resolution: SeedanceResolution
+) {
+  if (!Number.isFinite(unitPriceRMB) || unitPriceRMB <= 0) return 0
+  return (seedanceTokensPerSecond(resolution) / 1_000_000) * unitPriceRMB
+}
+
+export function hasSeedancePricing(
+  modelName: string,
+  table: SeedancePriceTable
+) {
+  const name = modelName.trim()
+  if (!name) return false
+  if (table[name]) return true
+  return Object.keys(table).some(
+    (key) =>
+      name === key || name.startsWith(`${key}-`) || name.startsWith(`${key}_`)
+  )
+}
+
+export function parseSeedanceSuperResolution(
+  rawValue: string | undefined
+): SeedanceSuperResolutionPrice {
+  if (!rawValue?.trim()) return { ...DEFAULT_SEEDANCE_SUPER_RESOLUTION }
+  try {
+    const parsed = JSON.parse(rawValue) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { ...DEFAULT_SEEDANCE_SUPER_RESOLUTION }
+    }
+    const record = parsed as Record<string, unknown>
+    const from480 = Number(record['480_to_720'])
+    const from720 = Number(record['720_to_1080'])
+    return {
+      '480_to_720':
+        Number.isFinite(from480) && from480 >= 0
+          ? from480
+          : DEFAULT_SEEDANCE_SUPER_RESOLUTION['480_to_720'],
+      '720_to_1080':
+        Number.isFinite(from720) && from720 >= 0
+          ? from720
+          : DEFAULT_SEEDANCE_SUPER_RESOLUTION['720_to_1080'],
+    }
+  } catch {
+    return { ...DEFAULT_SEEDANCE_SUPER_RESOLUTION }
+  }
 }
 
 export type SeedancePriceRow = {

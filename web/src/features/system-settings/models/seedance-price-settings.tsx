@@ -31,22 +31,30 @@ import { useUpdateOption } from '../hooks/use-update-option'
 import {
   createEmptySeedanceRow,
   DEFAULT_SEEDANCE_PRICES,
+  DEFAULT_SEEDANCE_SUPER_RESOLUTION,
+  parseSeedancePriceCell,
   parseSeedancePriceTable,
+  parseSeedanceSuperResolution,
   rowHasInvalidPrice,
   rowsToTable,
+  seedancePerSecondRMB,
   SEEDANCE_PRICE_OPTION_KEY,
   SEEDANCE_RESOLUTIONS,
+  SEEDANCE_SUPER_RESOLUTION_OPTION_KEY,
   tableToRows,
   type SeedancePriceRow,
   type SeedanceResolution,
+  type SeedanceSuperResolutionPrice,
 } from './seedance-price'
 
 type SeedancePriceSettingsProps = {
   defaultValue: string
+  superResolutionDefault?: string
 }
 
 export const SeedancePriceSettings = memo(function SeedancePriceSettings({
   defaultValue,
+  superResolutionDefault = '{}',
 }: SeedancePriceSettingsProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -55,6 +63,8 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
   const [jsonText, setJsonText] = useState('')
   const [jsonError, setJsonError] = useState('')
   const [nextRowId, setNextRowId] = useState(1)
+  const [superResolution, setSuperResolution] =
+    useState<SeedanceSuperResolutionPrice>(DEFAULT_SEEDANCE_SUPER_RESOLUTION)
 
   useEffect(() => {
     const table = parseSeedancePriceTable(defaultValue)
@@ -64,6 +74,10 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
     setJsonError('')
     setNextRowId(initialRows.length + 1)
   }, [defaultValue])
+
+  useEffect(() => {
+    setSuperResolution(parseSeedanceSuperResolution(superResolutionDefault))
+  }, [superResolutionDefault])
 
   const currentTable = useMemo(() => rowsToTable(rows), [rows])
   const invalidRowIds = useMemo(
@@ -147,6 +161,7 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
     setJsonText(JSON.stringify(DEFAULT_SEEDANCE_PRICES, null, 2))
     setJsonError('')
     setNextRowId(initialRows.length + 1)
+    setSuperResolution({ ...DEFAULT_SEEDANCE_SUPER_RESOLUTION })
   }, [])
 
   const handleCopyJson = useCallback(async () => {
@@ -158,8 +173,14 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
     }
   }, [jsonText, t])
 
+  const superResolutionInvalid =
+    !Number.isFinite(superResolution['480_to_720']) ||
+    superResolution['480_to_720'] < 0 ||
+    !Number.isFinite(superResolution['720_to_1080']) ||
+    superResolution['720_to_1080'] < 0
+
   const handleSave = useCallback(async () => {
-    if (invalidRowIds.size > 0) {
+    if (invalidRowIds.size > 0 || superResolutionInvalid) {
       toast.error(t('Please enter a valid number'))
       return
     }
@@ -171,7 +192,20 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
       key: SEEDANCE_PRICE_OPTION_KEY,
       value: JSON.stringify(currentTable),
     })
-  }, [currentTable, editMode, invalidRowIds.size, jsonError, t, updateOption])
+    await updateOption.mutateAsync({
+      key: SEEDANCE_SUPER_RESOLUTION_OPTION_KEY,
+      value: JSON.stringify(superResolution),
+    })
+  }, [
+    currentTable,
+    editMode,
+    invalidRowIds.size,
+    jsonError,
+    superResolution,
+    superResolutionInvalid,
+    t,
+    updateOption,
+  ])
 
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
@@ -183,11 +217,63 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
         <AlertDescription className='space-y-1 text-sm'>
           <div>
             {t(
-              'Configure Seedance 2.0/2.5 list prices in RMB per million tokens. This table only controls the resolution and video-input surcharge. Selling prices stay in Model ratio.'
+              'Set Seedance selling prices in RMB per million tokens. Regular channels bill by output resolution tokens. MediaKit channels bill source-resolution tokens plus the matching super-resolution per-second price.'
+            )}
+          </div>
+          <div>
+            {t(
+              'Estimated per-second prices use 16:9 at 24 fps: tokens = (width × height × 24 × seconds) / 1024. Actual settlement uses upstream token usage.'
             )}
           </div>
         </AlertDescription>
       </Alert>
+
+      <div className='space-y-3 rounded-md border p-3'>
+        <p className='text-sm font-medium'>{t('Super-resolution prices')}</p>
+        <p className='text-muted-foreground text-xs'>
+          {t(
+            'Used only by DoubaoVideoMediaKit channels. 720p output bills 480p tokens plus 480→720; 1080p output bills 720p tokens plus 720→1080.'
+          )}
+        </p>
+        <div className='grid gap-3 sm:grid-cols-2'>
+          <Field data-invalid={superResolutionInvalid}>
+            <Input
+              type='number'
+              min={0}
+              step={0.001}
+              value={superResolution['480_to_720']}
+              onChange={(event) =>
+                setSuperResolution((prev) => ({
+                  ...prev,
+                  '480_to_720': Number(event.target.value),
+                }))
+              }
+              aria-label={t('480p to 720p per second')}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('480p to 720p per second')} (RMB)
+            </p>
+          </Field>
+          <Field data-invalid={superResolutionInvalid}>
+            <Input
+              type='number'
+              min={0}
+              step={0.001}
+              value={superResolution['720_to_1080']}
+              onChange={(event) =>
+                setSuperResolution((prev) => ({
+                  ...prev,
+                  '720_to_1080': Number(event.target.value),
+                }))
+              }
+              aria-label={t('720p to 1080p per second')}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('720p to 1080p per second')} (RMB)
+            </p>
+          </Field>
+        </div>
+      </div>
 
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <div className='flex flex-wrap items-center gap-2'>
@@ -240,6 +326,7 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
                 key={row.id}
                 row={row}
                 invalid={invalidRowIds.has(row.id)}
+                superResolution={superResolution}
                 onModelChange={(value) => updateModel(row.id, value)}
                 onCellChange={(bucket, resolution, value) =>
                   updateCell(row.id, bucket, resolution, value)
@@ -267,6 +354,7 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
           disabled={
             updateOption.isPending ||
             invalidRowIds.size > 0 ||
+            superResolutionInvalid ||
             (editMode === 'json' && !!jsonError)
           }
         >
@@ -277,15 +365,22 @@ export const SeedancePriceSettings = memo(function SeedancePriceSettings({
   )
 })
 
+function formatRmbPerSecond(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return ''
+  return `${value.toFixed(4).replace(/\.?0+$/, '')} RMB/s`
+}
+
 function SeedancePriceCard({
   row,
   invalid,
+  superResolution,
   onModelChange,
   onCellChange,
   onRemove,
 }: {
   row: SeedancePriceRow
   invalid: boolean
+  superResolution: SeedanceSuperResolutionPrice
   onModelChange: (value: string) => void
   onCellChange: (
     bucket: 'text' | 'video',
@@ -346,9 +441,36 @@ function SeedancePriceCard({
                 }
               />
             </Field>
+            {(() => {
+              const textPrice = parseSeedancePriceCell(row.text[resolution])
+              if (textPrice === null) return null
+              const perSecond = seedancePerSecondRMB(textPrice, resolution)
+              const label = formatRmbPerSecond(perSecond)
+              if (!label) return null
+              return (
+                <p className='text-muted-foreground text-[11px]'>{label}</p>
+              )
+            })()}
           </div>
         ))}
       </div>
+      <p className='text-muted-foreground text-xs'>
+        {t('MediaKit 720p')}:{' '}
+        {formatRmbPerSecond(
+          seedancePerSecondRMB(
+            parseSeedancePriceCell(row.text['480p']) ?? 0,
+            '480p'
+          ) + superResolution['480_to_720']
+        ) || '—'}
+        {' · '}
+        {t('MediaKit 1080p')}:{' '}
+        {formatRmbPerSecond(
+          seedancePerSecondRMB(
+            parseSeedancePriceCell(row.text['720p']) ?? 0,
+            '720p'
+          ) + superResolution['720_to_1080']
+        ) || '—'}
+      </p>
       {invalid ? (
         <FieldError>{t('Please enter a valid number')}</FieldError>
       ) : null}

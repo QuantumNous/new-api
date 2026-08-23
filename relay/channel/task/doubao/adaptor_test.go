@@ -188,7 +188,7 @@ func TestConvertPreservesDraftTaskAndFramesTakePrecedence(t *testing.T) {
 	assert.Nil(t, payload.Duration)
 }
 
-func TestEstimateBillingUsesMappedModelAndPayloadResolution(t *testing.T) {
+func TestEstimateBillingDoesNotUseRelativeSeedanceRatio(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	context, info := newDoubaoTestContext(`{
 		"model":"my-seedance-alias",
@@ -201,10 +201,7 @@ func TestEstimateBillingUsesMappedModelAndPayloadResolution(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 
 	require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
-	ratios := adaptor.EstimateBilling(context, info)
-
-	require.Contains(t, ratios, "seedance_unit_price")
-	assert.InDelta(t, 31.0/46.0, ratios["seedance_unit_price"], 1e-9)
+	assert.Nil(t, adaptor.EstimateBilling(context, info))
 }
 
 func TestParseTaskResultUsesCompletionTokensAsBillingTotal(t *testing.T) {

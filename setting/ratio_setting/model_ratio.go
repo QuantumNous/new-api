@@ -279,12 +279,6 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-ai/DeepSeek-R1":                 0.8,
 	"deepseek-ai/DeepSeek-V3-0324":            0.8,
 	"deepseek-ai/DeepSeek-V3.1":               0.8,
-	// Seedance is billed by generated tokens. These defaults use the
-	// 480P/720P, no-video-input list price; the adaptor applies the official
-	// resolution/video-input multiplier and settles against actual usage.
-	"doubao-seedance-2-0-260128":      0.046 * RMB,
-	"doubao-seedance-2-0-fast-260128": 0.037 * RMB,
-	"doubao-seedance-2-5-260628":      0.070 * RMB,
 }
 
 var defaultModelPrice = map[string]float64{

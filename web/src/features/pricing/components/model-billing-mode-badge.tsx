@@ -22,6 +22,7 @@ import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 
 import { isDynamicPricingModel } from '../lib/dynamic-price'
 import { isTokenBasedModel } from '../lib/model-helpers'
+import { isSeedancePricingModel } from '../lib/seedance-price'
 import type { PricingModel } from '../types'
 
 interface ModelBillingModeBadgeProps {
@@ -37,6 +38,11 @@ export function ModelBillingModeBadge(props: ModelBillingModeBadgeProps) {
   if (isDynamicPricingModel(props.model)) {
     label = t('Dynamic Pricing')
     variant = 'warning'
+  } else if (isSeedancePricingModel(props.model)) {
+    label = props.model.seedance.super_resolution
+      ? t('Per second + upscale')
+      : t('Per second')
+    variant = 'success'
   } else if (isTokenBasedModel(props.model)) {
     label = t('Token-based')
     variant = 'info'

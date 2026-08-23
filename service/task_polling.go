@@ -501,6 +501,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		// task without changing the stable, user-facing task ID.
 		task.PrivateData.UpstreamTaskID = taskResult.TaskID
 	}
+	if taskResult.TotalTokens > 0 {
+		task.PrivateData.UsageTokens = taskResult.TotalTokens
+	}
+	if taskResult.DurationSeconds > 0 {
+		task.PrivateData.UsageDurationSeconds = taskResult.DurationSeconds
+	}
 
 	logger.LogDebug(ctx, "updateVideoSingleTask taskResult: %+v", taskResult)
 

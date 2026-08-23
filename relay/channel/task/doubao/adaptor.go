@@ -19,7 +19,6 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -240,29 +239,14 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling 根据实际输出分辨率与是否包含视频输入，返回相对基准价的计费 OtherRatio。
+// EstimateBilling is unused for Seedance: absolute token/超分 quoting lives in
+// helper.ApplySeedanceTaskPrice. Other Doubao-compatible models keep the default.
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return nil
-	}
-	payload, err := a.convertToRequestPayload(&req)
-	if err != nil {
-		return nil
-	}
-	hasVideo := lo.ContainsBy(payload.Content, func(item ContentItem) bool {
-		return item.Type == "video_url" || item.VideoURL != nil
-	})
-	ratio, ok := ratio_setting.LookupSeedanceBillingRatio(
-		payload.Resolution,
-		hasVideo,
-		info.OriginModelName,
-		info.UpstreamModelName,
-	)
-	if !ok || ratio == 1.0 {
-		return nil
-	}
-	return map[string]float64{"seedance_unit_price": ratio}
+	return nil
+}
+
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	return service.SettleSeedanceTaskQuota(task, taskResult)
 }
 
 // BuildRequestBody converts request into Doubao specific format.
@@ -435,6 +419,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		if taskResult.TotalTokens <= 0 {
 			taskResult.TotalTokens = resTask.Usage.CompletionTokens
 		}
+		taskResult.DurationSeconds = resTask.Duration
 	case "failed", "cancelled", "expired":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"

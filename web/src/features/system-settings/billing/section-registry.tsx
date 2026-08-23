@@ -116,6 +116,9 @@ const BILLING_SECTIONS = [
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
         seedancePricesDefault={settings['seedance_price_setting.prices']}
+        seedanceSuperResolutionDefault={
+          settings['seedance_price_setting.super_resolution']
+        }
         visibleTabs={[
           'models',
           'unset-models',

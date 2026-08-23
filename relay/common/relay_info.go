@@ -151,6 +151,12 @@ type RelayInfo struct {
 
 	PriceData hosttypes.PriceData
 
+	// VideoOutputResolution is the user-facing output resolution before an
+	// adaptor rewrites the upstream generation resolution (MediaKit 超分).
+	VideoOutputResolution string
+	// SeedanceBilling is filled when Seedance token/超分 quoting applies.
+	SeedanceBilling *hosttypes.SeedanceBillingSnapshot
+
 	// QuotaClamp is set (non-nil) when a quota conversion saturated at the
 	// int32 bound (or NaN fallback) while computing this request's charge.
 	// It is surfaced onto the consume/task log's admin_info for auditing.
@@ -957,6 +963,7 @@ type TaskInfo struct {
 	Progress         string `json:"progress,omitempty"`
 	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
 	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	DurationSeconds  int    `json:"duration_seconds,omitempty"`  // 上游返回的实际视频时长
 }
 
 func FailTaskInfo(reason string) *TaskInfo {

@@ -40,6 +40,11 @@ import {
   formatRequestPrice,
   stripTrailingZeros,
 } from '../lib/price'
+import {
+  formatSeedancePerSecond,
+  getSeedancePrimaryPerSecond,
+  isSeedancePricingModel,
+} from '../lib/seedance-price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 
@@ -169,6 +174,27 @@ export function usePricingColumns(
                   ` · ${t('{{count}} tiers', {
                     count: dynamicSummary.tierCount,
                   })}`}
+              </div>
+            </div>
+          )
+        }
+
+        if (isSeedancePricingModel(model)) {
+          const primary = getSeedancePrimaryPerSecond(model, selectedGroup)
+          const formatted = formatSeedancePerSecond(primary?.usd, {
+            showWithRecharge: showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            groupRatio: primary?.groupRatio,
+          })
+          return (
+            <div className='max-w-full min-w-0'>
+              <span className='font-mono text-sm tabular-nums'>
+                {formatted || '—'}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {t('sec')}
+                {primary?.superResolution ? ` · ${t('upscale')}` : ''}
               </div>
             </div>
           )

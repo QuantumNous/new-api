@@ -127,6 +127,9 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	}
 
 	a.targetResolution = resolution
+	if info != nil {
+		info.VideoOutputResolution = resolution
+	}
 	req.Metadata["resolution"] = sourceResolution
 	relaycommon.SetTaskRequest(c, req)
 	return nil
@@ -295,11 +298,19 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		if transition.NextTaskID == "" {
 			return nil, fmt.Errorf("mediakit transition response has no next_task_id")
 		}
-		return &relaycommon.TaskInfo{
+		taskResult := &relaycommon.TaskInfo{
 			TaskID:   transition.NextTaskID,
 			Status:   string(model.TaskStatusInProgress),
 			Progress: "70%",
-		}, nil
+		}
+		if len(transition.Source) > 0 {
+			if arkResult, parseErr := a.TaskAdaptor.ParseTaskResult(transition.Source); parseErr == nil && arkResult != nil {
+				taskResult.TotalTokens = arkResult.TotalTokens
+				taskResult.CompletionTokens = arkResult.CompletionTokens
+				taskResult.DurationSeconds = arkResult.DurationSeconds
+			}
+		}
+		return taskResult, nil
 	}
 
 	var mediaResult mediaKitResponse

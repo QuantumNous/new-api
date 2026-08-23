@@ -313,6 +313,7 @@ export function ModelMutateDrawer({
       'billing_setting.billing_expr': '{}',
       'tool_price_setting.prices': '{}',
       'seedance_price_setting.prices': '{}',
+      'seedance_price_setting.super_resolution': '{}',
       TopupGroupRatio: '',
       GroupRatio: '',
       UserUsableGroups: '',

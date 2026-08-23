@@ -90,6 +90,7 @@ type ModelRatioVisualEditorProps = {
   candidateModelNames?: string[]
   candidateModelsLoading?: boolean
   filterMode?: 'all' | 'unset'
+  seedancePricedModels?: (modelName: string) => boolean
   onChange: (field: string, value: string) => void
   onSave: () => void | Promise<void>
   isSaving: boolean
@@ -129,6 +130,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     candidateModelNames,
     candidateModelsLoading,
     filterMode = 'all',
+    seedancePricedModels,
     onChange,
     onSave,
     isSaving,
@@ -240,11 +242,16 @@ const ModelRatioVisualEditorComponent = forwardRef<
         }
       })
       .filter((row) => !row.isDraftDeleted)
-      .filter((row) => filterMode !== 'unset' || isBasePricingUnset(row.saved))
+      .filter(
+        (row) =>
+          filterMode !== 'unset' ||
+          isBasePricingUnset(row.saved, seedancePricedModels)
+      )
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
     candidateModelNames,
     filterMode,
+    seedancePricedModels,
     savedModelPrice,
     savedModelRatio,
     savedCacheRatio,

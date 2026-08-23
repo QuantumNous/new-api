@@ -132,6 +132,18 @@ func taskBillingOther(task *model.Task) map[string]interface{} {
 				other[k] = v
 			}
 		}
+		if snap := bc.Seedance; snap != nil {
+			other["seedance_unit_price_rmb"] = snap.UnitPriceRMB
+			other["seedance_resolution"] = snap.BillingResolution
+			if snap.OutputResolution != "" {
+				other["seedance_output_resolution"] = snap.OutputResolution
+			}
+			other["seedance_has_video"] = snap.HasVideo
+			if snap.SuperResolution {
+				other["seedance_super_resolution"] = true
+				other["seedance_super_resolution_rmb"] = snap.SuperResolutionRMB
+			}
+		}
 	}
 	props := task.Properties
 	if props.UpstreamModelName != "" && props.UpstreamModelName != props.OriginModelName {
@@ -280,11 +292,43 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	})
 }
 
+// SettleSeedanceTaskQuota settles Seedance token cost plus optional super-resolution duration cost.
+func SettleSeedanceTaskQuota(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	if task == nil || task.PrivateData.BillingContext == nil || task.PrivateData.BillingContext.Seedance == nil {
+		return 0
+	}
+	snap := *task.PrivateData.BillingContext.Seedance
+	tokens := 0
+	durationSeconds := 0.0
+	if taskResult != nil {
+		tokens = taskResult.TotalTokens
+		durationSeconds = float64(taskResult.DurationSeconds)
+	}
+	if tokens <= 0 {
+		tokens = task.PrivateData.UsageTokens
+	}
+	if durationSeconds <= 0 && task.PrivateData.UsageDurationSeconds > 0 {
+		durationSeconds = float64(task.PrivateData.UsageDurationSeconds)
+	}
+	groupRatio := task.PrivateData.BillingContext.GroupRatio
+	if groupRatio == 0 {
+		groupRatio = 1
+	}
+	quota, clamp := ratio_setting.SettleSeedanceQuota(snap, tokens, durationSeconds, groupRatio)
+	if clamp != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("seedance settle clamp task %s: %s", task.TaskID, clamp.Kind))
+	}
+	return quota
+}
+
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。
 // 当任务成功且返回了 totalTokens 时，根据模型倍率和分组倍率重新计算实际扣费额度，
 // 与预扣费的差额进行补扣或退还。支持钱包和订阅计费来源。
 func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTokens int) {
 	if totalTokens <= 0 {
+		return
+	}
+	if task != nil && task.PrivateData.BillingContext != nil && task.PrivateData.BillingContext.Seedance != nil {
 		return
 	}
 

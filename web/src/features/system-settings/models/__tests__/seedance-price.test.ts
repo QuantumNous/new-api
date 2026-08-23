@@ -20,8 +20,12 @@ import { describe, expect, test } from 'vitest'
 
 import {
   DEFAULT_SEEDANCE_PRICES,
+  hasSeedancePricing,
   parseSeedancePriceTable,
+  parseSeedanceSuperResolution,
   rowsToTable,
+  seedancePerSecondRMB,
+  seedanceTokensPerSecond,
   tableToRows,
 } from '../seedance-price'
 
@@ -34,6 +38,21 @@ describe('seedance price table', () => {
   test('round-trips visual rows without dropping official cells', () => {
     const rows = tableToRows(DEFAULT_SEEDANCE_PRICES)
     expect(rowsToTable(rows)).toEqual(DEFAULT_SEEDANCE_PRICES)
+  })
+
+  test('uses official times 1.5 selling defaults', () => {
+    expect(
+      DEFAULT_SEEDANCE_PRICES['doubao-seedance-2-0-260128']?.text['720p']
+    ).toBe(69)
+    expect(seedanceTokensPerSecond('720p')).toBe(21600)
+    expect(seedancePerSecondRMB(69, '720p')).toBeCloseTo(1.4904, 4)
+    expect(
+      hasSeedancePricing(
+        'doubao-seedance-2-0-260128-se',
+        DEFAULT_SEEDANCE_PRICES
+      )
+    ).toBe(true)
+    expect(parseSeedanceSuperResolution('{}')['480_to_720']).toBe(0.02)
   })
 
   test('keeps a custom alias row', () => {

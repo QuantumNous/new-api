@@ -34,6 +34,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 import { positiveIntegerSchema } from '../utils/numeric-field'
 import { GroupRatioForm } from './group-ratio-form'
 import { ModelRatioForm } from './model-ratio-form'
+import { hasSeedancePricing, parseSeedancePriceTable } from './seedance-price'
 import { SeedancePriceSettings } from './seedance-price-settings'
 import { ToolPriceSettings } from './tool-price-settings'
 import { UpstreamRatioSync } from './upstream-ratio-sync'
@@ -152,6 +153,7 @@ type RatioSettingsCardProps = {
   groupDefaults: GroupFormValues
   toolPricesDefault: string
   seedancePricesDefault?: string
+  seedanceSuperResolutionDefault?: string
   titleKey?: string
   visibleTabs?: RatioTabId[]
 }
@@ -161,6 +163,7 @@ export function RatioSettingsCard({
   groupDefaults,
   toolPricesDefault,
   seedancePricesDefault = '{}',
+  seedanceSuperResolutionDefault = '{}',
   titleKey = 'Pricing Ratios',
   visibleTabs = ['models', 'groups', 'tool-prices', 'upstream-sync'],
 }: RatioSettingsCardProps) {
@@ -424,6 +427,14 @@ export function RatioSettingsCard({
       6: 'grid-cols-3 sm:grid-cols-6',
     }[visibleTabs.length] ?? 'grid-cols-4'
   const defaultTab = visibleTabs[0] ?? 'models'
+  const seedancePriceTable = useMemo(
+    () => parseSeedancePriceTable(seedancePricesDefault),
+    [seedancePricesDefault]
+  )
+  const seedancePricedModels = useCallback(
+    (modelName: string) => hasSeedancePricing(modelName, seedancePriceTable),
+    [seedancePriceTable]
+  )
 
   const renderTabContent = (tab: RatioTabId) => {
     if (tab === 'models' || tab === 'unset-models') {
@@ -436,6 +447,7 @@ export function RatioSettingsCard({
           isSaving={updateOption.isPending}
           isResetting={resetMutation.isPending}
           variant={tab === 'unset-models' ? 'unset' : 'default'}
+          seedancePricedModels={seedancePricedModels}
         />
       )
     }
@@ -452,7 +464,12 @@ export function RatioSettingsCard({
       return <ToolPriceSettings defaultValue={toolPricesDefault} />
     }
     if (tab === 'seedance-prices') {
-      return <SeedancePriceSettings defaultValue={seedancePricesDefault} />
+      return (
+        <SeedancePriceSettings
+          defaultValue={seedancePricesDefault}
+          superResolutionDefault={seedanceSuperResolutionDefault}
+        />
+      )
     }
     return (
       <UpstreamRatioSync

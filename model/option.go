@@ -212,6 +212,9 @@ func validateOptionValue(key string, value string) error {
 	if key == ratio_setting.SeedancePriceOptionKey {
 		return ratio_setting.ValidateSeedancePricesJSON(value)
 	}
+	if key == ratio_setting.SeedanceSuperResolutionOptionKey {
+		return ratio_setting.ValidateSeedanceSuperResolutionJSON(value)
+	}
 	if key == operation_setting.ChannelTestConcurrencyOptionKey {
 		return operation_setting.ValidateChannelTestConcurrency(value)
 	}
@@ -623,6 +626,12 @@ func handleConfigUpdate(key, value string) bool {
 	}
 	if key == ratio_setting.SeedancePriceOptionKey {
 		ratio_setting.LoadSeedancePricesFromJSONString(value)
+		InvalidatePricingCache()
+		return true
+	}
+	if key == ratio_setting.SeedanceSuperResolutionOptionKey {
+		ratio_setting.LoadSeedanceSuperResolutionFromJSONString(value)
+		InvalidatePricingCache()
 		return true
 	}
 
