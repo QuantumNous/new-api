@@ -198,7 +198,9 @@ func grantInviteRebate(topUp *TopUp) (*inviteRebateGrant, error) {
 			return err
 		}
 
-		if err := creditTopUpQuota(tx, invitee.InviterId, rebateQuota, nil); err != nil {
+		if err := creditTopUpQuota(tx, invitee.InviterId, rebateQuota, map[string]interface{}{
+			"aff_history": gorm.Expr("aff_history + ?", rebateQuota),
+		}); err != nil {
 			return err
 		}
 
@@ -216,4 +218,78 @@ func grantInviteRebate(topUp *TopUp) (*inviteRebateGrant, error) {
 		return nil, nil
 	}
 	return grant, err
+}
+
+const inviteStatisticsSyncedOptionKey = "InviteStatisticsSynced"
+
+// EnsureInviteStatisticsSynced backfills invite counts from inviter_id and
+// adds already-paid recharge rebates into aff_history so admin/wallet stats
+// match the actual invite graph. It runs once per database.
+func EnsureInviteStatisticsSynced() error {
+	var opt Option
+	err := DB.Where(commonKeyCol+" = ?", inviteStatisticsSyncedOptionKey).First(&opt).Error
+	if err == nil && opt.Value == "true" {
+		return nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if err := syncInviteStatistics(); err != nil {
+		return err
+	}
+	return UpdateOption(inviteStatisticsSyncedOptionKey, "true")
+}
+
+func syncInviteStatistics() error {
+	type inviteCountRow struct {
+		InviterId int   `gorm:"column:inviter_id"`
+		Count     int64 `gorm:"column:cnt"`
+	}
+	var countRows []inviteCountRow
+	if err := DB.Unscoped().Model(&User{}).
+		Select("inviter_id as inviter_id, count(*) as cnt").
+		Where("inviter_id > 0").
+		Group("inviter_id").
+		Scan(&countRows).Error; err != nil {
+		return err
+	}
+
+	inviterIDs := make([]int, 0, len(countRows))
+	for _, row := range countRows {
+		inviterIDs = append(inviterIDs, row.InviterId)
+	}
+	zeroQuery := DB.Model(&User{}).Where("aff_count > 0")
+	if len(inviterIDs) > 0 {
+		zeroQuery = zeroQuery.Where("id NOT IN ?", inviterIDs)
+	}
+	if err := zeroQuery.Update("aff_count", 0).Error; err != nil {
+		return err
+	}
+	for _, row := range countRows {
+		if err := DB.Model(&User{}).Where("id = ?", row.InviterId).Update("aff_count", int(row.Count)).Error; err != nil {
+			return err
+		}
+	}
+
+	type rebateSumRow struct {
+		InviterId int `gorm:"column:inviter_id"`
+		Total     int `gorm:"column:total"`
+	}
+	var rebateRows []rebateSumRow
+	if err := DB.Model(&InviteRebate{}).
+		Select("inviter_id, sum(quota) as total").
+		Group("inviter_id").
+		Scan(&rebateRows).Error; err != nil {
+		return err
+	}
+	for _, row := range rebateRows {
+		if row.Total <= 0 {
+			continue
+		}
+		if err := DB.Model(&User{}).Where("id = ?", row.InviterId).
+			Update("aff_history", gorm.Expr("aff_history + ?", row.Total)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

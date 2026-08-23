@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 
 import { UsersDeleteDialog } from './components/users-delete-dialog'
+import { UsersInviteesDialog } from './components/users-invitees-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
 import { UsersProvider, useUsers } from './components/users-provider'
@@ -48,6 +49,7 @@ function UsersContent() {
         currentRow={open === 'update' ? currentRow || undefined : undefined}
       />
       <UsersDeleteDialog />
+      <UsersInviteesDialog />
     </>
   )
 }

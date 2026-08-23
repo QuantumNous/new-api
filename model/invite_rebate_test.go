@@ -169,6 +169,12 @@ func TestInsertPersistsInviteRebateEligibility(t *testing.T) {
 	require.NoError(t, DB.Select("id", "inviter_id", "invite_rebate_eligible").Where("id = ?", invitee.Id).First(&stored).Error)
 	assert.Equal(t, inviter.Id, stored.InviterId)
 	assert.True(t, stored.InviteRebateEligible)
+
+	var inviterStored User
+	require.NoError(t, DB.Select("aff_count", "aff_quota", "aff_history").Where("id = ?", inviter.Id).First(&inviterStored).Error)
+	assert.Equal(t, 1, inviterStored.AffCount)
+	assert.Equal(t, 0, inviterStored.AffQuota)
+	assert.Equal(t, 0, inviterStored.AffHistoryQuota)
 }
 
 func TestInviteRebatePaysInviterFromActualPayment(t *testing.T) {
@@ -189,6 +195,10 @@ func TestInviteRebatePaysInviterFromActualPayment(t *testing.T) {
 	assert.Equal(t, wantInvitee, userQuota(t, invitee.Id))
 	assert.Equal(t, wantInviter, userQuota(t, inviter.Id))
 	assert.Equal(t, int64(1), inviteRebateCount(t, topUp.Id))
+
+	var inviterStored User
+	require.NoError(t, DB.Select("aff_history").Where("id = ?", inviter.Id).First(&inviterStored).Error)
+	assert.Equal(t, wantInviter, inviterStored.AffHistoryQuota)
 }
 
 func TestInviteRebateSkipsLegacyInvitees(t *testing.T) {
@@ -278,4 +288,35 @@ func TestInviteRebateIgnoresNonWalletProviders(t *testing.T) {
 	applyInviteRebate(topUp)
 	assert.Equal(t, 0, userQuota(t, inviter.Id))
 	assert.Equal(t, int64(0), inviteRebateCount(t, topUp.Id))
+}
+
+func TestSyncInviteStatisticsBackfillsCountAndRevenue(t *testing.T) {
+	truncateTables(t)
+
+	inviter := createInviteRebateUser(t, "stats-inviter", 0, false, 0)
+	_ = createInviteRebateUser(t, "stats-invitee-1", inviter.Id, true, 0)
+	_ = createInviteRebateUser(t, "stats-invitee-2", inviter.Id, true, 0)
+	require.NoError(t, DB.Create(&InviteRebate{
+		TopUpId:   9001,
+		TradeNo:   "stats-rebate-1",
+		InviteeId: 1,
+		InviterId: inviter.Id,
+		Quota:     75000,
+		Percent:   15,
+		Sequence:  1,
+		CreatedAt: time.Now().Unix(),
+	}).Error)
+
+	require.NoError(t, syncInviteStatistics())
+
+	var stored User
+	require.NoError(t, DB.Select("aff_count", "aff_history").Where("id = ?", inviter.Id).First(&stored).Error)
+	assert.Equal(t, 2, stored.AffCount)
+	assert.Equal(t, 75000, stored.AffHistoryQuota)
+
+	page := common.PageInfo{Page: 1, PageSize: 10}
+	invitees, total, err := GetInviteesByInviterId(inviter.Id, &page)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	assert.Len(t, invitees, 2)
 }

@@ -149,4 +149,24 @@ export interface ManageUserQuotaPayload {
 // Dialog Types
 // ============================================================================
 
-export type UsersDialogType = 'create' | 'update' | 'delete'
+export type UsersDialogType = 'create' | 'update' | 'delete' | 'invitees'
+
+export interface UserInvitee {
+  id: number
+  username: string
+  display_name?: string
+  status: number
+  created_at: number
+  deleted?: boolean
+}
+
+export interface GetUserInviteesResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items: UserInvitee[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
