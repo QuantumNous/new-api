@@ -65,6 +65,7 @@
     "{{modality}} not supported": "不支援 {{modality}}",
     "{{modality}} supported": "支援 {{modality}}",
     "{{n}} model(s) selected": "已選 {{n}} 個模型",
+    "{{percent}} OFF": "{{percent}} OFF",
     "{{processed}} of {{total}} log entries processed.": "已處理 {{processed}} / {{total}} 條日誌。",
     "{{protocol}} auth name": "{{protocol}} 驗證名稱",
     "{{protocol}} auth value": "{{protocol}} 驗證值",

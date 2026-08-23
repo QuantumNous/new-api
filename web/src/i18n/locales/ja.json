@@ -65,6 +65,7 @@
     "{{modality}} not supported": "{{modality}} はサポートされていません",
     "{{modality}} supported": "{{modality}} をサポート",
     "{{n}} model(s) selected": "{{n}} 件のモデルを選択済み",
+    "{{percent}} OFF": "{{percent}} OFF",
     "{{processed}} of {{total}} log entries processed.": "{{total}} 件中 {{processed}} 件のログを処理しました。",
     "{{protocol}} auth name": "{{protocol}} 認証名",
     "{{protocol}} auth value": "{{protocol}} 認証値",

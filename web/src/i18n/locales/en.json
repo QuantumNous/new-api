@@ -65,6 +65,7 @@
     "{{modality}} not supported": "{{modality}} not supported",
     "{{modality}} supported": "{{modality}} supported",
     "{{n}} model(s) selected": "{{n}} model(s) selected",
+    "{{percent}} OFF": "{{percent}} OFF",
     "{{processed}} of {{total}} log entries processed.": "{{processed}} of {{total}} log entries processed.",
     "{{protocol}} auth name": "{{protocol}} auth name",
     "{{protocol}} auth value": "{{protocol}} auth value",

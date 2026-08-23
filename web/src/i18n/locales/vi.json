@@ -65,6 +65,7 @@
     "{{modality}} not supported": "Không hỗ trợ {{modality}}",
     "{{modality}} supported": "Hỗ trợ {{modality}}",
     "{{n}} model(s) selected": "Đã chọn {{n}} model",
+    "{{percent}} OFF": "{{percent}} OFF",
     "{{processed}} of {{total}} log entries processed.": "Đã xử lý {{processed}}/{{total}} mục nhật ký.",
     "{{protocol}} auth name": "Tên xác thực {{protocol}}",
     "{{protocol}} auth value": "Giá trị xác thực {{protocol}}",

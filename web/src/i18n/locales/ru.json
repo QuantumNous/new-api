@@ -65,6 +65,7 @@
     "{{modality}} not supported": "{{modality}} не поддерживается",
     "{{modality}} supported": "{{modality}} поддерживается",
     "{{n}} model(s) selected": "Выбрано моделей: {{n}}",
+    "{{percent}} OFF": "{{percent}} OFF",
     "{{processed}} of {{total}} log entries processed.": "Обработано {{processed}} из {{total}} записей журнала.",
     "{{protocol}} auth name": "Имя аутентификации {{protocol}}",
     "{{protocol}} auth value": "Значение аутентификации {{protocol}}",

@@ -65,6 +65,7 @@
     "{{modality}} not supported": "{{modality}} non pris en charge",
     "{{modality}} supported": "{{modality}} pris en charge",
     "{{n}} model(s) selected": "{{n}} modèle(s) sélectionné(s)",
+    "{{percent}} OFF": "{{percent}} OFF",
     "{{processed}} of {{total}} log entries processed.": "{{processed}} sur {{total}} entrées de journal traitées.",
     "{{protocol}} auth name": "Nom d’authentification {{protocol}}",
     "{{protocol}} auth value": "Valeur d’authentification {{protocol}}",
