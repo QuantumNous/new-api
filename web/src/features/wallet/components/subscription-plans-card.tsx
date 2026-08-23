@@ -187,9 +187,13 @@ export function SubscriptionPlansCard({
     }
   }
 
-  const hasActive = activeSubscriptions.some(
+  // activeSubscriptions 含续费排队中（start_time 在未来）的订阅，这些当下还不能用
+  const currentSubscriptionCount = activeSubscriptions.filter(
     (sub) => (sub?.subscription?.start_time || 0) <= Date.now() / 1000
-  )
+  ).length
+  const scheduledSubscriptionCount =
+    activeSubscriptions.length - currentSubscriptionCount
+  const hasActive = currentSubscriptionCount > 0
   const hasAny = allSubscriptions.length > 0
   const isAvailable = loading || plans.length > 0 || hasAny
   const disablePref = !hasActive
@@ -286,12 +290,20 @@ export function SubscriptionPlansCard({
                 />
                 {hasActive ? (
                   <span className={cn(textColorMap.success)}>
-                    {activeSubscriptions.length} {t('active')}
+                    {currentSubscriptionCount} {t('active')}
                   </span>
                 ) : (
                   <span className='text-muted-foreground'>
                     {t('No Active')}
                   </span>
+                )}
+                {scheduledSubscriptionCount > 0 && (
+                  <>
+                    <span className='text-muted-foreground/30'>·</span>
+                    <span className='text-muted-foreground'>
+                      {scheduledSubscriptionCount} {t('scheduled')}
+                    </span>
+                  </>
                 )}
                 {allSubscriptions.length > activeSubscriptions.length && (
                   <>
