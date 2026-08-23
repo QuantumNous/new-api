@@ -46,7 +46,7 @@ const classes = computed(() => {
       'sketch-sm text-[var(--text-secondary)] hover:bg-[var(--state-hover-layer)] active:bg-[var(--state-press-layer)] hover:text-[var(--text-primary)]',
     // Stamp: vermilion-ink seal style for special actions. Geometry stays fixed.
     stamp:
-      'rounded-[4px_6px_5px_5px/5px_4px_6px_4px] bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-90 active:opacity-80 shadow-[var(--stamp-shadow)]',
+      'rounded-[4px_6px_5px_5px/5px_4px_6px_4px] bg-[var(--status-danger)] text-[var(--text-inverse)] hover:opacity-95 active:scale-[0.97] active:-rotate-1 active:opacity-90 shadow-[var(--stamp-shadow)] active:shadow-none transition-transform duration-100',
   }
 
   return [

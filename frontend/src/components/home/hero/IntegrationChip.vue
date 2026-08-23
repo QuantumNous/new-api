@@ -25,6 +25,7 @@
         aria-hidden="true"
       />
       <img
+        v-if="!hasImgError"
         alt=""
         class="relative z-[1] size-7 object-contain transition-all duration-500"
         :class="
@@ -34,18 +35,28 @@
         "
         :src="tool.icon"
         loading="lazy"
+        @error="hasImgError = true"
       />
+      <span
+        v-else
+        class="relative z-[1] flex size-7 items-center justify-center font-mono text-xs font-bold text-[var(--accent)] transition-all duration-500"
+        :class="active ? 'opacity-100' : 'opacity-75 group-hover:opacity-100'"
+      >
+        {{ tool.name.slice(0, 2).toUpperCase() }}
+      </span>
     </div>
   </component>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 
 import type { Integration } from '@/constants/home/integrations'
 import { useAppStore } from '@/stores'
 
 const { docsLink } = storeToRefs(useAppStore())
+const hasImgError = ref(false)
 
 defineProps<{
   tool: Integration
