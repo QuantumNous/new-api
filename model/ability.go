@@ -30,6 +30,32 @@ type AbilityWithChannel struct {
 	ChannelType int `json:"channel_type"`
 }
 
+type GroupAccessAbility struct {
+	Ability
+	ChannelName string `json:"channel_name"`
+}
+
+func GetGroupAccessAbilities(groups []string) ([]GroupAccessAbility, error) {
+	if len(groups) == 0 {
+		return []GroupAccessAbility{}, nil
+	}
+	groupValues := make([]interface{}, len(groups))
+	for index, group := range groups {
+		groupValues[index] = group
+	}
+	var abilities []GroupAccessAbility
+	err := DB.Table("abilities").
+		Select("abilities.*, channels.name as channel_name").
+		Joins("join channels on abilities.channel_id = channels.id").
+		Where(clause.IN{Column: clause.Column{Table: "abilities", Name: "group"}, Values: groupValues}).
+		Where("abilities.enabled = ? AND channels.status = ?", true, common.ChannelStatusEnabled).
+		Order(clause.OrderByColumn{Column: clause.Column{Table: "abilities", Name: "group"}}).
+		Order(clause.OrderByColumn{Column: clause.Column{Table: "abilities", Name: "model"}}).
+		Order(clause.OrderByColumn{Column: clause.Column{Table: "abilities", Name: "channel_id"}}).
+		Scan(&abilities).Error
+	return abilities, err
+}
+
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
 	err := DB.Table("abilities").

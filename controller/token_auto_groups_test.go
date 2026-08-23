@@ -215,6 +215,40 @@ func TestAddTokenRejectsInvalidAutoGroups(t *testing.T) {
 	}
 }
 
+func TestStrictGroupIsolationEnforcesTokenGroupAtWriteBoundary(t *testing.T) {
+	configureTokenAutoGroupsTest(t, "5", `["default","vip"]`)
+	originalStrictGroups := setting.StrictGroupIsolationGroups2JsonString()
+	require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(`["default"]`))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(originalStrictGroups))
+	})
+	user := setupTokenAutoGroupsControllerTest(t)
+
+	t.Run("rejects auto group", func(t *testing.T) {
+		request := baseAutoTokenRequest("strict-auto")
+		ctx, recorder := newTokenAutoGroupsAuthenticatedContext(t, http.MethodPost, "/api/token/", request, user.Id)
+		AddToken(ctx)
+
+		response := decodeAPIResponse(t, recorder)
+		assert.False(t, response.Success)
+	})
+
+	t.Run("forces own group retry off", func(t *testing.T) {
+		request := baseAutoTokenRequest("strict-own")
+		request["group"] = "default"
+		ctx, recorder := newTokenAutoGroupsAuthenticatedContext(t, http.MethodPost, "/api/token/", request, user.Id)
+		AddToken(ctx)
+
+		response := decodeAPIResponse(t, recorder)
+		require.True(t, response.Success, response.Message)
+		var token model.Token
+		require.NoError(t, model.DB.Where("name = ?", "strict-own").First(&token).Error)
+		assert.Equal(t, "default", token.Group)
+		assert.False(t, token.CrossGroupRetry)
+		assert.Empty(t, token.AutoGroups)
+	})
+}
+
 func TestGetTokenAutoGroupsReturnsFullFilteredGlobalOrderAndLimit(t *testing.T) {
 	configureTokenAutoGroupsTest(t, "1", `["vip","missing","default"]`)
 	user := setupTokenAutoGroupsControllerTest(t)

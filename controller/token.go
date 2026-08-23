@@ -127,6 +127,27 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 	return true
 }
 
+func enforceStrictTokenGroup(c *gin.Context, token *model.Token) bool {
+	if !setting.HasStrictGroupIsolationGroups() {
+		return true
+	}
+	userGroup, err := getTokenRequestUserGroup(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !setting.IsStrictGroupIsolationEnabled(userGroup) {
+		return true
+	}
+	if !service.IsTokenGroupAllowed(userGroup, token.Group) {
+		common.ApiErrorMsg(c, fmt.Sprintf("严格隔离分组 %s 的令牌只能继承或使用该分组", userGroup))
+		return false
+	}
+	token.CrossGroupRetry = false
+	_ = token.SetAutoGroups(nil)
+	return true
+}
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -310,6 +331,9 @@ func AddToken(c *gin.Context) {
 		})
 		return
 	}
+	if !enforceStrictTokenGroup(c, &token) {
+		return
+	}
 	if token.Group == "auto" {
 		if !setTokenAutoGroups(c, &token, request.AutoGroups.Groups) {
 			return
@@ -418,6 +442,9 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		if !enforceStrictTokenGroup(c, cleanToken) {
+			return
+		}
 		if token.Group != "auto" {
 			cleanToken.CrossGroupRetry = false
 			_ = cleanToken.SetAutoGroups(nil)

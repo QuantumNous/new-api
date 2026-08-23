@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -131,6 +133,7 @@ func InitOptionMap() {
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
 	common.OptionMap["DefaultUseAutoGroup"] = strconv.FormatBool(setting.DefaultUseAutoGroup)
 	common.OptionMap["MaxTokenAutoGroups"] = strconv.Itoa(setting.GetMaxTokenAutoGroups())
+	common.OptionMap["StrictGroupIsolationGroups"] = setting.StrictGroupIsolationGroups2JsonString()
 	common.OptionMap["PayMethods"] = operation_setting.PayMethods2JsonString()
 	common.OptionMap["GitHubClientId"] = ""
 	common.OptionMap["GitHubClientSecret"] = ""
@@ -224,6 +227,27 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
+	}
+	if key == "StrictGroupIsolationGroups" {
+		var groups []string
+		if err := common.UnmarshalJsonStr(value, &groups); err != nil {
+			return err
+		}
+		unknownGroups := make(map[string]struct{})
+		for _, group := range groups {
+			group = strings.TrimSpace(group)
+			if group != "" && !ratio_setting.ContainsGroupRatio(group) {
+				unknownGroups[group] = struct{}{}
+			}
+		}
+		if len(unknownGroups) > 0 {
+			names := make([]string, 0, len(unknownGroups))
+			for group := range unknownGroups {
+				names = append(names, group)
+			}
+			sort.Strings(names)
+			return fmt.Errorf("strict isolation groups are not configured in GroupRatio: %s", strings.Join(names, ", "))
+		}
 	}
 	return nil
 }
@@ -443,6 +467,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateAutoGroupsByJsonString(value)
 	case "MaxTokenAutoGroups":
 		err = setting.UpdateMaxTokenAutoGroups(value)
+	case "StrictGroupIsolationGroups":
+		err = setting.UpdateStrictGroupIsolationGroupsByJsonString(value)
 	case "CustomCallbackAddress":
 		operation_setting.CustomCallbackAddress = value
 	case "EpayId":

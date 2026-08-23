@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -460,6 +461,10 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
+		if !service.IsTokenGroupAllowed(userGroup, tokenGroup) {
+			abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("严格隔离分组 %s 不允许令牌访问 %s 分组", userGroup, tokenGroup))
+			return
+		}
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
@@ -477,7 +482,14 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
-		err = SetupContextForToken(c, token, parts...)
+		requestToken := token
+		if setting.IsStrictGroupIsolationEnabled(userGroup) {
+			copyToken := *token
+			copyToken.CrossGroupRetry = false
+			copyToken.AutoGroups = ""
+			requestToken = &copyToken
+		}
+		err = SetupContextForToken(c, requestToken, parts...)
 		if err != nil {
 			return
 		}

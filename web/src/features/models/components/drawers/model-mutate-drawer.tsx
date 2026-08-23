@@ -319,6 +319,7 @@ export function ModelMutateDrawer({
       UserUsableGroups: '',
       GroupGroupRatio: '',
       AutoGroups: '',
+      StrictGroupIsolationGroups: '[]',
       MaxTokenAutoGroups: 5,
       DefaultUseAutoGroup: false,
       CreateCacheRatio: '',
@@ -413,6 +414,8 @@ export function ModelMutateDrawer({
   }
 
   // Load model data for editing and ratio configuration
+  // This effect synchronizes the form with asynchronously loaded model data.
+  // oxlint-disable react/set-state-in-effect
   useEffect(() => {
     if (open && isEditing && modelData?.data) {
       const model = modelData.data
@@ -467,6 +470,7 @@ export function ModelMutateDrawer({
       })
     }
   }, [open, isEditing, modelData, currentRow, form, hasModelSettings])
+  // oxlint-enable react/set-state-in-effect
 
   const onSubmit = useCallback(
     async (values: ExtendedModelFormValues): Promise<void> => {

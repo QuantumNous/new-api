@@ -70,6 +70,7 @@ type GroupFormValues = {
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
+  StrictGroupIsolationGroups: string
   MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   GroupSpecialUsableGroup: string
@@ -212,6 +213,32 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               onChange={(value) =>
                 handleFieldChange('GroupSpecialUsableGroup', value)
               }
+            />
+
+            <FormField
+              control={form.control}
+              name='StrictGroupIsolationGroups'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Strict isolation groups')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-32 min-h-32 max-h-32'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON array of user groups whose API keys may only inherit or explicitly use their own group. Auto and cross-group retry are disabled.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
 
             <FormField
@@ -363,6 +390,32 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                   <FormDescription>
                     {t(
                       'JSON array of group identifiers. When enabled below, new tokens rotate through this list.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='StrictGroupIsolationGroups'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Strict isolation groups')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                      heightClassName='h-40 min-h-40 max-h-40'
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'JSON array of user groups whose API keys may only inherit or explicitly use their own group. Auto and cross-group retry are disabled.'
                     )}
                   </FormDescription>
                   <FormMessage />

@@ -12,6 +12,9 @@ import (
 )
 
 func GetUserUsableGroups(userGroup string) map[string]string {
+	if setting.IsStrictGroupIsolationEnabled(userGroup) {
+		return map[string]string{userGroup: setting.GetUsableGroupDescription(userGroup)}
+	}
 	groupsCopy := setting.GetUserUsableGroupsCopy()
 	if userGroup != "" {
 		specialSettings, b := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup)
@@ -50,6 +53,13 @@ func IsUserSelectableGroup(userGroup, groupName string) bool {
 		return false
 	}
 	return GroupInUserUsableGroups(userGroup, groupName) && ratio_setting.ContainsGroupRatio(groupName)
+}
+
+func IsTokenGroupAllowed(userGroup, tokenGroup string) bool {
+	if !setting.IsStrictGroupIsolationEnabled(userGroup) {
+		return true
+	}
+	return tokenGroup == "" || tokenGroup == userGroup
 }
 
 // GetUserAutoGroup 根据用户分组获取自动分组设置

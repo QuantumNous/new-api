@@ -46,6 +46,7 @@ const getGroupDefaults = (settings: BillingSettings) => ({
   UserUsableGroups: settings.UserUsableGroups,
   GroupGroupRatio: settings.GroupGroupRatio,
   AutoGroups: settings.AutoGroups,
+  StrictGroupIsolationGroups: settings.StrictGroupIsolationGroups,
   MaxTokenAutoGroups: settings.MaxTokenAutoGroups,
   DefaultUseAutoGroup: settings.DefaultUseAutoGroup,
   GroupSpecialUsableGroup:
