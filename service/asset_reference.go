@@ -455,6 +455,13 @@ func ResolveAssetReferences(c *gin.Context, userID int, req *dto.SeedanceVideoRe
 	if err != nil {
 		return AssetReferenceSet{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
+	legacyByPublicID := make(map[string]model.BytePlusAsset, len(legacy))
+	for _, legacyAsset := range legacy {
+		legacyByPublicID[legacyAsset.PublicId] = legacyAsset
+	}
+	if apiErr := validateLegacyBytePlusRealPersonReferences(userID, references, legacyByPublicID); apiErr != nil {
+		return AssetReferenceSet{}, apiErr
+	}
 
 	assets := make(map[string]assetReferenceAsset, len(generalized)+len(legacy))
 	for publicID, item := range generalized {
@@ -807,7 +814,7 @@ func activeAssetReferenceBindingForChannel(bindings []assetReferenceBinding, cha
 }
 
 func legacyRealPersonAssetCanUseChannel(asset assetReferenceAsset, channel *model.Channel) bool {
-	if !asset.LegacyRealPerson || channel == nil || !TokenSpaceRealPersonChannelIsUsable(channel) {
+	if !asset.LegacyBytePlus || !asset.LegacyRealPerson || channel == nil || !TokenSpaceRealPersonChannelIsUsable(channel) {
 		return false
 	}
 	_, ok := activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id)

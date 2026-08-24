@@ -556,6 +556,100 @@ func TestTokenSpaceRealPersonAssetRoutesThroughOwningDoubaoChannel(t *testing.T)
 	}
 }
 
+func TestTokenSpaceRealPersonAssetStrictCoverageRoutesOnlyThroughOwningDoubaoChannel(t *testing.T) {
+	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+	defer restoreDB()
+	originalStrict := service.AssetModelCoverageStrictEnabled
+	service.AssetModelCoverageStrictEnabled = true
+	defer func() { service.AssetModelCoverageStrictEnabled = originalStrict }()
+	originalSelfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	defer func() { operation_setting.SelfUseModeEnabled = originalSelfUse }()
+
+	for _, candidate := range []struct {
+		id       int
+		priority int64
+		key      string
+	}{
+		{id: 106, priority: 100, key: "tokenspace-owner-key"},
+		{id: 107, priority: 90, key: "tokenspace-other-key"},
+	} {
+		weight := uint(1)
+		channel := middlewareBytePlusAssetChannel(candidate.id, constant.ChannelTypeDoubaoVideo, "default", common.ChannelStatusEnabled, candidate.priority, weight)
+		channel.Key = candidate.key
+		channel.OtherSettings = `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://api.tokenspace.example","group_id":"group-aigc"}}`
+		require.NoError(t, model.DB.Create(&channel).Error)
+		insertMiddlewareAbility(t, channel.Id, "default", "seedance-2.0", true, candidate.priority, weight)
+	}
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName: "seedance-2.0",
+		Endpoints: fmt.Sprintf(`{"%s":{}}`, constant.EndpointTypeOpenAIVideo),
+		Status:    1,
+	}).Error)
+	profile := model.BytePlusRealPersonProfile{
+		PublicId:    "rph_tokenspace_strict",
+		UserId:      7,
+		Name:        "verified person",
+		ChannelId:   106,
+		Status:      model.BytePlusRealPersonProfileStatusActive,
+		CreatedTime: time.Now().Unix(),
+		UpdatedTime: time.Now().Unix(),
+	}
+	require.NoError(t, model.DB.Create(&profile).Error)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	require.NoError(t, model.DB.Create(&model.BytePlusAsset{
+		PublicId:            publicID,
+		UserId:              7,
+		RealPersonProfileId: &profile.Id,
+		ChannelId:           106,
+		UpstreamAssetId:     "tokenspace-upstream-person",
+		AssetType:           "Image",
+		Status:              model.BytePlusAssetStatusActive,
+	}).Error)
+	model.InitChannelCache()
+
+	scope, err := service.ResolveAssetModelScope(service.AssetModelScopeInput{
+		IdentityGroup:  "default",
+		TokenGroup:     "default",
+		AcceptUnpriced: true,
+	})
+	require.NoError(t, err)
+	candidates, err := service.AssetModelTargetCandidates(scope, "seedance-2.0")
+	require.NoError(t, err)
+	require.Len(t, candidates, 2)
+	require.Equal(t, 106, candidates[0].ChannelID)
+	now := model.GetDBTimestamp()
+	require.NoError(t, model.DB.Create(&model.AssetModelCoverageTarget{
+		ScopeKey:          scope.ScopeKey,
+		ModelName:         "seedance-2.0",
+		RoutingGroups:     strings.Join(scope.Groups, ","),
+		SpecificChannelId: scope.SpecificChannelID,
+		ChannelId:         candidates[0].ChannelID,
+		MappedModel:       candidates[0].MappedModel,
+		BindingScope:      candidates[0].BindingScope,
+		CredentialIndex:   candidates[0].CredentialIndex,
+		CandidateIndex:    0,
+		Generation:        1,
+		Status:            model.AssetModelTargetStatusActive,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}).Error)
+
+	router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+		require.Equal(t, 106, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		require.True(t, ok)
+		require.Equal(t, "asset://tokenspace-upstream-person", rewriteMap["asset://"+publicID])
+		c.Status(http.StatusOK)
+	})
+	recorder := performBytePlusAssetDistributorRequest(router, "", fmt.Sprintf(`{
+		"model":"seedance-2.0",
+		"content":[{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}]
+	}`, publicID))
+
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+}
+
 func TestBytePlusAssetSpecificChannelMustMatchPinnedChannel(t *testing.T) {
 	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
 	defer restoreDB()

@@ -355,6 +355,12 @@ func MaterializeAssetBindingsForChannel(ctx context.Context, userID int, set Ass
 			rewriteMap["asset://"+reference.PublicID] = assetBindingRewriteURI(binding.UpstreamAssetID)
 			continue
 		}
+		if legacyRealPersonAssetCanUseChannel(asset, channel) {
+			if binding, ok := activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id); ok {
+				rewriteMap["asset://"+reference.PublicID] = assetBindingRewriteURI(binding.UpstreamAssetID)
+				continue
+			}
+		}
 		result, err := MaterializeAssetBinding(ctx, AssetBindingRequest{
 			UserID:       userID,
 			PublicID:     reference.PublicID,
@@ -812,6 +818,10 @@ func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channe
 			for _, reference := range set.references {
 				asset := set.assets[reference.PublicID]
 				if _, ok := activeAssetReferenceBindingForScope(asset.Bindings, channel.Id, scope); ok {
+					score++
+					continue
+				}
+				if legacyRealPersonAssetCanUseChannel(asset, channel) {
 					score++
 					continue
 				}

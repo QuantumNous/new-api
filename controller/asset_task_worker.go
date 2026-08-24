@@ -429,18 +429,18 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 			if assetTaskShouldWaitForAssets(task, channelErr, now) {
 				return requeueLeasedAssetTaskForAssetPreparation(ctx, task, owner, lease, now)
 			}
-			lastErr = channelErr.Err
+			lastErr = channelErr
 			break
 		}
 		if task.PrivateData.SpecificChannelId > 0 {
 			if setupErr := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName); setupErr != nil {
 				releaseChannelConcurrencyForRequest(c)
-				lastErr = setupErr.Err
+				lastErr = setupErr
 				break
 			}
 			if rewriteErr := middleware.RefreshAssetRewriteMapForSelectedChannel(c, channel); rewriteErr != nil {
 				releaseChannelConcurrencyForRequest(c)
-				lastErr = rewriteErr.Err
+				lastErr = rewriteErr
 				break
 			}
 		}
@@ -489,7 +489,7 @@ func runLeasedAssetTask(ctx context.Context, taskID string, owner string, lease 
 			}
 			return err
 		}
-		lastErr = taskErr.Error
+		lastErr = taskPreparationErrorFromTaskError(taskErr)
 		if !shouldRetryTaskRelay(c, channel.Id, taskErr, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
@@ -518,6 +518,7 @@ func rebuildAssetTaskContext(task *model.Task) (*gin.Context, *relaycommon.Relay
 	common.SetContextKey(c, constant.ContextKeyUserGroup, task.Group)
 	common.SetContextKey(c, constant.ContextKeyUsingGroup, task.Group)
 	common.SetContextKey(c, constant.ContextKeyAssetMaterializeEnabled, true)
+	c.Set("original_model", task.Properties.OriginModelName)
 	identityGroup := task.Group
 	userQuota := 0
 	userSetting := dto.UserSetting{}
@@ -856,18 +857,92 @@ func extractStrictAssetPublicIDsFromPayload(payload []byte) []string {
 
 func failAssetTaskPreparation(ctx context.Context, task *model.Task, owner string, leaseExpiresAt int64, cause error) error {
 	now := assetTaskWorkerNowUnix()
-	reason := "asset preparation failed"
-	if cause != nil && strings.TrimSpace(cause.Error()) != "" {
-		reason = cause.Error()
-	}
-	won, err := model.MarkQueuedTaskFailed(task.TaskID, owner, leaseExpiresAt, reason, now)
+	errorCode, errorMessage := publicTaskPreparationFailure(cause)
+	won, err := model.MarkQueuedTaskFailedWithError(task.TaskID, owner, leaseExpiresAt, errorMessage, errorCode, errorMessage, now)
 	if err != nil {
 		return err
 	}
 	if won {
-		service.RefundTaskQuota(ctx, task, reason)
+		service.RefundTaskQuota(ctx, task, errorMessage)
 	}
 	return cause
+}
+
+type taskPreparationCodedError struct {
+	cause error
+	code  string
+}
+
+func (e *taskPreparationCodedError) Error() string {
+	if e == nil || e.cause == nil {
+		return "task preparation failed"
+	}
+	return e.cause.Error()
+}
+
+func (e *taskPreparationCodedError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.cause
+}
+
+func taskPreparationErrorFromTaskError(taskErr *dto.TaskError) error {
+	if taskErr == nil {
+		return nil
+	}
+	return &taskPreparationCodedError{cause: taskErr.Error, code: strings.TrimSpace(taskErr.Code)}
+}
+
+func publicTaskPreparationFailure(cause error) (string, string) {
+	code := types.ErrorCode("")
+	var apiErr *types.NewAPIError
+	if errors.As(cause, &apiErr) {
+		code = apiErr.GetErrorCode()
+	}
+	var codedErr *taskPreparationCodedError
+	if code == "" && errors.As(cause, &codedErr) {
+		code = types.ErrorCode(codedErr.code)
+	}
+	if code == "" {
+		switch {
+		case errors.Is(cause, service.ErrAssetBindingInitializing):
+			code = types.ErrorCodeAssetNotReady
+		case errors.Is(cause, service.ErrAssetBindingUnavailable):
+			code = types.ErrorCodeAssetChannelUnavailable
+		}
+	}
+
+	switch code {
+	case types.ErrorCodeInvalidAssetRequest:
+		return string(code), "invalid asset request"
+	case types.ErrorCodeAssetNotFound:
+		return string(code), "asset not found"
+	case types.ErrorCodeAssetNotReady, types.ErrorCodeAssetGroupInitializing:
+		return string(code), "asset is not ready"
+	case types.ErrorCodeAssetFailed:
+		return string(code), "asset failed"
+	case types.ErrorCodeAssetChannelConflict:
+		return string(code), "asset channel conflict"
+	case types.ErrorCodeAssetChannelUnavailable:
+		return string(code), "asset channel unavailable"
+	case types.ErrorCodeAssetUpstreamError:
+		return string(code), "asset upstream error"
+	case types.ErrorCodeAssetStorageError:
+		return string(code), "asset storage error"
+	case types.ErrorCodeAssetExpired:
+		return string(code), "asset expired"
+	case types.ErrorCodeAssetTypeMismatch:
+		return string(code), "asset type mismatch"
+	case types.ErrorCodeRealPersonNotActive:
+		return string(code), "real person profile is not active"
+	case types.ErrorCodeAssetProfileConflict:
+		return string(code), "asset profile conflict"
+	case types.ErrorCodeAccessDenied:
+		return string(code), "access denied"
+	default:
+		return "task_preparation_failed", "task preparation failed"
+	}
 }
 
 func failLeasedAssetTaskPreparation(ctx context.Context, task *model.Task, owner string, lease *taskPreparationLease, cause error) error {

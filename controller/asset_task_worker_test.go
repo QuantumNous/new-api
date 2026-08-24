@@ -38,6 +38,9 @@ import (
 //go:linkname registerTaskAdaptorForTest github.com/QuantumNous/new-api/relay.registerTaskAdaptorForTest
 func registerTaskAdaptorForTest(platform constant.TaskPlatform, adaptor channel.TaskAdaptor) func()
 
+//go:linkname assetTaskModelCommonGroupCol github.com/QuantumNous/new-api/model.commonGroupCol
+var assetTaskModelCommonGroupCol string
+
 func TestAssetRelayTaskQueuesBeforeProviderOrMaterializer(t *testing.T) {
 	restoreDB := useControllerAssetTaskDBForTest(t)
 	defer restoreDB()
@@ -518,6 +521,224 @@ func TestModelAPISeedanceAssetTaskWorkerPersistsSelectedKeyAfterAcceptance(t *te
 	require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
 	require.Equal(t, 49, stored.ChannelId)
 	require.Equal(t, "modelapi-key-b", stored.PrivateData.Key)
+}
+
+func TestTokenSpaceRealPersonAssetTaskWorkerReusesOwningChannelBinding(t *testing.T) {
+	restoreDB := useControllerAssetTaskDBForTest(t)
+	defer restoreDB()
+	restorePricing := useControllerAssetTaskPricingForTest(t)
+	defer restorePricing()
+	restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+	defer restoreHooks()
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.AssetModelCoverageTarget{},
+		&model.AssetModelReadiness{},
+		&model.Model{},
+		&model.Vendor{},
+		&model.ModelAvailabilityState{},
+	))
+	originalStrict := service.AssetModelCoverageStrictEnabled
+	service.AssetModelCoverageStrictEnabled = true
+	defer func() { service.AssetModelCoverageStrictEnabled = originalStrict }()
+	oldRetryTimes := common.RetryTimes
+	common.RetryTimes = 0
+	defer func() { common.RetryTimes = oldRetryTimes }()
+
+	adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "tokenspace-real-person-upstream-task"}
+	restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeDoubaoVideo)), adaptor)
+	defer restoreAdaptor()
+
+	seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+	seedControllerTaskChannelTypeWithPriority(t, 106, constant.ChannelTypeDoubaoVideo, "tokenspace-key", 100, 1)
+	require.NoError(t, model.DB.Create(&model.Model{
+		ModelName: "seedance-2.0",
+		Endpoints: fmt.Sprintf(`{"%s":{}}`, constant.EndpointTypeOpenAIVideo),
+		Status:    1,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 106).Update(
+		"settings",
+		`{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://api.tokenspace.example","group_id":"group-aigc"}}`,
+	).Error)
+	profile := model.BytePlusRealPersonProfile{
+		PublicId:    "rph_worker_tokenspace",
+		UserId:      7,
+		Name:        "verified person",
+		ChannelId:   106,
+		Status:      model.BytePlusRealPersonProfileStatusActive,
+		CreatedTime: 100,
+		UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&profile).Error)
+	publicID := "ast_1234567890abcdefABCDEF1234567890"
+	require.NoError(t, model.DB.Create(&model.BytePlusAsset{
+		PublicId:            publicID,
+		UserId:              7,
+		RealPersonProfileId: &profile.Id,
+		ChannelId:           106,
+		UpstreamAssetId:     "tokenspace-upstream-person",
+		AssetType:           "Image",
+		Status:              model.BytePlusAssetStatusActive,
+	}).Error)
+	task := seedControllerQueuedAssetTask(t, "task_tokenspace_real_person_worker", model.TaskPreparationStatusPreparingAssets, "", 0)
+	task.ChannelId = 106
+	task.PrivateData.SpecificChannelId = 106
+	task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+	require.NoError(t, model.DB.Save(task).Error)
+	model.InitChannelCache()
+	scope, err := service.ResolveAssetModelScope(service.AssetModelScopeInput{
+		IdentityGroup:     "default",
+		TokenGroup:        "default",
+		SpecificChannelID: 106,
+	})
+	require.NoError(t, err)
+	candidates, err := service.AssetModelTargetCandidates(scope, "seedance-2.0")
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	now := model.GetDBTimestamp()
+	require.NoError(t, model.DB.Create(&model.AssetModelCoverageTarget{
+		ScopeKey:          scope.ScopeKey,
+		ModelName:         "seedance-2.0",
+		RoutingGroups:     strings.Join(scope.Groups, ","),
+		SpecificChannelId: scope.SpecificChannelID,
+		ChannelId:         candidates[0].ChannelID,
+		MappedModel:       candidates[0].MappedModel,
+		BindingScope:      candidates[0].BindingScope,
+		CredentialIndex:   candidates[0].CredentialIndex,
+		CandidateIndex:    0,
+		Generation:        1,
+		Status:            model.AssetModelTargetStatusActive,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}).Error)
+
+	assetTaskWorkerTestNow = 1000
+	processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+
+	require.NoError(t, err)
+	require.Equal(t, 1, processed)
+	require.EqualValues(t, 1, adaptor.providerCalls.Load())
+	require.Len(t, adaptor.rewriteMaps, 1)
+	require.Equal(t, "asset://tokenspace-upstream-person", adaptor.rewriteMaps[0]["asset://"+publicID])
+	var stored model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
+	require.Equal(t, 106, stored.ChannelId)
+}
+
+func TestTokenSpaceRealPersonAssetTaskWorkerNonStrictProfileValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		profileUserID  int
+		profileChannel int
+		profileStatus  string
+		wantErrorCode  string
+	}{
+		{
+			name:           "active owning profile submits",
+			profileUserID:  7,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+		},
+		{
+			name:           "inactive profile is rejected",
+			profileUserID:  7,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusExpired,
+			wantErrorCode:  "real_person_not_active",
+		},
+		{
+			name:           "profile owned by another user is rejected",
+			profileUserID:  8,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+			wantErrorCode:  "asset_not_found",
+		},
+		{
+			name:           "profile on another channel is rejected",
+			profileUserID:  7,
+			profileChannel: 107,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+			wantErrorCode:  "asset_channel_conflict",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			restoreDB := useControllerAssetTaskDBForTest(t)
+			defer restoreDB()
+			restorePricing := useControllerAssetTaskPricingForTest(t)
+			defer restorePricing()
+			restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+			defer restoreHooks()
+			originalStrict := service.AssetModelCoverageStrictEnabled
+			service.AssetModelCoverageStrictEnabled = false
+			defer func() { service.AssetModelCoverageStrictEnabled = originalStrict }()
+			oldRetryTimes := common.RetryTimes
+			common.RetryTimes = 0
+			defer func() { common.RetryTimes = oldRetryTimes }()
+
+			adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "tokenspace-real-person-upstream-task"}
+			restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeDoubaoVideo)), adaptor)
+			defer restoreAdaptor()
+
+			seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+			seedControllerTaskChannelTypeWithPriority(t, 106, constant.ChannelTypeDoubaoVideo, "tokenspace-key", 100, 1)
+			require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 106).Update(
+				"settings",
+				`{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://api.tokenspace.example","group_id":"group-aigc"}}`,
+			).Error)
+			profile := model.BytePlusRealPersonProfile{
+				PublicId:    "rph_worker_tokenspace_non_strict",
+				UserId:      test.profileUserID,
+				Name:        "verified person",
+				ChannelId:   test.profileChannel,
+				Status:      test.profileStatus,
+				CreatedTime: 100,
+				UpdatedTime: 100,
+			}
+			require.NoError(t, model.DB.Create(&profile).Error)
+			publicID := "ast_1234567890abcdefABCDEF1234567890"
+			require.NoError(t, model.DB.Create(&model.BytePlusAsset{
+				PublicId:            publicID,
+				UserId:              7,
+				RealPersonProfileId: &profile.Id,
+				ChannelId:           106,
+				UpstreamAssetId:     "tokenspace-upstream-person",
+				AssetType:           "Image",
+				Status:              model.BytePlusAssetStatusActive,
+			}).Error)
+			task := seedControllerQueuedAssetTask(t, "task_tokenspace_real_person_non_strict", model.TaskPreparationStatusPreparingAssets, "", 0)
+			task.ChannelId = 106
+			task.PrivateData.SpecificChannelId = 106
+			task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+			require.NoError(t, model.DB.Save(task).Error)
+			model.InitChannelCache()
+
+			assetTaskWorkerTestNow = 1000
+			processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			var stored model.Task
+			require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+			if test.wantErrorCode == "" {
+				require.EqualValues(t, 1, adaptor.providerCalls.Load())
+				require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
+				require.Len(t, adaptor.rewriteMaps, 1)
+				require.Equal(t, "asset://tokenspace-upstream-person", adaptor.rewriteMaps[0]["asset://"+publicID])
+				return
+			}
+
+			require.Zero(t, adaptor.providerCalls.Load())
+			require.EqualValues(t, model.TaskStatusFailure, stored.Status)
+			require.Equal(t, test.wantErrorCode, stored.PrivateData.ErrorCode)
+			require.Equal(t, 10123, getControllerUserQuota(t, 7))
+			require.Equal(t, 10123, getControllerTokenRemain(t, 11))
+			var refundLogs int64
+			require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeRefund).Count(&refundLogs).Error)
+			require.EqualValues(t, 1, refundLogs)
+		})
+	}
 }
 
 func TestGrokAssetTaskWorkerPollingKeyPolicyDoesNotPersistOAuth(t *testing.T) {
@@ -2418,7 +2639,7 @@ func TestAssetTaskWorkerPreparationFailureRefundsOnceForLateResult(t *testing.T)
 		stored, ok, err := model.GetByOnlyTaskId(taskID)
 		require.NoError(t, err)
 		require.True(t, ok)
-		return failLeasedAssetTaskPreparation(ctx, stored, owner, lease, assertErr("materialize failed"))
+		return failLeasedAssetTaskPreparation(ctx, stored, owner, lease, service.AssetBindingAPIError(service.ErrAssetBindingUnavailable))
 	}
 
 	assetTaskWorkerTestNow = 1000
@@ -2428,6 +2649,15 @@ func TestAssetTaskWorkerPreparationFailureRefundsOnceForLateResult(t *testing.T)
 
 	lateErr := failAssetTaskPreparation(context.Background(), task, "node-b", 1100, assertErr("late materialize failed"))
 	require.Error(t, lateErr)
+	var failed model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&failed).Error)
+	require.Equal(t, "asset_channel_unavailable", failed.PrivateData.ErrorCode)
+	require.Equal(t, "asset channel unavailable", failed.PrivateData.ErrorMessage)
+	video := failed.ToOpenAIVideo()
+	require.Equal(t, &dto.OpenAIVideoError{
+		Code:    "asset_channel_unavailable",
+		Message: "asset channel unavailable",
+	}, video.Error)
 
 	var user model.User
 	require.NoError(t, model.DB.Where("id = ?", 7).First(&user).Error)
@@ -2474,9 +2704,10 @@ func useControllerAssetTaskDBForTest(t *testing.T) func() {
 	oldUsingMySQL := common.UsingMySQL
 	oldUsingPostgreSQL := common.UsingPostgreSQL
 	oldCommonKeyCol := modelCommonKeyCol
+	oldCommonGroupCol := assetTaskModelCommonGroupCol
 	db, err := gorm.Open(sqlite.Open("file:"+strings.ReplaceAll(t.Name(), "/", "_")+"?mode=memory&cache=shared"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.TaskAcceptedAccountingLedger{}, &model.TaskAcceptedAccountingLogLedger{}, &model.TemporaryChannelModelSpend{}, &model.Asset{}, &model.AssetBinding{}, &model.Ability{}, &model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.UserSubscriptionContract{}, &model.SubscriptionPreConsumeRecord{}, &model.SubscriptionDiscountAccount{}, &model.SubscriptionDiscountEntry{}, &model.RecallLifecycleEvent{}, &model.QuotaLifecycleState{}))
+	require.NoError(t, db.AutoMigrate(&model.Task{}, &model.TaskAcceptedAccountingLedger{}, &model.TaskAcceptedAccountingLogLedger{}, &model.TemporaryChannelModelSpend{}, &model.Asset{}, &model.AssetBinding{}, &model.BytePlusAsset{}, &model.BytePlusRealPersonProfile{}, &model.Ability{}, &model.Model{}, &model.Vendor{}, &model.ModelAvailabilityState{}, &model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.UserSubscriptionContract{}, &model.SubscriptionPreConsumeRecord{}, &model.SubscriptionDiscountAccount{}, &model.SubscriptionDiscountEntry{}, &model.RecallLifecycleEvent{}, &model.QuotaLifecycleState{}))
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	model.DB = db
@@ -2487,6 +2718,7 @@ func useControllerAssetTaskDBForTest(t *testing.T) func() {
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
 	modelCommonKeyCol = "`key`"
+	assetTaskModelCommonGroupCol = "`group`"
 	return func() {
 		model.DB = oldDB
 		model.LOG_DB = oldLogDB
@@ -2496,6 +2728,7 @@ func useControllerAssetTaskDBForTest(t *testing.T) func() {
 		common.UsingMySQL = oldUsingMySQL
 		common.UsingPostgreSQL = oldUsingPostgreSQL
 		modelCommonKeyCol = oldCommonKeyCol
+		assetTaskModelCommonGroupCol = oldCommonGroupCol
 		model.InitChannelCache()
 		_ = sqlDB.Close()
 	}
@@ -2813,6 +3046,7 @@ type controllerFakeTaskAdaptor struct {
 	failByChannel     map[int]error
 	failHTTPByChannel map[int]int
 	channelsSeen      []int
+	rewriteMaps       []map[string]string
 	providerEntered   chan<- int
 	providerRelease   <-chan struct{}
 }
@@ -2865,6 +3099,13 @@ func (a *controllerFakeTaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.
 	a.providerCalls.Add(1)
 	channelID := common.GetContextKeyInt(c, constant.ContextKeyChannelId)
 	a.channelsSeen = append(a.channelsSeen, channelID)
+	if rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap); ok {
+		captured := make(map[string]string, len(rewriteMap))
+		for publicURI, upstreamURI := range rewriteMap {
+			captured[publicURI] = upstreamURI
+		}
+		a.rewriteMaps = append(a.rewriteMaps, captured)
+	}
 	if a.providerEntered != nil {
 		a.providerEntered <- channelID
 	}
