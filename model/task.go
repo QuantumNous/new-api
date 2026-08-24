@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -158,6 +159,8 @@ type TaskPrivateData struct {
 	Key             string                       `json:"key,omitempty"`
 	UpstreamTaskID  string                       `json:"upstream_task_id,omitempty"` // 上游真实 task ID
 	ResultURL       string                       `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	ErrorCode       string                       `json:"error_code,omitempty"`
+	ErrorMessage    string                       `json:"error_message,omitempty"`
 	VideoResult     *VideoResult                 `json:"video_result,omitempty"`
 	GrokVideoResult *GrokSubscriptionVideoResult `json:"grok_video_result,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
@@ -1083,22 +1086,45 @@ func extendAcceptedAssetRetentionTx(tx *gorm.DB, userID int, publicIDs []string,
 }
 
 func MarkQueuedTaskFailed(taskID string, owner string, expectedLeaseExpiresAt int64, failReason string, now int64) (bool, error) {
-	result := DB.Model(&Task{}).
-		Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
-		Where("preparation_lease_owner = ? AND preparation_lease_expires_at = ? AND preparation_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
-		Updates(map[string]any{
-			"status":                       TaskStatusFailure,
-			"preparation_status":           TaskPreparationStatusFailed,
-			"preparation_lease_owner":      "",
-			"preparation_lease_expires_at": 0,
-			"fail_reason":                  failReason,
-			"finish_time":                  now,
-			"updated_at":                   now,
-		})
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected == 1, nil
+	return MarkQueuedTaskFailedWithError(taskID, owner, expectedLeaseExpiresAt, failReason, "", "", now)
+}
+
+func MarkQueuedTaskFailedWithError(taskID string, owner string, expectedLeaseExpiresAt int64, failReason string, errorCode string, errorMessage string, now int64) (bool, error) {
+	updated := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var current Task
+		query := tx.Select("id", "private_data").
+			Where("task_id = ? AND status = ?", taskID, TaskStatusQueued).
+			Where("preparation_lease_owner = ? AND preparation_lease_expires_at = ? AND preparation_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now)
+		if err := query.First(&current).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+
+		current.PrivateData.ErrorCode = strings.TrimSpace(errorCode)
+		current.PrivateData.ErrorMessage = strings.TrimSpace(errorMessage)
+		result := tx.Model(&Task{}).
+			Where("id = ? AND status = ?", current.ID, TaskStatusQueued).
+			Where("preparation_lease_owner = ? AND preparation_lease_expires_at = ? AND preparation_lease_expires_at > ?", owner, expectedLeaseExpiresAt, now).
+			Updates(map[string]any{
+				"status":                       TaskStatusFailure,
+				"preparation_status":           TaskPreparationStatusFailed,
+				"preparation_lease_owner":      "",
+				"preparation_lease_expires_at": 0,
+				"fail_reason":                  failReason,
+				"finish_time":                  now,
+				"updated_at":                   now,
+				"private_data":                 current.PrivateData,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		updated = result.RowsAffected == 1
+		return nil
+	})
+	return updated, err
 }
 
 // TaskBulkUpdate performs an unconditional bulk UPDATE by upstream task_id strings.
@@ -1199,6 +1225,20 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.SetProgressStr(t.Progress)
 	openAIVideo.CreatedAt = t.CreatedAt
 	openAIVideo.CompletedAt = t.UpdatedAt
-	openAIVideo.SetMetadata("url", t.GetResultURL())
+	if t.Status == TaskStatusFailure {
+		code := strings.TrimSpace(t.PrivateData.ErrorCode)
+		message := strings.TrimSpace(t.PrivateData.ErrorMessage)
+		if code == "" {
+			code = "task_failed"
+		}
+		if message == "" {
+			message = "Task failed"
+		}
+		openAIVideo.Error = &dto.OpenAIVideoError{Code: code, Message: message}
+		return openAIVideo
+	}
+	if resultURL := strings.TrimSpace(t.GetResultURL()); resultURL != "" {
+		openAIVideo.SetMetadata("url", resultURL)
+	}
 	return openAIVideo
 }

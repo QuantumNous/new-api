@@ -1402,6 +1402,178 @@ func TestAssetBindingMaterializeSetCreatesRecoverableBindingsAndReturnsCompleteM
 	require.Len(t, store.signed, 2)
 }
 
+func TestMaterializeAssetBindingsForChannelReusesTokenSpaceLegacyRealPersonBinding(t *testing.T) {
+	newAssetServiceTestDB(t)
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeDoubaoVideo, dto.AssetMaterializationSettings{
+		Provider:       assetMaterializationProviderTokenSpaceMaterial,
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-aigc",
+	})
+	channel.Id = 106
+	channel.Status = common.ChannelStatusEnabled
+	options := AssetMaterializeOptions{Model: "seedance-2.0", APIKey: channel.Key}
+	bindingScope, err := assetBindingScopeForChannel(channel, options)
+	require.NoError(t, err)
+
+	scope := AssetModelScope{
+		ScopeKey:   "scope-token-space-real-person",
+		Groups:     []string{"Seedance Domestic"},
+		ModelNames: []string{"seedance-2.0"},
+	}
+	target := model.AssetModelCoverageTarget{
+		ScopeKey:        scope.ScopeKey,
+		ModelName:       "seedance-2.0",
+		RoutingGroups:   assetModelRoutingGroups(scope.Groups),
+		ChannelId:       channel.Id,
+		MappedModel:     "seedance-2.0",
+		BindingScope:    bindingScope,
+		CredentialIndex: 0,
+		Generation:      1,
+		Status:          model.AssetModelTargetStatusActive,
+	}
+	set := AssetReferenceSet{
+		strictCoverage: true,
+		scope:          scope,
+		target:         &target,
+		references: []assetReference{{
+			PublicID:          "ast_legacy_real_person",
+			ExpectedAssetType: "Image",
+		}},
+		assets: map[string]assetReferenceAsset{
+			"ast_legacy_real_person": {
+				ID:               17,
+				PublicID:         "ast_legacy_real_person",
+				AssetType:        "Image",
+				Status:           model.AssetStatusActive,
+				LegacyBytePlus:   true,
+				LegacyRealPerson: true,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					UpstreamAssetID: "tokenspace-real-person-asset",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	rewriteMap, err := MaterializeAssetBindingsForChannel(context.Background(), 7, set, channel, options)
+
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{
+		"asset://ast_legacy_real_person": "asset://tokenspace-real-person-asset",
+	}, rewriteMap)
+}
+
+func TestMaterializeAssetBindingsForChannelDoesNotReuseOrdinaryBindingAsRealPerson(t *testing.T) {
+	newAssetServiceTestDB(t)
+	installAssetServiceTestDeps(t)
+	asset := insertMaterializeAsset(t, "ast_ordinary_tokenspace_material")
+	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeDoubaoVideo, dto.AssetMaterializationSettings{
+		Provider:       assetMaterializationProviderTokenSpaceMaterial,
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-aigc",
+	})
+	channel.Id = 106
+	channel.Status = common.ChannelStatusEnabled
+	materializer := &recordingAssetMaterializer{}
+	descriptor := assetMaterializationProviderDescriptors[assetMaterializationProviderTokenSpaceMaterial]
+	assetMaterializationProviderDescriptors[assetMaterializationProviderTokenSpaceMaterial] = assetMaterializationProviderDescriptor{
+		MaterializerFactory: func(assetMaterializationChannelConfig) AssetMaterializer { return materializer },
+		BindingScope:        descriptor.BindingScope,
+		ValidateConfig:      descriptor.ValidateConfig,
+		CredentialScoped:    descriptor.CredentialScoped,
+	}
+	t.Cleanup(func() {
+		assetMaterializationProviderDescriptors[assetMaterializationProviderTokenSpaceMaterial] = descriptor
+	})
+	set := AssetReferenceSet{
+		references: []assetReference{{PublicID: asset.PublicId, ExpectedAssetType: "Image"}},
+		assets: map[string]assetReferenceAsset{
+			asset.PublicId: {
+				ID:              asset.Id,
+				PublicID:        asset.PublicId,
+				AssetType:       asset.AssetType,
+				Status:          asset.Status,
+				SourceStatus:    asset.SourceStatus,
+				StorageBackend:  asset.StorageBackend,
+				StorageBucket:   asset.StorageBucket,
+				ObjectKey:       asset.ObjectKey,
+				SourceExpiresAt: asset.SourceExpiresAt,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					UpstreamAssetID: "legacy-unscoped-ordinary",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	rewriteMap, err := MaterializeAssetBindingsForChannel(
+		context.Background(),
+		asset.UserId,
+		set,
+		channel,
+		AssetMaterializeOptions{Model: "seedance-2.0", APIKey: channel.Key},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(1), atomic.LoadInt64(&materializer.createCalls))
+	require.Equal(t, "asset://upstream-"+asset.PublicId, rewriteMap["asset://"+asset.PublicId])
+	require.NotEqual(t, "asset://legacy-unscoped-ordinary", rewriteMap["asset://"+asset.PublicId])
+}
+
+func TestLegacyRealPersonAssetCanUseChannelRejectsUnsafeBindings(t *testing.T) {
+	usableChannel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeDoubaoVideo, dto.AssetMaterializationSettings{
+		Provider:       assetMaterializationProviderTokenSpaceMaterial,
+		GatewayBaseURL: "https://materials.example.invalid",
+		GroupID:        "group-aigc",
+	})
+	usableChannel.Id = 106
+	usableChannel.Status = common.ChannelStatusEnabled
+	baseAsset := assetReferenceAsset{
+		LegacyBytePlus:   true,
+		LegacyRealPerson: true,
+		Bindings: []assetReferenceBinding{{
+			ChannelID:       usableChannel.Id,
+			UpstreamAssetID: "tokenspace-upstream-person",
+			Status:          model.AssetStatusActive,
+		}},
+	}
+
+	tests := []struct {
+		name    string
+		asset   assetReferenceAsset
+		channel *model.Channel
+	}{
+		{name: "not a real person asset", asset: func() assetReferenceAsset { value := baseAsset; value.LegacyRealPerson = false; return value }(), channel: usableChannel},
+		{name: "not a legacy asset", asset: func() assetReferenceAsset { value := baseAsset; value.LegacyBytePlus = false; return value }(), channel: usableChannel},
+		{name: "binding belongs to another channel", asset: func() assetReferenceAsset {
+			value := baseAsset
+			value.Bindings = append([]assetReferenceBinding(nil), baseAsset.Bindings...)
+			value.Bindings[0].ChannelID = 107
+			return value
+		}(), channel: usableChannel},
+		{name: "binding is inactive", asset: func() assetReferenceAsset {
+			value := baseAsset
+			value.Bindings = append([]assetReferenceBinding(nil), baseAsset.Bindings...)
+			value.Bindings[0].Status = model.AssetStatusFailed
+			return value
+		}(), channel: usableChannel},
+		{name: "binding has no upstream id", asset: func() assetReferenceAsset {
+			value := baseAsset
+			value.Bindings = append([]assetReferenceBinding(nil), baseAsset.Bindings...)
+			value.Bindings[0].UpstreamAssetID = ""
+			return value
+		}(), channel: usableChannel},
+		{name: "channel has no tokenspace provider", asset: baseAsset, channel: &model.Channel{Id: 106, Type: constant.ChannelTypeDoubaoVideo, Status: common.ChannelStatusEnabled, Key: "key"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.False(t, legacyRealPersonAssetCanUseChannel(test.asset, test.channel))
+		})
+	}
+}
+
 func insertMaterializeAsset(t *testing.T, publicID string) model.Asset {
 	t.Helper()
 	asset := model.Asset{

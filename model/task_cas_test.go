@@ -834,6 +834,40 @@ func TestTaskQueuedFailureCAS(t *testing.T) {
 	require.Zero(t, stored.PreparationLeaseExpiresAt)
 }
 
+func TestTaskQueuedFailureCASPersistsStructuredError(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID:                    "task_queued_structured_failure",
+		Status:                    TaskStatusQueued,
+		Progress:                  "0%",
+		PreparationStatus:         TaskPreparationStatusPreparing,
+		PreparationLeaseOwner:     "node-a",
+		PreparationLeaseExpiresAt: 160,
+		PrivateData:               TaskPrivateData{TokenId: 11},
+		Data:                      json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	updated, err := MarkQueuedTaskFailedWithError(
+		task.TaskID,
+		"node-a",
+		160,
+		"asset channel unavailable",
+		"asset_channel_unavailable",
+		"asset channel unavailable",
+		130,
+	)
+
+	require.NoError(t, err)
+	require.True(t, updated)
+	var stored Task
+	require.NoError(t, DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+	require.Equal(t, "asset_channel_unavailable", stored.PrivateData.ErrorCode)
+	require.Equal(t, "asset channel unavailable", stored.PrivateData.ErrorMessage)
+	require.Equal(t, 11, stored.PrivateData.TokenId, "structured failure must preserve billing context")
+}
+
 func TestTaskPreparationLeaseGenerationFencesSubmittedCompletion(t *testing.T) {
 	truncateTables(t)
 

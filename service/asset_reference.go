@@ -807,7 +807,7 @@ func activeAssetReferenceBindingForChannel(bindings []assetReferenceBinding, cha
 }
 
 func legacyRealPersonAssetCanUseChannel(asset assetReferenceAsset, channel *model.Channel) bool {
-	if !asset.LegacyRealPerson || channel == nil || !TokenSpaceRealPersonChannelIsUsable(channel) {
+	if !asset.LegacyBytePlus || !asset.LegacyRealPerson || channel == nil || !TokenSpaceRealPersonChannelIsUsable(channel) {
 		return false
 	}
 	_, ok := activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id)
