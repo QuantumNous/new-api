@@ -92,26 +92,18 @@ function ratioPercent(
   return Math.min(100, (safeUsed / safeTotal) * 100)
 }
 
-/** Load thresholds: comfortable below 70%, tight from 70%, saturated from 90%. */
-function loadColor(percent: number | null): string {
-  if (percent === null) return 'var(--text-tertiary)'
-  if (percent >= 90) return 'var(--status-danger)'
-  if (percent >= 70) return 'var(--status-warning)'
-  return 'var(--glow)'
-}
-
 /**
- * Disk usage color gradient:
- * - < 60%: healthy & abundant (glow green or accent gold)
- * - 60% ~ 75%: moderate usage (accent gold)
- * - 75% ~ 88%: watchful warning (amber warning gold)
- * - >= 88%: critical high load (status danger coral red)
+ * 统一 4 档资源负载语义色彩梯度 (CPU / 内存 / 磁盘):
+ * - <= 60%: 正常 (var(--glow))
+ * - 60% ~ 75%: 关注 (var(--accent))
+ * - 75% ~ 90%: 警告 (var(--status-warning))
+ * - > 90%: 危险 (var(--status-danger))
  */
-function diskColor(percent: number | null): string {
+function resourceLoadColor(percent: number | null): string {
   if (percent === null) return 'var(--text-tertiary)'
-  if (percent >= 88) return 'var(--status-danger)'
-  if (percent >= 75) return 'var(--status-warning)'
-  if (percent >= 60) return 'var(--accent)'
+  if (percent > 90) return 'var(--status-danger)'
+  if (percent > 75) return 'var(--status-warning)'
+  if (percent > 60) return 'var(--accent)'
   return 'var(--glow)'
 }
 
@@ -174,6 +166,7 @@ interface MetricTile {
   value: string
   unit: string
   bandwidth?: { up: string; down: string }
+  memory?: { used: string; total: string }
   disk?: { used: string; total: string }
   /** 0-100 usage against a ceiling; null when the metric is unavailable. */
   percent: number | null
@@ -209,7 +202,7 @@ const tiles = computed<MetricTile[]>(() => {
       value: cpuPercent === null ? '--' : formatMetric(cpuPercent),
       unit: cpuPercent === null ? '' : '%',
       percent: cpuPercent,
-      color: loadColor(cpuPercent),
+      color: resourceLoadColor(cpuPercent),
     },
     {
       key: 'memory',
@@ -220,8 +213,15 @@ const tiles = computed<MetricTile[]>(() => {
           ? '--'
           : `${formatStorage(memoryUsed)} / ${formatStorage(memoryTotal)}`,
       unit: memoryUsed === null || memoryTotal === null ? '' : 'GB',
+      memory:
+        memoryUsed !== null && memoryTotal !== null
+          ? {
+              used: formatStorage(memoryUsed),
+              total: formatStorage(memoryTotal),
+            }
+          : undefined,
       percent: memoryPercent,
-      color: loadColor(memoryPercent),
+      color: resourceLoadColor(memoryPercent),
     },
     {
       key: 'bandwidth',
@@ -250,7 +250,7 @@ const tiles = computed<MetricTile[]>(() => {
             }
           : undefined,
       percent: diskPercent,
-      color: diskColor(diskPercent),
+      color: resourceLoadColor(diskPercent),
     },
   ]
 })
@@ -271,18 +271,22 @@ const cpuGauge = computed(() => {
   }
 })
 
-function memorySegmentStyle(percent: number | null, index: number) {
+function memorySegmentStyle(
+  percent: number | null,
+  index: number,
+  color = 'var(--glow)'
+) {
   const fill =
     percent === null ? 0 : Math.min(1, Math.max(0, percent / 10 - index))
   const isFilled = fill > 0
   return {
     background: isFilled
-      ? 'var(--glow)'
+      ? color
       : 'color-mix(in srgb, var(--text-primary) 12%, transparent)',
     opacity: isFilled ? (fill >= 1 ? 1 : 0.6) : 1,
     boxShadow:
       fill >= 1
-        ? '0 0 8px color-mix(in srgb, var(--glow) 45%, transparent)'
+        ? `0 0 8px color-mix(in srgb, ${color} 45%, transparent)`
         : 'none',
   }
 }
@@ -453,11 +457,40 @@ const successColor = computed(() => rateColor(successRate.value))
           </div>
 
           <template v-else-if="tile.key === 'memory'">
+            <div
+              v-if="tile.memory"
+              class="mt-auto flex items-baseline gap-1 font-mono leading-none whitespace-nowrap pt-0.5"
+            >
+              <span
+                class="text-xl font-bold leading-none tabular-nums tracking-tight sm:text-2xl"
+                :style="{ color: tile.color }"
+              >
+                {{ tile.memory.used }}
+              </span>
+              <span
+                class="text-xs font-normal text-[var(--text-tertiary)] opacity-40"
+              >
+                /
+              </span>
+              <span
+                class="text-xs font-semibold tabular-nums text-[var(--text-secondary)] sm:text-[13px]"
+              >
+                {{ tile.memory.total }}
+              </span>
+              <span
+                v-if="tile.unit"
+                class="text-[10px] font-medium text-[var(--text-tertiary)]"
+              >
+                {{ tile.unit }}
+              </span>
+            </div>
             <p
+              v-else
               class="mt-auto flex items-baseline gap-1 whitespace-nowrap pt-0.5"
             >
               <span
-                class="text-base font-bold leading-tight tabular-nums sm:text-[17px]"
+                class="text-base font-bold leading-tight tabular-nums"
+                :style="{ color: tile.color }"
               >
                 {{ tile.value }}
               </span>
@@ -477,7 +510,7 @@ const successColor = computed(() => rateColor(successRate.value))
                 v-for="index in 10"
                 :key="index"
                 class="min-w-0 rounded-sm transition-[background,opacity,box-shadow] duration-500"
-                :style="memorySegmentStyle(tile.percent, index - 1)"
+                :style="memorySegmentStyle(tile.percent, index - 1, tile.color)"
               />
             </div>
           </template>

@@ -40,6 +40,17 @@ withDefaults(
   border: 1px solid var(--border-default);
   box-shadow: var(--elevation-1);
 }
+/* 24x44 是开关的标准视觉尺寸，只放大命中区到 44px，不改变布局。 */
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  inset: -10px 0;
+}
+@media (min-width: 640px) {
+  .toggle-track::after {
+    inset: 0;
+  }
+}
 html.dark .toggle-track {
   border-radius: 9999px;
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleCard from '@/components/common/ConsoleCard.vue'
+import IconButton from '@/components/common/IconButton.vue'
 import StatusChip from '@/components/common/StatusChip.vue'
 import { useBalanceVisibility } from '@/composables/useDashboard'
 import { formatQuota } from '@/utils/format'
@@ -103,10 +104,8 @@ const monthSpendDisplay = computed(() => {
       >
         {{ display }}
       </p>
-      <button
-        type="button"
-        class="text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-primary)] focus-ring"
-        :aria-label="hidden ? t('common.showBalance') : t('common.hideBalance')"
+      <IconButton
+        :label="hidden ? t('common.showBalance') : t('common.hideBalance')"
         @click="toggle"
       >
         <!-- eye-off -->
@@ -140,7 +139,7 @@ const monthSpendDisplay = computed(() => {
           <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6Z" />
           <circle cx="12" cy="12" r="3" />
         </svg>
-      </button>
+      </IconButton>
     </div>
 
     <!-- Runway estimate -->

@@ -1616,8 +1616,11 @@ html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
     opacity 600ms ease;
 }
 .landing-shell .signal-console__telemetry-index {
-  color: rgb(var(--signal-rgb) / 0.66);
+  color: var(--text-tertiary);
   font-size: 9px;
+}
+html.dark .landing-shell .signal-console__telemetry-index {
+  color: rgb(var(--signal-rgb) / 0.66);
 }
 .landing-shell .signal-console__telemetry-label {
   color: var(--text-secondary);
@@ -1660,8 +1663,11 @@ html.hero-scrollbar-hidden::-webkit-scrollbar-thumb:hover {
 }
 .landing-shell .signal-console__more-dots {
   grid-column: 3;
-  color: rgb(var(--signal-rgb) / 0.74);
+  color: var(--text-tertiary);
   letter-spacing: 0.2em;
+}
+html.dark .landing-shell .signal-console__more-dots {
+  color: rgb(var(--signal-rgb) / 0.74);
 }
 .landing-shell .signal-console__trace-drawer {
   position: absolute;

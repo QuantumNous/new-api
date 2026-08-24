@@ -42,6 +42,8 @@ skills-lock.json
 # bare-metal dev runs).
 /model_pricing_catalog.json
 /model_pricing_catalog.json.tmp
+/model_pricing_catalog.v2.json
+/model_pricing_catalog.v2.json.tmp
 /model_pricing_catalog.version
 /model_pricing_catalog.version.tmp
 

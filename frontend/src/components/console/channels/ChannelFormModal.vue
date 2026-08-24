@@ -14,6 +14,7 @@ import { useI18n } from 'vue-i18n'
 import { ApiError } from '@/api/types'
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
+import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import FormField from '@/components/common/FormField.vue'
 import TextInput from '@/components/common/TextInput.vue'
 import VendorLogo from '@/components/console/models/VendorLogo.vue'
@@ -464,23 +465,10 @@ async function submit() {
                 {{ t('channels.enabledDesc') }}
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="form.enabled"
-              class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-ring"
-              :class="
-                form.enabled
-                  ? 'bg-[var(--accent)]'
-                  : 'bg-[var(--surface-muted)] border border-[var(--border-subtle)]'
-              "
-              @click="form.enabled = !form.enabled"
-            >
-              <span
-                class="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
-                :class="form.enabled ? 'translate-x-6' : 'translate-x-1'"
-              />
-            </button>
+            <ConsoleToggle
+              v-model="form.enabled"
+              :label="t('channels.enabledLabel')"
+            />
           </div>
         </div>
       </section>

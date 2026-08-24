@@ -13,6 +13,7 @@ import { useI18n } from 'vue-i18n'
 
 import ConsoleButton from '@/components/common/ConsoleButton.vue'
 import ConsoleModal from '@/components/common/ConsoleModal.vue'
+import ConsoleToggle from '@/components/common/ConsoleToggle.vue'
 import FilterSelect from '@/components/common/FilterSelect.vue'
 import IconButton from '@/components/common/IconButton.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
@@ -319,24 +320,10 @@ function close() {
               {{ t('channels.streamMode') }}
             </p>
             <div class="flex h-10 items-center gap-3">
-              <button
-                type="button"
-                role="switch"
-                :aria-checked="stream"
-                :aria-label="t('channels.streamMode')"
-                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-ring"
-                :class="
-                  stream
-                    ? 'bg-[var(--accent)]'
-                    : 'bg-[var(--surface-muted)] border border-[var(--border-subtle)]'
-                "
-                @click="stream = !stream"
-              >
-                <span
-                  class="inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
-                  :class="stream ? 'translate-x-6' : 'translate-x-1'"
-                />
-              </button>
+              <ConsoleToggle
+                v-model="stream"
+                :label="t('channels.streamMode')"
+              />
               <span class="text-sm text-[var(--text-secondary)]">
                 {{
                   stream

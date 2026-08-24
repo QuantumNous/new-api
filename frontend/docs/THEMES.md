@@ -33,7 +33,7 @@
 
 ## 控件与交互状态约定
 
-- 高度刻度（全控件族统一，对齐 ConsoleButton）：`sm=32 / md=40 / lg=48`；移动端触控目标一律 ≥44px（`h-11` 起步，桌面再收缩到对应档位）。下划线输入件固定 `h-11`（视觉审计契约值，不得响应式收缩；SearchInput 现存 `sm:h-10` 为待收敛的已知偏差）。
+- 高度刻度（全控件族统一，对齐 ConsoleButton）：`sm=32 / md=40 / lg=48`；移动端触控目标一律 ≥44px（`h-11` 起步，桌面再收缩到对应档位）。下划线输入件固定 `h-11`，不得响应式收缩。
 - 悬停反馈统一使用 `--state-hover-layer`；骨架屏底色仍用 `--surface-muted`（非交互语义，勿混用）。
 - 按压反馈：primary 走 `--accent-active`，secondary/ghost 走 `--state-press-layer`，danger/stamp 用透明度阶梯（hover 0.9 / active 0.8）。
 - 大数字一律使用 `.display-number`（日间浓墨 700、夜间雅致 500 由令牌控制），不得手写 font-bold 替代。

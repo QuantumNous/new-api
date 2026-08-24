@@ -51,7 +51,7 @@ function onKeydown(e: KeyboardEvent, index: number) {
       :aria-controls="panelId"
       :aria-selected="model === item.key"
       :tabindex="model === item.key ? 0 : -1"
-      class="relative pb-3 text-sm font-medium transition-colors"
+      class="relative inline-flex min-h-11 items-center pb-3 text-sm font-medium transition-colors sm:min-h-0"
       :class="
         model === item.key
           ? 'text-[var(--text-primary)]'
