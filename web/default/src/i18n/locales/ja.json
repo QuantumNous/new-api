@@ -6765,6 +6765,8 @@
     "Price depends on request size and options.": "価格はリクエストのサイズとオプションによって変わります。",
     "Quick start": "クイック接続",
     "Quick top-up": "クイックチャージ",
-    "Save {{percent}}%": "{{percent}}% お得"
+    "Save {{percent}}%": "{{percent}}% お得",
+    "Create an image": "画像を生成",
+    "Generate a video": "動画を生成"
   }
 }

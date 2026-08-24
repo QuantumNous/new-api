@@ -898,6 +898,14 @@ func generateDefaultSidebarConfig(userRole int) string {
 	return string(configBytes)
 }
 
+func filterUserModelsForDisplay(c *gin.Context, models []string) []string {
+	excludeHidden, err := strconv.ParseBool(strings.TrimSpace(c.Query("exclude_hidden")))
+	if err != nil || !excludeHidden {
+		return models
+	}
+	return operation_setting.FilterPricingVisibleModels(models)
+}
+
 func GetUserModels(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -931,14 +939,14 @@ func GetUserModels(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": true,
 				"message": "",
-				"data":    models,
+				"data":    filterUserModelsForDisplay(c, models),
 			})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
-			"data":    model.GetGroupEnabledModels(group),
+			"data":    filterUserModelsForDisplay(c, model.GetGroupEnabledModels(group)),
 		})
 		return
 	}
@@ -953,7 +961,7 @@ func GetUserModels(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    models,
+		"data":    filterUserModelsForDisplay(c, models),
 	})
 	return
 }

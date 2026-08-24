@@ -16,46 +16,21 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { afterAll, beforeEach, describe, expect, spyOn, test } from 'bun:test'
+import { api } from '@/lib/api'
 import type { PlaygroundRecordPayload } from './types'
 
-const get = mock(async (_path: string) => ({ data: { success: true } }))
-const post = mock(async (_path: string, _body?: unknown) => ({
+const get = spyOn(api, 'get').mockResolvedValue({
   data: { success: true },
-}))
-const getStatus = mock(async () => ({ success: true, data: {} }))
-const getNotice = mock(async () => ({ success: true, data: '' }))
-const getCommonHeaders = mock(() => ({}))
-const getSelf = mock(async () => ({ success: true, data: {} }))
-const getUserModels = mock(async () => ({ success: true, data: [] }))
-const getUserGroups = mock(async () => ({ success: true, data: {} }))
-const get2FAStatus = mock(async () => ({ success: true, data: {} }))
-const setup2FA = mock(async () => ({ success: true, data: {} }))
-const enable2FA = mock(async () => ({ success: true, data: {} }))
-const disable2FA = mock(async () => ({ success: true, data: {} }))
-const regenerate2FABackupCodes = mock(async () => ({
-  success: true,
-  data: {},
-}))
-
-mock.module('@/lib/api', () => ({
-  api: { get, post },
-  getStatus,
-  getNotice,
-  getCommonHeaders,
-  getSelf,
-  getUserModels,
-  getUserGroups,
-  get2FAStatus,
-  setup2FA,
-  enable2FA,
-  disable2FA,
-  regenerate2FABackupCodes,
-}))
+} as never)
+const post = spyOn(api, 'post').mockResolvedValue({
+  data: { success: true },
+} as never)
 
 const {
   clearCurrentPlaygroundRecord,
   getCurrentPlaygroundRecord,
+  getUserModels: fetchUserModels,
   savePlaygroundRecord,
 } = await import('./api')
 
@@ -63,6 +38,11 @@ const payload = {
   record_id: '550e8400-e29b-41d4-a716-446655440000',
   conversation_id: '550e8400-e29b-41d4-a716-446655440001',
 } as PlaygroundRecordPayload
+
+afterAll(() => {
+  get.mockRestore()
+  post.mockRestore()
+})
 
 describe('Playground persistence API', () => {
   beforeEach(() => {
@@ -116,6 +96,29 @@ describe('Playground persistence API', () => {
       record_id: payload.record_id,
       conversation_id: payload.conversation_id,
       client_completed_at: 2500,
+    })
+  })
+})
+
+describe('Playground model API', () => {
+  beforeEach(() => {
+    get.mockClear()
+  })
+
+  test('asks the backend to exclude administratively hidden models', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: ['gpt-4o', ' seedance-2.5 ', null],
+      },
+    })
+
+    await expect(fetchUserModels('plg')).resolves.toEqual([
+      'gpt-4o',
+      'seedance-2.5',
+    ])
+    expect(get).toHaveBeenCalledWith('/api/user/models', {
+      params: { group: 'plg', exclude_hidden: true },
     })
   })
 })

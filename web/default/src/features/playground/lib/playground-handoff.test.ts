@@ -63,7 +63,7 @@ describe('resolvePlaygroundHandoff', () => {
     })
   })
 
-  test('does not add an unavailable URL model to selectable models', () => {
+  test('does not lock or add an unavailable URL model after loading', () => {
     expect(
       resolvePlaygroundHandoff({
         models: [{ label: 'gpt-4o', value: 'gpt-4o' }],
@@ -71,8 +71,19 @@ describe('resolvePlaygroundHandoff', () => {
         model: 'not-a-real-model',
       })
     ).toEqual({
-      requestedModel: 'not-a-real-model',
       models: [{ label: 'gpt-4o', value: 'gpt-4o' }],
+    })
+  })
+
+  test('keeps a requested URL model locked while authorization is loading', () => {
+    expect(
+      resolvePlaygroundHandoff({
+        models: [],
+        model: 'gpt-image-2',
+      })
+    ).toEqual({
+      requestedModel: 'gpt-image-2',
+      models: [],
     })
   })
 

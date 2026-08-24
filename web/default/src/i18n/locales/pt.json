@@ -6765,6 +6765,8 @@
     "Price depends on request size and options.": "O preço depende do tamanho da requisição e das opções escolhidas.",
     "Quick start": "Integração rápida",
     "Quick top-up": "Recarga rápida",
-    "Save {{percent}}%": "Economize {{percent}}%"
+    "Save {{percent}}%": "Economize {{percent}}%",
+    "Create an image": "Criar uma imagem",
+    "Generate a video": "Gerar um vídeo"
   }
 }

@@ -282,12 +282,12 @@ describe('Playground model landing handoff', () => {
     expect(sendChatMock).not.toHaveBeenCalled()
   })
 
-  test('blocks a URL model missing from the user model list', () => {
+  test('does not lock the selector to a URL model missing from the user model list', () => {
     modelsQueryData = ['gpt-4o']
     isModelsQueryLoading = false
     const input = renderHandoff('not-a-real-model', 'Draw a violet fox')
 
-    expect(input.modelLocked).toBe(true)
+    expect(input.modelLocked).toBe(false)
     expect(input.submitDisabled).toBe(true)
 
     input.onSubmit('Draw a violet fox')

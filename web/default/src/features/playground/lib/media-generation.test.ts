@@ -43,7 +43,11 @@ describe('Playground media model profiles', () => {
     expect(resolvePlaygroundModelKind('bytedance/seedance-2.0-fast')).toBe(
       'video'
     )
-    expect(resolvePlaygroundModelKind('seedance-2-5')).toBe('unsupported')
+    expect(resolvePlaygroundModelKind('seedance-2.5')).toBe('video')
+    expect(resolvePlaygroundModelKind('seedance-2-5')).toBe('video')
+    expect(resolvePlaygroundModelKind('doubao-seedance-2-5-260628')).toBe(
+      'video'
+    )
     expect(resolvePlaygroundModelKind('minimax-h3')).toBe('unsupported')
     expect(resolvePlaygroundModelKind('gpt-4o')).toBe('chat')
     expect(resolvePlaygroundModelKind('tts-1')).toBe('unsupported')
@@ -204,6 +208,43 @@ describe('Playground media model profiles', () => {
         resolution: '4K',
       }).resolution
     ).toBe('720p')
+  })
+
+  test('Seedance 2.5 exposes only parameters accepted by the current relay', () => {
+    const profile = resolveMediaGenerationProfile('doubao-seedance-2-5-260628')
+
+    expect(profile?.family).toBe('seedance-2.5')
+    expect(profile?.defaults).toEqual({
+      resolution: '720p',
+      duration: 5,
+      aspectRatio: 'adaptive',
+      generateAudio: true,
+    })
+    expect(
+      profile?.fields
+        .find((field) => field.key === 'resolution')
+        ?.options.map((option) => option.value)
+    ).toEqual(['480p', '720p'])
+    expect(
+      profile?.fields
+        .find((field) => field.key === 'aspectRatio')
+        ?.options.map((option) => option.value)
+    ).toEqual(['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16'])
+    expect(
+      profile?.fields.find((field) => field.key === 'duration')
+    ).toMatchObject({ min: 4, max: 30, step: 1, unitKey: 'seconds' })
+    expect(profile?.fields.map((field) => field.key)).not.toContain('seed')
+  })
+
+  test('normalizes scalar media controls to values the relay can accept', () => {
+    const profile = resolveMediaGenerationProfile('seedance-2.5')
+
+    expect(
+      normalizeMediaGenerationSettings(profile!, {
+        duration: 4.5,
+        generateAudio: 'false',
+      })
+    ).toMatchObject({ duration: 5, generateAudio: true })
   })
 
   test('Grok image does not invent unsupported quality or resolution controls', () => {
@@ -405,6 +446,39 @@ describe('Playground media request building', () => {
         ratio: '9:16',
         duration: 12,
         generate_audio: false,
+      },
+    })
+    expect(request?.payload).not.toHaveProperty('seed')
+  })
+
+  test('builds Seedance 2.5 through the official content request without seed', () => {
+    const request = buildMediaGenerationRequest(
+      'Clouds moving across a mountain ridge',
+      'seedance-2.5',
+      'plg',
+      {
+        resolution: '720p',
+        aspectRatio: '9:16',
+        duration: 30,
+        seed: -1,
+        generateAudio: true,
+      }
+    )
+
+    expect(request).toEqual({
+      kind: 'video',
+      endpoint: '/pg/videos',
+      payload: {
+        model: 'seedance-2.5',
+        group: 'plg',
+        prompt: 'Clouds moving across a mountain ridge',
+        content: [
+          { type: 'text', text: 'Clouds moving across a mountain ridge' },
+        ],
+        resolution: '720p',
+        ratio: '9:16',
+        duration: 30,
+        generate_audio: true,
       },
     })
     expect(request?.payload).not.toHaveProperty('seed')

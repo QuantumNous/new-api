@@ -26,6 +26,7 @@ export type MediaGenerationFamily =
   | 'grok-image'
   | 'veo-3.1'
   | 'seedance-2.0'
+  | 'seedance-2.5'
 
 export type MediaParameterKey =
   | 'count'
@@ -108,6 +109,8 @@ const seedance20Ratios = [
   '9:16',
   '21:9',
 ]
+
+const seedance25Ratios = ['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16']
 
 const GPT_IMAGE_SIZE = '1024x1024'
 
@@ -277,6 +280,35 @@ const seedance20FullProfile = createSeedance20Profile([
 
 const seedance20EconomyProfile = createSeedance20Profile(['480p', '720p'])
 
+const seedance25Profile: MediaGenerationProfile = {
+  kind: 'video',
+  family: 'seedance-2.5',
+  defaults: {
+    resolution: '720p',
+    duration: 5,
+    aspectRatio: 'adaptive',
+    generateAudio: true,
+  },
+  fields: [
+    selectField('resolution', 'Resolution', ['480p', '720p']),
+    selectField('aspectRatio', 'Aspect ratio', seedance25Ratios),
+    {
+      key: 'duration',
+      labelKey: 'Duration',
+      control: 'number',
+      min: 4,
+      max: 30,
+      step: 1,
+      unitKey: 'seconds',
+    },
+    {
+      key: 'generateAudio',
+      labelKey: 'Generate audio',
+      control: 'switch',
+    },
+  ],
+}
+
 const unsupportedPatterns = [
   /(^|[-_/])(?:dall[ -]?e|imagen|flux|stable-diffusion|sdxl|midjourney|jimeng|qwen-image|z-image)(?:$|[-_/])/,
   /(^|\/)nano-banana(?:$|[-_/])/,
@@ -341,6 +373,9 @@ export function resolveMediaGenerationProfile(
     return cloneProfile(veoProfile)
   }
   if (normalized.includes('seedance')) {
+    if (/2(?:[.-]|-)?5/.test(normalized)) {
+      return cloneProfile(seedance25Profile)
+    }
     if (/2(?:[.-]|-)?0/.test(normalized)) {
       const isEconomyVariant = /(?:^|[-_/])(?:fast|mini)(?:$|[-_/])/.test(
         normalized
@@ -372,11 +407,15 @@ function normalizedNumber(
   value: MediaParameterValue | undefined,
   fallback: number,
   min: number,
-  max: number
+  max: number,
+  step?: number
 ): number {
   const parsed = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(parsed)) return fallback
-  return Math.min(max, Math.max(min, parsed))
+  const clamped = Math.min(max, Math.max(min, parsed))
+  if (!step || step <= 0) return clamped
+  const snapped = min + Math.round((clamped - min) / step) * step
+  return Math.min(max, Math.max(min, snapped))
 }
 
 export function normalizeMediaGenerationSettings(
@@ -395,7 +434,8 @@ export function normalizeMediaGenerationSettings(
         normalized[field.key],
         fallback,
         field.min,
-        field.max
+        field.max,
+        field.step
       )
       return
     }
@@ -403,6 +443,13 @@ export function normalizeMediaGenerationSettings(
       const value = String(normalized[field.key] ?? '')
       const supported = field.options.some((option) => option.value === value)
       if (!supported) normalized[field.key] = profile.defaults[field.key]
+      return
+    }
+    if (field.control === 'switch') {
+      if (typeof normalized[field.key] !== 'boolean') {
+        const fallback = profile.defaults[field.key]
+        normalized[field.key] = typeof fallback === 'boolean' ? fallback : false
+      }
     }
   })
 
@@ -474,7 +521,7 @@ function buildVideoPayload(
   family: MediaGenerationFamily,
   settings: MediaGenerationSettings
 ): Record<string, unknown> {
-  if (family === 'seedance-2.0') {
+  if (family === 'seedance-2.0' || family === 'seedance-2.5') {
     return {
       model,
       group,

@@ -6765,6 +6765,8 @@
     "Price depends on request size and options.": "Цена зависит от размера запроса и выбранных параметров.",
     "Quick start": "Быстрое подключение",
     "Quick top-up": "Быстрое пополнение",
-    "Save {{percent}}%": "Экономия {{percent}}%"
+    "Save {{percent}}%": "Экономия {{percent}}%",
+    "Create an image": "Создать изображение",
+    "Generate a video": "Создать видео"
   }
 }

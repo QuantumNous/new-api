@@ -6778,6 +6778,8 @@
     "Price depends on request size and options.": "价格取决于请求大小与所选参数。",
     "Quick start": "快速接入",
     "Quick top-up": "快速充值",
-    "Save {{percent}}%": "省 {{percent}}%"
+    "Save {{percent}}%": "省 {{percent}}%",
+    "Create an image": "生成图片",
+    "Generate a video": "生成视频"
   }
 }

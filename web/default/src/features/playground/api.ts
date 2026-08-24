@@ -129,13 +129,16 @@ export async function fetchVideoContent(id: string): Promise<Blob> {
 }
 
 /**
- * Get all models available to the user. Playground-specific display filtering
- * happens at the call site so handoff models can be validated against the raw
- * backend response before being added to the picker.
+ * Get models available to the user for Playground display. The opt-in flag
+ * applies the administrator's hidden-model policy without changing the default
+ * behavior of the shared backend endpoint.
  */
 export async function getUserModels(group?: string): Promise<string[]> {
   const res = await api.get(API_ENDPOINTS.USER_MODELS, {
-    params: group ? { group } : undefined,
+    params: {
+      ...(group ? { group } : {}),
+      exclude_hidden: true,
+    },
   })
   const { data } = res
 

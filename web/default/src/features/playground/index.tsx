@@ -217,8 +217,9 @@ export function Playground({
     if (messages.length > 0) updateMessages([])
   }, [firstRun, messages.length, updateMessages])
 
-  // Load the complete backend-authorized model set. Picker filtering remains
-  // separate so a filtered handoff model can still be validated before use.
+  // Load the backend-authorized models that are also allowed by the
+  // administrator's Playground display policy. Capability filtering remains
+  // separate so supported handoff models can still be validated before use.
   const { data: availableModelsData, isLoading: isLoadingModels } = useQuery({
     queryKey: ['playground-models', config.group],
     queryFn: async () => {
@@ -272,7 +273,7 @@ export function Playground({
     () =>
       resolvePlaygroundHandoff({
         models: playgroundModelsData,
-        availableModels: availableModelsData ?? [],
+        availableModels: availableModelsData,
         model: resolvePlaygroundHandoffModel(
           initialModel,
           retainedHandoffModel
@@ -753,6 +754,8 @@ export function Playground({
       {messages.length === 0 && (
         <FirstRunWelcome
           firstRun={firstRun}
+          models={handoff.models}
+          modelLocked={isHandoffModelLocked}
           ptFirstCallSecondsRemaining={
             isPtFirstCallExperiment ? ptFirstCallSecondsRemaining : undefined
           }

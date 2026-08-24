@@ -6778,6 +6778,8 @@
     "Price depends on request size and options.": "Price depends on request size and options.",
     "Quick start": "Quick start",
     "Quick top-up": "Quick top-up",
-    "Save {{percent}}%": "Save {{percent}}%"
+    "Save {{percent}}%": "Save {{percent}}%",
+    "Create an image": "Create an image",
+    "Generate a video": "Generate a video"
   }
 }
