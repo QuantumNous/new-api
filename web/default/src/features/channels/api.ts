@@ -124,6 +124,30 @@ export type GrokAuthStatusResponse = {
   data?: { status?: string; quota_snapshot?: string; key?: string }
 }
 
+export type GrokAccountQuotaWindow = {
+  status_code: number
+  usage_percent?: number
+  used_percent?: number
+  monthly_limit_cents?: number
+}
+
+export type GrokAccountStatus = {
+  channel_id: number
+  auth_status: string
+  billing_plan?: string
+  tier_raw?: string
+  billing_observed_at?: number
+  last_refresh_at?: number
+  monthly?: GrokAccountQuotaWindow
+  weekly?: GrokAccountQuotaWindow
+}
+
+export type GrokAccountStatusResponse = {
+  success: boolean
+  message?: string
+  data?: GrokAccountStatus
+}
+
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
@@ -475,6 +499,16 @@ export async function refreshGrokState(
     '/api/channel/grok/refresh',
     { channel_id: channelId },
     channelActionConfig()
+  )
+  return res.data
+}
+
+export async function getGrokAccountStatus(
+  channelId: number
+): Promise<GrokAccountStatusResponse> {
+  const res = await api.get(
+    `/api/channel/grok/status/${channelId}`,
+    channelActionConfig({ disableDuplicate: true })
   )
   return res.data
 }

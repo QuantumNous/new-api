@@ -51,9 +51,14 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
 import { TableId } from '@/components/table-id'
 import { TruncatedText } from '@/components/truncated-text'
-import { getCodexUsage } from '../api'
-import { useCodexResetConsumer } from '../hooks/use-codex-reset-consumer'
+import {
+  getCodexUsage,
+  getGrokAccountStatus,
+  refreshGrokState,
+  type GrokAccountStatus,
+} from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
+import { useCodexResetConsumer } from '../hooks/use-codex-reset-consumer'
 import {
   formatBalance,
   formatRelativeTime,
@@ -81,6 +86,7 @@ import {
   CodexUsageDialog,
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
+import { GrokAccountInfoDialog } from './dialogs/grok-account-info-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
@@ -375,6 +381,9 @@ function BalanceCell({ channel }: { channel: Channel }) {
     useState<CodexUsageDialogData | null>(null)
   const { isConsuming: codexConsuming, consume: consumeCodexResetCredit } =
     useCodexResetConsumer()
+  const [grokAccountOpen, setGrokAccountOpen] = useState(false)
+  const [grokAccountStatus, setGrokAccountStatus] =
+    useState<GrokAccountStatus | null>(null)
   const currencyLabel = getCurrencyLabel()
   const tokenSuffix = currencyLabel === 'Tokens' ? ' Tokens' : ''
   const withSuffix = (value: string) =>
@@ -423,6 +432,26 @@ function BalanceCell({ channel }: { channel: Channel }) {
       return
     }
 
+    if (channel.type === 113) {
+      try {
+        const res = await getGrokAccountStatus(channel.id)
+        if (!res.success) {
+          throw new Error(res.message || t('Failed to fetch account status'))
+        }
+        setGrokAccountStatus(res.data ?? null)
+        setGrokAccountOpen(true)
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t('Failed to fetch account status')
+        )
+      } finally {
+        setIsUpdating(false)
+      }
+      return
+    }
+
     await handleUpdateChannelBalance(channel.id, queryClient)
     setIsUpdating(false)
   }
@@ -454,7 +483,7 @@ function BalanceCell({ channel }: { channel: Channel }) {
                 label={
                   isUpdating
                     ? t('Updating...')
-                    : channel.type === 57
+                    : channel.type === 57 || channel.type === 113
                       ? t('Account Info')
                       : remainingDisplay
                 }
@@ -475,11 +504,13 @@ function BalanceCell({ channel }: { channel: Channel }) {
           />
           <TooltipContent>
             <p>
-              {channel.type === 57
-                ? t('Click to view Codex usage')
+              {channel.type === 57 || channel.type === 113
+                ? t('Click to view account status')
                 : remainingLabel}
             </p>
-            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
+            {channel.type !== 57 && channel.type !== 113 && (
+              <p>{t('Click to update balance')}</p>
+            )}
           </TooltipContent>
         </Tooltip>
       </div>
@@ -515,6 +546,40 @@ function BalanceCell({ channel }: { channel: Channel }) {
           if (refreshed) setCodexUsageResponse(refreshed)
         }}
         isConsuming={codexConsuming}
+      />
+      <GrokAccountInfoDialog
+        open={grokAccountOpen}
+        onOpenChange={setGrokAccountOpen}
+        channelName={channel.name}
+        status={grokAccountStatus ?? null}
+        isRefreshing={isUpdating}
+        onRefresh={async () => {
+          if (isUpdating) return
+          setIsUpdating(true)
+          try {
+            const refreshed = await refreshGrokState(channel.id)
+            if (!refreshed.success) {
+              throw new Error(
+                refreshed.message || t('Failed to refresh account status')
+              )
+            }
+            const res = await getGrokAccountStatus(channel.id)
+            if (!res.success) {
+              throw new Error(
+                res.message || t('Failed to fetch account status')
+              )
+            }
+            setGrokAccountStatus(res.data ?? null)
+          } catch (error) {
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : t('Failed to refresh account status')
+            )
+          } finally {
+            setIsUpdating(false)
+          }
+        }}
       />
     </TooltipProvider>
   )

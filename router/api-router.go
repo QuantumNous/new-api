@@ -391,6 +391,7 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/grok/pkce/complete", controller.GrokPKCECompleteHandler)
 			channelRoute.POST("/grok/import", controller.GrokImportHandler)
 			channelRoute.POST("/grok/refresh", controller.GrokRefreshHandler)
+			channelRoute.GET("/grok/status/:id", controller.GrokAccountStatusHandler)
 			channelRoute.POST("/:id/codex/oauth/start", controller.StartCodexOAuthForChannel)
 			channelRoute.POST("/:id/codex/oauth/complete", controller.CompleteCodexOAuthForChannel)
 			channelRoute.POST("/:id/copilot/device/start", controller.StartCopilotDeviceFlow)
