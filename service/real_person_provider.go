@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,6 +17,10 @@ type realPersonProvider interface {
 	VerificationTTLSeconds() int64
 	CreateVisualValidateSession(context.Context, string) (BytePlusVisualValidationSession, error)
 	GetVisualValidateResult(context.Context, string) (BytePlusVisualValidationResult, error)
+	CreateAsset(context.Context, BytePlusCreateAssetRequest) (string, string, error)
+	GetAsset(context.Context, string) (BytePlusAssetStatus, error)
+	ListAssets(context.Context, BytePlusListAssetsRequest) (BytePlusListAssetsResult, error)
+	DeleteAsset(context.Context, string) (string, error)
 }
 
 type realPersonProviderBinding struct {
@@ -43,6 +48,22 @@ func (p nativeBytePlusRealPersonProvider) CreateVisualValidateSession(ctx contex
 
 func (p nativeBytePlusRealPersonProvider) GetVisualValidateResult(ctx context.Context, bytedToken string) (BytePlusVisualValidationResult, error) {
 	return p.client.GetVisualValidateResult(ctx, p.credentials, bytedToken)
+}
+
+func (p nativeBytePlusRealPersonProvider) CreateAsset(ctx context.Context, request BytePlusCreateAssetRequest) (string, string, error) {
+	return p.client.CreateAsset(ctx, p.credentials, request)
+}
+
+func (p nativeBytePlusRealPersonProvider) GetAsset(ctx context.Context, upstreamAssetID string) (BytePlusAssetStatus, error) {
+	return p.client.GetAsset(ctx, p.credentials, upstreamAssetID)
+}
+
+func (p nativeBytePlusRealPersonProvider) ListAssets(ctx context.Context, request BytePlusListAssetsRequest) (BytePlusListAssetsResult, error) {
+	return p.client.ListAssets(ctx, p.credentials, request)
+}
+
+func (p nativeBytePlusRealPersonProvider) DeleteAsset(ctx context.Context, upstreamAssetID string) (string, error) {
+	return p.client.DeleteAsset(ctx, p.credentials, upstreamAssetID)
 }
 
 type tokenSpaceRealPersonProvider struct {
@@ -140,4 +161,16 @@ func realPersonChannelIsAutomaticCandidate(channel *model.Channel) bool {
 	}
 	creds, err := ParseBytePlusCredentials(channel.Key)
 	return err == nil && creds.ValidateRealPersonAssets() == nil
+}
+
+func isRealPersonDefinitiveResponse(err error) bool {
+	return isBytePlusDefinitiveResponse(err) || AssetMaterializeErrorClass(err) == AssetMaterializeErrorDefinitive
+}
+
+func isRealPersonNotFound(err error) bool {
+	if isBytePlusNotFound(err) {
+		return true
+	}
+	var failure *AssetMaterializeFailure
+	return errors.As(err, &failure) && failure.Class == AssetMaterializeErrorDefinitive && failure.HTTPStatus == http.StatusNotFound
 }
