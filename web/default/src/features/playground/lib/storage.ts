@@ -17,12 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS } from '../constants'
-import type {
-  Message,
-  ParameterEnabled,
-  PlaygroundConfig,
-  PlaygroundRecordPayload,
-} from '../types'
+import type { Message, ParameterEnabled, PlaygroundConfig } from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
 
 function scopedKey(base: string, userId: number): string {
@@ -35,43 +30,6 @@ function isValidUserId(userId: number): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isPendingRecord(value: unknown): value is PlaygroundRecordPayload {
-  if (!isRecord(value)) return false
-  const isStatusValid =
-    value.status === 'complete' ||
-    value.status === 'error' ||
-    value.status === 'stopped'
-  const isNonNegativeInteger = (candidate: unknown) =>
-    Number.isInteger(candidate) && Number(candidate) >= 0
-
-  return (
-    typeof value.record_id === 'string' &&
-    value.record_id.length > 0 &&
-    typeof value.conversation_id === 'string' &&
-    value.conversation_id.length > 0 &&
-    isRecord(value.user_message) &&
-    Array.isArray(value.request_messages) &&
-    isRecord(value.assistant_message) &&
-    typeof value.reasoning_content === 'string' &&
-    typeof value.input_text === 'string' &&
-    typeof value.output_text === 'string' &&
-    typeof value.model_name === 'string' &&
-    typeof value.group_name === 'string' &&
-    isRecord(value.parameters) &&
-    isStatusValid &&
-    typeof value.error_code === 'string' &&
-    typeof value.error_message === 'string' &&
-    typeof value.relay_request_id === 'string' &&
-    isNonNegativeInteger(value.prompt_tokens) &&
-    isNonNegativeInteger(value.completion_tokens) &&
-    isNonNegativeInteger(value.total_tokens) &&
-    isNonNegativeInteger(value.latency_ms) &&
-    Array.isArray(value.messages_snapshot) &&
-    Number.isInteger(value.client_completed_at) &&
-    Number(value.client_completed_at) > 0
-  )
 }
 
 /**
@@ -231,66 +189,6 @@ export function saveConversationId(
 }
 
 /**
- * Load terminal records that still need to be saved by the server
- */
-export function loadPendingRecords(userId: number): PlaygroundRecordPayload[] {
-  if (!isValidUserId(userId)) return []
-  try {
-    const saved = localStorage.getItem(
-      scopedKey(STORAGE_KEYS.PENDING_RECORDS, userId)
-    )
-    if (!saved) return []
-    const parsed: unknown = JSON.parse(saved)
-    if (!Array.isArray(parsed) || !parsed.every(isPendingRecord)) return []
-    return parsed
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to load pending Playground records:', error)
-    return []
-  }
-}
-
-/**
- * Enqueue a record, replacing a matching id without changing FIFO order
- */
-export function enqueuePendingRecord(
-  userId: number,
-  payload: PlaygroundRecordPayload
-): boolean {
-  const pending = loadPendingRecords(userId)
-  const existingIndex = pending.findIndex(
-    (record) => record.record_id === payload.record_id
-  )
-  if (existingIndex >= 0) {
-    pending[existingIndex] = payload
-  } else {
-    pending.push(payload)
-  }
-  return replacePendingRecords(userId, pending)
-}
-
-/**
- * Replace the complete pending record queue
- */
-export function replacePendingRecords(
-  userId: number,
-  payloads: PlaygroundRecordPayload[]
-): boolean {
-  if (!isValidUserId(userId)) return false
-  try {
-    localStorage.setItem(
-      scopedKey(STORAGE_KEYS.PENDING_RECORDS, userId),
-      JSON.stringify(payloads)
-    )
-    return true
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to save pending Playground records:', error)
-    return false
-  }
-}
-
-/**
  * Remove all versioned Playground state for one user
  */
 export function clearUserPlaygroundData(userId: number): void {
@@ -301,7 +199,6 @@ export function clearUserPlaygroundData(userId: number): void {
       STORAGE_KEYS.PARAMETER_ENABLED,
       STORAGE_KEYS.MESSAGES,
       STORAGE_KEYS.CONVERSATION,
-      STORAGE_KEYS.PENDING_RECORDS,
     ]
     keys.forEach((key) => localStorage.removeItem(scopedKey(key, userId)))
   } catch (error) {

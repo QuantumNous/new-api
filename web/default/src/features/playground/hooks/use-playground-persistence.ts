@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import {
   clearCurrentPlaygroundRecord,
   getCurrentPlaygroundRecord,
@@ -24,16 +25,18 @@ import {
 } from '../api'
 import {
   buildPlaygroundRecordPayload,
+  browserPlaygroundOutbox,
   createActivePlaygroundTurn,
   drainPlaygroundOutbox,
-  enqueuePendingRecord,
-  loadPendingRecords,
-  removeDeliveredPlaygroundRecords,
-  replacePendingRecords,
   restorePlaygroundSession,
   type ActivePlaygroundTurn,
 } from '../lib'
-import type { Message, ParameterEnabled, PlaygroundConfig } from '../types'
+import type {
+  Message,
+  ParameterEnabled,
+  PlaygroundConfig,
+  PlaygroundRecordPayload,
+} from '../types'
 
 type MessageUpdater = Message[] | ((previous: Message[]) => Message[])
 
@@ -63,40 +66,44 @@ export function usePlaygroundPersistence({
 }: UsePlaygroundPersistenceOptions) {
   const activeTurnRef = useRef<UserActiveTurn | null>(null)
   const stoppedRef = useRef(false)
+  const drainPromiseRef = useRef<Promise<PlaygroundRecordPayload[]> | null>(
+    null
+  )
   const [settledUserId, setSettledUserId] = useState<number | null>(null)
   const hasUser = isAuthenticatedUserId(userId)
   const isRestoring = hasUser && settledUserId !== userId
 
-  const persistDrainResult = useCallback(
-    (
-      targetUserId: number,
-      attemptedRecords: ReturnType<typeof loadPendingRecords>,
-      remainingRecords: ReturnType<typeof loadPendingRecords>
-    ) => {
-      const latestRecords = loadPendingRecords(targetUserId)
-      replacePendingRecords(
-        targetUserId,
-        removeDeliveredPlaygroundRecords(
-          latestRecords,
-          attemptedRecords,
-          remainingRecords
-        )
-      )
-    },
-    []
-  )
+  const drainStoredRecords = useCallback(async (targetUserId: number) => {
+    if (drainPromiseRef.current) return drainPromiseRef.current
 
-  const drainStoredRecords = useCallback(
-    async (targetUserId: number) => {
-      const attemptedRecords = loadPendingRecords(targetUserId)
-      const remainingRecords = await drainPlaygroundOutbox(
-        attemptedRecords,
-        savePlaygroundRecord
-      )
-      persistDrainResult(targetUserId, attemptedRecords, remainingRecords)
-    },
-    [persistDrainResult]
-  )
+    const drain = async () => {
+      while (true) {
+        const attemptedRecords =
+          await browserPlaygroundOutbox.list(targetUserId)
+        if (attemptedRecords.length === 0) return []
+
+        const remainingRecords = await drainPlaygroundOutbox(
+          attemptedRecords,
+          savePlaygroundRecord
+        )
+        const deliveredCount = attemptedRecords.length - remainingRecords.length
+        await browserPlaygroundOutbox.remove(
+          targetUserId,
+          attemptedRecords
+            .slice(0, deliveredCount)
+            .map((record) => record.record_id)
+        )
+        if (remainingRecords.length > 0) return remainingRecords
+      }
+    }
+
+    drainPromiseRef.current = drain()
+    try {
+      return await drainPromiseRef.current
+    } finally {
+      drainPromiseRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     activeTurnRef.current = null
@@ -113,13 +120,20 @@ export function usePlaygroundPersistence({
     }
 
     const restore = async () => {
-      const attemptedRecords = loadPendingRecords(userId)
+      const attemptedRecords = await browserPlaygroundOutbox.list(userId)
       const result = await restorePlaygroundSession(
         attemptedRecords,
         savePlaygroundRecord,
         getCurrentPlaygroundRecord
       )
-      persistDrainResult(userId, attemptedRecords, result.pendingRecords)
+      const deliveredCount =
+        attemptedRecords.length - result.pendingRecords.length
+      await browserPlaygroundOutbox.remove(
+        userId,
+        attemptedRecords
+          .slice(0, deliveredCount)
+          .map((record) => record.record_id)
+      )
 
       if (cancelled || !result.shouldApplyCurrent) return
 
@@ -139,7 +153,7 @@ export function usePlaygroundPersistence({
     return () => {
       cancelled = true
     }
-  }, [hasUser, persistDrainResult, setConversationId, updateMessages, userId])
+  }, [hasUser, setConversationId, updateMessages, userId])
 
   useEffect(() => {
     const active = activeTurnRef.current
@@ -159,14 +173,17 @@ export function usePlaygroundPersistence({
       messages,
       stoppedRef.current
     )
-    const wasQueued = enqueuePendingRecord(userId, payload)
     activeTurnRef.current = null
     stoppedRef.current = false
-    if (wasQueued) {
-      void drainStoredRecords(userId)
-    } else {
-      void savePlaygroundRecord(payload).catch(() => {})
-    }
+    void (async () => {
+      const durability = await browserPlaygroundOutbox.enqueue(userId, payload)
+      const remaining = await drainStoredRecords(userId)
+      if (durability === 'volatile' && remaining.length > 0) {
+        toast.warning(
+          'This Playground record could not be stored in the browser. Keep this page open while it retries.'
+        )
+      }
+    })()
   }, [drainStoredRecords, hasUser, messages, userId])
 
   const startTurn = useCallback(

@@ -18,16 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { STORAGE_KEYS } from '../constants'
-import type { Message, PlaygroundRecordPayload } from '../types'
+import type { Message } from '../types'
 import {
   clearUserPlaygroundData,
-  enqueuePendingRecord,
   loadConfig,
   loadConversationId,
   loadMessages,
   loadParameterEnabled,
-  loadPendingRecords,
-  replacePendingRecords,
   saveConfig,
   saveConversationId,
   saveMessages,
@@ -71,41 +68,6 @@ const bobMessage: Message = {
   key: 'bob-message',
   from: 'user',
   versions: [{ id: 'bob-version', content: 'hello from bob' }],
-}
-
-function sampleRecord(
-  recordId: string,
-  outputText: string
-): PlaygroundRecordPayload {
-  const assistantMessage: Message = {
-    key: `assistant-${recordId}`,
-    from: 'assistant',
-    versions: [{ id: `version-${recordId}`, content: outputText }],
-    status: 'complete',
-  }
-  return {
-    record_id: recordId,
-    conversation_id: '550e8400-e29b-41d4-a716-446655440001',
-    user_message: aliceMessage,
-    request_messages: [{ role: 'user', content: 'hello from alice' }],
-    assistant_message: assistantMessage,
-    reasoning_content: '',
-    input_text: 'hello from alice',
-    output_text: outputText,
-    model_name: 'gpt-test',
-    group_name: 'plg',
-    parameters: {},
-    status: 'complete',
-    error_code: '',
-    error_message: '',
-    relay_request_id: '',
-    prompt_tokens: 0,
-    completion_tokens: 0,
-    total_tokens: 0,
-    latency_ms: 100,
-    messages_snapshot: [aliceMessage, assistantMessage],
-    client_completed_at: 2000,
-  }
 }
 
 beforeEach(() => {
@@ -153,19 +115,17 @@ describe('Playground user-scoped storage', () => {
     expect(persisted).toEqual(loaded)
   })
 
-  test('isolates messages, config, and outbox by user', () => {
+  test('isolates messages and config by user', () => {
     saveMessages(10, [aliceMessage])
     saveMessages(20, [bobMessage])
     saveConfig(10, { model: 'alice-model' })
     saveParameterEnabled(10, { temperature: false })
-    enqueuePendingRecord(10, sampleRecord('record-a', 'alice output'))
 
     expect(loadMessages(10)).toEqual([aliceMessage])
     expect(loadMessages(20)).toEqual([bobMessage])
     expect(loadConfig(10)).toEqual({ model: 'alice-model' })
     expect(loadConfig(20)).toEqual({})
     expect(loadParameterEnabled(10)).toEqual({ temperature: false })
-    expect(loadPendingRecords(20)).toEqual([])
   })
 
   test('uses versioned keys and persists conversation ids', () => {
@@ -180,63 +140,15 @@ describe('Playground user-scoped storage', () => {
     expect(storage.values.has('playground_conversation')).toBe(false)
   })
 
-  test('deduplicates pending records without changing FIFO position', () => {
-    const first = sampleRecord('record-a', 'draft')
-    const second = sampleRecord('record-b', 'second')
-    enqueuePendingRecord(10, first)
-    enqueuePendingRecord(10, second)
-    enqueuePendingRecord(10, { ...first, output_text: 'final' })
-
-    const pending = loadPendingRecords(10)
-    expect(pending.map((record) => record.record_id)).toEqual([
-      'record-a',
-      'record-b',
-    ])
-    expect(pending[0].output_text).toBe('final')
-  })
-
-  test('replaces a pending queue and safely handles corrupt storage', () => {
+  test('safely handles corrupt user-scoped state', () => {
     const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
-    replacePendingRecords(10, [sampleRecord('record-a', 'first')])
-    expect(loadPendingRecords(10)).toHaveLength(1)
-
-    localStorage.setItem('playground_pending_records:v2:10', '{broken')
     localStorage.setItem('playground_messages:v2:10', '{}')
     localStorage.setItem('playground_config:v2:10', '[]')
     localStorage.setItem('playground_parameter_enabled:v2:10', 'null')
 
-    expect(loadPendingRecords(10)).toEqual([])
     expect(loadMessages(10)).toBe(null)
     expect(loadConfig(10)).toEqual({})
     expect(loadParameterEnabled(10)).toEqual({})
-    errorSpy.mockRestore()
-  })
-
-  test('drops structurally incomplete pending records', () => {
-    localStorage.setItem(
-      'playground_pending_records:v2:10',
-      JSON.stringify([
-        {
-          record_id: 'record-a',
-          conversation_id: 'conversation-a',
-          status: 'complete',
-        },
-      ])
-    )
-
-    expect(loadPendingRecords(10)).toEqual([])
-  })
-
-  test('reports when a pending record cannot be written locally', () => {
-    const storage = installLocalStorage()
-    const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
-    storage.setItem = () => {
-      throw new Error('quota exceeded')
-    }
-
-    expect(enqueuePendingRecord(10, sampleRecord('record-a', 'output'))).toBe(
-      false
-    )
     errorSpy.mockRestore()
   })
 
@@ -244,13 +156,11 @@ describe('Playground user-scoped storage', () => {
     saveMessages(10, [aliceMessage])
     saveMessages(20, [bobMessage])
     saveConversationId(10, 'conversation-a')
-    enqueuePendingRecord(10, sampleRecord('record-a', 'alice output'))
 
     clearUserPlaygroundData(10)
 
     expect(loadMessages(10)).toBe(null)
     expect(loadConversationId(10)).toBe(null)
-    expect(loadPendingRecords(10)).toEqual([])
     expect(loadMessages(20)).toEqual([bobMessage])
   })
 })
