@@ -439,13 +439,15 @@ func TestLoadSnapshot_MalformedWhitelist_ReturnsInternalError(t *testing.T) {
 		`INSERT INTO skill_versions
 		    (id, skill_id, version_number, status, instruction_template,
 		     instruction_template_sha256, download_instructions, usage_instructions,
-		     prerequisites, quickstart, example_io, model_whitelist_snapshot,
-		     required_plan_snapshot, monetization_snapshot, created_by, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+		     prerequisites, quickstart, example_io, variables_schema,
+		     model_whitelist_snapshot, required_plan_snapshot, monetization_snapshot,
+		     created_by, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
 		vID, skill.ID, 1, string(enums.SkillVersionStatusActive),
 		"template", "aabbccdd",
 		"Download this Skill.", "Use this Skill through DeepRouter.", "[]", "[]", "[]",
-		`not-valid-json`,
+		"[]",             // variables_schema
+		`not-valid-json`, // model_whitelist_snapshot — the malformed value under test
 		string(enums.RequiredPlanFree), "{}", 1,
 	).Error)
 

@@ -37,6 +37,15 @@ type SkillVersion struct {
 	MonetizationSnapshot   SkillJSONB `gorm:"column:monetization_snapshot;type:text;not null"`
 	MaxInputTokensSnapshot *int       `gorm:"column:max_input_tokens_snapshot;type:integer;check:chk_skill_versions_max_input_tokens_snapshot,max_input_tokens_snapshot IS NULL OR max_input_tokens_snapshot > 0"`
 
+	// Creator marketplace (Module3 P1, docs/tasks/skill-creator-data-model-prd.md).
+	// VariablesSchema is array-shaped ({{name}} placeholder definitions) and is
+	// normalized to "[]" in BeforeCreate; MinhashSignature is a 128-dim base64
+	// fingerprint of the instruction template, nullable because official skills
+	// predate the anti-plagiarism scan. Both live here rather than on skills
+	// because they describe the prompt, and the prompt only exists on a version.
+	VariablesSchema  SkillJSONB `gorm:"column:variables_schema;type:text;not null"`
+	MinhashSignature *string    `gorm:"column:minhash_signature;type:text"`
+
 	PackageZip     []byte     `gorm:"column:package_zip"`
 	PackageSHA256  *string    `gorm:"column:package_sha256;type:char(64)"`
 	PackageBuiltAt *time.Time `gorm:"column:package_built_at"`
@@ -60,6 +69,7 @@ func (v *SkillVersion) BeforeCreate(tx *gorm.DB) error {
 	}
 	// output_schema: intentionally not normalized — nil stays nil (NULL in DB = no schema, PRD §4.2)
 	normalizeSkillJSONB(&v.ModelWhitelistSnapshot)
+	normalizeSkillJSONB(&v.VariablesSchema)
 	normalizeSkillJSONB(&v.Prerequisites)
 	normalizeSkillJSONB(&v.Quickstart)
 	normalizeSkillJSONB(&v.ExampleIO)

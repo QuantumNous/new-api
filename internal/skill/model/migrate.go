@@ -4,18 +4,25 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 )
 
 // MigrateSkills runs all DB migration steps for the skills table.
 // Order is fixed: AutoMigrate → CHECK constraints → JSONB upgrade (PG only) → indexes → timestamp defaults.
 func MigrateSkills(db *gorm.DB) error {
+	// Runs before AutoMigrate so the creator columns land from the field definitions
+	// even if AutoMigrate later trips on something else (Module3 P1).
+	if err := migrateSkillsCreatorColumns(db); err != nil {
+		return err
+	}
 	if err := db.AutoMigrate(&Skill{}); err != nil {
 		return err
 	}
 	if err := migrateSkillsConstraints(db); err != nil {
 		return err
 	}
+	warnStaleSkillsStatusCheckSQLite(db)
 	if err := createSkillsJSONBColumns(db); err != nil {
 		return err
 	}
@@ -43,6 +50,11 @@ func MigrateSkillVersions(db *gorm.DB) error {
 		if err := migrateSkillVersionInstructionColumns(db); err != nil {
 			return err
 		}
+		// Before AutoMigrate: a NOT NULL column that does not exist yet would
+		// otherwise make AutoMigrate choke on the existing rows (DR-93 cf6676f5).
+		if err := migrateSkillVersionCreatorColumns(db); err != nil {
+			return err
+		}
 		if err := db.AutoMigrate(&SkillVersion{}); err != nil {
 			return err
 		}
@@ -51,6 +63,9 @@ func MigrateSkillVersions(db *gorm.DB) error {
 		return err
 	}
 	if err := migrateSkillVersionInstructionColumns(db); err != nil {
+		return err
+	}
+	if err := migrateSkillVersionCreatorColumns(db); err != nil {
 		return err
 	}
 	if err := createSkillVersionsJSONBColumns(db); err != nil {
@@ -102,6 +117,8 @@ func createSkillVersionsSQLiteTable(db *gorm.DB) error {
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
 			max_input_tokens_snapshot integer,
+			variables_schema text NOT NULL DEFAULT '[]',
+			minhash_signature text,
 			package_zip blob,
 			package_sha256 char(64),
 			package_built_at datetime,
@@ -141,6 +158,8 @@ func createSkillVersionsMySQLTable(db *gorm.DB) error {
 			required_plan_snapshot varchar(32) NOT NULL,
 			monetization_snapshot text NOT NULL,
 			max_input_tokens_snapshot bigint,
+			variables_schema text NOT NULL,
+			minhash_signature text,
 			package_zip longblob,
 			package_sha256 char(64),
 			package_built_at datetime(3),
@@ -167,6 +186,44 @@ func migrateSkillVersionPackageColumns(db *gorm.DB) error {
 		if err := db.Migrator().AddColumn(&SkillVersion{}, col); err != nil {
 			return fmt.Errorf("add skill_versions %s: %w", col, err)
 		}
+	}
+	return nil
+}
+
+// migrateSkillVersionCreatorColumns adds the Module3 P1 prompt-template columns
+// to an existing skill_versions table. Mirrors migrateSkillVersionInstructionColumns
+// (DR-93): the two hand-written CREATE TABLEs cover fresh SQLite/MySQL installs,
+// PostgreSQL falls through to AutoMigrate, and this covers upgrades on all three.
+//
+// variables_schema is NOT NULL, so ADD COLUMN must be followed by a backfill —
+// an existing row would otherwise hold NULL and violate the struct's contract.
+func migrateSkillVersionCreatorColumns(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&SkillVersion{}) {
+		return nil
+	}
+	cols := []struct {
+		name        string
+		sqliteMySQL string
+		postgres    string
+	}{
+		{"variables_schema", "text", "jsonb"},
+		{"minhash_signature", "text", "text"},
+	}
+	for _, col := range cols {
+		if db.Migrator().HasColumn(&SkillVersion{}, col.name) {
+			continue
+		}
+		ddlType := col.sqliteMySQL
+		if db.Dialector.Name() == "postgres" {
+			ddlType = col.postgres
+		}
+		if err := db.Exec(fmt.Sprintf("ALTER TABLE skill_versions ADD COLUMN %s %s", col.name, ddlType)).Error; err != nil {
+			return fmt.Errorf("add skill_versions %s: %w", col.name, err)
+		}
+	}
+	// minhash_signature is deliberately not backfilled: NULL means "never fingerprinted".
+	if err := db.Exec("UPDATE skill_versions SET variables_schema = '[]' WHERE variables_schema IS NULL").Error; err != nil {
+		return fmt.Errorf("backfill skill_versions variables_schema: %w", err)
 	}
 	return nil
 }
@@ -216,6 +273,92 @@ func migrateSkillVersionInstructionColumns(db *gorm.DB) error {
 	return nil
 }
 
+// migrateSkillsCreatorColumns adds the Module3 P1 creator-workflow columns to an
+// existing skills table. Uses Migrator().AddColumn rather than hand-written ALTER
+// so the DDL is generated from the field definition — a hand-written type that
+// drifts from the struct tag would make the next AutoMigrate decide the column
+// needs altering, which is the table-rebuild path we must never enter on SQLite.
+func migrateSkillsCreatorColumns(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&Skill{}) {
+		return nil // fresh database: AutoMigrate creates the table with these columns
+	}
+	cols := []string{
+		"source", "creator_id", "review_status", "review_actor_id",
+		"reviewed_at", "review_note", "scan_report", "scanned_at",
+	}
+	for _, col := range cols {
+		if db.Migrator().HasColumn(&Skill{}, col) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&Skill{}, col); err != nil {
+			return fmt.Errorf("add skills %s: %w", col, err)
+		}
+	}
+	// Defensive: ADD COLUMN carries the NOT NULL DEFAULT, but an interrupted
+	// migration could leave the column present and empty.
+	if db.Migrator().HasColumn(&Skill{}, "source") {
+		if err := db.Exec("UPDATE skills SET source = ? WHERE source IS NULL OR source = ''", SkillSourceOfficial).Error; err != nil {
+			return fmt.Errorf("backfill skills source: %w", err)
+		}
+	}
+	return nil
+}
+
+// refreshSkillsStatusConstraint drops chk_skills_status so the widened expression
+// is rebuilt by the caller. Without this the change is a permanent silent no-op:
+// the apply loop skips any constraint whose NAME already exists, and the name did
+// not change when the creator statuses were added (Module3 P1).
+//
+// Dialect-explicit on purpose. PG and MySQL spell this differently, and going
+// through Migrator().DropConstraint would route via GuessConstraintAndTable, which
+// only recognises a name declared in a struct tag — a coupling the P1 columns
+// deliberately avoid.
+func refreshSkillsStatusConstraint(db *gorm.DB) error {
+	const name = "chk_skills_status"
+	if !db.Migrator().HasConstraint(&Skill{}, name) {
+		return nil
+	}
+	switch db.Dialector.Name() {
+	case "postgres":
+		if err := db.Exec("ALTER TABLE skills DROP CONSTRAINT IF EXISTS " + name).Error; err != nil {
+			return fmt.Errorf("drop stale skills constraint %s: %w", name, err)
+		}
+	case "mysql":
+		if err := db.Exec("ALTER TABLE skills DROP CHECK " + name).Error; err != nil {
+			return fmt.Errorf("drop stale skills constraint %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// warnStaleSkillsStatusCheckSQLite logs when a SQLite database predates the
+// creator workflow. SQLite cannot ALTER a CHECK constraint, so such a database
+// keeps the old four-value expression forever.
+//
+// Nothing writes the new statuses yet, so this is silent until a later phase
+// tries — at which point the failure reads as a bug in that phase rather than as
+// a stale local database. Log-only: never returns an error, never blocks boot.
+func warnStaleSkillsStatusCheckSQLite(db *gorm.DB) {
+	if db.Dialector.Name() != "sqlite" {
+		return
+	}
+	var ddl string
+	if err := db.Raw("SELECT sql FROM sqlite_master WHERE type='table' AND name='skills'").Scan(&ddl).Error; err != nil {
+		return
+	}
+	if ddl == "" || !strings.Contains(ddl, "chk_skills_status") {
+		return
+	}
+	if strings.Contains(ddl, "'submitted'") {
+		return
+	}
+	common.SysError("skills.status CHECK on this SQLite database predates the creator " +
+		"workflow and will reject 'submitted'/'sandbox'/'pending_launch'. SQLite cannot " +
+		"ALTER a CHECK constraint. Delete the dev database (default ./one-api.db, or " +
+		"$SQLITE_PATH) and restart to recreate it. PostgreSQL/MySQL are migrated " +
+		"automatically. See docs/tasks/skill-creator-data-model-prd.md D2.")
+}
+
 // migrateSkillsConstraints adds the 9 hand-written CHECK constraints to PG and MySQL >= 8.0.16.
 // MySQL < 8.0.16: no-op — named CHECK constraints are parsed but silently ignored by the engine,
 // and the ALTER TABLE ADD CONSTRAINT syntax may not be supported reliably; app-layer
@@ -241,7 +384,7 @@ func migrateSkillsConstraints(db *gorm.DB) error {
 		name string
 		expr string
 	}{
-		{"chk_skills_status", "status IN ('draft','published','deprecated','archived')"},
+		{"chk_skills_status", "status IN ('draft','submitted','sandbox','pending_launch','published','deprecated','archived')"},
 		{"chk_skills_required_plan", "required_plan IN ('free','pro','enterprise')"},
 		{"chk_skills_monetization_type", "monetization_type IN ('free','plan_included','token_markup','one_time','plus_exclusive')"},
 		{"chk_skills_kids_approval_status", "kids_approval_status IN ('not_required','pending','approved','emergency_approved','rejected','revoked')"},
@@ -250,6 +393,20 @@ func migrateSkillsConstraints(db *gorm.DB) error {
 		{"chk_skills_max_input_tokens", "max_input_tokens IS NULL OR max_input_tokens > 0"},
 		{"chk_skills_featured_rank", "featured_rank IS NULL OR featured_rank >= 0"},
 		{"chk_skills_kids_exclusive_requires_safe", "is_kids_exclusive = false OR is_kids_safe = true"},
+		// Module3 P1. These three exist ONLY here, never as struct tags: a new
+		// constraint name on an already-existing table makes gorm call
+		// CreateConstraint, and the glebarez/sqlite migrator then rebuilds a table
+		// whose DDL contains IN(...) and fails with "invalid DDL, unbalanced
+		// brackets" — every existing SQLite install would fail to boot. The cost is
+		// that they do not exist on SQLite at all; enums.Valid() and the
+		// SkillSource* constants are the gate there. See the PRD's M1.
+		{"chk_skills_source", "source IN ('official','creator')"},
+		{"chk_skills_review_status", "review_status IS NULL OR review_status IN ('open','assigned','escalated','resolved','reopened')"},
+		{"chk_skills_creator_has_creator_id", "source <> 'creator' OR creator_id IS NOT NULL"},
+	}
+
+	if err := refreshSkillsStatusConstraint(db); err != nil {
+		return err
 	}
 
 	for _, c := range constraints {
@@ -283,30 +440,49 @@ func isPGColumnJSONB(db *gorm.DB, table, col string) (bool, error) {
 	return dataType == "jsonb", nil
 }
 
-// createSkillsJSONBColumns upgrades the 5 JSON-like TEXT columns to jsonb on PostgreSQL.
+// createSkillsJSONBColumns upgrades the JSON-like TEXT columns to jsonb on PostgreSQL.
 // No-op on MySQL and SQLite (those keep TEXT with app-layer [] guarantee).
 func createSkillsJSONBColumns(db *gorm.DB) error {
 	if db.Dialector.Name() != "postgres" {
 		return nil
 	}
 
-	cols := []string{"tags", "input_hints", "example_inputs", "example_outputs", "model_whitelist"}
-	for _, col := range cols {
-		already, err := isPGColumnJSONB(db, "skills", col)
+	// col → PG default after the jsonb upgrade; empty string = nullable, no default
+	// (same shape as createSkillVersionsJSONBColumns).
+	colDefaults := []struct {
+		col        string
+		defaultVal string
+	}{
+		{"tags", "'[]'::jsonb"},
+		{"input_hints", "'[]'::jsonb"},
+		{"example_inputs", "'[]'::jsonb"},
+		{"example_outputs", "'[]'::jsonb"},
+		{"model_whitelist", "'[]'::jsonb"},
+		// Module3 P1. Nullable and object-shaped: NULL = never scanned, which is
+		// correct for every official skill. Must NOT get an array default.
+		{"scan_report", ""},
+	}
+	for _, cd := range colDefaults {
+		if !db.Migrator().HasColumn(&Skill{}, cd.col) {
+			continue
+		}
+		already, err := isPGColumnJSONB(db, "skills", cd.col)
 		if err != nil {
-			return fmt.Errorf("check jsonb column %s: %w", col, err)
+			return fmt.Errorf("check jsonb column %s: %w", cd.col, err)
 		}
 		if already {
 			continue
 		}
 		steps := []string{
-			fmt.Sprintf("ALTER TABLE skills ALTER COLUMN %s DROP DEFAULT", col),
-			fmt.Sprintf("ALTER TABLE skills ALTER COLUMN %s TYPE jsonb USING %s::jsonb", col, col),
-			fmt.Sprintf("ALTER TABLE skills ALTER COLUMN %s SET DEFAULT '[]'::jsonb", col),
+			fmt.Sprintf("ALTER TABLE skills ALTER COLUMN %s DROP DEFAULT", cd.col),
+			fmt.Sprintf("ALTER TABLE skills ALTER COLUMN %s TYPE jsonb USING %s::jsonb", cd.col, cd.col),
+		}
+		if cd.defaultVal != "" {
+			steps = append(steps, fmt.Sprintf("ALTER TABLE skills ALTER COLUMN %s SET DEFAULT %s", cd.col, cd.defaultVal))
 		}
 		for _, sql := range steps {
 			if err := db.Exec(sql).Error; err != nil {
-				return fmt.Errorf("jsonb upgrade %s: %w", col, err)
+				return fmt.Errorf("jsonb upgrade %s: %w", cd.col, err)
 			}
 		}
 	}
@@ -329,6 +505,7 @@ func createSkillVersionsJSONBColumns(db *gorm.DB) error {
 		{"example_io", "'[]'::jsonb"},
 		{"model_whitelist_snapshot", "'[]'::jsonb"},
 		{"monetization_snapshot", "'{}'::jsonb"}, // object shape, not array
+		{"variables_schema", "'[]'::jsonb"},      // Module3 P1: {{name}} definitions
 	}
 	for _, cd := range colDefaults {
 		already, err := isPGColumnJSONB(db, "skill_versions", cd.col)
@@ -604,6 +781,23 @@ func createSkillsIndexes(db *gorm.DB) error {
 		{
 			name:   "idx_skills_required_plan",
 			ddl:    "CREATE INDEX idx_skills_required_plan ON skills(required_plan, status)",
+			pgOnly: false,
+		},
+		// Module3 P1 access paths: the creator's "my skills" list, the marketplace
+		// source filter, and the admin review queue.
+		{
+			name:   "idx_skills_creator",
+			ddl:    "CREATE INDEX idx_skills_creator ON skills(creator_id, status)",
+			pgOnly: false,
+		},
+		{
+			name:   "idx_skills_source_status",
+			ddl:    "CREATE INDEX idx_skills_source_status ON skills(source, status)",
+			pgOnly: false,
+		},
+		{
+			name:   "idx_skills_review_status",
+			ddl:    "CREATE INDEX idx_skills_review_status ON skills(review_status, status)",
 			pgOnly: false,
 		},
 		{

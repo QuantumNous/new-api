@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/glebarez/sqlite"
@@ -492,5 +493,165 @@ func TestSkillStatusCheckTagCoversEveryEnumValue(t *testing.T) {
 			t.Errorf("%q must not be a skills.status value — PRD D3 maps it onto "+
 				"submitted+review_status / deprecated instead", v)
 		}
+	}
+}
+
+// legacySkill mirrors the skills table as it existed before the creator
+// workflow: no source/creator_id/review_* /scan_* columns, and the original
+// four-value chk_skills_status. Built as a struct so gorm generates the DDL —
+// a hand-written CREATE TABLE is not parseable by the glebarez/sqlite migrator.
+type legacySkill struct {
+	ID                   string     `gorm:"column:id;type:char(36);primaryKey;not null"`
+	Slug                 string     `gorm:"column:slug;type:varchar(128);not null;uniqueIndex"`
+	Status               string     `gorm:"column:status;type:varchar(32);not null;default:draft;check:chk_skills_status,status IN ('draft','published','deprecated','archived')"`
+	Category             string     `gorm:"column:category;type:varchar(64);not null"`
+	Tags                 SkillJSONB `gorm:"column:tags;type:text;not null"`
+	DefaultLocale        string     `gorm:"column:default_locale;type:varchar(16);not null;default:en"`
+	Name                 string     `gorm:"column:name;type:varchar(160);not null"`
+	ShortDescription     string     `gorm:"column:short_description;type:varchar(280);not null"`
+	Description          string     `gorm:"column:description;type:text;not null"`
+	InputHints           SkillJSONB `gorm:"column:input_hints;type:text;not null"`
+	ExampleInputs        SkillJSONB `gorm:"column:example_inputs;type:text;not null"`
+	ExampleOutputs       SkillJSONB `gorm:"column:example_outputs;type:text;not null"`
+	RequiredPlan         string     `gorm:"column:required_plan;type:varchar(32);not null"`
+	MonetizationType     string     `gorm:"column:monetization_type;type:varchar(32);not null"`
+	PriceMarkup          float64    `gorm:"column:price_markup;type:decimal(10,4);not null;default:0"`
+	ModelWhitelist       SkillJSONB `gorm:"column:model_whitelist;type:text;not null"`
+	TimeoutSeconds       int        `gorm:"column:timeout_seconds;not null;default:45"`
+	TimeoutRisk          bool       `gorm:"column:timeout_risk;not null;default:false"`
+	IsKidsSafe           bool       `gorm:"column:is_kids_safe;not null;default:false"`
+	IsKidsExclusive      bool       `gorm:"column:is_kids_exclusive;not null;default:false"`
+	KidsApprovalStatus   string     `gorm:"column:kids_approval_status;type:varchar(32);not null;default:not_required"`
+	AIDisclosureRequired bool       `gorm:"column:ai_disclosure_required;not null;default:true"`
+	FeaturedFlag         bool       `gorm:"column:featured_flag;not null;default:false"`
+	CreatedBy            int64      `gorm:"column:created_by;type:bigint;not null"`
+	CreatedAt            time.Time  `gorm:"column:created_at;not null;autoCreateTime"`
+	UpdatedAt            time.Time  `gorm:"column:updated_at;not null;autoUpdateTime"`
+}
+
+func (legacySkill) TableName() string { return "skills" }
+
+// TestMigrateSkills_SQLite_LegacyTableGetsCreatorColumns pins what actually
+// happens to a SQLite database created before the creator workflow.
+//
+// ⚠️ Two pre-existing facts, both verified against e1c0d12 (before any Module3
+// work) and neither introduced here:
+//
+//  1. AutoMigrate against an ALREADY-EXISTING skills table fails on
+//     glebarez/sqlite v1.9.0 with "invalid DDL, unbalanced brackets" — the
+//     driver rebuilds tables carrying IN(...) CHECK constraints and mis-parses
+//     the result. This is why a SQLite dev database cannot survive a restart
+//     today, and it is why the "migrates cleanly over existing data" acceptance
+//     item is verifiable on PostgreSQL/MySQL only.
+//  2. SQLite cannot ALTER a CHECK constraint, so such a database keeps the old
+//     four-value status expression forever (PRD D2).
+//
+// What this test does guarantee is that migrateSkillsCreatorColumns runs BEFORE
+// AutoMigrate and therefore still lands the eight columns and backfills source,
+// leaving the row data intact. If (1) is ever fixed upstream this test goes red
+// on the error assertion, which is the point — it should be revisited, not
+// silently kept passing.
+func TestMigrateSkills_SQLite_LegacyTableGetsCreatorColumns(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := db.AutoMigrate(&legacySkill{}); err != nil {
+		t.Fatalf("create legacy skills table: %v", err)
+	}
+	for i, status := range []string{"draft", "published"} {
+		row := legacySkill{
+			ID: fmt.Sprintf("legacy-%d", i), Slug: fmt.Sprintf("legacy-slug-%d", i),
+			Status: status, Category: "productivity", DefaultLocale: "en",
+			Name: "Legacy Skill", ShortDescription: "short", Description: "description",
+			RequiredPlan: "free", MonetizationType: "free", TimeoutSeconds: 45, CreatedBy: 1,
+		}
+		if err := db.Create(&row).Error; err != nil {
+			t.Fatalf("seed legacy row %d: %v", i, err)
+		}
+	}
+
+	err := MigrateSkills(db)
+	if err == nil {
+		t.Error("expected the pre-existing glebarez/sqlite AutoMigrate failure on an " +
+			"existing skills table; if this now succeeds the driver bug was fixed — " +
+			"revisit PRD D2 and the PG/MySQL-only acceptance item")
+	} else if !strings.Contains(err.Error(), "unbalanced brackets") {
+		t.Fatalf("unexpected migration error (not the known driver bug): %v", err)
+	}
+
+	// The creator columns still landed: migrateSkillsCreatorColumns runs first.
+	for _, col := range []string{
+		"source", "creator_id", "review_status", "review_actor_id",
+		"reviewed_at", "review_note", "scan_report", "scanned_at",
+	} {
+		if !db.Migrator().HasColumn(&Skill{}, col) {
+			t.Errorf("expected skills.%s to be added to the legacy table", col)
+		}
+	}
+
+	var rows []struct {
+		ID     string
+		Status string
+		Source string
+	}
+	if err := db.Raw("SELECT id, status, source FROM skills ORDER BY id").Scan(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected both legacy rows to survive, got %d", len(rows))
+	}
+	if rows[0].Status != "draft" || rows[1].Status != "published" {
+		t.Errorf("legacy statuses must be untouched, got %q/%q", rows[0].Status, rows[1].Status)
+	}
+	for _, r := range rows {
+		if r.Source != SkillSourceOfficial {
+			t.Errorf("row %s: expected source backfilled to %q, got %q", r.ID, SkillSourceOfficial, r.Source)
+		}
+	}
+
+	// Documented degradation (PRD D2): the old CHECK survives.
+	if err := db.Exec("UPDATE skills SET status = 'submitted' WHERE id = ?", "legacy-0").Error; err == nil {
+		t.Error("expected a legacy SQLite database to still reject status='submitted'")
+	}
+}
+
+// TestMigrateSkills_SQLite_CreatorIndexes covers the three access paths P2/P4/P7 need.
+func TestMigrateSkills_SQLite_CreatorIndexes(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	for _, idx := range []string{"idx_skills_creator", "idx_skills_source_status", "idx_skills_review_status"} {
+		if !db.Migrator().HasIndex(&Skill{}, idx) {
+			t.Errorf("expected index %s to exist after MigrateSkills", idx)
+		}
+	}
+}
+
+// TestMigrateSkills_SQLite_RestartIsBroken pins a PRE-EXISTING product bug, not
+// a test limitation: a SQLite database that DeepRouter created cannot be
+// migrated a second time, so `make dev` / `go run main.go` fails on the second
+// boot and the developer has to delete one-api.db.
+//
+// Verified against e1c0d12 (before any Module3 work) both in-process and across
+// a genuine close-and-reopen, so it is not a gorm schema-cache artifact. Root
+// cause is glebarez/sqlite v1.9.0 rebuilding tables that carry IN(...) CHECK
+// constraints and then failing to parse its own DDL.
+//
+// The assertion is inverted on purpose: when this starts passing the driver bug
+// is fixed, and the PG/MySQL-only acceptance item plus PRD D2 should be
+// revisited rather than left stale.
+func TestMigrateSkills_SQLite_RestartIsBroken(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatalf("first run must succeed: %v", err)
+	}
+	err := MigrateSkills(db)
+	if err == nil {
+		t.Error("MigrateSkills is now re-runnable on SQLite — the upstream driver bug " +
+			"appears fixed. Revisit PRD D2 and the PG/MySQL-only acceptance item, and " +
+			"delete this test.")
+		return
+	}
+	if !strings.Contains(err.Error(), "unbalanced brackets") {
+		t.Fatalf("second run failed for a NEW reason, not the known driver bug: %v", err)
 	}
 }

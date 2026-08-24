@@ -31,6 +31,8 @@ func openPGDB(t *testing.T) *gorm.DB {
 	}
 	t.Cleanup(func() {
 		db.Exec("DROP TABLE IF EXISTS skill_usage_events")
+		db.Exec("DROP TABLE IF EXISTS skill_calls")
+		db.Exec("DROP TABLE IF EXISTS skill_ratings")
 		db.Exec("DROP TABLE IF EXISTS skill_versions")
 		db.Exec("DROP TABLE IF EXISTS skills")
 	})
@@ -56,6 +58,8 @@ func openMySQLDB(t *testing.T) *gorm.DB {
 	}
 	t.Cleanup(func() {
 		db.Exec("DROP TABLE IF EXISTS skill_usage_events")
+		db.Exec("DROP TABLE IF EXISTS skill_calls")
+		db.Exec("DROP TABLE IF EXISTS skill_ratings")
 		db.Exec("DROP TABLE IF EXISTS skill_versions")
 		db.Exec("DROP TABLE IF EXISTS skills")
 	})
@@ -789,5 +793,172 @@ func TestTimestampDefaults_MySQL_RepairsOnUpdateWhenDefaultPresent(t *testing.T)
 	).Scan(&extra)
 	if !strings.Contains(strings.ToLower(extra), "on update") {
 		t.Error("updated_at ON UPDATE CURRENT_TIMESTAMP was not repaired by migrateSkillsTimestampDefaults")
+	}
+}
+
+// --- Creator marketplace (Module3 P1, docs/tasks/skill-creator-data-model-prd.md) ---
+
+// assertStatusConstraintWidened restores the pre-Module3 four-value
+// chk_skills_status, re-runs the migration, and requires that a creator status
+// is writable afterwards.
+//
+// This is the ONLY test that can prove refreshSkillsStatusConstraint fires, and
+// it is the single highest-risk mechanism in P1: the apply loop skips any
+// constraint whose NAME already exists, and the name did not change when the
+// creator statuses were added. Forget the drop hook and every existing
+// PostgreSQL/MySQL database keeps the old expression forever — no error, no
+// failing test, just a status the application can never write. SQLite cannot
+// cover this because its whole constraint path is a no-op.
+func assertStatusConstraintWidened(t *testing.T, db *gorm.DB, dropStmt string) {
+	t.Helper()
+	if err := MigrateSkills(db); err != nil {
+		t.Fatalf("initial MigrateSkills: %v", err)
+	}
+	if err := db.Exec(dropStmt).Error; err != nil {
+		t.Fatalf("drop constraint to simulate a pre-Module3 database: %v", err)
+	}
+	if err := db.Exec("ALTER TABLE skills ADD CONSTRAINT chk_skills_status CHECK (status IN ('draft','published','deprecated','archived'))").Error; err != nil {
+		t.Fatalf("restore the old four-value constraint: %v", err)
+	}
+
+	if err := MigrateSkills(db); err != nil {
+		t.Fatalf("second MigrateSkills must converge: %v", err)
+	}
+
+	s := validSkill("constraint-widened")
+	s.Status = "sandbox"
+	if err := db.Create(&s).Error; err != nil {
+		t.Fatalf("status='sandbox' must be writable after the migration re-runs — "+
+			"refreshSkillsStatusConstraint did not drop the stale constraint: %v", err)
+	}
+
+	bad := validSkill("constraint-still-enforced")
+	bad.Status = "not-a-status"
+	if err := db.Create(&bad).Error; err == nil {
+		t.Error("the widened constraint must still reject unknown values")
+	}
+}
+
+func TestMigrateSkills_PG_WidensStatusConstraint(t *testing.T) {
+	db := openPGDB(t)
+	assertStatusConstraintWidened(t, db, "ALTER TABLE skills DROP CONSTRAINT IF EXISTS chk_skills_status")
+}
+
+func TestMigrateSkills_MySQL_WidensStatusConstraint(t *testing.T) {
+	db := openMySQLDB(t)
+	ok, err := isMySQLAtLeast8016DB(db)
+	if err != nil {
+		t.Fatalf("detect mysql version: %v", err)
+	}
+	if !ok {
+		t.Skip("MySQL < 8.0.16 ignores named CHECK constraints entirely")
+	}
+	assertStatusConstraintWidened(t, db, "ALTER TABLE skills DROP CHECK chk_skills_status")
+}
+
+// TestMigrateSkills_PG_CreatorConstraintsExist covers the three CHECKs that have
+// no struct tag and therefore exist on PG/MySQL only (PRD M1).
+func TestMigrateSkills_PG_CreatorConstraintsExist(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"chk_skills_source", "chk_skills_review_status", "chk_skills_creator_has_creator_id",
+	} {
+		if !db.Migrator().HasConstraint(&Skill{}, name) {
+			t.Errorf("expected %s to exist on PostgreSQL", name)
+		}
+	}
+
+	bad := validSkill("bad-source")
+	bad.Source = "somewhere-else"
+	if err := db.Create(&bad).Error; err == nil {
+		t.Error("chk_skills_source must reject an unknown source")
+	}
+
+	// chk_skills_creator_has_creator_id: a creator skill without an owner is
+	// unbillable, so the database refuses it rather than leaving orphan rows.
+	orphan := validSkill("creator-without-owner")
+	orphan.Source = SkillSourceCreator
+	if err := db.Create(&orphan).Error; err == nil {
+		t.Error("a creator-sourced skill must not be insertable without creator_id")
+	}
+}
+
+// TestMigrateSkills_PG_ScanReportIsJSONBWithoutDefault pins the one JSON column
+// that must stay nullable: NULL means "never scanned". Giving it the '[]' default
+// the other five carry would make every official skill look scanned-and-empty.
+func TestMigrateSkills_PG_ScanReportIsJSONBWithoutDefault(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	isJSONB, err := isPGColumnJSONB(db, "skills", "scan_report")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isJSONB {
+		t.Error("expected skills.scan_report to be upgraded to jsonb on PostgreSQL")
+	}
+	var def *string
+	if err := db.Raw(`SELECT column_default FROM information_schema.columns
+		WHERE table_name = 'skills' AND column_name = 'scan_report'`).Scan(&def).Error; err != nil {
+		t.Fatal(err)
+	}
+	if def != nil {
+		t.Errorf("scan_report must have no default (NULL = never scanned), got %q", *def)
+	}
+}
+
+// TestMigrateSkillVersions_PG_VariablesSchemaIsJSONB is the mirror check for the
+// prompt-template column: array-shaped, so it DOES get the '[]' default.
+func TestMigrateSkillVersions_PG_VariablesSchemaIsJSONB(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateSkillVersions(db); err != nil {
+		t.Fatal(err)
+	}
+	isJSONB, err := isPGColumnJSONB(db, "skill_versions", "variables_schema")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isJSONB {
+		t.Error("expected skill_versions.variables_schema to be upgraded to jsonb")
+	}
+}
+
+// TestMigrateSkills_PG_IdempotentWithExistingRows strengthens the existing
+// TestMigrateSkills_PG_Idempotent above, which converges on an empty database.
+// Every master-node boot re-runs these migrations against live data, and the
+// creator columns added by P1 are the first ones with a backfill step — so
+// "converges" has to mean "and the rows are still there". SQLite cannot run this
+// at all (see TestMigrateSkills_SQLite_RestartIsBroken).
+func TestMigrateSkills_PG_IdempotentWithExistingRows(t *testing.T) {
+	db := openPGDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	if err := MigrateSkillVersions(db); err != nil {
+		t.Fatalf("first run (versions): %v", err)
+	}
+	s := validSkill("pg-idempotent")
+	if err := db.Create(&s).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateSkills(db); err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if err := MigrateSkillVersions(db); err != nil {
+		t.Fatalf("second run (versions): %v", err)
+	}
+	var count int64
+	if err := db.Model(&Skill{}).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected the row to survive a second migration, got %d", count)
 	}
 }

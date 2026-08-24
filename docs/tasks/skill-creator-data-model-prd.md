@@ -278,7 +278,9 @@ review 时应当被当作一个独立的点看待。
 - [ ] `scan_report` 在 PG 上是 jsonb 且无默认值;`variables_schema` 是 jsonb 且默认 `'[]'`
 - [ ] `skill_ratings` 含 `skill_id`/`rating`/`status` 三列(duck-typing 契约)
 - [ ] 空的 `skill_ratings` 表下,marketplace 列表的 `rating_summary` 仍是 `{0,0}`(建表不改变生产行为)
-- [ ] 迁移在**已有数据**的库上跑一遍不丢数据、不报错
+- [ ] 迁移在**已有数据**的库上跑一遍不丢数据、不报错 —— ⚠️ **仅 PostgreSQL / MySQL 可验证**,
+      SQLite 上不可达,原因见下方 Known Degradation 第 3 条(既有 bug,非本任务引入)
+- [ ] SQLite 遗留库上,即便 `MigrateSkills` 整体报错,8 个新列仍已加上且 `source` 已回填、数据未丢
 - [ ] `MigrateSkills` / `MigrateSkillVersions` 在 PG/MySQL 上连跑两次幂等
 - [ ] 现有 skill 单测全绿;`TestListMarketplaceSkills_DR89SocialProof…` 的四条断言(avg 4.5 / count 2 / 1 星排除 / download 2)保持不变
 
@@ -297,6 +299,28 @@ review 时应当被当作一个独立的点看待。
 **已存在的开发用 SQLite 库无法接受新状态值。** 影响面:仅 `make dev` / `go run main.go`
 的本地库。生产(PostgreSQL)与 CI(每次全新库)不受影响。症状要到 P3/P5 才显现;
 `warnStaleSkillsStatusCheckSQLite` 会在开机时明确指出并给出恢复方法(删库重启)。
+
+**⚠️ 既有 bug:SQLite 数据库重启就起不来(非本任务引入)。**
+
+`MigrateSkills` 对一张**已存在**的 `skills` 表跑 AutoMigrate,会在 glebarez/sqlite
+v1.9.0 上失败:`invalid DDL, unbalanced brackets`。驱动会重建带 `IN(...)` CHECK 约束的
+表,然后解析不了自己生成的 DDL。
+
+**已在 `e1c0d12`(本任务任何改动之前)上验证过两次** —— 同进程连跑两次会失败,关闭连接
+后用新连接重开同一文件再跑**同样失败**,所以不是 gorm 的 schema 缓存假象,而是真实的重启
+场景。后果:`make dev` / `go run main.go` 用 SQLite 时,**第二次启动就挂**,开发者只能删库。
+`docker compose` 用的是 Postgres,所以一直没暴露。
+
+代码里 `TestMigrateSkills_SQLite_Idempotent` 的注释早就记着这件事,但被当成测试的限制而
+非产品缺陷。本任务把它升级成两个**反向断言**的测试(`TestMigrateSkills_SQLite_RestartIsBroken`
+与 `TestMigrateSkills_SQLite_LegacyTableGetsCreatorColumns`):一旦上游修好,它们会变红,
+提醒回来重新评估 D2 与那条 PG/MySQL-only 的验收。
+
+**对本任务的影响**:「已有数据的库上迁移不报错」这条验收在 SQLite 上不可达,只能在
+PG/MySQL 上验。缓解措施是把 `migrateSkillsCreatorColumns` 放在 AutoMigrate **之前** ——
+即使 AutoMigrate 随后失败,8 个列仍然已经加上、`source` 已回填、数据未丢,这一点有测试守着。
+
+修这个 bug **不在本任务范围内**,已另开卡记录。
 
 **`chk_skills_source` / `chk_skills_review_status` / `chk_skills_creator_has_creator_id`
 在 SQLite 上不存在。** 见 M1。Go 层的枚举与常量校验是这三者在 SQLite 上的唯一闸门。

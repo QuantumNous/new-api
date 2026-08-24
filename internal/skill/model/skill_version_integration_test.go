@@ -246,3 +246,119 @@ func validSkillVersion(skillID string, versionNumber int) SkillVersion {
 		CreatedBy:                 1,
 	}
 }
+
+// --- Creator marketplace columns (Module3 P1) ---
+
+// TestMigrateSkillVersions_SQLite_CreatorColumnsExist covers a fresh install,
+// where the columns come from the hand-written SQLite CREATE TABLE rather than
+// from AutoMigrate — skill_versions is the one table with per-dialect DDL.
+func TestMigrateSkillVersions_SQLite_CreatorColumnsExist(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateSkillVersions(db); err != nil {
+		t.Fatal(err)
+	}
+	for _, col := range []string{"variables_schema", "minhash_signature"} {
+		if !db.Migrator().HasColumn(&SkillVersion{}, col) {
+			t.Errorf("expected skill_versions.%s to exist after MigrateSkillVersions", col)
+		}
+	}
+}
+
+// TestSkillVersion_VariablesSchemaNormalizesToEmptyArray pins the array shape.
+// Using normalizeSkillJSONBObject here instead would store "{}" and quietly break
+// every consumer that ranges over the variable definitions.
+func TestSkillVersion_VariablesSchemaNormalizesToEmptyArray(t *testing.T) {
+	db := openSQLiteDB(t)
+	skill := createSkillForVersionTest(t, db, "vars-normalize")
+	v := validSkillVersion(skill.ID, 1)
+	v.VariablesSchema = nil // caller left it unset
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got SkillVersion
+	if err := db.First(&got, "id = ?", v.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if string(got.VariablesSchema) != "[]" {
+		t.Errorf("expected variables_schema to normalize to [], got %q", string(got.VariablesSchema))
+	}
+	if got.MinhashSignature != nil {
+		t.Errorf("expected minhash_signature to stay NULL when unset, got %q", *got.MinhashSignature)
+	}
+}
+
+// TestSkillVersion_CreatorColumnsRoundTrip proves both columns actually persist.
+func TestSkillVersion_CreatorColumnsRoundTrip(t *testing.T) {
+	db := openSQLiteDB(t)
+	skill := createSkillForVersionTest(t, db, "vars-roundtrip")
+	sig := "AAAAAQAAAAIAAAAD"
+	v := validSkillVersion(skill.ID, 1)
+	v.VariablesSchema = SkillJSONB(`[{"name":"tone","type":"enum","required":true}]`)
+	v.MinhashSignature = &sig
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got SkillVersion
+	if err := db.First(&got, "id = ?", v.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if string(got.VariablesSchema) != `[{"name":"tone","type":"enum","required":true}]` {
+		t.Errorf("variables_schema round-trip mismatch: %q", string(got.VariablesSchema))
+	}
+	if got.MinhashSignature == nil || *got.MinhashSignature != sig {
+		t.Errorf("minhash_signature round-trip mismatch: %v", got.MinhashSignature)
+	}
+}
+
+// TestMigrateSkillVersions_SQLite_UpgradesLegacyTable covers the upgrade path:
+// an existing skill_versions table (CREATE TABLE IF NOT EXISTS is a no-op on it)
+// must gain both columns and have variables_schema backfilled, because the
+// column is NOT NULL and pre-existing rows would otherwise violate that.
+func TestMigrateSkillVersions_SQLite_UpgradesLegacyTable(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateSkillVersions(db); err != nil {
+		t.Fatal(err)
+	}
+	skill := validSkill("legacy-versions")
+	if err := db.Create(&skill).Error; err != nil {
+		t.Fatal(err)
+	}
+	v := validSkillVersion(skill.ID, 1)
+	if err := db.Create(&v).Error; err != nil {
+		t.Fatal(err)
+	}
+	// Simulate a database that predates the creator workflow.
+	for _, col := range []string{"variables_schema", "minhash_signature"} {
+		if err := db.Exec("ALTER TABLE skill_versions DROP COLUMN " + col).Error; err != nil {
+			t.Fatalf("drop %s to simulate a legacy table: %v", col, err)
+		}
+	}
+	if db.Migrator().HasColumn(&SkillVersion{}, "variables_schema") {
+		t.Fatal("precondition failed: variables_schema should be gone")
+	}
+
+	if err := migrateSkillVersionCreatorColumns(db); err != nil {
+		t.Fatalf("upgrade must not error: %v", err)
+	}
+	for _, col := range []string{"variables_schema", "minhash_signature"} {
+		if !db.Migrator().HasColumn(&SkillVersion{}, col) {
+			t.Errorf("expected %s to be re-added", col)
+		}
+	}
+	var got SkillVersion
+	if err := db.First(&got, "id = ?", v.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if string(got.VariablesSchema) != "[]" {
+		t.Errorf("expected the pre-existing row to be backfilled with [], got %q", string(got.VariablesSchema))
+	}
+	if got.MinhashSignature != nil {
+		t.Error("minhash_signature must NOT be backfilled — NULL means never fingerprinted")
+	}
+}
