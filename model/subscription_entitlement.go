@@ -419,7 +419,7 @@ func grantMatchesInput(existing *UserSubscription, input GrantEntitlementInput) 
 		existing.PlanId == input.PlanId &&
 		existing.ProviderBindingId == input.ProviderBindingId &&
 		existing.AmountTotal == input.AmountTotal &&
-		existing.MediaCreditsTotal == input.MediaCreditsTotal &&
+		grantMediaCreditsMatch(existing, input) &&
 		grantWindowAmountMatches(existing.Window5hAmount, input.Window5hAmount) &&
 		grantWindowAmountMatches(existing.WindowWeekAmount, input.WindowWeekAmount) &&
 		grantUpgradeGroupMatches(existing.UpgradeGroup, input.UpgradeGroup) &&
@@ -427,6 +427,17 @@ func grantMatchesInput(existing *UserSubscription, input GrantEntitlementInput) 
 		existing.EndTime == input.PeriodEnd &&
 		normalizeSubscriptionPaymentMode(existing.PaymentMode) == input.PaymentMode &&
 		strings.TrimSpace(existing.Source) == input.Source
+}
+
+func grantMediaCreditsMatch(existing *UserSubscription, input GrantEntitlementInput) bool {
+	if existing.MediaCreditsTotal == input.MediaCreditsTotal {
+		return true
+	}
+	return existing.MediaCreditsTotal == 0 &&
+		input.MediaCreditsTotal > 0 &&
+		input.PaymentMode == SubscriptionPaymentModeBalanceOnePeriod &&
+		input.Source == PaymentMethodBalance &&
+		strings.HasPrefix(strings.TrimSpace(input.GrantKey), "balance:")
 }
 
 func grantWindowAmountMatches(existing *int64, input *int64) bool {

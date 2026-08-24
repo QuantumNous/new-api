@@ -221,6 +221,99 @@ func TestSubscriptionEntitlementGrantIdempotentAndConflict(t *testing.T) {
 	require.ErrorIs(t, err, ErrSubscriptionEntitlementGrantConflict)
 }
 
+func TestSubscriptionEntitlementGrantLegacyZeroMediaReplayIsScopedToBalanceOnePeriod(t *testing.T) {
+	tests := []struct {
+		name         string
+		paymentMode  string
+		source       string
+		grantKey     string
+		initialMedia int64
+		replayMedia  int64
+		wantLegacy   bool
+	}{
+		{
+			name:        "balance one period",
+			paymentMode: SubscriptionPaymentModeBalanceOnePeriod,
+			source:      PaymentMethodBalance,
+			grantKey:    "balance:legacy-media",
+			replayMedia: 55,
+			wantLegacy:  true,
+		},
+		{
+			name:         "balance nonzero mismatch",
+			paymentMode:  SubscriptionPaymentModeBalanceOnePeriod,
+			source:       PaymentMethodBalance,
+			grantKey:     "balance:nonzero-media",
+			initialMedia: 25,
+			replayMedia:  55,
+			wantLegacy:   false,
+		},
+		{
+			name:        "balance source mismatch",
+			paymentMode: SubscriptionPaymentModeBalanceOnePeriod,
+			source:      PaymentProviderStripe,
+			grantKey:    "balance:source-mismatch",
+			replayMedia: 55,
+			wantLegacy:  false,
+		},
+		{
+			name:        "balance grant key mismatch",
+			paymentMode: SubscriptionPaymentModeBalanceOnePeriod,
+			source:      PaymentMethodBalance,
+			grantKey:    "prepaid:legacy-media",
+			replayMedia: 55,
+			wantLegacy:  false,
+		},
+		{
+			name:        "stripe recurring",
+			paymentMode: SubscriptionPaymentModeStripeRecurring,
+			source:      PaymentProviderStripe,
+			grantKey:    "stripe:legacy-media",
+			replayMedia: 55,
+			wantLegacy:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setupSubscriptionEntitlementTestDB(t)
+			createEntitlementTestUser(t, 9140, "plg")
+			createEntitlementTestPlan(t, 9240, 100, "")
+			require.NoError(t, DB.Create(&UserSubscriptionContract{
+				Id:          9340,
+				UserId:      9140,
+				Status:      SubscriptionContractStatusActive,
+				PaymentMode: test.paymentMode,
+			}).Error)
+
+			input := grantInput(9340, 9140, 9240, test.grantKey, 100, 200)
+			input.PaymentMode = test.paymentMode
+			input.Source = test.source
+			input.MediaCreditsTotal = test.initialMedia
+			first, err := RotateCurrentEntitlement(input)
+			require.NoError(t, err)
+			require.True(t, first.Applied)
+			require.Equal(t, test.initialMedia, first.Entitlement.MediaCreditsTotal)
+
+			replay := input
+			replay.MediaCreditsTotal = test.replayMedia
+			replayed, err := RotateCurrentEntitlement(replay)
+			if !test.wantLegacy {
+				require.ErrorIs(t, err, ErrSubscriptionEntitlementGrantConflict)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, replayed.Applied)
+			require.Equal(t, first.Entitlement.Id, replayed.Entitlement.Id)
+			require.Zero(t, replayed.Entitlement.MediaCreditsTotal)
+			var stored UserSubscription
+			require.NoError(t, DB.First(&stored, "id = ?", replayed.Entitlement.Id).Error)
+			require.Zero(t, stored.MediaCreditsTotal)
+		})
+	}
+}
+
 func TestSubscriptionEntitlementGrantReplayWithoutReservationIgnoresLifecycleReservation(t *testing.T) {
 	setupSubscriptionEntitlementTestDB(t)
 	createEntitlementTestUser(t, 9121, "plg")
