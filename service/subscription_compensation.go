@@ -400,6 +400,7 @@ func stripeToBalanceCompensationGrantInput(intent model.SubscriptionChangeIntent
 		GrantKey:             "balance:" + strings.TrimSpace(tradeNo),
 		PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
 		AmountTotal:          target.TotalAmount,
+		MediaCreditsTotal:    target.MediaCreditsMonthly,
 		PeriodStart:          periodStart,
 		PeriodEnd:            periodEnd,
 		EndReasonForPrevious: model.SubscriptionEntitlementEndReasonUpgraded,

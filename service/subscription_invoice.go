@@ -489,6 +489,7 @@ func reconcilePaidInvoice(ctx context.Context, invoiceID string, reservation *mo
 				GrantKey:             "stripe:" + invoiceID,
 				PaymentMode:          model.SubscriptionPaymentModeStripeRecurring,
 				AmountTotal:          recurringInvoiceGrantAmountTotal(plan, planSnapshot),
+				MediaCreditsTotal:    recurringInvoiceGrantMediaCredits(plan, planSnapshot),
 				Window5hAmount:       recurringInvoiceGrantWindow5h(plan, planSnapshot),
 				WindowWeekAmount:     recurringInvoiceGrantWindowWeek(plan, planSnapshot),
 				UpgradeGroup:         recurringInvoiceGrantUpgradeGroup(plan, planSnapshot),
@@ -997,6 +998,13 @@ func recurringInvoiceGrantAmountTotal(plan *model.SubscriptionPlan, planSnapshot
 	return plan.TotalAmount
 }
 
+func recurringInvoiceGrantMediaCredits(plan *model.SubscriptionPlan, planSnapshot recurringInvoicePlanSnapshot) int64 {
+	if planSnapshot.Found {
+		return planSnapshot.Snapshot.MediaCreditsMonthly
+	}
+	return plan.MediaCreditsMonthly
+}
+
 func recurringInvoiceGrantWindow5h(plan *model.SubscriptionPlan, planSnapshot recurringInvoicePlanSnapshot) *int64 {
 	value := plan.Window5hAmount
 	if planSnapshot.Found {
@@ -1424,6 +1432,7 @@ func reconcilePaidInvoiceRenewalTx(tx *gorm.DB, facts paidInvoiceFacts, result *
 		GrantKey:             "stripe:" + facts.InvoiceID,
 		PaymentMode:          model.SubscriptionPaymentModeStripeRecurring,
 		AmountTotal:          recurringInvoiceGrantAmountTotal(plan, planSnapshot),
+		MediaCreditsTotal:    recurringInvoiceGrantMediaCredits(plan, planSnapshot),
 		Window5hAmount:       recurringInvoiceGrantWindow5h(plan, planSnapshot),
 		WindowWeekAmount:     recurringInvoiceGrantWindowWeek(plan, planSnapshot),
 		UpgradeGroup:         recurringInvoiceGrantUpgradeGroup(plan, planSnapshot),
@@ -1968,6 +1977,7 @@ func completeOneTimeSubscriptionPurchase(ctx context.Context, tradeNo string, pr
 				GrantKey:             paymentProvider + "-one-time:" + locked.TradeNo,
 				PaymentMode:          model.SubscriptionPaymentModePrepaid,
 				AmountTotal:          snapshot.TotalAmount,
+				MediaCreditsTotal:    snapshot.MediaCreditsMonthly,
 				Window5hAmount:       common.GetPointer(snapshot.Window5hAmount),
 				WindowWeekAmount:     common.GetPointer(snapshot.WindowWeekAmount),
 				UpgradeGroup:         common.GetPointer(snapshot.UpgradeGroup),

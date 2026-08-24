@@ -98,10 +98,10 @@ func TestRenewWalletSubscriptionContractChargesCurrentOneMonthPlanAndExtendsOnce
 	require.NotEmpty(t, order.PlanSnapshot)
 	require.Contains(t, order.PlanSnapshot, `"plan_id":7801`)
 	require.Contains(t, order.PlanSnapshot, `"price_amount":9`)
-	require.NotContains(t, order.PlanSnapshot, "media_credits_monthly")
+	require.Contains(t, order.PlanSnapshot, `"media_credits_monthly":25`)
 	var entitlement model.UserSubscription
 	require.NoError(t, model.DB.First(&entitlement, "id = ?", stored.CurrentEntitlementId).Error)
-	require.Zero(t, entitlement.MediaCreditsTotal)
+	require.Equal(t, int64(25), entitlement.MediaCreditsTotal)
 	require.Zero(t, entitlement.MediaCreditsUsed)
 
 	replay, err := RenewWalletSubscriptionContract(contract.Id)
@@ -556,6 +556,7 @@ func seedCompletedWalletRenewalDuplicateFacts(t *testing.T, contract model.UserS
 			GrantKey:             renewalKey,
 			PaymentMode:          model.SubscriptionPaymentModePrepaid,
 			AmountTotal:          plan.TotalAmount,
+			MediaCreditsTotal:    plan.MediaCreditsMonthly,
 			Window5hAmount:       common.GetPointer(plan.Window5hAmount),
 			WindowWeekAmount:     common.GetPointer(plan.WindowWeekAmount),
 			UpgradeGroup:         common.GetPointer(plan.UpgradeGroup),

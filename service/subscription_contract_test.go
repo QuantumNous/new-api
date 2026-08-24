@@ -209,7 +209,9 @@ func TestResolveOrReuseStripeSubscriptionRecallDiscountFreezesNoOffer(t *testing
 func TestBalancePurchaseCreatesOnePeriodWithoutBinding(t *testing.T) {
 	setupSubscriptionContractServiceTestDB(t)
 	insertContractServiceUser(t, 7101, 1000)
-	insertContractServicePlan(t, 7201, 1, 2.25, 2250)
+	plan := insertContractServicePlan(t, 7201, 1, 2.25, 2250)
+	require.NoError(t, model.DB.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).
+		Update("media_credits_monthly", 25).Error)
 
 	result, err := ChangeSubscriptionPlan(balanceChangeCommand(7101, 7201, "req-balance-one"))
 
@@ -245,6 +247,8 @@ func TestBalancePurchaseCreatesOnePeriodWithoutBinding(t *testing.T) {
 	require.Equal(t, result.Contract.Id, entitlements[0].ContractId)
 	require.Equal(t, "balance", entitlements[0].Source)
 	require.Equal(t, model.SubscriptionPaymentModeBalanceOnePeriod, entitlements[0].PaymentMode)
+	require.Equal(t, int64(25), entitlements[0].MediaCreditsTotal)
+	require.Zero(t, entitlements[0].MediaCreditsUsed)
 	require.NotNil(t, entitlements[0].CurrentSlot)
 }
 

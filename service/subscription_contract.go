@@ -1196,6 +1196,7 @@ func applyBalanceOnePeriodChangeTx(tx *gorm.DB, user *model.User, contract *mode
 			GrantKey:             "balance:" + locked.TradeNo,
 			PaymentMode:          model.SubscriptionPaymentModeBalanceOnePeriod,
 			AmountTotal:          plan.TotalAmount,
+			MediaCreditsTotal:    plan.MediaCreditsMonthly,
 			PeriodStart:          periodStart,
 			PeriodEnd:            periodEnd,
 			EndReasonForPrevious: previousEntitlementEndReason(intent.Kind),

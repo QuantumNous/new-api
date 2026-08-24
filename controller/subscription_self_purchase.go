@@ -594,35 +594,37 @@ func subscriptionPurchasePlanRevision(plan *model.SubscriptionPlan) int64 {
 		return 0
 	}
 	payload := struct {
-		ID               int
-		Enabled          bool
-		PriceAmount      string
-		Currency         string
-		PixPriceBRL      string
-		UpiPriceINR      string
-		DurationUnit     string
-		DurationValue    int
-		CustomSeconds    int64
-		TotalAmount      int64
-		Window5hAmount   int64
-		WindowWeekAmount int64
-		QuotaResetPeriod string
-		UpgradeGroup     string
+		ID                  int
+		Enabled             bool
+		PriceAmount         string
+		Currency            string
+		PixPriceBRL         string
+		UpiPriceINR         string
+		DurationUnit        string
+		DurationValue       int
+		CustomSeconds       int64
+		TotalAmount         int64
+		Window5hAmount      int64
+		WindowWeekAmount    int64
+		MediaCreditsMonthly int64
+		QuotaResetPeriod    string
+		UpgradeGroup        string
 	}{
-		ID:               plan.Id,
-		Enabled:          plan.Enabled,
-		PriceAmount:      formatSubscriptionRevisionMoney(plan.PriceAmount),
-		Currency:         strings.ToUpper(strings.TrimSpace(plan.Currency)),
-		PixPriceBRL:      formatSubscriptionRevisionMoneyPtr(plan.PixPriceBRL),
-		UpiPriceINR:      formatSubscriptionRevisionMoneyPtr(plan.UpiPriceINR),
-		DurationUnit:     strings.TrimSpace(plan.DurationUnit),
-		DurationValue:    plan.DurationValue,
-		CustomSeconds:    plan.CustomSeconds,
-		TotalAmount:      plan.TotalAmount,
-		Window5hAmount:   plan.Window5hAmount,
-		WindowWeekAmount: plan.WindowWeekAmount,
-		QuotaResetPeriod: strings.TrimSpace(plan.QuotaResetPeriod),
-		UpgradeGroup:     strings.TrimSpace(plan.UpgradeGroup),
+		ID:                  plan.Id,
+		Enabled:             plan.Enabled,
+		PriceAmount:         formatSubscriptionRevisionMoney(plan.PriceAmount),
+		Currency:            strings.ToUpper(strings.TrimSpace(plan.Currency)),
+		PixPriceBRL:         formatSubscriptionRevisionMoneyPtr(plan.PixPriceBRL),
+		UpiPriceINR:         formatSubscriptionRevisionMoneyPtr(plan.UpiPriceINR),
+		DurationUnit:        strings.TrimSpace(plan.DurationUnit),
+		DurationValue:       plan.DurationValue,
+		CustomSeconds:       plan.CustomSeconds,
+		TotalAmount:         plan.TotalAmount,
+		Window5hAmount:      plan.Window5hAmount,
+		WindowWeekAmount:    plan.WindowWeekAmount,
+		MediaCreditsMonthly: plan.MediaCreditsMonthly,
+		QuotaResetPeriod:    strings.TrimSpace(plan.QuotaResetPeriod),
+		UpgradeGroup:        strings.TrimSpace(plan.UpgradeGroup),
 	}
 	data, err := common.Marshal(payload)
 	if err != nil {

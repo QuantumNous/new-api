@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Retire media credits as a balance type so image/video requests continue using their configured model prices but consume only the subscription monthly quota and existing wallet fallback, while quota links open `/usage-logs`.
+**Goal:** Retire media credits from the current product UI and billing path while keeping deprecated backend fields compatible for old clients, so image/video requests continue using configured model prices but consume only the subscription monthly quota and existing wallet fallback, while quota links open `/usage-logs`.
 
-**Architecture:** Keep the legacy `media_credits_monthly`, `media_credits_total`, and `media_credits_used` database columns and compatibility fields for rollback and old snapshot decoding, but normalize every newly-created plan/entitlement to zero and remove the fields from public DTOs, forms, and pages. Do not alter model-price, image/video ratio, or task `BillingSession` calculations; regression tests prove task funding mutates `amount_used` or wallet/token ledgers only. The profile and wallet monthly quota blocks use ordinary accessible links to `/usage-logs`.
+**Architecture:** Keep the legacy `media_credits_monthly`, `media_credits_total`, and `media_credits_used` database columns, public DTOs, request compatibility, and snapshot values for old clients and already-sold plans. New console forms and pages ignore those fields, and no billing path reads or spends them. Do not alter model-price, image/video ratio, or task `BillingSession` calculations; regression tests prove task funding mutates `amount_used` or wallet/token ledgers only. The profile and wallet monthly quota blocks use ordinary accessible links to `/usage-logs`.
+
+> **Review compatibility override:** PR review requires the backend compatibility fields and entitlement snapshot propagation to remain until callers are migrated. This overrides the earlier task steps below that remove public DTO fields, omit snapshot fields, or force new media compatibility values to zero. UI removal and unified billing requirements remain unchanged.
 
 **Tech Stack:** Go/Gin/GORM/testify; React 19 + TypeScript + Zod + i18next + Bun; Next.js/React server-rendered pricing page; SQLite test databases.
 

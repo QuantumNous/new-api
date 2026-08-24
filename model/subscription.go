@@ -251,7 +251,6 @@ func CreateSubscriptionPlan(plan *SubscriptionPlan) error {
 		return errors.New("subscription plan is nil")
 	}
 	plan.NormalizeDefaults()
-	plan.MediaCreditsMonthly = 0
 	intendedEnabled := plan.Enabled
 	if intendedEnabled {
 		if err := validateSubscriptionPlanActiveRank(plan); err != nil {
@@ -305,7 +304,6 @@ func UpdateSubscriptionPlan(plan *SubscriptionPlan) error {
 		return errors.New("invalid plan id")
 	}
 	plan.NormalizeDefaults()
-	plan.MediaCreditsMonthly = 0
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var before SubscriptionPlan
 		if err := tx.Where("id = ?", plan.Id).First(&before).Error; err != nil {
@@ -1042,7 +1040,7 @@ func createUserSubscriptionFromPlanWithCycleTx(tx *gorm.DB, userId int, plan *Su
 		ProviderBindingId: providerBindingId,
 		AmountTotal:       plan.TotalAmount,
 		AmountUsed:        0,
-		MediaCreditsTotal: 0,
+		MediaCreditsTotal: plan.MediaCreditsMonthly,
 		MediaCreditsUsed:  0,
 		Window5hAmount:    &window5hAmount,
 		WindowWeekAmount:  &windowWeekAmount,
