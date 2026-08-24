@@ -353,3 +353,68 @@ If local server startup is blocked by missing environment or database configurat
 - [ ] **Step 5: Commit using the Lore protocol**
 
 Use one or more commits whose messages include `Constraint`, `Rejected`, `Confidence`, `Scope-risk`, `Directive`, `Tested`, and `Not-tested` trailers, then report changed files, test evidence, and any verification gaps.
+
+### Task 8: Keep historical balance grant replays idempotent
+
+**Files:**
+- Modify: `model/subscription_entitlement_test.go`
+- Modify: `model/subscription_entitlement.go`
+
+- [ ] **Step 1: Write the failing scoped replay test**
+
+Add a table test that first grants an entitlement with `MediaCreditsTotal: 0`, then replays the same grant key with a positive compatibility value. The `balance_one_period` case with `Source: balance` and a `balance:` grant key must reuse the existing entitlement, while a Stripe recurring case must still return `ErrSubscriptionEntitlementGrantConflict`.
+
+```go
+tests := []struct {
+	name        string
+	paymentMode string
+	source      string
+	grantKey    string
+	wantLegacy  bool
+}{
+	{name: "balance one period", paymentMode: SubscriptionPaymentModeBalanceOnePeriod, source: PaymentMethodBalance, grantKey: "balance:legacy-media", wantLegacy: true},
+	{name: "stripe recurring", paymentMode: SubscriptionPaymentModeStripeRecurring, source: PaymentProviderStripe, grantKey: "stripe:legacy-media", wantLegacy: false},
+}
+```
+
+- [ ] **Step 2: Run RED**
+
+```powershell
+$env:GOMODCACHE='E:\workspace\.gomodcache'
+$env:GOCACHE='E:\workspace\.gocache-restore-media-replay'
+go test ./model -run TestSubscriptionEntitlementGrantLegacyZeroMediaReplayIsScopedToBalanceOnePeriod -count=1
+```
+
+Expected: the balance one-period subtest fails with `ErrSubscriptionEntitlementGrantConflict`; the Stripe subtest continues to pass by expecting that conflict.
+
+- [ ] **Step 3: Implement the narrow matcher**
+
+Replace the direct media-total equality in `grantMatchesInput` with a helper that preserves exact matching and permits only the approved one-way legacy case:
+
+```go
+func grantMediaCreditsMatch(existing *UserSubscription, input GrantEntitlementInput) bool {
+	if existing.MediaCreditsTotal == input.MediaCreditsTotal {
+		return true
+	}
+	return existing.MediaCreditsTotal == 0 &&
+		input.MediaCreditsTotal > 0 &&
+		input.PaymentMode == SubscriptionPaymentModeBalanceOnePeriod &&
+		input.Source == PaymentMethodBalance &&
+		strings.HasPrefix(strings.TrimSpace(input.GrantKey), "balance:")
+}
+```
+
+The compatibility match must return the existing entitlement unchanged; it must not mutate `MediaCreditsTotal` during replay.
+
+- [ ] **Step 4: Run GREEN and focused regressions**
+
+```powershell
+go test ./model -run 'TestSubscriptionEntitlementGrantLegacyZeroMediaReplayIsScopedToBalanceOnePeriod|TestSubscriptionEntitlementGrantIdempotentAndConflict' -count=1
+go test ./service -run 'TestBalancePurchaseCreatesOnePeriodWithoutBinding|TestStripeToBalanceCompensationGrantInputPreservesMediaCredits' -count=1
+```
+
+Expected: all selected tests pass, strict Stripe mismatch detection remains active, and new balance grants still receive the configured compatibility value.
+
+- [ ] **Step 5: Verify, commit, push, and answer the review**
+
+Run `gofmt`, `git diff --check`, the changed-package focused suites, and console typecheck. Commit with Lore trailers, push the PR branch, then answer the top-level review with the `main` baseline evidence and the scoped historical-balance replay safeguard.
