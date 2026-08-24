@@ -36,6 +36,10 @@ import {
 } from '@/components/ui/card'
 import { Form } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  PASSWORD_MIN_STRENGTH_SCORE,
+  passwordStrength,
+} from '@/features/auth/lib/password-strength'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { cn } from '@/lib/utils'
 
@@ -220,12 +224,21 @@ export function SetupWizard() {
       return false
     }
 
-    if (!password || password.length < 8) {
+    if (
+      !password ||
+      passwordStrength(password).score < PASSWORD_MIN_STRENGTH_SCORE
+    ) {
       form.setError('password', {
         type: 'manual',
-        message: t('Password must be at least 8 characters'),
+        message: t(
+          'Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.'
+        ),
       })
-      toast.error(t('Password must be at least 8 characters'))
+      toast.error(
+        t(
+          'Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.'
+        )
+      )
       return false
     }
 
@@ -270,12 +283,15 @@ export function SetupWizard() {
     const usageValid = validateUsageModeStep()
     if (!adminValid || !usageValid) return
 
-    const payload = buildSetupPayload(
-      form.getValues(),
-      Boolean(setupStatus?.root_init)
-    )
-
-    mutation.mutate(payload)
+    try {
+      const payload = await buildSetupPayload(
+        form.getValues(),
+        Boolean(setupStatus?.root_init)
+      )
+      mutation.mutate(payload)
+    } catch {
+      toast.error(t('Failed to initialize system'))
+    }
   }
 
   return (

@@ -91,6 +91,8 @@ const (
 	MsgUserVerificationCodeError     = "user.verification_code_error"
 	MsgUserEmailAlreadyTaken         = "user.email_already_taken"
 	MsgUserPasswordUnset             = "user.password_unset"
+	MsgUserPasswordEncryptionInvalid = "user.password_encryption_invalid"
+	MsgUserPasswordTooWeak           = "user.password_too_weak"
 	MsgUserPasswordResetLinkInvalid  = "user.password_reset_link_invalid"
 	MsgUserInputInvalid              = "user.input_invalid"
 	MsgUserNoPermissionSameLevel     = "user.no_permission_same_level"

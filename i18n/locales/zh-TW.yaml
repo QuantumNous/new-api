@@ -80,6 +80,8 @@ user.email_verification_required: "管理員開啟了信箱驗證，請輸入信
 user.verification_code_error: "驗證碼錯誤或已過期"
 user.email_already_taken: "信箱位址已被占用"
 user.password_unset: "目前帳號未設定密碼，請使用密碼重置或聯繫管理員重置密碼"
+user.password_encryption_invalid: "加密密碼無效，請重新整理後重試"
+user.password_too_weak: "密碼強度不足，請使用至少8位且包含字母、數字和符號的組合"
 user.password_reset_link_invalid: "重置連結非法或已過期"
 user.input_invalid: "輸入不合法 {{.Error}}"
 user.no_permission_same_level: "無權獲取同級或更高等級使用者的資訊"

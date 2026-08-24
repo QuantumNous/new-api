@@ -28,14 +28,36 @@ import (
 )
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username          string `json:"username"`
+	Password          string `json:"password"`
+	PasswordEncrypted string `json:"password_encrypted"`
+	EncryptionKeyID   string `json:"encryption_key_id"`
 }
 
 var (
 	errUserPasswordUnset    = errors.New("user password is not set")
 	errOriginalPasswordFail = errors.New("original password is incorrect")
 )
+
+type registerRequest struct {
+	model.User
+	PasswordEncrypted string `json:"password_encrypted"`
+	EncryptionKeyID   string `json:"encryption_key_id"`
+}
+
+// GetPasswordEncryptionKey returns the current public key used by clients to
+// encrypt login/register passwords before transmission.
+func GetPasswordEncryptionKey(c *gin.Context) {
+	kid, publicKey := common.PasswordEncryptionPublicKey()
+	if kid == "" || publicKey == "" {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"kid":        kid,
+		"public_key": publicKey,
+	})
+}
 
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
@@ -49,7 +71,11 @@ func Login(c *gin.Context) {
 		return
 	}
 	username := loginRequest.Username
-	password := loginRequest.Password
+	password, err := common.GetPlainPassword(loginRequest.Password, loginRequest.PasswordEncrypted, loginRequest.EncryptionKeyID)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordEncryptionInvalid)
+		return
+	}
 	if username == "" || password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -212,12 +238,23 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
-	var user model.User
-	err := common.DecodeJson(c.Request.Body, &user)
+	var request registerRequest
+	err := common.DecodeJson(c.Request.Body, &request)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	plainPassword, err := common.GetPlainPassword(request.Password, request.PasswordEncrypted, request.EncryptionKeyID)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordEncryptionInvalid)
+		return
+	}
+	if err := common.ValidatePasswordStrength(plainPassword); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordTooWeak)
+		return
+	}
+	user := request.User
+	user.Password = plainPassword
 	user.Username = strings.TrimSpace(user.Username)
 	user.Email = model.NormalizeEmail(user.Email)
 	if user.Username == "" {

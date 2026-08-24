@@ -19,6 +19,8 @@ type Setup struct {
 type SetupRequest struct {
 	Username           string `json:"username"`
 	Password           string `json:"password"`
+	PasswordEncrypted  string `json:"password_encrypted"`
+	EncryptionKeyID    string `json:"encryption_key_id"`
 	ConfirmPassword    string `json:"confirmPassword"`
 	SelfUseModeEnabled bool   `json:"SelfUseModeEnabled"`
 	DemoSiteEnabled    bool   `json:"DemoSiteEnabled"`
@@ -68,6 +70,15 @@ func PostSetup(c *gin.Context) {
 
 	// If root doesn't exist, validate and create admin account
 	if !rootExists {
+		plainPassword, err := common.GetPlainPassword(req.Password, req.PasswordEncrypted, req.EncryptionKeyID)
+		if err != nil {
+			c.JSON(200, gin.H{
+				"success": false,
+				"message": "密码解密失败，请刷新后重试",
+			})
+			return
+		}
+
 		// Validate username length: max 12 characters to align with model.User validation
 		if len(req.Username) > 12 {
 			c.JSON(200, gin.H{
@@ -85,16 +96,16 @@ func PostSetup(c *gin.Context) {
 			return
 		}
 
-		if len(req.Password) < 8 {
+		if err := common.ValidatePasswordStrength(plainPassword); err != nil {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "密码长度至少为8个字符",
+				"message": "密码强度不足，请使用至少8位且包含字母、数字和符号的组合",
 			})
 			return
 		}
 
 		// Create root user
-		hashedPassword, err := common.Password2Hash(req.Password)
+		hashedPassword, err := common.Password2Hash(plainPassword)
 		if err != nil {
 			c.JSON(200, gin.H{
 				"success": false,

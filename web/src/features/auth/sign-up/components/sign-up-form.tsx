@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import axios from 'axios'
 import { Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
@@ -41,6 +42,7 @@ import { Label } from '@/components/ui/label'
 import { register, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
+import { PasswordStrengthMeter } from '@/features/auth/components/password-strength-meter'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
@@ -175,8 +177,14 @@ export function SignUpForm({
       } else {
         toast.error(res?.message || t('Failed to create account'))
       }
-    } catch {
-      // Errors are handled by global interceptor
+    } catch (error) {
+      // Axios errors are handled by the global interceptor; surface local
+      // failures such as password encryption instead of swallowing them.
+      if (!axios.isAxiosError(error)) {
+        toast.error(
+          error instanceof Error ? error.message : t('Failed to create account')
+        )
+      }
     } finally {
       setIsLoading(false)
     }
@@ -275,6 +283,7 @@ export function SignUpForm({
                   {...field}
                 />
               </FormControl>
+              <PasswordStrengthMeter value={field.value} />
               <FormMessage />
             </FormItem>
           )}

@@ -30,6 +30,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { PasswordStrengthMeter } from '@/features/auth/components/password-strength-meter'
 
 import type { SetupFormValues } from '../types'
 
@@ -94,6 +95,7 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
                 }}
               />
             </FormControl>
+            <PasswordStrengthMeter value={field.value} />
             <FormMessage />
           </FormItem>
         )}

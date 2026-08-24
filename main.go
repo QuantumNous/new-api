@@ -324,6 +324,11 @@ func InitResources() error {
 	}
 	model.InitOptionMap()
 
+	if err := common.InitPasswordEncryption(); err != nil {
+		common.FatalLog("failed to initialize password encryption: " + err.Error())
+		return err
+	}
+
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
 

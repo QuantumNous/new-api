@@ -21,6 +21,10 @@ import axios from 'axios'
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
+import {
+  clearPasswordEncryptionCache,
+  encryptPassword,
+} from './lib/password-encryption'
 import { getAffiliateCode } from './lib/storage'
 import type { TelegramAuthorization } from './lib/telegram-login'
 import type {
@@ -43,15 +47,25 @@ import type {
 // User login with username and password
 export async function login(payload: LoginPayload) {
   const turnstile = payload.turnstile ?? ''
-  const res = await api.post<LoginResponse>(
-    `/api/user/login?turnstile=${turnstile}`,
-    {
-      username: payload.username,
-      password: payload.password,
-    },
-    { skipAuthRefresh: true }
-  )
-  return res.data
+  try {
+    const encrypted = await encryptPassword(payload.password)
+    const res = await api.post<LoginResponse>(
+      `/api/user/login?turnstile=${turnstile}`,
+      {
+        username: payload.username,
+        password_encrypted: encrypted.password_encrypted,
+        encryption_key_id: encrypted.encryption_key_id,
+      },
+      { skipAuthRefresh: true }
+    )
+    if (!res.data?.success) {
+      clearPasswordEncryptionCache()
+    }
+    return res.data
+  } catch (error) {
+    clearPasswordEncryptionCache()
+    throw error
+  }
 }
 
 // Two-factor authentication login
@@ -182,10 +196,30 @@ export async function telegramLogin(
 
 // User registration
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
-  const res = await api.post(`/api/user/register`, payload, {
-    params: { turnstile: payload.turnstile ?? '' },
-  })
-  return res.data
+  try {
+    const encrypted = await encryptPassword(payload.password)
+    const res = await api.post(
+      `/api/user/register`,
+      {
+        username: payload.username,
+        email: payload.email,
+        verification_code: payload.verification_code,
+        aff_code: payload.aff_code,
+        password_encrypted: encrypted.password_encrypted,
+        encryption_key_id: encrypted.encryption_key_id,
+      },
+      {
+        params: { turnstile: payload.turnstile ?? '' },
+      }
+    )
+    if (!res.data?.success) {
+      clearPasswordEncryptionCache()
+    }
+    return res.data
+  } catch (error) {
+    clearPasswordEncryptionCache()
+    throw error
+  }
 }
 
 // Send email verification code

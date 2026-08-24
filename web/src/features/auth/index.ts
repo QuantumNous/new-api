@@ -64,6 +64,7 @@ export {
   otpFormSchema,
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_STRENGTH_SCORE,
   OTP_LENGTH,
   BACKUP_CODE_LENGTH,
   BACKUP_CODE_REGEX,
@@ -112,6 +113,7 @@ export { AuthLayout } from './auth-layout'
 export { OAuthProviders } from './components/oauth-providers'
 export { TermsFooter } from './components/terms-footer'
 export { LegalConsent } from './components/legal-consent'
+export { PasswordStrengthMeter } from './components/password-strength-meter'
 export { SignIn } from './sign-in'
 export { SignUp } from './sign-up'
 export { ForgotPassword } from './forgot-password'

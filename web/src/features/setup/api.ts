@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { encryptPassword } from '@/features/auth/lib/password-encryption'
 import { api } from '@/lib/api'
 
 import type { SetupFormValues, SetupResponse } from './types'
@@ -37,7 +38,7 @@ export async function submitSetup(
   return res.data
 }
 
-export function buildSetupPayload(
+export async function buildSetupPayload(
   values: SetupFormValues,
   rootInitialized: boolean
 ) {
@@ -52,8 +53,11 @@ export function buildSetupPayload(
     return basePayload
   }
 
+  const encrypted = await encryptPassword(values.password)
   return {
-    ...rest,
+    username: rest.username,
+    password_encrypted: encrypted.password_encrypted,
+    encryption_key_id: encrypted.encryption_key_id,
     ...basePayload,
   }
 }

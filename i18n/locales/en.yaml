@@ -79,6 +79,8 @@ user.email_verification_required: "Email verification is enabled, please enter e
 user.verification_code_error: "Verification code is incorrect or has expired"
 user.email_already_taken: "Email address is already in use"
 user.password_unset: "This account has no password set. Please use password reset or contact an administrator to reset it."
+user.password_encryption_invalid: "Encrypted password is invalid. Please refresh and try again."
+user.password_too_weak: "Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols."
 user.password_reset_link_invalid: "Password reset link is invalid or has expired"
 user.input_invalid: "Invalid input {{.Error}}"
 user.no_permission_same_level: "No permission to access users of same or higher level"

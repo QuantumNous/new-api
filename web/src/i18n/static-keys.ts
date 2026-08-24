@@ -27,6 +27,16 @@ export const STATIC_I18N_KEYS = [
   'Docs',
   'About',
 
+  // Auth password strength (rendered through t(strength.labelKey))
+  'Password strength',
+  'Password is too short',
+  'Weak password',
+  'Fair password',
+  'Good password',
+  'Strong password',
+  'Use at least 3 of letters, numbers and symbols',
+  'Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.',
+
   // Sidebar views (drill-in workspaces)
   'System Settings',
   'Back to Dashboard',

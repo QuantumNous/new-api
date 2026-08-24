@@ -80,6 +80,8 @@ user.email_verification_required: "管理员开启了邮箱验证，请输入邮
 user.verification_code_error: "验证码错误或已过期"
 user.email_already_taken: "邮箱地址已被占用"
 user.password_unset: "当前账号未设置密码，请使用密码重置或联系管理员重置密码"
+user.password_encryption_invalid: "加密密码无效，请刷新后重试"
+user.password_too_weak: "密码强度不足，请使用至少8位且包含字母、数字和符号的组合"
 user.password_reset_link_invalid: "重置链接非法或已过期"
 user.input_invalid: "输入不合法 {{.Error}}"
 user.no_permission_same_level: "无权获取同级或更高等级用户的信息"

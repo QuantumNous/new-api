@@ -18,6 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+import {
+  PASSWORD_MIN_STRENGTH_SCORE,
+  passwordStrength,
+} from './lib/password-strength'
+
 // ============================================================================
 // Form Schemas
 // ============================================================================
@@ -42,6 +47,15 @@ export const registerFormSchema = z
     message: "Passwords don't match.",
     path: ['confirmPassword'],
   })
+  .refine(
+    (data) =>
+      passwordStrength(data.password).score >= PASSWORD_MIN_STRENGTH_SCORE,
+    {
+      message:
+        'Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.',
+      path: ['password'],
+    }
+  )
 
 export const forgotPasswordFormSchema = z.object({
   email: z.string().email({
@@ -57,8 +71,11 @@ export const otpFormSchema = z.object({
 // Validation Constants
 // ============================================================================
 
-export const PASSWORD_MIN_LENGTH = 8
-export const PASSWORD_MAX_LENGTH = 20
+export {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_STRENGTH_SCORE,
+} from './lib/password-strength'
 export const OTP_LENGTH = 6
 export const BACKUP_CODE_LENGTH = 9 // XXXX-XXXX format
 export const BACKUP_CODE_REGEX = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/i
