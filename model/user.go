@@ -35,6 +35,7 @@ type User struct {
 	Role                    int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status                  int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email                   string         `json:"email" gorm:"index" validate:"max=50"`
+	NormalizedEmail         string         `json:"-" gorm:"type:varchar(50);column:normalized_email;index"`
 	EmailVerifiedAt         int64          `json:"email_verified_at" gorm:"default:0;column:email_verified_at;index"`
 	EmailDomain             string         `json:"-" gorm:"type:varchar(253);column:email_domain;index"`
 	GitHubId                string         `json:"github_id" gorm:"column:github_id;index"`
@@ -107,6 +108,61 @@ type User struct {
 	// (card issuing country). Analytics-only: the most reliable geography signal
 	// for paid users. Persisted at webhook fulfillment.
 	PayCountry string `json:"pay_country" gorm:"type:varchar(8);default:'';column:pay_country"`
+}
+
+func NormalizeUserEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func (user *User) BeforeCreate(_ *gorm.DB) error {
+	user.NormalizedEmail = NormalizeUserEmail(user.Email)
+	return nil
+}
+
+func (user *User) BeforeUpdate(tx *gorm.DB) error {
+	switch values := tx.Statement.Dest.(type) {
+	case map[string]interface{}:
+		for _, key := range []string{"email", "Email"} {
+			value, exists := values[key]
+			if !exists {
+				continue
+			}
+			email, isString := value.(string)
+			if !isString {
+				return nil
+			}
+			user.NormalizedEmail = NormalizeUserEmail(email)
+			values["normalized_email"] = user.NormalizedEmail
+			return nil
+		}
+		return nil
+	case User:
+		if !userEmailSelectedForUpdate(tx) {
+			return nil
+		}
+		user.NormalizedEmail = NormalizeUserEmail(values.Email)
+	case *User:
+		if !userEmailSelectedForUpdate(tx) {
+			return nil
+		}
+		user.NormalizedEmail = NormalizeUserEmail(values.Email)
+	default:
+		return nil
+	}
+	tx.Statement.SetColumn("NormalizedEmail", user.NormalizedEmail)
+	return tx.Statement.Error
+}
+
+func userEmailSelectedForUpdate(tx *gorm.DB) bool {
+	if tx.Statement.Changed("Email") {
+		return true
+	}
+	for _, field := range tx.Statement.Selects {
+		if field == "*" || strings.EqualFold(field, "email") {
+			return true
+		}
+	}
+	return false
 }
 
 func (user *User) ToBaseUser() *UserBase {
@@ -1064,6 +1120,28 @@ func (user *User) FillUserByEmail() error {
 	return nil
 }
 
+// FindUsersByNormalizedEmail finds active users whose email matches after
+// trimming surrounding whitespace and folding ASCII case. It returns all
+// matches so callers can reject ambiguous legacy data instead of picking one.
+func FindUsersByNormalizedEmail(email string) ([]User, error) {
+	return FindUsersByNormalizedEmailWithTx(DB, email)
+}
+
+func FindUsersByNormalizedEmailWithTx(tx *gorm.DB, email string) ([]User, error) {
+	normalizedEmail := NormalizeUserEmail(email)
+	if normalizedEmail == "" {
+		return nil, nil
+	}
+
+	var users []User
+	err := normalizedEmailUsersQuery(tx, normalizedEmail).Find(&users).Error
+	return users, err
+}
+
+func normalizedEmailUsersQuery(db *gorm.DB, email string) *gorm.DB {
+	return db.Where("normalized_email = ?", NormalizeUserEmail(email))
+}
+
 func (user *User) FillUserByGitHubId() error {
 	if user.GitHubId == "" {
 		return errors.New("GitHub id 为空！")
@@ -1102,6 +1180,42 @@ func (user *User) FillUserByGoogleId() error {
 	}
 	DB.Where(User{GoogleId: user.GoogleId}).First(user)
 	return nil
+}
+
+// BindGoogleIDIfEmpty binds a Google account to this user without allowing a
+// concurrent request to overwrite an existing binding. The returned boolean
+// reports whether this call performed the binding.
+func (user *User) BindGoogleIDIfEmpty(googleID string) (bool, error) {
+	return user.BindGoogleIDIfEmptyWithTx(DB, googleID)
+}
+
+func (user *User) BindGoogleIDIfEmptyWithTx(tx *gorm.DB, googleID string) (bool, error) {
+	if user.Id == 0 {
+		return false, errors.New("user id is empty")
+	}
+	if googleID == "" {
+		return false, errors.New("google id is empty")
+	}
+
+	result := tx.Model(&User{}).
+		Where("id = ? AND (google_id IS NULL OR google_id = '')", user.Id).
+		Update("google_id", googleID)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 1 {
+		user.GoogleId = googleID
+		return true, nil
+	}
+
+	// Another request may have won the race. Refresh only the binding field so
+	// the caller can distinguish an idempotent retry from a real conflict.
+	var current User
+	if err := tx.Unscoped().Select("google_id").First(&current, user.Id).Error; err != nil {
+		return false, err
+	}
+	user.GoogleId = current.GoogleId
+	return false, nil
 }
 
 func (user *User) FillUserByWeChatId() error {

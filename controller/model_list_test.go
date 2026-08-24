@@ -59,6 +59,7 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 
 	require.NoError(t, db.AutoMigrate(
 		&model.User{},
+		&model.GoogleOAuthClaim{},
 		&model.NewUserBonusClaim{},
 		&model.RegistrationDomainState{},
 		&model.RegistrationDomainBlock{},
