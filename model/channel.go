@@ -827,7 +827,7 @@ func CompareAndSwapChannelKey(id int, channelType int, oldKey, newKey string) (b
 	var swapped bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&Channel{}).
-			Where("id = ? AND type = ? AND key = ?", id, channelType, oldKey).
+			Where(map[string]any{"id": id, "type": channelType, "key": oldKey}).
 			Update("key", newKey)
 		if result.Error != nil {
 			return result.Error
