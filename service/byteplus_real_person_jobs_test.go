@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -586,6 +588,127 @@ func TestTempObjectCleanupUsesPersistedGCSBucket(t *testing.T) {
 	require.Empty(t, fixture.fake.tosDeletes)
 	fixture.fake.mu.Unlock()
 	require.Equal(t, []string{"gcs-cleanup"}, deletedKeys)
+	require.NoError(t, model.DB.First(&object, object.Id).Error)
+	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, object.CleanupStatus)
+}
+
+func TestTempObjectCleanupUsesTokenSpacePersistedGCSBucket(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "tokenspace-real-person-bucket")
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	insertTokenSpaceRealPersonChannel(t, 106, "default", true)
+	originalDelete := deleteTempMediaObject
+	t.Cleanup(func() { deleteTempMediaObject = originalDelete })
+	var deletedKeys []string
+	deleteTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string) error {
+		require.Equal(t, "tokenspace-real-person-bucket", cfg.Bucket)
+		deletedKeys = append(deletedKeys, objectKey)
+		return nil
+	}
+	object := model.BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 106, Bucket: "gcs:tokenspace-real-person-bucket", ObjectKey: "tokenspace-gcs-cleanup",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, NextCleanupAt: 100,
+		CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&object).Error)
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.Processed)
+	fixture.fake.mu.Lock()
+	require.Empty(t, fixture.fake.tosDeletes)
+	fixture.fake.mu.Unlock()
+	require.Equal(t, []string{"tokenspace-gcs-cleanup"}, deletedKeys)
+	require.NoError(t, model.DB.First(&object, object.Id).Error)
+	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, object.CleanupStatus)
+}
+
+func TestTempObjectCleanupUsesTokenSpacePersistedGCSBucketAfterAbilityDisabled(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "tokenspace-real-person-bucket")
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	insertTokenSpaceRealPersonChannel(t, 106, "default", false)
+	originalDelete := deleteTempMediaObject
+	t.Cleanup(func() { deleteTempMediaObject = originalDelete })
+	var deletedKeys []string
+	deleteTempMediaObject = func(_ context.Context, cfg TempMediaConfig, objectKey string) error {
+		require.Equal(t, "tokenspace-real-person-bucket", cfg.Bucket)
+		deletedKeys = append(deletedKeys, objectKey)
+		return nil
+	}
+	object := model.BytePlusAssetTempObject{
+		UserId: 7, ChannelId: 106, Bucket: "gcs:tokenspace-real-person-bucket", ObjectKey: "tokenspace-disabled-ability-gcs-cleanup",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, NextCleanupAt: 100,
+		CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&object).Error)
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, result.Processed)
+	fixture.fake.mu.Lock()
+	require.Empty(t, fixture.fake.tosDeletes)
+	fixture.fake.mu.Unlock()
+	require.Equal(t, []string{"tokenspace-disabled-ability-gcs-cleanup"}, deletedKeys)
+	require.NoError(t, model.DB.First(&object, object.Id).Error)
+	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, object.CleanupStatus)
+}
+
+func TestExpiredTokenSpaceProcessingAssetFinalProbeUpdatesStatusAndCleansPrivateGCSObject(t *testing.T) {
+	fixture := newBytePlusRealPersonJobsFixtureWithoutRows(t)
+	t.Setenv("TEMP_MEDIA_BUCKET", "tokenspace-real-person-bucket")
+	bytePlusTempObjectStoreFactory = newPreferredBytePlusTempObjectStore
+	var getAssetCalls int
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "GetAsset", r.URL.Query().Get("Action"))
+		require.Equal(t, "Bearer tokenspace-key", r.Header.Get("Authorization"))
+		var body tokenSpaceMaterialGetRequest
+		require.NoError(t, common.DecodeJson(r.Body, &body))
+		require.Equal(t, "asset-final-probe", body.ID)
+		getAssetCalls++
+		_, _ = io.WriteString(w, `{"ResponseMetadata":{"RequestId":"request-final-probe"},"Result":{"Id":"asset-final-probe","Status":"Active"}}`)
+	}))
+	defer server.Close()
+	installTokenSpaceMaterialHTTPClientFactory(t, server.Client())
+	insertTokenSpaceRealPersonChannel(t, 106, "default", true)
+	settings := tokenSpaceMaterialSettingsJSON(t, server.URL, "group-virtual-not-for-real-person")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 106).Update("settings", settings).Error)
+	originalDelete := deleteTempMediaObject
+	t.Cleanup(func() { deleteTempMediaObject = originalDelete })
+	var deletedKeys []string
+	deleteTempMediaObject = func(ctx context.Context, cfg TempMediaConfig, objectKey string) error {
+		require.True(t, contextHasDeadline(ctx))
+		require.Equal(t, "tokenspace-real-person-bucket", cfg.Bucket)
+		deletedKeys = append(deletedKeys, objectKey)
+		return nil
+	}
+	asset := model.BytePlusAsset{
+		PublicId: "ast_tokenspace_final_probe", UserId: 7, ChannelId: 106,
+		UpstreamAssetId: "asset-final-probe", AssetType: "Image",
+		Status: model.BytePlusAssetStatusProcessing, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&asset).Error)
+	object := model.BytePlusAssetTempObject{
+		AssetId: &asset.Id, UserId: 7, ChannelId: 106,
+		Bucket: "gcs:tokenspace-real-person-bucket", ObjectKey: "tokenspace-final-probe-cleanup",
+		CleanupStatus: model.BytePlusTempObjectCleanupPending, SignedURLExpiresAt: 100, NextCleanupAt: 100,
+		CleanupLeaseUpdatedTime: 0, CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&object).Error)
+
+	result := RunBytePlusRealPersonJobsOnce(context.Background(), 2000, 50)
+
+	require.NoError(t, result.Err)
+	require.Equal(t, 1, getAssetCalls, "expired cleanup final probe must use the TokenSpace provider binding")
+	require.Equal(t, 1, result.Processed)
+	fixture.fake.mu.Lock()
+	require.Empty(t, fixture.fake.tosDeletes)
+	fixture.fake.mu.Unlock()
+	require.Equal(t, []string{"tokenspace-final-probe-cleanup"}, deletedKeys)
+	require.NoError(t, model.DB.First(&asset, asset.Id).Error)
+	require.Equal(t, model.BytePlusAssetStatusActive, asset.Status)
 	require.NoError(t, model.DB.First(&object, object.Id).Error)
 	require.Equal(t, model.BytePlusTempObjectCleanupCleaned, object.CleanupStatus)
 }

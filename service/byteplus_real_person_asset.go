@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/types"
@@ -50,15 +49,11 @@ func CreateBytePlusRealPersonAssetFromURL(ctx context.Context, userID int, perso
 }
 
 func CreateBytePlusRealPersonAssetFromMultipart(ctx context.Context, userID int, personID, idempotencyKey string, request *http.Request) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
-	profile, channel, creds, apiErr := loadBytePlusRealPersonAssetProfileAndStorage(userID, strings.TrimSpace(personID))
+	profile, binding, store, apiErr := loadBytePlusRealPersonAssetProfileProviderAndStorage(userID, strings.TrimSpace(personID))
 	if apiErr != nil {
 		return nil, apiErr
 	}
-	store, err := bytePlusTempObjectStoreFactory(creds)
-	if err != nil {
-		return nil, assetError(err, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
-	}
-	uploaded, apiErr := readBytePlusMultipartAsset(ctx, request, profile, channel, store)
+	uploaded, apiErr := readBytePlusMultipartAsset(ctx, request, profile, binding.Channel, store)
 	if apiErr != nil {
 		return nil, apiErr
 	}
@@ -184,11 +179,8 @@ func ownBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusReal
 	}
 	upstreamURL := strings.TrimSpace(source.URL)
 	if source.Uploaded != nil {
-		if binding.StorageCredentials == nil {
-			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
-		}
 		var apiErr *types.NewAPIError
-		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, *binding.StorageCredentials, store, source.Uploaded.TempObject)
+		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, binding.StorageCredentials, store, source.Uploaded.TempObject)
 		if apiErr != nil {
 			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 		}
@@ -204,9 +196,6 @@ func resumeBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusR
 	}
 	upstreamURL := strings.TrimSpace(source.URL)
 	if source.Uploaded != nil {
-		if binding.StorageCredentials == nil {
-			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
-		}
 		cleanupRealPersonAssetUpload(ctx, source, store)
 		original, err := model.GetBytePlusAssetTempObjectByAssetID(asset.Id)
 		if err != nil || original.CleanupStatus != model.BytePlusTempObjectCleanupPending || strings.TrimSpace(original.ObjectKey) == "" {
@@ -219,7 +208,7 @@ func resumeBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusR
 		}
 		original = extended
 		var apiErr *types.NewAPIError
-		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, *binding.StorageCredentials, store, original)
+		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, binding.StorageCredentials, store, original)
 		if apiErr != nil {
 			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 		}
@@ -327,27 +316,26 @@ func loadRealPersonAssetProfileAndProvider(userID int, personID string) (*model.
 	return profile, binding, nil
 }
 
-func loadBytePlusRealPersonAssetProfileAndStorage(userID int, personID string) (*model.BytePlusRealPersonProfile, *model.Channel, BytePlusCredentials, *types.NewAPIError) {
+func loadBytePlusRealPersonAssetProfileProviderAndStorage(userID int, personID string) (*model.BytePlusRealPersonProfile, *realPersonProviderBinding, BytePlusTempObjectStore, *types.NewAPIError) {
 	profile, err := model.GetBytePlusRealPersonProfileForUser(userID, strings.TrimSpace(personID))
 	if err != nil {
 		if model.IsBytePlusRealPersonNotFound(err) {
-			return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person not found"), types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+			return nil, nil, nil, assetError(errors.New("real person not found"), types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
 		}
-		return nil, nil, BytePlusCredentials{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		return nil, nil, nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	if profile.Status != model.BytePlusRealPersonProfileStatusActive || profile.UpstreamGroupId == nil || strings.TrimSpace(*profile.UpstreamGroupId) == "" {
-		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
+		return nil, nil, nil, assetError(errors.New("real person is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
 	}
 	binding, err := loadUsableRealPersonProviderBinding(profile.ChannelId, "")
-	if err != nil || binding == nil || binding.Channel == nil || binding.Channel.Type != constant.ChannelTypeBytePlus || binding.StorageCredentials == nil {
-		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	if err != nil || binding == nil || binding.Channel == nil {
+		return nil, nil, nil, assetError(errors.New("real person channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
-	channel := binding.Channel
-	creds := *binding.StorageCredentials
-	if !bytePlusRealPersonMultipartStorageAvailable(creds) {
-		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person storage credentials unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+	store, err := realPersonAssetMultipartStore(binding)
+	if err != nil {
+		return nil, nil, nil, assetError(err, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
-	return profile, channel, creds, nil
+	return profile, binding, store, nil
 }
 
 func validateBytePlusRealPersonAssetType(assetType string) *types.NewAPIError {
@@ -373,7 +361,7 @@ func hashURLRealPersonAssetRequest(personID, rawURL, assetType, name string) (st
 	})
 }
 
-func presignRealPersonAssetObject(ctx context.Context, creds BytePlusCredentials, store BytePlusTempObjectStore, object *model.BytePlusAssetTempObject) (string, *types.NewAPIError) {
+func presignRealPersonAssetObject(ctx context.Context, creds *BytePlusCredentials, store BytePlusTempObjectStore, object *model.BytePlusAssetTempObject) (string, *types.NewAPIError) {
 	if store == nil || object == nil {
 		return "", assetError(errors.New("temp object is unavailable"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
@@ -387,6 +375,23 @@ func presignRealPersonAssetObject(ctx context.Context, creds BytePlusCredentials
 		return "", assetError(errors.New("temp object presign failed"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	return strings.TrimSpace(signed), nil
+}
+
+func realPersonAssetMultipartStore(binding *realPersonProviderBinding) (BytePlusTempObjectStore, error) {
+	if binding == nil {
+		return nil, errors.New("real person channel unavailable")
+	}
+	if binding.StorageCredentials == nil {
+		if _, ok := binding.Provider.(tokenSpaceRealPersonProvider); !ok {
+			return nil, errors.New("real person storage credentials unavailable")
+		}
+		return newBytePlusGCSTempObjectStore()
+	}
+	creds := *binding.StorageCredentials
+	if !bytePlusRealPersonMultipartStorageAvailable(creds) {
+		return nil, errors.New("real person storage credentials unavailable")
+	}
+	return bytePlusTempObjectStoreFactory(creds)
 }
 
 func cleanupRealPersonAssetUpload(ctx context.Context, source realPersonAssetSource, store BytePlusTempObjectStore) {
@@ -413,7 +418,7 @@ func bytePlusRealPersonMultipartStorageAvailable(creds BytePlusCredentials) bool
 	}
 }
 
-func bytePlusTempObjectStoreForPersistedBucket(creds BytePlusCredentials, current BytePlusTempObjectStore, persistedBucket string) (BytePlusTempObjectStore, error) {
+func bytePlusTempObjectStoreForPersistedBucket(creds *BytePlusCredentials, current BytePlusTempObjectStore, persistedBucket string) (BytePlusTempObjectStore, error) {
 	provider, bucket := bytePlusTempObjectLocatorParts(persistedBucket)
 	if bucket == "" {
 		return nil, errors.New("temp object bucket is unavailable")
@@ -422,6 +427,9 @@ func bytePlusTempObjectStoreForPersistedBucket(creds BytePlusCredentials, curren
 		return current, nil
 	}
 	if provider == bytePlusTempObjectProviderTOS || provider == "" {
+		if creds == nil {
+			return nil, errors.New("persisted tos temp object storage is unavailable")
+		}
 		if provider == "" && creds.ValidateRealPersonAssetStorage() == nil && bytePlusTempObjectStoreMatchesBucket(current, bytePlusTempObjectProviderTOS, bucket) {
 			return current, nil
 		}
@@ -429,7 +437,7 @@ func bytePlusTempObjectStoreForPersistedBucket(creds BytePlusCredentials, curren
 			if creds.ValidateRealPersonAssetStorage() != nil {
 				return nil, errors.New("persisted tos temp object storage is unavailable")
 			}
-			return bytePlusTOSObjectStoreFactory(creds)
+			return bytePlusTOSObjectStoreFactory(*creds)
 		}
 		if provider == "" {
 			return nil, errors.New("legacy temp object bucket is unknown")
